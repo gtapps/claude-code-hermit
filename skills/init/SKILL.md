@@ -1,10 +1,10 @@
 ---
 name: init
-description: Initializes the autonomous agent in the current project. Creates the state directory, templates, OPERATOR.md, and config.json. Appends session discipline to CLAUDE.md. Detects installed hermit agents. Run once per project, like git init.
+description: Initializes the autonomous agent in the current project. Creates the state directory, templates, OPERATOR.md, and config.json. Appends session discipline to CLAUDE.md. Detects installed hermits. Run once per project, like git init.
 ---
 # Initialize Autonomous Agent
 
-Set up the autonomous agent for this project. This creates the per-project state directory, configures the project for session-based work, and optionally activates hermit agents.
+Set up the autonomous agent for this project. This creates the per-project state directory, configures the project for session-based work, and optionally activates hermits.
 
 ## Plan
 
@@ -39,16 +39,16 @@ Create the following directories and files:
 - Copy `HEARTBEAT.md.template` → `.claude/.claude-code-hermit/HEARTBEAT.md` (the operator's editable checklist)
 - Copy `bin/hermit-run`, `bin/hermit-start`, and `bin/hermit-stop` from `${CLAUDE_SKILL_DIR}/../../state-templates/bin/` into `.claude/.claude-code-hermit/bin/`. Ensure they are executable (`chmod +x`).
 
-### 3. Detect hermit agents
+### 3. Detect hermits
 
 Look for sibling plugin directories that extend Hermit:
 - Use Glob on `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json`
 - Read each found `plugin.json` and check if the `name` field contains "hermit" but is NOT "claude-code-hermit"
-- Known hermit agents: `claude-code-dev-hermit` (software development agents + workflows)
+- Known hermits: `claude-code-dev-hermit` (software development agents + workflows)
 
-If hermit agents are found:
-- List them and ask: "Activate a hermit agent for this project?"
-- If the operator selects one: read that hermit agent's `state-templates/CLAUDE-APPEND.md` and append it to the target project's CLAUDE.md (after the core append in step 5)
+If hermits are found:
+- List them and ask: "Activate a hermit for this project?"
+- If the operator selects one: read that hermit's `state-templates/CLAUDE-APPEND.md` and append it to the target project's CLAUDE.md (after the core append in step 5)
 - If none found or operator declines: skip
 
 ### 4. Setup wizard
@@ -157,7 +157,7 @@ Write the collected preferences to `.claude/.claude-code-hermit/config.json`:
 
 Replace `{project_name}` with the actual project directory name in the template.
 
-Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` to get the current plugin version and write it into `_hermit_versions["claude-code-hermit"]`. If a hermit agent was activated in step 3, also stamp its version.
+Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` to get the current plugin version and write it into `_hermit_versions["claude-code-hermit"]`. If a hermit was activated in step 3, also stamp its version.
 
 Resolve `${CLAUDE_PLUGIN_ROOT}` to an absolute path and write it as `_plugin_root`. This path is used by the wrapper scripts in `bin/` to locate the plugin's boot scripts.
 
@@ -224,7 +224,7 @@ Tell the operator: "I've scanned your project and drafted OPERATOR.md. A few que
 
 Ask all selected questions at once as a numbered batch. Accept short answers — the agent expands them into prose. If the operator says "skip" for any question, leave that section sparse.
 
-**Hermit agent extension:** If a hermit agent was activated in step 3 and provides a file at `state-templates/OPERATOR-QUESTIONS.md`, read it and append those questions to the batch after the core questions. The hermit agent's question file must include a "Maps to section" column for each question (e.g., `## Development Conventions`). In Phase 4, create or append to those sections in OPERATOR.md — if the section doesn't exist yet, add it after the core sections.
+**Hermit extension:** If a hermit was activated in step 3 and provides a file at `state-templates/OPERATOR-QUESTIONS.md`, read it and append those questions to the batch after the core questions. The hermit's question file must include a "Maps to section" column for each question (e.g., `## Development Conventions`). In Phase 4, create or append to those sections in OPERATOR.md — if the section doesn't exist yet, add it after the core sections.
 
 #### Phase 4 — Write final OPERATOR.md
 
@@ -234,7 +234,7 @@ Incorporate the operator's answers into the draft:
 - Strip all HTML comments from sections that have been filled in (both `<!-- Needs your input -->` and original template comments)
 - Keep `<!-- Needs your input -->` markers only on sections the operator skipped
 - Preserve the header comment at the top of the file (lines 1–5)
-- For hermit agent sections that don't exist yet, create them after the core sections
+- For hermit sections that don't exist yet, create them after the core sections
 
 Write the final version to `.claude/.claude-code-hermit/OPERATOR.md`.
 
@@ -250,7 +250,7 @@ Tell the operator: "OPERATOR.md is ready. You can review it at `.claude/.claude-
   - If no: read `${CLAUDE_SKILL_DIR}/../../state-templates/CLAUDE-APPEND.md` and append its contents to the end of CLAUDE.md
 - If CLAUDE.md doesn't exist: create it with the append block as the initial content
 
-If a hermit agent was activated in step 3, also append its CLAUDE-APPEND.md here.
+If a hermit was activated in step 3, also append its CLAUDE-APPEND.md here.
 
 ### 7. Update .gitignore
 
@@ -329,7 +329,7 @@ Config:
   Heartbeat: disabled
   Unattended mode: off
 
-Hermit agents: (none activated)
+Hermits: (none activated)
 
 Updated:
   CLAUDE.md — session discipline block appended

@@ -4,7 +4,7 @@ A Claude Code plugin providing session discipline and operational hygiene for au
 agents. No custom runtime, no server, no orchestration framework. Just markdown and
 JavaScript files that turn Claude Code into a disciplined, session-aware agent.
 Domain-specific capabilities (development workflows, specialized agents) are provided
-by separate hermit agents such as `claude-code-dev-hermit`.
+by separate hermits such as `claude-code-dev-hermit`.
 
 ---
 
@@ -32,7 +32,7 @@ by separate hermit agents such as `claude-code-dev-hermit`.
  │                                                                    │
  │   session-mgr (Sonnet)   ──  session lifecycle management         │
  │                                                                    │
- │   (Hermit agents add specialized agents here)                     │
+ │   (Hermits add specialized agents here)                           │
  └──────────────────────────────┬──────────────────────────────────────┘
                                 │
  ┌──────────────────────────────▼──────────────────────────────────────┐
@@ -139,7 +139,7 @@ all working knowledge between invocations.
 ## Layer 3: Agent Layer
 
 One built-in subagent with a defined model tier, tool permissions, and responsibility
-scope. Hermit agents extend this layer with specialized agents.
+scope. Hermits extend this layer with specialized agents.
 
 ### Subagent Summary
 
@@ -171,7 +171,7 @@ Key design principle:
 persists across sessions. This accumulated knowledge improves accuracy over time without
 consuming context window space.
 
-Hermit agents extend this layer. For example, `claude-code-dev-hermit` adds repo-mapper
+Hermits extend this layer. For example, `claude-code-dev-hermit` adds repo-mapper
 (Haiku), implementer (Sonnet, worktree-isolated), and reviewer (Sonnet, read-only).
 
 ---
@@ -227,7 +227,7 @@ Set it in `.claude/settings.json` under `env`.
 | `standard` | yes | yes | yes | yes |
 | `strict` | yes | yes | yes | yes |
 
-Default: **standard**. Hermit agents may register additional hooks that participate in
+Default: **standard**. Hermits may register additional hooks that participate in
 these profiles (for example, `claude-code-dev-hermit` adds a git push guard under the
 strict profile).
 
@@ -248,12 +248,12 @@ This runs `evaluate-session.js` only when `AGENT_HOOK_PROFILE` is `standard` or 
 > Does a `PreToolUse` hook fire when a subagent (e.g., implementer)
 > invokes a tool (e.g., Bash)?
 >
-> - If YES: Hermit agent hooks provide defense-in-depth alongside
+> - If YES: Hermit hooks provide defense-in-depth alongside
 >   agent-level `disallowedTools` and in-prompt forbidden actions.
 >   Document this as a reliable safety contract.
 > - If NO: Agent-level safety rules (disallowedTools, forbidden actions
 >   in agent markdown) are the ONLY enforcement mechanism for subagents.
->   Hermit agent hooks are main-session-only guardrails.
+>   Hermit hooks are main-session-only guardrails.
 >   Document this clearly so hermit authors don't build false assumptions.
 
 Hermit authors should not assume hooks fire on subagent tool calls until
@@ -265,7 +265,7 @@ and treat hooks as an additional layer if available.
 
 | Hook event   | If fires on subagents                                                       | If doesn't fire                                          |
 | ------------ | --------------------------------------------------------------------------- | -------------------------------------------------------- |
-| PreToolUse   | Hermit agent safety hooks protect subagent actions                          | Agent-level rules are the only safety net                |
+| PreToolUse   | Hermit safety hooks protect subagent actions                                | Agent-level rules are the only safety net                |
 | SessionStart | Context-loader runs for subagents (may waste tokens on unnecessary context) | Subagents start with only their agent definition context |
 | Stop         | Cost-tracker captures subagent cost separately                              | Subagent cost is rolled into the parent session's total  |
 
@@ -541,7 +541,7 @@ markdown and a handful of JavaScript hooks -- no framework required.
 
 For detailed skill documentation (usage, examples, subcommands), see [SKILLS.md](SKILLS.md).
 
-Hermit agents add specialized skills. For example, `claude-code-dev-hermit` provides
+Hermits add specialized skills. For example, `claude-code-dev-hermit` provides
 `/dev-session` and `/dev-parallel` for software development workflows.
 
 ---

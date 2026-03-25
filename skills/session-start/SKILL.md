@@ -57,4 +57,4 @@ Do NOT load all session reports — only the most recent one.
 
 ## First Session on a Codebase
 
-If this is the first session (no prior reports exist), explore the project structure using Glob and Read tools before proposing a plan. If a hermit agent provides a specialized orientation agent (e.g., repo-mapper from claude-code-dev-hermit), prefer that instead.
+If this is the first session (no prior reports exist), explore the project structure using Glob and Read tools before proposing a plan. If a hermit provides a specialized orientation agent (e.g., repo-mapper from claude-code-dev-hermit), prefer that instead.

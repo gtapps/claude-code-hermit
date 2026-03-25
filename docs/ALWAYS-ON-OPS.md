@@ -669,7 +669,7 @@ The `AGENT_HOOK_PROFILE` environment variable controls hook strictness:
 |---------|----------------|
 | `minimal` | Cost tracking only |
 | `standard` | Cost tracking + compact suggestions + session evaluation |
-| `strict` | All of standard + additional safety hooks from hermit agents |
+| `strict` | All of standard + additional safety hooks from hermits |
 
 For always-on production-adjacent work, use `strict`:
 
@@ -681,9 +681,9 @@ For always-on production-adjacent work, use `strict`:
 }
 ```
 
-### Hermit Agent Hooks
+### Hermit Hooks
 
-Hermit agents can register additional hooks. For example, `claude-code-dev-hermit` provides `git-push-guard` on the `strict` profile, blocking direct pushes to main, `--no-verify`, and `--force`.
+Hermits can register additional hooks. For example, `claude-code-dev-hermit` provides `git-push-guard` on the `strict` profile, blocking direct pushes to main, `--no-verify`, and `--force`.
 
 ### Secrets Handling
 
@@ -828,7 +828,7 @@ Once set up, your always-on agent:
 3. **Polls periodically** via `/loop` for monitoring or maintenance tasks
 4. **Tracks costs** automatically, with data visible in SHELL.md and via `/cost`
 5. **Recovers from crashes** by reading session state from disk on restart
-6. **Stays safe** via permission denials, hook profiles, and hermit agent safety hooks
+6. **Stays safe** via permission denials, hook profiles, and hermit safety hooks
 
 ---
 
@@ -965,7 +965,7 @@ For public repositories, consider adding `sessions/` to `.gitignore` to prevent 
 
 ### 8.7 Use the Strict Hook Profile
 
-The `strict` hook profile activates all safety hooks from the base plugin and any installed hermit agents, with no performance penalty. Set it in `.claude/settings.json`:
+The `strict` hook profile activates all safety hooks from the base plugin and any installed hermits, with no performance penalty. Set it in `.claude/settings.json`:
 
 ```json
 {

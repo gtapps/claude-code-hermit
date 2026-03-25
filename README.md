@@ -96,7 +96,7 @@ Hermit doesn't replace Claude Code with a custom runtime. It adds structure to w
 
 ---
 
-## Hermit Agents
+## Hermits
 
 Hermit core is intentionally generic — it handles sessions, proposals, and operational hygiene. The real power is building your own hermits for specific domains.
 
@@ -119,7 +119,7 @@ Anyone can build a specialized hermit — either as project-specific agents adde
 - **Project agents:** Drop a `.md` file in `.claude/agents/` with a system prompt and tool permissions. Instant specialist.
 - **Reusable hermits:** Package agents, skills, and hooks into a standalone plugin others can install.
 
-Both paths are covered in [CREATING-HERMIT-AGENT.md](docs/CREATING-HERMIT-AGENT.md).
+Both paths are covered in [CREATING-YOUR-OWN-HERMIT.md](docs/CREATING-YOUR-OWN-HERMIT.md).
 
 ---
 
@@ -132,7 +132,7 @@ Both paths are covered in [CREATING-HERMIT-AGENT.md](docs/CREATING-HERMIT-AGENT.
 | [ALWAYS-ON-OPS.md](docs/ALWAYS-ON-OPS.md) | Running as a persistent agent |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | 5-layer architecture, design decisions |
 | [UPGRADING.md](docs/UPGRADING.md) | Upgrade guide for plugin updates |
-| [CREATING-HERMIT-AGENT.md](docs/CREATING-HERMIT-AGENT.md) | Build your own hermit (project-level and reusable) |
+| [CREATING-YOUR-OWN-HERMIT.md](docs/CREATING-YOUR-OWN-HERMIT.md) | Create your own hermit (project-level and reusable) |
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
 | [OBSIDIAN-SETUP.md](docs/OBSIDIAN-SETUP.md) | Optional Obsidian dashboard |
 

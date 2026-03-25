@@ -1,16 +1,15 @@
-# Build Your Own Hermit
+# Create Your Own Hermit
 
 Hermit core handles sessions, proposals, cost tracking, and operational hygiene. It knows
 nothing about your domain. This guide covers how to make it yours — from quick
-project-level customization to building a reusable hermit agent others can install.
+project-level customization to building a reusable hermit others can install.
 
 **Two paths, one goal:**
 
 - **Project-level** — Drop agent and skill files into your project's `.claude/` directory.
   No separate repo, no publishing. This is how most people customize hermit.
-- **Reusable hermit agent** — Package agents, skills, and hooks into a standalone Claude
-  Code plugin. Install it across multiple projects, share it with others. This is how
-  `claude-code-dev-hermit` is built.
+- **Reusable hermit** — Package agents, skills, and hooks into a standalone Claude
+  Code plugin. Install it across multiple projects, share it with others.
 
 Start with project-level. Graduate to a reusable plugin when you find yourself copying
 the same agents between projects.
@@ -111,9 +110,9 @@ description: Deploys the current branch to staging or production. Use with /depl
 
 ---
 
-### Walkthrough: Billing SaaS Agent
+### Walkthrough: Billing SaaS Hermit
 
-A complete example of turning hermit into a purpose-built agent for a billing application.
+A complete example of turning hermit into a purpose-built billing specialist.
 
 #### OPERATOR.md
 
@@ -194,30 +193,27 @@ to billing code maintain the ledger invariants.
 
 #### The result
 
-A purpose-built billing SaaS agent with domain context in OPERATOR.md, a read-only
+A purpose-built billing hermit with domain context in OPERATOR.md, a read-only
 validator for billing invariants, strict hooks to prevent accidental pushes to main,
 and all the session discipline from hermit core.
 
 ---
 
-## Building a Reusable Hermit Agent
+## Building a Reusable Hermit
 
 When you find yourself copying the same agents and skills between projects, package them
-as a hermit agent — a standalone Claude Code plugin that anyone can install alongside
+as a reusable hermit — a standalone Claude Code plugin that anyone can install alongside
 core.
-
-This is how `claude-code-dev-hermit` is built. It adds repo-mapper, implementer, and
-reviewer agents, a `/dev-session` workflow, and a git-push-guard safety hook.
 
 > For the full Claude Code plugin system (manifests, structure, publishing):
 > [code.claude.com/docs/en/plugins](https://code.claude.com/docs/en/plugins)
 
 This section covers only the hermit-specific patterns.
 
-### How Core and Hermit Agents Interact
+### How Core and Your Hermit Interact
 
-Your hermit agent layers on top of core. Core handles session lifecycle (SHELL.md,
-archival, cost tracking, session evaluation). Your agent handles domain-specific work.
+Your hermit layers on top of core. Core handles session lifecycle (SHELL.md,
+archival, cost tracking, session evaluation). Your hermit handles domain-specific work.
 
 ```
 /claude-code-hermit:session-start  →  your domain workflow  →  /claude-code-hermit:session-close
@@ -237,9 +233,9 @@ Cost (via cost-tracker hook).
 `claude-code-{domain}-hermit`. Examples:
 `claude-code-data-hermit`, `claude-code-infra-hermit`, `claude-code-docs-hermit`.
 
-### Hermit-Specific Files
+### Required Files
 
-Beyond the standard Claude Code plugin structure, a hermit agent needs:
+Beyond the standard Claude Code plugin structure, a hermit needs:
 
 | File | Purpose |
 |---|---|
@@ -249,7 +245,7 @@ Beyond the standard Claude Code plugin structure, a hermit agent needs:
 
 ### Init Skill Pattern
 
-Every hermit agent needs an `init` skill that:
+Every hermit needs an `init` skill that:
 
 1. **Checks core prerequisite** — `.claude/.claude-code-hermit/` must exist
 2. **Is idempotent** — check for a marker comment in CLAUDE.md before appending
@@ -324,7 +320,7 @@ description: Full DOMAIN session workflow with quality gates.
 2. Run `/claude-code-hermit:session-close`
 ```
 
-### Hook Patterns for Hermit Agents
+### Hook Patterns
 
 Follow core's `scripts/` directory as the reference implementation:
 
@@ -350,7 +346,7 @@ at expected lifecycle points.
 
 ## Design Checklist
 
-Before publishing a reusable hermit agent:
+Before publishing a reusable hermit:
 
 - [ ] Every agent has `disallowedTools` — no unrestricted tool access
 - [ ] Destructive agents use `isolation: worktree` or explicit safety rules

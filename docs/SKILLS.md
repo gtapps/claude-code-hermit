@@ -12,7 +12,7 @@ Some skills **auto-trigger** when you type certain keywords in normal conversati
 | **SHELL.md** | The live working document for the current session. Lives at `.claude/.claude-code-hermit/sessions/SHELL.md`. |
 | **Proposal** | A captured improvement idea. Created during work, reviewed later by the operator (you). |
 | **Operator** | You — the human running the agent. |
-| **Hermit agent** | A separate plugin that adds specialized agents and skills on top of hermit core (e.g., `claude-code-dev-hermit` for software development). |
+| **Hermit** | A separate plugin that adds specialized agents and skills on top of hermit core (e.g., `claude-code-dev-hermit` for software development). |
 | **Channel** | A Telegram or Discord connection to the running agent via [Claude Code Channels](https://code.claude.com/docs/en/channels) (v2.1.80+). |
 
 ---
@@ -26,7 +26,7 @@ Start or resume a work session with full context loading and task tracking.
 **Usage:** `/claude-code-hermit:session`
 **Auto-triggers:** None
 
-The main entry point for working with the agent. It calls `session-start` to load context, asks you for a task (or resumes the active one), plans an ordered plan, executes work, and calls `session-close` when done. This is a generic workflow — hermit agents provide specialized versions (e.g., `/claude-code-dev-hermit:dev-session` adds code review and testing).
+The main entry point for working with the agent. It calls `session-start` to load context, asks you for a task (or resumes the active one), plans an ordered plan, executes work, and calls `session-close` when done. This is a generic workflow — hermits provide specialized versions (e.g., `/claude-code-dev-hermit:dev-session` adds code review and testing).
 
 **Example:**
 ```
@@ -303,7 +303,7 @@ Run this after updating the plugin (`claude plugin install`). It:
 3. Asks about any new settings introduced in the update
 4. Refreshes templates and boot scripts
 5. Updates the CLAUDE.md session discipline block
-6. Handles hermit agent upgrades if installed
+6. Handles hermit upgrades if installed
 
 If versions already match, it reports "up to date" and stops.
 

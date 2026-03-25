@@ -15,7 +15,7 @@ Common issues and their solutions.
 
 ## Hooks Not Firing
 
-- Check `AGENT_HOOK_PROFILE` in `.claude/settings.json`. Core hooks (cost-tracker, suggest-compact, session evaluation) require `standard` or `strict`. Hermit agent hooks (e.g., git-push-guard) require `strict`.
+- Check `AGENT_HOOK_PROFILE` in `.claude/settings.json`. Core hooks (cost-tracker, suggest-compact, session evaluation) require `standard` or `strict`. Hermit hooks (e.g., git-push-guard) require `strict`.
 - Verify `hooks/hooks.json` is valid JSON: `cat hooks/hooks.json | python3 -m json.tool`
 - Test a hook script manually: `echo '{}' | node scripts/cost-tracker.js`
 - If hooks fire for the main agent but not subagents, this is a known limitation. See [ARCHITECTURE.md](ARCHITECTURE.md) for details.

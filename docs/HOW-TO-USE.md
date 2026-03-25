@@ -254,7 +254,7 @@ Hooks run automatically at session boundaries. Three profiles are available:
 |---|---|---|
 | `minimal` | Cost tracking only | Low overhead, experimentation |
 | `standard` (default) | Cost tracking + compact suggestions + session evaluation | Day-to-day work |
-| `strict` | Everything in standard + additional safety hooks from hermit agents | Production-adjacent work |
+| `strict` | Everything in standard + additional safety hooks from hermits | Production-adjacent work |
 
 **To change the profile**, edit `.claude/settings.json`:
 

@@ -90,17 +90,17 @@ Only update files in `templates/`:
 - If the marker is not found: append the full CLAUDE-APPEND.md (same as init)
 - Report what changed
 
-### 7. Hermit agent upgrades
+### 7. Hermit upgrades
 
-- Detect installed hermit agents using the same logic as init: scan `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json` for names containing "hermit" that aren't "claude-code-hermit"
-- For each detected hermit agent:
-  - Read the hermit agent's `plugin.json` version
-  - Compare against `_hermit_versions[agent_name]` (default `"0.0.0"` if missing)
+- Detect installed hermits using the same logic as init: scan `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json` for names containing "hermit" that aren't "claude-code-hermit"
+- For each detected hermit:
+  - Read the hermit's `plugin.json` version
+  - Compare against `_hermit_versions[hermit_name]` (default `"0.0.0"` if missing)
   - If version gap exists:
-    - Read the hermit agent's `CHANGELOG.md` if it exists and present relevant entries
-    - Update the hermit agent's CLAUDE-APPEND block in CLAUDE.md (find marker, replace content)
-    - If the hermit agent provides an `UPGRADE.md` at its root, read it and follow its instructions
-    - Update `_hermit_versions[agent_name]` to the current hermit agent version
+    - Read the hermit's `CHANGELOG.md` if it exists and present relevant entries
+    - Update the hermit's CLAUDE-APPEND block in CLAUDE.md (find marker, replace content)
+    - If the hermit provides an `UPGRADE.md` at its root, read it and follow its instructions
+    - Update `_hermit_versions[hermit_name]` to the current hermit version
   - If no gap: skip silently
 
 ### 8. Ensure plugin permissions in settings.json
@@ -110,7 +110,7 @@ Same logic as init step 8: check `.claude/settings.json` for the plugin's requir
 ### 9. Write updated config
 
 - Merge new keys into existing config (existing operator values are never overwritten)
-- Update `_hermit_versions` with current versions for core and all detected hermit agents
+- Update `_hermit_versions` with current versions for core and all detected hermits
 - Write to `.claude/.claude-code-hermit/config.json`
 
 ### 10. Report
@@ -135,7 +135,7 @@ Templates updated:
 CLAUDE.md:
   Session discipline block updated
 
-Hermit agents:
+Hermits:
   claude-code-dev-hermit: v0.2.0 -> v0.3.0 (updated)
 
 Run /claude-code-hermit:hermit-settings to adjust any settings.

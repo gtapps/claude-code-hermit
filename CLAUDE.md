@@ -15,7 +15,7 @@ After install, run `/claude-code-hermit:init` in the target project to create th
 
 ## Plugin Structure
 
-- `agents/` — subagent definitions (session-mgr only; hermit agent plugins add more subagents)
+- `agents/` — subagent definitions (session-mgr only; hermit plugins add more subagents)
 - `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, status, brief, monitor, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, pattern-detect, channel-responder, init, upgrade
 - `hooks/hooks.json` — hook registrations
 - `scripts/` — hook implementation scripts + boot scripts (hermit-start.py, hermit-stop.py)
@@ -69,7 +69,7 @@ All autonomous agent state lives in `.claude/.claude-code-hermit/`:
 |-------|------------|-------|
 | `session-mgr` | Session start, close, progress tracking | Sonnet |
 
-Additional agents may be available from installed hermit agent plugins (e.g., claude-code-dev-hermit).
+Additional agents may be available from installed hermits (e.g., claude-code-dev-hermit).
 
 ## Quick Reference
 

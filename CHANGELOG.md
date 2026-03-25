@@ -2,9 +2,9 @@
 
 ## [0.0.2] - 2026-03-25
 
-### Breaking Changes — Hermit Agent Authors Must Update
+### Breaking Changes — Hermit Authors Must Update
 
-Core terminology and filenames have changed. Hermit agent plugins (e.g., `claude-code-dev-hermit`) must update their references to match.
+Core terminology and filenames have changed. Hermit plugins (e.g., `claude-code-dev-hermit`) must update their references to match.
 
 **Filename renames:**
 
@@ -13,8 +13,8 @@ Core terminology and filenames have changed. Hermit agent plugins (e.g., `claude
 | `sessions/ACTIVE.md` | `sessions/SHELL.md` |
 | `ACTIVE.md.template` | `SHELL.md.template` |
 | `NEXT-MISSION.md` | `NEXT-TASK.md` |
-| `CREATING-DOMAIN-PACK.md` | `CREATING-HERMIT-AGENT.md` |
-| `CREATING-PROJECT-AGENT.md` | _(merged into CREATING-HERMIT-AGENT.md)_ |
+| `CREATING-DOMAIN-PACK.md` | `CREATING-YOUR-OWN-HERMIT.md` |
+| `CREATING-PROJECT-AGENT.md` | _(merged into CREATING-YOUR-OWN-HERMIT.md)_ |
 
 **Section renames in SHELL.md / session reports:**
 
@@ -30,18 +30,19 @@ Core terminology and filenames have changed. Hermit agent plugins (e.g., `claude
 
 | Old | New |
 |-----|-----|
-| Domain pack | Hermit agent |
+| Domain pack | Hermit |
+| Hermit agent | Hermit |
 | Mission (session goal) | Task |
 | Steps (ordered work items) | Plan |
 | Discoveries | Findings |
 
-**What hermit agent authors need to do:**
+**What hermit authors need to do:**
 
 1. Update all file path references: `sessions/ACTIVE.md` → `sessions/SHELL.md`
 2. Update section references: `## Mission` → `## Task`, `## Steps` → `## Plan`, `## Discoveries` → `## Findings`
 3. Update `NEXT-MISSION.md` → `NEXT-TASK.md` in any skill that reads/writes it
 4. Update `CLAUDE-APPEND.md` to use new section names
-5. Replace "domain pack" with "hermit agent" in docs and skill descriptions
+5. Replace "domain pack" or "hermit agent" with "hermit" in docs and skill descriptions
 6. Run `/claude-code-hermit:upgrade` in target projects to refresh templates
 
 ### Added
@@ -49,9 +50,10 @@ Core terminology and filenames have changed. Hermit agent plugins (e.g., `claude
 - **Cross-references** — ARCHITECTURE.md and HOW-TO-USE.md link to the new lifecycle sections
 
 ### Changed
-- **README rewrite** — new intro, Quick Start with channels step, "What It Does" / "What Makes It Different" / "Hermit Agents" sections
-- **Consolidated docs** — CREATING-PROJECT-AGENT.md and CREATING-DOMAIN-PACK.md merged into CREATING-HERMIT-AGENT.md ("Build Your Own Hermit")
-- **Trimmed generic content** — CREATING-HERMIT-AGENT.md now references official Claude Code plugin docs instead of duplicating frontmatter/hook/skill field tables
+- **README rewrite** — new intro, Quick Start with channels step, "What It Does" / "What Makes It Different" / "Hermits" sections
+- **Consolidated docs** — CREATING-PROJECT-AGENT.md and CREATING-DOMAIN-PACK.md merged into CREATING-YOUR-OWN-HERMIT.md ("Create Your Own Hermit")
+- **Trimmed generic content** — CREATING-YOUR-OWN-HERMIT.md now references official Claude Code plugin docs instead of duplicating frontmatter/hook/skill field tables
+- **Terminology cleanup** — "hermit agent" replaced with "hermit" across all files (~57 occurrences in 17 files). A hermit is a domain-specific plugin (e.g., dev hermit, infra hermit), not an "agent"
 
 ---
 
@@ -73,4 +75,4 @@ Core terminology and filenames have changed. Hermit agent plugins (e.g., `claude
 - **Agent identity settings** — name, language, timezone, escalation, sign-off
 - **Upgrade skill** with version tracking in config.json
 - **OPERATOR.md onboarding** — agent-driven project context generation
-- **Documentation** — HOW-TO-USE, ARCHITECTURE, SKILLS, ALWAYS-ON-OPS, UPGRADING, TROUBLESHOOTING, CREATING-HERMIT-AGENT, OBSIDIAN-SETUP
+- **Documentation** — HOW-TO-USE, ARCHITECTURE, SKILLS, ALWAYS-ON-OPS, UPGRADING, TROUBLESHOOTING, CREATING-YOUR-OWN-HERMIT, OBSIDIAN-SETUP

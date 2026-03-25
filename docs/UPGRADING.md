@@ -1,6 +1,6 @@
 # Upgrading
 
-This guide covers upgrading claude-code-hermit and its hermit agents in existing projects.
+This guide covers upgrading claude-code-hermit and its hermits in existing projects.
 
 ---
 
@@ -43,20 +43,20 @@ If you prefer not to use the upgrade skill, you can:
 
 ---
 
-## Hermit Agent Upgrade
+## Hermit Upgrade
 
-Hermit agents (e.g., `claude-code-dev-hermit`) are upgraded the same way:
+Hermits (e.g., `claude-code-dev-hermit`) are upgraded the same way:
 
 ```bash
 claude plugin marketplace add your-org/claude-code-dev-hermit   # re-fetch
 ```
 
-Then run `/claude-code-hermit:upgrade` — it automatically detects hermit agent version gaps and handles them:
-- Updates the hermit agent's CLAUDE-APPEND block in your project's CLAUDE.md
-- Follows the hermit agent's `UPGRADE.md` instructions if it provides one
-- Shows the hermit agent's changelog entries for the version gap
+Then run `/claude-code-hermit:upgrade` — it automatically detects hermit version gaps and handles them:
+- Updates the hermit's CLAUDE-APPEND block in your project's CLAUDE.md
+- Follows the hermit's `UPGRADE.md` instructions if it provides one
+- Shows the hermit's changelog entries for the version gap
 
-Each hermit agent's version is tracked independently in `_hermit_versions`:
+Each hermit's version is tracked independently in `_hermit_versions`:
 
 ```json
 {
@@ -110,13 +110,13 @@ This field is metadata — don't edit it manually.
 
 ---
 
-## For Hermit Agent Authors
+## For Hermit Authors
 
-If you maintain a hermit agent and want to support upgrades:
+If you maintain a hermit and want to support upgrades:
 
 1. **Keep `plugin.json` version updated** — the upgrade skill reads this
 2. **Maintain a `CHANGELOG.md`** — the upgrade skill shows entries to the operator
-3. **Optionally provide `UPGRADE.md`** — hermit-agent-specific upgrade instructions the agent follows (e.g., re-ask OPERATOR.md questions, update custom hooks)
+3. **Optionally provide `UPGRADE.md`** — hermit-specific upgrade instructions the agent follows (e.g., re-ask OPERATOR.md questions, update custom hooks)
 4. **Keep `state-templates/CLAUDE-APPEND.md` current** — the upgrade skill replaces the old block automatically
 
-See [CREATING-HERMIT-AGENT.md](CREATING-HERMIT-AGENT.md) for the full hermit agent structure. For details on any skill mentioned in this guide, see [SKILLS.md](SKILLS.md).
+See [CREATING-YOUR-OWN-HERMIT.md](CREATING-YOUR-OWN-HERMIT.md) for the full hermit structure. For details on any skill mentioned in this guide, see [SKILLS.md](SKILLS.md).
