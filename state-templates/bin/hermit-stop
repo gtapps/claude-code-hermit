@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Gracefully stop a running hermit session.
+# Run from project root: .claude/.claude-code-hermit/bin/hermit-stop [--force]
+exec "$(dirname "$0")/hermit-run" hermit-stop.py "$@"

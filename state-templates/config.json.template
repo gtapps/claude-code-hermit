@@ -1,0 +1,29 @@
+{
+  "_hermit_versions": {},
+  "_plugin_root": null,
+  "agent_name": null,
+  "language": null,
+  "timezone": null,
+  "escalation": "balanced",
+  "sign_off": null,
+  "channels": [],
+  "remote": true,
+  "model": null,
+  "skip_permissions": false,
+  "tmux_session_name": "hermit-{project_name}",
+  "auto_session": true,
+  "ask_budget": true,
+  "always_on": true,
+  "morning_brief": null,
+  "heartbeat": {
+    "enabled": false,
+    "every": "30m",
+    "show_ok": false,
+    "active_hours": {
+      "start": "08:00",
+      "end": "23:00"
+    },
+    "self_eval_interval": 20,
+    "total_ticks": 0
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'AGENT_DIR=\".claude/.claude-code-hermit\"; echo \"---Session Context---\"; [ -f \"$AGENT_DIR/OPERATOR.md\" ] && head -50 \"$AGENT_DIR/OPERATOR.md\"; echo \"---Active Session---\"; [ -f \"$AGENT_DIR/sessions/ACTIVE.md\" ] && cat \"$AGENT_DIR/sessions/ACTIVE.md\" || echo \"No active session\"; echo \"---Last Report---\"; ls -t \"$AGENT_DIR\"/sessions/S-*-REPORT.md 2>/dev/null | head -1 | xargs cat 2>/dev/null || echo \"No previous sessions\"; bash \"${CLAUDE_PLUGIN_ROOT}/scripts/check-upgrade.sh\" \"${CLAUDE_PLUGIN_ROOT}\"'"
+          }
+        ],
+        "description": "Load session context on startup"
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/cost-tracker.js",
+            "timeout": 10
+          }
+        ],
+        "description": "Track token and cost metrics per session"
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/suggest-compact.js",
+            "timeout": 5
+          }
+        ],
+        "description": "Suggest compaction when context is filling up"
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/run-with-profile.js standard,strict scripts/session-diff.js",
+            "timeout": 10
+          }
+        ],
+        "description": "Auto-populate changed files in ACTIVE.md from git diff"
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/evaluate-session.js",
+            "timeout": 10
+          }
+        ],
+        "description": "Evaluate session quality (mission status, steps tracked, blockers documented)"
+      }
+    ]
+  }
+}

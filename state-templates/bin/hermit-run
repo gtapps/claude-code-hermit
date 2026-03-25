@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Dispatcher for hermit boot scripts — resolves plugin path from config.json
+# Usage: hermit-run <script.py> [args...]
+# Called by hermit-start and hermit-stop wrappers.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CONFIG="$SCRIPT_DIR/../config.json"
+TARGET="${1:?Usage: hermit-run <script.py> [args...]}"
+shift
+
+if [ ! -f "$CONFIG" ]; then
+  echo "[hermit] No config found at $CONFIG" >&2
+  echo "[hermit] Run /claude-code-hermit:init inside Claude Code first." >&2
+  exit 1
+fi
+
+PLUGIN_ROOT=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('_plugin_root',''))" "$CONFIG")
+
+# Auto-discover new version directory when stored path is stale after plugin upgrade
+if [ -n "$PLUGIN_ROOT" ] && [ ! -d "$PLUGIN_ROOT" ]; then
+  PARENT_DIR="$(dirname "$PLUGIN_ROOT")"
+  if [ -d "$PARENT_DIR" ]; then
+    LATEST=""
+    for d in "$PARENT_DIR"/*/; do
+      [ -d "$d/scripts" ] && LATEST="$d"
+    done
+    if [ -n "$LATEST" ]; then
+      PLUGIN_ROOT="${LATEST%/}"
+      echo "[hermit] Plugin updated — resolved new path: $PLUGIN_ROOT" >&2
+      python3 -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    cfg = json.load(f)
+cfg['_plugin_root'] = sys.argv[2]
+with open(sys.argv[1], 'w') as f:
+    json.dump(cfg, f, indent=2)
+    f.write('\n')
+" "$CONFIG" "$PLUGIN_ROOT" 2>/dev/null || echo "[hermit] Warning: could not update config.json with new path" >&2
+    fi
+  fi
+fi
+
+if [ -z "$PLUGIN_ROOT" ] || [ ! -d "$PLUGIN_ROOT" ]; then
+  echo "[hermit] Plugin root not found or invalid: $PLUGIN_ROOT" >&2
+  echo "[hermit] Run /claude-code-hermit:upgrade inside Claude Code to fix." >&2
+  exit 1
+fi
+
+SCRIPT="$PLUGIN_ROOT/scripts/$TARGET"
+if [ ! -f "$SCRIPT" ]; then
+  echo "[hermit] $TARGET not found at $PLUGIN_ROOT/scripts/" >&2
+  echo "[hermit] Plugin may be corrupted. Reinstall with: claude plugin install claude-code-hermit@claude-code-hermit" >&2
+  exit 1
+fi
+
+exec python3 "$SCRIPT" "$@"

@@ -1,0 +1,14 @@
+{
+  "name": "claude-code-hermit",
+  "owner": {
+    "name": "gtapps"
+  },
+  "plugins": [
+    {
+      "name": "claude-code-hermit",
+      "source": "./",
+      "description": "Autonomous agent with session discipline, subagents, and operational hygiene for Claude Code",
+      "version": "0.0.1"
+    }
+  ]
+}

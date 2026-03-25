@@ -1,0 +1,22 @@
+# Proposal: PROP-NNN — [Title]
+
+- **Created:** YYYY-MM-DD
+- **Session:** S-NNN
+- **Status:** proposed | accepted | deferred | rejected | resolved
+- **Source:** manual | auto-detected
+- **Related Sessions:**
+
+## Context
+<!-- What session/task surfaced this? -->
+
+## Problem
+<!-- What's currently wrong or missing? -->
+
+## Proposed Solution
+<!-- Concrete, actionable steps -->
+
+## Impact
+<!-- Effort vs benefit estimate -->
+
+## Operator Decision
+<!-- Filled in by operator during review -->

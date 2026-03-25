@@ -1,0 +1,4 @@
+
+# claude-code-hermit
+.claude/cost-log.jsonl
+.claude/.claude-code-hermit/config.json

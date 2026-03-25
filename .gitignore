@@ -1,0 +1,32 @@
+# Cost tracking logs
+.claude/cost-log.jsonl
+
+# Node
+node_modules/
+
+# Temp files
+*.tmp
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Session local state (settings.local.json is per-developer)
+.claude/settings.local.json
+
+# Hermit session state (ephemeral; proposals/ and OPERATOR.md are tracked)
+.claude/.claude-code-hermit/sessions/
+.claude/.claude-code-hermit/templates/
+
+# Claude Code internal state
+.claude/worktrees/
+.claude/agent-memory/
+
+# History
+.history/

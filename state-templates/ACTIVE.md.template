@@ -1,0 +1,42 @@
+# Active Session
+
+## Session Info
+- **ID:** S-NNN (assigned on close)
+- **Started:** YYYY-MM-DD HH:MM
+- **Status:** in_progress
+- **Tags:** <!-- e.g., refactor, frontend, urgent -->
+- **Budget:** <!-- Set during session-start, or leave blank -->
+- **Missions Completed:** 0
+- **Session Mode:** <!-- interactive | always_on — set by session-start -->
+
+## Mission
+<!-- What is this session trying to accomplish? -->
+
+## Steps
+| # | Step | Status | Notes |
+|---|------|--------|-------|
+| 1 | | planned | |
+| 2 | | planned | |
+| 3 | | planned | |
+
+## Progress Log
+<!-- Append entries as work progresses -->
+<!-- Format: [HH:MM] Did X — result/outcome -->
+
+## Blockers
+<!-- What's preventing progress? Include enough context for the next session. -->
+
+## Discoveries
+<!-- Anything unexpected found during work. Proposal-worthy items get their own file. -->
+
+## Changed
+<!-- Populated by session-diff hook, or list files manually -->
+
+## Monitoring
+<!-- Active monitors (/claude-code-hermit:monitor) and heartbeat ticks (/claude-code-hermit:heartbeat) append here -->
+
+## Session Summary
+<!-- One-line entries per completed mission (always-on mode). Added on idle transition. -->
+
+## Cost
+<!-- Populated by cost-tracker hook -->
