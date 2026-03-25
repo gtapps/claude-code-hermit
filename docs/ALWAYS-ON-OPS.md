@@ -109,28 +109,68 @@ screen -r claude-agent
 
 ## 1b. Always-On Session Lifecycle
 
-In always-on mode, the session persists across mission boundaries. This is the key model for preventing heartbeat, monitor, and channel connections from dying between missions.
+In always-on mode, the session persists across task boundaries. This is the key model for preventing heartbeat, monitor, and channel connections from dying between tasks.
 
 ### How It Works
 
 1. `hermit-start` launches the agent and sets `always_on: true` in config.json
-2. Agent starts a session (ACTIVE.md created, Status: `in_progress`)
-3. Mission completes → `/session-close` defaults to **idle transition**:
-   - Mission report archived as `S-NNN-REPORT.md`
-   - ACTIVE.md resets mission fields, Status → `idle`
-   - Session Summary accumulates mission history
+2. Agent starts a session (SHELL.md created, Status: `in_progress`)
+3. Task completes → `/session-close` defaults to **idle transition**:
+   - Task report archived as `S-NNN-REPORT.md`
+   - SHELL.md resets task fields, Status → `idle`
+   - Session Summary accumulates task history
    - Heartbeat and monitors keep running
-4. New mission arrives (via channel, NEXT-MISSION.md, or operator) → Status → `in_progress`
+4. New task arrives (via channel, NEXT-TASK.md, or operator) → Status → `in_progress`
 5. Repeat 3-4 indefinitely
-6. `hermit-stop` triggers full shutdown: close mission → stop heartbeat → archive session → kill tmux
+6. `hermit-stop` triggers full shutdown: close task → stop heartbeat → archive session → kill tmux
 
 ### Session State Flow
 
 ```
-hermit-start → [in_progress] → mission done → [idle] → new mission → [in_progress] → ...
-                                                                                        ↓
-                                                                              hermit-stop → [archived]
+hermit-start
+  → [in_progress] → task done → [idle]
+                                      │
+                        new task ───┘ (repeat)
+                                      │
+                         hermit-stop ──→ [archived]
 ```
+
+### Close Mode Decision Tree
+
+When `/session-close` is invoked, the agent decides between two modes:
+
+```
+/session-close invoked
+     │
+     ├── Explicit "--shutdown" or "full close"?
+     │       YES → Full Shutdown
+     │
+     ├── Explicit "--idle" or "task complete"?
+     │       YES → Idle Transition
+     │
+     └── No explicit intent
+             │
+             ├── config.always_on == true?
+             │       YES → default to Idle Transition
+             │       NO  → default to Full Shutdown
+             │
+             └── Confirm with operator (uses default if unattended)
+```
+
+**What happens in each mode:**
+
+| | Idle Transition | Full Shutdown |
+|---|---|---|
+| **When** | Task done, session stays open | Operator wants everything to stop |
+| **Report archived** | Yes → S-NNN-REPORT.md | Yes → S-NNN-REPORT.md |
+| **Pattern-detect runs** | Yes (self-learning fires) | Yes (self-learning fires) |
+| **SHELL.md** | Reset in-place (Status → `idle`) | Replaced with fresh template |
+| **Task fields cleared** | Yes (Plan, Progress, Blockers, Changed) | Yes (entire file replaced) |
+| **Session fields preserved** | Yes (Monitoring, Cost, Session Summary) | No (new template) |
+| **Heartbeat** | Keeps running | Stopped |
+| **Channels** | Stay connected | Disconnected |
+| **Remote control** | Stays accessible | Gone |
+| **Next task** | Arrives via channel/terminal | Requires new `hermit-start` |
 
 ### Manual Override
 
@@ -142,21 +182,158 @@ During always-on operation, the operator can:
 
 ### Edge Cases
 
-- **Process death during mission**: ACTIVE.md persists on disk with Status `in_progress`. On restart, `session-start` detects it and offers to resume.
-- **Process death during idle**: ACTIVE.md persists with Status `idle`. On restart, `session-start` detects idle and asks for next mission.
+- **Process death during task**: SHELL.md persists on disk with Status `in_progress`. On restart, `session-start` detects it and offers to resume.
+- **Process death during idle**: SHELL.md persists with Status `idle`. On restart, `session-start` detects idle and asks for next task.
 - **Manual /session-close during always-on**: The confirmation prompt shows "Idle transition" as default. Operator can choose full shutdown.
 - **hermit-start when already running**: Prints guidance message and exits (no duplicate sessions).
 
-### Why Sessions Don't Close Between Missions
+### Why Sessions Don't Close Between Tasks
 
-`/loop` (which powers heartbeat and monitors) is scoped to the Claude Code process. When the process ends, all loops die. By keeping the session open between missions:
+`/loop` (which powers heartbeat and monitors) is scoped to the Claude Code process. When the process ends, all loops die. By keeping the session open between tasks:
 
 - Heartbeat keeps ticking overnight
 - Channel connections stay live
 - Monitors continue polling
 - Remote control remains accessible
 
-If you close the session and start a new process, all of these must be re-established — and the heartbeat loop from the old process is gone forever.
+If you close the session and start a new process, all of these must be re-established -- and the heartbeat loop from the old process is gone forever.
+
+---
+
+## 1c. The Always-On Task Loop
+
+Section 1b describes the state transitions. This section shows what it looks like over time — tasks arriving, reports archiving, and the learning loop activating.
+
+```
+hermit-start
+  │
+  ├── Sets config.always_on = true
+  ├── Launches Claude Code in tmux (with channels, remote control)
+  ├── Auto-sends /claude-code-hermit:session
+  ├── Starts heartbeat loop (if enabled)
+  │
+  ▼
+╔══════════════════════════════════════════════════════════════════════╗
+║  ALWAYS-ON LOOP (single Claude Code process, single SHELL.md)      ║
+║                                                                     ║
+║  Task 1 arrives (channel, terminal, or NEXT-TASK.md)               ║
+║    ├── Status → in_progress                                         ║
+║    ├── Work (SHELL.md tracks plan, progress, blockers)              ║
+║    ├── Stop hooks fire after every assistant turn:                   ║
+║    │     cost-tracker.js    → logs cost to SHELL.md + cost-log      ║
+║    │     suggest-compact.js → warns at 60% context usage            ║
+║    │     session-diff.js    → auto-populates Changed section        ║
+║    │     evaluate-session.js → scores session quality               ║
+║    └── Task complete → /session-close (defaults to idle)            ║
+║          ├── Finalize SHELL.md                                      ║
+║          ├── pattern-detect (skipped — fewer than 3 reports)        ║
+║          ├── Archive → S-001-REPORT.md                              ║
+║          └── Status → idle                                          ║
+║                                                                     ║
+║  Task 2 arrives via channel                                         ║
+║    ├── session-start detects Status: idle → asks for task           ║
+║    ├── Status → in_progress                                         ║
+║    ├── Work...                                                      ║
+║    └── Task complete → idle transition                              ║
+║          ├── pattern-detect (skipped — only 2 reports)              ║
+║          └── Archive → S-002-REPORT.md                              ║
+║                                                                     ║
+║  Task 3 completes → idle transition                                 ║
+║          ├── pattern-detect (NOW ACTIVE — 3 reports exist)          ║
+║          │     Reads S-001, S-002, S-003                            ║
+║          │     Compares blockers, workarounds, costs, tags          ║
+║          │     Auto-creates proposals if patterns found             ║
+║          └── Archive → S-003-REPORT.md                              ║
+║                                                                     ║
+║  Task 4+ — learning loop runs at every task boundary                ║
+║          ├── Detects new patterns                                   ║
+║          ├── Checks if accepted proposals resolved the issue        ║
+║          └── Sends channel alerts for new auto-proposals            ║
+║                                                                     ║
+║  Throughout: heartbeat ticks every 30m (or configured interval)     ║
+║     └── Every 20 ticks: self-evaluates checklist effectiveness      ║
+║                                                                     ║
+║  hermit-stop → /session-close --shutdown → full close → kill tmux   ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+Each task boundary (idle transition or full shutdown) produces an archived report. These reports are the raw material for pattern detection.
+
+---
+
+## 1d. When Self-Learning Fires
+
+The self-learning loop is powered by the `pattern-detect` skill. It runs at one specific moment: during session close, after SHELL.md is finalized but before the report is archived. This applies to both idle transitions and full shutdowns.
+
+### What Triggers It
+
+```
+Task complete
+  │
+  ▼
+session-close
+  ├── 1. Finalize SHELL.md (plan, blockers, lessons)
+  ├── 2. Create manual proposals (if findings found)
+  ├── 3. pattern-detect ◄── SELF-LEARNING RUNS HERE
+  │         ├── Read last 5 S-NNN-REPORT.md files
+  │         ├── Extract: Blockers, Progress Log, Summary
+  │         ├── Run 4 detection categories (see below)
+  │         ├── Dedup against existing proposals
+  │         ├── Auto-create PROP-NNN.md if new pattern found
+  │         ├── Check if accepted proposals are resolved
+  │         └── Send channel alert if new proposals created
+  ├── 4. Archive → S-NNN-REPORT.md
+  └── 5. Reset or replace SHELL.md
+```
+
+### The Four Detection Categories
+
+| Category | What it detects | Threshold |
+|---|---|---|
+| **Blocker recurrence** | Same blocker appearing across sessions (semantic match, not exact string) | 3+ sessions |
+| **Workaround repetition** | Same temporary fix applied repeatedly ("worked around", "manually", "temporary fix") | 2+ sessions |
+| **Cost trend** | Spending increasing significantly across recent sessions | Last-3 avg >50% above prior-3, AND >$1.00 absolute |
+| **Tag correlation** | Sessions sharing a tag consistently closing as blocked or partial | 3+ sessions with same tag closing non-successfully |
+
+### Activation Timeline
+
+Pattern detection requires **at least 3 archived session reports** to have enough data. Here's what happens over the first sessions:
+
+| After Task | Reports Available | Pattern Detection | Learning Status |
+|---|---|---|---|
+| 1 | 1 | Skipped | No data yet |
+| 2 | 2 | Skipped | Not enough data |
+| 3 | 3 | **Active** | First patterns may be detected |
+| 4 | 4 | Active | Compares last 5 (or all available) |
+| 5+ | 5+ | Active | Rolling window of last 5 reports |
+
+### The Feedback Loop
+
+Self-learning is not just detection — it closes the loop:
+
+```
+Detect pattern → Create auto-proposal → Operator accepts → Fix applied
+                                                               │
+                 ┌─────────────────────────────────────────────┘
+                 ▼
+  3 sessions pass without recurrence → Auto-resolve proposal
+```
+
+1. **Detection:** Pattern-detect finds a recurring issue and creates `PROP-NNN.md` with `Source: auto-detected`
+2. **Operator review:** `/proposal-list` shows auto-proposals prominently. `/proposal-act accept` marks it accepted and optionally creates a `NEXT-TASK.md`
+3. **Fix:** The next session picks up `NEXT-TASK.md` as its task and implements the fix
+4. **Verification:** On subsequent task closes, pattern-detect checks accepted proposals — if the pattern hasn't recurred in 3 sessions, the proposal is auto-marked `resolved`
+
+The operator is always in the loop. Auto-proposals are created but never auto-applied. The agent suggests; you decide.
+
+### Heartbeat Self-Evaluation
+
+The heartbeat provides a second, lighter learning channel. It tracks a `total_ticks` counter in `config.json` (persists across tasks). Every N ticks (default 20), it evaluates checklist effectiveness:
+
+- Items that were OK for all recent ticks → suggest removal (stale checks)
+- Recent auto-proposals about recurring issues → suggest adding a relevant check
+
+Self-evaluation suggestions are reported to the operator, never auto-applied.
 
 ---
 
@@ -192,8 +369,8 @@ The `channel-responder` skill (bundled with the plugin) classifies inbound messa
 
 | Message Type | Example | Agent Response |
 |-------------|---------|----------------|
-| Status request | "what are you working on?" | Concise summary from ACTIVE.md |
-| New instruction | "work on the auth module" | Confirms and updates mission |
+| Status request | "what are you working on?" | Concise summary from SHELL.md |
+| New instruction | "work on the auth module" | Confirms and updates task |
 | Question | "why did you change X?" | Answers in session context |
 | Emergency | "stop" / "abort" | Halts work, marks session blocked |
 
@@ -286,10 +463,10 @@ The `/loop` command runs a slash command repeatedly at a fixed interval. This tu
 ```
 
 This runs `/session-start` every 5 minutes. Each iteration:
-- Loads session context (ACTIVE.md)
+- Loads session context (SHELL.md)
 - Checks progress and blockers
-- Performs the next step if the mission is in progress
-- Updates ACTIVE.md with results
+- Performs the next step if the task is in progress
+- Updates SHELL.md with results
 
 ### Use Cases
 
@@ -297,19 +474,19 @@ This runs `/session-start` every 5 minutes. Each iteration:
 ```
 /loop 10m /session-start
 ```
-Set the mission to "Monitor the staging deployment, check logs for errors, and alert me if anything fails."
+Set the task to "Monitor the staging deployment, check logs for errors, and alert me if anything fails."
 
 **Scheduled maintenance:**
 ```
 /loop 15m /session-start
 ```
-Set the mission to "Run the test suite, check for dependency updates, and summarize findings."
+Set the task to "Run the test suite, check for dependency updates, and summarize findings."
 
 **Periodic health checks:**
 ```
 /loop 5m /session-start
 ```
-Set the mission to "Check application health endpoints and report any failures via channel."
+Set the task to "Check application health endpoints and report any failures via channel."
 
 ### Interval Guidelines
 
@@ -332,7 +509,7 @@ Set the mission to "Check application health endpoints and report any failures v
 The `cost-tracker` hook (bundled with the plugin as `scripts/cost-tracker.js`) runs on every `Stop` event and:
 
 1. Logs token usage and estimated cost to `.claude/cost-log.jsonl`
-2. Injects a `## Cost` section into `sessions/ACTIVE.md` with running totals
+2. Injects a `## Cost` section into `sessions/SHELL.md` with running totals
 3. Outputs a summary line to the console
 
 ### Monitoring Costs
@@ -414,7 +591,7 @@ The agent's state is designed to survive any disconnect -- SSH drops, terminal c
 
 ### Where State Lives
 
-All session state is in `sessions/ACTIVE.md`. This is a plain file on disk, not in memory. A disconnect loses the in-memory conversation context, but the mission, progress, and blockers are all persisted.
+All session state is in `sessions/SHELL.md`. This is a plain file on disk, not in memory. A disconnect loses the in-memory conversation context, but the task, progress, and blockers are all persisted.
 
 ### What Happens on Reconnect
 
@@ -428,12 +605,12 @@ claude --dangerously-skip-permissions
 
 2. **The SessionStart hook fires automatically** and loads:
    - `OPERATOR.md` -- project context and constraints
-   - `sessions/ACTIVE.md` -- current mission, progress, blockers
+   - `sessions/SHELL.md` -- current task, progress, blockers
    - The most recent `sessions/S-*-REPORT.md` -- continuity from past sessions
 
 3. **The `session-start` skill detects the active session** and presents:
-   - What the mission was
-   - Which steps are done, in progress, or blocked
+   - What the task was
+   - Which plan items are done, in progress, or blocked
    - What to do next
 
 4. **You confirm whether to resume or start fresh.**
@@ -446,11 +623,11 @@ $ tmux attach -t claude-agent
 
 > [Session Context Loaded]
 > Active session found: "Migrate auth module to OAuth2"
-> Progress: 3/5 steps complete
+> Progress: 3/5 plan items complete
 > Current step: "Update token refresh logic" (in_progress)
 > Blockers: None
 >
-> Continue this mission, or start a new one?
+> Continue this task, or start a new one?
 ```
 
 You just type "continue" and the agent picks up where it left off.
@@ -492,7 +669,7 @@ The `AGENT_HOOK_PROFILE` environment variable controls hook strictness:
 |---------|----------------|
 | `minimal` | Cost tracking only |
 | `standard` | Cost tracking + compact suggestions + session evaluation |
-| `strict` | All of standard + additional safety hooks from domain packs |
+| `strict` | All of standard + additional safety hooks from hermit agents |
 
 For always-on production-adjacent work, use `strict`:
 
@@ -504,9 +681,9 @@ For always-on production-adjacent work, use `strict`:
 }
 ```
 
-### Domain Pack Hooks
+### Hermit Agent Hooks
 
-Domain packs can register additional hooks. For example, `claude-code-dev-hermit` provides `git-push-guard` on the `strict` profile, blocking direct pushes to main, `--no-verify`, and `--force`.
+Hermit agents can register additional hooks. For example, `claude-code-dev-hermit` provides `git-push-guard` on the `strict` profile, blocking direct pushes to main, `--no-verify`, and `--force`.
 
 ### Secrets Handling
 
@@ -605,7 +782,7 @@ The default checklist checks for unblocked steps, changed conditions, and unrevi
 - Check if the staging deploy is healthy
 ```
 
-Heartbeat respects `active_hours` (default 08:00-23:00) and only sends channel alerts when something needs attention. OK results are logged silently to ACTIVE.md.
+Heartbeat respects `active_hours` (default 08:00-23:00) and only sends channel alerts when something needs attention. OK results are logged silently to SHELL.md.
 
 ### Step 5b: Ad-hoc Monitoring
 
@@ -615,7 +792,7 @@ For task-specific monitoring (not background health), use the monitor skill:
 /claude-code-hermit:monitor check API health at https://api.example.com/health — every 10m
 ```
 
-Findings are automatically logged to ACTIVE.md.
+Findings are automatically logged to SHELL.md.
 
 ### Step 6: Access Remotely
 
@@ -638,8 +815,8 @@ tmux list-sessions
 # Check cost log is being written
 tail -5 ~/my-project/.claude/cost-log.jsonl
 
-# Check ACTIVE.md has recent updates
-cat ~/my-project/.claude/.claude-code-hermit/sessions/ACTIVE.md
+# Check SHELL.md has recent updates
+cat ~/my-project/.claude/.claude-code-hermit/sessions/SHELL.md
 ```
 
 ### Putting It All Together
@@ -649,9 +826,9 @@ Once set up, your always-on agent:
 1. **Runs continuously** in a tmux session that survives disconnects
 2. **Accepts commands** via Telegram/Discord/iMessage from your phone
 3. **Polls periodically** via `/loop` for monitoring or maintenance tasks
-4. **Tracks costs** automatically, with data visible in ACTIVE.md and via `/cost`
+4. **Tracks costs** automatically, with data visible in SHELL.md and via `/cost`
 5. **Recovers from crashes** by reading session state from disk on restart
-6. **Stays safe** via permission denials, hook profiles, and domain pack safety hooks
+6. **Stays safe** via permission denials, hook profiles, and hermit agent safety hooks
 
 ---
 
@@ -788,7 +965,7 @@ For public repositories, consider adding `sessions/` to `.gitignore` to prevent 
 
 ### 8.7 Use the Strict Hook Profile
 
-The `strict` hook profile activates all safety hooks from the base plugin and any installed domain packs, with no performance penalty. Set it in `.claude/settings.json`:
+The `strict` hook profile activates all safety hooks from the base plugin and any installed hermit agents, with no performance penalty. Set it in `.claude/settings.json`:
 
 ```json
 {
@@ -800,9 +977,9 @@ The `strict` hook profile activates all safety hooks from the base plugin and an
 
 We suggest `strict` for always-on agents — there is no performance penalty.
 
-### 8.8 Set a Mission Budget
+### 8.8 Set a Task Budget
 
-Hermit's mission budget caps spending per session. The `cost-tracker` hook warns at 80% of the budget and recommends closing the session at 100%.
+Hermit's task budget caps spending per session. The `cost-tracker` hook warns at 80% of the budget and recommends closing the session at 100%.
 
 Configure the default budget via `/claude-code-hermit:hermit-settings budget`. Starting conservative ($5-10) is reasonable for overnight sessions. You can always start a new session with a higher budget if the work needs it. Without a budget, a confused agent can burn through your quota before you wake up.
 
@@ -827,7 +1004,7 @@ Run through this before starting an always-on agent:
 - [ ] No Docker socket mounted (if using Docker)
 - [ ] No production credentials accessible to the agent
 - [ ] Strict hook profile enabled (`AGENT_HOOK_PROFILE=strict`)
-- [ ] Mission budget set (start with $5-10 for overnight)
+- [ ] Task budget set (start with $5-10 for overnight)
 - [ ] Heartbeat enabled (if using channels)
 - [ ] OPERATOR.md includes approval constraints (e.g., "do not merge without human review")
 - [ ] Session reports reviewed before pushing to remote
@@ -935,8 +1112,8 @@ Container restarts (OOM-kill, orchestrator restart, host reboot) trigger hermit'
 
 1. The container restarts and runs the boot script
 2. The boot script starts Claude Code, which fires the SessionStart hook
-3. The hook detects an orphaned `sessions/ACTIVE.md` (from the crashed session)
-4. The agent offers to resume the previous mission or start fresh
+3. The hook detects an orphaned `sessions/SHELL.md` (from the crashed session)
+4. The agent offers to resume the previous task or start fresh
 
 This is the same recovery flow described in [Section 5](#5-reconnecting-after-disconnects), but it happens automatically inside the container.
 
@@ -960,19 +1137,19 @@ Rate limit pauses are **silent** -- the agent does not throw an error or send a 
 
 ```markdown
 ## Constraints
-If you hit a rate limit, update ACTIVE.md with a note: "Rate limited at [timestamp]. Waiting for reset."
+If you hit a rate limit, update SHELL.md with a note: "Rate limited at [timestamp]. Waiting for reset."
 ```
 
 This ensures the agent documents the pause, so you can see what happened when you check in.
 
 ### Data Persistence
 
-`sessions/ACTIVE.md` is gitignored by default. If the disk fails or the container is destroyed, the in-progress session state is lost. Completed session reports (`sessions/S-NNN-REPORT.md`) are committed and survive.
+`sessions/SHELL.md` is gitignored by default. If the disk fails or the container is destroyed, the in-progress session state is lost. Completed session reports (`sessions/S-NNN-REPORT.md`) are committed and survive.
 
 Three options for protecting in-progress state:
 
 1. **Docker named volume** -- attach a named volume to the `.claude/.claude-code-hermit/sessions/` directory. Survives container rebuilds.
-2. **Remove from .gitignore** -- commit `ACTIVE.md` along with reports. Adds noise to your git history but ensures nothing is lost.
+2. **Remove from .gitignore** -- commit `SHELL.md` along with reports. Adds noise to your git history but ensures nothing is lost.
 3. **Periodic commit to a separate branch** -- add an instruction in the heartbeat checklist to commit session state to a `hermit/session-state` branch periodically.
 
 ### Channel Resilience
@@ -982,16 +1159,16 @@ If Telegram, Discord, or iMessage goes down, the agent keeps running -- it just 
 **Mitigations:**
 
 - **Enable Remote Control** as a backup path. It uses Anthropic's servers, independent of Telegram/Discord/iMessage. See [Section 1: Reconnecting from Anywhere](#reconnecting-from-anywhere).
-- **Heartbeat continues running** when channels are down. Pending alerts are not replayed when the channel comes back, but the full history is recorded in `ACTIVE.md`.
-- **Check ACTIVE.md directly** via SSH or tmux if channels are unavailable.
+- **Heartbeat continues running** when channels are down. Pending alerts are not replayed when the channel comes back, but the full history is recorded in `SHELL.md`.
+- **Check SHELL.md directly** via SSH or tmux if channels are unavailable.
 
 ### Multi-Operator Warning
 
 Hermit assumes a **single operator per project**. If two people start sessions in the same project directory simultaneously:
 
-- Session ID collisions will occur (both agents write to the same `ACTIVE.md`)
+- Session ID collisions will occur (both agents write to the same `SHELL.md`)
 - Cost tracking will merge data from both agents
-- Session reports may contain interleaved progress from different missions
+- Session reports may contain interleaved progress from different tasks
 
 **For team use:** Give each operator a separate branch or git worktree, each with its own `.claude/.claude-code-hermit/` state directory. This keeps session state isolated.
 

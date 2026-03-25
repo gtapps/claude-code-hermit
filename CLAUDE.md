@@ -15,7 +15,7 @@ After install, run `/claude-code-hermit:init` in the target project to create th
 
 ## Plugin Structure
 
-- `agents/` — subagent definitions (session-mgr only; additional agents from packs)
+- `agents/` — subagent definitions (session-mgr only; hermit agent plugins add more subagents)
 - `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, status, brief, monitor, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, pattern-detect, channel-responder, init, upgrade
 - `hooks/hooks.json` — hook registrations
 - `scripts/` — hook implementation scripts + boot scripts (hermit-start.py, hermit-stop.py)
@@ -25,7 +25,7 @@ After install, run `/claude-code-hermit:init` in the target project to create th
 ## Per-Project State
 
 When installed in a target project, state lives in `.claude/.claude-code-hermit/`:
-- `sessions/ACTIVE.md` — current session (with tags, budget, monitoring)
+- `sessions/SHELL.md` — current session (with tags, budget, monitoring)
 - `sessions/S-NNN-REPORT.md` — archived reports
 - `proposals/PROP-NNN.md` — improvement proposals
 - `templates/` — session and proposal templates
@@ -48,16 +48,16 @@ Then run `/claude-code-hermit:init` to set up the target project.
 
 ## Session Discipline (claude-code-hermit)
 
-- On startup, always check `.claude/.claude-code-hermit/sessions/ACTIVE.md`
-- If a session is active: resume it — read the mission, progress, and blockers
-- If no session is active: ask the operator for a mission before starting work
+- On startup, always check `.claude/.claude-code-hermit/sessions/SHELL.md`
+- If a session is active: resume it — read the task, progress, and blockers
+- If no session is active: ask the operator for a task before starting work
 - Use `/claude-code-hermit:session-start` to initialize and `/claude-code-hermit:session-close` to end sessions
 - Never create session or proposal files by hand — use the skills
 
 ## Agent State Directory
 
 All autonomous agent state lives in `.claude/.claude-code-hermit/`:
-- `sessions/ACTIVE.md` — live working document for the current session
+- `sessions/SHELL.md` — live working document for the current session
 - `sessions/S-NNN-REPORT.md` — archived session reports
 - `proposals/PROP-NNN.md` — improvement proposals
 - `templates/` — templates for sessions and proposals
@@ -69,7 +69,7 @@ All autonomous agent state lives in `.claude/.claude-code-hermit/`:
 |-------|------------|-------|
 | `session-mgr` | Session start, close, progress tracking | Sonnet |
 
-Additional agents may be available from installed packs (e.g., claude-code-dev-hermit).
+Additional agents may be available from installed hermit agent plugins (e.g., claude-code-dev-hermit).
 
 ## Quick Reference
 

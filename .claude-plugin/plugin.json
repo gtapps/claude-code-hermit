@@ -1,6 +1,6 @@
 {
   "name": "claude-code-hermit",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Autonomous agent with session discipline, subagents, and operational hygiene for Claude Code",
   "author": {
     "name": "gtapps"

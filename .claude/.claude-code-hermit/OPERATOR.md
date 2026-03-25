@@ -13,7 +13,7 @@ Operator: gtapps. Goal: keep the plugin lean, composable, and useful for teams r
 - Plugin must remain zero-dependency (no npm packages, no build step)
 - No new files without clear purpose — the current ~30-file footprint is a feature
 - Never modify `.claude-plugin/plugin.json` version field without a release decision
-- All scripts must handle missing ACTIVE.md gracefully (exit 0, no crash)
+- All scripts must handle missing SHELL.md gracefully (exit 0, no crash)
 - Hooks must be profile-gated or safe to run on any project
 
 ## Sensitive Areas

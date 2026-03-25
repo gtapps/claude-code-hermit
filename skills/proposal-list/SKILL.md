@@ -6,7 +6,7 @@ description: Lists all proposals with their status, source, and age. Shows auto-
 
 Lists all proposals with status, source, and age. Auto-detected proposals (from the learning loop) are listed first.
 
-## Steps
+## Plan
 
 ### 1. Read all proposals
 

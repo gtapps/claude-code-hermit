@@ -4,14 +4,14 @@ description: Analyzes recent session reports to detect recurring patterns — bl
 ---
 # Pattern Detect
 
-Analyzes recent session reports to detect recurring operational patterns. Creates auto-proposals when patterns are found. Invoked by the main agent during session-close, after finalizing ACTIVE.md but before archiving.
+Analyzes recent session reports to detect recurring operational patterns. Creates auto-proposals when patterns are found. Invoked by the main agent during session-close, after finalizing SHELL.md but before archiving.
 
 ## Prerequisites
 
 - At least 3 archived session reports must exist in `sessions/` (S-*-REPORT.md files)
 - If fewer than 3 reports exist: skip pattern detection entirely — not enough data
 
-## Steps
+## Plan
 
 ### 1. Read recent session reports (selective)
 
@@ -22,7 +22,7 @@ For each report, extract **only** these sections — do not read full reports:
 - `## Blockers` — blocker descriptions
 - `## Progress Log` — for workaround descriptions
 
-Also extract the current session's data from `ACTIVE.md` (same sections).
+Also extract the current session's data from `SHELL.md` (same sections).
 
 ### 2. Detect patterns
 
@@ -101,9 +101,9 @@ For each new pattern detected (not already covered by an existing proposal):
    - In the Proposed Solution section: suggest a concrete fix
    - Prefix the title with a category tag: `[blocker]`, `[workaround]`, `[cost-trend]`, or `[tag-correlation]`
 
-### 5. Update ACTIVE.md
+### 5. Update SHELL.md
 
-If any patterns were detected (new or existing), append a `## Patterns Detected` section to ACTIVE.md before it gets archived:
+If any patterns were detected (new or existing), append a `## Patterns Detected` section to SHELL.md before it gets archived:
 
 ```markdown
 ## Patterns Detected

@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'AGENT_DIR=\".claude/.claude-code-hermit\"; echo \"---Session Context---\"; [ -f \"$AGENT_DIR/OPERATOR.md\" ] && head -50 \"$AGENT_DIR/OPERATOR.md\"; echo \"---Active Session---\"; [ -f \"$AGENT_DIR/sessions/ACTIVE.md\" ] && cat \"$AGENT_DIR/sessions/ACTIVE.md\" || echo \"No active session\"; echo \"---Last Report---\"; ls -t \"$AGENT_DIR\"/sessions/S-*-REPORT.md 2>/dev/null | head -1 | xargs cat 2>/dev/null || echo \"No previous sessions\"; bash \"${CLAUDE_PLUGIN_ROOT}/scripts/check-upgrade.sh\" \"${CLAUDE_PLUGIN_ROOT}\"'"
+            "command": "bash -c 'AGENT_DIR=\".claude/.claude-code-hermit\"; echo \"---Session Context---\"; [ -f \"$AGENT_DIR/OPERATOR.md\" ] && head -50 \"$AGENT_DIR/OPERATOR.md\"; echo \"---Active Session---\"; [ -f \"$AGENT_DIR/sessions/SHELL.md\" ] && cat \"$AGENT_DIR/sessions/SHELL.md\" || echo \"No active session\"; echo \"---Last Report---\"; ls -t \"$AGENT_DIR\"/sessions/S-*-REPORT.md 2>/dev/null | head -1 | xargs cat 2>/dev/null || echo \"No previous sessions\"; bash \"${CLAUDE_PLUGIN_ROOT}/scripts/check-upgrade.sh\" \"${CLAUDE_PLUGIN_ROOT}\"'"
           }
         ],
         "description": "Load session context on startup"
@@ -44,7 +44,7 @@
             "timeout": 10
           }
         ],
-        "description": "Auto-populate changed files in ACTIVE.md from git diff"
+        "description": "Auto-populate changed files in SHELL.md from git diff"
       },
       {
         "matcher": "",
@@ -55,7 +55,7 @@
             "timeout": 10
           }
         ],
-        "description": "Evaluate session quality (mission status, steps tracked, blockers documented)"
+        "description": "Evaluate session quality (task status, plan tracked, blockers documented)"
       }
     ]
   }

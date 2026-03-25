@@ -6,17 +6,17 @@ description: Returns a 5-line executive summary of recent work. Checks active se
 
 Provide a concise executive summary of recent session activity. Designed for morning check-ins, phone/channel consumption, and quick status updates.
 
-## Steps
+## Plan
 
-1. Check if `.claude/.claude-code-hermit/sessions/ACTIVE.md` exists:
-   - If Status is `in_progress`: summarize the active mission (existing behavior below)
-   - If Status is `idle` (always-on session between missions): format as:
+1. Check if `.claude/.claude-code-hermit/sessions/SHELL.md` exists:
+   - If Status is `in_progress`: summarize the active task (existing behavior below)
+   - If Status is `idle` (always-on session between tasks): format as:
      ```
-     [Brief] YYYY-MM-DD | idle | N missions completed
+     [Brief] YYYY-MM-DD | idle | N tasks completed
      Session: always-on since [start date]
      Last: [latest Session Summary entry] — [status]
-     Cumulative: $X.XX across N missions
-     Status: Idle — awaiting next mission
+     Cumulative: $X.XX across N tasks
+     Status: Idle — awaiting next task
      ```
      Then check for auto-detected proposals (step after Output Format) and return.
 2. If no active session: find the most recent `.claude/.claude-code-hermit/sessions/S-*-REPORT.md` (sort by filename, take the highest number):
@@ -29,8 +29,8 @@ Keep the output to exactly 5 lines maximum:
 
 ```
 [Brief] YYYY-MM-DD | [tags if present]
-Mission: one-line description
-Status: completed/partial/blocked (X/Y steps) | $cost spent
+Task: one-line description
+Status: completed/partial/blocked (X/Y plan items) | $cost spent
 Done: step1, step2, step3
 Next: description of next action (or "Session complete" if all done)
 ```

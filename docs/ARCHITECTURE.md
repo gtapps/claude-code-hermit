@@ -4,7 +4,7 @@ A Claude Code plugin providing session discipline and operational hygiene for au
 agents. No custom runtime, no server, no orchestration framework. Just markdown and
 JavaScript files that turn Claude Code into a disciplined, session-aware agent.
 Domain-specific capabilities (development workflows, specialized agents) are provided
-by separate packs such as `claude-code-dev-hermit`.
+by separate hermit agents such as `claude-code-dev-hermit`.
 
 ---
 
@@ -21,7 +21,7 @@ by separate packs such as `claude-code-dev-hermit`.
  ┌──────────────────────────────▼──────────────────────────────────────┐
  │                    LAYER 2: SESSION LAYER                          │
  │                                                                    │
- │   sessions/ACTIVE.md ◄── live working state                       │
+ │   sessions/SHELL.md ◄── live working state                        │
  │   sessions/S-NNN-REPORT.md ◄── archived handoff artifacts         │
  │                                                                    │
  │   Lifecycle:  start ──► work ──► close ──► archive                │
@@ -32,7 +32,7 @@ by separate packs such as `claude-code-dev-hermit`.
  │                                                                    │
  │   session-mgr (Sonnet)   ──  session lifecycle management         │
  │                                                                    │
- │   (Domain packs add specialized agents here)                      │
+ │   (Hermit agents add specialized agents here)                     │
  └──────────────────────────────┬──────────────────────────────────────┘
                                 │
  ┌──────────────────────────────▼──────────────────────────────────────┐
@@ -79,7 +79,7 @@ The `channel-responder` skill handles inbound channel messages by classifying th
 (status request, new instruction, question, emergency) and responding with session
 context awareness.
 
-All channels converge on the same session state in `sessions/ACTIVE.md`. An operator
+All channels converge on the same session state in `sessions/SHELL.md`. An operator
 can start a session in the terminal, check status via Telegram, and the agent stays
 oriented.
 
@@ -87,7 +87,7 @@ oriented.
 
 ## Layer 2: Session Layer
 
-This is the plugin's core value proposition. Sessions provide bounded, mission-scoped
+This is the plugin's core value proposition. Sessions provide bounded, task-scoped
 work with durable handoff artifacts.
 
 ### Session Lifecycle
@@ -98,30 +98,33 @@ work with durable handoff artifacts.
   └─────────┘     └─────────┘     └─────────┘     └───────────┘
        │               │               │                │
        ▼               ▼               ▼                ▼
-  Create or        Update steps,   Finalize status,  Copy ACTIVE.md
+  Create or        Update plan,    Finalize status,  Copy SHELL.md
   resume           log progress,   record lessons,   to S-NNN-REPORT.md,
-  ACTIVE.md        track blockers  capture cost      reset ACTIVE.md with
+  SHELL.md         track blockers  capture cost      reset SHELL.md with
                                                      carry-forward items
 ```
 
-**Start.** The `session-start` skill checks for an existing `sessions/ACTIVE.md`.
+**Start.** The `session-start` skill checks for an existing `sessions/SHELL.md`.
 If one exists with status `in_progress`, the agent resumes it. If none exists (or the
 previous session is `completed`/`blocked`), a fresh session is created from
-`templates/ACTIVE.md.template`. The operator provides the mission.
+`templates/SHELL.md.template`. The operator provides the task.
 
-**Work.** During work, `sessions/ACTIVE.md` is the live document. Steps are tracked in
+**Work.** During work, `sessions/SHELL.md` is the live document. Plan items are tracked in
 a table with statuses: `planned`, `in_progress`, `blocked`, `done`. A progress log
 captures timestamped entries. Blockers are recorded with enough context for cold-start
 resumption.
 
 **Close.** The `session-close` skill runs a quality checklist before allowing close:
-mission status accurate, changed files listed, blockers documented with context, next
+task status accurate, changed files listed, blockers documented with context, next
 start point is actionable. Cost data from the `cost-tracker` hook is included if
-available.
+available. In always-on mode, session close defaults to an **idle transition** that
+archives the task report but keeps the session open for the next task. See
+[ALWAYS-ON-OPS.md, Section 1b](ALWAYS-ON-OPS.md#1b-always-on-session-lifecycle) for
+the full close-mode decision tree.
 
-**Archive.** The `session-mgr` agent copies `ACTIVE.md` to `sessions/S-NNN-REPORT.md`
-with a sequential ID, then resets `ACTIVE.md` with a fresh template that carries
-forward unfinished steps and blockers. The archived report is a complete, self-contained
+**Archive.** The `session-mgr` agent copies `SHELL.md` to `sessions/S-NNN-REPORT.md`
+with a sequential ID, then resets `SHELL.md` with a fresh template that carries
+forward unfinished plan items and blockers. The archived report is a complete, self-contained
 handoff artifact.
 
 ### Why Sessions Matter
@@ -136,7 +139,7 @@ all working knowledge between invocations.
 ## Layer 3: Agent Layer
 
 One built-in subagent with a defined model tier, tool permissions, and responsibility
-scope. Domain packs extend this layer with specialized agents.
+scope. Hermit agents extend this layer with specialized agents.
 
 ### Subagent Summary
 
@@ -168,7 +171,7 @@ Key design principle:
 persists across sessions. This accumulated knowledge improves accuracy over time without
 consuming context window space.
 
-Domain packs extend this layer. For example, `claude-code-dev-hermit` adds repo-mapper
+Hermit agents extend this layer. For example, `claude-code-dev-hermit` adds repo-mapper
 (Haiku), implementer (Sonnet, worktree-isolated), and reviewer (Sonnet, read-only).
 
 ---
@@ -207,11 +210,11 @@ They run without agent intervention.
 
 | Hook | Trigger | File | What it does |
 |------|---------|------|-------------|
-| Context loader | `SessionStart` | inline (settings.json) | Reads `OPERATOR.md`, `ACTIVE.md`, and latest session report into context |
-| Cost tracker | `Stop` | `cost-tracker.js` | Logs token usage and cost to `.claude/cost-log.jsonl`, updates `ACTIVE.md` |
+| Context loader | `SessionStart` | inline (settings.json) | Reads `OPERATOR.md`, `SHELL.md`, and latest session report into context |
+| Cost tracker | `Stop` | `cost-tracker.js` | Logs token usage and cost to `.claude/cost-log.jsonl`, updates `SHELL.md` |
 | Compact suggestion | `Stop` | `suggest-compact.js` | Suggests `/compact` when context usage exceeds 60% or tool call count passes threshold |
-| Session diff | `Stop` | `session-diff.js` | Auto-populates `## Changed` in `ACTIVE.md` from `git diff` (skips if already populated) |
-| Session evaluator | (invocable) | `evaluate-session.js` | Validates `ACTIVE.md` quality: status set, steps tracked, blockers documented, progress logged |
+| Session diff | `Stop` | `session-diff.js` | Auto-populates `## Changed` in `SHELL.md` from `git diff` (skips if already populated) |
+| Session evaluator | (invocable) | `evaluate-session.js` | Validates `SHELL.md` quality: status set, plan tracked, blockers documented, progress logged |
 
 ### Hook Profiles
 
@@ -224,7 +227,7 @@ Set it in `.claude/settings.json` under `env`.
 | `standard` | yes | yes | yes | yes |
 | `strict` | yes | yes | yes | yes |
 
-Default: **standard**. Domain packs may register additional hooks that participate in
+Default: **standard**. Hermit agents may register additional hooks that participate in
 these profiles (for example, `claude-code-dev-hermit` adds a git push guard under the
 strict profile).
 
@@ -245,15 +248,15 @@ This runs `evaluate-session.js` only when `AGENT_HOOK_PROFILE` is `standard` or 
 > Does a `PreToolUse` hook fire when a subagent (e.g., implementer)
 > invokes a tool (e.g., Bash)?
 >
-> - If YES: Domain pack hooks provide defense-in-depth alongside
+> - If YES: Hermit agent hooks provide defense-in-depth alongside
 >   agent-level `disallowedTools` and in-prompt forbidden actions.
 >   Document this as a reliable safety contract.
 > - If NO: Agent-level safety rules (disallowedTools, forbidden actions
 >   in agent markdown) are the ONLY enforcement mechanism for subagents.
->   Domain pack hooks are main-session-only guardrails.
->   Document this clearly so pack authors don't build false assumptions.
+>   Hermit agent hooks are main-session-only guardrails.
+>   Document this clearly so hermit authors don't build false assumptions.
 
-Pack authors should not assume hooks fire on subagent tool calls until
+Hermit authors should not assume hooks fire on subagent tool calls until
 this is verified. Design agent definitions with self-contained safety
 rules (disallowedTools, forbidden actions) as the primary enforcement,
 and treat hooks as an additional layer if available.
@@ -262,7 +265,7 @@ and treat hooks as an additional layer if available.
 
 | Hook event   | If fires on subagents                                                       | If doesn't fire                                          |
 | ------------ | --------------------------------------------------------------------------- | -------------------------------------------------------- |
-| PreToolUse   | Domain pack safety hooks protect subagent actions                           | Agent-level rules are the only safety net                |
+| PreToolUse   | Hermit agent safety hooks protect subagent actions                          | Agent-level rules are the only safety net                |
 | SessionStart | Context-loader runs for subagents (may waste tokens on unnecessary context) | Subagents start with only their agent definition context |
 | Stop         | Cost-tracker captures subagent cost separately                              | Subagent cost is rolled into the parent session's total  |
 
@@ -307,7 +310,7 @@ claude-code-hermit/                        # The plugin repo
 │   ├── pattern-detect/SKILL.md            #   Cross-session pattern detection
 │   └── channel-responder/SKILL.md         #   Channel message handling
 └── state-templates/                       # Copied into target projects by init
-    ├── ACTIVE.md.template
+    ├── SHELL.md.template
     ├── SESSION-REPORT.md.template
     ├── PROPOSAL.md.template
     ├── config.json.template
@@ -327,9 +330,9 @@ claude-code-hermit/                        # The plugin repo
 your-project/
 ├── .claude/
 │   ├── .claude-code-hermit/
-│   │   ├── sessions/ACTIVE.md             # Current session (live state)
+│   │   ├── sessions/SHELL.md              # Current session (live state)
 │   │   ├── sessions/S-NNN-REPORT.md       # Archived session reports
-│   │   ├── sessions/NEXT-MISSION.md        # Prepared mission from accepted proposal (temporary)
+│   │   ├── sessions/NEXT-TASK.md           # Prepared task from accepted proposal (temporary)
 │   │   ├── proposals/PROP-NNN.md          # Improvement proposals
 │   │   ├── templates/                     # Session and proposal templates
 │   │   ├── bin/                           # Boot script wrappers (hermit-start, hermit-stop)
@@ -370,10 +373,10 @@ has a different owner.
 │  └──────────────────────────────────────────────────────┘  │
 │                                                            │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │  sessions/ACTIVE.md                                 │  │
+│  │  sessions/SHELL.md                                  │  │
 │  │  Owner: Agent (managed by session-mgr)              │  │
-│  │  Contains: Current mission, step status, progress   │  │
-│  │  log, blockers, discoveries, cost data              │  │
+│  │  Contains: Current task, plan status, progress      │  │
+│  │  log, blockers, findings, cost data                 │  │
 │  │  Lifetime: One session (archived on close)          │  │
 │  └──────────────────────────────────────────────────────┘  │
 └────────────────────────────────────────────────────────────┘
@@ -388,7 +391,7 @@ operator preferences. The `SessionStart` hook loads it automatically.
 and recurring issues. These are stored by Claude Code internally and do not clutter
 the repo. The rule: engineering lessons go in auto-memory, not in files.
 
-**ACTIVE.md** is the live working document for the current session. It is the
+**SHELL.md** is the live working document for the current session. It is the
 operational state of the agent: what it is doing, what it has done, what is blocking
 it. On session close, it is archived as `S-NNN-REPORT.md` and a fresh template is
 created with carry-forward items.
@@ -414,7 +417,7 @@ Heartbeat ticks
 Operator reviews
   → /proposal-list shows all proposals (manual + auto-detected)
   → /proposal-act to accept, defer, or dismiss
-  → Accepted proposals become session missions via NEXT-MISSION.md
+  → Accepted proposals become session tasks via NEXT-TASK.md
 ```
 
 ### What this is NOT
@@ -427,7 +430,13 @@ creating actionable proposals with evidence, and refining the heartbeat checklis
 ### Pattern Detection
 
 The `pattern-detect` skill runs at session close (before archiving) and analyzes the
-last 5 session reports for four categories of patterns:
+last 5 session reports for four categories of patterns. It requires at least 3 archived
+reports to activate — fewer than that and it skips entirely. This means learning begins
+after the third completed task. For the full operational timeline showing when
+learning activates across tasks in always-on mode, see
+[ALWAYS-ON-OPS.md, Section 1d](ALWAYS-ON-OPS.md#1d-when-self-learning-fires).
+
+The four detection categories:
 
 1. **Blocker recurrence** — same blocker appearing in 3+ sessions
 2. **Workaround repetition** — same workaround applied in 2+ sessions
@@ -442,7 +451,9 @@ to avoid duplicates.
 
 The pattern detector also checks accepted auto-proposals: if the underlying pattern
 has not recurred in 3 sessions since acceptance, the proposal is marked `resolved`.
-This closes the detect → propose → fix → verify cycle.
+This closes the detect → propose → fix → verify cycle. For the step-by-step
+operational flow, see
+[ALWAYS-ON-OPS.md, Section 1d](ALWAYS-ON-OPS.md#1d-when-self-learning-fires).
 
 ### Proposal Lifecycle
 
@@ -455,16 +466,14 @@ proposed → accepted → resolved       (pattern fixed, verified)
 Proposals have a `Source` field (`manual` or `auto-detected`) and a `Related Sessions`
 field linking to evidence. The `/proposal-list` skill displays them with age and
 staleness warnings (open for 10+ sessions). The `/proposal-act` skill handles
-accept/defer/dismiss with optional NEXT-MISSION.md creation for accepted proposals.
+accept/defer/dismiss with optional NEXT-TASK.md creation for accepted proposals.
 
 ### Heartbeat Self-Evaluation
 
-The heartbeat tracks a `total_ticks` counter in config.json (persists across sessions).
-Every N ticks (configurable, default 20), it evaluates checklist effectiveness:
-- Items that were OK for all ticks → suggest removal
-- Recent auto-proposals about recurring issues → suggest adding a relevant check
-
-Self-evaluation suggestions are reported, never auto-applied.
+The heartbeat includes a self-evaluation mechanism that periodically assesses checklist
+effectiveness and suggests adding or removing checks. See
+[ALWAYS-ON-OPS.md, Section 1d](ALWAYS-ON-OPS.md#1d-when-self-learning-fires) for
+details.
 
 ---
 
@@ -532,7 +541,7 @@ markdown and a handful of JavaScript hooks -- no framework required.
 
 For detailed skill documentation (usage, examples, subcommands), see [SKILLS.md](SKILLS.md).
 
-Domain packs add specialized skills. For example, `claude-code-dev-hermit` provides
+Hermit agents add specialized skills. For example, `claude-code-dev-hermit` provides
 `/dev-session` and `/dev-parallel` for software development workflows.
 
 ---
@@ -565,7 +574,7 @@ These are hard blocks that cannot be overridden by the agent.
 2. Start Claude Code and run `/claude-code-hermit:init`
 3. Edit `.claude/.claude-code-hermit/OPERATOR.md` with your project context
 4. Run `/claude-code-hermit:session` to start your first session
-5. Provide a mission and let it work
+5. Provide a task and let it work
 
 For software development workflows, also install `claude-code-dev-hermit`, which adds
 the repo-mapper, implementer, and reviewer agents along with `/dev-session` and

@@ -190,7 +190,7 @@ def main():
     if result.returncode != 0:
         print(f'[hermit] Session "{session_name}" already running (always-on).')
         print(f'[hermit] Attach: tmux attach -t {session_name}')
-        print(f'[hermit] Send missions via channel, or run hermit-stop to shut down.')
+        print(f'[hermit] Send tasks via channel, or run hermit-stop to shut down.')
         sys.exit(0)
 
     print(f'[hermit] Started tmux session: {session_name}')
@@ -225,7 +225,7 @@ def main():
     else:
         print('[hermit] Heartbeat: disabled')
 
-    print(f'[hermit] Mode: always-on (session stays open between missions)')
+    print(f'[hermit] Mode: always-on (session stays open between tasks)')
     print(f'[hermit] Attach: tmux attach -t {session_name}')
     print(f'[hermit] Stop: python scripts/hermit-stop.py')
 

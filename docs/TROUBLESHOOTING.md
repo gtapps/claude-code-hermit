@@ -15,7 +15,7 @@ Common issues and their solutions.
 
 ## Hooks Not Firing
 
-- Check `AGENT_HOOK_PROFILE` in `.claude/settings.json`. Core hooks (cost-tracker, suggest-compact, session evaluation) require `standard` or `strict`. Domain pack hooks (e.g., git-push-guard) require `strict`.
+- Check `AGENT_HOOK_PROFILE` in `.claude/settings.json`. Core hooks (cost-tracker, suggest-compact, session evaluation) require `standard` or `strict`. Hermit agent hooks (e.g., git-push-guard) require `strict`.
 - Verify `hooks/hooks.json` is valid JSON: `cat hooks/hooks.json | python3 -m json.tool`
 - Test a hook script manually: `echo '{}' | node scripts/cost-tracker.js`
 - If hooks fire for the main agent but not subagents, this is a known limitation. See [ARCHITECTURE.md](ARCHITECTURE.md) for details.
@@ -23,7 +23,7 @@ Common issues and their solutions.
 ## Session-Start Hangs
 
 - **Workspace trust prompt:** If running with `--dangerously-skip-permissions` for the first time, Claude Code shows a trust dialog. Run `claude` interactively once in the project directory, accept the prompt, then restart the headless agent.
-- **Orphaned ACTIVE.md:** A previous crash left an active session. The agent is waiting for you to choose "resume" or "start new." Attach to tmux and respond, or delete `sessions/ACTIVE.md` to start fresh.
+- **Orphaned SHELL.md:** A previous crash left an active session. The agent is waiting for you to choose "resume" or "start new." Attach to tmux and respond, or delete `sessions/SHELL.md` to start fresh.
 - **Auth expired:** Check Claude Code auth with `claude --version`. If not authenticated, run `claude login` on the host.
 
 ## Costs Unexpectedly High
@@ -31,7 +31,7 @@ Common issues and their solutions.
 - Check `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` in settings (default 50 -- lower means more frequent compactions, which cost tokens).
 - Check heartbeat interval -- `every: 5m` with an Opus-class model is expensive. Use 15m or 30m.
 - Check if monitoring is running with a very short interval (`/claude-code-hermit:monitor stop` to halt).
-- Review ACTIVE.md size -- bloated files cost tokens on every read. Long sessions should compact progress log entries.
+- Review SHELL.md size -- bloated files cost tokens on every read. Long sessions should compact progress log entries.
 - Use `/cost` to check current session spend.
 
 ## Morning Brief Not Sending
@@ -50,7 +50,7 @@ Common issues and their solutions.
 
 ## Orphaned Session Detected on Every Start
 
-An `ACTIVE.md` exists from a previously crashed session. On every start, the agent asks whether to resume or start fresh.
+A `SHELL.md` exists from a previously crashed session. On every start, the agent asks whether to resume or start fresh.
 
 - Choose **resume** to pick up where you left off.
 - Choose **start new** to close the orphaned session (generates a partial report) and begin fresh.

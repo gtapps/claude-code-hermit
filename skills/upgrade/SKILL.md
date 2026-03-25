@@ -6,7 +6,7 @@ description: Upgrades hermit configuration and templates after a plugin update. 
 
 Upgrade the project's hermit configuration after a plugin update.
 
-## Steps
+## Plan
 
 ### 1. Read versions
 
@@ -69,7 +69,7 @@ Tell the operator: "New settings available in this version:" then present only t
 **Never touch:** sessions, proposals, OPERATOR.md, HEARTBEAT.md (operator-editable), or config.json (handled separately).
 
 Only update files in `templates/`:
-- `ACTIVE.md.template`
+- `SHELL.md.template`
 - `SESSION-REPORT.md.template`
 - `PROPOSAL.md.template`
 
@@ -90,17 +90,17 @@ Only update files in `templates/`:
 - If the marker is not found: append the full CLAUDE-APPEND.md (same as init)
 - Report what changed
 
-### 7. Domain pack upgrades
+### 7. Hermit agent upgrades
 
-- Detect installed packs using the same logic as init: scan `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json` for names containing "hermit" that aren't "claude-code-hermit"
-- For each detected pack:
-  - Read the pack's `plugin.json` version
-  - Compare against `_hermit_versions[pack_name]` (default `"0.0.0"` if missing)
+- Detect installed hermit agents using the same logic as init: scan `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json` for names containing "hermit" that aren't "claude-code-hermit"
+- For each detected hermit agent:
+  - Read the hermit agent's `plugin.json` version
+  - Compare against `_hermit_versions[agent_name]` (default `"0.0.0"` if missing)
   - If version gap exists:
-    - Read the pack's `CHANGELOG.md` if it exists and present relevant entries
-    - Update the pack's CLAUDE-APPEND block in CLAUDE.md (find marker, replace content)
-    - If the pack provides an `UPGRADE.md` at its root, read it and follow its instructions
-    - Update `_hermit_versions[pack_name]` to the current pack version
+    - Read the hermit agent's `CHANGELOG.md` if it exists and present relevant entries
+    - Update the hermit agent's CLAUDE-APPEND block in CLAUDE.md (find marker, replace content)
+    - If the hermit agent provides an `UPGRADE.md` at its root, read it and follow its instructions
+    - Update `_hermit_versions[agent_name]` to the current hermit agent version
   - If no gap: skip silently
 
 ### 8. Ensure plugin permissions in settings.json
@@ -110,7 +110,7 @@ Same logic as init step 8: check `.claude/settings.json` for the plugin's requir
 ### 9. Write updated config
 
 - Merge new keys into existing config (existing operator values are never overwritten)
-- Update `_hermit_versions` with current versions for core and all detected packs
+- Update `_hermit_versions` with current versions for core and all detected hermit agents
 - Write to `.claude/.claude-code-hermit/config.json`
 
 ### 10. Report
@@ -128,14 +128,14 @@ New settings configured:
   Sign-off:    Atlas out.
 
 Templates updated:
-  ACTIVE.md.template (refreshed)
+  SHELL.md.template (refreshed)
   SESSION-REPORT.md.template (unchanged)
   PROPOSAL.md.template (unchanged)
 
 CLAUDE.md:
   Session discipline block updated
 
-Domain packs:
+Hermit agents:
   claude-code-dev-hermit: v0.2.0 -> v0.3.0 (updated)
 
 Run /claude-code-hermit:hermit-settings to adjust any settings.

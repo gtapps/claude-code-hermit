@@ -25,7 +25,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings heartbeat      — enable/disable, interval, quiet mode, active hours
 ```
 
-## Steps
+## Plan
 
 ### 1. Read config
 
@@ -101,7 +101,7 @@ Update `model` in config.json. Set to `null` if operator says "none", "default",
 Note: "Model changes take effect on next `hermit-start` run."
 
 **If argument is "budget":**
-Ask: "Prompt for mission budget at session start? (always / never) [current value]"
+Ask: "Prompt for task budget at session start? (always / never) [current value]"
 Update `ask_budget` in config.json.
 
 **If argument is "brief":**

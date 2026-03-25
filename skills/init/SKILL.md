@@ -1,12 +1,12 @@
 ---
 name: init
-description: Initializes the autonomous agent in the current project. Creates the state directory, templates, OPERATOR.md, and config.json. Appends session discipline to CLAUDE.md. Detects installed domain packs. Run once per project, like git init.
+description: Initializes the autonomous agent in the current project. Creates the state directory, templates, OPERATOR.md, and config.json. Appends session discipline to CLAUDE.md. Detects installed hermit agents. Run once per project, like git init.
 ---
 # Initialize Autonomous Agent
 
-Set up the autonomous agent for this project. This creates the per-project state directory, configures the project for session-based work, and optionally activates domain packs.
+Set up the autonomous agent for this project. This creates the per-project state directory, configures the project for session-based work, and optionally activates hermit agents.
 
-## Steps
+## Plan
 
 ### 1. Check if already initialized
 
@@ -23,7 +23,7 @@ Create the following directories and files:
 ├── sessions/
 ├── proposals/
 ├── templates/
-│   ├── ACTIVE.md.template
+│   ├── SHELL.md.template
 │   ├── SESSION-REPORT.md.template
 │   └── PROPOSAL.md.template
 ├── bin/
@@ -34,22 +34,22 @@ Create the following directories and files:
 ```
 
 - Read the template files from `${CLAUDE_SKILL_DIR}/../../state-templates/`
-- Copy `ACTIVE.md.template`, `SESSION-REPORT.md.template`, `PROPOSAL.md.template` into `templates/`
+- Copy `SHELL.md.template`, `SESSION-REPORT.md.template`, `PROPOSAL.md.template` into `templates/`
 - **OPERATOR.md guard:** If `.claude/.claude-code-hermit/OPERATOR.md` already exists, do NOT copy the template over it. Remember this fact as `operator_existed = true` for use in step 5a. If it does not exist, copy `OPERATOR.md` from the templates into the state directory root.
 - Copy `HEARTBEAT.md.template` → `.claude/.claude-code-hermit/HEARTBEAT.md` (the operator's editable checklist)
 - Copy `bin/hermit-run`, `bin/hermit-start`, and `bin/hermit-stop` from `${CLAUDE_SKILL_DIR}/../../state-templates/bin/` into `.claude/.claude-code-hermit/bin/`. Ensure they are executable (`chmod +x`).
 
-### 3. Detect domain packs
+### 3. Detect hermit agents
 
 Look for sibling plugin directories that extend Hermit:
 - Use Glob on `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json`
 - Read each found `plugin.json` and check if the `name` field contains "hermit" but is NOT "claude-code-hermit"
-- Known packs: `claude-code-dev-hermit` (software development agents + workflows)
+- Known hermit agents: `claude-code-dev-hermit` (software development agents + workflows)
 
-If packs are found:
-- List them and ask: "Activate a domain pack for this project?"
-- If the operator selects a pack: read that pack's `state-templates/CLAUDE-APPEND.md` and append it to the target project's CLAUDE.md (after the core append in step 5)
-- If no packs found or operator declines: skip
+If hermit agents are found:
+- List them and ask: "Activate a hermit agent for this project?"
+- If the operator selects one: read that hermit agent's `state-templates/CLAUDE-APPEND.md` and append it to the target project's CLAUDE.md (after the core append in step 5)
+- If none found or operator declines: skip
 
 ### 4. Setup wizard
 
@@ -113,8 +113,8 @@ Ask: "Enable background heartbeat? Runs a checklist periodically and alerts you 
 - Record in config as `heartbeat: { "enabled": true, "every": "30m", "show_ok": false, "active_hours": { "start": "08:00", "end": "23:00" } }`
 - If declined or no channels: record `heartbeat.enabled: false`
 
-**4i. Mission budget**
-Ask: "Prompt for mission budget at session start? (always / never) [always]"
+**4i. Task budget**
+Ask: "Prompt for task budget at session start? (always / never) [always]"
 - Record as `ask_budget: true` or `false`
 
 **4j. Unattended mode**
@@ -157,7 +157,7 @@ Write the collected preferences to `.claude/.claude-code-hermit/config.json`:
 
 Replace `{project_name}` with the actual project directory name in the template.
 
-Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` to get the current plugin version and write it into `_hermit_versions["claude-code-hermit"]`. If a domain pack was activated in step 3, also stamp its version.
+Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` to get the current plugin version and write it into `_hermit_versions["claude-code-hermit"]`. If a hermit agent was activated in step 3, also stamp its version.
 
 Resolve `${CLAUDE_PLUGIN_ROOT}` to an absolute path and write it as `_plugin_root`. This path is used by the wrapper scripts in `bin/` to locate the plugin's boot scripts.
 
@@ -224,7 +224,7 @@ Tell the operator: "I've scanned your project and drafted OPERATOR.md. A few que
 
 Ask all selected questions at once as a numbered batch. Accept short answers — the agent expands them into prose. If the operator says "skip" for any question, leave that section sparse.
 
-**Domain pack extension:** If a domain pack was activated in step 3 and provides a file at `state-templates/OPERATOR-QUESTIONS.md`, read it and append those questions to the batch after the core questions. The pack's question file must include a "Maps to section" column for each question (e.g., `## Development Conventions`). In Phase 4, create or append to those sections in OPERATOR.md — if the section doesn't exist yet, add it after the core sections.
+**Hermit agent extension:** If a hermit agent was activated in step 3 and provides a file at `state-templates/OPERATOR-QUESTIONS.md`, read it and append those questions to the batch after the core questions. The hermit agent's question file must include a "Maps to section" column for each question (e.g., `## Development Conventions`). In Phase 4, create or append to those sections in OPERATOR.md — if the section doesn't exist yet, add it after the core sections.
 
 #### Phase 4 — Write final OPERATOR.md
 
@@ -234,7 +234,7 @@ Incorporate the operator's answers into the draft:
 - Strip all HTML comments from sections that have been filled in (both `<!-- Needs your input -->` and original template comments)
 - Keep `<!-- Needs your input -->` markers only on sections the operator skipped
 - Preserve the header comment at the top of the file (lines 1–5)
-- For domain pack sections that don't exist yet, create them after the core sections
+- For hermit agent sections that don't exist yet, create them after the core sections
 
 Write the final version to `.claude/.claude-code-hermit/OPERATOR.md`.
 
@@ -250,7 +250,7 @@ Tell the operator: "OPERATOR.md is ready. You can review it at `.claude/.claude-
   - If no: read `${CLAUDE_SKILL_DIR}/../../state-templates/CLAUDE-APPEND.md` and append its contents to the end of CLAUDE.md
 - If CLAUDE.md doesn't exist: create it with the append block as the initial content
 
-If a domain pack was activated in step 3, also append the pack's CLAUDE-APPEND.md here.
+If a hermit agent was activated in step 3, also append its CLAUDE-APPEND.md here.
 
 ### 7. Update .gitignore
 
@@ -281,7 +281,7 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
 ```
 
 **Why each one:**
-- `git diff`, `git status`, `git log` — session-diff.js hook auto-populates `## Changed` in ACTIVE.md
+- `git diff`, `git status`, `git log` — session-diff.js hook auto-populates `## Changed` in SHELL.md
 - `python3` — boot scripts (hermit-start.py, hermit-stop.py) and version checks
 - `node` — Stop hooks (cost-tracker.js, suggest-compact.js, session-diff.js, evaluate-session.js)
 - `bash -c 'AGENT_DIR=...` — SessionStart hook that loads session context on every startup
@@ -329,7 +329,7 @@ Config:
   Heartbeat: disabled
   Unattended mode: off
 
-Domain packs: (none activated)
+Hermit agents: (none activated)
 
 Updated:
   CLAUDE.md — session discipline block appended

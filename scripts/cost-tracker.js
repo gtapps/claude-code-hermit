@@ -1,6 +1,6 @@
 // Adapted from Everything Claude Code (https://github.com/affaan-m/everything-claude-code)
 // Original: scripts/hooks/cost-tracker.js — MIT License
-// Changes: Added ACTIVE.md cost injection for session tracking,
+// Changes: Added SHELL.md cost injection for session tracking,
 //          simplified pricing model, removed ECC-specific metric paths,
 //          added cumulative cost tracking and budget enforcement.
 
@@ -18,7 +18,7 @@ const PRICING = {
 
 const MAX_STDIN = 1024 * 1024; // 1MB safety limit
 const COST_LOG = path.resolve('.claude/cost-log.jsonl');
-const ACTIVE_SESSION = path.resolve('.claude/.claude-code-hermit/sessions/ACTIVE.md');
+const SHELL_SESSION = path.resolve('.claude/.claude-code-hermit/sessions/SHELL.md');
 
 function detectModel(modelStr) {
   if (!modelStr) return 'sonnet';
@@ -61,7 +61,7 @@ function getCumulativeCost() {
 
 function checkBudget(cumulativeCost) {
   try {
-    const content = fs.readFileSync(ACTIVE_SESSION, 'utf-8');
+    const content = fs.readFileSync(SHELL_SESSION, 'utf-8');
     const match = content.match(/\*\*Budget:\*\*\s*\$(\d+\.?\d*)/);
     if (!match) return;
 
@@ -80,9 +80,9 @@ function checkBudget(cumulativeCost) {
   }
 }
 
-function updateActiveSession(costStr, tokenStr) {
+function updateShellSession(costStr, tokenStr) {
   try {
-    let content = fs.readFileSync(ACTIVE_SESSION, 'utf-8');
+    let content = fs.readFileSync(SHELL_SESSION, 'utf-8');
     const costSection = `## Cost\n${costStr} (${tokenStr})`;
 
     if (content.includes('## Cost')) {
@@ -94,10 +94,10 @@ function updateActiveSession(costStr, tokenStr) {
       content = content.trimEnd() + '\n\n' + costSection + '\n';
     }
 
-    fs.writeFileSync(ACTIVE_SESSION, content, 'utf-8');
+    fs.writeFileSync(SHELL_SESSION, content, 'utf-8');
   } catch (err) {
     // Non-fatal — don't block on session update failure
-    console.error(`[cost-tracker] Failed to update ACTIVE.md: ${err.message}`);
+    console.error(`[cost-tracker] Failed to update SHELL.md: ${err.message}`);
   }
 }
 
@@ -154,8 +154,8 @@ async function main() {
     const costStr = `$${cumulative.cost.toFixed(4)}`;
     const tokenStr = `${Math.round(cumulative.tokens / 1000)}K tokens`;
 
-    // Update ACTIVE.md with cumulative cost data
-    updateActiveSession(costStr, tokenStr);
+    // Update SHELL.md with cumulative cost data
+    updateShellSession(costStr, tokenStr);
 
     // Check budget and warn if approaching/exceeding
     checkBudget(cumulative.cost);

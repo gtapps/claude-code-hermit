@@ -1,6 +1,6 @@
 ---
 name: proposal-act
-description: Accept, defer, or dismiss a proposal. For accepted proposals, asks how to proceed — create a session mission or note for manual implementation. Every auto-proposal requires operator action.
+description: Accept, defer, or dismiss a proposal. For accepted proposals, asks how to proceed — create a session task or note for manual implementation. Every auto-proposal requires operator action.
 ---
 # Proposal Act
 
@@ -28,22 +28,22 @@ When the operator accepts a proposal:
    ```
 
 4. Ask: **"How should this be implemented?"**
-   - **"Create a session mission"** → Write `.claude/.claude-code-hermit/sessions/NEXT-MISSION.md`:
+   - **"Create a session task"** → Write `.claude/.claude-code-hermit/sessions/NEXT-TASK.md`:
      ```markdown
-     # Next Mission (from PROP-NNN)
+     # Next Task (from PROP-NNN)
 
-     ## Mission
-     [One-line mission derived from the proposal's Proposed Solution]
+     ## Task
+     [One-line task derived from the proposal's Proposed Solution]
 
      ## Context
      [Summary of the pattern/problem from the proposal, including Related Sessions]
 
-     ## Suggested Steps
+     ## Suggested Plan
      1. [Step derived from Proposed Solution]
      2. [Step derived from Proposed Solution]
      3. Verify the fix resolves the pattern
      ```
-     Confirm: "Mission prepared. The next `/session-start` will offer this as the default mission."
+     Confirm: "Task prepared. The next `/session-start` will offer this as the default task."
 
    - **"I'll handle it manually"** → Just mark accepted. Respond: "Marked as accepted. No further action taken."
 

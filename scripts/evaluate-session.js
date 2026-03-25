@@ -1,7 +1,7 @@
 // Adapted from Everything Claude Code (https://github.com/affaan-m/everything-claude-code)
 // Original: scripts/hooks/evaluate-session.js — MIT License
 // Changes: Replaced ECC quality criteria with session-specific criteria
-//          (mission status, ACTIVE.md current, blockers documented, next-start-point clear).
+//          (task status, SHELL.md current, blockers documented, next-start-point clear).
 //          Outputs structured quality score for session reports.
 
 'use strict';
@@ -9,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const ACTIVE_SESSION = path.resolve('.claude/.claude-code-hermit/sessions/ACTIVE.md');
+const SHELL_SESSION = path.resolve('.claude/.claude-code-hermit/sessions/SHELL.md');
 
 function evaluateSession() {
   const results = {
@@ -19,31 +19,31 @@ function evaluateSession() {
 
   let content;
   try {
-    content = fs.readFileSync(ACTIVE_SESSION, 'utf-8');
+    content = fs.readFileSync(SHELL_SESSION, 'utf-8');
   } catch {
     results.criteria.push({
-      name: 'ACTIVE.md exists',
+      name: 'SHELL.md exists',
       status: 'fail',
-      detail: 'No sessions/ACTIVE.md found',
+      detail: 'No sessions/SHELL.md found',
     });
     results.overall = 'fail';
     return results;
   }
 
-  // Criterion 1: Mission status is set
+  // Criterion 1: Task status is set
   const hasStatus = /\*\*Status:\*\*\s*(completed|partial|blocked|in_progress)/i.test(content);
   results.criteria.push({
-    name: 'Mission status updated',
+    name: 'Task status updated',
     status: hasStatus ? 'pass' : 'warn',
     detail: hasStatus ? 'Status field is populated' : 'Status field is missing or empty',
   });
 
-  // Criterion 2: Steps table has entries
+  // Criterion 2: Plan table has entries
   const hasSteps = /\|\s*\d+\s*\|.*\|\s*(done|in_progress|blocked|planned)\s*\|/i.test(content);
   results.criteria.push({
-    name: 'Steps tracked',
+    name: 'Plan tracked',
     status: hasSteps ? 'pass' : 'warn',
-    detail: hasSteps ? 'Step table has entries with statuses' : 'No step entries found in table',
+    detail: hasSteps ? 'Plan table has entries with statuses' : 'No plan entries found in table',
   });
 
   // Helper: check if a markdown section exists and has non-comment content

@@ -6,15 +6,15 @@
 - **Status:** in_progress
 - **Tags:** <!-- e.g., refactor, frontend, urgent -->
 - **Budget:** <!-- Set during session-start, or leave blank -->
-- **Missions Completed:** 0
+- **Tasks Completed:** 0
 - **Session Mode:** <!-- interactive | always_on — set by session-start -->
 
-## Mission
+## Task
 <!-- What is this session trying to accomplish? -->
 
-## Steps
-| # | Step | Status | Notes |
-|---|------|--------|-------|
+## Plan
+| # | Plan Item | Status | Notes |
+|---|-----------|--------|-------|
 | 1 | | planned | |
 | 2 | | planned | |
 | 3 | | planned | |
@@ -26,7 +26,7 @@
 ## Blockers
 <!-- What's preventing progress? Include enough context for the next session. -->
 
-## Discoveries
+## Findings
 <!-- Anything unexpected found during work. Proposal-worthy items get their own file. -->
 
 ## Changed
@@ -36,7 +36,7 @@
 <!-- Active monitors (/claude-code-hermit:monitor) and heartbeat ticks (/claude-code-hermit:heartbeat) append here -->
 
 ## Session Summary
-<!-- One-line entries per completed mission (always-on mode). Added on idle transition. -->
+<!-- One-line entries per completed task (always-on mode). Added on idle transition. -->
 
 ## Cost
 <!-- Populated by cost-tracker hook -->

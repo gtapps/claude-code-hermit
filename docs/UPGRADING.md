@@ -1,6 +1,6 @@
 # Upgrading
 
-This guide covers upgrading claude-code-hermit and its domain packs in existing projects.
+This guide covers upgrading claude-code-hermit and its hermit agents in existing projects.
 
 ---
 
@@ -24,7 +24,7 @@ The upgrade skill:
 - Detects the version gap between your project config and the installed plugin
 - Shows what changed (reads `CHANGELOG.md`)
 - Prompts for any new settings introduced in the update
-- Refreshes templates (`ACTIVE.md.template`, `SESSION-REPORT.md.template`, `PROPOSAL.md.template`)
+- Refreshes templates (`SHELL.md.template`, `SESSION-REPORT.md.template`, `PROPOSAL.md.template`)
 - Updates the session discipline block in your project's `CLAUDE.md`
 - Stamps the new version in your config's `_hermit_versions`
 
@@ -43,20 +43,20 @@ If you prefer not to use the upgrade skill, you can:
 
 ---
 
-## Domain Pack Upgrade
+## Hermit Agent Upgrade
 
-Domain packs (e.g., `claude-code-dev-hermit`) are upgraded the same way:
+Hermit agents (e.g., `claude-code-dev-hermit`) are upgraded the same way:
 
 ```bash
 claude plugin marketplace add your-org/claude-code-dev-hermit   # re-fetch
 ```
 
-Then run `/claude-code-hermit:upgrade` — it automatically detects pack version gaps and handles them:
-- Updates the pack's CLAUDE-APPEND block in your project's CLAUDE.md
-- Follows the pack's `UPGRADE.md` instructions if the pack provides one
-- Shows the pack's changelog entries for the version gap
+Then run `/claude-code-hermit:upgrade` — it automatically detects hermit agent version gaps and handles them:
+- Updates the hermit agent's CLAUDE-APPEND block in your project's CLAUDE.md
+- Follows the hermit agent's `UPGRADE.md` instructions if it provides one
+- Shows the hermit agent's changelog entries for the version gap
 
-Each pack's version is tracked independently in `_hermit_versions`:
+Each hermit agent's version is tracked independently in `_hermit_versions`:
 
 ```json
 {
@@ -110,13 +110,13 @@ This field is metadata — don't edit it manually.
 
 ---
 
-## For Domain Pack Authors
+## For Hermit Agent Authors
 
-If you maintain a domain pack and want to support upgrades:
+If you maintain a hermit agent and want to support upgrades:
 
 1. **Keep `plugin.json` version updated** — the upgrade skill reads this
 2. **Maintain a `CHANGELOG.md`** — the upgrade skill shows entries to the operator
-3. **Optionally provide `UPGRADE.md`** — pack-specific upgrade instructions the agent follows (e.g., re-ask OPERATOR.md questions, update custom hooks)
+3. **Optionally provide `UPGRADE.md`** — hermit-agent-specific upgrade instructions the agent follows (e.g., re-ask OPERATOR.md questions, update custom hooks)
 4. **Keep `state-templates/CLAUDE-APPEND.md` current** — the upgrade skill replaces the old block automatically
 
-See [CREATING-DOMAIN-PACK.md](CREATING-DOMAIN-PACK.md) for the full pack structure. For details on any skill mentioned in this guide, see [SKILLS.md](SKILLS.md).
+See [CREATING-HERMIT-AGENT.md](CREATING-HERMIT-AGENT.md) for the full hermit agent structure. For details on any skill mentioned in this guide, see [SKILLS.md](SKILLS.md).

@@ -19,7 +19,7 @@ const { spawnSync } = require('child_process');
  * AGENT_HOOK_PROFILE env var controls the active profile:
  *   - "minimal"  — cost tracking only
  *   - "standard" — cost tracking + compact suggestions + session evaluation (default)
- *   - "strict"   — all of standard + additional safety hooks from packs
+ *   - "strict"   — all of standard + additional safety hooks from hermit agents
  */
 
 const VALID_PROFILES = new Set(['minimal', 'standard', 'strict']);

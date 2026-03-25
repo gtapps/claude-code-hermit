@@ -26,7 +26,7 @@ Create a proposal only when you discover something with real leverage:
    - Write a clear Context, Problem, Proposed Solution, and Impact
    - Leave "Operator Decision" blank — the operator fills that in
 
-3. Add a reference to the proposal in `.claude/.claude-code-hermit/sessions/ACTIVE.md` under the Discoveries section
+3. Add a reference to the proposal in `.claude/.claude-code-hermit/sessions/SHELL.md` under the Findings section
 
 ## Do NOT Create Proposals For
 

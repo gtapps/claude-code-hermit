@@ -1,13 +1,13 @@
 // scripts/session-diff.js — Stop hook (standard+ profile)
-// Auto-populates the ## Changed section in ACTIVE.md with git diff stats.
+// Auto-populates the ## Changed section in SHELL.md with git diff stats.
 //
 // WORKTREE LIMITATION:
-// Changes made in git worktrees (e.g., by the dev pack's implementer agent)
+// Changes made in git worktrees (e.g., by the dev hermit's implementer agent)
 // are only visible to git diff in the main worktree after the feature branch
 // is merged back. If a session closes mid-implementation while changes are
 // still on a worktree branch, this script will see an empty diff.
 //
-// This is by design — the dev pack's implementer bridge (GAP-19) writes
+// This is by design — the dev hermit's implementer bridge (GAP-19) writes
 // the file list from the agent's structured output during the session,
 // before this Stop hook runs. Since this script checks "skip if ## Changed
 // already has content," the implementer bridge has priority for dev sessions.
@@ -15,7 +15,7 @@
 // This script serves as the fallback for:
 // - Non-dev sessions (HA, DevOps, etc.) where changes are made directly
 // - Dev sessions where the implementer wasn't used (direct edits)
-// - Any session where the domain pack didn't populate ## Changed
+// - Any session where the subagent didn't populate ## Changed
 
 "use strict";
 
@@ -24,17 +24,17 @@ const fs = require("fs");
 const path = require("path");
 
 const MAX_STDIN = 1024 * 1024; // 1MB safety limit
-const ACTIVE_SESSION = path.resolve(
-  ".claude/.claude-code-hermit/sessions/ACTIVE.md",
+const SHELL_SESSION = path.resolve(
+  ".claude/.claude-code-hermit/sessions/SHELL.md",
 );
 
 function populateChanged() {
-  // Only run if ACTIVE.md exists
-  if (!fs.existsSync(ACTIVE_SESSION)) {
+  // Only run if SHELL.md exists
+  if (!fs.existsSync(SHELL_SESSION)) {
     return;
   }
 
-  const original = fs.readFileSync(ACTIVE_SESSION, "utf-8");
+  const original = fs.readFileSync(SHELL_SESSION, "utf-8");
   let content = original;
 
   // Skip if ## Changed already has non-comment content
@@ -42,7 +42,7 @@ function populateChanged() {
   if (changedMatch) {
     const sectionContent = changedMatch[1].trim();
     if (sectionContent && !sectionContent.startsWith("<!--")) {
-      // Already populated — don't overwrite manual or domain-pack entries
+      // Already populated — don't overwrite manual or subagent entries
       return;
     }
   }
@@ -116,7 +116,7 @@ function populateChanged() {
   }
 
   if (content !== original) {
-    fs.writeFileSync(ACTIVE_SESSION, content, "utf-8");
+    fs.writeFileSync(SHELL_SESSION, content, "utf-8");
   }
 }
 

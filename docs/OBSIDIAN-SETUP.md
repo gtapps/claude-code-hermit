@@ -70,10 +70,10 @@ TABLE
   Status as "Status",
   Date as "Date",
   Duration as "Duration",
-  Mission as "Mission",
+  Task as "Task",
   Cost as "Cost"
 FROM ".claude/.claude-code-hermit/sessions"
-WHERE file.name != "ACTIVE" AND file.name != ".gitkeep"
+WHERE file.name != "SHELL" AND file.name != ".gitkeep"
 SORT file.name DESC
 ```
 ````
@@ -100,10 +100,10 @@ SORT file.name ASC
 Embeds the current active session directly in the dashboard:
 
 ```markdown
-![[.claude/.claude-code-hermit/sessions/ACTIVE]]
+![[.claude/.claude-code-hermit/sessions/SHELL]]
 ```
 
-This updates live as the agent modifies `ACTIVE.md`.
+This updates live as the agent modifies `SHELL.md`.
 
 ### Config Quick-View (Optional)
 
@@ -119,7 +119,7 @@ If you want a glance at the project's hermit config:
 
 A practical two-pane layout:
 
-- **Right pane (pinned):** `.claude/.claude-code-hermit/sessions/ACTIVE.md` -- updates live as the agent works (including heartbeat ticks and monitoring in always-on mode).
+- **Right pane (pinned):** `.claude/.claude-code-hermit/sessions/SHELL.md` -- updates live as the agent works (including heartbeat ticks and monitoring in always-on mode).
 - **Left pane:** `dashboard.md` -- the Dataview tables showing session history and proposal status.
 
 To pin a pane in Obsidian: right-click the tab and select "Pin". Pinned tabs stay open when you navigate elsewhere.
@@ -128,7 +128,7 @@ To pin a pane in Obsidian: right-click the tab and select "Pin". Pinned tabs sta
 
 - **Left:** `dashboard.md`
 - **Center:** Whatever file you're reading or editing (`OPERATOR.md`, a proposal, a session report)
-- **Right (pinned):** `.claude/.claude-code-hermit/sessions/ACTIVE.md`
+- **Right (pinned):** `.claude/.claude-code-hermit/sessions/SHELL.md`
 
 ---
 

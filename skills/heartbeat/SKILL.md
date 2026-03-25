@@ -27,19 +27,19 @@ Execute one heartbeat tick immediately. Useful for testing the checklist.
 2. If the file is missing or empty (only whitespace, blank lines, or headers with no checklist items): respond "HEARTBEAT_SKIP" and stop. This costs zero evaluation tokens.
 3. Read `.claude/.claude-code-hermit/config.json` for heartbeat settings
 4. Check `active_hours` — if the current time is outside the configured window: respond "HEARTBEAT_SKIP (outside active hours)" and stop
-5. Read `.claude/.claude-code-hermit/sessions/ACTIVE.md` for current mission context
+5. Read `.claude/.claude-code-hermit/sessions/SHELL.md` for current task context
 6. Evaluate each checklist item against available information (session state, files, proposals directory)
 7. Determine: does anything need operator attention?
 
 **If nothing actionable:**
-- Append to ACTIVE.md `## Monitoring` section: `[HH:MM] Heartbeat: OK`
+- Append to SHELL.md `## Monitoring` section: `[HH:MM] Heartbeat: OK`
 - Read config `heartbeat.show_ok`:
   - If `true` AND channels are configured: send "Heartbeat OK" to channel
   - If `false` (default): no channel message — silent acknowledgment
 - Respond "HEARTBEAT_OK"
 
 **If something found:**
-- Append findings to ACTIVE.md `## Monitoring` section with timestamp
+- Append findings to SHELL.md `## Monitoring` section with timestamp
 - If channels are configured: send a concise alert (under 5 lines, channel-friendly):
   ```
   Heartbeat alert:
@@ -62,13 +62,13 @@ Triggered every N ticks (configured by `heartbeat.self_eval_interval`, default 2
 
 **Steps:**
 
-1. Read recent heartbeat entries from ACTIVE.md `## Monitoring` section — collect all `[HH:MM] Heartbeat:` lines in the current session
+1. Read recent heartbeat entries from SHELL.md `## Monitoring` section — collect all `[HH:MM] Heartbeat:` lines in the current session
 2. For each checklist item in HEARTBEAT.md: check how many recent ticks flagged it vs how many were OK
 3. **Stale check detection:** If a specific checklist item was OK for all ticks in the evaluation window, suggest to the operator:
    > "Heartbeat self-check: the item '[check description]' has been OK for [N] consecutive ticks. Consider removing it to save tokens, or reducing heartbeat frequency."
 4. **Missing check suggestion:** Scan `.claude/.claude-code-hermit/proposals/` for recent auto-detected proposals about recurring issues. If a proposal describes a problem that could be caught by a heartbeat check, suggest:
    > "PROP-NNN identified a recurring [issue]. Consider adding a [relevant check] to HEARTBEAT.md."
-5. Append self-evaluation findings to ACTIVE.md `## Monitoring` with timestamp:
+5. Append self-evaluation findings to SHELL.md `## Monitoring` with timestamp:
    ```
    [HH:MM] Heartbeat self-eval: [summary of suggestions]
    ```
@@ -91,7 +91,7 @@ If a heartbeat loop is already running, report that and do nothing.
 Stop the recurring heartbeat loop.
 
 1. Stop the active `/loop`
-2. Append to ACTIVE.md Monitoring section: `[HH:MM] Heartbeat: stopped`
+2. Append to SHELL.md Monitoring section: `[HH:MM] Heartbeat: stopped`
 
 ### status
 
@@ -99,7 +99,7 @@ Report current heartbeat state:
 - Is the heartbeat loop running? (yes/no)
 - Configured interval (from config)
 - Active hours window (from config)
-- Last tick time and result (from ACTIVE.md Monitoring section — find most recent "Heartbeat:" entry)
+- Last tick time and result (from SHELL.md Monitoring section — find most recent "Heartbeat:" entry)
 - Show_ok setting
 
 ### edit
@@ -121,27 +121,27 @@ Open `.claude/.claude-code-hermit/HEARTBEAT.md` for the operator to modify.
 | Active hours | Yes — respects configured window | No — runs whenever invoked |
 | Purpose | Background health + proactive surfacing | Specific task monitoring |
 
-Both append findings to ACTIVE.md. Both send alerts via channels. They coexist without interference.
+Both append findings to SHELL.md. Both send alerts via channels. They coexist without interference.
 
 ## Always-On Persistence
 
-The heartbeat loop persists across mission boundaries. When a mission completes and the session transitions to `idle`:
+The heartbeat loop persists across task boundaries. When a task completes and the session transitions to `idle`:
 
 - The `/loop` that powers heartbeat keeps running — it is not stopped or restarted
 - During `idle` status, heartbeat `run` still executes normally:
   - Reads HEARTBEAT.md and evaluates the checklist
-  - ACTIVE.md still exists (with Status `idle`) so context is available
-  - Monitoring entries continue to append to the same ACTIVE.md
+  - SHELL.md still exists (with Status `idle`) so context is available
+  - Monitoring entries continue to append to the same SHELL.md
 - The heartbeat only dies on:
   1. Explicit `/claude-code-hermit:heartbeat stop`
   2. `hermit-stop.py` shutdown sequence
   3. Claude Code process death (tmux kill, crash, etc.)
   4. `/loop` being stopped manually
 
-No special idle handling is needed in the `run` subcommand — it reads ACTIVE.md regardless of status.
+No special idle handling is needed in the `run` subcommand — it reads SHELL.md regardless of status.
 
-### NEXT-MISSION.md auto-pickup
+### NEXT-TASK.md auto-pickup
 
-During idle state, the heartbeat checklist can include a check for `sessions/NEXT-MISSION.md`. If found (e.g., from a proposal accepted via channel on another device), the heartbeat should alert: "NEXT-MISSION.md detected — starting mission automatically." Then invoke `/claude-code-hermit:session-start` to transition idle → active.
+During idle state, the heartbeat checklist can include a check for `sessions/NEXT-TASK.md`. If found (e.g., from a proposal accepted via channel on another device), the heartbeat should alert: "NEXT-TASK.md detected — starting task automatically." Then invoke `/claude-code-hermit:session-start` to transition idle → active.
 
-This makes the proposal → mission pipeline fully automated for always-on agents. The operator accepts a proposal (via `/proposal-act`), which creates NEXT-MISSION.md, and the next heartbeat tick picks it up.
+This makes the proposal → task pipeline fully automated for always-on agents. The operator accepts a proposal (via `/proposal-act`), which creates NEXT-TASK.md, and the next heartbeat tick picks it up.

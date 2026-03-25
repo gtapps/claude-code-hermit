@@ -17,7 +17,7 @@ from pathlib import Path
 
 CONFIG_PATH = Path('.claude/.claude-code-hermit/config.json')
 SESSIONS_DIR = Path('.claude/.claude-code-hermit/sessions')
-ACTIVE_PATH = SESSIONS_DIR / 'ACTIVE.md'
+SHELL_PATH = SESSIONS_DIR / 'SHELL.md'
 DEFAULT_TIMEOUT = 60  # seconds to wait for graceful close
 
 
@@ -54,16 +54,16 @@ def find_latest_report():
 
 
 def read_active_session():
-    """Read ACTIVE.md for session stats."""
-    if not ACTIVE_PATH.exists():
+    """Read SHELL.md for session stats."""
+    if not SHELL_PATH.exists():
         return None
-    content = ACTIVE_PATH.read_text()
+    content = SHELL_PATH.read_text()
     stats = {}
     for line in content.split('\n'):
         if '**Status:**' in line:
             stats['status'] = line.split('**Status:**')[1].strip()
-        elif '**Missions Completed:**' in line:
-            stats['missions_completed'] = line.split('**Missions Completed:**')[1].strip()
+        elif '**Tasks Completed:**' in line:
+            stats['tasks_completed'] = line.split('**Tasks Completed:**')[1].strip()
         elif '**Started:**' in line:
             stats['started'] = line.split('**Started:**')[1].strip()
     return stats
@@ -96,12 +96,12 @@ def main():
 
     # Show session stats
     stats = read_active_session()
-    missions = '0'
+    tasks = '0'
     if stats:
-        missions = stats.get('missions_completed', '0')
+        tasks = stats.get('tasks_completed', '0')
         started = stats.get('started', 'unknown')
         status = stats.get('status', 'unknown')
-        print(f'[hermit] Session started: {started} | Status: {status} | Missions: {missions}')
+        print(f'[hermit] Session started: {started} | Status: {status} | Tasks: {tasks}')
 
     if force:
         print(f'[hermit] Force-killing session: {session_name}')
@@ -111,7 +111,7 @@ def main():
         report = find_latest_report()
         if report:
             print(f'[hermit] Last report: {report}')
-        print('[hermit] Warning: session was not closed gracefully. ACTIVE.md may be stale.')
+        print('[hermit] Warning: session was not closed gracefully. SHELL.md may be stale.')
         return
 
     # Stop heartbeat first (only if enabled in config)
@@ -160,7 +160,7 @@ def main():
         if report:
             print(f'[hermit] Latest report: {report}')
     if stats:
-        print(f'[hermit] Total missions this session: {missions}')
+        print(f'[hermit] Total tasks this session: {tasks}')
 
 
 if __name__ == '__main__':

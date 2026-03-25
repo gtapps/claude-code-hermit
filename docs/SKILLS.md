@@ -8,11 +8,11 @@ Some skills **auto-trigger** when you type certain keywords in normal conversati
 
 | Term | Meaning |
 |------|---------|
-| **Session** | A bounded unit of work. Has a mission, tracked steps, a cost log, and an archived report when done. |
-| **ACTIVE.md** | The live working document for the current session. Lives at `.claude/.claude-code-hermit/sessions/ACTIVE.md`. |
+| **Session** | A bounded unit of work. Has a task, tracked plan items, a cost log, and an archived report when done. |
+| **SHELL.md** | The live working document for the current session. Lives at `.claude/.claude-code-hermit/sessions/SHELL.md`. |
 | **Proposal** | A captured improvement idea. Created during work, reviewed later by the operator (you). |
 | **Operator** | You — the human running the agent. |
-| **Domain pack** | A separate plugin that adds specialized agents and skills on top of hermit core (e.g., `claude-code-dev-hermit` for software development). |
+| **Hermit agent** | A separate plugin that adds specialized agents and skills on top of hermit core (e.g., `claude-code-dev-hermit` for software development). |
 | **Channel** | A Telegram or Discord connection to the running agent via [Claude Code Channels](https://code.claude.com/docs/en/channels) (v2.1.80+). |
 
 ---
@@ -21,19 +21,19 @@ Some skills **auto-trigger** when you type certain keywords in normal conversati
 
 ### session
 
-Start or resume a work session with full context loading and mission tracking.
+Start or resume a work session with full context loading and task tracking.
 
 **Usage:** `/claude-code-hermit:session`
 **Auto-triggers:** None
 
-The main entry point for working with the agent. It calls `session-start` to load context, asks you for a mission (or resumes the active one), plans ordered steps, executes work, and calls `session-close` when done. This is a generic workflow — domain packs provide specialized versions (e.g., `/claude-code-dev-hermit:dev-session` adds code review and testing).
+The main entry point for working with the agent. It calls `session-start` to load context, asks you for a task (or resumes the active one), plans an ordered plan, executes work, and calls `session-close` when done. This is a generic workflow — hermit agents provide specialized versions (e.g., `/claude-code-dev-hermit:dev-session` adds code review and testing).
 
 **Example:**
 ```
 /claude-code-hermit:session
 > Active session found: "Migrate auth module to OAuth2"
-> Progress: 3/5 steps complete
-> Continue this mission, or start a new one?
+> Progress: 3/5 plan items complete
+> Continue this task, or start a new one?
 ```
 
 **Related:** session-start, session-close
@@ -42,12 +42,12 @@ The main entry point for working with the agent. It calls `session-start` to loa
 
 ### session-start
 
-Initializes or resumes a work session. Loads context from OPERATOR.md, ACTIVE.md, and the latest session report.
+Initializes or resumes a work session. Loads context from OPERATOR.md, SHELL.md, and the latest session report.
 
 **Usage:** `/claude-code-hermit:session-start`
 **Auto-triggers:** None
 
-Runs automatically as part of `/session`, but you can also call it directly. Loads project config, OPERATOR.md, and active session state. Checks for a prepared mission from `NEXT-MISSION.md` (created by accepting a proposal). Notifies you of unreviewed auto-detected proposals. For new sessions, asks for a mission, tags, and an optional cost budget.
+Runs automatically as part of `/session`, but you can also call it directly. Loads project config, OPERATOR.md, and active session state. Checks for a prepared task from `NEXT-TASK.md` (created by accepting a proposal). Notifies you of unreviewed auto-detected proposals. For new sessions, asks for a task, tags, and an optional cost budget.
 
 **Related:** session, session-close
 
@@ -61,7 +61,7 @@ Closes the current session, archives a report, and prepares for the next session
 **Auto-triggers:** None
 
 Before archiving, it:
-1. Finalizes ACTIVE.md with step statuses (`done`, `blocked`, `planned`)
+1. Finalizes SHELL.md with plan statuses (`done`, `blocked`, `planned`)
 2. Documents blockers with enough context for a cold start
 3. Records lessons learned
 4. Creates proposals for any high-leverage improvements discovered
@@ -81,12 +81,12 @@ Returns a compact summary of the current session (under 10 lines).
 **Usage:** `/claude-code-hermit:status`
 **Auto-triggers:** "status", "progress", "what are you working on", "how's it going"
 
-Reads ACTIVE.md and outputs a channel-friendly summary:
+Reads SHELL.md and outputs a channel-friendly summary:
 
 ```
 Session S-042 | in_progress | refactor, backend
-Mission: Migrate auth module to OAuth2
-Progress: 3/5 steps | Current: Step 4 - Update token refresh logic
+Task: Migrate auth module to OAuth2
+Progress: 3/5 plan items | Current: Step 4 - Update token refresh logic
 Budget: $2.10 / $5.00 (42%)
 Blockers: none
 Cost: $2.10 (145K tokens)
@@ -109,8 +109,8 @@ Checks the active session first, falls back to the latest archived report. Desig
 
 ```
 [Brief] 2026-03-24 | refactor, backend
-Mission: Migrate auth module to OAuth2
-Status: partial (3/5 steps) | $2.10 spent
+Task: Migrate auth module to OAuth2
+Status: partial (3/5 plan items) | $2.10 spent
 Done: Extract token logic, Update middleware, Add refresh endpoint
 Next: Update token refresh logic
 ```
@@ -135,7 +135,7 @@ Sets up a session-aware monitoring loop for recurring checks during a session.
 ```
 **Auto-triggers:** None
 
-Wraps the built-in `/loop` command with ACTIVE.md bookkeeping. Each check appends findings to the Progress Log with a `[monitor]` prefix. Multiple monitors can run simultaneously. When a session closes, all active monitors are stopped.
+Wraps the built-in `/loop` command with SHELL.md bookkeeping. Each check appends findings to the Progress Log with a `[monitor]` prefix. Multiple monitors can run simultaneously. When a session closes, all active monitors are stopped.
 
 Requires an active session. Default interval is 5 minutes if not specified.
 
@@ -231,7 +231,7 @@ Accept, defer, or dismiss a proposal.
 ```
 **Auto-triggers:** None
 
-- **Accept:** Marks as accepted and asks how to proceed. "Create a session mission" writes a `NEXT-MISSION.md` file that `session-start` will offer as the default mission next time. "I'll handle it manually" just marks it accepted.
+- **Accept:** Marks as accepted and asks how to proceed. "Create a session task" writes a `NEXT-TASK.md` file that `session-start` will offer as the default task next time. "I'll handle it manually" just marks it accepted.
 - **Defer:** Marks as deferred with an optional note. Still visible in `/proposal-list`.
 - **Dismiss:** Marks as dismissed. Hidden from the default `/proposal-list` view.
 
@@ -303,7 +303,7 @@ Run this after updating the plugin (`claude plugin install`). It:
 3. Asks about any new settings introduced in the update
 4. Refreshes templates and boot scripts
 5. Updates the CLAUDE.md session discipline block
-6. Handles domain pack upgrades if installed
+6. Handles hermit agent upgrades if installed
 
 If versions already match, it reports "up to date" and stops.
 
@@ -324,8 +324,8 @@ Classifies inbound messages and responds with session context:
 
 | Message Type | Examples | Response |
 |---|---|---|
-| Status request | "status", "what are you working on?" | Concise ACTIVE.md summary |
-| New instruction | "work on the auth module" | Confirms and updates mission |
+| Status request | "status", "what are you working on?" | Concise SHELL.md summary |
+| New instruction | "work on the auth module" | Confirms and updates task |
 | Question | "why did you change X?" | Answers with session context |
 | Emergency | "stop", "abort" | Halts work, marks session blocked |
 
