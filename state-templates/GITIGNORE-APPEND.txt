@@ -2,3 +2,5 @@
 # claude-code-hermit
 .claude/cost-log.jsonl
 .claude/.claude-code-hermit/config.json
+.claude/.claude-code-hermit/sessions/
+.claude/.claude-code-hermit/proposals/

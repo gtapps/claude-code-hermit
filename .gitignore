@@ -30,3 +30,6 @@ Thumbs.db
 
 # History
 .history/
+
+# Local data
+.local
