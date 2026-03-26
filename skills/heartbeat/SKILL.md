@@ -1,7 +1,6 @@
 ---
 name: heartbeat
 description: Executes the heartbeat checklist from HEARTBEAT.md. Reads the checklist, evaluates each item, and reports findings or acknowledges with HEARTBEAT_OK. Supports run/start/stop/status/edit subcommands.
-disable-model-invocation: true
 ---
 # Heartbeat
 

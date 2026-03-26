@@ -1,7 +1,6 @@
 ---
 name: monitor
 description: Session-aware monitoring loop. Wraps /loop with SHELL.md bookkeeping. Use to set up recurring checks during a session.
-disable-model-invocation: true
 ---
 # Monitor
 
