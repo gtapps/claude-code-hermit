@@ -41,10 +41,12 @@ Reads `config.json`, starts a tmux session with configured channels and permissi
 tmux new-session -d -s claude-agent
 tmux attach -t claude-agent
 cd /path/to/your/project
-claude --dangerously-skip-permissions
+claude --permission-mode acceptEdits
 ```
 
-> **Why `--dangerously-skip-permissions`?** Always-on agents need to act without prompts. Deny patterns and hooks provide safety instead. **Run `claude` interactively once first** to accept the workspace trust prompt — without this, the agent hangs in tmux.
+> **Why `--permission-mode acceptEdits`?** Always-on agents need to act without prompts for file edits. Deny patterns and hooks provide safety instead. **Run `claude` interactively once first** to accept the workspace trust prompt — without this, the agent hangs in tmux.
+>
+> For fully isolated containers/VMs, set `permission_mode: "bypassPermissions"` in `config.json` — `hermit-start` maps this to `--dangerously-skip-permissions`. See [Permission Modes](https://code.claude.com/docs/en/permission-modes).
 
 ### Remote access
 
@@ -53,6 +55,8 @@ claude --dangerously-skip-permissions
 ---
 
 ## 2. Always-On Lifecycle
+
+> The state machine below applies to both interactive and always-on sessions. This section covers always-on infrastructure specifically.
 
 In always-on mode, the session persists across task boundaries. Heartbeat, monitors, and channels survive between tasks.
 
@@ -71,15 +75,17 @@ hermit-start → [in_progress] → task done → [idle] → new task → [in_pro
 
 ### Close modes
 
-|                        | Idle Transition               | Full Shutdown                |
-| ---------------------- | ----------------------------- | ---------------------------- |
-| **When**               | Task done, session stays open | Everything stops             |
-| **Report archived**    | Yes                           | Yes                          |
-| **Self-learning runs** | Yes                           | Yes                          |
-| **Heartbeat/channels** | Keep running                  | Stopped                      |
-| **SHELL.md**           | Reset in-place → `idle`       | Replaced with fresh template |
+|                        | Idle Transition (task boundary)  | Full Shutdown (`/session-close`) |
+| ---------------------- | -------------------------------- | -------------------------------- |
+| **When**               | Task done — automatic            | Operator explicitly closes       |
+| **Report archived**    | Yes                              | Yes                              |
+| **Self-learning runs** | Yes                              | Yes                              |
+| **Heartbeat**          | Keeps running (or starts)        | Stopped                          |
+| **Channels**           | Keep running (always-on only)    | Stopped                          |
+| **SHELL.md**           | Reset in-place → `idle`          | Replaced with fresh template     |
+| **Applies to**         | Both interactive and always-on   | Both interactive and always-on   |
 
-Default: idle if `always_on: true`, full shutdown otherwise. Override with `--idle` or `--shutdown`.
+Default: idle transition at every task boundary. Full shutdown only via explicit `/session-close` or `hermit-stop`. `--idle` flag removed (transitions are automatic).
 
 ### The task loop over time
 
@@ -202,7 +208,7 @@ All state is in `sessions/SHELL.md` on disk. A disconnect loses conversation con
 
 ### Deny patterns
 
-Block tool invocations **even with `--dangerously-skip-permissions`**:
+Block tool invocations regardless of permission mode:
 
 ```json
 {
@@ -254,7 +260,7 @@ Block tool invocations **even with `--dangerously-skip-permissions`**:
 
 ### Security checklist
 
-- [ ] Docker/VM if using `--dangerously-skip-permissions`
+- [ ] Docker/VM if using `permission_mode: "bypassPermissions"`
 - [ ] Non-root user inside container
 - [ ] Deny patterns configured
 - [ ] No host mounts beyond project directory
@@ -349,7 +355,7 @@ After=network.target
 [Service]
 Type=forking
 User=your-username
-ExecStart=/usr/bin/tmux new-session -d -s claude-agent -c /home/your-username/my-project \; send-keys "claude --dangerously-skip-permissions" Enter
+ExecStart=/usr/bin/tmux new-session -d -s claude-agent -c /home/your-username/my-project \; send-keys "claude --permission-mode acceptEdits" Enter
 ExecStop=/usr/bin/tmux kill-session -t claude-agent
 Restart=on-failure
 RestartSec=10

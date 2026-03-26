@@ -10,7 +10,7 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | `session`       | Full workflow: start → work → close. The main entry point.                                                                    | —             |
 | `session-start` | Initialize or resume a session. Loads OPERATOR.md, SHELL.md, last report. Checks for prepared tasks from accepted proposals.  | —             |
-| `session-close` | Finalize session, run quality checklist, archive report. In always-on mode, defaults to idle transition (session stays open). | —             |
+| `session-close` | Finalize session, run quality checklist, archive report. Always a full shutdown — idle transitions happen automatically at task boundaries. | —             |
 
 ## Status & Reporting
 
@@ -30,7 +30,7 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 
 |              | Heartbeat                  | Monitor                |
 | ------------ | -------------------------- | ---------------------- |
-| Runs         | Always-on, persistent      | Per-task, user-invoked |
+| Runs         | Persistent across tasks (guaranteed in always-on, best-effort in interactive) | Per-task, user-invoked |
 | Checklist    | HEARTBEAT.md (you edit it) | Inline instruction     |
 | Quiet mode   | Suppresses OK by default   | Always logs            |
 | Active hours | Yes (default 08:00–23:00)  | No                     |

@@ -114,7 +114,7 @@ Open `.claude/.claude-code-hermit/HEARTBEAT.md` for the operator to modify.
 
 | | Heartbeat | /monitor |
 |---|---|---|
-| Triggered by | Always-on loop via boot script | User-invoked per task |
+| Triggered by | Boot script (always-on) or session skill (interactive idle) | User-invoked per task |
 | Checklist | HEARTBEAT.md (persistent, reusable) | Inline instruction (one-off) |
 | Lifecycle | Runs until stop or shutdown | Runs until stop or session close |
 | Quiet mode | Yes — suppresses OK by default | No — always logs |
@@ -123,9 +123,9 @@ Open `.claude/.claude-code-hermit/HEARTBEAT.md` for the operator to modify.
 
 Both append findings to SHELL.md. Both send alerts via channels. They coexist without interference.
 
-## Always-On Persistence
+## Persistence Across Tasks
 
-The heartbeat loop persists across task boundaries. When a task completes and the session transitions to `idle`:
+The heartbeat loop persists across task boundaries regardless of session mode. When a task completes and the session transitions to `idle`:
 
 - The `/loop` that powers heartbeat keeps running — it is not stopped or restarted
 - During `idle` status, heartbeat `run` still executes normally:
@@ -140,8 +140,10 @@ The heartbeat loop persists across task boundaries. When a task completes and th
 
 No special idle handling is needed in the `run` subcommand — it reads SHELL.md regardless of status.
 
+**Interactive sessions:** Heartbeat is started by the session skill when transitioning to idle (if enabled in config). It runs best-effort — if the terminal closes or Claude Code exits, it dies with it. This is expected. In always-on mode (tmux), the process persists and heartbeat is guaranteed.
+
 ### NEXT-TASK.md auto-pickup
 
 During idle state, the heartbeat checklist can include a check for `sessions/NEXT-TASK.md`. If found (e.g., from a proposal accepted via channel on another device), the heartbeat should alert: "NEXT-TASK.md detected — starting task automatically." Then invoke `/claude-code-hermit:session-start` to transition idle → active.
 
-This makes the proposal → task pipeline fully automated for always-on agents. The operator accepts a proposal (via `/proposal-act`), which creates NEXT-TASK.md, and the next heartbeat tick picks it up.
+This makes the proposal → task pipeline fully automated. The operator accepts a proposal (via `/proposal-act`), which creates NEXT-TASK.md, and the next heartbeat tick picks it up.

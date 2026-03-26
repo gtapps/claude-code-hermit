@@ -71,7 +71,7 @@ SHELL.md plan,   status,   S-NNN-REPORT.md,
 
 **Work:** Plan items tracked as `planned` → `in_progress` → `blocked` → `done`. Timestamped progress log. Blockers recorded with cold-start context.
 
-**Close:** Quality checklist, lessons, proposals. In always-on mode, defaults to idle transition. See [ALWAYS-ON-OPS.md](ALWAYS-ON-OPS.md#2-always-on-lifecycle).
+**Close:** Quality checklist, lessons, proposals. Defaults to idle transition at every task boundary — session says "What's next?" and waits. Full shutdown only via `/session-close`. See [ALWAYS-ON-OPS.md](ALWAYS-ON-OPS.md#2-always-on-lifecycle).
 
 **Archive:** SHELL.md → `S-NNN-REPORT.md`. Fresh template with carry-forward items. Any session can pick up where the last one left off.
 

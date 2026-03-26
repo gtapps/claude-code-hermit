@@ -10,11 +10,11 @@ Provide a compact summary of the current session state. Designed for channel res
 
 1. Read `.claude/.claude-code-hermit/sessions/SHELL.md`
 2. If the file does not exist: respond "No active session. Run `/claude-code-hermit:session` to start one."
-2b. If Status is `idle` (always-on session between tasks), format as:
+2b. If Status is `idle` (session between tasks), format as:
    ```
    Session (idle) | started YYYY-MM-DD | N tasks completed
    Last: [latest Session Summary entry]
-   Waiting for next task. Send one via channel or run /claude-code-hermit:session-start
+   Waiting for next task. Give the next task directly or run /claude-code-hermit:session-start
    Cost: $X.XX (cumulative)
    ```
    Return this output and stop — do not proceed to step 3.

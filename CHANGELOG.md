@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.0.3] - 2026-03-26
+
+### Breaking Changes
+
+`skip_permissions` (boolean) in `config.json` has been replaced by `permission_mode` (string). Update any existing `config.json` manually:
+
+```json
+// Before
+"skip_permissions": false
+
+// After
+"permission_mode": "acceptEdits"
+```
+
+Valid values: `"default"`, `"acceptEdits"`, `"dontAsk"`, `"bypassPermissions"`. See [Permission Modes](https://code.claude.com/docs/en/permission-modes).
+
+### Added
+- **Unified session lifecycle** — idle transitions happen at every task boundary, regardless of how the session was started. Agent archives the report, says "What's next?", and waits. No prompt, no binary choice.
+- **Best-effort heartbeat in interactive idle** — heartbeat starts on idle transition if enabled in config. Runs while terminal is open; always-on mode retains guaranteed heartbeat via tmux.
+
+### Changed
+- **`permission_mode` config key** — replaces `skip_permissions: bool` with a string enum matching Claude Code's permission mode flags. Default is `"acceptEdits"` (auto-approves file edits, still prompts for shell commands). Use `"bypassPermissions"` for fully isolated containers/VMs.
+- **session skill** — step 6 performs idle transition directly (no longer defers to `/session-close`). Identical path for interactive and always-on.
+- **session-close skill** — full shutdown only. No close mode decision tree, no confirmation prompt, no `--idle` path.
+- **session-start, status, brief skills** — idle state no longer described as "always-on only"
+- **heartbeat skill** — persistence section updated; interactive best-effort note added
+- **CLAUDE-APPEND** — unified lifecycle section replaces separate interactive/always-on blocks
+- **SHELL.md template** — "always-on mode" qualifiers removed from comments
+- **SKILLS.md, ALWAYS-ON-OPS.md** — descriptions updated to reflect unified lifecycle
+
+### Changed (defaults)
+- **`heartbeat.enabled`** defaults to `true` (was `false`) — heartbeat is locally valuable during idle regardless of channels. **Highly advised for existing projects:** if your `config.json` has `"heartbeat": { "enabled": false, ... }`, set it to `true`. Without this, the agent will not start the heartbeat on idle transitions and you'll lose background monitoring between tasks.
+- **`always_on`** template default fixed to `false` (was incorrectly `true`; it's a runtime flag set by hermit-start.py)
+- **init wizard** — heartbeat step (4h) removed entirely; heartbeat starts automatically on first idle transition
+- **hermit-settings** — heartbeat subcommand no longer gated on channels
+
+### Removed
+- Close mode decision tree in `session-close` (idle/shutdown branching, confirmation prompt)
+- `--idle` flag on `/session-close` (idle transitions are automatic)
+- "always-on only" qualifier on idle transitions throughout
+
+---
+
 ## [0.0.2] - 2026-03-25
 
 ### Breaking Changes — Hermit Authors Must Update

@@ -11,18 +11,17 @@
 - Use `/claude-code-hermit:session-start` to initialize and `/claude-code-hermit:session-close` to end sessions
 - Never create session or proposal files by hand — use the skills
 
-## Always-On Session Lifecycle
+## Session Lifecycle
 
-When running in always-on mode (started via `hermit-start`):
-- After completing a task: transition to `idle`, do NOT close the session
-- Heartbeat, monitoring, and channels continue during `idle`
-- New tasks start within the same session via channel or direct input
-- Keep running tally in SHELL.md: tasks completed, cumulative cost
-- Session only closes via `hermit-stop` or `/session-close --shutdown`
+After completing a task: transition to `idle`, do NOT close the session.
+- Report is archived, task-scoped sections reset, session-scoped data (cost, summary) carries forward
+- Heartbeat starts if enabled — best-effort in interactive (tied to terminal), guaranteed in always-on (tmux)
+- New tasks start via operator input, channel message, or NEXT-TASK.md
+- `/session-close` is always a full shutdown — use when actually done
 
-When running interactively (NOT via `hermit-start`):
-- Normal lifecycle: `/session-close` archives and exits
-- Heartbeat not recommended (dies when session closes)
+Infrastructure differences (not behavioral):
+- **Always-on** (via `hermit-start`): tmux persistence, channels, guaranteed heartbeat. Shutdown via `hermit-stop`.
+- **Interactive** (terminal): best-effort heartbeat, no channels. Shutdown via `/session-close` or terminal exit.
 
 ## Agent State Directory
 

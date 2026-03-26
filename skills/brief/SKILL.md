@@ -10,10 +10,10 @@ Provide a concise executive summary of recent session activity. Designed for mor
 
 1. Check if `.claude/.claude-code-hermit/sessions/SHELL.md` exists:
    - If Status is `in_progress`: summarize the active task (existing behavior below)
-   - If Status is `idle` (always-on session between tasks): format as:
+   - If Status is `idle` (session between tasks): format as:
      ```
      [Brief] YYYY-MM-DD | idle | N tasks completed
-     Session: always-on since [start date]
+     Session: since [start date]
      Last: [latest Session Summary entry] — [status]
      Cumulative: $X.XX across N tasks
      Status: Idle — awaiting next task

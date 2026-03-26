@@ -107,19 +107,17 @@ Ask: "Enable morning brief delivery? (yes / no) [no]"
 - If yes: ask "What time? (e.g., 07:00) [07:00]"
 - Record in config as `morning_brief: { "enabled": true, "time": "07:00", "channel": "<selected channel>" }` or `null` if declined
 
-**4h. Heartbeat** (only if channels were selected in 4f)
-Ask: "Enable background heartbeat? Runs a checklist periodically and alerts you if anything needs attention. (yes / no) [no]"
-- If yes: ask "How often? (5m / 15m / 30m / 1h) [30m]" and "Active hours? (e.g., 08:00-23:00, or 24/7) [08:00-23:00]"
-- Record in config as `heartbeat: { "enabled": true, "every": "30m", "show_ok": false, "active_hours": { "start": "08:00", "end": "23:00" } }`
-- If declined or no channels: record `heartbeat.enabled: false`
-
 **4i. Task budget**
 Ask: "Prompt for task budget at session start? (always / never) [always]"
 - Record as `ask_budget: true` or `false`
 
-**4j. Unattended mode**
-Ask: "Skip permission prompts for unattended operation? (yes / no) [no]"
-- Record as `skip_permissions: true` or `false`
+**4j. Permission mode**
+Ask: "Permission mode for unattended operation? (acceptEdits / dontAsk / bypassPermissions) [acceptEdits]"
+- `acceptEdits` — auto-approves file edits, prompts for shell commands (default)
+- `dontAsk` — denies all tools not in `permissions.allow`; requires a curated allowlist in `settings.json`
+- `bypassPermissions` — no checks at all; only for isolated containers/VMs
+- See [Permission Modes](https://code.claude.com/docs/en/permission-modes)
+- Record as `permission_mode: "<value>"`
 
 ### 5. Write config.json
 
@@ -138,13 +136,13 @@ Write the collected preferences to `.claude/.claude-code-hermit/config.json`:
   "sign_off": null,
   "channels": [],
   "remote": true,
-  "skip_permissions": false,
+  "permission_mode": "acceptEdits",
   "tmux_session_name": "hermit-{project_name}",
   "auto_session": true,
   "ask_budget": true,
   "morning_brief": null,
   "heartbeat": {
-    "enabled": false,
+    "enabled": true,
     "every": "30m",
     "show_ok": false,
     "active_hours": {

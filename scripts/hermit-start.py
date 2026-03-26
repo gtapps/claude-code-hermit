@@ -30,14 +30,14 @@ DEFAULT_CONFIG = {
     'channels': [],
     'remote': True,
     'model': None,
-    'skip_permissions': False,
+    'permission_mode': 'acceptEdits',
     'tmux_session_name': 'hermit-{project_name}',
     'auto_session': True,
     'ask_budget': True,
     'always_on': False,
     'morning_brief': None,
     'heartbeat': {
-        'enabled': False,
+        'enabled': True,
         'every': '30m',
         'show_ok': False,
         'active_hours': {
@@ -131,9 +131,13 @@ def build_claude_command(config):
     if config.get('model'):
         cmd.extend(['--model', config['model']])
 
-    # Add permission skip for unattended mode
-    if config.get('skip_permissions'):
+    mode = config.get('permission_mode', 'acceptEdits')
+    if mode == 'bypassPermissions':
         cmd.append('--dangerously-skip-permissions')
+    elif mode in ('acceptEdits', 'dontAsk'):
+        cmd.extend(['--permission-mode', mode])
+    elif mode not in ('default', None):
+        print(f'[hermit] WARNING: unknown permission_mode "{mode}" — skipping (using default)')
 
     return cmd
 
@@ -171,7 +175,7 @@ def main():
     print(f'[hermit] Model: {config.get("model") or "default"}')
     print(f'[hermit] Channels: {", ".join(config.get("channels", [])) or "none"}')
     print(f'[hermit] Remote: {"enabled" if config.get("remote") else "disabled"}')
-    print(f'[hermit] Permissions: {"skip (unattended)" if config.get("skip_permissions") else "normal"}')
+    print(f'[hermit] Permissions: {config.get("permission_mode") or "acceptEdits"}')
 
     if no_tmux_flag or not tools['tmux']:
         if not no_tmux_flag and not tools['tmux']:

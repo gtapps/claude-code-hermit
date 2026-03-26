@@ -12,12 +12,12 @@ All state lives under `.claude/.claude-code-hermit/` in the project root.
 2. If the SessionStart hook output above includes "---Upgrade Available---", mention it to the operator. Do NOT block session start.
 3. Use the `session-mgr` agent to check session state
 3b. If session-mgr reports SHELL.md exists with Status `idle`:
-   - This is an always-on session between tasks — do NOT create a new session or SHELL.md
+   - This is a session between tasks — do NOT create a new session or SHELL.md
    - Present: session start date, tasks completed count, latest entry from Session Summary
    - Skip to step 5 (NEXT-TASK.md check) to determine the task source
    - When a task is provided: use `session-mgr` to set Status back to `in_progress`, fill in Task and Plan
    - The session ID remains unassigned until close (same as a fresh session)
-   - Heartbeat continues running (was never stopped)
+   - If heartbeat is running, it continues
 4. Read `.claude/.claude-code-hermit/OPERATOR.md` for project context and constraints
 5. Check if `.claude/.claude-code-hermit/sessions/NEXT-TASK.md` exists. If it does:
    - Present the prepared task to the operator as the suggested task for this session

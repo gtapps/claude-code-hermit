@@ -7,7 +7,7 @@
 - **Tags:** <!-- e.g., refactor, frontend, urgent -->
 - **Budget:** <!-- Set during session-start, or leave blank -->
 - **Tasks Completed:** 0
-- **Session Mode:** <!-- interactive | always_on — set by session-start -->
+- **Session Mode:** <!-- interactive | always_on — infrastructure tier, not behavioral mode -->
 
 ## Task
 <!-- What is this session trying to accomplish? -->
@@ -36,7 +36,7 @@
 <!-- Active monitors (/claude-code-hermit:monitor) and heartbeat ticks (/claude-code-hermit:heartbeat) append here -->
 
 ## Session Summary
-<!-- One-line entries per completed task (always-on mode). Added on idle transition. -->
+<!-- One-line entries per completed task. Added on idle transition. -->
 
 ## Cost
 <!-- Populated by cost-tracker hook -->

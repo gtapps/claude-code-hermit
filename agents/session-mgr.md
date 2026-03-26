@@ -77,3 +77,4 @@ When the main session requests an idle transition (not a full close):
 - If SHELL.md exists but has Status `completed` or `blocked`, treat it as needing a new session
 - If SHELL.md exists with Status `idle`, treat it as ready for a new task (not a new session) — do not create a new SHELL.md
 - Keep session reports factual and concise — no filler text
+- Idle transitions are not mode-specific — they happen at every task boundary regardless of `always_on` setting

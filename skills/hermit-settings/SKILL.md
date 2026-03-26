@@ -53,7 +53,7 @@ Operational:
   Budget prompts:  enabled (ask_budget: true)
   Morning brief:   disabled
   Heartbeat:       disabled (every: 30m, show_ok: false, active: 08:00-23:00)
-  Unattended mode: off (skip_permissions: false)
+  Permission mode:  acceptEdits (permission_mode: "acceptEdits")
   Auto session:    enabled (auto_session: true)
   tmux name:       hermit-myproject
 ```
@@ -112,16 +112,18 @@ Update `ask_budget` in config.json.
   - Update `morning_brief` in config.json.
 
 **If argument is "permissions":**
-Ask: "Skip permission prompts for unattended operation? (yes / no) [current value]"
-Update `skip_permissions` in config.json.
+Ask: "Permission mode for unattended operation? (acceptEdits / dontAsk / bypassPermissions) [current value]"
+- `acceptEdits` — auto-approves file edits, prompts for shell commands (default)
+- `dontAsk` — denies all tools not in `permissions.allow`; requires a curated allowlist in `settings.json`
+- `bypassPermissions` — no checks; isolated containers/VMs only
+- See [Permission Modes](https://code.claude.com/docs/en/permission-modes)
+Update `permission_mode` in config.json.
 
 **If argument is "heartbeat":**
-- If no channels configured: "Heartbeat alerts require channels. Configure channels first with `/claude-code-hermit:hermit-settings channels`."
-- If channels configured:
-  - Show current heartbeat config
-  - Ask: "Enable background heartbeat? (yes / no) [current value]"
-  - If yes: ask for interval, show_ok, and active hours
-  - Update `heartbeat` object in config.json.
+- Show current heartbeat config
+- Ask: "Enable background heartbeat? (yes / no) [current value]"
+- If yes: ask for interval, show_ok, and active hours
+- Update `heartbeat` object in config.json.
   - Note: "Heartbeat changes take effect on next `/claude-code-hermit:heartbeat start` or `hermit-start.py` run."
 
 ### 3. Write config

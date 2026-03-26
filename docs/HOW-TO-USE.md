@@ -82,6 +82,8 @@ Blockers: none
 
 Close with `/claude-code-hermit:session-close` — a full report is archived automatically.
 
+When a task finishes, the agent archives the report and says "What's next?" — give it the next task and keep going. Cumulative cost and session history carry forward. Run `/session-close` when you're actually done.
+
 ---
 
 ## Talk to Your Hermit
@@ -115,7 +117,7 @@ See [Always-On Operations](ALWAYS-ON-OPS.md) for the full guide.
 
 **Disconnected?** — Restart Claude Code. Hermit detects the active session and shows where you left off. Type "continue."
 
-**Switch tasks?** — Close the current session first (`/session-close`), then start a new one.
+**Next task?** — When the current task finishes, just give the agent the next one. It archives and rolls over automatically.
 
 **Found an improvement?** — `/claude-code-hermit:proposal-create` captures it without interrupting the current task.
 
@@ -198,7 +200,7 @@ Full reference: [Skills Reference](SKILLS.md).
 
 - **`/compact` between steps** — frees context without losing session state.
 - **`/cost` to monitor spending** — budgets warn at 80% and 100%.
-- **One task per session.** Scope creep? Capture it as a proposal, stay on task.
+- **One task at a time.** When a task finishes, the agent stays ready for the next one. Scope creep mid-task? Capture it as a proposal, stay on task.
 - **Don't create session/proposal files by hand.** Skills handle lifecycle tracking.
 - **After plugin updates**, run `/claude-code-hermit:upgrade`.
 - **Talk to your hermit.** Ask how it can improve. It gets better when you tell it what you need.

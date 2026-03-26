@@ -43,11 +43,28 @@ Each hermit's version is tracked independently in `config.json`:
 ```json
 {
   "_hermit_versions": {
-    "claude-code-hermit": "0.0.2",
+    "claude-code-hermit": "0.0.3",
     "claude-code-dev-hermit": "0.0.1"
   }
 }
 ```
+
+### Manual config migrations
+
+Some version upgrades require config.json changes the upgrade skill can't make automatically:
+
+**0.0.2 → 0.0.3**
+
+`skip_permissions` (boolean) was replaced by `permission_mode` (string):
+```json
+// Before
+"skip_permissions": false
+
+// After
+"permission_mode": "acceptEdits"
+```
+
+Heartbeat is now enabled by default — if you have `"heartbeat": { "enabled": false, ... }`, set it to `true` to get background monitoring on idle transitions.
 
 ---
 

@@ -9,14 +9,14 @@
   "channels": [],
   "remote": true,
   "model": null,
-  "skip_permissions": false,
+  "permission_mode": "acceptEdits",
   "tmux_session_name": "hermit-{project_name}",
   "auto_session": true,
   "ask_budget": true,
-  "always_on": true,
+  "always_on": false,
   "morning_brief": null,
   "heartbeat": {
-    "enabled": false,
+    "enabled": true,
     "every": "30m",
     "show_ok": false,
     "active_hours": {
