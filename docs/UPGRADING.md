@@ -1,15 +1,15 @@
 # Upgrading
 
-This guide covers upgrading claude-code-hermit and its hermits in existing projects.
+Hermit is backwards compatible — nothing breaks if you don't upgrade. But upgrading unlocks new features and refreshes templates.
 
 ---
 
-## Core Plugin Upgrade
+## Core Plugin
 
 ### 1. Update the plugin
 
 ```bash
-claude plugin marketplace add gtapps/claude-code-hermit   # re-fetches latest
+claude plugin marketplace add gtapps/claude-code-hermit
 ```
 
 ### 2. Run the upgrade skill
@@ -20,48 +20,30 @@ Inside Claude Code, in each project that uses the plugin:
 /claude-code-hermit:upgrade
 ```
 
-The upgrade skill:
-- Detects the version gap between your project config and the installed plugin
-- Shows what changed (reads `CHANGELOG.md`)
-- Prompts for any new settings introduced in the update
-- Refreshes templates (`SHELL.md.template`, `SESSION-REPORT.md.template`, `PROPOSAL.md.template`)
-- Updates the session discipline block in your project's `CLAUDE.md`
-- Stamps the new version in your config's `_hermit_versions`
+This detects the version gap, shows what changed, prompts for new settings, refreshes templates, and updates the CLAUDE.md session discipline block.
 
 ### 3. What if I don't upgrade?
 
-The plugin is backwards compatible. `hermit-start.py` merges missing config keys from defaults at runtime, so nothing breaks. You just won't be prompted about new features until you run `/upgrade`.
-
-Session start will show a soft nudge: "A hermit upgrade is available."
-
-### Manual alternative
-
-If you prefer not to use the upgrade skill, you can:
-1. Compare `state-templates/config.json.template` with your `.claude/.claude-code-hermit/config.json`
-2. Add any missing keys manually
-3. Replace the session discipline block in CLAUDE.md with the latest `state-templates/CLAUDE-APPEND.md`
+`hermit-start.py` merges missing config keys from defaults at runtime. Session start shows a soft nudge: "A hermit upgrade is available."
 
 ---
 
-## Hermit Upgrade
+## Hermit Plugins
 
-Hermits (e.g., `claude-code-dev-hermit`) are upgraded the same way:
+Hermits (e.g., `claude-code-dev-hermit`) upgrade the same way:
 
 ```bash
-claude plugin marketplace add your-org/claude-code-dev-hermit   # re-fetch
+claude plugin marketplace add your-org/claude-code-dev-hermit
 ```
 
-Then run `/claude-code-hermit:upgrade` — it automatically detects hermit version gaps and handles them:
-- Updates the hermit's CLAUDE-APPEND block in your project's CLAUDE.md
-- Follows the hermit's `UPGRADE.md` instructions if it provides one
-- Shows the hermit's changelog entries for the version gap
+Then `/claude-code-hermit:upgrade` — it detects hermit version gaps automatically and updates their CLAUDE-APPEND blocks.
 
-Each hermit's version is tracked independently in `_hermit_versions`:
+Each hermit's version is tracked independently in `config.json`:
 
 ```json
 {
   "_hermit_versions": {
-    "claude-code-hermit": "0.0.1",
+    "claude-code-hermit": "0.0.2",
     "claude-code-dev-hermit": "0.0.1"
   }
 }
@@ -69,54 +51,20 @@ Each hermit's version is tracked independently in `_hermit_versions`:
 
 ---
 
-## Project Agent Evolution
+## Project Customizations
 
-This isn't an "upgrade" — it's how your project-specific customizations evolve over time.
+These aren't upgrades — just how your project evolves:
 
-### OPERATOR.md
-
-Edit directly or tell the agent: "Update OPERATOR.md with X." Keep the first 50 lines focused on critical context (the SessionStart hook reads `head -50`).
-
-### Custom agents
-
-Add, modify, or remove agent files in `.claude/agents/`. Changes take effect on the next Claude Code session — no restart needed.
-
-### Custom skills
-
-Add or modify skill directories in `.claude/skills/`. Same — changes are live immediately.
-
-### Config
-
-Use `/claude-code-hermit:hermit-settings` or edit `.claude/.claude-code-hermit/config.json` directly.
-
----
-
-## Version Tracking
-
-Projects initialized before version tracking was added will not have a `_hermit_versions` field in config.json. The upgrade skill treats this as version `0.0.0` and will prompt for all settings introduced since the initial release.
-
-After upgrading, your config.json will include:
-
-```json
-{
-  "_hermit_versions": {
-    "claude-code-hermit": "0.0.1"
-  },
-  ...
-}
-```
-
-This field is metadata — don't edit it manually.
+- **OPERATOR.md** — Edit directly or tell the agent. Keep critical context in the first 50 lines.
+- **Custom agents** — Add/modify/remove files in `.claude/agents/`. Live immediately.
+- **Custom skills** — Add/modify in `.claude/skills/`. Live immediately.
+- **Config** — `/claude-code-hermit:hermit-settings` or edit `config.json` directly.
 
 ---
 
 ## For Hermit Authors
 
-If you maintain a hermit and want to support upgrades:
-
-1. **Keep `plugin.json` version updated** — the upgrade skill reads this
-2. **Maintain a `CHANGELOG.md`** — the upgrade skill shows entries to the operator
-3. **Optionally provide `UPGRADE.md`** — hermit-specific upgrade instructions the agent follows (e.g., re-ask OPERATOR.md questions, update custom hooks)
-4. **Keep `state-templates/CLAUDE-APPEND.md` current** — the upgrade skill replaces the old block automatically
-
-See [CREATING-YOUR-OWN-HERMIT.md](CREATING-YOUR-OWN-HERMIT.md) for the full hermit structure. For details on any skill mentioned in this guide, see [SKILLS.md](SKILLS.md).
+1. Keep `plugin.json` version updated
+2. Maintain a `CHANGELOG.md`
+3. Optionally provide `UPGRADE.md` with hermit-specific instructions
+4. Keep `state-templates/CLAUDE-APPEND.md` current

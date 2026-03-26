@@ -1,38 +1,164 @@
-# How to Use claude-code-hermit
+# Getting Started
 
-A step-by-step guide from install to your first autonomous session.
+## Prerequisites
+
+[Claude Code](https://code.claude.com) v2.1.80+ and a paid Claude plan (Pro or Max). Node.js 22+ for hooks. Optional: **tmux** for always-on mode, **Bun** for phone channels.
 
 ---
 
-## 1. Prerequisites
-
-| Requirement | Minimum Version | Notes |
-|---|---|---|
-| **Claude Code** | v2.1.80+ | Required for Channels support. v2.1.32+ works without channels. |
-| **Claude Plan** | Pro or Max | Extended sessions require a paid plan. |
-| **Node.js** | 18+ | Hook scripts (cost tracking, session evaluation) run on Node. |
-| **Git** | Any recent version | Session archiving and file change tracking depend on it. |
-
-Optional:
-- **tmux** — required for the always-on boot scripts (`hermit-start`)
-- **Bun** — required for [Channels](https://code.claude.com/docs/en/channels) (Telegram/Discord/iMessage) support
-
-## 2. Installation
+## Install
 
 ```bash
-# Install the plugin into your project
-cd /path/to/your/project
+cd /path/to/your/project   # or any folder — even an empty one
 claude plugin marketplace add gtapps/claude-code-hermit
 claude plugin install claude-code-hermit@claude-code-hermit --scope project
 ```
 
-No `npm install`, no build step. The plugin is ready to use.
+---
 
-### Permissions (without `--dangerously-skip-permissions`)
+## Initialize
 
-The plugin's hooks and boot scripts execute shell commands automatically (reading git state, running Node.js hooks, loading session context). Without `--dangerously-skip-permissions`, Claude Code prompts for approval on each one.
+```
+/claude-code-hermit:init
+```
 
-The `/claude-code-hermit:init` wizard adds the required permissions to `.claude/settings.json` automatically. If you skip init or want to set them up manually, add these to your project's `.claude/settings.json`:
+The wizard sets up your agent's identity (name, language, timezone, autonomy level) and operational preferences (channels, remote control, heartbeat, budgets). Then it scans your folder and generates an `OPERATOR.md` — your rulebook. Starting fresh with an empty folder? It'll ask what the assistant is for.
+
+### OPERATOR.md
+
+Hermit reads this at every session start. Be specific — the more precise you are, the better it performs.
+
+Good:
+
+```markdown
+## Project
+
+A Go-based REST API for inventory management. Solo developer.
+Goal: feature parity with the legacy PHP system by Q2.
+
+## Constraints
+
+- Never modify `migrations/` without asking first.
+- Monthly Claude budget: $150. Alert at $120.
+
+## Sensitive Areas
+
+- /internal/auth — don't touch without approval.
+```
+
+Not useful:
+
+```markdown
+## Project
+
+A web app.
+
+## Constraints
+
+Be careful.
+```
+
+First 50 lines are loaded automatically — keep critical context at the top. Update anytime: just tell Hermit "update OPERATOR.md with [your change]."
+
+---
+
+## Your First Session
+
+```
+/claude-code-hermit:session
+```
+
+Give it a task, optional tags (e.g., `feature, api`), and an optional budget. Hermit proposes a plan and waits for your go-ahead. As it works, `SHELL.md` tracks everything — plan status, progress log, blockers, cost.
+
+Check status anytime — just type "status":
+
+```
+Session S-001 | in_progress | feature, api
+Task: Add input validation to the API endpoints
+Progress: 2/4 plan items | Current: Step 3 - Add request body validation
+Budget: $1.80 / $5.00 (36%)
+Blockers: none
+```
+
+Close with `/claude-code-hermit:session-close` — a full report is archived automatically.
+
+---
+
+## Talk to Your Hermit
+
+Hermit isn't just a task runner. During any session, you can ask it to reflect and improve:
+
+- **"What slowed you down recently?"** — Reviews recent sessions and tells you what caused delays, with evidence.
+- **"What permissions do you keep getting blocked on?"** — Suggests the exact `settings.json` entries to add so it stops getting prompted.
+- **"Suggest specialized agents for this project."** — Proposes new [sub-agents](https://code.claude.com/docs/en/sub-agents) based on the kind of work you've been doing. You approve, it creates them.
+- **"How can you be more efficient?"** — Suggests workflow improvements, configuration tweaks, or structural changes.
+- **"Create a self-improvement proposal."** — Formalizes what it's learned into a proposal you can accept or reject.
+
+You're always in control. Hermit suggests. You decide.
+
+---
+
+## Going Always-On
+
+```bash
+.claude/.claude-code-hermit/bin/hermit-start    # launch in tmux with channels + heartbeat
+.claude/.claude-code-hermit/bin/hermit-stop     # graceful shutdown
+```
+
+In always-on mode, the session stays open between tasks — heartbeat, monitors, and channels keep running. Send tasks from your phone. Let it work overnight.
+
+See [Always-On Operations](ALWAYS-ON-OPS.md) for the full guide.
+
+---
+
+## Common Workflows
+
+**Disconnected?** — Restart Claude Code. Hermit detects the active session and shows where you left off. Type "continue."
+
+**Switch tasks?** — Close the current session first (`/session-close`), then start a new one.
+
+**Found an improvement?** — `/claude-code-hermit:proposal-create` captures it without interrupting the current task.
+
+**What's Hermit been struggling with?** — `/claude-code-hermit:proposal-list` shows auto-detected patterns. Or just ask.
+
+---
+
+## Session State
+
+```
+.claude/.claude-code-hermit/
+├── sessions/
+│   ├── SHELL.md               ← live session
+│   ├── S-001-REPORT.md        ← archived reports
+│   └── NEXT-TASK.md           ← from accepted proposals
+├── proposals/
+│   └── PROP-001.md            ← improvement ideas
+├── OPERATOR.md                ← your rulebook
+├── HEARTBEAT.md               ← background checklist
+└── config.json                ← settings
+```
+
+---
+
+## Hook Profiles
+
+| Profile                | What runs                                      | Best for                       |
+| ---------------------- | ---------------------------------------------- | ------------------------------ |
+| **minimal**            | Cost tracking only                             | Experimenting                  |
+| **standard** (default) | + compact suggestions + session quality checks | Day-to-day work                |
+| **strict**             | + safety hooks from hermits                    | Always-on, production-adjacent |
+
+Set in `.claude/settings.json`:
+
+```json
+{ "env": { "AGENT_HOOK_PROFILE": "strict" } }
+```
+
+---
+
+## Permissions
+
+The init wizard adds required permissions to `.claude/settings.json` automatically. To set up manually:
 
 ```json
 {
@@ -49,258 +175,30 @@ The `/claude-code-hermit:init` wizard adds the required permissions to `.claude/
 }
 ```
 
-**What each permission enables:**
+Or just ask Hermit: "What permissions do you need?" — it'll tell you exactly what to add.
 
-| Permission | Used by | Purpose |
-|---|---|---|
-| `git diff`, `git status`, `git log` | session-diff.js (Stop hook) | Auto-populates `## Changed` in SHELL.md with files modified during the session |
-| `python3` | hermit-start.py, hermit-stop.py, check-upgrade.sh | Boot scripts for always-on mode and version checking |
-| `node` | cost-tracker.js, suggest-compact.js, session-diff.js, evaluate-session.js | Stop hooks that run after every assistant turn |
-| `bash -c 'AGENT_DIR=...` | SessionStart hook | Loads OPERATOR.md, SHELL.md, and last report on every Claude Code startup |
+---
 
-These go in `.claude/settings.json` (project-scoped, committed to git) so they apply to everyone using the project. Personal overrides go in `.claude/settings.local.json` (gitignored).
+## All 15 Skills
 
-> **Note:** With `--dangerously-skip-permissions` (unattended/always-on mode), all permissions are granted automatically. These settings only matter for interactive use.
+| Category       | Skills                                                               |
+| -------------- | -------------------------------------------------------------------- |
+| **Session**    | `session`, `session-start`, `session-close`                          |
+| **Status**     | `status`, `brief`                                                    |
+| **Monitoring** | `monitor`, `heartbeat`                                               |
+| **Learning**   | `proposal-create`, `proposal-list`, `proposal-act`, `pattern-detect` |
+| **Config**     | `hermit-settings`, `init`, `upgrade`                                 |
+| **Channels**   | `channel-responder`                                                  |
 
-## 3. First Init
+Full reference: [Skills Reference](SKILLS.md).
 
-Start Claude Code and run the init skill:
+---
 
-```bash
-claude
-```
+## Tips
 
-```
-/claude-code-hermit:init
-```
-
-The init wizard walks you through two groups of questions:
-
-**Agent Identity** — who the agent is:
-- Agent name (e.g., "Atlas", "Hermit", or skip)
-- Preferred language (auto-detected from your system locale)
-- Timezone (auto-detected)
-- Autonomy level: conservative, balanced, or autonomous
-- Sign-off line for messages (e.g., "Atlas out.")
-
-**Operational** — how the agent runs:
-- Channels (Telegram / Discord / iMessage / none). For multi-agent setups, you can scope channel access locally per project (`.claude.local/channels/`) instead of the default user-level config -- see [Local-Scope Channel Config](ALWAYS-ON-OPS.md#local-scope-channel-config).
-- [Remote control](https://code.claude.com/docs/en/remote-control) (connect from browser/phone via claude.ai/code)
-- Morning brief (if channels are enabled)
-- Heartbeat background checks (if channels are enabled)
-- Budget prompting at session start
-- Unattended mode (skip permission prompts)
-
-After the wizard, the agent scans your project (README, package.json, CI config, etc.) and generates an OPERATOR.md with targeted questions to fill in what it couldn't infer.
-
-When complete, you'll see a summary like:
-
-```
-Autonomous agent initialized!
-
-Created:
-  .claude/.claude-code-hermit/sessions/
-  .claude/.claude-code-hermit/proposals/
-  .claude/.claude-code-hermit/templates/ (3 templates)
-  .claude/.claude-code-hermit/OPERATOR.md (onboarded)
-  .claude/.claude-code-hermit/HEARTBEAT.md
-  .claude/.claude-code-hermit/bin/ (hermit-start, hermit-stop)
-  .claude/.claude-code-hermit/config.json
-
-Next steps:
-  1. Run /claude-code-hermit:session to start your first session
-  2. Refine OPERATOR.md anytime — just tell me what changed
-  3. For always-on operation: .claude/.claude-code-hermit/bin/hermit-start
-```
-
-## 4. Understanding OPERATOR.md
-
-`.claude/.claude-code-hermit/OPERATOR.md` is the single most important file to customize. The agent reads it at the start of every session — it's how the agent knows what your project is, what to avoid, and how you prefer to work.
-
-**Important:** The first 50 lines are loaded by the SessionStart hook. Keep critical context (project description, constraints, sensitive areas) at the top.
-
-**Good operator context:**
-
-```markdown
-## Project
-A Go-based REST API for inventory management. I'm the sole developer.
-Goal: reach feature parity with the legacy PHP system by end of Q2.
-
-## Constraints
-- Never modify the `migrations/` directory without asking first.
-- Monthly Claude budget: $150. Alert me at $120.
-
-## Sensitive Areas
-- /internal/auth — contains token validation logic, do not change without approval.
-- .env files are gitignored and must stay that way.
-```
-
-**Bad operator context (too vague to be useful):**
-
-```markdown
-## Project
-A web app.
-
-## Constraints
-Be careful.
-```
-
-The more specific you are, the better the agent performs. Include budget limits, off-limits directories, naming conventions, and communication preferences.
-
-## 5. Your First Session
-
-1. **Start the session:**
-   ```
-   /claude-code-hermit:session
-   ```
-
-2. **Set a task** when prompted:
-   ```
-   > What's the task for this session?
-   Add input validation to the API endpoints
-   ```
-
-3. **Add tags** (optional) and **set a budget** (optional):
-   ```
-   > Any tags for this session? (e.g., refactor, frontend, urgent) Enter to skip.
-   feature, api
-   > Set a cost budget for this task?
-   $5.00
-   ```
-
-4. **Review the proposed plan.** The agent presents an ordered plan and waits for your confirmation before starting work.
-
-5. **Work progresses.** The agent updates `sessions/SHELL.md` after each significant plan item. You can track progress and resume later if interrupted.
-
-6. **Check status anytime** — type "status" (auto-triggers) or run `/claude-code-hermit:status`:
-   ```
-   Session S-001 | in_progress | feature, api
-   Task: Add input validation to the API endpoints
-   Progress: 2/4 plan items | Current: Step 3 - Add request body validation
-   Budget: $1.80 / $5.00 (36%)
-   Blockers: none
-   Cost: $1.80 (120K tokens)
-   ```
-
-7. **Close the session** with `/claude-code-hermit:session-close` (or the agent suggests it when the task is complete). A report is archived to `sessions/S-001-REPORT.md` with the task, plan, tags, blockers, and cost.
-
-## 6. Understanding Session State
-
-All state lives in `.claude/.claude-code-hermit/`:
-
-```
-.claude/.claude-code-hermit/
-├── sessions/
-│   ├── SHELL.md               ← live working document (current session)
-│   ├── S-001-REPORT.md        ← archived report
-│   └── S-002-REPORT.md
-├── proposals/
-│   └── PROP-001.md            ← improvement idea
-├── templates/                 ← session and proposal templates
-├── bin/                       ← boot scripts (hermit-start, hermit-stop)
-├── config.json                ← project configuration
-├── OPERATOR.md                ← your project context (you edit this)
-└── HEARTBEAT.md               ← background checklist (you edit this)
-```
-
-**SHELL.md** is the live working document. It contains the task, a plan table with statuses (`planned`, `in_progress`, `blocked`, `done`), a timestamped progress log, blockers, findings, changed files (auto-populated by a hook), and cost data (auto-populated by the cost-tracker hook).
-
-When a session closes, SHELL.md is copied to `S-NNN-REPORT.md` and a fresh SHELL.md is created for the next session.
-
-## 7. Closing a Session
-
-Run `/claude-code-hermit:session-close` when you're done. The agent:
-
-1. Finalizes plan statuses and documents blockers
-2. Records lessons learned and creates proposals for high-leverage improvements
-3. Runs pattern detection across recent sessions (after 3+ reports exist)
-4. Archives the report as `S-NNN-REPORT.md`
-
-> **Note:** Pattern detection activates after your third completed session. Until then, this step is skipped — there isn't enough data to detect patterns. Once active, the agent analyzes recent reports for recurring blockers, repeated workarounds, cost trends, and tag correlations. See [When Self-Learning Fires](ALWAYS-ON-OPS.md#1d-when-self-learning-fires) for the full timeline.
-
-The archived report includes: task, status (completed/partial/blocked), completed plan items, changed files, blockers, lessons, proposals created, and a "Next Start Point" describing what the next session should do first.
-
-## 8. Common Workflows
-
-### "I got disconnected"
-
-Just restart Claude Code. The `session-start` skill detects the active session in SHELL.md and presents your task, progress, and blockers. Type "continue" to pick up where you left off.
-
-### "I want to switch tasks"
-
-Close the current session first (`/claude-code-hermit:session-close`), then start a new one (`/claude-code-hermit:session`). This archives the current work properly.
-
-### "I found something worth improving"
-
-Use `/claude-code-hermit:proposal-create` during a session. The agent captures the idea as a proposal file without interrupting the current task. Review proposals later with `/claude-code-hermit:proposal-list`.
-
-### "I want to review proposals"
-
-Run `/claude-code-hermit:proposal-list` to see all proposals with their status and age. Then act on them:
-
-```
-/claude-code-hermit:proposal-act accept PROP-003   ← becomes next session's task
-/claude-code-hermit:proposal-act defer PROP-002    ← acknowledged, not now
-/claude-code-hermit:proposal-act dismiss PROP-001  ← not applicable
-```
-
-Accepted proposals can generate a `NEXT-TASK.md` file that `session-start` offers as the default task next time.
-
-## 9. Hook Profiles
-
-Hooks run automatically at session boundaries. Three profiles are available:
-
-| Profile | What It Does | Best For |
-|---|---|---|
-| `minimal` | Cost tracking only | Low overhead, experimentation |
-| `standard` (default) | Cost tracking + compact suggestions + session evaluation | Day-to-day work |
-| `strict` | Everything in standard + additional safety hooks from hermits | Production-adjacent work |
-
-**To change the profile**, edit `.claude/settings.json`:
-
-```json
-{
-  "env": {
-    "AGENT_HOOK_PROFILE": "strict"
-  }
-}
-```
-
-## 10. Running Always-On
-
-For persistent, always-on operation, use the boot scripts:
-
-```bash
-# Start the agent in tmux with channels and auto-session
-.claude/.claude-code-hermit/bin/hermit-start
-
-# Graceful shutdown (sends /session-close first)
-.claude/.claude-code-hermit/bin/hermit-stop
-
-# Immediate kill (skips session close)
-.claude/.claude-code-hermit/bin/hermit-stop --force
-```
-
-The boot scripts read `config.json` for channel configuration, tmux session name, and heartbeat preferences. See [ALWAYS-ON-OPS.md](ALWAYS-ON-OPS.md) for the full operations guide.
-
-## 11. Skills Reference
-
-There are 15 skills grouped into 6 categories. For the complete reference with usage, auto-triggers, and examples, see **[SKILLS.md](SKILLS.md)**.
-
-| Category | Skills |
-|----------|--------|
-| Session Lifecycle | session, session-start, session-close |
-| Status & Reporting | status, brief |
-| Monitoring | monitor, heartbeat |
-| Proposals & Learning | proposal-create, proposal-list, proposal-act, pattern-detect |
-| Configuration | hermit-settings, init, upgrade |
-| Communication | channel-responder |
-
-## 12. Tips
-
-- **Use `/compact` at logical breakpoints** (between steps, not mid-task). This frees context window space without losing session state.
-- **Use `/cost` to monitor spending.** The cost-tracker hook logs data automatically. If you set a session budget, it warns at 80% and 100%.
-- **Keep sessions focused.** One task per session. If scope creep happens, capture the new idea as a proposal and stay on the original task.
-- **Don't create session or proposal files by hand.** Always use the skills — manual creation bypasses lifecycle tracking.
-- **Change settings anytime** with `/claude-code-hermit:hermit-settings`.
-- **After plugin updates**, run `/claude-code-hermit:upgrade` to pick up new features and refresh templates.
+- **`/compact` between steps** — frees context without losing session state.
+- **`/cost` to monitor spending** — budgets warn at 80% and 100%.
+- **One task per session.** Scope creep? Capture it as a proposal, stay on task.
+- **Don't create session/proposal files by hand.** Skills handle lifecycle tracking.
+- **After plugin updates**, run `/claude-code-hermit:upgrade`.
+- **Talk to your hermit.** Ask how it can improve. It gets better when you tell it what you need.

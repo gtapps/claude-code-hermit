@@ -1,57 +1,54 @@
 # Troubleshooting
 
-Common issues and their solutions.
-
 ---
 
 ## Channels Not Responding
 
-- Verify Claude Code was started with the `--channels` flag. Check the boot script output for `[hermit] Channels: discord` (or telegram).
-- Check that the bot token is valid and the bot is online.
-- Verify the tmux session is alive: `tmux ls`
-- Check internet connectivity from the host or container.
-- Telegram Bot API has no message history -- if the agent was down when a message was sent, that message is permanently lost.
-- If running in Docker with `--network=none`, channels cannot work. See [ALWAYS-ON-OPS.md](ALWAYS-ON-OPS.md#86-network-and-channels).
+- Verify Claude Code was started with `--channels`. Check boot script output for `[hermit] Channels: discord`.
+- Check bot token and bot online status.
+- Verify tmux session: `tmux ls`
+- If Docker `--network=none`, channels can't work.
+- Telegram has no message history — messages sent while the agent was down are lost.
 
 ## Hooks Not Firing
 
-- Check `AGENT_HOOK_PROFILE` in `.claude/settings.json`. Core hooks (cost-tracker, suggest-compact, session evaluation) require `standard` or `strict`. Hermit hooks (e.g., git-push-guard) require `strict`.
-- Verify `hooks/hooks.json` is valid JSON: `cat hooks/hooks.json | python3 -m json.tool`
-- Test a hook script manually: `echo '{}' | node scripts/cost-tracker.js`
-- If hooks fire for the main agent but not subagents, this is a known limitation. See [ARCHITECTURE.md](ARCHITECTURE.md) for details.
+- Check `AGENT_HOOK_PROFILE` in `.claude/settings.json`. Core hooks need `standard` or `strict`. Hermit hooks (e.g., git-push-guard) need `strict`.
+- Validate hooks.json: `cat hooks/hooks.json | python3 -m json.tool`
+- Test manually: `echo '{}' | node scripts/cost-tracker.js`
+- Hooks may not fire for subagent tool calls — see [Architecture](ARCHITECTURE.md).
 
 ## Session-Start Hangs
 
-- **Workspace trust prompt:** If running with `--dangerously-skip-permissions` for the first time, Claude Code shows a trust dialog. Run `claude` interactively once in the project directory, accept the prompt, then restart the headless agent.
-- **Orphaned SHELL.md:** A previous crash left an active session. The agent is waiting for you to choose "resume" or "start new." Attach to tmux and respond, or delete `sessions/SHELL.md` to start fresh.
-- **Auth expired:** Check Claude Code auth with `claude --version`. If not authenticated, run `claude login` on the host.
+- **Workspace trust:** Run `claude` interactively once first and accept the trust prompt. Then restart headless.
+- **Orphaned SHELL.md:** A crash left an active session. Attach to tmux and choose resume/new, or delete `sessions/SHELL.md`.
+- **Auth expired:** Check with `claude --version`. Run `claude login` if needed.
 
 ## Costs Unexpectedly High
 
-- Check `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` in settings (default 50 -- lower means more frequent compactions, which cost tokens).
-- Check heartbeat interval -- `every: 5m` with an Opus-class model is expensive. Use 15m or 30m.
-- Check if monitoring is running with a very short interval (`/claude-code-hermit:monitor stop` to halt).
-- Review SHELL.md size -- bloated files cost tokens on every read. Long sessions should compact progress log entries.
+- Check `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (default 50).
+- Check heartbeat interval — 5m with Opus is expensive. Use 15m or 30m.
+- Check if monitors are running with short intervals (`/claude-code-hermit:monitor stop`).
+- Review SHELL.md size — bloated files cost tokens on every read.
 - Use `/cost` to check current session spend.
 
-## Morning Brief Not Sending
+## No Auto-Proposals Appearing
 
-- Check `config.json`: `morning_brief.enabled` must be `true`.
-- Check `config.json`: `morning_brief.channel` must match an active channel in the `channels` array.
-- Verify channels are working first -- send "status" via Telegram/Discord manually.
-- The brief only sends if the agent is running at the configured time. If the agent was down at 07:00, the brief is skipped.
+- Pattern detection requires **3+ completed sessions**. Until then, it's skipped entirely.
+- Check that session reports exist: `ls .claude/.claude-code-hermit/sessions/S-*-REPORT.md`
+- Pattern detection runs during `/session-close`, not during work.
 
 ## Agent Ignoring OPERATOR.md
 
-- Verify the file location: `.claude/.claude-code-hermit/OPERATOR.md`
-- Check the **50-line rule:** the SessionStart hook reads only the first 50 lines. Critical context (project description, constraints, sensitive areas) must be in the top 50 lines.
+- Verify location: `.claude/.claude-code-hermit/OPERATOR.md`
+- **50-line rule:** The SessionStart hook reads only the first 50 lines. Critical context must be at the top.
 - Verify the SessionStart hook is registered in `hooks/hooks.json`.
-- Check that `AGENT_HOOK_PROFILE` is `standard` or `strict` -- the SessionStart hook fires at these profiles.
 
-## Orphaned Session Detected on Every Start
+## Orphaned Session on Every Start
 
-A `SHELL.md` exists from a previously crashed session. On every start, the agent asks whether to resume or start fresh.
+SHELL.md from a crashed session persists. Choose **resume** or **start new** (generates a partial report). If this keeps happening, check system stability, rate limits, disk space, and consider Docker for auto-restart.
 
-- Choose **resume** to pick up where you left off.
-- Choose **start new** to close the orphaned session (generates a partial report) and begin fresh.
-- If this keeps happening, your sessions are crashing regularly. Check system stability, rate limits, disk space, and consider Docker deployment for automatic restart.
+## Morning Brief Not Sending
+
+- `config.json`: `morning_brief.enabled` must be `true`, `morning_brief.channel` must match an active channel.
+- Verify channels work first — send "status" manually.
+- The brief only sends if the agent is running at the configured time.
