@@ -33,7 +33,7 @@ DEFAULT_CONFIG = {
     'permission_mode': 'acceptEdits',
     'tmux_session_name': 'hermit-{project_name}',
     'auto_session': True,
-    'ask_budget': True,
+    'ask_budget': False,
     'always_on': False,
     'morning_brief': None,
     'heartbeat': {
@@ -101,6 +101,15 @@ def check_prerequisites():
     return {'tmux': has_tmux, 'bun': has_bun}
 
 
+def is_container():
+    """Detect if running inside a container (Docker, Podman, LXC)."""
+    return (
+        os.path.exists('/.dockerenv')
+        or os.path.exists('/run/.containerenv')
+        or os.environ.get('container') == 'docker'
+    )
+
+
 CHANNEL_PLUGINS = {
     'discord': 'plugin:discord@claude-plugins-official',
     'telegram': 'plugin:telegram@claude-plugins-official',
@@ -133,6 +142,16 @@ def build_claude_command(config):
 
     mode = config.get('permission_mode', 'acceptEdits')
     if mode == 'bypassPermissions':
+        if not is_container():
+            print('[hermit] WARNING: bypassPermissions is intended for containers/VMs only.')
+            print('[hermit] You appear to be running on a host machine.')
+            try:
+                answer = input('[hermit] Continue anyway? [y/N] ').strip().lower()
+            except EOFError:
+                answer = ''
+            if answer != 'y':
+                print('[hermit] Aborted. Change permission_mode in config.json or use a container.')
+                sys.exit(1)
         cmd.append('--dangerously-skip-permissions')
     elif mode in ('acceptEdits', 'dontAsk'):
         cmd.extend(['--permission-mode', mode])

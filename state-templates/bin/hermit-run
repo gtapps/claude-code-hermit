@@ -23,7 +23,11 @@ if [ -n "$PLUGIN_ROOT" ] && [ ! -d "$PLUGIN_ROOT" ]; then
   if [ -d "$PARENT_DIR" ]; then
     LATEST=""
     for d in "$PARENT_DIR"/*/; do
-      [ -d "$d/scripts" ] && LATEST="$d"
+      # Verify directory has both scripts/ and a valid plugin.json with the correct name
+      if [ -d "$d/scripts" ] && [ -f "$d/.claude-plugin/plugin.json" ]; then
+        FOUND_NAME=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('name',''))" "$d/.claude-plugin/plugin.json" 2>/dev/null)
+        [ "$FOUND_NAME" = "claude-code-hermit" ] && LATEST="$d"
+      fi
     done
     if [ -n "$LATEST" ]; then
       PLUGIN_ROOT="${LATEST%/}"

@@ -280,7 +280,12 @@ Docker provides containment and crash recovery via restarts.
 ### Auth
 
 **OAuth (Pro/Max):** `claude login` on host, mount `~/.claude/` into container.
-**API Key:** `docker run -e ANTHROPIC_API_KEY=sk-ant-... your-image`
+**API Key:** Use `--env-file` to avoid exposing the key in process listings:
+```bash
+echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
+docker run --env-file .env your-image
+```
+Ensure `.env` is in your `.gitignore`.
 
 ### Dockerfile
 

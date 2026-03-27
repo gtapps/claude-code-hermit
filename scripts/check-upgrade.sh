@@ -15,7 +15,7 @@ CONFIG=".claude/.claude-code-hermit/config.json"
 # Extract version from plugin.json (simple grep — avoids Python startup)
 PLUGIN_VER=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$PLUGIN_ROOT/.claude-plugin/plugin.json" | head -1 | grep -o '"[^"]*"$' | tr -d '"')
 # Extract config version from _hermit_versions.claude-code-hermit
-CONFIG_VER=$(python3 -c "import json,sys; c=json.load(open('$CONFIG')); print(c.get('_hermit_versions',{}).get('claude-code-hermit','0.0.0'))" 2>/dev/null || echo "0.0.0")
+CONFIG_VER=$(python3 -c "import json,sys; c=json.load(open(sys.argv[1])); print(c.get('_hermit_versions',{}).get('claude-code-hermit','0.0.0'))" "$CONFIG" 2>/dev/null || echo "0.0.0")
 
 [ -z "$PLUGIN_VER" ] && exit 0
 [ "$PLUGIN_VER" = "$CONFIG_VER" ] && exit 0

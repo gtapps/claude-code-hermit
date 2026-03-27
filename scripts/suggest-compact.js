@@ -15,10 +15,16 @@ const SUBSEQUENT_INTERVAL = 25;
 const MAX_COUNTER = 1_000_000;
 const CONTEXT_USAGE_THRESHOLD = 0.6; // 60%
 
+const COUNTER_DIR = path.join(os.tmpdir(), `claude-agent-compact-${process.getuid?.() ?? 'win'}`);
+let counterDirCreated = false;
+
 function getCounterPath(sessionId) {
-  const dir = path.join(os.tmpdir(), 'claude-agent-compact');
-  fs.mkdirSync(dir, { recursive: true });
-  return path.join(dir, `counter-${sessionId || 'default'}.txt`);
+  if (!counterDirCreated) {
+    fs.mkdirSync(COUNTER_DIR, { recursive: true, mode: 0o700 });
+    counterDirCreated = true;
+  }
+  const safe = (sessionId || 'default').replace(/[^a-zA-Z0-9_-]/g, '_');
+  return path.join(COUNTER_DIR, `counter-${safe}.txt`);
 }
 
 function readCounter(counterPath) {

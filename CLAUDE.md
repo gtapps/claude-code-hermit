@@ -69,7 +69,7 @@ All autonomous agent state lives in `.claude/.claude-code-hermit/`:
 |-------|------------|-------|
 | `session-mgr` | Session start, close, progress tracking | Sonnet |
 
-Additional agents may be available from installed hermits (e.g., claude-code-dev-hermit).
+Additional agents may be available from installed hermits.
 
 ## Quick Reference
 

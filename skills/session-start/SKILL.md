@@ -39,7 +39,7 @@ All state lives under `.claude/.claude-code-hermit/` in the project root.
    - Once provided, use `session-mgr` to create the session with the task and initial plan
 10. After task is established (new session only):
     - **Tags:** Ask "Any tags for this session? (e.g., refactor, frontend, urgent) Enter to skip." Write the answer to the `Tags:` field in SHELL.md. If skipped, leave blank.
-    - **Budget:** Check `ask_budget` from the config read in step 1. If `ask_budget` is `true` (default if missing):
+    - **Budget:** Check `ask_budget` from the config read in step 1. If `ask_budget` is `true`:
       - Ask: "Set a cost budget for this task?"
         1. Set budget — enter a dollar amount → write `Budget: $X.XX` to SHELL.md
         2. No budget for this session — leave Budget field blank
@@ -57,4 +57,4 @@ Do NOT load all session reports — only the most recent one.
 
 ## First Session on a Codebase
 
-If this is the first session (no prior reports exist), explore the project structure using Glob and Read tools before proposing a plan. If a hermit provides a specialized orientation agent (e.g., repo-mapper from claude-code-dev-hermit), prefer that instead.
+If this is the first session (no prior reports exist), explore the project structure using Glob and Read tools before proposing a plan. If a hermit provides a specialized orientation agent, prefer that instead.

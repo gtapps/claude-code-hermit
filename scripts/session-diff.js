@@ -2,15 +2,11 @@
 // Auto-populates the ## Changed section in SHELL.md with git diff stats.
 //
 // WORKTREE LIMITATION:
-// Changes made in git worktrees (e.g., by the dev hermit's implementer agent)
-// are only visible to git diff in the main worktree after the feature branch
-// is merged back. If a session closes mid-implementation while changes are
-// still on a worktree branch, this script will see an empty diff.
-//
-// This is by design — the dev hermit's implementer bridge (GAP-19) writes
-// the file list from the agent's structured output during the session,
-// before this Stop hook runs. Since this script checks "skip if ## Changed
-// already has content," the implementer bridge has priority for dev sessions.
+// Changes made in git worktrees are only visible to git diff in the main
+// worktree after the feature branch is merged back. If a session closes
+// mid-implementation while changes are still on a worktree branch, this
+// script will see an empty diff. If ## Changed already has content (e.g.,
+// populated by a hermit), this script skips.
 //
 // This script serves as the fallback for:
 // - Non-dev sessions (HA, DevOps, etc.) where changes are made directly
@@ -29,12 +25,12 @@ const SHELL_SESSION = path.resolve(
 );
 
 function populateChanged() {
-  // Only run if SHELL.md exists
-  if (!fs.existsSync(SHELL_SESSION)) {
+  let original;
+  try {
+    original = fs.readFileSync(SHELL_SESSION, "utf-8");
+  } catch {
     return;
   }
-
-  const original = fs.readFileSync(SHELL_SESSION, "utf-8");
   let content = original;
 
   // Skip if ## Changed already has non-comment content
@@ -93,7 +89,7 @@ function populateChanged() {
     .filter(Boolean)
     .map((line) => {
       const [status, ...fileParts] = line.split("\t");
-      const file = fileParts.join("\t");
+      const file = fileParts.join("\t").replace(/[`\n\r]/g, "_");
       const label = STATUS_LABELS[status]
         || (status.startsWith("R") ? "renamed" : "changed");
       return `- \`${file}\` (${label})`;

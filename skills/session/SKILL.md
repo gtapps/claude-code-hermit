@@ -5,7 +5,7 @@ disable-model-invocation: true
 ---
 # Session
 
-Start or resume a session with full context loading. This is the generic session workflow — hermits may provide specialized versions (e.g., `/claude-code-dev-hermit:dev-session` for software development with code review and testing).
+Start or resume a session with full context loading. This is the generic session workflow — hermits may provide specialized versions.
 
 ## Workflow
 

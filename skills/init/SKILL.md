@@ -44,8 +44,6 @@ Create the following directories and files:
 Look for sibling plugin directories that extend Hermit:
 - Use Glob on `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json`
 - Read each found `plugin.json` and check if the `name` field contains "hermit" but is NOT "claude-code-hermit"
-- Known hermits: `claude-code-dev-hermit` (software development agents + workflows)
-
 If hermits are found:
 - List them and ask: "Activate a hermit for this project?"
 - If the operator selects one: read that hermit's `state-templates/CLAUDE-APPEND.md` and append it to the target project's CLAUDE.md (after the core append in step 5)
@@ -108,7 +106,7 @@ Ask: "Enable morning brief delivery? (yes / no) [no]"
 - Record in config as `morning_brief: { "enabled": true, "time": "07:00", "channel": "<selected channel>" }` or `null` if declined
 
 **4i. Task budget**
-Ask: "Prompt for task budget at session start? (always / never) [always]"
+Ask: "Prompt for task budget at session start? (always / never) [never]"
 - Record as `ask_budget: true` or `false`
 
 **4j. Permission mode**
@@ -139,7 +137,7 @@ Write the collected preferences to `.claude/.claude-code-hermit/config.json`:
   "permission_mode": "acceptEdits",
   "tmux_session_name": "hermit-{project_name}",
   "auto_session": true,
-  "ask_budget": true,
+  "ask_budget": false,
   "morning_brief": null,
   "heartbeat": {
     "enabled": true,
@@ -270,9 +268,13 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
       "Bash(git diff:*)",
       "Bash(git status:*)",
       "Bash(git log:*)",
-      "Bash(python3:*)",
-      "Bash(node:*)",
-      "Bash(bash -c 'AGENT_DIR=\".claude/.claude-code-hermit\"*)"
+      "Bash(node */scripts/cost-tracker.js*)",
+      "Bash(node */scripts/suggest-compact.js*)",
+      "Bash(node */scripts/run-with-profile.js*)",
+      "Bash(node */scripts/evaluate-session.js*)",
+      "Bash(bash -c 'AGENT_DIR=\".claude/.claude-code-hermit\"*)",
+      "Edit(.claude/.claude-code-hermit/**)",
+      "Write(.claude/.claude-code-hermit/**)"
     ]
   }
 }
@@ -280,9 +282,9 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
 
 **Why each one:**
 - `git diff`, `git status`, `git log` — session-diff.js hook auto-populates `## Changed` in SHELL.md
-- `python3` — boot scripts (hermit-start.py, hermit-stop.py) and version checks
-- `node` — Stop hooks (cost-tracker.js, suggest-compact.js, session-diff.js, evaluate-session.js)
+- `node */scripts/<name>.js` — Stop hooks (cost-tracker, suggest-compact, session-diff, evaluate-session), scoped to plugin scripts only
 - `bash -c 'AGENT_DIR=...` — SessionStart hook that loads session context on every startup
+- `Edit`, `Write` on `.claude/.claude-code-hermit/**` — heartbeat appends to SHELL.md, increments config.json tick counter, and skills update session state without prompting
 
 **Steps:**
 1. If `.claude/settings.json` exists: read it and identify which required permissions are missing from `permissions.allow`
@@ -290,9 +292,10 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
 3. If no permissions are missing: skip silently
 4. If permissions need to be added: show the operator the list of permissions to add and ask for confirmation:
    "The plugin's hooks need these permissions in .claude/settings.json to run without prompting:
-   - Bash(git diff:*) — session-diff hook
-   - Bash(node:*) — Stop hooks (cost tracker, etc.)
-   - ...
+   - Bash(git diff/status/log:*) — session-diff hook
+   - Bash(node */scripts/<name>.js*) — Stop hooks (cost tracker, session diff, etc.)
+   - Bash(bash -c 'AGENT_DIR=...) — SessionStart context loader
+   - Edit/Write(.claude/.claude-code-hermit/**) — heartbeat and session state updates
    Add these to .claude/settings.json? (yes / no) [yes]"
 5. If the operator confirms: merge into the existing `permissions.allow` array (never remove existing entries), write back
 6. If the operator declines: skip, and note: "You may be prompted to approve hook commands during sessions. Run `/claude-code-hermit:hermit-settings permissions` to add them later."

@@ -105,7 +105,7 @@ Only update files in `templates/`:
 
 ### 8. Ensure plugin permissions in settings.json
 
-Same logic as init step 8: check `.claude/settings.json` for the plugin's required Bash permissions (`git diff`, `git status`, `git log`, `python3`, `node`, and the SessionStart hook `bash -c` command). If any are missing, show the operator which ones and ask for confirmation before adding. Only add missing entries — never remove existing ones. If all are already present, skip silently.
+Same logic as init step 8: check `.claude/settings.json` for the plugin's required permissions (`git diff/status/log`, per-script `node` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude/.claude-code-hermit/**`). If any are missing, show the operator which ones and ask for confirmation before adding. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions (e.g., `Bash(python3:*)`, `Bash(node:*)`) if found.
 
 ### 9. Write updated config
 
@@ -136,7 +136,7 @@ CLAUDE.md:
   Session discipline block updated
 
 Hermits:
-  claude-code-dev-hermit: v0.2.0 -> v0.3.0 (updated)
+  example-hermit: v0.2.0 -> v0.3.0 (updated)
 
 Run /claude-code-hermit:hermit-settings to adjust any settings.
 ```

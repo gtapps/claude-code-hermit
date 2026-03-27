@@ -12,7 +12,7 @@
   "permission_mode": "acceptEdits",
   "tmux_session_name": "hermit-{project_name}",
   "auto_session": true,
-  "ask_budget": true,
+  "ask_budget": false,
   "always_on": false,
   "morning_brief": null,
   "heartbeat": {

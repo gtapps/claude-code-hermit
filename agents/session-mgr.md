@@ -9,7 +9,6 @@ tools:
   - Write
   - Edit
   - Glob
-  - Bash
 disallowedTools:
   - WebSearch
   - WebFetch
