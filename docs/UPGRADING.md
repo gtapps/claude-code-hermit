@@ -43,7 +43,7 @@ Each hermit's version is tracked independently in `config.json`:
 ```json
 {
   "_hermit_versions": {
-    "claude-code-hermit": "0.0.3",
+    "claude-code-hermit": "0.0.4",
     "claude-code-dev-hermit": "0.0.1"
   }
 }
@@ -53,7 +53,7 @@ Each hermit's version is tracked independently in `config.json`:
 
 Some version upgrades require config.json changes the upgrade skill can't make automatically:
 
-**0.0.2 → 0.0.3**
+**0.0.2 -> 0.0.3**
 
 `skip_permissions` (boolean) was replaced by `permission_mode` (string):
 ```json
@@ -66,13 +66,26 @@ Some version upgrades require config.json changes the upgrade skill can't make a
 
 Heartbeat is now enabled by default — if you have `"heartbeat": { "enabled": false, ... }`, set it to `true` to get background monitoring on idle transitions.
 
+**0.0.3 -> 0.0.4**
+
+Pattern detection now reflects on auto-memory instead of scanning archived reports. The 3-report minimum prerequisite is removed — your hermit learns from day one. No manual config migration needed — the upgrade skill handles it.
+
+New config keys (added automatically by upgrade):
+- `heartbeat.morning_routine` — daily morning brief (default: `true`)
+- `heartbeat.evening_routine` — daily evening summary (default: `true`)
+- `heartbeat.idle_agency` — autonomous work during idle (default: `true`)
+
+SHELL.md template changed (Plan is now optional). Existing sessions are unaffected — the template is used for new sessions only.
+
+HEARTBEAT.md template has a new grouped structure. Your custom checklist is preserved — see the new default at `templates/HEARTBEAT.md.template` if you want to adopt the grouping.
+
 ---
 
 ## Project Customizations
 
 These aren't upgrades — just how your project evolves:
 
-- **OPERATOR.md** — Edit directly or tell the agent. Keep critical context in the first 50 lines.
+- **OPERATOR.md** — Edit directly or tell your hermit. Keep critical context in the first 50 lines.
 - **Custom agents** — Add/modify/remove files in `.claude/agents/`. Live immediately.
 - **Custom skills** — Add/modify in `.claude/skills/`. Live immediately.
 - **Config** — `/claude-code-hermit:hermit-settings` or edit `config.json` directly.

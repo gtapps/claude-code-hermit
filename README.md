@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.0.3-green.svg" alt="Version 0.0.3" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.0.4-green.svg" alt="Version 0.0.4" /></a>
   <img src="https://img.shields.io/badge/Claude-Pro%20%7C%20Max-blueviolet.svg" alt="Claude Pro/Max Compatible" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
 </p>
@@ -10,29 +10,48 @@
 
 **A personal assistant that lives in your project and gets smarter every session — pure Claude Code, no extras.**
 
-I love Claude Code. I love what [OpenClaw](https://github.com/anthropics/claude-code/tree/main/.github/openclaw) did for autonomous agents. Hermit is my take on the Claude Code autonomous agent — a plugin that turns any Claude Code instance into an autonomous, always-on personal assistant you can talk to from your phone.
+I love Claude Code. I love what [OpenClaw](https://github.com/anthropics/claude-code/tree/main/.github/openclaw) did for autonomous agents. Hermit is my take — a plugin that turns any Claude Code instance into a persistent, self-improving personal assistant you can talk to from your phone.
 
 No custom runtime. No server. No API keys to manage. If you have a Claude Pro, Max, Teams, or Enterprise subscription, you already have everything you need. Each hermit is just a Claude Code process — lightweight enough to run several side by side on a single laptop.
 
 ---
 
-## It's All Claude Code
+## Why Hermit
 
-Hermit isn't a framework that replaces Claude Code — it's a layer of structure on top of everything Claude Code already gives you. Persistent [agent memory](https://code.claude.com/docs/en/sub-agents) that learns across sessions. [Subagents](https://code.claude.com/docs/en/sub-agents) with isolated context. [Hooks](https://code.claude.com/docs/en/hooks) that fire at every lifecycle point. [Skills](https://code.claude.com/docs/en/skills) as reusable workflows. [Channels](https://code.claude.com/docs/en/channels) for phone control. [Remote access](https://code.claude.com/docs/en/remote-control) from any browser. [`/loop`](https://code.claude.com/docs/en/sub-agents) for background tasks.
+|                    | Claude Code                          | With Hermit                                                |
+| ------------------ | ------------------------------------ | ---------------------------------------------------------- |
+| You install it     | A powerful coding tool               | A personal assistant moves into your project               |
+| You go to bed      | It stops when you close the terminal | It keeps working                                           |
+| You wake up        | Open laptop, start fresh             | Morning brief on your phone: here's what happened          |
+| It hits a wall     | You find out next time you check     | It asks you — on your phone. You unblock it from the couch |
+| It makes a mistake | You catch it (maybe)                 | It learns, proposes a fix to avoid repeating it            |
+| Weeks later        | Still great, still day one           | An assistant that knows your project better than anyone    |
 
-Hermit adds session discipline, self-learning, and operational hygiene — so all of that becomes a personal assistant that remembers what happened, learns from its mistakes, and keeps getting better at _your_ work.
+---
+
+## How It Compares
+
+|           | claude-code-hermit                              | Typical agent frameworks                 |
+| --------- | ----------------------------------------------- | ---------------------------------------- |
+| Runtime   | Claude Code — the CLI you already have          | Custom Python/Node runtime               |
+| Cost      | Works with your Pro or Max subscription         | API keys + per-token billing             |
+| Install   | One command                                     | Package manager, virtual env, build step |
+| State     | Plain markdown in your repo                     | Database, vector store, or API           |
+| Learning  | Detects patterns, proposes fixes, verifies them | Start from scratch every run             |
+| Extension | Add a `.md` file                                | Write code against an SDK                |
+| Footprint | Multiple agents on a single laptop              | Heavy per-instance overhead              |
 
 ---
 
 ## How It Works
 
-**1. Set it up anywhere.** An existing codebase, a fresh folder for a personal assistant, a new idea you're exploring — anything. Hermit scans what's there, asks a few questions, and generates a personalized rulebook (`OPERATOR.md`) — your constraints, your preferences, your goals.
+**1. Set it up anywhere.** An existing codebase, a fresh folder for a personal assistant, a new idea you're exploring — anything. Hermit scans what's there, asks a few questions, and generates a personalized rulebook (`OPERATOR.md`) — your priorities, your constraints, your preferences.
 
-**2. You give it a task.** Hermit plans the work, tracks progress in a live document, and logs everything. Disconnect? Crash? Reboot? It reads its own state from disk and picks up where it left off.
+**2. Tell it what you need.** Hermit plans the work, tracks progress in a live document, and logs everything. Disconnect? Crash? Reboot? It reads its own state from disk and picks up where it left off.
 
-**3. It starts learning.** After a few sessions, Hermit analyzes its own history — recurring blockers, repeated workarounds, rising costs. It creates improvement proposals automatically. You review them. You decide. The assistant adapts.
+**3. It learns from experience.** Hermit reflects on its own memory — recurring blockers, repeated workarounds, rising costs. When it notices a pattern, it creates an improvement proposal. You review it. You decide. The assistant adapts.
 
-**4. It keeps getting better.** Accept a proposal, and it becomes the next session's task. If the fix works — no recurrence in 3 sessions — the proposal auto-resolves. The more you use Hermit, the sharper it gets at _your_ work.
+**4. It develops a rhythm.** Morning brief on what happened overnight. Evening summary that archives the day's work. Between tasks, it picks up accepted proposals and runs maintenance — all gated by how much autonomy you give it.
 
 ---
 
@@ -60,7 +79,7 @@ The wizard sets up your agent's identity, scans your folder for context, and gen
 /claude-code-hermit:session
 ```
 
-Give it a task. It plans the work, tracks progress, and logs everything. Type "status" anytime. Close with `/claude-code-hermit:session-close` — a full report is archived automatically.
+Tell it what you need. It plans the work, tracks progress, and logs everything. Type "status" anytime. When it finishes, it stays ready — tell it what's next.
 
 ### 4. Connect your phone (optional)
 
@@ -70,7 +89,7 @@ Install the [Claude Code Channels](https://code.claude.com/docs/en/channels) plu
 claude /plugin install discord@claude-plugins-official   # or telegram, imessage
 ```
 
-Pair your account by messaging the bot — it walks you through it. Once connected, you control your hermit from your phone: send tasks, check status, get alerts. Combined with [remote control](https://code.claude.com/docs/en/remote-control) (enabled by default), you never need to touch the terminal again.
+Pair your account by messaging the bot — it walks you through it. Once connected, you control your hermit from your phone: send instructions, check status, get alerts. Combined with [remote control](https://code.claude.com/docs/en/remote-control) (enabled by default), you never need to touch the terminal again.
 
 ### 5. Go always-on (optional)
 
@@ -85,39 +104,36 @@ See [Always-On Operations](docs/ALWAYS-ON-OPS.md) for the full guide — cost ma
 
 ## The Learning Loop
 
-This is what takes Hermit from a one-shot agent to a self-learning personal assistant.
+This is what makes Hermit more than a one-shot agent.
 
-Every session produces an archived report — what was done, what failed, what's next. After your third session, Hermit starts analyzing its own history:
-
-| What it detects          | Example                                                  |
-| ------------------------ | -------------------------------------------------------- |
-| **Recurring blockers**   | "Test environment down" keeps appearing across sessions  |
-| **Repeated workarounds** | "Manually restarted the service" — applied twice already |
-| **Cost spikes**          | Last 3 sessions cost 50%+ more than the prior 3          |
-| **Correlated failures**  | Everything tagged `frontend` closes as blocked           |
-
-When Hermit spots a pattern, it creates an **auto-proposal** — a structured recommendation backed by evidence from the sessions that triggered it.
+Hermit learns from its own memory — not from scanning archived reports. It reflects at natural pauses: when a task finishes, during idle heartbeat ticks, and at end of day. When it notices something recurring — a blocker that keeps coming back, a workaround it's applied twice, spending that seems off — it creates a proposal: a structured recommendation with evidence from what it remembers.
 
 ```
 /claude-code-hermit:proposal-list                  # see what Hermit found
-/claude-code-hermit:proposal-act accept PROP-003   # make it the next task
+/claude-code-hermit:proposal-act accept PROP-003   # make it the next thing to work on
 ```
 
-Accept a proposal, and Hermit picks it up in the next session. If the fix works — the pattern doesn't recur in 3 sessions — the proposal auto-resolves. Reject it, defer it, dismiss it. **You're always in control.**
+Accept a proposal, and Hermit picks it up automatically during idle time. If the fix works — the pattern doesn't come back — the proposal auto-resolves. Reject it, defer it, dismiss it. You're always in control.
 
-And it's not just automatic — you can talk to Hermit about how it can improve. Ask it what slowed it down, where it could be more efficient, or what new sub-agents would help. It'll review its recent sessions and suggest concrete changes. You decide what sticks.
+You can also talk to Hermit about how it can improve. Ask what slowed it down, where it keeps getting blocked, or what new sub-agents would help with your kind of work. It reflects on its experience and suggests concrete changes. You decide what sticks.
 
 ---
 
 ## What It Does
 
-- **Crash-proof sessions** — SSH drops, terminal crashes, machine reboots. Hermit reads its state from disk and resumes exactly where it left off. Every session produces a complete handoff report — any session (or any human) can pick up where the last one stopped.
+- **Crash-proof sessions** — SSH drops, terminal crashes, machine reboots. Hermit reads its state from disk and resumes exactly where it left off. Every session produces a complete handoff report — any future session (or any human) can pick up where the last one stopped.
 
-- **Status from anywhere** — Type "status" or "brief" in the terminal or from your phone. Get a compact summary of what's happening, what's done, and what's blocking. Great over morning coffee.
+- **Status from anywhere** — Type "status" or "brief" in the terminal or from your phone. Get a compact summary of what's happening, what's done, and what's blocking.
 
-- **Background awareness** — Heartbeat checks run on a schedule, monitoring your project and alerting you only when something needs attention. Task-specific monitors watch for conditions during active work. Silence means everything is fine.
+- **Background awareness** — Heartbeat checks run on a schedule, monitoring your project and alerting you only when something needs attention. Silence means everything is fine.
 
-- **Self-improving** — Pattern detection, auto-proposals, and a feedback loop that closes itself. Ask Hermit what it struggled with — it'll tell you, with evidence. Ask what permissions it keeps getting blocked on — it'll suggest the exact `settings.json` entries to add. The more you use it, the smoother it runs.
+- **Self-improving** — Reflects on its own experience, proposes fixes for recurring problems, and verifies they worked. The more you use it, the smoother it runs.
+
+- **Daily rhythm** — Morning brief on what happened overnight and what's on deck. Evening summary that archives the day's work. Automatic — you don't need to ask.
+
+- **Idle agency** — Between tasks, Hermit doesn't just sit there. It picks up accepted proposals, runs reflection, and handles maintenance from its checklist — all gated by your escalation setting.
+
+- **Self-aware** — If it's stuck — failing repeatedly, reverting its own work, burning through budget — it stops, says what's happening, and asks for help instead of pushing through silently.
 
 - **Your rules, its judgment** — `OPERATOR.md` is your rulebook. Budget limits, off-limits directories, naming conventions, communication style. Set it once. Hermit reads it every session and respects it without you having to repeat yourself.
 
@@ -142,25 +158,11 @@ See [Creating Your Own Hermit](docs/CREATING-YOUR-OWN-HERMIT.md) for more — fr
 
 ---
 
-## How It Compares
-
-|           | claude-code-hermit                              | Typical agent frameworks                 |
-| --------- | ----------------------------------------------- | ---------------------------------------- |
-| Runtime   | Claude Code — the CLI you already have          | Custom Python/Node runtime               |
-| Cost      | Works with your Pro or Max subscription         | API keys + per-token billing             |
-| Install   | One command                                     | Package manager, virtual env, build step |
-| State     | Plain markdown in your repo                     | Database, vector store, or API           |
-| Learning  | Detects patterns, proposes fixes, verifies them | Start from scratch every run             |
-| Extension | Add a `.md` file                                | Write code against an SDK                |
-| Footprint | Multiple agents on a single laptop              | Heavy per-instance overhead              |
-
----
-
 ## Documentation
 
 | Document                                                     | What it covers                                                    |
 | ------------------------------------------------------------ | ----------------------------------------------------------------- |
-| [Getting Started](docs/HOW-TO-USE.md)                        | Install → first session → common workflows                        |
+| [Getting Started](docs/HOW-TO-USE.md)                        | Install, first session, daily rhythm, common workflows            |
 | [Skills Reference](docs/SKILLS.md)                           | All 15 skills with usage, auto-triggers, and examples             |
 | [Always-On Operations](docs/ALWAYS-ON-OPS.md)                | Persistent sessions, channels, cost management, Docker, security  |
 | [Architecture](docs/ARCHITECTURE.md)                         | 5-layer design, memory model, learning loop internals             |

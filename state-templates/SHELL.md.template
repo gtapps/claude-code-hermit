@@ -13,14 +13,12 @@
 <!-- What is this session trying to accomplish? -->
 
 ## Plan
-| # | Plan Item | Status | Notes |
-|---|-----------|--------|-------|
-| 1 | | planned | |
-| 2 | | planned | |
-| 3 | | planned | |
+<!-- Optional — create for multi-step work, skip for quick asks. -->
+<!-- | # | Plan Item | Status | Notes | -->
+<!-- |---|-----------|--------|-------| -->
 
 ## Progress Log
-<!-- Append entries as work progresses -->
+<!-- Primary record of work -->
 <!-- Format: [HH:MM] Did X — result/outcome -->
 
 ## Blockers

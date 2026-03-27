@@ -14,7 +14,7 @@ Provide a compact summary of the current session state. Designed for channel res
    ```
    Session (idle) | started YYYY-MM-DD | N tasks completed
    Last: [latest Session Summary entry]
-   Waiting for next task. Give the next task directly or run /claude-code-hermit:session-start
+   Ready for work. Tell me what's next, or run /claude-code-hermit:session-start
    Cost: $X.XX (cumulative)
    ```
    Return this output and stop — do not proceed to step 3.
@@ -32,7 +32,7 @@ Provide a compact summary of the current session state. Designed for channel res
 
 ```
 Session S-NNN | in_progress | [tags if present]
-Task: one-line summary
+Working on: one-line summary
 Progress: X/Y plan items | Current: Step N - description
 Budget: $spent / $total (percentage%)
 Blockers: none (or brief description)

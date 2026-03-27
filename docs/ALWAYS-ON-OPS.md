@@ -1,6 +1,6 @@
 # Always-On Operations
 
-Running Hermit as a persistent, always-on agent. Covers setup, lifecycle, channels, cost management, self-learning timing, security, and Docker.
+Running your hermit as a persistent, always-on assistant. Covers setup, lifecycle, channels, cost management, security, and Docker.
 
 For skill details, see [Skills Reference](SKILLS.md).
 
@@ -26,7 +26,7 @@ cd /path/to/your/project
 .claude/.claude-code-hermit/bin/hermit-start
 ```
 
-Reads `config.json`, starts a tmux session with configured channels and permissions, auto-runs `/claude-code-hermit:session`. To stop:
+This reads `config.json`, starts a tmux session with your configured channels and permissions, and auto-runs `/claude-code-hermit:session`. To stop:
 
 ```bash
 .claude/.claude-code-hermit/bin/hermit-stop        # graceful (sends /session-close first)
@@ -56,84 +56,94 @@ claude --permission-mode acceptEdits
 
 ## 2. Always-On Lifecycle
 
-> The state machine below applies to both interactive and always-on sessions. This section covers always-on infrastructure specifically.
+> The lifecycle below applies to both interactive and always-on sessions. This section covers the always-on infrastructure specifically.
 
-In always-on mode, the session persists across task boundaries. Heartbeat, monitors, and channels survive between tasks.
+In always-on mode, the session stays open between tasks. Heartbeat, monitors, and channels keep running the whole time. Your hermit works, finishes, waits for the next thing — and stays productive in between.
 
 ### State flow
 
 ```
-hermit-start → [in_progress] → task done → [idle] → new task → [in_progress] → ...
-                                                                                  │
-                                                              hermit-stop → [archived]
+hermit-start -> [in_progress] -> task done -> [idle] -> new task -> [in_progress] -> ...
+                                                                                      |
+                                                              hermit-stop -> [archived]
 ```
 
 1. `hermit-start` sets `always_on: true`, launches Claude Code in tmux
-2. Task completes → **idle transition**: report archived, SHELL.md reset, heartbeat keeps running
-3. New task arrives (channel, NEXT-TASK.md, terminal) → back to `in_progress`
-4. `hermit-stop` → **full shutdown**: close task → stop heartbeat → archive → kill tmux
+2. Work finishes — **idle transition**: report archived, SHELL.md reset, heartbeat keeps running
+3. New request comes in (channel, NEXT-TASK.md, terminal) — back to `in_progress`
+4. `hermit-stop` — **full shutdown**: close task, stop heartbeat, archive, kill tmux
 
 ### Close modes
 
 |                        | Idle Transition (task boundary) | Full Shutdown (`/session-close`) |
 | ---------------------- | ------------------------------- | -------------------------------- |
-| **When**               | Task done — automatic           | Operator explicitly closes       |
+| **When**               | Work done — automatic           | You explicitly close             |
 | **Report archived**    | Yes                             | Yes                              |
-| **Self-learning runs** | Yes                             | Yes                              |
+| **Reflection runs**    | Yes                             | Yes                              |
 | **Heartbeat**          | Keeps running (or starts)       | Stopped                          |
 | **Channels**           | Keep running (always-on only)   | Stopped                          |
-| **SHELL.md**           | Reset in-place → `idle`         | Replaced with fresh template     |
+| **SHELL.md**           | Reset in-place to `idle`        | Replaced with fresh template     |
 | **Applies to**         | Both interactive and always-on  | Both interactive and always-on   |
 
-Default: idle transition at every task boundary. Full shutdown only via explicit `/session-close` or `hermit-stop`. `--idle` flag removed (transitions are automatic).
+Default: idle transition when work finishes. Full shutdown only via explicit `/session-close` or `hermit-stop`.
 
-### The task loop over time
+### How sessions compound
 
 ```
-╔══════════════════════════════════════════════════════════════╗
-║  Task 1 → work → complete → archive S-001                  ║
-║    └── Pattern detection: skipped (< 3 reports)             ║
-║                                                              ║
-║  Task 2 → work → complete → archive S-002                  ║
-║    └── Pattern detection: skipped (only 2 reports)          ║
-║                                                              ║
-║  Task 3 → work → complete → archive S-003                  ║
-║    └── Pattern detection: ACTIVE                            ║
-║    └── Auto-proposals created if patterns found             ║
-║                                                              ║
-║  Task 4+ → learning loop at every boundary                  ║
-║  Throughout: heartbeat ticks on schedule                     ║
-╚══════════════════════════════════════════════════════════════╝
+  Task 1 -> work -> complete -> archive S-001
+  Task 2 -> work -> complete -> archive S-002
+  Task 3 -> work -> complete -> archive S-003
+     |-- Reflection fires at task boundaries and idle checks
+     |-- Auto-proposals created if patterns noticed
+
+  Throughout: heartbeat ticks on schedule
+  Morning: brief + priority check. Evening: daily journal.
 ```
 
 **Hooks fire after every assistant turn:** `cost-tracker.js` (costs), `suggest-compact.js` (context warnings), `session-diff.js` (changed files), `evaluate-session.js` (quality).
 
-### When self-learning fires
+### When learning fires
 
-Pattern detection runs during session close, after SHELL.md is finalized but before archiving. Requires 3+ archived reports.
+Your hermit reflects on its own memory — not archived reports. Reflection triggers at these moments:
 
-**Four detection categories:**
+| Trigger | When |
+|---------|------|
+| Task boundary | After completing work, during idle transition |
+| Heartbeat idle check | Every 4+ hours during idle (if `idle_agency` is enabled) |
+| Evening routine | Last heartbeat tick of the day |
+| Session close | Before archiving the final report |
 
-| Category                                               | Threshold          |
-| ------------------------------------------------------ | ------------------ |
-| Blocker recurrence (semantic match)                    | 3+ sessions        |
-| Workaround repetition                                  | 2+ sessions        |
-| Cost trend (last-3 avg >50% above prior-3, AND >$1.00) | 6 sessions of data |
-| Tag correlation (same tag, non-successful close)       | 3+ sessions        |
+**Feedback loop:** When an accepted proposal's pattern stops recurring (based on memory), it auto-resolves. The heartbeat self-evaluates every 20 ticks — suggesting stale checks to remove and relevant ones to add.
 
-**Feedback loop:** Accepted auto-proposals that haven't recurred in 3 sessions are auto-resolved. Heartbeat self-evaluates every 20 ticks — suggests removing stale checks, adding relevant ones.
+### Daily rhythm
+
+If daily routines are enabled in config:
+
+- **Morning routine** — first heartbeat tick after active hours start: generates a brief, reviews pending proposals, checks priorities. If memory is sparse (new instance), reads the latest report for context recovery.
+- **Evening routine** — last heartbeat tick before active hours end: archives the day's work as an S-NNN report (if there are progress log entries), runs reflection, flags tomorrow's priorities.
+
+Both fire once per day. Configure with `/claude-code-hermit:hermit-settings routines`.
+
+### Idle agency
+
+When idle and `idle_agency` is enabled, the heartbeat looks for autonomous work:
+
+1. **NEXT-TASK.md** — picks up accepted proposals (gated by escalation level)
+2. **Reflection** — runs pattern-detect if 4+ hours since last
+3. **Priority check** — reads OPERATOR.md, checks alignment with stated priorities and constraints
+4. **Maintenance** — HEARTBEAT.md checklist items
 
 ### Edge cases
 
-- **Crash during task:** SHELL.md persists. On restart, offers to resume.
-- **Crash during idle:** SHELL.md persists as `idle`. Asks for next task.
-- **hermit-start when running:** Prints guidance, exits.
+- **Crash during work:** SHELL.md persists. On restart, offers to resume.
+- **Crash during idle:** SHELL.md persists as `idle`. Asks what to work on next.
+- **hermit-start when already running:** Prints guidance, exits.
 
 ---
 
 ## 3. Channels
 
-[Claude Code Channels](https://code.claude.com/docs/en/channels) (v2.1.80+) lets you talk to your agent from your phone.
+[Claude Code Channels](https://code.claude.com/docs/en/channels) (v2.1.80+) lets you talk to your hermit from your phone.
 
 ### Pairing
 
@@ -145,12 +155,12 @@ Pattern detection runs during session close, after SHELL.md is finalized but bef
 
 ### Message handling
 
-| You send                | Hermit does                      |
-| ----------------------- | -------------------------------- |
-| "status"                | Concise SHELL.md summary         |
-| "work on X"             | Confirms and starts/updates task |
-| "why did you change X?" | Answers with session context     |
-| "stop" / "abort"        | Halts work, marks blocked        |
+| You send                | Hermit does                       |
+| ----------------------- | --------------------------------- |
+| "status"                | Concise SHELL.md summary          |
+| "work on X"             | Confirms and starts working on it |
+| "why did you change X?" | Answers with session context      |
+| "stop" / "abort"        | Halts work, marks blocked         |
 
 ### Local-scope config (multi-agent)
 
@@ -195,11 +205,11 @@ The `cost-tracker` hook runs on every `Stop` event: logs to `.claude/cost-log.js
 
 ## 5. Reconnecting After Disconnects
 
-All state is in `sessions/SHELL.md` on disk. A disconnect loses conversation context but preserves task, progress, and blockers.
+All state is in `sessions/SHELL.md` on disk. A disconnect loses conversation context but preserves progress and blockers.
 
 1. Reattach to tmux, start Claude Code
 2. SessionStart hook loads OPERATOR.md, SHELL.md, latest report
-3. `session-start` presents task, progress, blockers
+3. `session-start` presents current work, progress, blockers
 4. Confirm resume or start fresh
 
 ---
@@ -252,7 +262,7 @@ Block tool invocations regardless of permission mode:
 ### Quick recommendations
 
 - **Strict hook profile** for always-on agents (no performance penalty)
-- **Task budget** of $5–10 for overnight sessions
+- **Session budget** of $5-10 for overnight sessions
 - **Heartbeat** for 24/7 monitoring — detects stalled agents, changed conditions, rate limits
 - **Network:** allow only `api.anthropic.com`, your channel API, and `github.com` when possible
 - **Secrets:** don't mount `~/.aws/`, `~/.ssh/` into containers. Use scoped API keys.
@@ -266,7 +276,7 @@ Block tool invocations regardless of permission mode:
 - [ ] No host mounts beyond project directory
 - [ ] No production credentials accessible
 - [ ] Strict hook profile
-- [ ] Task budget set
+- [ ] Session budget set
 - [ ] Heartbeat enabled
 - [ ] OPERATOR.md includes approval constraints
 - [ ] Session reports reviewed before pushing
@@ -373,7 +383,7 @@ with open(path) as f: c = json.load(f)
 if c.get('permission_mode') != 'bypassPermissions':
     c['permission_mode'] = 'bypassPermissions'
     with open(path, 'w') as f: json.dump(c, f, indent=2)
-    print('[docker-entrypoint] permission_mode → bypassPermissions')
+    print('[docker-entrypoint] permission_mode -> bypassPermissions')
 else:
     print('[docker-entrypoint] permission_mode OK')
 " "$CONFIG_JSON"
@@ -452,7 +462,7 @@ This is persisted in the mounted `~/.claude/` volume and won't appear on contain
 
 ### Crash recovery
 
-Container restarts trigger Hermit's recovery automatically: the entrypoint re-seeds onboarding, hermit-start launches tmux, the SessionStart hook detects the orphaned SHELL.md, and offers to resume the interrupted task.
+Container restarts trigger Hermit's recovery automatically: the entrypoint re-seeds onboarding, hermit-start launches tmux, the SessionStart hook detects the orphaned SHELL.md, and offers to resume where you left off.
 
 ### Gotchas
 
@@ -463,7 +473,7 @@ Container restarts trigger Hermit's recovery automatically: the entrypoint re-se
 | Ubuntu 24.04 default user conflicts at UID 1000 | `userdel -r ubuntu` before `useradd` |
 | Volume paths must match host | `${PWD}:${PWD}`, not `/app` or `/project` |
 | `DEVCONTAINER=true` doesn't skip onboarding | Pre-seed `hasCompletedOnboarding` + `lastOnboardingVersion` |
-| OAuth tokens from `/login` expire in 8–12 hours | Use `claude setup-token` (1-year token) via `CLAUDE_CODE_OAUTH_TOKEN` |
+| OAuth tokens from `/login` expire in 8-12 hours | Use `claude setup-token` (1-year token) via `CLAUDE_CODE_OAUTH_TOKEN` |
 | Entrypoint exits immediately after tmux spawns | Poll `tmux has-session` to keep PID 1 alive |
 | `.local` mDNS hostnames don't resolve in containers | Use IP addresses in service URLs, even with `network_mode: host` |
 | Workspace trust prompt on first run | Attach once via `tmux attach`, press Enter, detach |
@@ -501,11 +511,11 @@ SHELL.md is gitignored. Protect in-progress state with Docker named volumes, per
 
 ### Channel resilience
 
-If Telegram/Discord goes down, the agent keeps running — just loses remote communication. Enable remote control as a backup. Check SHELL.md via SSH if channels are unavailable.
+If Telegram/Discord goes down, your hermit keeps running — just loses remote communication. Enable remote control as a backup. Check SHELL.md via SSH if channels are unavailable.
 
 ### Multi-operator warning
 
-Hermit assumes one operator per project. For teams, use separate branches or git worktrees with isolated state directories.
+Hermit assumes one person giving it direction per project. For teams, use separate branches or git worktrees with isolated state directories.
 
 ### Auto-restart on reboot
 

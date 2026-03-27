@@ -1,6 +1,6 @@
 ---
 name: session-start
-description: Initializes or resumes a work session. Loads context from OPERATOR.md and SHELL.md, orients the agent, and establishes the task. Use at the beginning of every work session.
+description: Initializes or resumes a work session. Loads context from OPERATOR.md and SHELL.md, orients the agent, and establishes what to work on. Use at the beginning of every work session.
 ---
 # Session Start
 
@@ -21,10 +21,11 @@ All state lives under `.claude/.claude-code-hermit/` in the project root.
 4. Read `.claude/.claude-code-hermit/OPERATOR.md` for project context and constraints
 5. Check if `.claude/.claude-code-hermit/sessions/NEXT-TASK.md` exists. If it does:
    - Present the prepared task to the operator as the suggested task for this session
-   - If the operator accepts it: use it as the task (skip asking "What's the task?")
+   - If the operator accepts it: use it as the task (skip asking "What should I help with?")
    - If the operator provides a different task: delete `NEXT-TASK.md` and proceed with their task
    - Always delete `NEXT-TASK.md` after it has been presented (whether accepted or not)
 6. Scan `.claude/.claude-code-hermit/proposals/` for files with `Source: auto-detected` and `Status: proposed`. If any exist, mention: "There are N unreviewed auto-detected proposal(s). Review with `/proposal-list` when ready." Do NOT block the session — this is a one-line notification only.
+6b. If `heartbeat.morning_routine` is `true` in config AND `heartbeat._last_morning` ≠ today's date: run the morning routine inline — generate a morning brief covering what happened since last evening, pending proposals, and what's on deck. If auto-memory seems sparse (new instance, fresh machine), read the latest S-NNN-REPORT.md for context recovery. Update `_last_morning` to today. This handles interactive mode where heartbeat isn't running yet.
 7. If `agent_name` is set, use it in the greeting (e.g., "Atlas reporting in." or "{name} a reportar." if language is `pt`). If `language` is set, communicate with the operator in that language for the rest of the session.
 8. If resuming an existing session (Status is `in_progress`):
    - Present the current task, progress (completed/remaining plan items), and blockers
@@ -32,15 +33,15 @@ All state lives under `.claude/.claude-code-hermit/` in the project root.
    - Ask the operator if they want to continue the current task or start a new one
 8b. If resuming an idle session (Status is `idle`):
    - Show session continuity info: tasks completed, session duration, cumulative cost
-   - Ask: "What's the next task?" (unless a NEXT-TASK.md was accepted in step 5)
+   - Ask: "What should I work on next?" (unless a NEXT-TASK.md was accepted in step 5)
    - Once provided, use `session-mgr` to update SHELL.md: set Status to `in_progress`, fill Task and Plan
 9. If starting a new session:
-   - Ask the operator: "What's the task for this session?" (unless a NEXT-TASK.md was accepted in step 5)
+   - Ask the operator: "What should I help with?" (unless a NEXT-TASK.md was accepted in step 5)
    - Once provided, use `session-mgr` to create the session with the task and initial plan
-10. After task is established (new session only):
+10. Once I know what to work on (new session only):
     - **Tags:** Ask "Any tags for this session? (e.g., refactor, frontend, urgent) Enter to skip." Write the answer to the `Tags:` field in SHELL.md. If skipped, leave blank.
     - **Budget:** Check `ask_budget` from the config read in step 1. If `ask_budget` is `true`:
-      - Ask: "Set a cost budget for this task?"
+      - Ask: "Set a cost budget for this work?"
         1. Set budget — enter a dollar amount → write `Budget: $X.XX` to SHELL.md
         2. No budget for this session — leave Budget field blank
         3. Never ask about budget — set `ask_budget` to `false` in config.json, leave Budget blank

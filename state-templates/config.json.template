@@ -24,6 +24,12 @@
       "end": "23:00"
     },
     "self_eval_interval": 20,
-    "total_ticks": 0
+    "total_ticks": 0,
+    "morning_routine": true,
+    "evening_routine": true,
+    "idle_agency": true,
+    "_last_morning": null,
+    "_last_evening": null,
+    "_last_reflection": null
   }
 }

@@ -141,8 +141,43 @@ No special idle handling is needed in the `run` subcommand — it reads SHELL.md
 
 **Interactive sessions:** Heartbeat is started by the session skill when transitioning to idle (if enabled in config). It runs best-effort — if the terminal closes or Claude Code exits, it dies with it. This is expected. In always-on mode (tmux), the process persists and heartbeat is guaranteed.
 
-### NEXT-TASK.md auto-pickup
+---
 
-During idle state, the heartbeat checklist can include a check for `sessions/NEXT-TASK.md`. If found (e.g., from a proposal accepted via channel on another device), the heartbeat should alert: "NEXT-TASK.md detected — starting task automatically." Then invoke `/claude-code-hermit:session-start` to transition idle → active.
+## Idle Agency
 
-This makes the proposal → task pipeline fully automated. The operator accepts a proposal (via `/proposal-act`), which creates NEXT-TASK.md, and the next heartbeat tick picks it up.
+After evaluating the checklist, if SHELL.md status is `idle` AND `heartbeat.idle_agency` is `true` in config:
+
+Check for `sessions/NEXT-TASK.md`. If found, respect the configured escalation level:
+- **conservative:** alert — "NEXT-TASK.md ready. Want me to start?"
+- **balanced:** start it automatically via `/claude-code-hermit:session-start`
+- **autonomous:** start it, notify on completion
+
+If no NEXT-TASK.md and `_last_reflection` is null or 4+ hours ago:
+- Invoke `/claude-code-hermit:pattern-detect`
+- Update `heartbeat._last_reflection` to now (ISO string with timezone offset from config)
+
+Read OPERATOR.md. Think about whether current work aligns with the stated priorities and constraints. If deadlines or budgets need attention, cross-reference with `.claude/cost-log.jsonl` and alert.
+
+**All time comparisons use the `timezone` from config.json.**
+
+---
+
+## Morning Routine
+
+Fires when: `heartbeat.morning_routine` is `true` AND `heartbeat._last_morning ≠ today` AND `current_time >= active_hours.start`.
+
+Generate a morning brief. Cover what happened since last evening, pending proposals, and what's on deck today. Send via channel if configured. Update `heartbeat._last_morning` to today (ISO date with timezone offset).
+
+If auto-memory seems sparse (new instance, fresh machine), read the latest S-NNN-REPORT.md for context recovery.
+
+---
+
+## Evening Routine
+
+Fires when: `heartbeat.evening_routine` is `true` AND `heartbeat._last_evening ≠ today` AND `current_time + heartbeat.every > active_hours.end`.
+
+If there are progress log entries since the last archived report: archive a daily summary as the next sequential S-NNN-REPORT.md (bypass session-mgr — read progress log, format as report, write directly, clear captured entries). The `## Task` section reads "Daily summary — [date]". Plan section omitted. If no progress log entries since last report: skip archiving.
+
+Run `/claude-code-hermit:pattern-detect` if `_last_reflection` is null or 4+ hours ago.
+
+Send summary via channel if configured. Update `heartbeat._last_evening` to today (ISO date with timezone offset).

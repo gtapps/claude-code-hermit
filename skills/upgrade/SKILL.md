@@ -50,6 +50,12 @@ The prompts below match the init wizard exactly. Use the same wording for consis
 | `heartbeat.total_ticks` | 0.0.1 | no | `0` |
 | `remote` | 0.0.1 | yes | `true` |
 | `always_on` | 0.0.1 | no | `true` |
+| `heartbeat.morning_routine` | 0.0.4 | yes | `true` |
+| `heartbeat.evening_routine` | 0.0.4 | yes | `true` |
+| `heartbeat.idle_agency` | 0.0.4 | yes | `true` |
+| `heartbeat._last_morning` | 0.0.4 | no | `null` |
+| `heartbeat._last_evening` | 0.0.4 | no | `null` |
+| `heartbeat._last_reflection` | 0.0.4 | no | `null` |
 
 **Prompts** (use the same text as the init wizard in `skills/init/SKILL.md` steps 4a–4e):
 - `agent_name`: "Give your agent a name? This personalizes session reports, channel messages, and briefs. (e.g., Atlas, Hermit, Scout) [skip]"
@@ -57,6 +63,11 @@ The prompts below match the init wizard exactly. Use the same wording for consis
 - `timezone`: "Timezone for scheduling? [auto-detected: {value}]"
 - `escalation`: "How autonomous should the agent be? 1. Conservative — ask before most non-trivial actions, create proposals instead of fixing directly. 2. Balanced — act on routine tasks, ask for significant changes (default). 3. Autonomous — proceed unless blocked, minimize interruptions. Choose 1-3: [2]"
 - `sign_off`: "Sign-off line for channel messages and briefs? (e.g., '{name} out.', '— {initial}.', or skip) [skip]"
+
+**v0.0.4 prompts:**
+- `heartbeat.morning_routine`: "Enable morning routine? Reviews overnight work, prepares a brief at the start of each day. (yes / no) [yes]"
+- `heartbeat.evening_routine`: "Enable evening routine? Archives the day's work, reflects on patterns at end of day. (yes / no) [yes]"
+- `heartbeat.idle_agency`: "Allow autonomous idle work? When idle, your assistant can pick up accepted proposals and run maintenance. Gated by your escalation setting. (yes / no) [yes]"
 
 Tell the operator: "New settings available in this version:" then present only the questions for keys that are actually missing from their config. If no interactive keys are missing, skip this step.
 
@@ -67,6 +78,9 @@ Tell the operator: "New settings available in this version:" then present only t
 - Report which templates were updated
 
 **Never touch:** sessions, proposals, OPERATOR.md, HEARTBEAT.md (operator-editable), or config.json (handled separately).
+
+**v0.0.4 additional checks:**
+- Note about HEARTBEAT.md: "HEARTBEAT.md template has a new grouped structure (Task Checks, Idle Checks, Standing Checks). Your custom checklist is preserved. See `templates/HEARTBEAT.md.template` if you want to adopt the grouping."
 
 Only update files in `templates/`:
 - `SHELL.md.template`

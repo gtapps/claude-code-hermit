@@ -7,7 +7,7 @@
 
 - On startup, always check `.claude/.claude-code-hermit/sessions/SHELL.md`
 - If a session is active: resume it — read the task, progress, and blockers
-- If no session is active: ask the operator for a task before starting work
+- If no session is active: ask what you should help with before starting work
 - Use `/claude-code-hermit:session-start` to initialize and `/claude-code-hermit:session-close` to end sessions
 - Never create session or proposal files by hand — use the skills
 
@@ -81,3 +81,35 @@ NEVER log secrets, API keys, tokens, passwords, database credentials, or any sen
 - OPERATOR.md
 
 If a tool output contains sensitive data, summarize the result without including the sensitive values. Session reports are committed to git — treat all session files as potentially public.
+
+## Self-Awareness
+
+If you notice you're struggling — failing repeatedly, reverting your own
+work, burning through budget on one thing — stop. Don't push through silently.
+
+Say what's happening. Log it in SHELL.md progress log. Alert via channel
+if active. Then:
+- Conservative: stop and wait for direction
+- Balanced: suggest alternatives, pick one if no response
+- Autonomous: try one more approach, then move on and flag it
+
+Getting stuck is information. A good assistant says "I'm stuck."
+
+## Idle Behavior
+
+During idle, the heartbeat checks for work you can do autonomously:
+NEXT-TASK.md, reflection, maintenance from HEARTBEAT.md.
+All gated by your escalation setting.
+
+## Daily Rhythm
+
+Morning: first heartbeat tick of the day generates a brief.
+Evening: last tick archives the day's work and reflects.
+Both fire once per day. You don't need to ask for them.
+
+## Learning Model
+
+You learn from your memory, not from archived reports. Reflect when
+triggered — at natural pauses, during heartbeat, end of day. If you
+notice a pattern, propose a fix. Reports exist as the journal and
+cold-start safety net, not as the input to learning.

@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.0.4] - 2026-03-27
+
+### Breaking Changes — Hermit Plugin Authors
+
+| Contract | v0.0.3 | v0.0.4 |
+|---|---|---|
+| Learning trigger | session-close invokes pattern-detect | Reflection fires independently (heartbeat, natural pause, end of day) |
+| Pattern-detect input | Last 5 archived reports | Memory + SHELL.md + cost-log |
+| Session close | Mandatory for learning | Optional — still useful for audit trail |
+| Idle behavior | Dormant | Active (gated by escalation) |
+| Report prerequisite | 3+ archived reports | None |
+
+### Added
+- **Memory-driven learning** — pattern-detect rewritten as a reflection prompt. Uses auto-memory as primary input instead of scanning archived reports. No report prerequisite — learns from day one.
+- **Idle agency** — heartbeat checks for autonomous work during idle: NEXT-TASK.md pickup, reflection (every 4+ hours), priority alignment check, maintenance. Gated by escalation level (conservative=alert, balanced=auto-start, autonomous=full auto).
+- **Daily rhythm** — morning routine (first heartbeat tick of active hours: brief, proposal review, priority check) and evening routine (last tick: daily journal archived as S-NNN, reflection, tomorrow prep). Both fire once per day.
+- **Self-awareness** — behavioral instruction in CLAUDE-APPEND giving the agent permission to stop when stuck. Three triggers: repeated failures, approach reversals, disproportionate cost. Escalation-gated response.
+- **Daily summary reports** — evening routine creates S-NNN reports directly (bypasses session-mgr) for mixed days. `## Task` reads "Daily summary — [date]", Plan section omitted.
+- **New config keys** — `heartbeat.morning_routine`, `heartbeat.evening_routine`, `heartbeat.idle_agency` (all default `true`), plus internal tracking keys `_last_morning`, `_last_evening`, `_last_reflection`.
+- **New hermit-settings subcommands** — `routines` (morning/evening toggle), `idle-agency` (autonomous idle toggle).
+- **New init wizard questions** — daily routines and idle agency (both default yes).
+
+### Changed
+- **pattern-detect** — full rewrite from 125-line report-scanning algorithm to ~20-line reflection prompt. Drops 4 deterministic categories, 3-report minimum, and report reading. Keeps proposal pipeline, dedup, feedback loop, stale flags.
+- **heartbeat** — gains idle agency and daily routines. Old "NEXT-TASK.md auto-pickup" section subsumed by idle agency.
+- **SHELL.md template** — Plan table is now optional (commented out). Progress Log is the primary record.
+- **HEARTBEAT.md template** — grouped structure (Task Checks, Idle Checks, Standing Checks).
+- **CLAUDE-APPEND** — gains Self-Awareness, Idle Behavior, Daily Rhythm, and Learning Model sections.
+- **session-close** — pattern-detect wording updated (reflects on experience, not reports).
+- **session** — pattern-detect reference updated, quick-task skip note added.
+- **session-start** — runs morning routine inline for interactive mode.
+- **brief** — gains daily summary format variant.
+
+### Design Principle
+Hermit is the scheduler and the policy layer. Claude is the intelligence. Hermit says *when* and *whether*. Claude figures out *how*. Never specify what Claude Code already handles natively.
+
+---
+
 ## [0.0.3] - 2026-03-26
 
 ### Breaking Changes

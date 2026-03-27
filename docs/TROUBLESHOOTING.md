@@ -8,7 +8,7 @@
 - Check bot token and bot online status.
 - Verify tmux session: `tmux ls`
 - If Docker `--network=none`, channels can't work.
-- Telegram has no message history — messages sent while the agent was down are lost.
+- Telegram has no message history — messages sent while your hermit was down are lost.
 
 ## Hooks Not Firing
 
@@ -33,9 +33,10 @@
 
 ## No Auto-Proposals Appearing
 
-- Pattern detection requires **3+ completed sessions**. Until then, it's skipped entirely.
-- Check that session reports exist: `ls .claude/.claude-code-hermit/sessions/S-*-REPORT.md`
-- Pattern detection runs during `/session-close`, not during work.
+- Reflection runs at task boundaries, during heartbeat idle checks, and at end of day. If you're closing sessions before finishing work, reflection may not trigger.
+- Check that `idle_agency` is enabled in config — without it, idle-time reflection won't fire.
+- If you just started using Hermit, give it a few sessions to build up memory. Proposals come from patterns, and patterns take repetition.
+- Check proposals exist: `ls .claude/.claude-code-hermit/proposals/PROP-*.md`
 
 ## Agent Ignoring OPERATOR.md
 
@@ -47,8 +48,24 @@
 
 SHELL.md from a crashed session persists. Choose **resume** or **start new** (generates a partial report). If this keeps happening, check system stability, rate limits, disk space, and consider Docker for auto-restart.
 
+## Daily Routines Not Firing
+
+- Check `heartbeat.morning_routine` and `heartbeat.evening_routine` are `true` in config.json.
+- Routines are tied to `active_hours` — morning fires on the first heartbeat tick after `active_hours.start`, evening fires on the last tick before `active_hours.end`.
+- The heartbeat must be running. In interactive mode, it only runs during idle. In always-on mode, it runs continuously.
+- Each routine fires once per day — check `_last_morning` and `_last_evening` in config.json to see if they already ran today.
+- Verify your timezone is set correctly: `/claude-code-hermit:hermit-settings timezone`.
+
+## Idle Agency Not Working
+
+- Check `heartbeat.idle_agency` is `true` in config.json.
+- Your hermit must be in `idle` state (check SHELL.md status). Idle agency only runs between tasks.
+- NEXT-TASK.md pickup is gated by escalation level: `conservative` only alerts, `balanced` auto-starts, `autonomous` runs fully unattended.
+- If no NEXT-TASK.md exists, idle agency falls back to reflection (every 4+ hours) and HEARTBEAT.md maintenance.
+
 ## Morning Brief Not Sending
 
-- `config.json`: `morning_brief.enabled` must be `true`, `morning_brief.channel` must match an active channel.
-- Verify channels work first — send "status" manually.
-- The brief only sends if the agent is running at the configured time.
+- Check `heartbeat.morning_routine` is `true` in config.json.
+- Verify channels work first — send "status" manually from your phone.
+- The brief only sends if the heartbeat is running at the start of your active hours. In interactive mode, this means you need an active session.
+- Check `_last_morning` in config.json — if it shows today's date, the brief already ran.

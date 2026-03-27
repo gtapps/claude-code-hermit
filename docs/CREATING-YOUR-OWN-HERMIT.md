@@ -6,7 +6,7 @@ Every Hermit is yours from the moment you run `/claude-code-hermit:init`. This g
 
 ## Start Anywhere
 
-An existing codebase, an empty folder for a personal assistant, a research project — `/claude-code-hermit:init` adapts to whatever it finds. The wizard scans your folder, asks a few questions, and generates an `OPERATOR.md` that shapes how Hermit works for you.
+An existing codebase, an empty folder for a personal assistant, a research project — `/claude-code-hermit:init` adapts to whatever it finds. The wizard scans your folder, asks a few questions, and generates an `OPERATOR.md` that shapes how your hermit works for you.
 
 That's the first customization lever, and for most people it's the only one they need.
 
@@ -14,21 +14,21 @@ That's the first customization lever, and for most people it's the only one they
 
 ## OPERATOR.md — The 80% Case
 
-`OPERATOR.md` is how you turn a generic agent into _your_ agent. Budget limits, off-limits directories, naming conventions, communication preferences — write it once, Hermit reads it every session.
+`OPERATOR.md` is how you turn a generic assistant into _your_ assistant. Budget limits, off-limits directories, naming conventions, communication preferences — write it once, your hermit reads it every session.
 
 See [Getting Started](HOW-TO-USE.md#operatormd) for the good/bad examples and formatting tips.
 
 ---
 
-## Let Hermit Suggest What It Needs
+## Let Your Hermit Suggest What It Needs
 
-You don't have to design your Hermit's capabilities upfront. After a few sessions, ask:
+You don't have to design capabilities upfront. After a few sessions, ask:
 
-- **"Suggest specialized agents for this project."** — Hermit reviews its session history and proposes agents based on the kind of work you've been doing. A project heavy on database changes might get a migration specialist. One that keeps hitting CI failures might get a test reviewer.
+- **"Suggest specialized agents for this project."** — Your hermit reviews its experience and proposes agents based on the kind of work you've been doing. A project heavy on database changes might get a migration specialist. One that keeps hitting CI failures might get a test reviewer.
 - **"What would make you more efficient here?"** — Might suggest workflow changes, new skills, or configuration tweaks.
 - **"Create a self-improvement proposal."** — Formalizes its suggestions into a proposal you can accept or reject.
 
-You approve, Hermit creates the files. The specialization emerges from how you actually work.
+You approve, it creates the files. The specialization emerges from how you actually work.
 
 ---
 
@@ -64,7 +64,7 @@ You are a database migration specialist.
 Return: tables affected, reversibility, any data backfill needed
 ```
 
-Once the file exists, Hermit can delegate to it by name. For more on [sub-agents](https://code.claude.com/docs/en/sub-agents), see the Claude Code docs.
+Once the file exists, your hermit can delegate to it by name. For more on [sub-agents](https://code.claude.com/docs/en/sub-agents), see the Claude Code docs.
 
 **Conventions:** Always include `disallowedTools`. Use `memory: project` so it learns across sessions. Use `isolation: worktree` for agents that modify files. Match model to complexity: Haiku for scanning, Sonnet for reasoning.
 
@@ -74,7 +74,7 @@ Once the file exists, Hermit can delegate to it by name. For more on [sub-agents
 
 Skills are multi-step workflows invoked with a slash command. Create a directory in `.claude/skills/` with a `SKILL.md` file — the directory name becomes the command.
 
-`.claude/skills/deploy/SKILL.md` → `/deploy`:
+`.claude/skills/deploy/SKILL.md` -> `/deploy`:
 
 ```markdown
 ---
@@ -109,7 +109,7 @@ When you're copying the same agents between projects, package them as a [Claude 
 Your hermit handles domain-specific work. Core handles session lifecycle.
 
 ```
-/claude-code-hermit:session-start → your domain workflow → /claude-code-hermit:session-close
+/claude-code-hermit:session-start -> your domain workflow -> /claude-code-hermit:session-close
 ```
 
 ### Required files

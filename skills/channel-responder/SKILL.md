@@ -1,6 +1,6 @@
 ---
 name: channel-responder
-description: Handles inbound messages from Claude Code Channels (Telegram, Discord, webhooks) with session context awareness. Responds in the context of the current task.
+description: Handles inbound messages from Claude Code Channels (Telegram, Discord, webhooks) with session context awareness.
 ---
 # Channel Responder
 
@@ -19,14 +19,14 @@ If SHELL.md has Status `idle` (no active task):
 ## 2. Classify the Message
 
 - **Status request** ("what are you working on?", "status", "progress")
-  - If Status is `idle`: respond with session summary — tasks completed, cumulative cost, "waiting for next task"
+  - If Status is `idle`: respond with session summary — tasks completed, cumulative cost, "ready for what's next"
   - If Status is `in_progress`: respond with a concise summary of SHELL.md: task, current step, blockers
   - Keep it short — channel messages should be brief
 
 - **Task assignment** (only when Status is `idle`: "work on X", "next task: Z", "start Y", or any message describing work to be done)
   - Invoke `/claude-code-hermit:session-start` to begin the new task (idle → in_progress)
   - The session-start skill handles filling Task, Plan, and setting Status
-  - Confirm via channel: "Starting task: [summary]. Working on it."
+  - Confirm via channel: "On it: [summary]."
 
 - **New instruction** ("work on X", "switch to Y", "prioritize Z")
   - If Status is `idle`: treat as **Task assignment** (above)

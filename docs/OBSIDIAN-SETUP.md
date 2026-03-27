@@ -1,6 +1,6 @@
 # Obsidian Setup (Optional)
 
-An optional read-mostly companion dashboard. The agent works without it.
+An optional read-mostly companion dashboard. Your hermit works without it.
 
 ---
 
@@ -18,7 +18,7 @@ Sessions: `session-start`, `session-close`. Proposals: `proposal-create`, `propo
 
 ## Setup
 
-1. Open Obsidian → "Open folder as vault" → select the repo root
+1. Open Obsidian -> "Open folder as vault" -> select the repo root
 2. Add `.obsidian/` to `.gitignore`
 3. Install the **Dataview** plugin — the only plugin you need
 
@@ -60,16 +60,16 @@ SORT file.name ASC
 
 ## Suggested Layout
 
-- **Right pane (pinned):** SHELL.md — updates live as the agent works
+- **Right pane (pinned):** SHELL.md — updates live as your hermit works
 - **Left pane:** `dashboard.md` — Dataview tables for history and proposals
 
-Pin a pane: right-click tab → "Pin".
+Pin a pane: right-click tab -> "Pin".
 
 ---
 
 ## Editing OPERATOR.md in Obsidian
 
-This is encouraged. OPERATOR.md is human-curated — no lifecycle tracking, no sequential IDs. Edit freely. The agent reads it fresh at every session start.
+This is encouraged. OPERATOR.md is human-curated — no lifecycle tracking, no sequential IDs. Edit freely. Your hermit reads it fresh at every session start.
 
 ---
 
@@ -77,6 +77,6 @@ This is encouraged. OPERATOR.md is human-curated — no lifecycle tracking, no s
 
 - Don't create session/proposal files from Obsidian (Rule 2)
 - Don't edit `config.json` in Obsidian — use `/hermit-settings`
-- Don't use `[[wikilinks]]` or `%%comments%%` in tracked files — the agent reads standard markdown only
+- Don't use `[[wikilinks]]` or `%%comments%%` in tracked files — your hermit reads standard markdown only
 - Don't install plugins that modify markdown on save (Linter, Auto Link Title) — creates phantom diffs and breaks inline field format
-- Don't rename/move tracked files — the agent expects specific paths (`S-001-REPORT.md`, `PROP-001.md`)
+- Don't rename/move tracked files — your hermit expects specific paths (`S-001-REPORT.md`, `PROP-001.md`)

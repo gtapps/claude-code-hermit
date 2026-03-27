@@ -1,47 +1,47 @@
 # Architecture
 
-A Claude Code plugin providing session discipline and operational hygiene for autonomous agents. No custom runtime, no server. Just markdown and JavaScript files on top of everything [Claude Code already provides](https://code.claude.com/docs/en/plugins).
+A Claude Code plugin that turns any Claude Code instance into a self-improving personal assistant. No custom runtime, no server. Just markdown and JavaScript files on top of everything [Claude Code already provides](https://code.claude.com/docs/en/plugins).
 
 ---
 
 ## Overview
 
 ```
- ┌─────────────────────────────────────────────────────────────────────┐
- │                    LAYER 1: CHANNEL SURFACE                        │
- │   Terminal    Remote Control    Channels (Telegram/Discord)        │
- │   Headless (claude -p "...")                                       │
- └──────────────────────────────┬──────────────────────────────────────┘
-                                │
- ┌──────────────────────────────▼──────────────────────────────────────┐
- │                    LAYER 2: SESSION LAYER                          │
- │   sessions/SHELL.md ◄── live state                                │
- │   sessions/S-NNN-REPORT.md ◄── archived handoff artifacts         │
- │   Lifecycle:  start ──► work ──► close ──► archive                │
- └──────────────────────────────┬──────────────────────────────────────┘
-                                │
- ┌──────────────────────────────▼──────────────────────────────────────┐
- │                    LAYER 3: AGENT LAYER                            │
- │   session-mgr (Sonnet) — session lifecycle management             │
- │   (Hermits add specialized agents here)                           │
- └──────────────────────────────┬──────────────────────────────────────┘
-                                │
- ┌──────────────────────────────▼──────────────────────────────────────┐
- │                    LAYER 4: SKILLS + HOOKS                         │
- │   15 skills    4 hooks    3 profiles (minimal/standard/strict)    │
- └──────────────────────────────┬──────────────────────────────────────┘
-                                │
- ┌──────────────────────────────▼──────────────────────────────────────┐
- │                    LAYER 5: REPO ARTIFACTS                         │
- │   CLAUDE.md • OPERATOR.md • sessions/ • proposals/ • templates/   │
- └─────────────────────────────────────────────────────────────────────┘
+ +-----------------------------------------------------------------+
+ |                    LAYER 1: CHANNEL SURFACE                      |
+ |   Terminal    Remote Control    Channels (Telegram/Discord)      |
+ |   Headless (claude -p "...")                                     |
+ +-------------------------------|----------------------------------+
+                                 |
+ +-------------------------------v----------------------------------+
+ |                    LAYER 2: SESSION LAYER                        |
+ |   sessions/SHELL.md <-- live state                               |
+ |   sessions/S-NNN-REPORT.md <-- archived handoff artifacts        |
+ |   Lifecycle:  start --> work --> close --> archive                |
+ +-------------------------------|----------------------------------+
+                                 |
+ +-------------------------------v----------------------------------+
+ |                    LAYER 3: AGENT LAYER                          |
+ |   session-mgr (Sonnet) -- session lifecycle management           |
+ |   (Hermits add specialized agents here)                          |
+ +-------------------------------|----------------------------------+
+                                 |
+ +-------------------------------v----------------------------------+
+ |                    LAYER 4: SKILLS + HOOKS                       |
+ |   15 skills    5 hooks    3 profiles (minimal/standard/strict)   |
+ +-------------------------------|----------------------------------+
+                                 |
+ +-------------------------------v----------------------------------+
+ |                    LAYER 5: REPO ARTIFACTS                       |
+ |   CLAUDE.md - OPERATOR.md - sessions/ - proposals/ - templates/  |
+ +-----------------------------------------------------------------+
 ```
 
 ---
 
 ## Layer 1: Channel Surface
 
-The plugin is input-agnostic. Same session discipline regardless of how the agent is invoked.
+Input-agnostic. Same session discipline regardless of how your hermit is invoked.
 
 | Channel                                                          | Use                                  |
 | ---------------------------------------------------------------- | ------------------------------------ |
@@ -59,21 +59,21 @@ All channels converge on the same `sessions/SHELL.md`.
 Sessions provide bounded, task-scoped work with durable handoff artifacts.
 
 ```
-START → WORK → CLOSE → ARCHIVE
-  │       │       │        │
-  ▼       ▼       ▼        ▼
+START -> WORK -> CLOSE -> ARCHIVE
+  |       |       |        |
+  v       v       v        v
 Create   Update  Finalize  Copy to
 SHELL.md plan,   status,   S-NNN-REPORT.md,
          log     lessons   reset SHELL.md
 ```
 
-**Start:** Checks for existing SHELL.md. Resumes if `in_progress`, creates fresh if not. Loads OPERATOR.md.
+**Start:** Checks for existing SHELL.md. Resumes if `in_progress`, creates fresh if not. Loads OPERATOR.md. Runs morning routine if it hasn't fired today.
 
-**Work:** Plan items tracked as `planned` → `in_progress` → `blocked` → `done`. Timestamped progress log. Blockers recorded with cold-start context.
+**Work:** Plan items tracked as `planned` -> `in_progress` -> `blocked` -> `done`. Timestamped progress log. Blockers recorded with cold-start context.
 
-**Close:** Quality checklist, lessons, proposals. Defaults to idle transition at every task boundary — session says "What's next?" and waits. Full shutdown only via `/session-close`. See [ALWAYS-ON-OPS.md](ALWAYS-ON-OPS.md#2-always-on-lifecycle).
+**Close:** Defaults to idle transition at every task boundary — your hermit says "What's next?" and waits. Reflection fires. Full shutdown only via `/session-close`. See [Always-On Lifecycle](ALWAYS-ON-OPS.md#2-always-on-lifecycle).
 
-**Archive:** SHELL.md → `S-NNN-REPORT.md`. Fresh template with carry-forward items. Any session can pick up where the last one left off.
+**Archive:** SHELL.md -> `S-NNN-REPORT.md`. Fresh template with carry-forward items. Any session can pick up where the last one left off.
 
 ---
 
@@ -109,9 +109,9 @@ See [Skills Reference](SKILLS.md) for the full list.
 
 | Profile  | Cost | Compact | Diff | Evaluation |
 | -------- | ---- | ------- | ---- | ---------- |
-| minimal  | ✓    | —       | —    | —          |
-| standard | ✓    | ✓       | ✓    | ✓          |
-| strict   | ✓    | ✓       | ✓    | ✓          |
+| minimal  | yes  | --      | --   | --         |
+| standard | yes  | yes     | yes  | yes        |
+| strict   | yes  | yes     | yes  | yes        |
 
 Hermits may add hooks at `strict` (e.g., git-push-guard). Use `run-with-profile.js` for profile-gated execution.
 
@@ -119,7 +119,7 @@ Hermits may add hooks at `strict` (e.g., git-push-guard). Use `run-with-profile.
 
 ## Layer 5: Repo Artifacts
 
-All state in git-tracked files. No database, no external service.
+All state lives in git-tracked files. No database, no external service.
 
 ### Plugin file map
 
@@ -155,41 +155,59 @@ your-project/
 ## Memory Model
 
 ```
-┌──────────────────────────────────────────────┐
-│  OPERATOR.md                                 │
-│  Owner: Human. Lifetime: permanent.          │
-│  Project context, constraints, preferences.  │
-├──────────────────────────────────────────────┤
-│  Auto-memory (Claude Code built-in)          │
-│  Owner: Agent. Lifetime: persistent.         │
-│  Engineering lessons, codebase patterns.     │
-├──────────────────────────────────────────────┤
-│  sessions/SHELL.md                           │
-│  Owner: Agent. Lifetime: one session.        │
-│  Task, plan, progress, blockers, cost.       │
-└──────────────────────────────────────────────┘
++----------------------------------------------+
+|  OPERATOR.md                                 |
+|  Owner: Human. Lifetime: permanent.          |
+|  Project context, priorities, constraints.   |
++----------------------------------------------+
+|  Auto-memory (Claude Code built-in)          |
+|  Owner: Agent. Lifetime: persistent.         |
+|  Engineering lessons, codebase patterns,     |
+|  operational experience. Primary input       |
+|  for reflection.                             |
++----------------------------------------------+
+|  sessions/SHELL.md                           |
+|  Owner: Agent. Lifetime: one session.        |
+|  Task, plan, progress, blockers, cost.       |
++----------------------------------------------+
+|  sessions/S-NNN-REPORT.md                    |
+|  Owner: Agent. Lifetime: permanent.          |
+|  Archived journals. Cold-start safety net.   |
++----------------------------------------------+
 ```
 
-OPERATOR.md is human-curated — the agent reads but never modifies it. Auto-memory is Claude Code's built-in [persistent memory](https://code.claude.com/docs/en/sub-agents). SHELL.md is the live working document, archived on close.
+OPERATOR.md is human-curated — your hermit reads it but never modifies it. Auto-memory is Claude Code's built-in [persistent memory](https://code.claude.com/docs/en/sub-agents) and the primary input to learning. SHELL.md is the live working document. Reports are the journal and cold-start safety net — not the input to learning.
 
 ---
 
 ## Learning Loop
 
 ```
-Session closes → pattern-detect reads recent reports → auto-proposal if pattern found
-                                                              │
-Heartbeat ticks → self-evaluates checklist every 20 ticks     │
-                                                              │
-Operator reviews → /proposal-act accept/defer/dismiss         │
-                → accepted proposal becomes NEXT-TASK.md      │
-                                                              │
-3 sessions pass without recurrence → auto-resolved ───────────┘
+Reflection fires -> auto-proposal if pattern noticed
+    ^                        |
+    | Triggers:              |
+    | - Task boundaries      |
+    | - Heartbeat idle (4h+) |
+    | - Evening routine      |
+    | - Session close        |
+    |                        |
+Operator reviews -> /proposal-act accept/defer/dismiss
+                 -> accepted proposal becomes NEXT-TASK.md
+                 -> idle agency picks it up automatically
+                                                      |
+Memory shows no recurrence -> auto-resolved ----------+
 ```
 
-Pattern detection analyzes the last 5 reports for: blocker recurrence (3+ sessions), workaround repetition (2+), cost trends (>50% increase AND >$1.00), tag correlation (3+ sessions with same tag closing blocked/partial).
+Reflection uses auto-memory as primary input. Your hermit reflects on what it remembers: recurring blockers, repeated workarounds, cost patterns, workflow friction. Evidence is conversational ("I've hit this repeatedly") rather than citation-based.
 
-This is NOT a memory system — Claude Code's auto-memory handles that natively. The learning loop operates on **structured session reports** to detect operational problems and create actionable proposals.
+Hermit provides the **timing infrastructure** (when to reflect) and the **proposal pipeline** (structured proposals with an operator gate). Claude handles the intelligence — noticing patterns, assessing confidence, formulating proposals.
+
+### Daily Rhythm
+
+Morning routine (first heartbeat tick of active hours): brief, proposal review, priority check.
+Evening routine (last heartbeat tick): daily journal archived as S-NNN, reflection, preparation for tomorrow.
+
+Both fire once per day based on `active_hours` in config.
 
 ---
 

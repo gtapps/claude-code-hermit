@@ -1,6 +1,6 @@
 ---
 name: proposal-list
-description: Lists all proposals with their status, source, and age. Shows auto-detected proposals prominently. Use to review what the agent has learned from session patterns.
+description: Lists all proposals with their status, source, and age. Shows auto-detected proposals prominently. Use to review what your hermit has noticed from experience.
 ---
 # Proposal List
 

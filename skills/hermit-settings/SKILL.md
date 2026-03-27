@@ -1,6 +1,6 @@
 ---
 name: hermit-settings
-description: View or change hermit configuration for this project. Manages model, channels, budget prompts, morning brief, heartbeat, and unattended mode.
+description: View or change hermit configuration for this project. Manages model, channels, budget prompts, morning brief, heartbeat, routines, idle agency, and unattended mode.
 disable-model-invocation: true
 ---
 # Hermit Settings
@@ -23,6 +23,8 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings brief          — configure morning brief
 /claude-code-hermit:hermit-settings permissions    — configure unattended mode
 /claude-code-hermit:hermit-settings heartbeat      — enable/disable, interval, quiet mode, active hours
+/claude-code-hermit:hermit-settings routines        — enable/disable morning and evening routines
+/claude-code-hermit:hermit-settings idle-agency     — toggle autonomous idle work
 ```
 
 ## Plan
@@ -101,7 +103,7 @@ Update `model` in config.json. Set to `null` if operator says "none", "default",
 Note: "Model changes take effect on next `hermit-start` run."
 
 **If argument is "budget":**
-Ask: "Prompt for task budget at session start? (always / never) [current value]"
+Ask: "Ask for a cost budget at session start? (always / never) [current value]"
 Update `ask_budget` in config.json.
 
 **If argument is "brief":**
@@ -125,6 +127,17 @@ Update `permission_mode` in config.json.
 - If yes: ask for interval, show_ok, and active hours
 - Update `heartbeat` object in config.json.
   - Note: "Heartbeat changes take effect on next `/claude-code-hermit:heartbeat start` or `hermit-start.py` run."
+
+**If argument is "routines":**
+- Show current state of `heartbeat.morning_routine` and `heartbeat.evening_routine`
+- Ask: "Enable morning routine? Generates a brief at the start of each day. (yes / no) [current value]"
+- Ask: "Enable evening routine? Archives the day's work and reflects at end of day. (yes / no) [current value]"
+- Update `heartbeat.morning_routine` and `heartbeat.evening_routine` in config.json.
+
+**If argument is "idle-agency":**
+- Show current state of `heartbeat.idle_agency` and `escalation`
+- Ask: "Allow autonomous idle work? When idle, the agent checks for queued tasks, reflects on patterns, and runs maintenance. Gated by your escalation setting (currently: {escalation}). (yes / no) [current value]"
+- Update `heartbeat.idle_agency` in config.json.
 
 ### 3. Write config
 

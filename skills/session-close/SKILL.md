@@ -24,7 +24,7 @@ Use this when the operator wants to end everything (via `hermit-stop` or explici
 4. Record lessons learned — only genuinely useful ones, not obvious statements
 5. If any high-leverage improvements were discovered during work, create proposals via the `proposal-create` skill
 6. Confirm the "Next Start Point" is clear enough for a fresh session to resume without questions
-7. Invoke the `pattern-detect` skill to analyze recent session reports for recurring patterns. This runs before archiving so the `## Patterns Detected` section is included in the archived report. If pattern-detect skips (fewer than 3 prior reports), proceed to the next step.
+7. Invoke the `pattern-detect` skill to reflect on accumulated experience. Pattern-detect no longer requires archived reports — it reflects on memory. This runs before archiving so any findings are included in the archived report.
 8. Archive the session via `session-mgr` (full close — replace SHELL.md with fresh template)
 
 ---

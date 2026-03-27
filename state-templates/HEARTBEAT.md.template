@@ -1,6 +1,10 @@
 # Heartbeat Checklist
 
-- Check if the current task has any blocked plan items that may have resolved
-- Check if any monitored conditions have changed
-- Review proposals/ for any that need attention
-- Quick scan: anything requiring immediate operator attention?
+## Task Checks
+- Check if current task has blocked items that may have resolved
+
+## Idle Checks
+- Check for NEXT-TASK.md
+
+## Standing Checks
+- Review proposals/ for any needing attention

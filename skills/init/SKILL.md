@@ -105,8 +105,8 @@ Ask: "Enable morning brief delivery? (yes / no) [no]"
 - If yes: ask "What time? (e.g., 07:00) [07:00]"
 - Record in config as `morning_brief: { "enabled": true, "time": "07:00", "channel": "<selected channel>" }` or `null` if declined
 
-**4i. Task budget**
-Ask: "Prompt for task budget at session start? (always / never) [never]"
+**4i. Session budget**
+Ask: "Ask for a cost budget at session start? (always / never) [never]"
 - Record as `ask_budget: true` or `false`
 
 **4j. Permission mode**
@@ -116,6 +116,15 @@ Ask: "Permission mode for unattended operation? (acceptEdits / dontAsk / bypassP
 - `bypassPermissions` — no checks at all; only for isolated containers/VMs
 - See [Permission Modes](https://code.claude.com/docs/en/permission-modes)
 - Record as `permission_mode: "<value>"`
+
+**4k. Daily routines**
+Ask: "Should your assistant have a morning and evening routine? Morning: reviews overnight work, prepares a brief. Evening: archives the day, reflects on patterns. (yes / no) [yes]"
+- If yes: record `heartbeat.morning_routine: true` and `heartbeat.evening_routine: true`
+- If no: record both as `false`
+
+**4l. Idle agency**
+Ask: "When idle, should it work on accepted proposals and maintenance autonomously? Gated by your escalation setting. (yes / no) [yes]"
+- Record as `heartbeat.idle_agency: true` or `false`
 
 ### 5. Write config.json
 
@@ -146,7 +155,10 @@ Write the collected preferences to `.claude/.claude-code-hermit/config.json`:
     "active_hours": {
       "start": "08:00",
       "end": "23:00"
-    }
+    },
+    "morning_routine": true,
+    "evening_routine": true,
+    "idle_agency": true
   }
 }
 ```

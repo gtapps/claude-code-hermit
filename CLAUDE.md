@@ -1,6 +1,6 @@
 # claude-code-hermit
 
-A Claude Code plugin providing session discipline and operational hygiene for autonomous agent workflows.
+A personal assistant that lives in your project — memory-driven learning, daily rhythm, idle agency, and operational hygiene for Claude Code.
 
 ## This Repo is a Plugin
 
@@ -16,7 +16,7 @@ After install, run `/claude-code-hermit:init` in the target project to create th
 ## Plugin Structure
 
 - `agents/` — subagent definitions (session-mgr only; hermit plugins add more subagents)
-- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, status, brief, monitor, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, pattern-detect, channel-responder, init, upgrade
+- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, status, brief, monitor, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, pattern-detect (reflection), channel-responder, init, upgrade
 - `hooks/hooks.json` — hook registrations
 - `scripts/` — hook implementation scripts + boot scripts (hermit-start.py, hermit-stop.py)
 - `state-templates/` — templates copied into target projects by the `init` skill
@@ -29,8 +29,8 @@ When installed in a target project, state lives in `.claude/.claude-code-hermit/
 - `sessions/S-NNN-REPORT.md` — archived reports
 - `proposals/PROP-NNN.md` — improvement proposals
 - `templates/` — session and proposal templates
-- `config.json` — project config (identity, channels, budget prefs, tmux name)
-- `OPERATOR.md` — human-curated project context
+- `config.json` — project config (identity, channels, budget prefs, routines, idle agency)
+- `OPERATOR.md` — human-curated project context and constraints
 
 ## Development
 
@@ -50,7 +50,7 @@ Then run `/claude-code-hermit:init` to set up the target project.
 
 - On startup, always check `.claude/.claude-code-hermit/sessions/SHELL.md`
 - If a session is active: resume it — read the task, progress, and blockers
-- If no session is active: ask the operator for a task before starting work
+- If no session is active: ask what you should help with before starting work
 - Use `/claude-code-hermit:session-start` to initialize and `/claude-code-hermit:session-close` to end sessions
 - Never create session or proposal files by hand — use the skills
 
