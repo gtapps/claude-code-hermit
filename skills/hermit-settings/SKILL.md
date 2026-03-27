@@ -50,7 +50,7 @@ Operational:
   Channels:        none
   Remote control:  disabled (remote: false)
   Model:           default (model: null)
-  Budget prompts:  enabled (ask_budget: true)
+  Budget prompts:  disabled (ask_budget: false)
   Morning brief:   disabled
   Heartbeat:       disabled (every: 30m, show_ok: false, active: 08:00-23:00)
   Permission mode:  acceptEdits (permission_mode: "acceptEdits")

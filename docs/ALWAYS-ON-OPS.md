@@ -292,8 +292,7 @@ Ensure `.env` is in your `.gitignore`.
 ```dockerfile
 FROM node:22-slim
 RUN apt-get update && apt-get install -y tmux python3 git curl && rm -rf /var/lib/apt/lists/*
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:$PATH"
+RUN BUN_INSTALL=/usr/local curl -fsSL https://bun.sh/install | bash
 RUN npm install -g @anthropic-ai/claude-code
 RUN useradd -m -s /bin/bash claude
 USER claude
