@@ -277,6 +277,12 @@ Block tool invocations regardless of permission mode:
 
 Docker provides containment, crash recovery via restarts, and a reproducible environment for always-on agents.
 
+### Quick setup
+
+For a quicker setup, just ask Claude to set it up with this prompt:
+
+> Set up Docker for this project's claude-code-hermit always-on agent following the guide in `.claude/.claude-code-hermit/plugin/docs/ALWAYS-ON-OPS.md`, Section 7 (Docker). Create the `Dockerfile`, `docker-entrypoint.sh`, and `docker-compose.yml` at the project root using the examples from the docs. Adapt them to this project: read `config.json` to get the `tmux_session_name` and replace the `PROJECT_NAME` placeholder in the docker-compose healthcheck, create a `.env` file with placeholder values for auth (`CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`), ensure `.env` is in `.gitignore` and `.dockerignore`, and make `docker-entrypoint.sh` executable. On Windows, verify the project is inside WSL2 (not `/mnt/c/`) before proceeding. Do not start the container — just set up the files so I can review them before running `docker compose up -d`.
+
 ### Auth
 
 **OAuth token (recommended for Pro/Max):** Run `claude setup-token` on a machine with a browser to generate a long-lived token (valid 1 year). Add it to your `.env`:
@@ -461,6 +467,19 @@ Container restarts trigger Hermit's recovery automatically: the entrypoint re-se
 | Entrypoint exits immediately after tmux spawns | Poll `tmux has-session` to keep PID 1 alive |
 | `.local` mDNS hostnames don't resolve in containers | Use IP addresses in service URLs, even with `network_mode: host` |
 | Workspace trust prompt on first run | Attach once via `tmux attach`, press Enter, detach |
+
+### Windows (WSL2 required)
+
+The Docker setup requires Linux-native paths. Claude Code keys config by absolute path — a Windows path (`C:\Users\you\project`) can never match the Linux path inside the container, so plugins, trust settings, and session state won't be found.
+
+Run everything from WSL2:
+
+1. Install [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) with Ubuntu
+2. Clone the project inside WSL2 (`/home/you/project`, **not** `/mnt/c/...`)
+3. Install Claude Code and run `/claude-code-hermit:init` from WSL2
+4. Run `docker compose up -d` from WSL2
+
+After step 1, the workflow is identical to Linux. Do not use `/mnt/c/` paths — they go through the 9P filesystem bridge, which is slow and breaks file watchers.
 
 ---
 
