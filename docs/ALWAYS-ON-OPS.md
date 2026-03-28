@@ -317,9 +317,6 @@ docker compose -f docker-compose.hermit.yml down
 
 # Same, but also remove the built image
 docker compose -f docker-compose.hermit.yml down --rmi local
-
-# Full cleanup — image, volumes, and orphan containers
-docker compose -f docker-compose.hermit.yml down --rmi local --volumes --remove-orphans
 ```
 
 To also remove the generated scaffolding files:
