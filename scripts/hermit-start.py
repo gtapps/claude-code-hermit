@@ -66,17 +66,18 @@ def load_config():
     with open(CONFIG_PATH) as f:
         config = json.load(f)
 
-    # Merge with defaults — shallow for top-level, deep for nested dicts
+    # Merge with defaults — shallow for top-level, deep for nested dicts.
+    # Values in config may be None (JSON null), so fall back to {} for unpacking.
     merged = {**DEFAULT_CONFIG, **config}
     for key in ('env', 'heartbeat'):
         if key in DEFAULT_CONFIG and isinstance(DEFAULT_CONFIG[key], dict):
-            merged[key] = {**DEFAULT_CONFIG[key], **config.get(key, {})}
+            merged[key] = {**DEFAULT_CONFIG[key], **(config.get(key) or {})}
     # One more level for heartbeat.active_hours
     if 'active_hours' in DEFAULT_CONFIG.get('heartbeat', {}):
         merged_hb = merged.get('heartbeat', {})
         merged_hb['active_hours'] = {
             **DEFAULT_CONFIG['heartbeat']['active_hours'],
-            **config.get('heartbeat', {}).get('active_hours', {}),
+            **((config.get('heartbeat') or {}).get('active_hours') or {}),
         }
         merged['heartbeat'] = merged_hb
     return merged
@@ -260,12 +261,15 @@ def main():
     # Start tmux session (handles "already exists" as a graceful exit)
     #
     # tmux starts a new shell that does NOT inherit the caller's environment.
-    # Only auth vars need shell env (they're read before claude parses settings).
-    # Write them to a temp env file and source it — avoids leaking secrets via ps.
+    # Auth vars must be in shell env before claude launches.
+    # *_STATE_DIR vars must be OS env because MCP servers (channel plugins)
+    # inherit shell env but don't read settings.local.json.
     forward_vars = [
         'CLAUDE_CONFIG_DIR',
         'CLAUDE_CODE_OAUTH_TOKEN',
         'ANTHROPIC_API_KEY',
+        'DISCORD_STATE_DIR',
+        'TELEGRAM_STATE_DIR',
     ]
     env_file = Path('/tmp') / f'.hermit-env-{session_name}'
     with open(env_file, 'w') as f:

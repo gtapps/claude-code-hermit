@@ -26,6 +26,9 @@ Env vars are now managed in `config.json` `env` and written to `.claude/settings
 
 ### Fixed
 - `load_config()` shallow merge bug — if config.json had `"env": {"AGENT_HOOK_PROFILE": "strict"}`, the other 3 default env vars were silently lost. Now deep-merges nested dicts.
+- `load_config()` crash when `active_hours: null` in config.json — deep merge tried to unpack `None` as dict. Now guards with `or {}`.
+- **Channel state dirs kept as OS env vars** — `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` are forwarded via tmux temp file and Docker compose `environment:`, not just `settings.local.json`. MCP servers (which channel plugins run as) inherit shell env but don't read `settings.local.json`.
+- **Docker channel plugin workaround documented** — channel plugins v0.0.4 hardcode `~/.claude/channels/` in both MCP servers and skill files (`/discord:access`, `/discord:configure`). Docker setup now documents the `*_STATE_DIR` override and skill patching needed until Anthropic fixes this upstream.
 
 ---
 

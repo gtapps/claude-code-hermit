@@ -178,11 +178,11 @@ Resolve `${CLAUDE_PLUGIN_ROOT}` to an absolute path and write it as `_plugin_roo
 
 If re-initializing: merge with existing config (preserve values not asked about, update values that were asked about). Always update `_plugin_root` to the current `${CLAUDE_PLUGIN_ROOT}` value.
 
-If channels were configured in step 4f, also add channel state dirs to `env`:
-- For discord: `"DISCORD_STATE_DIR": ".claude.local/channels/discord"`
-- For telegram: `"TELEGRAM_STATE_DIR": ".claude.local/channels/telegram"`
+If channels were configured in step 4f, also add channel state dirs to `env` using the **absolute project path** (resolve from `pwd`):
+- For discord: `"DISCORD_STATE_DIR": "<project_path>/.claude.local/channels/discord"`
+- For telegram: `"TELEGRAM_STATE_DIR": "<project_path>/.claude.local/channels/telegram"`
 
-These env vars are written to `.claude/settings.local.json` by `hermit-start` at boot. Claude Code exports them to all subprocesses, including channel MCP servers.
+The channel plugin writes both its token (`.env`) and access config (`access.json`) to this directory. Without `*_STATE_DIR`, the plugin defaults to `~/.claude/channels/<plugin>/` — which works on the host but is lost on Docker container restart. These env vars are written to `.claude/settings.local.json` by `hermit-start` at boot.
 
 ### 5a. OPERATOR.md onboarding
 

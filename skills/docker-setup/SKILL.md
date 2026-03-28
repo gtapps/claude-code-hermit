@@ -207,6 +207,8 @@ services:
     environment:
       - CLAUDE_CONFIG_DIR=${HOME}/.claude
       - <AUTH_ENV_VAR>=<AUTH_PLACEHOLDER>
+      - DISCORD_STATE_DIR=<DISCORD_STATE_DIR>
+      - TELEGRAM_STATE_DIR=<TELEGRAM_STATE_DIR>
     network_mode: host
     restart: unless-stopped
     healthcheck:
@@ -221,8 +223,14 @@ Replace:
 - `<AUTH_ENV_VAR>` with `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` based on step 2
 - `<AUTH_PLACEHOLDER>` with `${CLAUDE_CODE_OAUTH_TOKEN}` or `${ANTHROPIC_API_KEY}`
 - `<TMUX_SESSION_NAME>` with the resolved session name
+- `<DISCORD_STATE_DIR>` — use `${PWD}/.claude.local/channels/discord`
+- `<TELEGRAM_STATE_DIR>` — use `${PWD}/.claude.local/channels/telegram`
 
-All other env vars (`AGENT_HOOK_PROFILE`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, `MAX_THINKING_TOKENS`, `DISCORD_STATE_DIR`, `TELEGRAM_STATE_DIR`) are managed via `config.json` `env` and written to `.claude/settings.local.json` by `hermit-start` at boot. They do not need to be in the compose `environment:` section.
+Only include `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` lines if the corresponding channel is configured. Remove the lines for channels that aren't used.
+
+**Why `*_STATE_DIR` must be in compose `environment:`:** MCP servers (which channel plugins run as) are separate OS processes that inherit the shell environment — they do NOT read `settings.local.json` `env`. The `settings.local.json` `env` key only applies to Claude Code's own session (hooks, Bash tool calls). Without these OS env vars, the MCP server falls back to `~/.claude/channels/<plugin>/` — which inside the container resolves to the `claude` user's home (`/home/claude/.claude/channels/`), a path that doesn't exist and isn't bind-mounted.
+
+All other hermit env vars (`AGENT_HOOK_PROFILE`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, `MAX_THINKING_TOKENS`, `COMPACT_THRESHOLD`) are consumed by hooks and Claude Code itself, so they go through `config.json` `env` → `settings.local.json` and do not need to be in the compose `environment:` section.
 
 ### 7. Ensure .env has hermit auth vars
 
@@ -265,6 +273,18 @@ If the var is **already present**, leave it alone — note this for step 10 (no 
 
 In Docker, channel tokens always go in `.claude.local/channels/<plugin>/.env` (project-local scope). The container user's `homedir()` differs from the host, so global `~/.claude/channels/` doesn't work without `*_STATE_DIR` overrides — local scope avoids this entirely and ensures each hermit has its own bot.
 
+> **Workaround (channel plugins v0.0.4):** Two issues require temporary fixes until Anthropic updates the channel plugins:
+>
+> 1. **MCP server ignores local scope for state** — The channel MCP server defaults to `~/.claude/channels/<plugin>/` regardless of plugin installation scope. The `*_STATE_DIR` OS env vars (in compose `environment:`) override this to point at the project-local `.claude.local/channels/<plugin>/` path.
+>
+> 2. **Channel skills use hardcoded paths** — `/discord:access` and `/discord:configure` (and their telegram equivalents) hardcode `~/.claude/channels/<plugin>/` for all file operations, ignoring `*_STATE_DIR`. After the container is running, patch the skill files inside the container to resolve `*_STATE_DIR` first and fall back to the default only if unset. The files are at:
+>    - `~/.claude/plugins/marketplaces/claude-plugins-official/external_plugins/<plugin>/skills/access/SKILL.md`
+>    - `~/.claude/plugins/marketplaces/claude-plugins-official/external_plugins/<plugin>/skills/configure/SKILL.md`
+>
+>    For each, replace hardcoded `~/.claude/channels/<plugin>/` paths with a dynamic lookup: run `echo $<PLUGIN>_STATE_DIR` first, fall back to `~/.claude/channels/<plugin>` if unset, then use the resolved path for all file operations.
+>
+> Both issues will be unnecessary once Anthropic fixes the plugins to resolve state paths relative to the plugin's installation scope.
+
 Check each known channel plugin:
 
 | Plugin   | Token file                                    | Token var            | Docker compatible |
@@ -288,11 +308,13 @@ claude plugin install telegram@claude-plugins-official --scope local
 
 Only install plugins for channels that are actually configured. Skip if already installed.
 
-For each configured channel, also ensure `config.json` `env` has the corresponding state dir. Read `config.json`, and if `DISCORD_STATE_DIR` or `TELEGRAM_STATE_DIR` is missing from `env`, add it:
-- `DISCORD_STATE_DIR`: `.claude.local/channels/discord`
-- `TELEGRAM_STATE_DIR`: `.claude.local/channels/telegram`
+For each configured channel, also ensure `config.json` `env` has the corresponding state dir. Read `config.json`, and if `DISCORD_STATE_DIR` or `TELEGRAM_STATE_DIR` is missing from `env`, add it using the **absolute project path** (required inside the container since the working directory is the absolute mount path):
+- `DISCORD_STATE_DIR`: `<project_path>/.claude.local/channels/discord`
+- `TELEGRAM_STATE_DIR`: `<project_path>/.claude.local/channels/telegram`
 
-Write back `config.json` if any changes were made. These values are written to `.claude/settings.local.json` by `hermit-start` at boot, which makes them available to Claude Code and all subprocesses (including channel MCP servers).
+Where `<project_path>` is the absolute path from `pwd` (e.g., `/home/d0m/Projects/myproject`). The channel plugin writes both its token (`.env`) and access config (`access.json`) to this directory. Without `*_STATE_DIR`, the plugin defaults to `~/.claude/channels/<plugin>/` which is the container user's home — not bind-mounted and lost on restart.
+
+Write back `config.json` if any changes were made. Note: the `*_STATE_DIR` values in `config.json` `env` are also written to `settings.local.json` for hooks that may need them, but the **primary delivery** for MCP servers is the OS-level env vars in `docker-compose.hermit.yml` `environment:` (MCP servers don't read `settings.local.json`).
 
 ### 10. Guided deployment — auth token
 
@@ -370,7 +392,7 @@ If **no**, walk through it step by step:
    `docker exec <container> tmux send-keys -t <session-name> '/discord:access pair <code>' Enter`
    (or `/telegram:access pair <code>` for telegram)
 
-   **Note:** These commands use the local state dir at `.claude.local/channels/<plugin>/` (set via `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` in `config.json` `env`, written to `.claude/settings.local.json` at boot). The plugin reads access config from there, not from the global `~/.claude/channels/` path.
+   **Note:** The `/discord:access` skill writes `access.json` to the state dir. With the v0.0.4 skill patch (see step 9 workaround), it resolves `DISCORD_STATE_DIR` from the OS env and writes to `.claude.local/channels/<plugin>/`. Without the patch, it hardcodes `~/.claude/channels/<plugin>/` — which inside the container is the `claude` user's home, not bind-mounted, and lost on restart.
 6. Wait a few seconds for the command to process, then lock down access:
    `docker exec <container> tmux send-keys -t <session-name> '/discord:access policy allowlist' Enter`
    (or `/telegram:access policy allowlist` for telegram)
@@ -378,7 +400,7 @@ If **no**, walk through it step by step:
 
 If the operator says "skip" at any point: "No worries — you can pair later by DMing the bot. It'll reply with a code, then attach to the hermit session and run `/discord:access pair <code>` followed by `/discord:access policy allowlist`. The plugin state (pairing data, access policy) lives in `.claude.local/channels/<plugin>/` in your project directory. Details at https://code.claude.com/docs/en/channels"
 
-The `config.json` `env` section has `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` pointing to `.claude.local/channels/<plugin>`, and `hermit-start` writes these to `.claude/settings.local.json` at boot. The container will find both the token and access config.
+`DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` are set as OS env vars in `docker-compose.hermit.yml` `environment:` — this is how the MCP server finds the token and access config. The same values are also in `config.json` `env` for hooks that may need them.
 
 If the container is already running, note: "Restart for channels to connect: `docker compose -f docker-compose.hermit.yml restart`"
 

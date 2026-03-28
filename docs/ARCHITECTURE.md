@@ -224,17 +224,20 @@ Both fire once per day based on `active_hours` in config.
 ### Environment Variable Flow
 
 ```
-config.json "env"  →  hermit-start.py  →  .claude/settings.local.json "env"  →  Claude Code  →  subprocesses
+config.json "env"  →  hermit-start.py  →  .claude/settings.local.json "env"  →  Claude Code  →  hooks, Bash tool calls
+                   →  shell env (tmux temp file / Docker environment:)  →  MCP servers
 ```
 
 1. Operator configures env vars in `config.json` `env` (or via `/hermit-settings env`)
-2. `hermit-start.py` reads `config["env"]` and merges into `.claude/settings.local.json` `env`
-3. Claude Code reads `settings.local.json` and exports `env` values to all subprocesses
-4. Hooks, MCP servers, and Bash tool calls inherit these via `process.env`
+2. `hermit-start.py` writes all `config["env"]` values into `.claude/settings.local.json` `env`
+3. Claude Code reads `settings.local.json` and exports `env` values to hooks and Bash tool calls
+4. For vars that MCP servers need (`*_STATE_DIR`), `hermit-start.py` also forwards them as OS env vars (tmux temp file or Docker compose `environment:`) — MCP servers are separate processes that inherit shell env but do NOT read `settings.local.json`
 
 **Bucket A (shell env only):** `CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY` — must be in shell env before `claude` starts. Forwarded via temp file in tmux, or Docker `environment:`.
 
-**Bucket B+C (settings.local.json):** All other env vars — managed in `config.json` `env`, written to `settings.local.json` by `hermit-start`.
+**Bucket B (settings.local.json only):** `AGENT_HOOK_PROFILE`, `COMPACT_THRESHOLD`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, `MAX_THINKING_TOKENS` — consumed by hooks and Claude Code itself.
+
+**Bucket C (both shell env AND settings.local.json):** `DISCORD_STATE_DIR`, `TELEGRAM_STATE_DIR` — needed as OS env for MCP servers (channel plugins), also in settings.local.json for hooks. Forwarded via temp file in tmux, or Docker compose `environment:`.
 
 ### config.json env defaults
 
