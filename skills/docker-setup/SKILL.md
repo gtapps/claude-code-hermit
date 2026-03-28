@@ -75,7 +75,18 @@ Read the three templates from `${CLAUDE_SKILL_DIR}/../../state-templates/docker/
 - `{{TMUX_SESSION_NAME}}` — resolved session name
 - **Git identity:** Check if `~/.gitconfig` exists on the host. If it does not exist, remove the `.gitconfig` bind-mount line from the rendered file and add a note in the summary: "No ~/.gitconfig found — git commits inside the container will have no author identity. Create one on the host and re-run docker-setup, or set git config manually inside the container."
 
-### 5. Environment and protection
+### 5. Auto-memory seed
+
+Resolve the path key: `pwd | sed 's|/|-|g'` (keeps leading dash — matches Claude Code's format, e.g. `-home-user-myproject`).
+
+Check if `~/.claude/projects/<path-key>/memory/MEMORY.md` exists on the host:
+
+- **If it exists:** Copy to `.claude-code-hermit/MEMORY-SEED.md`. Tell the operator: "Found existing Claude Code memory for this project — seeding it into the container so your hermit starts with full context." Then ensure `.claude-code-hermit/MEMORY-SEED.md` is in `.gitignore` (append if missing).
+- **If it doesn't exist:** Do nothing. No message, no prompt.
+
+Only the top-level project memory is seeded — not agent-scoped memories at `<path-key>/<agent-name>/`.
+
+### 6. Environment and protection
 
 1. If `.env` doesn't exist, create it. If it does, read it first.
 2. Check if the auth var (`CLAUDE_CODE_OAUTH_TOKEN=` or `ANTHROPIC_API_KEY=`) is present. If missing, append:
@@ -83,10 +94,10 @@ Read the three templates from `${CLAUDE_SKILL_DIR}/../../state-templates/docker/
    # --- claude-code-hermit ---
    CLAUDE_CODE_OAUTH_TOKEN=your-token-here
    ```
-   (or the apikey equivalent). If already present, leave it — note for step 7.
+   (or the apikey equivalent). If already present, leave it — note for step 8.
 3. Ensure `.env` is listed in both `.gitignore` and `.dockerignore` (create the files if needed, append if missing).
 
-### 6. Channel setup
+### 7. Channel setup
 
 Skip if no channels in `config.json`.
 
@@ -110,7 +121,7 @@ For each configured channel:
      - On token: `mkdir -p`, write `.env`, `chmod 600`, ensure `.claude.local/` in `.gitignore`, clean stale token from `.claude/settings.local.json` `env` if present. Confirm saved.
      - On skip: "Write it to `.claude.local/channels/<plugin>/.env` later and restart."
 
-### 7. Guided deployment
+### 8. Guided deployment
 
 Print generated files summary:
 ```
@@ -154,7 +165,7 @@ For each channel, ask if already paired. If not:
 
 If "skip": tell them to DM the bot later and run the commands manually.
 
-### 8. Verify
+### 9. Verify
 
 Run `.claude-code-hermit/bin/hermit-status` and show output.
 

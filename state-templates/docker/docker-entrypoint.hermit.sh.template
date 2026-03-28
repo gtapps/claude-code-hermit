@@ -124,10 +124,23 @@ if [ -n "$CHANNELS" ]; then
   done
 fi
 
-# --- 4. Launch hermit-start ---
+# --- 4. Seed auto-memory (one-time, skipped if container has built its own) ---
+MEMORY_SEED="${AGENT_DIR}/MEMORY-SEED.md"
+if [ -f "$MEMORY_SEED" ]; then
+  PATH_KEY="${PROJECT_DIR//\//-}"
+  MEMORY_DIR="${CLAUDE_CONFIG_DIR}/projects/${PATH_KEY}/memory"
+  if [ ! -f "${MEMORY_DIR}/MEMORY.md" ]; then
+    mkdir -p "$MEMORY_DIR" && \
+      cp "$MEMORY_SEED" "${MEMORY_DIR}/MEMORY.md" && \
+      echo "[docker-entrypoint] Seeded auto-memory from host (one-time)" || \
+      echo "[docker-entrypoint] Warning: failed to seed auto-memory — continuing"
+  fi
+fi
+
+# --- 5. Launch hermit-start ---
 "${AGENT_DIR}/bin/hermit-start" "$@"
 
-# --- 5. Keep PID 1 alive ---
+# --- 6. Keep PID 1 alive ---
 SESSION_NAME="{{TMUX_SESSION_NAME}}"
 echo "[docker-entrypoint] Watching tmux session: ${SESSION_NAME}"
 while tmux has-session -t "$SESSION_NAME" 2>/dev/null; do

@@ -4,3 +4,4 @@
 .claude-code-hermit/config.json
 .claude-code-hermit/sessions/
 .claude-code-hermit/proposals/
+.claude-code-hermit/MEMORY-SEED.md
