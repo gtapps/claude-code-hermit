@@ -10,6 +10,8 @@ Generate Docker scaffolding for running hermit as an always-on autonomous agent 
 
 ## Plan
 
+**Important:** Run all checks and commands sequentially — do not use parallel tool calls. Parallel bash calls in Claude Code can cancel each other.
+
 ### 1. Check prerequisites
 
 1. Verify Docker is installed: run `docker --version`. If not found, abort with: "Looks like Docker isn't installed yet. You'll need it for this setup — grab it from https://docs.docker.com/get-docker/ and come back!"
