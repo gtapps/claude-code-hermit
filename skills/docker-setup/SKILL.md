@@ -87,21 +87,63 @@ AGENT_DIR="${PROJECT_DIR}/.claude/.claude-code-hermit"
 echo "[docker-entrypoint] Starting hermit container..."
 echo "[docker-entrypoint] Project: ${PROJECT_DIR}"
 
-# --- 1. Bypass Claude Code first-run onboarding ---
-# Claude Code shows an interactive theme/login wizard on first run.
-# Both fields are required — hasCompletedOnboarding alone still triggers
-# the wizard if lastOnboardingVersion doesn't match.
+# --- 1. Bypass onboarding + pre-approve channel MCP servers ---
+# Single load/save pass for .claude.json to avoid double I/O and race window.
+# - Onboarding: Claude Code shows an interactive wizard on first run.
+# - MCP approval: plugin MCP servers need per-project approval or an
+#   interactive /mcp dialog blocks the server in unattended containers.
 CLAUDE_JSON="${CLAUDE_CONFIG_DIR:=${HOME}/.claude}/.claude.json"
 CC_VERSION=$(claude --version 2>/dev/null | grep -oP '[\d.]+' | head -1 || echo "0.0.0")
 python3 -c "
 import json, sys, os
-path, version = sys.argv[1], sys.argv[2]
-d = json.load(open(path)) if os.path.exists(path) else {}
+path, version, project = sys.argv[1], sys.argv[2], sys.argv[3]
+if os.path.exists(path):
+    with open(path) as f: d = json.load(f)
+else:
+    d = {}
+changed = False
+
+# Onboarding bypass
 if not d.get('hasCompletedOnboarding') or d.get('lastOnboardingVersion') != version:
     d.update({'hasCompletedOnboarding': True, 'lastOnboardingVersion': version})
-    json.dump(d, open(path, 'w'))
+    changed = True
     print(f'[docker-entrypoint] Onboarding bypass set for Claude Code v{version}')
-" "$CLAUDE_JSON" "$CC_VERSION"
+
+# Pre-approve channel MCP servers for this project
+config_path = os.path.join(project, '.claude', '.claude-code-hermit', 'config.json')
+channels = []
+if os.path.exists(config_path):
+    with open(config_path) as f: channels = json.load(f).get('channels', [])
+if channels:
+    plugin_ids = {
+        'discord': 'plugin:discord:discord',
+        'telegram': 'plugin:telegram:telegram',
+    }
+    proj = d.setdefault('projects', {}).setdefault(project, {})
+    enabled = proj.get('enabledMcpjsonServers', [])
+    disabled_json = proj.get('disabledMcpjsonServers', [])
+    disabled_mcp = proj.get('disabledMcpServers', [])
+    for ch in channels:
+        pid = plugin_ids.get(ch)
+        if not pid:
+            continue
+        if pid not in enabled:
+            enabled.append(pid)
+            changed = True
+            print(f'[docker-entrypoint] MCP server {pid}: added to enabledMcpjsonServers')
+        if pid in disabled_json:
+            disabled_json.remove(pid)
+            changed = True
+        if pid in disabled_mcp:
+            disabled_mcp.remove(pid)
+            changed = True
+    proj['enabledMcpjsonServers'] = enabled
+    proj['disabledMcpjsonServers'] = disabled_json
+    proj['disabledMcpServers'] = disabled_mcp
+
+if changed:
+    with open(path, 'w') as f: json.dump(d, f)
+" "$CLAUDE_JSON" "$CC_VERSION" "$PROJECT_DIR"
 
 # --- 2. Patch permission_mode to bypassPermissions ---
 # Containers run unattended — interactive permission prompts hang the agent.
@@ -215,19 +257,26 @@ If the var is **already present**, leave it alone — note this for step 10 (no 
 
 ### 9. Detect channel plugins
 
-Channel plugins store their tokens in `~/.claude/channels/<plugin>/`. Since Docker mounts `~/.claude`, we can configure them from the host — no `docker exec` needed.
+Channel plugins resolve their config from two locations (local wins over global):
 
-Check each known channel plugin directly:
+| Scope   | Path                                      | When to use                          |
+| ------- | ----------------------------------------- | ------------------------------------ |
+| Global  | `~/.claude/channels/<plugin>/.env`        | Single hermit instance               |
+| Local   | `.claude.local/channels/<plugin>/.env`    | Multiple hermits, each with own bot  |
 
-| Plugin   | Token file                            | Token var            | Docker compatible |
-| -------- | ------------------------------------- | -------------------- | ----------------- |
-| discord  | `~/.claude/channels/discord/.env`     | `DISCORD_BOT_TOKEN`  | Yes               |
-| telegram | `~/.claude/channels/telegram/.env`    | `TELEGRAM_BOT_TOKEN` | Yes               |
-| imessage | —                                     | —                    | **No** (macOS only) |
+The plugins support `DISCORD_STATE_DIR` and `TELEGRAM_STATE_DIR` env vars to override the config directory.
 
-For discord and telegram, check if the token file exists and has a real value (not empty, not a placeholder). Build a list of: (a) plugins already configured, (b) plugins needing configuration. Store for step 12.
+Check each known channel plugin:
 
-If imessage is detected (plugin installed or `~/.claude/channels/imessage/` exists), warn: "iMessage requires macOS with Full Disk Access and AppleScript — it does not work inside Docker containers. It will be skipped."
+| Plugin   | Token var            | Docker compatible |
+| -------- | -------------------- | ----------------- |
+| discord  | `DISCORD_BOT_TOKEN`  | Yes               |
+| telegram | `TELEGRAM_BOT_TOKEN` | Yes               |
+| imessage | —                    | **No** (macOS only) |
+
+For discord and telegram, check both local (`.claude.local/channels/<plugin>/.env`) and global (`~/.claude/channels/<plugin>/.env`) for an existing token. Build a list with each plugin's state: (a) configured locally, (b) configured globally only, (c) not configured. Store for step 12.
+
+If imessage is detected, warn: "iMessage requires macOS with Full Disk Access and AppleScript — it does not work inside Docker containers. It will be skipped."
 
 ### 10. Guided deployment — auth token
 
@@ -264,33 +313,46 @@ If no, print the manual commands and skip to the workspace trust step.
 
 ### 12. Channel plugin configuration
 
-Skip this step if no unconfigured channel plugins were detected in step 9.
+Skip this step if no channel plugins were detected in step 9.
 
-For plugins already configured (token file exists with a real value), just note: "[plugin] already configured."
+For each detected plugin (discord, telegram), handle based on its state from step 9:
 
-For each unconfigured plugin, prompt for the token. Each channel can be skipped individually — say "skip" to handle later.
+**Already configured locally** (`.claude.local/channels/<plugin>/.env` has a token):
+Note: "[plugin] configured with project-local bot — will connect automatically."
 
-**Discord:**
-"If you haven't created a Discord bot yet, follow the Discord tab at https://code.claude.com/docs/en/channels — then paste your bot token below (or 'skip'):"
+**Configured globally only** (`~/.claude/channels/<plugin>/.env` has a token, but no local config):
+Ask: "A global [plugin] bot token exists, but if you run multiple hermits, each needs its own bot. Use a project-specific bot for this hermit? (yes / no) [no]"
 
-If the operator provides a token:
-1. `mkdir -p ~/.claude/channels/discord`
-2. Write `DISCORD_BOT_TOKEN=<token>` to `~/.claude/channels/discord/.env`
-3. `chmod 600 ~/.claude/channels/discord/.env`
-4. Confirm: "Discord bot token saved."
+- If **no**: the global token will be used. Note: "[plugin] will use the global bot token."
+- If **yes**: prompt for a dedicated token (see "saving a token" below). This creates a local config so this hermit has its own bot.
 
-**Telegram:**
-"If you haven't created a Telegram bot yet, follow the Telegram tab at https://code.claude.com/docs/en/channels — then paste your bot token below (or 'skip'):"
+**Not configured at all:**
+"If you haven't set up a [plugin] bot yet, see the [plugin] tab at https://code.claude.com/docs/en/channels"
+Then: "Paste your [plugin] bot token below (or 'skip'):"
 
-If the operator provides a token:
-1. `mkdir -p ~/.claude/channels/telegram`
-2. Write `TELEGRAM_BOT_TOKEN=<token>` to `~/.claude/channels/telegram/.env`
-3. `chmod 600 ~/.claude/channels/telegram/.env`
-4. Confirm: "Telegram bot token saved."
+**Saving a token (local scope):**
 
-**After saving tokens:**
+When the operator provides a token for a project-specific bot:
+1. `mkdir -p .claude.local/channels/<plugin>`
+2. Write the token var to `.claude.local/channels/<plugin>/.env`
+3. `chmod 600 .claude.local/channels/<plugin>/.env`
+4. Ensure `.claude.local/` is in `.gitignore` (check and append if missing)
+5. Add the state dir env var to `docker-compose.hermit.yml`'s environment section:
+   - Discord: `DISCORD_STATE_DIR=${PWD}/.claude.local/channels/discord`
+   - Telegram: `TELEGRAM_STATE_DIR=${PWD}/.claude.local/channels/telegram`
+6. Confirm: "[plugin] bot token saved (project-local)."
 
-These files live under `~/.claude/` which is volume-mounted into the container — the channel servers pick them up on boot. If the container is already running, note: "Restart the container for the channel to connect: `docker compose -f docker-compose.hermit.yml restart`"
+**Saving a token (global scope):**
+
+When the operator provides a token and chose not to use local scope (or there's only one hermit):
+1. `mkdir -p ~/.claude/channels/<plugin>`
+2. Write the token var to `~/.claude/channels/<plugin>/.env`
+3. `chmod 600 ~/.claude/channels/<plugin>/.env`
+4. Confirm: "[plugin] bot token saved (global)."
+
+**After all channels are handled:**
+
+Token files are available to the container via volume mounts (`~/.claude` for global, `${PWD}` for local). If the container is already running, note: "Restart the container for channels to connect: `docker compose -f docker-compose.hermit.yml restart`"
 
 Remind the operator: "After the hermit starts, you'll need to pair your account — see the pairing steps at https://code.claude.com/docs/en/channels"
 

@@ -205,7 +205,24 @@ def main():
         return
 
     # Start tmux session (handles "already exists" as a graceful exit)
-    shell_cmd = shlex.join(cmd)
+    #
+    # tmux starts a new shell that does NOT inherit the caller's environment.
+    # We must forward vars that Claude Code or its MCP plugins need at runtime.
+    # Build an env prefix so the tmux shell has them.
+    forward_vars = [
+        'CLAUDE_CONFIG_DIR',
+        'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY',
+        'AGENT_HOOK_PROFILE',
+        'CLAUDE_AUTOCOMPACT_PCT_OVERRIDE', 'MAX_THINKING_TOKENS',
+        'DISCORD_STATE_DIR', 'TELEGRAM_STATE_DIR',
+    ]
+    env_prefix = ''
+    for var in forward_vars:
+        val = os.environ.get(var)
+        if val is not None:
+            env_prefix += f'export {var}={shlex.quote(val)}; '
+
+    shell_cmd = env_prefix + shlex.join(cmd)
     result = subprocess.run(
         ['tmux', 'new-session', '-d', '-s', session_name, shell_cmd],
         capture_output=True,
