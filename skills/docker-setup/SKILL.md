@@ -6,32 +6,35 @@ description: Generates Docker scaffolding and walks the operator through the ful
 
 Generate Docker scaffolding for running hermit as an always-on autonomous agent in a container. Docker provides isolation so you can safely use `bypassPermissions` — no interactive prompts, no babysitting, crash recovery for free.
 
+**Tone:** This is a guided wizard. Be friendly, clear, and encouraging. Celebrate progress at each milestone. When something fails, help the operator fix it — don't just report the error.
+
 ## Plan
 
 ### 1. Check prerequisites
 
-1. Verify Docker is installed: run `docker --version`. If not found, abort with: "Docker is required. Install it from https://docs.docker.com/get-docker/"
-2. Verify `/init` has been run: check that `.claude/.claude-code-hermit/config.json` exists. If not, abort with: "Run `/claude-code-hermit:init` first to set up the project."
+1. Verify Docker is installed: run `docker --version`. If not found, abort with: "Looks like Docker isn't installed yet. You'll need it for this setup — grab it from https://docs.docker.com/get-docker/ and come back!"
+2. Verify `/init` has been run: check that `.claude/.claude-code-hermit/config.json` exists. If not, abort with: "Let's get the basics set up first — run `/claude-code-hermit:init` and then come back to Docker setup."
 3. Check for existing hermit Docker files at the project root (`Dockerfile.hermit`, `docker-entrypoint.hermit.sh`, `docker-compose.hermit.yml`). If ANY exist:
 
    List which files were found, then ask:
-   "Found existing hermit Docker files: [list]. Overwrite them? (yes / no) [no]"
+   "I found some existing hermit Docker files: [list]. Want me to back them up and generate fresh ones? (yes / no) [no]"
 
-   - If **yes**: back up the existing files to `docker-backup/` (create the directory, move files there), then continue with generation. Mention: "Backed up to docker-backup/"
-   - If **no**: abort with: "Remove or rename them first, then re-run this skill."
+   - If **yes**: back up the existing files to `docker-backup/` (create the directory, move files there), then continue. Mention: "Done — originals saved to docker-backup/"
+   - If **no**: abort with: "No worries! Remove or rename them when you're ready, then re-run this skill."
 
    `.env` is shared — never overwrite it. If it already exists, the skill appends only the missing hermit env vars (see step 7). If it doesn't exist, create it.
 
    > **Why `.hermit` suffix?** The project may already use `Dockerfile`, `docker-compose.yml`, etc. for its own services. Hermit-namespaced files avoid conflicts. All `docker compose` commands use `-f docker-compose.hermit.yml`.
-4. **Windows/WSL2 check:** If the current working directory starts with `/mnt/c/` or `/mnt/d/`, abort with: "You're running from a Windows mount path. Clone your project inside WSL2 (e.g., /home/you/project) and run from there. Windows paths break Claude Code's path-keyed config."
+4. **Windows/WSL2 check:** If the current working directory starts with `/mnt/c/` or `/mnt/d/`, abort with: "Heads up — you're running from a Windows mount path. Claude Code needs native Linux paths to work properly. Clone your project inside WSL2 (e.g., `/home/you/project`) and run from there."
 
 ### 2. Ask the operator
 
-1. **Auth method:** "How will you authenticate?
-   - **OAuth token** (recommended for Pro/Max) — run `claude setup-token` on a machine with a browser to get a 1-year token
+1. **Auth method:** "First things first — how would you like to authenticate with Claude?
+
+   - **OAuth token** (recommended for Pro/Max) — run `claude setup-token` on a machine with a browser to get a long-lived token
    - **API key** — for pay-per-token billing via `ANTHROPIC_API_KEY`
 
-   Choose: (oauth / apikey) [oauth]"
+   Which one? (oauth / apikey) [oauth]"
 
 ### 3. Read project config
 
@@ -273,7 +276,7 @@ Check each known channel plugin:
 
 For discord and telegram, check if the local token file exists and has a real value. Build a list of: (a) already configured, (b) needs configuration. Store for step 12.
 
-If imessage is detected, warn: "iMessage requires macOS with Full Disk Access and AppleScript — it does not work inside Docker containers. It will be skipped."
+If imessage is detected, note: "Heads up — iMessage needs macOS with Full Disk Access and AppleScript, so it won't work inside a Docker container. Skipping that one."
 
 For each configured channel in `config.json`, ensure the plugin is installed at project scope so the container has it without depending on the host's global plugins:
 
@@ -288,71 +291,92 @@ Only install plugins for channels that are actually configured. Skip if already 
 
 Print the files that were created:
 ```
-Files created:
-  Dockerfile.hermit
-  docker-entrypoint.hermit.sh (executable)
-  docker-compose.hermit.yml
-  .env (appended hermit auth vars)
+All set! Here's what I generated:
+
+  Dockerfile.hermit              — container image definition
+  docker-entrypoint.hermit.sh    — startup script (onboarding bypass, permissions, launch)
+  docker-compose.hermit.yml      — orchestration config
+  .env                           — auth credentials (appended)
 ```
 
-If the auth var already had a real value in `.env` (not a placeholder), skip the token prompt — just note "Auth token already configured in .env".
+If the auth var already had a real value in `.env` (not a placeholder), skip the token prompt — just note "Your auth token is already configured in .env — nice, one less thing to do!"
 
 Otherwise, prompt for the auth token:
 
-For OAuth: "Paste your OAuth token below (run `claude setup-token` on a machine with a browser to get one):"
-For API key: "Paste your Anthropic API key below:"
+For OAuth: "Now let's get you authenticated. Paste your OAuth token below (run `claude setup-token` on a machine with a browser to generate one):"
+For API key: "Now let's get you authenticated. Paste your Anthropic API key below:"
 
-Wait for the operator to paste the token. Update the placeholder value in `.env`. Confirm: "Token saved to .env"
+Wait for the operator to paste the token. Update the placeholder value in `.env`. Confirm: "Token saved — you're all set for auth."
 
-If the operator wants to skip this step (says "skip", "later", etc.), that's fine — remind them to add it before starting the container.
+If the operator wants to skip this step (says "skip", "later", etc.), that's fine — just remind them: "No problem — just remember to add it to `.env` before starting the container."
 
 ### 11. Build and start
 
-Ask: "Ready to build and start the container? (yes / no) [yes]"
+Ask: "Ready to build and fire up the container? (yes / no) [yes]"
 
 If yes (all `docker compose` commands use `-f docker-compose.hermit.yml`):
-1. Run `docker compose -f docker-compose.hermit.yml build` — show the output, wait for completion. If build fails, show the error and help diagnose (common issues: Docker daemon not running, network problems, disk space). Do not proceed to `up` until the build succeeds.
-2. If build succeeds, run `docker compose -f docker-compose.hermit.yml up -d` — show the output
-3. Run `docker compose -f docker-compose.hermit.yml ps` to confirm the container is running. Save the container name for later steps.
+1. "Building the image — this may take a minute on first run..."
+   Run `docker compose -f docker-compose.hermit.yml build` — show the output, wait for completion. If build fails, show the error and help the operator fix it (common causes: Docker daemon not running, network problems, disk space). Do not proceed to `up` until the build succeeds. On success: "Image built successfully!"
+2. "Starting the container..."
+   Run `docker compose -f docker-compose.hermit.yml up -d` — show the output
+3. Run `docker compose -f docker-compose.hermit.yml ps` to confirm the container is running. Save the container name for later steps. On success: "Container is up and running!"
 
-If no, print the manual commands and skip to the workspace trust step.
+If no: "No problem! When you're ready, here are the commands:" — print the manual commands and skip to the channel configuration step.
 
 ### 12. Channel plugin configuration
 
 Skip this step if no channel plugins were detected in step 9.
 
+"Let's set up your communication channels so you can talk to your hermit from your phone."
+
 For each detected plugin (discord, telegram):
 
 **Already configured** (`.claude.local/channels/<plugin>/.env` has a token):
-Note: "[plugin] configured — will connect automatically."
+"[Plugin] is already configured — it'll connect automatically when the container starts."
 
 **Not configured:**
-"If you haven't set up a [plugin] bot yet, see the [plugin] tab at https://code.claude.com/docs/en/channels"
-Then: "Paste your [plugin] bot token below (or 'skip'):"
+"To set up [plugin], you'll need a bot token. If you haven't created one yet, the [plugin] tab at https://code.claude.com/docs/en/channels has a step-by-step guide."
+Then: "Got your [plugin] bot token? Paste it below (or 'skip' to set it up later):"
 
 When the operator provides a token:
 1. `mkdir -p .claude.local/channels/<plugin>`
 2. Write the token var to `.claude.local/channels/<plugin>/.env`
 3. `chmod 600 .claude.local/channels/<plugin>/.env`
 4. Ensure `.claude.local/` is in `.gitignore` (check and append if missing)
-5. Confirm: "[plugin] bot token saved."
+5. Confirm: "[Plugin] token saved!"
 
-The `docker-compose.hermit.yml` already has `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` pointing to `.claude.local/channels/<plugin>` (replaced from placeholders in step 6), so the container will find the token.
+**Pairing (after container is running):**
+
+If any channel tokens were configured and the container is running, walk the operator through pairing:
+
+1. "Let's pair your account so the bot knows who you are. Open Discord/Telegram and DM your bot — just send any message."
+2. Wait for the operator to confirm they've sent the message.
+3. "The bot should have replied with a 6-character pairing code. What's the code?"
+4. Wait for the operator to paste the code.
+5. Send the pairing command into the hermit's tmux session:
+   `docker exec <container> tmux send-keys -t <session-name> '/discord:access pair <code>' Enter`
+   (or `/telegram:access pair <code>` for telegram)
+6. Wait a few seconds for the command to process, then lock down access:
+   `docker exec <container> tmux send-keys -t <session-name> '/discord:access policy allowlist' Enter`
+   (or `/telegram:access policy allowlist` for telegram)
+7. Confirm: "Paired and locked down — only your account can reach the bot now."
+
+If the operator says "skip" at any point: "No worries — you can pair later by DMing the bot. It'll reply with a code, then attach to the hermit session and run `/discord:access pair <code>` followed by `/discord:access policy allowlist`. Details at https://code.claude.com/docs/en/channels"
+
+The `docker-compose.hermit.yml` already has `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` pointing to `.claude.local/channels/<plugin>` (replaced from placeholders in step 6), so the container will find both the token and access config.
 
 If the container is already running, note: "Restart for channels to connect: `docker compose -f docker-compose.hermit.yml restart`"
-
-Remind the operator: "After the hermit starts, you'll need to pair your account — see the pairing steps at https://code.claude.com/docs/en/channels"
 
 ### 13. Workspace trust
 
 Tell the operator:
 ```
-Almost done! Claude Code needs you to accept the workspace trust prompt once.
+Almost there! Claude Code needs you to accept the workspace trust prompt once.
 
   docker exec -it <container> tmux attach -t <session-name>
 
-  The session may already be waiting for the trust prompt — press Enter to accept.
-  Then Ctrl+B, D to detach.
+  The session may already be waiting for the trust prompt — just press Enter to accept.
+  Then Ctrl+B, D to detach and let it run.
 ```
 
 Replace `<container>` and `<session-name>` with actual values.
@@ -365,15 +389,33 @@ Run `.claude/.claude-code-hermit/bin/hermit-status` and show the output.
 
 If the status looks healthy:
 ```
-Docker setup complete! Your hermit is running.
+You're all set! Your hermit is live and running autonomously.
 
-Useful commands:
+Here are some handy commands for day-to-day:
+
   docker compose -f docker-compose.hermit.yml logs -f      — follow logs
-  docker compose -f docker-compose.hermit.yml restart      — restart the container
-  docker compose -f docker-compose.hermit.yml down         — stop and remove container
-  hermit-status                                            — check agent status
+  docker compose -f docker-compose.hermit.yml restart      — restart
+  docker compose -f docker-compose.hermit.yml down         — stop and remove
+  hermit-status                                            — quick status check
 
-See docs/ALWAYS-ON.md for the full guide.
+For the full operations guide, see docs/ALWAYS-ON.md.
 ```
 
-If something looks wrong, help the operator diagnose the issue.
+If something looks wrong, help the operator diagnose — don't just report the error, suggest concrete next steps.
+
+---
+
+## References
+
+Use these when the operator needs more detail or when troubleshooting:
+
+| Topic | URL |
+| ----- | --- |
+| Channels setup (Discord, Telegram, iMessage) | https://code.claude.com/docs/en/channels |
+| Building custom channels | https://code.claude.com/docs/en/channels-reference |
+| Permission modes | https://code.claude.com/docs/en/permission-modes |
+| MCP servers | https://code.claude.com/docs/en/mcp |
+| Remote control | https://code.claude.com/docs/en/remote-control |
+| Docker install | https://docs.docker.com/get-docker/ |
+| Hermit always-on guide | docs/ALWAYS-ON.md |
+| Hermit operations reference | docs/ALWAYS-ON-OPS.md |
