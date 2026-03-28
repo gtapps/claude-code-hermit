@@ -8,11 +8,11 @@ For skill details, see [Skills Reference](SKILLS.md).
 
 ## Prerequisites
 
-| Requirement              | For          | Notes                                       |
-| ------------------------ | ------------ | ------------------------------------------- |
-| **tmux**                 | Boot scripts | `brew install tmux` / `apt install tmux`    |
-| **Node.js 24+**          | Hooks        | Cost tracking, session evaluation           |
-| **Claude Code v2.1.80+** | Channels     | Required for the channels research preview  |
+| Requirement              | For          | Notes                                      |
+| ------------------------ | ------------ | ------------------------------------------ |
+| **tmux**                 | Boot scripts | `brew install tmux` / `apt install tmux`   |
+| **Node.js 24+**          | Hooks        | Cost tracking, session evaluation          |
+| **Claude Code v2.1.80+** | Channels     | Required for the channels research preview |
 
 tmux is required. Channels are optional.
 
@@ -74,15 +74,15 @@ hermit-start -> [in_progress] -> task done -> [idle] -> new task -> [in_progress
 
 ### Close modes
 
-|                        | Idle Transition (task boundary) | Full Shutdown (`/session-close`) |
-| ---------------------- | ------------------------------- | -------------------------------- |
-| **When**               | Work done — automatic           | You explicitly close             |
-| **Report archived**    | Yes                             | Yes                              |
-| **Reflection runs**    | Yes                             | Yes                              |
-| **Heartbeat**          | Keeps running (or starts)       | Stopped                          |
-| **Channels**           | Keep running (always-on only)   | Stopped                          |
-| **SHELL.md**           | Reset in-place to `idle`        | Replaced with fresh template     |
-| **Applies to**         | Both interactive and always-on  | Both interactive and always-on   |
+|                     | Idle Transition (task boundary) | Full Shutdown (`/session-close`) |
+| ------------------- | ------------------------------- | -------------------------------- |
+| **When**            | Work done — automatic           | You explicitly close             |
+| **Report archived** | Yes                             | Yes                              |
+| **Reflection runs** | Yes                             | Yes                              |
+| **Heartbeat**       | Keeps running (or starts)       | Stopped                          |
+| **Channels**        | Keep running (always-on only)   | Stopped                          |
+| **SHELL.md**        | Reset in-place to `idle`        | Replaced with fresh template     |
+| **Applies to**      | Both interactive and always-on  | Both interactive and always-on   |
 
 Default: idle transition when work finishes. Full shutdown only via explicit `/session-close` or `hermit-stop`.
 
@@ -105,12 +105,12 @@ Default: idle transition when work finishes. Full shutdown only via explicit `/s
 
 Your hermit reflects on its own memory — not archived reports. Reflection triggers at these moments:
 
-| Trigger | When |
-|---------|------|
-| Task boundary | After completing work, during idle transition |
+| Trigger              | When                                                     |
+| -------------------- | -------------------------------------------------------- |
+| Task boundary        | After completing work, during idle transition            |
 | Heartbeat idle check | Every 4+ hours during idle (if `idle_agency` is enabled) |
-| Evening routine | Last heartbeat tick of the day |
-| Session close | Before archiving the final report |
+| Evening routine      | Last heartbeat tick of the day                           |
+| Session close        | Before archiving the final report                        |
 
 **Feedback loop:** When an accepted proposal's pattern stops recurring (based on memory), it auto-resolves. The heartbeat self-evaluates every 20 ticks — suggesting stale checks to remove and relevant ones to add.
 
@@ -306,6 +306,31 @@ If Telegram/Discord goes down, your hermit keeps running — just loses remote c
 ### Multi-operator warning
 
 Hermit assumes one person giving it direction per project. For teams, use separate branches or git worktrees with isolated state directories.
+
+### Docker teardown
+
+Choose the level of cleanup you need (each is self-contained — pick one):
+
+```bash
+# Stop and remove containers + networks
+docker compose down
+
+# Same, but also remove the built image
+docker compose down --rmi local
+
+# Full cleanup — image, volumes, and orphan containers
+docker compose down --rmi local --volumes --remove-orphans
+```
+
+To also remove the generated scaffolding files:
+
+```bash
+rm Dockerfile docker-entrypoint.sh docker-compose.yml
+```
+
+`.env` is kept intentionally — it contains your auth token. Delete it manually if you no longer need it.
+
+This does not touch your hermit state (`.claude/.claude-code-hermit/`) — only the Docker scaffolding. You can re-run `/claude-code-hermit:docker-setup` to regenerate it.
 
 ### Auto-restart on reboot
 
