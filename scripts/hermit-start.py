@@ -207,8 +207,8 @@ def main():
     # Start tmux session (handles "already exists" as a graceful exit)
     #
     # tmux starts a new shell that does NOT inherit the caller's environment.
-    # We must forward vars that Claude Code or its MCP plugins need at runtime.
-    # Build an env prefix so the tmux shell has them.
+    # Write forwarded vars to a temp env file and source it — this avoids
+    # leaking secrets (OAuth tokens, API keys) into the process list via ps.
     forward_vars = [
         'CLAUDE_CONFIG_DIR',
         'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY',
@@ -216,13 +216,15 @@ def main():
         'CLAUDE_AUTOCOMPACT_PCT_OVERRIDE', 'MAX_THINKING_TOKENS',
         'DISCORD_STATE_DIR', 'TELEGRAM_STATE_DIR',
     ]
-    env_prefix = ''
-    for var in forward_vars:
-        val = os.environ.get(var)
-        if val is not None:
-            env_prefix += f'export {var}={shlex.quote(val)}; '
+    env_file = Path('/tmp') / f'.hermit-env-{session_name}'
+    with open(env_file, 'w') as f:
+        for var in forward_vars:
+            val = os.environ.get(var)
+            if val is not None:
+                f.write(f'export {var}={shlex.quote(val)}\n')
+    os.chmod(env_file, 0o600)
 
-    shell_cmd = env_prefix + shlex.join(cmd)
+    shell_cmd = f'. {shlex.quote(str(env_file))} && rm -f {shlex.quote(str(env_file))} && {shlex.join(cmd)}'
     result = subprocess.run(
         ['tmux', 'new-session', '-d', '-s', session_name, shell_cmd],
         capture_output=True,

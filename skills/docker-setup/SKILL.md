@@ -203,6 +203,8 @@ services:
       - AGENT_HOOK_PROFILE=strict
       - CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=50
       - MAX_THINKING_TOKENS=10000
+      - DISCORD_STATE_DIR=<DISCORD_STATE_DIR>
+      - TELEGRAM_STATE_DIR=<TELEGRAM_STATE_DIR>
     network_mode: host
     restart: unless-stopped
     healthcheck:
@@ -217,6 +219,10 @@ Replace:
 - `<AUTH_ENV_VAR>` with `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` based on step 2
 - `<AUTH_PLACEHOLDER>` with `${CLAUDE_CODE_OAUTH_TOKEN}` or `${ANTHROPIC_API_KEY}`
 - `<TMUX_SESSION_NAME>` with the resolved session name
+- `<DISCORD_STATE_DIR>` — if local config exists (`.claude.local/channels/discord/`), use `${PWD}/.claude.local/channels/discord`. Otherwise use `${HOME}/.claude/channels/discord`. If discord is not configured, remove the line entirely.
+- `<TELEGRAM_STATE_DIR>` — same logic for telegram. Remove if not configured.
+
+These `*_STATE_DIR` vars are **required** in Docker because the container user's `homedir()` differs from the host. Without them, channel plugins look in the wrong path for their token.
 
 ### 7. Ensure .env has hermit auth vars
 
