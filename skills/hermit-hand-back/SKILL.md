@@ -10,7 +10,7 @@ Hand control back to the autonomous hermit after an operator takeover session. S
 
 ### 1. Verify takeover state
 
-Read `.claude/.claude-code-hermit/sessions/SHELL.md` and check for the `**Takeover:**` timestamp line.
+Read `.claude-code-hermit/sessions/SHELL.md` and check for the `**Takeover:**` timestamp line.
 
 - If found: extract the takeover timestamp for use in step 2
 - If not found: warn "No takeover timestamp found in SHELL.md — proceeding anyway." Use a fallback of 24 hours ago for the git log.
@@ -29,7 +29,7 @@ Build a summary of what happened during the takeover using git:
 
 Ask the operator: "Any instructions for the hermit to work on next?"
 
-- If yes: write the instructions to `.claude/.claude-code-hermit/sessions/NEXT-TASK.md`. This file is automatically picked up at the next session-start.
+- If yes: write the instructions to `.claude-code-hermit/sessions/NEXT-TASK.md`. This file is automatically picked up at the next session-start.
 - If no / skip: don't create or modify NEXT-TASK.md
 
 ### 4. Update SHELL.md
@@ -59,5 +59,5 @@ Hermit is back online.
 Takeover summary: <git summary>
 Instructions: <queued / none>
 
-Check status anytime: .claude/.claude-code-hermit/bin/hermit-status
+Check status anytime: .claude-code-hermit/bin/hermit-status
 ```

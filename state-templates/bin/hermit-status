@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Quick status check — no Claude Code, no tokens.
 # Reads .status.json (written by cost-tracker hook) and prints a one-liner.
-# Run from project root: .claude/.claude-code-hermit/bin/hermit-status
+# Run from project root: .claude-code-hermit/bin/hermit-status
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

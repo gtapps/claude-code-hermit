@@ -27,14 +27,14 @@ Stop monitoring:
 1. Parse the monitoring instruction and interval from the operator's message
    - Default interval: 5 minutes if not specified
    - The instruction is free-form text describing what to check
-2. Verify an active session exists (`.claude/.claude-code-hermit/sessions/SHELL.md` must exist)
+2. Verify an active session exists (`.claude-code-hermit/sessions/SHELL.md` must exist)
    - If no active session: "No active session. Run `/claude-code-hermit:session` first."
 3. Add a monitoring entry to the `## Monitoring` section in SHELL.md:
    ```
    - [ACTIVE] <instruction> (every <interval>, started HH:MM)
    ```
 4. Invoke `/loop <interval> <instruction>` with additional context:
-   - "After each check, append findings with timestamp to `.claude/.claude-code-hermit/sessions/SHELL.md` under the Progress Log section, prefixed with `[monitor]`."
+   - "After each check, append findings with timestamp to `.claude-code-hermit/sessions/SHELL.md` under the Progress Log section, prefixed with `[monitor]`."
    - "If something critical is found and a channel is active, send a notification."
 
 ### Stopping a monitor

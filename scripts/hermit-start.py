@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Boot script for hermit autonomous sessions.
 
-Reads .claude/.claude-code-hermit/config.json and starts Claude Code
+Reads .claude-code-hermit/config.json and starts Claude Code
 in a tmux session with the configured channels and options.
 
 Usage:
@@ -18,7 +18,7 @@ import sys
 import time
 from pathlib import Path
 
-CONFIG_PATH = Path('.claude/.claude-code-hermit/config.json')
+CONFIG_PATH = Path('.claude-code-hermit/config.json')
 DEFAULT_CONFIG = {
     '_hermit_versions': {},
     '_plugin_root': None,

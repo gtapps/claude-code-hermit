@@ -8,7 +8,7 @@ Provide a concise executive summary of recent session activity. Designed for mor
 
 ## Plan
 
-1. Check if `.claude/.claude-code-hermit/sessions/SHELL.md` exists:
+1. Check if `.claude-code-hermit/sessions/SHELL.md` exists:
    - If Status is `in_progress`: summarize the active task (existing behavior below)
    - If Status is `idle` (session between tasks): format as:
      ```
@@ -19,7 +19,7 @@ Provide a concise executive summary of recent session activity. Designed for mor
      Status: Idle — ready for what's next
      ```
      Then check for auto-detected proposals (step after Output Format) and return.
-2. If no active session: find the most recent `.claude/.claude-code-hermit/sessions/S-*-REPORT.md` (sort by filename, take the highest number):
+2. If no active session: find the most recent `.claude-code-hermit/sessions/S-*-REPORT.md` (sort by filename, take the highest number):
    - If found: summarize that report
 3. If neither exists: respond "No session history yet. Run `/claude-code-hermit:session` to start."
 
@@ -43,7 +43,7 @@ Next: description of next action (or "Session complete" if all done)
 - For the "Done" line: list completed step names, comma-separated. If too many, show first 3 and "+ N more"
 - For the "Next" line: show the first planned or in_progress step. If blocked, show "Blocked: reason"
 - If summarizing a completed report: "Next" becomes the report's "Next Start Point" content
-- After composing the 5-line output: scan `.claude/.claude-code-hermit/proposals/` for files with `Source: auto-detected` and `Status: proposed`. If any exist, append a 6th line: `Proposals: N auto-detected proposal(s) pending review`
+- After composing the 5-line output: scan `.claude-code-hermit/proposals/` for files with `Source: auto-detected` and `Status: proposed`. If any exist, append a 6th line: `Proposals: N auto-detected proposal(s) pending review`
 
 ## Daily Summary Format
 

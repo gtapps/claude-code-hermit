@@ -22,14 +22,14 @@ tmux is required. Channels are optional.
 
 ```bash
 cd /path/to/your/project
-.claude/.claude-code-hermit/bin/hermit-start
+.claude-code-hermit/bin/hermit-start
 ```
 
 This reads `config.json`, starts a tmux session with your configured channels and permissions, and auto-runs `/claude-code-hermit:session`. To stop:
 
 ```bash
-.claude/.claude-code-hermit/bin/hermit-stop        # graceful (sends /session-close first)
-.claude/.claude-code-hermit/bin/hermit-stop --force # immediate kill
+.claude-code-hermit/bin/hermit-stop        # graceful (sends /session-close first)
+.claude-code-hermit/bin/hermit-stop --force # immediate kill
 ```
 
 **Config options:** If `remote: true`, adds `--remote-control` and names the session after `agent_name`. If `model` is set, passes it to Claude Code.
@@ -327,7 +327,7 @@ rm -f Dockerfile.hermit docker-entrypoint.hermit.sh docker-compose.hermit.yml
 
 `.env` is not removed — it may contain other project vars. To clean up hermit's entries, delete from `# --- claude-code-hermit ---` through the token line (`CLAUDE_CODE_OAUTH_TOKEN=...` or `ANTHROPIC_API_KEY=...`).
 
-This does not touch your hermit state (`.claude/.claude-code-hermit/`) — only the Docker scaffolding. You can re-run `/claude-code-hermit:docker-setup` to regenerate it.
+This does not touch your hermit state (`.claude-code-hermit/`) — only the Docker scaffolding. You can re-run `/claude-code-hermit:docker-setup` to regenerate it.
 
 ### Auto-restart on reboot
 

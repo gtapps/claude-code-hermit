@@ -18,8 +18,8 @@ const PRICING = {
 
 const MAX_STDIN = 1024 * 1024; // 1MB safety limit
 const COST_LOG = path.resolve('.claude/cost-log.jsonl');
-const SHELL_SESSION = path.resolve('.claude/.claude-code-hermit/sessions/SHELL.md');
-const STATUS_JSON = path.resolve('.claude/.claude-code-hermit/sessions/.status.json');
+const SHELL_SESSION = path.resolve('.claude-code-hermit/sessions/SHELL.md');
+const STATUS_JSON = path.resolve('.claude-code-hermit/sessions/.status.json');
 
 function detectModel(modelStr) {
   if (!modelStr) return 'sonnet';

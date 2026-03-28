@@ -15,7 +15,7 @@ Generate Docker scaffolding for running hermit as an always-on autonomous agent 
 ### 1. Check prerequisites
 
 1. Verify Docker is installed: run `docker --version`. If not found, abort with: "Looks like Docker isn't installed yet. You'll need it for this setup — grab it from https://docs.docker.com/get-docker/ and come back!"
-2. Verify `/init` has been run: check that `.claude/.claude-code-hermit/config.json` exists. If not, abort with: "Let's get the basics set up first — run `/claude-code-hermit:init` and then come back to Docker setup."
+2. Verify `/init` has been run: check that `.claude-code-hermit/config.json` exists. If not, abort with: "Let's get the basics set up first — run `/claude-code-hermit:init` and then come back to Docker setup."
 3. Check for existing hermit Docker files at the project root (`Dockerfile.hermit`, `docker-entrypoint.hermit.sh`, `docker-compose.hermit.yml`). If ANY exist:
 
    List which files were found, then ask:
@@ -40,7 +40,7 @@ Generate Docker scaffolding for running hermit as an always-on autonomous agent 
 
 ### 3. Read project config
 
-Read `.claude/.claude-code-hermit/config.json` and extract:
+Read `.claude-code-hermit/config.json` and extract:
 - `tmux_session_name` — resolve `{project_name}` placeholder with the actual project directory name
 - `agent_name` — for display in comments
 
@@ -87,7 +87,7 @@ Write `docker-entrypoint.hermit.sh` at the project root. Use the resolved `tmux_
 set -euo pipefail
 
 PROJECT_DIR="$(pwd)"
-AGENT_DIR="${PROJECT_DIR}/.claude/.claude-code-hermit"
+AGENT_DIR="${PROJECT_DIR}/.claude-code-hermit"
 
 echo "[docker-entrypoint] Starting hermit container..."
 echo "[docker-entrypoint] Project: ${PROJECT_DIR}"
@@ -115,7 +115,7 @@ if not d.get('hasCompletedOnboarding') or d.get('lastOnboardingVersion') != vers
     print(f'[docker-entrypoint] Onboarding bypass set for Claude Code v{version}')
 
 # Pre-approve channel MCP servers for this project
-config_path = os.path.join(project, '.claude', '.claude-code-hermit', 'config.json')
+config_path = os.path.join(project, '.claude-code-hermit', 'config.json')
 channels = []
 if os.path.exists(config_path):
     with open(config_path) as f: channels = json.load(f).get('channels', [])
@@ -395,7 +395,7 @@ Wait for the operator to confirm they've done this (or say "done", "ok", etc.).
 
 ### 14. Verify
 
-Run `.claude/.claude-code-hermit/bin/hermit-status` and show the output.
+Run `.claude-code-hermit/bin/hermit-status` and show the output.
 
 If the status looks healthy:
 ```

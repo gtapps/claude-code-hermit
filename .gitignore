@@ -26,8 +26,8 @@ Thumbs.db
 .claude/settings.local.json
 
 # Hermit session state (ephemeral; proposals/ and OPERATOR.md are tracked)
-.claude/.claude-code-hermit/sessions/
-.claude/.claude-code-hermit/templates/
+.claude-code-hermit/sessions/
+.claude-code-hermit/templates/
 
 # Claude Code internal state
 .claude/worktrees/

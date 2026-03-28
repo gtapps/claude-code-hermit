@@ -130,7 +130,7 @@ name: init
 description: Initialize DOMAIN hermit. Requires claude-code-hermit core.
 ---
 
-Check that `.claude/.claude-code-hermit/` exists. If not: "Run `/claude-code-hermit:init` first."
+Check that `.claude-code-hermit/` exists. If not: "Run `/claude-code-hermit:init` first."
 Check if CLAUDE.md contains the marker comment. If found: "Already initialized." Stop.
 Otherwise: read and append CLAUDE-APPEND.md.
 ```

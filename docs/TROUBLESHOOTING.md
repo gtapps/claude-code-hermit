@@ -36,11 +36,11 @@
 - Reflection runs at task boundaries, during heartbeat idle checks, and at end of day. If you're closing sessions before finishing work, reflection may not trigger.
 - Check that `idle_agency` is enabled in config — without it, idle-time reflection won't fire.
 - If you just started using Hermit, give it a few sessions to build up memory. Proposals come from patterns, and patterns take repetition.
-- Check proposals exist: `ls .claude/.claude-code-hermit/proposals/PROP-*.md`
+- Check proposals exist: `ls .claude-code-hermit/proposals/PROP-*.md`
 
 ## Agent Ignoring OPERATOR.md
 
-- Verify location: `.claude/.claude-code-hermit/OPERATOR.md`
+- Verify location: `.claude-code-hermit/OPERATOR.md`
 - **50-line rule:** The SessionStart hook reads only the first 50 lines. Critical context must be at the top.
 - Verify the SessionStart hook is registered in `hooks/hooks.json`.
 

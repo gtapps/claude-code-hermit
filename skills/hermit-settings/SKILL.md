@@ -31,7 +31,7 @@ View or modify the hermit configuration for this project.
 
 ### 1. Read config
 
-Read `.claude/.claude-code-hermit/config.json`. If it doesn't exist, inform the operator: "No config found. Run `/claude-code-hermit:init` first."
+Read `.claude-code-hermit/config.json`. If it doesn't exist, inform the operator: "No config found. Run `/claude-code-hermit:init` first."
 
 ### 2. Show or modify
 
@@ -39,7 +39,7 @@ Read `.claude/.claude-code-hermit/config.json`. If it doesn't exist, inform the 
 Display all current settings in a readable format:
 
 ```
-Hermit Settings (.claude/.claude-code-hermit/config.json)
+Hermit Settings (.claude-code-hermit/config.json)
 
 Identity:
   Agent name:      Atlas (agent_name: "Atlas")
@@ -141,5 +141,5 @@ Update `permission_mode` in config.json.
 
 ### 3. Write config
 
-Write the updated config back to `.claude/.claude-code-hermit/config.json`.
+Write the updated config back to `.claude-code-hermit/config.json`.
 Confirm the change to the operator.

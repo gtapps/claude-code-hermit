@@ -18,7 +18,7 @@ If heartbeat is running, stop it before archiving.
 
 Use this when the operator wants to end everything (via `hermit-stop` or explicit `--shutdown`).
 
-1. Use the `session-mgr` agent to finalize `.claude/.claude-code-hermit/sessions/SHELL.md`
+1. Use the `session-mgr` agent to finalize `.claude-code-hermit/sessions/SHELL.md`
 2. Ensure all progress is recorded with plan-level status (`done`, `blocked`, `planned`)
 3. Document any blockers with enough context for the next session to understand them without re-investigating
 4. Record lessons learned — only genuinely useful ones, not obvious statements

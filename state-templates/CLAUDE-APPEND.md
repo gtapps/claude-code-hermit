@@ -5,7 +5,7 @@
 
 ## Session Discipline (claude-code-hermit)
 
-- On startup, always check `.claude/.claude-code-hermit/sessions/SHELL.md`
+- On startup, always check `.claude-code-hermit/sessions/SHELL.md`
 - If a session is active: resume it — read the task, progress, and blockers
 - If no session is active: ask what you should help with before starting work
 - Use `/claude-code-hermit:session-start` to initialize and `/claude-code-hermit:session-close` to end sessions
@@ -25,7 +25,7 @@ Infrastructure differences (not behavioral):
 
 ## Agent State Directory
 
-All autonomous agent state lives in `.claude/.claude-code-hermit/`:
+All autonomous agent state lives in `.claude-code-hermit/`:
 - `sessions/SHELL.md` — live working document for the current session
 - `sessions/S-NNN-REPORT.md` — archived session reports
 - `proposals/PROP-NNN.md` — improvement proposals

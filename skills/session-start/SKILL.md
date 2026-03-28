@@ -6,9 +6,9 @@ description: Initializes or resumes a work session. Loads context from OPERATOR.
 
 When starting a new session:
 
-All state lives under `.claude/.claude-code-hermit/` in the project root.
+All state lives under `.claude-code-hermit/` in the project root.
 
-1. Read `.claude/.claude-code-hermit/config.json` for agent identity settings (`agent_name`, `language`)
+1. Read `.claude-code-hermit/config.json` for agent identity settings (`agent_name`, `language`)
 2. If the SessionStart hook output above includes "---Upgrade Available---", mention it to the operator. Do NOT block session start.
 3. Use the `session-mgr` agent to check session state
 3b. If session-mgr reports SHELL.md exists with Status `idle`:
@@ -18,13 +18,13 @@ All state lives under `.claude/.claude-code-hermit/` in the project root.
    - When a task is provided: use `session-mgr` to set Status back to `in_progress`, fill in Task and Plan
    - The session ID remains unassigned until close (same as a fresh session)
    - If heartbeat is running, it continues
-4. Read `.claude/.claude-code-hermit/OPERATOR.md` for project context and constraints
-5. Check if `.claude/.claude-code-hermit/sessions/NEXT-TASK.md` exists. If it does:
+4. Read `.claude-code-hermit/OPERATOR.md` for project context and constraints
+5. Check if `.claude-code-hermit/sessions/NEXT-TASK.md` exists. If it does:
    - Present the prepared task to the operator as the suggested task for this session
    - If the operator accepts it: use it as the task (skip asking "What should I help with?")
    - If the operator provides a different task: delete `NEXT-TASK.md` and proceed with their task
    - Always delete `NEXT-TASK.md` after it has been presented (whether accepted or not)
-6. Scan `.claude/.claude-code-hermit/proposals/` for files with `Source: auto-detected` and `Status: proposed`. If any exist, mention: "There are N unreviewed auto-detected proposal(s). Review with `/proposal-list` when ready." Do NOT block the session — this is a one-line notification only.
+6. Scan `.claude-code-hermit/proposals/` for files with `Source: auto-detected` and `Status: proposed`. If any exist, mention: "There are N unreviewed auto-detected proposal(s). Review with `/proposal-list` when ready." Do NOT block the session — this is a one-line notification only.
 6b. If `heartbeat.morning_routine` is `true` in config AND `heartbeat._last_morning` ≠ today's date: run the morning routine inline — generate a morning brief covering what happened since last evening, pending proposals, and what's on deck. If auto-memory seems sparse (new instance, fresh machine), read the latest S-NNN-REPORT.md for context recovery. Update `_last_morning` to today. This handles interactive mode where heartbeat isn't running yet.
 7. If `agent_name` is set, use it in the greeting (e.g., "Atlas reporting in." or "{name} a reportar." if language is `pt`). If `language` is set, communicate with the operator in that language for the rest of the session.
 8. If resuming an existing session (Status is `in_progress`):
@@ -50,9 +50,9 @@ All state lives under `.claude/.claude-code-hermit/` in the project root.
 
 ## Context to Load
 
-- `.claude/.claude-code-hermit/OPERATOR.md` (always)
-- `.claude/.claude-code-hermit/sessions/SHELL.md` (if exists)
-- Most recent `.claude/.claude-code-hermit/sessions/S-*-REPORT.md` (for continuity — only the latest one)
+- `.claude-code-hermit/OPERATOR.md` (always)
+- `.claude-code-hermit/sessions/SHELL.md` (if exists)
+- Most recent `.claude-code-hermit/sessions/S-*-REPORT.md` (for continuity — only the latest one)
 
 Do NOT load all session reports — only the most recent one.
 

@@ -22,11 +22,11 @@ Background health checker that periodically evaluates a checklist and surfaces a
 
 Execute one heartbeat tick immediately. Useful for testing the checklist.
 
-1. Read `.claude/.claude-code-hermit/HEARTBEAT.md`
+1. Read `.claude-code-hermit/HEARTBEAT.md`
 2. If the file is missing or empty (only whitespace, blank lines, or headers with no checklist items): respond "HEARTBEAT_SKIP" and stop. This costs zero evaluation tokens.
-3. Read `.claude/.claude-code-hermit/config.json` for heartbeat settings
+3. Read `.claude-code-hermit/config.json` for heartbeat settings
 4. Check `active_hours` — if the current time is outside the configured window: respond "HEARTBEAT_SKIP (outside active hours)" and stop
-5. Read `.claude/.claude-code-hermit/sessions/SHELL.md` for current task context
+5. Read `.claude-code-hermit/sessions/SHELL.md` for current task context
 6. Evaluate each checklist item against available information (session state, files, proposals directory)
 7. Determine: does anything need operator attention?
 
@@ -51,7 +51,7 @@ Execute one heartbeat tick immediately. Useful for testing the checklist.
 
 **After evaluating the checklist (always, regardless of findings):**
 
-8. Increment `heartbeat.total_ticks` in `.claude/.claude-code-hermit/config.json`
+8. Increment `heartbeat.total_ticks` in `.claude-code-hermit/config.json`
 9. Read `heartbeat.self_eval_interval` from config (default: 20). If `self_eval_interval` is 0: skip self-evaluation.
 10. If `total_ticks % self_eval_interval == 0` and `self_eval_interval > 0`: run **self-evaluation** (see below)
 
@@ -65,7 +65,7 @@ Triggered every N ticks (configured by `heartbeat.self_eval_interval`, default 2
 2. For each checklist item in HEARTBEAT.md: check how many recent ticks flagged it vs how many were OK
 3. **Stale check detection:** If a specific checklist item was OK for all ticks in the evaluation window, suggest to the operator:
    > "Heartbeat self-check: the item '[check description]' has been OK for [N] consecutive ticks. Consider removing it to save tokens, or reducing heartbeat frequency."
-4. **Missing check suggestion:** Scan `.claude/.claude-code-hermit/proposals/` for recent auto-detected proposals about recurring issues. If a proposal describes a problem that could be caught by a heartbeat check, suggest:
+4. **Missing check suggestion:** Scan `.claude-code-hermit/proposals/` for recent auto-detected proposals about recurring issues. If a proposal describes a problem that could be caught by a heartbeat check, suggest:
    > "PROP-NNN identified a recurring [issue]. Consider adding a [relevant check] to HEARTBEAT.md."
 5. Append self-evaluation findings to SHELL.md `## Monitoring` with timestamp:
    ```
@@ -103,7 +103,7 @@ Report current heartbeat state:
 
 ### edit
 
-Open `.claude/.claude-code-hermit/HEARTBEAT.md` for the operator to modify.
+Open `.claude-code-hermit/HEARTBEAT.md` for the operator to modify.
 - Read the current checklist and display it
 - Ask the operator what to add, remove, or change
 - Suggest additions based on current project context (e.g., if there are open proposals, suggest a check for them)

@@ -8,7 +8,7 @@ Provide a compact summary of the current session state. Designed for channel res
 
 ## Plan
 
-1. Read `.claude/.claude-code-hermit/sessions/SHELL.md`
+1. Read `.claude-code-hermit/sessions/SHELL.md`
 2. If the file does not exist: respond "No active session. Run `/claude-code-hermit:session` to start one."
 2b. If Status is `idle` (session between tasks), format as:
    ```

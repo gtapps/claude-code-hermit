@@ -7,7 +7,7 @@
 # Exit: always 0 (advisory only)
 
 PLUGIN_ROOT="${1:-${CLAUDE_PLUGIN_ROOT}}"
-CONFIG=".claude/.claude-code-hermit/config.json"
+CONFIG=".claude-code-hermit/config.json"
 
 [ -f "$PLUGIN_ROOT/.claude-plugin/plugin.json" ] || exit 0
 [ -f "$CONFIG" ] || exit 0

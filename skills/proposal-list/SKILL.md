@@ -10,7 +10,7 @@ Lists all proposals with status, source, and age. Auto-detected proposals (from 
 
 ### 1. Read all proposals
 
-Read all files matching `.claude/.claude-code-hermit/proposals/PROP-*.md`.
+Read all files matching `.claude-code-hermit/proposals/PROP-*.md`.
 
 If no proposals exist: respond "No proposals found." and stop.
 

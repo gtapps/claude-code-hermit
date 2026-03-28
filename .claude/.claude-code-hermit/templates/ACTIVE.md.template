@@ -1,0 +1,32 @@
+# Active Session
+
+## Session Info
+- **ID:** S-NNN (assigned on close)
+- **Started:** YYYY-MM-DD HH:MM
+- **Status:** in_progress
+
+## Mission
+<!-- What is this session trying to accomplish? -->
+
+## Steps
+| # | Step | Status | Notes |
+|---|------|--------|-------|
+| 1 | | planned | |
+| 2 | | planned | |
+| 3 | | planned | |
+
+## Progress Log
+<!-- Append entries as work progresses -->
+<!-- Format: [HH:MM] Did X — result/outcome -->
+
+## Blockers
+<!-- What's preventing progress? Include enough context for the next session. -->
+
+## Discoveries
+<!-- Anything unexpected found during work. Proposal-worthy items get their own file. -->
+
+## Changed
+<!-- Populated by session-diff hook, or list files manually -->
+
+## Cost
+<!-- Populated by cost-tracker hook on session close -->

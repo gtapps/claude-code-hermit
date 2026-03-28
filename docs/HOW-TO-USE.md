@@ -125,8 +125,8 @@ See [Always-On Setup](ALWAYS-ON.md) for the full guide — auth, channels, takeo
 **Without Docker?** You can run directly in tmux:
 
 ```bash
-.claude/.claude-code-hermit/bin/hermit-start
-.claude/.claude-code-hermit/bin/hermit-stop
+.claude-code-hermit/bin/hermit-start
+.claude-code-hermit/bin/hermit-stop
 ```
 
 See [Always-On Operations](ALWAYS-ON-OPS.md) for tmux setup and operational details.
@@ -148,7 +148,7 @@ See [Always-On Operations](ALWAYS-ON-OPS.md) for tmux setup and operational deta
 ## Session State
 
 ```
-.claude/.claude-code-hermit/
+.claude-code-hermit/
 ├── sessions/
 │   ├── SHELL.md               <- live session
 │   ├── S-001-REPORT.md        <- archived reports
@@ -191,7 +191,7 @@ The init wizard adds required permissions to `.claude/settings.json` automatical
       "Bash(git log:*)",
       "Bash(python3:*)",
       "Bash(node:*)",
-      "Bash(bash -c 'AGENT_DIR=\".claude/.claude-code-hermit\"*)"
+      "Bash(bash -c 'AGENT_DIR=\".claude-code-hermit\"*)"
     ]
   }
 }

@@ -10,7 +10,7 @@ Set up the autonomous agent for this project. This creates the per-project state
 
 ### 1. Check if already initialized
 
-Check if `.claude/.claude-code-hermit/` exists in the current project.
+Check if `.claude-code-hermit/` exists in the current project.
 - If it exists and has content: inform the operator that the agent is already initialized. Ask if they want to reinitialize (which resets templates but preserves sessions, proposals, config, and OPERATOR.md).
 - If it doesn't exist: proceed with initialization.
 
@@ -19,7 +19,7 @@ Check if `.claude/.claude-code-hermit/` exists in the current project.
 Create the following directories and files:
 
 ```
-.claude/.claude-code-hermit/
+.claude-code-hermit/
 ├── sessions/
 ├── proposals/
 ├── templates/
@@ -36,9 +36,9 @@ Create the following directories and files:
 
 - Read the template files from `${CLAUDE_SKILL_DIR}/../../state-templates/`
 - Copy `SHELL.md.template`, `SESSION-REPORT.md.template`, `PROPOSAL.md.template` into `templates/`
-- **OPERATOR.md guard:** If `.claude/.claude-code-hermit/OPERATOR.md` already exists, do NOT copy the template over it. Remember this fact as `operator_existed = true` for use in step 5a. If it does not exist, copy `OPERATOR.md` from the templates into the state directory root.
-- Copy `HEARTBEAT.md.template` → `.claude/.claude-code-hermit/HEARTBEAT.md` (the operator's editable checklist)
-- Copy `bin/hermit-run`, `bin/hermit-start`, `bin/hermit-stop`, and `bin/hermit-status` from `${CLAUDE_SKILL_DIR}/../../state-templates/bin/` into `.claude/.claude-code-hermit/bin/`. Ensure they are executable (`chmod +x`).
+- **OPERATOR.md guard:** If `.claude-code-hermit/OPERATOR.md` already exists, do NOT copy the template over it. Remember this fact as `operator_existed = true` for use in step 5a. If it does not exist, copy `OPERATOR.md` from the templates into the state directory root.
+- Copy `HEARTBEAT.md.template` → `.claude-code-hermit/HEARTBEAT.md` (the operator's editable checklist)
+- Copy `bin/hermit-run`, `bin/hermit-start`, `bin/hermit-stop`, and `bin/hermit-status` from `${CLAUDE_SKILL_DIR}/../../state-templates/bin/` into `.claude-code-hermit/bin/`. Ensure they are executable (`chmod +x`).
 
 ### 3. Detect hermits
 
@@ -129,7 +129,7 @@ Ask: "When idle, should it work on accepted proposals and maintenance autonomous
 
 ### 5. Write config.json
 
-Write the collected preferences to `.claude/.claude-code-hermit/config.json`:
+Write the collected preferences to `.claude-code-hermit/config.json`:
 
 ```json
 {
@@ -178,7 +178,7 @@ Generate OPERATOR.md through a project scan and targeted conversation instead of
 
 **Re-init guard:** If `operator_existed` is true (from step 2):
 - Ask: "OPERATOR.md already exists — regenerate it from a fresh project scan? Your current one will be saved as OPERATOR.md.bak."
-- If yes: rename existing to `.claude/.claude-code-hermit/OPERATOR.md.bak`, then proceed with phases below.
+- If yes: rename existing to `.claude-code-hermit/OPERATOR.md.bak`, then proceed with phases below.
 - If no: skip this entire step.
 
 #### Phase 1 — Project scan (silent, no output to operator)
@@ -213,7 +213,7 @@ Using the scan results, pre-fill the OPERATOR.md template sections. Follow these
 4. **Front-load critical context** in the first 50 lines: the header comment, Project, Current Priority, Constraints, Sensitive Areas, and Operator Preferences must all appear before line 50 (the SessionStart hook reads `head -50`).
 5. **Keep it concise.** OPERATOR.md is loaded every session-start — bloat costs tokens.
 
-Write the draft to `.claude/.claude-code-hermit/OPERATOR.md`.
+Write the draft to `.claude-code-hermit/OPERATOR.md`.
 
 #### Phase 3 — Targeted questions (batch)
 
@@ -245,11 +245,11 @@ Incorporate the operator's answers into the draft:
 - Preserve the header comment at the top of the file (lines 1–5)
 - For hermit sections that don't exist yet, create them after the core sections
 
-Write the final version to `.claude/.claude-code-hermit/OPERATOR.md`.
+Write the final version to `.claude-code-hermit/OPERATOR.md`.
 
 #### Phase 5 — Confirm
 
-Tell the operator: "OPERATOR.md is ready. You can review it at `.claude/.claude-code-hermit/OPERATOR.md`. Refine anytime — just tell me what changed."
+Tell the operator: "OPERATOR.md is ready. You can review it at `.claude-code-hermit/OPERATOR.md`. Refine anytime — just tell me what changed."
 
 ### 6. Append session discipline to CLAUDE.md
 
@@ -285,9 +285,9 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
       "Bash(node */scripts/suggest-compact.js*)",
       "Bash(node */scripts/run-with-profile.js*)",
       "Bash(node */scripts/evaluate-session.js*)",
-      "Bash(bash -c 'AGENT_DIR=\".claude/.claude-code-hermit\"*)",
-      "Edit(.claude/.claude-code-hermit/**)",
-      "Write(.claude/.claude-code-hermit/**)"
+      "Bash(bash -c 'AGENT_DIR=\".claude-code-hermit\"*)",
+      "Edit(.claude-code-hermit/**)",
+      "Write(.claude-code-hermit/**)"
     ]
   }
 }
@@ -297,7 +297,7 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
 - `git diff`, `git status`, `git log` — session-diff.js hook auto-populates `## Changed` in SHELL.md
 - `node */scripts/<name>.js` — Stop hooks (cost-tracker, suggest-compact, session-diff, evaluate-session), scoped to plugin scripts only
 - `bash -c 'AGENT_DIR=...` — SessionStart hook that loads session context on every startup
-- `Edit`, `Write` on `.claude/.claude-code-hermit/**` — heartbeat appends to SHELL.md, increments config.json tick counter, and skills update session state without prompting
+- `Edit`, `Write` on `.claude-code-hermit/**` — heartbeat appends to SHELL.md, increments config.json tick counter, and skills update session state without prompting
 
 **Steps:**
 1. If `.claude/settings.json` exists: read it and identify which required permissions are missing from `permissions.allow`
@@ -308,7 +308,7 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
    - Bash(git diff/status/log:*) — session-diff hook
    - Bash(node */scripts/<name>.js*) — Stop hooks (cost tracker, session diff, etc.)
    - Bash(bash -c 'AGENT_DIR=...) — SessionStart context loader
-   - Edit/Write(.claude/.claude-code-hermit/**) — heartbeat and session state updates
+   - Edit/Write(.claude-code-hermit/**) — heartbeat and session state updates
    Add these to .claude/settings.json? (yes / no) [yes]"
 5. If the operator confirms: merge into the existing `permissions.allow` array (never remove existing entries), write back
 6. If the operator declines: skip, and note: "You may be prompted to approve hook commands during sessions. Run `/claude-code-hermit:hermit-settings permissions` to add them later."
@@ -321,13 +321,13 @@ Print a summary:
 Autonomous agent initialized!
 
 Created:
-  .claude/.claude-code-hermit/sessions/
-  .claude/.claude-code-hermit/proposals/
-  .claude/.claude-code-hermit/templates/ (3 templates)
-  .claude/.claude-code-hermit/OPERATOR.md (onboarded)
-  .claude/.claude-code-hermit/HEARTBEAT.md
-  .claude/.claude-code-hermit/bin/ (hermit-start, hermit-stop, hermit-status)
-  .claude/.claude-code-hermit/config.json
+  .claude-code-hermit/sessions/
+  .claude-code-hermit/proposals/
+  .claude-code-hermit/templates/ (3 templates)
+  .claude-code-hermit/OPERATOR.md (onboarded)
+  .claude-code-hermit/HEARTBEAT.md
+  .claude-code-hermit/bin/ (hermit-start, hermit-stop, hermit-status)
+  .claude-code-hermit/config.json
 
 Identity:
   Agent name:      Atlas
@@ -354,6 +354,6 @@ Next steps:
   1. Run /claude-code-hermit:session to start your first session
   2. Refine OPERATOR.md anytime — just tell me what changed
   3. Change settings with /claude-code-hermit:hermit-settings
-  4. For always-on operation: .claude/.claude-code-hermit/bin/hermit-start
+  4. For always-on operation: .claude-code-hermit/bin/hermit-start
   5. After plugin updates, run /claude-code-hermit:upgrade
 ```

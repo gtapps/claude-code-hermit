@@ -33,7 +33,7 @@ Create `dashboard.md` at the repo root (add to `.gitignore`).
 ````markdown
 ```dataview
 TABLE Status, Date, Duration, Task, Cost
-FROM ".claude/.claude-code-hermit/sessions"
+FROM ".claude-code-hermit/sessions"
 WHERE file.name != "SHELL" AND file.name != ".gitkeep"
 SORT file.name DESC
 ```
@@ -44,7 +44,7 @@ SORT file.name DESC
 ````markdown
 ```dataview
 TABLE Status, Source, Session, Created
-FROM ".claude/.claude-code-hermit/proposals"
+FROM ".claude-code-hermit/proposals"
 WHERE file.name != ".gitkeep"
 SORT file.name ASC
 ```
@@ -53,7 +53,7 @@ SORT file.name ASC
 ### Live session embed
 
 ```markdown
-![[.claude/.claude-code-hermit/sessions/SHELL]]
+![[.claude-code-hermit/sessions/SHELL]]
 ```
 
 ---

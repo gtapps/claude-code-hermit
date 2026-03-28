@@ -21,7 +21,7 @@ const path = require("path");
 
 const MAX_STDIN = 1024 * 1024; // 1MB safety limit
 const SHELL_SESSION = path.resolve(
-  ".claude/.claude-code-hermit/sessions/SHELL.md",
+  ".claude-code-hermit/sessions/SHELL.md",
 );
 
 function populateChanged() {

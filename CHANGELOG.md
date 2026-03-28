@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.0.6] - 2026-03-28
+
+### Breaking Changes
+
+**State directory moved out of `.claude/`**
+
+The hermit state directory has moved from `.claude/.claude-code-hermit/` to `.claude-code-hermit/` at the project root.
+
+**Why:** Claude Code's `bypassPermissions` mode still prompts for writes to `.claude/` (except `.claude/commands`, `.claude/agents`, `.claude/skills`). The old path caused permission prompts on every SHELL.md update, heartbeat tick, and proposal write — defeating autonomous operation.
+
+**What you need to do:**
+
+1. Move your state directory:
+   ```
+   mv .claude/.claude-code-hermit .claude-code-hermit
+   ```
+
+2. Update `.gitignore` — find the `# claude-code-hermit` block and update the paths:
+   ```
+   # Before
+   .claude/.claude-code-hermit/config.json
+   .claude/.claude-code-hermit/sessions/
+   .claude/.claude-code-hermit/proposals/
+   .claude/.claude-code-hermit/templates/
+
+   # After
+   .claude/cost-log.jsonl
+   .claude-code-hermit/config.json
+   .claude-code-hermit/sessions/
+   .claude-code-hermit/proposals/
+   .claude-code-hermit/templates/
+   ```
+
+3. Update `.claude/settings.json` permissions — in `permissions.allow`, replace:
+   - `"Edit(.claude/.claude-code-hermit/**)"` → `"Edit(.claude-code-hermit/**)"`
+   - `"Write(.claude/.claude-code-hermit/**)"` → `"Write(.claude-code-hermit/**)"`
+
+4. **If you have a custom hermit** with skills, agents, or scripts that reference `.claude/.claude-code-hermit/` — update those references to `.claude-code-hermit/` before running `/claude-code-hermit:upgrade`
+
+Then run `/claude-code-hermit:upgrade` — it will refresh templates and clean up any remaining stale permissions.
+
+---
+
 ## [0.0.5] - 2026-03-28
 
 ### Added

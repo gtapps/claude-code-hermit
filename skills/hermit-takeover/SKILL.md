@@ -10,7 +10,7 @@ Stop the autonomous hermit and take the wheel. This skill is for Docker-based al
 
 ### 1. Read config
 
-Read `.claude/.claude-code-hermit/config.json` to get:
+Read `.claude-code-hermit/config.json` to get:
 - `tmux_session_name` — resolve `{project_name}` with the actual project directory name
 - `agent_name` — for display
 
@@ -32,7 +32,7 @@ Wait briefly for the container to stop: check `docker compose -f docker-compose.
 
 ### 4. Mark SHELL.md as operator takeover
 
-Read `.claude/.claude-code-hermit/sessions/SHELL.md`.
+Read `.claude-code-hermit/sessions/SHELL.md`.
 
 If the file exists and has content:
 - Find the `**Status:**` line and change the value to `operator_takeover`
@@ -44,9 +44,9 @@ If SHELL.md doesn't exist or is empty: note this for the summary — the hermit 
 ### 5. Load hermit context
 
 Read these files (all in parallel):
-- `.claude/.claude-code-hermit/OPERATOR.md` — the project rulebook
-- `.claude/.claude-code-hermit/sessions/SHELL.md` — current/last session state
-- Latest archived report: find the most recent `S-*-REPORT.md` in `.claude/.claude-code-hermit/sessions/` (by filename sort, descending)
+- `.claude-code-hermit/OPERATOR.md` — the project rulebook
+- `.claude-code-hermit/sessions/SHELL.md` — current/last session state
+- Latest archived report: find the most recent `S-*-REPORT.md` in `.claude-code-hermit/sessions/` (by filename sort, descending)
 
 ### 6. Present summary
 

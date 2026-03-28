@@ -137,7 +137,7 @@ claude-code-hermit/
 
 ```
 your-project/
-├── .claude/.claude-code-hermit/
+├── .claude-code-hermit/
 │   ├── sessions/SHELL.md, S-NNN-REPORT.md
 │   ├── proposals/PROP-NNN.md
 │   ├── templates/

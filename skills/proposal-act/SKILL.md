@@ -20,7 +20,7 @@ If no action or ID is provided, ask the operator which proposal and action.
 
 When the operator accepts a proposal:
 
-1. Read the proposal file from `.claude/.claude-code-hermit/proposals/PROP-NNN.md`
+1. Read the proposal file from `.claude-code-hermit/proposals/PROP-NNN.md`
 2. Update the metadata: `**Status:** accepted`
 3. Append a timestamp to the Operator Decision section:
    ```
@@ -28,7 +28,7 @@ When the operator accepts a proposal:
    ```
 
 4. Ask: **"How should this be implemented?"**
-   - **"Create a session task"** → Write `.claude/.claude-code-hermit/sessions/NEXT-TASK.md`:
+   - **"Create a session task"** → Write `.claude-code-hermit/sessions/NEXT-TASK.md`:
      ```markdown
      # Next Task (from PROP-NNN)
 

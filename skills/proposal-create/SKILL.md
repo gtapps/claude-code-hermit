@@ -13,12 +13,12 @@ Create a proposal only when you discover something with real leverage:
 ## How to Create
 
 1. Determine the next proposal ID:
-   - List all `.claude/.claude-code-hermit/proposals/PROP-*.md` files
+   - List all `.claude-code-hermit/proposals/PROP-*.md` files
    - Extract the highest NNN number, increment by 1
    - If none exist, use `PROP-001`
    - Format: `PROP-NNN` with zero-padded 3-digit number
 
-2. Create `.claude/.claude-code-hermit/proposals/PROP-NNN.md` using `.claude/.claude-code-hermit/templates/PROPOSAL.md.template`:
+2. Create `.claude-code-hermit/proposals/PROP-NNN.md` using `.claude-code-hermit/templates/PROPOSAL.md.template`:
    - Fill in the title, date, and session ID
    - Set status to `proposed`
    - Set `Source:` to `manual` (default) or `auto-detected` (when invoked by `reflect`)
@@ -26,7 +26,7 @@ Create a proposal only when you discover something with real leverage:
    - Write a clear Context, Problem, Proposed Solution, and Impact
    - Leave "Operator Decision" blank — the operator fills that in
 
-3. Add a reference to the proposal in `.claude/.claude-code-hermit/sessions/SHELL.md` under the Findings section
+3. Add a reference to the proposal in `.claude-code-hermit/sessions/SHELL.md` under the Findings section
 
 ## Do NOT Create Proposals For
 

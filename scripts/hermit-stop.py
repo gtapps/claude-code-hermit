@@ -15,8 +15,8 @@ import sys
 import time
 from pathlib import Path
 
-CONFIG_PATH = Path('.claude/.claude-code-hermit/config.json')
-SESSIONS_DIR = Path('.claude/.claude-code-hermit/sessions')
+CONFIG_PATH = Path('.claude-code-hermit/config.json')
+SESSIONS_DIR = Path('.claude-code-hermit/sessions')
 SHELL_PATH = SESSIONS_DIR / 'SHELL.md'
 DEFAULT_TIMEOUT = 60  # seconds to wait for graceful close
 

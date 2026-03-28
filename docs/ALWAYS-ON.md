@@ -69,7 +69,7 @@ This is persisted in the mounted `~/.claude/` volume and won't appear on contain
 | Stop      | `docker compose -f docker-compose.hermit.yml stop`            |
 | Logs      | `docker compose -f docker-compose.hermit.yml logs -f`         |
 | Restart   | `docker compose -f docker-compose.hermit.yml restart`         |
-| Status    | `.claude/.claude-code-hermit/bin/hermit-status`               |
+| Status    | `.claude-code-hermit/bin/hermit-status`               |
 
 `hermit-status` is a pure bash script — no Claude Code, no tokens. See [Quick Status](#quick-status) below.
 
@@ -128,7 +128,7 @@ The hermit will see the `operator_takeover` status (if set) or just recover norm
 ## Quick Status
 
 ```bash
-.claude/.claude-code-hermit/bin/hermit-status
+.claude-code-hermit/bin/hermit-status
 ```
 
 One-liner output, no Claude Code process needed, no tokens burned:

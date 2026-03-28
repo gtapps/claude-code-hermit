@@ -10,7 +10,7 @@ Upgrade the project's hermit configuration after a plugin update.
 
 ### 1. Read versions
 
-- Read `.claude/.claude-code-hermit/config.json`
+- Read `.claude-code-hermit/config.json`
 - Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` to get the current plugin version
 - Read `_hermit_versions` from config (default to `{"claude-code-hermit": "0.0.0"}` if the field is missing — this means the project was initialized before version tracking existed)
 - Compare: `config_version` vs `plugin_version`
@@ -73,7 +73,7 @@ Tell the operator: "New settings available in this version:" then present only t
 
 ### 5. Update templates
 
-- Compare each template file in `${CLAUDE_PLUGIN_ROOT}/state-templates/` against the corresponding file in `.claude/.claude-code-hermit/templates/`
+- Compare each template file in `${CLAUDE_PLUGIN_ROOT}/state-templates/` against the corresponding file in `.claude-code-hermit/templates/`
 - If the plugin's template has different content: replace the project's template
 - Report which templates were updated
 
@@ -89,8 +89,8 @@ Only update files in `templates/`:
 
 ### 5b. Update boot script wrappers
 
-- Check if `.claude/.claude-code-hermit/bin/` exists
-- If not: copy `${CLAUDE_PLUGIN_ROOT}/state-templates/bin/hermit-start` and `hermit-stop` into `.claude/.claude-code-hermit/bin/`. Ensure they are executable.
+- Check if `.claude-code-hermit/bin/` exists
+- If not: copy `${CLAUDE_PLUGIN_ROOT}/state-templates/bin/hermit-start` and `hermit-stop` into `.claude-code-hermit/bin/`. Ensure they are executable.
 - If yes: compare against the plugin's versions and replace if different
 - Always update `_plugin_root` in config.json to the current `${CLAUDE_PLUGIN_ROOT}` value (the cache path changes on version upgrade)
 
@@ -119,13 +119,15 @@ Only update files in `templates/`:
 
 ### 8. Ensure plugin permissions in settings.json
 
-Same logic as init step 8: check `.claude/settings.json` for the plugin's required permissions (`git diff/status/log`, per-script `node` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude/.claude-code-hermit/**`). If any are missing, show the operator which ones and ask for confirmation before adding. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions (e.g., `Bash(python3:*)`, `Bash(node:*)`) if found.
+Same logic as init step 8: check `.claude/settings.json` for the plugin's required permissions (`git diff/status/log`, per-script `node` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). If any are missing, show the operator which ones and ask for confirmation before adding. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found:
+- `Bash(python3:*)`, `Bash(node:*)` — replaced by scoped node entries
+- `Edit(.claude/.claude-code-hermit/**)`, `Write(.claude/.claude-code-hermit/**)` — replaced by `.claude-code-hermit/**` (v0.0.6 path change)
 
 ### 9. Write updated config
 
 - Merge new keys into existing config (existing operator values are never overwritten)
 - Update `_hermit_versions` with current versions for core and all detected hermits
-- Write to `.claude/.claude-code-hermit/config.json`
+- Write to `.claude-code-hermit/config.json`
 
 ### 10. Report
 

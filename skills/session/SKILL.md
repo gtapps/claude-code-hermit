@@ -34,7 +34,7 @@ Once I know what to work on:
 
 Work through plan items using whatever tools, skills, and agents are available:
 - Use the tools best suited to each step
-- Update `.claude/.claude-code-hermit/sessions/SHELL.md` after each significant step (mark plan items done, add progress log entries)
+- Update `.claude-code-hermit/sessions/SHELL.md` after each significant step (mark plan items done, add progress log entries)
 - If a step is blocked, document the blocker in SHELL.md and ask the operator how to proceed
 
 ### 6. Work done

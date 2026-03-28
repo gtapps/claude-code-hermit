@@ -7,7 +7,7 @@ description: Handles inbound messages from Claude Code Channels (Telegram, Disco
 When a message arrives via a channel:
 
 ## 1. Load Context
-Read `.claude/.claude-code-hermit/sessions/SHELL.md` for current task context.
+Read `.claude-code-hermit/sessions/SHELL.md` for current task context.
 
 ## 1b. Check Session State
 

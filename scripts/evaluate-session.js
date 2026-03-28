@@ -9,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const SHELL_SESSION = path.resolve('.claude/.claude-code-hermit/sessions/SHELL.md');
+const SHELL_SESSION = path.resolve('.claude-code-hermit/sessions/SHELL.md');
 
 function evaluateSession() {
   const results = {
