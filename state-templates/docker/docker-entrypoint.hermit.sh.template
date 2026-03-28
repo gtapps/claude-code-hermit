@@ -124,6 +124,17 @@ if [ -n "$CHANNELS" ]; then
   done
 fi
 
+# Resolve and export the actual plugin root so hermit-run skips config.json path remap.
+# _plugin_root in config.json points to the host path; this env var gives the container path.
+HERMIT_MARKETPLACE="${MARKETPLACE_DIR}/claude-code-hermit"
+if [ -d "$HERMIT_MARKETPLACE" ]; then
+  FOUND=$(find "$HERMIT_MARKETPLACE" -maxdepth 2 -name "plugin.json" -path "*/.claude-plugin/*" -print -quit 2>/dev/null || true)
+  if [ -n "$FOUND" ]; then
+    export HERMIT_PLUGIN_ROOT="$(dirname "$(dirname "$FOUND")")"
+    echo "[docker-entrypoint] Plugin root: ${HERMIT_PLUGIN_ROOT}"
+  fi
+fi
+
 # --- 4. Seed auto-memory (one-time, skipped if container has built its own) ---
 MEMORY_SEED="${AGENT_DIR}/MEMORY-SEED.md"
 if [ -f "$MEMORY_SEED" ]; then
