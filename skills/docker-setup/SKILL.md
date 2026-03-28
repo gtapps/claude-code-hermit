@@ -276,7 +276,9 @@ Check each known channel plugin:
 | telegram | `.claude.local/channels/telegram/.env`        | `TELEGRAM_BOT_TOKEN` | Yes               |
 | imessage | —                                             | —                    | **No** (macOS only) |
 
-For discord and telegram, check if the local token file exists and has a real value. Build a list of: (a) already configured, (b) needs configuration. Store for step 12.
+For discord and telegram, check if the **local** token file (`.claude.local/channels/<plugin>/.env`) exists and has a real value. Build a list of: (a) already configured locally, (b) needs configuration. Store for step 12.
+
+**Do NOT read or copy from the global `~/.claude/channels/` path.** Each Docker hermit must have its own dedicated bot token — even if a global token exists, ignore it. Always prompt the operator for the token in step 12.
 
 If imessage is detected, note: "Heads up — iMessage needs macOS with Full Disk Access and AppleScript, so it won't work inside a Docker container. Skipping that one."
 
