@@ -18,7 +18,7 @@ Docker gives you three things at once: safe permission bypass (no prompts, no ba
 | ------------------------ | ------------ | ---------------------------------------------- |
 | **Docker**               | Container    | `docker compose` v2 (included with Docker Desktop and modern Docker Engine) |
 | **Node.js 24+**          | Hooks        | Inside the container — handled by the Dockerfile |
-| **Bun** (optional)       | Channels     | Inside the container — included if you enable channels during setup |
+| **Bun**                  | Plugins      | Inside the container — always included (needed by many Claude Code plugins) |
 | **Claude Code v2.1.80+** | Channels     | Required for the channels research preview     |
 
 ---
@@ -31,22 +31,22 @@ Run after `/claude-code-hermit:init`:
 /claude-code-hermit:docker-setup
 ```
 
-The skill checks prerequisites, asks about auth and channels, reads your project config, and generates four files at the project root:
+The skill checks prerequisites, asks about auth, reads your project config, and generates four hermit-namespaced files at the project root (so they don't conflict with your own Docker setup):
 
-| File                   | Purpose                                               |
-| ---------------------- | ----------------------------------------------------- |
-| `Dockerfile`           | Ubuntu 24.04, Node 24, Bun, Claude Code, host UID matching |
-| `docker-entrypoint.sh` | Onboarding bypass, permission mode patch, hermit-start, PID 1 keepalive |
-| `docker-compose.yml`   | Volume mounts, env vars, healthcheck, restart policy  |
-| `.env`                 | Auth token placeholder                                |
+| File                          | Purpose                                               |
+| ----------------------------- | ----------------------------------------------------- |
+| `Dockerfile.hermit`           | Ubuntu 24.04, Node 24, Bun, Claude Code, host UID matching |
+| `docker-entrypoint.hermit.sh` | Onboarding bypass, permission mode patch, hermit-start, PID 1 keepalive |
+| `docker-compose.hermit.yml`   | Volume mounts, env vars, healthcheck, restart policy  |
+| `.env`                        | Auth token (appended if file already exists)           |
 
 ---
 
 ## First Run
 
 ```bash
-docker compose build
-docker compose up -d
+docker compose -f docker-compose.hermit.yml build
+docker compose -f docker-compose.hermit.yml up -d
 ```
 
 Claude Code shows a one-time **workspace trust prompt** that can't be automated. Attach once to accept it:
@@ -63,13 +63,13 @@ This is persisted in the mounted `~/.claude/` volume and won't appear on contain
 
 ## Managing Your Hermit
 
-| Action    | Command                                           |
-| --------- | ------------------------------------------------- |
-| Start     | `docker compose up -d`                            |
-| Stop      | `docker compose stop`                             |
-| Logs      | `docker compose logs -f`                          |
-| Restart   | `docker compose restart`                          |
-| Status    | `.claude/.claude-code-hermit/bin/hermit-status`   |
+| Action    | Command                                                       |
+| --------- | ------------------------------------------------------------- |
+| Start     | `docker compose -f docker-compose.hermit.yml up -d`           |
+| Stop      | `docker compose -f docker-compose.hermit.yml stop`            |
+| Logs      | `docker compose -f docker-compose.hermit.yml logs -f`         |
+| Restart   | `docker compose -f docker-compose.hermit.yml restart`         |
+| Status    | `.claude/.claude-code-hermit/bin/hermit-status`               |
 
 `hermit-status` is a pure bash script — no Claude Code, no tokens. See [Quick Status](#quick-status) below.
 
@@ -116,9 +116,9 @@ This summarizes what you did during takeover (via `git log` since the takeover t
 You can also just stop and restart manually:
 
 ```bash
-docker compose stop       # hermit archives its work
+docker compose -f docker-compose.hermit.yml stop       # hermit archives its work
 # ... do your thing ...
-docker compose up -d      # hermit recovers and asks what's next
+docker compose -f docker-compose.hermit.yml up -d      # hermit recovers and asks what's next
 ```
 
 The hermit will see the `operator_takeover` status (if set) or just recover normally. The takeover/hand-back skills add structure — git summaries, queued instructions — but manual restart always works.
@@ -160,7 +160,7 @@ Container restarts trigger hermit recovery automatically:
 
 **Per-session budget:** `/claude-code-hermit:hermit-settings budget`. Warns at 80%, recommends closing at 100%.
 
-**Token optimization env vars** (set in `docker-compose.yml` by default):
+**Token optimization env vars** (set in `docker-compose.hermit.yml` by default):
 
 | Setting                            | Value | Effect                           |
 | ---------------------------------- | ----- | -------------------------------- |

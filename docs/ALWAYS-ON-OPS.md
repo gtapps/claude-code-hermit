@@ -313,28 +313,28 @@ Choose the level of cleanup you need (each is self-contained — pick one):
 
 ```bash
 # Stop and remove containers + networks
-docker compose down
+docker compose -f docker-compose.hermit.yml down
 
 # Same, but also remove the built image
-docker compose down --rmi local
+docker compose -f docker-compose.hermit.yml down --rmi local
 
 # Full cleanup — image, volumes, and orphan containers
-docker compose down --rmi local --volumes --remove-orphans
+docker compose -f docker-compose.hermit.yml down --rmi local --volumes --remove-orphans
 ```
 
 To also remove the generated scaffolding files:
 
 ```bash
-rm Dockerfile docker-entrypoint.sh docker-compose.yml
+rm -f Dockerfile.hermit docker-entrypoint.hermit.sh docker-compose.hermit.yml
 ```
 
-`.env` is kept intentionally — it contains your auth token. Delete it manually if you no longer need it.
+`.env` is not removed — it may contain other project vars. To clean up hermit's entries, delete from `# --- claude-code-hermit ---` through the token line (`CLAUDE_CODE_OAUTH_TOKEN=...` or `ANTHROPIC_API_KEY=...`).
 
 This does not touch your hermit state (`.claude/.claude-code-hermit/`) — only the Docker scaffolding. You can re-run `/claude-code-hermit:docker-setup` to regenerate it.
 
 ### Auto-restart on reboot
 
-For Docker-based setups, `restart: unless-stopped` in `docker-compose.yml` handles this automatically. See [Always-On Setup](ALWAYS-ON.md).
+For Docker-based setups, `restart: unless-stopped` in `docker-compose.hermit.yml` handles this automatically. See [Always-On Setup](ALWAYS-ON.md).
 
 For bare-tmux setups:
 

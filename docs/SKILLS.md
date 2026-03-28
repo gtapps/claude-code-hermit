@@ -56,7 +56,7 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 
 | Skill              | What it does                                                                                                                                                                    | Auto-triggers |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| `docker-setup`     | Generates Dockerfile, docker-entrypoint.sh, docker-compose.yml, and .env for running hermit in Docker. Checks prerequisites, asks about auth/channels, adapts to project config. Refuses if Docker files already exist. | --            |
+| `docker-setup`     | Generates hermit-namespaced Docker files (`Dockerfile.hermit`, `docker-compose.hermit.yml`, etc.) and walks through the full deployment — token, build, start, MCP plugins, workspace trust, verify. Won't conflict with your own Docker setup. | --            |
 | `hermit-takeover`  | Stops the Docker container, marks session as `operator_takeover`, loads full hermit context (OPERATOR.md, SHELL.md, latest report), presents a summary. Run locally to drive interactively. | --            |
 | `hermit-hand-back` | Summarizes operator activity via `git log`, optionally queues instructions in NEXT-TASK.md, updates SHELL.md, restarts the Docker container.                                     | --            |
 

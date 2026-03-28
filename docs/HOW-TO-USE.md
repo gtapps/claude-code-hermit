@@ -117,8 +117,7 @@ Both fire once per day. Configure with `/claude-code-hermit:hermit-settings rout
 Docker is the recommended way to run your hermit autonomously. It provides container isolation so you can safely use `bypassPermissions` — no interactive prompts, no babysitting.
 
 ```bash
-/claude-code-hermit:docker-setup    # generates Dockerfile, entrypoint, compose
-docker compose build && docker compose up -d
+/claude-code-hermit:docker-setup    # generates hermit Docker files, walks you through deployment
 ```
 
 See [Always-On Setup](ALWAYS-ON.md) for the full guide — auth, channels, takeover, cost management.

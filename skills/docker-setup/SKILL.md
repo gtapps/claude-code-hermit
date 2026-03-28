@@ -12,15 +12,17 @@ Generate Docker scaffolding for running hermit as an always-on autonomous agent 
 
 1. Verify Docker is installed: run `docker --version`. If not found, abort with: "Docker is required. Install it from https://docs.docker.com/get-docker/"
 2. Verify `/init` has been run: check that `.claude/.claude-code-hermit/config.json` exists. If not, abort with: "Run `/claude-code-hermit:init` first to set up the project."
-3. Check for existing Docker files at the project root (`Dockerfile`, `docker-entrypoint.sh`, `docker-compose.yml`). If ANY exist:
+3. Check for existing hermit Docker files at the project root (`Dockerfile.hermit`, `docker-entrypoint.hermit.sh`, `docker-compose.hermit.yml`). If ANY exist:
 
    List which files were found, then ask:
-   "Found existing Docker files: [list]. Overwrite them? (yes / no) [no]"
+   "Found existing hermit Docker files: [list]. Overwrite them? (yes / no) [no]"
 
    - If **yes**: back up the existing files to `docker-backup/` (create the directory, move files there), then continue with generation. Mention: "Backed up to docker-backup/"
    - If **no**: abort with: "Remove or rename them first, then re-run this skill."
 
-   Also check for `.env` — if it exists, don't overwrite it. Instead, note which env vars need to be added and print them in the guided deployment (step 10) so the operator can add them manually.
+   `.env` is shared — never overwrite it. If it already exists, the skill appends only the missing hermit env vars (see step 7). If it doesn't exist, create it.
+
+   > **Why `.hermit` suffix?** The project may already use `Dockerfile`, `docker-compose.yml`, etc. for its own services. Hermit-namespaced files avoid conflicts. All `docker compose` commands use `-f docker-compose.hermit.yml`.
 4. **Windows/WSL2 check:** If the current working directory starts with `/mnt/c/` or `/mnt/d/`, abort with: "You're running from a Windows mount path. Clone your project inside WSL2 (e.g., /home/you/project) and run from there. Windows paths break Claude Code's path-keyed config."
 
 ### 2. Ask the operator
@@ -39,9 +41,9 @@ Read `.claude/.claude-code-hermit/config.json` and extract:
 
 Detect the project path from `pwd`.
 
-### 4. Generate Dockerfile
+### 4. Generate Dockerfile.hermit
 
-Write `Dockerfile` at the project root:
+Write `Dockerfile.hermit` at the project root:
 
 ```dockerfile
 FROM ubuntu:24.04
@@ -65,15 +67,15 @@ RUN userdel -r ubuntu 2>/dev/null; \
 
 USER claude
 
-COPY --chown=claude:claude docker-entrypoint.sh /home/claude/docker-entrypoint.sh
+COPY --chown=claude:claude docker-entrypoint.hermit.sh /home/claude/docker-entrypoint.sh
 RUN chmod +x /home/claude/docker-entrypoint.sh
 
 ENTRYPOINT ["/home/claude/docker-entrypoint.sh"]
 ```
 
-### 5. Generate docker-entrypoint.sh
+### 5. Generate docker-entrypoint.hermit.sh
 
-Write `docker-entrypoint.sh` at the project root. Use the resolved `tmux_session_name` from step 3:
+Write `docker-entrypoint.hermit.sh` at the project root. Use the resolved `tmux_session_name` from step 3:
 
 ```bash
 #!/usr/bin/env bash
@@ -134,17 +136,18 @@ echo "[docker-entrypoint] tmux session ended — container exiting"
 
 Replace `<TMUX_SESSION_NAME>` with the resolved session name from step 3.
 
-Make the file executable: `chmod +x docker-entrypoint.sh`
+Make the file executable: `chmod +x docker-entrypoint.hermit.sh`
 
-### 6. Generate docker-compose.yml
+### 6. Generate docker-compose.hermit.yml
 
-Write `docker-compose.yml` at the project root. Use the resolved `tmux_session_name` from step 3 in the healthcheck:
+Write `docker-compose.hermit.yml` at the project root. Use the resolved `tmux_session_name` from step 3 in the healthcheck:
 
 ```yaml
 services:
   claude-agent:
     build:
       context: .
+      dockerfile: Dockerfile.hermit
       args:
         HOST_UID: ${UID:-1000}
     volumes:
@@ -173,60 +176,78 @@ Replace:
 - `<AUTH_PLACEHOLDER>` with `${CLAUDE_CODE_OAUTH_TOKEN}` or `${ANTHROPIC_API_KEY}`
 - `<TMUX_SESSION_NAME>` with the resolved session name
 
-### 7. Generate .env
+### 7. Ensure .env has hermit auth vars
 
-Write `.env` at the project root:
+If `.env` does not exist, create it. If it already exists, read it first.
+
+Check whether the required auth var is already present in the file:
+
+For OAuth — look for a line starting with `CLAUDE_CODE_OAUTH_TOKEN=`
+For API key — look for a line starting with `ANTHROPIC_API_KEY=`
+
+If the var is **missing**, append a hermit section to the end of the file:
 
 For OAuth:
 ```
-# Claude Code auth — run 'claude setup-token' to generate a 1-year OAuth token
+# --- claude-code-hermit ---
+# Run 'claude setup-token' to generate a 1-year OAuth token
 CLAUDE_CODE_OAUTH_TOKEN=your-token-here
 ```
 
 For API key:
 ```
-# Claude Code auth — your Anthropic API key for pay-per-token billing
+# --- claude-code-hermit ---
+# Anthropic API key for pay-per-token billing
 ANTHROPIC_API_KEY=your-key-here
 ```
+
+If the var is **already present**, leave it alone — note this for step 10 (no need to prompt for the token).
 
 ### 8. Protect .env
 
 1. Check if `.gitignore` exists at the project root
-   - If it exists: check if `.env` is already listed. If not, append `.env` to the file.
+   - If it exists: check if `.env` is already listed (exact match or wildcard like `.env*`). If not, append `.env` to the file.
    - If it doesn't exist: create `.gitignore` with `.env` as the first entry.
 
 2. Check if `.dockerignore` exists at the project root
    - If it exists: check if `.env` is already listed. If not, append `.env` to the file.
    - If it doesn't exist: create `.dockerignore` with `.env` as the first entry.
 
-### 9. Detect MCP plugins
+### 9. Detect channel plugins
 
-Scan for installed plugins that define MCP servers:
-1. Run: `find ~/.claude/plugins -name ".mcp.json" 2>/dev/null`
-2. For each found `.mcp.json`, extract the plugin name from the path and read the file
-3. Cross-reference with `enabledPlugins` in `~/.claude/settings.json` to filter to active plugins
-4. For each active MCP plugin, check if it has a `skills/` directory with a configure skill (e.g., `skills/configure/`)
+Channel plugins store their tokens in `~/.claude/channels/<plugin>/`. Since Docker mounts `~/.claude`, we can configure them from the host — no `docker exec` needed.
 
-Store the list of MCP plugins (with their configure skill names, if any) for the guided deployment. If plugins are found, mention:
-"Detected MCP plugins: [list]. These may need configuration inside the container after first start."
+Check each known channel plugin directly:
+
+| Plugin   | Token file                            | Token var            | Docker compatible |
+| -------- | ------------------------------------- | -------------------- | ----------------- |
+| discord  | `~/.claude/channels/discord/.env`     | `DISCORD_BOT_TOKEN`  | Yes               |
+| telegram | `~/.claude/channels/telegram/.env`    | `TELEGRAM_BOT_TOKEN` | Yes               |
+| imessage | —                                     | —                    | **No** (macOS only) |
+
+For discord and telegram, check if the token file exists and has a real value (not empty, not a placeholder). Build a list of: (a) plugins already configured, (b) plugins needing configuration. Store for step 12.
+
+If imessage is detected (plugin installed or `~/.claude/channels/imessage/` exists), warn: "iMessage requires macOS with Full Disk Access and AppleScript — it does not work inside Docker containers. It will be skipped."
 
 ### 10. Guided deployment — auth token
 
-Print the files that were created (adjust the list if `.env` was pre-existing and not written — in that case, note "`.env` already existed — see below for required vars"):
+Print the files that were created:
 ```
 Files created:
-  Dockerfile
-  docker-entrypoint.sh (executable)
-  docker-compose.yml
-  .env
+  Dockerfile.hermit
+  docker-entrypoint.hermit.sh (executable)
+  docker-compose.hermit.yml
+  .env (appended hermit auth vars)
 ```
 
-Then prompt for the auth token:
+If the auth var already had a real value in `.env` (not a placeholder), skip the token prompt — just note "Auth token already configured in .env".
+
+Otherwise, prompt for the auth token:
 
 For OAuth: "Paste your OAuth token below (run `claude setup-token` on a machine with a browser to get one):"
 For API key: "Paste your Anthropic API key below:"
 
-Wait for the operator to paste the token. Write it into `.env`, replacing the placeholder value. Confirm: "Token saved to .env"
+Wait for the operator to paste the token. Update the placeholder value in `.env`. Confirm: "Token saved to .env"
 
 If the operator wants to skip this step (says "skip", "later", etc.), that's fine — remind them to add it before starting the container.
 
@@ -234,27 +255,44 @@ If the operator wants to skip this step (says "skip", "later", etc.), that's fin
 
 Ask: "Ready to build and start the container? (yes / no) [yes]"
 
-If yes:
-1. Run `docker compose build` — show the output, wait for completion. If build fails, show the error and help diagnose (common issues: Docker daemon not running, network problems, disk space). Do not proceed to `up` until the build succeeds.
-2. If build succeeds, run `docker compose up -d` — show the output
-3. Run `docker compose ps` to confirm the container is running. Save the container name for later steps.
+If yes (all `docker compose` commands use `-f docker-compose.hermit.yml`):
+1. Run `docker compose -f docker-compose.hermit.yml build` — show the output, wait for completion. If build fails, show the error and help diagnose (common issues: Docker daemon not running, network problems, disk space). Do not proceed to `up` until the build succeeds.
+2. If build succeeds, run `docker compose -f docker-compose.hermit.yml up -d` — show the output
+3. Run `docker compose -f docker-compose.hermit.yml ps` to confirm the container is running. Save the container name for later steps.
 
 If no, print the manual commands and skip to the workspace trust step.
 
-### 12. MCP plugin configuration
+### 12. Channel plugin configuration
 
-Skip this step if no MCP plugins were detected in step 9, or if the container is not running (operator skipped step 11).
+Skip this step if no unconfigured channel plugins were detected in step 9.
 
-For each detected MCP plugin that has a configure skill:
+For plugins already configured (token file exists with a real value), just note: "[plugin] already configured."
 
-1. Tell the operator which plugins need configuration and provide the exact commands to run:
-   ```
-   The following MCP plugins need configuration inside the container:
+For each unconfigured plugin, prompt for the token. Each channel can be skipped individually — say "skip" to handle later.
 
-     [plugin-name]:  docker exec -it <container> claude /[plugin-name]:configure
-   ```
-2. These commands are interactive (require TTY for token input), so the operator must run them manually. Do NOT attempt to run `docker exec -it` commands yourself — they require a terminal the skill cannot provide.
-3. Wait for the operator to confirm they've run the commands (or say "skip" to handle later).
+**Discord:**
+"If you haven't created a Discord bot yet, follow the Discord tab at https://code.claude.com/docs/en/channels — then paste your bot token below (or 'skip'):"
+
+If the operator provides a token:
+1. `mkdir -p ~/.claude/channels/discord`
+2. Write `DISCORD_BOT_TOKEN=<token>` to `~/.claude/channels/discord/.env`
+3. `chmod 600 ~/.claude/channels/discord/.env`
+4. Confirm: "Discord bot token saved."
+
+**Telegram:**
+"If you haven't created a Telegram bot yet, follow the Telegram tab at https://code.claude.com/docs/en/channels — then paste your bot token below (or 'skip'):"
+
+If the operator provides a token:
+1. `mkdir -p ~/.claude/channels/telegram`
+2. Write `TELEGRAM_BOT_TOKEN=<token>` to `~/.claude/channels/telegram/.env`
+3. `chmod 600 ~/.claude/channels/telegram/.env`
+4. Confirm: "Telegram bot token saved."
+
+**After saving tokens:**
+
+These files live under `~/.claude/` which is volume-mounted into the container — the channel servers pick them up on boot. If the container is already running, note: "Restart the container for the channel to connect: `docker compose -f docker-compose.hermit.yml restart`"
+
+Remind the operator: "After the hermit starts, you'll need to pair your account — see the pairing steps at https://code.claude.com/docs/en/channels"
 
 ### 13. Workspace trust
 
@@ -281,10 +319,10 @@ If the status looks healthy:
 Docker setup complete! Your hermit is running.
 
 Useful commands:
-  docker compose logs -f         — follow logs
-  docker compose restart         — restart the container
-  docker compose down            — stop and remove container
-  hermit-status                  — check agent status
+  docker compose -f docker-compose.hermit.yml logs -f      — follow logs
+  docker compose -f docker-compose.hermit.yml restart      — restart the container
+  docker compose -f docker-compose.hermit.yml down         — stop and remove container
+  hermit-status                                            — check agent status
 
 See docs/ALWAYS-ON.md for the full guide.
 ```

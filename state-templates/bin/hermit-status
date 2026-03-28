@@ -45,8 +45,8 @@ IFS=$'\t' read -r AGENT_NAME STATUS TASK PLAN_DONE PLAN_TOTAL COST BUDGET BLOCKE
 
 # Docker container status
 DOCKER_STATE=""
-if command -v docker &>/dev/null && [ -f "$PROJECT_DIR/docker-compose.yml" ]; then
-  running=$(cd "$PROJECT_DIR" && docker compose ps --status running --format '{{.Name}}' 2>/dev/null | head -1 || true)
+if command -v docker &>/dev/null && [ -f "$PROJECT_DIR/docker-compose.hermit.yml" ] && docker info &>/dev/null; then
+  running=$(cd "$PROJECT_DIR" && docker compose -f docker-compose.hermit.yml ps --status running --format '{{.Name}}' 2>/dev/null | head -1 || true)
   if [ -n "$running" ]; then
     DOCKER_STATE="docker:up"
   else

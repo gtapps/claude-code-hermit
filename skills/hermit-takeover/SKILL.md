@@ -16,19 +16,19 @@ Read `.claude/.claude-code-hermit/config.json` to get:
 
 ### 2. Check Docker container status
 
-Run `docker compose ps --status running --format '{{.Name}}'` in the project root.
+Run `docker compose -f docker-compose.hermit.yml ps --status running --format '{{.Name}}'` in the project root.
 
 - If a container is running: proceed to step 3
 - If no container is running: skip to step 4 (just load state — the hermit may have already been stopped manually)
-- If `docker compose` fails (Docker not installed or no compose file): inform the operator: "No docker-compose.yml found. This skill is for Docker-based setups." and stop.
+- If `docker compose` fails (Docker not installed or no compose file): inform the operator: "No docker-compose.hermit.yml found. This skill is for Docker-based setups." and stop.
 
 ### 3. Stop the container
 
-Run `docker compose stop` (not `down` — we want to preserve the container for restart).
+Run `docker compose -f docker-compose.hermit.yml stop` (not `down` — we want to preserve the container for restart).
 
 This sends SIGTERM, which triggers the entrypoint to exit cleanly. If hermit-stop runs inside the container, it archives the current report before exiting.
 
-Wait briefly for the container to stop: check `docker compose ps --status running` up to 3 times with 5-second intervals. If it's still running after 15 seconds, warn: "Container is still stopping — it may take a moment for the session to archive."
+Wait briefly for the container to stop: check `docker compose -f docker-compose.hermit.yml ps --status running` up to 3 times with 5-second intervals. If it's still running after 15 seconds, warn: "Container is still stopping — it may take a moment for the session to archive."
 
 ### 4. Mark SHELL.md as operator takeover
 
