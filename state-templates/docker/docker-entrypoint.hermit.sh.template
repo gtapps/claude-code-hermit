@@ -3,14 +3,15 @@ set -euo pipefail
 
 PROJECT_DIR="$(pwd)"
 AGENT_DIR="${PROJECT_DIR}/.claude-code-hermit"
+CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-/home/claude/.claude}"
 
 echo "[docker-entrypoint] Starting hermit container..."
 echo "[docker-entrypoint] Project: ${PROJECT_DIR}"
 
 # --- 1. Bypass onboarding, pre-approve MCP servers, patch permission_mode ---
-CLAUDE_JSON="${CLAUDE_CONFIG_DIR:=${HOME}/.claude}/.claude.json"
+CLAUDE_JSON="${CLAUDE_CONFIG_DIR}/.claude.json"
 CC_VERSION=$(claude --version 2>/dev/null | grep -oP '[\d.]+' | head -1 || echo "0.0.0")
-python3 -c "
+CHANNELS=$(python3 -c "
 import json, sys, os
 claude_json, version, project = sys.argv[1], sys.argv[2], sys.argv[3]
 
@@ -24,7 +25,7 @@ changed = False
 if not d.get('hasCompletedOnboarding') or d.get('lastOnboardingVersion') != version:
     d.update({'hasCompletedOnboarding': True, 'lastOnboardingVersion': version})
     changed = True
-    print(f'[docker-entrypoint] Onboarding bypass set for Claude Code v{version}')
+    print(f'[docker-entrypoint] Onboarding bypass set for Claude Code v{version}', file=sys.stderr)
 
 config_path = os.path.join(project, '.claude-code-hermit', 'config.json')
 channels = []
@@ -47,7 +48,7 @@ if channels:
         if pid not in enabled:
             enabled.append(pid)
             changed = True
-            print(f'[docker-entrypoint] MCP server {pid}: added to enabledMcpjsonServers')
+            print(f'[docker-entrypoint] MCP server {pid}: added to enabledMcpjsonServers', file=sys.stderr)
         if pid in disabled_json:
             disabled_json.remove(pid)
             changed = True
@@ -66,15 +67,48 @@ if os.path.exists(config_path):
     if cfg.get('permission_mode') != 'bypassPermissions':
         cfg['permission_mode'] = 'bypassPermissions'
         with open(config_path, 'w') as f: json.dump(cfg, f, indent=2)
-        print('[docker-entrypoint] permission_mode -> bypassPermissions')
+        print('[docker-entrypoint] permission_mode -> bypassPermissions', file=sys.stderr)
     else:
-        print('[docker-entrypoint] permission_mode OK')
-" "$CLAUDE_JSON" "$CC_VERSION" "$PROJECT_DIR"
+        print('[docker-entrypoint] permission_mode OK', file=sys.stderr)
 
-# --- 3. Launch hermit-start ---
+# Emit channel list on stdout for the shell to capture
+print(' '.join(ch for ch in channels if ch != 'imessage'))
+" "$CLAUDE_JSON" "$CC_VERSION" "$PROJECT_DIR")
+
+# --- 2. Symlink channel state dirs ---
+for var_name in DISCORD_STATE_DIR TELEGRAM_STATE_DIR; do
+  local_dir="${!var_name:-}"
+  if [ -n "$local_dir" ]; then
+    plugin="${var_name%%_STATE_DIR}"
+    plugin="${plugin,,}"
+    global_dir="${CLAUDE_CONFIG_DIR}/channels/${plugin}"
+    if [ -L "$global_dir" ] && [ "$(readlink "$global_dir")" = "$local_dir" ]; then
+      : # already correct
+    else
+      mkdir -p "$(dirname "$global_dir")" "$local_dir"
+      rm -rf "$global_dir"
+      ln -s "$local_dir" "$global_dir"
+      echo "[docker-entrypoint] Symlinked ${global_dir} -> ${local_dir}"
+    fi
+  fi
+done
+
+# --- 3. Install channel plugins (named volume starts empty on first run) ---
+if [ -n "$CHANNELS" ]; then
+  INSTALLED=$(claude plugin list 2>/dev/null || echo "")
+  for plugin in $CHANNELS; do
+    if ! echo "$INSTALLED" | grep -q "${plugin}@claude-plugins-official"; then
+      echo "[docker-entrypoint] Installing channel plugin: ${plugin}"
+      claude plugin install "${plugin}@claude-plugins-official" --scope local 2>/dev/null || \
+        echo "[docker-entrypoint] Warning: failed to install ${plugin} plugin — install manually"
+    fi
+  done
+fi
+
+# --- 4. Launch hermit-start ---
 "${AGENT_DIR}/bin/hermit-start" "$@"
 
-# --- 4. Keep PID 1 alive ---
+# --- 5. Keep PID 1 alive ---
 SESSION_NAME="{{TMUX_SESSION_NAME}}"
 echo "[docker-entrypoint] Watching tmux session: ${SESSION_NAME}"
 while tmux has-session -t "$SESSION_NAME" 2>/dev/null; do

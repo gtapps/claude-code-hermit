@@ -136,30 +136,13 @@ docker exec -it <container> tmux attach -t <session>
 ```
 Press Enter to accept, then Ctrl+B, D to detach. Wait for confirmation.
 
-**Patch channel skill paths** (skip if no channels configured):
-
-The channel plugin skills (`/discord:access`, `/discord:configure`, etc.) hardcode `~/.claude/channels/<plugin>/` for all file operations, ignoring `*_STATE_DIR`. Before running any access or configure commands, patch the skill files inside the container so they resolve `$DISCORD_STATE_DIR` / `$TELEGRAM_STATE_DIR` first and fall back to the default only if unset.
-
-For each configured channel, find the skill files inside the container:
-```
-~/.claude/plugins/marketplaces/claude-plugins-official/external_plugins/<plugin>/skills/*/SKILL.md
-```
-
-In each file, replace hardcoded `~/.claude/channels/<plugin>/` paths with a dynamic lookup: the skill should run `echo $<PLUGIN>_STATE_DIR` first, use that value if set, otherwise fall back to `~/.claude/channels/<plugin>`. Use `docker exec <container>` + `sed` or `python3` to apply the patches.
-
-This workaround will be unnecessary once Anthropic fixes the plugins to respect `*_STATE_DIR`.
-
 **Channel pairing** (skip if no channels or no tokens configured):
 
 For each channel, ask if already paired. If not:
 1. Operator DMs the bot → gets a 6-char code → pastes it
 2. Send pair command into tmux: `docker exec <container> tmux send-keys -t <session> '/<plugin>:access pair <code>' Enter`
 3. Wait a few seconds, then set policy: `docker exec <container> tmux send-keys -t <session> '/<plugin>:access policy allowlist' Enter`
-4. **Verify `access.json` landed in the right place:** Check that `access.json` exists at the local state dir (`.claude.local/channels/<plugin>/access.json`). If it was written to the home folder instead (`/home/claude/.claude/channels/<plugin>/access.json`), copy it to the local state dir:
-   ```
-   docker exec <container> bash -c 'cp /home/claude/.claude/channels/<plugin>/access.json <project_path>/.claude.local/channels/<plugin>/access.json 2>/dev/null'
-   ```
-   This catches cases where the skill patch didn't fully apply.
+4. **Verify `access.json` landed in the right place:** Check that `access.json` exists at `.claude.local/channels/<plugin>/access.json`. The entrypoint symlinks `/home/claude/.claude/channels/<plugin>/` → the local state dir, so skill writes land in the right place automatically.
 5. Confirm: "Paired and locked down."
 
 If "skip": tell them to DM the bot later and run the commands manually.
@@ -191,3 +174,7 @@ If something looks wrong, help diagnose — suggest concrete next steps.
 **Why `.hermit` suffix?** The project may already have its own `Dockerfile` / `docker-compose.yml`. Hermit-namespaced files avoid conflicts.
 
 **Why `*_STATE_DIR` as OS env vars?** MCP servers (channel plugins) are separate processes that inherit OS env — they don't read `settings.local.json`. Without these env vars, the MCP server defaults to `~/.claude/channels/<plugin>/` which inside the container resolves to `/home/claude/.claude/channels/` — not bind-mounted and lost on restart.
+
+**Why a named volume for config?** The container gets its own Claude Code config (`/home/claude/.claude`) via a Docker named volume instead of sharing the host's `~/.claude`. This prevents container state (onboarding, auto-memory, plugin cache) from leaking into host interactive sessions. The volume persists across restarts — onboarding bypass and channel plugins survive `docker compose restart`. First run is slower while the volume is populated.
+
+**Want shared config instead?** Replace the `claude-config` named volume with a bind-mount in `docker-compose.hermit.yml`: `- ${HOME}/.claude:${HOME}/.claude` and set `CLAUDE_CONFIG_DIR=${HOME}/.claude`. Not recommended — changes in either direction leak.

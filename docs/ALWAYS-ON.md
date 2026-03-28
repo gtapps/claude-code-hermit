@@ -8,7 +8,7 @@ Docker is the recommended way to run your hermit autonomously. For lifecycle int
 
 An always-on agent needs `bypassPermissions` — no prompts, no babysitting. Without isolation that's reckless. With Docker, the container can only see what you mount and restarts automatically on crash.
 
-You get three things at once: safe permission bypass, crash recovery, and a reproducible environment.
+You get four things at once: safe permission bypass, config isolation, crash recovery, and a reproducible environment.
 
 ---
 
@@ -37,7 +37,7 @@ The wizard scans your project for dependencies, asks about auth, and generates f
 | ----------------------------- | ----------------------------------------------------- |
 | `Dockerfile.hermit`           | Ubuntu 24.04, Node 24, Bun, Claude Code, project packages, host UID matching |
 | `docker-entrypoint.hermit.sh` | Onboarding bypass, MCP approval, permission patch, channel symlinks, PID 1 keepalive |
-| `docker-compose.hermit.yml`   | Volume mounts, env vars, healthcheck, restart policy  |
+| `docker-compose.hermit.yml`   | Named volume, bind mounts, env vars, healthcheck, restart policy |
 | `.env`                        | Auth token (appended if file already exists)           |
 
 The wizard also checks `.claude/settings.json` permissions to detect tools your project needs in the container.
@@ -59,7 +59,9 @@ docker exec -it <container> tmux attach -t <session-name>
 # Detach: Ctrl+B, D
 ```
 
-Persisted in the mounted `~/.claude/` volume — won't appear on restarts. After this, your hermit runs fully unattended!
+Persisted in the `claude-config` named volume — won't appear on restarts. After this, your hermit runs fully unattended!
+
+> **First run is slower** — the named volume starts empty, so the entrypoint runs onboarding bypass and installs channel plugins. Subsequent restarts are fast.
 
 ---
 
@@ -153,7 +155,7 @@ Container restarts trigger recovery automatically:
 3. SessionStart hook detects the orphaned SHELL.md
 4. Hermit offers to resume where it left off
 
-`restart: unless-stopped` handles crashes and host reboots. State is on disk via bind mounts — nothing is lost.
+`restart: unless-stopped` handles crashes and host reboots. Session state is on disk via the project bind mount, config state persists in the `claude-config` named volume — nothing is lost.
 
 ---
 

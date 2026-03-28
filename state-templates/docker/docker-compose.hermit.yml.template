@@ -7,14 +7,14 @@ services:
         HOST_UID: ${UID:-1000}
     volumes:
       - ${PWD}:${PWD}
-      # Mounts host ~/.claude into container at the same absolute path.
-      # CLAUDE_CONFIG_DIR (below) tells Claude Code to use this path
-      # instead of the container user's ~ (/home/claude).
-      - ${HOME}/.claude:${HOME}/.claude
+      # Isolated config volume — container gets its own Claude Code config
+      # (onboarding, plugins, auto-memory) instead of sharing the host's.
+      # Persists across restarts. First run is slower (onboarding + plugin install).
+      - claude-config:/home/claude/.claude
     working_dir: ${PWD}
     env_file: .env
     environment:
-      - CLAUDE_CONFIG_DIR=${HOME}/.claude
+      - CLAUDE_CONFIG_DIR=/home/claude/.claude
       - {{AUTH_ENV_LINE}}
 {{CHANNEL_ENV_LINES}}
     network_mode: host
@@ -25,3 +25,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+
+volumes:
+  claude-config:

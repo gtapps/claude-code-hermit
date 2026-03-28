@@ -258,6 +258,7 @@ Block tool invocations regardless of permission mode:
 | Deny patterns       | `settings.json` | Mechanical            |
 | Agent-level rules   | `agents/*.md`   | Instruction-following |
 | Hook enforcement    | `hooks.json`    | Mechanical            |
+| Config isolation    | Named volume    | Mechanical            |
 | Container isolation | Docker/VM       | Mechanical            |
 | OPERATOR.md         | OPERATOR.md     | Instruction-following |
 
@@ -275,6 +276,7 @@ Block tool invocations regardless of permission mode:
 - [ ] Docker/VM if using `permission_mode: "bypassPermissions"` — see [Always-On Setup](ALWAYS-ON.md)
 - [ ] Non-root user inside container
 - [ ] Deny patterns configured
+- [ ] Config isolation via named volume (default) — no host `~/.claude` bind-mount
 - [ ] No host mounts beyond project directory
 - [ ] No production credentials accessible
 - [ ] Strict hook profile
