@@ -93,9 +93,24 @@ for var_name in DISCORD_STATE_DIR TELEGRAM_STATE_DIR; do
   fi
 done
 
-# --- 3. Install channel plugins (named volume starts empty on first run) ---
+# --- 3. Install plugins (named volume starts empty on first run) ---
+INSTALLED=$(claude plugin list 2>/dev/null || echo "")
+
+# Hermit marketplace + plugin
+if ! echo "$INSTALLED" | grep -q "claude-code-hermit@claude-code-hermit"; then
+  echo "[docker-entrypoint] Adding hermit marketplace..."
+  claude plugin marketplace add gtapps/claude-code-hermit 2>/dev/null || true
+  echo "[docker-entrypoint] Installing hermit plugin..."
+  claude plugin install claude-code-hermit@claude-code-hermit --scope project 2>/dev/null || \
+    echo "[docker-entrypoint] Warning: failed to install hermit plugin — install manually"
+fi
+
+# Channel plugins
 if [ -n "$CHANNELS" ]; then
-  INSTALLED=$(claude plugin list 2>/dev/null || echo "")
+  if ! echo "$INSTALLED" | grep -q "claude-plugins-official"; then
+    echo "[docker-entrypoint] Adding official plugins marketplace..."
+    claude plugin marketplace add anthropics/claude-plugins-official 2>/dev/null || true
+  fi
   for plugin in $CHANNELS; do
     if ! echo "$INSTALLED" | grep -q "${plugin}@claude-plugins-official"; then
       echo "[docker-entrypoint] Installing channel plugin: ${plugin}"

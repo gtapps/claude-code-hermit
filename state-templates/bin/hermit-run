@@ -17,6 +17,28 @@ fi
 
 PLUGIN_ROOT=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('_plugin_root',''))" "$CONFIG")
 
+# If stored path doesn't exist, try under CLAUDE_CONFIG_DIR (container isolation)
+if [ -n "$PLUGIN_ROOT" ] && [ ! -d "$PLUGIN_ROOT" ] && [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
+  # Stored path may use the host's ~/.claude — remap to the container's config dir
+  SUFFIX="${PLUGIN_ROOT#*/.claude/}"
+  if [ "$SUFFIX" != "$PLUGIN_ROOT" ]; then
+    REMAPPED="${CLAUDE_CONFIG_DIR}/${SUFFIX}"
+    if [ -d "$REMAPPED" ]; then
+      PLUGIN_ROOT="$REMAPPED"
+      echo "[hermit] Plugin path remapped to container config: $PLUGIN_ROOT" >&2
+      python3 -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    cfg = json.load(f)
+cfg['_plugin_root'] = sys.argv[2]
+with open(sys.argv[1], 'w') as f:
+    json.dump(cfg, f, indent=2)
+    f.write('\n')
+" "$CONFIG" "$PLUGIN_ROOT" 2>/dev/null || true
+    fi
+  fi
+fi
+
 # Auto-discover new version directory when stored path is stale after plugin upgrade
 if [ -n "$PLUGIN_ROOT" ] && [ ! -d "$PLUGIN_ROOT" ]; then
   PARENT_DIR="$(dirname "$PLUGIN_ROOT")"
