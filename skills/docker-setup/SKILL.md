@@ -35,6 +35,7 @@ Templates live in `${CLAUDE_SKILL_DIR}/../../state-templates/docker/`.
    - Build files (`Makefile`, `CMakeLists.txt`), version managers (`.tool-versions`)
    - Database config (prisma, knex, sequelize)
    - OPERATOR.md mentions of tools/stack
+   - `.claude/settings.json` and `.claude/settings.local.json` `permissions.allow` entries — allowed Bash commands reveal tools the project expects (e.g. `Bash(docker *)` → docker CLI, `Bash(python *)` → python3, `Bash(psql *)` → postgresql-client). Check for commands that need system packages not in the base image.
 
    Present findings conversationally with reasoning. If nothing found, say so. Write approved list to `config.json` `docker.packages`.
 
@@ -60,11 +61,10 @@ Read the three templates from `${CLAUDE_SKILL_DIR}/../../state-templates/docker/
         <space-separated packages> && \
       rm -rf /var/lib/apt/lists/*
   ```
-  If empty, remove the `{{PACKAGES_BLOCK}}` line entirely.
+  If empty, remove the `{{PACKAGES_BLOCK}}` line entirely. The block is placed after the npm install layer so changing project packages doesn't bust the npm cache.
 
 **docker-entrypoint.hermit.sh** (from `docker-entrypoint.hermit.sh.template`):
 - `{{TMUX_SESSION_NAME}}` — resolved session name
-- Make executable: `chmod +x docker-entrypoint.hermit.sh`
 
 **docker-compose.hermit.yml** (from `docker-compose.hermit.yml.template`):
 - `{{AUTH_ENV_LINE}}` — `CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}` or `ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}`
@@ -190,6 +190,4 @@ If something looks wrong, help diagnose — suggest concrete next steps.
 
 **Why `.hermit` suffix?** The project may already have its own `Dockerfile` / `docker-compose.yml`. Hermit-namespaced files avoid conflicts.
 
-**Why `*_STATE_DIR` in compose `environment:`?** MCP servers (channel plugins) are separate processes that inherit OS env — they don't read `settings.local.json`. Without these env vars, the MCP server defaults to `~/.claude/channels/<plugin>/` which resolves to the container user's home, not the bind-mounted project path.
-
-**Channel plugin workaround (v0.0.4):** The channel plugin skills hardcode `~/.claude/channels/<plugin>/` paths, ignoring `*_STATE_DIR`. Step 7 patches these before pairing and verifies `access.json` lands in the local state dir. Will be unnecessary once Anthropic fixes the plugins.
+**Why `*_STATE_DIR` as OS env vars?** MCP servers (channel plugins) are separate processes that inherit OS env — they don't read `settings.local.json`. Without these env vars, the MCP server defaults to `~/.claude/channels/<plugin>/` which inside the container resolves to `/home/claude/.claude/channels/` — not bind-mounted and lost on restart.

@@ -7,6 +7,9 @@ services:
         HOST_UID: ${UID:-1000}
     volumes:
       - ${PWD}:${PWD}
+      # Mounts host ~/.claude into container at the same absolute path.
+      # CLAUDE_CONFIG_DIR (below) tells Claude Code to use this path
+      # instead of the container user's ~ (/home/claude).
       - ${HOME}/.claude:${HOME}/.claude
     working_dir: ${PWD}
     env_file: .env
