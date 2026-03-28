@@ -73,6 +73,7 @@ Read the three templates from `${CLAUDE_SKILL_DIR}/../../state-templates/docker/
   - `      - TELEGRAM_STATE_DIR=${PWD}/.claude.local/channels/telegram`
   Remove `{{CHANNEL_ENV_LINES}}` entirely if no channels configured.
 - `{{TMUX_SESSION_NAME}}` — resolved session name
+- **Git identity:** Check if `~/.gitconfig` exists on the host. If it does not exist, remove the `.gitconfig` bind-mount line from the rendered file and add a note in the summary: "No ~/.gitconfig found — git commits inside the container will have no author identity. Create one on the host and re-run docker-setup, or set git config manually inside the container."
 
 ### 5. Environment and protection
 
