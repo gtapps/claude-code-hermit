@@ -349,7 +349,13 @@ When the operator provides a token:
 
 **Pairing (after container is running):**
 
-If any channel tokens were configured and the container is running, walk the operator through pairing:
+If any channel tokens were configured and the container is running, ask:
+
+"Have you already paired your account with this bot? (yes / no) [no]"
+
+If **yes**: "Great, you're all set — the bot will recognise you automatically."
+
+If **no**, walk through it step by step:
 
 1. "Let's pair your account so the bot knows who you are. Open Discord/Telegram and DM your bot — just send any message."
 2. Wait for the operator to confirm they've sent the message.
