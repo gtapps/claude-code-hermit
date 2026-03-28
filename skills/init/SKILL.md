@@ -29,7 +29,8 @@ Create the following directories and files:
 ├── bin/
 │   ├── hermit-run
 │   ├── hermit-start
-│   └── hermit-stop
+│   ├── hermit-stop
+│   └── hermit-status
 └── OPERATOR.md
 ```
 
@@ -37,7 +38,7 @@ Create the following directories and files:
 - Copy `SHELL.md.template`, `SESSION-REPORT.md.template`, `PROPOSAL.md.template` into `templates/`
 - **OPERATOR.md guard:** If `.claude/.claude-code-hermit/OPERATOR.md` already exists, do NOT copy the template over it. Remember this fact as `operator_existed = true` for use in step 5a. If it does not exist, copy `OPERATOR.md` from the templates into the state directory root.
 - Copy `HEARTBEAT.md.template` → `.claude/.claude-code-hermit/HEARTBEAT.md` (the operator's editable checklist)
-- Copy `bin/hermit-run`, `bin/hermit-start`, and `bin/hermit-stop` from `${CLAUDE_SKILL_DIR}/../../state-templates/bin/` into `.claude/.claude-code-hermit/bin/`. Ensure they are executable (`chmod +x`).
+- Copy `bin/hermit-run`, `bin/hermit-start`, `bin/hermit-stop`, and `bin/hermit-status` from `${CLAUDE_SKILL_DIR}/../../state-templates/bin/` into `.claude/.claude-code-hermit/bin/`. Ensure they are executable (`chmod +x`).
 
 ### 3. Detect hermits
 
@@ -51,7 +52,7 @@ If hermits are found:
 
 ### 4. Setup wizard
 
-Run a conversational setup to configure project preferences. All questions have sensible defaults. The wizard is split into two groups: **Agent Identity** (who the agent is) and **Operational** (how the agent runs).
+Run a conversational setup to configure project preferences. All questions have sensible defaults. The wizard is split into two groups: **Identity** (who your assistant is) and **Operational** (how it runs).
 
 #### Agent Identity
 
@@ -62,7 +63,7 @@ Ask: "Give your agent a name? This personalizes session reports, channel message
 
 **4b. Preferred language**
 Auto-detect the system locale by running Bash: `echo $LANG | cut -d_ -f1` (falls back to `en` if undetectable).
-Ask: "What language should the agent use for communication? [auto-detected: pt]"
+Ask: "What language should your assistant use for communication? [auto-detected: pt]"
 - If operator confirms or presses Enter: record the detected value
 - If operator provides a different language code (e.g., `en`, `es`, `fr`): record that instead
 - Record as `language: "pt"`
@@ -75,7 +76,7 @@ Ask: "Timezone for scheduling? [auto-detected: Europe/Lisbon]"
 - Record as `timezone: "Europe/Lisbon"`
 
 **4d. Escalation threshold**
-Ask: "How autonomous should the agent be?
+Ask: "How autonomous should your assistant be?
   1. Conservative — ask before most non-trivial actions, create proposals instead of fixing directly
   2. Balanced — act on routine tasks, ask for significant changes (default)
   3. Autonomous — proceed unless blocked, minimize interruptions
@@ -325,7 +326,7 @@ Created:
   .claude/.claude-code-hermit/templates/ (3 templates)
   .claude/.claude-code-hermit/OPERATOR.md (onboarded)
   .claude/.claude-code-hermit/HEARTBEAT.md
-  .claude/.claude-code-hermit/bin/ (hermit-start, hermit-stop)
+  .claude/.claude-code-hermit/bin/ (hermit-start, hermit-stop, hermit-status)
   .claude/.claude-code-hermit/config.json
 
 Identity:

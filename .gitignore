@@ -8,6 +8,11 @@ node_modules/
 *.tmp
 *.swp
 *~
+*.log
+
+# Environment
+.env
+.env.*
 
 # OS
 .DS_Store

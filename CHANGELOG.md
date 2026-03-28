@@ -1,19 +1,40 @@
 # Changelog
 
+## [0.0.5] - 2026-03-28
+
+### Added
+- **Docker as default always-on path** — new `docs/ALWAYS-ON.md` guide frames Docker as the recommended way to run autonomous. Container isolation enables safe `bypassPermissions`.
+- **`/docker-setup` skill** — generates project-adapted Dockerfile, docker-entrypoint.sh, docker-compose.yml, and .env. Checks prerequisites, refuses if Docker files already exist.
+- **`/hermit-takeover` skill** — stops Docker container, marks session as `operator_takeover`, loads full hermit context, presents summary. For driving interactively with full continuity.
+- **`/hermit-hand-back` skill** — summarizes operator activity via `git log` since takeover, optionally queues instructions in NEXT-TASK.md, restarts container.
+- **`hermit-status` script** — pure bash, zero tokens. Reads `.status.json` sidecar and prints a one-liner: agent, project, status, task, progress, cost, blockers, Docker state.
+- **`.status.json` sidecar** — cost-tracker hook now writes structured session data for the `hermit-status` script.
+- **Conversational auto-triggers** — `session-close`, `proposal-list`, and `proposal-act` now activate from natural language ("I'm done", "any proposals", "accept PROP-003"). Slash commands remain as precision fallback.
+- **`pattern-detect` → `reflect`** — renamed to match what it actually does: a reflection prompt, not algorithmic pattern detection.
+
+### Changed
+- **`docs/ALWAYS-ON-OPS.md`** — Docker section removed (now in ALWAYS-ON.md). Retained as operational reference: lifecycle, security, channels, cost management. Renumbered sections.
+- **`README.md`** — Quick Start step 4 is now "Go always-on (recommended)" with `/docker-setup`. Bare tmux demoted to fallback note. Documentation table updated.
+- **`docs/HOW-TO-USE.md`** — "Going Always-On" section rewritten: Docker recommended, bare tmux as fallback.
+- **`docs/SKILLS.md`** — added Docker & Takeover category with 3 new skills (18 total).
+- **`init` skill** — now copies `hermit-status` to `bin/` alongside existing scripts.
+
+---
+
 ## [0.0.4] - 2026-03-27
 
 ### Breaking Changes — Hermit Plugin Authors
 
 | Contract | v0.0.3 | v0.0.4 |
 |---|---|---|
-| Learning trigger | session-close invokes pattern-detect | Reflection fires independently (heartbeat, natural pause, end of day) |
-| Pattern-detect input | Last 5 archived reports | Memory + SHELL.md + cost-log |
+| Learning trigger | session-close invokes reflect | Reflection fires independently (heartbeat, natural pause, end of day) |
+| Reflect input | Last 5 archived reports | Memory + SHELL.md + cost-log |
 | Session close | Mandatory for learning | Optional — still useful for audit trail |
 | Idle behavior | Dormant | Active (gated by escalation) |
 | Report prerequisite | 3+ archived reports | None |
 
 ### Added
-- **Memory-driven learning** — pattern-detect rewritten as a reflection prompt. Uses auto-memory as primary input instead of scanning archived reports. No report prerequisite — learns from day one.
+- **Memory-driven learning** — reflect (formerly pattern-detect) rewritten as a reflection prompt. Uses auto-memory as primary input instead of scanning archived reports. No report prerequisite — learns from day one.
 - **Idle agency** — heartbeat checks for autonomous work during idle: NEXT-TASK.md pickup, reflection (every 4+ hours), priority alignment check, maintenance. Gated by escalation level (conservative=alert, balanced=auto-start, autonomous=full auto).
 - **Daily rhythm** — morning routine (first heartbeat tick of active hours: brief, proposal review, priority check) and evening routine (last tick: daily journal archived as S-NNN, reflection, tomorrow prep). Both fire once per day.
 - **Self-awareness** — behavioral instruction in CLAUDE-APPEND giving the agent permission to stop when stuck. Three triggers: repeated failures, approach reversals, disproportionate cost. Escalation-gated response.
@@ -23,13 +44,13 @@
 - **New init wizard questions** — daily routines and idle agency (both default yes).
 
 ### Changed
-- **pattern-detect** — full rewrite from 125-line report-scanning algorithm to ~20-line reflection prompt. Drops 4 deterministic categories, 3-report minimum, and report reading. Keeps proposal pipeline, dedup, feedback loop, stale flags.
+- **reflect** (formerly pattern-detect) — full rewrite from 125-line report-scanning algorithm to ~20-line reflection prompt. Drops 4 deterministic categories, 3-report minimum, and report reading. Keeps proposal pipeline, dedup, feedback loop, stale flags.
 - **heartbeat** — gains idle agency and daily routines. Old "NEXT-TASK.md auto-pickup" section subsumed by idle agency.
 - **SHELL.md template** — Plan table is now optional (commented out). Progress Log is the primary record.
 - **HEARTBEAT.md template** — grouped structure (Task Checks, Idle Checks, Standing Checks).
 - **CLAUDE-APPEND** — gains Self-Awareness, Idle Behavior, Daily Rhythm, and Learning Model sections.
-- **session-close** — pattern-detect wording updated (reflects on experience, not reports).
-- **session** — pattern-detect reference updated, quick-task skip note added.
+- **session-close** — reflect wording updated (reflects on experience, not reports).
+- **session** — reflect reference updated, quick-task skip note added.
 - **session-start** — runs morning routine inline for interactive mode.
 - **brief** — gains daily summary format variant.
 
@@ -143,7 +164,7 @@ Core terminology and filenames have changed. Hermit plugins (e.g., `claude-code-
 ### Added
 - Initial release
 - **Session discipline** — task-driven sessions with tracked plans, cost logging, and archived reports
-- **15 skills**: session, session-start, session-close, status, brief, monitor, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, pattern-detect, channel-responder, init, upgrade
+- **15 skills**: session, session-start, session-close, status, brief, monitor, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, channel-responder, init, upgrade
 - **session-mgr agent** for session lifecycle management
 - **Boot scripts** (`hermit-start.py`, `hermit-stop.py`) for tmux-based headless operation
 - **Hook infrastructure** — cost tracking, compact suggestions, session evaluation, session-diff

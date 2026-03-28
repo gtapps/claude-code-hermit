@@ -1,6 +1,6 @@
 ---
 name: session-close
-description: Closes the current work session with a structured handoff. Archives the session report and prepares for the next session. Use at the end of every work session.
+description: Closes the current work session with a structured handoff. Archives the session report and prepares for the next session. Activates on messages like "I'm done", "wrap it up", "that's it for now", "done for today", "close the session".
 ---
 # Session Close
 
@@ -24,7 +24,7 @@ Use this when the operator wants to end everything (via `hermit-stop` or explici
 4. Record lessons learned — only genuinely useful ones, not obvious statements
 5. If any high-leverage improvements were discovered during work, create proposals via the `proposal-create` skill
 6. Confirm the "Next Start Point" is clear enough for a fresh session to resume without questions
-7. Invoke the `pattern-detect` skill to reflect on accumulated experience. Pattern-detect no longer requires archived reports — it reflects on memory. This runs before archiving so any findings are included in the archived report.
+7. Invoke the `reflect` skill to reflect on accumulated experience. Reflect no longer requires archived reports — it uses memory. This runs before archiving so any findings are included in the archived report.
 8. Archive the session via `session-mgr` (full close — replace SHELL.md with fresh template)
 
 ---

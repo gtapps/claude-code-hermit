@@ -75,7 +75,7 @@ Ask: "Timezone? (e.g., Europe/Lisbon, America/New_York, UTC) [current value or a
 Update `timezone` in config.json.
 
 **If argument is "escalation":**
-Ask: "How autonomous should the agent be?
+Ask: "How autonomous should your assistant be?
   1. Conservative — ask before most non-trivial actions, create proposals instead of fixing directly
   2. Balanced — act on routine tasks, ask for significant changes (default)
   3. Autonomous — proceed unless blocked, minimize interruptions
@@ -136,7 +136,7 @@ Update `permission_mode` in config.json.
 
 **If argument is "idle-agency":**
 - Show current state of `heartbeat.idle_agency` and `escalation`
-- Ask: "Allow autonomous idle work? When idle, the agent checks for queued tasks, reflects on patterns, and runs maintenance. Gated by your escalation setting (currently: {escalation}). (yes / no) [current value]"
+- Ask: "Allow autonomous idle work? When idle, your assistant checks for queued tasks, reflects on patterns, and runs maintenance. Gated by your escalation setting (currently: {escalation}). (yes / no) [current value]"
 - Update `heartbeat.idle_agency` in config.json.
 
 ### 3. Write config

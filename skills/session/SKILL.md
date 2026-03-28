@@ -44,7 +44,7 @@ When the work is done, or the operator decides to move on (even if partial or bl
 1. Finalize SHELL.md — ensure all progress, blockers, and findings are recorded
 2. Verify quality: task status is accurate (`completed` | `partial` | `blocked`), changed files listed, cost recorded
 3. Create proposals for any high-leverage improvements discovered during work
-4. Invoke the `pattern-detect` skill for reflection. For quick tasks (no plan, under 5 minutes), skip this — progress log is sufficient.
+4. Invoke the `reflect` skill for reflection. For quick tasks (no plan, under 5 minutes), skip this — progress log is sufficient.
 5. Use `session-mgr` to perform an **idle transition** (archive report, reset task-scoped sections, set status to `idle`)
 6. If `heartbeat.enabled` is true in config and heartbeat is not already running: start it (`/claude-code-hermit:heartbeat start`)
 7. Report: "Archived as S-NNN. What's next?"

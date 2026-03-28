@@ -10,7 +10,7 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | `session`       | Full workflow: start, work, close. The main entry point.                                                                      | --            |
 | `session-start` | Picks up where you left off, or starts fresh. Loads context and checks for queued work from accepted proposals.               | --            |
-| `session-close` | Finalizes the session, runs a quality checklist, archives the report. Always a full shutdown — idle transitions happen automatically when work finishes. | --            |
+| `session-close` | Finalizes the session, runs a quality checklist, archives the report. Always a full shutdown — idle transitions happen automatically when work finishes. | "I'm done", "wrap it up", "that's it for now", "done for today" |
 
 ## Status & Reporting
 
@@ -40,9 +40,9 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 | Skill             | What it does                                                                                                                          | Auto-triggers |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | `proposal-create` | Capture a high-leverage improvement found during work. Skip trivial fixes (just fix them) and style preferences (put in OPERATOR.md). | --            |
-| `proposal-list`   | All proposals with status, source, and age. Auto-detected proposals listed first. Stale proposals (10+ sessions) get flagged.         | --            |
-| `proposal-act`    | Accept, defer, or dismiss. Accepting creates a NEXT-TASK.md for the next idle pickup.                                                 | --            |
-| `pattern-detect`  | Reflects on accumulated experience to surface recurring patterns. Uses memory as primary input — no report prerequisite. Runs at task boundaries, heartbeat idle checks, and end of day. | --            |
+| `proposal-list`   | All proposals with status, source, and age. Auto-detected proposals listed first. Stale proposals (10+ sessions) get flagged.         | "what have you noticed", "any improvements", "any proposals" |
+| `proposal-act`    | Accept, defer, or dismiss. Accepting creates a NEXT-TASK.md for the next idle pickup.                                                 | "accept PROP-", "dismiss PROP-", "defer PROP-" |
+| `reflect`  | Reflects on accumulated experience to surface recurring patterns. Uses memory as primary input — no report prerequisite. Runs at task boundaries, heartbeat idle checks, and end of day. | --            |
 
 ## Configuration
 
@@ -51,6 +51,14 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 | `hermit-settings` | View or change project config. Subcommands: `name`, `language`, `timezone`, `escalation`, `sign-off`, `channels`, `remote`, `model`, `budget`, `brief`, `permissions`, `heartbeat`, `routines`, `idle-agency`. | --             |
 | `init`            | One-time project setup. Creates state directory, runs the wizard, scans your project, and writes OPERATOR.md.                                                                    | --            |
 | `upgrade`         | Run after updating the plugin. Detects version gaps, refreshes templates, prompts for new settings.                                                                              | --            |
+
+## Docker & Takeover
+
+| Skill              | What it does                                                                                                                                                                    | Auto-triggers |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `docker-setup`     | Generates Dockerfile, docker-entrypoint.sh, docker-compose.yml, and .env for running hermit in Docker. Checks prerequisites, asks about auth/channels, adapts to project config. Refuses if Docker files already exist. | --            |
+| `hermit-takeover`  | Stops the Docker container, marks session as `operator_takeover`, loads full hermit context (OPERATOR.md, SHELL.md, latest report), presents a summary. Run locally to drive interactively. | --            |
+| `hermit-hand-back` | Summarizes operator activity via `git log`, optionally queues instructions in NEXT-TASK.md, updates SHELL.md, restarts the Docker container.                                     | --            |
 
 ## Communication
 

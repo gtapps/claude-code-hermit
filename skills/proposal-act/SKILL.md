@@ -1,6 +1,6 @@
 ---
 name: proposal-act
-description: Accept, defer, or dismiss a proposal. For accepted proposals, asks how to proceed — create a session task or note for manual implementation. Every auto-proposal requires operator action.
+description: Accept, defer, or dismiss a proposal. For accepted proposals, asks how to proceed — create a session task or note for manual implementation. Activates on messages like "accept PROP-", "dismiss PROP-", "defer PROP-".
 ---
 # Proposal Act
 

@@ -1,6 +1,6 @@
 ---
 name: proposal-list
-description: Lists all proposals with their status, source, and age. Shows auto-detected proposals prominently. Use to review what your hermit has noticed from experience.
+description: Lists all proposals with their status, source, and age. Shows auto-detected proposals prominently. Activates on messages like "what have you noticed", "any improvements", "any proposals", "show proposals".
 ---
 # Proposal List
 

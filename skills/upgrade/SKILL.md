@@ -59,9 +59,9 @@ The prompts below match the init wizard exactly. Use the same wording for consis
 
 **Prompts** (use the same text as the init wizard in `skills/init/SKILL.md` steps 4a–4e):
 - `agent_name`: "Give your agent a name? This personalizes session reports, channel messages, and briefs. (e.g., Atlas, Hermit, Scout) [skip]"
-- `language`: "What language should the agent use for communication? [auto-detected: {value}]"
+- `language`: "What language should your assistant use for communication? [auto-detected: {value}]"
 - `timezone`: "Timezone for scheduling? [auto-detected: {value}]"
-- `escalation`: "How autonomous should the agent be? 1. Conservative — ask before most non-trivial actions, create proposals instead of fixing directly. 2. Balanced — act on routine tasks, ask for significant changes (default). 3. Autonomous — proceed unless blocked, minimize interruptions. Choose 1-3: [2]"
+- `escalation`: "How autonomous should your assistant be? 1. Conservative — ask before most non-trivial actions, create proposals instead of fixing directly. 2. Balanced — act on routine tasks, ask for significant changes (default). 3. Autonomous — proceed unless blocked, minimize interruptions. Choose 1-3: [2]"
 - `sign_off`: "Sign-off line for channel messages and briefs? (e.g., '{name} out.', '— {initial}.', or skip) [skip]"
 
 **v0.0.4 prompts:**

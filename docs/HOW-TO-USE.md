@@ -114,14 +114,23 @@ Both fire once per day. Configure with `/claude-code-hermit:hermit-settings rout
 
 ## Going Always-On
 
+Docker is the recommended way to run your hermit autonomously. It provides container isolation so you can safely use `bypassPermissions` — no interactive prompts, no babysitting.
+
 ```bash
-.claude/.claude-code-hermit/bin/hermit-start    # launch in tmux with channels + heartbeat
-.claude/.claude-code-hermit/bin/hermit-stop     # graceful shutdown
+/claude-code-hermit:docker-setup    # generates Dockerfile, entrypoint, compose
+docker compose build && docker compose up -d
 ```
 
-In always-on mode, the session stays open between tasks — heartbeat, monitors, and channels keep running. Send instructions from your phone. Let it work overnight.
+See [Always-On Setup](ALWAYS-ON.md) for the full guide — auth, channels, takeover, cost management.
 
-See [Always-On Operations](ALWAYS-ON-OPS.md) for the full guide.
+**Without Docker?** You can run directly in tmux:
+
+```bash
+.claude/.claude-code-hermit/bin/hermit-start
+.claude/.claude-code-hermit/bin/hermit-stop
+```
+
+See [Always-On Operations](ALWAYS-ON-OPS.md) for tmux setup and operational details.
 
 ---
 
@@ -193,15 +202,18 @@ Or just ask Hermit: "What permissions do you need?" — it'll tell you exactly w
 
 ---
 
-## All 15 Skills
+## All 18 Skills
+
+Most common actions auto-trigger from natural language — just say what you mean. Slash commands (`/claude-code-hermit:*`) are the precision fallback for when auto-triggers don't fire.
 
 | Category       | Skills                                                               |
 | -------------- | -------------------------------------------------------------------- |
 | **Session**    | `session`, `session-start`, `session-close`                          |
 | **Status**     | `status`, `brief`                                                    |
 | **Monitoring** | `monitor`, `heartbeat`                                               |
-| **Learning**   | `proposal-create`, `proposal-list`, `proposal-act`, `pattern-detect` |
+| **Learning**   | `proposal-create`, `proposal-list`, `proposal-act`, `reflect` |
 | **Config**     | `hermit-settings`, `init`, `upgrade`                                 |
+| **Docker**     | `docker-setup`, `hermit-takeover`, `hermit-hand-back`                |
 | **Channels**   | `channel-responder`                                                  |
 
 Full reference: [Skills Reference](SKILLS.md).

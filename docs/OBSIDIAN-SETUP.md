@@ -12,7 +12,7 @@ The **repo is the single source of truth**. Obsidian reads from it via live quer
 
 ### 2. Canonical flows come from the plugin
 
-Sessions: `session-start`, `session-close`. Proposals: `proposal-create`, `proposal-act`. Patterns: `pattern-detect`. **Never** use Obsidian's Templater or "New note" to create session or proposal files — this bypasses lifecycle tracking.
+Sessions: `session-start`, `session-close`. Proposals: `proposal-create`, `proposal-act`. Reflection: `reflect`. **Never** use Obsidian's Templater or "New note" to create session or proposal files — this bypasses lifecycle tracking.
 
 ---
 

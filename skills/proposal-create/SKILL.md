@@ -21,7 +21,7 @@ Create a proposal only when you discover something with real leverage:
 2. Create `.claude/.claude-code-hermit/proposals/PROP-NNN.md` using `.claude/.claude-code-hermit/templates/PROPOSAL.md.template`:
    - Fill in the title, date, and session ID
    - Set status to `proposed`
-   - Set `Source:` to `manual` (default) or `auto-detected` (when invoked by `pattern-detect`)
+   - Set `Source:` to `manual` (default) or `auto-detected` (when invoked by `reflect`)
    - Set `Related Sessions:` to the relevant session IDs (optional — used by auto-detected proposals to link evidence across multiple sessions)
    - Write a clear Context, Problem, Proposed Solution, and Impact
    - Leave "Operator Decision" blank — the operator fills that in

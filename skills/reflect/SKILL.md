@@ -1,5 +1,5 @@
 ---
-name: pattern-detect
+name: reflect
 description: Reflect on recent work and propose improvements if patterns are noticed.
 ---
 # Reflect

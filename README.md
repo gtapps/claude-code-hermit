@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.0.4-green.svg" alt="Version 0.0.4" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.0.5-green.svg" alt="Version 0.0.5" /></a>
   <img src="https://img.shields.io/badge/Claude-Pro%20%7C%20Max-blueviolet.svg" alt="Claude Pro/Max Compatible" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
 </p>
@@ -81,7 +81,23 @@ The wizard sets up your agent's identity, scans your folder for context, and gen
 
 Tell it what you need. It plans the work, tracks progress, and logs everything. Type "status" anytime. When it finishes, it stays ready — tell it what's next.
 
-### 4. Connect your phone (optional)
+### 4. Go always-on (recommended)
+
+```
+/claude-code-hermit:docker-setup
+```
+
+Generates a Dockerfile, entrypoint, and compose file tailored to your project. Then build and launch:
+
+```bash
+docker compose build && docker compose up -d
+```
+
+See [Always-On Setup](docs/ALWAYS-ON.md) for the full guide — auth, takeover/hand-back, cost management, and troubleshooting.
+
+> **Without Docker?** See [Always-On Operations](docs/ALWAYS-ON-OPS.md) for running with bare tmux — lighter but without container isolation.
+
+### 5. Connect your phone (optional)
 
 Install the [Claude Code Channels](https://code.claude.com/docs/en/channels) plugin for your platform:
 
@@ -90,15 +106,6 @@ claude /plugin install discord@claude-plugins-official   # or telegram, imessage
 ```
 
 Pair your account by messaging the bot — it walks you through it. Once connected, you control your hermit from your phone: send instructions, check status, get alerts. Combined with [remote control](https://code.claude.com/docs/en/remote-control) (enabled by default), you never need to touch the terminal again.
-
-### 5. Go always-on (optional)
-
-```bash
-.claude/.claude-code-hermit/bin/hermit-start    # launch in tmux with channels + heartbeat
-.claude/.claude-code-hermit/bin/hermit-stop     # graceful shutdown
-```
-
-See [Always-On Operations](docs/ALWAYS-ON-OPS.md) for the full guide — cost management, Docker isolation, security, auto-restart on reboot.
 
 ---
 
@@ -137,7 +144,9 @@ You can also talk to Hermit about how it can improve. Ask what slowed it down, w
 
 - **Your rules, its judgment** — `OPERATOR.md` is your rulebook. Budget limits, off-limits directories, naming conventions, communication style. Set it once. Hermit reads it every session and respects it without you having to repeat yourself.
 
-- **Walk-away autonomy** — Boot it in tmux, connect a channel, and manage everything from your phone. Let it work overnight. Wake up to a morning brief of what happened while you slept.
+- **Operator takeover** — Stop the autonomous agent, take the wheel with full context, leave instructions, hand it back. `/hermit-takeover` and `/hermit-hand-back`.
+
+- **Walk-away autonomy** — Boot it in Docker, connect a channel, and manage everything from your phone. Let it work overnight. Wake up to a morning brief of what happened while you slept.
 
 ---
 
@@ -163,8 +172,9 @@ See [Creating Your Own Hermit](docs/CREATING-YOUR-OWN-HERMIT.md) for more — fr
 | Document                                                     | What it covers                                                    |
 | ------------------------------------------------------------ | ----------------------------------------------------------------- |
 | [Getting Started](docs/HOW-TO-USE.md)                        | Install, first session, daily rhythm, common workflows            |
-| [Skills Reference](docs/SKILLS.md)                           | All 15 skills with usage, auto-triggers, and examples             |
-| [Always-On Operations](docs/ALWAYS-ON-OPS.md)                | Persistent sessions, channels, cost management, Docker, security  |
+| [Skills Reference](docs/SKILLS.md)                           | All 18 skills with usage, auto-triggers, and examples             |
+| [Always-On Setup](docs/ALWAYS-ON.md)                         | Docker setup, takeover/hand-back, quick status                    |
+| [Always-On Operations](docs/ALWAYS-ON-OPS.md)                | Lifecycle internals, security, cost management, channels          |
 | [Architecture](docs/ARCHITECTURE.md)                         | 5-layer design, memory model, learning loop internals             |
 | [Creating Your Own Hermit](docs/CREATING-YOUR-OWN-HERMIT.md) | Customization — OPERATOR.md, specialized agents, reusable plugins |
 | [Upgrading](docs/UPGRADING.md)                               | Upgrade guide for plugin updates                                  |

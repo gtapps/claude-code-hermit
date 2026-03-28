@@ -153,7 +153,7 @@ Check for `sessions/NEXT-TASK.md`. If found, respect the configured escalation l
 - **autonomous:** start it, notify on completion
 
 If no NEXT-TASK.md and `_last_reflection` is null or 4+ hours ago:
-- Invoke `/claude-code-hermit:pattern-detect`
+- Invoke `/claude-code-hermit:reflect`
 - Update `heartbeat._last_reflection` to now (ISO string with timezone offset from config)
 
 Read OPERATOR.md. Think about whether current work aligns with the stated priorities and constraints. If deadlines or budgets need attention, cross-reference with `.claude/cost-log.jsonl` and alert.
@@ -178,6 +178,6 @@ Fires when: `heartbeat.evening_routine` is `true` AND `heartbeat._last_evening �
 
 If there are progress log entries since the last archived report: archive a daily summary as the next sequential S-NNN-REPORT.md (bypass session-mgr — read progress log, format as report, write directly, clear captured entries). The `## Task` section reads "Daily summary — [date]". Plan section omitted. If no progress log entries since last report: skip archiving.
 
-Run `/claude-code-hermit:pattern-detect` if `_last_reflection` is null or 4+ hours ago.
+Run `/claude-code-hermit:reflect` if `_last_reflection` is null or 4+ hours ago.
 
 Send summary via channel if configured. Update `heartbeat._last_evening` to today (ISO date with timezone offset).
