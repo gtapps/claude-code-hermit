@@ -94,10 +94,14 @@ for var_name in DISCORD_STATE_DIR TELEGRAM_STATE_DIR; do
 done
 
 # --- 3. Install plugins (named volume starts empty on first run) ---
-INSTALLED=$(claude plugin list 2>/dev/null || echo "")
+# Check the marketplace cache directory directly — not `claude plugin list`, which returns
+# project-scoped plugins as "installed" even when the named volume cache is empty.
+# Paths reflect Claude Code's internal cache layout: plugins/marketplaces/<marketplace>/
+# and plugins/marketplaces/claude-plugins-official/external_plugins/<plugin>/
+MARKETPLACE_DIR="${CLAUDE_CONFIG_DIR}/plugins/marketplaces"
 
 # Hermit marketplace + plugin
-if ! echo "$INSTALLED" | grep -q "claude-code-hermit@claude-code-hermit"; then
+if [ ! -d "${MARKETPLACE_DIR}/claude-code-hermit" ]; then
   echo "[docker-entrypoint] Adding hermit marketplace..."
   claude plugin marketplace add gtapps/claude-code-hermit 2>/dev/null || true
   echo "[docker-entrypoint] Installing hermit plugin..."
@@ -107,12 +111,12 @@ fi
 
 # Channel plugins
 if [ -n "$CHANNELS" ]; then
-  if ! echo "$INSTALLED" | grep -q "claude-plugins-official"; then
+  if [ ! -d "${MARKETPLACE_DIR}/claude-plugins-official" ]; then
     echo "[docker-entrypoint] Adding official plugins marketplace..."
     claude plugin marketplace add anthropics/claude-plugins-official 2>/dev/null || true
   fi
   for plugin in $CHANNELS; do
-    if ! echo "$INSTALLED" | grep -q "${plugin}@claude-plugins-official"; then
+    if [ ! -d "${MARKETPLACE_DIR}/claude-plugins-official/external_plugins/${plugin}" ]; then
       echo "[docker-entrypoint] Installing channel plugin: ${plugin}"
       claude plugin install "${plugin}@claude-plugins-official" --scope local 2>/dev/null || \
         echo "[docker-entrypoint] Warning: failed to install ${plugin} plugin — install manually"

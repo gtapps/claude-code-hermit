@@ -26,15 +26,8 @@ if [ -n "$PLUGIN_ROOT" ] && [ ! -d "$PLUGIN_ROOT" ] && [ -n "${CLAUDE_CONFIG_DIR
     if [ -d "$REMAPPED" ]; then
       PLUGIN_ROOT="$REMAPPED"
       echo "[hermit] Plugin path remapped to container config: $PLUGIN_ROOT" >&2
-      python3 -c "
-import json, sys
-with open(sys.argv[1]) as f:
-    cfg = json.load(f)
-cfg['_plugin_root'] = sys.argv[2]
-with open(sys.argv[1], 'w') as f:
-    json.dump(cfg, f, indent=2)
-    f.write('\n')
-" "$CONFIG" "$PLUGIN_ROOT" 2>/dev/null || true
+      # Intentionally NOT writing back to config.json — _plugin_root must stay as the
+      # host path so it resolves correctly when hermit-run is called on the host.
     fi
   fi
 fi
