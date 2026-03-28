@@ -140,9 +140,15 @@ Press Enter to accept, then Ctrl+B, D to detach. Wait for confirmation.
 
 For each channel, ask if already paired. If not:
 1. Operator DMs the bot → gets a 6-char code → pastes it
-2. Send pair command into tmux: `docker exec <container> tmux send-keys -t <session> '/<plugin>:access pair <code>' Enter`
+2. Send pair command into tmux — append the local state dir so the LLM writes there instead of the default user path:
+   ```
+   docker exec <container> tmux send-keys -t <session> '/<plugin>:access pair <code> — save access.json to <project_path>/.claude.local/channels/<plugin>/ not ~/.claude' Enter
+   ```
 3. Wait a few seconds, then set policy: `docker exec <container> tmux send-keys -t <session> '/<plugin>:access policy allowlist' Enter`
-4. **Verify `access.json` landed in the right place:** Check that `access.json` exists at `.claude.local/channels/<plugin>/access.json`. The entrypoint symlinks `/home/claude/.claude/channels/<plugin>/` → the local state dir, so skill writes land in the right place automatically.
+4. **Verify `access.json` landed in the right place:** Check that `access.json` exists at `.claude.local/channels/<plugin>/access.json`. If it still landed in `~/.claude/channels/<plugin>/`, move it:
+   ```
+   docker exec <container> bash -c 'src="${CLAUDE_CONFIG_DIR:-/home/claude/.claude}/channels/<plugin>/access.json"; dst="<project_path>/.claude.local/channels/<plugin>/"; [ -f "$src" ] && mkdir -p "$dst" && mv "$src" "$dst" && echo moved'
+   ```
 5. Confirm: "Paired and locked down."
 
 If "skip": tell them to DM the bot later and run the commands manually.
