@@ -1,0 +1,24 @@
+services:
+  claude-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.hermit
+      args:
+        HOST_UID: ${UID:-1000}
+    volumes:
+      - ${PWD}:${PWD}
+      - ${HOME}/.claude:${HOME}/.claude
+    working_dir: ${PWD}
+    env_file: .env
+    environment:
+      - CLAUDE_CONFIG_DIR=${HOME}/.claude
+      - {{AUTH_ENV_LINE}}
+{{CHANNEL_ENV_LINES}}
+    network_mode: host
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "tmux", "has-session", "-t", "{{TMUX_SESSION_NAME}}"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

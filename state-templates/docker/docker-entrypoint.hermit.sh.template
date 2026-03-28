@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_DIR="$(pwd)"
+AGENT_DIR="${PROJECT_DIR}/.claude-code-hermit"
+
+echo "[docker-entrypoint] Starting hermit container..."
+echo "[docker-entrypoint] Project: ${PROJECT_DIR}"
+
+# --- 1. Bypass onboarding + pre-approve channel MCP servers ---
+# Single load/save pass for .claude.json to avoid double I/O and race window.
+CLAUDE_JSON="${CLAUDE_CONFIG_DIR:=${HOME}/.claude}/.claude.json"
+CC_VERSION=$(claude --version 2>/dev/null | grep -oP '[\d.]+' | head -1 || echo "0.0.0")
+python3 -c "
+import json, sys, os
+path, version, project = sys.argv[1], sys.argv[2], sys.argv[3]
+if os.path.exists(path):
+    with open(path) as f: d = json.load(f)
+else:
+    d = {}
+changed = False
+
+# Onboarding bypass
+if not d.get('hasCompletedOnboarding') or d.get('lastOnboardingVersion') != version:
+    d.update({'hasCompletedOnboarding': True, 'lastOnboardingVersion': version})
+    changed = True
+    print(f'[docker-entrypoint] Onboarding bypass set for Claude Code v{version}')
+
+# Pre-approve channel MCP servers for this project
+config_path = os.path.join(project, '.claude-code-hermit', 'config.json')
+channels = []
+if os.path.exists(config_path):
+    with open(config_path) as f: channels = json.load(f).get('channels', [])
+if channels:
+    plugin_ids = {
+        'discord': 'plugin:discord:discord',
+        'telegram': 'plugin:telegram:telegram',
+    }
+    proj = d.setdefault('projects', {}).setdefault(project, {})
+    enabled = proj.get('enabledMcpjsonServers', [])
+    disabled_json = proj.get('disabledMcpjsonServers', [])
+    disabled_mcp = proj.get('disabledMcpServers', [])
+    for ch in channels:
+        pid = plugin_ids.get(ch)
+        if not pid:
+            continue
+        if pid not in enabled:
+            enabled.append(pid)
+            changed = True
+            print(f'[docker-entrypoint] MCP server {pid}: added to enabledMcpjsonServers')
+        if pid in disabled_json:
+            disabled_json.remove(pid)
+            changed = True
+        if pid in disabled_mcp:
+            disabled_mcp.remove(pid)
+            changed = True
+    proj['enabledMcpjsonServers'] = enabled
+    proj['disabledMcpjsonServers'] = disabled_json
+    proj['disabledMcpServers'] = disabled_mcp
+
+if changed:
+    with open(path, 'w') as f: json.dump(d, f)
+" "$CLAUDE_JSON" "$CC_VERSION" "$PROJECT_DIR"
+
+# --- 2. Patch permission_mode to bypassPermissions ---
+CONFIG_JSON="${AGENT_DIR}/config.json"
+if [ -f "$CONFIG_JSON" ]; then
+  python3 -c "
+import json, sys
+path = sys.argv[1]
+with open(path) as f: c = json.load(f)
+if c.get('permission_mode') != 'bypassPermissions':
+    c['permission_mode'] = 'bypassPermissions'
+    with open(path, 'w') as f: json.dump(c, f, indent=2)
+    print('[docker-entrypoint] permission_mode -> bypassPermissions')
+else:
+    print('[docker-entrypoint] permission_mode OK')
+" "$CONFIG_JSON"
+fi
+
+# --- 3. Launch hermit-start ---
+"${AGENT_DIR}/bin/hermit-start" "$@"
+
+# --- 4. Keep PID 1 alive ---
+SESSION_NAME="{{TMUX_SESSION_NAME}}"
+echo "[docker-entrypoint] Watching tmux session: ${SESSION_NAME}"
+while tmux has-session -t "$SESSION_NAME" 2>/dev/null; do
+  sleep 30
+done
+echo "[docker-entrypoint] tmux session ended — container exiting"
