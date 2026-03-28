@@ -139,6 +139,17 @@ Otherwise: read and append CLAUDE-APPEND.md.
 
 Follow core's `scripts/` directory as reference. Profile-gate safety hooks to `strict`, quality hooks to `standard,strict`. Fail open (exit 0 on parse errors). Drain stdin. No npm dependencies.
 
+### Docker dependencies
+
+If your hermit needs system packages in Docker (e.g., a database client, media tools), append them to `docker.packages` in your init skill:
+
+1. Read `.claude-code-hermit/config.json`
+2. Add your packages to `docker.packages` (deduplicate against existing entries)
+3. Write back config.json
+4. Note to the operator: "Added [packages] to docker.packages — rebuild your container if using Docker."
+
+The `/docker-setup` skill reads `docker.packages` and includes them in the generated Dockerfile as a separate layer. Operators can also manage packages via `/hermit-settings docker`.
+
 ### Checklist before publishing
 
 - [ ] Every agent has `disallowedTools`

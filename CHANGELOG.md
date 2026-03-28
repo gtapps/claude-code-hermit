@@ -21,13 +21,16 @@ Env vars are now managed in `config.json` `env` and written to `.claude/settings
 3. If you use Docker: rebuild (`docker compose -f docker-compose.hermit.yml build`) and regenerate compose with `/claude-code-hermit:docker-setup` to get the slimmed-down `environment:` section — or just remove the 5 non-auth env vars from your existing compose file manually
 
 ### Added
+- **`docker.packages` in config.json** — project-specific apt packages for Docker containers. During `/docker-setup`, Claude analyzes the project (package.json, requirements.txt, Makefile, database configs, OPERATOR.md) and suggests system packages with reasoning. The operator approves/edits, and packages are included as a separate Dockerfile layer. Hermit plugins can also append packages in their init skill.
+- **`/hermit-settings docker`** — view and edit Docker packages in config.json
 - **`/hermit-settings env`** — view and edit env vars in config.json
-- **Deep merge in `load_config()`** — partial config.json overrides of `env` and `heartbeat` no longer drop sibling defaults
+- **Deep merge in `load_config()`** — partial config.json overrides of `env`, `heartbeat`, and `docker` no longer drop sibling defaults
 
 ### Fixed
 - `load_config()` shallow merge bug — if config.json had `"env": {"AGENT_HOOK_PROFILE": "strict"}`, the other 3 default env vars were silently lost. Now deep-merges nested dicts.
 - `load_config()` crash when `active_hours: null` in config.json — deep merge tried to unpack `None` as dict. Now guards with `or {}`.
 - **Channel state dirs kept as OS env vars** — `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` are forwarded via tmux temp file and Docker compose `environment:`, not just `settings.local.json`. MCP servers (which channel plugins run as) inherit shell env but don't read `settings.local.json`.
+- **Stale channel tokens cleaned from settings.local.json** — `hermit-start` now removes `*_BOT_TOKEN` vars from `.claude/settings.local.json` on every boot. If a bot token exists in both settings.local.json and `.claude.local/channels/<plugin>/.env`, the settings.local.json value overrides the file (via `process.env`) and goes stale silently when the token is rotated. The token should only live in the channel's `.env` file. Docker setup also cleans stale tokens when configuring channels.
 - **Docker channel plugin workaround documented** — channel plugins v0.0.4 hardcode `~/.claude/channels/` in both MCP servers and skill files (`/discord:access`, `/discord:configure`). Docker setup now documents the `*_STATE_DIR` override and skill patching needed until Anthropic fixes this upstream.
 
 ---

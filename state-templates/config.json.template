@@ -21,6 +21,9 @@
     "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50",
     "MAX_THINKING_TOKENS": "10000"
   },
+  "docker": {
+    "packages": []
+  },
   "heartbeat": {
     "enabled": true,
     "every": "30m",

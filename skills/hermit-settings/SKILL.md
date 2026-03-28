@@ -1,6 +1,6 @@
 ---
 name: hermit-settings
-description: View or change hermit configuration for this project. Manages model, channels, budget prompts, morning brief, heartbeat, routines, idle agency, and unattended mode.
+description: View or change hermit configuration for this project. Manages model, channels, budget prompts, morning brief, heartbeat, routines, idle agency, Docker packages, and unattended mode.
 disable-model-invocation: true
 ---
 # Hermit Settings
@@ -26,6 +26,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings routines        — enable/disable morning and evening routines
 /claude-code-hermit:hermit-settings idle-agency     — toggle autonomous idle work
 /claude-code-hermit:hermit-settings env              — view/edit environment variables
+/claude-code-hermit:hermit-settings docker           — view/edit Docker packages
 ```
 
 ## Plan
@@ -65,6 +66,9 @@ Environment (env):
   COMPACT_THRESHOLD               50
   CLAUDE_AUTOCOMPACT_PCT_OVERRIDE 50
   MAX_THINKING_TOKENS             10000
+
+Docker:
+  Packages:          build-essential, ffmpeg (or "none")
 ```
 
 **If argument is "name":**
@@ -161,6 +165,23 @@ Update `permission_mode` in config.json.
   - If input is `remove <KEY>`: delete the key from `env`
   - If input is `<KEY> <VALUE>`: set `env[KEY] = VALUE`
 - Note: "Env changes are written to `.claude/settings.local.json` on next `hermit-start`. To apply now, restart the hermit session."
+
+**If argument is "docker":**
+- Show current `docker.packages` list:
+  ```
+  Docker Packages (config.json docker.packages → Dockerfile.hermit)
+
+    build-essential
+    ffmpeg
+
+  (or "No packages configured" if empty)
+  ```
+- Ask: "Add or remove packages? (e.g., 'add ffmpeg imagemagick', 'remove ffmpeg', or 'done') [done]"
+- Loop until operator says "done", "skip", or presses Enter:
+  - If input is `remove <PKG> [<PKG>...]`: remove the packages from `docker.packages`
+  - If input is `add <PKG> [<PKG>...]`: add the packages to `docker.packages` (deduplicate)
+  - If input is just package names without add/remove prefix: treat as add
+- After changes, note: "Rebuild your container to apply: `docker compose -f docker-compose.hermit.yml build`"
 
 ### 3. Write config
 

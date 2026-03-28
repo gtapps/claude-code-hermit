@@ -42,6 +42,9 @@ DEFAULT_CONFIG = {
         'CLAUDE_AUTOCOMPACT_PCT_OVERRIDE': '50',
         'MAX_THINKING_TOKENS': '10000',
     },
+    'docker': {
+        'packages': [],
+    },
     'heartbeat': {
         'enabled': True,
         'every': '30m',
@@ -69,9 +72,9 @@ def load_config():
     # Merge with defaults — shallow for top-level, deep for nested dicts.
     # Values in config may be None (JSON null), so fall back to {} for unpacking.
     merged = {**DEFAULT_CONFIG, **config}
-    for key in ('env', 'heartbeat'):
-        if key in DEFAULT_CONFIG and isinstance(DEFAULT_CONFIG[key], dict):
-            merged[key] = {**DEFAULT_CONFIG[key], **(config.get(key) or {})}
+    for key, default in DEFAULT_CONFIG.items():
+        if isinstance(default, dict):
+            merged[key] = {**default, **(config.get(key) or {})}
     # One more level for heartbeat.active_hours
     if 'active_hours' in DEFAULT_CONFIG.get('heartbeat', {}):
         merged_hb = merged.get('heartbeat', {})
@@ -196,10 +199,6 @@ def write_settings_env(config):
     Auth vars (CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY, CLAUDE_CONFIG_DIR)
     are NOT written here — they must be in the shell env before claude launches.
     """
-    env_vars = config.get('env', {})
-    if not env_vars:
-        return
-
     settings_path = Path('.claude/settings.local.json')
     settings_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -211,13 +210,27 @@ def write_settings_env(config):
 
     if 'env' not in settings:
         settings['env'] = {}
-    settings['env'].update(env_vars)
+
+    env_vars = config.get('env', {})
+    if env_vars:
+        settings['env'].update(env_vars)
+
+    # Remove channel bot tokens — they must only live in
+    # .claude.local/channels/<plugin>/.env. A stale token here
+    # overrides the file via process.env and fails silently.
+    stale_keys = [k for k in settings['env']
+                  if k.endswith('_BOT_TOKEN')]
+    for key in stale_keys:
+        del settings['env'][key]
+    if stale_keys:
+        print(f'[hermit] Cleaned stale token vars from settings.local.json: {", ".join(stale_keys)}')
 
     with open(settings_path, 'w') as f:
         json.dump(settings, f, indent=2)
         f.write('\n')
 
-    print(f'[hermit] Env: {len(env_vars)} vars written to .claude/settings.local.json')
+    if env_vars:
+        print(f'[hermit] Env: {len(env_vars)} vars written to .claude/settings.local.json')
 
 
 def main():

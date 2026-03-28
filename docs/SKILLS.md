@@ -48,7 +48,7 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 
 | Skill             | What it does                                                                                                                                                                     | Auto-triggers |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| `hermit-settings` | View or change project config. Subcommands: `name`, `language`, `timezone`, `escalation`, `sign-off`, `channels`, `remote`, `model`, `budget`, `brief`, `permissions`, `heartbeat`, `routines`, `idle-agency`. | --             |
+| `hermit-settings` | View or change project config. Subcommands: `name`, `language`, `timezone`, `escalation`, `sign-off`, `channels`, `remote`, `model`, `budget`, `brief`, `permissions`, `heartbeat`, `routines`, `idle-agency`, `env`, `docker`. | --             |
 | `init`            | One-time project setup. Creates state directory, runs the wizard, scans your project, and writes OPERATOR.md.                                                                    | --            |
 | `upgrade`         | Run after updating the plugin. Detects version gaps, refreshes templates, prompts for new settings.                                                                              | --            |
 

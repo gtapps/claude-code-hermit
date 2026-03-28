@@ -38,6 +38,33 @@ Generate Docker scaffolding for running hermit as an always-on autonomous agent 
 
    Which one? (oauth / apikey) [oauth]"
 
+### 2b. Analyze project for Docker dependencies
+
+Scan the project to detect system packages the container might need. This is an intelligence step — use your analysis, not a fixed checklist.
+
+1. **Scan for dependency signals:**
+   - Read `package.json` if it exists — look for native addon dependencies (sqlite3, better-sqlite3, sharp, canvas, bcrypt, argon2, node-gyp, pg, mysql2, etc.)
+   - Check for Python dependency files (`requirements.txt`, `pyproject.toml`, `Pipfile`, `setup.py`)
+   - Check for build system files (`Makefile`, `CMakeLists.txt`)
+   - Check for version manager files (`.tool-versions`, `.node-version`, `.python-version`)
+   - Check for database config (prisma/schema.prisma, knexfile, sequelize config, etc.)
+   - Check OPERATOR.md for mentioned tools or tech stack
+   - Look for references to media processing, image manipulation, or other system-level tools
+
+2. **Suggest packages with reasoning.** Present findings conversationally:
+
+   > "I looked at your project and noticed [findings]. Here's what I'd suggest adding to the container:
+   >
+   > - `build-essential` — [reason based on what was found]
+   > - `libXXX-dev` — [reason based on what was found]
+   >
+   > Want to include these, add others, or skip? (You can always change this later with `/hermit-settings docker`.)"
+
+3. If no signals found:
+   > "Your project looks straightforward — the base image should cover it. Need any extra system packages? (skip if unsure — you can add them later with `/hermit-settings docker`)"
+
+4. Write the final approved list to `config.json` `docker.packages`.
+
 ### 3. Read project config
 
 Read `.claude-code-hermit/config.json` and extract:
@@ -52,6 +79,8 @@ Detect the project path from `pwd`.
 
 Write `Dockerfile.hermit` at the project root:
 
+Read `docker.packages` from config.json. Generate the Dockerfile with the base template below, and if `docker.packages` is non-empty, add the project-specific packages block:
+
 ```dockerfile
 FROM ubuntu:24.04
 
@@ -61,6 +90,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       tmux python3 python3-venv python3-pip git curl unzip ca-certificates && \
     curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+# Project-specific packages (from config.json docker.packages)
+# To modify: /hermit-settings docker, then rebuild
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      <PACKAGES> && \
     rm -rf /var/lib/apt/lists/*
 
 # Bun (needed by many Claude Code plugins) and Claude Code
@@ -79,6 +114,8 @@ RUN chmod +x /home/claude/docker-entrypoint.sh
 
 ENTRYPOINT ["/home/claude/docker-entrypoint.sh"]
 ```
+
+Replace `<PACKAGES>` with the space-separated list from `docker.packages`. If `docker.packages` is empty, **omit the entire project-specific packages block** (the two comment lines and the `RUN` command). The separate `RUN` layer means base packages stay cached when project packages change.
 
 ### 5. Generate docker-entrypoint.hermit.sh
 
@@ -372,7 +409,8 @@ When the operator provides a token:
 2. Write the token var to `.claude.local/channels/<plugin>/.env`
 3. `chmod 600 .claude.local/channels/<plugin>/.env`
 4. Ensure `.claude.local/` is in `.gitignore` (check and append if missing)
-5. Confirm: "[Plugin] token saved!"
+5. **Clean stale token from settings.local.json** — read `.claude/settings.local.json` and remove `DISCORD_BOT_TOKEN` / `TELEGRAM_BOT_TOKEN` from the `env` key if present. The token must live in exactly one place (`.claude.local/channels/<plugin>/.env`). If it's also in settings.local.json, Claude Code exports it to the MCP server's process.env, which overrides the .env file and goes stale silently when the token is rotated.
+6. Confirm: "[Plugin] token saved!"
 
 **Pairing (after container is running):**
 

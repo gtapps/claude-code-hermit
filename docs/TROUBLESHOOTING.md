@@ -6,6 +6,7 @@
 
 - Verify Claude Code was started with `--channels`. Check boot script output for `[hermit] Channels: discord`.
 - Check bot token and bot online status.
+- **Stale token in settings.local.json:** If `.claude/settings.local.json` has `DISCORD_BOT_TOKEN` or `TELEGRAM_BOT_TOKEN` in its `env` key, it overrides the token file at `.claude.local/channels/<plugin>/.env`. Remove the token from settings.local.json — it should only live in the channel's `.env` file. `hermit-start` cleans these automatically on boot, but if the token was added manually or by a previous channel plugin setup, it may persist.
 - Verify tmux session: `tmux ls`
 - If Docker `--network=none`, channels can't work.
 - Telegram has no message history — messages sent while your hermit was down are lost.
