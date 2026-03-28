@@ -37,8 +37,8 @@ This reads `config.json`, starts a tmux session with your configured channels an
 ### Manual tmux (alternative)
 
 ```bash
-tmux new-session -d -s claude-agent
-tmux attach -t claude-agent
+tmux new-session -d -s hermit
+tmux attach -t hermit
 cd /path/to/your/project
 claude --permission-mode acceptEdits
 ```
@@ -340,16 +340,16 @@ For bare-tmux setups:
 **Linux (systemd):**
 
 ```bash
-# /etc/systemd/system/claude-agent.service
+# /etc/systemd/system/hermit.service
 [Unit]
-Description=Claude Code Agent
+Description=Claude Code Hermit
 After=network.target
 
 [Service]
 Type=forking
 User=your-username
-ExecStart=/usr/bin/tmux new-session -d -s claude-agent -c /home/your-username/my-project \; send-keys "claude --permission-mode acceptEdits" Enter
-ExecStop=/usr/bin/tmux kill-session -t claude-agent
+ExecStart=/usr/bin/tmux new-session -d -s hermit -c /home/your-username/my-project \; send-keys "claude --permission-mode acceptEdits" Enter
+ExecStop=/usr/bin/tmux kill-session -t hermit
 Restart=on-failure
 RestartSec=10
 
