@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-[Claude Code](https://code.claude.com) v2.1.80+ and a paid Claude plan (Pro or Max). Node.js 22+ for hooks. Optional: **tmux** for always-on mode, **Bun** for phone channels.
+[Claude Code](https://code.claude.com) v2.1.80+ and a paid Claude plan (Pro or Max). Node.js 24+ for hooks. Optional: **tmux** for always-on mode, **Bun** for phone channels.
 
 ---
 
@@ -208,15 +208,15 @@ Or just ask Hermit: "What permissions do you need?" — it'll tell you exactly w
 
 Most common actions auto-trigger from natural language — just say what you mean. Slash commands (`/claude-code-hermit:*`) are the precision fallback for when auto-triggers don't fire.
 
-| Category       | Skills                                                               |
-| -------------- | -------------------------------------------------------------------- |
-| **Session**    | `session`, `session-start`, `session-close`                          |
-| **Status**     | `status`, `brief`                                                    |
-| **Monitoring** | `monitor`, `heartbeat`                                               |
+| Category       | Skills                                                        |
+| -------------- | ------------------------------------------------------------- |
+| **Session**    | `session`, `session-start`, `session-close`                   |
+| **Status**     | `status`, `brief`                                             |
+| **Monitoring** | `monitor`, `heartbeat`                                        |
 | **Learning**   | `proposal-create`, `proposal-list`, `proposal-act`, `reflect` |
-| **Config**     | `hermit-settings`, `init`, `upgrade`                                 |
-| **Docker**     | `docker-setup`, `hermit-takeover`, `hermit-hand-back`                |
-| **Channels**   | `channel-responder`                                                  |
+| **Config**     | `hermit-settings`, `init`, `upgrade`                          |
+| **Docker**     | `docker-setup`, `hermit-takeover`, `hermit-hand-back`         |
+| **Channels**   | `channel-responder`                                           |
 
 Full reference: [Skills Reference](SKILLS.md).
 

@@ -87,17 +87,20 @@ Tell it what you need. It plans the work, tracks progress, and logs everything. 
 /claude-code-hermit:docker-setup
 ```
 
-Generates a Dockerfile, entrypoint, and compose file tailored to your project. Then build and launch:
+The wizard scans your project, asks a few questions, and handles everything — generates the Docker files, builds the image, starts the container, and walks you through auth and channel pairing. When it's done, your hermit is running with safe permission bypass, crash recovery, and restart on reboot.
+
+To attach interactively (debug, check in, or run commands):
 
 ```bash
-docker compose build && docker compose up -d
+docker exec -it <container> tmux attach -t <session>
+# Ctrl+B, D to detach without stopping
 ```
 
-See [Always-On Setup](docs/ALWAYS-ON.md) for the full guide — auth, takeover/hand-back, cost management, and troubleshooting.
+See [Always-On Setup](docs/ALWAYS-ON.md) for the full guide — auth, channels, takeover/hand-back, cost management, and troubleshooting.
 
 > **Without Docker?** See [Always-On Operations](docs/ALWAYS-ON-OPS.md) for running with bare tmux — lighter but without container isolation.
 
-### 5. Connect your phone (optional)
+### 5. Connect your phone (Recommended)
 
 Install the [Claude Code Channels](https://code.claude.com/docs/en/channels) plugin for your platform:
 
