@@ -180,12 +180,13 @@ The `cost-tracker` hook runs on every `Stop` event: logs to `.claude/cost-log.js
 
 ### Token optimization
 
+Managed in `config.json` `env` (written to `.claude/settings.local.json` at boot by `hermit-start`):
+
 ```json
 {
   "env": {
     "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50",
-    "MAX_THINKING_TOKENS": "10000",
-    "CLAUDE_CODE_SUBAGENT_MODEL": "haiku"
+    "MAX_THINKING_TOKENS": "10000"
   }
 }
 ```
@@ -194,7 +195,8 @@ The `cost-tracker` hook runs on every `Stop` event: logs to `.claude/cost-log.js
 | -------------------- | -------------------------------- |
 | Autocompact at 50%   | Keeps working set smaller        |
 | Max thinking 10K     | Prevents runaway reasoning costs |
-| Subagent model haiku | Cheapest model for exploration   |
+
+To also use the cheapest model for subagent exploration, add `"CLAUDE_CODE_SUBAGENT_MODEL": "haiku"` to your `config.json` `env`. Adjust with `/hermit-settings env`.
 
 ### Budgets
 

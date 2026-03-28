@@ -170,11 +170,14 @@ See [Always-On Operations](ALWAYS-ON-OPS.md) for tmux setup and operational deta
 | **standard** (default) | + compact suggestions + session quality checks | Day-to-day work                |
 | **strict**             | + safety hooks from hermits                    | Always-on, production-adjacent |
 
-Set in `.claude/settings.json`:
+Set in `config.json` `env` (written to `.claude/settings.local.json` at boot):
 
-```json
-{ "env": { "AGENT_HOOK_PROFILE": "strict" } }
+```bash
+/claude-code-hermit:hermit-settings env
+# Then: AGENT_HOOK_PROFILE strict
 ```
+
+Or edit `config.json` directly: `"env": { "AGENT_HOOK_PROFILE": "strict" }`
 
 ---
 

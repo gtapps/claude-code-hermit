@@ -149,6 +149,12 @@ Write the collected preferences to `.claude-code-hermit/config.json`:
   "auto_session": true,
   "ask_budget": false,
   "morning_brief": null,
+  "env": {
+    "AGENT_HOOK_PROFILE": "standard",
+    "COMPACT_THRESHOLD": "50",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50",
+    "MAX_THINKING_TOKENS": "10000"
+  },
   "heartbeat": {
     "enabled": true,
     "every": "30m",
@@ -171,6 +177,12 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` to get the current plugi
 Resolve `${CLAUDE_PLUGIN_ROOT}` to an absolute path and write it as `_plugin_root`. This path is used by the wrapper scripts in `bin/` to locate the plugin's boot scripts.
 
 If re-initializing: merge with existing config (preserve values not asked about, update values that were asked about). Always update `_plugin_root` to the current `${CLAUDE_PLUGIN_ROOT}` value.
+
+If channels were configured in step 4f, also add channel state dirs to `env`:
+- For discord: `"DISCORD_STATE_DIR": ".claude.local/channels/discord"`
+- For telegram: `"TELEGRAM_STATE_DIR": ".claude.local/channels/telegram"`
+
+These env vars are written to `.claude/settings.local.json` by `hermit-start` at boot. Claude Code exports them to all subprocesses, including channel MCP servers.
 
 ### 5a. OPERATOR.md onboarding
 

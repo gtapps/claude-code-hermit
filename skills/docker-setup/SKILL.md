@@ -44,6 +44,8 @@ Read `.claude-code-hermit/config.json` and extract:
 - `tmux_session_name` — resolve `{project_name}` placeholder with the actual project directory name
 - `agent_name` — for display in comments
 
+Also set `AGENT_HOOK_PROFILE` to `"strict"` in `config.json` `env` (Docker containers should use the strict hook profile for safety). Write back config.json.
+
 Detect the project path from `pwd`.
 
 ### 4. Generate Dockerfile.hermit
@@ -205,11 +207,6 @@ services:
     environment:
       - CLAUDE_CONFIG_DIR=${HOME}/.claude
       - <AUTH_ENV_VAR>=<AUTH_PLACEHOLDER>
-      - AGENT_HOOK_PROFILE=strict
-      - CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=50
-      - MAX_THINKING_TOKENS=10000
-      - DISCORD_STATE_DIR=<DISCORD_STATE_DIR>
-      - TELEGRAM_STATE_DIR=<TELEGRAM_STATE_DIR>
     network_mode: host
     restart: unless-stopped
     healthcheck:
@@ -224,8 +221,8 @@ Replace:
 - `<AUTH_ENV_VAR>` with `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` based on step 2
 - `<AUTH_PLACEHOLDER>` with `${CLAUDE_CODE_OAUTH_TOKEN}` or `${ANTHROPIC_API_KEY}`
 - `<TMUX_SESSION_NAME>` with the resolved session name
-- `<DISCORD_STATE_DIR>` — use `${PWD}/.claude.local/channels/discord`.
-- `<TELEGRAM_STATE_DIR>` — use `${PWD}/.claude.local/channels/telegram`.
+
+All other env vars (`AGENT_HOOK_PROFILE`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, `MAX_THINKING_TOKENS`, `DISCORD_STATE_DIR`, `TELEGRAM_STATE_DIR`) are managed via `config.json` `env` and written to `.claude/settings.local.json` by `hermit-start` at boot. They do not need to be in the compose `environment:` section.
 
 ### 7. Ensure .env has hermit auth vars
 
@@ -282,14 +279,20 @@ For discord and telegram, check if the **local** token file (`.claude.local/chan
 
 If imessage is detected, note: "Heads up — iMessage needs macOS with Full Disk Access and AppleScript, so it won't work inside a Docker container. Skipping that one."
 
-For each configured channel in `config.json`, ensure the plugin is installed at project scope so the container has it without depending on the host's global plugins:
+For each configured channel in `config.json`, ensure the plugin is installed at local scope so the container has it without depending on the host's global plugins:
 
 ```bash
-claude plugin install discord@claude-plugins-official --scope project
-claude plugin install telegram@claude-plugins-official --scope project
+claude plugin install discord@claude-plugins-official --scope local
+claude plugin install telegram@claude-plugins-official --scope local
 ```
 
 Only install plugins for channels that are actually configured. Skip if already installed.
+
+For each configured channel, also ensure `config.json` `env` has the corresponding state dir. Read `config.json`, and if `DISCORD_STATE_DIR` or `TELEGRAM_STATE_DIR` is missing from `env`, add it:
+- `DISCORD_STATE_DIR`: `.claude.local/channels/discord`
+- `TELEGRAM_STATE_DIR`: `.claude.local/channels/telegram`
+
+Write back `config.json` if any changes were made. These values are written to `.claude/settings.local.json` by `hermit-start` at boot, which makes them available to Claude Code and all subprocesses (including channel MCP servers).
 
 ### 10. Guided deployment — auth token
 
@@ -366,14 +369,16 @@ If **no**, walk through it step by step:
 5. Send the pairing command into the hermit's tmux session:
    `docker exec <container> tmux send-keys -t <session-name> '/discord:access pair <code>' Enter`
    (or `/telegram:access pair <code>` for telegram)
+
+   **Note:** These commands use the local state dir at `.claude.local/channels/<plugin>/` (set via `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` in `config.json` `env`, written to `.claude/settings.local.json` at boot). The plugin reads access config from there, not from the global `~/.claude/channels/` path.
 6. Wait a few seconds for the command to process, then lock down access:
    `docker exec <container> tmux send-keys -t <session-name> '/discord:access policy allowlist' Enter`
    (or `/telegram:access policy allowlist` for telegram)
 7. Confirm: "Paired and locked down — only your account can reach the bot now."
 
-If the operator says "skip" at any point: "No worries — you can pair later by DMing the bot. It'll reply with a code, then attach to the hermit session and run `/discord:access pair <code>` followed by `/discord:access policy allowlist`. Details at https://code.claude.com/docs/en/channels"
+If the operator says "skip" at any point: "No worries — you can pair later by DMing the bot. It'll reply with a code, then attach to the hermit session and run `/discord:access pair <code>` followed by `/discord:access policy allowlist`. The plugin state (pairing data, access policy) lives in `.claude.local/channels/<plugin>/` in your project directory. Details at https://code.claude.com/docs/en/channels"
 
-The `docker-compose.hermit.yml` already has `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` pointing to `.claude.local/channels/<plugin>` (replaced from placeholders in step 6), so the container will find both the token and access config.
+The `config.json` `env` section has `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` pointing to `.claude.local/channels/<plugin>`, and `hermit-start` writes these to `.claude/settings.local.json` at boot. The container will find both the token and access config.
 
 If the container is already running, note: "Restart for channels to connect: `docker compose -f docker-compose.hermit.yml restart`"
 

@@ -15,6 +15,12 @@
   "ask_budget": false,
   "always_on": false,
   "morning_brief": null,
+  "env": {
+    "AGENT_HOOK_PROFILE": "standard",
+    "COMPACT_THRESHOLD": "50",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50",
+    "MAX_THINKING_TOKENS": "10000"
+  },
   "heartbeat": {
     "enabled": true,
     "every": "30m",

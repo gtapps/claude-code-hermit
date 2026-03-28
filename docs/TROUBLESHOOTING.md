@@ -12,7 +12,7 @@
 
 ## Hooks Not Firing
 
-- Check `AGENT_HOOK_PROFILE` in `.claude/settings.json`. Core hooks need `standard` or `strict`. Hermit hooks (e.g., git-push-guard) need `strict`.
+- Check `AGENT_HOOK_PROFILE` in `config.json` `env` (written to `.claude/settings.local.json` at boot). Core hooks need `standard` or `strict`. Hermit hooks (e.g., git-push-guard) need `strict`. View/change with `/hermit-settings env`.
 - Validate hooks.json: `cat hooks/hooks.json | python3 -m json.tool`
 - Test manually: `echo '{}' | node scripts/cost-tracker.js`
 - Hooks may not fire for subagent tool calls — see [Architecture](ARCHITECTURE.md).
@@ -25,7 +25,7 @@
 
 ## Costs Unexpectedly High
 
-- Check `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (default 50).
+- Check `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` in `config.json` `env` (default 50). Adjust with `/hermit-settings env`.
 - Check heartbeat interval — 5m with Opus is expensive. Use 15m or 30m.
 - Check if monitors are running with short intervals (`/claude-code-hermit:monitor stop`).
 - Review SHELL.md size — bloated files cost tokens on every read.

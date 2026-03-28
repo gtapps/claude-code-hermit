@@ -36,6 +36,12 @@ DEFAULT_CONFIG = {
     'ask_budget': False,
     'always_on': False,
     'morning_brief': None,
+    'env': {
+        'AGENT_HOOK_PROFILE': 'standard',
+        'COMPACT_THRESHOLD': '50',
+        'CLAUDE_AUTOCOMPACT_PCT_OVERRIDE': '50',
+        'MAX_THINKING_TOKENS': '10000',
+    },
     'heartbeat': {
         'enabled': True,
         'every': '30m',
@@ -60,8 +66,19 @@ def load_config():
     with open(CONFIG_PATH) as f:
         config = json.load(f)
 
-    # Merge with defaults for any missing keys
+    # Merge with defaults — shallow for top-level, deep for nested dicts
     merged = {**DEFAULT_CONFIG, **config}
+    for key in ('env', 'heartbeat'):
+        if key in DEFAULT_CONFIG and isinstance(DEFAULT_CONFIG[key], dict):
+            merged[key] = {**DEFAULT_CONFIG[key], **config.get(key, {})}
+    # One more level for heartbeat.active_hours
+    if 'active_hours' in DEFAULT_CONFIG.get('heartbeat', {}):
+        merged_hb = merged.get('heartbeat', {})
+        merged_hb['active_hours'] = {
+            **DEFAULT_CONFIG['heartbeat']['active_hours'],
+            **config.get('heartbeat', {}).get('active_hours', {}),
+        }
+        merged['heartbeat'] = merged_hb
     return merged
 
 
@@ -168,6 +185,40 @@ def get_session_name(config):
     return name.replace('{project_name}', project_name)
 
 
+def write_settings_env(config):
+    """Write config env vars to .claude/settings.local.json.
+
+    Claude Code reads the `env` key from settings.json and exports those
+    values to all subprocesses (hooks, MCP servers, Bash tool calls).
+    This is the canonical way to set env vars per the official docs.
+
+    Auth vars (CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY, CLAUDE_CONFIG_DIR)
+    are NOT written here — they must be in the shell env before claude launches.
+    """
+    env_vars = config.get('env', {})
+    if not env_vars:
+        return
+
+    settings_path = Path('.claude/settings.local.json')
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        with open(settings_path) as f:
+            settings = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        settings = {}
+
+    if 'env' not in settings:
+        settings['env'] = {}
+    settings['env'].update(env_vars)
+
+    with open(settings_path, 'w') as f:
+        json.dump(settings, f, indent=2)
+        f.write('\n')
+
+    print(f'[hermit] Env: {len(env_vars)} vars written to .claude/settings.local.json')
+
+
 def main():
     no_tmux_flag = '--no-tmux' in sys.argv
 
@@ -196,6 +247,8 @@ def main():
     print(f'[hermit] Remote: {"enabled" if config.get("remote") else "disabled"}')
     print(f'[hermit] Permissions: {config.get("permission_mode") or "acceptEdits"}')
 
+    write_settings_env(config)
+
     if no_tmux_flag or not tools['tmux']:
         if not no_tmux_flag and not tools['tmux']:
             print('[hermit] tmux not found — running in current terminal.')
@@ -207,14 +260,12 @@ def main():
     # Start tmux session (handles "already exists" as a graceful exit)
     #
     # tmux starts a new shell that does NOT inherit the caller's environment.
-    # Write forwarded vars to a temp env file and source it — this avoids
-    # leaking secrets (OAuth tokens, API keys) into the process list via ps.
+    # Only auth vars need shell env (they're read before claude parses settings).
+    # Write them to a temp env file and source it — avoids leaking secrets via ps.
     forward_vars = [
         'CLAUDE_CONFIG_DIR',
-        'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY',
-        'AGENT_HOOK_PROFILE',
-        'CLAUDE_AUTOCOMPACT_PCT_OVERRIDE', 'MAX_THINKING_TOKENS',
-        'DISCORD_STATE_DIR', 'TELEGRAM_STATE_DIR',
+        'CLAUDE_CODE_OAUTH_TOKEN',
+        'ANTHROPIC_API_KEY',
     ]
     env_file = Path('/tmp') / f'.hermit-env-{session_name}'
     with open(env_file, 'w') as f:

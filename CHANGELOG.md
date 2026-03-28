@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.0.7] - 2026-03-28
+
+### Changed
+
+**Environment variable system redesigned**
+
+Env vars are now managed in `config.json` `env` and written to `.claude/settings.local.json` at boot by `hermit-start`. This is the canonical Claude Code approach — settings.json `env` values are exported to all subprocesses (hooks, MCP servers, Bash tool calls).
+
+**What changed:**
+- `config.json` gains an `env` key with defaults: `AGENT_HOOK_PROFILE`, `COMPACT_THRESHOLD`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, `MAX_THINKING_TOKENS`
+- `hermit-start` writes `config.json` `env` into `.claude/settings.local.json` on every boot
+- Only auth vars (`CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`) remain as shell env — everything else goes through settings.local.json
+- Docker compose `environment:` section reduced to auth vars only
+- Channel state dirs (`DISCORD_STATE_DIR`, `TELEGRAM_STATE_DIR`) move from compose env to `config.json` `env`
+
+**What you need to do:**
+1. Run `/claude-code-hermit:upgrade` — it adds the `env` key to your config.json with defaults
+2. If you have channels configured, the upgrade also adds `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` to `env`
+3. If you use Docker: rebuild (`docker compose -f docker-compose.hermit.yml build`) and regenerate compose with `/claude-code-hermit:docker-setup` to get the slimmed-down `environment:` section — or just remove the 5 non-auth env vars from your existing compose file manually
+
+### Added
+- **`/hermit-settings env`** — view and edit env vars in config.json
+- **Deep merge in `load_config()`** — partial config.json overrides of `env` and `heartbeat` no longer drop sibling defaults
+
+### Fixed
+- `load_config()` shallow merge bug — if config.json had `"env": {"AGENT_HOOK_PROFILE": "strict"}`, the other 3 default env vars were silently lost. Now deep-merges nested dicts.
+
+---
+
 ## [0.0.6] - 2026-03-28
 
 ### Breaking Changes

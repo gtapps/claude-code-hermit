@@ -25,6 +25,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings heartbeat      — enable/disable, interval, quiet mode, active hours
 /claude-code-hermit:hermit-settings routines        — enable/disable morning and evening routines
 /claude-code-hermit:hermit-settings idle-agency     — toggle autonomous idle work
+/claude-code-hermit:hermit-settings env              — view/edit environment variables
 ```
 
 ## Plan
@@ -58,6 +59,12 @@ Operational:
   Permission mode:  acceptEdits (permission_mode: "acceptEdits")
   Auto session:    enabled (auto_session: true)
   tmux name:       hermit-myproject
+
+Environment (env):
+  AGENT_HOOK_PROFILE              standard
+  COMPACT_THRESHOLD               50
+  CLAUDE_AUTOCOMPACT_PCT_OVERRIDE 50
+  MAX_THINKING_TOKENS             10000
 ```
 
 **If argument is "name":**
@@ -138,6 +145,22 @@ Update `permission_mode` in config.json.
 - Show current state of `heartbeat.idle_agency` and `escalation`
 - Ask: "Allow autonomous idle work? When idle, your assistant checks for queued tasks, reflects on patterns, and runs maintenance. Gated by your escalation setting (currently: {escalation}). (yes / no) [current value]"
 - Update `heartbeat.idle_agency` in config.json.
+
+**If argument is "env":**
+- Show current `env` values from config.json in a table:
+  ```
+  Environment Variables (config.json env → .claude/settings.local.json)
+
+    AGENT_HOOK_PROFILE              standard
+    COMPACT_THRESHOLD               50
+    CLAUDE_AUTOCOMPACT_PCT_OVERRIDE 50
+    MAX_THINKING_TOKENS             10000
+  ```
+- Ask: "Set, change, or remove an env var? (e.g., 'MAX_THINKING_TOKENS 20000', 'remove COMPACT_THRESHOLD', or 'done') [done]"
+- Loop until operator says "done", "skip", or presses Enter:
+  - If input is `remove <KEY>`: delete the key from `env`
+  - If input is `<KEY> <VALUE>`: set `env[KEY] = VALUE`
+- Note: "Env changes are written to `.claude/settings.local.json` on next `hermit-start`. To apply now, restart the hermit session."
 
 ### 3. Write config
 

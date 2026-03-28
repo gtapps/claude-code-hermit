@@ -56,6 +56,7 @@ The prompts below match the init wizard exactly. Use the same wording for consis
 | `heartbeat._last_morning` | 0.0.4 | no | `null` |
 | `heartbeat._last_evening` | 0.0.4 | no | `null` |
 | `heartbeat._last_reflection` | 0.0.4 | no | `null` |
+| `env` | 0.0.7 | no | `{"AGENT_HOOK_PROFILE": "standard", "COMPACT_THRESHOLD": "50", "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50", "MAX_THINKING_TOKENS": "10000"}` |
 
 **Prompts** (use the same text as the init wizard in `skills/init/SKILL.md` steps 4a–4e):
 - `agent_name`: "Give your agent a name? This personalizes session reports, channel messages, and briefs. (e.g., Atlas, Hermit, Scout) [skip]"

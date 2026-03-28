@@ -160,13 +160,15 @@ Container restarts trigger hermit recovery automatically:
 
 **Per-session budget:** `/claude-code-hermit:hermit-settings budget`. Warns at 80%, recommends closing at 100%.
 
-**Token optimization env vars** (set in `docker-compose.hermit.yml` by default):
+**Token optimization env vars** (managed in `config.json` `env`, written to `.claude/settings.local.json` at boot):
 
 | Setting                            | Value | Effect                           |
 | ---------------------------------- | ----- | -------------------------------- |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`  | `50`  | Compacts at 50% context — keeps working set smaller |
 | `MAX_THINKING_TOKENS`              | `10000` | Prevents runaway reasoning costs |
-| `CLAUDE_CODE_SUBAGENT_MODEL`       | — | Set to `haiku` for cheapest exploration (not set by default) |
+| `CLAUDE_CODE_SUBAGENT_MODEL`       | — | Add to `config.json` `env` for cheapest exploration (not set by default) |
+
+Adjust with `/hermit-settings env`.
 
 **Project-level budget:** Set in OPERATOR.md (`Monthly Claude budget: $200. Alert at $150.`).
 

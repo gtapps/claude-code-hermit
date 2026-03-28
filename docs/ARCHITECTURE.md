@@ -221,14 +221,31 @@ Both fire once per day based on `active_hours` in config.
 
 ## Configuration Reference
 
-### settings.json
+### Environment Variable Flow
+
+```
+config.json "env"  →  hermit-start.py  →  .claude/settings.local.json "env"  →  Claude Code  →  subprocesses
+```
+
+1. Operator configures env vars in `config.json` `env` (or via `/hermit-settings env`)
+2. `hermit-start.py` reads `config["env"]` and merges into `.claude/settings.local.json` `env`
+3. Claude Code reads `settings.local.json` and exports `env` values to all subprocesses
+4. Hooks, MCP servers, and Bash tool calls inherit these via `process.env`
+
+**Bucket A (shell env only):** `CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY` — must be in shell env before `claude` starts. Forwarded via temp file in tmux, or Docker `environment:`.
+
+**Bucket B+C (settings.local.json):** All other env vars — managed in `config.json` `env`, written to `settings.local.json` by `hermit-start`.
+
+### config.json env defaults
 
 | Field                             | Value      | Purpose                     |
 | --------------------------------- | ---------- | --------------------------- |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | `50`       | Auto-compact at 50% context |
 | `MAX_THINKING_TOKENS`             | `10000`    | Cap thinking budget         |
-| `CLAUDE_CODE_SUBAGENT_MODEL`      | `haiku`    | Default subagent model      |
 | `AGENT_HOOK_PROFILE`              | `standard` | Active hook profile         |
+| `COMPACT_THRESHOLD`               | `50`       | Compaction suggestion threshold |
+| `DISCORD_STATE_DIR`               | (dynamic)  | Set when discord channel configured |
+| `TELEGRAM_STATE_DIR`              | (dynamic)  | Set when telegram channel configured |
 
 ### Denied operations
 
