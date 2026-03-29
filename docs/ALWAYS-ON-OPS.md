@@ -255,12 +255,14 @@ Block tool invocations regardless of permission mode:
 
 | Layer               | Where           | Enforcement           |
 | ------------------- | --------------- | --------------------- |
-| Deny patterns       | `settings.json` | Mechanical            |
+| Deny patterns       | `settings.json` | Mechanical*           |
 | Agent-level rules   | `agents/*.md`   | Instruction-following |
 | Hook enforcement    | `hooks.json`    | Mechanical            |
 | Config isolation    | Named volume    | Mechanical            |
 | Container isolation | Docker/VM       | Mechanical            |
 | OPERATOR.md         | OPERATOR.md     | Instruction-following |
+
+*\* **Deny rule caveat:** There are reported bugs where `Edit`/`Write` deny rules in `settings.json` are not always enforced — Claude Code has been observed editing files that match a deny pattern. This means deny rules are the correct approach and best available option, but can't be treated as airtight mechanical enforcement today. For OPERATOR.md specifically, there's a second layer: Claude Code's built-in `.claude/` directory protection still prompts for confirmation on writes, even under `--dangerously-skip-permissions`. Combined, OPERATOR.md modification is unlikely but not impossible until Anthropic fixes deny rule enforcement.*
 
 ### Quick recommendations
 

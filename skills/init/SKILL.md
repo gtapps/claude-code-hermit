@@ -96,7 +96,13 @@ Ask: "Configure channels for this project? (telegram / discord / none) [none]"
 - If telegram or discord selected: record the short name (e.g., `"discord"`) in the `channels` array. The boot script maps it to the full plugin identifier (`plugin:discord@claude-plugins-official`).
 - If the channel plugin isn't installed, note: "Install the channel plugin globally first with `/plugin install`"
 
-**4f2. Remote control**
+**4f2. Channel access control** (only if channels were selected in 4f)
+Ask: "Restrict who can send commands via channels? Paste your Discord/Telegram user ID, or 'skip' to allow everyone. [skip]"
+- If the operator provides a user ID: record in `allowed_users.<channel>` as a single-element array (e.g., `"allowed_users": {"discord": ["123456789"]}`)
+- If skip: do not add `allowed_users` key (absent = accept all messages, backwards compatible)
+- Note: "You can add more user IDs later with `/claude-code-hermit:hermit-settings channels`. An empty array [] blocks all messages."
+
+**4f3. Remote control**
 Ask: "Enable remote control? This lets you connect from a browser or phone via claude.ai/code. (yes / no) [yes]"
 - If yes (default): record `remote: true` in config
 - If no: record `remote: false`
@@ -325,7 +331,43 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
 5. If the operator confirms: merge into the existing `permissions.allow` array (never remove existing entries), write back
 6. If the operator declines: skip, and note: "You may be prompted to approve hook commands during sessions. Run `/claude-code-hermit:hermit-settings permissions` to add them later."
 
-### 9. Report results
+### 9. Generate deny patterns
+
+Add safety deny rules to `.claude/settings.json` `permissions.deny` to prevent destructive operations and protect OPERATOR.md from accidental modification.
+
+- Ask: "Are you planning always-on operation (Docker/tmux)? (yes / no) [no]"
+- If **yes** — offer the hardened always-on deny set:
+  ```json
+  "deny": [
+    "Bash(rm -rf *)",
+    "Bash(git push --force*)",
+    "Bash(git reset --hard*)",
+    "Bash(chmod 777*)",
+    "Bash(curl * | bash*)",
+    "Bash(wget * | bash*)",
+    "Edit(**/.claude-code-hermit/OPERATOR.md)",
+    "Write(**/.claude-code-hermit/OPERATOR.md)"
+  ]
+  ```
+- If **no** — offer the minimal deny set:
+  ```json
+  "deny": [
+    "Bash(rm -rf *)",
+    "Bash(curl * | bash*)",
+    "Bash(wget * | bash*)",
+    "Edit(**/.claude-code-hermit/OPERATOR.md)",
+    "Write(**/.claude-code-hermit/OPERATOR.md)"
+  ]
+  ```
+
+Show the list, let the operator edit or confirm: "These deny rules prevent destructive operations and protect OPERATOR.md from modification. Review and confirm? (yes / edit / skip) [yes]"
+- If **yes**: merge into existing `permissions.deny` (never remove existing entries), write back
+- If **edit**: let the operator add or remove rules, then write
+- If **skip**: note: "You can add deny rules later in .claude/settings.json under permissions.deny."
+
+Do NOT include `Bash(docker *)`, `Bash(kubectl *)`, `Bash(ssh *)` — these are valid in devops contexts.
+
+### 10. Report results
 
 Print a summary:
 

@@ -16,6 +16,24 @@ If SHELL.md has Status `idle` (no active task):
 - Adjust classification: "New instruction" messages become **task assignment** (see below)
 - Status requests should report idle state with session summary
 
+## 1c. Check Authorization
+
+Read `allowed_users` from `config.json` for this channel:
+- Extract the sender's platform user ID from the message metadata
+- If the sender is not in the allowed_users list: ignore the message silently — do not respond, do not log. Applies to ALL message types including status requests.
+- If `allowed_users` field is absent for this channel: accept all messages (backwards compatible)
+- If `allowed_users` is an empty array `[]`: accept from no one (explicit lockdown)
+
+The allowlist is per-channel in config.json:
+```json
+{
+  "allowed_users": {
+    "discord": ["user-id-1"],
+    "telegram": ["user-id-1"]
+  }
+}
+```
+
 ## 2. Classify the Message
 
 - **Status request** ("what are you working on?", "status", "progress")

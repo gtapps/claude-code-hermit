@@ -8,19 +8,18 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const SHELL_SESSION = path.resolve('.claude-code-hermit/sessions/SHELL.md');
+const HASH_FILE = path.resolve('.claude-code-hermit/sessions/.eval-hash');
 
-function evaluateSession() {
+function evaluateSession(content) {
   const results = {
     criteria: [],
     overall: 'pass',
   };
 
-  let content;
-  try {
-    content = fs.readFileSync(SHELL_SESSION, 'utf-8');
-  } catch {
+  if (content === null) {
     results.criteria.push({
       name: 'SHELL.md exists',
       status: 'fail',
@@ -111,7 +110,37 @@ async function main() {
       if (totalSize > 1024 * 1024) break;
     }
 
-    const results = evaluateSession();
+    // Read SHELL.md once — used for hash check and passed to evaluateSession
+    let content;
+    try {
+      content = fs.readFileSync(SHELL_SESSION, 'utf-8');
+    } catch {
+      content = null;
+    }
+
+    // Hash content once — used for cache check and write-back
+    const hash = content !== null
+      ? crypto.createHash('md5').update(content).digest('hex')
+      : null;
+
+    // Short-circuit if SHELL.md hasn't changed since last eval
+    if (hash !== null) {
+      try {
+        const cached = fs.readFileSync(HASH_FILE, 'utf-8').trim();
+        if (cached === hash) {
+          process.exit(0);
+        }
+      } catch {
+        // No cache file — first run, continue to eval
+      }
+    }
+
+    const results = evaluateSession(content);
+
+    // Write hash after successful eval
+    if (hash !== null) {
+      try { fs.writeFileSync(HASH_FILE, hash + '\n'); } catch {}
+    }
 
     // Output as structured JSON
     console.log(JSON.stringify(results, null, 2));

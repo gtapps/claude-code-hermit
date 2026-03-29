@@ -160,8 +160,10 @@ Update `permission_mode` in config.json.
     CLAUDE_AUTOCOMPACT_PCT_OVERRIDE 50
     MAX_THINKING_TOKENS             10000
   ```
+- **Protected keys** that cannot be changed via this command: `AGENT_HOOK_PROFILE`. These are managed by the boot script and docker-setup. If the operator tries to set one, respond: "AGENT_HOOK_PROFILE is managed by the boot script (standard for interactive, strict for Docker). To change it, edit config.json directly — the boot script validates on next start."
 - Ask: "Set, change, or remove an env var? (e.g., 'MAX_THINKING_TOKENS 20000', 'remove COMPACT_THRESHOLD', or 'done') [done]"
 - Loop until operator says "done", "skip", or presses Enter:
+  - If input targets a protected key: reject with the message above
   - If input is `remove <KEY>`: delete the key from `env`
   - If input is `<KEY> <VALUE>`: set `env[KEY] = VALUE`
 - Note: "Env changes are written to `.claude/settings.local.json` on next `hermit-start`. To apply now, restart the hermit session."

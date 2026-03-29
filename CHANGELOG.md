@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.0.8] - 2026-03-29
+
+### Added
+- **Deny pattern generation in `/init`** — new step 9 asks whether you're planning always-on operation and generates appropriate deny rules in `.claude/settings.json`, including OPERATOR.md write protection with `**/` prefix. Always-on set adds `git push --force`, `git reset --hard`, `chmod 777`.
+- **Deny patterns in `/docker-setup`** — Docker means always-on, so the full hardened deny set is included by default (no wizard).
+- **Channel access control** — new `allowed_users` config (per-channel user ID allowlist). Absent field = accept all (backwards compatible). Empty array = accept none (explicit lockdown). Non-allowlisted users are silently ignored for all message types.
+- **`AGENT_HOOK_PROFILE` protection** — boot script validates profile values and enforces a hardcoded `standard` floor in always-on mode. Agent cannot downgrade from `strict` to `minimal` by writing to config.json. `hermit-settings env` blocks modification of this key.
+- **Evaluate-session hash optimization** — Stop hook now caches an MD5 hash of SHELL.md content. Skips evaluation when nothing changed since last run. SessionStart hook clears the hash for a clean slate each session.
+- **Capability-gap awareness in reflect** — when idle, the hermit now thinks broader: missing heartbeat checks, OPERATOR.md gaps, sub-agents for recurring work, skills for repeated workflows. Only fires when SHELL.md status is `idle`.
+- **Dismissed/deferred proposal awareness** — reflect reviews past dismissed and deferred proposals to avoid re-suggesting recently rejected ideas. Revisits if significantly more evidence has accumulated.
+- **Self-contained capability proposals** — proposal-create now includes implementation templates for sub-agents, skills, heartbeat checks, and OPERATOR.md refinements. Each template is self-contained so the implementer can act without referencing external docs.
+- **Security impact notes in proposals** — proposals that affect security boundaries (permissions, network access, credential handling) must clearly note the impact so the operator can make an informed decision.
+
+### Changed
+- **Docker config isolation** — container now uses a Docker named volume (`claude-config`) instead of bind-mounting `~/.claude`. Prevents container state from leaking into host interactive sessions. Volume persists across restarts.
+- **Docker npm permissions** — npm globals installed as `claude` user via `NPM_CONFIG_PREFIX`, enabling Claude Code self-update without sudo.
+- **Docker plugin installation** — entrypoint registers marketplaces and installs plugins on first boot using filesystem checks (not `claude plugin list`, which false-positives on project-scoped plugins).
+- **Docker plugin root resolution** — `HERMIT_PLUGIN_ROOT` env var bridges the host-path `_plugin_root` in config.json to the container's actual plugin path. `hermit-run` checks the env var first.
+- **Docker auto-memory seeding** — copies host `~/.claude/projects/<path-key>/memory/MEMORY.md` into the container on first boot so the hermit starts with full context.
+- **Docker channel pairing** — entrypoint symlinks channel state dirs, pair command includes inline scope hint and fallback mv for plugins that hardcode `~/.claude/channels/`.
+- **Docker git identity** — read-only bind-mount of `~/.gitconfig` (conditional on existence).
+- **Docker `NODE_OPTIONS`** — sets `--max-old-space-size=4096` per official devcontainer recommendations.
+
+**What you need to do:**
+1. Run `/claude-code-hermit:upgrade` to refresh templates
+2. **Deny patterns (recommended):** Add safety deny rules to `.claude/settings.json` — run `/claude-code-hermit:init` step 9 or add manually:
+   ```json
+   "permissions": {
+     "deny": [
+       "Bash(rm -rf *)",
+       "Bash(git push --force*)",
+       "Bash(git reset --hard*)",
+       "Bash(chmod 777*)",
+       "Bash(curl * | bash*)",
+       "Bash(wget * | bash*)",
+       "Edit(**/.claude-code-hermit/OPERATOR.md)",
+       "Write(**/.claude-code-hermit/OPERATOR.md)"
+     ]
+   }
+   ```
+3. **Channel access control (optional):** Add `"allowed_users": {"discord": ["your-user-id"]}` to config.json to restrict who can send commands via channels
+4. If using Docker: rebuild (`docker compose -f docker-compose.hermit.yml build`) to pick up the deny patterns
+
+---
+
 ## [0.0.7] - 2026-03-28
 
 ### Changed

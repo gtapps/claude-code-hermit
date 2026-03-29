@@ -96,6 +96,20 @@ Only the top-level project memory is seeded — not agent-scoped memories at `<p
    ```
    (or the apikey equivalent). If already present, leave it — note for step 8.
 3. Ensure `.env` is listed in both `.gitignore` and `.dockerignore` (create the files if needed, append if missing).
+4. **Deny patterns:** Docker means always-on — include the full hardened deny set in `.claude/settings.json` `permissions.deny` by default (no wizard needed):
+   ```json
+   "deny": [
+     "Bash(rm -rf *)",
+     "Bash(git push --force*)",
+     "Bash(git reset --hard*)",
+     "Bash(chmod 777*)",
+     "Bash(curl * | bash*)",
+     "Bash(wget * | bash*)",
+     "Edit(**/.claude-code-hermit/OPERATOR.md)",
+     "Write(**/.claude-code-hermit/OPERATOR.md)"
+   ]
+   ```
+   If `.claude/settings.json` already has `permissions.deny`, merge (never remove existing entries). Tell the operator: "Added safety deny rules for always-on operation — protects against destructive commands and OPERATOR.md modification."
 
 ### 7. Channel setup
 

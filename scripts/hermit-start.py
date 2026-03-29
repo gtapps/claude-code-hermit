@@ -19,6 +19,8 @@ import time
 from pathlib import Path
 
 CONFIG_PATH = Path('.claude-code-hermit/config.json')
+PROFILE_LEVELS = {'minimal': 0, 'standard': 1, 'strict': 2}
+
 DEFAULT_CONFIG = {
     '_hermit_versions': {},
     '_plugin_root': None,
@@ -42,6 +44,7 @@ DEFAULT_CONFIG = {
         'CLAUDE_AUTOCOMPACT_PCT_OVERRIDE': '50',
         'MAX_THINKING_TOKENS': '10000',
     },
+    'allowed_users': {},
     'docker': {
         'packages': [],
     },
@@ -214,6 +217,19 @@ def write_settings_env(config):
     env_vars = config.get('env', {})
     if env_vars:
         settings['env'].update(env_vars)
+
+    # Validate AGENT_HOOK_PROFILE — only known profiles allowed
+    profile = settings['env'].get('AGENT_HOOK_PROFILE', 'standard')
+    if profile not in PROFILE_LEVELS:
+        print(f'[hermit] Warning: invalid AGENT_HOOK_PROFILE={profile}, defaulting to standard')
+        settings['env']['AGENT_HOOK_PROFILE'] = 'standard'
+        profile = 'standard'
+    if config.get('always_on'):
+        floor = 'standard'  # non-negotiable minimum for always-on
+        if PROFILE_LEVELS[profile] < PROFILE_LEVELS[floor]:
+            print(f'[hermit] Warning: AGENT_HOOK_PROFILE={profile} below always-on '
+                  f'floor, forcing to {floor}')
+            settings['env']['AGENT_HOOK_PROFILE'] = floor
 
     # Remove channel bot tokens — they must only live in
     # .claude.local/channels/<plugin>/.env. A stale token here
