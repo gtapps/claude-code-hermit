@@ -172,17 +172,21 @@ See [Creating Your Own Hermit](docs/CREATING-YOUR-OWN-HERMIT.md) for more — fr
 
 ## Documentation
 
-| Document                                                     | What it covers                                                    |
-| ------------------------------------------------------------ | ----------------------------------------------------------------- |
-| [Getting Started](docs/HOW-TO-USE.md)                        | Install, first session, daily rhythm, common workflows            |
-| [Skills Reference](docs/SKILLS.md)                           | All 18 skills with usage, auto-triggers, and examples             |
-| [Always-On Setup](docs/ALWAYS-ON.md)                         | Docker setup, takeover/hand-back, quick status                    |
-| [Always-On Operations](docs/ALWAYS-ON-OPS.md)                | Lifecycle internals, security, cost management, channels          |
-| [Architecture](docs/ARCHITECTURE.md)                         | 5-layer design, memory model, learning loop internals             |
-| [Creating Your Own Hermit](docs/CREATING-YOUR-OWN-HERMIT.md) | Customization — OPERATOR.md, specialized agents, reusable plugins |
-| [Upgrading](docs/UPGRADING.md)                               | Upgrade guide for plugin updates                                  |
-| [Troubleshooting](docs/TROUBLESHOOTING.md)                   | Common issues and fixes                                           |
-| [Obsidian Dashboard](docs/OBSIDIAN-SETUP.md)                 | Optional visual companion dashboard                               |
+| Document                                                     | Read this when...                                                          |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| [Getting Started](docs/HOW-TO-USE.md)                        | You're new and want a walkthrough of install, first session, and daily use |
+| [Skills Reference](docs/SKILLS.md)                           | You need the exact syntax or options for a specific skill                  |
+| [Always-On Setup](docs/ALWAYS-ON.md)                         | You're ready to run Hermit in Docker with crash recovery                   |
+| [Always-On Operations](docs/ALWAYS-ON-OPS.md)                | You're running bare tmux (no Docker) or need the lifecycle reference       |
+| [Architecture](docs/ARCHITECTURE.md)                         | You want to understand the internals — layers, memory, learning loop       |
+| [Creating Your Own Hermit](docs/CREATING-YOUR-OWN-HERMIT.md) | You want to customize OPERATOR.md, add agents, or build a reusable plugin  |
+| [Upgrading](docs/UPGRADING.md)                               | A new version is out and you need to update safely                         |
+| [Security](docs/SECURITY.md)                                 | You need deny patterns, defense-in-depth model, or the security checklist  |
+| [Config Reference](docs/CONFIG-REFERENCE.md)                 | You need the full config.json schema with every key and default            |
+| [Troubleshooting](docs/TROUBLESHOOTING.md)                   | Something isn't working and you need to fix it                             |
+| [FAQ](docs/FAQ.md)                                           | Common questions — Windows, costs, multi-project, API keys                 |
+| [Testing](docs/TESTING.md)                                   | You're contributing and need to run or write hook tests                    |
+| [Obsidian Dashboard](docs/OBSIDIAN-SETUP.md)                 | You want a visual dashboard for sessions and proposals                     |
 
 ---
 

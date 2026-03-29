@@ -70,3 +70,34 @@ SHELL.md from a crashed session persists. Choose **resume** or **start new** (ge
 - Verify channels work first — send "status" manually from your phone.
 - The brief only sends if the heartbeat is running at the start of your active hours. In interactive mode, this means you need an active session.
 - Check `_last_morning` in config.json — if it shows today's date, the brief already ran.
+
+## Hermit Keeps Suggesting Dismissed Proposals
+
+As of v0.0.8, reflect checks dismissed and deferred proposals before creating new ones. If you're still seeing re-suggestions:
+- Check your plugin version: the proposal is in `.claude-plugin/plugin.json` — should be `0.0.8` or later.
+- Run `/claude-code-hermit:upgrade` to ensure the latest reflect skill is active.
+- If significantly more evidence has accumulated since the dismissal, Hermit may intentionally revisit — this is by design.
+
+## SHELL.md Getting Large / Bloated
+
+A bloated SHELL.md costs tokens on every read. Keep it lean:
+- Use `/compact` between steps to free context.
+- The progress log should stay under ~30 entries. If it's growing beyond that, close the session and start a new one.
+- The `session-diff` hook auto-populates `## Changed` — don't manually list files.
+- If SHELL.md is already bloated, run `/claude-code-hermit:session-close` to archive it and start fresh.
+
+## Docker Build Fails
+
+Common causes:
+- **UID mismatch:** The Dockerfile matches your host UID. If you're not UID 1000, rebuild after checking `id -u`. The generated Dockerfile should handle this, but manual edits may break it.
+- **Network issues during build:** `apt-get` or `npm install` fails. Check your network, proxy settings, and Docker DNS config.
+- **npm permission errors:** Claude Code installs globally. The Dockerfile sets `NPM_CONFIG_PREFIX` for the `claude` user — if you modified the Dockerfile, ensure this is preserved.
+- **Ubuntu 24.04 default user conflict:** UID 1000 is taken by the default `ubuntu` user. The generated Dockerfile runs `userdel -r ubuntu` first — don't remove this line.
+- **Rebuild after config changes:** If you changed `docker.packages` in config.json, rebuild: `docker compose -f docker-compose.hermit.yml build --no-cache`
+
+## Upgrade Says Nothing to Update
+
+- Check plugin version: `cat .claude-plugin/plugin.json | grep version` (or check the installed plugin path).
+- Check config version: `cat .claude-code-hermit/config.json | grep _hermit_versions`.
+- If both match, there's genuinely nothing to upgrade. New features may have landed as skill changes (no config migration needed).
+- If the plugin was updated but the marketplace cache is stale: `claude plugin marketplace add gtapps/claude-code-hermit` to force refresh, then reinstall.

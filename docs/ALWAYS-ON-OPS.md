@@ -1,6 +1,6 @@
-# Always-On Operations
+# Always-On Operations (Non-Docker)
 
-Operational reference for always-on hermit sessions — lifecycle, channels, cost management, security, and recovery. For setup, see [Always-On Setup](ALWAYS-ON.md).
+tmux-based setup for running your hermit without Docker, plus the lifecycle reference that applies to all always-on modes. For Docker setup, see [Always-On Setup](ALWAYS-ON.md).
 
 For skill details, see [Skills Reference](SKILLS.md).
 
@@ -55,7 +55,7 @@ claude --permission-mode acceptEdits
 
 ## 2. Always-On Lifecycle
 
-> The lifecycle below applies to both interactive and always-on sessions. This section covers the always-on infrastructure specifically.
+> The lifecycle below applies to both interactive and always-on sessions — Docker or tmux. This is the core reference for how sessions behave.
 
 In always-on mode, the session stays open between tasks. Heartbeat, monitors, and channels keep running the whole time. Your hermit works, finishes, waits for the next thing — and stays productive in between.
 
@@ -143,65 +143,17 @@ When idle and `idle_agency` is enabled, the heartbeat looks for autonomous work:
 
 ## 3. Channels
 
-[Claude Code Channels](https://code.claude.com/docs/en/channels) (v2.1.80+) lets you talk to your hermit from your phone.
+Channels let you talk to your hermit from your phone via Telegram, Discord, or iMessage. Setup, pairing, and Docker-specific config are covered in [Always-On Setup](ALWAYS-ON.md#channels-in-docker) and the [Claude Code Channels docs](https://code.claude.com/docs/en/channels).
 
-### Pairing
-
-1. Start Claude Code in tmux
-2. Message the bot on Telegram/Discord/iMessage
-3. Bot replies with a pairing code
-4. Approve in Claude Code
-5. Done — account allowlisted
-
-### Message handling
-
-| You send                | Hermit does                       |
-| ----------------------- | --------------------------------- |
-| "status"                | Concise SHELL.md summary          |
-| "work on X"             | Confirms and starts working on it |
-| "why did you change X?" | Answers with session context      |
-| "stop" / "abort"        | Halts work, marks blocked         |
-
-### Local-scope config (multi-agent)
-
-For multiple agents per project, scope channel config locally instead of user-level:
-
-```bash
-mkdir -p .claude.local/channels/discord
-```
-
-Add `access.json` with your policy and optionally a `.env` for a per-project bot token. Verify `.claude.local/` is gitignored. Same pattern for Telegram and iMessage.
+For bare-tmux setups, channel config lives at the user level by default (`~/.claude/channels/<plugin>/`). To scope config per-project (useful for multi-agent setups), create `.claude.local/channels/<plugin>/` with an `access.json` and optional `.env`. Make sure `.claude.local/` is gitignored.
 
 ---
 
 ## 4. Cost Management
 
-The `cost-tracker` hook runs on every `Stop` event: logs to `.claude/cost-log.jsonl`, updates SHELL.md, writes `.status.json` for the `hermit-status` script, and outputs a summary. Check with `/cost`.
+The `cost-tracker` hook tracks spend automatically. For detailed token optimization settings, budgets, and env config, see [Always-On Setup: Cost Management](ALWAYS-ON.md#cost-management).
 
-### Token optimization
-
-Managed in `config.json` `env` (written to `.claude/settings.local.json` at boot by `hermit-start`):
-
-```json
-{
-  "env": {
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50",
-    "MAX_THINKING_TOKENS": "10000"
-  }
-}
-```
-
-| Setting              | Effect                           |
-| -------------------- | -------------------------------- |
-| Autocompact at 50%   | Keeps working set smaller        |
-| Max thinking 10K     | Prevents runaway reasoning costs |
-
-To also use the cheapest model for subagent exploration, add `"CLAUDE_CODE_SUBAGENT_MODEL": "haiku"` to your `config.json` `env`. Adjust with `/hermit-settings env`.
-
-### Budgets
-
-**Per-session:** `/hermit-settings budget`. Warns at 80%, recommends closing at 100%.
-**Project-level:** Set in OPERATOR.md (`Monthly Claude budget: $200. Alert at $150.`).
+Quick summary: set per-session budgets with `/hermit-settings budget` (warns at 80%, recommends closing at 100%) and project-level budgets in OPERATOR.md.
 
 ---
 
@@ -218,74 +170,7 @@ All state is in `sessions/SHELL.md` on disk. A disconnect loses conversation con
 
 ## 6. Security
 
-### Deny patterns
-
-Block tool invocations regardless of permission mode:
-
-```json
-{
-  "permissions": {
-    "deny": [
-      "Bash(rm -rf *)",
-      "Bash(chmod 777*)",
-      "Bash(*sudo *)",
-      "Bash(*> /etc/*)",
-      "Bash(curl * | bash)",
-      "Bash(wget * | bash)",
-      "Bash(ssh *)",
-      "Bash(docker *)",
-      "Bash(kubectl *)",
-      "Bash(npm publish*)",
-      "Bash(git push --force*)",
-      "Bash(git push origin main*)",
-      "Bash(*--no-verify*)",
-      "Bash(env)",
-      "Bash(printenv)",
-      "Bash(cat ~/.ssh/*)",
-      "Bash(cat ~/.aws/*)",
-      "Bash(*API_KEY*)",
-      "Bash(*SECRET*)",
-      "Bash(*TOKEN*)"
-    ]
-  }
-}
-```
-
-### Defense in depth
-
-| Layer               | Where           | Enforcement           |
-| ------------------- | --------------- | --------------------- |
-| Deny patterns       | `settings.json` | Mechanical*           |
-| Agent-level rules   | `agents/*.md`   | Instruction-following |
-| Hook enforcement    | `hooks.json`    | Mechanical            |
-| Config isolation    | Named volume    | Mechanical            |
-| Container isolation | Docker/VM       | Mechanical            |
-| OPERATOR.md         | OPERATOR.md     | Instruction-following |
-
-*\* **Deny rule caveat:** There are reported bugs where `Edit`/`Write` deny rules in `settings.json` are not always enforced — Claude Code has been observed editing files that match a deny pattern. This means deny rules are the correct approach and best available option, but can't be treated as airtight mechanical enforcement today. For OPERATOR.md specifically, there's a second layer: Claude Code's built-in `.claude/` directory protection still prompts for confirmation on writes, even under `--dangerously-skip-permissions`. Combined, OPERATOR.md modification is unlikely but not impossible until Anthropic fixes deny rule enforcement.*
-
-### Quick recommendations
-
-- **Strict hook profile** for always-on agents (no performance penalty)
-- **Session budget** of $5-10 for overnight sessions
-- **Heartbeat** for 24/7 monitoring — detects stalled agents, changed conditions, rate limits
-- **Network:** allow only `api.anthropic.com`, your channel API, and `github.com` when possible
-- **Secrets:** don't mount `~/.aws/`, `~/.ssh/` into containers. Use scoped API keys.
-- **Review session reports** before pushing — check for leaked paths, credentials, or connection strings
-
-### Security checklist
-
-- [ ] Docker/VM if using `permission_mode: "bypassPermissions"` — see [Always-On Setup](ALWAYS-ON.md)
-- [ ] Non-root user inside container
-- [ ] Deny patterns configured
-- [ ] Config isolation via named volume (default) — no host `~/.claude` bind-mount
-- [ ] No host mounts beyond project directory
-- [ ] No production credentials accessible
-- [ ] Strict hook profile
-- [ ] Session budget set
-- [ ] Heartbeat enabled
-- [ ] OPERATOR.md includes approval constraints
-- [ ] Session reports reviewed before pushing
+See [Security](SECURITY.md).
 
 ---
 
@@ -303,7 +188,7 @@ If you hit a rate limit, update SHELL.md: "Rate limited at [timestamp]. Waiting 
 
 ### Data persistence
 
-SHELL.md is gitignored. Protect in-progress state with Docker named volumes, periodic commits to a separate branch, or by removing SHELL.md from `.gitignore`.
+SHELL.md is gitignored. Protect in-progress state with periodic commits to a separate branch, or by removing SHELL.md from `.gitignore`. Docker users can also use named volumes — see [Always-On Setup](ALWAYS-ON.md).
 
 ### Channel resilience
 
@@ -313,33 +198,7 @@ If Telegram/Discord goes down, your hermit keeps running — just loses remote c
 
 Hermit assumes one person giving it direction per project. For teams, use separate branches or git worktrees with isolated state directories.
 
-### Docker teardown
-
-Choose the level of cleanup you need (each is self-contained — pick one):
-
-```bash
-# Stop and remove containers + networks
-docker compose -f docker-compose.hermit.yml down
-
-# Same, but also remove the built image
-docker compose -f docker-compose.hermit.yml down --rmi local
-```
-
-To also remove the generated scaffolding files:
-
-```bash
-rm -f Dockerfile.hermit docker-entrypoint.hermit.sh docker-compose.hermit.yml
-```
-
-`.env` is not removed — it may contain other project vars. To clean up hermit's entries, delete from `# --- claude-code-hermit ---` through the token line (`CLAUDE_CODE_OAUTH_TOKEN=...` or `ANTHROPIC_API_KEY=...`).
-
-This does not touch your hermit state (`.claude-code-hermit/`) — only the Docker scaffolding. You can re-run `/claude-code-hermit:docker-setup` to regenerate it.
-
 ### Auto-restart on reboot
-
-For Docker-based setups, `restart: unless-stopped` in `docker-compose.hermit.yml` handles this automatically. See [Always-On Setup](ALWAYS-ON.md).
-
-For bare-tmux setups:
 
 **Linux (systemd):**
 
@@ -362,3 +221,5 @@ WantedBy=multi-user.target
 ```
 
 **macOS (launchd):** Create a plist in `~/Library/LaunchAgents/` that starts the tmux session at login. The SessionStart hook reloads session context automatically.
+
+For Docker-based auto-restart, see [Always-On Setup](ALWAYS-ON.md) — `restart: unless-stopped` handles it automatically.

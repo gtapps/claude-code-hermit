@@ -28,7 +28,7 @@ A Claude Code plugin that turns any Claude Code instance into a self-improving p
                                  |
  +-------------------------------v----------------------------------+
  |                    LAYER 4: SKILLS + HOOKS                       |
- |   15 skills    5 hooks    3 profiles (minimal/standard/strict)   |
+ |   18 skills    5 hooks    3 profiles (minimal/standard/strict)   |
  +-------------------------------|----------------------------------+
                                  |
  +-------------------------------v----------------------------------+
@@ -91,7 +91,7 @@ Hermits extend this layer with specialized agents (e.g., `claude-code-dev-hermit
 
 ## Layer 4: Skills and Hooks
 
-### Skills (15)
+### Skills (18)
 
 See [Skills Reference](SKILLS.md) for the full list.
 
@@ -128,7 +128,7 @@ claude-code-hermit/
 ├── agents/session-mgr.md
 ├── hooks/hooks.json
 ├── scripts/               # Hook implementations + boot scripts
-├── skills/                 # 15 skill directories
+├── skills/                 # 18 skill directories
 ├── state-templates/        # Copied into projects by init
 └── .claude-plugin/plugin.json
 ```
@@ -252,7 +252,7 @@ config.json "env"  →  hermit-start.py  →  .claude/settings.local.json "env" 
 
 ### Denied operations
 
-`rm -rf /`, `git push --force`, `Write(.env)`, `Write(*.pem)`, `Write(*.key)` — hard blocks, cannot be overridden.
+Deny patterns block dangerous operations regardless of permission mode. See [Security](SECURITY.md) for the full deny list and defense-in-depth model.
 
 ---
 

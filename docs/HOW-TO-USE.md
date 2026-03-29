@@ -101,6 +101,14 @@ You're always in control. Hermit suggests. You decide.
 
 ---
 
+## Tips
+
+- **Don't create session/proposal files by hand.** Skills handle lifecycle tracking.
+- **After plugin updates**, run `/claude-code-hermit:upgrade`.
+- **Talk to your hermit.** Ask how it can improve. It gets better when you tell it what you need.
+
+---
+
 ## Daily Rhythm
 
 If daily routines are enabled (default: yes), Hermit follows a schedule tied to your active hours:
@@ -181,6 +189,14 @@ Or edit `config.json` directly: `"env": { "AGENT_HOOK_PROFILE": "strict" }`
 
 ---
 
+## Safety Rails
+
+Hermit includes by default some deny patterns that block dangerous operations regardless of permission mode — `rm -rf`, `git push --force`, `chmod 777`, credential access, and more. The `/init` wizard generates these automatically, with a hardened set for always-on deployments.
+
+See [Security](SECURITY.md) for the full deny list and defense-in-depth model.
+
+---
+
 ## Permissions
 
 The init wizard adds required permissions to `.claude/settings.json` automatically. To set up manually:
@@ -219,14 +235,3 @@ Most common actions auto-trigger from natural language — just say what you mea
 | **Channels**   | `channel-responder`                                           |
 
 Full reference: [Skills Reference](SKILLS.md).
-
----
-
-## Tips
-
-- **`/compact` between steps** — frees context without losing session state.
-- **`/cost` to monitor spending** — budgets warn at 80% and 100%.
-- **One thing at a time.** When it finishes, it stays ready for the next one. Scope creep? Capture it as a proposal, stay focused.
-- **Don't create session/proposal files by hand.** Skills handle lifecycle tracking.
-- **After plugin updates**, run `/claude-code-hermit:upgrade`.
-- **Talk to your hermit.** Ask how it can improve. It gets better when you tell it what you need.

@@ -3,6 +3,7 @@
 ## [0.0.8] - 2026-03-29
 
 ### Added
+
 - **Deny pattern generation in `/init`** — new step 9 asks whether you're planning always-on operation and generates appropriate deny rules in `.claude/settings.json`, including OPERATOR.md write protection with `**/` prefix. Always-on set adds `git push --force`, `git reset --hard`, `chmod 777`.
 - **Deny patterns in `/docker-setup`** — Docker means always-on, so the full hardened deny set is included by default (no wizard).
 - **Channel access control** — new `allowed_users` config (per-channel user ID allowlist). Absent field = accept all (backwards compatible). Empty array = accept none (explicit lockdown). Non-allowlisted users are silently ignored for all message types.
@@ -14,6 +15,7 @@
 - **Security impact notes in proposals** — proposals that affect security boundaries (permissions, network access, credential handling) must clearly note the impact so the operator can make an informed decision.
 
 ### Changed
+
 - **Docker config isolation** — container now uses a Docker named volume (`claude-config`) instead of bind-mounting `~/.claude`. Prevents container state from leaking into host interactive sessions. Volume persists across restarts.
 - **Docker npm permissions** — npm globals installed as `claude` user via `NPM_CONFIG_PREFIX`, enabling Claude Code self-update without sudo.
 - **Docker plugin installation** — entrypoint registers marketplaces and installs plugins on first boot using filesystem checks (not `claude plugin list`, which false-positives on project-scoped plugins).
@@ -24,6 +26,7 @@
 - **Docker `NODE_OPTIONS`** — sets `--max-old-space-size=4096` per official devcontainer recommendations.
 
 **What you need to do:**
+
 1. Run `/claude-code-hermit:upgrade` to refresh templates
 2. **Deny patterns (recommended):** Add safety deny rules to `.claude/settings.json` — run `/claude-code-hermit:init` step 9 or add manually:
    ```json
@@ -54,6 +57,7 @@
 Env vars are now managed in `config.json` `env` and written to `.claude/settings.local.json` at boot by `hermit-start`. This is the canonical Claude Code approach — settings.json `env` values are exported to all subprocesses (hooks, MCP servers, Bash tool calls).
 
 **What changed:**
+
 - `config.json` gains an `env` key with defaults: `AGENT_HOOK_PROFILE`, `COMPACT_THRESHOLD`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, `MAX_THINKING_TOKENS`
 - `hermit-start` writes `config.json` `env` into `.claude/settings.local.json` on every boot
 - Only auth vars (`CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`) remain as shell env — everything else goes through settings.local.json
@@ -61,17 +65,20 @@ Env vars are now managed in `config.json` `env` and written to `.claude/settings
 - Channel state dirs (`DISCORD_STATE_DIR`, `TELEGRAM_STATE_DIR`) move from compose env to `config.json` `env`
 
 **What you need to do:**
+
 1. Run `/claude-code-hermit:upgrade` — it adds the `env` key to your config.json with defaults
 2. If you have channels configured, the upgrade also adds `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` to `env`
 3. If you use Docker: rebuild (`docker compose -f docker-compose.hermit.yml build`) and regenerate compose with `/claude-code-hermit:docker-setup` to get the slimmed-down `environment:` section — or just remove the 5 non-auth env vars from your existing compose file manually
 
 ### Added
+
 - **`docker.packages` in config.json** — project-specific apt packages for Docker containers. During `/docker-setup`, Claude analyzes the project (package.json, requirements.txt, Makefile, database configs, OPERATOR.md) and suggests system packages with reasoning. The operator approves/edits, and packages are included as a separate Dockerfile layer. Hermit plugins can also append packages in their init skill.
 - **`/hermit-settings docker`** — view and edit Docker packages in config.json
 - **`/hermit-settings env`** — view and edit env vars in config.json
 - **Deep merge in `load_config()`** — partial config.json overrides of `env`, `heartbeat`, and `docker` no longer drop sibling defaults
 
 ### Fixed
+
 - `load_config()` shallow merge bug — if config.json had `"env": {"AGENT_HOOK_PROFILE": "strict"}`, the other 3 default env vars were silently lost. Now deep-merges nested dicts.
 - `load_config()` crash when `active_hours: null` in config.json — deep merge tried to unpack `None` as dict. Now guards with `or {}`.
 - **Channel state dirs kept as OS env vars** — `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` are forwarded via tmux temp file and Docker compose `environment:`, not just `settings.local.json`. MCP servers (which channel plugins run as) inherit shell env but don't read `settings.local.json`.
@@ -82,7 +89,7 @@ Env vars are now managed in `config.json` `env` and written to `.claude/settings
 
 ## [0.0.6] - 2026-03-28
 
-### Breaking Changes
+### Breaking
 
 **State directory moved out of `.claude/`**
 
@@ -93,11 +100,13 @@ The hermit state directory has moved from `.claude/.claude-code-hermit/` to `.cl
 **What you need to do:**
 
 1. Move your state directory:
+
    ```
    mv .claude/.claude-code-hermit .claude-code-hermit
    ```
 
 2. Update `.gitignore` — find the `# claude-code-hermit` block and update the paths:
+
    ```
    # Before
    .claude/.claude-code-hermit/config.json
@@ -126,6 +135,7 @@ Then run `/claude-code-hermit:upgrade` — it will refresh templates and clean u
 ## [0.0.5] - 2026-03-28
 
 ### Added
+
 - **Docker as default always-on path** — new `docs/ALWAYS-ON.md` guide frames Docker as the recommended way to run autonomous. Container isolation enables safe `bypassPermissions`.
 - **`/docker-setup` skill** — generates project-adapted Dockerfile, docker-entrypoint.sh, docker-compose.yml, and .env. Checks prerequisites, refuses if Docker files already exist.
 - **`/hermit-takeover` skill** — stops Docker container, marks session as `operator_takeover`, loads full hermit context, presents summary. For driving interactively with full continuity.
@@ -136,6 +146,7 @@ Then run `/claude-code-hermit:upgrade` — it will refresh templates and clean u
 - **`pattern-detect` → `reflect`** — renamed to match what it actually does: a reflection prompt, not algorithmic pattern detection.
 
 ### Changed
+
 - **`docs/ALWAYS-ON-OPS.md`** — Docker section removed (now in ALWAYS-ON.md). Retained as operational reference: lifecycle, security, channels, cost management. Renumbered sections.
 - **`README.md`** — Quick Start step 4 is now "Go always-on (recommended)" with `/docker-setup`. Bare tmux demoted to fallback note. Documentation table updated.
 - **`docs/HOW-TO-USE.md`** — "Going Always-On" section rewritten: Docker recommended, bare tmux as fallback.
@@ -146,17 +157,20 @@ Then run `/claude-code-hermit:upgrade` — it will refresh templates and clean u
 
 ## [0.0.4] - 2026-03-27
 
-### Breaking Changes — Hermit Plugin Authors
+### Breaking
 
-| Contract | v0.0.3 | v0.0.4 |
-|---|---|---|
-| Learning trigger | session-close invokes reflect | Reflection fires independently (heartbeat, natural pause, end of day) |
-| Reflect input | Last 5 archived reports | Memory + SHELL.md + cost-log |
-| Session close | Mandatory for learning | Optional — still useful for audit trail |
-| Idle behavior | Dormant | Active (gated by escalation) |
-| Report prerequisite | 3+ archived reports | None |
+**Hermit plugin authors:** the following contracts changed.
+
+| Contract            | v0.0.3                        | v0.0.4                                                                |
+| ------------------- | ----------------------------- | --------------------------------------------------------------------- |
+| Learning trigger    | session-close invokes reflect | Reflection fires independently (heartbeat, natural pause, end of day) |
+| Reflect input       | Last 5 archived reports       | Memory + SHELL.md + cost-log                                          |
+| Session close       | Mandatory for learning        | Optional — still useful for audit trail                               |
+| Idle behavior       | Dormant                       | Active (gated by escalation)                                          |
+| Report prerequisite | 3+ archived reports           | None                                                                  |
 
 ### Added
+
 - **Memory-driven learning** — reflect (formerly pattern-detect) rewritten as a reflection prompt. Uses auto-memory as primary input instead of scanning archived reports. No report prerequisite — learns from day one.
 - **Idle agency** — heartbeat checks for autonomous work during idle: NEXT-TASK.md pickup, reflection (every 4+ hours), priority alignment check, maintenance. Gated by escalation level (conservative=alert, balanced=auto-start, autonomous=full auto).
 - **Daily rhythm** — morning routine (first heartbeat tick of active hours: brief, proposal review, priority check) and evening routine (last tick: daily journal archived as S-NNN, reflection, tomorrow prep). Both fire once per day.
@@ -167,6 +181,7 @@ Then run `/claude-code-hermit:upgrade` — it will refresh templates and clean u
 - **New init wizard questions** — daily routines and idle agency (both default yes).
 
 ### Changed
+
 - **reflect** (formerly pattern-detect) — full rewrite from 125-line report-scanning algorithm to ~20-line reflection prompt. Drops 4 deterministic categories, 3-report minimum, and report reading. Keeps proposal pipeline, dedup, feedback loop, stale flags.
 - **heartbeat** — gains idle agency and daily routines. Old "NEXT-TASK.md auto-pickup" section subsumed by idle agency.
 - **SHELL.md template** — Plan table is now optional (commented out). Progress Log is the primary record.
@@ -178,13 +193,14 @@ Then run `/claude-code-hermit:upgrade` — it will refresh templates and clean u
 - **brief** — gains daily summary format variant.
 
 ### Design Principle
-Hermit is the scheduler and the policy layer. Claude is the intelligence. Hermit says *when* and *whether*. Claude figures out *how*. Never specify what Claude Code already handles natively.
+
+Hermit is the scheduler and the policy layer. Claude is the intelligence. Hermit says _when_ and _whether_. Claude figures out _how_. Never specify what Claude Code already handles natively.
 
 ---
 
 ## [0.0.3] - 2026-03-26
 
-### Breaking Changes
+### Breaking
 
 `skip_permissions` (boolean) in `config.json` has been replaced by `permission_mode` (string). Update any existing `config.json` manually:
 
@@ -199,10 +215,12 @@ Hermit is the scheduler and the policy layer. Claude is the intelligence. Hermit
 Valid values: `"default"`, `"acceptEdits"`, `"dontAsk"`, `"bypassPermissions"`. See [Permission Modes](https://code.claude.com/docs/en/permission-modes).
 
 ### Added
+
 - **Unified session lifecycle** — idle transitions happen at every task boundary, regardless of how the session was started. Agent archives the report, says "What's next?", and waits. No prompt, no binary choice.
 - **Best-effort heartbeat in interactive idle** — heartbeat starts on idle transition if enabled in config. Runs while terminal is open; always-on mode retains guaranteed heartbeat via tmux.
 
 ### Changed
+
 - **`permission_mode` config key** — replaces `skip_permissions: bool` with a string enum matching Claude Code's permission mode flags. Default is `"acceptEdits"` (auto-approves file edits, still prompts for shell commands). Use `"bypassPermissions"` for fully isolated containers/VMs.
 - **session skill** — step 6 performs idle transition directly (no longer defers to `/session-close`). Identical path for interactive and always-on.
 - **session-close skill** — full shutdown only. No close mode decision tree, no confirmation prompt, no `--idle` path.
@@ -211,14 +229,13 @@ Valid values: `"default"`, `"acceptEdits"`, `"dontAsk"`, `"bypassPermissions"`. 
 - **CLAUDE-APPEND** — unified lifecycle section replaces separate interactive/always-on blocks
 - **SHELL.md template** — "always-on mode" qualifiers removed from comments
 - **SKILLS.md, ALWAYS-ON-OPS.md** — descriptions updated to reflect unified lifecycle
-
-### Changed (defaults)
 - **`heartbeat.enabled`** defaults to `true` (was `false`) — heartbeat is locally valuable during idle regardless of channels. **Highly advised for existing projects:** if your `config.json` has `"heartbeat": { "enabled": false, ... }`, set it to `true`. Without this, the agent will not start the heartbeat on idle transitions and you'll lose background monitoring between tasks.
 - **`always_on`** template default fixed to `false` (was incorrectly `true`; it's a runtime flag set by hermit-start.py)
 - **init wizard** — heartbeat step (4h) removed entirely; heartbeat starts automatically on first idle transition
 - **hermit-settings** — heartbeat subcommand no longer gated on channels
 
 ### Removed
+
 - Close mode decision tree in `session-close` (idle/shutdown branching, confirmation prompt)
 - `--idle` flag on `/session-close` (idle transitions are automatic)
 - "always-on only" qualifier on idle transitions throughout
@@ -227,39 +244,39 @@ Valid values: `"default"`, `"acceptEdits"`, `"dontAsk"`, `"bypassPermissions"`. 
 
 ## [0.0.2] - 2026-03-25
 
-### Breaking Changes — Hermit Authors Must Update
+### Breaking
 
-Core terminology and filenames have changed. Hermit plugins (e.g., `claude-code-dev-hermit`) must update their references to match.
+**Hermit authors must update.** Core terminology and filenames have changed. Hermit plugins (e.g., `claude-code-dev-hermit`) must update their references to match.
 
 **Filename renames:**
 
-| Old | New |
-|-----|-----|
-| `sessions/ACTIVE.md` | `sessions/SHELL.md` |
-| `ACTIVE.md.template` | `SHELL.md.template` |
-| `NEXT-MISSION.md` | `NEXT-TASK.md` |
-| `CREATING-DOMAIN-PACK.md` | `CREATING-YOUR-OWN-HERMIT.md` |
+| Old                         | New                                         |
+| --------------------------- | ------------------------------------------- |
+| `sessions/ACTIVE.md`        | `sessions/SHELL.md`                         |
+| `ACTIVE.md.template`        | `SHELL.md.template`                         |
+| `NEXT-MISSION.md`           | `NEXT-TASK.md`                              |
+| `CREATING-DOMAIN-PACK.md`   | `CREATING-YOUR-OWN-HERMIT.md`               |
 | `CREATING-PROJECT-AGENT.md` | _(merged into CREATING-YOUR-OWN-HERMIT.md)_ |
 
 **Section renames in SHELL.md / session reports:**
 
-| Old | New |
-|-----|-----|
-| `## Mission` | `## Task` |
-| `## Steps` | `## Plan` |
+| Old                          | New               |
+| ---------------------------- | ----------------- |
+| `## Mission`                 | `## Task`         |
+| `## Steps`                   | `## Plan`         |
 | `\| Step \|` (column header) | `\| Plan Item \|` |
-| `## Discoveries` | `## Findings` |
-| `Missions Completed` | `Tasks Completed` |
+| `## Discoveries`             | `## Findings`     |
+| `Missions Completed`         | `Tasks Completed` |
 
 **Terminology renames (docs, skills, agents):**
 
-| Old | New |
-|-----|-----|
-| Domain pack | Hermit |
-| Hermit agent | Hermit |
-| Mission (session goal) | Task |
-| Steps (ordered work items) | Plan |
-| Discoveries | Findings |
+| Old                        | New      |
+| -------------------------- | -------- |
+| Domain pack                | Hermit   |
+| Hermit agent               | Hermit   |
+| Mission (session goal)     | Task     |
+| Steps (ordered work items) | Plan     |
+| Discoveries                | Findings |
 
 **What hermit authors need to do:**
 
@@ -271,10 +288,12 @@ Core terminology and filenames have changed. Hermit plugins (e.g., `claude-code-
 6. Run `/claude-code-hermit:upgrade` in target projects to refresh templates
 
 ### Added
+
 - **Session lifecycle docs** — Close Mode Decision Tree, Always-On Task Loop, When Self-Learning Fires (ALWAYS-ON-OPS.md sections 1b-1d)
 - **Cross-references** — ARCHITECTURE.md and HOW-TO-USE.md link to the new lifecycle sections
 
 ### Changed
+
 - **README rewrite** — new intro, Quick Start with channels step, "What It Does" / "What Makes It Different" / "Hermits" sections
 - **Consolidated docs** — CREATING-PROJECT-AGENT.md and CREATING-DOMAIN-PACK.md merged into CREATING-YOUR-OWN-HERMIT.md ("Create Your Own Hermit")
 - **Trimmed generic content** — CREATING-YOUR-OWN-HERMIT.md now references official Claude Code plugin docs instead of duplicating frontmatter/hook/skill field tables
@@ -285,6 +304,7 @@ Core terminology and filenames have changed. Hermit plugins (e.g., `claude-code-
 ## [0.0.1] - 2026-03-25
 
 ### Added
+
 - Initial release
 - **Session discipline** — task-driven sessions with tracked plans, cost logging, and archived reports
 - **15 skills**: session, session-start, session-close, status, brief, monitor, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, channel-responder, init, upgrade

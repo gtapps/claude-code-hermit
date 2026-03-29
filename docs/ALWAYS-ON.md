@@ -1,6 +1,6 @@
 # Always-On Setup
 
-Docker is the recommended way to run your hermit autonomously. For lifecycle internals, security hardening, and idle agency details, see [Always-On Operations](ALWAYS-ON-OPS.md).
+Docker is the recommended way to run your hermit autonomously. For lifecycle internals and bare-tmux setup, see [Always-On Operations](ALWAYS-ON-OPS.md). For security hardening, see [Security](SECURITY.md).
 
 ---
 

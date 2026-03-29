@@ -73,18 +73,16 @@ Additional agents may be available from installed hermits.
 
 ## Quick Reference
 
-- Run session: `/claude-code-hermit:session` — generic session workflow
-- Start session: `/claude-code-hermit:session-start`
-- Close session: `/claude-code-hermit:session-close`
-- Session status: `/claude-code-hermit:status` — compact summary (auto-triggers on "status", "progress")
-- Session brief: `/claude-code-hermit:brief` — executive summary (auto-triggers on "brief", "what happened")
-- Monitor: `/claude-code-hermit:monitor` — session-aware monitoring loop
-- Heartbeat: `/claude-code-hermit:heartbeat` — background checklist (run/start/stop/status/edit)
-- Settings: `/claude-code-hermit:hermit-settings` — view/change config
-- Create proposal: `/claude-code-hermit:proposal-create`
-- List proposals: `/claude-code-hermit:proposal-list` — view all proposals with status and source
-- Act on proposal: `/claude-code-hermit:proposal-act` — accept, defer, or dismiss a proposal
-- Upgrade: `/claude-code-hermit:upgrade` — update config and templates after plugin update
-- Docker setup: `/claude-code-hermit:docker-setup` — generate Docker scaffolding for always-on operation
-- Takeover: `/claude-code-hermit:hermit-takeover` — stop Docker container, take the wheel with full context
-- Hand-back: `/claude-code-hermit:hermit-hand-back` — leave instructions, restart the Docker container
+Common skills (full list: [Skills Reference](docs/SKILLS.md)):
+
+- `/claude-code-hermit:session` — start or resume a session
+- `/claude-code-hermit:session-close` — full shutdown with quality checks
+- `/claude-code-hermit:status` — compact summary (auto-triggers on "status", "progress")
+- `/claude-code-hermit:brief` — executive summary (auto-triggers on "brief", "what happened")
+- `/claude-code-hermit:heartbeat` — background checklist (run/start/stop/status/edit)
+- `/claude-code-hermit:hermit-settings` — view/change config
+- `/claude-code-hermit:proposal-list` — view proposals (auto-triggers on "any proposals")
+- `/claude-code-hermit:proposal-act` — accept, defer, or dismiss a proposal
+- `/claude-code-hermit:upgrade` — update config and templates after plugin update
+- `/claude-code-hermit:docker-setup` — generate Docker scaffolding for always-on
+- `/claude-code-hermit:hermit-takeover` / `hermit-hand-back` — operator control
