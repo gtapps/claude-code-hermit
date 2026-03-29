@@ -53,16 +53,24 @@ Modify with `/hermit-settings env`.
 | `show_ok` | boolean | `false` | Log OK results (false = silence means healthy). |
 | `active_hours.start` | string | `"08:00"` | Start of active window (heartbeat pauses outside). |
 | `active_hours.end` | string | `"23:00"` | End of active window. |
-| `morning_routine` | boolean | `true` | Run morning brief + proposal review at start of active hours. |
-| `evening_routine` | boolean | `true` | Run evening archive + reflection at end of active hours. |
-| `idle_agency` | boolean | `true` | Pick up autonomous work during idle. |
+| `stale_threshold` | string | `"2h"` | Alert if active session has no progress for this duration. |
 | `self_eval_interval` | integer | `20` | Re-evaluate HEARTBEAT.md checklist every N ticks. |
 | `total_ticks` | integer | `0` | Running tick counter (internal). |
-| `_last_morning` | string | `null` | Date of last morning routine (internal). |
-| `_last_evening` | string | `null` | Date of last evening routine (internal). |
 | `_last_reflection` | string | `null` | Timestamp of last reflection (internal). |
 
-Modify with `/hermit-settings heartbeat`, `/hermit-settings routines`, `/hermit-settings idle-agency`.
+Modify with `/hermit-settings heartbeat`.
+
+---
+
+## Idle & Routines
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `idle_behavior` | string | `"wait"` | What to do when idle: `"wait"` (check tasks/channels only) or `"discover"` (also run maintenance from OPERATOR.md). |
+| `idle_budget` | string | `"$0.50"` | Maximum cost per idle maintenance task. |
+| `routines` | array | `[]` | Scheduled routines. Each entry: `{id, time, days?, skill, enabled}`. Managed by routine watcher. |
+
+Modify with `/hermit-settings routines`, `/hermit-settings idle`.
 
 ---
 

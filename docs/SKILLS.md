@@ -35,6 +35,28 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 | Quiet mode   | Suppresses OK by default   | Always logs            |
 | Active hours | Yes (default 08:00-23:00)  | No                     |
 
+**Checklist weight:** Keep the heartbeat checklist under 10 items. Items that need checking on a schedule (daily, weekly) rather than every tick belong in routines. The self-evaluation will flag overgrown checklists.
+
+## Routines
+
+Routines are scheduled skills that fire at exact times (HH:MM) instead of relying on heartbeat ticks. A shell-level watcher (`scripts/routine-watcher.sh`) reads `config.json` routines every 60 seconds and fires the configured skill when the time matches. No LLM tokens are spent on clock-checking.
+
+Each routine has an `id`, a `time` (24h format), a `skill` to invoke, and optional `args`. Default routines are `morning` (brief with forward-looking framing) and `evening` (brief with backward-looking framing).
+
+**Managing routines:**
+
+- View and edit: `/claude-code-hermit:hermit-settings routines`
+- Morning brief variant: `/claude-code-hermit:brief --morning` (emphasizes priorities, proposals, forward-looking content)
+- Evening brief variant: `/claude-code-hermit:brief --evening` (emphasizes completed work, cost, findings)
+
+Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routine` config. Existing config is migrated automatically on upgrade.
+
+## When Idle (OPERATOR.md)
+
+OPERATOR.md supports a `## When Idle` section listing low-priority maintenance tasks the hermit can pick up during downtime. Tasks are picked sequentially, capped by `idle_budget`.
+
+This section is only active when `idle_behavior` is set to `"discover"` (default is `"wait"`). Set it via `/claude-code-hermit:hermit-settings idle`.
+
 ## Proposals & Learning
 
 | Skill             | What it does                                                                                                                          | Auto-triggers |

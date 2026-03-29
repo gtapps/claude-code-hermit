@@ -321,6 +321,13 @@ def main():
 
     print(f'[hermit] Started tmux session: {session_name}')
 
+    # Write initial .status file for shell consumers (routine watcher, etc.)
+    status_file = CONFIG_PATH.parent / '.status'
+    try:
+        status_file.write_text('idle')
+    except OSError:
+        pass
+
     # Mark as always-on mode in config
     config['always_on'] = True
     try:
@@ -350,6 +357,20 @@ def main():
         print(f'[hermit] Heartbeat started (every {hb.get("every", "30m")})')
     else:
         print('[hermit] Heartbeat: disabled')
+
+    # Start routine watcher as a background tmux window
+    routine_script = Path(__file__).resolve().parent / 'routine-watcher.sh'
+    if routine_script.exists():
+        result = subprocess.run(
+            ['tmux', 'new-window', '-t', session_name,
+             '-n', 'routines', '-d',
+             'bash', str(routine_script), session_name, str(CONFIG_PATH)],
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            print('[hermit] Routine watcher started')
+        else:
+            print('[hermit] Routine watcher: failed to start')
 
     print(f'[hermit] Mode: always-on (session stays open between tasks)')
     print(f'[hermit] Attach: tmux attach -t {session_name}')

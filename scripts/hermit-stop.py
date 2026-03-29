@@ -149,6 +149,13 @@ def main():
     config['always_on'] = False
     save_config(config)
 
+    # Write shutdown status for shell consumers
+    status_file = SESSIONS_DIR.parent / '.status'
+    try:
+        status_file.write_text('shutdown')
+    except OSError:
+        pass
+
     # Kill tmux session
     if session_exists(session_name):
         subprocess.run(['tmux', 'kill-session', '-t', session_name])

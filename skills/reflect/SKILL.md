@@ -22,6 +22,13 @@ If SHELL.md status is `idle` — think broader:
 - Is there a preference or constraint missing from OPERATOR.md?
 - Would a sub-agent improve a type of work that keeps coming up?
 - Would a skill formalize a workflow you keep repeating?
+- Is a manual request repeating on a schedule? (e.g., "operator asked for dependency check 3 of last 4 Mondays")
+  If so: create a proposal with `Type: routine` and a `## Config` block containing the routine JSON:
+  ```markdown
+  ## Config
+  {"id":"weekly-deps","time":"09:00","days":["mon"],"skill":"session-start --task 'dependency audit'","enabled":true}
+  ```
+  When accepted via `proposal-act`, this JSON is parsed and added to `config.json` routines automatically.
 
 Review past dismissed and deferred proposals.
 Avoid re-suggesting recently dismissed ideas.

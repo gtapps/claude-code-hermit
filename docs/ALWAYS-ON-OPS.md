@@ -108,7 +108,7 @@ Your hermit reflects on its own memory — not archived reports. Reflection trig
 | Trigger              | When                                                     |
 | -------------------- | -------------------------------------------------------- |
 | Task boundary        | After completing work, during idle transition            |
-| Heartbeat idle check | Every 4+ hours during idle (if `idle_agency` is enabled) |
+| Heartbeat idle check | Every 4+ hours during idle (if `idle_behavior` is `discover`) |
 | Evening routine      | Last heartbeat tick of the day                           |
 | Session close        | Before archiving the final report                        |
 
@@ -116,21 +116,21 @@ Your hermit reflects on its own memory — not archived reports. Reflection trig
 
 ### Daily rhythm
 
-If daily routines are enabled in config:
+If routines are configured (default after init or upgrade):
 
-- **Morning routine** — first heartbeat tick after active hours start: generates a brief, reviews pending proposals, checks priorities. If memory is sparse (new instance), reads the latest report for context recovery.
-- **Evening routine** — last heartbeat tick before active hours end: archives the day's work as an S-NNN report (if there are progress log entries), runs reflection, flags tomorrow's priorities.
+- **Morning routine** — `brief --morning` at configured time (default: active hours start + 30m): generates a brief, reviews pending proposals, checks priorities. Framing adapts to `always_on` setting.
+- **Evening routine** — `brief --evening` at configured time (default: active hours end - 30m): summarizes the day's work, archives via session-close, flags tomorrow's priorities.
 
-Both fire once per day. Configure with `/claude-code-hermit:hermit-settings routines`.
+Both are managed by the routine watcher, not the heartbeat. Configure with `/claude-code-hermit:hermit-settings routines`.
 
 ### Idle agency
 
-When idle and `idle_agency` is enabled, the heartbeat looks for autonomous work:
+When idle and `idle_behavior` is `"discover"` (set via `/hermit-settings idle`), the heartbeat looks for autonomous work:
 
-1. **NEXT-TASK.md** — picks up accepted proposals (gated by escalation level)
-2. **Reflection** — runs reflect if 4+ hours since last
-3. **Priority check** — reads OPERATOR.md, checks alignment with stated priorities and constraints
-4. **Maintenance** — HEARTBEAT.md checklist items
+1. **NEXT-TASK.md** — picks up accepted proposals (gated by escalation level). Active for both `wait` and `discover` modes.
+2. **When Idle tasks** — reads OPERATOR.md `## When Idle` section, picks first uncompleted item (cost-capped by `idle_budget`)
+3. **Reflection** — runs reflect if 4+ hours since last
+4. **Priority check** — reads OPERATOR.md, checks alignment with stated priorities and constraints
 
 ### Edge cases
 
@@ -138,6 +138,52 @@ When idle and `idle_agency` is enabled, the heartbeat looks for autonomous work:
 - **Crash during idle:** SHELL.md persists as `idle`. Asks what to work on next.
 - **hermit-start when already running:** Prints guidance, exits.
 - **Operator takeover:** If SHELL.md status is `operator_takeover`, the hermit asks what happened during takeover and checks for NEXT-TASK.md instructions.
+
+---
+
+## Routines
+
+Routines are time-triggered skills managed by a shell-level watcher (`scripts/routine-watcher.sh`). Unlike heartbeat checks (which run every tick), routines fire at exact times — no LLM needed to check the clock.
+
+### Config
+
+Routines live in `config.json` as a `routines` array:
+
+```json
+"routines": [
+  {"id": "morning", "time": "08:30", "skill": "brief --morning", "enabled": true},
+  {"id": "evening", "time": "22:30", "skill": "brief --evening", "enabled": true},
+  {"id": "weekly-deps", "time": "09:00", "days": ["mon"], "skill": "session-start --task 'dependency audit'", "enabled": false}
+]
+```
+
+- `id`: unique name for dedup and display
+- `time`: HH:MM in configured timezone
+- `days`: optional — omit for daily, or specify 3-letter day abbreviations
+- `skill`: short name (watcher prepends `/claude-code-hermit:`)
+- `enabled`: toggle without removing
+
+Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect within 60 seconds.
+
+### How it works
+
+The routine watcher runs as a background tmux window (started by `hermit-start.py`). Every 60 seconds it:
+1. Re-reads `config.json` for the latest routines
+2. Matches current time and day against enabled routines
+3. Checks `.claude-code-hermit/.status` — skips if `in_progress` (retries next minute)
+4. Fires matching routines via `tmux send-keys` to the Claude Code pane
+5. Deduplicates: each routine fires at most once per day
+
+The watcher dies automatically when the tmux session is killed — no cleanup needed.
+
+### Relationship to heartbeat
+
+| | Routines | Heartbeat |
+|---|---|---|
+| Timing | Exact HH:MM | Every N minutes |
+| Engine | Shell script (`date` + `jq`) | LLM evaluation |
+| Cost | Zero tokens | Checklist evaluation per tick |
+| Use for | Scheduled tasks (briefs, audits) | Continuous monitoring |
 
 ---
 

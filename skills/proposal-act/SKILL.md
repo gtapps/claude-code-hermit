@@ -27,6 +27,14 @@ When the operator accepts a proposal:
    Accepted on YYYY-MM-DD.
    ```
 
+3b. **Routine proposals.** If the proposal metadata contains `Type: routine` and a `## Config` section with a JSON block:
+    - Parse the JSON block. Validate: must have `id`, `time`, `skill`, `enabled` fields.
+    - Check for duplicate `id` in existing `config.json` routines array — if found, update the existing entry instead of appending.
+    - If no duplicate found, append the routine entry to `config.json` routines array.
+    - Respond: "Routine '{id}' added to config. The routine watcher picks it up within 60 seconds."
+    - If channels are configured: send notification.
+    - Skip step 4 — no further implementation needed.
+
 4. Ask: **"How should this be implemented?"**
    - **"Create a session task"** → Write `.claude-code-hermit/sessions/NEXT-TASK.md`:
      ```markdown

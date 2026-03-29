@@ -35,7 +35,7 @@
 ## No Auto-Proposals Appearing
 
 - Reflection runs at task boundaries, during heartbeat idle checks, and at end of day. If you're closing sessions before finishing work, reflection may not trigger.
-- Check that `idle_agency` is enabled in config — without it, idle-time reflection won't fire.
+- Check that `idle_behavior` is set to `"discover"` in config — without it, idle-time reflection won't fire.
 - If you just started using Hermit, give it a few sessions to build up memory. Proposals come from patterns, and patterns take repetition.
 - Check proposals exist: `ls .claude-code-hermit/proposals/PROP-*.md`
 
@@ -49,27 +49,25 @@
 
 SHELL.md from a crashed session persists. Choose **resume** or **start new** (generates a partial report). If this keeps happening, check system stability, rate limits, disk space, and consider Docker for auto-restart.
 
-## Daily Routines Not Firing
+## Routines Not Firing
 
-- Check `heartbeat.morning_routine` and `heartbeat.evening_routine` are `true` in config.json.
-- Routines are tied to `active_hours` — morning fires on the first heartbeat tick after `active_hours.start`, evening fires on the last tick before `active_hours.end`.
-- The heartbeat must be running. In interactive mode, it only runs during idle. In always-on mode, it runs continuously.
-- Each routine fires once per day — check `_last_morning` and `_last_evening` in config.json to see if they already ran today.
-- Verify your timezone is set correctly: `/claude-code-hermit:hermit-settings timezone`.
+- Check the `routines` array in config.json — each routine must have `enabled: true`.
+- Routines are managed by the routine watcher, which runs in its own tmux window. Check it: `tmux select-window -t <session>:routines`.
+- Each routine fires once per day — check `/tmp/hermit-routines-<session>` for dedup state to see if a routine already fired today.
+- Verify your timezone is set correctly: `/claude-code-hermit:hermit-settings timezone`. The routine watcher reads `config.timezone` and sets `TZ=`.
+- Check `.claude-code-hermit/.status` — if stuck on `in_progress`, routines skip (they only fire during idle).
 
 ## Idle Agency Not Working
 
-- Check `heartbeat.idle_agency` is `true` in config.json.
+- Check `idle_behavior` in config.json — must be `"discover"` for maintenance tasks. `"wait"` only checks tasks and channels.
 - Your hermit must be in `idle` state (check SHELL.md status). Idle agency only runs between tasks.
 - NEXT-TASK.md pickup is gated by escalation level: `conservative` only alerts, `balanced` auto-starts, `autonomous` runs fully unattended.
-- If no NEXT-TASK.md exists, idle agency falls back to reflection (every 4+ hours) and HEARTBEAT.md maintenance.
+- If no NEXT-TASK.md exists: idle agency checks OPERATOR.md `## When Idle` tasks, then falls back to reflection (every 4+ hours), then priority alignment.
 
 ## Morning Brief Not Sending
 
-- Check `heartbeat.morning_routine` is `true` in config.json.
+- See "Routines Not Firing" above — the morning brief is a routine (`brief --morning`).
 - Verify channels work first — send "status" manually from your phone.
-- The brief only sends if the heartbeat is running at the start of your active hours. In interactive mode, this means you need an active session.
-- Check `_last_morning` in config.json — if it shows today's date, the brief already ran.
 
 ## Hermit Keeps Suggesting Dismissed Proposals
 
@@ -101,3 +99,4 @@ Common causes:
 - Check config version: `cat .claude-code-hermit/config.json | grep _hermit_versions`.
 - If both match, there's genuinely nothing to upgrade. New features may have landed as skill changes (no config migration needed).
 - If the plugin was updated but the marketplace cache is stale: `claude plugin marketplace add gtapps/claude-code-hermit` to force refresh, then reinstall.
+

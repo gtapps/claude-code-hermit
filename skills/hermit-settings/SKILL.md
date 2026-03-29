@@ -1,6 +1,6 @@
 ---
 name: hermit-settings
-description: View or change hermit configuration for this project. Manages model, channels, budget prompts, morning brief, heartbeat, routines, idle agency, Docker packages, and unattended mode.
+description: View or change hermit configuration for this project. Manages model, channels, budget prompts, morning brief, heartbeat, routines, idle behavior, Docker packages, and unattended mode.
 disable-model-invocation: true
 ---
 # Hermit Settings
@@ -23,8 +23,8 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings brief          — configure morning brief
 /claude-code-hermit:hermit-settings permissions    — configure unattended mode
 /claude-code-hermit:hermit-settings heartbeat      — enable/disable, interval, quiet mode, active hours
-/claude-code-hermit:hermit-settings routines        — enable/disable morning and evening routines
-/claude-code-hermit:hermit-settings idle-agency     — toggle autonomous idle work
+/claude-code-hermit:hermit-settings routines        — manage scheduled routines (add/edit/remove/enable/disable)
+/claude-code-hermit:hermit-settings idle             — set idle behavior (wait or discover)
 /claude-code-hermit:hermit-settings env              — view/edit environment variables
 /claude-code-hermit:hermit-settings docker           — view/edit Docker packages
 ```
@@ -56,7 +56,10 @@ Operational:
   Model:           default (model: null)
   Budget prompts:  disabled (ask_budget: false)
   Morning brief:   disabled
-  Heartbeat:       disabled (every: 30m, show_ok: false, active: 08:00-23:00)
+  Idle behavior:   wait (idle_behavior: "wait")
+  Idle budget:     $0.50 (idle_budget: "$0.50")
+  Heartbeat:       disabled (every: 30m, show_ok: false, active: 08:00-23:00, stale: 2h)
+  Routines:        2 configured (morning 08:30, evening 22:30)
   Permission mode:  acceptEdits (permission_mode: "acceptEdits")
   Auto session:    enabled (auto_session: true)
   tmux name:       hermit-myproject
@@ -133,22 +136,49 @@ Ask: "Permission mode for unattended operation? (acceptEdits / dontAsk / bypassP
 Update `permission_mode` in config.json.
 
 **If argument is "heartbeat":**
-- Show current heartbeat config
+- Show current heartbeat config (including `stale_threshold`)
 - Ask: "Enable background heartbeat? (yes / no) [current value]"
-- If yes: ask for interval, show_ok, and active hours
+- If yes: ask for interval, show_ok, active hours, and stale threshold
+  - Stale threshold: "Alert if an active session has no progress for how long? (e.g., 2h, 30m) [current value]"
 - Update `heartbeat` object in config.json.
   - Note: "Heartbeat changes take effect on next `/claude-code-hermit:heartbeat start` or `hermit-start.py` run."
 
 **If argument is "routines":**
-- Show current state of `heartbeat.morning_routine` and `heartbeat.evening_routine`
-- Ask: "Enable morning routine? Generates a brief at the start of each day. (yes / no) [current value]"
-- Ask: "Enable evening routine? Archives the day's work and reflects at end of day. (yes / no) [current value]"
-- Update `heartbeat.morning_routine` and `heartbeat.evening_routine` in config.json.
+- Show current routines from `config.routines` array:
+  ```
+  Routines (config.json routines → routine-watcher.sh):
 
-**If argument is "idle-agency":**
-- Show current state of `heartbeat.idle_agency` and `escalation`
-- Ask: "Allow autonomous idle work? When idle, your assistant checks for queued tasks, reflects on patterns, and runs maintenance. Gated by your escalation setting (currently: {escalation}). (yes / no) [current value]"
-- Update `heartbeat.idle_agency` in config.json.
+    #  ID           Time   Days      Skill                 Status
+    1. morning      08:30  daily     brief --morning       enabled
+    2. evening      22:30  daily     brief --evening       enabled
+    3. weekly-deps  09:00  mon       session-start ...     disabled
+
+  (or "No routines configured" if empty)
+  ```
+- Ask: "Add / edit / remove / enable / disable? (or 'done')"
+- **Add wizard:** ask for:
+  - ID (unique name, e.g., "weekly-deps")
+  - Time (HH:MM)
+  - Days (daily, or specific days like "mon,wed,fri")
+  - Skill to run (short name — don't include `/claude-code-hermit:` prefix, the watcher adds it)
+  - Enabled (yes/no, default yes)
+  - Write to `config.json` routines array. The watcher picks it up within 60 seconds.
+- **Edit:** select by number, change any field.
+- **Remove:** select by number, delete from array.
+- **Enable/disable:** select by number, toggle `enabled` field.
+- Loop until operator says "done".
+- Note: "Routine changes take effect within 60 seconds (watcher re-reads config each cycle)."
+
+**If argument is "idle":**
+- Show current `idle_behavior` and `idle_budget` values
+- Ask: "What should the hermit do when idle between tasks?
+    1. Wait — only check for new tasks and channel messages (default)
+    2. Discover — also run maintenance tasks from OPERATOR.md and periodic reflection
+  Choose 1-2: [current value]"
+- Update `idle_behavior` in config.json with `"wait"` or `"discover"`.
+- If "discover" is selected, show `idle_budget` and offer to change it:
+  "Cost cap per idle task? [{current value}]"
+  Update `idle_budget` if changed.
 
 **If argument is "env":**
 - Show current `env` values from config.json in a table:

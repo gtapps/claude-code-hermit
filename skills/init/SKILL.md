@@ -124,14 +124,16 @@ Ask: "Permission mode for unattended operation? (acceptEdits / dontAsk / bypassP
 - See [Permission Modes](https://code.claude.com/docs/en/permission-modes)
 - Record as `permission_mode: "<value>"`
 
-**4k. Daily routines**
-Ask: "Should your assistant have a morning and evening routine? Morning: reviews overnight work, prepares a brief. Evening: archives the day, reflects on patterns. (yes / no) [yes]"
-- If yes: record `heartbeat.morning_routine: true` and `heartbeat.evening_routine: true`
-- If no: record both as `false`
+**4k. Idle behavior**
+Ask: "What should the hermit do when idle between tasks? 1. Wait — only check for new tasks and channel messages (default). 2. Discover — also run maintenance tasks from OPERATOR.md and periodic reflection. Choose 1-2: [1]"
+- Record as `idle_behavior: "wait"` or `idle_behavior: "discover"`
 
-**4l. Idle agency**
-Ask: "When idle, should it work on accepted proposals and maintenance autonomously? Gated by your escalation setting. (yes / no) [yes]"
-- Record as `heartbeat.idle_agency: true` or `false`
+**4l. Default routines**
+Ask: "Set up morning and evening routines? Morning brief reviews priorities, evening brief summarizes the day. (yes / no) [yes]"
+- If yes: calculate morning time as `active_hours.start + 30m` and evening time as `active_hours.end - 30m`. Add to `routines` array:
+  - `{"id":"morning","time":"<morning_time>","skill":"brief --morning","enabled":true}`
+  - `{"id":"evening","time":"<evening_time>","skill":"brief --evening","enabled":true}`
+- If no: leave `routines` as empty array
 
 ### 5. Write config.json
 
@@ -155,6 +157,9 @@ Write the collected preferences to `.claude-code-hermit/config.json`:
   "auto_session": true,
   "ask_budget": false,
   "morning_brief": null,
+  "idle_behavior": "wait",
+  "idle_budget": "$0.50",
+  "routines": [],
   "env": {
     "AGENT_HOOK_PROFILE": "standard",
     "COMPACT_THRESHOLD": "50",
@@ -169,9 +174,8 @@ Write the collected preferences to `.claude-code-hermit/config.json`:
       "start": "08:00",
       "end": "23:00"
     },
-    "morning_routine": true,
-    "evening_routine": true,
-    "idle_agency": true
+    "stale_threshold": "2h",
+    "_last_reflection": null
   }
 }
 ```

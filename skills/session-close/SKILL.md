@@ -12,6 +12,8 @@ Idle transitions happen automatically at task boundaries (handled by the `sessio
 
 If heartbeat is running, stop it before archiving.
 
+After archiving (or transitioning to idle), write the new status to `.claude-code-hermit/.status` — `idle` for idle transition, leave unchanged for full shutdown (hermit-stop.py handles that).
+
 ---
 
 ## Full Shutdown

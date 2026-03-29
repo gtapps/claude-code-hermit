@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.0.9] - 2026-03-29
+
+### Added
+
+- **Routines system** — Shell-level routine watcher (`scripts/routine-watcher.sh`) fires skills at exact scheduled times. Runs as a tmux window, reads `config.json` routines every 60 seconds. No LLM tokens spent on clock-checking. Manage with `/hermit-settings routines`.
+- **Stale session detection** — Heartbeat alerts when an active session shows no progress for longer than `stale_threshold` (default: `"2h"`). Catches silent crashes and rate limit stalls.
+- **Skip receipts** — When heartbeat resumes after skipped ticks (outside active hours, empty checklist), logs one summary line instead of silence. Eliminates ambiguous monitoring gaps.
+- **Checklist weight guidance** — HEARTBEAT.md template includes `<!-- Keep under 10 items -->` comment. Self-evaluation warns if checklist exceeds 10 items and suggests moving periodic checks to routines.
+- **`idle_behavior` config** — Top-level setting: `"wait"` (default, check tasks/channels only) or `"discover"` (also run OPERATOR.md maintenance tasks and periodic reflection). Replaces `heartbeat.idle_agency` boolean.
+- **When Idle tasks** — OPERATOR.md supports a `## When Idle` section listing low-priority maintenance tasks. Heartbeat picks items sequentially during idle (when `idle_behavior` is `"discover"`), capped by `idle_budget`.
+- **`.status` file** — `.claude-code-hermit/.status` contains a single word (`idle`, `in_progress`, `shutdown`) for shell consumers. Maintained by session-start, session-close, heartbeat, and hermit-stop.
+- **Routine proposals** — `reflect` can suggest new routines when it detects repeating operator request patterns. `proposal-act` handles `Type: routine` proposals by adding config entries directly.
+- **Brief `--morning`/`--evening` flags** — Routine-optimized variants: morning emphasizes forward-looking content (priorities, proposals), evening emphasizes backward-looking (completed work, cost, findings). Framing adapts to `always_on` setting.
+- **New config keys** — `idle_behavior` (default `"wait"`), `idle_budget` (default `"$0.50"`), `heartbeat.stale_threshold` (default `"2h"`), `routines` (default `[]`).
+
+### Changed
+
+- **Morning/evening routines** — Moved from LLM heartbeat evaluation to shell-level routine watcher. Timing is now deterministic (exact HH:MM) instead of probabilistic. Existing config is migrated automatically on upgrade.
+- **Idle agency** — `heartbeat.idle_agency` boolean replaced by `idle_behavior` string for clearer semantics. `true` migrates to `"discover"`, `false` to `"wait"`.
+- **Heartbeat edit subcommand** — Now shows item count and offers to migrate overgrown items to routines.
+- **Self-evaluation** — Added checklist weight check (warns if > 10 items).
+
+### Deprecated
+
+- `heartbeat.morning_routine` — migrated to `routines[]` on upgrade
+- `heartbeat.evening_routine` — migrated to `routines[]` on upgrade
+- `heartbeat.idle_agency` — migrated to `idle_behavior` on upgrade
+- `heartbeat._last_morning`, `heartbeat._last_evening` — replaced by routine watcher dedup
+- `morning_brief` — migrated to `routines[]` on upgrade (if configured)
+
+**What you need to do:**
+
+1. Run `/claude-code-hermit:upgrade` to migrate config and refresh templates
+2. Review migrated routines: `/claude-code-hermit:hermit-settings routines`
+3. Optionally add `## When Idle` to OPERATOR.md and set `idle_behavior` to `discover`
+
+---
+
 ## [0.0.8] - 2026-03-29
 
 ### Added

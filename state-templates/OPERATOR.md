@@ -27,5 +27,10 @@
 ## External Dependencies
 <!-- APIs, services, credentials location (never the credentials themselves). -->
 
+## When Idle
+<!-- Low-priority tasks your assistant works through during downtime.
+     Only active when idle_behavior is "discover" in config.
+     Order matters — top items are picked first. -->
+
 ## Notes
 <!-- Anything else your assistant should know. -->

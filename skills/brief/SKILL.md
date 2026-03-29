@@ -6,6 +6,31 @@ description: Returns a 5-line executive summary of recent work. Checks active se
 
 Provide a concise executive summary of recent session activity. Designed for morning check-ins, phone/channel consumption, and quick status updates.
 
+## Flags
+
+### --morning (routine mode)
+
+Emphasize forward-looking content:
+- Pending proposals needing review
+- OPERATOR.md priorities
+- If `config.always_on` is `true`: what happened overnight (activity since evening routine)
+- If `config.always_on` is `false`: frame as "here's where things stand" rather than "what happened overnight"
+- What's queued (NEXT-TASK.md, open proposals)
+- If auto-memory seems sparse (new instance, fresh machine), read the latest S-NNN-REPORT.md for context recovery
+
+### --evening (routine mode)
+
+Emphasize backward-looking content:
+- Sessions completed today (scan S-NNN reports with today's date + current SHELL.md progress log)
+- Total cost spent today
+- Key findings or patterns noticed
+- What to look at tomorrow
+- After generating summary: if SHELL.md Status is `in_progress` or has progress entries since last report, delegate archiving to `/claude-code-hermit:session-close --idle` (keeps S-NNN report ID logic centralized in session-mgr). If already `idle` with no new entries, skip archiving.
+
+### No flag (default)
+
+Current behavior — general purpose summary as described below.
+
 ## Plan
 
 1. Check if `.claude-code-hermit/sessions/SHELL.md` exists:

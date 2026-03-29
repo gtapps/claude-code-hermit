@@ -50,14 +50,13 @@ The prompts below match the init wizard exactly. Use the same wording for consis
 | `heartbeat.total_ticks` | 0.0.1 | no | `0` |
 | `remote` | 0.0.1 | yes | `true` |
 | `always_on` | 0.0.1 | no | `true` |
-| `heartbeat.morning_routine` | 0.0.4 | yes | `true` |
-| `heartbeat.evening_routine` | 0.0.4 | yes | `true` |
-| `heartbeat.idle_agency` | 0.0.4 | yes | `true` |
-| `heartbeat._last_morning` | 0.0.4 | no | `null` |
-| `heartbeat._last_evening` | 0.0.4 | no | `null` |
 | `heartbeat._last_reflection` | 0.0.4 | no | `null` |
 | `env` | 0.0.7 | no | `{"AGENT_HOOK_PROFILE": "standard", "COMPACT_THRESHOLD": "50", "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50", "MAX_THINKING_TOKENS": "10000"}` |
 | `docker` | 0.0.7 | no | `{"packages": []}` |
+| `idle_behavior` | 0.0.9 | yes | `"wait"` |
+| `idle_budget` | 0.0.9 | no | `"$0.50"` |
+| `heartbeat.stale_threshold` | 0.0.9 | no | `"2h"` |
+| `routines` | 0.0.9 | no (migrated or empty) | `[]` |
 
 **Prompts** (use the same text as the init wizard in `skills/init/SKILL.md` steps 4a–4e):
 - `agent_name`: "Give your agent a name? This personalizes session reports, channel messages, and briefs. (e.g., Atlas, Hermit, Scout) [skip]"
@@ -66,10 +65,47 @@ The prompts below match the init wizard exactly. Use the same wording for consis
 - `escalation`: "How autonomous should your assistant be? 1. Conservative — ask before most non-trivial actions, create proposals instead of fixing directly. 2. Balanced — act on routine tasks, ask for significant changes (default). 3. Autonomous — proceed unless blocked, minimize interruptions. Choose 1-3: [2]"
 - `sign_off`: "Sign-off line for channel messages and briefs? (e.g., '{name} out.', '— {initial}.', or skip) [skip]"
 
-**v0.0.4 prompts:**
-- `heartbeat.morning_routine`: "Enable morning routine? Reviews overnight work, prepares a brief at the start of each day. (yes / no) [yes]"
-- `heartbeat.evening_routine`: "Enable evening routine? Archives the day's work, reflects on patterns at end of day. (yes / no) [yes]"
-- `heartbeat.idle_agency`: "Allow autonomous idle work? When idle, your assistant can pick up accepted proposals and run maintenance. Gated by your escalation setting. (yes / no) [yes]"
+**v0.0.9 prompts:**
+- `idle_behavior`: "What should the hermit do when idle between tasks? 1. Wait — only check for new tasks and channel messages (default). 2. Discover — also run maintenance tasks from OPERATOR.md and periodic reflection. Choose 1-2: [1]"
+
+**v0.0.9 migration** (run before asking about new keys):
+
+This migration converts deprecated v0.0.4 config keys into the new routines system. Order matters for dedup.
+
+1. **Migrate `morning_brief`** (top-level, nullable object with `.time` and `.channel`):
+   - If `morning_brief` exists and is not null and has a `.time` field:
+     - Add `{"id":"morning","time":"<morning_brief.time>","skill":"brief --morning","enabled":true}` to `routines` array
+     - Set `morning_brief` to `null`
+     - Tell operator: "Morning brief migrated to routines system."
+
+2. **Migrate `heartbeat.morning_routine`** (boolean):
+   - If `heartbeat.morning_routine` exists:
+     - If `true` AND no routine with `id: "morning"` already in `routines` (from step 1):
+       - Add `{"id":"morning","time":"<active_hours.start + 30m>","skill":"brief --morning","enabled":true}`
+     - Remove `heartbeat.morning_routine` from config
+
+3. **Migrate `heartbeat.evening_routine`**:
+   - If `heartbeat.evening_routine` exists:
+     - If `true`: add `{"id":"evening","time":"<active_hours.end - 30m>","skill":"brief --evening","enabled":true}`
+     - Remove `heartbeat.evening_routine` from config
+
+4. **Migrate `heartbeat.idle_agency`**:
+   - If `heartbeat.idle_agency` exists:
+     - If `true`: set `idle_behavior` to `"discover"`
+     - If `false`: set `idle_behavior` to `"wait"`
+     - Remove `heartbeat.idle_agency` from config
+
+5. **Clean up internal tracking keys**:
+   - Remove: `heartbeat._last_morning`, `heartbeat._last_evening`
+   - Keep: `heartbeat._last_reflection`
+
+6. **Add new defaults for missing keys**:
+   - `idle_budget`: `"$0.50"` (if missing)
+   - `heartbeat.stale_threshold`: `"2h"` (if missing)
+   - `routines`: `[]` (if missing — should exist from steps above)
+
+7. **Create `.status` file**:
+   - Write `"idle"` to `.claude-code-hermit/.status`
 
 Tell the operator: "New settings available in this version:" then present only the questions for keys that are actually missing from their config. If no interactive keys are missing, skip this step.
 
@@ -83,6 +119,11 @@ Tell the operator: "New settings available in this version:" then present only t
 
 **v0.0.4 additional checks:**
 - Note about HEARTBEAT.md: "HEARTBEAT.md template has a new grouped structure (Task Checks, Idle Checks, Standing Checks). Your custom checklist is preserved. See `templates/HEARTBEAT.md.template` if you want to adopt the grouping."
+
+**v0.0.9 additional checks:**
+- Note about HEARTBEAT.md: "HEARTBEAT.md now includes a weight guideline comment (keep under 10 items). Your custom checklist is preserved."
+- Note about OPERATOR.md: "OPERATOR.md template now includes a `## When Idle` section for low-priority maintenance tasks. Your existing OPERATOR.md is preserved — add the section manually if desired."
+- Note about routines: "Morning and evening routines are now managed by the routine watcher shell script instead of the heartbeat LLM. Your config has been migrated automatically. Manage routines with `/hermit-settings routines`."
 
 Only update files in `templates/`:
 - `SHELL.md.template`
