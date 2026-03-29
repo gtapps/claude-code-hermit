@@ -34,3 +34,31 @@ Create a proposal only when you discover something with real leverage:
 - Style preferences — put those in `OPERATOR.md`
 - Things that auto-memory already handles
 - Hypothetical future needs — only real problems observed during work
+
+## Capability Proposals
+
+If the proposal affects security boundaries — permissions, network access, credential handling — clearly note the security impact so the operator can make an informed decision.
+
+When the proposed solution involves creating a new agent, skill, heartbeat item, or OPERATOR.md change, make the Suggested Plan self-contained:
+
+**For a new sub-agent:**
+1. Create `.claude/agents/<name>.md` with:
+   - Frontmatter: name, description, model (match to complexity — haiku for scanning, sonnet for reasoning), maxTurns, tools, disallowedTools, memory (project for shared team knowledge, user for personal cross-project knowledge)
+   - System prompt: role, constraints from OPERATOR.md, output format
+2. Test by delegating a representative task to the agent
+3. Verify it produces correct output and respects constraints
+
+**For a new skill:**
+1. Create `.claude/skills/<name>/SKILL.md` with:
+   - Frontmatter: name, description
+   - Numbered steps covering the full workflow
+2. Test by invoking the skill with a representative input
+3. Verify it completes correctly
+
+**For a heartbeat check:**
+1. Add the check to `.claude-code-hermit/HEARTBEAT.md` under the appropriate group
+2. Run `/claude-code-hermit:heartbeat run` to verify it evaluates correctly
+
+**For an OPERATOR.md refinement:**
+1. Present the suggested addition to the operator
+2. The operator decides where and how to add it — the agent never modifies OPERATOR.md directly

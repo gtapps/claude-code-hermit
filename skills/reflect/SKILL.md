@@ -17,6 +17,17 @@ Now reflect — using your memory and the context above:
 - Are there accepted proposals that the problem hasn't come back for?
   If so, mark them resolved.
 
+If SHELL.md status is `idle` — think broader:
+- Should any recurring check be added to HEARTBEAT.md?
+- Is there a preference or constraint missing from OPERATOR.md?
+- Would a sub-agent improve a type of work that keeps coming up?
+- Would a skill formalize a workflow you keep repeating?
+
+Review past dismissed and deferred proposals.
+Avoid re-suggesting recently dismissed ideas.
+If significantly more evidence has accumulated since
+a dismissal, it may be worth revisiting.
+
 If you notice something worth proposing: create a proposal via
 /claude-code-hermit:proposal-create with conversational evidence from what you remember.
 
