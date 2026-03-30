@@ -8,6 +8,15 @@ CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-/home/claude/.claude}"
 echo "[docker-entrypoint] Starting hermit container..."
 echo "[docker-entrypoint] Project: ${PROJECT_DIR}"
 
+# --- 0. Auth mode: OAuth token wins over API key if both are present ---
+# Claude Code gives ANTHROPIC_API_KEY precedence over CLAUDE_CODE_OAUTH_TOKEN.
+# If the .env file (loaded via env_file in compose) contains both, API mode
+# silently wins — no Max/Pro shown, --remote-control fails. Unset the key early.
+if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  echo "[docker-entrypoint] OAuth token present — unsetting ANTHROPIC_API_KEY to prevent API mode override."
+  unset ANTHROPIC_API_KEY
+fi
+
 # --- 1. Bypass onboarding, pre-approve MCP servers, patch permission_mode ---
 CLAUDE_JSON="${CLAUDE_CONFIG_DIR}/.claude.json"
 CC_VERSION=$(claude --version 2>/dev/null | grep -oP '[\d.]+' | head -1 || echo "0.0.0")

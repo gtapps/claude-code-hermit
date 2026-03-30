@@ -301,8 +301,13 @@ def main():
         'TELEGRAM_STATE_DIR',
     ]
     env_file = Path('/tmp') / f'.hermit-env-{session_name}'
+    oauth_token = os.environ.get('CLAUDE_CODE_OAUTH_TOKEN')
     with open(env_file, 'w') as f:
         for var in forward_vars:
+            # OAuth and API key are mutually exclusive — if OAuth token is set,
+            # skip the API key so Claude Code doesn't fall back to API mode.
+            if var == 'ANTHROPIC_API_KEY' and oauth_token:
+                continue
             val = os.environ.get(var)
             if val is not None:
                 f.write(f'export {var}={shlex.quote(val)}\n')

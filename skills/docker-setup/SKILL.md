@@ -95,6 +95,7 @@ Only the top-level project memory is seeded — not agent-scoped memories at `<p
    CLAUDE_CODE_OAUTH_TOKEN=your-token-here
    ```
    (or the apikey equivalent). If already present, leave it — note for step 8.
+3. **Conflict check:** If the operator chose OAuth, check whether `ANTHROPIC_API_KEY` is also set (non-empty) in `.env`. If so, warn: "Found `ANTHROPIC_API_KEY` in `.env` — Claude Code gives API keys precedence over OAuth tokens, so the container would run in API mode (no Max/Pro, no remote control). Comment it out or remove it." Offer to comment it out automatically. Do the same in reverse if the operator chose API key and `CLAUDE_CODE_OAUTH_TOKEN` is also set.
 3. Ensure `.env` is listed in both `.gitignore` and `.dockerignore` (create the files if needed, append if missing).
 4. **Deny patterns:** Docker means always-on — include the full hardened deny set in `.claude/settings.json` `permissions.deny` by default (no wizard needed):
    ```json
