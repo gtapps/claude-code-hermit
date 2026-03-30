@@ -2,6 +2,11 @@
 
 ## [0.1.0] - 2026-03-30
 
+### Added
+
+- **`hermit-docker-up`** — Start the Docker container and print the command to attach to the hermit's tmux session. Lives in `.claude-code-hermit/bin/`.
+- **`hermit-docker-down`** — Graceful shutdown: sends `/session-close --shutdown` via tmux, waits up to 60s for the session to close, then stops the container. Use `--force` to skip the graceful close.
+
 ### Fixed
 
 - **Docker: add missing `jq` dependency** — `routine-watcher.sh` requires `jq` to parse `config.json` for timezone and routines. Without it, the routine watcher silently fails and no scheduled routines fire inside the container.

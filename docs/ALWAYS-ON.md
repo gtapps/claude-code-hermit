@@ -69,14 +69,16 @@ Persisted in the `claude-config` named volume — won't appear on restarts. Afte
 
 | Action    | Command                                                       |
 | --------- | ------------------------------------------------------------- |
-| Start     | `docker compose -f docker-compose.hermit.yml up -d`           |
-| Stop      | `docker compose -f docker-compose.hermit.yml stop`            |
+| Start     | `.claude-code-hermit/bin/hermit-docker-up`                    |
+| Stop      | `.claude-code-hermit/bin/hermit-docker-down`                  |
+| Force stop| `.claude-code-hermit/bin/hermit-docker-down --force`          |
 | Logs      | `docker compose -f docker-compose.hermit.yml logs -f`         |
 | Restart   | `docker compose -f docker-compose.hermit.yml restart`         |
-| Tear down | `docker compose -f docker-compose.hermit.yml down`            |
 | Status    | `.claude-code-hermit/bin/hermit-status`                       |
 
-`hermit-status` is pure bash — no Claude Code process, no tokens burned.
+`hermit-docker-up` starts the container and prints the tmux attach command.
+`hermit-docker-down` sends a graceful session close before stopping. Use `--force` to skip.
+All bin scripts are pure bash — no Claude Code process, no tokens burned.
 
 ---
 

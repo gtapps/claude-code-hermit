@@ -187,14 +187,10 @@ If healthy:
 ```
 You're all set! Your hermit is live and running autonomously.
 
-  docker compose -f docker-compose.hermit.yml logs -f      — follow logs
-  docker compose -f docker-compose.hermit.yml restart      — restart
-  docker compose -f docker-compose.hermit.yml down         — stop
-  hermit-status                                            — quick check
-
-To attach:
-  docker exec -it <container> tmux attach -t <session>
-  (Ctrl+B, D to detach)
+  .claude-code-hermit/bin/hermit-docker-up     — start container + show attach command
+  .claude-code-hermit/bin/hermit-docker-down   — graceful stop (--force to skip)
+  .claude-code-hermit/bin/hermit-status        — quick check
+  docker compose -f docker-compose.hermit.yml logs -f  — follow logs
 ```
 
 If something looks wrong, help diagnose — suggest concrete next steps.
