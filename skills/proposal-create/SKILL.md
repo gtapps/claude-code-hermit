@@ -19,12 +19,22 @@ Create a proposal only when you discover something with real leverage:
    - Format: `PROP-NNN` with zero-padded 3-digit number
 
 2. Create `.claude-code-hermit/proposals/PROP-NNN.md` using `.claude-code-hermit/templates/PROPOSAL.md.template`:
-   - Fill in the title, date, and session ID
-   - Set status to `proposed`
-   - Set `Source:` to `manual` (default) or `auto-detected` (when invoked by `reflect`)
-   - Set `Related Sessions:` to the relevant session IDs (optional — used by auto-detected proposals to link evidence across multiple sessions)
+   - Write YAML frontmatter with:
+     - `id`: the assigned PROP-NNN
+     - `status`: `proposed`
+     - `source`: `manual` (default) or `auto-detected` (when invoked by `reflect`)
+     - `session`: the current session ID (S-NNN)
+     - `created`: today's date (YYYY-MM-DD)
+     - `related_sessions`: relevant session IDs as YAML array (optional — used by auto-detected proposals to link evidence across multiple sessions). Use `[]` if none.
+     - `category`: classify as one of:
+       - `improvement` — workflow or tooling fix
+       - `routine` — repeating scheduled task
+       - `capability` — new agent, skill, or heartbeat item
+       - `constraint` — OPERATOR.md refinement
+   - Fill in the title in the H1 heading
    - Write a clear Context, Problem, Proposed Solution, and Impact
    - Leave "Operator Decision" blank — the operator fills that in
+   - Do NOT write bullet-point metadata (`- **Created:**`, etc.) — all metadata lives in frontmatter only
 
 3. Add a reference to the proposal in `.claude-code-hermit/sessions/SHELL.md` under the Findings section
 

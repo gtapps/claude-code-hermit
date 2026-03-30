@@ -2,6 +2,35 @@
 
 An optional read-mostly companion dashboard. Your hermit works without it.
 
+## Quick Start
+
+1. Open Obsidian -> "Open folder as vault" -> select the repo root
+2. Add `.obsidian/` to `.gitignore`
+3. Install the **Dataview** plugin (Community plugins -> Browse -> "Dataview")
+4. Create `dashboard.md` at the repo root (add to `.gitignore`) and paste:
+
+````markdown
+## Sessions
+```dataview
+TABLE status, date, duration, cost_usd AS "Cost", tags
+FROM ".claude-code-hermit/sessions"
+WHERE id
+SORT date DESC
+```
+
+## Proposals
+```dataview
+TABLE status, source, category, session, created
+FROM ".claude-code-hermit/proposals"
+WHERE id
+SORT created DESC
+```
+````
+
+5. Pin SHELL.md in the right pane for live updates (right-click tab -> "Pin")
+
+That's it. You now have a queryable dashboard of all sessions and proposals.
+
 ---
 
 ## Two Hard Rules
@@ -16,41 +45,72 @@ Sessions: `session-start`, `session-close`. Proposals: `proposal-create`, `propo
 
 ---
 
-## Setup
+## Dashboard Queries
 
-1. Open Obsidian -> "Open folder as vault" -> select the repo root
-2. Add `.obsidian/` to `.gitignore`
-3. Install the **Dataview** plugin — the only plugin you need
+All session reports and proposals include YAML frontmatter with structured metadata. Dataview reads these fields directly — no wikilinks needed.
 
----
-
-## Dashboard
-
-Create `dashboard.md` at the repo root (add to `.gitignore`).
-
-### Session table
+### Session History
 
 ````markdown
 ```dataview
-TABLE Status, Date, Duration, Task, Cost
+TABLE status, date, duration, cost_usd AS "Cost", tags
 FROM ".claude-code-hermit/sessions"
-WHERE file.name != "SHELL" AND file.name != ".gitkeep"
-SORT file.name DESC
+WHERE id
+SORT date DESC
 ```
 ````
 
-### Proposal table
+### Proposal Pipeline
 
 ````markdown
 ```dataview
-TABLE Status, Source, Session, Created
+TABLE status, source, category, session, created
 FROM ".claude-code-hermit/proposals"
-WHERE file.name != ".gitkeep"
-SORT file.name ASC
+WHERE id AND (status = "proposed" OR status = "accepted")
+SORT source DESC, created ASC
 ```
 ````
 
-### Live session embed
+### All Proposals (including dismissed/resolved)
+
+````markdown
+```dataview
+TABLE status, source, category, session, created
+FROM ".claude-code-hermit/proposals"
+WHERE id
+SORT created DESC
+```
+````
+
+### Sessions That Generated Proposals
+
+````markdown
+```dataview
+TABLE date, status, proposals_created
+FROM ".claude-code-hermit/sessions"
+WHERE id AND length(proposals_created) > 0
+SORT date DESC
+```
+````
+
+### Cost Dashboard
+
+````markdown
+```dataview
+TABLE date, cost_usd AS "Cost", duration, tags
+FROM ".claude-code-hermit/sessions"
+WHERE id AND date >= date(today) - dur(7 days)
+SORT date DESC
+```
+````
+
+For aggregated cost data, embed the cost summary file:
+
+```markdown
+![[.claude-code-hermit/cost-summary]]
+```
+
+### Live Session Embed
 
 ```markdown
 ![[.claude-code-hermit/sessions/SHELL]]
@@ -73,10 +133,52 @@ This is encouraged. OPERATOR.md is human-curated — no lifecycle tracking, no s
 
 ---
 
+## Advanced: Canvas Planning
+
+Obsidian Canvas lets you spatially arrange notes and draw connections. You can create a strategic planning surface by:
+
+1. Create a new Canvas file (File -> New Canvas)
+2. Drag OPERATOR.md priorities onto the canvas as cards
+3. Drag relevant proposals (PROP-NNN.md) and link them to the priorities they address
+4. Add session reports to trace "what I asked for" vs. "what actually happened"
+
+This is a manual, operator-curated view. The hermit does not generate or modify canvas files.
+
+---
+
+## Advanced: Multi-Hermit Setup
+
+If you run multiple hermit instances (e.g., dev hermit + Glam), you can create a cross-hermit observatory:
+
+```
+observatory/
+  dev-hermit/     -> symlink to project-a/.claude-code-hermit/
+  glam/           -> symlink to project-b/.claude-code-hermit/
+  dashboard.md    -> cross-hermit Dataview queries
+```
+
+Open the `observatory/` directory as an Obsidian vault. Dataview queries work across symlinked directories:
+
+````markdown
+## All Hermits — Recent Sessions
+```dataview
+TABLE id, status, date, cost_usd AS "Cost"
+FROM ""
+WHERE id AND regexmatch("^S-", id)
+SORT date DESC
+LIMIT 20
+```
+````
+
+For Docker always-on mode, mount the hermit state directory as a volume and symlink into the observatory vault.
+
+---
+
 ## What NOT to Do
 
 - Don't create session/proposal files from Obsidian (Rule 2)
+- Don't edit YAML frontmatter in session reports or proposals — use skills (`/proposal-act`, `/session-close`) instead
 - Don't edit `config.json` in Obsidian — use `/hermit-settings`
 - Don't use `[[wikilinks]]` or `%%comments%%` in tracked files — your hermit reads standard markdown only
-- Don't install plugins that modify markdown on save (Linter, Auto Link Title) — creates phantom diffs and breaks inline field format
+- Don't install plugins that modify markdown on save (Linter, Auto Link Title) — creates phantom diffs and breaks frontmatter
 - Don't rename/move tracked files — your hermit expects specific paths (`S-001-REPORT.md`, `PROP-001.md`)

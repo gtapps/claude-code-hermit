@@ -21,7 +21,7 @@ If no action or ID is provided, ask the operator which proposal and action.
 When the operator accepts a proposal:
 
 1. Read the proposal file from `.claude-code-hermit/proposals/PROP-NNN.md`
-2. Update the metadata: `**Status:** accepted`
+2. Update the YAML frontmatter `status` field to `accepted` and add `accepted_date: YYYY-MM-DD`. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
 3. Append a timestamp to the Operator Decision section:
    ```
    Accepted on YYYY-MM-DD.
@@ -62,7 +62,7 @@ When the operator accepts a proposal:
 ## Defer Flow
 
 1. Read the proposal file
-2. Update the metadata: `**Status:** deferred`
+2. Update the YAML frontmatter `status` field to `deferred` and add `deferred_date: YYYY-MM-DD`. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
 3. Ask: "Any note on why it's deferred or when to revisit?" (optional — operator can skip)
 4. If a note is provided, append to the Operator Decision section:
    ```
@@ -75,7 +75,7 @@ Deferred proposals still appear in `/proposal-list` but are sorted below open pr
 ## Dismiss Flow
 
 1. Read the proposal file
-2. Update the metadata: `**Status:** dismissed`
+2. Update the YAML frontmatter `status` field to `dismissed` and add `dismissed_date: YYYY-MM-DD`. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
 3. Ask: "Reason for dismissal?" (optional — operator can skip)
 4. If a reason is provided, append to the Operator Decision section:
    ```

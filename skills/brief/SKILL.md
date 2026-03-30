@@ -11,6 +11,7 @@ Provide a concise executive summary of recent session activity. Designed for mor
 ### --morning (routine mode)
 
 Emphasize forward-looking content:
+- Read `.claude-code-hermit/cost-summary.md` for cost context. Include: "Yesterday: $X.XX across N sessions" from the trend table.
 - Pending proposals needing review
 - OPERATOR.md priorities
 - If `config.always_on` is `true`: what happened overnight (activity since evening routine)
@@ -21,8 +22,8 @@ Emphasize forward-looking content:
 ### --evening (routine mode)
 
 Emphasize backward-looking content:
-- Sessions completed today (scan S-NNN reports with today's date + current SHELL.md progress log)
-- Total cost spent today
+- Sessions completed today (scan S-NNN reports with today's date in frontmatter `date` field, or `## Summary` for pre-Observatory reports, plus current SHELL.md progress log)
+- Read `.claude-code-hermit/cost-summary.md` for today's cost. If the summary is stale (its frontmatter `updated` date is not today), the cost-tracker will regenerate it on the next interaction — use the trend table's today entry or fall back to scanning reports.
 - Key findings or patterns noticed
 - What to look at tomorrow
 - After generating summary: if SHELL.md Status is `in_progress` or has progress entries since last report, delegate archiving to `/claude-code-hermit:session-close --idle` (keeps S-NNN report ID logic centralized in session-mgr). If already `idle` with no new entries, skip archiving.
@@ -68,10 +69,10 @@ Next: description of next action (or "Session complete" if all done)
 - For the "Done" line: list completed step names, comma-separated. If too many, show first 3 and "+ N more"
 - For the "Next" line: show the first planned or in_progress step. If blocked, show "Blocked: reason"
 - If summarizing a completed report: "Next" becomes the report's "Next Start Point" content
-- After composing the 5-line output: scan `.claude-code-hermit/proposals/` for files with `Source: auto-detected` and `Status: proposed`. If any exist, append a 6th line: `Proposals: N auto-detected proposal(s) pending review`
+- After composing the 5-line output: scan `.claude-code-hermit/proposals/` for files with `source: auto-detected` and `status: proposed` (read from YAML frontmatter if present, fall back to bullet metadata). If any exist, append a 6th line: `Proposals: N auto-detected proposal(s) pending review`
 
 ## Daily Summary Format
 
 When invoked with "brief today", "daily summary", or "what happened today":
 
-Scan all session reports archived today (match date in `## Summary`) plus the current SHELL.md progress log. Format as a day-level summary covering: work done, cost, and proposals created/resolved.
+Scan all session reports archived today (match `date` in YAML frontmatter, or `Date` in `## Summary` for pre-Observatory reports) plus the current SHELL.md progress log. Read `.claude-code-hermit/cost-summary.md` for aggregated cost data. Format as a day-level summary covering: work done, cost, and proposals created/resolved.

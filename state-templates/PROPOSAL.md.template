@@ -1,10 +1,13 @@
+---
+id: PROP-NNN
+status: proposed
+source: manual
+session: S-NNN
+created: YYYY-MM-DD
+related_sessions: []
+category: improvement
+---
 # Proposal: PROP-NNN — [Title]
-
-- **Created:** YYYY-MM-DD
-- **Session:** S-NNN
-- **Status:** proposed | accepted | deferred | rejected | resolved
-- **Source:** manual | auto-detected
-- **Related Sessions:**
 
 ## Context
 <!-- What session/task surfaced this? -->

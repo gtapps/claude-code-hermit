@@ -8,7 +8,7 @@ Pause and think about your recent work.
 
 1. Read SHELL.md for current context
 2. Read last 20 lines of cost-log.jsonl for cost data
-3. Scan proposals/ for existing proposals (dedup, stale check, feedback loop)
+3. Scan proposals/ for existing proposals (dedup, stale check, feedback loop). Parse metadata from YAML frontmatter if present (file starts with `---`). Fall back to parsing bullet-point metadata (`**Status:**`, `**Source:**`, etc.) for pre-Observatory proposals.
 
 Now reflect — using your memory and the context above:
 - Is anything recurring that shouldn't be?

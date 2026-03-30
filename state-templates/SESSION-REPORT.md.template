@@ -1,12 +1,16 @@
+---
+id: S-NNN
+status: completed
+date: YYYY-MM-DD
+duration: ~Xh
+cost_usd: 0.00
+tags: []
+proposals_created: []
+---
 # Session Report: S-NNN
 
-## Summary
-- **Date:** YYYY-MM-DD
-- **Duration:** ~Xh
-- **Task:**
-- **Status:** completed | partial | blocked
-- **Tags:**
-- **Cost:** $X.XX (NNK tokens)
+## Overview
+<!-- One-line task description -->
 
 ## Completed
 <!-- What was accomplished -->

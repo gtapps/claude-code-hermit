@@ -35,12 +35,39 @@ All state files live under `.claude-code-hermit/` in the project root.
    - Extract the highest NNN number, increment by 1
    - If no reports exist, use `S-001`
    - Format: `S-NNN` with zero-padded 3-digit number
-3. Copy `SHELL.md` to `.claude-code-hermit/sessions/S-NNN-REPORT.md`
-   - Replace the `S-NNN` placeholder in the Session Info section with the actual ID
-   - Fill in the Summary section using `.claude-code-hermit/templates/SESSION-REPORT.md.template` as reference
+3. Generate `.claude-code-hermit/sessions/S-NNN-REPORT.md` with YAML frontmatter:
+   - **Prepend YAML frontmatter** as the first content of the file. Extract values from SHELL.md:
+     - `id`: the assigned S-NNN
+     - `status`: from the `**Status:**` field in SHELL.md (e.g., `completed`, `partial`, `blocked`)
+     - `date`: today's date in YYYY-MM-DD format
+     - `duration`: compute from `**Started:**` timestamp to now (e.g., `2h 15m`, `45m`)
+     - `cost_usd`: parse from `## Cost` section — strip `$`, take the number before `(`. E.g., `$1.2345 (138K tokens)` → `1.2345`. Use `0.00` if no cost data.
+     - `tags`: from `**Tags:**` field, split on comma, trim whitespace, output as YAML array. E.g., `refactor, frontend` → `[refactor, frontend]`. Use `[]` if empty.
+     - `proposals_created`: scan `## Proposals Created` section for PROP-NNN patterns, output as YAML array. Use `[]` if none.
+   - **Write `## Overview`** with the one-line task description from `## Task`
+   - **Do NOT write a `## Summary` bullet list** — all structured metadata is in frontmatter only
+   - Use `.claude-code-hermit/templates/SESSION-REPORT.md.template` as reference for the full structure
+   - Example of a correctly generated report:
+     ```
+     ---
+     id: S-003
+     status: completed
+     date: 2026-03-29
+     duration: 1h 20m
+     cost_usd: 0.4231
+     tags: [bugfix, auth]
+     proposals_created: [PROP-002]
+     ---
+     # Session Report: S-003
+
+     ## Overview
+     Fix authentication token refresh bug in middleware
+
+     ## Completed
+     ...
+     ```
 4. Replace `SHELL.md` with a fresh template that includes a "Next Start Point" section
    - Carry forward any unfinished plan items and blockers from the closed session
-5. If cost data is available (from the cost-tracker hook), include it in the report
 
 ## On Task Complete (Idle Transition)
 
@@ -49,8 +76,9 @@ When the main session requests an idle transition (not a full close):
 1. Update `.claude-code-hermit/sessions/SHELL.md` with final task status, completed items, blockers, and lessons
 2. Determine the next report ID (same sequential S-NNN logic as full close)
 3. Generate a session report to `.claude-code-hermit/sessions/S-NNN-REPORT.md`
-   - Use the SESSION-REPORT.md.template as reference
-   - Fill in all fields from the current SHELL.md task data
+   - **Prepend YAML frontmatter** using the same extraction logic as On Session Close (step 3 above)
+   - Use the SESSION-REPORT.md.template as reference for structure
+   - Write `## Overview` with the task description, not a `## Summary` bullet list
 4. Update SHELL.md in place (do NOT replace with a fresh template):
    - Set Status to `idle`
    - Increment `Tasks Completed` counter

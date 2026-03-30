@@ -20,6 +20,7 @@ const MAX_STDIN = 1024 * 1024; // 1MB safety limit
 const COST_LOG = path.resolve('.claude/cost-log.jsonl');
 const SHELL_SESSION = path.resolve('.claude-code-hermit/sessions/SHELL.md');
 const STATUS_JSON = path.resolve('.claude-code-hermit/sessions/.status.json');
+const COST_SUMMARY = path.resolve('.claude-code-hermit/cost-summary.md');
 
 function detectModel(modelStr) {
   if (!modelStr) return 'sonnet';
@@ -36,8 +37,21 @@ function calculateCost(model, inputTokens, outputTokens) {
   return inputCost + outputCost;
 }
 
+function parseLogEntries() {
+  try {
+    const content = fs.readFileSync(COST_LOG, 'utf-8').trim();
+    if (!content) return [];
+    return content.split('\n').reduce((acc, line) => {
+      try { acc.push(JSON.parse(line)); } catch {}
+      return acc;
+    }, []);
+  } catch {
+    return [];
+  }
+}
+
 function getCumulativeCost(newCost, newTokens) {
-  // Read running totals from .status.json instead of re-scanning the entire JSONL
+  // O(1) path: read running totals from .status.json
   try {
     const status = JSON.parse(fs.readFileSync(STATUS_JSON, 'utf-8'));
     return {
@@ -48,27 +62,14 @@ function getCumulativeCost(newCost, newTokens) {
     // First run or missing file — fall back to full scan
   }
 
-  try {
-    const logContent = fs.readFileSync(COST_LOG, 'utf-8').trim();
-    if (!logContent) return { cost: newCost, tokens: newTokens };
-
-    let totalCost = 0;
-    let totalTokens = 0;
-
-    for (const line of logContent.split('\n')) {
-      try {
-        const entry = JSON.parse(line);
-        totalCost += entry.estimated_cost_usd || 0;
-        totalTokens += entry.total_tokens || 0;
-      } catch {
-        // Skip malformed lines
-      }
-    }
-
-    return { cost: totalCost, tokens: totalTokens };
-  } catch {
-    return { cost: newCost, tokens: newTokens };
+  const entries = parseLogEntries();
+  let totalCost = 0;
+  let totalTokens = 0;
+  for (const entry of entries) {
+    totalCost += entry.estimated_cost_usd || 0;
+    totalTokens += entry.total_tokens || 0;
   }
+  return { cost: totalCost || newCost, tokens: totalTokens || newTokens };
 }
 
 function checkBudget(budget, cumulativeCost) {
@@ -131,6 +132,101 @@ function writeStatusJson(shellContent, cumulativeCost, cumulativeTokens, budget)
 function parseBudget(shellContent) {
   const match = shellContent.match(/\*\*Budget:\*\*\s*\$(\d+\.?\d*)/);
   return match ? parseFloat(match[1]) : null;
+}
+
+function writeCostSummary() {
+  // Skip if already generated today (cheap statSync instead of reading config.json)
+  try {
+    const stat = fs.statSync(COST_SUMMARY);
+    if (stat.mtime.toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10)) return;
+  } catch {
+    // File missing — regenerate
+  }
+
+  const entries = parseLogEntries();
+  if (entries.length === 0) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+
+  const byDate = {};
+  const sessionsByDate = {};
+  let totalCost = 0;
+  const allSessions = new Set();
+
+  for (const e of entries) {
+    const date = (e.timestamp || '').slice(0, 10);
+    if (!date) continue;
+
+    const cost = e.estimated_cost_usd || 0;
+    totalCost += cost;
+    byDate[date] = (byDate[date] || 0) + cost;
+
+    if (e.session_id) {
+      allSessions.add(e.session_id);
+      if (!sessionsByDate[date]) sessionsByDate[date] = new Set();
+      sessionsByDate[date].add(e.session_id);
+    }
+  }
+
+  const totalSessions = allSessions.size;
+  const avgCost = totalSessions > 0 ? totalCost / totalSessions : 0;
+  const todayCost = byDate[today] || 0;
+  const todaySessions = sessionsByDate[today] ? sessionsByDate[today].size : 0;
+
+  let weekCost = 0;
+  const weekSessions = new Set();
+  for (const [date, cost] of Object.entries(byDate)) {
+    if (date >= weekAgo) {
+      weekCost += cost;
+      if (sessionsByDate[date]) {
+        for (const s of sessionsByDate[date]) weekSessions.add(s);
+      }
+    }
+  }
+  const weekSessionCount = weekSessions.size;
+  const weekAvg = weekSessionCount > 0 ? weekCost / weekSessionCount : 0;
+
+  let trendTable = '| Date | Sessions | Cost |\n|------|----------|------|\n';
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    const dCost = byDate[d] || 0;
+    const dSessions = sessionsByDate[d] ? sessionsByDate[d].size : 0;
+    if (dCost > 0 || dSessions > 0) {
+      trendTable += `| ${d} | ${dSessions} | $${dCost.toFixed(2)} |\n`;
+    }
+  }
+
+  const content = `---
+updated: ${new Date().toISOString()}
+total_cost_usd: ${Math.round(totalCost * 10000) / 10000}
+total_sessions: ${totalSessions}
+avg_session_cost_usd: ${Math.round(avgCost * 10000) / 10000}
+---
+# Cost Summary
+
+## Today
+- Sessions: ${todaySessions}
+- Cost: $${todayCost.toFixed(2)}
+
+## This Week
+- Sessions: ${weekSessionCount}
+- Cost: $${weekCost.toFixed(2)}
+- Avg per session: $${weekAvg.toFixed(2)}
+
+## All Time
+- Sessions: ${totalSessions}
+- Cost: $${totalCost.toFixed(2)}
+- Avg per session: $${avgCost.toFixed(2)}
+
+## Cost Trend (Last 7 Days)
+${trendTable}`;
+
+  try {
+    fs.writeFileSync(COST_SUMMARY, content, 'utf-8');
+  } catch {
+    // Non-fatal
+  }
 }
 
 function updateShellSession(content, costStr, tokenStr) {
@@ -213,6 +309,9 @@ async function main() {
     } catch {
       // Non-fatal — session file may not exist yet
     }
+
+    // Regenerate cost summary (once per day)
+    writeCostSummary();
 
     // Output brief summary
     console.log(`[cost-tracker] ${model}: ${Math.round(totalTokens / 1000)}K tokens, $${cost.toFixed(4)} (cumulative: ${costStr})`);

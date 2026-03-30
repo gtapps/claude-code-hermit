@@ -16,7 +16,9 @@ If no proposals exist: respond "No proposals found." and stop.
 
 ### 2. Parse metadata
 
-For each proposal, extract from the markdown bullet metadata:
+For each proposal, extract metadata. If the file starts with `---` (YAML frontmatter), read fields from frontmatter: `id`, `status`, `source`, `session`, `created`, `related_sessions`, `category`. Extract the title from the `# Proposal: PROP-NNN — [Title]` heading.
+
+If the file does not start with `---` (pre-Observatory format), fall back to parsing markdown bullet metadata:
 - **ID:** from filename (PROP-NNN)
 - **Status:** from `**Status:**` line
 - **Source:** from `**Source:**` line (default `manual` if missing — older proposals may not have this field)
@@ -32,12 +34,12 @@ Determine the current session number from the highest S-NNN-REPORT.md in `sessio
 ### 4. Display as table
 
 ```
-| ID       | Status   | Source        | Age          | Summary                          |
-|----------|----------|---------------|--------------|----------------------------------|
-| PROP-020 | proposed | auto-detected | 1 session    | [tag-correlation] Frontend blocked |
-| PROP-019 | proposed | auto-detected | 3 sessions   | [blocker] Test env recurring     |
-| PROP-015 | proposed | manual        | 12 sessions  | ⚠ Refactor auth module           |
-| PROP-012 | accepted | manual        | 20 sessions  | Add retry logic                  |
+| ID       | Status   | Source        | Category    | Age          | Summary                          |
+|----------|----------|---------------|-------------|--------------|----------------------------------|
+| PROP-020 | proposed | auto-detected | improvement | 1 session    | [tag-correlation] Frontend blocked |
+| PROP-019 | proposed | auto-detected | routine     | 3 sessions   | [blocker] Test env recurring     |
+| PROP-015 | proposed | manual        | improvement | 12 sessions  | ⚠ Refactor auth module           |
+| PROP-012 | accepted | manual        | capability  | 20 sessions  | Add retry logic                  |
 ```
 
 Ordering:

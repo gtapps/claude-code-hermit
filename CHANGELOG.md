@@ -1,5 +1,71 @@
 # Changelog
 
+## [0.0.10] - 2026-03-30
+
+### Added
+
+- **YAML frontmatter on session reports** — S-NNN-REPORT.md files now include structured YAML frontmatter (`id`, `status`, `date`, `duration`, `cost_usd`, `tags`, `proposals_created`). Enables querying by any tool that reads YAML: Obsidian Dataview, datasette, jq, Grafana. The old `## Summary` bullet list is replaced by `## Overview` (task description only) — no metadata duplication.
+- **YAML frontmatter on proposals** — PROP-NNN.md files now include frontmatter (`id`, `status`, `source`, `session`, `created`, `related_sessions`, `category`). The 5 bullet metadata lines are removed. New `category` field (improvement/routine/capability/constraint) is LLM-classified at creation time for filtering.
+- **Cost summary** — `cost-tracker.js` generates `.claude-code-hermit/cost-summary.md` with frontmatter aggregates (`total_cost_usd`, `total_sessions`, `avg_session_cost_usd`) and human-readable Today/This Week/All Time sections with a 7-day trend table. Regenerates once per day.
+- **Brief cost integration** — `--morning` brief includes "Yesterday: $X.XX across N sessions" from cost-summary.md. `--evening` and daily summary briefs reference cost-summary.md for aggregated data.
+- **Obsidian Quick Start** — OBSIDIAN-SETUP.md restructured: leads with a 4-step paste-and-go setup. New sections: Cost Dashboard, Proposal Pipeline, Canvas Planning (manual), Multi-Hermit Setup (symlinks).
+- **Cost summary guard** — uses `statSync` on cost-summary.md file mtime to skip regeneration if already generated today. No config.json dependency on the hot path.
+
+### Changed
+
+- **Session report template** — `## Summary` (6 bullet lines) replaced by YAML frontmatter + `## Overview` (one-line task description). All structured metadata lives in frontmatter only.
+- **Proposal template** — Bullet metadata (`- **Status:**`, etc.) replaced by YAML frontmatter. Body starts at `## Context`.
+- **session-mgr agent** — On Session Close and On Task Complete now generate YAML frontmatter when archiving. Includes explicit extraction instructions and example output.
+- **proposal-create** — Writes YAML frontmatter instead of bullet metadata. Classifies proposal category.
+- **proposal-act** — Updates frontmatter `status` field and adds action date (`accepted_date`, `deferred_date`, `dismissed_date`). Falls back to bullet metadata for pre-Observatory proposals.
+- **proposal-list** — Reads YAML frontmatter first, falls back to bullet format. Table now includes `Category` column.
+- **reflect** — Parses frontmatter when scanning proposals, falls back to bullets.
+- **brief** — Reads cost-summary.md for cost data. Proposal scanning uses frontmatter with bullet fallback.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:upgrade` to refresh templates and migrate existing files.
+
+**Migration: Session reports to YAML frontmatter**
+
+For each `.claude-code-hermit/sessions/S-*-REPORT.md`:
+
+1. Skip files already starting with `---` (already migrated)
+2. Parse the `## Summary` bullet metadata (format: `- **Field:** value`):
+   - `id`: from filename (e.g., `S-001-REPORT.md` -> `S-001`)
+   - `status`: from `- **Status:**` line (default `completed` if missing)
+   - `date`: from `- **Date:**` line
+   - `duration`: from `- **Duration:**` line
+   - `cost_usd`: from `- **Cost:**` line — strip the `$` prefix, parse the number before `(`. E.g., `$1.2345 (138K tokens)` -> `1.2345`. Use `0.00` if missing.
+   - `tags`: from `- **Tags:**` line — split on `,`, trim whitespace, format as YAML array. E.g., `refactor, frontend` -> `[refactor, frontend]`. Use `[]` if empty.
+   - `proposals_created`: scan `## Proposals Created` section for `PROP-NNN` patterns, format as YAML array. Use `[]` if none.
+3. Prepend the generated YAML frontmatter block (between `---` delimiters)
+4. Replace the `## Summary` section (heading + bullet lines) with `## Overview` containing only the `- **Task:**` value as prose
+5. Validate: re-read the file, verify frontmatter starts with `---` and ends with `---`, verify `id` and `status` fields are present. If parsing fails, warn: "Could not migrate S-NNN-REPORT.md — manual review needed." and leave the file unchanged.
+
+Report: "Migrated N session reports with YAML frontmatter."
+
+**Migration: Proposals to YAML frontmatter**
+
+For each `.claude-code-hermit/proposals/PROP-*.md`:
+
+1. Skip files already starting with `---` (already migrated)
+2. Parse the bullet metadata lines (format: `- **Field:** value`):
+   - `id`: from filename (e.g., `PROP-001.md` -> `PROP-001`)
+   - `status`: from `- **Status:**` line
+   - `source`: from `- **Source:**` line (default `manual` if missing)
+   - `session`: from `- **Session:**` line
+   - `created`: from `- **Created:**` line
+   - `related_sessions`: from `- **Related Sessions:**` line — split into YAML array. Use `[]` if empty.
+   - `category`: classify based on body content — `routine` if mentions schedule/cron/recurring, `capability` if mentions agent/skill/heartbeat, `constraint` if mentions OPERATOR.md, else `improvement`
+3. Prepend the generated YAML frontmatter block
+4. Remove the 5 bullet metadata lines from the body (everything between the H1 heading and `## Context`)
+5. Validate: same as session reports. If parsing fails, warn and leave unchanged.
+
+Report: "Migrated N proposals with YAML frontmatter."
+
+---
+
 ## [0.0.9] - 2026-03-29
 
 ### Added
