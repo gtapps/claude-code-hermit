@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.1.2] - 2026-03-30
+
+### Fixed
+
+- **Docker: OAuth token no longer overridden by API key** — When both `CLAUDE_CODE_OAUTH_TOKEN` and `ANTHROPIC_API_KEY` are present in the container environment (e.g. via `env_file: .env`), Claude Code silently picks API mode — no Max/Pro shown, `--remote-control` fails. Fixed in three layers: the entrypoint now `unset`s `ANTHROPIC_API_KEY` early when the OAuth token is set; `hermit-start.py` skips forwarding `ANTHROPIC_API_KEY` into the tmux session when the OAuth token is present; and the `docker-setup` skill now detects the conflict in `.env` during setup and offers to clean it up.
+
+### Upgrade Instructions
+
+If you have an existing Docker deployment using OAuth auth, apply the following change:
+
+- Add the following block near the top of your `docker-entrypoint.hermit.sh`, before the onboarding section:
+
+```bash
+# Auth mode: OAuth token wins over API key if both are present
+if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  echo "[docker-entrypoint] OAuth token present — unsetting ANTHROPIC_API_KEY to prevent API mode override."
+  unset ANTHROPIC_API_KEY
+fi
+```
+
+Then rebuild the container: `hermit-run docker-up --build`
+
+---
+
 ## [0.1.1] - 2026-03-30
 
 ### Fixed
