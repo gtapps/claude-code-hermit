@@ -43,7 +43,7 @@ Ask the operator: "Any instructions for the hermit to work on next?"
 
 ### 5. Restart the container
 
-Run `docker compose -f docker-compose.hermit.yml up -d` in the project root.
+Run `.claude-code-hermit/bin/hermit-run docker-up` in the project root.
 
 Check that the container started: run `docker compose -f docker-compose.hermit.yml ps --status running` after a few seconds.
 

@@ -132,9 +132,9 @@ Only update files in `templates/`:
 
 ### 5b. Update boot script wrappers
 
-- Check if `.claude-code-hermit/bin/` exists
-- If not: copy `${CLAUDE_PLUGIN_ROOT}/state-templates/bin/hermit-start` and `hermit-stop` into `.claude-code-hermit/bin/`. Ensure they are executable.
-- If yes: compare against the plugin's versions and replace if different
+- Copy all files from `${CLAUDE_PLUGIN_ROOT}/state-templates/bin/` into `.claude-code-hermit/bin/`
+- For each file: compare against the existing version and replace if different. Copy new files that don't exist yet.
+- Ensure all files in `.claude-code-hermit/bin/` are executable
 - Always update `_plugin_root` in config.json to the current `${CLAUDE_PLUGIN_ROOT}` value (the cache path changes on version upgrade)
 
 ### 6. Update CLAUDE-APPEND block

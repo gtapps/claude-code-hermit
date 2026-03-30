@@ -13,15 +13,19 @@ SHELL_FILE="$AGENT_DIR/sessions/SHELL.md"
 PROJECT_DIR="$(cd "$AGENT_DIR/../.." && pwd)"
 PROJECT_NAME="$(basename "$PROJECT_DIR")"
 
-# Read agent name + all status fields in a single python3 invocation
-# Output: 8 tab-separated fields (agent_name, status, task, plan_done, plan_total, cost_usd, budget_usd, blockers)
+# Read agent name, tmux session name, and all status fields in a single python3 invocation
 FIELDS=$(python3 -c "
 import json, sys, os
 config_path, status_path = sys.argv[1], sys.argv[2]
+project = os.path.basename(sys.argv[3])
 agent = ''
+tmux = 'hermit'
 if os.path.exists(config_path):
     try:
-        agent = json.load(open(config_path)).get('agent_name', '') or ''
+        cfg = json.load(open(config_path))
+        agent = cfg.get('agent_name', '') or ''
+        name = cfg.get('tmux_session_name', 'hermit-{project_name}')
+        tmux = name.replace('{project_name}', project)
     except: pass
 fields = [''] * 7
 if os.path.exists(status_path):
@@ -37,17 +41,19 @@ if os.path.exists(status_path):
             str(s.get('blockers', '') if s.get('blockers') is not None else ''),
         ]
     except: pass
-print(agent + '\t' + '\t'.join(fields))
-" "$CONFIG_FILE" "$STATUS_FILE" 2>/dev/null || echo "")
+print(agent + '\t' + tmux + '\t' + '\t'.join(fields))
+" "$CONFIG_FILE" "$STATUS_FILE" "$PROJECT_DIR" 2>/dev/null || echo "")
 
-IFS=$'\t' read -r AGENT_NAME STATUS TASK PLAN_DONE PLAN_TOTAL COST BUDGET BLOCKERS <<< "$FIELDS"
+IFS=$'\t' read -r AGENT_NAME TMUX_SESSION STATUS TASK PLAN_DONE PLAN_TOTAL COST BUDGET BLOCKERS <<< "$FIELDS"
 [ -z "$AGENT_NAME" ] && AGENT_NAME="hermit"
 
 # Docker container status
 DOCKER_STATE=""
-if command -v docker &>/dev/null && [ -f "$PROJECT_DIR/docker-compose.hermit.yml" ] && docker info &>/dev/null; then
-  running=$(cd "$PROJECT_DIR" && docker compose -f docker-compose.hermit.yml ps --status running --format '{{.Name}}' 2>/dev/null | head -1 || true)
-  if [ -n "$running" ]; then
+COMPOSE="$PROJECT_DIR/docker-compose.hermit.yml"
+if command -v docker &>/dev/null && [ -f "$COMPOSE" ] && docker info &>/dev/null; then
+  DC=(docker compose -f "$COMPOSE")
+  SERVICE=$(cd "$PROJECT_DIR" && "${DC[@]}" ps --status running --format '{{.Service}}' 2>/dev/null | head -1 || true)
+  if [ -n "$SERVICE" ]; then
     DOCKER_STATE="docker:up"
   else
     DOCKER_STATE="docker:down"
@@ -86,3 +92,7 @@ BLOCKER_STR="no blockers"
 [ -n "$BLOCKERS" ] && BLOCKER_STR="BLOCKED: $BLOCKERS"
 
 echo "$AGENT_NAME ($PROJECT_NAME) | ${STATUS} | $TASK | $PROGRESS | $COST_STR | $BLOCKER_STR${DOCKER_STATE:+ | $DOCKER_STATE}"
+
+if [ "$DOCKER_STATE" = "docker:up" ]; then
+  echo "  attach: docker compose -f docker-compose.hermit.yml exec $SERVICE tmux attach -t $TMUX_SESSION"
+fi

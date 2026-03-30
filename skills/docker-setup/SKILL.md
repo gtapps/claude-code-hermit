@@ -150,9 +150,7 @@ docker-compose.hermit.yml      — orchestration config
 **Build and start:** Ask "Ready to build and start? (yes/no) [yes]"
 
 If yes:
-1. `docker compose -f docker-compose.hermit.yml build` — wait for success. Help fix errors (daemon not running, network, disk).
-2. `docker compose -f docker-compose.hermit.yml up -d`
-3. `docker compose -f docker-compose.hermit.yml ps` — save container name.
+1. `.claude-code-hermit/bin/hermit-run docker-up` — builds and starts. Prints the tmux attach command on success. Help fix errors (daemon not running, network, disk).
 
 If no: print the manual commands and skip to verify.
 
@@ -187,8 +185,8 @@ If healthy:
 ```
 You're all set! Your hermit is live and running autonomously.
 
-  .claude-code-hermit/bin/hermit-docker-up     — start container + show attach command
-  .claude-code-hermit/bin/hermit-docker-down   — graceful stop (--force to skip)
+  .claude-code-hermit/bin/hermit-run docker-up     — start container + show attach command
+  .claude-code-hermit/bin/hermit-run docker-down   — graceful stop (--force to skip)
   .claude-code-hermit/bin/hermit-status        — quick check
   docker compose -f docker-compose.hermit.yml logs -f  — follow logs
 ```

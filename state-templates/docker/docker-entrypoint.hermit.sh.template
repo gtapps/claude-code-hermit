@@ -151,10 +151,35 @@ fi
 # --- 5. Launch hermit-start ---
 "${AGENT_DIR}/bin/hermit-start" "$@"
 
-# --- 6. Keep PID 1 alive ---
+# --- 6. Keep PID 1 alive, handle graceful shutdown ---
 SESSION_NAME="{{TMUX_SESSION_NAME}}"
+
+# SIGTERM trap: attempt graceful session close before container dies.
+# docker compose down sends SIGTERM to PID 1. Without this trap, the hermit
+# would be killed mid-session with no report archival.
+cleanup() {
+  echo "[docker-entrypoint] SIGTERM received..."
+  # Skip if already closed (e.g., hermit-run docker-down already handled it)
+  CUR_STATUS=$(cat "${AGENT_DIR}/.status" 2>/dev/null || echo "unknown")
+  if [ "$CUR_STATUS" = "idle" ] || [ "$CUR_STATUS" = "shutdown" ]; then
+    echo "[docker-entrypoint] Session already closed. Shutting down."
+    exit 0
+  fi
+  echo "[docker-entrypoint] Requesting graceful session close..."
+  tmux send-keys -t "$SESSION_NAME:0.0" "/claude-code-hermit:session-close --shutdown" Enter 2>/dev/null || true
+  for i in $(seq 1 30); do
+    STATUS=$(cat "${AGENT_DIR}/.status" 2>/dev/null || echo "unknown")
+    [ "$STATUS" = "idle" ] || [ "$STATUS" = "shutdown" ] && break
+    sleep 1
+  done
+  echo "[docker-entrypoint] Shutting down."
+  exit 0
+}
+trap cleanup SIGTERM SIGINT
+
 echo "[docker-entrypoint] Watching tmux session: ${SESSION_NAME}"
 while tmux has-session -t "$SESSION_NAME" 2>/dev/null; do
-  sleep 30
+  sleep 30 &
+  wait $! || true
 done
 echo "[docker-entrypoint] tmux session ended — container exiting"

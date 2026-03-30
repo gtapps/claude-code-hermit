@@ -138,6 +138,7 @@ When idle and `idle_behavior` is `"discover"` (set via `/hermit-settings idle`),
 - **Crash during idle:** SHELL.md persists as `idle`. Asks what to work on next.
 - **hermit-start when already running:** Prints guidance, exits.
 - **Operator takeover:** If SHELL.md status is `operator_takeover`, the hermit asks what happened during takeover and checks for NEXT-TASK.md instructions.
+- **Docker SIGTERM:** The entrypoint traps SIGTERM and attempts a graceful session close (30s timeout) before the container exits. Sessions are archived even on raw `docker compose down`.
 
 ---
 
@@ -207,10 +208,11 @@ Quick summary: set per-session budgets with `/hermit-settings budget` (warns at 
 
 All state is in `sessions/SHELL.md` on disk. A disconnect loses conversation context but preserves progress and blockers.
 
-1. Reattach to tmux, start Claude Code
-2. SessionStart hook loads OPERATOR.md, SHELL.md, latest report
-3. `session-start` presents current work, progress, blockers
-4. Confirm resume or start fresh
+1. Run `hermit-status` to check current state (includes the tmux attach command for Docker)
+2. Reattach to tmux, start Claude Code
+3. SessionStart hook loads OPERATOR.md, SHELL.md, latest report
+4. `session-start` presents current work, progress, blockers
+5. Confirm resume or start fresh
 
 ---
 
@@ -257,8 +259,9 @@ After=network.target
 [Service]
 Type=forking
 User=your-username
-ExecStart=/usr/bin/tmux new-session -d -s hermit -c /home/your-username/my-project \; send-keys "claude --permission-mode acceptEdits" Enter
-ExecStop=/usr/bin/tmux kill-session -t hermit
+WorkingDirectory=/home/your-username/my-project
+ExecStart=/home/your-username/my-project/.claude-code-hermit/bin/hermit-start
+ExecStop=/home/your-username/my-project/.claude-code-hermit/bin/hermit-stop
 Restart=on-failure
 RestartSec=10
 
@@ -266,6 +269,6 @@ RestartSec=10
 WantedBy=multi-user.target
 ```
 
-**macOS (launchd):** Create a plist in `~/Library/LaunchAgents/` that starts the tmux session at login. The SessionStart hook reloads session context automatically.
+**macOS (launchd):** Create a plist in `~/Library/LaunchAgents/` that runs `hermit-start` at login. The SessionStart hook reloads session context automatically.
 
-For Docker-based auto-restart, see [Always-On Setup](ALWAYS-ON.md) — `restart: unless-stopped` handles it automatically.
+**Docker:** `restart: unless-stopped` handles it automatically — see [Always-On Setup](ALWAYS-ON.md). The entrypoint's SIGTERM trap ensures graceful session close on system shutdown.
