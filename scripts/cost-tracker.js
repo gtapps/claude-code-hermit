@@ -11,9 +11,9 @@ const path = require('path');
 
 // Per-1M-token pricing (USD)
 const PRICING = {
-  haiku: { input: 0.8, output: 4.0 },
-  sonnet: { input: 3.0, output: 15.0 },
-  opus: { input: 15.0, output: 75.0 },
+  haiku:  { input: 0.80, cacheWrite: 1.00,  cacheRead: 0.08, output: 4.0  },
+  sonnet: { input: 3.00, cacheWrite: 3.75,  cacheRead: 0.30, output: 15.0 },
+  opus:   { input: 15.0, cacheWrite: 18.75, cacheRead: 1.50, output: 75.0 },
 };
 
 const MAX_STDIN = 1024 * 1024; // 1MB safety limit
@@ -30,11 +30,45 @@ function detectModel(modelStr) {
   return 'sonnet';
 }
 
-function calculateCost(model, inputTokens, outputTokens) {
+function calculateCost(model, inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens) {
   const pricing = PRICING[model] || PRICING.sonnet;
-  const inputCost = (inputTokens / 1_000_000) * pricing.input;
-  const outputCost = (outputTokens / 1_000_000) * pricing.output;
-  return inputCost + outputCost;
+  return (inputTokens      / 1_000_000) * pricing.input
+       + (cacheWriteTokens / 1_000_000) * pricing.cacheWrite
+       + (cacheReadTokens  / 1_000_000) * pricing.cacheRead
+       + (outputTokens     / 1_000_000) * pricing.output;
+}
+
+function readLastTurnUsage(transcriptPath) {
+  const TAIL_BYTES = 131072; // 128KB — read from end, avoid loading full transcript
+  try {
+    const stat = fs.statSync(transcriptPath);
+    const readFrom = Math.max(0, stat.size - TAIL_BYTES);
+    const fd = fs.openSync(transcriptPath, 'r');
+    const buf = Buffer.alloc(Math.min(TAIL_BYTES, stat.size));
+    fs.readSync(fd, buf, 0, buf.length, readFrom);
+    fs.closeSync(fd);
+
+    const lines = buf.toString('utf-8').split('\n');
+    // Drop the first line when mid-file (it's a partial line)
+    if (readFrom > 0) lines.shift();
+
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const entry = JSON.parse(lines[i]);
+        if (entry.type === 'assistant' && entry.message?.usage) {
+          const u = entry.message.usage;
+          return {
+            inputTokens:      u.input_tokens || 0,
+            cacheWriteTokens: u.cache_creation_input_tokens || 0,
+            cacheReadTokens:  u.cache_read_input_tokens || 0,
+            outputTokens:     u.output_tokens || 0,
+            model:            entry.message.model || '',
+          };
+        }
+      } catch {}
+    }
+  } catch {}
+  return null;
 }
 
 function parseLogEntries() {
@@ -266,18 +300,27 @@ async function main() {
 
     const data = JSON.parse(raw);
 
-    // Extract token counts — handle various property names
-    const inputTokens = data.input_tokens || data.inputTokens || data.usage?.input_tokens || 0;
-    const outputTokens = data.output_tokens || data.outputTokens || data.usage?.output_tokens || 0;
-    const model = detectModel(data.model || data.model_name || '');
-    const sessionId = data.session_id || data.sessionId || 'unknown';
+    const sessionId = data.session_id || 'unknown';
+    const transcriptPath = data.transcript_path;
 
-    const totalTokens = inputTokens + outputTokens;
+    if (!transcriptPath) {
+      process.exit(0);
+    }
+
+    const turn = readLastTurnUsage(transcriptPath);
+    if (!turn) {
+      process.exit(0);
+    }
+
+    const { inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens, model: rawModel } = turn;
+    const model = detectModel(rawModel);
+
+    const totalTokens = inputTokens + cacheWriteTokens + cacheReadTokens + outputTokens;
     if (totalTokens === 0) {
       process.exit(0);
     }
 
-    const cost = calculateCost(model, inputTokens, outputTokens);
+    const cost = calculateCost(model, inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens);
     const roundedCost = Math.round(cost * 10000) / 10000;
 
     // Log to JSONL
@@ -286,6 +329,8 @@ async function main() {
       session_id: sessionId,
       model,
       input_tokens: inputTokens,
+      cache_write_tokens: cacheWriteTokens,
+      cache_read_tokens: cacheReadTokens,
       output_tokens: outputTokens,
       total_tokens: totalTokens,
       estimated_cost_usd: roundedCost,
@@ -314,7 +359,7 @@ async function main() {
     writeCostSummary();
 
     // Output brief summary
-    console.log(`[cost-tracker] ${model}: ${Math.round(totalTokens / 1000)}K tokens, $${cost.toFixed(4)} (cumulative: ${costStr})`);
+    console.log(`[cost-tracker] ${model}: ${Math.round(totalTokens / 1000)}K tokens (${Math.round(cacheReadTokens / 1000)}K cached), $${cost.toFixed(4)} (cumulative: ${costStr})`);
   } catch (err) {
     // Non-fatal — never block on cost tracking failure
     console.error(`[cost-tracker] Error: ${err.message}`);

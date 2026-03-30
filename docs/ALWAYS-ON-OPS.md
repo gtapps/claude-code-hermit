@@ -81,7 +81,7 @@ hermit-start -> [in_progress] -> task done -> [idle] -> new task -> [in_progress
 | **Reflection runs** | Yes                             | Yes                              |
 | **Heartbeat**       | Keeps running (or starts)       | Stopped                          |
 | **Channels**        | Keep running (always-on only)   | Stopped                          |
-| **SHELL.md**        | Reset in-place to `idle`        | Replaced with fresh template     |
+| **SHELL.md**        | Reset in-place to `idle`, Monitoring & Summary compacted if over threshold | Replaced with fresh template     |
 | **Applies to**      | Both interactive and always-on  | Both interactive and always-on   |
 
 Default: idle transition when work finishes. Full shutdown only via explicit `/session-close` or `hermit-stop`.

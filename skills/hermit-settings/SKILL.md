@@ -1,6 +1,6 @@
 ---
 name: hermit-settings
-description: View or change hermit configuration for this project. Manages model, channels, budget prompts, morning brief, heartbeat, routines, idle behavior, Docker packages, and unattended mode.
+description: View or change hermit configuration for this project. Manages model, channels, budget prompts, morning brief, heartbeat, routines, idle behavior, compaction thresholds, Docker packages, and unattended mode.
 disable-model-invocation: true
 ---
 # Hermit Settings
@@ -26,6 +26,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings routines        — manage scheduled routines (add/edit/remove/enable/disable)
 /claude-code-hermit:hermit-settings idle             — set idle behavior (wait or discover)
 /claude-code-hermit:hermit-settings env              — view/edit environment variables
+/claude-code-hermit:hermit-settings compact          — configure SHELL.md compaction thresholds
 /claude-code-hermit:hermit-settings docker           — view/edit Docker packages
 ```
 
@@ -63,6 +64,10 @@ Operational:
   Permission mode:  acceptEdits (permission_mode: "acceptEdits")
   Auto session:    enabled (auto_session: true)
   tmux name:       hermit-myproject
+
+Compaction:
+  Monitoring:      compact at 30 lines, keep 20 (compact.monitoring_threshold/keep)
+  Session Summary: compact at 30 lines, keep 15 (compact.summary_threshold/keep)
 
 Environment (env):
   AGENT_HOOK_PROFILE              standard
@@ -197,6 +202,23 @@ Update `permission_mode` in config.json.
   - If input is `remove <KEY>`: delete the key from `env`
   - If input is `<KEY> <VALUE>`: set `env[KEY] = VALUE`
 - Note: "Env changes are written to `.claude/settings.local.json` on next `hermit-start`. To apply now, restart the hermit session."
+
+**If argument is "compact":**
+- Show current `compact` values from config.json:
+  ```
+  SHELL.md Compaction (config.json compact → session-mgr idle transition)
+
+    monitoring_threshold    30    (compact when Monitoring exceeds this many lines)
+    monitoring_keep         20    (keep this many recent entries after compacting)
+    summary_threshold       30    (compact when Session Summary exceeds this many lines)
+    summary_keep            15    (keep this many recent entries after compacting)
+  ```
+- Ask: "Change a threshold? (e.g., 'monitoring_threshold 50', 'summary_keep 20', or 'done') [done]"
+- Loop until operator says "done", "skip", or presses Enter:
+  - Validate: value must be a positive integer
+  - Validate: `*_keep` must not exceed its corresponding `*_threshold` (setting keep equal to threshold effectively disables compaction for that section)
+  - Update `compact[key]` in config.json
+- Note: "Compaction runs at each idle transition (task completion). No restart needed."
 
 **If argument is "docker":**
 - Show current `docker.packages` list:

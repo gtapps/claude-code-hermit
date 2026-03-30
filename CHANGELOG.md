@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.1] - 2026-03-30
+
+### Fixed
+
+- **Cost tracker now captures real token data** — The Stop hook payload never included token fields; `cost-tracker.js` was silently writing zero-cost entries (or on newer installs, not writing at all). It now reads the last assistant turn's `usage` from `transcript_path` in the hook payload, which is where Claude Code actually exposes token counts.
+- **Cache token pricing** — Added separate pricing rates for `cache_creation_input_tokens` (write) and `cache_read_input_tokens` (read) for all models. Previously cache tokens were ignored entirely, understating cost for heavily-cached sessions.
+- **Efficient transcript tail-read** — Instead of loading the full transcript file, reads only the last 128KB using a positioned `fs.readSync` call. Avoids unnecessary memory use on long sessions.
+
+### No manual upgrade steps required.
+
+---
+
 ## [0.1.0] - 2026-03-30
 
 ### Added

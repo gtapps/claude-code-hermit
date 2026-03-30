@@ -49,7 +49,7 @@ Execute one heartbeat tick immediately. Useful for testing the checklist.
 10. Determine: does anything need operator attention?
 
 **If nothing actionable:**
-- Append to SHELL.md `## Monitoring` section: `[HH:MM] Heartbeat: OK`
+- Do NOT append to SHELL.md (the tick is already recorded via `total_ticks` in config.json)
 - Read config `heartbeat.show_ok`:
   - If `true` AND channels are configured: send "Heartbeat OK" to channel
   - If `false` (default): no channel message — silent acknowledgment
@@ -79,21 +79,22 @@ Triggered every N ticks (configured by `heartbeat.self_eval_interval`, default 2
 
 **Steps:**
 
-1. Read recent heartbeat entries from SHELL.md `## Monitoring` section — collect all `[HH:MM] Heartbeat:` lines in the current session
-2. For each checklist item in HEARTBEAT.md: check how many recent ticks flagged it vs how many were OK
-3. **Stale check detection:** If a specific checklist item was OK for all ticks in the evaluation window, suggest to the operator:
+1. Read `heartbeat.total_ticks` and `heartbeat.self_eval_interval` from config.json. The evaluation window covers the last `self_eval_interval` ticks (i.e., ticks `total_ticks - self_eval_interval` through `total_ticks`).
+2. Read SHELL.md `## Monitoring` — collect all `[HH:MM] Heartbeat:` alert/warning lines. These are the only entries present (OK ticks are not logged).
+3. For each checklist item: count how many alert lines reference that item. Compare against the window size (`self_eval_interval`). If zero alerts across the window, the item has been clean for all ticks in the evaluation period.
+4. **Stale check detection:** If a specific checklist item had zero alerts across the evaluation window, suggest to the operator:
    > "Heartbeat self-check: the item '[check description]' has been OK for [N] consecutive ticks. Consider removing it to save tokens, or reducing heartbeat frequency."
-4. **Checklist weight check:** Count items in HEARTBEAT.md. If count > 10, suggest:
+5. **Checklist weight check:** Count items in HEARTBEAT.md. If count > 10, suggest:
    > "HEARTBEAT.md has {count} items (recommended: ≤10). Consider moving periodic checks to routines (`/hermit-settings routines`) to reduce per-tick token cost. Items that only need daily/weekly checking are good routine candidates."
-5. **Missing check suggestion:** Scan `.claude-code-hermit/proposals/` for recent auto-detected proposals about recurring issues. If a proposal describes a problem that could be caught by a heartbeat check, suggest:
+6. **Missing check suggestion:** Scan `.claude-code-hermit/proposals/` for recent auto-detected proposals about recurring issues. If a proposal describes a problem that could be caught by a heartbeat check, suggest:
    > "PROP-NNN identified a recurring [issue]. Consider adding a [relevant check] to HEARTBEAT.md."
-6. Append self-evaluation findings to SHELL.md `## Monitoring` with timestamp:
+7. Append self-evaluation findings to SHELL.md `## Monitoring` with timestamp:
    ```
    [HH:MM] Heartbeat self-eval: [summary of suggestions]
    ```
-7. If channels are configured: send self-eval findings as a notification
-8. Do NOT auto-modify HEARTBEAT.md — suggest only. The operator decides what to check. Offer to make the edit if the operator agrees.
-9. After the operator acts on a suggestion (adds or removes a check): reset `heartbeat.total_ticks` to 0 in config.json
+8. If channels are configured: send self-eval findings as a notification
+9. Do NOT auto-modify HEARTBEAT.md — suggest only. The operator decides what to check. Offer to make the edit if the operator agrees.
+10. After the operator acts on a suggestion (adds or removes a check): reset `heartbeat.total_ticks` to 0 in config.json
 
 ### start
 

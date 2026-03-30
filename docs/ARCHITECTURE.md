@@ -73,7 +73,7 @@ SHELL.md plan,   status,   S-NNN-REPORT.md,
 
 **Close:** Defaults to idle transition at every task boundary — your hermit says "What's next?" and waits. Reflection fires. Full shutdown only via `/session-close`. See [Always-On Lifecycle](ALWAYS-ON-OPS.md#2-always-on-lifecycle).
 
-**Archive:** SHELL.md -> `S-NNN-REPORT.md`. Fresh template with carry-forward items. Any session can pick up where the last one left off.
+**Archive:** SHELL.md -> `S-NNN-REPORT.md`. Fresh template with carry-forward items. Monitoring and Session Summary sections are compacted if over threshold (configurable via `compact` in config.json). Any session can pick up where the last one left off.
 
 ---
 

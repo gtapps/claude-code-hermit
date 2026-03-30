@@ -6,11 +6,13 @@ An optional read-mostly companion dashboard. Your hermit works without it.
 
 1. Open Obsidian -> "Open folder as vault" -> select the repo root
 2. Add `.obsidian/` to `.gitignore`
-3. Install the **Dataview** plugin (Community plugins -> Browse -> "Dataview")
-4. Create `dashboard.md` at the repo root (add to `.gitignore`) and paste:
+3. **Install Folder Bridge and add .claude and .claude-code-hermit folder:** plugin (Community plugins -> Browse -> "FolderBridge")(https://github.com/tescolopio/Obsidian_FolderBridge)
+4. Install the **Dataview** plugin (Community plugins -> Browse -> "Dataview")
+5. Create `dashboard.md` at the repo root (add to `.gitignore`) and paste:
 
 ````markdown
 ## Sessions
+
 ```dataview
 TABLE status, date, duration, cost_usd AS "Cost", tags
 FROM ".claude-code-hermit/sessions"
@@ -19,6 +21,7 @@ SORT date DESC
 ```
 
 ## Proposals
+
 ```dataview
 TABLE status, source, category, session, created
 FROM ".claude-code-hermit/proposals"
@@ -27,7 +30,7 @@ SORT created DESC
 ```
 ````
 
-5. Pin SHELL.md in the right pane for live updates (right-click tab -> "Pin")
+7. Pin SHELL.md in the right pane for live updates (right-click tab -> "Pin")
 
 That's it. You now have a queryable dashboard of all sessions and proposals.
 
@@ -148,19 +151,20 @@ This is a manual, operator-curated view. The hermit does not generate or modify 
 
 ## Advanced: Multi-Hermit Setup
 
-If you run multiple hermit instances (e.g., dev hermit + Glam), you can create a cross-hermit observatory:
+If you run multiple hermit instances, you can create a cross-hermit observatory:
 
 ```
 observatory/
-  dev-hermit/     -> symlink to project-a/.claude-code-hermit/
-  glam/           -> symlink to project-b/.claude-code-hermit/
-  dashboard.md    -> cross-hermit Dataview queries
+  dev-hermit/        -> symlink to project-a/.claude-code-hermit/
+  accountant-hermit/ -> symlink to project-b/.claude-code-hermit/
+  dashboard.md       -> cross-hermit Dataview queries
 ```
 
 Open the `observatory/` directory as an Obsidian vault. Dataview queries work across symlinked directories:
 
 ````markdown
 ## All Hermits — Recent Sessions
+
 ```dataview
 TABLE id, status, date, cost_usd AS "Cost"
 FROM ""

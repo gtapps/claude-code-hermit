@@ -86,6 +86,9 @@ When the main session requests an idle transition (not a full close):
    - Clear `## Plan` table (reset to the 3-row placeholder from the template)
    - Clear `## Progress Log`, `## Blockers`, `## Findings`, `## Changed` (all task-specific — already preserved in the archived report)
    - Preserve `## Monitoring`, `## Cost`, `## Session Summary` (session-scoped, accumulates across tasks)
+   - **Compact preserved sections if over threshold.** Read `compact` settings from `.claude-code-hermit/config.json`:
+     - **Monitoring:** Count non-empty, non-comment lines. If count exceeds `monitoring_threshold`: summarize all entries except the most recent `monitoring_keep` into a single `[Earlier]` line — e.g., `[Earlier] 14 alerts, 3 self-evals (03-28 08:00 — 03-30 18:00)`. If an `[Earlier]` line already exists, merge the counts and extend the time range. Keep the most recent `monitoring_keep` entries intact.
+     - **Session Summary:** Count non-empty, non-comment lines. If count exceeds `summary_threshold`: summarize all entries except the most recent `summary_keep` into a single `[Earlier]` line — e.g., `[Earlier] 15 tasks archived (S-001 — S-015)`. If an `[Earlier]` line already exists, merge counts and extend the range. Keep the most recent `summary_keep` entries intact.
    - Append a summary line to `## Session Summary`:
      `**S-NNN** (YYYY-MM-DD): [one-line task summary] — [status] ($X.XX)`
 5. If cost data is available, preserve the cumulative total in the Cost section
@@ -100,7 +103,8 @@ When the main session requests an idle transition (not a full close):
 ## Rules
 
 - Session IDs are sequential and never reused
-- Always preserve the full content of SHELL.md — never truncate progress logs
+- Never truncate progress logs during a task — only clear them on idle transition (after archiving to report)
+- Monitoring and Session Summary may be compacted on idle transition per the `compact` config thresholds
 - If SHELL.md exists but has Status `completed` or `blocked`, treat it as needing a new session
 - If SHELL.md exists with Status `idle`, treat it as ready for a new task (not a new session) — do not create a new SHELL.md
 - Keep session reports factual and concise — no filler text

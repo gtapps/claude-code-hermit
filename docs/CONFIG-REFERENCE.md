@@ -74,6 +74,21 @@ Modify with `/hermit-settings routines`, `/hermit-settings idle`.
 
 ---
 
+## `compact`
+
+Controls automatic compaction of SHELL.md sections during idle transitions. When a section exceeds its threshold, older entries are summarized into a single `[Earlier]` line and only the most recent entries are kept.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `monitoring_threshold` | integer | `30` | Compact `## Monitoring` when it exceeds this many lines. |
+| `monitoring_keep` | integer | `20` | Keep this many recent entries after compacting. |
+| `summary_threshold` | integer | `30` | Compact `## Session Summary` when it exceeds this many lines. |
+| `summary_keep` | integer | `15` | Keep this many recent entries after compacting. |
+
+Setting `keep` equal to `threshold` effectively disables compaction for that section. Modify with `/hermit-settings compact`.
+
+---
+
 ## `docker`
 
 | Key | Type | Default | Description |

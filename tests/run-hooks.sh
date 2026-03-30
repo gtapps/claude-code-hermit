@@ -70,8 +70,11 @@ echo ""
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
+transcript="$workdir/.claude/transcript.jsonl"
+cp "$FIXTURES/transcript.jsonl" "$transcript"
+hook_input="$(sed "s|__TRANSCRIPT_PATH__|$transcript|" "$FIXTURES/stop-hook-input.json")"
 run_test "cost-tracker" bash -c \
-  "cat '$FIXTURES/stop-hook-input.json' | node '$REPO_ROOT/scripts/cost-tracker.js'"
+  "echo '$hook_input' | node '$REPO_ROOT/scripts/cost-tracker.js'"
 # Post-test: verify cost-log.jsonl was created with valid JSON
 run_test "cost-tracker output" bash -c \
   "[ -f '$workdir/.claude/cost-log.jsonl' ] && head -1 '$workdir/.claude/cost-log.jsonl' | python3 -m json.tool >/dev/null 2>&1"

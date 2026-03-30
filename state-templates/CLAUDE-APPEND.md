@@ -67,7 +67,7 @@ Do NOT silently stall. The operator needs to see why progress stopped.
 
 Keep SHELL.md under 150 lines during long sessions:
 - After 50+ progress log entries: summarize older entries into a compact "Earlier progress" block (5-10 lines) and keep only the last 10 entries in detail
-- Heartbeat OK results: do NOT log to Progress Log. Only log heartbeat ALERTS. OK results are recorded in config.json tick count.
+- Heartbeat OK results: do NOT log to Progress Log or Monitoring. Only log actionable entries (alerts, warnings, findings) to Monitoring. OK results are recorded in config.json tick count.
 - Cost updates: one line only, overwrite the previous estimate
 
 If SHELL.md exceeds 200 lines, compact it immediately. The SessionStart hook reads it every session — bloat costs tokens on every future start.

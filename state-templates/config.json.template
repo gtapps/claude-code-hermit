@@ -27,6 +27,12 @@
   "docker": {
     "packages": []
   },
+  "compact": {
+    "monitoring_threshold": 30,
+    "monitoring_keep": 20,
+    "summary_threshold": 30,
+    "summary_keep": 15
+  },
   "heartbeat": {
     "enabled": true,
     "every": "30m",
