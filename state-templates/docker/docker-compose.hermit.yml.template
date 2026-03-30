@@ -19,8 +19,7 @@ services:
     environment:
       - CLAUDE_CONFIG_DIR=/home/claude/.claude
       - NODE_OPTIONS=--max-old-space-size=4096
-      - {{AUTH_ENV_LINE}}
-{{CHANNEL_ENV_LINES}}
+{{AUTH_ENV_LINE}}{{CHANNEL_ENV_LINES}}
     network_mode: host
     restart: unless-stopped
     healthcheck:

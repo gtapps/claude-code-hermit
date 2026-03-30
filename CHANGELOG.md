@@ -1,5 +1,55 @@
 # Changelog
 
+## [0.1.3] - 2026-03-30
+
+### Changed
+
+- **Docker: OAuth via `claude login` instead of token injection** — The `CLAUDE_CODE_OAUTH_TOKEN` env var approach has been removed entirely. It caused the container to run in organization/API mode instead of personal Max/Pro mode, breaking `--remote-control` and subscription features. OAuth users now run `claude login` directly inside the container on first boot. Credentials are saved to the named volume and persist across restarts. API key auth via `ANTHROPIC_API_KEY` in `.env` continues to work as before.
+
+### Upgrade Instructions
+
+**Option A — Re-run docker-setup (recommended):**
+
+1. Back up your `.env` file
+2. Run `/claude-code-hermit:docker-setup` — it will offer to regenerate all Docker files
+3. Rebuild and restart the container: `docker compose -f docker-compose.hermit.yml up -d --build`
+4. The container will wait for you to log in. From another terminal:
+   ```
+   docker compose -f docker-compose.hermit.yml exec hermit claude login
+   ```
+5. Remove `CLAUDE_CODE_OAUTH_TOKEN` and `CLAUDE_REFRESH_TOKEN` from your `.env` file (no longer used)
+
+**Option B — Manual patch:**
+
+1. In `docker-entrypoint.hermit.sh`, replace the "Auth mode" section (the `if` block that unsets `ANTHROPIC_API_KEY`) with:
+   ```bash
+   # Wait for auth credentials
+   CRED_FILE="${CLAUDE_CONFIG_DIR}/.credentials.json"
+   if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -f "$CRED_FILE" ]; then
+     echo "[docker-entrypoint] No auth credentials found."
+     echo "[docker-entrypoint] Run: docker compose -f docker-compose.hermit.yml exec hermit claude login"
+     echo "[docker-entrypoint] Waiting for credentials (timeout: 10 minutes)..."
+     WAIT_SECS=0
+     while [ ! -f "$CRED_FILE" ]; do
+       sleep 5
+       WAIT_SECS=$((WAIT_SECS + 5))
+       if [ "$WAIT_SECS" -ge 600 ]; then
+         echo "[docker-entrypoint] Timed out. Run claude login, then restart."
+         exit 1
+       fi
+     done
+     echo "[docker-entrypoint] Credentials detected! Continuing startup..."
+   fi
+   ```
+2. In `docker-compose.hermit.yml`, remove the `CLAUDE_CODE_OAUTH_TOKEN` and `CLAUDE_REFRESH_TOKEN` environment lines
+3. Remove `CLAUDE_CODE_OAUTH_TOKEN` and `CLAUDE_REFRESH_TOKEN` from your `.env` file
+4. Rebuild: `docker compose -f docker-compose.hermit.yml up -d --build`
+5. Login: `docker compose -f docker-compose.hermit.yml exec hermit claude login`
+
+**Important:** Both options require a container rebuild (`--build`) since the entrypoint script is baked into the Docker image. A simple restart will not pick up the changes.
+
+---
+
 ## [0.1.2] - 2026-03-30
 
 ### Fixed

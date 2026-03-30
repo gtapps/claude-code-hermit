@@ -116,6 +116,6 @@ config.json "env"  ->  hermit-start.py  ->  .claude/settings.local.json "env"  -
                    ->  shell env (tmux temp file / Docker environment:)  ->  MCP servers
 ```
 
-- **Shell env only:** `CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`
+- **Shell env only:** `CLAUDE_CONFIG_DIR`, `ANTHROPIC_API_KEY` (OAuth credentials live in `.credentials.json`, written by `claude login`)
 - **settings.local.json only:** `AGENT_HOOK_PROFILE`, `COMPACT_THRESHOLD`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, `MAX_THINKING_TOKENS`
 - **Both:** `DISCORD_STATE_DIR`, `TELEGRAM_STATE_DIR` (MCP servers need shell env; hooks read settings.local.json)

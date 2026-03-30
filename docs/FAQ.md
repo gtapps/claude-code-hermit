@@ -34,13 +34,19 @@ Set a per-session budget with `/hermit-settings budget`. A typical interactive s
 
 ## What happens if my auth token expires?
 
-The hermit stops responding. For Docker, use `claude setup-token` (1-year token) instead of `/login` (8-12h token). If expired, update `.env` and restart the container.
+The hermit stops responding. Re-run `claude login` inside the container to refresh credentials:
+
+```bash
+docker exec -it $(docker compose -f docker-compose.hermit.yml ps -q hermit) claude login
+```
+
+Then restart: `docker compose -f docker-compose.hermit.yml restart`
 
 ---
 
 ## Can I use an API key instead of a subscription?
 
-Yes. Set `ANTHROPIC_API_KEY` in `.env` instead of `CLAUDE_CODE_OAUTH_TOKEN`. You'll pay per-token instead of using your subscription quota.
+Yes. Set `ANTHROPIC_API_KEY` in `.env` and choose "apikey" during `/docker-setup`. You'll pay per-token instead of using your subscription quota.
 
 ---
 

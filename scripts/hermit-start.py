@@ -199,8 +199,9 @@ def write_settings_env(config):
     values to all subprocesses (hooks, MCP servers, Bash tool calls).
     This is the canonical way to set env vars per the official docs.
 
-    Auth vars (CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY, CLAUDE_CONFIG_DIR)
-    are NOT written here — they must be in the shell env before claude launches.
+    Auth vars (ANTHROPIC_API_KEY, CLAUDE_CONFIG_DIR) are NOT written here —
+    they must be in the shell env before claude launches. OAuth credentials
+    live in .credentials.json (written by `claude login`).
     """
     settings_path = Path('.claude/settings.local.json')
     settings_path.parent.mkdir(parents=True, exist_ok=True)
@@ -295,19 +296,13 @@ def main():
     # inherit shell env but don't read settings.local.json.
     forward_vars = [
         'CLAUDE_CONFIG_DIR',
-        'CLAUDE_CODE_OAUTH_TOKEN',
         'ANTHROPIC_API_KEY',
         'DISCORD_STATE_DIR',
         'TELEGRAM_STATE_DIR',
     ]
     env_file = Path('/tmp') / f'.hermit-env-{session_name}'
-    oauth_token = os.environ.get('CLAUDE_CODE_OAUTH_TOKEN')
     with open(env_file, 'w') as f:
         for var in forward_vars:
-            # OAuth and API key are mutually exclusive — if OAuth token is set,
-            # skip the API key so Claude Code doesn't fall back to API mode.
-            if var == 'ANTHROPIC_API_KEY' and oauth_token:
-                continue
             val = os.environ.get(var)
             if val is not None:
                 f.write(f'export {var}={shlex.quote(val)}\n')

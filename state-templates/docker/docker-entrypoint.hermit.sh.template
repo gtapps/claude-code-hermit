@@ -8,13 +8,33 @@ CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-/home/claude/.claude}"
 echo "[docker-entrypoint] Starting hermit container..."
 echo "[docker-entrypoint] Project: ${PROJECT_DIR}"
 
-# --- 0. Auth mode: OAuth token wins over API key if both are present ---
-# Claude Code gives ANTHROPIC_API_KEY precedence over CLAUDE_CODE_OAUTH_TOKEN.
-# If the .env file (loaded via env_file in compose) contains both, API mode
-# silently wins — no Max/Pro shown, --remote-control fails. Unset the key early.
-if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  echo "[docker-entrypoint] OAuth token present — unsetting ANTHROPIC_API_KEY to prevent API mode override."
-  unset ANTHROPIC_API_KEY
+# --- 0. Wait for auth credentials ---
+# OAuth users must run `claude login` inside the container on first boot.
+# The login writes .credentials.json to the named volume, which persists
+# across restarts. API key users set ANTHROPIC_API_KEY in .env instead.
+CRED_FILE="${CLAUDE_CONFIG_DIR}/.credentials.json"
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -f "$CRED_FILE" ]; then
+  echo ""
+  echo "=============================================="
+  echo "  No auth credentials found."
+  echo "  From another terminal, run:"
+  echo ""
+  echo "    docker compose -f docker-compose.hermit.yml exec hermit claude login"
+  echo ""
+  echo "  Waiting for credentials (timeout: 10 minutes)..."
+  echo "=============================================="
+  echo ""
+  WAIT_SECS=0
+  while [ ! -f "$CRED_FILE" ]; do
+    sleep 5
+    WAIT_SECS=$((WAIT_SECS + 5))
+    if [ "$WAIT_SECS" -ge 600 ]; then
+      echo "[docker-entrypoint] Timed out waiting for credentials after 10 minutes."
+      echo "[docker-entrypoint] Run 'claude login' inside the container, then restart it."
+      exit 1
+    fi
+  done
+  echo "[docker-entrypoint] Credentials detected! Continuing startup..."
 fi
 
 # --- 1. Bypass onboarding, pre-approve MCP servers, patch permission_mode ---

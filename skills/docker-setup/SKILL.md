@@ -27,7 +27,7 @@ Templates live in `${CLAUDE_SKILL_DIR}/../../state-templates/docker/`.
 
 ### 2. Ask operator and analyze project
 
-1. **Auth method:** Ask oauth (recommended, via `claude setup-token`) or apikey (`ANTHROPIC_API_KEY`). Default: oauth.
+1. **Auth method:** Ask oauth (recommended — runs `claude login` inside the container) or apikey (`ANTHROPIC_API_KEY` in `.env`). Default: oauth.
 
 2. **Project dependencies:** Scan for signals that suggest extra system packages:
    - `package.json` native addons (sqlite3, sharp, canvas, bcrypt, etc.)
@@ -67,7 +67,7 @@ Read the three templates from `${CLAUDE_SKILL_DIR}/../../state-templates/docker/
 - `{{TMUX_SESSION_NAME}}` — resolved session name
 
 **docker-compose.hermit.yml** (from `docker-compose.hermit.yml.template`):
-- `{{AUTH_ENV_LINE}}` — `CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}` or `ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}`
+- `{{AUTH_ENV_LINE}}` — If apikey: `      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}\n`. If oauth: empty string (remove the line entirely — OAuth credentials live in `.credentials.json` inside the named volume, written by `claude login`).
 - `{{CHANNEL_ENV_LINES}}` — for each configured channel, add an indented environment line:
   - `      - DISCORD_STATE_DIR=${PWD}/.claude.local/channels/discord`
   - `      - TELEGRAM_STATE_DIR=${PWD}/.claude.local/channels/telegram`
@@ -89,13 +89,13 @@ Only the top-level project memory is seeded — not agent-scoped memories at `<p
 ### 6. Environment and protection
 
 1. If `.env` doesn't exist, create it. If it does, read it first.
-2. Check if the auth var (`CLAUDE_CODE_OAUTH_TOKEN=` or `ANTHROPIC_API_KEY=`) is present. If missing, append:
+2. **If apikey:** Check if `ANTHROPIC_API_KEY=` is present in `.env`. If missing, append:
    ```
    # --- claude-code-hermit ---
-   CLAUDE_CODE_OAUTH_TOKEN=your-token-here
+   ANTHROPIC_API_KEY=your-api-key-here
    ```
-   (or the apikey equivalent). If already present, leave it — note for step 8.
-3. **Conflict check:** If the operator chose OAuth, check whether `ANTHROPIC_API_KEY` is also set (non-empty) in `.env`. If so, warn: "Found `ANTHROPIC_API_KEY` in `.env` — Claude Code gives API keys precedence over OAuth tokens, so the container would run in API mode (no Max/Pro, no remote control). Comment it out or remove it." Offer to comment it out automatically. Do the same in reverse if the operator chose API key and `CLAUDE_CODE_OAUTH_TOKEN` is also set.
+   If already present, leave it — note for step 8.
+   **If oauth:** No auth var needed in `.env`. Check whether `ANTHROPIC_API_KEY` is set (non-empty) in `.env`. If so, warn: "Found `ANTHROPIC_API_KEY` in `.env` — Claude Code gives API keys precedence over OAuth credentials, so the container would run in API mode (no Max/Pro, no remote control). Comment it out or remove it." Offer to comment it out automatically. Also check for and offer to remove any `CLAUDE_CODE_OAUTH_TOKEN` — this env var is not used in the new flow.
 3. Ensure `.env` is listed in both `.gitignore` and `.dockerignore` (create the files if needed, append if missing).
 4. **Deny patterns:** Docker means always-on — include the full hardened deny set in `.claude/settings.json` `permissions.deny` by default (no wizard needed):
    ```json
@@ -146,18 +146,26 @@ docker-compose.hermit.yml      — orchestration config
 .env                           — auth credentials
 ```
 
-**Auth token:** If `.env` already has a real token (not placeholder), skip. Otherwise prompt for the token (oauth or apikey), update `.env`. Allow "skip" — remind to add before starting.
+**Auth token (apikey only):** If operator chose apikey and `.env` already has a real key (not placeholder), skip. Otherwise prompt for the key, update `.env`. Allow "skip" — remind to add before starting.
 
 **Build and start:** Ask "Ready to build and start? (yes/no) [yes]"
 
 If yes:
-1. `.claude-code-hermit/bin/hermit-run docker-up` — builds and starts. Prints the tmux attach command on success. Help fix errors (daemon not running, network, disk).
+1. `.claude-code-hermit/bin/hermit-run docker-up` — builds and starts. Help fix errors (daemon not running, network, disk).
 
 If no: print the manual commands and skip to verify.
 
+**Login (oauth only):** If operator chose oauth, guide them through the container login:
+1. Tell them: "The container is waiting for you to log in. Run this from another terminal:"
+   ```
+   docker exec -it $(docker compose -f docker-compose.hermit.yml ps -q hermit) claude login
+   ```
+2. This opens a browser URL for OAuth. After completing the login, credentials are saved to the named volume and the container starts automatically.
+3. Wait for the operator to confirm they've logged in. Then verify by checking container logs for "Credentials detected" or "hermit-start" output.
+
 **Workspace trust:** Tell the operator to attach and accept the trust prompt:
 ```
-docker exec -it <container> tmux attach -t <session>
+docker compose -f docker-compose.hermit.yml exec hermit tmux attach -t <session>
 ```
 Press Enter to accept, then Ctrl+B, D to detach. Wait for confirmation.
 

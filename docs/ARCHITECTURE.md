@@ -233,7 +233,7 @@ config.json "env"  →  hermit-start.py  →  .claude/settings.local.json "env" 
 3. Claude Code reads `settings.local.json` and exports `env` values to hooks and Bash tool calls
 4. For vars that MCP servers need (`*_STATE_DIR`), `hermit-start.py` also forwards them as OS env vars (tmux temp file or Docker compose `environment:`) — MCP servers are separate processes that inherit shell env but do NOT read `settings.local.json`
 
-**Bucket A (shell env only):** `CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY` — must be in shell env before `claude` starts. Forwarded via temp file in tmux, or Docker `environment:`.
+**Bucket A (shell env only):** `CLAUDE_CONFIG_DIR`, `ANTHROPIC_API_KEY` — must be in shell env before `claude` starts. Forwarded via temp file in tmux, or Docker `environment:`. OAuth credentials live in `.credentials.json` (written by `claude login`), not in env vars.
 
 **Bucket B (settings.local.json only):** `AGENT_HOOK_PROFILE`, `COMPACT_THRESHOLD`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, `MAX_THINKING_TOKENS` — consumed by hooks and Claude Code itself.
 

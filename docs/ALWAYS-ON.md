@@ -83,15 +83,17 @@ All bin scripts are pure bash — no Claude Code process, no tokens burned.
 
 ## Auth
 
-**OAuth token (recommended for Pro/Max):** Run `claude setup-token` on a machine with a browser. Generates a long-lived token (1 year). Add to `.env`:
+**OAuth login (recommended for Pro/Max):** After the container starts for the first time, run `claude login` inside it:
 
+```bash
+docker exec -it $(docker compose -f docker-compose.hermit.yml ps -q hermit) claude login
 ```
-CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...
-```
 
-**API key:** For pay-per-token billing, set `ANTHROPIC_API_KEY` in `.env` instead.
+This opens a browser URL for OAuth. Complete the login and credentials are saved to the container's named volume — they persist across restarts. The entrypoint waits for credentials on first boot, then starts automatically.
 
-The docker-setup wizard configures the right env var based on your choice and ensures `.env` is gitignored.
+**API key:** For pay-per-token billing, set `ANTHROPIC_API_KEY` in `.env` instead. No container login needed.
+
+The docker-setup wizard walks you through the right auth method and ensures `.env` is gitignored.
 
 ---
 
@@ -195,7 +197,7 @@ Adjust with `/hermit-settings env`.
 | --- | --- |
 | Ubuntu 24.04 default user conflicts at UID 1000 | `userdel -r ubuntu` before `useradd` — handled by Dockerfile |
 | Volume paths must match host | `${PWD}:${PWD}`, not `/app` or `/project` |
-| OAuth tokens from `/login` expire in 8-12 hours | Use `claude setup-token` (1-year token) |
+| OAuth credentials expired | Re-run `docker exec -it <container> claude login` and restart the container |
 | Entrypoint exits after tmux spawns | Entrypoint polls `tmux has-session` to keep PID 1 alive. SIGTERM trap handles graceful close. |
 | `.local` mDNS hostnames don't resolve | Use IP addresses in service URLs, even with `network_mode: host` |
 | Workspace trust prompt on first run | Attach once, press Enter, detach |
