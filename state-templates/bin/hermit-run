@@ -146,7 +146,7 @@ fi
 SCRIPT="$PLUGIN_ROOT/scripts/$TARGET"
 if [ ! -f "$SCRIPT" ]; then
   echo "[hermit] $TARGET not found at $PLUGIN_ROOT/scripts/" >&2
-  echo "[hermit] Plugin may be corrupted. Reinstall with: claude plugin install claude-code-hermit@claude-code-hermit" >&2
+  echo "[hermit] Plugin may be corrupted. Reinstall with: claude plugin install claude-code-hermit@claude-code-hermit --scope project" >&2
   exit 1
 fi
 
