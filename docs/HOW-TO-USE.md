@@ -71,14 +71,14 @@ First 50 lines are loaded automatically — keep critical context at the top. Up
 /claude-code-hermit:session
 ```
 
-Tell it what you need, add optional tags (e.g., `feature, api`), and an optional budget. Hermit proposes a plan and waits for your go-ahead. As it works, `SHELL.md` tracks everything — plan status, progress log, blockers, cost.
+Tell it what you need, add optional tags (e.g., `feature, api`), and an optional budget. Hermit proposes a plan, creates native Tasks for each step, and waits for your go-ahead. As it works, `SHELL.md` tracks the narrative — progress log, blockers, cost — while Tasks tracks the plan steps.
 
 Check status anytime — just type "status":
 
 ```
 Session S-001 | in_progress | feature, api
 Working on: Add input validation to the API endpoints
-Progress: 2/4 plan items | Current: Step 3 - Add request body validation
+Progress: 2/4 tasks | Current: Step 3 - Add request body validation
 Budget: $1.80 / $5.00 (36%)
 Blockers: none
 ```

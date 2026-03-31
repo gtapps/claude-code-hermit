@@ -13,11 +13,6 @@
 ## Task
 Test task for hook validation
 
-## Plan
-| # | Plan Item | Status | Notes |
-|---|-----------|--------|-------|
-| 1 | Write tests | in_progress | fixture |
-
 ## Progress Log
 - [10:00] Started test session
 

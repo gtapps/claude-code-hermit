@@ -22,9 +22,16 @@ After install, run `/claude-code-hermit:init` in the target project to create th
 - `state-templates/` — templates copied into target projects by the `init` skill
 - `.claude-plugin/plugin.json` — plugin manifest
 
+## Constraints
+
+- Before implementing any new capability, check Claude Code docs (https://code.claude.com/docs)
+  and plugins (https://claude.com/plugins) for native features that already cover it.
+  If overlap exists, delegate — don't build.
+
 ## Per-Project State
 
 When installed in a target project, state lives in `.claude-code-hermit/`:
+
 - `sessions/SHELL.md` — current session (with tags, budget, monitoring)
 - `sessions/S-NNN-REPORT.md` — archived reports
 - `proposals/PROP-NNN.md` — improvement proposals
@@ -35,6 +42,7 @@ When installed in a target project, state lives in `.claude-code-hermit/`:
 ## Development
 
 To test locally against a target project:
+
 ```
 cd /path/to/target-project
 claude --plugin-dir /path/to/this-repo
@@ -57,6 +65,7 @@ Then run `/claude-code-hermit:init` to set up the target project.
 ## Agent State Directory
 
 All autonomous agent state lives in `.claude-code-hermit/`:
+
 - `sessions/SHELL.md` — live working document for the current session
 - `sessions/S-NNN-REPORT.md` — archived session reports
 - `proposals/PROP-NNN.md` — improvement proposals
@@ -65,8 +74,8 @@ All autonomous agent state lives in `.claude-code-hermit/`:
 
 ## Subagent Usage
 
-| Agent | When to use | Model |
-|-------|------------|-------|
+| Agent         | When to use                             | Model  |
+| ------------- | --------------------------------------- | ------ |
 | `session-mgr` | Session start, close, progress tracking | Sonnet |
 
 Additional agents may be available from installed hermits.

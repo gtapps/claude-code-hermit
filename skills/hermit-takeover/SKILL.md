@@ -57,11 +57,7 @@ Takeover complete.
 
 Session: S-NNN | was: in_progress
 Task: "Add input validation to API endpoints"
-Plan: 2/4 steps completed
-  [x] Step 1 — done
-  [x] Step 2 — done
-  [ ] Step 3 — in progress
-  [ ] Step 4 — pending
+Progress: 2/4 tasks completed (via TaskList)
 Blockers: none
 Cost so far: $1.80
 

@@ -3,12 +3,14 @@
 // Changes: Replaced ECC quality criteria with session-specific criteria
 //          (task status, SHELL.md current, blockers documented, next-start-point clear).
 //          Outputs structured quality score for session reports.
+//          Plan tracking criterion reads native Claude Code Tasks (via lib/tasks.js).
 
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { readTasks } = require('./lib/tasks');
 
 const SHELL_SESSION = path.resolve('.claude-code-hermit/sessions/SHELL.md');
 const HASH_FILE = path.resolve('.claude-code-hermit/sessions/.eval-hash');
@@ -37,12 +39,13 @@ function evaluateSession(content) {
     detail: hasStatus ? 'Status field is populated' : 'Status field is missing or empty',
   });
 
-  // Criterion 2: Plan table has entries
-  const hasSteps = /\|\s*\d+\s*\|.*\|\s*(done|in_progress|blocked|planned)\s*\|/i.test(content);
+  // Criterion 2: Plan tracked (via native Claude Code Tasks)
+  const tasks = readTasks();
+  const hasSteps = tasks.length > 0;
   results.criteria.push({
     name: 'Plan tracked',
     status: hasSteps ? 'pass' : 'warn',
-    detail: hasSteps ? 'Plan table has entries with statuses' : 'No plan entries found in table',
+    detail: hasSteps ? `${tasks.length} task(s) in native Tasks` : 'No tasks found (OK for quick single-step work)',
   });
 
   // Helper: check if a markdown section exists and has non-comment content
@@ -118,9 +121,11 @@ async function main() {
       content = null;
     }
 
-    // Hash content once — used for cache check and write-back
+    // Hash content + task count — used for cache check and write-back
+    // Task state is external to SHELL.md, so include it in the hash
+    const taskCount = readTasks().length;
     const hash = content !== null
-      ? crypto.createHash('md5').update(content).digest('hex')
+      ? crypto.createHash('md5').update(content + '\0tasks:' + taskCount).digest('hex')
       : null;
 
     // Short-circuit if SHELL.md hasn't changed since last eval

@@ -63,17 +63,17 @@ START -> WORK -> CLOSE -> ARCHIVE
   |       |       |        |
   v       v       v        v
 Create   Update  Finalize  Copy to
-SHELL.md plan,   status,   S-NNN-REPORT.md,
+SHELL.md tasks,  status,   S-NNN-REPORT.md,
          log     lessons   reset SHELL.md
 ```
 
-**Start:** Checks for existing SHELL.md. Resumes if `in_progress`, creates fresh if not. Loads OPERATOR.md. Runs morning routine if it hasn't fired today.
+**Start:** Checks for existing SHELL.md. Resumes if `in_progress`, creates fresh if not. Loads OPERATOR.md. Calls `TaskList` to see plan steps. Runs morning routine if it hasn't fired today.
 
-**Work:** Plan items tracked as `planned` -> `in_progress` -> `blocked` -> `done`. Timestamped progress log. Blockers recorded with cold-start context.
+**Work:** Plan items tracked as native Claude Code Tasks (`pending` -> `in_progress` -> `completed`). Timestamped progress log in SHELL.md. Blockers recorded with cold-start context. `tasks-snapshot.md` auto-updated by cost-tracker hook for Obsidian.
 
 **Close:** Defaults to idle transition at every task boundary — your hermit says "What's next?" and waits. Reflection fires. Full shutdown only via `/session-close`. See [Always-On Lifecycle](ALWAYS-ON-OPS.md#2-always-on-lifecycle).
 
-**Archive:** SHELL.md -> `S-NNN-REPORT.md`. Fresh template with carry-forward items. Monitoring and Session Summary sections are compacted if over threshold (configurable via `compact` in config.json). Any session can pick up where the last one left off.
+**Archive:** SHELL.md + task table -> `S-NNN-REPORT.md`. Fresh template with carry-forward. Monitoring and Session Summary sections are compacted if over threshold (configurable via `compact` in config.json). On full close, unfinished tasks persist in the task list for the next session.
 
 ---
 

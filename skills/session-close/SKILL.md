@@ -21,13 +21,14 @@ After archiving (or transitioning to idle), write the new status to `.claude-cod
 Use this when the operator wants to end everything (via `hermit-stop` or explicit `--shutdown`).
 
 1. Use the `session-mgr` agent to finalize `.claude-code-hermit/sessions/SHELL.md`
-2. Ensure all progress is recorded with plan-level status (`done`, `blocked`, `planned`)
+2. Ensure all native Tasks reflect their correct status (`completed`, `pending`)
 3. Document any blockers with enough context for the next session to understand them without re-investigating
 4. Record lessons learned — only genuinely useful ones, not obvious statements
 5. If any high-leverage improvements were discovered during work, create proposals via the `proposal-create` skill
 6. Confirm the "Next Start Point" is clear enough for a fresh session to resume without questions
 7. Invoke the `reflect` skill to reflect on accumulated experience. Reflect no longer requires archived reports — it uses memory. This runs before archiving so any findings are included in the archived report.
-8. Archive the session via `session-mgr` (full close — replace SHELL.md with fresh template)
+8. If native Tasks exist: call `TaskList`, format as a markdown table. Then `TaskUpdate(status=deleted)` for completed tasks only — pending/in_progress tasks persist for next session.
+9. Archive the session via `session-mgr` (full close — replace SHELL.md with fresh template). Pass the task table in the prompt for the archived report.
 
 ---
 

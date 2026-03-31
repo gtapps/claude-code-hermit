@@ -1,5 +1,73 @@
 # Changelog
 
+## [0.2.0] - 2026-03-31
+
+### Changed
+
+- **Plan tracking delegated to native Claude Code Tasks** — The `## Plan` table in SHELL.md has been removed. Plan items are now tracked as native Claude Code Tasks (`TaskCreate`, `TaskUpdate`, `TaskList`). This aligns with hermit's principle: "If overlap exists with Claude Code native features, delegate — don't build." SHELL.md retains everything Tasks doesn't cover: progress log, blockers, findings, changed files, cost, monitoring, session summary, and session metadata.
+
+- **New: `tasks-snapshot.md` for Obsidian** — The cost-tracker hook now writes `.claude-code-hermit/tasks-snapshot.md`, a read-only projection of the native task list with YAML frontmatter (`progress`, `updated`). Enables Dataview queries, dashboard embeds, and fleet progress tracking across multi-hermit observatories. Auto-generated every turn with change detection (skips write when content is unchanged).
+
+- **New: `scripts/lib/tasks.js` shared helper** — Centralizes native Task file reading (`~/.claude/tasks/{list-id}/*.json`) in one module. Both `cost-tracker.js` and `evaluate-session.js` import from here. If Claude Code changes the task file format, only this file needs updating.
+
+- **`CLAUDE_CODE_TASK_LIST_ID` set by init** — The `init` skill now writes `CLAUDE_CODE_TASK_LIST_ID` to `.claude/settings.local.json`, making the task list persistent across sessions. Claude Code exports this env var to all subprocesses (hooks, MCP servers, Bash), so hooks can read task files directly.
+
+- **Session workflow updated** — The main session agent now creates Tasks after plan confirmation (`TaskCreate` per step), updates them during work (`TaskUpdate`), and cleans up before idle/close transitions. Session-mgr no longer manages plan items — it receives the serialized task table via prompt and includes it in archived reports.
+
+- **Idle transition: all tasks deleted (clean slate)** — On idle transition, the main agent serializes the task table, deletes all tasks, then invokes session-mgr. The report preserves the full task table.
+
+- **Full session close: only completed tasks deleted** — Pending/in_progress tasks persist in the native task list for the next session. The "Next Start Point" in fresh SHELL.md notes: "Unfinished tasks remain in the task list."
+
+- **Quick tasks skip TaskCreate** — For single-step work (typo fixes, one-liner changes), the agent skips `TaskCreate`. Tasks are for multi-step work decomposition only. Same policy as before ("skip for quick asks"), now explicitly stated.
+
+### Fixed
+
+- **evaluate-session.js hash cache now includes task state** — The MD5 short-circuit hash previously only covered SHELL.md content. Since plan tracking moved to external task files, the hash now includes the task count. Task changes correctly invalidate the cache.
+
+- **Pipe characters in task subjects no longer break snapshot table** — `writeTaskSnapshot` now escapes `|` in subject and status fields.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/SHELL.md.template` | Removed `## Plan` section |
+| `agents/session-mgr.md` | Removed plan table ops, accepts task table from prompt |
+| `skills/session/SKILL.md` | TaskCreate/TaskUpdate workflow, task cleanup before idle |
+| `skills/session-start/SKILL.md` | Create Tasks instead of plan table |
+| `skills/session-close/SKILL.md` | Task cleanup on close, pass table to session-mgr |
+| `skills/status/SKILL.md` | TaskList for progress counts |
+| `skills/brief/SKILL.md` | TaskList for progress counts |
+| `skills/channel-responder/SKILL.md` | Removed Plan reference |
+| `skills/hermit-takeover/SKILL.md` | Updated example output |
+| `state-templates/CLAUDE-APPEND.md` | Added task discipline, removed plan table refs |
+| `scripts/lib/tasks.js` | **New** — shared task file reading helper |
+| `scripts/cost-tracker.js` | Task reading + snapshot write (replaces plan parsing) |
+| `scripts/evaluate-session.js` | Task-aware plan check + hash fix |
+| `skills/init/SKILL.md` | Writes `CLAUDE_CODE_TASK_LIST_ID` to settings.local.json |
+| `skills/upgrade/SKILL.md` | v0.2.0 migration: task list ID + legacy plan strip |
+| `tests/fixtures/shell-session.md` | Removed plan table from fixture |
+| `docs/ARCHITECTURE.md` | Updated plan lifecycle |
+| `docs/HOW-TO-USE.md` | Updated progress display |
+| `docs/OBSIDIAN-SETUP.md` | Snapshot embed, progress queries, fleet progress |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
+
+1. **Task list ID setup** — Writes `CLAUDE_CODE_TASK_LIST_ID` to `.claude/settings.local.json` (derived from project basename). This makes native Tasks persistent and lets hooks read task files.
+
+2. **SHELL.md template update** — The new template has no `## Plan` section. Existing templates in `.claude-code-hermit/templates/` are auto-replaced.
+
+3. **CLAUDE-APPEND block update** — Session discipline instructions are refreshed to reference native Tasks.
+
+4. **Legacy plan table cleanup** — If an active SHELL.md has a `## Plan` section, the upgrade warns you to close the session first. If confirmed, it strips the orphaned section.
+
+**No config.json changes required.** The task list ID lives in `settings.local.json`, not config.
+
+**Obsidian users:** Add `![[.claude-code-hermit/tasks-snapshot]]` above your SHELL.md embed in your dashboard. See updated `docs/OBSIDIAN-SETUP.md` for Dataview queries and layout recommendations.
+
+---
+
 ## [0.1.3] - 2026-03-30
 
 ### Changed

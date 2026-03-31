@@ -45,6 +45,7 @@ All state files live under `.claude-code-hermit/` in the project root.
      - `tags`: from `**Tags:**` field, split on comma, trim whitespace, output as YAML array. E.g., `refactor, frontend` → `[refactor, frontend]`. Use `[]` if empty.
      - `proposals_created`: scan `## Proposals Created` section for PROP-NNN patterns, output as YAML array. Use `[]` if none.
    - **Write `## Overview`** with the one-line task description from `## Task`
+   - **If a task table was provided in the invocation prompt**, include it as `## Plan` in the report (this is the serialized native Tasks snapshot — the main session agent passes it before invoking you)
    - **Do NOT write a `## Summary` bullet list** — all structured metadata is in frontmatter only
    - Use `.claude-code-hermit/templates/SESSION-REPORT.md.template` as reference for the full structure
    - Example of a correctly generated report:
@@ -63,11 +64,19 @@ All state files live under `.claude-code-hermit/` in the project root.
      ## Overview
      Fix authentication token refresh bug in middleware
 
+     ## Plan
+     | # | Task | Status |
+     |---|------|--------|
+     | 1 | Identify token refresh logic | completed |
+     | 2 | Fix expiry check | completed |
+     | 3 | Add regression test | completed |
+
      ## Completed
      ...
      ```
 4. Replace `SHELL.md` with a fresh template that includes a "Next Start Point" section
-   - Carry forward any unfinished plan items and blockers from the closed session
+   - Carry forward blockers from the closed session
+   - If unfinished tasks remain in the native task list, note: "Unfinished tasks remain in the task list."
 
 ## On Task Complete (Idle Transition)
 
@@ -79,11 +88,11 @@ When the main session requests an idle transition (not a full close):
    - **Prepend YAML frontmatter** using the same extraction logic as On Session Close (step 3 above)
    - Use the SESSION-REPORT.md.template as reference for structure
    - Write `## Overview` with the task description, not a `## Summary` bullet list
+   - **If a task table was provided in the invocation prompt**, include it as `## Plan` in the report
 4. Update SHELL.md in place (do NOT replace with a fresh template):
    - Set Status to `idle`
    - Increment `Tasks Completed` counter
    - Clear `## Task` content (replace with `<!-- Awaiting next task -->`)
-   - Clear `## Plan` table (reset to the 3-row placeholder from the template)
    - Clear `## Progress Log`, `## Blockers`, `## Findings`, `## Changed` (all task-specific — already preserved in the archived report)
    - Preserve `## Monitoring`, `## Cost`, `## Session Summary` (session-scoped, accumulates across tasks)
    - **Compact preserved sections if over threshold.** Read `compact` settings from `.claude-code-hermit/config.json`:
@@ -95,10 +104,10 @@ When the main session requests an idle transition (not a full close):
 
 ## On Progress Update
 
-1. Update the Plan table in `.claude-code-hermit/sessions/SHELL.md` with current status
-2. Mark plan items as `planned` | `in_progress` | `blocked` | `done`
-3. Append to the Progress Log with timestamped entries
-4. Add any new blockers or findings to their respective sections
+1. Append to the Progress Log in `.claude-code-hermit/sessions/SHELL.md` with timestamped entries
+2. Add any new blockers or findings to their respective sections
+
+Note: Plan item tracking is handled by the main session agent via native Claude Code Tasks (TaskCreate/TaskUpdate). Session-mgr does not manage Tasks.
 
 ## Rules
 

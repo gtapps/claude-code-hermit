@@ -2,7 +2,8 @@
 // Original: scripts/hooks/cost-tracker.js — MIT License
 // Changes: Added SHELL.md cost injection for session tracking,
 //          simplified pricing model, removed ECC-specific metric paths,
-//          added cumulative cost tracking and budget enforcement.
+//          added cumulative cost tracking and budget enforcement,
+//          plan progress sourced from native Claude Code Tasks (via lib/tasks.js).
 
 'use strict';
 
@@ -16,11 +17,14 @@ const PRICING = {
   opus:   { input: 15.0, cacheWrite: 18.75, cacheRead: 1.50, output: 75.0 },
 };
 
+const { readTasks, taskProgress } = require('./lib/tasks');
+
 const MAX_STDIN = 1024 * 1024; // 1MB safety limit
 const COST_LOG = path.resolve('.claude/cost-log.jsonl');
 const SHELL_SESSION = path.resolve('.claude-code-hermit/sessions/SHELL.md');
 const STATUS_JSON = path.resolve('.claude-code-hermit/sessions/.status.json');
 const COST_SUMMARY = path.resolve('.claude-code-hermit/cost-summary.md');
+const TASK_SNAPSHOT = path.resolve('.claude-code-hermit/tasks-snapshot.md');
 
 function detectModel(modelStr) {
   if (!modelStr) return 'sonnet';
@@ -123,25 +127,18 @@ const MAX_SUMMARY_LEN = 120;
 function writeStatusJson(shellContent, cumulativeCost, cumulativeTokens, budget) {
   const statusMatch = shellContent.match(/\*\*Status:\*\*\s*(\S+)/);
   const taskMatch = shellContent.match(/## Task\n([\s\S]*?)(?=\n## |$)/);
-  const planMatch = shellContent.match(/## Plan\n([\s\S]*?)(?=\n## |$)/);
   const blockersMatch = shellContent.match(/## Blockers\n([\s\S]*?)(?=\n## |$)/);
   const idMatch = shellContent.match(/\*\*ID:\*\*\s*(\S+)/);
   const tasksMatch = shellContent.match(/\*\*Tasks Completed:\*\*\s*(\d+)/);
 
   const task = taskMatch ? taskMatch[1].trim().replace(/<!--.*?-->/g, '').trim() : '';
 
-  let planDone = 0;
-  let planTotal = 0;
-  if (planMatch) {
-    const tableRows = planMatch[1].match(/^\|[^|]+\|[^|]+\|[^|]+\|/gm);
-    if (tableRows) {
-      for (const row of tableRows) {
-        if (/^[\s|:-]+$/.test(row) || /Plan Item|Status/i.test(row)) continue;
-        planTotal++;
-        if (/✅|done|completed|complete/i.test(row)) planDone++;
-      }
-    }
-  }
+  // Plan progress from native Claude Code Tasks
+  const tasks = readTasks();
+  const { done: planDone, total: planTotal } = taskProgress(tasks);
+
+  // Write tasks-snapshot.md for Obsidian visibility
+  writeTaskSnapshot(tasks);
 
   const blockersText = blockersMatch ? blockersMatch[1].trim().replace(/<!--.*?-->/g, '').trim() : '';
   const hasBlockers = blockersText.length > 0 && !/^none$/i.test(blockersText);
@@ -166,6 +163,36 @@ function writeStatusJson(shellContent, cumulativeCost, cumulativeTokens, budget)
 function parseBudget(shellContent) {
   const match = shellContent.match(/\*\*Budget:\*\*\s*\$(\d+\.?\d*)/);
   return match ? parseFloat(match[1]) : null;
+}
+
+function writeTaskSnapshot(tasks) {
+  const { done, total } = taskProgress(tasks);
+
+  let content = `---\nupdated: ${new Date().toISOString()}\nprogress: ${done}/${total}\n---\n# Active Tasks\n\n`;
+  if (tasks.length === 0) {
+    content += 'No active tasks.\n';
+  } else {
+    content += '| # | Task | Status |\n|---|------|--------|\n';
+    for (const t of tasks) {
+      let status = t.status;
+      if (t.blockedBy && t.blockedBy.length > 0) {
+        status += ` (blocked by ${t.blockedBy.join(', ')})`;
+      }
+      const subject = (t.subject || '').replace(/\|/g, '\\|');
+      status = status.replace(/\|/g, '\\|');
+      content += `| ${t.id} | ${subject} | ${status} |\n`;
+    }
+  }
+
+  // Skip write if content unchanged (avoids unnecessary Obsidian file-change events)
+  try {
+    const existing = fs.readFileSync(TASK_SNAPSHOT, 'utf-8');
+    // Compare everything after the frontmatter (updated timestamp always differs)
+    const body = content.indexOf('\n---\n');
+    const existingBody = existing.indexOf('\n---\n');
+    if (body >= 0 && existingBody >= 0 && content.slice(body) === existing.slice(existingBody)) return;
+  } catch {}
+  try { fs.writeFileSync(TASK_SNAPSHOT, content, 'utf-8'); } catch {}
 }
 
 function writeCostSummary() {

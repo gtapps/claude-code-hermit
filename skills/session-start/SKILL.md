@@ -15,7 +15,7 @@ All state lives under `.claude-code-hermit/` in the project root.
    - This is a session between tasks — do NOT create a new session or SHELL.md
    - Present: session start date, tasks completed count, latest entry from Session Summary
    - Skip to step 5 (NEXT-TASK.md check) to determine the task source
-   - When a task is provided: use `session-mgr` to set Status back to `in_progress`, fill in Task and Plan
+   - When a task is provided: use `session-mgr` to set Status back to `in_progress` and fill in Task. After confirming the plan with the operator, create native Tasks (`TaskCreate`) for each step.
    - The session ID remains unassigned until close (same as a fresh session)
    - If heartbeat is running, it continues
 4. Read `.claude-code-hermit/OPERATOR.md` for project context and constraints
@@ -29,16 +29,16 @@ All state lives under `.claude-code-hermit/` in the project root.
 6c. **Write .status file.** Write `in_progress` to `.claude-code-hermit/.status` when starting or resuming a task. This keeps the status file in sync for shell consumers (routine watcher).
 7. If `agent_name` is set, use it in the greeting (e.g., "Atlas reporting in." or "{name} a reportar." if language is `pt`). If `language` is set, communicate with the operator in that language for the rest of the session.
 8. If resuming an existing session (Status is `in_progress`):
-   - Present the current task, progress (completed/remaining plan items), and blockers
+   - Call `TaskList` to see current plan steps. Present the current task, progress (completed/remaining tasks), and blockers.
    - If the session status is `blocked`: suggest running `/debug` to diagnose tool/hook failures before re-attempting the blocked work
    - Ask the operator if they want to continue the current task or start a new one
 8b. If resuming an idle session (Status is `idle`):
    - Show session continuity info: tasks completed, session duration, cumulative cost
    - Ask: "What should I work on next?" (unless a NEXT-TASK.md was accepted in step 5)
-   - Once provided, use `session-mgr` to update SHELL.md: set Status to `in_progress`, fill Task and Plan
+   - Once provided, use `session-mgr` to update SHELL.md: set Status to `in_progress`, fill Task. After confirming the plan, create native Tasks for each step.
 9. If starting a new session:
    - Ask the operator: "What should I help with?" (unless a NEXT-TASK.md was accepted in step 5)
-   - Once provided, use `session-mgr` to create the session with the task and initial plan
+   - Once provided, use `session-mgr` to create the session with the task. After confirming the plan, create native Tasks (`TaskCreate`) for each step.
 10. Once I know what to work on (new session only):
     - **Tags:** Ask "Any tags for this session? (e.g., refactor, frontend, urgent) Enter to skip." Write the answer to the `Tags:` field in SHELL.md. If skipped, leave blank.
     - **Budget:** Check `ask_budget` from the config read in step 1. If `ask_budget` is `true`:

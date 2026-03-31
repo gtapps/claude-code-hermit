@@ -109,11 +109,20 @@ This migration converts deprecated v0.0.4 config keys into the new routines syst
 
 Tell the operator: "New settings available in this version:" then present only the questions for keys that are actually missing from their config. If no interactive keys are missing, skip this step.
 
+### 4-task. Write task list ID to settings.local.json
+
+If `CLAUDE_CODE_TASK_LIST_ID` is not already set in `.claude/settings.local.json`:
+1. Derive: `hermit-{project_basename}` (lowercase, alphanumeric + hyphens)
+2. Read `.claude/settings.local.json`, merge into `env` block, write back
+
+Also: if an active SHELL.md has a `## Plan` section (legacy plan table), warn the operator: "Close active sessions before upgrading, or the old plan table will be orphaned." Strip the `## Plan` section from the active SHELL.md if operator confirms.
+
 ### 5. Update templates
 
 - Compare each template file in `${CLAUDE_PLUGIN_ROOT}/state-templates/` against the corresponding file in `.claude-code-hermit/templates/`
 - If the plugin's template has different content: replace the project's template
 - Report which templates were updated
+- Note: SHELL.md.template no longer has a `## Plan` section — plan tracking is now handled by native Claude Code Tasks
 
 **Never touch:** sessions, proposals, OPERATOR.md, HEARTBEAT.md (operator-editable), or config.json (handled separately).
 

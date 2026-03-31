@@ -194,6 +194,17 @@ If channels were configured in step 4f, also add channel state dirs to `env` usi
 
 The channel plugin writes both its token (`.env`) and access config (`access.json`) to this directory. Without `*_STATE_DIR`, the plugin defaults to `~/.claude/channels/<plugin>/` — which works on the host but is lost on Docker container restart. These env vars are written to `.claude/settings.local.json` by `hermit-start` at boot.
 
+### 5-task. Write task list ID to settings.local.json
+
+Set `CLAUDE_CODE_TASK_LIST_ID` in `.claude/settings.local.json` so native Claude Code Tasks are persistent and hooks can read task files.
+
+1. Derive the task list ID: `hermit-{project_basename}` where `{project_basename}` is the current directory name (lowercase, alphanumeric + hyphens)
+2. Read `.claude/settings.local.json` if it exists (may already have content from other tools)
+3. Merge `CLAUDE_CODE_TASK_LIST_ID` into the `env` block (preserve all existing keys)
+4. Write back to `.claude/settings.local.json`
+
+This enables native Tasks for plan tracking. The cost-tracker hook reads task files from `~/.claude/tasks/{task_list_id}/` to generate `tasks-snapshot.md`.
+
 ### 5a. OPERATOR.md onboarding
 
 Generate OPERATOR.md through a project scan and targeted conversation instead of asking the operator to edit it manually.

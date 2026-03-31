@@ -24,8 +24,8 @@ Provide a compact summary of the current session state. Designed for channel res
    - **Tags** from `**Tags:**` line (if present and non-empty)
    - **Budget** from `**Budget:**` line (if present and non-empty)
    - **Task** — first non-comment, non-empty line after `## Task`
-   - **Plan item counts** — count rows in the Plan table by status (`done`, `in_progress`, `blocked`, `planned`). Total = all rows, completed = `done` rows.
-   - **Current step** — first row with status `in_progress`
+   - **Task progress** — call `TaskList` and count by status. Total = all tasks, completed = `completed` tasks.
+   - **Current step** — first task with status `in_progress`
    - **Blockers** — content under `## Blockers` (if any non-comment content)
    - **Cost** — content under `## Cost` (if any non-comment content)
 4. Format as a compact output (under 10 lines):
@@ -33,7 +33,7 @@ Provide a compact summary of the current session state. Designed for channel res
 ```
 Session S-NNN | in_progress | [tags if present]
 Working on: one-line summary
-Progress: X/Y plan items | Current: Step N - description
+Progress: X/Y tasks | Current: Step N - description
 Budget: $spent / $total (percentage%)
 Blockers: none (or brief description)
 Cost: $X.XX (NNK tokens)

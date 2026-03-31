@@ -56,7 +56,7 @@ Keep the output to exactly 5 lines maximum:
 ```
 [Brief] YYYY-MM-DD | [tags if present]
 Working on: one-line description
-Status: completed/partial/blocked (X/Y plan items) | $cost spent
+Status: completed/partial/blocked (X/Y tasks) | $cost spent
 Done: step1, step2, step3
 Next: description of next action (or "Session complete" if all done)
 ```
@@ -66,8 +66,8 @@ Next: description of next action (or "Session complete" if all done)
 - Never exceed 5 lines — this is designed for phone/channel consumption
 - Use the session's date, not today's date
 - Include tags in the header only if they exist
-- For the "Done" line: list completed step names, comma-separated. If too many, show first 3 and "+ N more"
-- For the "Next" line: show the first planned or in_progress step. If blocked, show "Blocked: reason"
+- For the "Done" line: list completed task subjects from `TaskList`, comma-separated. If too many, show first 3 and "+ N more"
+- For the "Next" line: show the first pending or in_progress task from `TaskList`. If blocked, show "Blocked: reason"
 - If summarizing a completed report: "Next" becomes the report's "Next Start Point" content
 - After composing the 5-line output: scan `.claude-code-hermit/proposals/` for files with `source: auto-detected` and `status: proposed` (read from YAML frontmatter if present, fall back to bullet metadata). If any exist, append a 6th line: `Proposals: N auto-detected proposal(s) pending review`
 
