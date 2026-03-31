@@ -75,7 +75,7 @@ New config keys (added automatically by upgrade):
 - `heartbeat.evening_routine` — daily evening summary (default: `true`)
 - `heartbeat.idle_agency` — autonomous work during idle (default: `true`)
 
-SHELL.md template changed (Plan is now optional). Existing sessions are unaffected — the template is used for new sessions only.
+SHELL.md template changed (Plan section removed in v0.2.0 — plan steps now tracked via native Claude Code Tasks). Existing sessions are unaffected — the template is used for new sessions only.
 
 HEARTBEAT.md template has a new grouped structure. Your custom checklist is preserved — see the new default at `templates/HEARTBEAT.md.template` if you want to adopt the grouping.
 
