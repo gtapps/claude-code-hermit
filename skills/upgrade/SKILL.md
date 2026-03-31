@@ -163,9 +163,12 @@ Only update files in `templates/`:
   - Read the hermit's `plugin.json` version
   - Compare against `_hermit_versions[hermit_name]` (default `"0.0.0"` if missing)
   - If version gap exists:
-    - Read the hermit's `CHANGELOG.md` if it exists and present relevant entries
-    - Update the hermit's CLAUDE-APPEND block in CLAUDE.md (find marker, replace content)
-    - If the hermit provides an `UPGRADE.md` at its root, read it and follow its instructions
+    - Read the hermit's `CHANGELOG.md` if it exists and extract version entries between the config version (exclusive) and the current version (inclusive)
+    - Present a summary: "{hermit_name}: upgrading from vOLD to vNEW. Here's what changed:" followed by only the relevant changelog sections
+    - **Execute migrations in version order** — For each extracted version entry (oldest first), look for a `### Upgrade Instructions` section. If found, execute every instruction in that section — do not skip or merely display them.
+    - **Sync hermit's CLAUDE-APPEND block** — Same procedure as step 6, using:
+      - Source template: the hermit's `state-templates/CLAUDE-APPEND.md`. If it doesn't exist, skip.
+      - Marker: the first HTML comment line in that template (e.g. `<!-- hermit-name: Section Title -->`)
     - Update `_hermit_versions[hermit_name]` to the current hermit version
   - If no gap: skip silently
 

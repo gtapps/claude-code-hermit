@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.2.2] - 2026-03-31
+
+### Fixed
+
+- **Hermit upgrades now execute changelog migrations** — The upgrade skill's step 7 (hermit upgrades) previously only displayed changelog entries from sub-hermits without executing their `### Upgrade Instructions` sections. Hermits upgrading across multiple versions would silently skip migrations. Now: changelog entries are extracted per version (oldest first), and each `### Upgrade Instructions` section is executed — not just shown. The static `UPGRADE.md` fallback is removed; changelogs are the authoritative migration source.
+
+- **Hermit CLAUDE-APPEND sync fully specified** — The upgrade skill's hermit CLAUDE-APPEND block update was a one-liner ("find marker, replace content") with no detail on where to find the marker or source template. Now explicitly delegates to the same procedure as the core CLAUDE-APPEND update (step 6), specifying: source template path (`state-templates/CLAUDE-APPEND.md` at the hermit's plugin root) and marker location (first HTML comment line in that template).
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/upgrade/SKILL.md` | Rewrote step 7 (hermit upgrades): execute changelog migrations in version order, specify CLAUDE-APPEND sync procedure |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
+
+1. **CLAUDE-APPEND block update** — Refreshed session discipline block (no content change in this version, but the upgrade skill always checks).
+
+**No config.json changes required.** No template changes. This is a fix to the upgrade skill's own instructions — it changes how future hermit upgrades behave, not the current project state.
+
+---
+
 ## [0.2.1] - 2026-03-31
 
 ### Fixed
