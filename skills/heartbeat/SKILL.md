@@ -65,7 +65,7 @@ Execute one heartbeat tick immediately. Useful for testing the checklist.
   ```
 - Respond with the alert content
 
-**Important:** Do NOT take action on findings — only report. The operator or the next session decides what to do.
+**Important:** Do NOT implement fixes — only report. The operator or the next session decides what to do. If a finding suggests a reusable improvement, create a proposal via `/claude-code-hermit:proposal-create` — proposals are documentation, not action.
 
 **After evaluating the checklist (always, regardless of findings):**
 

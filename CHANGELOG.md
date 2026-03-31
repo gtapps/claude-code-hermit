@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.2.1] - 2026-03-31
+
+### Fixed
+
+- **Mandatory proposal pipeline** — Hermits could bypass the proposal workflow by presenting improvements as informal numbered lists in channel messages and implementing them after verbal approval. Now enforced: every improvement must have a PROP-NNN file before implementation. CLAUDE-APPEND.md includes a hard "Proposal Pipeline (mandatory)" rule loaded into every session.
+
+- **Channel-responder now recognizes proposal approvals** — New "Proposal approval" message classification catches messages like "accept PROP-", "go ahead with PROP-012", or informal references (#1, #2). Routes through `/proposal-act` instead of treating them as new task assignments. Classification is ordered before "New instruction" to prevent misrouting.
+
+- **Heartbeat "no action" rule clarified** — The heartbeat instruction "Do NOT take action on findings" conflicted with creating proposals for discovered improvements. Reworded to "Do NOT implement fixes — only report." Creating proposals is explicitly called out as documentation, not action.
+
+- **Reflect skill uses formal proposal references** — The reflect skill now uses backtick-formatted `/claude-code-hermit:proposal-create` references (was plain text).
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/CLAUDE-APPEND.md` | Added "Proposal Pipeline (mandatory)" section |
+| `skills/channel-responder/SKILL.md` | Added "Proposal approval" classification before "New instruction" |
+| `skills/heartbeat/SKILL.md` | Clarified "no action" rule, proposal creation is documentation |
+| `skills/reflect/SKILL.md` | Formatted proposal-create reference |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
+
+1. **CLAUDE-APPEND block update** — The session discipline block in your project's CLAUDE.md is refreshed to include the new "Proposal Pipeline (mandatory)" section. This is the primary fix — it prevents hermits from skipping the proposal workflow.
+
+2. **Template refresh** — No template changes in this version.
+
+**No config.json changes required.** This is a behavioral fix via updated instructions only.
+
+---
+
 ## [0.2.0] - 2026-03-31
 
 ### Changed

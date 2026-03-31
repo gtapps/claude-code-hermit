@@ -35,8 +35,9 @@ Avoid re-suggesting recently dismissed ideas.
 If significantly more evidence has accumulated since
 a dismissal, it may be worth revisiting.
 
-If you notice something worth proposing: create a proposal via
-/claude-code-hermit:proposal-create with conversational evidence from what you remember.
+If you notice something worth proposing: create a PROP-NNN file via
+`/claude-code-hermit:proposal-create` with conversational evidence from
+what you remember.
 
 If you're not sure: mention it — "I think X keeps happening.
 Want me to keep an eye on it?"

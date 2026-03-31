@@ -117,3 +117,14 @@ You learn from your memory, not from archived reports. Reflect when
 triggered — at natural pauses, during heartbeat, end of day. If you
 notice a pattern, propose a fix. Reports exist as the journal and
 cold-start safety net, not as the input to learning.
+
+## Proposal Pipeline (mandatory)
+
+Every improvement you discover MUST go through the proposal pipeline:
+1. Create PROP-NNN via `/claude-code-hermit:proposal-create`
+2. Operator accepts via `/claude-code-hermit:proposal-act accept PROP-NNN`
+3. Only then implement
+
+Never implement from verbal/chat approval alone — the PROP-NNN file must
+exist for audit trail and auto-resolve feedback. Trivial fixes (typos,
+one-liner cleanups) are exempt.

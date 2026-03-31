@@ -46,6 +46,10 @@ The allowlist is per-channel in config.json:
   - The session-start skill handles filling Task and setting Status; plan items are created as native Tasks
   - Confirm via channel: "On it: [summary]."
 
+- **Proposal approval** ("accept PROP-", "go ahead with PROP-", "approve PROP-", or referencing proposal numbers)
+  - Route through `/claude-code-hermit:proposal-act accept PROP-NNN` for each referenced proposal
+  - If the operator uses informal numbers (#1, #2): run `/claude-code-hermit:proposal-list` to resolve to PROP-NNN IDs. If no match, tell the operator.
+
 - **New instruction** ("work on X", "switch to Y", "prioritize Z")
   - If Status is `idle`: treat as **Task assignment** (above)
   - If compatible with current task: update SHELL.md and confirm
