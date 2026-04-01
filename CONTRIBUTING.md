@@ -19,7 +19,7 @@ cd /path/to/your-project
 claude --plugin-dir /path/to/claude-code-hermit
 ```
 
-Then run `/claude-code-hermit:init` to create the state directory. Edits to skills, hooks, and scripts take effect immediately — no restart needed.
+Then run `/claude-code-hermit:hermit-init` to create the state directory. Edits to skills, hooks, and scripts take effect immediately — no restart needed.
 
 ## Testing
 

@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.2.3] - 2026-04-01
+
+### Fixed
+
+- **Init wizard now asks questions one at a time** — The setup wizard (step 4) was presenting all questions in a single response block instead of asking them interactively. The SKILL.md listed all wizard questions (4a–4l) in sub-sections without any instruction to pause between them, so Claude would output the full batch at once. Added an explicit "wizard discipline" instruction requiring each question to be asked one at a time via `AskUserQuestion`, waiting for the operator's response before proceeding.
+
+- **Renamed `init` skill to `hermit-init`** — The bare name `init` conflicted with Claude Code's native `/init` command (which analyzes the codebase and generates CLAUDE.md), causing the native command to shadow the hermit skill in the command picker. Renamed to `/claude-code-hermit:hermit-init` to avoid the collision. All documentation, skill cross-references, and scripts updated.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/hermit-init/SKILL.md` | Renamed from `skills/init/SKILL.md`; added wizard discipline instruction |
+| `README.md` | Updated skill invocation references |
+| `CLAUDE.md` | Updated skill list and template description |
+| `CONTRIBUTING.md` | Updated setup instructions |
+| `docs/HOW-TO-USE.md` | Updated invocation references |
+| `docs/FAQ.md` | Updated references |
+| `docs/CONFIG-REFERENCE.md` | Updated references |
+| `docs/ALWAYS-ON.md` | Updated references |
+| `docs/SECURITY.md` | Updated references |
+| `docs/CREATING-YOUR-OWN-HERMIT.md` | Updated references |
+| `skills/upgrade/SKILL.md` | Updated invocation and file path references |
+| `skills/hermit-settings/SKILL.md` | Updated invocation reference |
+| `skills/docker-setup/SKILL.md` | Updated invocation reference |
+| `scripts/hermit-start.py` | Updated invocation reference |
+| `state-templates/OPERATOR.md` | Updated generated-by comment |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
+
+1. **CLAUDE-APPEND block update** — Refreshed session discipline block (no content change in this version, but the upgrade skill always checks).
+
+**No config.json changes required.** No template changes. The `hermit-init` rename only affects new project setups — existing initialized projects are unaffected.
+
+---
+
 ## [0.2.2] - 2026-03-31
 
 ### Fixed
@@ -379,7 +417,7 @@ Report: "Migrated N proposals with YAML frontmatter."
 **What you need to do:**
 
 1. Run `/claude-code-hermit:upgrade` to refresh templates
-2. **Deny patterns (recommended):** Add safety deny rules to `.claude/settings.json` — run `/claude-code-hermit:init` step 9 or add manually:
+2. **Deny patterns (recommended):** Add safety deny rules to `.claude/settings.json` — run `/claude-code-hermit:hermit-init` step 9 or add manually:
    ```json
    "permissions": {
      "deny": [

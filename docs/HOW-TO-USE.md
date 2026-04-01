@@ -19,7 +19,7 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope project
 ## Initialize
 
 ```
-/claude-code-hermit:init
+/claude-code-hermit:hermit-init
 ```
 
 The wizard sets up your agent's identity (name, language, timezone, autonomy level) and operational preferences (channels, remote control, heartbeat, daily routines, idle agency, budgets). Then it scans your folder and generates an `OPERATOR.md` — your rulebook. Starting fresh with an empty folder? It'll ask what the assistant is for.

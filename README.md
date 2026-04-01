@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.2.2-green.svg" alt="Version 0.2.2" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.2.3-green.svg" alt="Version 0.2.3" /></a>
   <img src="https://img.shields.io/badge/Claude-Pro%20%7C%20Max-blueviolet.svg" alt="Claude Pro/Max Compatible" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
 </p>
@@ -68,7 +68,7 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope project
 ### 2. Initialize
 
 ```
-/claude-code-hermit:init
+/claude-code-hermit:hermit-init
 ```
 
 The wizard sets up your agent's identity, scans your folder for context, and generates an `OPERATOR.md` — a personalized rulebook Hermit reads at every session start. Starting fresh? It'll ask what the assistant is for. Dropping into an existing codebase? It'll infer what it can and ask about the rest.
@@ -155,7 +155,7 @@ You can also talk to Hermit about how it can improve. Ask what slowed it down, w
 
 ## Creating Your Own Hermit
 
-Every Hermit is yours from the moment you run `/claude-code-hermit:init`. Drop it into an existing codebase — it becomes your project's assistant. Create a fresh folder for personal finance, research, or writing — it becomes that kind of assistant. The wizard adapts to whatever it finds.
+Every Hermit is yours from the moment you run `/claude-code-hermit:hermit-init`. Drop it into an existing codebase — it becomes your project's assistant. Create a fresh folder for personal finance, research, or writing — it becomes that kind of assistant. The wizard adapts to whatever it finds.
 
 Over time, Hermit learns what your work actually needs. Ask it to suggest specialized agents based on your recent sessions — it'll propose them, you approve, and it creates them for you. A project with lots of database work might get a migration specialist. A project that keeps hitting CI failures might get a test-focused reviewer. You don't have to design these upfront — they emerge from how you actually work.
 

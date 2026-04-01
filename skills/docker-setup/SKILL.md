@@ -17,7 +17,7 @@ Templates live in `${CLAUDE_SKILL_DIR}/../../state-templates/docker/`.
 ### 1. Prerequisites
 
 1. Run `docker --version`. If missing: "Docker isn't installed — grab it from https://docs.docker.com/get-docker/ and come back!"
-2. Verify `.claude-code-hermit/config.json` exists. If missing: "Run `/claude-code-hermit:init` first, then come back."
+2. Verify `.claude-code-hermit/config.json` exists. If missing: "Run `/claude-code-hermit:hermit-init` first, then come back."
 3. If working dir starts with `/mnt/c/` or `/mnt/d/`: abort — "Clone inside WSL2 (e.g. `/home/you/project`) and run from there."
 4. Check for existing `Dockerfile.hermit`, `docker-entrypoint.hermit.sh`, `docker-compose.hermit.yml` at project root. If any found:
    - List them, ask: "Back up and regenerate? (yes/no) [no]"

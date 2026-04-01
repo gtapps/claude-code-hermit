@@ -66,7 +66,7 @@ def load_config():
     """Load config.json or return defaults."""
     if not CONFIG_PATH.exists():
         print(f'[hermit] No config found at {CONFIG_PATH}')
-        print('[hermit] Run /claude-code-hermit:init inside Claude Code first.')
+        print('[hermit] Run /claude-code-hermit:hermit-init inside Claude Code first.')
         sys.exit(1)
 
     with open(CONFIG_PATH) as f:

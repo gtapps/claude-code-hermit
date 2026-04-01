@@ -1,5 +1,5 @@
 ---
-name: init
+name: hermit-init
 description: Initializes the autonomous agent in the current project. Creates the state directory, templates, OPERATOR.md, and config.json. Appends session discipline to CLAUDE.md. Detects installed hermits. Run once per project, like git init.
 ---
 # Initialize Autonomous Agent
@@ -53,6 +53,8 @@ If hermits are found:
 ### 4. Setup wizard
 
 Run a conversational setup to configure project preferences. All questions have sensible defaults. The wizard is split into two groups: **Identity** (who your assistant is) and **Operational** (how it runs).
+
+> **Wizard discipline:** Ask each question **one at a time** using the `AskUserQuestion` tool. Do not present multiple questions in a single turn. After the operator responds, record the answer and move to the next question.
 
 #### Agent Identity
 
