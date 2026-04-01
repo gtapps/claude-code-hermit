@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.2.4] - 2026-04-01
+
+### Changed
+
+- **Init wizard restructured into 5 phases using `AskUserQuestion` batches** — The setup wizard previously asked all questions one at a time in plain conversation (~12 sequential turns). Refactored into a 5-phase flow that cuts interactions to 4–5: (1) silent parallel auto-detect of language and timezone, (2) free-text identity questions conversationally (name, language, timezone, sign-off), (3) a single `AskUserQuestion` batch for 4 behavior settings (autonomy, remote, budget, idle), (4) a single `AskUserQuestion` for channels with conditional follow-ups, (5) a `AskUserQuestion` batch for permission mode and routines. Multiple-choice questions now render as native Claude Code option pickers rather than typed responses.
+
+- **OPERATOR.md onboarding questions now use `AskUserQuestion` batch** — Step 5a Phase 3 was presenting 3–5 questions as a plain conversational numbered list, causing Claude to dump them as unformatted text. Replaced with a single `AskUserQuestion` call using `header` + `question` fields and no `options` (renders as free-text inputs in the native Claude Code UI). Added `header` column to the question bank table; hermit extension now respects the 4-question-per-call limit.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/hermit-init/SKILL.md` | Rewrote step 4 into 5 phases; step 5a Phase 3 now uses `AskUserQuestion` for OPERATOR.md questions |
+| `skills/upgrade/SKILL.md` | Updated cross-reference from "steps 4a–4e" to "Phase 2" |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
+
+1. **CLAUDE-APPEND block update** — Refreshed session discipline block (no content change in this version, but the upgrade skill always checks).
+
+**No config.json changes required.** No template changes. This only affects the `hermit-init` wizard flow for new project setups — existing initialized projects are unaffected.
+
+---
+
 ## [0.2.3] - 2026-04-01
 
 ### Fixed

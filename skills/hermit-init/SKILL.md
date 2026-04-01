@@ -52,89 +52,129 @@ If hermits are found:
 
 ### 4. Setup wizard
 
-Run a conversational setup to configure project preferences. All questions have sensible defaults. The wizard is split into two groups: **Identity** (who your assistant is) and **Operational** (how it runs).
+Collect project preferences in 4–5 interactions. Use `AskUserQuestion` for all questions — multiple-choice questions use `options`, free-text questions omit `options` (renders as a text field).
 
-> **Wizard discipline:** Ask each question **one at a time** using the `AskUserQuestion` tool. Do not present multiple questions in a single turn. After the operator responds, record the answer and move to the next question.
+#### Phase 1 — Auto-detect (silent, parallel)
 
-#### Agent Identity
+Run both Bash commands in a single turn before asking anything:
+- Language: `echo $LANG | cut -d_ -f1` (fallback: `en`)
+- Timezone: `cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value 2>/dev/null || date +%Z` (fallback: `UTC`)
 
-**4a. Agent name**
+#### Phase 2 — Identity
+
+**4a. Agent name** — ask conversationally (single free-text `AskUserQuestion`)
 Ask: "Give your agent a name? This personalizes session reports, channel messages, and briefs. (e.g., Atlas, Hermit, Scout) [skip]"
 - If provided: record as `agent_name: "Atlas"`
 - If skipped: record as `agent_name: null`
 
-**4b. Preferred language**
-Auto-detect the system locale by running Bash: `echo $LANG | cut -d_ -f1` (falls back to `en` if undetectable).
-Ask: "What language should your assistant use for communication? [auto-detected: pt]"
-- If operator confirms or presses Enter: record the detected value
-- If operator provides a different language code (e.g., `en`, `es`, `fr`): record that instead
-- Record as `language: "pt"`
+**4b+4c. Language + Timezone** — batch both in one `AskUserQuestion` call (no `options` — free-text inputs showing auto-detected defaults):
+```
+questions: [
+  { header: "Language", question: "Language for communication? [auto-detected: {lang}] — confirm or type a code (en, pt, es, fr…)" },
+  { header: "Timezone", question: "Timezone for scheduling? [auto-detected: {tz}] — confirm or type a different timezone" }
+]
+```
+- If operator confirms / leaves blank: record detected values
+- If operator types different values: record those instead
 
-**4c. Timezone**
-Auto-detect the system timezone by running Bash: `cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value 2>/dev/null || date +%Z` (falls back to `UTC` if undetectable).
-Ask: "Timezone for scheduling? [auto-detected: Europe/Lisbon]"
-- If operator confirms or presses Enter: record the detected value
-- If operator provides a different timezone: record that instead
-- Record as `timezone: "Europe/Lisbon"`
-
-**4d. Escalation threshold**
-Ask: "How autonomous should your assistant be?
-  1. Conservative — ask before most non-trivial actions, create proposals instead of fixing directly
-  2. Balanced — act on routine tasks, ask for significant changes (default)
-  3. Autonomous — proceed unless blocked, minimize interruptions
-
-Choose 1-3: [2]"
-- Record as `escalation: "conservative"` / `"balanced"` / `"autonomous"`
-
-**4e. Sign-off style** (only ask if agent_name was provided in 4a)
-Ask: "Sign-off line for channel messages and briefs? (e.g., '{name} out.', '— {initial}.', or skip) [skip]"
+**4d. Sign-off style** (only if agent_name was provided in 4a — ask conversationally)
+Ask: "Sign-off line for channel messages and briefs? (e.g., '{name} out.', '— {initial}.') [skip]"
 - If provided: record as `sign_off: "Atlas out."`
 - If skipped: record as `sign_off: null`
 
-#### Operational
+#### Phase 3 — Behavior (AskUserQuestion batch, 4 questions)
 
-**4f. Channels**
-Ask: "Configure channels for this project? (telegram / discord / none) [none]"
-- If telegram or discord selected: record the short name (e.g., `"discord"`) in the `channels` array. The boot script maps it to the full plugin identifier (`plugin:discord@claude-plugins-official`).
+Ask all four in a single `AskUserQuestion` call:
+
+```
+questions: [
+  {
+    header: "Autonomy",
+    question: "How autonomous should your assistant be?",
+    options: [
+      { label: "Conservative — ask before most non-trivial actions" },
+      { label: "Balanced — act on routine tasks, ask for significant changes (default)" },
+      { label: "Autonomous — proceed unless blocked, minimize interruptions" }
+    ]
+  },
+  {
+    header: "Remote control",
+    question: "Enable remote control via claude.ai/code?",
+    options: [{ label: "Yes (default)" }, { label: "No" }]
+  },
+  {
+    header: "Session budget",
+    question: "Ask for a cost budget at session start?",
+    options: [{ label: "Never (default)" }, { label: "Always" }]
+  },
+  {
+    header: "Idle behavior",
+    question: "What should hermit do when idle between tasks?",
+    options: [
+      { label: "Wait — only check for new tasks and channel messages (default)" },
+      { label: "Discover — also run maintenance tasks and periodic reflection" }
+    ]
+  }
+]
+```
+
+Record: `escalation` (conservative/balanced/autonomous), `remote` (true/false), `ask_budget` (true/false), `idle_behavior` (wait/discover).
+
+#### Phase 4 — Channels (AskUserQuestion, single question)
+
+```
+questions: [
+  {
+    header: "Channels",
+    question: "Configure a notification channel for this project?",
+    options: [{ label: "None (default)" }, { label: "Discord" }, { label: "Telegram" }]
+  }
+]
+```
+
+- **If None:** record `channels: []`. **Stop — proceed directly to Phase 5. Do not ask 4f2 or 4g.**
+- **If Discord or Telegram:** record short name in `channels` array (e.g., `["discord"]`). Boot script maps it to the full plugin identifier. Then ask 4f2 and 4g below.
 - If the channel plugin isn't installed, note: "Install the channel plugin globally first with `/plugin install`"
 
-**4f2. Channel access control** (only if channels were selected in 4f)
-Ask: "Restrict who can send commands via channels? Paste your Discord/Telegram user ID, or 'skip' to allow everyone. [skip]"
-- If the operator provides a user ID: record in `allowed_users.<channel>` as a single-element array (e.g., `"allowed_users": {"discord": ["123456789"]}`)
-- If skip: do not add `allowed_users` key (absent = accept all messages, backwards compatible)
-- Note: "You can add more user IDs later with `/claude-code-hermit:hermit-settings channels`. An empty array [] blocks all messages."
+**Channel follow-ups (only if Discord or Telegram was selected above):**
 
-**4f3. Remote control**
-Ask: "Enable remote control? This lets you connect from a browser or phone via claude.ai/code. (yes / no) [yes]"
-- If yes (default): record `remote: true` in config
-- If no: record `remote: false`
+**4f2. Channel access control**
+Ask: "Restrict who can send commands via channels? Paste your Discord/Telegram user ID, or skip to allow everyone. [skip]"
+- If provided: record in `allowed_users.<channel>` as a single-element array (e.g., `"allowed_users": {"discord": ["123456789"]}`)
+- If skip: omit `allowed_users` key (absent = accept all, backwards compatible)
+- Note: "Add more user IDs later with `/claude-code-hermit:hermit-settings channels`. An empty array [] blocks all messages."
 
-**4g. Morning brief** (only if channels were selected in 4f)
-Ask: "Enable morning brief delivery? (yes / no) [no]"
-- If yes: ask "What time? (e.g., 07:00) [07:00]"
-- Record in config as `morning_brief: { "enabled": true, "time": "07:00", "channel": "<selected channel>" }` or `null` if declined
+**4g. Morning brief**
+Ask: "Enable morning brief delivery? [no]"
+- If yes: ask "What time? [07:00]"
+- Record as `morning_brief: { "enabled": true, "time": "07:00", "channel": "<selected channel>" }` or `null` if declined
 
-**4i. Session budget**
-Ask: "Ask for a cost budget at session start? (always / never) [never]"
-- Record as `ask_budget: true` or `false`
+#### Phase 5 — Deployment (AskUserQuestion batch, 2 questions)
 
-**4j. Permission mode**
-Ask: "Permission mode for unattended operation? (acceptEdits / dontAsk / bypassPermissions) [acceptEdits]"
-- `acceptEdits` — auto-approves file edits, prompts for shell commands (default)
-- `dontAsk` — denies all tools not in `permissions.allow`; requires a curated allowlist in `settings.json`
-- `bypassPermissions` — no checks at all; only for isolated containers/VMs
-- See [Permission Modes](https://code.claude.com/docs/en/permission-modes)
-- Record as `permission_mode: "<value>"`
+```
+questions: [
+  {
+    header: "Permission mode",
+    question: "Permission mode for unattended operation?",
+    options: [
+      { label: "acceptEdits — auto-approve file edits, prompt for shell commands (default)" },
+      { label: "dontAsk — deny all tools not in permissions.allow; requires a curated allowlist" },
+      { label: "bypassPermissions — no checks at all; only for isolated containers/VMs" }
+    ]
+  },
+  {
+    header: "Daily routines",
+    question: "Set up morning and evening routines? (morning brief reviews priorities, evening summarizes the day)",
+    options: [{ label: "Yes (default)" }, { label: "No" }]
+  }
+]
+```
 
-**4k. Idle behavior**
-Ask: "What should the hermit do when idle between tasks? 1. Wait — only check for new tasks and channel messages (default). 2. Discover — also run maintenance tasks from OPERATOR.md and periodic reflection. Choose 1-2: [1]"
-- Record as `idle_behavior: "wait"` or `idle_behavior: "discover"`
+Record: `permission_mode` (acceptEdits/dontAsk/bypassPermissions).
 
-**4l. Default routines**
-Ask: "Set up morning and evening routines? Morning brief reviews priorities, evening brief summarizes the day. (yes / no) [yes]"
-- If yes: calculate morning time as `active_hours.start + 30m` and evening time as `active_hours.end - 30m`. Add to `routines` array:
-  - `{"id":"morning","time":"<morning_time>","skill":"brief --morning","enabled":true}`
-  - `{"id":"evening","time":"<evening_time>","skill":"brief --evening","enabled":true}`
+For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, `end = 23:00`) to derive morning = `08:30` and evening = `22:30`. Add to `routines` array:
+- `{"id":"morning","time":"08:30","skill":"brief --morning","enabled":true}`
+- `{"id":"evening","time":"22:30","skill":"brief --evening","enabled":true}`
 - If no: leave `routines` as empty array
 
 ### 5. Write config.json
@@ -250,25 +290,34 @@ Using the scan results, pre-fill the OPERATOR.md template sections. Follow these
 
 Write the draft to `.claude-code-hermit/OPERATOR.md`.
 
-#### Phase 3 — Targeted questions (batch)
+#### Phase 3 — Targeted questions (AskUserQuestion batch)
 
-Present 3–5 questions to the operator in a single numbered list. Select from this bank, applying the skip rules:
+Questions are split into two `AskUserQuestion` calls (max 4 per call). Q1–Q4 are never skipped and always form the first call. Q5–Q7 are conditional and form a second call only if any are included.
 
-| # | Question | Skip if... | Maps to section |
-|---|----------|------------|-----------------|
-| 1 | "What's the current priority or goal for this project?" | Never skip | Current Priority |
-| 2 | "Are there fragile or sensitive areas I should avoid touching without asking?" | Never skip | Sensitive Areas |
-| 3 | "What actions require your explicit approval before I proceed?" | Never skip | Constraints |
-| 4 | "How do you prefer I communicate? (concise updates / detailed explanations / ask before every decision)" | Never skip | Operator Preferences |
-| 5 | "Any CI/CD quirks I should know about? (flaky tests, required checks, deploy process)" | No CI config found in Phase 1 | Notes |
-| 6 | "How should I handle testing? (run before commit, specific commands, coverage requirements)" | CLAUDE.md already covers testing | Notes |
-| 7 | "How large is the team working on this? (solo / small team / large team)" | Skip unless batch is under 5 questions (i.e., both Q5 and Q6 were skipped) | Operator Preferences |
+**Call 1 — always sent (4 questions):**
 
-Tell the operator: "I've scanned your project and drafted OPERATOR.md. A few questions to fill in what I couldn't infer:"
+| # | Header | Question | Maps to section |
+|---|--------|----------|-----------------|
+| 1 | Priority | "What's the current priority or goal for this project?" | Current Priority |
+| 2 | Sensitive areas | "Are there fragile or sensitive areas I should avoid touching without asking?" | Sensitive Areas |
+| 3 | Approval gates | "What actions require your explicit approval before I proceed?" | Constraints |
+| 4 | Communication | "How do you prefer I communicate? (concise updates / detailed explanations / ask before every decision)" | Operator Preferences |
 
-Ask all selected questions at once as a numbered batch. Accept short answers — the agent expands them into prose. If the operator says "skip" for any question, leave that section sparse.
+**Call 2 — only if any of Q5–Q7 apply (skip conditions below):**
 
-**Hermit extension:** If a hermit was activated in step 3 and provides a file at `state-templates/OPERATOR-QUESTIONS.md`, read it and append those questions to the batch after the core questions. The hermit's question file must include a "Maps to section" column for each question (e.g., `## Development Conventions`). In Phase 4, create or append to those sections in OPERATOR.md — if the section doesn't exist yet, add it after the core sections.
+| # | Header | Question | Skip if... | Maps to section |
+|---|--------|----------|------------|-----------------|
+| 5 | CI/CD | "Any CI/CD quirks I should know about? (flaky tests, required checks, deploy process)" | No CI config found in Phase 1 | Notes |
+| 6 | Testing | "How should I handle testing? (run before commit, specific commands, coverage requirements)" | CLAUDE.md already covers testing | Notes |
+| 7 | Team size | "How large is the team working on this? (solo / small team / large team)" | Skip if Q5 or Q6 is included (batch already ≥2) | Operator Preferences |
+
+If none of Q5–Q7 apply, skip Call 2 entirely.
+
+Tell the operator before Call 1: "I've scanned your project and drafted OPERATOR.md. A few questions to fill in what I couldn't infer:"
+
+All questions use no `options` field (renders as free-text inputs). Accept short answers; expand into prose in Phase 4. If the operator leaves a field blank or types "skip", leave that section sparse.
+
+**Hermit extension:** If a hermit was activated in step 3 and provides a file at `state-templates/OPERATOR-QUESTIONS.md`, read it and append those questions to Call 2 (or start a Call 3 if Call 2 is already at 4). The hermit's question file must include a "Maps to section" column for each question. In Phase 4, create or append to those sections in OPERATOR.md — if the section doesn't exist yet, add it after the core sections.
 
 #### Phase 4 — Write final OPERATOR.md
 

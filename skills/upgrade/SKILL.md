@@ -58,15 +58,17 @@ The prompts below match the init wizard exactly. Use the same wording for consis
 | `heartbeat.stale_threshold` | 0.0.9 | no | `"2h"` |
 | `routines` | 0.0.9 | no (migrated or empty) | `[]` |
 
-**Prompts** (use the same text as the init wizard in `skills/hermit-init/SKILL.md` steps 4a–4e):
-- `agent_name`: "Give your agent a name? This personalizes session reports, channel messages, and briefs. (e.g., Atlas, Hermit, Scout) [skip]"
-- `language`: "What language should your assistant use for communication? [auto-detected: {value}]"
-- `timezone`: "Timezone for scheduling? [auto-detected: {value}]"
-- `escalation`: "How autonomous should your assistant be? 1. Conservative — ask before most non-trivial actions, create proposals instead of fixing directly. 2. Balanced — act on routine tasks, ask for significant changes (default). 3. Autonomous — proceed unless blocked, minimize interruptions. Choose 1-3: [2]"
-- `sign_off`: "Sign-off line for channel messages and briefs? (e.g., '{name} out.', '— {initial}.', or skip) [skip]"
+**Prompts** — use the same wording and interaction model as the init wizard (see `skills/hermit-init/SKILL.md`):
+
+- `agent_name` (Phase 2, conversational): "Give your agent a name? This personalizes session reports, channel messages, and briefs. (e.g., Atlas, Hermit, Scout) [skip]"
+- `language` + `timezone` (Phase 2, single AskUserQuestion batch — no `options`):
+  - Language: "Language for communication? [auto-detected: {value}] — confirm or type a code (en, pt, es, fr…)"
+  - Timezone: "Timezone for scheduling? [auto-detected: {value}] — confirm or type a different timezone"
+- `escalation` (Phase 3, AskUserQuestion with `options`): "How autonomous should your assistant be?" — options: Conservative / Balanced (default) / Autonomous
+- `sign_off` (Phase 2, conversational — only if agent_name provided): "Sign-off line for channel messages and briefs? (e.g., '{name} out.', '— {initial}.') [skip]"
 
 **v0.0.9 prompts:**
-- `idle_behavior`: "What should the hermit do when idle between tasks? 1. Wait — only check for new tasks and channel messages (default). 2. Discover — also run maintenance tasks from OPERATOR.md and periodic reflection. Choose 1-2: [1]"
+- `idle_behavior` (AskUserQuestion with `options`): "What should hermit do when idle between tasks?" — options: Wait (default) / Discover
 
 **v0.0.9 migration** (run before asking about new keys):
 
