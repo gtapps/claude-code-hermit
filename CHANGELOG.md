@@ -16,20 +16,25 @@
 
 - **Removed `name:` frontmatter from all skills, then re-added matching directory names** — The `name:` field was putting bare names like `init`, `session`, `status` into model context, potentially influencing command routing. All 18 skills now have `name:` matching their directory name exactly.
 
+- **Removed `_plugin_root` from config.json** — Boot scripts (`hermit-run`) previously cached the plugin's absolute path in `config.json` as `_plugin_root`. This broke when switching between Docker and host environments: the path from one environment would overwrite the other's, since config.json is bind-mounted. Replaced with runtime discovery that scans `~/.claude/plugins/marketplaces/*/` for the `claude-code-hermit` plugin. Docker uses `HERMIT_PLUGIN_ROOT` env var as a fast path. No config.json read/write needed for plugin resolution.
+
 ### Files affected
 
 | File | Change |
 |------|--------|
-| `skills/hatch/SKILL.md` | Renamed from `skills/hermit-init/`; rewrote step 4 into 5 phases; step 5a Phase 3 now uses `AskUserQuestion` for OPERATOR.md questions |
-| `skills/hermit-upgrade/SKILL.md` | Renamed from `skills/upgrade/`; updated cross-reference from "steps 4a–4e" to "Phase 2" |
+| `skills/hatch/SKILL.md` | Renamed from `skills/hermit-init/`; rewrote step 4 into 5 phases; step 5a Phase 3 now uses `AskUserQuestion` for OPERATOR.md questions; removed `_plugin_root` from config template |
+| `skills/hermit-upgrade/SKILL.md` | Renamed from `skills/upgrade/`; updated cross-reference from "steps 4a–4e" to "Phase 2"; removed `_plugin_root` references |
 | `skills/pulse/SKILL.md` | Renamed from `skills/status/` |
 | `CLAUDE.md` | Updated skill list and references |
 | `README.md` | Updated invocation references |
 | `CONTRIBUTING.md` | Updated setup instructions |
 | `docs/*.md` | Updated all skill invocation references |
-| `scripts/hermit-start.py` | Updated skill references |
+| `docs/CONFIG-REFERENCE.md` | Removed `_plugin_root` from schema table |
+| `scripts/hermit-start.py` | Updated skill references; removed `_plugin_root` from DEFAULT_CONFIG |
 | `scripts/check-upgrade.sh` | Updated skill references |
-| `state-templates/bin/hermit-run` | Updated error message references |
+| `state-templates/bin/hermit-run` | Rewrote plugin resolution: removed config.json read, now scans `~/.claude/plugins/` at runtime |
+| `state-templates/config.json.template` | Removed `_plugin_root` field |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Simplified plugin root export comment |
 | `state-templates/CLAUDE-APPEND.md` | Updated quick reference |
 | `state-templates/OPERATOR.md` | Updated generator comment |
 
@@ -38,8 +43,10 @@
 Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
 
 1. **CLAUDE-APPEND block update** — Refreshed session discipline block with new skill names.
+2. **Remove `_plugin_root` from config.json** — This key is no longer used. The upgrade skill should delete `_plugin_root` from the project's config.json if present.
+3. **Boot script update** — `hermit-run` was rewritten to resolve the plugin path at runtime. The upgrade skill copies updated boot scripts from `state-templates/bin/` into `.claude-code-hermit/bin/`.
 
-**No config.json changes required.** No template changes. The skill renames only affect invocation commands — existing initialized projects continue to work.
+No other config.json changes required. The skill renames only affect invocation commands — existing initialized projects continue to work.
 
 ---
 

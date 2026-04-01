@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dispatcher for hermit boot scripts — resolves plugin path from config.json
+# Dispatcher for hermit boot scripts — resolves plugin path by scanning installed plugins
 # Usage: hermit-run <script.py> [args...]
 # Called by hermit-start and hermit-stop wrappers.
 set -euo pipefail
@@ -86,55 +86,29 @@ print(name.replace('{project_name}', project))
   exit 0
 fi
 
-# Prefer HERMIT_PLUGIN_ROOT env var (set by docker-entrypoint) over config.json _plugin_root.
-# Inside a container, _plugin_root points to the host path which doesn't exist.
+# --- Resolve plugin root ---
+# Priority: HERMIT_PLUGIN_ROOT env var > scan ~/.claude/plugins/
+# No config.json dependency — works in both host and Docker without path conflicts.
+
+PLUGIN_ROOT=""
+
+# 1. Env var (set by docker-entrypoint)
 if [ -n "${HERMIT_PLUGIN_ROOT:-}" ] && [ -d "$HERMIT_PLUGIN_ROOT" ]; then
   PLUGIN_ROOT="$HERMIT_PLUGIN_ROOT"
-else
-  PLUGIN_ROOT=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('_plugin_root',''))" "$CONFIG")
 fi
 
-# If stored path doesn't exist, try under CLAUDE_CONFIG_DIR (container isolation)
-if [ -n "$PLUGIN_ROOT" ] && [ ! -d "$PLUGIN_ROOT" ] && [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
-  # Stored path may use the host's ~/.claude — remap to the container's config dir
-  SUFFIX="${PLUGIN_ROOT#*/.claude/}"
-  if [ "$SUFFIX" != "$PLUGIN_ROOT" ]; then
-    REMAPPED="${CLAUDE_CONFIG_DIR}/${SUFFIX}"
-    if [ -d "$REMAPPED" ]; then
-      PLUGIN_ROOT="$REMAPPED"
-      echo "[hermit] Plugin path remapped to container config: $PLUGIN_ROOT" >&2
-      # Intentionally NOT writing back to config.json — _plugin_root must stay as the
-      # host path so it resolves correctly when hermit-run is called on the host.
+# 2. Scan plugin directories for claude-code-hermit
+if [ -z "$PLUGIN_ROOT" ]; then
+  SEARCH_BASE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+  _old_nullglob=$(shopt -p nullglob 2>/dev/null || true)
+  shopt -s nullglob
+  for d in "$SEARCH_BASE"/plugins/marketplaces/*/; do
+    if [ -d "$d/scripts" ] && [ -f "$d/.claude-plugin/plugin.json" ]; then
+      FOUND_NAME=$(grep -o '"name"[^,]*' "$d/.claude-plugin/plugin.json" 2>/dev/null | head -1 | cut -d'"' -f4)
+      [ "$FOUND_NAME" = "claude-code-hermit" ] && PLUGIN_ROOT="${d%/}" && break
     fi
-  fi
-fi
-
-# Auto-discover new version directory when stored path is stale after plugin upgrade
-if [ -n "$PLUGIN_ROOT" ] && [ ! -d "$PLUGIN_ROOT" ]; then
-  PARENT_DIR="$(dirname "$PLUGIN_ROOT")"
-  if [ -d "$PARENT_DIR" ]; then
-    LATEST=""
-    for d in "$PARENT_DIR"/*/; do
-      # Verify directory has both scripts/ and a valid plugin.json with the correct name
-      if [ -d "$d/scripts" ] && [ -f "$d/.claude-plugin/plugin.json" ]; then
-        FOUND_NAME=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('name',''))" "$d/.claude-plugin/plugin.json" 2>/dev/null)
-        [ "$FOUND_NAME" = "claude-code-hermit" ] && LATEST="$d"
-      fi
-    done
-    if [ -n "$LATEST" ]; then
-      PLUGIN_ROOT="${LATEST%/}"
-      echo "[hermit] Plugin updated — resolved new path: $PLUGIN_ROOT" >&2
-      python3 -c "
-import json, sys
-with open(sys.argv[1]) as f:
-    cfg = json.load(f)
-cfg['_plugin_root'] = sys.argv[2]
-with open(sys.argv[1], 'w') as f:
-    json.dump(cfg, f, indent=2)
-    f.write('\n')
-" "$CONFIG" "$PLUGIN_ROOT" 2>/dev/null || echo "[hermit] Warning: could not update config.json with new path" >&2
-    fi
-  fi
+  done
+  $_old_nullglob
 fi
 
 if [ -z "$PLUGIN_ROOT" ] || [ ! -d "$PLUGIN_ROOT" ]; then

@@ -153,8 +153,7 @@ if [ -n "$CHANNELS" ]; then
   done
 fi
 
-# Resolve and export the actual plugin root so hermit-run skips config.json path remap.
-# _plugin_root in config.json points to the host path; this env var gives the container path.
+# Export plugin root so hermit-run can skip the directory scan.
 HERMIT_MARKETPLACE="${MARKETPLACE_DIR}/claude-code-hermit"
 if [ -d "$HERMIT_MARKETPLACE" ]; then
   FOUND=$(find "$HERMIT_MARKETPLACE" -maxdepth 2 -name "plugin.json" -path "*/.claude-plugin/*" -print -quit 2>/dev/null || true)

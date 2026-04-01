@@ -23,7 +23,6 @@ PROFILE_LEVELS = {'minimal': 0, 'standard': 1, 'strict': 2}
 
 DEFAULT_CONFIG = {
     '_hermit_versions': {},
-    '_plugin_root': None,
     'agent_name': None,
     'language': None,
     'timezone': None,

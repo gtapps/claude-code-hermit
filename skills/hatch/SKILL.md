@@ -186,7 +186,6 @@ Write the collected preferences to `.claude-code-hermit/config.json`:
   "_hermit_versions": {
     "claude-code-hermit": "<read from plugin.json>"
   },
-  "_plugin_root": "<resolved from ${CLAUDE_PLUGIN_ROOT}>",
   "agent_name": null,
   "language": null,
   "timezone": null,
@@ -226,9 +225,7 @@ Replace `{project_name}` with the actual project directory name in the template.
 
 Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` to get the current plugin version and write it into `_hermit_versions["claude-code-hermit"]`. If a hermit was activated in step 3, also stamp its version.
 
-Resolve `${CLAUDE_PLUGIN_ROOT}` to an absolute path and write it as `_plugin_root`. This path is used by the wrapper scripts in `bin/` to locate the plugin's boot scripts.
-
-If re-initializing: merge with existing config (preserve values not asked about, update values that were asked about). Always update `_plugin_root` to the current `${CLAUDE_PLUGIN_ROOT}` value.
+If re-initializing: merge with existing config (preserve values not asked about, update values that were asked about).
 
 If channels were configured in step 4f, also add channel state dirs to `env` using the **absolute project path** (resolve from `pwd`):
 - For discord: `"DISCORD_STATE_DIR": "<project_path>/.claude.local/channels/discord"`

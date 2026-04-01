@@ -45,7 +45,6 @@ The prompts below match the init wizard exactly. Use the same wording for consis
 | `timezone` | 0.0.1 | yes (auto-detect via `cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value 2>/dev/null || date +%Z`) | `"UTC"` |
 | `escalation` | 0.0.1 | yes | `"balanced"` |
 | `sign_off` | 0.0.1 | conditional (only if `agent_name` was set) | `null` |
-| `_plugin_root` | 0.0.1 | no | Resolve from `${CLAUDE_PLUGIN_ROOT}` |
 | `heartbeat.self_eval_interval` | 0.0.1 | no | `20` |
 | `heartbeat.total_ticks` | 0.0.1 | no | `0` |
 | `remote` | 0.0.1 | yes | `true` |
@@ -109,6 +108,10 @@ This migration converts deprecated v0.0.4 config keys into the new routines syst
 7. **Create `.status` file**:
    - Write `"idle"` to `.claude-code-hermit/.status`
 
+**v0.2.4 migration:**
+
+1. **Remove `_plugin_root`** — If `_plugin_root` exists in config.json, delete the key entirely. Boot scripts now resolve the plugin path at runtime by scanning `~/.claude/plugins/`. This key caused path conflicts between Docker and host environments.
+
 Tell the operator: "New settings available in this version:" then present only the questions for keys that are actually missing from their config. If no interactive keys are missing, skip this step.
 
 ### 4-task. Write task list ID to settings.local.json
@@ -146,7 +149,6 @@ Only update files in `templates/`:
 - Copy all files from `${CLAUDE_PLUGIN_ROOT}/state-templates/bin/` into `.claude-code-hermit/bin/`
 - For each file: compare against the existing version and replace if different. Copy new files that don't exist yet.
 - Ensure all files in `.claude-code-hermit/bin/` are executable
-- Always update `_plugin_root` in config.json to the current `${CLAUDE_PLUGIN_ROOT}` value (the cache path changes on version upgrade)
 
 ### 6. Update CLAUDE-APPEND block
 
