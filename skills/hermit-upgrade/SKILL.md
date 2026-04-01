@@ -1,5 +1,5 @@
 ---
-name: upgrade
+name: hermit-upgrade
 description: Upgrades hermit configuration and templates after a plugin update. Detects version gaps, presents new features, walks through new settings. Run after updating the plugin.
 ---
 # Upgrade Hermit
@@ -17,7 +17,7 @@ Upgrade the project's hermit configuration after a plugin update.
 
 If versions match: report "You're up to date (vX.Y.Z). Nothing to upgrade." and stop.
 
-If config.json doesn't exist: report "No config found. Run `/claude-code-hermit:hermit-init` first." and stop.
+If config.json doesn't exist: report "No config found. Run `/claude-code-hermit:hatch` first." and stop.
 
 ### 2. Read changelog
 
@@ -58,7 +58,7 @@ The prompts below match the init wizard exactly. Use the same wording for consis
 | `heartbeat.stale_threshold` | 0.0.9 | no | `"2h"` |
 | `routines` | 0.0.9 | no (migrated or empty) | `[]` |
 
-**Prompts** — use the same wording and interaction model as the init wizard (see `skills/hermit-init/SKILL.md`):
+**Prompts** — use the same wording and interaction model as the init wizard (see `skills/hatch/SKILL.md`):
 
 - `agent_name` (Phase 2, conversational): "Give your agent a name? This personalizes session reports, channel messages, and briefs. (e.g., Atlas, Hermit, Scout) [skip]"
 - `language` + `timezone` (Phase 2, single AskUserQuestion batch — no `options`):

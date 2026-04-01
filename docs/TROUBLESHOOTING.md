@@ -73,7 +73,7 @@ SHELL.md from a crashed session persists. Choose **resume** or **start new** (ge
 
 As of v0.0.8, reflect checks dismissed and deferred proposals before creating new ones. If you're still seeing re-suggestions:
 - Check your plugin version: the proposal is in `.claude-plugin/plugin.json` — should be `0.0.8` or later.
-- Run `/claude-code-hermit:upgrade` to ensure the latest reflect skill is active.
+- Run `/claude-code-hermit:hermit-upgrade` to ensure the latest reflect skill is active.
 - If significantly more evidence has accumulated since the dismissal, Hermit may intentionally revisit — this is by design.
 
 ## SHELL.md Getting Large / Bloated

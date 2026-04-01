@@ -1,12 +1,12 @@
 # Creating Your Own Hermit
 
-Every Hermit is yours from the moment you run `/claude-code-hermit:hermit-init`. This guide covers how to shape it — from editing a single file to packaging a reusable plugin.
+Every Hermit is yours from the moment you run `/claude-code-hermit:hatch`. This guide covers how to shape it — from editing a single file to packaging a reusable plugin.
 
 ---
 
 ## Start Anywhere
 
-An existing codebase, an empty folder for a personal assistant, a research project — `/claude-code-hermit:hermit-init` adapts to whatever it finds. The wizard scans your folder, asks a few questions, and generates an `OPERATOR.md` that shapes how your hermit works for you.
+An existing codebase, an empty folder for a personal assistant, a research project — `/claude-code-hermit:hatch` adapts to whatever it finds. The wizard scans your folder, asks a few questions, and generates an `OPERATOR.md` that shapes how your hermit works for you.
 
 That's the first customization lever, and for most people it's the only one they need.
 
@@ -116,7 +116,7 @@ Your hermit handles domain-specific work. Core handles session lifecycle.
 
 | File                               | Purpose                                                            |
 | ---------------------------------- | ------------------------------------------------------------------ |
-| `skills/hermit-init/SKILL.md`      | Checks core prerequisite, appends CLAUDE-APPEND.md, is idempotent |
+| `skills/hatch/SKILL.md`      | Checks core prerequisite, appends CLAUDE-APPEND.md, is idempotent |
 | `state-templates/CLAUDE-APPEND.md` | Agent table, safety rules, quick reference — appended to CLAUDE.md |
 | `skills/domain-session/SKILL.md`   | Your main workflow, bookended with core's session lifecycle        |
 
@@ -130,7 +130,7 @@ name: init
 description: Initialize DOMAIN hermit. Requires claude-code-hermit core.
 ---
 
-Check that `.claude-code-hermit/` exists. If not: "Run `/claude-code-hermit:hermit-init` first."
+Check that `.claude-code-hermit/` exists. If not: "Run `/claude-code-hermit:hatch` first."
 Check if CLAUDE.md contains the marker comment. If found: "Already initialized." Stop.
 Otherwise: read and append CLAUDE-APPEND.md.
 ```

@@ -46,7 +46,7 @@ All autonomous agent state lives in `.claude-code-hermit/`:
 - Run session: `/claude-code-hermit:session` — generic session workflow
 - Start session: `/claude-code-hermit:session-start`
 - Close session: `/claude-code-hermit:session-close`
-- Session status: `/claude-code-hermit:status` — compact summary (auto-triggers on "status", "progress")
+- Session status: `/claude-code-hermit:pulse` — compact summary (auto-triggers on "status", "progress")
 - Session brief: `/claude-code-hermit:brief` — executive summary (auto-triggers on "brief", "what happened")
 - Monitor: `/claude-code-hermit:monitor` — session-aware monitoring loop
 - Heartbeat: `/claude-code-hermit:heartbeat` — background checklist (run/start/stop/status/edit)
@@ -54,7 +54,7 @@ All autonomous agent state lives in `.claude-code-hermit/`:
 - Create proposal: `/claude-code-hermit:proposal-create`
 - List proposals: `/claude-code-hermit:proposal-list` — view all proposals with status and source
 - Act on proposal: `/claude-code-hermit:proposal-act` — accept, defer, or dismiss a proposal
-- Upgrade: `/claude-code-hermit:upgrade` — update config and templates after plugin update
+- Upgrade: `/claude-code-hermit:hermit-upgrade` — update config and templates after plugin update
 
 ## Rate Limit Awareness
 

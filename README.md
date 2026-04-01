@@ -68,7 +68,7 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope project
 ### 2. Initialize
 
 ```
-/claude-code-hermit:hermit-init
+/claude-code-hermit:hatch
 ```
 
 The wizard sets up your agent's identity, scans your folder for context, and generates an `OPERATOR.md` — a personalized rulebook Hermit reads at every session start. Starting fresh? It'll ask what the assistant is for. Dropping into an existing codebase? It'll infer what it can and ask about the rest.
@@ -155,7 +155,7 @@ You can also talk to Hermit about how it can improve. Ask what slowed it down, w
 
 ## Creating Your Own Hermit
 
-Every Hermit is yours from the moment you run `/claude-code-hermit:hermit-init`. Drop it into an existing codebase — it becomes your project's assistant. Create a fresh folder for personal finance, research, or writing — it becomes that kind of assistant. The wizard adapts to whatever it finds.
+Every Hermit is yours from the moment you run `/claude-code-hermit:hatch`. Drop it into an existing codebase — it becomes your project's assistant. Create a fresh folder for personal finance, research, or writing — it becomes that kind of assistant. The wizard adapts to whatever it finds.
 
 Over time, Hermit learns what your work actually needs. Ask it to suggest specialized agents based on your recent sessions — it'll propose them, you approve, and it creates them for you. A project with lots of database work might get a migration specialist. A project that keeps hitting CI failures might get a test-focused reviewer. You don't have to design these upfront — they emerge from how you actually work.
 

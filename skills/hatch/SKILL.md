@@ -1,5 +1,5 @@
 ---
-name: hermit-init
+name: hatch
 description: Initializes the autonomous agent in the current project. Creates the state directory, templates, OPERATOR.md, and config.json. Appends session discipline to CLAUDE.md. Detects installed hermits. Run once per project, like git init.
 ---
 # Initialize Autonomous Agent
@@ -475,5 +475,5 @@ Next steps:
   2. Refine OPERATOR.md anytime — just tell me what changed
   3. Change settings with /claude-code-hermit:hermit-settings
   4. For always-on operation: .claude-code-hermit/bin/hermit-start
-  5. After plugin updates, run /claude-code-hermit:upgrade
+  5. After plugin updates, run /claude-code-hermit:hermit-upgrade
 ```

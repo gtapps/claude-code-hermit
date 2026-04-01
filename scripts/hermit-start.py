@@ -66,7 +66,7 @@ def load_config():
     """Load config.json or return defaults."""
     if not CONFIG_PATH.exists():
         print(f'[hermit] No config found at {CONFIG_PATH}')
-        print('[hermit] Run /claude-code-hermit:hermit-init inside Claude Code first.')
+        print('[hermit] Run /claude-code-hermit:hatch inside Claude Code first.')
         sys.exit(1)
 
     with open(CONFIG_PATH) as f:
@@ -98,7 +98,7 @@ def check_for_upgrade(config):
         config_ver = config.get('_hermit_versions', {}).get('claude-code-hermit', '0.0.0')
         if plugin_ver != config_ver:
             print(f'[hermit] Upgrade available: v{config_ver} -> v{plugin_ver}')
-            print('[hermit] Run /claude-code-hermit:upgrade inside Claude Code')
+            print('[hermit] Run /claude-code-hermit:hermit-upgrade inside Claude Code')
     except (OSError, ValueError, KeyError):
         pass
 

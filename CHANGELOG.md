@@ -8,20 +8,38 @@
 
 - **OPERATOR.md onboarding questions now use `AskUserQuestion` batch** — Step 5a Phase 3 was presenting 3–5 questions as a plain conversational numbered list, causing Claude to dump them as unformatted text. Replaced with a single `AskUserQuestion` call using `header` + `question` fields and no `options` (renders as free-text inputs in the native Claude Code UI). Added `header` column to the question bank table; hermit extension now respects the 4-question-per-call limit.
 
+- **Renamed `hermit-init` skill to `hatch`** — Creative, unambiguous name that can't collide with any native command. Invoked as `/claude-code-hermit:hatch`. All documentation, cross-references, and scripts updated.
+
+- **Renamed `upgrade` skill to `hermit-upgrade`** — Prefixed to avoid collision with native `/upgrade` command. Invoked as `/claude-code-hermit:hermit-upgrade`. All documentation, cross-references, and scripts updated.
+
+- **Renamed `status` skill to `pulse`** — Native `/status` command shows Claude Code connection info, colliding with the hermit session status skill. Renamed to `/claude-code-hermit:pulse`. All documentation, cross-references, and scripts updated.
+
+- **Removed `name:` frontmatter from all skills, then re-added matching directory names** — The `name:` field was putting bare names like `init`, `session`, `status` into model context, potentially influencing command routing. All 18 skills now have `name:` matching their directory name exactly.
+
 ### Files affected
 
 | File | Change |
 |------|--------|
-| `skills/hermit-init/SKILL.md` | Rewrote step 4 into 5 phases; step 5a Phase 3 now uses `AskUserQuestion` for OPERATOR.md questions |
-| `skills/upgrade/SKILL.md` | Updated cross-reference from "steps 4a–4e" to "Phase 2" |
+| `skills/hatch/SKILL.md` | Renamed from `skills/hermit-init/`; rewrote step 4 into 5 phases; step 5a Phase 3 now uses `AskUserQuestion` for OPERATOR.md questions |
+| `skills/hermit-upgrade/SKILL.md` | Renamed from `skills/upgrade/`; updated cross-reference from "steps 4a–4e" to "Phase 2" |
+| `skills/pulse/SKILL.md` | Renamed from `skills/status/` |
+| `CLAUDE.md` | Updated skill list and references |
+| `README.md` | Updated invocation references |
+| `CONTRIBUTING.md` | Updated setup instructions |
+| `docs/*.md` | Updated all skill invocation references |
+| `scripts/hermit-start.py` | Updated skill references |
+| `scripts/check-upgrade.sh` | Updated skill references |
+| `state-templates/bin/hermit-run` | Updated error message references |
+| `state-templates/CLAUDE-APPEND.md` | Updated quick reference |
+| `state-templates/OPERATOR.md` | Updated generator comment |
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
 
-1. **CLAUDE-APPEND block update** — Refreshed session discipline block (no content change in this version, but the upgrade skill always checks).
+1. **CLAUDE-APPEND block update** — Refreshed session discipline block with new skill names.
 
-**No config.json changes required.** No template changes. This only affects the `hermit-init` wizard flow for new project setups — existing initialized projects are unaffected.
+**No config.json changes required.** No template changes. The skill renames only affect invocation commands — existing initialized projects continue to work.
 
 ---
 

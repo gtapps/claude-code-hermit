@@ -19,7 +19,7 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope project
 ## Initialize
 
 ```
-/claude-code-hermit:hermit-init
+/claude-code-hermit:hatch
 ```
 
 The wizard sets up your agent's identity (name, language, timezone, autonomy level) and operational preferences (channels, remote control, heartbeat, daily routines, idle agency, budgets). Then it scans your folder and generates an `OPERATOR.md` — your rulebook. Starting fresh with an empty folder? It'll ask what the assistant is for.
@@ -104,7 +104,7 @@ You're always in control. Hermit suggests. You decide.
 ## Tips
 
 - **Don't create session/proposal files by hand.** Skills handle lifecycle tracking.
-- **After plugin updates**, run `/claude-code-hermit:upgrade`.
+- **After plugin updates**, run `/claude-code-hermit:hermit-upgrade`.
 - **Talk to your hermit.** Ask how it can improve. It gets better when you tell it what you need.
 
 ---
@@ -191,7 +191,7 @@ Or edit `config.json` directly: `"env": { "AGENT_HOOK_PROFILE": "strict" }`
 
 ## Safety Rails
 
-Hermit includes by default some deny patterns that block dangerous operations regardless of permission mode — `rm -rf`, `git push --force`, `chmod 777`, credential access, and more. The `/init` wizard generates these automatically, with a hardened set for always-on deployments.
+Hermit includes by default some deny patterns that block dangerous operations regardless of permission mode — `rm -rf`, `git push --force`, `chmod 777`, credential access, and more. The `/hatch` wizard generates these automatically, with a hardened set for always-on deployments.
 
 See [Security](SECURITY.md) for the full deny list and defense-in-depth model.
 

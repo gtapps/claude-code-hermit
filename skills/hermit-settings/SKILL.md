@@ -34,7 +34,7 @@ View or modify the hermit configuration for this project.
 
 ### 1. Read config
 
-Read `.claude-code-hermit/config.json`. If it doesn't exist, inform the operator: "No config found. Run `/claude-code-hermit:hermit-init` first."
+Read `.claude-code-hermit/config.json`. If it doesn't exist, inform the operator: "No config found. Run `/claude-code-hermit:hatch` first."
 
 ### 2. Show or modify
 

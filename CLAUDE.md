@@ -11,15 +11,15 @@ claude plugin marketplace add gtapps/claude-code-hermit
 claude plugin install claude-code-hermit@claude-code-hermit --scope project
 ```
 
-After install, run `/claude-code-hermit:hermit-init` in the target project to create the state directory.
+After install, run `/claude-code-hermit:hatch` in the target project to create the state directory.
 
 ## Plugin Structure
 
 - `agents/` — subagent definitions (session-mgr only; hermit plugins add more subagents)
-- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, status, brief, monitor, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, channel-responder, hermit-init, upgrade, docker-setup, hermit-takeover, hermit-hand-back
+- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, pulse, brief, monitor, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, channel-responder, hatch, hermit-upgrade, docker-setup, hermit-takeover, hermit-hand-back
 - `hooks/hooks.json` — hook registrations
 - `scripts/` — hook implementation scripts + boot scripts (hermit-start.py, hermit-stop.py)
-- `state-templates/` — templates copied into target projects by the `hermit-init` skill
+- `state-templates/` — templates copied into target projects by the `hatch` skill
 - `.claude-plugin/plugin.json` — plugin manifest
 
 ## Constraints
@@ -48,7 +48,7 @@ cd /path/to/target-project
 claude --plugin-dir /path/to/this-repo
 ```
 
-Then run `/claude-code-hermit:hermit-init` to set up the target project.
+Then run `/claude-code-hermit:hatch` to set up the target project.
 
 ---
 
@@ -86,12 +86,12 @@ Common skills (full list: [Skills Reference](docs/SKILLS.md)):
 
 - `/claude-code-hermit:session` — start or resume a session
 - `/claude-code-hermit:session-close` — full shutdown with quality checks
-- `/claude-code-hermit:status` — compact summary (auto-triggers on "status", "progress")
+- `/claude-code-hermit:pulse` — compact summary (auto-triggers on "status", "progress")
 - `/claude-code-hermit:brief` — executive summary (auto-triggers on "brief", "what happened")
 - `/claude-code-hermit:heartbeat` — background checklist (run/start/stop/status/edit)
 - `/claude-code-hermit:hermit-settings` — view/change config
 - `/claude-code-hermit:proposal-list` — view proposals (auto-triggers on "any proposals")
 - `/claude-code-hermit:proposal-act` — accept, defer, or dismiss a proposal
-- `/claude-code-hermit:upgrade` — update config and templates after plugin update
+- `/claude-code-hermit:hermit-upgrade` — update config and templates after plugin update
 - `/claude-code-hermit:docker-setup` — generate Docker scaffolding for always-on
 - `/claude-code-hermit:hermit-takeover` / `hermit-hand-back` — operator control

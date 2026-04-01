@@ -1,5 +1,5 @@
 ---
-name: status
+name: pulse
 description: Returns a compact summary of the current session state. Channel-optimized (under 10 lines). Activates on messages like "status", "progress", "what are you working on", "how's it going".
 ---
 # Session Status

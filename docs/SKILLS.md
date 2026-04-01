@@ -16,7 +16,7 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 
 | Skill    | What it does                                                                  | Auto-triggers                                                     |
 | -------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `status` | Compact session summary, under 10 lines. Channel-friendly.                    | "status", "progress", "what are you working on", "how's it going" |
+| `pulse` | Compact session summary, under 10 lines. Channel-friendly.                    | "status", "progress", "what are you working on", "how's it going" |
 | `brief`  | 5-line executive summary. Checks active session, falls back to latest report. Also supports daily summaries. | "brief", "what happened", "morning update", "overnight summary"   |
 
 ## Monitoring

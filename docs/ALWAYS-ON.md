@@ -25,7 +25,7 @@ You get four things at once: safe permission bypass, config isolation, crash rec
 
 ## Setup
 
-Run after `/claude-code-hermit:hermit-init`:
+Run after `/claude-code-hermit:hatch`:
 
 ```
 /claude-code-hermit:docker-setup

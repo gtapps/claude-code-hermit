@@ -48,5 +48,5 @@ Stop monitoring:
 - Multiple monitors can run simultaneously — each gets its own entry in the Monitoring section
 - On idle transition (`/session-close` in always-on mode): active monitors continue running — same `/loop` mechanism as heartbeat, they persist within the process lifetime
 - On full shutdown (`/session-close --shutdown` or `hermit-stop`): all active monitors should be stopped and marked `[STOPPED]` in the Monitoring section
-- Monitor findings appear in `/claude-code-hermit:status` output via the Progress Log
+- Monitor findings appear in `/claude-code-hermit:pulse` output via the Progress Log
 - This is a convenience wrapper around `/loop` — if `/loop` is unavailable, the operator can run checks manually

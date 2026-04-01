@@ -11,7 +11,7 @@ shift
 
 if [ ! -f "$CONFIG" ]; then
   echo "[hermit] No config found at $CONFIG" >&2
-  echo "[hermit] Run /claude-code-hermit:init inside Claude Code first." >&2
+  echo "[hermit] Run /claude-code-hermit:hatch inside Claude Code first." >&2
   exit 1
 fi
 
@@ -139,7 +139,7 @@ fi
 
 if [ -z "$PLUGIN_ROOT" ] || [ ! -d "$PLUGIN_ROOT" ]; then
   echo "[hermit] Plugin root not found or invalid: $PLUGIN_ROOT" >&2
-  echo "[hermit] Run /claude-code-hermit:upgrade inside Claude Code to fix." >&2
+  echo "[hermit] Run /claude-code-hermit:hermit-upgrade inside Claude Code to fix." >&2
   exit 1
 fi
 
