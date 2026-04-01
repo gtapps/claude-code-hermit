@@ -471,9 +471,9 @@ Updated:
   .claude/settings.json — plugin permissions added
 
 Next steps:
-  1. Run /claude-code-hermit:session to start your first session
+  1. Run /claude-code-hermit:hermit-session to start your first session
   2. Refine OPERATOR.md anytime — just tell me what changed
   3. Change settings with /claude-code-hermit:hermit-settings
   4. For always-on operation: .claude-code-hermit/bin/hermit-start
-  5. After plugin updates, run /claude-code-hermit:upgrade
+  5. After plugin updates, run /claude-code-hermit:hermit-upgrade
 ```

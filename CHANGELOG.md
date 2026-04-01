@@ -1,5 +1,51 @@
 # Changelog
 
+## [0.2.5] - 2026-04-01
+
+### Fixed
+
+- **`hermit-run` now resolves plugin root across host↔Docker moves** — When `hermit-init` is run in Docker, `_plugin_root` is written with the container's home path (e.g., `/home/claude/.claude/...`). Running `hermit-start` on the host then fails with "Plugin root not found or invalid" because that path doesn't exist there. The existing `CLAUDE_CONFIG_DIR` remap only fired inside Docker (where the env var is set), not on the host. Fixed by adding a `$HOME/.claude/{suffix}` fallback that always fires: both environments share the same path suffix (`plugins/marketplaces/claude-code-hermit`) with only the home prefix differing. The remap is not written back to `config.json` so the value remains portable across both environments.
+
+### Changed
+
+- **All skills renamed with `hermit-` prefix for consistency** — Bare skill names (`session`, `session-start`, `session-close`, `brief`, `monitor`, `reflect`, `upgrade`, `status`) risked colliding with native Claude Code commands (confirmed with `init` and `upgrade`). All affected skills renamed:
+
+  | Old | New |
+  |-----|-----|
+  | `upgrade` | `hermit-upgrade` |
+  | `status` | `hermit-state` |
+  | `session` | `hermit-session` |
+  | `session-start` | `hermit-session-start` |
+  | `session-close` | `hermit-session-close` |
+  | `brief` | `hermit-brief` |
+  | `monitor` | `hermit-monitor` |
+  | `reflect` | `hermit-reflect` |
+
+  Skills already prefixed (`hermit-init`, `hermit-settings`, `hermit-takeover`, `hermit-hand-back`) and domain-specific names (`proposal-*`, `channel-responder`, `docker-setup`, `heartbeat`) unchanged. All documentation, skill cross-references, scripts, and templates updated.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/bin/hermit-run` | Added `$HOME/.claude` fallback remap; unified both remap branches |
+| `skills/hermit-{upgrade,state,session,session-start,session-close,brief,monitor,reflect}/SKILL.md` | Renamed from bare names; frontmatter `name:` fields updated |
+| `CLAUDE.md` | Updated skill list and quick reference |
+| `state-templates/CLAUDE-APPEND.md` | Updated all skill invocation references |
+| `scripts/hermit-start.py`, `scripts/hermit-stop.py`, `scripts/check-upgrade.sh` | Updated invocation references |
+| `README.md`, `docs/*.md` | Updated all skill references |
+| `skills/*/SKILL.md` | Cross-references updated throughout |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+
+1. **Boot script update** — Copies updated `hermit-run` from `state-templates/bin/` into `.claude-code-hermit/bin/` (step 5b). Required to get the host↔Docker fix.
+2. **CLAUDE-APPEND block update** — Refreshes the session discipline block in `CLAUDE.md` with the new skill names (`hermit-session`, `hermit-state`, etc.).
+
+**No config.json changes required.**
+
+---
+
 ## [0.2.4] - 2026-04-01
 
 ### Changed
@@ -17,7 +63,7 @@
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
 
 1. **CLAUDE-APPEND block update** — Refreshed session discipline block (no content change in this version, but the upgrade skill always checks).
 
@@ -55,7 +101,7 @@ Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
 
 1. **CLAUDE-APPEND block update** — Refreshed session discipline block (no content change in this version, but the upgrade skill always checks).
 
@@ -79,7 +125,7 @@ Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
 
 1. **CLAUDE-APPEND block update** — Refreshed session discipline block (no content change in this version, but the upgrade skill always checks).
 
@@ -110,7 +156,7 @@ Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
 
 1. **CLAUDE-APPEND block update** — The session discipline block in your project's CLAUDE.md is refreshed to include the new "Proposal Pipeline (mandatory)" section. This is the primary fix — it prevents hermits from skipping the proposal workflow.
 
@@ -172,7 +218,7 @@ Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
 
 1. **Task list ID setup** — Writes `CLAUDE_CODE_TASK_LIST_ID` to `.claude/settings.local.json` (derived from project basename). This makes native Tasks persistent and lets hooks read task files.
 
@@ -334,7 +380,7 @@ Then rebuild: `docker compose -f docker-compose.hermit.yml build`
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:upgrade` to refresh templates and migrate existing files.
+Run `/claude-code-hermit:hermit-upgrade` to refresh templates and migrate existing files.
 
 **Migration: Session reports to YAML frontmatter**
 
@@ -408,7 +454,7 @@ Report: "Migrated N proposals with YAML frontmatter."
 
 **What you need to do:**
 
-1. Run `/claude-code-hermit:upgrade` to migrate config and refresh templates
+1. Run `/claude-code-hermit:hermit-upgrade` to migrate config and refresh templates
 2. Review migrated routines: `/claude-code-hermit:hermit-settings routines`
 3. Optionally add `## When Idle` to OPERATOR.md and set `idle_behavior` to `discover`
 
@@ -441,7 +487,7 @@ Report: "Migrated N proposals with YAML frontmatter."
 
 **What you need to do:**
 
-1. Run `/claude-code-hermit:upgrade` to refresh templates
+1. Run `/claude-code-hermit:hermit-upgrade` to refresh templates
 2. **Deny patterns (recommended):** Add safety deny rules to `.claude/settings.json` — run `/claude-code-hermit:hermit-init` step 9 or add manually:
    ```json
    "permissions": {
@@ -480,7 +526,7 @@ Env vars are now managed in `config.json` `env` and written to `.claude/settings
 
 **What you need to do:**
 
-1. Run `/claude-code-hermit:upgrade` — it adds the `env` key to your config.json with defaults
+1. Run `/claude-code-hermit:hermit-upgrade` — it adds the `env` key to your config.json with defaults
 2. If you have channels configured, the upgrade also adds `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` to `env`
 3. If you use Docker: rebuild (`docker compose -f docker-compose.hermit.yml build`) and regenerate compose with `/claude-code-hermit:docker-setup` to get the slimmed-down `environment:` section — or just remove the 5 non-auth env vars from your existing compose file manually
 
@@ -540,9 +586,9 @@ The hermit state directory has moved from `.claude/.claude-code-hermit/` to `.cl
    - `"Edit(.claude/.claude-code-hermit/**)"` → `"Edit(.claude-code-hermit/**)"`
    - `"Write(.claude/.claude-code-hermit/**)"` → `"Write(.claude-code-hermit/**)"`
 
-4. **If you have a custom hermit** with skills, agents, or scripts that reference `.claude/.claude-code-hermit/` — update those references to `.claude-code-hermit/` before running `/claude-code-hermit:upgrade`
+4. **If you have a custom hermit** with skills, agents, or scripts that reference `.claude/.claude-code-hermit/` — update those references to `.claude-code-hermit/` before running `/claude-code-hermit:hermit-upgrade`
 
-Then run `/claude-code-hermit:upgrade` — it will refresh templates and clean up any remaining stale permissions.
+Then run `/claude-code-hermit:hermit-upgrade` — it will refresh templates and clean up any remaining stale permissions.
 
 ---
 
@@ -699,7 +745,7 @@ Valid values: `"default"`, `"acceptEdits"`, `"dontAsk"`, `"bypassPermissions"`. 
 3. Update `NEXT-MISSION.md` → `NEXT-TASK.md` in any skill that reads/writes it
 4. Update `CLAUDE-APPEND.md` to use new section names
 5. Replace "domain pack" or "hermit agent" with "hermit" in docs and skill descriptions
-6. Run `/claude-code-hermit:upgrade` in target projects to refresh templates
+6. Run `/claude-code-hermit:hermit-upgrade` in target projects to refresh templates
 
 ### Added
 

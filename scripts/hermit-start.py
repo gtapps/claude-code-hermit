@@ -98,7 +98,7 @@ def check_for_upgrade(config):
         config_ver = config.get('_hermit_versions', {}).get('claude-code-hermit', '0.0.0')
         if plugin_ver != config_ver:
             print(f'[hermit] Upgrade available: v{config_ver} -> v{plugin_ver}')
-            print('[hermit] Run /claude-code-hermit:upgrade inside Claude Code')
+            print('[hermit] Run /claude-code-hermit:hermit-upgrade inside Claude Code')
     except (OSError, ValueError, KeyError):
         pass
 
@@ -342,9 +342,9 @@ def main():
         time.sleep(3)  # Wait for Claude to boot — increase if on slow hardware
         subprocess.run(
             ['tmux', 'send-keys', '-t', session_name,
-             '/claude-code-hermit:session', 'Enter'],
+             '/claude-code-hermit:hermit-session', 'Enter'],
         )
-        print('[hermit] Auto-sent /claude-code-hermit:session')
+        print('[hermit] Auto-sent /claude-code-hermit:hermit-session')
 
     # Start heartbeat if enabled
     hb = config.get('heartbeat', {})

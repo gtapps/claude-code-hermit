@@ -42,7 +42,7 @@ The allowlist is per-channel in config.json:
   - Keep it short — channel messages should be brief
 
 - **Task assignment** (only when Status is `idle`: "work on X", "next task: Z", "start Y", or any message describing work to be done)
-  - Invoke `/claude-code-hermit:session-start` to begin the new task (idle → in_progress)
+  - Invoke `/claude-code-hermit:hermit-session-start` to begin the new task (idle → in_progress)
   - The session-start skill handles filling Task and setting Status; plan items are created as native Tasks
   - Confirm via channel: "On it: [summary]."
 

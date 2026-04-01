@@ -1,5 +1,5 @@
 ---
-name: session
+name: hermit-session
 description: Start or resume a work session with full context loading and work tracking. Use at the beginning of work.
 disable-model-invocation: true
 ---
@@ -11,7 +11,7 @@ Start or resume a session with full context loading. This is the generic session
 
 ### 1. Start or resume
 
-Invoke `/claude-code-hermit:session-start` to check session state and load context.
+Invoke `/claude-code-hermit:hermit-session-start` to check session state and load context.
 
 ### 2. If resuming an active session
 
@@ -55,11 +55,11 @@ When the work is done, or the operator decides to move on (even if partial or bl
 8. Report: "Archived as S-NNN. What's next?"
 9. Once the operator says what's next: go to step 4 (plan the work)
 
-To close the session entirely, the operator runs `/claude-code-hermit:session-close` at any time.
+To close the session entirely, the operator runs `/claude-code-hermit:hermit-session-close` at any time.
 
 ## Notes
 
 - This skill does NOT prescribe a specific quality workflow (no tests, no code review, no /simplify). Those belong to domain-specific session skills.
 - If you discover something worth operationalizing during work, use `/claude-code-hermit:proposal-create`.
-- For monitoring recurring checks during a session, use `/claude-code-hermit:monitor`.
-- Check session status anytime with `/claude-code-hermit:status`.
+- For monitoring recurring checks during a session, use `/claude-code-hermit:hermit-monitor`.
+- Check session status anytime with `/claude-code-hermit:hermit-state`.

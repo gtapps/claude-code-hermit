@@ -28,7 +28,7 @@
 
 - Check `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` in `config.json` `env` (default 50). Adjust with `/hermit-settings env`.
 - Check heartbeat interval — 5m with Opus is expensive. Use 15m or 30m.
-- Check if monitors are running with short intervals (`/claude-code-hermit:monitor stop`).
+- Check if monitors are running with short intervals (`/claude-code-hermit:hermit-monitor stop`).
 - Review SHELL.md size — bloated files cost tokens on every read.
 - Use `/cost` to check current session spend.
 
@@ -73,7 +73,7 @@ SHELL.md from a crashed session persists. Choose **resume** or **start new** (ge
 
 As of v0.0.8, reflect checks dismissed and deferred proposals before creating new ones. If you're still seeing re-suggestions:
 - Check your plugin version: the proposal is in `.claude-plugin/plugin.json` — should be `0.0.8` or later.
-- Run `/claude-code-hermit:upgrade` to ensure the latest reflect skill is active.
+- Run `/claude-code-hermit:hermit-upgrade` to ensure the latest reflect skill is active.
 - If significantly more evidence has accumulated since the dismissal, Hermit may intentionally revisit — this is by design.
 
 ## SHELL.md Getting Large / Bloated
@@ -82,7 +82,7 @@ A bloated SHELL.md costs tokens on every read. Keep it lean:
 - Use `/compact` between steps to free context.
 - The progress log should stay under ~30 entries. If it's growing beyond that, close the session and start a new one.
 - The `session-diff` hook auto-populates `## Changed` — don't manually list files.
-- If SHELL.md is already bloated, run `/claude-code-hermit:session-close` to archive it and start fresh.
+- If SHELL.md is already bloated, run `/claude-code-hermit:hermit-session-close` to archive it and start fresh.
 
 ## Docker Build Fails
 

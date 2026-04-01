@@ -16,7 +16,7 @@ After install, run `/claude-code-hermit:hermit-init` in the target project to cr
 ## Plugin Structure
 
 - `agents/` — subagent definitions (session-mgr only; hermit plugins add more subagents)
-- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, status, brief, monitor, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, channel-responder, hermit-init, upgrade, docker-setup, hermit-takeover, hermit-hand-back
+- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): hermit-session, hermit-session-start, hermit-session-close, hermit-state, hermit-brief, hermit-monitor, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, hermit-reflect, channel-responder, hermit-init, hermit-upgrade, docker-setup, hermit-takeover, hermit-hand-back
 - `hooks/hooks.json` — hook registrations
 - `scripts/` — hook implementation scripts + boot scripts (hermit-start.py, hermit-stop.py)
 - `state-templates/` — templates copied into target projects by the `hermit-init` skill
@@ -59,7 +59,7 @@ Then run `/claude-code-hermit:hermit-init` to set up the target project.
 - On startup, always check `.claude-code-hermit/sessions/SHELL.md`
 - If a session is active: resume it — read the task, progress, and blockers
 - If no session is active: ask what you should help with before starting work
-- Use `/claude-code-hermit:session-start` to initialize and `/claude-code-hermit:session-close` to end sessions
+- Use `/claude-code-hermit:hermit-session-start` to initialize and `/claude-code-hermit:hermit-session-close` to end sessions
 - Never create session or proposal files by hand — use the skills
 
 ## Agent State Directory
@@ -84,14 +84,14 @@ Additional agents may be available from installed hermits.
 
 Common skills (full list: [Skills Reference](docs/SKILLS.md)):
 
-- `/claude-code-hermit:session` — start or resume a session
-- `/claude-code-hermit:session-close` — full shutdown with quality checks
-- `/claude-code-hermit:status` — compact summary (auto-triggers on "status", "progress")
-- `/claude-code-hermit:brief` — executive summary (auto-triggers on "brief", "what happened")
+- `/claude-code-hermit:hermit-session` — start or resume a session
+- `/claude-code-hermit:hermit-session-close` — full shutdown with quality checks
+- `/claude-code-hermit:hermit-state` — compact summary (auto-triggers on "status", "progress")
+- `/claude-code-hermit:hermit-brief` — executive summary (auto-triggers on "brief", "what happened")
 - `/claude-code-hermit:heartbeat` — background checklist (run/start/stop/status/edit)
 - `/claude-code-hermit:hermit-settings` — view/change config
 - `/claude-code-hermit:proposal-list` — view proposals (auto-triggers on "any proposals")
 - `/claude-code-hermit:proposal-act` — accept, defer, or dismiss a proposal
-- `/claude-code-hermit:upgrade` — update config and templates after plugin update
+- `/claude-code-hermit:hermit-upgrade` — update config and templates after plugin update
 - `/claude-code-hermit:docker-setup` — generate Docker scaffolding for always-on
 - `/claude-code-hermit:hermit-takeover` / `hermit-hand-back` — operator control

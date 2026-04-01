@@ -25,7 +25,7 @@ cd /path/to/your/project
 .claude-code-hermit/bin/hermit-start
 ```
 
-This reads `config.json`, starts a tmux session with your configured channels and permissions, and auto-runs `/claude-code-hermit:session`. To stop:
+This reads `config.json`, starts a tmux session with your configured channels and permissions, and auto-runs `/claude-code-hermit:hermit-session`. To stop:
 
 ```bash
 .claude-code-hermit/bin/hermit-stop        # graceful (sends /session-close first)

@@ -124,10 +124,10 @@ def main():
         time.sleep(2)
 
     # Graceful shutdown: send /session-close --shutdown for full close
-    print(f'[hermit] Sending /claude-code-hermit:session-close --shutdown to {session_name}...')
+    print(f'[hermit] Sending /claude-code-hermit:hermit-session-close --shutdown to {session_name}...')
     subprocess.run([
         'tmux', 'send-keys', '-t', session_name,
-        '/claude-code-hermit:session-close --shutdown', 'Enter',
+        '/claude-code-hermit:hermit-session-close --shutdown', 'Enter',
     ])
 
     # Wait for the session to close (check for new report file)

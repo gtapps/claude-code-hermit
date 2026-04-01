@@ -11,7 +11,7 @@ shift
 
 if [ ! -f "$CONFIG" ]; then
   echo "[hermit] No config found at $CONFIG" >&2
-  echo "[hermit] Run /claude-code-hermit:init inside Claude Code first." >&2
+  echo "[hermit] Run /claude-code-hermit:hermit-init inside Claude Code first." >&2
   exit 1
 fi
 
@@ -94,17 +94,29 @@ else
   PLUGIN_ROOT=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('_plugin_root',''))" "$CONFIG")
 fi
 
-# If stored path doesn't exist, try under CLAUDE_CONFIG_DIR (container isolation)
-if [ -n "$PLUGIN_ROOT" ] && [ ! -d "$PLUGIN_ROOT" ] && [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
-  # Stored path may use the host's ~/.claude — remap to the container's config dir
+# If stored path doesn't exist, try remapping the /.claude/ suffix to the current
+# environment's config dir. This handles two cases:
+#   1. Running in Docker with CLAUDE_CONFIG_DIR set (host path → container path)
+#   2. Running on host after init was last run in Docker (container path → host path)
+# We never write back — _plugin_root must remain portable across both environments.
+if [ -n "$PLUGIN_ROOT" ] && [ ! -d "$PLUGIN_ROOT" ]; then
   SUFFIX="${PLUGIN_ROOT#*/.claude/}"
   if [ "$SUFFIX" != "$PLUGIN_ROOT" ]; then
-    REMAPPED="${CLAUDE_CONFIG_DIR}/${SUFFIX}"
-    if [ -d "$REMAPPED" ]; then
-      PLUGIN_ROOT="$REMAPPED"
-      echo "[hermit] Plugin path remapped to container config: $PLUGIN_ROOT" >&2
-      # Intentionally NOT writing back to config.json — _plugin_root must stay as the
-      # host path so it resolves correctly when hermit-run is called on the host.
+    # Try CLAUDE_CONFIG_DIR first (explicit container isolation)
+    if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
+      REMAPPED="${CLAUDE_CONFIG_DIR}/${SUFFIX}"
+      if [ -d "$REMAPPED" ]; then
+        PLUGIN_ROOT="$REMAPPED"
+        echo "[hermit] Plugin path remapped to container config: $PLUGIN_ROOT" >&2
+      fi
+    fi
+    # Try current user's ~/.claude (host↔Docker cross-environment move)
+    if [ ! -d "$PLUGIN_ROOT" ]; then
+      REMAPPED="${HOME}/.claude/${SUFFIX}"
+      if [ -d "$REMAPPED" ]; then
+        PLUGIN_ROOT="$REMAPPED"
+        echo "[hermit] Plugin path remapped to home: $PLUGIN_ROOT" >&2
+      fi
     fi
   fi
 fi
@@ -139,7 +151,7 @@ fi
 
 if [ -z "$PLUGIN_ROOT" ] || [ ! -d "$PLUGIN_ROOT" ]; then
   echo "[hermit] Plugin root not found or invalid: $PLUGIN_ROOT" >&2
-  echo "[hermit] Run /claude-code-hermit:upgrade inside Claude Code to fix." >&2
+  echo "[hermit] Run /claude-code-hermit:hermit-upgrade inside Claude Code to fix." >&2
   exit 1
 fi
 

@@ -46,8 +46,8 @@ Each routine has an `id`, a `time` (24h format), a `skill` to invoke, and option
 **Managing routines:**
 
 - View and edit: `/claude-code-hermit:hermit-settings routines`
-- Morning brief variant: `/claude-code-hermit:brief --morning` (emphasizes priorities, proposals, forward-looking content)
-- Evening brief variant: `/claude-code-hermit:brief --evening` (emphasizes completed work, cost, findings)
+- Morning brief variant: `/claude-code-hermit:hermit-brief --morning` (emphasizes priorities, proposals, forward-looking content)
+- Evening brief variant: `/claude-code-hermit:hermit-brief --evening` (emphasizes completed work, cost, findings)
 
 Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routine` config. Existing config is migrated automatically on upgrade.
 

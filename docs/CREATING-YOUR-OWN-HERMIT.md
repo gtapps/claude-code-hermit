@@ -109,7 +109,7 @@ When you're copying the same agents between projects, package them as a [Claude 
 Your hermit handles domain-specific work. Core handles session lifecycle.
 
 ```
-/claude-code-hermit:session-start -> your domain workflow -> /claude-code-hermit:session-close
+/claude-code-hermit:hermit-session-start -> your domain workflow -> /claude-code-hermit:hermit-session-close
 ```
 
 ### Required files

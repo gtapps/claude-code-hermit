@@ -68,7 +68,7 @@ First 50 lines are loaded automatically — keep critical context at the top. Up
 ## Your First Session
 
 ```
-/claude-code-hermit:session
+/claude-code-hermit:hermit-session
 ```
 
 Tell it what you need, add optional tags (e.g., `feature, api`), and an optional budget. Hermit proposes a plan, creates native Tasks for each step, and waits for your go-ahead. As it works, `SHELL.md` tracks the narrative — progress log, blockers, cost — while Tasks tracks the plan steps.
@@ -104,7 +104,7 @@ You're always in control. Hermit suggests. You decide.
 ## Tips
 
 - **Don't create session/proposal files by hand.** Skills handle lifecycle tracking.
-- **After plugin updates**, run `/claude-code-hermit:upgrade`.
+- **After plugin updates**, run `/claude-code-hermit:hermit-upgrade`.
 - **Talk to your hermit.** Ask how it can improve. It gets better when you tell it what you need.
 
 ---

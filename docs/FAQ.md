@@ -52,7 +52,7 @@ Yes. Set `ANTHROPIC_API_KEY` in `.env` and choose "apikey" during `/docker-setup
 
 ## Can I use this without Docker?
 
-Yes. Docker is recommended for always-on mode but not required. Use `hermit-start`/`hermit-stop` for bare tmux. For interactive-only use, just run `/claude-code-hermit:session` — no tmux or Docker needed.
+Yes. Docker is recommended for always-on mode but not required. Use `hermit-start`/`hermit-stop` for bare tmux. For interactive-only use, just run `/claude-code-hermit:hermit-session` — no tmux or Docker needed.
 
 ---
 

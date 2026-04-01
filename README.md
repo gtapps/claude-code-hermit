@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.2.4-green.svg" alt="Version 0.2.4" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.2.5-green.svg" alt="Version 0.2.5" /></a>
   <img src="https://img.shields.io/badge/Claude-Pro%20%7C%20Max-blueviolet.svg" alt="Claude Pro/Max Compatible" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
 </p>
@@ -76,7 +76,7 @@ The wizard sets up your agent's identity, scans your folder for context, and gen
 ### 3. Start your first session
 
 ```
-/claude-code-hermit:session
+/claude-code-hermit:hermit-session
 ```
 
 Tell it what you need. It plans the work, tracks progress, and logs everything. Type "status" anytime. When it finishes, it stays ready — tell it what's next.

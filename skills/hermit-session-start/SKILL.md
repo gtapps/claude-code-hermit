@@ -1,5 +1,5 @@
 ---
-name: session-start
+name: hermit-session-start
 description: Initializes or resumes a work session. Loads context from OPERATOR.md and SHELL.md, orients the agent, and establishes what to work on. Use at the beginning of every work session.
 ---
 # Session Start

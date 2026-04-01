@@ -1,5 +1,5 @@
 ---
-name: session-close
+name: hermit-session-close
 description: Closes the current work session with a structured handoff. Archives the session report and prepares for the next session. Activates on messages like "I'm done", "wrap it up", "that's it for now", "done for today", "close the session".
 ---
 # Session Close

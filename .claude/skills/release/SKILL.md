@@ -4,7 +4,7 @@ description: Bump the plugin version, write a detailed changelog entry for the u
 ---
 # Release
 
-Bump version, write changelog, commit, and push. The changelog entry is critical because the upgrade skill (`skills/upgrade/SKILL.md`) reads it to know what to tell hermits during `/claude-code-hermit:upgrade`.
+Bump version, write changelog, commit, and push. The changelog entry is critical because the upgrade skill (`skills/hermit-upgrade/SKILL.md`) reads it to know what to tell hermits during `/claude-code-hermit:hermit-upgrade`.
 
 ## Steps
 
@@ -43,7 +43,7 @@ Prepend a new entry to `CHANGELOG.md` immediately after the `# Changelog` header
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
 
 1. **What it does** — Explanation of what the upgrade skill will do automatically.
 
@@ -53,7 +53,7 @@ Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
 **The Upgrade Instructions section is the most important part.** The upgrade skill reads this to know what actions to take for each hermit. Be specific about:
 - Whether CLAUDE-APPEND needs refreshing (it almost always does)
 - Whether templates changed
-- Whether config.json needs new keys (reference the table in `skills/upgrade/SKILL.md` if adding new interactive/silent keys)
+- Whether config.json needs new keys (reference the table in `skills/hermit-upgrade/SKILL.md` if adding new interactive/silent keys)
 - Whether there are manual steps the operator needs to take
 - What is NOT affected (so the upgrade skill doesn't touch things unnecessarily)
 

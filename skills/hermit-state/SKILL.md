@@ -1,5 +1,5 @@
 ---
-name: status
+name: hermit-state
 description: Returns a compact summary of the current session state. Channel-optimized (under 10 lines). Activates on messages like "status", "progress", "what are you working on", "how's it going".
 ---
 # Session Status
@@ -9,12 +9,12 @@ Provide a compact summary of the current session state. Designed for channel res
 ## Plan
 
 1. Read `.claude-code-hermit/sessions/SHELL.md`
-2. If the file does not exist: respond "No active session. Run `/claude-code-hermit:session` to start one."
+2. If the file does not exist: respond "No active session. Run `/claude-code-hermit:hermit-session` to start one."
 2b. If Status is `idle` (session between tasks), format as:
    ```
    Session (idle) | started YYYY-MM-DD | N tasks completed
    Last: [latest Session Summary entry]
-   Ready for work. Tell me what's next, or run /claude-code-hermit:session-start
+   Ready for work. Tell me what's next, or run /claude-code-hermit:hermit-session-start
    Cost: $X.XX (cumulative)
    ```
    Return this output and stop — do not proceed to step 3.
@@ -41,4 +41,4 @@ Cost: $X.XX (NNK tokens)
 
 - Omit the Budget line if no budget is set
 - Omit tags from the header if none are set
-- If the session is blocked, append: "Run `/debug` to diagnose, or `/claude-code-hermit:session` to start a new session."
+- If the session is blocked, append: "Run `/debug` to diagnose, or `/claude-code-hermit:hermit-session` to start a new session."

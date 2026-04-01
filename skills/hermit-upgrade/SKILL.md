@@ -1,5 +1,5 @@
 ---
-name: upgrade
+name: hermit-upgrade
 description: Upgrades hermit configuration and templates after a plugin update. Detects version gaps, presents new features, walks through new settings. Run after updating the plugin.
 ---
 # Upgrade Hermit

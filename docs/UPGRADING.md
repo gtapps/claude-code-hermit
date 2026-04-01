@@ -17,7 +17,7 @@ claude plugin marketplace add gtapps/claude-code-hermit
 Inside Claude Code, in each project that uses the plugin:
 
 ```
-/claude-code-hermit:upgrade
+/claude-code-hermit:hermit-upgrade
 ```
 
 This detects the version gap, shows what changed, prompts for new settings, refreshes templates, and updates the CLAUDE.md session discipline block.
@@ -36,7 +36,7 @@ Hermits (e.g., `claude-code-dev-hermit`) upgrade the same way:
 claude plugin marketplace add your-org/claude-code-dev-hermit
 ```
 
-Then `/claude-code-hermit:upgrade` — it detects hermit version gaps automatically and updates their CLAUDE-APPEND blocks.
+Then `/claude-code-hermit:hermit-upgrade` — it detects hermit version gaps automatically and updates their CLAUDE-APPEND blocks.
 
 Each hermit's version is tracked independently in `config.json`:
 
@@ -105,7 +105,7 @@ These aren't upgrades — just how your project evolves:
 
 ### Automatic migration
 
-Running `/claude-code-hermit:upgrade` handles:
+Running `/claude-code-hermit:hermit-upgrade` handles:
 - `heartbeat.morning_routine` → `routines[{id:"morning",...}]`
 - `heartbeat.evening_routine` → `routines[{id:"evening",...}]`
 - `heartbeat.idle_agency` → `idle_behavior` (`true` → `"discover"`, `false` → `"wait"`)
@@ -115,7 +115,7 @@ Running `/claude-code-hermit:upgrade` handles:
 
 ### What you need to do
 
-1. Run `/claude-code-hermit:upgrade` to migrate config and refresh templates
+1. Run `/claude-code-hermit:hermit-upgrade` to migrate config and refresh templates
 2. Review migrated routines: `/claude-code-hermit:hermit-settings routines`
 3. Optionally add a `## When Idle` section to your OPERATOR.md
 4. Optionally set `idle_behavior` to `discover`: `/claude-code-hermit:hermit-settings idle`

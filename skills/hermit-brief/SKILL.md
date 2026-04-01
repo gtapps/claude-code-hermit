@@ -1,5 +1,5 @@
 ---
-name: brief
+name: hermit-brief
 description: Returns a 5-line executive summary of recent work. Checks active session first, falls back to latest report. Activates on messages like "brief", "what happened", "morning update", "overnight summary".
 ---
 # Session Brief
@@ -26,7 +26,7 @@ Emphasize backward-looking content:
 - Read `.claude-code-hermit/cost-summary.md` for today's cost. If the summary is stale (its frontmatter `updated` date is not today), the cost-tracker will regenerate it on the next interaction — use the trend table's today entry or fall back to scanning reports.
 - Key findings or patterns noticed
 - What to look at tomorrow
-- After generating summary: if SHELL.md Status is `in_progress` or has progress entries since last report, delegate archiving to `/claude-code-hermit:session-close --idle` (keeps S-NNN report ID logic centralized in session-mgr). If already `idle` with no new entries, skip archiving.
+- After generating summary: if SHELL.md Status is `in_progress` or has progress entries since last report, delegate archiving to `/claude-code-hermit:hermit-session-close --idle` (keeps S-NNN report ID logic centralized in session-mgr). If already `idle` with no new entries, skip archiving.
 
 ### No flag (default)
 
@@ -47,7 +47,7 @@ Current behavior — general purpose summary as described below.
      Then check for auto-detected proposals (step after Output Format) and return.
 2. If no active session: find the most recent `.claude-code-hermit/sessions/S-*-REPORT.md` (sort by filename, take the highest number):
    - If found: summarize that report
-3. If neither exists: respond "No session history yet. Run `/claude-code-hermit:session` to start."
+3. If neither exists: respond "No session history yet. Run `/claude-code-hermit:hermit-session` to start."
 
 ## Output Format
 
