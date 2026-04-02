@@ -239,21 +239,25 @@ Update `permission_mode` in config.json.
 
 - Then show current `docker.recommended_plugins`:
   ```
-  Recommended Plugins (config.json docker.recommended_plugins → installed on boot)
+  Recommended Plugins (config.json docker.recommended_plugins)
 
-    [enabled]  claude-code-setup (claude-plugins-official)
-    [disabled] superpowers (superpowers-marketplace)
+    [enabled]  claude-code-setup (claude-plugins-official) — auto-installed on boot
+    [tracked]  superpowers (obra/superpowers-marketplace) — manual install only
 
   (or "No recommended plugins configured" if empty)
+
+  Note: Only claude-plugins-official plugins are auto-installed.
+  Third-party plugins are tracked for reference but must be installed manually.
   ```
-- Ask: "Enable, disable, add, or remove recommended plugins? (e.g., 'enable claude-code-setup', 'disable claude-code-setup', 'add superpowers obra/superpowers-marketplace', 'remove superpowers', or 'done') [done]"
+- Ask: "Enable, disable, add, or remove recommended plugins? (e.g., 'enable claude-code-setup', 'add claude-code-setup', 'add superpowers obra/superpowers-marketplace', 'remove superpowers', or 'done') [done]"
 - Loop until operator says "done", "skip", or presses Enter:
   - `enable <PLUGIN>`: set `enabled: true` on matching entry
   - `disable <PLUGIN>`: set `enabled: false` on matching entry
   - `remove <PLUGIN>`: remove the entry entirely
-  - `add <PLUGIN> [<MARKETPLACE>]`: add new entry with `marketplace` (`"claude-plugins-official"` if omitted), `scope: "project"`, `enabled: true`. Deduplicate by plugin name.
+  - `add <PLUGIN> [<MARKETPLACE>]`: add new entry with `marketplace` (`"claude-plugins-official"` if omitted), `scope: "project"`, `enabled: true`. Deduplicate by plugin name. If marketplace is third-party (contains `/`), warn: "Third-party plugins are not auto-installed — you'll need to install manually inside the container."
   - If input is just a plugin name without a verb: treat as `enable` if it exists, `add` if it doesn't
-- After changes, note: "Restart container to install new plugins."
+- After changes for official plugins, note: "Restart container to install new plugins."
+- After changes for third-party plugins, note: "Entry saved for tracking. Install manually: `docker exec <container> claude plugin install <plugin>@<marketplace> --scope <scope>`"
 
 ### 3. Write config
 

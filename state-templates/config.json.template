@@ -25,14 +25,7 @@
   },
   "docker": {
     "packages": [],
-    "recommended_plugins": [
-      {
-        "marketplace": "claude-plugins-official",
-        "plugin": "claude-code-setup",
-        "scope": "project",
-        "enabled": false
-      }
-    ]
+    "recommended_plugins": []
   },
   "compact": {
     "monitoring_threshold": 30,

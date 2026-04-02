@@ -138,29 +138,33 @@ For each configured channel:
 
 ### 7b. Recommended plugins
 
-These official plugins complement hermit's autonomous operation. Present to the operator:
+Present to the operator:
 
 ```
-Recommended plugins for autonomous operation:
+Optional plugins that complement autonomous operation:
 
-  [x] claude-code-setup (Anthropic) — analyzes your codebase and recommends
-      automations (skills, hooks, MCP servers, subagents). Helps hermit
-      learn and self-improve over time.
-      https://claude.com/plugins/claude-code-setup
+  claude-code-setup (Anthropic) — analyzes your codebase and recommends
+  automations (skills, hooks, MCP servers, subagents). Helps hermit
+  learn and self-improve over time.
+  https://claude.com/plugins/claude-code-setup
 
-Install recommended plugins? (yes/no) [yes]
+Install claude-code-setup? (yes/no) [no]
 ```
 
-- **Yes (default):** Set `enabled: true` on the `claude-code-setup` entry in `config.json` `docker.recommended_plugins`. The entrypoint installs enabled plugins on first boot.
-- **No:** Leave `enabled: false`. Note: "You can enable them later with `/claude-code-hermit:hermit-settings docker`."
+- **Yes:** Add the entry to `config.json` `docker.recommended_plugins` with `enabled: true`:
+  ```json
+  {"marketplace": "claude-plugins-official", "plugin": "claude-code-setup", "scope": "project", "enabled": true}
+  ```
+  The entrypoint installs it on first boot.
+- **No (default):** Nothing is added. Note: "You can add it later with `/claude-code-hermit:hermit-settings docker`."
+
+**Important:** Nothing is pre-shipped or pre-configured. Plugins are only added to config when the operator explicitly opts in. Only plugins from `claude-plugins-official` are auto-installed by the entrypoint — third-party plugins must be installed manually. See [Recommended Plugins](docs/RECOMMENDED-PLUGINS.md) for the full policy.
 
 Each entry in `docker.recommended_plugins` has:
-- `marketplace` — `"claude-plugins-official"` for official plugins, or `"org/repo"` for third-party marketplaces (e.g. `"obra/superpowers-marketplace"`)
-- `plugin` — the plugin name to install
+- `marketplace` — `"claude-plugins-official"` for official plugins, or `"org/repo"` for third-party (tracking only — not auto-installed)
+- `plugin` — the plugin name
 - `scope` — `"project"` or `"local"`
-- `enabled` — whether to install on boot
-
-Future recommended plugins will be added to this list as the ecosystem grows.
+- `enabled` — whether to install on boot (only honored for official marketplace)
 
 ### 8. Guided deployment
 

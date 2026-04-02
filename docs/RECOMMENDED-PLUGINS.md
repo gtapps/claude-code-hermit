@@ -2,7 +2,9 @@
 
 Plugins that complement Hermit's autonomous operation. These are optional — Hermit works fine without them — but they add capabilities that improve self-learning and self-improvement over time.
 
-During `/docker-setup`, you're asked whether to enable recommended plugins. They're installed on container boot. You can also manage them anytime with `/hermit-settings docker`.
+> **Disclaimer:** Hermit does not vet, audit, or take responsibility for any plugin — including official ones. Plugins run with the same permissions as Hermit. In Docker mode (`bypassPermissions`), this means full unrestricted execution. You are responsible for evaluating any plugin you install. Review the plugin's source, understand what it does, and only install plugins you trust.
+
+Nothing is pre-shipped or pre-configured. During `/docker-setup`, you're asked whether to install each recommended plugin. Only plugins you explicitly opt into are added to your config and installed on container boot. You can manage them anytime with `/hermit-settings docker`.
 
 ---
 
@@ -22,29 +24,30 @@ Analyzes your codebase and recommends Claude Code automations — skills, hooks,
 
 ## Third-Party Plugins
 
-Third-party plugins require adding a marketplace first. The entrypoint handles this automatically based on the `marketplace` field in config.
+> **Third-party plugins are NOT auto-installed.** Because Docker containers run with `bypassPermissions`, auto-installing third-party plugins would grant untrusted code full unrestricted execution. You must install them manually.
 
-### Example: Adding a Third-Party Plugin
+You can track third-party plugins in your config for documentation purposes, but the entrypoint will skip them with a warning and not install them.
 
-To add a plugin from a custom marketplace (e.g., `superpowers` from `obra/superpowers-marketplace`):
+### Manual Installation
+
+To install a third-party plugin inside a running container:
 
 ```bash
-/hermit-settings docker
-# Then: add superpowers obra/superpowers-marketplace
+# Attach to the container
+docker compose -f docker-compose.hermit.yml exec hermit bash
+
+# Add the marketplace and install
+claude plugin marketplace add obra/superpowers-marketplace
+claude plugin install superpowers@superpowers-marketplace --scope project
 ```
 
-This writes the following entry to `config.json`:
+You can optionally track it in config via `/hermit-settings docker`:
 
-```json
-{
-  "marketplace": "obra/superpowers-marketplace",
-  "plugin": "superpowers",
-  "scope": "project",
-  "enabled": true
-}
+```bash
+add superpowers obra/superpowers-marketplace
 ```
 
-On next container boot, the entrypoint runs `claude plugin marketplace add obra/superpowers-marketplace` (if not already cached), then `claude plugin install superpowers@superpowers-marketplace --scope project`.
+This writes the entry to `config.json` for reference, but the entrypoint will not auto-install it.
 
 ---
 

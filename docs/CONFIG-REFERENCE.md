@@ -93,7 +93,7 @@ Setting `keep` equal to `threshold` effectively disables compaction for that sec
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `packages` | array | `[]` | System packages (`apt-get`) to install in the Docker image. |
-| `recommended_plugins` | array | _(see below)_ | Plugins to install on container boot. Each entry is an object. |
+| `recommended_plugins` | array | `[]` | Plugins to install on container boot. Empty by default — entries are only added when the operator explicitly opts in during `/docker-setup` or `/hermit-settings docker`. |
 
 ### `recommended_plugins` entry schema
 
@@ -102,9 +102,9 @@ Setting `keep` equal to `threshold` effectively disables compaction for that sec
 | `marketplace` | string | `"claude-plugins-official"` | Marketplace name. Use `"claude-plugins-official"` for official plugins, or `"org/repo"` for third-party (e.g. `"obra/superpowers-marketplace"`). |
 | `plugin` | string | _(required)_ | Plugin name to install. |
 | `scope` | string | `"project"` | Install scope: `"project"` or `"local"`. |
-| `enabled` | boolean | `false` | Whether to install on container boot. |
+| `enabled` | boolean | `false` | Whether to install on container boot. Only honored for `claude-plugins-official` — third-party plugins are tracked but must be installed manually. |
 
-The config template ships with `claude-code-setup` pre-configured (disabled by default). The `/docker-setup` wizard asks whether to enable it. See [Recommended Plugins](RECOMMENDED-PLUGINS.md) for the full list and rationale.
+**Security policy:** Only plugins from `claude-plugins-official` are auto-installed by the entrypoint. Third-party plugins are stored for tracking/reference but skipped during boot — they must be installed manually inside the container. This is because Docker containers run with `bypassPermissions`, and auto-installing untrusted code in that context is a security risk. See [Recommended Plugins](RECOMMENDED-PLUGINS.md) for details.
 
 Modify with `/hermit-settings docker`.
 
