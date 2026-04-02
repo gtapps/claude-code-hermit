@@ -37,10 +37,10 @@ Set a per-session budget with `/hermit-settings budget`. A typical interactive s
 The hermit stops responding. Re-run `claude login` inside the container to refresh credentials:
 
 ```bash
-docker exec -it $(docker compose -f docker-compose.hermit.yml ps -q hermit) claude login
+.claude-code-hermit/bin/hermit-docker login
 ```
 
-Then restart: `docker compose -f docker-compose.hermit.yml restart`
+Then restart: `.claude-code-hermit/bin/hermit-docker restart`
 
 ---
 

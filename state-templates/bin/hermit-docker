@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# Docker management CLI for hermit containers.
+# Usage: hermit-docker <command> [args...]
+# Commands: up, down, attach, login, logs, restart
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CONFIG="$SCRIPT_DIR/../config.json"
+CMD="${1:?Usage: hermit-docker <up|down|attach|login|logs|restart> [args...]}"
+shift
+
+if [ ! -f "$CONFIG" ]; then
+  echo "[hermit] No config found at $CONFIG" >&2
+  echo "[hermit] Run /claude-code-hermit:hatch inside Claude Code first." >&2
+  exit 1
+fi
+
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+COMPOSE="$PROJECT_DIR/docker-compose.hermit.yml"
+STATUS_FILE="$PROJECT_DIR/.claude-code-hermit/.status"
+
+if [ ! -f "$COMPOSE" ]; then
+  echo "[hermit] No docker-compose.hermit.yml found in $PROJECT_DIR" >&2
+  echo "[hermit] Run /claude-code-hermit:docker-setup inside Claude Code first." >&2
+  exit 1
+fi
+
+# Resolve tmux session name from config
+TMUX_SESSION=$(python3 -c "
+import json, sys, os
+config = json.load(open(sys.argv[1]))
+name = config.get('tmux_session_name', 'hermit-{project_name}')
+project = os.path.basename(sys.argv[2])
+print(name.replace('{project_name}', project))
+" "$CONFIG" "$PROJECT_DIR" 2>/dev/null || echo "hermit")
+
+# Get compose service name
+SERVICE=$(cd "$PROJECT_DIR" && docker compose -f "$COMPOSE" config --services 2>/dev/null | head -1 || echo "hermit")
+
+DC=(docker compose -f "$COMPOSE")
+
+case "$CMD" in
+  up)
+    echo "[hermit] Starting Docker container..."
+    cd "$PROJECT_DIR" && "${DC[@]}" up -d "$@"
+    echo ""
+    echo "Container is up. To attach to the hermit's tmux session:"
+    echo ""
+    echo "  .claude-code-hermit/bin/hermit-docker attach"
+    echo ""
+    echo "Detach with: Ctrl+B then D"
+    echo "Status: .claude-code-hermit/bin/hermit-status"
+    ;;
+
+  down)
+    FORCE=false
+    [ "${1:-}" = "--force" ] && FORCE=true
+
+    if [ "$FORCE" = false ]; then
+      echo "[hermit] Requesting graceful session close..."
+      cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+        tmux send-keys -t "$TMUX_SESSION:0.0" "/claude-code-hermit:session-close --shutdown" Enter 2>/dev/null || true
+
+      echo "[hermit] Waiting for session to close (up to 60s)..."
+      CLOSED=false
+      for i in $(seq 1 60); do
+        STATUS=$(cat "$STATUS_FILE" 2>/dev/null || echo "unknown")
+        if [ "$STATUS" = "idle" ] || [ "$STATUS" = "shutdown" ]; then
+          echo "[hermit] Session closed after ${i}s."
+          CLOSED=true
+          break
+        fi
+        sleep 1
+      done
+      if [ "$CLOSED" = false ]; then
+        echo "[hermit] Timed out waiting for graceful close; forcing stop." >&2
+      fi
+    fi
+
+    echo "[hermit] Stopping Docker container..."
+    cd "$PROJECT_DIR" && "${DC[@]}" down
+    echo "[hermit] Container stopped."
+    ;;
+
+  attach)
+    echo "[hermit] Attaching to tmux session: $TMUX_SESSION"
+    echo "[hermit] Detach with: Ctrl+B then D"
+    cd "$PROJECT_DIR" && "${DC[@]}" exec "$SERVICE" tmux attach -t "$TMUX_SESSION"
+    ;;
+
+  login)
+    echo "[hermit] Opening Claude Code login inside container..."
+    cd "$PROJECT_DIR" && "${DC[@]}" exec -it "$SERVICE" claude login
+    ;;
+
+  logs)
+    cd "$PROJECT_DIR" && "${DC[@]}" logs "$@"
+    ;;
+
+  restart)
+    echo "[hermit] Restarting container..."
+    cd "$PROJECT_DIR" && "${DC[@]}" restart "$@"
+    echo "[hermit] Container restarted."
+    ;;
+
+  *)
+    echo "Usage: hermit-docker <up|down|attach|login|logs|restart> [args...]" >&2
+    exit 1
+    ;;
+esac

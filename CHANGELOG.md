@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.2.6] - 2026-04-02
+
+### Added
+
+- **`hermit-docker` CLI** — New dedicated script for all Docker management. Replaces `hermit-run docker-*` subcommands and eliminates the need to type raw `docker compose -f docker-compose.hermit.yml` commands. Six subcommands:
+
+  | Command | Purpose |
+  |---------|---------|
+  | `hermit-docker up` | Build and start container |
+  | `hermit-docker down` | Graceful stop (--force to skip) |
+  | `hermit-docker attach` | Connect to tmux session |
+  | `hermit-docker login` | OAuth login inside container |
+  | `hermit-docker logs` | Follow container logs |
+  | `hermit-docker restart` | Restart container |
+
+### Changed
+
+- **`hermit-run` restored to boot script dispatcher** — Docker subcommands (`docker-up`, `docker-down`, `docker-attach`) removed from `hermit-run`. It now only resolves the plugin root and dispatches to Python boot scripts (`hermit-start.py`, `hermit-stop.py`), which was its original purpose.
+
+- **`hermit-status` simplified** — Removed unused `TMUX_SESSION` resolution (no longer needed since the attach hint now points to `hermit-docker attach`). The Python block no longer parses `tmux_session_name` or takes the project dir as an argument.
+
+- **All docs updated to use `hermit-docker`** — Every raw `docker compose -f docker-compose.hermit.yml` command in user-facing docs replaced with the `hermit-docker` equivalent. Operators never need to remember the compose filename.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/bin/hermit-docker` | New script — Docker management CLI |
+| `state-templates/bin/hermit-run` | Removed docker subcommands; boot dispatcher only |
+| `state-templates/bin/hermit-status` | Removed unused TMUX_SESSION; simplified Python block |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Login hint now uses `hermit-docker login` |
+| `skills/docker-setup/SKILL.md` | All commands updated to `hermit-docker`; step 9 shows full command reference |
+| `skills/hatch/SKILL.md` | Added `hermit-docker` to file tree and bin copy step |
+| `skills/hermit-hand-back/SKILL.md` | Uses `hermit-docker up` and `hermit-docker logs` |
+| `docs/ALWAYS-ON.md` | Full command table updated; login, logs, restart use `hermit-docker` |
+| `docs/FAQ.md` | Login and restart commands updated |
+| `docs/RECOMMENDED-PLUGINS.md` | Restart command updated |
+| `README.md` | Attach command updated; version bump |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+
+1. **Boot script update** — Copies all files from `state-templates/bin/` into `.claude-code-hermit/bin/`, which adds the new `hermit-docker` script and updates `hermit-run` and `hermit-status`. Existing hermits will have both scripts after upgrade.
+2. **CLAUDE-APPEND block update** — Refreshed with current skill list.
+3. **Entrypoint template update** — Updated `docker-entrypoint.hermit.sh.template` with new login hint. Docker hermits should rebuild to pick this up: `.claude-code-hermit/bin/hermit-docker up --build`.
+
+No config.json changes required. The old `hermit-run docker-up` / `hermit-run docker-down` commands will stop working after upgrade — use `hermit-docker up` / `hermit-docker down` instead. Non-Docker hermits are unaffected.
+
 ## [0.2.5] - 2026-04-02
 
 ### Added

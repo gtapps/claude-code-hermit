@@ -19,7 +19,7 @@ if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -f "$CRED_FILE" ]; then
   echo "  No auth credentials found."
   echo "  From another terminal, run:"
   echo ""
-  echo "    docker compose -f docker-compose.hermit.yml exec hermit claude login"
+  echo "    .claude-code-hermit/bin/hermit-docker login"
   echo ""
   echo "  Waiting for credentials (timeout: 10 minutes)..."
   echo "=============================================="
@@ -220,7 +220,7 @@ SESSION_NAME="{{TMUX_SESSION_NAME}}"
 # would be killed mid-session with no report archival.
 cleanup() {
   echo "[docker-entrypoint] SIGTERM received..."
-  # Skip if already closed (e.g., hermit-run docker-down already handled it)
+  # Skip if already closed (e.g., hermit-docker down already handled it)
   CUR_STATUS=$(cat "${AGENT_DIR}/.status" 2>/dev/null || echo "unknown")
   if [ "$CUR_STATUS" = "idle" ] || [ "$CUR_STATUS" = "shutdown" ]; then
     echo "[docker-entrypoint] Session already closed. Shutting down."

@@ -43,12 +43,12 @@ Ask the operator: "Any instructions for the hermit to work on next?"
 
 ### 5. Restart the container
 
-Run `.claude-code-hermit/bin/hermit-run docker-up` in the project root.
+Run `.claude-code-hermit/bin/hermit-docker up` in the project root.
 
 Check that the container started: run `docker compose -f docker-compose.hermit.yml ps --status running` after a few seconds.
 
 - If running: confirm success
-- If not running: warn "Container didn't start — check `docker compose -f docker-compose.hermit.yml logs` for errors."
+- If not running: warn "Container didn't start — check `.claude-code-hermit/bin/hermit-docker logs` for errors."
 
 ### 6. Confirm hand-back
 

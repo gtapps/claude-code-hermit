@@ -34,6 +34,8 @@ To install a third-party plugin inside a running container:
 
 ```bash
 # Attach to the container
+.claude-code-hermit/bin/hermit-docker attach
+# Then from the tmux session, or directly:
 docker compose -f docker-compose.hermit.yml exec hermit bash
 
 # Add the marketplace and install
@@ -73,4 +75,4 @@ See [Config Reference](CONFIG-REFERENCE.md#recommended_plugins-entry-schema) for
 | Enable during Docker setup | `/docker-setup` wizard step 7b |
 | Enable/disable after setup | `/hermit-settings docker` |
 | Check what's installed | `docker exec <container> claude plugin list` |
-| Force reinstall | Remove the cache dir and restart: `docker compose -f docker-compose.hermit.yml restart` |
+| Force reinstall | Remove the cache dir and restart: `.claude-code-hermit/bin/hermit-docker restart` |

@@ -181,21 +181,21 @@ docker-compose.hermit.yml      — orchestration config
 **Build and start:** Ask "Ready to build and start? (yes/no) [yes]"
 
 If yes:
-1. `.claude-code-hermit/bin/hermit-run docker-up` — builds and starts. Help fix errors (daemon not running, network, disk).
+1. `.claude-code-hermit/bin/hermit-docker up` — builds and starts. Help fix errors (daemon not running, network, disk).
 
 If no: print the manual commands and skip to verify.
 
 **Login (oauth only):** If operator chose oauth, guide them through the container login:
 1. Tell them: "The container is waiting for you to log in. Run this from another terminal:"
    ```
-   docker exec -it $(docker compose -f docker-compose.hermit.yml ps -q hermit) claude login
+   .claude-code-hermit/bin/hermit-docker login
    ```
 2. This opens a browser URL for OAuth. After completing the login, credentials are saved to the named volume and the container starts automatically.
 3. Wait for the operator to confirm they've logged in. Then verify by checking container logs for "Credentials detected" or "hermit-start" output.
 
 **Workspace trust:** Tell the operator to attach and accept the trust prompt:
 ```
-docker compose -f docker-compose.hermit.yml exec hermit tmux attach -t <session>
+.claude-code-hermit/bin/hermit-docker attach
 ```
 Press Enter to accept, then Ctrl+B, D to detach. Wait for confirmation.
 
@@ -224,10 +224,13 @@ If healthy:
 ```
 You're all set! Your hermit is live and running autonomously.
 
-  .claude-code-hermit/bin/hermit-run docker-up     — start container + show attach command
-  .claude-code-hermit/bin/hermit-run docker-down   — graceful stop (--force to skip)
-  .claude-code-hermit/bin/hermit-status        — quick check
-  docker compose -f docker-compose.hermit.yml logs -f  — follow logs
+  .claude-code-hermit/bin/hermit-docker up        — start container
+  .claude-code-hermit/bin/hermit-docker down      — graceful stop (--force to skip)
+  .claude-code-hermit/bin/hermit-docker attach    — connect to tmux session
+  .claude-code-hermit/bin/hermit-docker login     — OAuth login
+  .claude-code-hermit/bin/hermit-docker logs -f   — follow logs
+  .claude-code-hermit/bin/hermit-docker restart   — restart container
+  .claude-code-hermit/bin/hermit-status           — quick check
 ```
 
 If something looks wrong, help diagnose — suggest concrete next steps.

@@ -47,7 +47,7 @@ The wizard also checks `.claude/settings.json` permissions to detect tools your 
 ## First Run
 
 ```bash
-.claude-code-hermit/bin/hermit-run docker-up
+.claude-code-hermit/bin/hermit-docker up
 ```
 
 This builds the image, starts the container, and prints the tmux attach command.
@@ -68,15 +68,17 @@ Persisted in the `claude-config` named volume — won't appear on restarts. Afte
 
 | Action    | Command                                                       |
 | --------- | ------------------------------------------------------------- |
-| Start     | `.claude-code-hermit/bin/hermit-run docker-up`                    |
-| Stop      | `.claude-code-hermit/bin/hermit-run docker-down`                  |
-| Force stop| `.claude-code-hermit/bin/hermit-run docker-down --force`          |
-| Logs      | `docker compose -f docker-compose.hermit.yml logs -f`         |
-| Restart   | `docker compose -f docker-compose.hermit.yml restart`         |
+| Start     | `.claude-code-hermit/bin/hermit-docker up`                    |
+| Stop      | `.claude-code-hermit/bin/hermit-docker down`                  |
+| Force stop| `.claude-code-hermit/bin/hermit-docker down --force`          |
+| Attach    | `.claude-code-hermit/bin/hermit-docker attach`                |
+| Logs      | `.claude-code-hermit/bin/hermit-docker logs -f`               |
+| Restart   | `.claude-code-hermit/bin/hermit-docker restart`               |
 | Status    | `.claude-code-hermit/bin/hermit-status`                       |
 
-`hermit-run docker-up` starts the container and prints the tmux attach command.
-`hermit-run docker-down` sends a graceful session close before stopping. Use `--force` to skip.
+`hermit-docker up` starts the container and prints the attach command.
+`hermit-docker attach` connects to the hermit's tmux session. Detach with Ctrl+B, D.
+`hermit-docker down` sends a graceful session close before stopping. Use `--force` to skip.
 All bin scripts are pure bash — no Claude Code process, no tokens burned.
 
 ---
@@ -86,7 +88,7 @@ All bin scripts are pure bash — no Claude Code process, no tokens burned.
 **OAuth login (recommended for Pro/Max):** After the container starts for the first time, run `claude login` inside it:
 
 ```bash
-docker exec -it $(docker compose -f docker-compose.hermit.yml ps -q hermit) claude login
+.claude-code-hermit/bin/hermit-docker login
 ```
 
 This opens a browser URL for OAuth. Complete the login and credentials are saved to the container's named volume — they persist across restarts. The entrypoint waits for credentials on first boot, then starts automatically.
@@ -128,9 +130,9 @@ Summarizes what you did, asks for instructions, and restarts the container. The 
 ### Manual alternative
 
 ```bash
-.claude-code-hermit/bin/hermit-run docker-down   # graceful close + stop
+.claude-code-hermit/bin/hermit-docker down   # graceful close + stop
 # ... do your thing ...
-.claude-code-hermit/bin/hermit-run docker-up     # hermit recovers and resumes
+.claude-code-hermit/bin/hermit-docker up     # hermit recovers and resumes
 ```
 
 ---
@@ -145,7 +147,7 @@ One-liner, no tokens burned:
 
 ```
 atlas (myproject) | in_progress | "Add input validation" | 2/4 steps | $1.80/$5.00 | no blockers | docker:up
-  attach: docker compose -f docker-compose.hermit.yml exec hermit tmux attach -t hermit-myproject
+  attach: .claude-code-hermit/bin/hermit-docker attach
 ```
 
 When Docker is running, the attach command is printed automatically.
@@ -156,12 +158,12 @@ When Docker is running, the attach command is printed automatically.
 
 The entrypoint traps SIGTERM (sent by `docker compose down`, `docker stop`, or system shutdown). On signal:
 
-1. Checks if the session is already closed (skips if `hermit-run docker-down` already handled it)
+1. Checks if the session is already closed (skips if `hermit-docker down` already handled it)
 2. Sends `/session-close --shutdown` via tmux
 3. Waits up to 30s for the session to archive
 4. Exits cleanly
 
-This means even a raw `docker compose down` (without `hermit-run docker-down`) will attempt to archive the session. Use `hermit-run docker-down` for the full 60s timeout and explicit feedback.
+This means even a raw `docker compose down` (without `hermit-docker down`) will attempt to archive the session. Use `hermit-docker down` for the full 60s timeout and explicit feedback.
 
 ## Crash Recovery
 
@@ -197,7 +199,7 @@ Adjust with `/hermit-settings env`.
 | --- | --- |
 | Ubuntu 24.04 default user conflicts at UID 1000 | `userdel -r ubuntu` before `useradd` — handled by Dockerfile |
 | Volume paths must match host | `${PWD}:${PWD}`, not `/app` or `/project` |
-| OAuth credentials expired | Re-run `docker exec -it <container> claude login` and restart the container |
+| OAuth credentials expired | Re-run `.claude-code-hermit/bin/hermit-docker login` and restart with `hermit-docker restart` |
 | Entrypoint exits after tmux spawns | Entrypoint polls `tmux has-session` to keep PID 1 alive. SIGTERM trap handles graceful close. |
 | `.local` mDNS hostnames don't resolve | Use IP addresses in service URLs, even with `network_mode: host` |
 | Workspace trust prompt on first run | Attach once, press Enter, detach |
