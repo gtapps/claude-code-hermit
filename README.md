@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.2.4-green.svg" alt="Version 0.2.4" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.2.5-green.svg" alt="Version 0.2.5" /></a>
   <img src="https://img.shields.io/badge/Claude-Pro%20%7C%20Max-blueviolet.svg" alt="Claude Pro/Max Compatible" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
 </p>
@@ -182,6 +182,7 @@ See [Creating Your Own Hermit](docs/CREATING-YOUR-OWN-HERMIT.md) for more — fr
 | [Creating Your Own Hermit](docs/CREATING-YOUR-OWN-HERMIT.md) | You want to customize OPERATOR.md, add agents, or build a reusable plugin  |
 | [Upgrading](docs/UPGRADING.md)                               | A new version is out and you need to update safely                         |
 | [Security](docs/SECURITY.md)                                 | You need deny patterns, defense-in-depth model, or the security checklist  |
+| [Recommended Plugins](docs/RECOMMENDED-PLUGINS.md)           | You want to add official or third-party plugins to your Docker setup       |
 | [Config Reference](docs/CONFIG-REFERENCE.md)                 | You need the full config.json schema with every key and default            |
 | [Troubleshooting](docs/TROUBLESHOOTING.md)                   | Something isn't working and you need to fix it                             |
 | [FAQ](docs/FAQ.md)                                           | Common questions — Windows, costs, multi-project, API keys                 |

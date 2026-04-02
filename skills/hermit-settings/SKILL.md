@@ -237,6 +237,24 @@ Update `permission_mode` in config.json.
   - If input is just package names without add/remove prefix: treat as add
 - After changes, note: "Rebuild your container to apply: `docker compose -f docker-compose.hermit.yml build`"
 
+- Then show current `docker.recommended_plugins`:
+  ```
+  Recommended Plugins (config.json docker.recommended_plugins → installed on boot)
+
+    [enabled]  claude-code-setup (claude-plugins-official)
+    [disabled] superpowers (superpowers-marketplace)
+
+  (or "No recommended plugins configured" if empty)
+  ```
+- Ask: "Enable, disable, add, or remove recommended plugins? (e.g., 'enable claude-code-setup', 'disable claude-code-setup', 'add superpowers obra/superpowers-marketplace', 'remove superpowers', or 'done') [done]"
+- Loop until operator says "done", "skip", or presses Enter:
+  - `enable <PLUGIN>`: set `enabled: true` on matching entry
+  - `disable <PLUGIN>`: set `enabled: false` on matching entry
+  - `remove <PLUGIN>`: remove the entry entirely
+  - `add <PLUGIN> [<MARKETPLACE>]`: add new entry with `marketplace` (`"claude-plugins-official"` if omitted), `scope: "project"`, `enabled: true`. Deduplicate by plugin name.
+  - If input is just a plugin name without a verb: treat as `enable` if it exists, `add` if it doesn't
+- After changes, note: "Restart container to install new plugins."
+
 ### 3. Write config
 
 Write the updated config back to `.claude-code-hermit/config.json`.

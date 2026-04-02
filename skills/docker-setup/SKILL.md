@@ -136,6 +136,32 @@ For each configured channel:
      - On token: `mkdir -p`, write `.env`, `chmod 600`, ensure `.claude.local/` in `.gitignore`, clean stale token from `.claude/settings.local.json` `env` if present. Confirm saved.
      - On skip: "Write it to `.claude.local/channels/<plugin>/.env` later and restart."
 
+### 7b. Recommended plugins
+
+These official plugins complement hermit's autonomous operation. Present to the operator:
+
+```
+Recommended plugins for autonomous operation:
+
+  [x] claude-code-setup (Anthropic) — analyzes your codebase and recommends
+      automations (skills, hooks, MCP servers, subagents). Helps hermit
+      learn and self-improve over time.
+      https://claude.com/plugins/claude-code-setup
+
+Install recommended plugins? (yes/no) [yes]
+```
+
+- **Yes (default):** Set `enabled: true` on the `claude-code-setup` entry in `config.json` `docker.recommended_plugins`. The entrypoint installs enabled plugins on first boot.
+- **No:** Leave `enabled: false`. Note: "You can enable them later with `/claude-code-hermit:hermit-settings docker`."
+
+Each entry in `docker.recommended_plugins` has:
+- `marketplace` — `"claude-plugins-official"` for official plugins, or `"org/repo"` for third-party marketplaces (e.g. `"obra/superpowers-marketplace"`)
+- `plugin` — the plugin name to install
+- `scope` — `"project"` or `"local"`
+- `enabled` — whether to install on boot
+
+Future recommended plugins will be added to this list as the ecosystem grows.
+
 ### 8. Guided deployment
 
 Print generated files summary:

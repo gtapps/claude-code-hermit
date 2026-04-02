@@ -40,7 +40,7 @@ fi
 # --- 1. Bypass onboarding, pre-approve MCP servers, patch permission_mode ---
 CLAUDE_JSON="${CLAUDE_CONFIG_DIR}/.claude.json"
 CC_VERSION=$(claude --version 2>/dev/null | grep -oP '[\d.]+' | head -1 || echo "0.0.0")
-CHANNELS=$(python3 -c "
+INIT_OUTPUT=$(python3 -c "
 import json, sys, os
 claude_json, version, project = sys.argv[1], sys.argv[2], sys.argv[3]
 
@@ -100,9 +100,13 @@ if os.path.exists(config_path):
     else:
         print('[docker-entrypoint] permission_mode OK', file=sys.stderr)
 
-# Emit channel list on stdout for the shell to capture
+# Emit channel list on stdout line 1, recommended plugins as JSON on line 2
 print(' '.join(ch for ch in channels if ch != 'imessage'))
+rec = cfg.get('docker', {}).get('recommended_plugins', []) if os.path.exists(config_path) else []
+print(json.dumps([e for e in rec if e.get('enabled', False)]))
 " "$CLAUDE_JSON" "$CC_VERSION" "$PROJECT_DIR")
+CHANNELS=$(echo "$INIT_OUTPUT" | sed -n '1p')
+RECOMMENDED_PLUGINS_JSON=$(echo "$INIT_OUTPUT" | sed -n '2p')
 
 # --- 2. Symlink channel state dirs ---
 for var_name in DISCORD_STATE_DIR TELEGRAM_STATE_DIR; do
@@ -151,6 +155,42 @@ if [ -n "$CHANNELS" ]; then
         echo "[docker-entrypoint] Warning: failed to install ${plugin} plugin — install manually"
     fi
   done
+fi
+
+# Recommended plugins (enabled entries extracted from config.json above)
+if [ -n "$RECOMMENDED_PLUGINS_JSON" ] && [ "$RECOMMENDED_PLUGINS_JSON" != "[]" ]; then
+  python3 -c "
+import json, os, subprocess, sys
+
+plugins = json.loads(sys.argv[1])
+marketplace_dir = sys.argv[2]
+seen_marketplaces = set()
+
+for entry in plugins:
+    plugin = entry['plugin']
+    marketplace = entry.get('marketplace', 'claude-plugins-official')
+    scope = entry.get('scope', 'project')
+
+    # Third-party marketplaces (org/repo format) need to be added first
+    if '/' in marketplace:
+        marketplace_name = marketplace.split('/')[-1]
+        if marketplace not in seen_marketplaces:
+            seen_marketplaces.add(marketplace)
+            marketplace_cache = os.path.join(marketplace_dir, marketplace_name)
+            if not os.path.isdir(marketplace_cache):
+                print(f'[docker-entrypoint] Adding marketplace: {marketplace}')
+                subprocess.run(['claude', 'plugin', 'marketplace', 'add', marketplace])
+    else:
+        marketplace_name = marketplace
+
+    plugin_cache = os.path.join(marketplace_dir, marketplace_name, 'external_plugins', plugin)
+    if not os.path.isdir(plugin_cache):
+        install_target = f'{plugin}@{marketplace_name}'
+        print(f'[docker-entrypoint] Installing recommended plugin: {plugin}')
+        result = subprocess.run(['claude', 'plugin', 'install', install_target, '--scope', scope])
+        if result.returncode != 0:
+            print(f'[docker-entrypoint] Warning: failed to install {plugin} — install manually')
+" "$RECOMMENDED_PLUGINS_JSON" "${MARKETPLACE_DIR}"
 fi
 
 # Export plugin root so hermit-run can skip the directory scan.

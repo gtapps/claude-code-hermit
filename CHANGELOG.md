@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.2.5] - 2026-04-02
+
+### Added
+
+- **Recommended plugins support for Docker setup** — New step 7b in the `/docker-setup` wizard asks whether to install official and third-party plugins that complement autonomous operation. Ships with `claude-code-setup` (Anthropic) pre-configured — analyzes your codebase and recommends automations (skills, hooks, MCP servers, subagents), feeding Hermit's self-improvement loop. Enabled plugins are installed automatically on container boot.
+
+- **Structured `recommended_plugins` config** — Each entry in `docker.recommended_plugins` specifies `marketplace`, `plugin`, `scope`, and `enabled`. Official plugins use `"claude-plugins-official"` (no marketplace add needed); third-party plugins use `"org/repo"` format and the entrypoint adds the marketplace automatically. Marketplace adds are deduplicated across entries.
+
+- **`/hermit-settings docker` now manages recommended plugins** — Enable, disable, add, or remove recommended plugins alongside Docker packages. Supports third-party marketplaces via `add <plugin> <org/repo>`.
+
+- **Recommended Plugins documentation** — New `docs/RECOMMENDED-PLUGINS.md` covers the full plugin list, config format, third-party plugin examples, and management commands. Added to README doc table and CONFIG-REFERENCE.md.
+
+### Changed
+
+- **Entrypoint config.json read consolidated** — The recommended plugins list is now extracted in the existing Python init block (which already reads config.json for channels and permission_mode), eliminating a redundant file read and Python invocation on every container start. Enabled entries are emitted as JSON on stdout and consumed by a downstream block.
+
+- **Plugin install output is now visible** — The recommended plugins install block prints progress to stdout (not suppressed by `2>/dev/null`), consistent with the channel and hermit plugin install blocks.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/docker-setup/SKILL.md` | Added step 7b (recommended plugins wizard) |
+| `skills/hermit-settings/SKILL.md` | Added recommended plugins management to docker section |
+| `state-templates/config.json.template` | Added `docker.recommended_plugins` with claude-code-setup entry |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Merged config read into init block; added recommended plugins install block |
+| `docs/RECOMMENDED-PLUGINS.md` | New document |
+| `docs/CONFIG-REFERENCE.md` | Added `recommended_plugins` entry schema to docker section |
+| `README.md` | Added Recommended Plugins to doc table; version bump |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+
+1. **CLAUDE-APPEND block update** — Refreshed with current skill list.
+2. **Boot script update** — Copies updated `docker-entrypoint.hermit.sh.template` with the new recommended plugins install block.
+
+No config.json changes required. The new `docker.recommended_plugins` key is only used by the Docker entrypoint and is populated by `/docker-setup`. Existing Docker deployments continue to work — the entrypoint gracefully handles missing or empty `recommended_plugins`. Non-Docker hermits are unaffected.
+
 ## [0.2.4] - 2026-04-01
 
 ### Changed

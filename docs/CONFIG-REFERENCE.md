@@ -93,6 +93,18 @@ Setting `keep` equal to `threshold` effectively disables compaction for that sec
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `packages` | array | `[]` | System packages (`apt-get`) to install in the Docker image. |
+| `recommended_plugins` | array | _(see below)_ | Plugins to install on container boot. Each entry is an object. |
+
+### `recommended_plugins` entry schema
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `marketplace` | string | `"claude-plugins-official"` | Marketplace name. Use `"claude-plugins-official"` for official plugins, or `"org/repo"` for third-party (e.g. `"obra/superpowers-marketplace"`). |
+| `plugin` | string | _(required)_ | Plugin name to install. |
+| `scope` | string | `"project"` | Install scope: `"project"` or `"local"`. |
+| `enabled` | boolean | `false` | Whether to install on container boot. |
+
+The config template ships with `claude-code-setup` pre-configured (disabled by default). The `/docker-setup` wizard asks whether to enable it. See [Recommended Plugins](RECOMMENDED-PLUGINS.md) for the full list and rationale.
 
 Modify with `/hermit-settings docker`.
 

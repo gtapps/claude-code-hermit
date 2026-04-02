@@ -24,7 +24,15 @@
     "MAX_THINKING_TOKENS": "10000"
   },
   "docker": {
-    "packages": []
+    "packages": [],
+    "recommended_plugins": [
+      {
+        "marketplace": "claude-plugins-official",
+        "plugin": "claude-code-setup",
+        "scope": "project",
+        "enabled": false
+      }
+    ]
   },
   "compact": {
     "monitoring_threshold": 30,
