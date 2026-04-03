@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.2.9] - 2026-04-03
+
+### Changed
+
+- **Idle reflection ungated from `discover` mode** — Periodic reflection (the 4+ hour idle check that invokes `/claude-code-hermit:reflect`) now fires for both `wait` and `discover` idle behavior, same as NEXT-TASK.md pickup. Previously, hermits in `wait` mode with no NEXT-TASK.md had nothing to do during idle — they'd go completely silent. Reflection is read-only (no task creation, no side effects), so it's safe to run ungated. `When Idle` pickup and priority alignment remain `discover`-only.
+
+- **Reflect now checks operational efficiency** — The main reflection block (which runs at every task boundary, not just idle) now includes four new questions: whether tokens were spent on work a cheaper subagent could handle, whether manual work duplicated an existing skill, whether a subagent could have handled repeating subtasks, and whether context bloat was avoidable. These help hermits catch token waste patterns and propose improvements.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/heartbeat/SKILL.md` | Moved Reflection block out of `discover`-only section; renumbered Priority alignment to item 2 |
+| `skills/reflect/SKILL.md` | Added 4 operational efficiency questions to the main reflection block |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+
+1. **CLAUDE-APPEND refresh** — Not needed for this release (no changes to session discipline block).
+2. **Templates** — Not affected.
+
+No config.json changes required. No manual steps needed. Hermits in `wait` mode will automatically begin reflecting during idle after the plugin is updated.
+
 ## [0.2.8] - 2026-04-03
 
 ### Changed

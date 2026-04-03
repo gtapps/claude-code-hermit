@@ -14,6 +14,10 @@ Now reflect — using your memory and the context above:
 - Is anything recurring that shouldn't be?
 - Have you been working around something that deserves a real fix?
 - Is spending proportional to the work being done?
+- Did I use tokens on work a cheaper subagent (Haiku) could have handled?
+- Did I do something manually that a skill already covers?
+- Could a subagent have handled a repeating subtask within this session?
+- Was context bloat avoidable — did I load files I didn't need, or keep large content in context longer than necessary?
 - Are there accepted proposals that the problem hasn't come back for?
   If so, mark them resolved.
 

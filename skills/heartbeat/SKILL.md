@@ -177,6 +177,12 @@ Check for `sessions/NEXT-TASK.md`. If found, respect the configured escalation l
 - **balanced:** start it automatically via `/claude-code-hermit:session-start`
 - **autonomous:** start it, notify on completion
 
+**Reflection** (active for both `wait` and `discover` idle behavior):
+
+If no NEXT-TASK.md was picked up and `_last_reflection` is null or 4+ hours ago:
+- Invoke `/claude-code-hermit:reflect`
+- Update `heartbeat._last_reflection` to now (ISO string with timezone offset from config)
+
 **The following only activate when `idle_behavior` is `"discover"` in config:**
 
 If no NEXT-TASK.md and no pending channel messages:
@@ -190,11 +196,7 @@ If no NEXT-TASK.md and no pending channel messages:
    - Maximum one idle task per heartbeat cycle — don't chain them.
    - Track completed idle tasks in SHELL.md Session Summary as: `[idle] Completed: <item> — <outcome> (cost: $X.XX)`
 
-2. **Reflection:** If no idle task was started and `_last_reflection` is null or 4+ hours ago:
-   - Invoke `/claude-code-hermit:reflect`
-   - Update `heartbeat._last_reflection` to now (ISO string with timezone offset from config)
-
-3. **Priority alignment:** Read OPERATOR.md. Think about whether current work aligns with the stated priorities and constraints. If deadlines or budgets need attention, cross-reference with `.claude/cost-log.jsonl` and alert.
+2. **Priority alignment:** Read OPERATOR.md. Think about whether current work aligns with the stated priorities and constraints. If deadlines or budgets need attention, cross-reference with `.claude/cost-log.jsonl` and alert.
 
 **All time comparisons use the `timezone` from config.json.**
 
