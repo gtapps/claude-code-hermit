@@ -142,12 +142,17 @@ if [ ! -d "${MARKETPLACE_DIR}/claude-code-hermit" ]; then
     echo "[docker-entrypoint] Warning: failed to install hermit plugin — install manually"
 fi
 
+# Official marketplace (needed by channel plugins and recommended plugins)
+NEEDS_OFFICIAL=false
+[ -n "$CHANNELS" ] && NEEDS_OFFICIAL=true
+[ -n "$RECOMMENDED_PLUGINS_JSON" ] && [ "$RECOMMENDED_PLUGINS_JSON" != "[]" ] && NEEDS_OFFICIAL=true
+if [ "$NEEDS_OFFICIAL" = true ] && [ ! -d "${MARKETPLACE_DIR}/claude-plugins-official" ]; then
+  echo "[docker-entrypoint] Adding official plugins marketplace..."
+  claude plugin marketplace add anthropics/claude-plugins-official 2>/dev/null || true
+fi
+
 # Channel plugins
 if [ -n "$CHANNELS" ]; then
-  if [ ! -d "${MARKETPLACE_DIR}/claude-plugins-official" ]; then
-    echo "[docker-entrypoint] Adding official plugins marketplace..."
-    claude plugin marketplace add anthropics/claude-plugins-official 2>/dev/null || true
-  fi
   for plugin in $CHANNELS; do
     if [ ! -d "${MARKETPLACE_DIR}/claude-plugins-official/external_plugins/${plugin}" ]; then
       echo "[docker-entrypoint] Installing channel plugin: ${plugin}"
@@ -184,6 +189,31 @@ for entry in plugins:
         if result.returncode != 0:
             print(f'[docker-entrypoint] Warning: failed to install {plugin} — install manually')
 " "$RECOMMENDED_PLUGINS_JSON" "${MARKETPLACE_DIR}"
+fi
+
+# --- 4. Update plugins on boot ---
+# After install-if-missing, update already-installed plugins so a container restart
+# picks up new versions without needing to rebuild or manually exec into the container.
+echo "[docker-entrypoint] Checking for plugin updates..."
+
+# Hermit plugin
+claude plugin update claude-code-hermit --scope project 2>/dev/null || true
+
+# Recommended plugins (only official — same guard as install above)
+if [ -n "$RECOMMENDED_PLUGINS_JSON" ] && [ "$RECOMMENDED_PLUGINS_JSON" != "[]" ]; then
+  python3 -c "
+import json, subprocess, sys
+
+plugins = json.loads(sys.argv[1])
+for entry in plugins:
+    plugin = entry['plugin']
+    marketplace = entry.get('marketplace', 'claude-plugins-official')
+    scope = entry.get('scope', 'project')
+    if marketplace != 'claude-plugins-official':
+        continue
+    subprocess.run(['claude', 'plugin', 'update', plugin, '--scope', scope],
+                   capture_output=True)
+" "$RECOMMENDED_PLUGINS_JSON"
 fi
 
 # Export plugin root so hermit-run can skip the directory scan.

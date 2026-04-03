@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.2.11] - 2026-04-03
+
+### Fixed
+
+- **Official marketplace not added without channels** — The Docker entrypoint only added the `claude-plugins-official` marketplace when channel plugins were configured. If an operator enabled recommended plugins (claude-code-setup, claude-md-management, skill-creator) but had no channels, the marketplace was never added and plugin installs silently failed. The marketplace add is now triggered by either channels or recommended plugins.
+
+### Added
+
+- **Auto-update plugins on container boot** — The Docker entrypoint now runs `claude plugin update` for the hermit plugin and all enabled recommended plugins on every boot. Previously, plugins were only installed on first run and never updated — operators had to `docker exec` into the container to update manually. Now a `hermit-docker restart` picks up new plugin versions automatically.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Moved official marketplace add out of channel block; added step 4 (plugin update on boot) |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+
+1. **Entrypoint template changed** — Docker hermits need their entrypoint regenerated. Run `/claude-code-hermit:docker-setup` to regenerate, or manually copy the new entrypoint template to `.claude-code-hermit/docker/docker-entrypoint.hermit.sh`.
+
+No config.json changes required. Non-Docker hermits are unaffected.
+
 ## [0.2.10] - 2026-04-03
 
 ### Added
