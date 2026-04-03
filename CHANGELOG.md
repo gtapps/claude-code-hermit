@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.2.10] - 2026-04-03
+
+### Added
+
+- **Recommended plugins: claude-md-management and skill-creator** — Two new official Anthropic plugins added to the recommended plugins list and Docker setup wizard. Both are from `claude-plugins-official` and complement Hermit's self-improvement loop:
+  - **claude-md-management** — Audits and improves CLAUDE.md files (grades quality A–F, proposes targeted fixes). Keeps Hermit's project context sharp.
+  - **skill-creator** — Builds, tests, and refines new skills through structured iteration. Lets Hermit act on "this should be a skill" proposals by actually creating them.
+
+  These are recommended installs for any Hermit deployment. During `/docker-setup` (step 7b), operators are prompted to opt in to each plugin individually. Non-Docker users can install manually via `claude plugin install <plugin>@claude-plugins-official`.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `docs/RECOMMENDED-PLUGINS.md` | Added entries for claude-md-management and skill-creator under Official Plugins |
+| `skills/docker-setup/SKILL.md` | Added both plugins to step 7b wizard prompt; generalized yes/no handling |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+
+1. **No automatic migration** — Recommended plugins are opt-in. Existing hermits are unaffected. The new plugins only appear during fresh `/docker-setup` runs.
+
+No config.json changes required. To install manually in an existing deployment:
+```
+claude plugin install claude-md-management@claude-plugins-official --scope project
+claude plugin install skill-creator@claude-plugins-official --scope project
+```
+Or add via `/claude-code-hermit:hermit-settings docker` → `add claude-md-management` / `add skill-creator`.
+
 ## [0.2.9] - 2026-04-03
 
 ### Changed

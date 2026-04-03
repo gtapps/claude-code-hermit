@@ -149,14 +149,28 @@ Optional plugins that complement autonomous operation:
   https://claude.com/plugins/claude-code-setup
 
 Install claude-code-setup? (yes/no) [no]
+
+  claude-md-management (Anthropic) — audits and improves CLAUDE.md files.
+  Grades quality, identifies gaps, proposes targeted fixes. Keeps hermit's
+  project context sharp.
+  https://claude.com/plugins/claude-md-management
+
+Install claude-md-management? (yes/no) [no]
+
+  skill-creator (Anthropic) — builds, tests, and refines new skills through
+  structured iteration. Lets hermit act on "this should be a skill" proposals.
+  https://claude.com/plugins/skill-creator
+
+Install skill-creator? (yes/no) [no]
 ```
 
-- **Yes:** Add the entry to `config.json` `docker.recommended_plugins` with `enabled: true`:
-  ```json
-  {"marketplace": "claude-plugins-official", "plugin": "claude-code-setup", "scope": "project", "enabled": true}
-  ```
-  The entrypoint installs it on first boot.
-- **No (default):** Nothing is added. Note: "You can add it later with `/claude-code-hermit:hermit-settings docker`."
+For each plugin the operator says **yes** to, add the entry to `config.json` `docker.recommended_plugins` with `enabled: true`:
+```json
+{"marketplace": "claude-plugins-official", "plugin": "<plugin-name>", "scope": "project", "enabled": true}
+```
+The entrypoint installs it on first boot.
+
+For each plugin the operator says **no** to (the default), nothing is added. Note: "You can add it later with `/claude-code-hermit:hermit-settings docker`."
 
 **Important:** Nothing is pre-shipped or pre-configured. Plugins are only added to config when the operator explicitly opts in. Only plugins from `claude-plugins-official` are auto-installed by the entrypoint — third-party plugins must be installed manually. See [Recommended Plugins](docs/RECOMMENDED-PLUGINS.md) for the full policy.
 

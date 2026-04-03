@@ -20,6 +20,26 @@ Analyzes your codebase and recommends Claude Code automations — skills, hooks,
 
 **Why it matters for Hermit:** Hermit already reflects on its own experience and proposes improvements. With claude-code-setup installed, it can also analyze your project structure and recommend automations it wouldn't discover through reflection alone — like MCP servers for your database, or hooks for your CI pipeline. This feeds the learning loop: better tooling leads to better sessions, which leads to better proposals.
 
+### claude-md-management
+
+**Source:** [claude.com/plugins/claude-md-management](https://claude.com/plugins/claude-md-management)
+**Marketplace:** `claude-plugins-official` (no marketplace add needed)
+**Install:** `claude plugin install claude-md-management@claude-plugins-official`
+
+Audits and improves CLAUDE.md files across your project. Scans for all variants, grades quality (A–F), identifies gaps in command documentation, architectural clarity, and project patterns, then proposes targeted fixes — dense, actionable, no generic advice.
+
+**Why it matters for Hermit:** CLAUDE.md is Hermit's primary project context. Better CLAUDE.md means better sessions — fewer misunderstandings, less wasted context asking about project structure. Hermit can invoke this during reflection or idle to keep its own context sharp.
+
+### skill-creator
+
+**Source:** [claude.com/plugins/skill-creator](https://claude.com/plugins/skill-creator)
+**Marketplace:** `claude-plugins-official` (no marketplace add needed)
+**Install:** `claude plugin install skill-creator@claude-plugins-official`
+
+Builds, tests, and refines new skills through structured iteration — from intent capture through benchmarked, production-ready deployment. Includes performance testing with parallel subagent runs and optimization loops.
+
+**Why it matters for Hermit:** When Hermit's reflect skill notices "this workflow keeps repeating" and creates a proposal, skill-creator gives it the tools to actually build and validate a new skill from that proposal. Closes the loop from observation to automation.
+
 ---
 
 ## Third-Party Plugins
