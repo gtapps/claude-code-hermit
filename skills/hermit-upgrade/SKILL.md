@@ -52,7 +52,7 @@ The prompts below match the init wizard exactly. Use the same wording for consis
 | `heartbeat._last_reflection` | 0.0.4 | no | `null` |
 | `env` | 0.0.7 | no | `{"AGENT_HOOK_PROFILE": "standard", "COMPACT_THRESHOLD": "50", "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50", "MAX_THINKING_TOKENS": "10000"}` |
 | `docker` | 0.0.7 | no | `{"packages": []}` |
-| `idle_behavior` | 0.0.9 | yes | `"wait"` |
+| `idle_behavior` | 0.0.9 | yes | `"discover"` |
 | `idle_budget` | 0.0.9 | no | `"$0.50"` |
 | `heartbeat.stale_threshold` | 0.0.9 | no | `"2h"` |
 | `routines` | 0.0.9 | no (migrated or empty) | `[]` |
@@ -67,7 +67,7 @@ The prompts below match the init wizard exactly. Use the same wording for consis
 - `sign_off` (Phase 2, conversational — only if agent_name provided): "Sign-off line for channel messages and briefs? (e.g., '{name} out.', '— {initial}.') [skip]"
 
 **v0.0.9 prompts:**
-- `idle_behavior` (AskUserQuestion with `options`): "What should hermit do when idle between tasks?" — options: Wait (default) / Discover
+- `idle_behavior` (AskUserQuestion with `options`): "What should hermit do when idle between tasks?" — options: Discover (default) / Wait
 
 **v0.0.9 migration** (run before asking about new keys):
 

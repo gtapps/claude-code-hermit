@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.2.8] - 2026-04-03
+
+### Changed
+
+- **Wizard defaults reordered** — All option lists in the hatch wizard now show the default choice first. Previously, some defaults (Autonomy, Idle behavior, Permission mode) appeared second or later in the list, making it easy to miss the recommended choice.
+
+- **Idle behavior defaults to `"discover"`** — New hermit installs now default to `"discover"` (run maintenance tasks and periodic reflection when idle) instead of `"wait"`. This better reflects the personal assistant role — hermits should actively help, not just sit idle. Existing installs are unaffected; change via `/claude-code-hermit:hermit-settings idle`.
+
+- **Channels recommend Discord** — The channel setup question now leads with "Discord (recommended)" instead of "None (default)". A personal assistant benefits from a communication channel. Operators can still choose Telegram or skip.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/hatch/SKILL.md` | Reordered all option lists; changed idle_behavior default in config example |
+| `skills/hermit-settings/SKILL.md` | Updated idle settings display example and option order |
+| `skills/hermit-upgrade/SKILL.md` | Updated idle_behavior default in upgrade table and prompt |
+| `state-templates/config.json.template` | Changed `idle_behavior` from `"wait"` to `"discover"` |
+| `docs/CONFIG-REFERENCE.md` | Updated `idle_behavior` default |
+| `docs/SKILLS.md` | Updated idle behavior description |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+
+1. **No automatic migration** — Existing `idle_behavior` values are preserved. The new default only applies to fresh `/claude-code-hermit:hatch` installs.
+
+No config.json changes required. Operators who want the new default can switch manually: `/claude-code-hermit:hermit-settings idle` → choose Discover.
+
 ## [0.2.7] - 2026-04-03
 
 ### Changed

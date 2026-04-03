@@ -57,7 +57,7 @@ Operational:
   Model:           default (model: null)
   Budget prompts:  disabled (ask_budget: false)
   Morning brief:   disabled
-  Idle behavior:   wait (idle_behavior: "wait")
+  Idle behavior:   discover (idle_behavior: "discover")
   Idle budget:     $0.50 (idle_budget: "$0.50")
   Heartbeat:       disabled (every: 30m, show_ok: false, active: 08:00-23:00, stale: 2h)
   Routines:        2 configured (morning 08:30, evening 22:30)
@@ -180,8 +180,8 @@ Update `permission_mode` in config.json.
 **If argument is "idle":**
 - Show current `idle_behavior` and `idle_budget` values
 - Ask: "What should the hermit do when idle between tasks?
-    1. Wait — only check for new tasks and channel messages (default)
-    2. Discover — also run maintenance tasks from OPERATOR.md and periodic reflection
+    1. Discover — also run maintenance tasks from OPERATOR.md and periodic reflection (default)
+    2. Wait — only check for new tasks and channel messages
   Choose 1-2: [current value]"
 - Update `idle_behavior` in config.json with `"wait"` or `"discover"`.
 - If "discover" is selected, show `idle_budget` and offer to change it:

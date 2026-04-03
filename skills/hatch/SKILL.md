@@ -93,8 +93,8 @@ questions: [
     header: "Autonomy",
     question: "How autonomous should your assistant be?",
     options: [
-      { label: "Conservative — ask before most non-trivial actions" },
       { label: "Balanced — act on routine tasks, ask for significant changes (default)" },
+      { label: "Conservative — ask before most non-trivial actions" },
       { label: "Autonomous — proceed unless blocked, minimize interruptions" }
     ]
   },
@@ -112,8 +112,8 @@ questions: [
     header: "Idle behavior",
     question: "What should hermit do when idle between tasks?",
     options: [
-      { label: "Wait — only check for new tasks and channel messages (default)" },
-      { label: "Discover — also run maintenance tasks and periodic reflection" }
+      { label: "Discover — also run maintenance tasks and periodic reflection (default)" },
+      { label: "Wait — only check for new tasks and channel messages" }
     ]
   }
 ]
@@ -128,7 +128,7 @@ questions: [
   {
     header: "Channels",
     question: "Configure a notification channel for this project?",
-    options: [{ label: "None (default)" }, { label: "Discord" }, { label: "Telegram" }]
+    options: [{ label: "Discord (recommended)" }, { label: "Telegram" }, { label: "None — skip channel setup" }]
   }
 ]
 ```
@@ -158,8 +158,8 @@ questions: [
     header: "Permission mode",
     question: "Permission mode for Claude Code?",
     options: [
-      { label: "default — prompt for permission on first use of each tool" },
       { label: "acceptEdits — auto-approve file edits, prompt for shell commands (default)" },
+      { label: "default — prompt for permission on first use of each tool" },
       { label: "plan — read-only exploration, no file modifications or shell commands" },
       { label: "dontAsk — deny all tools not in permissions.allow; requires a curated allowlist" },
       { label: "bypassPermissions — no checks at all; only for isolated containers/VMs" }
@@ -201,7 +201,7 @@ Write the collected preferences to `.claude-code-hermit/config.json`:
   "auto_session": true,
   "ask_budget": false,
   "morning_brief": null,
-  "idle_behavior": "wait",
+  "idle_behavior": "discover",
   "idle_budget": "$0.50",
   "routines": [],
   "env": {
