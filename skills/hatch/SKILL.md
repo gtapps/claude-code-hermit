@@ -156,9 +156,11 @@ Ask: "Enable morning brief delivery? [no]"
 questions: [
   {
     header: "Permission mode",
-    question: "Permission mode for unattended operation?",
+    question: "Permission mode for Claude Code?",
     options: [
+      { label: "default — prompt for permission on first use of each tool" },
       { label: "acceptEdits — auto-approve file edits, prompt for shell commands (default)" },
+      { label: "plan — read-only exploration, no file modifications or shell commands" },
       { label: "dontAsk — deny all tools not in permissions.allow; requires a curated allowlist" },
       { label: "bypassPermissions — no checks at all; only for isolated containers/VMs" }
     ]
@@ -171,7 +173,7 @@ questions: [
 ]
 ```
 
-Record: `permission_mode` (acceptEdits/dontAsk/bypassPermissions).
+Record: `permission_mode` (default/acceptEdits/plan/dontAsk/bypassPermissions).
 
 For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, `end = 23:00`) to derive morning = `08:30` and evening = `22:30`. Add to `routines` array:
 - `{"id":"morning","time":"08:30","skill":"brief --morning","enabled":true}`

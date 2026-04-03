@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.2.7] - 2026-04-03
+
+### Changed
+
+- **All Claude Code permission modes now selectable** — The hatch wizard and `/hermit-settings permissions` previously only offered `acceptEdits`, `dontAsk`, and `bypassPermissions`. Now all five Claude Code permission modes are available: `default`, `acceptEdits`, `plan`, `dontAsk`, and `bypassPermissions`. The hermit default remains `acceptEdits`. A note about `auto` mode (Teams/Enterprise only) is shown in settings and docs.
+
+- **`plan` mode support in hermit-start** — `hermit-start.py` now correctly passes `--permission-mode plan` to Claude Code when `permission_mode` is set to `"plan"` in config.json. Previously it would emit a warning and fall back to default.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/hatch/SKILL.md` | Added `default` and `plan` options to wizard; updated record line |
+| `skills/hermit-settings/SKILL.md` | Added `default`, `plan`, and `auto` note to permissions setting |
+| `scripts/hermit-start.py` | Added `plan` to valid modes passed as `--permission-mode` |
+| `docs/CONFIG-REFERENCE.md` | Added `plan` to mode list; added `auto` note |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+
+1. **CLAUDE-APPEND refresh** — Not needed for this release (no changes to session discipline block).
+2. **Templates** — Not affected.
+
+No config.json changes required. Existing `permission_mode` values continue to work as before. Operators who want to use `default` or `plan` mode can switch via `/claude-code-hermit:hermit-settings permissions`.
+
 ## [0.2.6] - 2026-04-02
 
 ### Added

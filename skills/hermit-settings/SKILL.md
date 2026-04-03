@@ -133,10 +133,13 @@ Update `ask_budget` in config.json.
   - Update `morning_brief` in config.json.
 
 **If argument is "permissions":**
-Ask: "Permission mode for unattended operation? (acceptEdits / dontAsk / bypassPermissions) [current value]"
+Ask: "Permission mode for Claude Code? (default / acceptEdits / plan / dontAsk / bypassPermissions) [current value]"
+- `default` — prompts for permission on first use of each tool
 - `acceptEdits` — auto-approves file edits, prompts for shell commands (default)
+- `plan` — read-only exploration, no file modifications or shell commands
 - `dontAsk` — denies all tools not in `permissions.allow`; requires a curated allowlist in `settings.json`
 - `bypassPermissions` — no checks; isolated containers/VMs only
+- Note: `auto` mode exists but is only available for Teams and Enterprise accounts
 - See [Permission Modes](https://code.claude.com/docs/en/permission-modes)
 Update `permission_mode` in config.json.
 
