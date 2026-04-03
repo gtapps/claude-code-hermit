@@ -10,7 +10,7 @@
 
 **A personal assistant that lives in your project and gets smarter every session — pure Claude Code, no extras.**
 
-I love Claude Code. I love what [OpenClaw](https://github.com/anthropics/claude-code/tree/main/.github/openclaw) did for autonomous agents. Hermit is my take — a plugin that turns any Claude Code instance into a persistent, self-improving personal assistant you can talk to from your phone.
+I love Claude Code. I love what OpenClaw did for autonomous agents. Hermit is my take — a plugin that turns any Claude Code instance into a persistent, self-improving personal assistant you can talk to from your phone.
 
 No custom runtime. No server. No API keys to manage. If you have a Claude Pro, Max, Teams, or Enterprise subscription, you already have everything you need. Each hermit is just a Claude Code process — lightweight enough to run several side by side on a single laptop.
 
@@ -193,7 +193,6 @@ See [Creating Your Own Hermit](docs/CREATING-YOUR-OWN-HERMIT.md) for more — fr
 
 ## Credits
 
-- **[OpenClaw](https://github.com/anthropics/claude-code/tree/main/.github/openclaw)** — The autonomous agent structure that inspired this
 - **[Everything Claude Code](https://github.com/affaan-m/everything-claude-code)** — Hook patterns and lifecycle architecture
 
 ## License
