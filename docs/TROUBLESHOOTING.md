@@ -66,7 +66,7 @@ SHELL.md from a crashed session persists. Choose **resume** or **start new** (ge
 
 ## Morning Brief Not Sending
 
-- See "Routines Not Firing" above — the morning brief is a routine (`brief --morning`).
+- See "Routines Not Firing" above — the morning brief is a routine (`claude-code-hermit:brief --morning`).
 - Verify channels work first — send "status" manually from your phone.
 
 ## Hermit Keeps Suggesting Dismissed Proposals

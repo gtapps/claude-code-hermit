@@ -75,19 +75,19 @@ This migration converts deprecated v0.0.4 config keys into the new routines syst
 
 1. **Migrate `morning_brief`** (top-level, nullable object with `.time` and `.channel`):
    - If `morning_brief` exists and is not null and has a `.time` field:
-     - Add `{"id":"morning","time":"<morning_brief.time>","skill":"brief --morning","enabled":true}` to `routines` array
+     - Add `{"id":"morning","time":"<morning_brief.time>","skill":"claude-code-hermit:brief --morning","enabled":true}` to `routines` array
      - Set `morning_brief` to `null`
      - Tell operator: "Morning brief migrated to routines system."
 
 2. **Migrate `heartbeat.morning_routine`** (boolean):
    - If `heartbeat.morning_routine` exists:
      - If `true` AND no routine with `id: "morning"` already in `routines` (from step 1):
-       - Add `{"id":"morning","time":"<active_hours.start + 30m>","skill":"brief --morning","enabled":true}`
+       - Add `{"id":"morning","time":"<active_hours.start + 30m>","skill":"claude-code-hermit:brief --morning","enabled":true}`
      - Remove `heartbeat.morning_routine` from config
 
 3. **Migrate `heartbeat.evening_routine`**:
    - If `heartbeat.evening_routine` exists:
-     - If `true`: add `{"id":"evening","time":"<active_hours.end - 30m>","skill":"brief --evening","enabled":true}`
+     - If `true`: add `{"id":"evening","time":"<active_hours.end - 30m>","skill":"claude-code-hermit:brief --evening","enabled":true}`
      - Remove `heartbeat.evening_routine` from config
 
 4. **Migrate `heartbeat.idle_agency`**:
@@ -111,6 +111,13 @@ This migration converts deprecated v0.0.4 config keys into the new routines syst
 **v0.2.4 migration:**
 
 1. **Remove `_plugin_root`** — If `_plugin_root` exists in config.json, delete the key entirely. Boot scripts now resolve the plugin path at runtime by scanning `~/.claude/plugins/`. This key caused path conflicts between Docker and host environments.
+
+**v0.2.12 migration:**
+
+1. **Prefix routine skills** — The routine watcher no longer auto-prepends `claude-code-hermit:`. Scan `config.routines[]`: for any entry whose `.skill` does NOT contain `:`, prepend `claude-code-hermit:` to the value. This is a one-time migration for existing configs.
+   - Example: `"skill": "brief --morning"` → `"skill": "claude-code-hermit:brief --morning"`
+   - Skills that already contain `:` are left as-is.
+   - Tell operator: "Routine skills migrated to use full names (watcher no longer auto-prefixes)."
 
 Tell the operator: "New settings available in this version:" then present only the questions for keys that are actually missing from their config. If no interactive keys are missing, skip this step.
 

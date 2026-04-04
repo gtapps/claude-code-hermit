@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.2.12] - 2026-04-04
+
+### Fixed
+
+- **Routine watcher now supports any skill** — The routine watcher hardcoded the `claude-code-hermit:` prefix when invoking skills, so project-local skills (e.g. `ha-refresh-context`) and other plugin skills always failed with "Unknown skill". The watcher now sends `/${skill}` exactly as stored in config.json — hermit skills use their full name (`claude-code-hermit:brief --morning`), local skills use their bare name (`ha-refresh-context`).
+- **Session-start morning brief check updated** — The interactive morning brief detection used `startsWith "brief --morning"` which would no longer match the full skill name. Changed to `contains "brief --morning"`.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/routine-watcher.sh` | Removed hardcoded `claude-code-hermit:` prefix — sends `/${skill}` as-is |
+| `skills/hermit-upgrade/SKILL.md` | Added v0.2.12 migration to prefix existing short skill names in routines |
+| `skills/hermit-settings/SKILL.md` | Updated routine display example and add wizard to use full skill names |
+| `skills/hatch/SKILL.md` | Default routines now use full names (`claude-code-hermit:brief --morning`) |
+| `skills/session-start/SKILL.md` | Morning brief check uses `contains` instead of `startsWith` |
+| `skills/reflect/SKILL.md` | Routine proposal example uses full skill name |
+| `docs/ALWAYS-ON-OPS.md` | Updated routine examples and docs |
+| `docs/TROUBLESHOOTING.md` | Updated morning brief reference to full skill name |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+
+1. **Routine skill name migration** — Existing routines with short skill names (e.g. `"skill": "brief --morning"`) are automatically prefixed to `"skill": "claude-code-hermit:brief --morning"`. Skills that already contain `:` are left as-is. This is a one-time config.json migration.
+2. **Templates updated** — No template changes in this release.
+
+Operators who manually added local project skills to routines should verify their config.json — local skills should NOT have the `claude-code-hermit:` prefix (the migration only touches entries without `:`).
+
 ## [0.2.11] - 2026-04-03
 
 ### Fixed

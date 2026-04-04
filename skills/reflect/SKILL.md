@@ -30,7 +30,7 @@ If SHELL.md status is `idle` — think broader:
   If so: create a proposal with `Type: routine` and a `## Config` block containing the routine JSON:
   ```markdown
   ## Config
-  {"id":"weekly-deps","time":"09:00","days":["mon"],"skill":"session-start --task 'dependency audit'","enabled":true}
+  {"id":"weekly-deps","time":"09:00","days":["mon"],"skill":"claude-code-hermit:session-start --task 'dependency audit'","enabled":true}
   ```
   When accepted via `proposal-act`, this JSON is parsed and added to `config.json` routines automatically.
 

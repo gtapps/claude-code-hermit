@@ -176,8 +176,8 @@ questions: [
 Record: `permission_mode` (default/acceptEdits/plan/dontAsk/bypassPermissions).
 
 For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, `end = 23:00`) to derive morning = `08:30` and evening = `22:30`. Add to `routines` array:
-- `{"id":"morning","time":"08:30","skill":"brief --morning","enabled":true}`
-- `{"id":"evening","time":"22:30","skill":"brief --evening","enabled":true}`
+- `{"id":"morning","time":"08:30","skill":"claude-code-hermit:brief --morning","enabled":true}`
+- `{"id":"evening","time":"22:30","skill":"claude-code-hermit:brief --evening","enabled":true}`
 - If no: leave `routines` as empty array
 
 ### 5. Write config.json

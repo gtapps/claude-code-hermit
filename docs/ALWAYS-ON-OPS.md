@@ -152,16 +152,16 @@ Routines live in `config.json` as a `routines` array:
 
 ```json
 "routines": [
-  {"id": "morning", "time": "08:30", "skill": "brief --morning", "enabled": true},
-  {"id": "evening", "time": "22:30", "skill": "brief --evening", "enabled": true},
-  {"id": "weekly-deps", "time": "09:00", "days": ["mon"], "skill": "session-start --task 'dependency audit'", "enabled": false}
+  {"id": "morning", "time": "08:30", "skill": "claude-code-hermit:brief --morning", "enabled": true},
+  {"id": "evening", "time": "22:30", "skill": "claude-code-hermit:brief --evening", "enabled": true},
+  {"id": "weekly-deps", "time": "09:00", "days": ["mon"], "skill": "claude-code-hermit:session-start --task 'dependency audit'", "enabled": false}
 ]
 ```
 
 - `id`: unique name for dedup and display
 - `time`: HH:MM in configured timezone
 - `days`: optional — omit for daily, or specify 3-letter day abbreviations
-- `skill`: short name (watcher prepends `/claude-code-hermit:`)
+- `skill`: full slash-command name (e.g. `claude-code-hermit:brief --morning` for plugin skills, `ha-refresh-context` for local project skills)
 - `enabled`: toggle without removing
 
 Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect within 60 seconds.

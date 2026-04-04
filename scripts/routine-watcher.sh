@@ -41,7 +41,7 @@ while true; do
       continue
     fi
     echo "$FIRED_KEY" >> "$STATE"
-    tmux send-keys -t "$TARGET" "/claude-code-hermit:${skill}" Enter
+    tmux send-keys -t "$TARGET" "/${skill}" Enter
   done
 
   sleep 60
