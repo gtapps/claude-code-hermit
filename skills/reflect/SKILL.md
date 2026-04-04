@@ -34,6 +34,19 @@ If SHELL.md status is `idle` — think broader:
   ```
   When accepted via `proposal-act`, this JSON is parsed and added to `config.json` routines automatically.
 
+## Skill Health
+
+Check whether any skill is underperforming:
+- Is a skill's output consistently corrected or reworked after use?
+- Is a skill being avoided in favor of manual steps?
+- Did a skill fail to catch something it should have?
+- Is a skill burning disproportionate tokens for the value it delivers?
+
+If you spot a pattern:
+- **Weak signal** (one-off or ambiguous): mention it — "I noticed X skill might need tuning. Want me to keep watching?"
+- **Moderate signal** (pattern across 2-3 sessions): create a proposal via `/claude-code-hermit:proposal-create` with the evidence.
+- **Strong signal** (clear, repeated pattern): invoke `/skill-creator eval` on the skill using the observed failures as test cases. If evals confirm the issue, follow up with `/skill-creator improve` and present the diff. If `/skill-creator` is not available, propose the specific changes to the skill's SKILL.md directly via `/claude-code-hermit:proposal-create`.
+
 Review past dismissed and deferred proposals.
 Avoid re-suggesting recently dismissed ideas.
 If significantly more evidence has accumulated since
