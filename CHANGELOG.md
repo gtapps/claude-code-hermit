@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.2.13] - 2026-04-04
+
+### Added
+
+- **Reflect skill now monitors skill health** — The reflect skill gained a new "Skill Health" section that evaluates whether any skill is underperforming — being corrected after use, avoided in favor of manual steps, missing things it should catch, or burning disproportionate tokens. Findings follow the proposal pipeline at three confidence levels:
+  - **Weak signal** — mention and watch
+  - **Moderate signal** — create a proposal with evidence
+  - **Strong signal** — create a proposal with a `## Skill Improvement` section containing the skill name, observed failures, and eval criteria. On acceptance, uses `/skill-creator eval` and `/skill-creator improve` to implement changes. If skill-creator is not installed, applies changes to the skill's SKILL.md directly.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/reflect/SKILL.md` | Added Skill Health section with three-tier response pattern and skill-creator integration |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+
+1. **No config changes required** — This is an instruction-only change to the reflect skill. Hermits pick it up automatically on next plugin update.
+
+No template or config.json changes. Non-Docker hermits get this on next `claude plugin update`.
+
 ## [0.2.12] - 2026-04-04
 
 ### Fixed
