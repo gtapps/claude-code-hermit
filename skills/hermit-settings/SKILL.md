@@ -180,7 +180,7 @@ Update `permission_mode` in config.json.
 **If argument is "idle":**
 - Show current `idle_behavior` and `idle_budget` values
 - Ask: "What should the hermit do when idle between tasks?
-    1. Discover — also run maintenance tasks from OPERATOR.md and periodic reflection (default)
+    1. Discover — also run idle tasks, reflection, and priority alignment (default)
     2. Wait — only check for new tasks and channel messages
   Choose 1-2: [current value]"
 - Update `idle_behavior` in config.json with `"wait"` or `"discover"`.

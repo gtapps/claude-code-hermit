@@ -31,37 +31,24 @@ Hermit reads this at every session start. Be specific — the more precise you a
 Good:
 
 ```markdown
-## Project
+# Operator Context
 
-A Go-based REST API for inventory management. Solo developer.
+Solo developer building a Go REST API for inventory management.
+Goal: feature parity with legacy PHP system by Q2.
 
-## Current Priority
-
-Feature parity with the legacy PHP system by Q2.
-
-## Constraints
-
-- Never modify `migrations/` without asking first.
-- Monthly Claude budget: $150. Alert at $120.
-
-## Sensitive Areas
-
-- /internal/auth — don't touch without approval.
+Never modify migrations/ without asking. Monthly Claude budget: $150 — alert at $120.
+The /internal/auth package is under security review — don't touch without approval.
 ```
 
 Not useful:
 
 ```markdown
-## Project
+# Operator Context
 
-A web app.
-
-## Constraints
-
-Be careful.
+A web app. Be careful.
 ```
 
-First 50 lines are loaded automatically — keep critical context at the top. Update anytime: just tell Hermit "update OPERATOR.md with [your change]."
+The whole file is loaded on session start — write what matters, keep it short. Update anytime: just tell Hermit "update OPERATOR.md with [your change]."
 
 ---
 

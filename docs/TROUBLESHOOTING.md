@@ -62,7 +62,7 @@ SHELL.md from a crashed session persists. Choose **resume** or **start new** (ge
 - Check `idle_behavior` in config.json — must be `"discover"` for maintenance tasks. `"wait"` only checks tasks and channels.
 - Your hermit must be in `idle` state (check SHELL.md status). Idle agency only runs between tasks.
 - NEXT-TASK.md pickup is gated by escalation level: `conservative` only alerts, `balanced` auto-starts, `autonomous` runs fully unattended.
-- If no NEXT-TASK.md exists: idle agency checks OPERATOR.md `## When Idle` tasks, then falls back to reflection (every 4+ hours), then priority alignment.
+- If no NEXT-TASK.md exists: idle agency picks up `IDLE-TASKS.md` items (first unchecked, capped by `idle_budget`), then falls back to reflection (every 4+ hours), then priority alignment via OPERATOR.md context.
 
 ## Morning Brief Not Sending
 

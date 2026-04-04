@@ -100,8 +100,7 @@ These aren't upgrades — just how your project evolves:
 - **Stale session detection** — Heartbeat alerts if an active session has no progress for longer than `stale_threshold` (default: 2h).
 - **Skip receipts** — When heartbeat skips are followed by a resume, one summary line is logged instead of silence.
 - **Checklist weight guidance** — Self-evaluation warns if HEARTBEAT.md exceeds 10 items.
-- **Idle behavior config** — New `idle_behavior` setting (`wait` or `discover`) replaces `heartbeat.idle_agency` boolean.
-- **When Idle tasks** — OPERATOR.md can now include a `## When Idle` section listing maintenance tasks for downtime (only active when `idle_behavior` is `discover`).
+- **Idle behavior config** — New `idle_behavior` setting (`wait` or `discover`) replaces `heartbeat.idle_agency` boolean. Controls whether the hermit runs idle tasks, reflection, and priority alignment during downtime.
 
 ### Automatic migration
 
@@ -117,8 +116,7 @@ Running `/claude-code-hermit:hermit-upgrade` handles:
 
 1. Run `/claude-code-hermit:hermit-upgrade` to migrate config and refresh templates
 2. Review migrated routines: `/claude-code-hermit:hermit-settings routines`
-3. Optionally add a `## When Idle` section to your OPERATOR.md
-4. Optionally set `idle_behavior` to `discover`: `/claude-code-hermit:hermit-settings idle`
+3. Optionally set `idle_behavior` to `discover`: `/claude-code-hermit:hermit-settings idle`
 
 ---
 

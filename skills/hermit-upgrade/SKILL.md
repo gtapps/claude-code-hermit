@@ -119,6 +119,21 @@ This migration converts deprecated v0.0.4 config keys into the new routines syst
    - Skills that already contain `:` are left as-is.
    - Tell operator: "Routine skills migrated to use full names (watcher no longer auto-prefixes)."
 
+**v0.2.14 migration:**
+
+1. **OPERATOR.md rethink (interactive)** — Ask the operator: "The OPERATOR.md template has been simplified — rigid sections replaced with concise freeform context. Would you like to rethink your OPERATOR.md? I can scan your project and rewrite it in the new style."
+   - If **yes**: save current OPERATOR.md as `.claude-code-hermit/OPERATOR.md.bak`, then run the hatch OPERATOR.md onboarding flow (step 5a, Phases 1–5 from `skills/hatch/SKILL.md`) against the existing project. This scans the project, asks targeted questions, and writes a new freeform OPERATOR.md.
+   - If **no**: skip. Existing OPERATOR.md files work fine — the hermit reads them as freeform context regardless of section structure.
+
+2. **Migrate idle tasks to IDLE-TASKS.md** — If `.claude-code-hermit/IDLE-TASKS.md` does not exist:
+   - Copy `${CLAUDE_PLUGIN_ROOT}/state-templates/IDLE-TASKS.md.template` to `.claude-code-hermit/IDLE-TASKS.md`.
+   - Read OPERATOR.md for a `## When Idle` section. If found:
+     - Extract all list items from the section.
+     - Append each as a `- [ ]` checklist entry in IDLE-TASKS.md.
+     - Remove the `## When Idle` section (header + content) from OPERATOR.md.
+     - Tell operator: "Migrated {N} idle tasks from OPERATOR.md to IDLE-TASKS.md."
+   - If no `## When Idle` section: tell operator: "Created IDLE-TASKS.md — add low-priority maintenance tasks for your hermit to work on during downtime."
+
 Tell the operator: "New settings available in this version:" then present only the questions for keys that are actually missing from their config. If no interactive keys are missing, skip this step.
 
 ### 4-task. Write task list ID to settings.local.json
@@ -136,14 +151,13 @@ Also: if an active SHELL.md has a `## Plan` section (legacy plan table), warn th
 - Report which templates were updated
 - Note: SHELL.md.template no longer has a `## Plan` section — plan tracking is now handled by native Claude Code Tasks
 
-**Never touch:** sessions, proposals, OPERATOR.md, HEARTBEAT.md (operator-editable), or config.json (handled separately).
+**Never touch:** sessions, proposals, OPERATOR.md, HEARTBEAT.md, IDLE-TASKS.md (operator-editable), or config.json (handled separately).
 
 **v0.0.4 additional checks:**
 - Note about HEARTBEAT.md: "HEARTBEAT.md template has a new grouped structure (Task Checks, Idle Checks, Standing Checks). Your custom checklist is preserved. See `templates/HEARTBEAT.md.template` if you want to adopt the grouping."
 
 **v0.0.9 additional checks:**
 - Note about HEARTBEAT.md: "HEARTBEAT.md now includes a weight guideline comment (keep under 10 items). Your custom checklist is preserved."
-- Note about OPERATOR.md: "OPERATOR.md template now includes a `## When Idle` section for low-priority maintenance tasks. Your existing OPERATOR.md is preserved — add the section manually if desired."
 - Note about routines: "Morning and evening routines are now managed by the routine watcher shell script instead of the heartbeat LLM. Your config has been migrated automatically. Manage routines with `/hermit-settings routines`."
 
 Only update files in `templates/`:

@@ -51,11 +51,9 @@ Each routine has an `id`, a `time` (24h format), a `skill` to invoke, and option
 
 Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routine` config. Existing config is migrated automatically on upgrade.
 
-## When Idle (OPERATOR.md)
+## Idle Tasks (IDLE-TASKS.md)
 
-OPERATOR.md supports a `## When Idle` section listing low-priority maintenance tasks the hermit can pick up during downtime. Tasks are picked sequentially, capped by `idle_budget`.
-
-This section is only active when `idle_behavior` is set to `"discover"` (the default). Set it via `/claude-code-hermit:hermit-settings idle`.
+`.claude-code-hermit/IDLE-TASKS.md` is an operator-editable checklist of low-priority tasks the hermit works through during downtime. Only active when `idle_behavior` is `"discover"`. Tasks are picked sequentially (top-to-bottom), each capped by `idle_budget`. The hermit marks items `[x]` on completion.
 
 ## Proposals & Learning
 

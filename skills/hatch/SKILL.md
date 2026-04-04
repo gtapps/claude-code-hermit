@@ -32,13 +32,15 @@ Create the following directories and files:
 │   ├── hermit-start
 │   ├── hermit-stop
 │   └── hermit-status
-└── OPERATOR.md
+├── OPERATOR.md
+└── IDLE-TASKS.md
 ```
 
 - Read the template files from `${CLAUDE_SKILL_DIR}/../../state-templates/`
 - Copy `SHELL.md.template`, `SESSION-REPORT.md.template`, `PROPOSAL.md.template` into `templates/`
 - **OPERATOR.md guard:** If `.claude-code-hermit/OPERATOR.md` already exists, do NOT copy the template over it. Remember this fact as `operator_existed = true` for use in step 5a. If it does not exist, copy `OPERATOR.md` from the templates into the state directory root.
 - Copy `HEARTBEAT.md.template` → `.claude-code-hermit/HEARTBEAT.md` (the operator's editable checklist)
+- Copy `IDLE-TASKS.md.template` → `.claude-code-hermit/IDLE-TASKS.md` (the operator's idle task list)
 - Copy `bin/hermit-docker`, `bin/hermit-run`, `bin/hermit-start`, `bin/hermit-stop`, and `bin/hermit-status` from `${CLAUDE_SKILL_DIR}/../../state-templates/bin/` into `.claude-code-hermit/bin/`. Ensure they are executable (`chmod +x`).
 
 ### 3. Detect hermits
@@ -313,13 +315,12 @@ Collect findings silently. Do NOT print scan results to the operator.
 
 #### Phase 2 — Draft OPERATOR.md
 
-Using the scan results, pre-fill the OPERATOR.md template sections. Follow these rules strictly:
+Using the scan results, write a concise context document. Follow these rules:
 
-1. **Never duplicate CLAUDE.md content.** If CLAUDE.md already covers a topic (testing, conventions, build commands), write "See CLAUDE.md" instead of repeating it.
-2. **Only fill high-confidence inferences.** If the scan clearly reveals something (e.g., package.json shows Node.js, README describes the project), replace the template's HTML comment with actual content. If uncertain, leave the section empty.
-3. **Mark unknowable sections** by replacing the template's HTML comment with `<!-- Needs your input -->` so Phase 3 knows what to ask about.
-4. **Front-load critical context** in the first 50 lines: the header comment, Project, Current Priority, Constraints, Sensitive Areas, and Operator Preferences must all appear before line 50 (the SessionStart hook reads `head -50`).
-5. **Keep it concise.** OPERATOR.md is loaded every session-start — bloat costs tokens.
+1. **Never duplicate CLAUDE.md content.** If CLAUDE.md already covers a topic (testing, conventions, build commands), don't repeat it.
+2. **Only include high-confidence inferences.** If the scan clearly reveals something (e.g., package.json shows Node.js, README describes the project), include it. If uncertain, leave it for Phase 3 questions.
+3. **Keep it under 50 lines.** OPERATOR.md is loaded every session-start — bloat costs tokens. Write concise prose, not documentation.
+4. **No rigid sections required.** Use headers if they help organize, but don't create empty sections. The goal is a useful context document, not a filled-in form.
 
 Write the draft to `.claude-code-hermit/OPERATOR.md`.
 
@@ -329,38 +330,37 @@ Questions are split into two `AskUserQuestion` calls (max 4 per call). Q1–Q4 a
 
 **Call 1 — always sent (4 questions):**
 
-| # | Header | Question | Maps to section |
-|---|--------|----------|-----------------|
-| 1 | Priority | "What's the current priority or goal for this project?" | Current Priority |
-| 2 | Sensitive areas | "Are there fragile or sensitive areas I should avoid touching without asking?" | Sensitive Areas |
-| 3 | Approval gates | "What actions require your explicit approval before I proceed?" | Constraints |
-| 4 | Communication | "How do you prefer I communicate? (concise updates / detailed explanations / ask before every decision)" | Operator Preferences |
+| # | Header | Question |
+|---|--------|----------|
+| 1 | Priority | "What's the current priority or goal for this project?" |
+| 2 | Constraints | "Are there hard rules or areas I should avoid touching without asking?" |
+| 3 | Approval gates | "What actions require your explicit approval before I proceed?" |
+| 4 | Communication | "How do you prefer I communicate? (concise updates / detailed explanations / ask before every decision)" |
 
 **Call 2 — only if any of Q5–Q7 apply (skip conditions below):**
 
-| # | Header | Question | Skip if... | Maps to section |
-|---|--------|----------|------------|-----------------|
-| 5 | CI/CD | "Any CI/CD quirks I should know about? (flaky tests, required checks, deploy process)" | No CI config found in Phase 1 | Notes |
-| 6 | Testing | "How should I handle testing? (run before commit, specific commands, coverage requirements)" | CLAUDE.md already covers testing | Notes |
-| 7 | Team size | "How large is the team working on this? (solo / small team / large team)" | Skip if Q5 or Q6 is included (batch already ≥2) | Operator Preferences |
+| # | Header | Question | Skip if... |
+|---|--------|----------|------------|
+| 5 | CI/CD | "Any CI/CD quirks I should know about? (flaky tests, required checks, deploy process)" | No CI config found in Phase 1 |
+| 6 | Testing | "How should I handle testing? (run before commit, specific commands, coverage requirements)" | CLAUDE.md already covers testing |
+| 7 | Team | "Who's working on this? (solo / small team / large team — and any ownership boundaries)" | Skip if Q5 or Q6 is included (batch already ≥2) |
 
 If none of Q5–Q7 apply, skip Call 2 entirely.
 
 Tell the operator before Call 1: "I've scanned your project and drafted OPERATOR.md. A few questions to fill in what I couldn't infer:"
 
-All questions use no `options` field (renders as free-text inputs). Accept short answers; expand into prose in Phase 4. If the operator leaves a field blank or types "skip", leave that section sparse.
+All questions use no `options` field (renders as free-text inputs). Accept short answers; expand into prose in Phase 4. If the operator leaves a field blank or types "skip", don't include that topic.
 
-**Hermit extension:** If a hermit was activated in step 3 and provides a file at `state-templates/OPERATOR-QUESTIONS.md`, read it and append those questions to Call 2 (or start a Call 3 if Call 2 is already at 4). The hermit's question file must include a "Maps to section" column for each question. In Phase 4, create or append to those sections in OPERATOR.md — if the section doesn't exist yet, add it after the core sections.
+**Hermit extension:** If a hermit was activated in step 3 and provides a file at `state-templates/OPERATOR-QUESTIONS.md`, read it and append those questions to Call 2 (or start a Call 3 if Call 2 is already at 4).
 
 #### Phase 4 — Write final OPERATOR.md
 
 Incorporate the operator's answers into the draft:
-- Merge answers into the appropriate sections based on the "Maps to section" column
-- Expand short answers into concise OPERATOR.md prose
-- Strip all HTML comments from sections that have been filled in (both `<!-- Needs your input -->` and original template comments)
-- Keep `<!-- Needs your input -->` markers only on sections the operator skipped
-- Preserve the header comment at the top of the file (lines 1–5)
-- For hermit sections that don't exist yet, create them after the core sections
+- Weave answers into the document as concise prose
+- Use headers only where they add clarity — don't force a section for every answer
+- Strip the HTML comment from the template (replace with actual content)
+- Keep the document under 50 lines total
+- For hermit-specific context, append after the core content
 
 Write the final version to `.claude-code-hermit/OPERATOR.md`.
 

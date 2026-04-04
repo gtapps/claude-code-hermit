@@ -65,8 +65,8 @@ Modify with `/hermit-settings heartbeat`.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `idle_behavior` | string | `"discover"` | What to do when idle: `"wait"` (check tasks/channels only) or `"discover"` (also run maintenance from OPERATOR.md). |
-| `idle_budget` | string | `"$0.50"` | Maximum cost per idle maintenance task. |
+| `idle_behavior` | string | `"discover"` | What to do when idle: `"wait"` (check tasks/channels only) or `"discover"` (also run idle tasks, reflection, and priority alignment). |
+| `idle_budget` | string | `"$0.50"` | Maximum cost per idle task from `IDLE-TASKS.md`. |
 | `routines` | array | `[]` | Scheduled routines. Each entry: `{id, time, days?, skill, enabled}`. Managed by routine watcher. |
 
 Modify with `/hermit-settings routines`, `/hermit-settings idle`.

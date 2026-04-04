@@ -187,16 +187,15 @@ If no NEXT-TASK.md was picked up and `_last_reflection` is null or 4+ hours ago:
 
 If no NEXT-TASK.md and no pending channel messages:
 
-1. **When Idle pickup:** Read OPERATOR.md `## When Idle` section. If the section exists and has items:
-   - Read SHELL.md Session Summary for `[idle] Completed:` entries. Skip already-completed items.
-   - Pick the first uncompleted item from the list (sequential, top-to-bottom).
+1. **Idle task pickup:** Read `.claude-code-hermit/IDLE-TASKS.md`. If the file exists and has unchecked items (`- [ ]`):
+   - Pick the first unchecked item (sequential, top-to-bottom).
    - Start a session via `/claude-code-hermit:session-start --task '<item text>'` with cost capped at `idle_budget` from config (default: `"$0.50"`).
    - Run with `escalation: conservative` regardless of the global setting — idle tasks should never do anything risky without asking.
+   - On completion: mark the item `[x]` in IDLE-TASKS.md.
    - If the idle task creates a proposal, it goes through the normal proposal pipeline — no auto-implementation.
    - Maximum one idle task per heartbeat cycle — don't chain them.
-   - Track completed idle tasks in SHELL.md Session Summary as: `[idle] Completed: <item> — <outcome> (cost: $X.XX)`
 
-2. **Priority alignment:** Read OPERATOR.md. Think about whether current work aligns with the stated priorities and constraints. If deadlines or budgets need attention, cross-reference with `.claude/cost-log.jsonl` and alert.
+2. **Priority alignment:** Read OPERATOR.md for context. Think about whether current work aligns with the operator's stated priorities and constraints. If deadlines or budgets need attention, cross-reference with `.claude/cost-log.jsonl` and alert.
 
 **All time comparisons use the `timezone` from config.json.**
 

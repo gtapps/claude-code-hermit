@@ -108,7 +108,7 @@ Your hermit reflects on its own memory — not archived reports. Reflection trig
 | Trigger              | When                                                     |
 | -------------------- | -------------------------------------------------------- |
 | Task boundary        | After completing work, during idle transition            |
-| Heartbeat idle check | Every 4+ hours during idle (if `idle_behavior` is `discover`) |
+| Heartbeat idle check | Every 4+ hours during idle |
 | Evening routine      | Last heartbeat tick of the day                           |
 | Session close        | Before archiving the final report                        |
 
@@ -128,9 +128,9 @@ Both are managed by the routine watcher, not the heartbeat. Configure with `/cla
 When idle and `idle_behavior` is `"discover"` (set via `/hermit-settings idle`), the heartbeat looks for autonomous work:
 
 1. **NEXT-TASK.md** — picks up accepted proposals (gated by escalation level). Active for both `wait` and `discover` modes.
-2. **When Idle tasks** — reads OPERATOR.md `## When Idle` section, picks first uncompleted item (cost-capped by `idle_budget`)
-3. **Reflection** — runs reflect if 4+ hours since last
-4. **Priority check** — reads OPERATOR.md, checks alignment with stated priorities and constraints
+2. **Reflection** — runs reflect if 4+ hours since last
+3. **Idle tasks** — picks first unchecked item from `IDLE-TASKS.md`, runs in a capped session (`idle_budget`)
+4. **Priority alignment** — reads OPERATOR.md, checks alignment with the operator's stated priorities and constraints
 
 ### Edge cases
 

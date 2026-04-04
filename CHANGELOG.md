@@ -42,9 +42,45 @@ Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
 
 1. **No config.json changes required** — All changes are instruction-only (skill files, templates, entrypoint). Hermits pick them up automatically on next plugin update.
 
-2. **Docker hermits must regenerate Docker files** — Existing Docker deployments still have the old entrypoint (broken PATH, symlinks, wrong plugin checks) and docker-compose (missing bind-mount volumes). Operators should re-run `/claude-code-hermit:docker-setup` to regenerate `docker-entrypoint.hermit.sh`, `docker-compose.hermit.yml`, and rebuild with `hermit-docker up --build`. This is the only manual step.
+2. **Docker hermits must regenerate Docker files** — Existing Docker deployments still have the old entrypoint (broken PATH, symlinks, wrong plugin checks) and docker-compose (missing bind-mount volumes). Operators should re-run `/claude-code-hermit:docker-setup` to regenerate `docker-entrypoint.hermit.sh`, `docker-compose.hermit.yml`, and rebuild with `hermit-docker up --build`.
 
 Non-Docker hermits get all changes on next `claude plugin update` with no action needed.
+
+## [0.2.14] - 2026-04-05
+
+### Changed
+
+- **OPERATOR.md template simplified** — The 9-section template (Project, Current Priority, Constraints, Sensitive Areas, Operator Preferences, Tech Stack, External Dependencies, When Idle, Notes) has been replaced with a minimal freeform document. Most sections were either redundant (Tech Stack — derivable from code), dynamic (Current Priority, When Idle — go stale in a read-only file), or duplicated by CLAUDE.md (Sensitive Areas). The hatch wizard now writes concise prose tailored to the project instead of filling in a rigid form. Existing OPERATOR.md files are preserved — this only affects new hatches.
+
+- **Idle tasks moved to dedicated file** — The `## When Idle` section in OPERATOR.md has been replaced by `.claude-code-hermit/IDLE-TASKS.md`, a dedicated operator-editable checklist. Tasks are picked sequentially during idle, each capped by `idle_budget`, and marked `[x]` on completion. The file is created on hatch and upgrade. Dynamic task lists no longer live in the read-only OPERATOR.md.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/OPERATOR.md` | Replaced 9-section template with minimal freeform document |
+| `state-templates/IDLE-TASKS.md.template` | New idle task list template |
+| `skills/hatch/SKILL.md` | Freeform OPERATOR.md onboarding, IDLE-TASKS.md copy |
+| `skills/heartbeat/SKILL.md` | Idle task pickup from IDLE-TASKS.md replaces When Idle section |
+| `skills/hermit-upgrade/SKILL.md` | OPERATOR.md rethink + IDLE-TASKS.md creation |
+| `skills/hermit-settings/SKILL.md` | Updated discover description |
+| `docs/ALWAYS-ON-OPS.md` | Added idle tasks to idle agency list |
+| `docs/SKILLS.md` | Added Idle Tasks section |
+| `docs/CONFIG-REFERENCE.md` | Updated idle_behavior and idle_budget descriptions |
+| `docs/TROUBLESHOOTING.md` | Updated idle agency fallback description |
+| `docs/UPGRADING.md` | Updated idle behavior description |
+| `docs/HOW-TO-USE.md` | Updated OPERATOR.md example to freeform style |
+| `docs/SECURITY.md` | Updated checklist wording |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+
+1. **OPERATOR.md rethink (optional, interactive)** — Ask the operator: "The OPERATOR.md template has been simplified — rigid sections replaced with concise freeform context. Would you like to rethink your OPERATOR.md?" If yes, back up and rewrite using the hatch onboarding flow. If no, skip — existing files work fine.
+
+2. **IDLE-TASKS.md created + migration** — A new `.claude-code-hermit/IDLE-TASKS.md` file is created. If OPERATOR.md contains a `## When Idle` section, move its items into IDLE-TASKS.md as `- [ ]` checklist entries and remove the section from OPERATOR.md.
+
+No config.json changes required. Non-Docker hermits get all changes on next `claude plugin update`.
 
 ## [0.2.12] - 2026-04-04
 
