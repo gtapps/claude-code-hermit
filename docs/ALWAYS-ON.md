@@ -103,7 +103,7 @@ The docker-setup wizard walks you through the right auth method and ensures `.en
 
 Channel tokens live in `.claude.local/channels/<plugin>/.env` (project-local scope). The docker-setup wizard walks you through token setup and pairing.
 
-The entrypoint automatically symlinks `~/.claude/channels/<plugin>/` to the local state dir inside the container. This means channel skill commands (`/discord:access pair`, `/discord:configure`, etc.) write to the right place — no manual patching needed.
+The docker-compose file bind-mounts `.claude.local/channels/<plugin>/` into `~/.claude/channels/<plugin>/` inside the container. This means channel skill commands (`/discord:access pair`, `/discord:configure`, etc.) write to the right place — no manual patching needed, no permission prompts, and state persists even on ungraceful shutdown.
 
 `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` are set as OS env vars in the compose file so MCP servers (which don't read `settings.local.json`) can find the token and access config.
 

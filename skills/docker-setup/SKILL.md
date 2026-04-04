@@ -72,6 +72,10 @@ Read the three templates from `${CLAUDE_SKILL_DIR}/../../state-templates/docker/
   - `      - DISCORD_STATE_DIR=${PWD}/.claude.local/channels/discord`
   - `      - TELEGRAM_STATE_DIR=${PWD}/.claude.local/channels/telegram`
   Remove `{{CHANNEL_ENV_LINES}}` entirely if no channels configured.
+- `{{CHANNEL_VOLUME_LINES}}` — for each configured channel, add an indented volume bind-mount that maps the project-local state dir into the container's `~/.claude/channels/` path. This ensures channel plugin writes stay inside the project tree (no permission prompts with `bypassPermissions`):
+  - `      - ${PWD}/.claude.local/channels/discord:/home/claude/.claude/channels/discord`
+  - `      - ${PWD}/.claude.local/channels/telegram:/home/claude/.claude/channels/telegram`
+  Remove `{{CHANNEL_VOLUME_LINES}}` entirely if no channels configured.
 - `{{TMUX_SESSION_NAME}}` — resolved session name
 - **Git identity:** Check if `~/.gitconfig` exists on the host. If it does not exist, remove the `.gitconfig` bind-mount line from the rendered file and add a note in the summary: "No ~/.gitconfig found — git commits inside the container will have no author identity. Create one on the host and re-run docker-setup, or set git config manually inside the container."
 
@@ -256,6 +260,8 @@ If something looks wrong, help diagnose — suggest concrete next steps.
 **Why `.hermit` suffix?** The project may already have its own `Dockerfile` / `docker-compose.yml`. Hermit-namespaced files avoid conflicts.
 
 **Why `*_STATE_DIR` as OS env vars?** MCP servers (channel plugins) are separate processes that inherit OS env — they don't read `settings.local.json`. Without these env vars, the MCP server defaults to `~/.claude/channels/<plugin>/` which inside the container resolves to `/home/claude/.claude/channels/` — not bind-mounted and lost on restart.
+
+**Why bind-mounts for channel state?** Channel plugins hardcode writes to `~/.claude/channels/<plugin>/`. In Docker, that path is on the named config volume — outside the project tree. Even with `bypassPermissions`, Claude Code's path boundary check triggers a permission prompt for writes outside the project dir. Bind-mounting the project-local state dir into `~/.claude/channels/<plugin>/` makes the kernel present both paths as the same filesystem, avoiding symlink resolution issues and keeping writes inside the project boundary.
 
 **Why a named volume for config?** The container gets its own Claude Code config (`/home/claude/.claude`) via a Docker named volume instead of sharing the host's `~/.claude`. This prevents container state (onboarding, auto-memory, plugin cache) from leaking into host interactive sessions. The volume persists across restarts — onboarding bypass and channel plugins survive `docker compose restart`. First run is slower while the volume is populated.
 

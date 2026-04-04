@@ -14,6 +14,7 @@ services:
       # Git identity — read-only so commits have the right author name/email.
       # Remove this line if the host has no ~/.gitconfig.
       - ${HOME}/.gitconfig:/home/claude/.gitconfig:ro
+{{CHANNEL_VOLUME_LINES}}
     working_dir: ${PWD}
     env_file: .env
     environment:
