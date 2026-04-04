@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-export PATH
+export PATH="/home/claude/.npm-global/bin:${PATH}"
 set -euo pipefail
 
 PROJECT_DIR="$(pwd)"

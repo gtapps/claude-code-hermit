@@ -9,19 +9,42 @@
   - **Moderate signal** — create a proposal with evidence
   - **Strong signal** — create a proposal with a `## Skill Improvement` section containing the skill name, observed failures, and eval criteria. On acceptance, uses `/skill-creator eval` and `/skill-creator improve` to implement changes. If skill-creator is not installed, applies changes to the skill's SKILL.md directly.
 
+- **Hatch wizard now recommends plugins by default** — The hatch skill gained a new Phase 4 that presents recommended plugins (claude-code-setup, claude-md-management, skill-creator) with `[yes]` defaults. The operator opts out, not in. Plugins are installed with `--scope project` so teammates get them automatically. The docker-setup skill's recommended plugins section was updated to match (defaults changed from `[no]` to `[yes]`).
+
+- **Hatch wizard fully batched with AskUserQuestion** — Channel follow-ups (access control, morning brief) and deny rules now use `AskUserQuestion` batch format instead of freeform asks, matching the pattern used by all other wizard phases. Deny rules offer three options (minimal/hardened/skip) in a single prompt.
+
+### Fixed
+
+- **Docker entrypoint PATH not found** — Python subprocesses calling `subprocess.run(['claude', ...])` failed with `FileNotFoundError` because Docker's `ENV PATH` didn't reliably carry through to the bash entrypoint. Fixed by explicitly prepending `/home/claude/.npm-global/bin` to PATH at the top of the entrypoint.
+
+- **Channel and recommended plugins never installed in Docker** — The entrypoint checked `external_plugins/<plugin>` to determine if a plugin needed installing, but `claude plugin marketplace add` populates that directory for ALL plugins in the catalog. The check was always false after marketplace add, so `claude plugin install` was never called. Fixed by using `claude plugin list` output instead.
+
+- **Channel state symlinks triggered permission prompts** — The entrypoint symlinked `~/.claude/channels/<plugin>/` to the project-local state dir, but Claude Code's path boundary check saw the symlink source as outside the project tree, triggering a write prompt even with `bypassPermissions`. Replaced symlinks with Docker bind-mounts in `docker-compose.hermit.yml` — kernel-level transparent redirect, no permission issues, state persists even on ungraceful shutdown.
+
+- **Hatch next steps missing docker-setup** — The report's "Next steps" section now includes `/claude-code-hermit:docker-setup` alongside `hermit-start` for always-on operation.
+
+- **Hatch channel plugin install used wrong scope** — Changed from "Install globally" to `--scope local` with the full `claude plugin install` command, so channel plugins stay personal and don't push onto open-source collaborators.
+
 ### Files affected
 
 | File | Change |
 |------|--------|
 | `skills/reflect/SKILL.md` | Added Skill Health section with three-tier response pattern and skill-creator integration |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | PATH fix, `claude plugin list` checks, symlink loop replaced with mkdir |
+| `state-templates/docker/docker-compose.hermit.yml.template` | Added `{{CHANNEL_VOLUME_LINES}}` placeholder for bind-mount volumes |
+| `skills/docker-setup/SKILL.md` | Documented `{{CHANNEL_VOLUME_LINES}}`, bind-mount rationale, plugins default to yes |
+| `skills/hatch/SKILL.md` | Recommended plugins phase, AskUserQuestion batches, phase reorder, deny rules, report updates |
+| `docs/ALWAYS-ON.md` | Updated symlink reference to bind-mount |
 
 ### Upgrade Instructions
 
 Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
 
-1. **No config changes required** — This is an instruction-only change to the reflect skill. Hermits pick it up automatically on next plugin update.
+1. **No config.json changes required** — All changes are instruction-only (skill files, templates, entrypoint). Hermits pick them up automatically on next plugin update.
 
-No template or config.json changes. Non-Docker hermits get this on next `claude plugin update`.
+2. **Docker hermits must regenerate Docker files** — Existing Docker deployments still have the old entrypoint (broken PATH, symlinks, wrong plugin checks) and docker-compose (missing bind-mount volumes). Operators should re-run `/claude-code-hermit:docker-setup` to regenerate `docker-entrypoint.hermit.sh`, `docker-compose.hermit.yml`, and rebuild with `hermit-docker up --build`. This is the only manual step.
+
+Non-Docker hermits get all changes on next `claude plugin update` with no action needed.
 
 ## [0.2.12] - 2026-04-04
 

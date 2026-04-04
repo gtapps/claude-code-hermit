@@ -121,7 +121,32 @@ questions: [
 
 Record: `escalation` (conservative/balanced/autonomous), `remote` (true/false), `ask_budget` (true/false), `idle_behavior` (wait/discover).
 
-#### Phase 4 — Channels (AskUserQuestion, single question)
+#### Phase 4 — Recommended plugins (AskUserQuestion batch, 3 questions)
+
+```
+questions: [
+  {
+    header: "Recommended plugins (installed by default)",
+    question: "Install claude-code-setup? Analyzes your codebase and recommends automations (skills, hooks, MCP servers, subagents). Helps hermit learn and self-improve.",
+    options: [{ label: "Yes (default)" }, { label: "No" }]
+  },
+  {
+    question: "Install claude-md-management? Audits and improves CLAUDE.md files. Grades quality, identifies gaps, proposes targeted fixes.",
+    options: [{ label: "Yes (default)" }, { label: "No" }]
+  },
+  {
+    question: "Install skill-creator? Builds, tests, and refines new skills through structured iteration. Lets hermit act on proposals.",
+    options: [{ label: "Yes (default)" }, { label: "No" }]
+  }
+]
+```
+
+For each plugin the operator accepts (the default), install it immediately:
+`claude plugin install <plugin>@claude-plugins-official --scope project`
+
+For each plugin the operator declines, skip silently. Note: "You can add it later with `/claude-code-hermit:hermit-settings`."
+
+#### Phase 5 — Channels (AskUserQuestion, single question)
 
 ```
 questions: [
@@ -133,24 +158,32 @@ questions: [
 ]
 ```
 
-- **If None:** record `channels: []`. **Stop — proceed directly to Phase 5. Do not ask 4f2 or 4g.**
-- **If Discord or Telegram:** record short name in `channels` array (e.g., `["discord"]`). Boot script maps it to the full plugin identifier. Then ask 4f2 and 4g below.
-- If the channel plugin isn't installed, note: "Install the channel plugin globally first with `/plugin install`"
+- **If None:** record `channels: []`. **Stop — proceed directly to Phase 6. Do not ask channel follow-ups.**
+- **If Discord or Telegram:** record short name in `channels` array (e.g., `["discord"]`). Boot script maps it to the full plugin identifier. Then ask follow-ups below.
+- If the channel plugin isn't installed, note: "Install the channel plugin locally: `claude plugin install <plugin>@claude-plugins-official --scope local`"
 
-**Channel follow-ups (only if Discord or Telegram was selected above):**
+**Channel follow-ups (only if Discord or Telegram was selected above — AskUserQuestion batch, 2 questions):**
 
-**4f2. Channel access control**
-Ask: "Restrict who can send commands via channels? Paste your Discord/Telegram user ID, or skip to allow everyone. [skip]"
-- If provided: record in `allowed_users.<channel>` as a single-element array (e.g., `"allowed_users": {"discord": ["123456789"]}`)
-- If skip: omit `allowed_users` key (absent = accept all, backwards compatible)
-- Note: "Add more user IDs later with `/claude-code-hermit:hermit-settings channels`. An empty array [] blocks all messages."
+```
+questions: [
+  {
+    header: "Channel access control",
+    question: "Restrict who can send commands via channels? Paste your Discord/Telegram user ID, or skip to allow everyone.",
+    options: [{ label: "Skip (default)" }],
+    freeform: true
+  },
+  {
+    header: "Morning brief",
+    question: "Enable morning brief delivery via channel?",
+    options: [{ label: "Yes — deliver at 07:00" }, { label: "No (default)" }]
+  }
+]
+```
 
-**4g. Morning brief**
-Ask: "Enable morning brief delivery? [no]"
-- If yes: ask "What time? [07:00]"
-- Record as `morning_brief: { "enabled": true, "time": "07:00", "channel": "<selected channel>" }` or `null` if declined
+- **Access control:** If user ID provided, record in `allowed_users.<channel>` as a single-element array (e.g., `"allowed_users": {"discord": ["123456789"]}`). If skip, omit `allowed_users` key (absent = accept all, backwards compatible). Note: "Add more user IDs later with `/claude-code-hermit:hermit-settings channels`. An empty array [] blocks all messages."
+- **Morning brief:** If yes, record as `morning_brief: { "enabled": true, "time": "07:00", "channel": "<selected channel>" }`. If no, record `null`.
 
-#### Phase 5 — Deployment (AskUserQuestion batch, 2 questions)
+#### Phase 6 — Deployment (AskUserQuestion batch, 2 questions)
 
 ```
 questions: [
@@ -230,7 +263,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` to get the current plugi
 
 If re-initializing: merge with existing config (preserve values not asked about, update values that were asked about).
 
-If channels were configured in step 4f, also add channel state dirs to `env` using the **absolute project path** (resolve from `pwd`):
+If channels were configured in Phase 5, also add channel state dirs to `env` using the **absolute project path** (resolve from `pwd`):
 - For discord: `"DISCORD_STATE_DIR": "<project_path>/.claude.local/channels/discord"`
 - For telegram: `"TELEGRAM_STATE_DIR": "<project_path>/.claude.local/channels/telegram"`
 
@@ -397,12 +430,25 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
 5. If the operator confirms: merge into the existing `permissions.allow` array (never remove existing entries), write back
 6. If the operator declines: skip, and note: "You may be prompted to approve hook commands during sessions. Run `/claude-code-hermit:hermit-settings permissions` to add them later."
 
-### 9. Generate deny patterns
+### 9. Generate deny patterns (AskUserQuestion, single question)
 
 Add safety deny rules to `.claude/settings.json` `permissions.deny` to prevent destructive operations and protect OPERATOR.md from accidental modification.
 
-- Ask: "Are you planning always-on operation (Docker/tmux)? (yes / no) [no]"
-- If **yes** — offer the hardened always-on deny set:
+```
+questions: [
+  {
+    header: "Safety rules",
+    question: "Planning always-on operation (Docker/tmux)? This determines which deny rules to apply.",
+    options: [
+      { label: "No — minimal deny rules (default)" },
+      { label: "Yes — hardened deny rules for unattended operation" },
+      { label: "Skip — no deny rules" }
+    ]
+  }
+]
+```
+
+- If **hardened** (always-on):
   ```json
   "deny": [
     "Bash(rm -rf *)",
@@ -415,7 +461,7 @@ Add safety deny rules to `.claude/settings.json` `permissions.deny` to prevent d
     "Write(**/.claude-code-hermit/OPERATOR.md)"
   ]
   ```
-- If **no** — offer the minimal deny set:
+- If **minimal** (default):
   ```json
   "deny": [
     "Bash(rm -rf *)",
@@ -425,11 +471,9 @@ Add safety deny rules to `.claude/settings.json` `permissions.deny` to prevent d
     "Write(**/.claude-code-hermit/OPERATOR.md)"
   ]
   ```
-
-Show the list, let the operator edit or confirm: "These deny rules prevent destructive operations and protect OPERATOR.md from modification. Review and confirm? (yes / edit / skip) [yes]"
-- If **yes**: merge into existing `permissions.deny` (never remove existing entries), write back
-- If **edit**: let the operator add or remove rules, then write
 - If **skip**: note: "You can add deny rules later in .claude/settings.json under permissions.deny."
+
+Merge selected rules into existing `permissions.deny` (never remove existing entries), write back.
 
 Do NOT include `Bash(docker *)`, `Bash(kubectl *)`, `Bash(ssh *)` — these are valid in devops contexts.
 
@@ -457,10 +501,11 @@ Identity:
   Sign-off:        Atlas out.
 
 Config:
-  Channels: none
-  Budget prompts: enabled
-  Morning brief: disabled
-  Heartbeat: disabled
+  Plugins:         claude-code-setup, claude-md-management, skill-creator
+  Channels:        none
+  Budget prompts:  enabled
+  Morning brief:   disabled
+  Heartbeat:       disabled
   Unattended mode: off
 
 Hermits: (none activated)
@@ -474,6 +519,6 @@ Next steps:
   1. Run /claude-code-hermit:session to start your first session
   2. Refine OPERATOR.md anytime — just tell me what changed
   3. Change settings with /claude-code-hermit:hermit-settings
-  4. For always-on operation: .claude-code-hermit/bin/hermit-start
+  4. For always-on operation: /claude-code-hermit:docker-setup or .claude-code-hermit/bin/hermit-start
   5. After plugin updates, run /claude-code-hermit:hermit-upgrade
 ```
