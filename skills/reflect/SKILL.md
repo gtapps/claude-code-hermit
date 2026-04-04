@@ -45,7 +45,7 @@ Check whether any skill is underperforming:
 If you spot a pattern:
 - **Weak signal** (one-off or ambiguous): mention it — "I noticed X skill might need tuning. Want me to keep watching?"
 - **Moderate signal** (pattern across 2-3 sessions): create a proposal via `/claude-code-hermit:proposal-create` with the evidence.
-- **Strong signal** (clear, repeated pattern): invoke `/skill-creator eval` on the skill using the observed failures as test cases. If evals confirm the issue, follow up with `/skill-creator improve` and present the diff. If `/skill-creator` is not available, propose the specific changes to the skill's SKILL.md directly via `/claude-code-hermit:proposal-create`.
+- **Strong signal** (clear, repeated pattern): create a proposal via `/claude-code-hermit:proposal-create` with the evidence and include a `## Skill Improvement` section listing the skill name, observed failures, and suggested eval criteria. When the proposal is accepted via `proposal-act`, use `/skill-creator eval` and `/skill-creator improve` to implement the changes. If `/skill-creator` is not available, apply the changes to the skill's SKILL.md directly.
 
 Review past dismissed and deferred proposals.
 Avoid re-suggesting recently dismissed ideas.
