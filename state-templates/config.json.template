@@ -16,7 +16,9 @@
   "morning_brief": null,
   "idle_behavior": "discover",
   "idle_budget": "$0.50",
-  "routines": [],
+  "routines": [
+    {"id": "heartbeat-restart", "time": "04:00", "skill": "claude-code-hermit:heartbeat start", "run_during_waiting": true, "enabled": true}
+  ],
   "env": {
     "AGENT_HOOK_PROFILE": "standard",
     "COMPACT_THRESHOLD": "50",
@@ -35,15 +37,14 @@
   },
   "heartbeat": {
     "enabled": true,
-    "every": "30m",
+    "every": "2h",
     "show_ok": false,
     "active_hours": {
       "start": "08:00",
       "end": "23:00"
     },
-    "self_eval_interval": 20,
     "total_ticks": 0,
     "stale_threshold": "2h",
-    "_last_reflection": null
+    "waiting_timeout": null
   }
 }

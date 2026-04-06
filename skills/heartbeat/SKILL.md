@@ -22,31 +22,50 @@ Background health checker that periodically evaluates a checklist and surfaces a
 
 Execute one heartbeat tick immediately. Useful for testing the checklist.
 
-**Skip tracking procedure** (referenced by steps 2 and 4): Read `.claude-code-hermit/.heartbeat-skips`. If it exists and the reason matches, increment the count and update the last_skip_time. Otherwise write `reason:count:first_time-last_time` (e.g., `outside_active_hours:1:08:00-08:00`). This file is read on resume (step 6) to produce a summary line.
-
 1. Read `.claude-code-hermit/HEARTBEAT.md`
 2. If the file is missing or empty (only whitespace, blank lines, or headers with no checklist items):
-   - Track the skip (reason: `empty_checklist`) using the skip tracking procedure above.
    - Respond "HEARTBEAT_SKIP" and stop.
 3. Read `.claude-code-hermit/config.json` for heartbeat settings
 4. Check `active_hours` — if the current time is outside the configured window:
-   - Track the skip (reason: `outside_active_hours`) using the skip tracking procedure above.
    - Respond "HEARTBEAT_SKIP (outside active hours)" and stop.
-5. **Stale session check.** Read SHELL.md Status field. If Status is `in_progress`:
+5. **Stale session check.** Read SHELL.md Status field. If Status is `waiting`: skip this check entirely (agent is intentionally blocked). If Status is `in_progress`:
    - Read the last `## Progress Log` entry timestamp. If no progress entry exists, use the session start time from SHELL.md header.
    - Calculate elapsed time since that timestamp. Read `heartbeat.stale_threshold` from config (default: `"2h"`).
-   - If elapsed > stale_threshold: alert "Session appears stale — no progress logged for {elapsed}. Process may have died or be stuck in a rate limit."
-   - Append to SHELL.md `## Monitoring`: `[HH:MM] Heartbeat: STALE WARNING — no progress for {elapsed}`
-   - Send to channel if configured.
-   - Do NOT take action — operator decides whether to restart.
-6. **Skip receipt resume check.** If `.claude-code-hermit/.heartbeat-skips` exists:
-   - Read the file (format: `reason:count:first_time-last_time`).
-   - Append to SHELL.md `## Monitoring`: `[HH:MM] Heartbeat: resumed after {count} skips ({first_time}–{last_time}, {reason})`
-   - Delete `.heartbeat-skips`.
-7. **Maintain .status file.** Read SHELL.md Status. If it differs from the current `.claude-code-hermit/.status` content, write the new value. Valid values: `idle`, `in_progress`. (The `shutdown` value is written by `hermit-stop.py` only.)
-8. Read `.claude-code-hermit/sessions/SHELL.md` for current task context
-9. Evaluate each checklist item against available information (session state, files, proposals directory)
-10. Determine: does anything need operator attention?
+   - If elapsed > stale_threshold: generate alert with key `stale-session` and text "No progress for {elapsed}. Process may have died or be stuck in a rate limit."
+6. **Waiting timeout check.** If Status is `waiting` and `heartbeat.waiting_timeout` is set (not null):
+   - Calculate how long the session has been `waiting` (from last Progress Log entry or status change).
+   - If elapsed > `waiting_timeout` with no channel activity: auto-transition to `idle`, send channel message: "No operator response for {timeout}. Transitioning to idle."
+7. **Resume check.** If the previous tick was a HEARTBEAT_SKIP (outside active hours or empty checklist) and this tick is not: append to SHELL.md `## Monitoring`: `[HH:MM] Heartbeat: resumed (was inactive)`.
+8. **Maintain .status file.** Read SHELL.md Status. If it differs from the current `.claude-code-hermit/.status` content, write the new value. Valid values: `idle`, `in_progress`, `waiting`. (The `shutdown` value is written by `hermit-stop.py` only.)
+9. Read `.claude-code-hermit/sessions/SHELL.md` for current task context
+10. Evaluate each checklist item against available information (session state, files, proposals directory). For each item that generates an alert, produce a **semantic key** and human-readable **text** (they are not the same thing).
+11. Determine: does anything need operator attention?
+
+**Semantic key taxonomy** for built-in checks:
+- Stale session: `stale-session`
+- Checklist item: `checklist:<first-8-chars-of-item-normalized>`
+- Proposal pending: `proposal-pending:<PROP-NNN>`
+- Waiting timeout: `waiting-timeout`
+- Stale routine queue: `routine-stale:<id>`
+- Custom/freeform: `custom:<first-100-chars-normalized>` — fallback only
+
+#### Alert deduplication
+
+Before appending any alert to SHELL.md Monitoring, run this procedure:
+
+1. Read `.claude-code-hermit/state/alert-state.json`. If missing, initialize: `{"alerts": {}, "last_digest_date": null, "self_eval": {}}`.
+2. Look up the alert's semantic key in `alerts`:
+   - **Not found:** Add entry with `count: 1, consecutive_clean: 0, suppressed: false, first_seen: today, last_seen: today, text: <alert text>`. Append to Monitoring normally.
+   - **count < 5:** Increment count, reset `consecutive_clean` to 0, update `last_seen`. Append to Monitoring normally.
+   - **count === 5:** Increment count, set `suppressed: true`, reset `consecutive_clean` to 0. Append once: `[HH:MM] Heartbeat: above alert suppressed after 5 fires (first: {first_seen}). Daily digest only.` Send to channel.
+   - **count > 5:** Increment count, reset `consecutive_clean` to 0, update `last_seen`. Do NOT append to Monitoring.
+3. **Resolution detection:** After evaluating all checklist items, check for alerts that did NOT fire this tick. For each such entry: increment `consecutive_clean`. If `consecutive_clean >= 2`: resolve the alert and remove entry from state.
+   - **Not suppressed:** Append `[HH:MM] Heartbeat: resolved — {text}`. Remove entry.
+   - **Suppressed:** Resolve silently — remove entry, omit from next daily digest. Don't add noise announcing the absence of noise.
+4. **Daily digest:** First tick of each day where `last_digest_date` is not today: if any suppressed alerts exist, send to channel: `Suppressed alert digest: {list with counts and ages}`. Set `last_digest_date` to today.
+5. **Stale queue check:** Read `.claude-code-hermit/state/routine-queue.json`. For any entry where `queued_since` is older than one heartbeat interval AND current status is `idle` or `waiting`: append to Monitoring: `[HH:MM] Heartbeat: routine '{id}' has been queued since {queued_date} — dispatch may have failed.` Use semantic key `routine-stale:<id>` for dedup.
+6. Write `state/alert-state.json`.
+7. Call `node ${CLAUDE_PLUGIN_ROOT}/scripts/generate-summary.js .claude-code-hermit/state/`.
 
 **If nothing actionable:**
 - Do NOT append to SHELL.md (the tick is already recorded via `total_ticks` in config.json)
@@ -56,7 +75,7 @@ Execute one heartbeat tick immediately. Useful for testing the checklist.
 - Respond "HEARTBEAT_OK"
 
 **If something found:**
-- Append findings to SHELL.md `## Monitoring` section with timestamp
+- Append findings to SHELL.md `## Monitoring` section with timestamp (subject to alert dedup above)
 - If channels are configured: send a concise alert (under 5 lines, channel-friendly):
   ```
   Heartbeat alert:
@@ -69,42 +88,53 @@ Execute one heartbeat tick immediately. Useful for testing the checklist.
 
 **After evaluating the checklist (always, regardless of findings):**
 
-11. Increment `heartbeat.total_ticks` in `.claude-code-hermit/config.json`
-12. Read `heartbeat.self_eval_interval` from config (default: 20). If `self_eval_interval` is 0: skip self-evaluation.
-13. If `total_ticks % self_eval_interval == 0` and `self_eval_interval > 0`: run **self-evaluation** (see below)
+12. Increment `heartbeat.total_ticks` in `.claude-code-hermit/config.json`
+13. Self-eval interval is 20 ticks (constant). If `total_ticks % 20 == 0`: run **self-evaluation** (see below)
 
 ### Self-Evaluation
 
-Triggered every N ticks (configured by `heartbeat.self_eval_interval`, default 20). The tick counter persists in `config.json` so it survives session boundaries.
+Triggered every 20 ticks. The tick counter persists in `config.json` so it survives session boundaries.
 
 **Steps:**
 
-1. Read `heartbeat.total_ticks` and `heartbeat.self_eval_interval` from config.json. The evaluation window covers the last `self_eval_interval` ticks (i.e., ticks `total_ticks - self_eval_interval` through `total_ticks`).
-2. Read SHELL.md `## Monitoring` — collect all `[HH:MM] Heartbeat:` alert/warning lines. These are the only entries present (OK ticks are not logged).
-3. For each checklist item: count how many alert lines reference that item. Compare against the window size (`self_eval_interval`). If zero alerts across the window, the item has been clean for all ticks in the evaluation period.
-4. **Stale check detection:** If a specific checklist item had zero alerts across the evaluation window, suggest to the operator:
-   > "Heartbeat self-check: the item '[check description]' has been OK for [N] consecutive ticks. Consider removing it to save tokens, or reducing heartbeat frequency."
-5. **Checklist weight check:** Count items in HEARTBEAT.md. If count > 10, suggest:
-   > "HEARTBEAT.md has {count} items (recommended: ≤10). Consider moving periodic checks to routines (`/hermit-settings routines`) to reduce per-tick token cost. Items that only need daily/weekly checking are good routine candidates."
-6. **Missing check suggestion:** Scan `.claude-code-hermit/proposals/` for recent auto-detected proposals about recurring issues. If a proposal describes a problem that could be caught by a heartbeat check, suggest:
-   > "PROP-NNN identified a recurring [issue]. Consider adding a [relevant check] to HEARTBEAT.md."
-7. Append self-evaluation findings to SHELL.md `## Monitoring` with timestamp:
+1. Read `state/alert-state.json`.
+2. For each HEARTBEAT.md item: count alert lines referencing that item in the evaluation window (last 20 ticks). If zero alerts → increment `clean_ticks` in `self_eval` entry and update `sessions_seen` / `last_session_id`. If alert fired → reset `clean_ticks` to 0.
+
+   **`sessions_seen` definition:** Number of distinct session IDs (read from SHELL.md `**ID:**` field) during which this item was evaluated. Incremented only when the current session ID differs from `last_session_id`.
+
+   **Self-eval entry schema:**
+   ```json
+   {
+     "text": "Check if CI is passing",
+     "clean_ticks": 23,
+     "sessions_seen": 4,
+     "last_session_id": "S-005",
+     "first_observed": "2026-03-28",
+     "proposed": false
+   }
    ```
-   [HH:MM] Heartbeat self-eval: [summary of suggestions]
-   ```
-8. If channels are configured: send self-eval findings as a notification
-9. Do NOT auto-modify HEARTBEAT.md — suggest only. The operator decides what to check. Offer to make the edit if the operator agrees.
-10. After the operator acts on a suggestion (adds or removes a check): reset `heartbeat.total_ticks` to 0 in config.json
+
+2b. **Dismissal cleanup:** Scan `proposals/` for PROP-NNN files where all of the following are true: `source` is `auto-detected`, `status` is `dismissed`, and `self_eval_key` is present and non-null in frontmatter. For each such proposal, look up the matching entry in `self_eval` by `self_eval_key` (not by text). If found and `proposed: true`: reset `proposed: false` and clear `clean_ticks` to 0. This runs on every self-eval pass. Heartbeat owns its own state cleanup — no dependency on reflect or proposal-act timing.
+
+3. **Checklist weight:** Count items in HEARTBEAT.md. If > 10: track in `self_eval` with text `"Checklist weight: {N} items"`.
+
+4. **Proposal threshold check:** For each `self_eval` entry where `proposed: false`:
+   - `clean_ticks >= 20` AND `sessions_seen >= 3` → create proposal via `/claude-code-hermit:proposal-create` with category `capability`, `source: auto-detected`, `self_eval_key: <item_key>`, evidence: `"Item '{text}' has been clean for {clean_ticks} consecutive ticks across {sessions_seen} sessions. Consider removing it from HEARTBEAT.md to reduce token cost."`
+   - Set `proposed: true`.
+   - Checklist weight violation uses same threshold: 20 ticks + 3 sessions with > 10 items.
+
+5. **No channel message. No SHELL.md append.** Output only flows through the proposal pipeline.
+6. Write `state/alert-state.json`.
 
 ### start
 
 Start a recurring heartbeat loop using `/loop`.
 
-1. Read config for `heartbeat.every` (default: "30m")
+1. Read config for `heartbeat.every` (default: "2h")
 2. Invoke `/loop <interval> /claude-code-hermit:heartbeat run`
 3. The loop handles scheduling — each cycle invokes `run` which checks active hours and evaluates the checklist
 
-If a heartbeat loop is already running, report that and do nothing.
+If a heartbeat loop is already running, cancel it first before creating a new one, then start fresh. This is safe to call from a routine — it resets the 3-day `/loop` expiry without losing any state.
 
 ### stop
 
@@ -179,9 +209,9 @@ Check for `sessions/NEXT-TASK.md`. If found, respect the configured escalation l
 
 **Reflection** (active for both `wait` and `discover` idle behavior):
 
-If no NEXT-TASK.md was picked up and `_last_reflection` is null or 4+ hours ago:
+If no NEXT-TASK.md was picked up and `last_reflection` in `state/reflection-state.json` is null or 4+ hours ago:
 - Invoke `/claude-code-hermit:reflect`
-- Update `heartbeat._last_reflection` to now (ISO string with timezone offset from config)
+- Reflect writes `state/reflection-state.json` itself (heartbeat does not write this file)
 
 **The following only activate when `idle_behavior` is `"discover"` in config:**
 

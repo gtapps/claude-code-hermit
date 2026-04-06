@@ -16,6 +16,11 @@ If SHELL.md has Status `idle` (no active task):
 - Adjust classification: "New instruction" messages become **task assignment** (see below)
 - Status requests should report idle state with session summary
 
+If SHELL.md has Status `waiting` (alive but blocked on input):
+- **Status request** → respond with current context, stay `waiting`
+- **New instruction or answer to a question** → transition to `in_progress`, resume work
+- **Anything else** → respond, stay `waiting`
+
 ## 1c. Check Authorization
 
 Read `allowed_users` from `config.json` for this channel:
@@ -45,6 +50,15 @@ The allowlist is per-channel in config.json:
   - Invoke `/claude-code-hermit:session-start` to begin the new task (idle → in_progress)
   - The session-start skill handles filling Task and setting Status; plan items are created as native Tasks
   - Confirm via channel: "On it: [summary]."
+
+- **Micro-approval response** ("yes", "no", or similar while a pending micro-proposal exists)
+  - Read `state/micro-proposals.json`. If `active` is not null and `status` is `pending`:
+    - **"yes"** on tier 1 → execute the change at next idle, log outcome in SHELL.md, set `status: "approved"`, clear `active` to null. Append `micro-resolved` event via `append-metrics.js`: `{"ts":"<now ISO>","type":"micro-resolved","micro_id":"<id>","action":"approved"}`
+    - **"yes"** on tier 2 → create PROP-NNN via `/claude-code-hermit:proposal-create`, queue for next idle, set `status: "approved"`, clear `active` to null. Append `micro-resolved` event.
+    - **"no"** → set `status: "rejected"`, clear `active` to null. Append `micro-resolved` event with `"action":"rejected"`.
+    - **Ambiguous response** → ask for clarification once, do not resolve yet.
+  - Call `node ${CLAUDE_PLUGIN_ROOT}/scripts/generate-summary.js .claude-code-hermit/state/` after resolution.
+  - If no pending micro-proposal: classify as normal message (fall through to categories below).
 
 - **Proposal approval** ("accept PROP-", "go ahead with PROP-", "approve PROP-", or referencing proposal numbers)
   - Route through `/claude-code-hermit:proposal-act accept PROP-NNN` for each referenced proposal

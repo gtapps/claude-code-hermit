@@ -28,7 +28,7 @@ All state lives under `.claude-code-hermit/` in the project root.
 6b. **Interactive morning brief.** If `config.always_on` is `false` AND `config.routines` contains an enabled entry with skill containing `brief --morning`: run the morning brief inline — generate a brief emphasizing where things stand, pending proposals, and what's on deck. No dedup needed — interactive sessions are short-lived.
 6c. **Write .status file.** Write `in_progress` to `.claude-code-hermit/.status` when starting or resuming a task. This keeps the status file in sync for shell consumers (routine watcher).
 7. If `agent_name` is set, use it in the greeting (e.g., "Atlas reporting in." or "{name} a reportar." if language is `pt`). If `language` is set, communicate with the operator in that language for the rest of the session.
-8. If resuming an existing session (Status is `in_progress`):
+8. If resuming an existing session (Status is `in_progress` or `waiting`):
    - Call `TaskList` to see current plan steps. Present the current task, progress (completed/remaining tasks), and blockers.
    - If the session status is `blocked`: suggest running `/debug` to diagnose tool/hook failures before re-attempting the blocked work
    - Ask the operator if they want to continue the current task or start a new one

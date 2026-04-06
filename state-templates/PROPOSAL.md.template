@@ -6,6 +6,8 @@ session: S-NNN
 created: YYYY-MM-DD
 related_sessions: []
 category: improvement
+responded: false
+self_eval_key: null
 ---
 # Proposal: PROP-NNN — [Title]
 

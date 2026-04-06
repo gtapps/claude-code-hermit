@@ -15,7 +15,7 @@ const { readTasks } = require('./lib/tasks');
 const SHELL_SESSION = path.resolve('.claude-code-hermit/sessions/SHELL.md');
 const HASH_FILE = path.resolve('.claude-code-hermit/sessions/.eval-hash');
 
-function evaluateSession(content) {
+function evaluateSession(content, tasks) {
   const results = {
     criteria: [],
     overall: 'pass',
@@ -32,15 +32,17 @@ function evaluateSession(content) {
   }
 
   // Criterion 1: Task status is set
-  const hasStatus = /\*\*Status:\*\*\s*(completed|partial|blocked|in_progress)/i.test(content);
+  const statusMatch = content.match(/\*\*Status:\*\*\s*(\S+)/);
+  const parsedStatus = statusMatch ? statusMatch[1] : null;
+  const hasStatus = parsedStatus && /^(completed|partial|blocked|in_progress|waiting|idle)$/i.test(parsedStatus);
   results.criteria.push({
     name: 'Task status updated',
     status: hasStatus ? 'pass' : 'warn',
     detail: hasStatus ? 'Status field is populated' : 'Status field is missing or empty',
   });
+  results.status = parsedStatus;
 
   // Criterion 2: Plan tracked (via native Claude Code Tasks)
-  const tasks = readTasks();
   const hasSteps = tasks.length > 0;
   results.criteria.push({
     name: 'Plan tracked',
@@ -121,11 +123,10 @@ async function main() {
       content = null;
     }
 
-    // Hash content + task count — used for cache check and write-back
-    // Task state is external to SHELL.md, so include it in the hash
-    const taskCount = readTasks().length;
+    // Read tasks once — used for hash salt and passed to evaluateSession
+    const tasks = readTasks();
     const hash = content !== null
-      ? crypto.createHash('md5').update(content + '\0tasks:' + taskCount).digest('hex')
+      ? crypto.createHash('md5').update(content + '\0tasks:' + tasks.length).digest('hex')
       : null;
 
     // Short-circuit if SHELL.md hasn't changed since last eval
@@ -140,11 +141,48 @@ async function main() {
       }
     }
 
-    const results = evaluateSession(content);
+    const results = evaluateSession(content, tasks);
 
     // Write hash after successful eval
     if (hash !== null) {
       try { fs.writeFileSync(HASH_FILE, hash + '\n'); } catch {}
+    }
+
+    // Active nudges — output to stderr so they surface as hook feedback
+    if (content !== null) {
+      const status = results.status || 'unknown';
+
+      // Only nudge during in_progress — not waiting (intentionally paused) or idle
+      if (status === 'in_progress') {
+        // Find last progress log timestamp
+        const progressSection = content.match(/## Progress Log\n([\s\S]*?)(?=\n## |$)/);
+        const progressText = progressSection ? progressSection[1].trim() : '';
+        const timeEntries = progressText.match(/\[(\d{1,2}:\d{2})\]/g);
+        if (timeEntries && timeEntries.length > 0) {
+          // Parse session start date from header
+          const startMatch = content.match(/\*\*Started:\*\*\s*(\d{4}-\d{2}-\d{2})/);
+          if (startMatch) {
+            const lastTime = timeEntries[timeEntries.length - 1].replace(/[\[\]]/g, '');
+            const lastDate = new Date(`${startMatch[1]}T${lastTime}:00`);
+            const hoursAgo = (Date.now() - lastDate.getTime()) / (1000 * 60 * 60);
+
+            if (hoursAgo > 48) {
+              console.error('Session may be complete. Consider /session-close or idle transition.');
+            } else if (hoursAgo > 4) {
+              console.error(`No progress logged in ${Math.round(hoursAgo)}h. Update Progress Log or Blockers.`);
+            }
+          }
+        }
+      }
+
+      // Monitoring bloat check (any status)
+      const monitoringSection = content.match(/## Monitoring\n([\s\S]*?)(?=\n## |$)/);
+      if (monitoringSection) {
+        const monitoringLines = (monitoringSection[1].match(/\n/g) || []).length;
+        if (monitoringLines > 40) {
+          console.error('Monitoring section too large. Alert dedup should prevent this — check if dedup is working.');
+        }
+      }
     }
 
     // Output as structured JSON

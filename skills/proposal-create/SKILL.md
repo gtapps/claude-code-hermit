@@ -10,6 +10,16 @@ Create a proposal only when you discover something with real leverage:
 - A workflow improvement that would benefit multiple sessions
 - A reusable pattern worth operationalizing
 
+## Three-Condition Rule
+
+Only create a proposal if all three are true:
+1. **Repeated pattern** — observed more than once, across sessions
+2. **Meaningful consequence** — something goes wrong without fixing it
+3. **Operator-actionable change** — something the operator can concretely approve
+
+If any of the three cannot be stated concretely, do not create the proposal.
+Respond: "Not enough evidence yet. Note it in SHELL.md Findings and revisit after more sessions."
+
 ## How to Create
 
 1. Determine the next proposal ID:
@@ -37,6 +47,15 @@ Create a proposal only when you discover something with real leverage:
    - Do NOT write bullet-point metadata (`- **Created:**`, etc.) — all metadata lives in frontmatter only
 
 3. Add a reference to the proposal in `.claude-code-hermit/sessions/SHELL.md` under the Findings section
+
+4. Append a `created` event to proposal metrics:
+   ```
+   node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"created","proposal_id":"PROP-NNN"}'
+   ```
+5. Update state summary:
+   ```
+   node ${CLAUDE_PLUGIN_ROOT}/scripts/generate-summary.js .claude-code-hermit/state/
+   ```
 
 ## Do NOT Create Proposals For
 

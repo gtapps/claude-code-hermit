@@ -171,11 +171,13 @@ Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect 
 The routine watcher runs as a background tmux window (started by `hermit-start.py`). Every 60 seconds it:
 1. Re-reads `config.json` for the latest routines
 2. Matches current time and day against enabled routines
-3. Checks `.claude-code-hermit/.status` — skips if `in_progress` (retries next minute)
+3. Checks `.claude-code-hermit/.status` — queues if `in_progress`, checks `run_during_waiting` if `waiting`
 4. Fires matching routines via `tmux send-keys` to the Claude Code pane
 5. Deduplicates: each routine fires at most once per day
 
 The watcher dies automatically when the tmux session is killed — no cleanup needed.
+
+**`heartbeat-restart`** fires at 4am daily and restarts the heartbeat loop. Required for always-on deployments — `/loop` tasks expire after 3 days. Do not disable unless you are manually managing heartbeat restarts.
 
 ### Relationship to heartbeat
 

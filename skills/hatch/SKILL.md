@@ -26,6 +26,12 @@ Create the following directories and files:
 │   ├── SHELL.md.template
 │   ├── SESSION-REPORT.md.template
 │   └── PROPOSAL.md.template
+├── state/
+│   ├── alert-state.json
+│   ├── reflection-state.json
+│   ├── routine-queue.json
+│   ├── proposal-metrics.jsonl
+│   └── micro-proposals.json
 ├── bin/
 │   ├── hermit-docker
 │   ├── hermit-run
@@ -35,6 +41,13 @@ Create the following directories and files:
 ├── OPERATOR.md
 └── IDLE-TASKS.md
 ```
+
+Initialize state files:
+- `state/alert-state.json`: `{"alerts": {}, "last_digest_date": null, "self_eval": {}}`
+- `state/reflection-state.json`: `{"last_reflection": null}`
+- `state/routine-queue.json`: `{"queued": []}`
+- `state/proposal-metrics.jsonl`: empty file
+- `state/micro-proposals.json`: `{"active": null}`
 
 - Read the template files from `${CLAUDE_SKILL_DIR}/../../state-templates/`
 - Copy `SHELL.md.template`, `SESSION-REPORT.md.template`, `PROPOSAL.md.template` into `templates/`
@@ -211,9 +224,10 @@ questions: [
 Record: `permission_mode` (default/acceptEdits/plan/dontAsk/bypassPermissions).
 
 For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, `end = 23:00`) to derive morning = `08:30` and evening = `22:30`. Add to `routines` array:
-- `{"id":"morning","time":"08:30","skill":"claude-code-hermit:brief --morning","enabled":true}`
-- `{"id":"evening","time":"22:30","skill":"claude-code-hermit:brief --evening","enabled":true}`
-- If no: leave `routines` as empty array
+- `{"id":"morning","time":"08:30","skill":"claude-code-hermit:brief --morning","enabled":true,"run_during_waiting":true}`
+- `{"id":"evening","time":"22:30","skill":"claude-code-hermit:brief --evening","enabled":true,"run_during_waiting":true}`
+- Always add (regardless of routine choice): `{"id":"heartbeat-restart","time":"04:00","skill":"claude-code-hermit:heartbeat start","run_during_waiting":true,"enabled":true}`
+- If no routines: still add heartbeat-restart to the `routines` array (it's infrastructure, not a user routine)
 
 ### 5. Write config.json
 

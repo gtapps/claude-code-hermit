@@ -28,6 +28,14 @@ FROM ".claude-code-hermit/proposals"
 WHERE id
 SORT created DESC
 ```
+
+## Agent Health
+
+```dataview
+TABLE active_alerts, suppressed_alerts, micro_pending, response_rate, last_reflection
+FROM ".claude-code-hermit/state"
+WHERE file.name = "state-summary"
+```
 ````
 
 7. Pin SHELL.md in the right pane for live updates (right-click tab -> "Pin")
@@ -120,7 +128,23 @@ For aggregated cost data, embed the cost summary file:
 ![[.claude-code-hermit/sessions/SHELL]]
 ```
 
-The tasks snapshot shows the plan steps (from native Claude Code Tasks), updated automatically by the cost-tracker hook. SHELL.md shows the narrative — progress log, blockers, cost, findings.
+The tasks snapshot shows the plan steps (from native Claude Code Tasks), updated automatically by the cost-tracker hook. SHELL.md shows the narrative — progress log, blockers, findings.
+
+### Agent Health
+
+````markdown
+```dataview
+TABLE active_alerts, suppressed_alerts, micro_pending, micro_approval_rate AS "Micro Rate", response_rate, last_reflection
+FROM ".claude-code-hermit/state"
+WHERE file.name = "state-summary"
+```
+````
+
+The `state-summary.md` file is auto-generated after every heartbeat tick, proposal action, and reflection. Embed it directly for a quick glance:
+
+```markdown
+![[.claude-code-hermit/state/state-summary]]
+```
 
 ### Current Progress (from Tasks)
 
@@ -139,7 +163,7 @@ One-row table showing task progress (e.g., "3/5") and last update time. Lightwei
 ## Suggested Layout
 
 - **Left pane:** `tasks-snapshot.md` — what steps are planned, what's done
-- **Right pane (pinned):** SHELL.md — what's happening, blockers, cost, findings
+- **Right pane (pinned):** SHELL.md — what's happening, blockers, findings
 - **Bottom:** `dashboard.md` — Dataview tables for history and proposals
 
 Or embed both into your dashboard with the live session embeds above. Pin a pane: right-click tab -> "Pin".
@@ -203,6 +227,18 @@ WHERE file.name = "tasks-snapshot"
 ````
 
 One row per hermit, live progress across the fleet.
+
+### Fleet Health
+
+````markdown
+```dataview
+TABLE active_alerts, suppressed_alerts, micro_pending, micro_approval_rate AS "Micro Rate", response_rate
+FROM ""
+WHERE file.name = "state-summary"
+```
+````
+
+One row per hermit. Shows which agent is noisy, which is healthy, which has low proposal engagement.
 
 For Docker always-on mode, mount the hermit state directory as a volume and symlink into the observatory vault.
 

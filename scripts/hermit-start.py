@@ -49,14 +49,15 @@ DEFAULT_CONFIG = {
     },
     'heartbeat': {
         'enabled': True,
-        'every': '30m',
+        'every': '2h',
         'show_ok': False,
         'active_hours': {
             'start': '08:00',
             'end': '23:00',
         },
-        'self_eval_interval': 20,
         'total_ticks': 0,
+        'stale_threshold': '2h',
+        'waiting_timeout': None,
     },
 }
 

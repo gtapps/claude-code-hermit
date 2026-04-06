@@ -45,11 +45,10 @@ The prompts below match the init wizard exactly. Use the same wording for consis
 | `timezone` | 0.0.1 | yes (auto-detect via `cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value 2>/dev/null || date +%Z`) | `"UTC"` |
 | `escalation` | 0.0.1 | yes | `"balanced"` |
 | `sign_off` | 0.0.1 | conditional (only if `agent_name` was set) | `null` |
-| `heartbeat.self_eval_interval` | 0.0.1 | no | `20` |
 | `heartbeat.total_ticks` | 0.0.1 | no | `0` |
 | `remote` | 0.0.1 | yes | `true` |
 | `always_on` | 0.0.1 | no | `true` |
-| `heartbeat._last_reflection` | 0.0.4 | no | `null` |
+| `heartbeat.waiting_timeout` | 0.3.0 | no | `null` |
 | `env` | 0.0.7 | no | `{"AGENT_HOOK_PROFILE": "standard", "COMPACT_THRESHOLD": "50", "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50", "MAX_THINKING_TOKENS": "10000"}` |
 | `docker` | 0.0.7 | no | `{"packages": []}` |
 | `idle_behavior` | 0.0.9 | yes | `"discover"` |
@@ -118,6 +117,37 @@ This migration converts deprecated v0.0.4 config keys into the new routines syst
    - Example: `"skill": "brief --morning"` → `"skill": "claude-code-hermit:brief --morning"`
    - Skills that already contain `:` are left as-is.
    - Tell operator: "Routine skills migrated to use full names (watcher no longer auto-prefixes)."
+
+**v0.3.0 migration:**
+
+1. **Create state/ directory:** `mkdir -p .claude-code-hermit/state/`
+2. **Initialize state files** (create each if not present):
+   - `state/alert-state.json`: `{"alerts": {}, "last_digest_date": null, "self_eval": {}}`
+   - `state/reflection-state.json`: `{"last_reflection": null}`
+   - `state/routine-queue.json`: `{"queued": []}`
+   - `state/proposal-metrics.jsonl`: empty file
+   No backfill of historical proposal data — metrics start from v0.3.0.
+3. **Migrate `_last_reflection`:** If `config.json` has `heartbeat._last_reflection`, copy value to `state/reflection-state.json` as `last_reflection`. Remove `_last_reflection` from config.
+4. **Update heartbeat.every:** If still `"30m"`, prompt operator: "Default heartbeat frequency changed to 2h in v0.3.0. Update? (y/n)". If yes, set to `"2h"`.
+5. **Remove `self_eval_interval` from config:** If present in `heartbeat` block, remove it. (Now a constant in the skill instructions.)
+6. **Remove `## Cost` from SHELL.md:** If active SHELL.md has a `## Cost` section: read the current cumulative cost value and report it to the operator: `"Migration note: cumulative session cost was $X.XX. Cost data is now in .status.json and will be shown on startup via the SessionStart hook."` Then remove the section. Don't silently discard data.
+7. **Add `state/` to .gitignore** if not present (check for `.claude-code-hermit/state/` line).
+8. **Remove `.heartbeat-skips`** if the file exists at `.claude-code-hermit/.heartbeat-skips`.
+9. **Add `run_during_waiting: true`** to existing brief routines in config.json (routines where `.skill` contains `brief`).
+10. **Add heartbeat-restart routine** if no routine with `id: "heartbeat-restart"` exists in config.json: `{"id": "heartbeat-restart", "time": "04:00", "skill": "claude-code-hermit:heartbeat start", "run_during_waiting": true, "enabled": true}`. Prevents silent heartbeat expiry in always-on deployments.
+11. **Create `state/micro-proposals.json`** with `{"active": null}` if it does not exist.
+12. **Backfill proposal frontmatter:** Scan all `.claude-code-hermit/proposals/PROP-*.md` files. For each file with YAML frontmatter (starts with `---`): if `responded` field is missing, add `responded: false`. If `self_eval_key` field is missing, add `self_eval_key: null`. This ensures the first-response guard in proposal-act works correctly on pre-v0.3.0 proposals.
+13. **Update `heartbeat.waiting_timeout`:** Add `waiting_timeout: null` to `heartbeat` block if not present. (Silent, no operator prompt.)
+
+**v0.3.0 additional checks:**
+- Note to operator: "v0.3.0 is a significant update. Key changes:"
+  - "Alert deduplication — repeated heartbeat alerts are now suppressed after 5 fires. A daily digest covers suppressed alerts."
+  - "Micro-proposals — routine improvements now go through a lightweight yes/no channel approval instead of full PROP-NNN files."
+  - "Waiting state — sessions can now be `waiting` (blocked on operator input) in addition to `in_progress` and `idle`."
+  - "Cost tracking — the `## Cost` section has been removed from SHELL.md. Cost data is now in `.status.json` and shown on startup."
+  - "Heartbeat frequency — default changed from 30m to 2h. You were prompted about this in step 4."
+  - "Heartbeat restart — a daily 4am routine now resets the heartbeat loop to prevent silent expiry in always-on deployments."
+- Note about CLAUDE.md: "The session discipline block in CLAUDE.md has been significantly trimmed (130 → ~35 lines). The upgrade will replace it automatically."
 
 **v0.2.14 migration:**
 

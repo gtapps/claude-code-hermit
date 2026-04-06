@@ -141,6 +141,13 @@ your-project/
 │   ├── sessions/SHELL.md, S-NNN-REPORT.md
 │   ├── proposals/PROP-NNN.md
 │   ├── templates/
+│   ├── state/                        # Runtime observations (agent-owned, not operator-configured)
+│   │   ├── alert-state.json          # Alert dedup state + self-eval evidence (heartbeat-owned)
+│   │   ├── reflection-state.json     # Last reflection timestamp (reflect-owned)
+│   │   ├── routine-queue.json        # Queued routines pending execution (routine-watcher-owned)
+│   │   ├── proposal-metrics.jsonl    # Append-only event log (proposal-create + proposal-act)
+│   │   ├── micro-proposals.json     # Single-slot micro-approval queue (reflect + channel-responder)
+│   │   └── state-summary.md          # Auto-generated health snapshot (generate-summary.js)
 │   ├── bin/hermit-start, hermit-stop
 │   ├── config.json
 │   ├── OPERATOR.md
@@ -149,6 +156,19 @@ your-project/
 ```
 
 ~39 files total. No `package.json`, no `node_modules`, no build step.
+
+#### state/ ownership model
+
+One writer per state file. No shared mutation bus.
+
+| File | Owner (sole writer) | Readers |
+|------|-------------------|---------|
+| `state/alert-state.json` | heartbeat only | heartbeat; evaluate-session (read-only nudge computation) |
+| `state/reflection-state.json` | reflect only | heartbeat (debounce), session (debounce) |
+| `state/routine-queue.json` | routine-watcher only | routine-watcher |
+| `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only) | generate-summary.js |
+| `state/micro-proposals.json` | reflect (queue) + channel-responder/brief (resolve) | brief, generate-summary.js |
+| `state/state-summary.md` | generate-summary.js only | Obsidian, humans |
 
 ---
 
@@ -177,6 +197,8 @@ your-project/
 ```
 
 OPERATOR.md is human-curated — your hermit reads it but never modifies it. Auto-memory is Claude Code's built-in [persistent memory](https://code.claude.com/docs/en/sub-agents) and the primary input to learning. SHELL.md is the live working document. Reports are the journal and cold-start safety net — not the input to learning.
+
+> Planned: domain memory expiry. Each fact should eventually carry `last_used`, `last_verified`, and `invalidation_condition` to prevent domain knowledge from becoming stale sediment. `state/` is the intended home for this when implemented.
 
 ---
 

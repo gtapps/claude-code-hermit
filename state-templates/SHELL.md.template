@@ -3,7 +3,7 @@
 ## Session Info
 - **ID:** S-NNN (assigned on close)
 - **Started:** YYYY-MM-DD HH:MM
-- **Status:** in_progress
+- **Status:** in_progress <!-- valid: in_progress, waiting, idle -->
 - **Tags:** <!-- e.g., refactor, frontend, urgent -->
 - **Budget:** <!-- Set during session-start, or leave blank -->
 - **Tasks Completed:** 0
@@ -30,6 +30,3 @@
 
 ## Session Summary
 <!-- One-line entries per completed task. Added on idle transition. -->
-
-## Cost
-<!-- Populated by cost-tracker hook -->

@@ -48,7 +48,7 @@ When the work is done, or the operator decides to move on (even if partial or bl
 1. Finalize SHELL.md — ensure all progress, blockers, and findings are recorded
 2. Verify quality: task status is accurate (`completed` | `partial` | `blocked`), changed files listed, cost recorded
 3. Create proposals for any high-leverage improvements discovered during work
-4. Invoke the `reflect` skill for reflection. For quick tasks (no tasks created, under 5 minutes), skip this — progress log is sufficient.
+4. **Reflect (with debounce).** Read `state/reflection-state.json` for `last_reflection`. Only invoke the `reflect` skill if `last_reflection` is null or older than 4 hours. For quick tasks (no tasks created, under 5 minutes), skip entirely — progress log is sufficient.
 5. If native Tasks exist: call `TaskList`, format as a markdown table. Then `TaskUpdate(status=deleted)` for all tasks (idle = clean slate).
 6. Use `session-mgr` to perform an **idle transition** (archive report, reset task-scoped sections, set status to `idle`). Pass the task table in the prompt for the archived report.
 7. If `heartbeat.enabled` is true in config and heartbeat is not already running: start it (`/claude-code-hermit:heartbeat start`)

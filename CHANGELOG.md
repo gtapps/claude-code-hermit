@@ -1,5 +1,98 @@
 # Changelog
 
+## [0.3.0] - 2026-04-06
+
+### Added
+
+- **Alert deduplication** — Heartbeat alerts now use semantic keys (`stale-session`, `checklist:<item>`, `proposal-pending:<PROP-NNN>`, etc.) for dedup. Alerts suppress after 5 fires and surface only in a daily digest. Resolution clears after 2 consecutive clean ticks (4h at default 2h frequency). Eliminates the alert noise reported across all 3 active hermit instances.
+
+- **Self-eval evidence gating** — Self-evaluation no longer suggests removing checklist items on a single-window basis. Items must accumulate 20 clean ticks across 3 distinct sessions before a proposal is created via the pipeline. Dismissed proposals reset the counter automatically via `self_eval_key` matching (step 2b).
+
+- **Micro-proposal tier system** — Three-lane proposal system: silent (act directly), micro-approval (channel yes/no), and full PROP-NNN. Reflect classifies candidates into tier 1 (reversible/routine), tier 2 (meaningful/non-critical), or tier 3 (safety-critical). Micro-proposals use a single-slot queue in `state/micro-proposals.json` with a strict question format and 2-ignore expiry lifecycle via the morning brief.
+
+- **Waiting state** — Third session status alongside `in_progress` and `idle`. Sessions can now be `waiting` when blocked on operator input. Heartbeat skips stale checks during waiting. Configurable `waiting_timeout` (default: null = no timeout) auto-transitions to idle. Channel-responder recognizes waiting state for response routing. Routine-watcher supports `run_during_waiting` flag per routine.
+
+- **state/ directory** — New architectural layer for runtime observations. One writer per state file:
+  - `alert-state.json` (heartbeat) — alert dedup + self-eval evidence
+  - `reflection-state.json` (reflect) — last reflection timestamp
+  - `routine-queue.json` (routine-watcher) — queued routines pending execution
+  - `proposal-metrics.jsonl` (proposal-create + proposal-act) — append-only event log
+  - `micro-proposals.json` (reflect + channel-responder) — single-slot micro-approval queue
+  - `state-summary.md` (generate-summary.js) — auto-generated health snapshot for Obsidian
+
+- **Three-condition proposal rule** — Proposals require: repeated pattern (observed across sessions), meaningful consequence, and operator-actionable change. Explicit refusal path in proposal-create. Applied in both reflect and proposal-create.
+
+- **Proposal metrics tracking** — `responded: false` and `self_eval_key: null` added to proposal frontmatter. First-response-only counting prevents >100% response rates. Events logged to `proposal-metrics.jsonl` for `created`, `responded`, `micro-queued`, and `micro-resolved`.
+
+- **Heartbeat restart routine** — Daily 4am routine (`heartbeat-restart`) restarts the heartbeat loop to prevent silent expiry in always-on deployments. `/loop` tasks expire after 3 days; this resets the clock. The `start` subcommand is now restart-safe (cancels existing loop before creating new).
+
+- **Evaluate-session nudges** — Hook now detects zombie sessions (48h no progress), stale progress (4h silence), and monitoring section bloat (40+ lines). Nudges are stderr-only and skip when status is `waiting` or `idle`.
+
+- **Reflect trigger at task completion** — Reflect now fires at task boundaries (before idle transition) with a 4h debounce guard via `reflection-state.json`, not just during heartbeat idle. Three-outcome decision tree: no action, memory update, or proposal candidate (with tier classification).
+
+### Changed
+
+- **Heartbeat default frequency** — `heartbeat.every` changed from `"30m"` to `"2h"`. All 3 retrospective reports flagged 30m as too frequent for human-paced workflows. Upgrade prompts existing hermits to update.
+
+- **CLAUDE-APPEND trimmed** — Session discipline block cut from 130 to ~35 lines. Removed explanatory sections that duplicated skill instructions and docs. Kept: startup check, session states, state directory, subagent table, quick reference, rate limits, self-awareness, secrets, proposal rule.
+
+- **Cost tracking moved out of SHELL.md** — `cost-tracker.js` no longer writes the `## Cost` section to SHELL.md (eliminated race condition with concurrent Claude edits). Cost data lives in `.status.json` and is injected into context by the SessionStart hook via `read-cost.js`.
+
+- **Routine-watcher queue-not-skip** — Routines that fire during `in_progress` are now queued to `state/routine-queue.json` instead of silently skipped. Safe dequeue (one at a time, remove only after successful dispatch). Heartbeat detects stale queued routines.
+
+- **Reflect scope tightened** — Removed "if you're not sure, mention it" clause. Three outcomes only: no action, memory update, or proposal candidate. No freeform observations.
+
+### Removed
+
+- **Skip tracking** — `.heartbeat-skips` file and the skip tracking procedure removed. Replaced with a simple "resumed (was inactive)" log line.
+- **`self_eval_interval` config key** — Now a constant (20) in the skill instructions.
+- **`heartbeat._last_reflection` config key** — Migrated to `state/reflection-state.json`.
+- **`## Cost` section in SHELL.md template** — Cost data now in `.status.json`.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/generate-summary.js` | **New.** Read-only state summary generator |
+| `scripts/append-metrics.js` | **New.** Append-only JSONL helper |
+| `scripts/read-cost.js` | **New.** SessionStart hook cost reader |
+| `skills/heartbeat/SKILL.md` | Alert dedup, self-eval evidence gating, waiting state, restart-safe start, stale queue check |
+| `skills/reflect/SKILL.md` | Three-outcome tree, tier classification, micro-proposal queuing, three-condition rule |
+| `skills/proposal-create/SKILL.md` | Three-condition validation, metrics append |
+| `skills/proposal-act/SKILL.md` | First-response guard, metrics append |
+| `skills/channel-responder/SKILL.md` | Waiting state, micro-approval handling |
+| `skills/brief/SKILL.md` | Micro-proposal pending slot in morning brief |
+| `skills/session/SKILL.md` | Reflect trigger with 4h debounce |
+| `skills/session-start/SKILL.md` | Recognize waiting state |
+| `skills/hatch/SKILL.md` | state/ dir, state file init, heartbeat-restart routine |
+| `skills/hermit-upgrade/SKILL.md` | 13-step v0.3.0 migration with operator notes |
+| `scripts/cost-tracker.js` | Remove SHELL.md write |
+| `scripts/evaluate-session.js` | Zombie, stale, bloat nudges |
+| `scripts/routine-watcher.sh` | Queue-not-skip with safe dequeue |
+| `scripts/hermit-start.py` | Waiting state, updated defaults |
+| `hooks/hooks.json` | SessionStart cost injection via read-cost.js |
+| `state-templates/CLAUDE-APPEND.md` | 130 → ~35 lines |
+| `state-templates/SHELL.md.template` | Waiting state, removed ## Cost |
+| `state-templates/config.json.template` | 2h frequency, waiting_timeout, heartbeat-restart routine |
+| `state-templates/PROPOSAL.md.template` | responded + self_eval_key fields |
+| `state-templates/GITIGNORE-APPEND.txt` | state/ directory |
+| `docs/ARCHITECTURE.md` | state/ directory with ownership model |
+| `docs/OBSIDIAN-SETUP.md` | Agent Health, Fleet Health, micro-proposal queries |
+| `docs/ALWAYS-ON-OPS.md` | Heartbeat-restart docs, routine-watcher update |
+| `.claude-plugin/plugin.json` | Version bump to 0.3.0 |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles 13 migration steps:
+
+1. **state/ directory + files** — Creates the new `state/` directory and initializes all 5 state files (alert-state.json, reflection-state.json, routine-queue.json, proposal-metrics.jsonl, micro-proposals.json).
+2. **Config migration** — Moves `_last_reflection` to state file, removes `self_eval_interval`, updates heartbeat frequency (interactive), adds `waiting_timeout`.
+3. **SHELL.md cleanup** — Removes `## Cost` section (cost data preserved in .status.json, reported to operator).
+4. **Gitignore + file cleanup** — Adds `state/` to .gitignore, removes `.heartbeat-skips`.
+5. **Routine updates** — Adds `run_during_waiting` to brief routines, adds `heartbeat-restart` routine.
+6. **Proposal backfill** — Adds `responded: false` and `self_eval_key: null` to existing proposals.
+7. **Templates + CLAUDE-APPEND** — Auto-refreshed by existing upgrade steps 5 and 6.
+
 ## [0.2.13] - 2026-04-04
 
 ### Added

@@ -107,7 +107,7 @@ function getCumulativeCost(newCost, newTokens) {
     totalCost += entry.estimated_cost_usd || 0;
     totalTokens += entry.total_tokens || 0;
   }
-  return { cost: totalCost || newCost, tokens: totalTokens || newTokens };
+  return { cost: totalCost > 0 ? totalCost : newCost, tokens: totalTokens > 0 ? totalTokens : newTokens };
 }
 
 function checkBudget(budget, cumulativeCost) {
@@ -135,10 +135,10 @@ function writeStatusJson(shellContent, cumulativeCost, cumulativeTokens, budget)
 
   // Plan progress from native Claude Code Tasks
   const tasks = readTasks();
-  const { done: planDone, total: planTotal } = taskProgress(tasks);
+  const progress = taskProgress(tasks);
 
   // Write tasks-snapshot.md for Obsidian visibility
-  writeTaskSnapshot(tasks);
+  writeTaskSnapshot(tasks, progress);
 
   const blockersText = blockersMatch ? blockersMatch[1].trim().replace(/<!--.*?-->/g, '').trim() : '';
   const hasBlockers = blockersText.length > 0 && !/^none$/i.test(blockersText);
@@ -148,8 +148,8 @@ function writeStatusJson(shellContent, cumulativeCost, cumulativeTokens, budget)
     session_id: idMatch ? idMatch[1] : '',
     status: statusMatch ? statusMatch[1] : 'unknown',
     task: task.split('\n')[0].substring(0, MAX_SUMMARY_LEN),
-    plan_done: planDone,
-    plan_total: planTotal,
+    plan_done: progress.done,
+    plan_total: progress.total,
     tasks_completed: tasksMatch ? parseInt(tasksMatch[1], 10) : 0,
     cost_usd: Math.round(cumulativeCost * 10000) / 10000,
     budget_usd: budget,
@@ -165,8 +165,8 @@ function parseBudget(shellContent) {
   return match ? parseFloat(match[1]) : null;
 }
 
-function writeTaskSnapshot(tasks) {
-  const { done, total } = taskProgress(tasks);
+function writeTaskSnapshot(tasks, progress) {
+  const { done, total } = progress;
 
   let content = `---\nupdated: ${new Date().toISOString()}\nprogress: ${done}/${total}\n---\n# Active Tasks\n\n`;
   if (tasks.length === 0) {
@@ -370,13 +370,11 @@ async function main() {
     const costStr = `$${cumulative.cost.toFixed(4)}`;
     const tokenStr = `${Math.round(cumulative.tokens / 1000)}K tokens`;
 
-    // Read SHELL.md once, update cost section, then derive status + budget from it
+    // Read SHELL.md for status/budget — do NOT write back (avoids race condition with Claude's edits)
     try {
       const shellContent = fs.readFileSync(SHELL_SESSION, 'utf-8');
-      const updated = updateShellSession(shellContent, costStr, tokenStr);
-      fs.writeFileSync(SHELL_SESSION, updated, 'utf-8');
-      const budget = parseBudget(updated);
-      writeStatusJson(updated, cumulative.cost, cumulative.tokens, budget);
+      const budget = parseBudget(shellContent);
+      writeStatusJson(shellContent, cumulative.cost, cumulative.tokens, budget);
       checkBudget(budget, cumulative.cost);
     } catch {
       // Non-fatal — session file may not exist yet

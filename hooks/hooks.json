@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'AGENT_DIR=\".claude-code-hermit\"; rm -f \"$AGENT_DIR/sessions/.eval-hash\"; echo \"---Session Context---\"; [ -f \"$AGENT_DIR/OPERATOR.md\" ] && head -50 \"$AGENT_DIR/OPERATOR.md\"; echo \"---Active Session---\"; [ -f \"$AGENT_DIR/sessions/SHELL.md\" ] && cat \"$AGENT_DIR/sessions/SHELL.md\" || echo \"No active session\"; echo \"---Last Report---\"; ls -t \"$AGENT_DIR\"/sessions/S-*-REPORT.md 2>/dev/null | head -1 | xargs cat 2>/dev/null || echo \"No previous sessions\"; bash \"${CLAUDE_PLUGIN_ROOT}/scripts/check-upgrade.sh\" \"${CLAUDE_PLUGIN_ROOT}\"'"
+            "command": "bash -c 'AGENT_DIR=\".claude-code-hermit\"; rm -f \"$AGENT_DIR/sessions/.eval-hash\"; echo \"---Session Context---\"; [ -f \"$AGENT_DIR/OPERATOR.md\" ] && head -50 \"$AGENT_DIR/OPERATOR.md\"; echo \"---Active Session---\"; [ -f \"$AGENT_DIR/sessions/SHELL.md\" ] && cat \"$AGENT_DIR/sessions/SHELL.md\" || echo \"No active session\"; echo \"---Last Report---\"; ls -t \"$AGENT_DIR\"/sessions/S-*-REPORT.md 2>/dev/null | head -1 | xargs cat 2>/dev/null || echo \"No previous sessions\"; echo \"---Session Cost---\"; python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/read-cost.py\" \"$AGENT_DIR/sessions/.status.json\" 2>/dev/null || echo \"No cost data\"; bash \"${CLAUDE_PLUGIN_ROOT}/scripts/check-upgrade.sh\" \"${CLAUDE_PLUGIN_ROOT}\"'"
           }
         ],
         "description": "Load session context on startup"
