@@ -131,7 +131,7 @@ Modify with `/hermit-settings plugin-checks`.
 | `scope` | string | `"project"` | Install scope: `"project"` or `"local"`. |
 | `enabled` | boolean | `false` | Whether to install on container boot. Only honored for `claude-plugins-official` — third-party plugins are tracked but must be installed manually. |
 
-**Security policy:** Only plugins from `claude-plugins-official` are auto-installed by the entrypoint. Third-party plugins are stored for tracking/reference but skipped during boot — they must be installed manually inside the container. This is because Docker containers run with `bypassPermissions`, and auto-installing untrusted code in that context is a security risk. See [Recommended Plugins](RECOMMENDED-PLUGINS.md) for details.
+**Security policy:** Only plugins from `claude-plugins-official` are auto-installed by the entrypoint. Third-party plugins are stored for tracking/reference but skipped during boot — they must be installed manually inside the container. This is because Docker containers run with `bypassPermissions`, and auto-installing untrusted code in that context is a security risk. See [Recommended Plugins](recommended-plugins.md) for details.
 
 Modify with `/hermit-settings docker`.
 
@@ -157,3 +157,77 @@ config.json "env"  ->  hermit-start.py  ->  .claude/settings.local.json "env"  -
 - **Shell env only:** `CLAUDE_CONFIG_DIR`, `ANTHROPIC_API_KEY` (OAuth credentials live in `.credentials.json`, written by `claude login`)
 - **settings.local.json only:** `AGENT_HOOK_PROFILE`, `COMPACT_THRESHOLD`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, `MAX_THINKING_TOKENS`
 - **Both:** `DISCORD_STATE_DIR`, `TELEGRAM_STATE_DIR` (MCP servers need shell env; hooks read settings.local.json)
+
+---
+
+## Complete Example
+
+A realistic `config.json` for an always-on Docker hermit with Discord:
+
+```json
+{
+  "_hermit_versions": {
+    "claude-code-hermit": "0.3.2"
+  },
+  "agent_name": "Atlas",
+  "language": "en",
+  "timezone": "America/New_York",
+  "escalation": "balanced",
+  "sign_off": "— Atlas",
+  "channels": ["discord"],
+  "allowed_users": {
+    "discord": ["123456789012345678"]
+  },
+  "remote": true,
+  "model": null,
+  "permission_mode": "bypassPermissions",
+  "tmux_session_name": "hermit-myproject",
+  "auto_session": true,
+  "ask_budget": false,
+  "always_on": true,
+  "morning_brief": "discord",
+  "idle_behavior": "discover",
+  "idle_budget": "$0.50",
+  "routines": [
+    {"id": "morning-brief", "time": "08:00", "skill": "claude-code-hermit:brief --morning", "run_during_waiting": true, "enabled": true},
+    {"id": "evening-summary", "time": "22:00", "skill": "claude-code-hermit:brief --evening", "run_during_waiting": true, "enabled": true},
+    {"id": "heartbeat-restart", "time": "04:00", "skill": "claude-code-hermit:heartbeat start", "run_during_waiting": true, "enabled": true}
+  ],
+  "env": {
+    "AGENT_HOOK_PROFILE": "strict",
+    "COMPACT_THRESHOLD": "50",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50",
+    "MAX_THINKING_TOKENS": "10000",
+    "DISCORD_STATE_DIR": ".claude.local/channels/discord"
+  },
+  "plugin_checks": [
+    {"id": "claude-md-check", "plugin": "claude-md-management", "skill": "claude-md-management:claude-md-improver", "enabled": true, "trigger": "interval", "interval_days": 7}
+  ],
+  "docker": {
+    "packages": ["python3", "python3-pip"],
+    "recommended_plugins": [
+      {"marketplace": "claude-plugins-official", "plugin": "claude-code-setup", "scope": "project", "enabled": true}
+    ]
+  },
+  "compact": {
+    "monitoring_threshold": 30,
+    "monitoring_keep": 20,
+    "summary_threshold": 30,
+    "summary_keep": 15
+  },
+  "heartbeat": {
+    "enabled": true,
+    "every": "2h",
+    "show_ok": false,
+    "active_hours": {
+      "start": "08:00",
+      "end": "23:00"
+    },
+    "total_ticks": 0,
+    "stale_threshold": "2h",
+    "waiting_timeout": "4h"
+  }
+}
+```
+
+For a minimal interactive-only setup, most fields can stay at their defaults. Run `/hermit-settings` to see your current configuration.

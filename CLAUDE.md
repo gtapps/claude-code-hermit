@@ -84,7 +84,7 @@ Additional agents may be available from installed hermits.
 
 ## Quick Reference
 
-Common skills (full list: [Skills Reference](docs/SKILLS.md)):
+Common skills (full list: [Skills Reference](docs/skills.md)):
 
 - `/claude-code-hermit:session` — start or resume a session
 - `/claude-code-hermit:session-close` — full shutdown with quality checks

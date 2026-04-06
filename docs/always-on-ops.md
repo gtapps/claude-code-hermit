@@ -1,8 +1,8 @@
 # Always-On Operations (Non-Docker)
 
-tmux-based setup for running your hermit without Docker, plus the lifecycle reference that applies to all always-on modes. For Docker setup, see [Always-On Setup](ALWAYS-ON.md).
+tmux-based setup for running your hermit without Docker, plus the lifecycle reference that applies to all always-on modes. For Docker setup, see [Always-On Setup](always-on.md).
 
-For skill details, see [Skills Reference](SKILLS.md).
+For skill details, see [Skills Reference](skills.md).
 
 ---
 
@@ -45,7 +45,7 @@ claude --permission-mode acceptEdits
 
 > **Why `--permission-mode acceptEdits`?** Always-on agents need to act without prompts for file edits. Deny patterns and hooks provide safety instead. **Run `claude` interactively once first** to accept the workspace trust prompt — without this, the agent hangs in tmux.
 >
-> For fully isolated containers/VMs, set `permission_mode: "bypassPermissions"` in `config.json` — `hermit-start` maps this to `--dangerously-skip-permissions`. See [Always-On Setup](ALWAYS-ON.md) for the Docker workflow and [Permission Modes](https://code.claude.com/docs/en/permission-modes).
+> For fully isolated containers/VMs, set `permission_mode: "bypassPermissions"` in `config.json` — `hermit-start` maps this to `--dangerously-skip-permissions`. See [Always-On Setup](always-on.md) for the Docker workflow and [Permission Modes](https://code.claude.com/docs/en/permission-modes).
 
 ### Remote access
 
@@ -202,7 +202,7 @@ The watcher dies automatically when the tmux session is killed — no cleanup ne
 
 ## 3. Channels
 
-Channels let you talk to your hermit from your phone via Telegram, Discord, or iMessage. Setup, pairing, and Docker-specific config are covered in [Always-On Setup](ALWAYS-ON.md#channels-in-docker) and the [Claude Code Channels docs](https://code.claude.com/docs/en/channels).
+Channels let you talk to your hermit from your phone via Telegram, Discord, or iMessage. Setup, pairing, and Docker-specific config are covered in [Always-On Setup](always-on.md#channels-in-docker) and the [Claude Code Channels docs](https://code.claude.com/docs/en/channels).
 
 For bare-tmux setups, channel config lives at the user level by default (`~/.claude/channels/<plugin>/`). To scope config per-project (useful for multi-agent setups), create `.claude.local/channels/<plugin>/` with an `access.json` and optional `.env`. Make sure `.claude.local/` is gitignored.
 
@@ -210,7 +210,7 @@ For bare-tmux setups, channel config lives at the user level by default (`~/.cla
 
 ## 4. Cost Management
 
-The `cost-tracker` hook tracks spend automatically. For detailed token optimization settings, budgets, and env config, see [Always-On Setup: Cost Management](ALWAYS-ON.md#cost-management).
+The `cost-tracker` hook tracks spend automatically. For detailed token optimization settings, budgets, and env config, see [Always-On Setup: Cost Management](always-on.md#cost-management).
 
 Quick summary: set per-session budgets with `/hermit-settings budget` (warns at 80%, recommends closing at 100%) and project-level budgets in OPERATOR.md.
 
@@ -230,7 +230,7 @@ All state is in `sessions/SHELL.md` on disk. A disconnect loses conversation con
 
 ## 6. Security
 
-See [Security](SECURITY.md).
+See [Security](security.md).
 
 ---
 
@@ -248,7 +248,7 @@ If you hit a rate limit, update SHELL.md: "Rate limited at [timestamp]. Waiting 
 
 ### Data persistence
 
-SHELL.md is gitignored. Protect in-progress state with periodic commits to a separate branch, or by removing SHELL.md from `.gitignore`. Docker users can also use named volumes — see [Always-On Setup](ALWAYS-ON.md).
+SHELL.md is gitignored. Protect in-progress state with periodic commits to a separate branch, or by removing SHELL.md from `.gitignore`. Docker users can also use named volumes — see [Always-On Setup](always-on.md).
 
 ### Channel resilience
 
@@ -283,4 +283,4 @@ WantedBy=multi-user.target
 
 **macOS (launchd):** Create a plist in `~/Library/LaunchAgents/` that runs `hermit-start` at login. The SessionStart hook reloads session context automatically.
 
-**Docker:** `restart: unless-stopped` handles it automatically — see [Always-On Setup](ALWAYS-ON.md). The entrypoint's SIGTERM trap ensures graceful session close on system shutdown.
+**Docker:** `restart: unless-stopped` handles it automatically — see [Always-On Setup](always-on.md). The entrypoint's SIGTERM trap ensures graceful session close on system shutdown.

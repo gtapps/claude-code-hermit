@@ -16,7 +16,7 @@ That's the first customization lever, and for most people it's the only one they
 
 `OPERATOR.md` is how you turn a generic assistant into _your_ assistant. Budget limits, off-limits directories, naming conventions, communication preferences — write it once, your hermit reads it every session.
 
-See [Getting Started](HOW-TO-USE.md#operatormd) for the good/bad examples and formatting tips.
+See [Getting Started](how-to-use.md#operatormd) for the good/bad examples and formatting tips.
 
 ---
 

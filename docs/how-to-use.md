@@ -22,7 +22,7 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope project
 /claude-code-hermit:hatch
 ```
 
-The wizard sets up your agent's identity (name, language, timezone, autonomy level) and operational preferences (channels, remote control, heartbeat, daily routines, idle agency, budgets). Then it scans your folder and generates an `OPERATOR.md` — your rulebook. Starting fresh with an empty folder? It'll ask what the assistant is for.
+The wizard sets up your agent's identity (name, language, timezone, [autonomy level](config-reference.md#escalation-levels)) and operational preferences (channels, remote control, heartbeat, daily routines, idle agency, budgets). Then it scans your folder and generates an `OPERATOR.md` — your rulebook. Starting fresh with an empty folder? It'll ask what the assistant is for.
 
 ### OPERATOR.md
 
@@ -115,7 +115,7 @@ Docker is the recommended way to run your hermit autonomously. It provides conta
 /claude-code-hermit:docker-setup    # generates hermit Docker files, walks you through deployment
 ```
 
-See [Always-On Setup](ALWAYS-ON.md) for the full guide — auth, channels, takeover, cost management.
+See [Always-On Setup](always-on.md) for the full guide — auth, channels, takeover, cost management.
 
 **Without Docker?** You can run directly in tmux:
 
@@ -124,7 +124,7 @@ See [Always-On Setup](ALWAYS-ON.md) for the full guide — auth, channels, takeo
 .claude-code-hermit/bin/hermit-stop
 ```
 
-See [Always-On Operations](ALWAYS-ON-OPS.md) for tmux setup and operational details.
+See [Always-On Operations](always-on-ops.md) for tmux setup and operational details.
 
 ---
 
@@ -162,6 +162,8 @@ See [Always-On Operations](ALWAYS-ON-OPS.md) for tmux setup and operational deta
 └── config.json                <- settings
 ```
 
+> Files in `state/` are managed by the plugin at runtime — do not edit them manually. Files you own and can edit: `config.json`, `OPERATOR.md`, `HEARTBEAT.md`, `IDLE-TASKS.md`.
+
 ---
 
 ## Hook Profiles
@@ -187,7 +189,7 @@ Or edit `config.json` directly: `"env": { "AGENT_HOOK_PROFILE": "strict" }`
 
 Hermit includes by default some deny patterns that block dangerous operations regardless of permission mode — `rm -rf`, `git push --force`, `chmod 777`, credential access, and more. The `/hatch` wizard generates these automatically, with a hardened set for always-on deployments.
 
-See [Security](SECURITY.md) for the full deny list and defense-in-depth model.
+See [Security](security.md) for the full deny list and defense-in-depth model.
 
 ---
 
@@ -228,4 +230,4 @@ Most common actions auto-trigger from natural language — just say what you mea
 | **Docker**     | `docker-setup`, `hermit-takeover`, `hermit-hand-back`         |
 | **Channels**   | `channel-responder`                                           |
 
-Full reference: [Skills Reference](SKILLS.md).
+Full reference: [Skills Reference](skills.md).

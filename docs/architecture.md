@@ -71,7 +71,7 @@ SHELL.md tasks,  status,   S-NNN-REPORT.md,
 
 **Work:** Plan items tracked as native Claude Code Tasks (`pending` -> `in_progress` -> `completed`). Timestamped progress log in SHELL.md. Blockers recorded with cold-start context. `tasks-snapshot.md` auto-updated by cost-tracker hook for Obsidian.
 
-**Close:** Defaults to idle transition at every task boundary — your hermit says "What's next?" and waits. Reflection fires. Full shutdown only via `/session-close`. See [Always-On Lifecycle](ALWAYS-ON-OPS.md#2-always-on-lifecycle).
+**Close:** Defaults to idle transition at every task boundary — your hermit says "What's next?" and waits. Reflection fires. Full shutdown only via `/session-close`. See [Always-On Lifecycle](always-on-ops.md#2-always-on-lifecycle).
 
 **Archive:** SHELL.md + task table -> `S-NNN-REPORT.md`. Fresh template with carry-forward. Monitoring and Session Summary sections are compacted if over threshold (configurable via `compact` in config.json). On full close, unfinished tasks persist in the task list for the next session.
 
@@ -93,7 +93,7 @@ Hermits extend this layer with specialized agents (e.g., `claude-code-dev-hermit
 
 ### Skills (18)
 
-See [Skills Reference](SKILLS.md) for the full list.
+See [Skills Reference](skills.md) for the full list.
 
 ### Hooks
 
@@ -284,7 +284,7 @@ config.json "env"  →  hermit-start.py  →  .claude/settings.local.json "env" 
 
 ### Denied operations
 
-Deny patterns block dangerous operations regardless of permission mode. See [Security](SECURITY.md) for the full deny list and defense-in-depth model.
+Deny patterns block dangerous operations regardless of permission mode. See [Security](security.md) for the full deny list and defense-in-depth model.
 
 ---
 

@@ -77,5 +77,47 @@ By design, no. OPERATOR.md is human-curated — the hermit reads it but never wr
 
 ## What's the difference between a "hermit" and a "hermit plugin"?
 
-- **Hermit** = what you get after running `/hatch` in any project. Your assistant.
-- **Hermit plugin** = a reusable extension that adds domain-specific agents, skills, and hooks (e.g., `claude-code-dev-hermit`). Layers on top of the core.
+- **Hermit** = the running assistant instance in your project — what you get after running `/hatch`.
+- **claude-code-hermit** = the base plugin package that provides session management, proposals, heartbeat, and the learning loop.
+- **Hermit plugin** = a third-party extension that adds domain-specific agents, skills, and hooks (e.g., `claude-code-dev-hermit` adds repo mapping, implementation, and code review agents). Layers on top of the core.
+
+---
+
+## What's the difference between heartbeat and monitor?
+
+**Heartbeat** is the built-in periodic health check — runs every 2h by default, evaluates the `HEARTBEAT.md` checklist, and alerts you only when something needs attention. It's always-on infrastructure.
+
+**Monitor** (`/monitor`) is a session-scoped watcher you set up for specific concerns (e.g., "watch for CI failures every 5 minutes"). Monitors are task-specific and stop when the session closes.
+
+See [Skills Reference](skills.md) for the heartbeat/monitor comparison table.
+
+---
+
+## How does memory work?
+
+Hermit uses several layers of memory:
+
+- **SHELL.md** — working memory for the current session (task, progress, blockers, findings)
+- **Session reports** (`S-NNN-REPORT.md`) — archived summaries of past sessions
+- **OPERATOR.md** — your persistent instructions, read at every session start
+- **Claude Code memory** — cross-session learning that persists between conversations (the hermit reflects on its experience and saves what it learns)
+- **Proposals** (`PROP-NNN.md`) — structured improvement recommendations with evidence
+
+The hermit reflects on its own memory — not by scanning old reports. It notices patterns from what it remembers across sessions.
+
+---
+
+## What happens when my hermit is idle?
+
+Depends on the `idle_behavior` setting in `config.json`:
+
+- **`"wait"`** — checks for incoming tasks and channel messages only. Passive.
+- **`"discover"`** (default) — also picks up accepted proposals from `NEXT-TASK.md`, runs reflection, picks idle tasks from `IDLE-TASKS.md`, and aligns priorities with OPERATOR.md. Active.
+
+Both modes run the heartbeat if enabled. Change with `/hermit-settings idle`.
+
+---
+
+## What are plugin checks?
+
+Automatic invocations of skills from installed plugins (e.g., `claude-md-management:claude-md-improver`). They run during idle reflection at configurable intervals. Configure with `/hermit-settings plugin-checks`. See [Config Reference](config-reference.md#plugin_checks) for the schema.

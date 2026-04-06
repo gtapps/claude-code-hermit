@@ -38,7 +38,7 @@ Plugin checks run during idle reflection via `reflect`. If accepted plugins aren
 - Check `AGENT_HOOK_PROFILE` in `config.json` `env` (written to `.claude/settings.local.json` at boot). Core hooks need `standard` or `strict`. Hermit hooks (e.g., git-push-guard) need `strict`. View/change with `/hermit-settings env`.
 - Validate hooks.json: `cat hooks/hooks.json | python3 -m json.tool`
 - Test manually: `echo '{}' | node scripts/cost-tracker.js`
-- Hooks may not fire for subagent tool calls — see [Architecture](ARCHITECTURE.md).
+- Hooks may not fire for subagent tool calls — see [Architecture](architecture.md).
 
 ## Session-Start Hangs
 
@@ -121,4 +121,31 @@ Common causes:
 - Check config version: `cat .claude-code-hermit/config.json | grep _hermit_versions`.
 - If both match, there's genuinely nothing to upgrade. New features may have landed as skill changes (no config migration needed).
 - If the plugin was updated but the marketplace cache is stale: `claude plugin marketplace add gtapps/claude-code-hermit` to force refresh, then reinstall.
+
+## Docker Container Keeps Restarting
+
+Check logs first:
+
+```bash
+.claude-code-hermit/bin/hermit-docker logs
+```
+
+Common causes:
+- **Auth expired:** `hermit-docker login` to re-authenticate, then `hermit-docker restart`.
+- **Workspace trust not accepted:** Attach once (`hermit-docker attach`), accept the trust prompt, then detach (`Ctrl+B, D`).
+- **Missing `.env`:** If using API key auth, ensure `.env` exists with `ANTHROPIC_API_KEY` set.
+
+## Permission Denied Inside Container
+
+Usually a UID mismatch between the host and the container user. The generated Dockerfile creates a `claude` user matching your host UID. If you changed your system user or are running on a different machine:
+
+1. Check your host UID: `id -u`
+2. Rebuild the image: `docker compose -f docker-compose.hermit.yml build --no-cache`
+
+## Channel Messages Not Arriving
+
+- Verify the channel plugin is installed inside the container: `hermit-docker attach`, then check with `claude plugin list`.
+- Check bot pairing: send a test message to the bot and watch the logs (`hermit-docker logs`).
+- For Discord: ensure `DISCORD_STATE_DIR` is set in `config.json` `env` and the state directory is bind-mounted.
+- For Telegram: ensure the bot token is set and `TELEGRAM_STATE_DIR` is configured.
 

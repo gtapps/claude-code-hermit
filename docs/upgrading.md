@@ -161,7 +161,7 @@ Running `/claude-code-hermit:hermit-upgrade` handles:
 
 1. Run `/claude-code-hermit:hermit-upgrade`
 2. Review the heartbeat frequency prompt — consider accepting 2h (the new default)
-3. If using Obsidian, add the Agent Health query from [Obsidian Setup](OBSIDIAN-SETUP.md) to your dashboard
+3. If using Obsidian, add the Agent Health query from [Obsidian Setup](obsidian-setup.md) to your dashboard
 
 ---
 

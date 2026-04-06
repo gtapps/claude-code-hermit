@@ -27,7 +27,7 @@ Then run `/claude-code-hermit:hatch` to create the state directory. Edits to ski
 bash tests/run-hooks.sh
 ```
 
-See [Testing](docs/TESTING.md) for hook test details, fixtures, manual testing, and how to write new tests.
+See [Testing](docs/testing.md) for hook test details, fixtures, manual testing, and how to write new tests.
 
 ## PR Workflow
 

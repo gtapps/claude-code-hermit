@@ -1,6 +1,6 @@
 # Always-On Setup
 
-Docker is the recommended way to run your hermit autonomously. For lifecycle internals and bare-tmux setup, see [Always-On Operations](ALWAYS-ON-OPS.md). For security hardening, see [Security](SECURITY.md).
+Docker is the recommended way to run your hermit autonomously. For lifecycle internals and bare-tmux setup, see [Always-On Operations](always-on-ops.md). For security hardening, see [Security](security.md).
 
 ---
 
@@ -205,4 +205,4 @@ Adjust with `/hermit-settings env`.
 | Workspace trust prompt on first run | Attach once, press Enter, detach |
 | `permission_mode` stays `bypassPermissions` after Docker | Reset via `/hermit-settings permissions` if you run locally later |
 | Windows paths break config | Must run from WSL2 — clone inside WSL2 (`/home/you/project`) |
-| Docker not available | Channels still work — see [Always-On Operations](ALWAYS-ON-OPS.md) for bare tmux |
+| Docker not available | Channels still work — see [Always-On Operations](always-on-ops.md) for bare tmux |

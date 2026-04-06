@@ -88,7 +88,7 @@ Each entry in `docker.recommended_plugins`:
 | `scope` | string | `"project"` or `"local"` |
 | `enabled` | boolean | Install on boot when `true` |
 
-See [Config Reference](CONFIG-REFERENCE.md#recommended_plugins-entry-schema) for defaults.
+See [Config Reference](config-reference.md#recommended_plugins-entry-schema) for defaults.
 
 ---
 

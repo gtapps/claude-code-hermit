@@ -200,7 +200,7 @@ For each accepted plugin, also add the corresponding `plugin_checks` entries to 
 
 For each plugin the operator declines, nothing is added. Note: "You can add it later with `/claude-code-hermit:hermit-settings docker`."
 
-**Important:** Recommended plugins default to yes but the operator can decline any of them. Only plugins from `claude-plugins-official` are auto-installed by the entrypoint — third-party plugins must be installed manually. See [Recommended Plugins](docs/RECOMMENDED-PLUGINS.md) for the full policy.
+**Important:** Recommended plugins default to yes but the operator can decline any of them. Only plugins from `claude-plugins-official` are auto-installed by the entrypoint — third-party plugins must be installed manually. See [Recommended Plugins](docs/recommended-plugins.md) for the full policy.
 
 Each entry in `docker.recommended_plugins` has:
 - `marketplace` — `"claude-plugins-official"` for official plugins, or `"org/repo"` for third-party (tracking only — not auto-installed)
