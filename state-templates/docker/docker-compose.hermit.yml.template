@@ -21,7 +21,7 @@ services:
       - CLAUDE_CONFIG_DIR=/home/claude/.claude
       - NODE_OPTIONS=--max-old-space-size=4096
 {{AUTH_ENV_LINE}}{{CHANNEL_ENV_LINES}}
-    network_mode: host
+{{NETWORK_MODE_LINE}}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "tmux", "has-session", "-t", "{{TMUX_SESSION_NAME}}"]

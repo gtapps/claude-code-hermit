@@ -63,28 +63,33 @@ In always-on mode, the session stays open between tasks. Heartbeat, monitors, an
 
 ```
 hermit-start -> [in_progress] -> task done -> [idle] -> new task -> [in_progress] -> ...
-                                                                                      |
-                                                              hermit-stop -> [archived]
+                      |                                                               |
+                      +---> blocked on input -> [waiting] --+                         |
+                      |                                     |                         |
+                      |     timeout or operator reply ------+-> [idle] or [in_progress]
+                      |                                                               |
+                      +-------------------------------hermit-stop -> [archived]
 ```
 
 1. `hermit-start` sets `always_on: true`, launches Claude Code in tmux
 2. Work finishes — **idle transition**: report archived, SHELL.md reset, heartbeat keeps running
 3. New request comes in (channel, NEXT-TASK.md, terminal) — back to `in_progress`
-4. `hermit-stop` — **full shutdown**: close task, stop heartbeat, archive, kill tmux
+4. Blocked on operator input — **waiting transition**: session stays open, heartbeat skips stale checks, configurable `waiting_timeout` auto-transitions to idle
+5. `hermit-stop` — **full shutdown**: close task, stop heartbeat, archive, kill tmux
 
 ### Close modes
 
-|                     | Idle Transition (task boundary) | Full Shutdown (`/session-close`) |
-| ------------------- | ------------------------------- | -------------------------------- |
-| **When**            | Work done — automatic           | You explicitly close             |
-| **Report archived** | Yes                             | Yes                              |
-| **Reflection runs** | Yes                             | Yes                              |
-| **Heartbeat**       | Keeps running (or starts)       | Stopped                          |
-| **Channels**        | Keep running (always-on only)   | Stopped                          |
-| **SHELL.md**        | Reset in-place to `idle`, Monitoring & Summary compacted if over threshold | Replaced with fresh template     |
-| **Applies to**      | Both interactive and always-on  | Both interactive and always-on   |
+|                     | Idle Transition (task boundary) | Waiting (blocked on input) | Full Shutdown (`/session-close`) |
+| ------------------- | ------------------------------- | -------------------------- | -------------------------------- |
+| **When**            | Work done — automatic           | Blocked on operator input  | You explicitly close             |
+| **Report archived** | Yes                             | No (session stays open)    | Yes                              |
+| **Reflection runs** | Yes                             | No                         | Yes                              |
+| **Heartbeat**       | Keeps running (or starts)       | Runs (skips stale checks)  | Stopped                          |
+| **Channels**        | Keep running (always-on only)   | Keep running               | Stopped                          |
+| **SHELL.md**        | Reset in-place to `idle`, Monitoring & Summary compacted if over threshold | Status set to `waiting`    | Replaced with fresh template     |
+| **Applies to**      | Both interactive and always-on  | Both interactive and always-on | Both interactive and always-on   |
 
-Default: idle transition when work finishes. Full shutdown only via explicit `/session-close` or `hermit-stop`.
+Default: idle transition when work finishes. Waiting when blocked on operator input (configurable `waiting_timeout` auto-transitions to idle). Full shutdown only via explicit `/session-close` or `hermit-stop`.
 
 ### How sessions compound
 
@@ -99,7 +104,7 @@ Default: idle transition when work finishes. Full shutdown only via explicit `/s
   Morning: brief + priority check. Evening: daily journal.
 ```
 
-**Hooks fire after every assistant turn:** `cost-tracker.js` (costs), `suggest-compact.js` (context warnings), `session-diff.js` (changed files), `evaluate-session.js` (quality).
+**Hooks fire after every assistant turn:** `cost-tracker.js` (costs to `.status.json`), `suggest-compact.js` (context warnings), `session-diff.js` (changed files), `evaluate-session.js` (quality, with zombie/stale/bloat nudges).
 
 ### When learning fires
 
@@ -136,6 +141,7 @@ When idle and `idle_behavior` is `"discover"` (set via `/hermit-settings idle`),
 
 - **Crash during work:** SHELL.md persists. On restart, offers to resume.
 - **Crash during idle:** SHELL.md persists as `idle`. Asks what to work on next.
+- **Crash during waiting:** SHELL.md persists as `waiting`. On restart, re-enters waiting state and checks for operator response.
 - **hermit-start when already running:** Prints guidance, exits.
 - **Operator takeover:** If SHELL.md status is `operator_takeover`, the hermit asks what happened during takeover and checks for NEXT-TASK.md instructions.
 - **Docker SIGTERM:** The entrypoint traps SIGTERM and attempts a graceful session close (30s timeout) before the container exits. Sessions are archived even on raw `docker compose down`.
@@ -152,8 +158,9 @@ Routines live in `config.json` as a `routines` array:
 
 ```json
 "routines": [
-  {"id": "morning", "time": "08:30", "skill": "claude-code-hermit:brief --morning", "enabled": true},
-  {"id": "evening", "time": "22:30", "skill": "claude-code-hermit:brief --evening", "enabled": true},
+  {"id": "morning", "time": "08:30", "skill": "claude-code-hermit:brief --morning", "run_during_waiting": true, "enabled": true},
+  {"id": "evening", "time": "22:30", "skill": "claude-code-hermit:brief --evening", "run_during_waiting": true, "enabled": true},
+  {"id": "heartbeat-restart", "time": "04:00", "skill": "claude-code-hermit:heartbeat start", "run_during_waiting": true, "enabled": true},
   {"id": "weekly-deps", "time": "09:00", "days": ["mon"], "skill": "claude-code-hermit:session-start --task 'dependency audit'", "enabled": false}
 ]
 ```
@@ -162,6 +169,7 @@ Routines live in `config.json` as a `routines` array:
 - `time`: HH:MM in configured timezone
 - `days`: optional — omit for daily, or specify 3-letter day abbreviations
 - `skill`: full slash-command name (e.g. `claude-code-hermit:brief --morning` for plugin skills, `ha-refresh-context` for local project skills)
+- `run_during_waiting`: optional — if `true`, fires even when session status is `waiting` (default: `false`)
 - `enabled`: toggle without removing
 
 Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect within 60 seconds.
@@ -171,9 +179,11 @@ Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect 
 The routine watcher runs as a background tmux window (started by `hermit-start.py`). Every 60 seconds it:
 1. Re-reads `config.json` for the latest routines
 2. Matches current time and day against enabled routines
-3. Checks `.claude-code-hermit/.status` — queues if `in_progress`, checks `run_during_waiting` if `waiting`
+3. Checks `.claude-code-hermit/.status` — queues to `state/routine-queue.json` if `in_progress`, checks `run_during_waiting` if `waiting`
 4. Fires matching routines via `tmux send-keys` to the Claude Code pane
 5. Deduplicates: each routine fires at most once per day
+
+Queued routines are dequeued one at a time after the session returns to idle. The heartbeat detects stale queued routines.
 
 The watcher dies automatically when the tmux session is killed — no cleanup needed.
 

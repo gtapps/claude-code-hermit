@@ -49,7 +49,7 @@ Plugin checks run during idle reflection via `reflect`. If accepted plugins aren
 ## Costs Unexpectedly High
 
 - Check `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` in `config.json` `env` (default 50). Adjust with `/hermit-settings env`.
-- Check heartbeat interval — 5m with Opus is expensive. Use 15m or 30m.
+- Check heartbeat interval — 5m with Opus is expensive. Default is 2h; use 15m-30m only if you need faster monitoring.
 - Check if monitors are running with short intervals (`/claude-code-hermit:monitor stop`).
 - Review SHELL.md size — bloated files cost tokens on every read.
 - Use `/cost` to check current session spend.
@@ -77,7 +77,7 @@ SHELL.md from a crashed session persists. Choose **resume** or **start new** (ge
 - Routines are managed by the routine watcher, which runs in its own tmux window. Check it: `tmux select-window -t <session>:routines`.
 - Each routine fires once per day — check `/tmp/hermit-routines-<session>` for dedup state to see if a routine already fired today.
 - Verify your timezone is set correctly: `/claude-code-hermit:hermit-settings timezone`. The routine watcher reads `config.timezone` and sets `TZ=`.
-- Check `.claude-code-hermit/.status` — if stuck on `in_progress`, routines skip (they only fire during idle).
+- Check `.claude-code-hermit/.status` — if stuck on `in_progress`, routines are queued to `state/routine-queue.json` (not skipped) and fire when session returns to idle. Check `state/routine-queue.json` for pending entries.
 
 ## Idle Agency Not Working
 

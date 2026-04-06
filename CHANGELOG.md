@@ -24,6 +24,18 @@
 
 - **reflection-state.json dual ownership** — Session now writes `plugin_checks.<id>.last_run` at task completion (non-overlapping phases with reflect). Architecture ownership table updated.
 
+### Security
+
+- **Entrypoint no longer mutates config.json** — Removed the `bypassPermissions` write from `docker-entrypoint.hermit.sh`. `hermit-start.py` already handles this via `--dangerously-skip-permissions` CLI flag. Previously, one Docker boot silently persisted container-only privilege escalation into the shared project config on the host bind mount.
+
+- **Bridge networking by default** — Docker compose template no longer hardcodes `network_mode: host`. Bridge is the default; host networking requires explicit opt-in via the `docker-setup` wizard. Reduces blast radius — container can no longer reach host-local services (databases, admin panels, metadata endpoints) unless the operator explicitly chooses host mode.
+
+- **No auto-updates on boot** — Removed `claude plugin update` calls from the entrypoint. Automatic updates pulled unreviewed plugin code that ran with `bypassPermissions`. Updates are now operator-initiated via `/claude-code-hermit:hermit-upgrade` or image rebuild. First-boot install-if-missing logic is preserved.
+
+- **Full deny pattern set** — `docker-setup` and `hatch` now generate the complete deny set documented in `SECURITY.md`. Docker: 25 patterns (default + always-on). Hatch hardened: 22 (minus docker/kubectl/ssh). Hatch minimal: 17 (default only). Previously only 8 were generated. New patterns cover `.env` file access, credential exposure (`sudo`, `env`, `printenv`, `cat ~/.ssh/*`, `cat ~/.aws/*`), secret leakage (`*API_KEY*`, `*SECRET*`, `*TOKEN*`), and hook bypass (`*--no-verify*`). Canonical source: `state-templates/deny-patterns.json`.
+
+- **Known Limitations section** — New section in `SECURITY.md` documenting unaddressed surfaces: egress filtering, input sanitization, and blocklist nature of deny patterns.
+
 ### Files affected
 
 | File | Change |
@@ -44,6 +56,13 @@
 | `docs/TROUBLESHOOTING.md` | Channel sends and plugin checks troubleshooting |
 | `docs/SKILLS.md` | hermit-settings subcommand list |
 | `docs/ARCHITECTURE.md` | reflection-state.json dual ownership |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Removed config.json bypassPermissions mutation and plugin auto-update |
+| `state-templates/docker/docker-compose.hermit.yml.template` | `network_mode: host` → `{{NETWORK_MODE_LINE}}` placeholder |
+| `state-templates/deny-patterns.json` | New canonical deny pattern source (default + always-on) |
+| `skills/docker-setup/SKILL.md` | Networking wizard question, full 25-pattern deny set |
+| `skills/hatch/SKILL.md` | Full deny sets: hardened (22), minimal (17) |
+| `docs/SECURITY.md` | .env patterns, canonical source ref, Known Limitations, no-auto-update note |
+| `docs/UPGRADING.md` | Security fixes and Docker verification steps |
 
 ### Upgrade Instructions
 

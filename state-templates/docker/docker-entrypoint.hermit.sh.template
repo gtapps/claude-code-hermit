@@ -92,14 +92,9 @@ if channels:
 if changed:
     with open(claude_json, 'w') as f: json.dump(d, f)
 
-# --- config.json: force bypassPermissions ---
-if os.path.exists(config_path):
-    if cfg.get('permission_mode') != 'bypassPermissions':
-        cfg['permission_mode'] = 'bypassPermissions'
-        with open(config_path, 'w') as f: json.dump(cfg, f, indent=2)
-        print('[docker-entrypoint] permission_mode -> bypassPermissions', file=sys.stderr)
-    else:
-        print('[docker-entrypoint] permission_mode OK', file=sys.stderr)
+# permission_mode is handled at launch by hermit-start.py (--dangerously-skip-permissions flag).
+# Do NOT mutate config.json here — it lives on the host bind mount and would persist
+# container-only privilege escalation into the shared project config.
 
 # Emit channel list on stdout line 1, recommended plugins as JSON on line 2
 print(' '.join(ch for ch in channels if ch != 'imessage'))
@@ -188,30 +183,9 @@ for entry in plugins:
 " "$RECOMMENDED_PLUGINS_JSON" "$INSTALLED_PLUGINS"
 fi
 
-# --- 4. Update plugins on boot ---
-# After install-if-missing, update already-installed plugins so a container restart
-# picks up new versions without needing to rebuild or manually exec into the container.
-echo "[docker-entrypoint] Checking for plugin updates..."
-
-# Hermit plugin
-claude plugin update claude-code-hermit --scope project 2>/dev/null || true
-
-# Recommended plugins (only official — same guard as install above)
-if [ -n "$RECOMMENDED_PLUGINS_JSON" ] && [ "$RECOMMENDED_PLUGINS_JSON" != "[]" ]; then
-  python3 -c "
-import json, subprocess, sys
-
-plugins = json.loads(sys.argv[1])
-for entry in plugins:
-    plugin = entry['plugin']
-    marketplace = entry.get('marketplace', 'claude-plugins-official')
-    scope = entry.get('scope', 'project')
-    if marketplace != 'claude-plugins-official':
-        continue
-    subprocess.run(['claude', 'plugin', 'update', plugin, '--scope', scope],
-                   capture_output=True)
-" "$RECOMMENDED_PLUGINS_JSON"
-fi
+# --- Plugin updates are NOT run on boot ---
+# Auto-updates would pull unreviewed code that runs with bypassPermissions.
+# Update explicitly: /claude-code-hermit:hermit-upgrade or rebuild the image.
 
 # Export plugin root so hermit-run can skip the directory scan.
 HERMIT_MARKETPLACE="${MARKETPLACE_DIR}/claude-code-hermit"

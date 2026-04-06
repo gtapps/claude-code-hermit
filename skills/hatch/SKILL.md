@@ -469,25 +469,51 @@ questions: [
 ]
 ```
 
-- If **hardened** (always-on):
+- If **hardened** (always-on): default + always-on additions (excluding docker/kubectl/ssh — valid in devops contexts on host). Canonical source: `state-templates/deny-patterns.json`.
   ```json
   "deny": [
     "Bash(rm -rf *)",
-    "Bash(git push --force*)",
-    "Bash(git reset --hard*)",
     "Bash(chmod 777*)",
+    "Bash(*sudo *)",
+    "Bash(*> /etc/*)",
     "Bash(curl * | bash*)",
     "Bash(wget * | bash*)",
+    "Bash(env)",
+    "Bash(printenv)",
+    "Bash(cat .env*)",
+    "Bash(cat */.env*)",
+    "Bash(cat ~/.ssh/*)",
+    "Bash(cat ~/.aws/*)",
+    "Bash(*API_KEY*)",
+    "Bash(*SECRET*)",
+    "Bash(*TOKEN*)",
     "Edit(**/.claude-code-hermit/OPERATOR.md)",
-    "Write(**/.claude-code-hermit/OPERATOR.md)"
+    "Write(**/.claude-code-hermit/OPERATOR.md)",
+    "Bash(npm publish*)",
+    "Bash(git push --force*)",
+    "Bash(git push origin main*)",
+    "Bash(git reset --hard*)",
+    "Bash(*--no-verify*)"
   ]
   ```
-- If **minimal** (default):
+- If **minimal** (default): default set only.
   ```json
   "deny": [
     "Bash(rm -rf *)",
+    "Bash(chmod 777*)",
+    "Bash(*sudo *)",
+    "Bash(*> /etc/*)",
     "Bash(curl * | bash*)",
     "Bash(wget * | bash*)",
+    "Bash(env)",
+    "Bash(printenv)",
+    "Bash(cat .env*)",
+    "Bash(cat */.env*)",
+    "Bash(cat ~/.ssh/*)",
+    "Bash(cat ~/.aws/*)",
+    "Bash(*API_KEY*)",
+    "Bash(*SECRET*)",
+    "Bash(*TOKEN*)",
     "Edit(**/.claude-code-hermit/OPERATOR.md)",
     "Write(**/.claude-code-hermit/OPERATOR.md)"
   ]
@@ -496,7 +522,7 @@ questions: [
 
 Merge selected rules into existing `permissions.deny` (never remove existing entries), write back.
 
-Do NOT include `Bash(docker *)`, `Bash(kubectl *)`, `Bash(ssh *)` — these are valid in devops contexts.
+Do NOT include `Bash(docker *)`, `Bash(kubectl *)`, `Bash(ssh *)` in hatch — these are valid in devops contexts on the host. Docker-setup includes them because the container should not spawn child containers or SSH out.
 
 ### 10. Report results
 

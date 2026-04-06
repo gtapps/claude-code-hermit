@@ -29,7 +29,9 @@ Templates live in `${CLAUDE_SKILL_DIR}/../../state-templates/docker/`.
 
 1. **Auth method:** Ask oauth (recommended — runs `claude login` inside the container) or apikey (`ANTHROPIC_API_KEY` in `.env`). Default: oauth.
 
-2. **Project dependencies:** Scan for signals that suggest extra system packages:
+2. **Networking:** Ask: "Use host networking? Bridge (default) isolates the container from host-local services like databases, admin panels, and metadata endpoints. Host networking gives direct access to everything on localhost. Choose host only if the hermit needs to reach host-bound services." Options: Bridge (default), Host. Save choice to `config.json` `docker.network_mode` (`"bridge"` or `"host"`).
+
+3. **Project dependencies:** Scan for signals that suggest extra system packages:
    - `package.json` native addons (sqlite3, sharp, canvas, bcrypt, etc.)
    - Python files (`requirements.txt`, `pyproject.toml`, `Pipfile`)
    - Build files (`Makefile`, `CMakeLists.txt`), version managers (`.tool-versions`)
@@ -77,6 +79,7 @@ Read the three templates from `${CLAUDE_SKILL_DIR}/../../state-templates/docker/
   - `      - ${PWD}/.claude.local/channels/telegram:/home/claude/.claude/channels/telegram`
   Remove `{{CHANNEL_VOLUME_LINES}}` entirely if no channels configured.
 - `{{TMUX_SESSION_NAME}}` — resolved session name
+- `{{NETWORK_MODE_LINE}}` — If `docker.network_mode` is `"host"`: replace with `    # WARNING: host networking exposes all host-local services to the container.\n    network_mode: host`. If `"bridge"` (default): remove the line entirely (bridge is Docker's default — no directive needed).
 - **Git identity:** Check if `~/.gitconfig` exists on the host. If it does not exist, remove the `.gitconfig` bind-mount line from the rendered file and add a note in the summary: "No ~/.gitconfig found — git commits inside the container will have no author identity. Create one on the host and re-run docker-setup, or set git config manually inside the container."
 
 ### 5. Auto-memory seed
@@ -101,20 +104,37 @@ Only the top-level project memory is seeded — not agent-scoped memories at `<p
    If already present, leave it — note for step 8.
    **If oauth:** No auth var needed in `.env`. Check whether `ANTHROPIC_API_KEY` is set (non-empty) in `.env`. If so, warn: "Found `ANTHROPIC_API_KEY` in `.env` — Claude Code gives API keys precedence over OAuth credentials, so the container would run in API mode (no Max/Pro, no remote control). Comment it out or remove it." Offer to comment it out automatically. Also check for and offer to remove any `CLAUDE_CODE_OAUTH_TOKEN` — this env var is not used in the new flow.
 3. Ensure `.env` is listed in both `.gitignore` and `.dockerignore` (create the files if needed, append if missing).
-4. **Deny patterns:** Docker means always-on — include the full hardened deny set in `.claude/settings.json` `permissions.deny` by default (no wizard needed):
+4. **Deny patterns:** Docker means always-on — include the full hardened deny set (default + always-on) in `.claude/settings.json` `permissions.deny` by default (no wizard needed). Canonical source: `state-templates/deny-patterns.json`.
    ```json
    "deny": [
      "Bash(rm -rf *)",
-     "Bash(git push --force*)",
-     "Bash(git reset --hard*)",
      "Bash(chmod 777*)",
+     "Bash(*sudo *)",
+     "Bash(*> /etc/*)",
      "Bash(curl * | bash*)",
      "Bash(wget * | bash*)",
+     "Bash(env)",
+     "Bash(printenv)",
+     "Bash(cat .env*)",
+     "Bash(cat */.env*)",
+     "Bash(cat ~/.ssh/*)",
+     "Bash(cat ~/.aws/*)",
+     "Bash(*API_KEY*)",
+     "Bash(*SECRET*)",
+     "Bash(*TOKEN*)",
      "Edit(**/.claude-code-hermit/OPERATOR.md)",
-     "Write(**/.claude-code-hermit/OPERATOR.md)"
+     "Write(**/.claude-code-hermit/OPERATOR.md)",
+     "Bash(ssh *)",
+     "Bash(docker *)",
+     "Bash(kubectl *)",
+     "Bash(npm publish*)",
+     "Bash(git push --force*)",
+     "Bash(git push origin main*)",
+     "Bash(git reset --hard*)",
+     "Bash(*--no-verify*)"
    ]
    ```
-   If `.claude/settings.json` already has `permissions.deny`, merge (never remove existing entries). Tell the operator: "Added safety deny rules for always-on operation — protects against destructive commands and OPERATOR.md modification."
+   If `.claude/settings.json` already has `permissions.deny`, merge (never remove existing entries). Tell the operator: "Added safety deny rules for always-on operation — protects against destructive commands, credential exposure, and OPERATOR.md modification."
 
 ### 7. Channel setup
 

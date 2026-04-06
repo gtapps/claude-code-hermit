@@ -150,12 +150,17 @@ If your hermit needs system packages in Docker (e.g., a database client, media t
 
 The `/docker-setup` skill reads `docker.packages` and includes them in the generated Dockerfile as a separate layer. Operators can also manage packages via `/hermit-settings docker`.
 
+### Operator notification routing
+
+Skills should say "notify the operator" instead of referencing specific channels. Core's CLAUDE-APPEND.md includes a routing section that handles delivery transparently: conversation output in interactive mode, channel `reply` tool in always-on mode. This keeps your hermit plugin channel-agnostic.
+
 ### Checklist before publishing
 
 - [ ] Every agent has `disallowedTools`
 - [ ] Destructive agents use `isolation: worktree`
 - [ ] Init checks for core and is idempotent
 - [ ] CLAUDE-APPEND.md has a marker comment
+- [ ] Skills use "notify the operator" instead of channel-specific references
 - [ ] Hooks are profile-gated
 - [ ] Zero dependencies — no `package.json`, no build step
 - [ ] All scripts handle missing state files gracefully

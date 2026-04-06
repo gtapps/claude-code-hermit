@@ -58,7 +58,7 @@ The whole file is loaded on session start — write what matters, keep it short.
 /claude-code-hermit:session
 ```
 
-Tell it what you need, add optional tags (e.g., `feature, api`), and an optional budget. Hermit proposes a plan, creates native Tasks for each step, and waits for your go-ahead. As it works, `SHELL.md` tracks the narrative — progress log, blockers, cost — while Tasks tracks the plan steps.
+Tell it what you need, add optional tags (e.g., `feature, api`), and an optional budget. Hermit proposes a plan, creates native Tasks for each step, and waits for your go-ahead. As it works, `SHELL.md` tracks the narrative — progress log, blockers, findings — while Tasks tracks the plan steps. Cost is tracked separately in `.status.json` and injected into context at session start.
 
 Check status anytime — just type "status":
 
@@ -150,6 +150,13 @@ See [Always-On Operations](ALWAYS-ON-OPS.md) for tmux setup and operational deta
 │   └── NEXT-TASK.md           <- from accepted proposals
 ├── proposals/
 │   └── PROP-001.md            <- improvement ideas
+├── state/                     <- runtime observations (agent-owned)
+│   ├── alert-state.json       <- heartbeat alert dedup + self-eval evidence
+│   ├── reflection-state.json  <- last reflection timestamp + plugin check state
+│   ├── routine-queue.json     <- queued routines pending execution
+│   ├── proposal-metrics.jsonl <- append-only event log
+│   ├── micro-proposals.json   <- single-slot micro-approval queue
+│   └── state-summary.md       <- auto-generated health snapshot
 ├── OPERATOR.md                <- your rulebook
 ├── HEARTBEAT.md               <- background checklist
 └── config.json                <- settings
@@ -214,10 +221,10 @@ Most common actions auto-trigger from natural language — just say what you mea
 | Category       | Skills                                                        |
 | -------------- | ------------------------------------------------------------- |
 | **Session**    | `session`, `session-start`, `session-close`                   |
-| **Status**     | `status`, `brief`                                             |
+| **Status**     | `pulse`, `brief`                                              |
 | **Monitoring** | `monitor`, `heartbeat`                                        |
 | **Learning**   | `proposal-create`, `proposal-list`, `proposal-act`, `reflect` |
-| **Config**     | `hermit-settings`, `init`, `upgrade`                          |
+| **Config**     | `hermit-settings`, `hatch`, `hermit-upgrade`                  |
 | **Docker**     | `docker-setup`, `hermit-takeover`, `hermit-hand-back`         |
 | **Channels**   | `channel-responder`                                           |
 

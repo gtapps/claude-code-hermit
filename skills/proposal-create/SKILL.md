@@ -68,6 +68,8 @@ Respond: "Not enough evidence yet. Note it in SHELL.md Findings and revisit afte
 
 If the proposal affects security boundaries — permissions, network access, credential handling — clearly note the security impact so the operator can make an informed decision.
 
+When your operational scope changes (new API, new local service, new publishing channel), create a PROP recommending deny pattern additions or networking changes. Never modify `deny-patterns.json` or Docker config directly. The operator implements security changes.
+
 When the proposed solution involves creating a new agent, skill, heartbeat item, or OPERATOR.md change, make the Suggested Plan self-contained:
 
 **For a new sub-agent:**

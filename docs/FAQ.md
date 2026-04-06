@@ -24,11 +24,11 @@ Whatever model your Claude Code instance uses by default. Override with `/hermit
 
 Depends on usage. Key cost drivers:
 
-- **Heartbeat interval** — 5m with Opus is expensive; 30m is the default and usually sufficient.
+- **Heartbeat interval** — 5m with Opus is expensive; 2h is the default and usually sufficient.
 - **Autocompact threshold** — default 50% keeps context lean.
 - **Thinking tokens** — capped at 10K by default.
 
-Set a per-session budget with `/hermit-settings budget`. A typical interactive session costs $1-5. Always-on agents with 30m heartbeat cost $10-30/day depending on workload.
+Set a per-session budget with `/hermit-settings budget`. A typical interactive session costs $1-5. Always-on agents with 2h heartbeat (the default) are significantly cheaper than shorter intervals.
 
 ---
 

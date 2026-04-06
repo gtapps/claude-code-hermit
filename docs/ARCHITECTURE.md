@@ -67,7 +67,7 @@ SHELL.md tasks,  status,   S-NNN-REPORT.md,
          log     lessons   reset SHELL.md
 ```
 
-**Start:** Checks for existing SHELL.md. Resumes if `in_progress`, creates fresh if not. Loads OPERATOR.md. Calls `TaskList` to see plan steps. Runs morning routine if it hasn't fired today.
+**Start:** Checks for existing SHELL.md. Resumes if `in_progress` or `waiting`, creates fresh if not. Loads OPERATOR.md. Calls `TaskList` to see plan steps. Runs morning routine if it hasn't fired today.
 
 **Work:** Plan items tracked as native Claude Code Tasks (`pending` -> `in_progress` -> `completed`). Timestamped progress log in SHELL.md. Blockers recorded with cold-start context. `tasks-snapshot.md` auto-updated by cost-tracker hook for Obsidian.
 
@@ -99,11 +99,11 @@ See [Skills Reference](SKILLS.md) for the full list.
 
 | Hook               | Trigger      | What it does                                        |
 | ------------------ | ------------ | --------------------------------------------------- |
-| Context loader     | SessionStart | Loads OPERATOR.md, SHELL.md, latest report          |
-| Cost tracker       | Stop         | Logs tokens/cost, updates SHELL.md, enforces budget |
+| Context loader     | SessionStart | Loads OPERATOR.md, SHELL.md, latest report, cost data |
+| Cost tracker       | Stop         | Logs tokens/cost to `.status.json`, enforces budget |
 | Compact suggestion | Stop         | Suggests `/compact` at 60% context usage            |
 | Session diff       | Stop         | Auto-populates `## Changed` from `git diff`         |
-| Session evaluator  | Stop         | Validates SHELL.md quality                          |
+| Session evaluator  | Stop         | Validates SHELL.md quality, detects zombie/stale/bloat |
 
 ### Hook profiles
 
@@ -188,7 +188,7 @@ One writer per state file. No shared mutation bus.
 +----------------------------------------------+
 |  sessions/SHELL.md                           |
 |  Owner: Agent. Lifetime: one session.        |
-|  Task, plan, progress, blockers, cost.       |
+|  Task, plan, progress, blockers, findings.   |
 +----------------------------------------------+
 |  sessions/S-NNN-REPORT.md                    |
 |  Owner: Agent. Lifetime: permanent.          |
@@ -205,31 +205,41 @@ OPERATOR.md is human-curated — your hermit reads it but never modifies it. Aut
 ## Learning Loop
 
 ```
-Reflection fires -> auto-proposal if pattern noticed
-    ^                        |
-    | Triggers:              |
-    | - Task boundaries      |
-    | - Heartbeat idle (4h+) |
-    | - Evening routine      |
-    | - Session close        |
-    |                        |
-Operator reviews -> /proposal-act accept/defer/dismiss
-                 -> accepted proposal becomes NEXT-TASK.md
-                 -> idle agency picks it up automatically
-                                                      |
-Memory shows no recurrence -> auto-resolved ----------+
+Reflection fires -> three-outcome decision:
+    ^                  |
+    | Triggers:        +-> no action (nothing notable)
+    | - Task boundary  +-> memory update (lesson learned)
+    | - Heartbeat idle +-> proposal candidate -> tier classification:
+    | - Evening routine|                          |
+    | - Session close  |    Tier 1 (silent) ------+-> act directly (reversible/routine)
+    |                  |    Tier 2 (micro) -------+-> channel yes/no (meaningful/non-critical)
+    |                  |    Tier 3 (full PROP) ---+-> operator review via proposal-act
+    |                  |                               |
+    |                  |    Three-condition gate:       |
+    |                  |    1. Repeated pattern         |
+    |                  |    2. Meaningful consequence    |
+    |                  |    3. Operator-actionable       |
+    |                  |                               v
+    |                  +---- /proposal-act accept/defer/dismiss
+    |                        -> accepted -> NEXT-TASK.md -> idle agency
+    |                                                            |
+    +---- Memory shows no recurrence -> auto-resolved -----------+
 ```
 
 Reflection uses auto-memory as primary input. Your hermit reflects on what it remembers: recurring blockers, repeated workarounds, cost patterns, workflow friction. Evidence is conversational ("I've hit this repeatedly") rather than citation-based.
 
-Hermit provides the **timing infrastructure** (when to reflect) and the **proposal pipeline** (structured proposals with an operator gate). Claude handles the intelligence — noticing patterns, assessing confidence, formulating proposals.
+**Three-condition gate:** Every proposal candidate must satisfy three conditions: (1) repeated pattern observed across sessions, (2) meaningful consequence if left unaddressed, and (3) an operator-actionable change. This prevents trivial or one-off observations from cluttering the proposal pipeline.
+
+**Micro-proposals (tier 2):** For changes that are meaningful but not safety-critical, reflect queues a micro-proposal — a single yes/no question sent via channel. One slot at a time (`state/micro-proposals.json`). Ignored micro-proposals expire after 2 morning briefs.
+
+Hermit provides the **timing infrastructure** (when to reflect), the **proposal pipeline** (structured proposals with an operator gate), and the **tier classification** (which proposals need what level of approval). Claude handles the intelligence — noticing patterns, assessing confidence, formulating proposals.
 
 ### Daily Rhythm
 
-Morning routine (first heartbeat tick of active hours): brief, proposal review, priority check.
-Evening routine (last heartbeat tick): daily journal archived as S-NNN, reflection, preparation for tomorrow.
+Morning routine (configurable time, default: active hours start + 30m): brief, proposal review, priority check, pending micro-proposal surfaced.
+Evening routine (configurable time, default: active hours end - 30m): daily journal archived as S-NNN, reflection, preparation for tomorrow.
 
-Both fire once per day based on `active_hours` in config.
+Both are managed by the routine watcher (shell-level, not LLM-dependent). Fire once per day at exact times. Routines that fire during `in_progress` are queued to `state/routine-queue.json` and dequeued when idle. A daily 4am `heartbeat-restart` routine prevents silent `/loop` expiry in always-on deployments.
 
 ---
 
