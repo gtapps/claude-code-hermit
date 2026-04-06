@@ -1,11 +1,12 @@
 ---
 id: S-NNN
 status: completed
-date: YYYY-MM-DD
+date: YYYY-MM-DDTHH:MM:SS±HH:MM
 duration: ~Xh
 cost_usd: 0.00
 tags: []
 proposals_created: []
+task: "" # first non-comment line from ## Task, max 120 chars
 ---
 # Session Report: S-NNN
 

@@ -16,6 +16,12 @@
 
 - **session-diff.js sidecar** — Changed files are now written to `state/session-diff.json` instead of directly to SHELL.md. session-mgr merges the sidecar during lifecycle transitions. Eliminates the read-modify-write race between hooks and Claude.
 
+- **`task` frontmatter on session reports** — `S-NNN-REPORT.md` now includes a `task` field in YAML frontmatter (first non-comment line from `## Task`, max 120 chars). Enables Dataview queries like `TABLE date, task, cost_usd FROM sessions` without reading the report body.
+
+- **`title` and `resolved_date` frontmatter on proposals** — `PROP-NNN.md` now includes `title` (matches H1 heading) and `resolved_date` (set on accept/dismiss, null on defer — defer is not terminal). Enables Dataview proposal tables with readable titles and response-time queries.
+
+- **ISO 8601 timestamps in frontmatter** — All date fields in session report and proposal frontmatter upgraded from `YYYY-MM-DD` to full ISO 8601 with timezone offset (e.g., `2026-04-06T14:30:00+01:00`). Consistent with `runtime.json`, `.status.json`, `state-summary.md`, and all other hermit state files. Timezone sourced from `config.json` if set, otherwise UTC.
+
 ### Changed
 
 - **SHELL.md `Status:` is now cosmetic** — Updated by session-mgr for operator readability, but never read by scripts or hooks for lifecycle decisions. Exception: evaluate-session.js reads it for cosmetic nudges only.
@@ -53,7 +59,7 @@
 | `scripts/routine-watcher.sh` | runtime.json reads, locked writes, liveness detection, cached threshold |
 | `scripts/cost-tracker.js` | runtime.json session_id, atomic .status.json, .heartbeat touch, cached read |
 | `scripts/session-diff.js` | Rewritten to write sidecar file instead of SHELL.md |
-| `agents/session-mgr.md` | Field ownership table, transition markers, session-diff merge, recovery |
+| `agents/session-mgr.md` | Field ownership table, transition markers, session-diff merge, recovery, `task` frontmatter extraction, ISO 8601 `date` |
 | `skills/session-start/SKILL.md` | runtime.json reads, interrupted transition recovery, stale state handling |
 | `skills/session/SKILL.md` | runtime.json note for session-mgr |
 | `skills/session-close/SKILL.md` | runtime.json note for session-mgr |
@@ -61,6 +67,11 @@
 | `skills/channel-responder/SKILL.md` | runtime.json reads for waiting→in_progress transition |
 | `skills/hermit-upgrade/SKILL.md` | v0.3.2 migration block |
 | `state-templates/docker/docker-entrypoint.hermit.sh.template` | runtime.json reads in SIGTERM handler |
+| `state-templates/SESSION-REPORT.md.template` | Added `task` field, `date` upgraded to ISO 8601 timestamp |
+| `state-templates/PROPOSAL.md.template` | Added `title`, `resolved_date` fields, `created` upgraded to ISO 8601 timestamp |
+| `skills/proposal-create/SKILL.md` | `title`, `resolved_date` frontmatter instructions, ISO 8601 `created` |
+| `skills/proposal-act/SKILL.md` | Timestamp convention section, `resolved_date` on accept/dismiss (not defer), ISO 8601 dates |
+| `docs/OBSIDIAN-SETUP.md` | Updated queries with `task`/`title` fields, added response-time query, clarified Folder Bridge requirement |
 
 ### Upgrade Instructions
 

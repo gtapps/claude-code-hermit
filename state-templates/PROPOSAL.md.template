@@ -1,9 +1,11 @@
 ---
 id: PROP-NNN
+title: "" # must match the H1 heading title
 status: proposed
 source: manual
 session: S-NNN
-created: YYYY-MM-DD
+created: YYYY-MM-DDTHH:MM:SS±HH:MM
+resolved_date: null
 related_sessions: []
 category: improvement
 responded: false

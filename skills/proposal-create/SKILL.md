@@ -34,13 +34,15 @@ Respond: "Not enough evidence yet. Note it in SHELL.md Findings and revisit afte
      - `status`: `proposed`
      - `source`: `manual` (default) or `auto-detected` (when invoked by `reflect`)
      - `session`: the current session ID (S-NNN)
-     - `created`: today's date (YYYY-MM-DD)
+     - `created`: current ISO 8601 timestamp with timezone offset (e.g., `2026-04-06T14:30:00+01:00`). Use the timezone from `config.json` if set, otherwise UTC.
      - `related_sessions`: relevant session IDs as YAML array (optional — used by auto-detected proposals to link evidence across multiple sessions). Use `[]` if none.
      - `category`: classify as one of:
        - `improvement` — workflow or tooling fix
        - `routine` — repeating scheduled task
        - `capability` — new agent, skill, or heartbeat item
        - `constraint` — OPERATOR.md refinement
+     - `title`: short proposal title (same text used in the H1 heading after the dash)
+     - `resolved_date`: `null` (set later by proposal-act)
    - Fill in the title in the H1 heading
    - Write a clear Context, Problem, Proposed Solution, and Impact
    - Leave "Operator Decision" blank — the operator fills that in

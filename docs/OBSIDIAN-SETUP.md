@@ -6,15 +6,15 @@ An optional read-mostly companion dashboard. Your hermit works without it.
 
 1. Open Obsidian -> "Open folder as vault" -> select the repo root
 2. Add `.obsidian/` to `.gitignore`
-3. **Install Folder Bridge and add .claude and .claude-code-hermit folder:** plugin (Community plugins -> Browse -> "FolderBridge")(https://github.com/tescolopio/Obsidian_FolderBridge)
-4. Install the **Dataview** plugin (Community plugins -> Browse -> "Dataview")
+3. **Install Folder Bridge** (Community plugins -> Browse -> "FolderBridge") — required to make `.claude-code-hermit/` visible (Obsidian ignores dot-directories by default). Add `.claude` and `.claude-code-hermit` folders via the plugin settings. ([GitHub](https://github.com/tescolopio/Obsidian_FolderBridge))
+4. **Install Dataview** (Community plugins -> Browse -> "Dataview") — required for dashboard queries
 5. Create `dashboard.md` at the repo root (add to `.gitignore`) and paste:
 
 ````markdown
 ## Sessions
 
 ```dataview
-TABLE status, date, duration, cost_usd AS "Cost", tags
+TABLE date, task, cost_usd AS "Cost", duration, status
 FROM ".claude-code-hermit/sessions"
 WHERE id
 SORT date DESC
@@ -23,7 +23,7 @@ SORT date DESC
 ## Proposals
 
 ```dataview
-TABLE status, source, category, session, created
+TABLE title, status, category, session, created
 FROM ".claude-code-hermit/proposals"
 WHERE id
 SORT created DESC
@@ -64,7 +64,7 @@ All session reports and proposals include YAML frontmatter with structured metad
 
 ````markdown
 ```dataview
-TABLE status, date, duration, cost_usd AS "Cost", tags
+TABLE date, task, cost_usd AS "Cost", duration, status, tags
 FROM ".claude-code-hermit/sessions"
 WHERE id
 SORT date DESC
@@ -75,7 +75,7 @@ SORT date DESC
 
 ````markdown
 ```dataview
-TABLE status, source, category, session, created
+TABLE title, status, category, session, created
 FROM ".claude-code-hermit/proposals"
 WHERE id AND (status = "proposed" OR status = "accepted")
 SORT source DESC, created ASC
@@ -86,7 +86,7 @@ SORT source DESC, created ASC
 
 ````markdown
 ```dataview
-TABLE status, source, category, session, created
+TABLE title, status, category, session, created
 FROM ".claude-code-hermit/proposals"
 WHERE id
 SORT created DESC
@@ -97,7 +97,7 @@ SORT created DESC
 
 ````markdown
 ```dataview
-TABLE date, status, proposals_created
+TABLE date, task, proposals_created
 FROM ".claude-code-hermit/sessions"
 WHERE id AND length(proposals_created) > 0
 SORT date DESC
@@ -112,6 +112,18 @@ TABLE date, cost_usd AS "Cost", duration, tags
 FROM ".claude-code-hermit/sessions"
 WHERE id AND date >= date(today) - dur(7 days)
 SORT date DESC
+```
+````
+
+### Proposal Response Time
+
+````markdown
+```dataview
+TABLE title, created, resolved_date,
+  (date(resolved_date) - date(created)).days AS "Days to Resolve"
+FROM ".claude-code-hermit/proposals"
+WHERE resolved_date
+SORT resolved_date DESC
 ```
 ````
 

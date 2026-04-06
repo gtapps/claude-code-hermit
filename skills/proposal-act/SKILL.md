@@ -16,12 +16,16 @@ Take action on a proposal: accept, defer, or dismiss.
 
 If no action or ID is provided, ask the operator which proposal and action.
 
+## Timestamp Convention
+
+All timestamps in frontmatter and Operator Decision text use ISO 8601 with timezone offset (e.g., `2026-04-06T14:30:00+01:00`). Use the timezone from `config.json` if set, otherwise UTC.
+
 ## Accept Flow
 
 When the operator accepts a proposal:
 
 1. Read the proposal file from `.claude-code-hermit/proposals/PROP-NNN.md`
-2. Update the YAML frontmatter `status` field to `accepted` and add `accepted_date: YYYY-MM-DD`. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
+2. Update the YAML frontmatter: set `status` to `accepted`, add `accepted_date` and `resolved_date` as timestamps. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
 2b. **First-response tracking:** Check if the proposal's `responded` field is already `true`. If `false`: set `responded: true` in frontmatter, then append a `responded` event:
    ```
    node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"responded","proposal_id":"PROP-NNN","action":"accept"}'
@@ -29,7 +33,7 @@ When the operator accepts a proposal:
    Then call `node ${CLAUDE_PLUGIN_ROOT}/scripts/generate-summary.js .claude-code-hermit/state/`. If `responded` is already `true`, skip the append (prevents double-counting).
 3. Append a timestamp to the Operator Decision section:
    ```
-   Accepted on YYYY-MM-DD.
+   Accepted on 2026-04-06T14:30:00+01:00.
    ```
 
 3b. **Routine proposals.** If the proposal metadata contains `Type: routine` and a `## Config` section with a JSON block:
@@ -76,12 +80,12 @@ When the operator accepts a proposal:
 ## Defer Flow
 
 1. Read the proposal file
-2. Update the YAML frontmatter `status` field to `deferred` and add `deferred_date: YYYY-MM-DD`. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
+2. Update the YAML frontmatter: set `status` to `deferred`, add `deferred_date` as timestamp. Do NOT set `resolved_date` — deferral is not a terminal state. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
 2b. **First-response tracking:** Same as accept flow — check `responded` field, set to `true` if `false`, append `responded` event with `"action":"defer"`, call `generate-summary.js`. Skip if already `true`.
 3. Ask: "Any note on why it's deferred or when to revisit?" (optional — operator can skip)
 4. If a note is provided, append to the Operator Decision section:
    ```
-   Deferred on YYYY-MM-DD. Reason: [operator's note]
+   Deferred on 2026-04-06T14:30:00+01:00. Reason: [operator's note]
    ```
 5. Respond: "PROP-NNN deferred."
 
@@ -90,12 +94,12 @@ Deferred proposals still appear in `/proposal-list` but are sorted below open pr
 ## Dismiss Flow
 
 1. Read the proposal file
-2. Update the YAML frontmatter `status` field to `dismissed` and add `dismissed_date: YYYY-MM-DD`. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
+2. Update the YAML frontmatter: set `status` to `dismissed`, add `dismissed_date` and `resolved_date` as timestamps. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
 2b. **First-response tracking:** Same as accept flow — check `responded` field, set to `true` if `false`, append `responded` event with `"action":"dismiss"`, call `generate-summary.js`. Skip if already `true`.
 3. Ask: "Reason for dismissal?" (optional — operator can skip)
 4. If a reason is provided, append to the Operator Decision section:
    ```
-   Dismissed on YYYY-MM-DD. Reason: [operator's reason]
+   Dismissed on 2026-04-06T14:30:00+01:00. Reason: [operator's reason]
    ```
 5. Respond: "PROP-NNN dismissed."
 
