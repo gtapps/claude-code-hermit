@@ -11,6 +11,28 @@
 - If Docker `--network=none`, channels can't work.
 - Telegram has no message history — messages sent while your hermit was down are lost.
 
+## Channel Sends Not Working
+
+Hermit uses proactive channel sends for heartbeat alerts, morning briefs, and idle transition notifications. If messages aren't arriving:
+
+- **Check `allowed_users` in config.json:** Proactive sends require exactly one allowed user for the active channel. If absent, empty, or multiple users configured, there's no unambiguous outbound target. Add your user ID via `/hermit-settings channels`.
+- **Verify the `reply` tool is available:** Channels must be started with `--channels` for the plugin's `reply` tool to be accessible. Check boot output.
+- **`channel-send-unavailable` alert:** If sends are failing, heartbeat records this as a deduped alert. Check SHELL.md Findings for the unsent message content.
+- **Always-on vs interactive:** In interactive mode, channel plugins may not be running. Proactive sends only work when Claude Code is launched with `--channels`.
+
+---
+
+## Plugin Checks Not Running
+
+Plugin checks run during idle reflection via `reflect`. If accepted plugins aren't being invoked:
+
+- **Check `plugin_checks` in config.json:** Must have entries with `enabled: true`. View with `/hermit-settings plugin-checks`.
+- **Check reflection cadence:** Reflection runs every 4+ hours during idle. If the hermit is always `in_progress`, plugin checks won't fire (they're idle-only).
+- **Unavailable suppression:** If a plugin skill is missing or uninstalled, the check is suppressed for `interval_days`. Check `state/reflection-state.json` for `last_unavailable_at`.
+- **One per reflect:** Only one plugin check runs per reflect invocation. If multiple are due, the oldest fires first.
+
+---
+
 ## Hooks Not Firing
 
 - Check `AGENT_HOOK_PROFILE` in `config.json` `env` (written to `.claude/settings.local.json` at boot). Core hooks need `standard` or `strict`. Hermit hooks (e.g., git-push-guard) need `strict`. View/change with `/hermit-settings env`.

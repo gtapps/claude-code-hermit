@@ -55,6 +55,7 @@ The prompts below match the init wizard exactly. Use the same wording for consis
 | `idle_budget` | 0.0.9 | no | `"$0.50"` |
 | `heartbeat.stale_threshold` | 0.0.9 | no | `"2h"` |
 | `routines` | 0.0.9 | no (migrated or empty) | `[]` |
+| `plugin_checks` | 0.3.1 | no | `[]` |
 
 **Prompts** — use the same wording and interaction model as the init wizard (see `skills/hatch/SKILL.md`):
 
@@ -163,6 +164,18 @@ This migration converts deprecated v0.0.4 config keys into the new routines syst
      - Remove the `## When Idle` section (header + content) from OPERATOR.md.
      - Tell operator: "Migrated {N} idle tasks from OPERATOR.md to IDLE-TASKS.md."
    - If no `## When Idle` section: tell operator: "Created IDLE-TASKS.md — add low-priority maintenance tasks for your hermit to work on during downtime."
+
+**v0.3.1 migration:**
+
+1. **Add `plugin_checks`** — If `plugin_checks` key is missing from config.json, add `"plugin_checks": []`.
+2. **Auto-populate plugin checks** — Scan installed plugins (`claude plugin list` or check `docker.recommended_plugins`):
+   - If `claude-code-setup` is installed: add `{"id":"automation-recommender","plugin":"claude-code-setup","skill":"/claude-code-setup:claude-automation-recommender","enabled":true,"trigger":"interval","interval_days":7}` to `plugin_checks` (if no entry with that `id` exists)
+   - If `claude-md-management` is installed: add two entries (if no entry with matching `id` exists):
+     - `{"id":"md-audit","plugin":"claude-md-management","skill":"/claude-md-management:claude-md-improver","enabled":true,"trigger":"interval","interval_days":7}`
+     - `{"id":"md-revise","plugin":"claude-md-management","skill":"/claude-md-management:revise-claude-md","enabled":true,"trigger":"session"}`
+2b. **Backfill `trigger` field** — For any existing `plugin_checks` entry missing the `trigger` field, set `trigger: "interval"` (preserves existing behavior).
+3. **Add `plugin_checks` to reflection state** — Read `state/reflection-state.json`. If the `plugin_checks` key is missing, add `"plugin_checks": {}`. Write back.
+4. Note to operator: "Plugin checks — recommended plugins are now invoked automatically during idle reflection. Manage with `/hermit-settings plugin-checks`."
 
 Tell the operator: "New settings available in this version:" then present only the questions for keys that are actually missing from their config. If no interactive keys are missing, skip this step.
 

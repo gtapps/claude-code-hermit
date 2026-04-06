@@ -28,6 +28,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings env              — view/edit environment variables
 /claude-code-hermit:hermit-settings compact          — configure SHELL.md compaction thresholds
 /claude-code-hermit:hermit-settings docker           — view/edit Docker packages
+/claude-code-hermit:hermit-settings plugin-checks    — manage scheduled plugin skill checks
 ```
 
 ## Plan
@@ -74,6 +75,11 @@ Environment (env):
   COMPACT_THRESHOLD               50
   CLAUDE_AUTOCOMPACT_PCT_OVERRIDE 50
   MAX_THINKING_TOKENS             10000
+
+Plugin Checks:
+  automation-recommender  claude-code-setup     interval  7 days   2026-04-01  enabled
+  md-audit                claude-md-management  interval  7 days   (never)     enabled
+  md-revise               claude-md-management  session   —        2026-04-06  enabled
 
 Docker:
   Packages:          build-essential, ffmpeg (or "none")
@@ -261,6 +267,29 @@ Update `permission_mode` in config.json.
   - If input is just a plugin name without a verb: treat as `enable` if it exists, `add` if it doesn't
 - After changes for official plugins, note: "Restart container to install new plugins."
 - After changes for third-party plugins, note: "Entry saved for tracking. Install manually: `docker exec <container> claude plugin install <plugin>@<marketplace> --scope <scope>`"
+
+**If argument is "plugin-checks":**
+- Read `state/reflection-state.json` for runtime state (last run dates). If missing, show "(no runs yet)" for all.
+- Show current `plugin_checks` entries from config.json:
+  ```
+  Plugin Checks (config.json plugin_checks)
+
+    #  ID                      Plugin               Trigger   Interval  Last Run    Status
+    1. automation-recommender  claude-code-setup     interval  7 days    2026-04-01  enabled
+    2. md-audit                claude-md-management  interval  7 days    (never)     enabled
+    3. md-revise               claude-md-management  session   —         2026-04-06  enabled
+
+  (or "No plugin checks configured" if empty)
+  ```
+- Ask: "Enable, disable, add, remove, or change interval? (e.g., 'disable md-audit', 'interval automation-recommender 14', 'add my-check my-plugin /my-plugin:my-skill interval 7', 'add my-check my-plugin /my-plugin:my-skill session', or 'done') [done]"
+- Loop until operator says "done", "skip", or presses Enter:
+  - `enable <id>`: set `enabled: true` on matching entry
+  - `disable <id>`: set `enabled: false` on matching entry
+  - `interval <id> <days>`: update `interval_days` on matching entry (only valid for `trigger: "interval"`)
+  - `add <id> <plugin> <skill> interval [days]`: add interval-triggered entry with `enabled: true`, `interval_days` (default: 7). Deduplicate by id.
+  - `add <id> <plugin> <skill> session`: add session-triggered entry with `enabled: true`. Deduplicate by id.
+  - `remove <id>`: delete the entry from config and its state from `state/reflection-state.json`
+- Note: "Interval checks run during idle reflection. Session checks run at task completion. Changes take effect on the next cycle."
 
 ### 3. Write config
 

@@ -28,7 +28,11 @@ Analyzes your codebase and recommends Claude Code automations — skills, hooks,
 
 Audits and improves CLAUDE.md files across your project. Scans for all variants, grades quality (A–F), identifies gaps in command documentation, architectural clarity, and project patterns, then proposes targeted fixes — dense, actionable, no generic advice.
 
-**Why it matters for Hermit:** CLAUDE.md is Hermit's primary project context. Better CLAUDE.md means better sessions — fewer misunderstandings, less wasted context asking about project structure. Hermit can invoke this during reflection or idle to keep its own context sharp.
+Two capabilities:
+- **`claude-md-improver`** (skill) — full audit and quality grading. Invoked periodically via plugin checks (default: weekly).
+- **`revise-claude-md`** (command) — lightweight session-end revision, captures learnings into CLAUDE.md. Invoked automatically at task completion.
+
+**Why it matters for Hermit:** CLAUDE.md is Hermit's primary project context. Better CLAUDE.md means better sessions — fewer misunderstandings, less wasted context asking about project structure.
 
 ### skill-creator
 
@@ -85,6 +89,27 @@ Each entry in `docker.recommended_plugins`:
 | `enabled` | boolean | Install on boot when `true` |
 
 See [Config Reference](CONFIG-REFERENCE.md#recommended_plugins-entry-schema) for defaults.
+
+---
+
+## Plugin Checks (Automatic Invocation)
+
+When you accept a recommended plugin during `/hatch` or `/docker-setup`, Hermit adds corresponding `plugin_checks` entries to `config.json`:
+
+| Plugin | Check ID | Skill Invoked | Trigger | Cadence |
+|--------|----------|---------------|---------|---------|
+| `claude-code-setup` | `automation-recommender` | `/claude-code-setup:claude-automation-recommender` | `interval` | 7 days |
+| `claude-md-management` | `md-audit` | `/claude-md-management:claude-md-improver` | `interval` | 7 days |
+| `claude-md-management` | `md-revise` | `/claude-md-management:revise-claude-md` | `session` | At task completion |
+| `skill-creator` | _(none)_ | Event-driven via `proposal-act` | — | On demand |
+
+**Interval checks** run during idle reflection. If a check is due (past its `interval_days`), reflect invokes the skill, evaluates the output, and routes actionable findings through the proposal pipeline. One check per reflect cycle.
+
+**Session checks** run at completed task boundaries (before idle transition). All enabled session checks invoke once per task completion.
+
+**Interval tuning:** 3+ consecutive empty runs → propose increasing interval. 3+ actionable findings in a single run → propose decreasing. Always through PROP-NNN.
+
+**Managing checks:** `/hermit-settings plugin-checks` to view, enable/disable, change intervals, or add checks for any installed plugin's skills. All checks are optional — disable or remove any time.
 
 ---
 

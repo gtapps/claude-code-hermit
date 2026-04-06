@@ -164,7 +164,7 @@ One writer per state file. No shared mutation bus.
 | File | Owner (sole writer) | Readers |
 |------|-------------------|---------|
 | `state/alert-state.json` | heartbeat only | heartbeat; evaluate-session (read-only nudge computation) |
-| `state/reflection-state.json` | reflect only | heartbeat (debounce), session (debounce) |
+| `state/reflection-state.json` | reflect + session (non-overlapping phases) | heartbeat (debounce), hermit-settings (plugin-checks display) |
 | `state/routine-queue.json` | routine-watcher only | routine-watcher |
 | `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only) | generate-summary.js |
 | `state/micro-proposals.json` | reflect (queue) + channel-responder/brief (resolve) | brief, generate-summary.js |

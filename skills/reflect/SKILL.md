@@ -47,6 +47,46 @@ If you spot a pattern:
 - **Moderate signal** (pattern across 2-3 sessions): create a proposal via `/claude-code-hermit:proposal-create` with the evidence (subject to three-condition rule).
 - **Strong signal** (clear, repeated pattern): create a proposal via `/claude-code-hermit:proposal-create` with the evidence and include a `## Skill Improvement` section listing the skill name, observed failures, and suggested eval criteria. When the proposal is accepted via `proposal-act`, use `/skill-creator eval` and `/skill-creator improve` to implement the changes. If `/skill-creator` is not available, apply the changes to the skill's SKILL.md directly.
 
+## Plugin Checks
+
+If `plugin_checks` exists in config.json and has entries with `trigger: "interval"`:
+
+1. Read `state/reflection-state.json`. Plugin check state lives under the `plugin_checks` key (initialize `{}` if missing).
+2. Filter to `enabled: true` and `trigger: "interval"` entries where the matching state entry in `plugin_checks` has:
+   - `last_run` null or older than `interval_days`, AND
+   - `last_unavailable_at` null or older than `interval_days` (don't retry unavailable checks every reflect)
+3. **Cap: one plugin check per reflect invocation.** If multiple are due, pick the one with the oldest `last_run` (null sorts first). Remaining checks fire on subsequent reflects.
+4. Invoke the `skill` command string as-is. If Claude reports the skill is unavailable or not installed:
+   - Log to SHELL.md Findings once: "Plugin check skipped: {id} — skill unavailable"
+   - Set `last_unavailable_at` to today's ISO date (suppresses retries for `interval_days`)
+   - Do NOT update `last_run` — don't count as a successful run
+   - Move on
+5. On successful invocation: update `last_run` to today's ISO date in `state/reflection-state.json`
+6. Evaluate the output through the normal reflect outcome flow:
+   - Actionable improvement → proposal candidate (tier classification applies)
+   - Context improvement (CLAUDE.md fix from md-improver) → apply directly if trivial, propose if significant
+   - Nothing found → increment `consecutive_empty` for this check's entry in state, no action
+
+### Interval adjustment proposals
+
+Track signal density per check via `consecutive_empty` in each check's `state/reflection-state.json` entry:
+
+**Reset rules (per check):**
+- Empty run → `consecutive_empty += 1`
+- Any non-empty run (actionable or contextual findings) → reset `consecutive_empty = 0`
+- Interval increase proposal accepted → reset to 0
+- Interval increase proposal dismissed → also reset to 0 (prevents immediate re-proposal)
+
+**Proposals:**
+- **3+ consecutive empty runs** → create a proposal to increase `interval_days` (e.g., 7 → 14).
+- **3+ actionable findings in a single run** → create a proposal to decrease `interval_days` (e.g., 7 → 3).
+- Adjustments always go through PROP-NNN — hermit never auto-adjusts.
+- These proposals use the standard three-condition rule (repeated pattern + meaningful consequence + operator-actionable).
+
+### Guard rails
+
+- If a check errors or times out, log the error in SHELL.md Findings and skip — don't retry until next scheduled run
+
 ## Three-Condition Rule
 
 Only create a proposal if all three are true:
@@ -110,13 +150,13 @@ Vague questions ("I found a pattern. Want me to improve it?") are NOT permitted.
 2. Write to `state/micro-proposals.json`: set `active` to the new entry with `status: "pending"`, `follow_up_count: 0`.
 3. Append `micro-queued` event to `proposal-metrics.jsonl` via `append-metrics.js`:
    `{"ts":"<now ISO>","type":"micro-queued","micro_id":"MP-YYYYMMDD-N","tier":1}`
-4. If channels configured: send the question to the channel.
+4. Notify the operator with the question.
 5. Call `generate-summary.js`.
 
 ## State Update
 
 After each reflection run:
-1. Write `state/reflection-state.json` with `{"last_reflection": "<now ISO with timezone offset from config>"}`.
+1. Merge `{"last_reflection": "<now ISO with timezone offset from config>"}` into `state/reflection-state.json` (preserve existing keys including `plugin_checks`).
 2. Call `node ${CLAUDE_PLUGIN_ROOT}/scripts/generate-summary.js .claude-code-hermit/state/` to update state-summary.md immediately.
 
 If nothing stands out: say nothing.

@@ -49,10 +49,11 @@ When the work is done, or the operator decides to move on (even if partial or bl
 2. Verify quality: task status is accurate (`completed` | `partial` | `blocked`), changed files listed, cost recorded
 3. Create proposals for any high-leverage improvements discovered during work
 4. **Reflect (with debounce).** Read `state/reflection-state.json` for `last_reflection`. Only invoke the `reflect` skill if `last_reflection` is null or older than 4 hours. For quick tasks (no tasks created, under 5 minutes), skip entirely — progress log is sufficient.
+4b. **Session-triggered plugin checks.** For each `plugin_checks` entry (from config already loaded) with `trigger: "session"` and `enabled: true`, invoke the skill. Skip for quick tasks (no tasks created, under 5 minutes). If a skill is unavailable or errors, skip it and continue — never block session finalization on a plugin check failure. For each check that completed successfully, read-modify-write `state/reflection-state.json`: update only `plugin_checks.<id>.last_run` to today's ISO date, preserving all other keys. Do not update `last_run` for failed checks.
 5. If native Tasks exist: call `TaskList`, format as a markdown table. Then `TaskUpdate(status=deleted)` for all tasks (idle = clean slate).
 6. Use `session-mgr` to perform an **idle transition** (archive report, reset task-scoped sections, set status to `idle`). Pass the task table in the prompt for the archived report.
 7. If `heartbeat.enabled` is true in config and heartbeat is not already running: start it (`/claude-code-hermit:heartbeat start`)
-8. Report: "Archived as S-NNN. What's next?"
+8. Notify the operator: "Archived as S-NNN. Task: [summary]. Status: [outcome]. Ready for what's next."
 9. Once the operator says what's next: go to step 4 (plan the work)
 
 To close the session entirely, the operator runs `/claude-code-hermit:session-close` at any time.

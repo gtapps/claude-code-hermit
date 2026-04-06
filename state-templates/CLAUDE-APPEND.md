@@ -28,6 +28,17 @@
 `/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/hermit-upgrade` `/docker-setup` `/hermit-takeover` `/hermit-hand-back`
 (All prefixed with `/claude-code-hermit:`)
 
+## Operator Notification
+
+When you need to notify the operator proactively:
+
+- If no channels are configured, respond in conversation.
+- If a channel is configured and there is exactly one allowed user for that channel, use that user ID as the outbound target and call the channel plugin's `reply` tool with `chat_id` + `text`.
+- If outbound send fails, or if there is no unambiguous outbound target:
+  - Log the unsent content to SHELL.md Findings
+  - Record a deduped `channel-send-unavailable` issue if appropriate
+  - Continue without retry spam
+
 ## Rules
 
 - **Rate limits:** Log pause/resume in Progress Log. Never silently stall.

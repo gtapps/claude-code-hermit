@@ -88,6 +88,33 @@ Setting `keep` equal to `threshold` effectively disables compaction for that sec
 
 ---
 
+## `plugin_checks`
+
+Automatic invocations of installed plugin skills. Config stores operator intent; runtime state lives in `state/reflection-state.json` under the `plugin_checks` key.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `id` | string | _(required)_ | Unique identifier for this check. |
+| `plugin` | string | _(required)_ | Parent plugin name (for display). |
+| `skill` | string | _(required)_ | Full slash command to invoke. |
+| `enabled` | boolean | `true` | Whether this check should run. |
+| `trigger` | string | _(required)_ | `"interval"` (periodic during idle reflection) or `"session"` (at task completion). |
+| `interval_days` | integer | `7` | Minimum days between invocations. **Required for `trigger: "interval"`. Must not be set for `trigger: "session"`.** |
+
+### Runtime state — `state/reflection-state.json` (under `plugin_checks` key)
+
+Keyed by check `id`. Owned by reflect (sole writer for interval checks) and session (sole writer for session checks). Lives alongside `last_reflection` in the same file.
+
+| Key | Type | Applies to | Description |
+|-----|------|-----------|-------------|
+| `last_run` | string/null | both | ISO date of last successful invocation. |
+| `last_unavailable_at` | string/null | interval only | ISO date of last unavailable/skip. Suppresses retries for `interval_days`. |
+| `consecutive_empty` | integer | interval only | Consecutive runs with zero findings. Reset to 0 on any non-empty run. |
+
+Modify with `/hermit-settings plugin-checks`.
+
+---
+
 ## `docker`
 
 | Key | Type | Default | Description |

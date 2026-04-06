@@ -159,6 +159,13 @@ questions: [
 For each plugin the operator accepts (the default), install it immediately:
 `claude plugin install <plugin>@claude-plugins-official --scope project`
 
+For each accepted plugin, also add the corresponding `plugin_checks` entries to config.json:
+- `claude-code-setup` → `{"id":"automation-recommender","plugin":"claude-code-setup","skill":"/claude-code-setup:claude-automation-recommender","enabled":true,"trigger":"interval","interval_days":7}`
+- `claude-md-management` → two entries:
+  - `{"id":"md-audit","plugin":"claude-md-management","skill":"/claude-md-management:claude-md-improver","enabled":true,"trigger":"interval","interval_days":7}`
+  - `{"id":"md-revise","plugin":"claude-md-management","skill":"/claude-md-management:revise-claude-md","enabled":true,"trigger":"session"}`
+- `skill-creator` → no entry (event-driven via proposal-act, not scheduled)
+
 For each plugin the operator declines, skip silently. Note: "You can add it later with `/claude-code-hermit:hermit-settings`."
 
 #### Phase 5 — Channels (AskUserQuestion, single question)

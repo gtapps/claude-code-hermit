@@ -1,5 +1,60 @@
 # Changelog
 
+## [0.3.1] - 2026-04-06
+
+### Added
+
+- **Operator notification routing** — New "Operator Notification" section in CLAUDE-APPEND.md. Skills say "notify the operator" — routing is transparent: conversation in interactive mode, channel `reply` tool in always-on mode (requires exactly one `allowed_users` entry for the active channel). Failed sends log to SHELL.md Findings with deduped `channel-send-unavailable` tracking.
+
+- **Plugin checks** — Recommended plugins are now invoked automatically. Two trigger types: `interval` (periodic during idle reflection, e.g. `claude-md-improver` weekly) and `session` (at task completion, e.g. `revise-claude-md`). New `plugin_checks` config array with per-check `trigger` and optional `interval_days`. Runtime state in `state/reflection-state.json` (under `plugin_checks` key). All checks are optional and toggleable via `/hermit-settings plugin-checks`.
+
+- **Skill-creator integration in proposal-act** — Accepted proposals with a `## Skill Improvement` section now route through `/skill-creator` when available: NEXT-TASK.md includes skill-creator invocation steps. Falls back to direct SKILL.md edits if skill-creator is not installed.
+
+- **Plugin check interval proposals** — 3+ consecutive empty runs → propose increasing interval. 3+ actionable findings in a single run → propose decreasing interval. Explicit reset rules for `consecutive_empty`: reset on any non-empty run, on proposal accept, and on proposal dismiss.
+
+### Changed
+
+- **Skill notification language** — Skills no longer reference channels directly. All outbound communication uses "notify the operator" — the routing pattern in CLAUDE-APPEND.md handles delivery.
+
+- **Heartbeat alert response** — Now responds `HEARTBEAT_ALERT` instead of the full alert content. Conservative NEXT-TASK.md pickup notifies operator and sets status to `waiting`.
+
+- **Hatch wizard Phase 4** — Now writes `plugin_checks` entries for accepted recommended plugins alongside plugin installation.
+
+- **Docker-setup plugin checks** — Docker setup wizard now also writes `plugin_checks` entries when plugins are accepted (was only in hatch).
+
+- **reflection-state.json dual ownership** — Session now writes `plugin_checks.<id>.last_run` at task completion (non-overlapping phases with reflect). Architecture ownership table updated.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/CLAUDE-APPEND.md` | New "Operator Notification" routing section |
+| `skills/heartbeat/SKILL.md` | Channel refs → "notify the operator" |
+| `skills/brief/SKILL.md` | Delivery instructions for morning/evening |
+| `skills/session/SKILL.md` | Step 4b: session-triggered plugin checks with error handling and merge semantics |
+| `skills/reflect/SKILL.md` | Plugin Checks section with interval logic, adjustment proposals, guard rails |
+| `skills/proposal-act/SKILL.md` | Skill-creator integration, notification language |
+| `skills/hatch/SKILL.md` | Phase 4: plugin_checks entries for accepted plugins |
+| `skills/docker-setup/SKILL.md` | Plugin_checks entries for accepted plugins |
+| `skills/hermit-settings/SKILL.md` | `plugin-checks` subcommand |
+| `skills/hermit-upgrade/SKILL.md` | v0.3.1 migration block |
+| `state-templates/config.json.template` | `plugin_checks: []` key |
+| `docs/CONFIG-REFERENCE.md` | `plugin_checks` schema and runtime state |
+| `docs/RECOMMENDED-PLUGINS.md` | Plugin Checks section with trigger table |
+| `docs/TROUBLESHOOTING.md` | Channel sends and plugin checks troubleshooting |
+| `docs/SKILLS.md` | hermit-settings subcommand list |
+| `docs/ARCHITECTURE.md` | reflection-state.json dual ownership |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+
+1. **CLAUDE-APPEND.md refresh** — The template changed (new Operator Notification section). Upgrade refreshes it automatically.
+2. **Add `plugin_checks` to config.json** — Adds `"plugin_checks": []` if missing, auto-populates entries for any installed recommended plugins (`claude-code-setup`, `claude-md-management`), and backfills the `trigger` field on any existing entries.
+3. **Initialize reflection state** — Adds `"plugin_checks": {}` to `state/reflection-state.json` if missing.
+
+No config.json interactive prompts. No manual steps required. Skill files update automatically with the plugin.
+
 ## [0.3.0] - 2026-04-06
 
 ### Added

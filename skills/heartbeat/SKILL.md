@@ -34,7 +34,7 @@ Execute one heartbeat tick immediately. Useful for testing the checklist.
    - If elapsed > stale_threshold: generate alert with key `stale-session` and text "No progress for {elapsed}. Process may have died or be stuck in a rate limit."
 6. **Waiting timeout check.** If Status is `waiting` and `heartbeat.waiting_timeout` is set (not null):
    - Calculate how long the session has been `waiting` (from last Progress Log entry or status change).
-   - If elapsed > `waiting_timeout` with no channel activity: auto-transition to `idle`, send channel message: "No operator response for {timeout}. Transitioning to idle."
+   - If elapsed > `waiting_timeout` with no channel activity: auto-transition to `idle`, notify the operator: "No operator response for {timeout}. Transitioning to idle."
 7. **Resume check.** If the previous tick was a HEARTBEAT_SKIP (outside active hours or empty checklist) and this tick is not: append to SHELL.md `## Monitoring`: `[HH:MM] Heartbeat: resumed (was inactive)`.
 8. **Maintain .status file.** Read SHELL.md Status. If it differs from the current `.claude-code-hermit/.status` content, write the new value. Valid values: `idle`, `in_progress`, `waiting`. (The `shutdown` value is written by `hermit-stop.py` only.)
 9. Read `.claude-code-hermit/sessions/SHELL.md` for current task context
@@ -57,12 +57,12 @@ Before appending any alert to SHELL.md Monitoring, run this procedure:
 2. Look up the alert's semantic key in `alerts`:
    - **Not found:** Add entry with `count: 1, consecutive_clean: 0, suppressed: false, first_seen: today, last_seen: today, text: <alert text>`. Append to Monitoring normally.
    - **count < 5:** Increment count, reset `consecutive_clean` to 0, update `last_seen`. Append to Monitoring normally.
-   - **count === 5:** Increment count, set `suppressed: true`, reset `consecutive_clean` to 0. Append once: `[HH:MM] Heartbeat: above alert suppressed after 5 fires (first: {first_seen}). Daily digest only.` Send to channel.
+   - **count === 5:** Increment count, set `suppressed: true`, reset `consecutive_clean` to 0. Append once: `[HH:MM] Heartbeat: above alert suppressed after 5 fires (first: {first_seen}). Daily digest only.` Notify the operator.
    - **count > 5:** Increment count, reset `consecutive_clean` to 0, update `last_seen`. Do NOT append to Monitoring.
 3. **Resolution detection:** After evaluating all checklist items, check for alerts that did NOT fire this tick. For each such entry: increment `consecutive_clean`. If `consecutive_clean >= 2`: resolve the alert and remove entry from state.
    - **Not suppressed:** Append `[HH:MM] Heartbeat: resolved — {text}`. Remove entry.
    - **Suppressed:** Resolve silently — remove entry, omit from next daily digest. Don't add noise announcing the absence of noise.
-4. **Daily digest:** First tick of each day where `last_digest_date` is not today: if any suppressed alerts exist, send to channel: `Suppressed alert digest: {list with counts and ages}`. Set `last_digest_date` to today.
+4. **Daily digest:** First tick of each day where `last_digest_date` is not today: if any suppressed alerts exist, notify the operator: `Suppressed alert digest: {list with counts and ages}`. Set `last_digest_date` to today.
 5. **Stale queue check:** Read `.claude-code-hermit/state/routine-queue.json`. For any entry where `queued_since` is older than one heartbeat interval AND current status is `idle` or `waiting`: append to Monitoring: `[HH:MM] Heartbeat: routine '{id}' has been queued since {queued_date} — dispatch may have failed.` Use semantic key `routine-stale:<id>` for dedup.
 6. Write `state/alert-state.json`.
 7. Call `node ${CLAUDE_PLUGIN_ROOT}/scripts/generate-summary.js .claude-code-hermit/state/`.
@@ -70,19 +70,19 @@ Before appending any alert to SHELL.md Monitoring, run this procedure:
 **If nothing actionable:**
 - Do NOT append to SHELL.md (the tick is already recorded via `total_ticks` in config.json)
 - Read config `heartbeat.show_ok`:
-  - If `true` AND channels are configured: send "Heartbeat OK" to channel
+  - If `true`: notify the operator with "Heartbeat OK"
   - If `false` (default): no channel message — silent acknowledgment
 - Respond "HEARTBEAT_OK"
 
 **If something found:**
 - Append findings to SHELL.md `## Monitoring` section with timestamp (subject to alert dedup above)
-- If channels are configured: send a concise alert (under 5 lines, channel-friendly):
+- Notify the operator with a concise alert (under 5 lines):
   ```
   Heartbeat alert:
   - Step 3 may be unblocked: test environment is now reachable
   - PROP-018 has been open for 3 sessions without review
   ```
-- Respond with the alert content
+- Respond "HEARTBEAT_ALERT"
 
 **Important:** Do NOT implement fixes — only report. The operator or the next session decides what to do. If a finding suggests a reusable improvement, create a proposal via `/claude-code-hermit:proposal-create` — proposals are documentation, not action.
 
@@ -173,7 +173,7 @@ Open `.claude-code-hermit/HEARTBEAT.md` for the operator to modify.
 | Active hours | Yes — respects configured window | No — runs whenever invoked |
 | Purpose | Background health + proactive surfacing | Specific task monitoring |
 
-Both append findings to SHELL.md. Both send alerts via channels. They coexist without interference.
+Both append findings to SHELL.md. Both notify the operator on actionable findings. They coexist without interference.
 
 ## Persistence Across Tasks
 
@@ -203,9 +203,9 @@ After evaluating the checklist, if SHELL.md status is `idle`:
 **NEXT-TASK.md pickup** (active for both `wait` and `discover` idle behavior):
 
 Check for `sessions/NEXT-TASK.md`. If found, respect the configured escalation level:
-- **conservative:** alert — "NEXT-TASK.md ready. Want me to start?"
+- **conservative:** notify the operator: "NEXT-TASK.md ready. Want me to start?" Set SHELL.md status to `waiting`.
 - **balanced:** start it automatically via `/claude-code-hermit:session-start`
-- **autonomous:** start it, notify on completion
+- **autonomous:** start it, notify the operator on completion
 
 **Reflection** (active for both `wait` and `discover` idle behavior):
 

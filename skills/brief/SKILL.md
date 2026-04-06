@@ -10,6 +10,8 @@ Provide a concise executive summary of recent session activity. Designed for mor
 
 ### --morning (routine mode)
 
+**Delivery:** After composing the brief, deliver it to the operator.
+
 Emphasize forward-looking content:
 - Read `.claude-code-hermit/cost-summary.md` for cost context. Include: "Yesterday: $X.XX across N sessions" from the trend table.
 - Pending proposals needing review
@@ -31,6 +33,8 @@ After composing the morning brief, check `state/micro-proposals.json`:
 Never append more than one pending decision.
 
 ### --evening (routine mode)
+
+**Delivery:** After composing the brief, deliver it to the operator.
 
 Emphasize backward-looking content:
 - Sessions completed today (scan S-NNN reports with today's date in frontmatter `date` field, or `## Summary` for pre-Observatory reports, plus current SHELL.md progress log)

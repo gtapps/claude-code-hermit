@@ -37,7 +37,7 @@ When the operator accepts a proposal:
     - Check for duplicate `id` in existing `config.json` routines array — if found, update the existing entry instead of appending.
     - If no duplicate found, append the routine entry to `config.json` routines array.
     - Respond: "Routine '{id}' added to config. The routine watcher picks it up within 60 seconds."
-    - If channels are configured: send notification.
+    - Notify the operator.
     - Skip step 4 — no further implementation needed.
 
 4. Ask: **"How should this be implemented?"**
@@ -60,7 +60,16 @@ When the operator accepts a proposal:
 
    - **"I'll handle it manually"** → Just mark accepted. Respond: "Marked as accepted. No further action taken."
 
-5. If channels are configured: send a brief notification: "PROP-NNN accepted: [title]"
+4b. **Skill creation proposals.** If the accepted proposal contains a `## Skill Improvement` section OR the proposal title/body indicates a new skill should be created:
+    - Check if `/skill-creator` is available (plugin installed)
+    - If available AND operator chose "Create a session task":
+      - Append to the NEXT-TASK.md suggested plan: "Use `/skill-creator` to build and validate the skill. Run `/skill-creator eval` after creation to verify quality."
+      - Note in the task context: "This proposal was flagged for skill-creator — use it for structured iteration instead of manual SKILL.md edits."
+    - If `/skill-creator` is not available:
+      - Proceed normally (manual implementation or direct SKILL.md edits)
+      - Note: "skill-creator not installed — skill changes will be applied directly."
+
+5. Notify the operator: "PROP-NNN accepted: [title]"
 
 **Note:** There is no "Update OPERATOR.md" path. OPERATOR.md is operator-owned — the agent reads it but does not modify it. If the operator wants to update OPERATOR.md based on a proposal, they do it themselves.
 
