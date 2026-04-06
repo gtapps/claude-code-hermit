@@ -9,6 +9,7 @@ Usage:
     python scripts/hermit-stop.py --force      # immediate kill
 """
 
+import fcntl
 import json
 import subprocess
 import sys
@@ -16,6 +17,10 @@ import time
 from pathlib import Path
 
 CONFIG_PATH = Path('.claude-code-hermit/config.json')
+STATE_DIR = CONFIG_PATH.parent / 'state'
+RUNTIME_JSON = STATE_DIR / 'runtime.json'
+RUNTIME_TMP = STATE_DIR / '.runtime.json.tmp'
+LIFECYCLE_LOCK = STATE_DIR / '.lifecycle.lock'
 SESSIONS_DIR = Path('.claude-code-hermit/sessions')
 SHELL_PATH = SESSIONS_DIR / 'SHELL.md'
 DEFAULT_TIMEOUT = 60  # seconds to wait for graceful close
@@ -79,16 +84,67 @@ def save_config(config):
         pass
 
 
+def write_runtime_json(data):
+    """Atomic write to state/runtime.json."""
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    data['updated_at'] = time.strftime('%Y-%m-%dT%H:%M:%S%z')
+    RUNTIME_TMP.write_text(json.dumps(data, indent=2) + '\n')
+    RUNTIME_TMP.rename(RUNTIME_JSON)
+
+
+def read_runtime_json():
+    """Read state/runtime.json, return None if missing or invalid."""
+    try:
+        with open(RUNTIME_JSON) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+
+
+def update_runtime_field(updates):
+    """Read-modify-write runtime.json with atomic write."""
+    runtime = read_runtime_json() or {}
+    runtime.update(updates)
+    write_runtime_json(runtime)
+
+
+def acquire_lifecycle_lock():
+    """Acquire exclusive lifecycle lock. Returns fd or exits on contention."""
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    lock_fd = open(LIFECYCLE_LOCK, 'w')
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print('[hermit] Another lifecycle operation in progress. Aborting.')
+        sys.exit(1)
+    return lock_fd
+
+
+def release_lifecycle_lock(lock_fd):
+    """Release the lifecycle lock."""
+    if lock_fd:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            lock_fd.close()
+        except OSError:
+            pass
+
+
 def main():
     force = '--force' in sys.argv
 
     config = load_config()
+    lock_fd = acquire_lifecycle_lock()
     session_name = get_session_name(config)
 
     if not session_exists(session_name):
         print(f'[hermit] No running session: {session_name}')
         config['always_on'] = False
         save_config(config)
+        update_runtime_field({
+            'session_state': 'idle',
+            'shutdown_completed_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
+        })
         report = find_latest_report()
         if report:
             print(f'[hermit] Last report: {report}')
@@ -108,6 +164,12 @@ def main():
         config['always_on'] = False
         save_config(config)
         subprocess.run(['tmux', 'kill-session', '-t', session_name])
+        update_runtime_field({
+            'session_state': 'idle',
+            'shutdown_requested_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
+            'shutdown_completed_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
+            'last_error': 'unclean_shutdown',
+        })
         report = find_latest_report()
         if report:
             print(f'[hermit] Last report: {report}')
@@ -122,6 +184,18 @@ def main():
             '/claude-code-hermit:heartbeat stop', 'Enter',
         ])
         time.sleep(2)
+
+    # Mark shutdown requested in runtime.json
+    update_runtime_field({
+        'shutdown_requested_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
+    })
+
+    # Release the lifecycle lock before delegating to /session-close.
+    # The close/archive path inside Claude needs to acquire this lock
+    # for its own runtime.json writes. Holding it here would cause the
+    # agent to see it as contention and skip the close.
+    release_lifecycle_lock(lock_fd)
+    lock_fd = None
 
     # Graceful shutdown: send /session-close --shutdown for full close
     print(f'[hermit] Sending /claude-code-hermit:session-close --shutdown to {session_name}...')
@@ -145,21 +219,26 @@ def main():
     else:
         print(f'[hermit] Timeout after {DEFAULT_TIMEOUT}s. Killing session.')
 
+    # Re-acquire lock for final state writes and cleanup
+    lock_fd = acquire_lifecycle_lock()
+
     # Reset always_on flag
     config['always_on'] = False
     save_config(config)
-
-    # Write shutdown status for shell consumers
-    status_file = SESSIONS_DIR.parent / '.status'
-    try:
-        status_file.write_text('shutdown')
-    except OSError:
-        pass
 
     # Kill tmux session
     if session_exists(session_name):
         subprocess.run(['tmux', 'kill-session', '-t', session_name])
         print(f'[hermit] tmux session "{session_name}" terminated.')
+
+    # Mark shutdown completed in runtime.json
+    shutdown_updates = {
+        'session_state': 'idle',
+        'shutdown_completed_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
+    }
+    if not new_report:
+        shutdown_updates['last_error'] = 'unclean_shutdown'
+    update_runtime_field(shutdown_updates)
 
     # Show summary
     if not new_report:

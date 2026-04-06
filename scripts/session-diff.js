@@ -1,17 +1,15 @@
 // scripts/session-diff.js — Stop hook (standard+ profile)
-// Auto-populates the ## Changed section in SHELL.md with git diff stats.
+// Captures git diff stats and writes to state/session-diff.json (sidecar file).
+// session-mgr merges this into SHELL.md ## Changed during lifecycle transitions.
+//
+// This script does NOT write to SHELL.md — that eliminates the read-modify-write
+// race between hooks and Claude editing SHELL.md.
 //
 // WORKTREE LIMITATION:
 // Changes made in git worktrees are only visible to git diff in the main
 // worktree after the feature branch is merged back. If a session closes
 // mid-implementation while changes are still on a worktree branch, this
-// script will see an empty diff. If ## Changed already has content (e.g.,
-// populated by a hermit), this script skips.
-//
-// This script serves as the fallback for:
-// - Non-dev sessions (HA, DevOps, etc.) where changes are made directly
-// - Dev sessions where the implementer wasn't used (direct edits)
-// - Any session where the subagent didn't populate ## Changed
+// script will see an empty diff. session-mgr handles merge from this sidecar.
 
 "use strict";
 
@@ -20,30 +18,12 @@ const fs = require("fs");
 const path = require("path");
 
 const MAX_STDIN = 1024 * 1024; // 1MB safety limit
-const SHELL_SESSION = path.resolve(
-  ".claude-code-hermit/sessions/SHELL.md",
-);
+const SIDECAR_PATH = path.resolve(".claude-code-hermit/state/session-diff.json");
+const SIDECAR_TMP = path.resolve(".claude-code-hermit/state/.session-diff.json.tmp");
 
-function populateChanged() {
-  let original;
-  try {
-    original = fs.readFileSync(SHELL_SESSION, "utf-8");
-  } catch {
-    return;
-  }
-  let content = original;
+const STATUS_LABELS = { A: "added", M: "modified", D: "deleted" };
 
-  // Skip if ## Changed already has non-comment content
-  const changedMatch = content.match(/## Changed\n([\s\S]*?)(?=\n## |$)/);
-  if (changedMatch) {
-    const sectionContent = changedMatch[1].trim();
-    if (sectionContent && !sectionContent.startsWith("<!--")) {
-      // Already populated — don't overwrite manual or subagent entries
-      return;
-    }
-  }
-
-  // Get changed files since session start
+function captureDiff() {
   let diff = "";
   try {
     // Files changed in working tree + staged
@@ -74,17 +54,15 @@ function populateChanged() {
       diff = lines.join("\n");
     }
   } catch {
-    // Not a git repo or git not available — fail silently
-    return;
+    // Not a git repo or git not available
+    return null;
   }
 
   if (!diff) {
-    return;
+    return null;
   }
 
-  const STATUS_LABELS = { A: "added", M: "modified", D: "deleted" };
-
-  const fileList = diff
+  const changedFiles = diff
     .split("\n")
     .filter(Boolean)
     .map((line) => {
@@ -92,28 +70,21 @@ function populateChanged() {
       const file = fileParts.join("\t").replace(/[`\n\r]/g, "_");
       const label = STATUS_LABELS[status]
         || (status.startsWith("R") ? "renamed" : "changed");
-      return `- \`${file}\` (${label})`;
-    })
-    .join("\n");
+      return { file, status: label };
+    });
 
-  // Replace the ## Changed section
-  const replacement = `## Changed\n${fileList}\n`;
-  if (changedMatch) {
-    content = content.replace(/## Changed\n[\s\S]*?(?=\n## |$)/, replacement);
-  } else {
-    // Append before ## Cost if it exists, otherwise at end
-    const costIdx = content.indexOf("## Cost");
-    if (costIdx !== -1) {
-      content =
-        content.slice(0, costIdx) + replacement + "\n" + content.slice(costIdx);
-    } else {
-      content += "\n" + replacement;
-    }
-  }
+  return changedFiles;
+}
 
-  if (content !== original) {
-    fs.writeFileSync(SHELL_SESSION, content, "utf-8");
-  }
+function writeSidecar(changedFiles) {
+  const data = {
+    changed_files: changedFiles,
+    captured_at: new Date().toISOString(),
+  };
+
+  // Atomic write: write to tmp, then rename
+  fs.writeFileSync(SIDECAR_TMP, JSON.stringify(data, null, 2) + "\n", "utf-8");
+  fs.renameSync(SIDECAR_TMP, SIDECAR_PATH);
 }
 
 async function main() {
@@ -124,7 +95,16 @@ async function main() {
     if (totalSize > MAX_STDIN) break;
   }
 
-  populateChanged();
+  // Profile gating — run on "standard" and "strict" only
+  const profile = (process.env.AGENT_HOOK_PROFILE || "standard").trim().toLowerCase();
+  if (profile === "minimal") {
+    process.exit(0);
+  }
+
+  const changedFiles = captureDiff();
+  if (changedFiles && changedFiles.length > 0) {
+    writeSidecar(changedFiles);
+  }
 }
 
 main().catch(() => process.exit(0));

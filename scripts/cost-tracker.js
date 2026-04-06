@@ -23,8 +23,29 @@ const MAX_STDIN = 1024 * 1024; // 1MB safety limit
 const COST_LOG = path.resolve('.claude/cost-log.jsonl');
 const SHELL_SESSION = path.resolve('.claude-code-hermit/sessions/SHELL.md');
 const STATUS_JSON = path.resolve('.claude-code-hermit/sessions/.status.json');
+const STATUS_JSON_TMP = path.resolve('.claude-code-hermit/sessions/.status.json.tmp');
+const RUNTIME_JSON = path.resolve('.claude-code-hermit/state/runtime.json');
+const HEARTBEAT_FILE = path.resolve('.claude-code-hermit/state/.heartbeat');
 const COST_SUMMARY = path.resolve('.claude-code-hermit/cost-summary.md');
 const TASK_SNAPSHOT = path.resolve('.claude-code-hermit/tasks-snapshot.md');
+
+function readRuntimeSessionId() {
+  try {
+    const data = JSON.parse(fs.readFileSync(RUNTIME_JSON, 'utf-8'));
+    return data.session_id || '';
+  } catch {
+    return '';
+  }
+}
+
+function touchHeartbeat() {
+  try {
+    const now = new Date();
+    fs.utimesSync(HEARTBEAT_FILE, now, now);
+  } catch {
+    try { fs.writeFileSync(HEARTBEAT_FILE, '', 'utf-8'); } catch {}
+  }
+}
 
 function detectModel(modelStr) {
   if (!modelStr) return 'sonnet';
@@ -124,11 +145,10 @@ function checkBudget(budget, cumulativeCost) {
 
 const MAX_SUMMARY_LEN = 120;
 
-function writeStatusJson(shellContent, cumulativeCost, cumulativeTokens, budget) {
+function writeStatusJson(shellContent, cumulativeCost, cumulativeTokens, budget, sessionId) {
   const statusMatch = shellContent.match(/\*\*Status:\*\*\s*(\S+)/);
   const taskMatch = shellContent.match(/## Task\n([\s\S]*?)(?=\n## |$)/);
   const blockersMatch = shellContent.match(/## Blockers\n([\s\S]*?)(?=\n## |$)/);
-  const idMatch = shellContent.match(/\*\*ID:\*\*\s*(\S+)/);
   const tasksMatch = shellContent.match(/\*\*Tasks Completed:\*\*\s*(\d+)/);
 
   const task = taskMatch ? taskMatch[1].trim().replace(/<!--.*?-->/g, '').trim() : '';
@@ -145,7 +165,7 @@ function writeStatusJson(shellContent, cumulativeCost, cumulativeTokens, budget)
 
   const statusData = {
     updated: new Date().toISOString(),
-    session_id: idMatch ? idMatch[1] : '',
+    session_id: sessionId,
     status: statusMatch ? statusMatch[1] : 'unknown',
     task: task.split('\n')[0].substring(0, MAX_SUMMARY_LEN),
     plan_done: progress.done,
@@ -157,7 +177,9 @@ function writeStatusJson(shellContent, cumulativeCost, cumulativeTokens, budget)
     blockers: hasBlockers ? blockersText.split('\n')[0].substring(0, MAX_SUMMARY_LEN) : null,
   };
 
-  fs.writeFileSync(STATUS_JSON, JSON.stringify(statusData, null, 2) + '\n', 'utf-8');
+  // Atomic write: write to tmp, then rename
+  fs.writeFileSync(STATUS_JSON_TMP, JSON.stringify(statusData, null, 2) + '\n', 'utf-8');
+  fs.renameSync(STATUS_JSON_TMP, STATUS_JSON);
 }
 
 function parseBudget(shellContent) {
@@ -350,10 +372,13 @@ async function main() {
     const cost = calculateCost(model, inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens);
     const roundedCost = Math.round(cost * 10000) / 10000;
 
+    // Read session_id from runtime.json once per turn (used for log entry + writeStatusJson)
+    const runtimeSessionId = readRuntimeSessionId();
+
     // Log to JSONL
     const logEntry = {
       timestamp: new Date().toISOString(),
-      session_id: sessionId,
+      session_id: runtimeSessionId || sessionId,
       model,
       input_tokens: inputTokens,
       cache_write_tokens: cacheWriteTokens,
@@ -374,7 +399,7 @@ async function main() {
     try {
       const shellContent = fs.readFileSync(SHELL_SESSION, 'utf-8');
       const budget = parseBudget(shellContent);
-      writeStatusJson(shellContent, cumulative.cost, cumulative.tokens, budget);
+      writeStatusJson(shellContent, cumulative.cost, cumulative.tokens, budget, runtimeSessionId || sessionId);
       checkBudget(budget, cumulative.cost);
     } catch {
       // Non-fatal — session file may not exist yet
@@ -382,6 +407,9 @@ async function main() {
 
     // Regenerate cost summary (once per day)
     writeCostSummary();
+
+    // Touch heartbeat file for liveness detection (P4)
+    touchHeartbeat();
 
     // Output brief summary
     console.log(`[cost-tracker] ${model}: ${Math.round(totalTokens / 1000)}K tokens (${Math.round(cacheReadTokens / 1000)}K cached), $${cost.toFixed(4)} (cumulative: ${costStr})`);

@@ -221,17 +221,19 @@ SESSION_NAME="{{TMUX_SESSION_NAME}}"
 # would be killed mid-session with no report archival.
 cleanup() {
   echo "[docker-entrypoint] SIGTERM received..."
+  RUNTIME_FILE="${AGENT_DIR}/state/runtime.json"
   # Skip if already closed (e.g., hermit-docker down already handled it)
-  CUR_STATUS=$(cat "${AGENT_DIR}/.status" 2>/dev/null || echo "unknown")
-  if [ "$CUR_STATUS" = "idle" ] || [ "$CUR_STATUS" = "shutdown" ]; then
+  CUR_STATE=$(jq -r '.session_state // "unknown"' "$RUNTIME_FILE" 2>/dev/null || echo "unknown")
+  if [ "$CUR_STATE" = "idle" ] || [ "$(jq -r '.shutdown_completed_at // empty' "$RUNTIME_FILE" 2>/dev/null)" != "" ]; then
     echo "[docker-entrypoint] Session already closed. Shutting down."
     exit 0
   fi
   echo "[docker-entrypoint] Requesting graceful session close..."
   tmux send-keys -t "$SESSION_NAME:0.0" "/claude-code-hermit:session-close --shutdown" Enter 2>/dev/null || true
   for i in $(seq 1 30); do
-    STATUS=$(cat "${AGENT_DIR}/.status" 2>/dev/null || echo "unknown")
-    [ "$STATUS" = "idle" ] || [ "$STATUS" = "shutdown" ] && break
+    CUR_STATE=$(jq -r '.session_state // "unknown"' "$RUNTIME_FILE" 2>/dev/null || echo "unknown")
+    SHUTDOWN_DONE=$(jq -r '.shutdown_completed_at // empty' "$RUNTIME_FILE" 2>/dev/null)
+    [ "$CUR_STATE" = "idle" ] || [ -n "$SHUTDOWN_DONE" ] && break
     sleep 1
   done
   echo "[docker-entrypoint] Shutting down."

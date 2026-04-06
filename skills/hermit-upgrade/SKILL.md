@@ -177,6 +177,36 @@ This migration converts deprecated v0.0.4 config keys into the new routines syst
 3. **Add `plugin_checks` to reflection state** — Read `state/reflection-state.json`. If the `plugin_checks` key is missing, add `"plugin_checks": {}`. Write back.
 4. Note to operator: "Plugin checks — recommended plugins are now invoked automatically during idle reflection. Manage with `/hermit-settings plugin-checks`."
 
+**v0.3.2 migration:**
+
+1. **Create `state/runtime.json`** — The single source of lifecycle truth:
+   - Read SHELL.md `Status:` field (default: `idle`)
+   - Detect runtime mode: if `config.always_on` is `true` and tmux session exists → `tmux`; if inside container (check `/.dockerenv` or `/run/.containerenv`) → `docker`; else → `interactive`
+   - Resolve tmux session name from config (`tmux_session_name` with `{project_name}` replaced)
+   - Read SHELL.md `Started:` for `created_at` (use current time if unavailable)
+   - Pre-compute `session_id`: scan `.claude-code-hermit/sessions/S-*-REPORT.md` files, take highest NNN + 1. If none, use `S-001`.
+   - Write to `state/runtime.json` (atomic: write to `state/.runtime.json.tmp`, rename):
+     ```json
+     {
+       "version": 1,
+       "session_state": "<from SHELL.md Status>",
+       "session_id": "<pre-computed S-NNN>",
+       "created_at": "<from SHELL.md Started or now>",
+       "updated_at": "<now>",
+       "runtime_mode": "<detected>",
+       "tmux_session": "<resolved name or null>",
+       "transition": null,
+       "transition_target": null,
+       "transition_started_at": null,
+       "shutdown_requested_at": null,
+       "shutdown_completed_at": null,
+       "last_error": null
+     }
+     ```
+2. **Delete `.status` file** — Remove `.claude-code-hermit/.status` if it exists.
+3. **Create `state/.heartbeat`** — Touch the file so liveness detection has an initial timestamp.
+4. Note to operator: "v0.3.2 introduces `state/runtime.json` as the single source of lifecycle truth. `.status` file has been removed. SHELL.md `Status:` is now cosmetic only — all scripts read runtime.json for lifecycle decisions. Lifecycle lock prevents concurrent mutations. Liveness detection via `.heartbeat` file."
+
 Tell the operator: "New settings available in this version:" then present only the questions for keys that are actually missing from their config. If no interactive keys are missing, skip this step.
 
 ### 4-task. Write task list ID to settings.local.json

@@ -1,5 +1,97 @@
 # Changelog
 
+## [0.3.2] - 2026-04-06
+
+### Added
+
+- **`state/runtime.json`** — Single source of lifecycle truth. All scripts and hooks read session state from this file instead of `.status` or SHELL.md `Status:`. Atomic writes (tmp + rename) prevent partial state. Includes `session_state`, `session_id`, `created_at`, `runtime_mode`, `tmux_session`, transition markers, and shutdown timestamps.
+
+- **Lifecycle lock** — `state/.lifecycle.lock` prevents concurrent mutations from hermit-start, hermit-stop, and routine-watcher racing each other. Uses `flock` (non-blocking). Skills check advisory lock before lifecycle operations.
+
+- **Transition markers** — Multi-step operations (archive + SHELL.md cleanup) now write `transition`, `transition_target`, and `transition_started_at` to runtime.json. On startup, interrupted transitions are detected and resumed deterministically.
+
+- **Liveness detection** — Stop hook touches `state/.heartbeat` after every assistant turn. routine-watcher.sh checks mtime every 60s. After 3 consecutive stale checks (with no active transition), marks `session_state: "dead_process"` and alerts the operator.
+
+- **Pre-computed session IDs** — `session_id` (next S-NNN) is computed on session start and stored in runtime.json. Cost log entries are tagged from the first turn instead of retroactively.
+
+- **session-diff.js sidecar** — Changed files are now written to `state/session-diff.json` instead of directly to SHELL.md. session-mgr merges the sidecar during lifecycle transitions. Eliminates the read-modify-write race between hooks and Claude.
+
+### Changed
+
+- **SHELL.md `Status:` is now cosmetic** — Updated by session-mgr for operator readability, but never read by scripts or hooks for lifecycle decisions. Exception: evaluate-session.js reads it for cosmetic nudges only.
+
+- **`.status` file removed** — All consumers (routine-watcher, docker-entrypoint) now read `state/runtime.json` directly via jq.
+
+- **cost-tracker.js reads session_id from runtime.json** — No longer parses SHELL.md `**ID:**` field. Writes `.status.json` atomically (tmp + rename).
+
+- **routine-watcher.sh reads runtime.json** — Replaced `cat .status` with `jq .session_state`. Added Claude liveness detection via `.heartbeat` mtime. Respects lifecycle lock before writing health state.
+
+- **docker-entrypoint SIGTERM handler** — Reads runtime.json instead of `.status` for shutdown detection.
+
+- **hermit-start.py** — Creates runtime.json on startup (preserves existing lifecycle fields for crash recovery). Acquires lifecycle lock. Detects stale state from previous crashes. Reports interrupted transitions.
+
+- **hermit-stop.py** — Writes `shutdown_requested_at` and `shutdown_completed_at` to runtime.json. Releases lifecycle lock before delegating to `/session-close` so the agent can acquire it for archiving. Marks `last_error: "unclean_shutdown"` on timeout.
+
+- **cost-tracker.js caches runtime session ID** — `readRuntimeSessionId()` called once per turn and passed to `writeStatusJson()` instead of reading runtime.json twice.
+
+- **routine-watcher.sh caches heartbeat threshold** — Python duration parser runs only when `heartbeat.every` config value changes, not every 60s loop.
+
+### Fixed
+
+- **Startup no longer overwrites recovery metadata** — `hermit-start.py` was creating a fresh runtime.json on every startup, destroying transition markers, `last_error`, and `session_state` that `/session-start` needs for crash recovery. Now only creates runtime.json when it doesn't exist; if it exists, updates only hermit-start-owned fields (`version`, `runtime_mode`, `tmux_session`) and preserves lifecycle state.
+
+- **hermit-stop no longer deadlocks graceful shutdown** — `hermit-stop.py` held the lifecycle lock while delegating to `/session-close --shutdown` via tmux. The agent's archive/close path would see the lock as contention and refuse to run, causing timeout and `unclean_shutdown`. Now releases the lock before sending the close command and re-acquires it after for final cleanup.
+
+- **routine-watcher uses locked read-modify-write** — `update_runtime_json()` was probing the lock with `flock -n ... true` then releasing it before the Python write started. A concurrent lifecycle operation could update runtime.json between the probe and the rename, causing the watcher to overwrite newer fields. Now holds flock for the entire read-modify-write via fd inheritance in a subshell.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/hermit-start.py` | runtime.json creation, lifecycle lock, stale state detection, crash recovery preservation |
+| `scripts/hermit-stop.py` | Shutdown timestamps, lock release before delegation, re-acquire for cleanup |
+| `scripts/routine-watcher.sh` | runtime.json reads, locked writes, liveness detection, cached threshold |
+| `scripts/cost-tracker.js` | runtime.json session_id, atomic .status.json, .heartbeat touch, cached read |
+| `scripts/session-diff.js` | Rewritten to write sidecar file instead of SHELL.md |
+| `agents/session-mgr.md` | Field ownership table, transition markers, session-diff merge, recovery |
+| `skills/session-start/SKILL.md` | runtime.json reads, interrupted transition recovery, stale state handling |
+| `skills/session/SKILL.md` | runtime.json note for session-mgr |
+| `skills/session-close/SKILL.md` | runtime.json note for session-mgr |
+| `skills/heartbeat/SKILL.md` | runtime.json reads for session state and waiting timeout |
+| `skills/channel-responder/SKILL.md` | runtime.json reads for waiting→in_progress transition |
+| `skills/hermit-upgrade/SKILL.md` | v0.3.2 migration block |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | runtime.json reads in SIGTERM handler |
+
+### Upgrade Instructions
+
+1. **Create `state/runtime.json`** — Read current session state:
+   - Read SHELL.md `Status:` field (default: `idle`)
+   - Read `config.always_on` to determine runtime mode: if `true` and tmux session exists → `tmux`; if inside container → `docker`; else → `interactive`
+   - Read tmux session name from config (`tmux_session_name` resolved with project name)
+   - Read SHELL.md `Started:` for `created_at` (use current time if unavailable)
+   - Pre-compute `session_id`: scan `S-*-REPORT.md` files, take highest NNN + 1. If none exist, use `S-001`.
+   - Write to `state/runtime.json`:
+     ```json
+     {
+       "version": 1,
+       "session_state": "<from SHELL.md Status>",
+       "session_id": "<pre-computed S-NNN>",
+       "created_at": "<from SHELL.md Started or now>",
+       "updated_at": "<now>",
+       "runtime_mode": "<detected>",
+       "tmux_session": "<resolved name or null>",
+       "transition": null,
+       "transition_target": null,
+       "transition_started_at": null,
+       "shutdown_requested_at": null,
+       "shutdown_completed_at": null,
+       "last_error": null
+     }
+     ```
+2. **Delete `.status` file** — Remove `.claude-code-hermit/.status` if it exists.
+3. **Create `state/.heartbeat`** — Touch the file so liveness detection has an initial timestamp.
+4. Note to operator: "v0.3.2 introduces `state/runtime.json` as the single source of lifecycle truth. `.status` file has been removed. SHELL.md `Status:` is now cosmetic — all scripts read runtime.json for lifecycle decisions."
+
 ## [0.3.1] - 2026-04-06
 
 ### Added

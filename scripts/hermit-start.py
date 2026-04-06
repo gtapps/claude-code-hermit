@@ -9,6 +9,7 @@ Usage:
     python scripts/hermit-start.py --no-tmux    # run in current terminal
 """
 
+import fcntl
 import json
 import os
 import shlex
@@ -19,6 +20,10 @@ import time
 from pathlib import Path
 
 CONFIG_PATH = Path('.claude-code-hermit/config.json')
+STATE_DIR = CONFIG_PATH.parent / 'state'
+RUNTIME_JSON = STATE_DIR / 'runtime.json'
+RUNTIME_TMP = STATE_DIR / '.runtime.json.tmp'
+LIFECYCLE_LOCK = STATE_DIR / '.lifecycle.lock'
 PROFILE_LEVELS = {'minimal': 0, 'standard': 1, 'strict': 2}
 
 DEFAULT_CONFIG = {
@@ -132,6 +137,73 @@ def is_container():
         or os.path.exists('/run/.containerenv')
         or os.environ.get('container') == 'docker'
     )
+
+
+def write_runtime_json(data):
+    """Atomic write to state/runtime.json."""
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    data['updated_at'] = time.strftime('%Y-%m-%dT%H:%M:%S%z')
+    RUNTIME_TMP.write_text(json.dumps(data, indent=2) + '\n')
+    RUNTIME_TMP.rename(RUNTIME_JSON)
+
+
+def read_runtime_json():
+    """Read state/runtime.json, return None if missing or invalid."""
+    try:
+        with open(RUNTIME_JSON) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+
+
+def check_stale_runtime(config, session_name):
+    """Check for stale runtime state from a previous run and warn."""
+    runtime = read_runtime_json()
+    if runtime is None:
+        return
+
+    state = runtime.get('session_state')
+    mode = runtime.get('runtime_mode')
+    shutdown_completed = runtime.get('shutdown_completed_at')
+
+    if state in ('in_progress', 'waiting', 'suspect_process'):
+        if mode in ('tmux', 'docker'):
+            # Check if the tmux session from the previous run still exists
+            prev_tmux = runtime.get('tmux_session', '')
+            result = subprocess.run(
+                ['tmux', 'has-session', '-t', prev_tmux],
+                capture_output=True,
+            )
+            if result.returncode != 0:
+                print(f'[hermit] Warning: Previous session crashed (runtime.json says '
+                      f'{state}, tmux session "{prev_tmux}" is gone).')
+                print('[hermit] /session-start will offer recovery.')
+                runtime['last_error'] = 'unclean_shutdown'
+                write_runtime_json(runtime)
+        elif mode == 'interactive' and not shutdown_completed:
+            print('[hermit] Warning: Previous interactive session did not close cleanly.')
+            print('[hermit] /session-start will offer recovery.')
+            runtime['last_error'] = 'unclean_shutdown'
+            write_runtime_json(runtime)
+
+    # Check for interrupted transitions
+    transition = runtime.get('transition')
+    if transition:
+        print(f'[hermit] Warning: Interrupted transition detected: {transition} '
+              f'(target: {runtime.get("transition_target", "unknown")})')
+        print('[hermit] /session-start will resume or clean up.')
+
+
+def acquire_lifecycle_lock():
+    """Acquire exclusive lifecycle lock. Returns fd or exits on contention."""
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    lock_fd = open(LIFECYCLE_LOCK, 'w')
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print('[hermit] Another lifecycle operation in progress. Aborting.')
+        sys.exit(1)
+    return lock_fd
 
 
 CHANNEL_PLUGINS = {
@@ -254,10 +326,14 @@ def main():
     no_tmux_flag = '--no-tmux' in sys.argv
 
     config = load_config()
+    lock_fd = acquire_lifecycle_lock()
     check_for_upgrade(config)
     tools = check_prerequisites()
     cmd = build_claude_command(config)
     session_name = get_session_name(config)
+
+    # Check for stale state from a previous run
+    check_stale_runtime(config, session_name)
 
     # Print launch info
     agent_name = config.get('agent_name')
@@ -284,6 +360,29 @@ def main():
         if not no_tmux_flag and not tools['tmux']:
             print('[hermit] tmux not found — running in current terminal.')
             print('[hermit] Install tmux for persistent sessions.')
+        # Create or update runtime.json for interactive mode
+        existing = read_runtime_json()
+        if existing is None:
+            write_runtime_json({
+                'version': 1,
+                'session_state': 'idle',
+                'session_id': None,
+                'created_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
+                'runtime_mode': 'interactive',
+                'tmux_session': None,
+                'transition': None,
+                'transition_target': None,
+                'transition_started_at': None,
+                'shutdown_requested_at': None,
+                'shutdown_completed_at': None,
+                'last_error': None,
+            })
+        else:
+            # Preserve lifecycle fields for session-start recovery
+            existing['version'] = 1
+            existing['runtime_mode'] = 'interactive'
+            existing['tmux_session'] = None
+            write_runtime_json(existing)
         print(f'[hermit] Running: {shlex.join(cmd)}')
         os.execvp(cmd[0], cmd)
         return
@@ -321,12 +420,32 @@ def main():
 
     print(f'[hermit] Started tmux session: {session_name}')
 
-    # Write initial .status file for shell consumers (routine watcher, etc.)
-    status_file = CONFIG_PATH.parent / '.status'
-    try:
-        status_file.write_text('idle')
-    except OSError:
-        pass
+    # Detect runtime mode
+    runtime_mode = 'docker' if is_container() else 'tmux'
+
+    # Create or update runtime.json as the single source of lifecycle truth
+    existing = read_runtime_json()
+    if existing is None:
+        write_runtime_json({
+            'version': 1,
+            'session_state': 'idle',
+            'session_id': None,
+            'created_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
+            'runtime_mode': runtime_mode,
+            'tmux_session': session_name,
+            'transition': None,
+            'transition_target': None,
+            'transition_started_at': None,
+            'shutdown_requested_at': None,
+            'shutdown_completed_at': None,
+            'last_error': None,
+        })
+    else:
+        # Preserve lifecycle fields for session-start recovery
+        existing['version'] = 1
+        existing['runtime_mode'] = runtime_mode
+        existing['tmux_session'] = session_name
+        write_runtime_json(existing)
 
     # Mark as always-on mode in config
     config['always_on'] = True

@@ -6,10 +6,43 @@
 SESSION="$1"
 CONFIG="$2"
 TARGET="$SESSION:0.0"
-STATE_DIR="$(dirname "$CONFIG")"
-QUEUE_FILE="$STATE_DIR/state/routine-queue.json"
+STATE_DIR="$(dirname "$CONFIG")/state"
+QUEUE_FILE="$STATE_DIR/routine-queue.json"
+RUNTIME_JSON="$STATE_DIR/runtime.json"
+LIFECYCLE_LOCK="$STATE_DIR/.lifecycle.lock"
+HEARTBEAT_FILE="$STATE_DIR/.heartbeat"
 # Ephemeral dedup state — resets on reboot (acceptable: worst case a routine fires twice)
 STATE="/tmp/hermit-routines-$(echo "$SESSION" | tr -cd 'a-zA-Z0-9-')"
+
+# Read session_state from runtime.json (single source of lifecycle truth)
+read_session_state() {
+  jq -r '.session_state // "idle"' "$RUNTIME_JSON" 2>/dev/null || echo "idle"
+}
+
+# Locked atomic write to runtime.json (hold flock for the entire read-modify-write)
+update_runtime_json() {
+  local field="$1" value="$2"
+  (
+    # Acquire lock non-blocking — skip if a lifecycle operation holds it
+    if ! flock -n 9; then
+      echo "[routine-watcher] Lifecycle lock held — skipping runtime.json write"
+      exit 1
+    fi
+    python3 -c "
+import json, sys, os, time
+runtime_path = sys.argv[1]
+tmp_path = sys.argv[2]
+field, value = sys.argv[3], sys.argv[4]
+try:
+    with open(runtime_path) as f: data = json.load(f)
+except: data = {}
+data[field] = value
+data['updated_at'] = time.strftime('%Y-%m-%dT%H:%M:%S%z')
+with open(tmp_path, 'w') as f: json.dump(data, f, indent=2); f.write('\n')
+os.rename(tmp_path, runtime_path)
+" "$RUNTIME_JSON" "$STATE_DIR/.runtime.json.tmp" "$field" "$value" 2>/dev/null
+  ) 9>"$LIFECYCLE_LOCK"
+}
 
 # Append a routine to the queue file (idempotent per routine per day)
 queue_routine() {
@@ -31,6 +64,9 @@ if not any(e['id'] == rid and e['queued_date'] == date for e in q['queued']):
 # Reset ephemeral state on start
 > "$STATE"
 LAST_DATE=""
+SUSPECT_COUNT=0
+CACHED_HB_EVERY=""
+CACHED_THRESHOLD_SECS=""
 
 while true; do
   export TZ=$(jq -r '.timezone // "UTC"' "$CONFIG" 2>/dev/null)
@@ -44,7 +80,62 @@ while true; do
     LAST_DATE="$TODAY"
   fi
 
-  STATUS=$(cat "$STATE_DIR/.status" 2>/dev/null || echo "idle")
+  STATUS=$(read_session_state)
+
+  # --- P4: Liveness detection via .heartbeat mtime ---
+  if [ "$STATUS" = "in_progress" ] || [ "$STATUS" = "suspect_process" ]; then
+    # Check if lifecycle lock is held (active transition — back off)
+    if flock -n "$LIFECYCLE_LOCK" true 2>/dev/null; then
+      if [ -f "$HEARTBEAT_FILE" ]; then
+        # Read stale threshold from config (cached — re-read only when config value changes)
+        HB_EVERY=$(jq -r '.heartbeat.every // "2h"' "$CONFIG" 2>/dev/null)
+        if [ "$HB_EVERY" != "$CACHED_HB_EVERY" ]; then
+          CACHED_HB_EVERY="$HB_EVERY"
+          CACHED_THRESHOLD_SECS=$(python3 -c "
+import sys, re
+d = sys.argv[1]
+m = re.match(r'(\d+)([hm])', d)
+if m:
+    n, u = int(m.group(1)), m.group(2)
+    print(n * 3600 * 2 if u == 'h' else n * 60 * 2)
+else:
+    print(14400)
+" "$HB_EVERY" 2>/dev/null)
+        fi
+        THRESHOLD_SECS="$CACHED_THRESHOLD_SECS"
+
+        HB_MTIME=$(stat -c %Y "$HEARTBEAT_FILE" 2>/dev/null || echo 0)
+        NOW_EPOCH=$(date +%s)
+        HB_AGE=$((NOW_EPOCH - HB_MTIME))
+
+        if [ "$HB_AGE" -gt "${THRESHOLD_SECS:-14400}" ]; then
+          SUSPECT_COUNT=$((SUSPECT_COUNT + 1))
+          if [ "$SUSPECT_COUNT" -ge 3 ]; then
+            echo "[routine-watcher] Claude process appears dead (heartbeat stale for ${HB_AGE}s, 3 consecutive checks)"
+            update_runtime_json "session_state" "dead_process"
+            update_runtime_json "last_error" "heartbeat_stale"
+            SUSPECT_COUNT=0
+          elif [ "$STATUS" != "suspect_process" ]; then
+            echo "[routine-watcher] Claude process suspect (heartbeat stale for ${HB_AGE}s, check $SUSPECT_COUNT/3)"
+            update_runtime_json "session_state" "suspect_process"
+          fi
+        else
+          # Heartbeat is fresh — reset suspect counter
+          if [ "$SUSPECT_COUNT" -gt 0 ]; then
+            SUSPECT_COUNT=0
+            if [ "$STATUS" = "suspect_process" ]; then
+              update_runtime_json "session_state" "in_progress"
+            fi
+          fi
+        fi
+      fi
+    else
+      # Lock held — transition in progress, don't check liveness
+      SUSPECT_COUNT=0
+    fi
+  else
+    SUSPECT_COUNT=0
+  fi
 
   # --- Dequeue: process queued routines when status allows ---
   if [ "$STATUS" = "idle" ] || [ "$STATUS" = "waiting" ]; then

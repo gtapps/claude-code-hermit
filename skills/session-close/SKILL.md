@@ -12,7 +12,7 @@ Idle transitions happen automatically at task boundaries (handled by the `sessio
 
 If heartbeat is running, stop it before archiving.
 
-After archiving (or transitioning to idle), write the new status to `.claude-code-hermit/.status` — `idle` for idle transition, leave unchanged for full shutdown (hermit-stop.py handles that).
+session-mgr handles updating both SHELL.md (cosmetic) and `state/runtime.json` (lifecycle truth) during archiving. For full shutdown, session-mgr sets `shutdown_completed_at` in runtime.json.
 
 ---
 

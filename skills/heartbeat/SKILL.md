@@ -28,15 +28,14 @@ Execute one heartbeat tick immediately. Useful for testing the checklist.
 3. Read `.claude-code-hermit/config.json` for heartbeat settings
 4. Check `active_hours` — if the current time is outside the configured window:
    - Respond "HEARTBEAT_SKIP (outside active hours)" and stop.
-5. **Stale session check.** Read SHELL.md Status field. If Status is `waiting`: skip this check entirely (agent is intentionally blocked). If Status is `in_progress`:
-   - Read the last `## Progress Log` entry timestamp. If no progress entry exists, use the session start time from SHELL.md header.
+5. **Stale session check.** Read `session_state` from `state/runtime.json` (the single source of lifecycle truth — never parse SHELL.md `Status:` for decisions). If `session_state` is `waiting`: skip this check entirely (agent is intentionally blocked). If `session_state` is `in_progress`:
+   - Read the last `## Progress Log` entry timestamp from SHELL.md. If no progress entry exists, use the session start time from SHELL.md header.
    - Calculate elapsed time since that timestamp. Read `heartbeat.stale_threshold` from config (default: `"2h"`).
    - If elapsed > stale_threshold: generate alert with key `stale-session` and text "No progress for {elapsed}. Process may have died or be stuck in a rate limit."
-6. **Waiting timeout check.** If Status is `waiting` and `heartbeat.waiting_timeout` is set (not null):
+6. **Waiting timeout check.** If `session_state` is `waiting` (from runtime.json) and `heartbeat.waiting_timeout` is set (not null):
    - Calculate how long the session has been `waiting` (from last Progress Log entry or status change).
-   - If elapsed > `waiting_timeout` with no channel activity: auto-transition to `idle`, notify the operator: "No operator response for {timeout}. Transitioning to idle."
+   - If elapsed > `waiting_timeout` with no channel activity: update runtime.json `session_state` to `idle`, update SHELL.md Status to `idle` (cosmetic), notify the operator: "No operator response for {timeout}. Transitioning to idle."
 7. **Resume check.** If the previous tick was a HEARTBEAT_SKIP (outside active hours or empty checklist) and this tick is not: append to SHELL.md `## Monitoring`: `[HH:MM] Heartbeat: resumed (was inactive)`.
-8. **Maintain .status file.** Read SHELL.md Status. If it differs from the current `.claude-code-hermit/.status` content, write the new value. Valid values: `idle`, `in_progress`, `waiting`. (The `shutdown` value is written by `hermit-stop.py` only.)
 9. Read `.claude-code-hermit/sessions/SHELL.md` for current task context
 10. Evaluate each checklist item against available information (session state, files, proposals directory). For each item that generates an alert, produce a **semantic key** and human-readable **text** (they are not the same thing).
 11. Determine: does anything need operator attention?

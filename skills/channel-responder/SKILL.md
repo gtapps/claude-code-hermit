@@ -8,17 +8,18 @@ When a message arrives via a channel:
 
 ## 1. Load Context
 Read `.claude-code-hermit/sessions/SHELL.md` for current task context.
+Read `state/runtime.json` for lifecycle state (`session_state` is the source of truth — never parse SHELL.md `Status:` for decisions).
 
 ## 1b. Check Session State
 
-If SHELL.md has Status `idle` (no active task):
+If runtime.json `session_state` is `idle` (no active task):
 - The agent is between tasks, waiting for work
 - Adjust classification: "New instruction" messages become **task assignment** (see below)
 - Status requests should report idle state with session summary
 
-If SHELL.md has Status `waiting` (alive but blocked on input):
+If runtime.json `session_state` is `waiting` (alive but blocked on input):
 - **Status request** → respond with current context, stay `waiting`
-- **New instruction or answer to a question** → transition to `in_progress`, resume work
+- **New instruction or answer to a question** → update runtime.json `session_state` to `in_progress`, update SHELL.md Status to `in_progress` (cosmetic), resume work
 - **Anything else** → respond, stay `waiting`
 
 ## 1c. Check Authorization
