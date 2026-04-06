@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.3.3] - 2026-04-06
+
+### Fixed
+
+- **Always-on Discord notification gaps** — In Docker/tmux always-on mode, several session-start flows silently blocked waiting for operator input that could only come via Discord, but never sent the question to Discord. Fixed: unclean shutdown recovery, dead process detection, and interrupted transition recovery now all deliver their messages via the configured channel. The startup boot ping is also sent on normal boots.
+
+- **Double channel message on recovery boots** — On unclean-shutdown and dead-process boots, the skill previously sent a recovery question followed by a redundant startup ping. The startup ping is now suppressed when a recovery message was already sent — the recovery message itself serves as the boot signal.
+
+- **`brief --morning` / `--evening` delivery in always-on mode** — The delivery instruction said "deliver to the operator" without specifying the channel. In always-on mode with no terminal watcher, morning and evening briefs were silently output to tmux. Now explicitly routed via the configured channel when `always_on` is `true`.
+
+- **Blocking language in unclean-shutdown recovery** — The instruction said "before waiting for a response" implying synchronous blocking, which doesn't exist in always-on channel mode. Replaced with "Then stop — channel-responder handles the reply." to accurately describe async flow.
+
+- **Redundant inline conditions in session-start** — Unclean shutdown and dead process branches each re-stated the full `runtime_mode == tmux|docker AND channels configured` condition that the new global Always-On Notification Rule at the top of the skill already covers. Removed the duplication.
+
+### Added
+
+- **Always-On Notification Rule in session-start** — A global preamble that declares: in always-on mode, all operator-facing output goes via the configured channel. Future edits to this skill inherit the rule automatically without per-step annotation.
+
+- **Always-On Delivery Rule in brief** — Same pattern applied to `brief/SKILL.md` as a shared preamble before the flags section, replacing identical copy-paste sentences in both `--morning` and `--evening`.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/session-start/SKILL.md` | Added Always-On Notification Rule; fixed unclean-shutdown, dead-process, and transition-recovery notification paths; fixed double ping; fixed blocking language |
+| `skills/brief/SKILL.md` | Added Always-On Delivery Rule preamble; replaced duplicate per-flag delivery sentences with a reference to the shared rule |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+
+1. **Refresh CLAUDE-APPEND** — Updated skill instructions need to be re-read by Claude Code. The upgrade skill will prompt you to re-run `/claude-code-hermit:hatch` or manually refresh the append content if your project uses it.
+
+No config.json changes required. No template changes. No manual steps beyond the upgrade skill.
+
 ## [0.3.2] - 2026-04-06
 
 ### Added

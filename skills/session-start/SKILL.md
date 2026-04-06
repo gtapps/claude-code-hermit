@@ -4,6 +4,10 @@ description: Initializes or resumes a work session. Loads context from OPERATOR.
 ---
 # Session Start
 
+## Always-On Notification Rule
+
+In always-on mode (`runtime_mode` is `tmux` or `docker` in runtime.json) with channels configured, **all operator-facing output must be delivered via the configured channel** — not just to the terminal. The terminal is unmonitored; the channel is the operator's only interface. Apply this rule to every step below that says "tell the operator", "offer", "ask", or "notify".
+
 When starting a new session:
 
 All state lives under `.claude-code-hermit/` in the project root.
@@ -19,11 +23,10 @@ All state lives under `.claude-code-hermit/` in the project root.
      - `transition == "cleaning"` → re-run SHELL.md cleanup
      - Notify the operator: "Recovered from interrupted [transition]. Session is now idle."
    - **Unclean shutdown detection:** If `last_error == "unclean_shutdown"`:
-     - If `runtime_mode` is `tmux` or `docker`: "Previous session crashed without closing. SHELL.md may contain stale work."
-     - If `runtime_mode` is `interactive`: "Previous interactive session was not closed cleanly."
-     - Offer: (a) Archive the stale session as `partial` and start fresh, (b) Resume the stale session as-is
+     - In always-on mode: set `session_state` to `waiting` in runtime.json, notify the operator via channel: "Came back up after unclean shutdown. Previous task: [task from SHELL.md, or 'unknown']. Reply with (1) to archive as partial and start fresh, or (2) to resume where we left off." Then stop — channel-responder handles the reply.
+     - In interactive mode: tell the operator "Previous session was not closed cleanly." Offer: (a) Archive as `partial` and start fresh, (b) Resume as-is.
      - Clear `last_error` after the operator decides.
-   - **Dead process detection:** If `session_state == "dead_process"`: treat the same as unclean shutdown — offer archive-and-restart or resume.
+   - **Dead process detection:** If `session_state == "dead_process"`: same flow as unclean shutdown above, with message: "Process died unexpectedly. Previous task: [task from SHELL.md, or 'unknown']. Reply with (1) to archive as partial and start fresh, or (2) to resume where we left off."
    - **Normal state:** If `session_state` is `idle` → ready for new task. If `in_progress` or `waiting` → existing session, offer resume.
 4. Use the `session-mgr` agent to check session state and handle SHELL.md
 4b. If session-mgr reports SHELL.md exists with Status `idle` (or runtime.json `session_state` is `idle`):
@@ -42,6 +45,7 @@ All state lives under `.claude-code-hermit/` in the project root.
 7. Scan `.claude-code-hermit/proposals/` for files with `Source: auto-detected` and `Status: proposed`. If any exist, mention: "There are N unreviewed auto-detected proposal(s). Review with `/proposal-list` when ready." Do NOT block the session — this is a one-line notification only.
 7b. **Interactive morning brief.** If `config.always_on` is `false` AND `config.routines` contains an enabled entry with skill containing `brief --morning`: run the morning brief inline — generate a brief emphasizing where things stand, pending proposals, and what's on deck. No dedup needed — interactive sessions are short-lived.
 8. If `agent_name` is set, use it in the greeting (e.g., "Atlas reporting in." or "{name} a reportar." if language is `pt`). If `language` is set, communicate with the operator in that language for the rest of the session.
+   In always-on mode: if no recovery message was sent in step 3, notify the operator via channel with a startup ping (1 line): "[name or 'Hermit'] online. Reviewing session state." Skip this ping if a recovery question was already sent — the recovery message is the boot signal.
 9. If resuming an existing session (runtime.json `session_state` is `in_progress` or `waiting`):
    - Call `TaskList` to see current plan steps. Present the current task, progress (completed/remaining tasks), and blockers.
    - If the session status is `blocked`: suggest running `/debug` to diagnose tool/hook failures before re-attempting the blocked work

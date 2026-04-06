@@ -6,11 +6,15 @@ description: Returns a 5-line executive summary of recent work. Checks active se
 
 Provide a concise executive summary of recent session activity. Designed for morning check-ins, phone/channel consumption, and quick status updates.
 
+## Always-On Delivery Rule
+
+If `config.always_on` is `true` and channels are configured, send all operator-facing output via the configured channel — the terminal is unmonitored in always-on mode. In interactive mode, output to terminal. This applies to all flags below.
+
 ## Flags
 
 ### --morning (routine mode)
 
-**Delivery:** After composing the brief, deliver it to the operator.
+**Delivery:** After composing the brief, deliver it to the operator (see Always-On Delivery Rule above).
 
 Emphasize forward-looking content:
 - Read `.claude-code-hermit/cost-summary.md` for cost context. Include: "Yesterday: $X.XX across N sessions" from the trend table.
@@ -34,7 +38,7 @@ Never append more than one pending decision.
 
 ### --evening (routine mode)
 
-**Delivery:** After composing the brief, deliver it to the operator.
+**Delivery:** After composing the brief, deliver it to the operator (see Always-On Delivery Rule above).
 
 Emphasize backward-looking content:
 - Sessions completed today (scan S-NNN reports with today's date in frontmatter `date` field, or `## Summary` for pre-Observatory reports, plus current SHELL.md progress log)

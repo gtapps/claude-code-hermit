@@ -1,6 +1,6 @@
 {
   "name": "claude-code-hermit",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "A personal assistant that lives in your project — memory-driven learning, daily rhythm, idle agency, and operational hygiene for Claude Code",
   "author": {
     "name": "gtapps"
