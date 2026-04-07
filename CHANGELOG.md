@@ -64,6 +64,8 @@
 | `docs/obsidian-setup.md` | Full rewrite — Hermit Cortex framing, six-page reference, symlink-primary |
 | `docs/architecture.md` | Added `reviews/` to file map |
 | `README.md` | Added `cortex \| active` badge |
+| `CLAUDE.md` | Added obsidian-setup, connections-refresh, weekly-review to quick reference |
+| `state-templates/CLAUDE-APPEND.md` | Added new skills to quick reference; added `reviews/` to agent state table |
 | `state-templates/docker/docker-entrypoint.hermit.sh.template` | Added OAuth expiry check (step 0b) |
 | `state-templates/bin/hermit-docker` | Added `_oauth_hint` helper; called from `up` and `restart` |
 | `skills/hermit-evolve/SKILL.md` | Default missing `_hermit_versions` entry to `"0.0.0"` |
@@ -72,17 +74,19 @@
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
-1. **Hermit Cortex setup (optional)** — Run `/claude-code-hermit:obsidian-setup` in any project where you want the Obsidian surface. This is a one-time step per project and is not applied automatically by hermit-evolve.
+1. **CLAUDE-APPEND refreshed** — The session discipline block in target projects' CLAUDE.md now lists the three new skills (`obsidian-setup`, `connections-refresh`, `weekly-review`) and adds `reviews/` to the agent state table. Hermit-evolve refreshes this automatically.
 
-2. **`operator_turns` and `escalation` on future session reports** — No migration needed. New fields appear automatically on the next session close. Existing reports without these fields will show `null` in Dataview queries; filter with `WHERE operator_turns != null` to exclude them.
+2. **Hermit Cortex setup (optional)** — Run `/claude-code-hermit:obsidian-setup` in any project where you want the Obsidian surface. This is a one-time step per project and is not applied automatically by hermit-evolve.
 
-3. **Weekly review routine** — Added to `config.json.template` as `enabled: false`. Not auto-applied to existing projects. To enable: run `/claude-code-hermit:hermit-settings` and set `routines[weekly-review].enabled` to `true`, or add the entry manually to your project's `config.json`.
+3. **`operator_turns` and `escalation` on future session reports** — No migration needed. New fields appear automatically on the next session close. Existing reports without these fields will show `null` in Dataview queries; filter with `WHERE operator_turns != null` to exclude them.
 
-4. **`.status.json` counter reset** — session-mgr now resets `cost_usd`, `tokens`, and `operator_turns` in `.status.json` at each idle transition and session close. No operator action needed — takes effect on the next transition.
+4. **Weekly review routine** — Added to `config.json.template` as `enabled: false`. Not auto-applied to existing projects. To enable: run `/claude-code-hermit:hermit-settings` and set `routines[weekly-review].enabled` to `true`, or add the entry manually to your project's `config.json`.
 
-5. **`hermit-docker` updated automatically** — The evolve skill copies all files from `state-templates/bin/` into `.claude-code-hermit/bin/`, so `hermit-docker` gets the OAuth hint on `up`/`restart` without any manual step.
+5. **`.status.json` counter reset** — session-mgr now resets `cost_usd`, `tokens`, and `operator_turns` in `.status.json` at each idle transition and session close. No operator action needed — takes effect on the next transition.
 
-6. **Docker image rebuild required for OAuth expiry detection** — The entrypoint change lives in `docker-entrypoint.hermit.sh`, which is baked into the Docker image. To get the expiry check, re-run `/claude-code-hermit:docker-setup` (say "yes" to regenerate when prompted), then rebuild: `docker compose -f docker-compose.hermit.yml build` and `hermit-docker up`.
+6. **`hermit-docker` updated automatically** — The evolve skill copies all files from `state-templates/bin/` into `.claude-code-hermit/bin/`, so `hermit-docker` gets the OAuth hint on `up`/`restart` without any manual step.
+
+7. **Docker image rebuild required for OAuth expiry detection** — The entrypoint change lives in `docker-entrypoint.hermit.sh`, which is baked into the Docker image. To get the expiry check, re-run `/claude-code-hermit:docker-setup` (say "yes" to regenerate when prompted), then rebuild: `docker compose -f docker-compose.hermit.yml build` and `hermit-docker up`.
 
 ## [0.3.5] - 2026-04-07
 

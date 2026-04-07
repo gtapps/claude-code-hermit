@@ -18,6 +18,7 @@
 | `sessions/SHELL.md` | Live working document |
 | `sessions/S-NNN-REPORT.md` | Archived reports |
 | `proposals/PROP-NNN.md` | Improvement proposals |
+| `reviews/` | Weekly review reports |
 | `state/` | Runtime state (alert dedup, reflection, routine queue, metrics) |
 | `OPERATOR.md` | Human-curated context (read-only for agent) |
 
@@ -25,7 +26,7 @@
 
 ## Quick Reference
 
-`/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/hermit-evolve` `/docker-setup` `/hermit-takeover` `/hermit-hand-back`
+`/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/hermit-evolve` `/docker-setup` `/hermit-takeover` `/hermit-hand-back` `/obsidian-setup` `/connections-refresh` `/weekly-review`
 (All prefixed with `/claude-code-hermit:`)
 
 ## Operator Notification

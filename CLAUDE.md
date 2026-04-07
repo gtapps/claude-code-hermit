@@ -97,3 +97,6 @@ Common skills (full list: [Skills Reference](docs/skills.md)):
 - `/claude-code-hermit:hermit-evolve` — update config and templates after plugin update
 - `/claude-code-hermit:docker-setup` — generate Docker scaffolding for always-on
 - `/claude-code-hermit:hermit-takeover` / `hermit-hand-back` — operator control
+- `/claude-code-hermit:obsidian-setup` — set up the Hermit Cortex (Obsidian surface)
+- `/claude-code-hermit:connections-refresh` — regenerate Connections.md + Cortex Portal.md
+- `/claude-code-hermit:weekly-review` — generate weekly review report
