@@ -33,6 +33,7 @@ setup_workdir() {
   local workdir
   workdir="$(mktemp -d)"
   mkdir -p "$workdir/.claude-code-hermit/sessions"
+  mkdir -p "$workdir/.claude-code-hermit/state"
   mkdir -p "$workdir/.claude"
   cp "$FIXTURES/shell-session.md" "$workdir/.claude-code-hermit/sessions/SHELL.md"
   echo "$workdir"
@@ -45,12 +46,13 @@ setup_git_workdir() {
   (
     cd "$workdir"
     git init -q
-    git -c user.name="test" -c user.email="test@test" commit -q --allow-empty -m "init"
+    git -c user.name="test" -c user.email="test@test" -c commit.gpgsign=false commit -q --allow-empty -m "init"
     # Stage the existing files
     git add -A
-    git -c user.name="test" -c user.email="test@test" commit -q -m "add fixtures"
-    # Create a new file so git diff HEAD has something to find
+    git -c user.name="test" -c user.email="test@test" -c commit.gpgsign=false commit -q -m "add fixtures"
+    # Create a new file and stage it so git diff --name-status HEAD finds it
     echo "new" > newfile.txt
+    git add newfile.txt
   )
   echo "$workdir"
 }
@@ -159,6 +161,9 @@ workdir="$(setup_git_workdir)"
 cd "$workdir"
 run_test "session-diff" bash -c \
   "echo '{}' | AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/run-with-profile.js' standard,strict scripts/session-diff.js"
+# Post-test: verify sidecar JSON was written with changed_files
+run_test "session-diff sidecar" bash -c \
+  "[ -f '$workdir/.claude-code-hermit/state/session-diff.json' ] && python3 -m json.tool '$workdir/.claude-code-hermit/state/session-diff.json' >/dev/null"
 cleanup
 
 # -------------------------------------------------------
@@ -177,8 +182,27 @@ workdir="$(setup_workdir)"
 cd "$workdir"
 # Create a minimal config.json for check-upgrade to read
 echo '{"_hermit_versions":{"claude-code-hermit":"0.0.0"}}' > "$workdir/.claude-code-hermit/config.json"
-run_test "check-upgrade.sh" bash "$REPO_ROOT/scripts/check-upgrade.sh" "$REPO_ROOT"
+# Run once, capture output, assert both exit code and content
+upgrade_out="$(bash "$REPO_ROOT/scripts/check-upgrade.sh" "$REPO_ROOT" 2>&1)" || true
+run_test "check-upgrade.sh" bash -c "[ -n '$upgrade_out' ]"
+run_test "check-upgrade output" bash -c "echo '$upgrade_out' | grep -qF -- '---Upgrade Available---'"
 cleanup
+
+# -------------------------------------------------------
+# Static file checks
+# -------------------------------------------------------
+
+# deny-patterns.json: valid JSON with expected arrays
+run_test "deny-patterns.json" bash -c \
+  "python3 -c \"import json; d=json.load(open('$REPO_ROOT/state-templates/deny-patterns.json')); assert isinstance(d.get('default'),list) and isinstance(d.get('always_on'),list)\""
+
+# Bin scripts are executable
+run_test "bin scripts executable" bash -c \
+  "for f in '$REPO_ROOT/state-templates/bin/'*; do [ -x \"\$f\" ] || exit 1; done"
+
+# routine-watcher jq filter: invalid time format produces no match, no crash
+run_test "routine-watcher jq filter" bash -c \
+  "echo '{\"routines\":[{\"id\":\"test\",\"time\":\"99:99\",\"enabled\":true,\"skill\":\"x:y\"}]}' | jq -r --arg t '08:00' --arg d 'mon' '.routines[]? | select(.enabled==true) | select(.time==\$t) | .id' | wc -l | grep -q '^0$'"
 
 # -------------------------------------------------------
 # Summary

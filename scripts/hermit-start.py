@@ -213,7 +213,10 @@ CHANNEL_PLUGINS = {
 
 def iter_channel_configs(config):
     """Yield (name, cfg) for channels whose config is a valid dict."""
-    for name, cfg in config.get('channels', {}).items():
+    channels = config.get('channels', {})
+    if not isinstance(channels, dict):
+        return
+    for name, cfg in channels.items():
         if isinstance(cfg, dict):
             yield name, cfg
 

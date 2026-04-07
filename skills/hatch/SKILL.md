@@ -404,11 +404,15 @@ Tell the operator: "OPERATOR.md is ready. You can review it at `.claude-code-her
 
 - Check if `CLAUDE.md` exists at the project root
 - If it exists: check if it already contains `claude-code-hermit: Session Discipline`
-  - If yes: skip (already configured)
+  - If yes: ask the operator with `AskUserQuestion`:
+    "CLAUDE.md already contains the session discipline block. Overwrite it with the latest version?"
+    Options: `["Yes — replace with latest", "No — keep existing (default)"]`
+    - If yes: remove everything between `<!-- claude-code-hermit: Session Discipline -->` and `<!-- /claude-code-hermit: Session Discipline -->` (inclusive), then append the fresh contents of `${CLAUDE_SKILL_DIR}/../../state-templates/CLAUDE-APPEND.md`
+    - If no: skip
   - If no: read `${CLAUDE_SKILL_DIR}/../../state-templates/CLAUDE-APPEND.md` and append its contents to the end of CLAUDE.md
 - If CLAUDE.md doesn't exist: create it with the append block as the initial content
 
-If a hermit was activated in step 3, also append its CLAUDE-APPEND.md here.
+If a hermit was activated in step 3, also append its CLAUDE-APPEND.md here (using the same skip/overwrite logic if its marker already exists).
 
 ### 7. Update .gitignore
 
@@ -577,6 +581,7 @@ Next steps:
   1. Run /claude-code-hermit:session to start your first session
   2. Refine OPERATOR.md anytime — just tell me what changed
   3. Change settings with /claude-code-hermit:hermit-settings
-  4. For always-on operation: /claude-code-hermit:docker-setup or .claude-code-hermit/bin/hermit-start
-  5. After plugin updates, run /claude-code-hermit:hermit-upgrade
+  4. Run /claude-code-hermit:smoke-test to verify the setup
+  5. For always-on operation: /claude-code-hermit:docker-setup or .claude-code-hermit/bin/hermit-start
+  6. After plugin updates, run /claude-code-hermit:hermit-upgrade
 ```

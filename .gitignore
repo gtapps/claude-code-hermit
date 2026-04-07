@@ -32,6 +32,7 @@ Thumbs.db
 # Claude Code internal state
 .claude/worktrees/
 .claude/agent-memory/
+.claude/scheduled_tasks.lock
 
 # History
 .history/

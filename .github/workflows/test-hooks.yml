@@ -7,11 +7,13 @@ on:
       - 'scripts/**'
       - 'hooks/**'
       - 'tests/**'
+      - 'state-templates/**'
   pull_request:
     paths:
       - 'scripts/**'
       - 'hooks/**'
       - 'tests/**'
+      - 'state-templates/**'
 
 jobs:
   test:
@@ -22,3 +24,4 @@ jobs:
         with:
           node-version: '24'
       - run: bash tests/run-hooks.sh
+      - run: python3 tests/run-contracts.py

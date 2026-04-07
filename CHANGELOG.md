@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.3.5] - 2026-04-07
+
+### Fixed
+
+- **`iter_channel_configs` crash on non-dict channels** — If `channels` in config.json was accidentally set to a string or array instead of a dict, `iter_channel_configs()` would crash with `AttributeError` on `.items()`. Added a type guard that returns early for non-dict values. Discovered by a new negative-path test.
+
+### Added
+
+- **Contract test suite (`tests/run-contracts.py`)** — 20 Python unittest tests covering config template/runtime sync (flattened key paths + type checks), boot merge logic (sparse configs, nested env/heartbeat deep merge), settings.local.json writing (stale token cleanup, state_dir mapping, profile enforcement), hook outputs (cost-tracker fields, evaluate-session structure), and negative paths (malformed config, wrong channel types). Runs as `python3 tests/run-contracts.py`.
+
+- **Smoke test skill (`/claude-code-hermit:smoke-test`)** — Post-hatch validation that checks config.json validity, OPERATOR.md sanity, plugin_checks references, routine shapes (time format, skill syntax, duplicate IDs), and optionally sends a test message through configured channels. Produces a structured PASS/WARN/FAIL report. Replaces the previous approach of embedding validation into hatch step 10.
+
+- **Hook output assertions in `run-hooks.sh`** — Extended existing exit-code-only tests with targeted content checks: session-diff sidecar JSON validation, check-upgrade output verification, deny-patterns.json structure check, bin script executable bit verification, and routine-watcher jq filter test. Total bash tests: 18.
+
+- **`.claude/scheduled_tasks.lock` added to `.gitignore`** — Prevents the Claude Code task scheduler lock file from being committed. Especially important for Docker containers that restart with fresh PIDs.
+
+### Changed
+
+- **Hatch CLAUDE.md overwrite prompt** — When re-running hatch on a project that already has the session discipline block in CLAUDE.md, hatch now asks the operator whether to replace it with the latest version instead of silently skipping. Hermit CLAUDE-APPEND blocks get the same treatment.
+
+- **CI workflow broadened** — Added `state-templates/**` to path triggers and `python3 tests/run-contracts.py` as a new CI step.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/hermit-start.py` | `iter_channel_configs` type guard for non-dict channels |
+| `tests/run-contracts.py` | New — 20 Python contract tests |
+| `tests/run-hooks.sh` | 6 new assertions, `setup_workdir` creates `state/` dir, `setup_git_workdir` stages files + GPG bypass |
+| `skills/smoke-test/SKILL.md` | New — post-hatch validation skill |
+| `skills/hatch/SKILL.md` | CLAUDE.md overwrite prompt, smoke-test in next-steps |
+| `.github/workflows/test-hooks.yml` | Added contracts step + state-templates trigger |
+| `.gitignore` | Added `scheduled_tasks.lock` |
+| `state-templates/GITIGNORE-APPEND.txt` | Added `scheduled_tasks.lock` |
+| `scripts/.gitignore` | New — ignores `__pycache__/` |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+
+1. **CLAUDE-APPEND refresh** — Not needed for this release (no changes to CLAUDE-APPEND.md).
+2. **Templates** — No template changes.
+3. **Config.json** — No config.json changes required. The `iter_channel_configs` fix is in the boot script, not config.
+4. **GITIGNORE-APPEND** — `.claude/scheduled_tasks.lock` was added. The upgrade skill should check if the target project's `.gitignore` already contains this entry and append it if missing.
+
+The smoke-test skill is automatically available after the plugin update — no manual setup needed. The test suite is development-only and doesn't affect installed hermits.
+
 ## [0.3.4] - 2026-04-07
 
 ### Changed
