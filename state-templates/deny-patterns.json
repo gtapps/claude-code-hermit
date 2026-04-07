@@ -14,9 +14,7 @@
     "Bash(cat ~/.aws/*)",
     "Bash(*API_KEY*)",
     "Bash(*SECRET*)",
-    "Bash(*TOKEN*)",
-    "Edit(**/.claude-code-hermit/OPERATOR.md)",
-    "Write(**/.claude-code-hermit/OPERATOR.md)"
+    "Bash(*TOKEN*)"
   ],
   "always_on": [
     "Bash(ssh *)",

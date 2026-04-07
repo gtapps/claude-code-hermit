@@ -189,6 +189,159 @@ run_test "check-upgrade output" bash -c "echo '$upgrade_out' | grep -qF -- '---U
 cleanup
 
 # -------------------------------------------------------
+# 13. enforce-deny-patterns — blocks dangerous Bash command
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+run_test "enforce-deny-patterns (block rm -rf)" bash -c \
+  "echo '{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"rm -rf /\"}}' | CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/enforce-deny-patterns.js' 2>/dev/null; [ \$? -eq 2 ]"
+cleanup
+
+# -------------------------------------------------------
+# 14. enforce-deny-patterns — allows safe command
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+run_test "enforce-deny-patterns (allow safe)" bash -c \
+  "echo '{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"ls -la\"}}' | CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/enforce-deny-patterns.js'"
+cleanup
+
+# -------------------------------------------------------
+# 15. enforce-deny-patterns — blocks OPERATOR.md edit
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+run_test "enforce-deny-patterns (block OPERATOR.md)" bash -c \
+  "echo '{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\".claude-code-hermit/OPERATOR.md\"}}' | CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/enforce-deny-patterns.js' 2>/dev/null; [ \$? -eq 2 ]"
+cleanup
+
+# -------------------------------------------------------
+# 16. enforce-deny-patterns — empty stdin
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+run_test "enforce-deny-patterns (empty stdin)" bash -c \
+  "echo '' | CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/enforce-deny-patterns.js'"
+cleanup
+
+# -------------------------------------------------------
+# 17. channel-hook — persists dm_channel_id
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+echo '{"channels":{"discord":{"enabled":true,"dm_channel_id":null}}}' > "$workdir/.claude-code-hermit/config.json"
+run_test "channel-hook (persist dm_channel_id)" bash -c \
+  "echo '{\"tool_name\":\"mcp__discord__reply\",\"tool_input\":{\"chat_id\":\"123456\"}}' | node '$REPO_ROOT/scripts/channel-hook.js' 2>/dev/null && python3 -c \"import json; c=json.load(open('$workdir/.claude-code-hermit/config.json')); assert c['channels']['discord']['dm_channel_id']=='123456', c\""
+cleanup
+
+# -------------------------------------------------------
+# 18. channel-hook — skips unconfigured channel
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+echo '{"channels":{}}' > "$workdir/.claude-code-hermit/config.json"
+run_test "channel-hook (skip unconfigured)" bash -c \
+  "echo '{\"tool_name\":\"mcp__discord__reply\",\"tool_input\":{\"chat_id\":\"123456\"}}' | node '$REPO_ROOT/scripts/channel-hook.js' 2>/dev/null && python3 -c \"import json; c=json.load(open('$workdir/.claude-code-hermit/config.json')); assert 'discord' not in c['channels'], c\""
+cleanup
+
+# -------------------------------------------------------
+# 19. channel-hook — writes channel-activity.json
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+echo '{"channels":{"discord":{"enabled":true}}}' > "$workdir/.claude-code-hermit/config.json"
+run_test "channel-hook (activity file)" bash -c \
+  "echo '{\"tool_name\":\"mcp__discord__reply\",\"tool_input\":{\"chat_id\":\"999\"}}' | node '$REPO_ROOT/scripts/channel-hook.js' 2>/dev/null && python3 -c \"import json; a=json.load(open('$workdir/.claude-code-hermit/state/channel-activity.json')); assert 'last_reply_at' in a['discord'], a\""
+cleanup
+
+# -------------------------------------------------------
+# 20. channel-hook — empty stdin
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+run_test "channel-hook (empty stdin)" bash -c \
+  "echo '' | node '$REPO_ROOT/scripts/channel-hook.js'"
+cleanup
+
+# -------------------------------------------------------
+# 21. validate-config — valid config passes
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+cat > "$workdir/.claude-code-hermit/config.json" << 'CFGEOF'
+{"agent_name":null,"language":null,"timezone":null,"escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"active_hours":{"start":"08:00","end":"23:00"}},"routines":[{"id":"test","time":"04:00","skill":"x:y","enabled":true}]}
+CFGEOF
+run_test "validate-config (valid)" bash -c \
+  "echo '{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$workdir/.claude-code-hermit/config.json\"}}' | node '$REPO_ROOT/scripts/validate-config.js'"
+cleanup
+
+# -------------------------------------------------------
+# 22. validate-config — invalid config fails
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+echo '{"agent_name":null}' > "$workdir/.claude-code-hermit/config.json"
+run_test "validate-config (invalid)" bash -c \
+  "echo '{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$workdir/.claude-code-hermit/config.json\"}}' | node '$REPO_ROOT/scripts/validate-config.js' 2>/dev/null; [ \$? -eq 2 ]"
+cleanup
+
+# -------------------------------------------------------
+# 23. validate-config — skips non-config files
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+run_test "validate-config (skip non-config)" bash -c \
+  "echo '{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"/some/other/file.js\"}}' | node '$REPO_ROOT/scripts/validate-config.js'"
+cleanup
+
+# -------------------------------------------------------
+# 24. validate-config — empty stdin
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+run_test "validate-config (empty stdin)" bash -c \
+  "echo '' | node '$REPO_ROOT/scripts/validate-config.js'"
+cleanup
+
+# -------------------------------------------------------
+# 25. routine-queue-flush — logs missed routines
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+echo '[{"id":"heartbeat-restart","skill":"x:heartbeat start","queued_since":"2026-04-07T04:00:00Z"}]' > "$workdir/.claude-code-hermit/state/routine-queue.json"
+run_test "routine-queue-flush (log missed)" bash -c \
+  "echo '{}' | node '$REPO_ROOT/scripts/routine-queue-flush.js' 2>/dev/null && grep -q 'heartbeat-restart' '$workdir/.claude-code-hermit/sessions/SHELL.md'"
+cleanup
+
+# -------------------------------------------------------
+# 26. routine-queue-flush — empty queue
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+echo '[]' > "$workdir/.claude-code-hermit/state/routine-queue.json"
+run_test "routine-queue-flush (empty queue)" bash -c \
+  "echo '{}' | node '$REPO_ROOT/scripts/routine-queue-flush.js'"
+cleanup
+
+# -------------------------------------------------------
+# 27. routine-queue-flush — no queue file
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+run_test "routine-queue-flush (no queue file)" bash -c \
+  "echo '{}' | node '$REPO_ROOT/scripts/routine-queue-flush.js'"
+cleanup
+
+# -------------------------------------------------------
+# 28. routine-queue-flush — empty stdin
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+run_test "routine-queue-flush (empty stdin)" bash -c \
+  "echo '' | node '$REPO_ROOT/scripts/routine-queue-flush.js'"
+cleanup
+
+# -------------------------------------------------------
 # Static file checks
 # -------------------------------------------------------
 

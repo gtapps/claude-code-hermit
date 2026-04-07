@@ -15,8 +15,8 @@ After install, run `/claude-code-hermit:hatch` in the target project to create t
 
 ## Plugin Structure
 
-- `agents/` — subagent definitions (session-mgr only; hermit plugins add more subagents)
-- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, pulse, brief, monitor, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, channel-responder, hatch, hermit-evolve, docker-setup, hermit-takeover, hermit-hand-back
+- `agents/` — subagent definitions (session-mgr, hermit-config-validator; hermit plugins add more subagents)
+- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, pulse, brief, monitor, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, channel-responder, hatch, hermit-evolve, docker-setup, hermit-takeover, hermit-hand-back, smoke-test, test-run
 - `hooks/hooks.json` — hook registrations
 - `scripts/` — hook implementation scripts + boot scripts (hermit-start.py, hermit-stop.py)
 - `state-templates/` — templates copied into target projects by the `hatch` skill
@@ -76,9 +76,10 @@ All autonomous agent state lives in `.claude-code-hermit/`:
 
 ## Subagent Usage
 
-| Agent         | When to use                             | Model  |
-| ------------- | --------------------------------------- | ------ |
-| `session-mgr` | Session start, close, progress tracking | Sonnet |
+| Agent                    | When to use                             | Model  |
+| ------------------------ | --------------------------------------- | ------ |
+| `session-mgr`            | Session start, close, progress tracking | Sonnet |
+| `hermit-config-validator` | Validate config.json after mutations    | Haiku  |
 
 Additional agents may be available from installed hermits.
 

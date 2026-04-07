@@ -1,5 +1,64 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/enforce-deny-patterns.js",
+            "timeout": 3
+          }
+        ],
+        "description": "Enforce deny-patterns, block OPERATOR.md edits, warn on template edits"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__(discord|telegram)__reply",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/channel-hook.js",
+            "timeout": 5
+          }
+        ],
+        "description": "Persist dm_channel_id to config.json after channel reply"
+      },
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"try{require('fs').writeFileSync('.claude-code-hermit/state/.heartbeat',new Date().toISOString()+'\\n')}catch{}\"",
+            "timeout": 2
+          }
+        ],
+        "description": "Touch heartbeat on any tool use"
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'INPUT=$(cat); FILE=$(echo \"$INPUT\" | jq -r \".tool_input.file_path // empty\"); if echo \"$FILE\" | grep -qE \"scripts/|hooks/\"; then python3 tests/run-contracts.py 2>&1 | tail -5; fi'",
+            "timeout": 30
+          }
+        ],
+        "description": "Run contract tests after script/hook edits"
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/validate-config.js",
+            "timeout": 5
+          }
+        ],
+        "description": "Validate config.json schema after edits"
+      }
+    ],
     "SessionStart": [
       {
         "matcher": "",
@@ -56,6 +115,17 @@
           }
         ],
         "description": "Evaluate session quality (task status, plan tracked, blockers documented)"
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/routine-queue-flush.js",
+            "timeout": 5
+          }
+        ],
+        "description": "Log missed queued routines to SHELL.md on shutdown"
       }
     ]
   }

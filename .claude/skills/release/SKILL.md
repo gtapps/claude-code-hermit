@@ -8,6 +8,31 @@ Bump version, write changelog, commit, and push. The changelog entry is critical
 
 ## Steps
 
+### 0. Pre-release validation
+
+Run before anything else. Abort the release if any step fails.
+
+1. **Run test suites:**
+   ```bash
+   python3 tests/run-contracts.py -v 2>&1
+   bash tests/run-hooks.sh 2>&1
+   ```
+   If any test fails, stop and fix before releasing.
+
+2. **Run the release-auditor agent** to cross-reference plugin integrity:
+   - Skills in CLAUDE.md/CLAUDE-APPEND match actual `skills/` directories
+   - Agents in CLAUDE.md match actual `agents/` files
+   - Hook scripts referenced in `hooks/hooks.json` exist in `scripts/`
+   - State-template JSON files parse correctly
+   - `config.json.template` keys are in sync with `DEFAULT_CONFIG` in `hermit-start.py`
+
+3. **Check for stale references** — if new skills, agents, or hooks were added since the last release:
+   - Verify they appear in `CLAUDE.md` quick reference and subagent table
+   - Verify they appear in `state-templates/CLAUDE-APPEND.md` quick reference
+   - Verify `docs/skills.md` lists them (if that doc exists)
+
+If the auditor reports any FAIL, fix before proceeding. WARNs are acceptable if justified.
+
 ### 1. Determine version bump
 
 Read `.claude-plugin/plugin.json` for the current version and `CHANGELOG.md` for recent entries.
@@ -59,13 +84,31 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 Each changelog bullet should be a complete thought — a hermit operator reading it should understand what changed and whether it affects them.
 
-### 3. Bump version in all locations
+### 3. Update CLAUDE.md and CLAUDE-APPEND references
+
+If new skills, agents, or hooks were added in this release:
+
+- Add new skills to the `CLAUDE.md` quick reference list and `state-templates/CLAUDE-APPEND.md` quick reference
+- Add new agents to the `CLAUDE.md` subagent table
+- Update hook descriptions in `CLAUDE.md` if the hook surface area changed significantly
+
+Skip this step if no new components were added.
+
+### 4. Bump version in all locations
 
 Update the version string in:
 - `.claude-plugin/plugin.json` → `"version"` field
 - `README.md` → version badge (the `img.shields.io` URL and alt text)
 
-### 4. Commit and push
+### 5. Final validation
+
+Run tests one more time to confirm nothing broke during the changelog/version edits:
+```bash
+python3 tests/run-contracts.py 2>&1 | tail -3
+bash tests/run-hooks.sh 2>&1 | tail -3
+```
+
+### 6. Commit and push
 
 Stage only the changed files (not `git add -A`). Commit with:
 
@@ -75,6 +118,6 @@ vX.Y.Z: One-line summary of the release
 
 Push to origin.
 
-### 5. Report
+### 7. Report
 
 Print the version, the commit hash, and a one-liner confirming it's pushed.

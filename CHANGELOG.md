@@ -1,5 +1,59 @@
 # Changelog
 
+## [0.3.7] - 2026-04-08
+
+### Added
+
+- **PreToolUse deny-pattern enforcer** — `scripts/enforce-deny-patterns.js` now enforces `deny-patterns.json` at runtime, blocking dangerous commands before execution. Also consolidates OPERATOR.md write protection and state-template edit warnings into a single Node process (previously two separate bash pipelines per Edit/Write call).
+
+- **PostToolUse heartbeat touch** — every tool call writes the current timestamp to `state/.heartbeat`, keeping heartbeat staleness detection accurate without relying on the agent to do it manually. Uses a lightweight Node one-liner instead of spawning bash+date.
+
+- **PostToolUse channel hook** (`scripts/channel-hook.js`) — automatically persists `dm_channel_id` to `config.json` after any Discord or Telegram reply, and tracks `last_reply_at` in `state/channel-activity.json`. Solves the recurring issue where `dm_channel_id` was null because the agent didn't follow the channel-responder's step 1d.
+
+- **PostToolUse config validator** (`scripts/validate-config.js`) — validates `config.json` schema after any edit (required keys, types, routine time formats, channel structure, env values). Exits non-zero to surface errors immediately. Includes a fast-reject path that skips JSON parsing for non-config edits.
+
+- **Stop routine-queue flush** (`scripts/routine-queue-flush.js`) — logs missed queued routines to SHELL.md Progress Log at shutdown so the next session knows what was skipped.
+
+- **`/claude-code-hermit:test-run` skill** — user-invoked skill that runs both contract tests (`run-contracts.py`) and hook tests (`run-hooks.sh`) with a concise pass/fail summary.
+
+- **`hermit-config-validator` agent** (Haiku) — lightweight read-only subagent that validates `config.json` after mutations (hermit-settings, hermit-evolve, channel-hook). Checks required keys, types, routine time formats, channel structure, and env values. Ships with the plugin so hermits can use it.
+
+- **16 new hook tests** — test coverage expanded from 18 to 34 tests, covering all new hook scripts: enforce-deny-patterns (4 tests), channel-hook (4 tests), validate-config (4 tests), routine-queue-flush (4 tests).
+
+### Changed
+
+- **Consolidated PreToolUse hooks** — three separate hooks (deny-patterns Node script + template-warning bash + OPERATOR.md-block bash) merged into a single `enforce-deny-patterns.js` invocation. Reduces process spawns on every Edit/Write from 3 to 1.
+
+- **Removed redundant OPERATOR.md entries from deny-patterns.json** — OPERATOR.md write protection is now enforced directly by the PreToolUse hook, so the deny-patterns.json entries were redundant.
+
+- **TOCTOU fixes across all new scripts** — replaced all `fs.existsSync()` + `fs.readFileSync()` pairs with direct `try/catch` on `readFileSync`.
+
+- **validate-config.js path matching** — uses `path.basename()` instead of substring `includes()` to avoid false positives on similarly-named files.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `hooks/hooks.json` | Added PreToolUse, PostToolUse, Stop hooks; consolidated inline bash hooks |
+| `scripts/enforce-deny-patterns.js` | New — deny-pattern enforcement + OPERATOR.md block + template warn |
+| `scripts/channel-hook.js` | New — dm_channel_id persistence + channel activity tracking |
+| `scripts/validate-config.js` | New — config.json schema validation after edits |
+| `scripts/routine-queue-flush.js` | New — logs missed routines to SHELL.md at shutdown |
+| `skills/test-run/SKILL.md` | New — user-invoked test runner skill |
+| `state-templates/deny-patterns.json` | Removed redundant OPERATOR.md entries |
+| `tests/run-hooks.sh` | Added 16 new tests for all new hook scripts |
+| `agents/hermit-config-validator.md` | New — lightweight config.json validator agent (Haiku) |
+| `CLAUDE.md` | Updated skill list, agent table, agents description |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **CLAUDE-APPEND refresh** — not strictly required this release (no changes to CLAUDE-APPEND.md content), but harmless to refresh.
+2. **hooks.json is auto-loaded from the plugin** — no manual hook migration needed. The new hooks take effect immediately on next session start.
+
+No config.json changes required. No manual steps needed.
+
 ## [0.3.6] - 2026-04-07
 
 ### Added
