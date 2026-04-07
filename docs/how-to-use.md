@@ -91,7 +91,7 @@ You're always in control. Hermit suggests. You decide.
 ## Tips
 
 - **Don't create session/proposal files by hand.** Skills handle lifecycle tracking.
-- **After plugin updates**, run `/claude-code-hermit:hermit-upgrade`.
+- **After plugin updates**, run `/claude-code-hermit:hermit-evolve`.
 - **Talk to your hermit.** Ask how it can improve. It gets better when you tell it what you need.
 
 ---
@@ -226,7 +226,7 @@ Most common actions auto-trigger from natural language — just say what you mea
 | **Status**     | `pulse`, `brief`                                              |
 | **Monitoring** | `monitor`, `heartbeat`                                        |
 | **Learning**   | `proposal-create`, `proposal-list`, `proposal-act`, `reflect` |
-| **Config**     | `hermit-settings`, `hatch`, `hermit-upgrade`                  |
+| **Config**     | `hermit-settings`, `hatch`, `hermit-evolve`                  |
 | **Docker**     | `docker-setup`, `hermit-takeover`, `hermit-hand-back`         |
 | **Channels**   | `channel-responder`                                           |
 

@@ -20,7 +20,7 @@ Track `passed`, `warnings`, `failures` counts. Collect output lines for the fina
 - Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` to get the current plugin version
 - Compare `config._hermit_versions["claude-code-hermit"]` with the plugin version
   - Match: **PASS** `version matches plugin (X.Y.Z)`
-  - Mismatch: **WARN** `config version X.Y.Z != plugin X.Y.Z — run /claude-code-hermit:hermit-upgrade`
+  - Mismatch: **WARN** `config version X.Y.Z != plugin X.Y.Z — run /claude-code-hermit:hermit-evolve`
 - Check required top-level keys exist: `agent_name`, `channels`, `env`, `heartbeat`
   - Each missing key: **FAIL** `missing required key: <key>`
 

@@ -18,6 +18,10 @@
 
 ### Changed
 
+- **Renamed `hermit-upgrade` skill to `hermit-evolve`** — Creative name consistent with `hatch`. Invoked as `/claude-code-hermit:hermit-evolve`. All documentation, cross-references, scripts, and CHANGELOG.md references updated (17 files, ~82 occurrences).
+
+- **Evolve skill: changelog-driven migrations** — Removed ~170 lines of hardcoded version-specific migration blocks (v0.0.9 through v0.3.4) from the evolve skill. Migrations are now driven by CHANGELOG.md `### Upgrade Instructions` sections — the same pattern already used for hermit plugin upgrades (step 7). New step 2b reads the changelog and executes each version's upgrade instructions in oldest-first order. SKILL.md dropped from 348 to 177 lines.
+
 - **Hatch CLAUDE.md overwrite prompt** — When re-running hatch on a project that already has the session discipline block in CLAUDE.md, hatch now asks the operator whether to replace it with the latest version instead of silently skipping. Hermit CLAUDE-APPEND blocks get the same treatment.
 
 - **CI workflow broadened** — Added `state-templates/**` to path triggers and `python3 tests/run-contracts.py` as a new CI step.
@@ -26,11 +30,26 @@
 
 | File | Change |
 |------|--------|
-| `scripts/hermit-start.py` | `iter_channel_configs` type guard for non-dict channels |
+| `skills/hermit-evolve/SKILL.md` | Renamed from `skills/hermit-upgrade/`; removed hardcoded migrations, added changelog-driven step 2b |
+| `CHANGELOG.md` | All `hermit-upgrade` refs → `hermit-evolve` |
+| `CLAUDE.md` | Updated skill references |
+| `docs/skills.md` | Updated skill table |
+| `docs/upgrading.md` | Updated invocation references (9 occurrences) |
+| `docs/how-to-use.md` | Updated references |
+| `docs/security.md` | Updated reference |
+| `docs/config-reference.md` | Updated reference |
+| `docs/troubleshooting.md` | Updated reference |
+| `skills/hatch/SKILL.md` | Updated next-steps reference; CLAUDE.md overwrite prompt |
+| `skills/smoke-test/SKILL.md` | Updated version mismatch warning |
+| `scripts/check-upgrade.sh` | Updated error message |
+| `scripts/hermit-start.py` | Updated error message; `iter_channel_configs` type guard |
+| `state-templates/CLAUDE-APPEND.md` | Updated skills reference |
+| `state-templates/bin/hermit-run` | Updated reference |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Updated reference |
+| `.claude/skills/release/SKILL.md` | Updated release workflow template |
 | `tests/run-contracts.py` | New — 20 Python contract tests |
 | `tests/run-hooks.sh` | 6 new assertions, `setup_workdir` creates `state/` dir, `setup_git_workdir` stages files + GPG bypass |
 | `skills/smoke-test/SKILL.md` | New — post-hatch validation skill |
-| `skills/hatch/SKILL.md` | CLAUDE.md overwrite prompt, smoke-test in next-steps |
 | `.github/workflows/test-hooks.yml` | Added contracts step + state-templates trigger |
 | `.gitignore` | Added `scheduled_tasks.lock` |
 | `state-templates/GITIGNORE-APPEND.txt` | Added `scheduled_tasks.lock` |
@@ -38,12 +57,13 @@
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
-1. **CLAUDE-APPEND refresh** — Not needed for this release (no changes to CLAUDE-APPEND.md).
-2. **Templates** — No template changes.
-3. **Config.json** — No config.json changes required. The `iter_channel_configs` fix is in the boot script, not config.
-4. **GITIGNORE-APPEND** — `.claude/scheduled_tasks.lock` was added. The upgrade skill should check if the target project's `.gitignore` already contains this entry and append it if missing.
+1. **Skill renamed** — The old `/claude-code-hermit:hermit-upgrade` command no longer exists. Use `/claude-code-hermit:hermit-evolve` going forward.
+2. **CLAUDE-APPEND refresh** — The CLAUDE-APPEND.md template now references `hermit-evolve` instead of `hermit-upgrade`. The evolve skill will update the block in the project's CLAUDE.md.
+3. **Boot script update** — `hermit-run` and other bin scripts reference the new skill name. Copy updated scripts from `state-templates/bin/`.
+4. **Config.json** — No config.json changes required. The `iter_channel_configs` fix is in the boot script, not config.
+5. **GITIGNORE-APPEND** — `.claude/scheduled_tasks.lock` was added. Check if the target project's `.gitignore` already contains this entry and append if missing.
 
 The smoke-test skill is automatically available after the plugin update — no manual setup needed. The test suite is development-only and doesn't affect installed hermits.
 
@@ -97,13 +117,13 @@ The smoke-test skill is automatically available after the plugin update — no m
 | `skills/channel-responder/SKILL.md` | Authorization reads `channels.<channel>.allowed_users`; new step 1d persists `chat_id` to `channels.<channel>.dm_channel_id` |
 | `state-templates/CLAUDE-APPEND.md` | Outbound notification reads `channels.<channel>.dm_channel_id`; clarified user ID ≠ DM channel ID |
 | `skills/hermit-settings/SKILL.md` | "channels" argument manages new object structure; "brief" reads/writes `channels.<channel>.morning_brief` |
-| `skills/hermit-upgrade/SKILL.md` | Added v0.3.4 migration |
+| `skills/hermit-evolve/SKILL.md` | Added v0.3.4 migration |
 | `docs/config-reference.md` | New `channels` section; updated top-level table; updated complete example |
 | `docs/troubleshooting.md`, `docs/architecture.md`, `docs/always-on.md` | Updated channel config references |
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-upgrade`. The v0.3.4 migration will:
+Run `/claude-code-hermit:hermit-evolve`. The v0.3.4 migration will:
 1. Detect the old `channels` array format and convert it to the new object structure
 2. Move `allowed_users` and `morning_brief` into each channel's entry
 3. Move `*_STATE_DIR` values into `channels.<name>.state_dir` and remove them from `env`
@@ -143,7 +163,7 @@ After migration, send any message to your bot — `channel-responder` will popul
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-evolve`. The upgrade skill handles:
 
 1. **Refresh CLAUDE-APPEND** — Updated skill instructions need to be re-read by Claude Code. The upgrade skill will prompt you to re-run `/claude-code-hermit:hatch` or manually refresh the append content if your project uses it.
 
@@ -214,7 +234,7 @@ No config.json changes required. No template changes. No manual steps beyond the
 | `skills/session-close/SKILL.md` | runtime.json note for session-mgr |
 | `skills/heartbeat/SKILL.md` | runtime.json reads for session state and waiting timeout |
 | `skills/channel-responder/SKILL.md` | runtime.json reads for waiting→in_progress transition |
-| `skills/hermit-upgrade/SKILL.md` | v0.3.2 migration block |
+| `skills/hermit-evolve/SKILL.md` | v0.3.2 migration block |
 | `state-templates/docker/docker-entrypoint.hermit.sh.template` | runtime.json reads in SIGTERM handler |
 | `state-templates/SESSION-REPORT.md.template` | Added `task` field, `date` upgraded to ISO 8601 timestamp |
 | `state-templates/PROPOSAL.md.template` | Added `title`, `resolved_date` fields, `created` upgraded to ISO 8601 timestamp |
@@ -282,7 +302,7 @@ No config.json changes required. No template changes. No manual steps beyond the
 
 - **Bridge networking by default** — Docker compose template no longer hardcodes `network_mode: host`. Bridge is the default; host networking requires explicit opt-in via the `docker-setup` wizard. Reduces blast radius — container can no longer reach host-local services (databases, admin panels, metadata endpoints) unless the operator explicitly chooses host mode.
 
-- **No auto-updates on boot** — Removed `claude plugin update` calls from the entrypoint. Automatic updates pulled unreviewed plugin code that ran with `bypassPermissions`. Updates are now operator-initiated via `/claude-code-hermit:hermit-upgrade` or image rebuild. First-boot install-if-missing logic is preserved.
+- **No auto-updates on boot** — Removed `claude plugin update` calls from the entrypoint. Automatic updates pulled unreviewed plugin code that ran with `bypassPermissions`. Updates are now operator-initiated via `/claude-code-hermit:hermit-evolve` or image rebuild. First-boot install-if-missing logic is preserved.
 
 - **Full deny pattern set** — `docker-setup` and `hatch` now generate the complete deny set documented in `SECURITY.md`. Docker: 25 patterns (default + always-on). Hatch hardened: 22 (minus docker/kubectl/ssh). Hatch minimal: 17 (default only). Previously only 8 were generated. New patterns cover `.env` file access, credential exposure (`sudo`, `env`, `printenv`, `cat ~/.ssh/*`, `cat ~/.aws/*`), secret leakage (`*API_KEY*`, `*SECRET*`, `*TOKEN*`), and hook bypass (`*--no-verify*`). Canonical source: `state-templates/deny-patterns.json`.
 
@@ -301,7 +321,7 @@ No config.json changes required. No template changes. No manual steps beyond the
 | `skills/hatch/SKILL.md` | Phase 4: plugin_checks entries for accepted plugins |
 | `skills/docker-setup/SKILL.md` | Plugin_checks entries for accepted plugins |
 | `skills/hermit-settings/SKILL.md` | `plugin-checks` subcommand |
-| `skills/hermit-upgrade/SKILL.md` | v0.3.1 migration block |
+| `skills/hermit-evolve/SKILL.md` | v0.3.1 migration block |
 | `state-templates/config.json.template` | `plugin_checks: []` key |
 | `docs/CONFIG-REFERENCE.md` | `plugin_checks` schema and runtime state |
 | `docs/RECOMMENDED-PLUGINS.md` | Plugin Checks section with trigger table |
@@ -318,7 +338,7 @@ No config.json changes required. No template changes. No manual steps beyond the
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-evolve`. The upgrade skill handles:
 
 1. **CLAUDE-APPEND.md refresh** — The template changed (new Operator Notification section). Upgrade refreshes it automatically.
 2. **Add `plugin_checks` to config.json** — Adds `"plugin_checks": []` if missing, auto-populates entries for any installed recommended plugins (`claude-code-setup`, `claude-md-management`), and backfills the `trigger` field on any existing entries.
@@ -391,7 +411,7 @@ No config.json interactive prompts. No manual steps required. Skill files update
 | `skills/session/SKILL.md` | Reflect trigger with 4h debounce |
 | `skills/session-start/SKILL.md` | Recognize waiting state |
 | `skills/hatch/SKILL.md` | state/ dir, state file init, heartbeat-restart routine |
-| `skills/hermit-upgrade/SKILL.md` | 13-step v0.3.0 migration with operator notes |
+| `skills/hermit-evolve/SKILL.md` | 13-step v0.3.0 migration with operator notes |
 | `scripts/cost-tracker.js` | Remove SHELL.md write |
 | `scripts/evaluate-session.js` | Zombie, stale, bloat nudges |
 | `scripts/routine-watcher.sh` | Queue-not-skip with safe dequeue |
@@ -409,7 +429,7 @@ No config.json interactive prompts. No manual steps required. Skill files update
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles 13 migration steps:
+Run `/claude-code-hermit:hermit-evolve`. The upgrade skill handles 13 migration steps:
 
 1. **state/ directory + files** — Creates the new `state/` directory and initializes all 5 state files (alert-state.json, reflection-state.json, routine-queue.json, proposal-metrics.jsonl, micro-proposals.json).
 2. **Config migration** — Moves `_last_reflection` to state file, removes `self_eval_interval`, updates heartbeat frequency (interactive), adds `waiting_timeout`.
@@ -457,7 +477,7 @@ Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles 13 migration
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-evolve`. The upgrade skill handles:
 
 1. **No config.json changes required** — All changes are instruction-only (skill files, templates, entrypoint). Hermits pick them up automatically on next plugin update.
 
@@ -481,7 +501,7 @@ Non-Docker hermits get all changes on next `claude plugin update` with no action
 | `state-templates/IDLE-TASKS.md.template` | New idle task list template |
 | `skills/hatch/SKILL.md` | Freeform OPERATOR.md onboarding, IDLE-TASKS.md copy |
 | `skills/heartbeat/SKILL.md` | Idle task pickup from IDLE-TASKS.md replaces When Idle section |
-| `skills/hermit-upgrade/SKILL.md` | OPERATOR.md rethink + IDLE-TASKS.md creation |
+| `skills/hermit-evolve/SKILL.md` | OPERATOR.md rethink + IDLE-TASKS.md creation |
 | `skills/hermit-settings/SKILL.md` | Updated discover description |
 | `docs/ALWAYS-ON-OPS.md` | Added idle tasks to idle agency list |
 | `docs/SKILLS.md` | Added Idle Tasks section |
@@ -493,7 +513,7 @@ Non-Docker hermits get all changes on next `claude plugin update` with no action
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-evolve`. The upgrade skill handles:
 
 1. **OPERATOR.md rethink (optional, interactive)** — Ask the operator: "The OPERATOR.md template has been simplified — rigid sections replaced with concise freeform context. Would you like to rethink your OPERATOR.md?" If yes, back up and rewrite using the hatch onboarding flow. If no, skip — existing files work fine.
 
@@ -513,7 +533,7 @@ No config.json changes required. Non-Docker hermits get all changes on next `cla
 | File | Change |
 |------|--------|
 | `scripts/routine-watcher.sh` | Removed hardcoded `claude-code-hermit:` prefix — sends `/${skill}` as-is |
-| `skills/hermit-upgrade/SKILL.md` | Added v0.2.12 migration to prefix existing short skill names in routines |
+| `skills/hermit-evolve/SKILL.md` | Added v0.2.12 migration to prefix existing short skill names in routines |
 | `skills/hermit-settings/SKILL.md` | Updated routine display example and add wizard to use full skill names |
 | `skills/hatch/SKILL.md` | Default routines now use full names (`claude-code-hermit:brief --morning`) |
 | `skills/session-start/SKILL.md` | Morning brief check uses `contains` instead of `startsWith` |
@@ -523,7 +543,7 @@ No config.json changes required. Non-Docker hermits get all changes on next `cla
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-evolve`. The upgrade skill handles:
 
 1. **Routine skill name migration** — Existing routines with short skill names (e.g. `"skill": "brief --morning"`) are automatically prefixed to `"skill": "claude-code-hermit:brief --morning"`. Skills that already contain `:` are left as-is. This is a one-time config.json migration.
 2. **Templates updated** — No template changes in this release.
@@ -548,7 +568,7 @@ Operators who manually added local project skills to routines should verify thei
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-evolve`. The upgrade skill handles:
 
 1. **Entrypoint template changed** — Docker hermits need their entrypoint regenerated. Run `/claude-code-hermit:docker-setup` to regenerate, or manually copy the new entrypoint template to `.claude-code-hermit/docker/docker-entrypoint.hermit.sh`.
 
@@ -573,7 +593,7 @@ No config.json changes required. Non-Docker hermits are unaffected.
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-evolve`. The upgrade skill handles:
 
 1. **No automatic migration** — Recommended plugins are opt-in. Existing hermits are unaffected. The new plugins only appear during fresh `/docker-setup` runs.
 
@@ -601,7 +621,7 @@ Or add via `/claude-code-hermit:hermit-settings docker` → `add claude-md-manag
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-evolve`. The upgrade skill handles:
 
 1. **CLAUDE-APPEND refresh** — Not needed for this release (no changes to session discipline block).
 2. **Templates** — Not affected.
@@ -624,14 +644,14 @@ No config.json changes required. No manual steps needed. Hermits in `wait` mode 
 |------|--------|
 | `skills/hatch/SKILL.md` | Reordered all option lists; changed idle_behavior default in config example |
 | `skills/hermit-settings/SKILL.md` | Updated idle settings display example and option order |
-| `skills/hermit-upgrade/SKILL.md` | Updated idle_behavior default in upgrade table and prompt |
+| `skills/hermit-evolve/SKILL.md` | Updated idle_behavior default in upgrade table and prompt |
 | `state-templates/config.json.template` | Changed `idle_behavior` from `"wait"` to `"discover"` |
 | `docs/CONFIG-REFERENCE.md` | Updated `idle_behavior` default |
 | `docs/SKILLS.md` | Updated idle behavior description |
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-evolve`. The upgrade skill handles:
 
 1. **No automatic migration** — Existing `idle_behavior` values are preserved. The new default only applies to fresh `/claude-code-hermit:hatch` installs.
 
@@ -656,7 +676,7 @@ No config.json changes required. Operators who want the new default can switch m
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-evolve`. The upgrade skill handles:
 
 1. **CLAUDE-APPEND refresh** — Not needed for this release (no changes to session discipline block).
 2. **Templates** — Not affected.
@@ -704,7 +724,7 @@ No config.json changes required. Existing `permission_mode` values continue to w
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-evolve`. The upgrade skill handles:
 
 1. **Boot script update** — Copies all files from `state-templates/bin/` into `.claude-code-hermit/bin/`, which adds the new `hermit-docker` script and updates `hermit-run` and `hermit-status`. Existing hermits will have both scripts after upgrade.
 2. **CLAUDE-APPEND block update** — Refreshed with current skill list.
@@ -745,7 +765,7 @@ No config.json changes required. The old `hermit-run docker-up` / `hermit-run do
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-evolve`. The upgrade skill handles:
 
 1. **CLAUDE-APPEND block update** — Refreshed with current skill list.
 2. **Boot script update** — Copies updated `docker-entrypoint.hermit.sh.template` with the new recommended plugins install block.
@@ -762,7 +782,7 @@ No config.json changes required. The new `docker.recommended_plugins` key is onl
 
 - **Renamed `hermit-init` skill to `hatch`** — Creative, unambiguous name that can't collide with any native command. Invoked as `/claude-code-hermit:hatch`. All documentation, cross-references, and scripts updated.
 
-- **Renamed `upgrade` skill to `hermit-upgrade`** — Prefixed to avoid collision with native `/upgrade` command. Invoked as `/claude-code-hermit:hermit-upgrade`. All documentation, cross-references, and scripts updated.
+- **Renamed `upgrade` skill to `hermit-evolve`** (originally `hermit-upgrade`, renamed to `hermit-evolve` in v0.3.6) — Prefixed to avoid collision with native `/upgrade` command. Invoked as `/claude-code-hermit:hermit-evolve`. All documentation, cross-references, and scripts updated.
 
 - **Renamed `status` skill to `pulse`** — Native `/status` command shows Claude Code connection info, colliding with the hermit session status skill. Renamed to `/claude-code-hermit:pulse`. All documentation, cross-references, and scripts updated.
 
@@ -775,7 +795,7 @@ No config.json changes required. The new `docker.recommended_plugins` key is onl
 | File | Change |
 |------|--------|
 | `skills/hatch/SKILL.md` | Renamed from `skills/hermit-init/`; rewrote step 4 into 5 phases; step 5a Phase 3 now uses `AskUserQuestion` for OPERATOR.md questions; removed `_plugin_root` from config template |
-| `skills/hermit-upgrade/SKILL.md` | Renamed from `skills/upgrade/`; updated cross-reference from "steps 4a–4e" to "Phase 2"; removed `_plugin_root` references |
+| `skills/hermit-evolve/SKILL.md` | Renamed from `skills/upgrade/`; updated cross-reference from "steps 4a–4e" to "Phase 2"; removed `_plugin_root` references |
 | `skills/pulse/SKILL.md` | Renamed from `skills/status/` |
 | `CLAUDE.md` | Updated skill list and references |
 | `README.md` | Updated invocation references |
@@ -792,7 +812,7 @@ No config.json changes required. The new `docker.recommended_plugins` key is onl
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-upgrade`. The upgrade skill handles:
+Run `/claude-code-hermit:hermit-evolve`. The upgrade skill handles:
 
 1. **CLAUDE-APPEND block update** — Refreshed session discipline block with new skill names.
 2. **Remove `_plugin_root` from config.json** — This key is no longer used. The upgrade skill should delete `_plugin_root` from the project's config.json if present.

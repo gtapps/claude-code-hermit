@@ -25,7 +25,7 @@
 
 ## Quick Reference
 
-`/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/hermit-upgrade` `/docker-setup` `/hermit-takeover` `/hermit-hand-back`
+`/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/hermit-evolve` `/docker-setup` `/hermit-takeover` `/hermit-hand-back`
 (All prefixed with `/claude-code-hermit:`)
 
 ## Operator Notification

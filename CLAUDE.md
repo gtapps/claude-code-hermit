@@ -16,7 +16,7 @@ After install, run `/claude-code-hermit:hatch` in the target project to create t
 ## Plugin Structure
 
 - `agents/` — subagent definitions (session-mgr only; hermit plugins add more subagents)
-- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, pulse, brief, monitor, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, channel-responder, hatch, hermit-upgrade, docker-setup, hermit-takeover, hermit-hand-back
+- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, pulse, brief, monitor, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, channel-responder, hatch, hermit-evolve, docker-setup, hermit-takeover, hermit-hand-back
 - `hooks/hooks.json` — hook registrations
 - `scripts/` — hook implementation scripts + boot scripts (hermit-start.py, hermit-stop.py)
 - `state-templates/` — templates copied into target projects by the `hatch` skill
@@ -94,6 +94,6 @@ Common skills (full list: [Skills Reference](docs/skills.md)):
 - `/claude-code-hermit:hermit-settings` — view/change config
 - `/claude-code-hermit:proposal-list` — view proposals (auto-triggers on "any proposals")
 - `/claude-code-hermit:proposal-act` — accept, defer, or dismiss a proposal
-- `/claude-code-hermit:hermit-upgrade` — update config and templates after plugin update
+- `/claude-code-hermit:hermit-evolve` — update config and templates after plugin update
 - `/claude-code-hermit:docker-setup` — generate Docker scaffolding for always-on
 - `/claude-code-hermit:hermit-takeover` / `hermit-hand-back` — operator control

@@ -583,5 +583,5 @@ Next steps:
   3. Change settings with /claude-code-hermit:hermit-settings
   4. Run /claude-code-hermit:smoke-test to verify the setup
   5. For always-on operation: /claude-code-hermit:docker-setup or .claude-code-hermit/bin/hermit-start
-  6. After plugin updates, run /claude-code-hermit:hermit-upgrade
+  6. After plugin updates, run /claude-code-hermit:hermit-evolve
 ```

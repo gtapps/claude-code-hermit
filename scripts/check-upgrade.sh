@@ -21,4 +21,4 @@ CONFIG_VER=$(python3 -c "import json,sys; c=json.load(open(sys.argv[1])); print(
 [ "$PLUGIN_VER" = "$CONFIG_VER" ] && exit 0
 
 echo "---Upgrade Available---"
-echo "Plugin v${PLUGIN_VER} ≠ config v${CONFIG_VER}. Run /claude-code-hermit:hermit-upgrade"
+echo "Plugin v${PLUGIN_VER} ≠ config v${CONFIG_VER}. Run /claude-code-hermit:hermit-evolve"

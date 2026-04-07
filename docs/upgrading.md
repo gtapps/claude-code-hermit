@@ -17,7 +17,7 @@ claude plugin marketplace add gtapps/claude-code-hermit
 Inside Claude Code, in each project that uses the plugin:
 
 ```
-/claude-code-hermit:hermit-upgrade
+/claude-code-hermit:hermit-evolve
 ```
 
 This detects the version gap, shows what changed, prompts for new settings, refreshes templates, and updates the CLAUDE.md session discipline block.
@@ -36,7 +36,7 @@ Hermits (e.g., `claude-code-dev-hermit`) upgrade the same way:
 claude plugin marketplace add your-org/claude-code-dev-hermit
 ```
 
-Then `/claude-code-hermit:hermit-upgrade` — it detects hermit version gaps automatically and updates their CLAUDE-APPEND blocks.
+Then `/claude-code-hermit:hermit-evolve` — it detects hermit version gaps automatically and updates their CLAUDE-APPEND blocks.
 
 Each hermit's version is tracked independently in `config.json`:
 
@@ -104,7 +104,7 @@ These aren't upgrades — just how your project evolves:
 
 ### Automatic migration
 
-Running `/claude-code-hermit:hermit-upgrade` handles:
+Running `/claude-code-hermit:hermit-evolve` handles:
 - `heartbeat.morning_routine` → `routines[{id:"morning",...}]`
 - `heartbeat.evening_routine` → `routines[{id:"evening",...}]`
 - `heartbeat.idle_agency` → `idle_behavior` (`true` → `"discover"`, `false` → `"wait"`)
@@ -114,7 +114,7 @@ Running `/claude-code-hermit:hermit-upgrade` handles:
 
 ### What you need to do
 
-1. Run `/claude-code-hermit:hermit-upgrade` to migrate config and refresh templates
+1. Run `/claude-code-hermit:hermit-evolve` to migrate config and refresh templates
 2. Review migrated routines: `/claude-code-hermit:hermit-settings routines`
 3. Optionally set `idle_behavior` to `discover`: `/claude-code-hermit:hermit-settings idle`
 
@@ -146,7 +146,7 @@ Running `/claude-code-hermit:hermit-upgrade` handles:
 
 ### Automatic migration
 
-Running `/claude-code-hermit:hermit-upgrade` handles:
+Running `/claude-code-hermit:hermit-evolve` handles:
 1. Creates `state/` directory and initializes all state files
 2. Migrates `_last_reflection` to state file, removes `self_eval_interval`
 3. Updates heartbeat frequency (interactive prompt)
@@ -159,7 +159,7 @@ Running `/claude-code-hermit:hermit-upgrade` handles:
 
 ### What you need to do
 
-1. Run `/claude-code-hermit:hermit-upgrade`
+1. Run `/claude-code-hermit:hermit-evolve`
 2. Review the heartbeat frequency prompt — consider accepting 2h (the new default)
 3. If using Obsidian, add the Agent Health query from [Obsidian Setup](obsidian-setup.md) to your dashboard
 
@@ -178,20 +178,20 @@ Running `/claude-code-hermit:hermit-upgrade` handles:
 - **Docker-setup** — Also writes `plugin_checks` entries.
 - **Security: entrypoint no longer mutates config.json** — The `bypassPermissions` write was removed. `hermit-start.py` already handles this via `--dangerously-skip-permissions` CLI flag. Previously, one Docker boot silently changed the persisted project config on the host bind mount.
 - **Security: bridge networking by default** — Docker compose template no longer hardcodes `network_mode: host`. Bridge is now the default; host networking requires explicit opt-in during `docker-setup`.
-- **Security: no auto-updates on boot** — Plugin update calls removed from the entrypoint. Auto-updates pulled unreviewed code that ran with `bypassPermissions`. Update explicitly via `/claude-code-hermit:hermit-upgrade` or image rebuild.
+- **Security: no auto-updates on boot** — Plugin update calls removed from the entrypoint. Auto-updates pulled unreviewed code that ran with `bypassPermissions`. Update explicitly via `/claude-code-hermit:hermit-evolve` or image rebuild.
 - **Security: full deny pattern set** — `docker-setup` and `hatch` now generate the complete deny set from `docs/SECURITY.md` (25 patterns for Docker, 22 for hatch hardened, 17 for hatch minimal). Previously only 8 patterns were generated. New additions include `.env` file access, credential exposure (`sudo`, `env`, `printenv`, `ssh`, `cat ~/.ssh/*`), and hook bypass (`--no-verify`).
 - **Security: Known Limitations** — New section in `SECURITY.md` documenting unaddressed surfaces: egress filtering, input sanitization, and blocklist nature of deny patterns.
 
 ### Automatic migration
 
-Running `/claude-code-hermit:hermit-upgrade` handles:
+Running `/claude-code-hermit:hermit-evolve` handles:
 1. Refreshes CLAUDE-APPEND.md (new Operator Notification section)
 2. Adds `plugin_checks: []` to config if missing, auto-populates for installed recommended plugins
 3. Initializes `plugin_checks` key in `state/reflection-state.json`
 
 ### What you need to do
 
-1. Run `/claude-code-hermit:hermit-upgrade`
+1. Run `/claude-code-hermit:hermit-evolve`
 2. If you have recommended plugins installed, verify the auto-populated `plugin_checks` entries: `/hermit-settings plugin-checks`
 3. **Docker users:** Re-run `/claude-code-hermit:docker-setup` to regenerate Docker files with security fixes, then rebuild (`hermit-docker up --build`)
 

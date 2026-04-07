@@ -185,7 +185,7 @@ fi
 
 # --- Plugin updates are NOT run on boot ---
 # Auto-updates would pull unreviewed code that runs with bypassPermissions.
-# Update explicitly: /claude-code-hermit:hermit-upgrade or rebuild the image.
+# Update explicitly: /claude-code-hermit:hermit-evolve or rebuild the image.
 
 # Export plugin root so hermit-run can skip the directory scan.
 HERMIT_MARKETPLACE="${MARKETPLACE_DIR}/claude-code-hermit"

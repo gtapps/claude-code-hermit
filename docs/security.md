@@ -118,7 +118,7 @@ Plugins run with the same permissions as Hermit. In Docker mode (`bypassPermissi
 
 **Policy:** The entrypoint only auto-installs plugins from `claude-plugins-official` (Anthropic's official marketplace). Third-party plugins are never auto-installed, regardless of config. They must be installed manually inside the container after the operator reviews the plugin source.
 
-**No auto-updates:** The entrypoint installs plugins on first boot but never auto-updates them. Plugin updates are operator-initiated via `/claude-code-hermit:hermit-upgrade` or image rebuild.
+**No auto-updates:** The entrypoint installs plugins on first boot but never auto-updates them. Plugin updates are operator-initiated via `/claude-code-hermit:hermit-evolve` or image rebuild.
 
 **Hermit does not vet, audit, or take responsibility for any plugin.** Even official plugins should be understood before enabling. You are responsible for evaluating what you install.
 
