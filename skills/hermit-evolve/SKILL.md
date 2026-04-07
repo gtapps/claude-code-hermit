@@ -122,8 +122,9 @@ Only update files in `templates/`:
 
 - Detect installed hermits using the same logic as init: scan `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json` for names containing "hermit" that aren't "claude-code-hermit"
 - For each detected hermit:
+  - **Skip if not in `_hermit_versions`** — if the hermit's name is not a key in `_hermit_versions`, it was never activated in this project (e.g. installed at user scope but not project scope). Skip it silently.
   - Read the hermit's `plugin.json` version
-  - Compare against `_hermit_versions[hermit_name]` (default `"0.0.0"` if missing)
+  - Compare against `_hermit_versions[hermit_name]`
   - If version gap exists:
     - Read the hermit's `CHANGELOG.md` if it exists and extract version entries between the config version (exclusive) and the current version (inclusive)
     - Present a summary: "{hermit_name}: upgrading from vOLD to vNEW. Here's what changed:" followed by only the relevant changelog sections
@@ -143,7 +144,8 @@ Same logic as init step 8: check `.claude/settings.json` for the plugin's requir
 ### 9. Write updated config
 
 - Merge new keys into existing config (existing operator values are never overwritten)
-- Update `_hermit_versions` with current versions for core and all detected hermits
+- Update `_hermit_versions["claude-code-hermit"]` to the current plugin version
+- For hermits: only update versions for hermits already present as keys in `_hermit_versions` — never add new keys here
 - Write to `.claude-code-hermit/config.json`
 
 ### 10. Report
