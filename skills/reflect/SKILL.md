@@ -4,6 +4,10 @@ description: Reflect on recent work and propose improvements if patterns are not
 ---
 # Reflect
 
+## Always-On Notification Rule
+
+In always-on mode (`runtime_mode` is `tmux` or `docker` in runtime.json) with channels configured, **all operator-facing output must be delivered via the configured channel** — not just to the terminal. The terminal is unmonitored; the channel is the operator's only interface. This applies to micro-proposal questions, plugin check findings, and any other notification this skill produces.
+
 Pause and think about your recent work.
 
 1. Read SHELL.md for current context
