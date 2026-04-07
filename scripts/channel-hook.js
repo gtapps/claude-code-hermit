@@ -23,7 +23,9 @@ const SERVER_TO_CHANNEL = {
 };
 
 function resolveChannel(toolName) {
-  const match = (toolName || '').match(/^mcp__([^_]+)__/);
+  // Matches both MCP format (mcp__discord__reply) and
+  // Channel plugin format (plugin_discord_discord_reply)
+  const match = (toolName || '').match(/^(?:mcp__|plugin_)(discord|telegram)/);
   if (!match) return null;
   return SERVER_TO_CHANNEL[match[1]] || null;
 }

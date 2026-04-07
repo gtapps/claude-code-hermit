@@ -255,7 +255,17 @@ run_test "channel-hook (activity file)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 20. channel-hook — empty stdin
+# 20. channel-hook — plugin_ prefix (channel plugin format)
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+echo '{"channels":{"discord":{"enabled":true,"dm_channel_id":null}}}' > "$workdir/.claude-code-hermit/config.json"
+run_test "channel-hook (plugin_ prefix)" bash -c \
+  "echo '{\"tool_name\":\"plugin_discord_discord_reply\",\"tool_input\":{\"chat_id\":\"789\"}}' | node '$REPO_ROOT/scripts/channel-hook.js' 2>/dev/null && python3 -c \"import json; c=json.load(open('$workdir/.claude-code-hermit/config.json')); assert c['channels']['discord']['dm_channel_id']=='789', c\""
+cleanup
+
+# -------------------------------------------------------
+# 21. channel-hook — empty stdin
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
