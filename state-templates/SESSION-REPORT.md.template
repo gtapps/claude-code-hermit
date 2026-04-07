@@ -1,12 +1,14 @@
 ---
 id: S-NNN
-status: completed
+status: completed  # completed | partial | blocked
 date: YYYY-MM-DDTHH:MM:SS±HH:MM
 duration: ~Xh
 cost_usd: 0.00
 tags: []
 proposals_created: []
 task: "" # first non-comment line from ## Task, max 120 chars
+escalation: "" # conservative | balanced | autonomous
+operator_turns: 0
 ---
 # Session Report: S-NNN
 

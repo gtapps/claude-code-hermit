@@ -16,7 +16,8 @@
   "idle_behavior": "discover",
   "idle_budget": "$0.50",
   "routines": [
-    {"id": "heartbeat-restart", "time": "04:00", "skill": "claude-code-hermit:heartbeat start", "run_during_waiting": true, "enabled": true}
+    {"id": "heartbeat-restart", "time": "04:00", "skill": "claude-code-hermit:heartbeat start", "run_during_waiting": true, "enabled": true},
+    {"id": "weekly-review", "time": "23:00", "days": ["sun"], "skill": "claude-code-hermit:weekly-review", "enabled": false}
   ],
   "env": {
     "AGENT_HOOK_PROFILE": "standard",

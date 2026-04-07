@@ -140,6 +140,7 @@ your-project/
 ├── .claude-code-hermit/
 │   ├── sessions/SHELL.md, S-NNN-REPORT.md
 │   ├── proposals/PROP-NNN.md
+│   ├── reviews/weekly-YYYY-WNN.md        # Weekly review reports (weekly-review.js)
 │   ├── templates/
 │   ├── state/                        # Runtime observations (agent-owned, not operator-configured)
 │   │   ├── alert-state.json          # Alert dedup state + self-eval evidence (heartbeat-owned)

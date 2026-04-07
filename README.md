@@ -4,6 +4,7 @@
   <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.3.6-green.svg" alt="Version 0.3.6" /></a>
   <img src="https://img.shields.io/badge/Claude-Pro%20%7C%20Max-blueviolet.svg" alt="Claude Pro/Max Compatible" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
+  <a href="docs/obsidian-setup.md"><img src="https://img.shields.io/badge/cortex-active-7c3aed.svg" alt="Hermit Cortex" /></a>
 </p>
 
 # claude-code-hermit

@@ -8,3 +8,5 @@
 .claude-code-hermit/MEMORY-SEED.md
 .claude-code-hermit/sessions/.eval-hash
 .claude-code-hermit/state/
+obsidian/
+hermit-state

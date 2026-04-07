@@ -77,6 +77,9 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
      - `tags`: from `**Tags:**` field, split on comma, trim whitespace, output as YAML array. E.g., `refactor, frontend` → `[refactor, frontend]`. Use `[]` if empty.
      - `proposals_created`: scan `## Proposals Created` section for PROP-NNN patterns, output as YAML array. Use `[]` if none.
      - `task`: extract the first non-comment, non-empty line from `## Task` in SHELL.md. Trim to 120 characters max. Use `""` if blank.
+     - `status`: must be one of `completed`, `partial`, `blocked`. Extract from the `**Status:**` field in SHELL.md. If the value is anything else, normalize to `partial` and add a line to `## Blockers` in the report: `Status normalized: original value \`<value>\` coerced to \`partial\`.`
+     - `escalation`: read `escalation` from `.claude-code-hermit/config.json`. If the field is missing or empty, default to `"balanced"`. Allowed values: `conservative`, `balanced`, `autonomous`.
+     - `operator_turns`: read `operator_turns` from `.claude-code-hermit/sessions/.status.json`. Use `0` if the field is missing or the file doesn't exist. This is the count of human-type transcript entries for this session, maintained by the cost-tracker hook.
    - **Write `## Overview`** with the one-line task description from `## Task`
    - **If a task table was provided in the invocation prompt**, include it as `## Plan` in the report
    - **Do NOT write a `## Summary` bullet list** — all structured metadata is in frontmatter only
@@ -114,6 +117,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
    - If unfinished tasks remain in the native task list, note: "Unfinished tasks remain in the task list."
    - Set Status to `idle` (cosmetic)
 8. **Clear transition and update runtime.json**: `transition: null`, `transition_target: null`, `transition_started_at: null`, `session_state: "idle"`, `session_id: null`, `shutdown_completed_at: <now>` (if this is a full shutdown close)
+   **Reset per-session counters in `.status.json`**: write `{"cost_usd": 0, "tokens": 0, "operator_turns": 0}` (merging into existing keys). Same atomic write pattern as On Task Complete step 10.
 
 ## On Task Complete (Idle Transition)
 
@@ -144,6 +148,7 @@ When the main session requests an idle transition (not a full close):
      `**S-NNN** (YYYY-MM-DD): [one-line task summary] — [status] ($X.XX)`
 8. **Clear transition and update runtime.json**: `transition: null`, `transition_target: null`, `transition_started_at: null`, `session_state: "idle"`. Pre-compute next `session_id` (for the next task).
 9. If cost data is available, preserve the cumulative total in the Cost section
+10. **Reset per-session counters in `.status.json`**: write `{"cost_usd": 0, "tokens": 0, "operator_turns": 0}` (merging into existing keys, preserving `session_id`, `status`, etc.). This ensures the next task's cost-tracker readings start from zero rather than carrying over this task's totals. Use atomic write: write to `sessions/.status.json.tmp`, rename to `sessions/.status.json`.
 
 ## On Progress Update
 

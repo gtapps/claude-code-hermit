@@ -82,12 +82,22 @@ function readLastTurnUsage(transcriptPath) {
         const entry = JSON.parse(lines[i]);
         if (entry.type === 'assistant' && entry.message?.usage) {
           const u = entry.message.usage;
+          // Detect operator interaction for operator_turns tracking
+          let hadHumanTurn = false;
+          for (let j = i - 1; j >= 0; j--) {
+            try {
+              const prev = JSON.parse(lines[j]);
+              hadHumanTurn = prev.type === 'human';
+              break; // stop at first valid entry before this assistant turn
+            } catch {}
+          }
           return {
             inputTokens:      u.input_tokens || 0,
             cacheWriteTokens: u.cache_creation_input_tokens || 0,
             cacheReadTokens:  u.cache_read_input_tokens || 0,
             outputTokens:     u.output_tokens || 0,
             model:            entry.message.model || '',
+            hadHumanTurn,
           };
         }
       } catch {}
@@ -109,13 +119,14 @@ function parseLogEntries() {
   }
 }
 
-function getCumulativeCost(newCost, newTokens) {
+function getCumulativeCost(newCost, newTokens, hadHumanTurn) {
   // O(1) path: read running totals from .status.json
   try {
     const status = JSON.parse(fs.readFileSync(STATUS_JSON, 'utf-8'));
     return {
       cost: (status.cost_usd || 0) + newCost,
       tokens: (status.tokens || 0) + newTokens,
+      operatorTurns: (status.operator_turns || 0) + (hadHumanTurn ? 1 : 0),
     };
   } catch {
     // First run or missing file — fall back to full scan
@@ -128,7 +139,11 @@ function getCumulativeCost(newCost, newTokens) {
     totalCost += entry.estimated_cost_usd || 0;
     totalTokens += entry.total_tokens || 0;
   }
-  return { cost: totalCost > 0 ? totalCost : newCost, tokens: totalTokens > 0 ? totalTokens : newTokens };
+  return {
+    cost: totalCost > 0 ? totalCost : newCost,
+    tokens: totalTokens > 0 ? totalTokens : newTokens,
+    operatorTurns: hadHumanTurn ? 1 : 0,
+  };
 }
 
 function checkBudget(budget, cumulativeCost) {
@@ -145,7 +160,8 @@ function checkBudget(budget, cumulativeCost) {
 
 const MAX_SUMMARY_LEN = 120;
 
-function writeStatusJson(shellContent, cumulativeCost, cumulativeTokens, budget, sessionId) {
+function writeStatusJson(shellContent, cumulative, budget, sessionId) {
+  const { cost: cumulativeCost, tokens: cumulativeTokens, operatorTurns: cumulativeOperatorTurns } = cumulative;
   const statusMatch = shellContent.match(/\*\*Status:\*\*\s*(\S+)/);
   const taskMatch = shellContent.match(/## Task\n([\s\S]*?)(?=\n## |$)/);
   const blockersMatch = shellContent.match(/## Blockers\n([\s\S]*?)(?=\n## |$)/);
@@ -174,6 +190,7 @@ function writeStatusJson(shellContent, cumulativeCost, cumulativeTokens, budget,
     cost_usd: Math.round(cumulativeCost * 10000) / 10000,
     budget_usd: budget,
     tokens: cumulativeTokens,
+    operator_turns: cumulativeOperatorTurns,
     blockers: hasBlockers ? blockersText.split('\n')[0].substring(0, MAX_SUMMARY_LEN) : null,
   };
 
@@ -361,7 +378,7 @@ async function main() {
       process.exit(0);
     }
 
-    const { inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens, model: rawModel } = turn;
+    const { inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens, model: rawModel, hadHumanTurn } = turn;
     const model = detectModel(rawModel);
 
     const totalTokens = inputTokens + cacheWriteTokens + cacheReadTokens + outputTokens;
@@ -391,7 +408,7 @@ async function main() {
     fs.appendFileSync(COST_LOG, JSON.stringify(logEntry) + '\n', 'utf-8');
 
     // Running total from .status.json (O(1)), falls back to full JSONL scan on first run
-    const cumulative = getCumulativeCost(roundedCost, totalTokens);
+    const cumulative = getCumulativeCost(roundedCost, totalTokens, hadHumanTurn);
     const costStr = `$${cumulative.cost.toFixed(4)}`;
     const tokenStr = `${Math.round(cumulative.tokens / 1000)}K tokens`;
 
@@ -399,7 +416,7 @@ async function main() {
     try {
       const shellContent = fs.readFileSync(SHELL_SESSION, 'utf-8');
       const budget = parseBudget(shellContent);
-      writeStatusJson(shellContent, cumulative.cost, cumulative.tokens, budget, runtimeSessionId || sessionId);
+      writeStatusJson(shellContent, cumulative, budget, runtimeSessionId || sessionId);
       checkBudget(budget, cumulative.cost);
     } catch {
       // Non-fatal — session file may not exist yet

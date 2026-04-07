@@ -36,6 +36,8 @@ When the operator accepts a proposal:
    Accepted on 2026-04-06T14:30:00+01:00.
    ```
 
+3a. **Session tracking:** Read `state/runtime.json`. If `session_id` is non-null, set `accepted_in_session` to that session ID in the proposal's YAML frontmatter. If no session is active (`session_id` is null), leave `accepted_in_session: null`.
+
 3b. **Routine proposals.** If the proposal metadata contains `Type: routine` and a `## Config` section with a JSON block:
     - Parse the JSON block. Validate: must have `id`, `time`, `skill`, `enabled` fields.
     - Check for duplicate `id` in existing `config.json` routines array — if found, update the existing entry instead of appending.

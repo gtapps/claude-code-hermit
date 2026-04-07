@@ -2,6 +2,34 @@
 
 ## [0.3.6] - 2026-04-07
 
+### Added
+
+- **Hermit Cortex** — optional Obsidian surface over hermit state. Run `/claude-code-hermit:obsidian-setup` to create `obsidian/` with six pages: Brain (live session, fragile zones), Cortex (mindstate: uncertainty, regressions, operator dependence), Evolution (first vs latest, cost trend, autonomy trajectory), System Health (agent state embed), Connections (relationship map: sessions ↔ proposals), Cortex Portal (graph center). Requires Dataview plugin. Symlink and Folder Bridge path modes supported.
+
+- **`scripts/build-cortex.js`** — generates `obsidian/Connections.md` and `obsidian/Cortex Portal.md` from session and proposal frontmatter. Zero npm dependencies. Runs at setup and nightly via `connections-refresh` routine.
+
+- **`/claude-code-hermit:connections-refresh`** — lightweight skill wrapper that regenerates Connections.md and Cortex Portal.md. Added as a nightly routine at 23:30 by `/obsidian-setup`.
+
+- **Weekly review** (`scripts/weekly-review.js` + `/claude-code-hermit:weekly-review`) — generates `.claude-code-hermit/reviews/weekly-YYYY-WNN.md` each Sunday. Covers: session count and cost, proposal lifecycle, recently resolved with honesty-rule impact numbers, operator dependence, and open loops (proposals with 5+ sessions and no action). Updates `obsidian/Latest Review.md` — the stable pointer all cortex pages link to. Honesty rule: impact numbers shown only when the tag appears in fewer than 30% of all sessions; otherwise "observed trend." Routine ships `enabled: false` — enable after running `/obsidian-setup`.
+
+- **`operator_turns` field on session reports** — the cost-tracker hook now counts human-type transcript entries per session and stores a running total in `.status.json`. Session-mgr reads `operator_turns` from `.status.json` at archive time and writes it to the session report frontmatter. A session with `operator_turns = 0` completed without any operator redirection — the real autonomy metric. In always-on mode, the count includes channel messages and heartbeat triggers, but the relative difference across sessions still tells the story.
+
+- **`escalation` field on session reports** — snapshot of the `escalation` value from `config.json` at archive time (`conservative | balanced | autonomous`). Cortex.md shows both: escalation (configured trust level) and operator_turns (actual interaction count). Together they answer whether the operator trusted the hermit and whether that trust was justified.
+
+- **`accepted_in_session` field on proposals** — when a proposal is accepted, `proposal-act` now reads `session_id` from `runtime.json` and writes `accepted_in_session` to the proposal frontmatter. The *where* companion to the existing `accepted_date` (*when*).
+
+- **Session status enum formalized** — `status` in session reports must be one of `completed | partial | blocked`. Session-mgr now enforces this: unknown values are coerced to `partial` with a visible warning in the report's `## Blockers` section.
+
+- **`obsidian/` and `hermit-state` added to gitignore template** — prevents accidental commits of generated Obsidian files. Added to `state-templates/GITIGNORE-APPEND.txt`.
+
+- **`cortex | active` badge** in README — links to `docs/obsidian-setup.md`.
+
+### Changed
+
+- **`docs/obsidian-setup.md` revised** — full rewrite with Hermit Cortex framing, six-page reference, symlink-primary setup, graph view positioning, maturity expectations ("at session 1 vs session 20"), and Obsidian Bases write-back warning.
+
+- **`state-templates/config.json.template`** — added `weekly-review` routine entry (`enabled: false`).
+
 ### Fixed
 
 - **Docker: OAuth token expiry detected at container startup** — When the OAuth token had expired, the container would start silently and only fail once Claude Code tried to make a request (showing a 401 inside the tmux session). The entrypoint now parses `claudeAiOauth.expiresAt` from `.credentials.json` before launching and — if the token is expired — blocks with a clear banner and waits up to 10 minutes for `hermit-docker login` to supply fresh credentials, mirroring the first-boot flow. API key users are unaffected. Falls through silently if the expiry field is absent or the file is unreadable.
@@ -14,6 +42,28 @@
 
 | File | Change |
 |------|--------|
+| `scripts/cost-tracker.js` | Count human transcript entries per turn; store `operator_turns` in `.status.json` |
+| `scripts/build-cortex.js` | New — generates Connections.md + Cortex Portal.md |
+| `scripts/weekly-review.js` | New — weekly review report + Latest Review.md pointer |
+| `scripts/lib/frontmatter.js` | New — shared YAML frontmatter parser + directory glob helper |
+| `skills/obsidian-setup/SKILL.md` | New — one-time cortex setup skill |
+| `skills/connections-refresh/SKILL.md` | New — nightly Connections + Portal regeneration |
+| `skills/weekly-review/SKILL.md` | New — weekly review wrapper skill |
+| `state-templates/obsidian/Brain.md.template` | New |
+| `state-templates/obsidian/Cortex.md.template` | New |
+| `state-templates/obsidian/Evolution.md.template` | New |
+| `state-templates/obsidian/System Health.md.template` | New |
+| `state-templates/obsidian/Connections.md.template` | New (header only — body generated by script) |
+| `state-templates/obsidian/Cortex Portal.md.template` | New (header only — body generated by script) |
+| `state-templates/SESSION-REPORT.md.template` | Added `escalation`, `operator_turns` fields; formalized `status` comment |
+| `state-templates/PROPOSAL.md.template` | Added `accepted_in_session` field |
+| `state-templates/GITIGNORE-APPEND.txt` | Added `obsidian/` and `hermit-state` |
+| `state-templates/config.json.template` | Added `weekly-review` routine (disabled by default) |
+| `agents/session-mgr.md` | Extraction rules for `escalation`, `operator_turns`, `status` enum enforcement; `.status.json` reset on idle transition and session close |
+| `skills/proposal-act/SKILL.md` | Step 3a: populate `accepted_in_session` on accept |
+| `docs/obsidian-setup.md` | Full rewrite — Hermit Cortex framing, six-page reference, symlink-primary |
+| `docs/architecture.md` | Added `reviews/` to file map |
+| `README.md` | Added `cortex \| active` badge |
 | `state-templates/docker/docker-entrypoint.hermit.sh.template` | Added OAuth expiry check (step 0b) |
 | `state-templates/bin/hermit-docker` | Added `_oauth_hint` helper; called from `up` and `restart` |
 | `skills/hermit-evolve/SKILL.md` | Default missing `_hermit_versions` entry to `"0.0.0"` |
@@ -22,11 +72,17 @@
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
-1. **`hermit-docker` updated automatically** — The evolve skill copies all files from `state-templates/bin/` into `.claude-code-hermit/bin/`, so `hermit-docker` gets the OAuth hint on `up`/`restart` without any manual step.
+1. **Hermit Cortex setup (optional)** — Run `/claude-code-hermit:obsidian-setup` in any project where you want the Obsidian surface. This is a one-time step per project and is not applied automatically by hermit-evolve.
 
-2. **Docker image rebuild required for OAuth expiry detection** — The entrypoint change lives in `docker-entrypoint.hermit.sh`, which is baked into the Docker image. To get the expiry check, re-run `/claude-code-hermit:docker-setup` (say "yes" to regenerate when prompted), then rebuild: `docker compose -f docker-compose.hermit.yml build` and `hermit-docker up`.
+2. **`operator_turns` and `escalation` on future session reports** — No migration needed. New fields appear automatically on the next session close. Existing reports without these fields will show `null` in Dataview queries; filter with `WHERE operator_turns != null` to exclude them.
 
-No `config.json` changes required. CLAUDE-APPEND not affected.
+3. **Weekly review routine** — Added to `config.json.template` as `enabled: false`. Not auto-applied to existing projects. To enable: run `/claude-code-hermit:hermit-settings` and set `routines[weekly-review].enabled` to `true`, or add the entry manually to your project's `config.json`.
+
+4. **`.status.json` counter reset** — session-mgr now resets `cost_usd`, `tokens`, and `operator_turns` in `.status.json` at each idle transition and session close. No operator action needed — takes effect on the next transition.
+
+5. **`hermit-docker` updated automatically** — The evolve skill copies all files from `state-templates/bin/` into `.claude-code-hermit/bin/`, so `hermit-docker` gets the OAuth hint on `up`/`restart` without any manual step.
+
+6. **Docker image rebuild required for OAuth expiry detection** — The entrypoint change lives in `docker-entrypoint.hermit.sh`, which is baked into the Docker image. To get the expiry check, re-run `/claude-code-hermit:docker-setup` (say "yes" to regenerate when prompted), then rebuild: `docker compose -f docker-compose.hermit.yml build` and `hermit-docker up`.
 
 ## [0.3.5] - 2026-04-07
 

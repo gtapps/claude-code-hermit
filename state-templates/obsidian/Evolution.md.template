@@ -1,0 +1,58 @@
+# Evolution
+
+> How this hermit has changed over time.
+
+## First Session
+```dataview
+TABLE task, cost_usd AS "Cost", duration, escalation
+FROM "{{HERMIT_PATH}}/sessions"
+WHERE id
+SORT date ASC LIMIT 1
+```
+
+## Latest Session
+```dataview
+TABLE task, cost_usd AS "Cost", duration, escalation
+FROM "{{HERMIT_PATH}}/sessions"
+WHERE id
+SORT date DESC LIMIT 1
+```
+
+## Cost by Week
+```dataview
+TABLE length(rows) AS "Sessions", round(sum(rows.cost_usd), 2) AS "Cost"
+FROM "{{HERMIT_PATH}}/sessions"
+WHERE id
+GROUP BY dateformat(date, "yyyy-'W'WW") AS "Week"
+SORT Week DESC
+LIMIT 8
+```
+
+## Autonomy Over Time
+<!-- operator_turns = 0: completed without operator redirection. Escalation: configured trust level. -->
+```dataview
+TABLE
+  length(filter(rows, (r) => r.operator_turns = 0)) AS "Self-directed",
+  length(filter(rows, (r) => r.operator_turns > 0)) AS "Assisted",
+  length(rows) AS "Total",
+  round(length(filter(rows, (r) => r.operator_turns = 0)) / length(rows) * 100) + "%" AS "Rate"
+FROM "{{HERMIT_PATH}}/sessions"
+WHERE id AND operator_turns != null
+GROUP BY dateformat(date, "yyyy-'W'WW") AS "Week"
+SORT Week DESC
+LIMIT 8
+```
+
+## Proposal Resolution Time
+```dataview
+TABLE title,
+  (date(resolved_date) - date(created)).days AS "Days to Resolve",
+  resolved_date
+FROM "{{HERMIT_PATH}}/proposals"
+WHERE id AND status = "resolved" AND resolved_date
+SORT resolved_date DESC
+LIMIT 15
+```
+
+---
+[[Brain]] · [[Cortex]] · [[Connections]]
