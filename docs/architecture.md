@@ -269,7 +269,7 @@ config.json "env"  →  hermit-start.py  →  .claude/settings.local.json "env" 
 
 **Bucket B (settings.local.json only):** `AGENT_HOOK_PROFILE`, `COMPACT_THRESHOLD`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, `MAX_THINKING_TOKENS` — consumed by hooks and Claude Code itself.
 
-**Bucket C (both shell env AND settings.local.json):** `DISCORD_STATE_DIR`, `TELEGRAM_STATE_DIR` — needed as OS env for MCP servers (channel plugins), also in settings.local.json for hooks. Forwarded via temp file in tmux, or Docker compose `environment:`.
+**Bucket C (derived at boot, written to both):** `DISCORD_STATE_DIR`, `TELEGRAM_STATE_DIR` — derived by `hermit-start` from `channels.<name>.state_dir` in config.json. Written to `settings.local.json` for hooks and forwarded into the tmux shell env (or Docker compose `environment:`) for MCP servers (channel plugins), which inherit shell env but don't read `settings.local.json`.
 
 ### config.json env defaults
 
@@ -279,8 +279,8 @@ config.json "env"  →  hermit-start.py  →  .claude/settings.local.json "env" 
 | `MAX_THINKING_TOKENS`             | `10000`    | Cap thinking budget         |
 | `AGENT_HOOK_PROFILE`              | `standard` | Active hook profile         |
 | `COMPACT_THRESHOLD`               | `50`       | Compaction suggestion threshold |
-| `DISCORD_STATE_DIR`               | (dynamic)  | Set when discord channel configured |
-| `TELEGRAM_STATE_DIR`              | (dynamic)  | Set when telegram channel configured |
+| `DISCORD_STATE_DIR`               | (derived)  | Derived from `channels.discord.state_dir` at boot |
+| `TELEGRAM_STATE_DIR`              | (derived)  | Derived from `channels.telegram.state_dir` at boot |
 
 ### Denied operations
 

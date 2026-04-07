@@ -33,7 +33,7 @@ DEFAULT_CONFIG = {
     'timezone': None,
     'escalation': 'balanced',
     'sign_off': None,
-    'channels': [],
+    'channels': {},
     'remote': True,
     'model': None,
     'permission_mode': 'acceptEdits',
@@ -41,14 +41,12 @@ DEFAULT_CONFIG = {
     'auto_session': True,
     'ask_budget': False,
     'always_on': False,
-    'morning_brief': None,
     'env': {
         'AGENT_HOOK_PROFILE': 'standard',
         'COMPACT_THRESHOLD': '50',
         'CLAUDE_AUTOCOMPACT_PCT_OVERRIDE': '50',
         'MAX_THINKING_TOKENS': '10000',
     },
-    'allowed_users': {},
     'docker': {
         'packages': [],
     },
@@ -213,14 +211,26 @@ CHANNEL_PLUGINS = {
 }
 
 
+def iter_channel_configs(config):
+    """Yield (name, cfg) for channels whose config is a valid dict."""
+    for name, cfg in config.get('channels', {}).items():
+        if isinstance(cfg, dict):
+            yield name, cfg
+
+
+def get_enabled_channels(config):
+    """Return list of enabled channel names."""
+    return [name for name, cfg in iter_channel_configs(config) if cfg.get('enabled', True)]
+
+
 def build_claude_command(config):
     """Build the claude launch command from config."""
     cmd = ['claude']
 
-    channels = config.get('channels', [])
-    if channels:
+    enabled_channels = get_enabled_channels(config)
+    if enabled_channels:
         cmd.append('--channels')
-        for channel in channels:
+        for channel in enabled_channels:
             plugin_id = CHANNEL_PLUGINS.get(channel)
             if plugin_id:
                 cmd.append(plugin_id)
@@ -291,6 +301,15 @@ def write_settings_env(config):
     if env_vars:
         settings['env'].update(env_vars)
 
+    # MCP servers (channel plugins) are separate processes that inherit OS env —
+    # they don't read settings.local.json directly. Without *_STATE_DIR the
+    # plugin defaults to ~/.claude/channels/<plugin>/, which is lost on Docker
+    # container restart.
+    for ch_name, ch_cfg in iter_channel_configs(config):
+        state_dir = ch_cfg.get('state_dir')
+        if state_dir:
+            settings['env'][f'{ch_name.upper()}_STATE_DIR'] = state_dir
+
     # Validate AGENT_HOOK_PROFILE — only known profiles allowed
     profile = settings['env'].get('AGENT_HOOK_PROFILE', 'standard')
     if profile not in PROFILE_LEVELS:
@@ -350,7 +369,7 @@ def main():
         print('[hermit] Agent: (unnamed)')
     print(f'[hermit] Project: {Path.cwd().name}')
     print(f'[hermit] Model: {config.get("model") or "default"}')
-    print(f'[hermit] Channels: {", ".join(config.get("channels", [])) or "none"}')
+    print(f'[hermit] Channels: {", ".join(get_enabled_channels(config)) or "none"}')
     print(f'[hermit] Remote: {"enabled" if config.get("remote") else "disabled"}')
     print(f'[hermit] Permissions: {config.get("permission_mode") or "acceptEdits"}')
 
@@ -393,12 +412,11 @@ def main():
     # Auth vars must be in shell env before claude launches.
     # *_STATE_DIR vars must be OS env because MCP servers (channel plugins)
     # inherit shell env but don't read settings.local.json.
-    forward_vars = [
-        'CLAUDE_CONFIG_DIR',
-        'ANTHROPIC_API_KEY',
-        'DISCORD_STATE_DIR',
-        'TELEGRAM_STATE_DIR',
-    ]
+    forward_vars = ['CLAUDE_CONFIG_DIR', 'ANTHROPIC_API_KEY']
+    # *_STATE_DIR vars must reach MCP servers via OS env — see write_settings_env.
+    for ch_name, ch_cfg in iter_channel_configs(config):
+        if ch_cfg.get('state_dir'):
+            forward_vars.append(f'{ch_name.upper()}_STATE_DIR')
     env_file = Path('/tmp') / f'.hermit-env-{session_name}'
     with open(env_file, 'w') as f:
         for var in forward_vars:

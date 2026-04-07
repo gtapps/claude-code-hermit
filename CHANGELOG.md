@@ -1,5 +1,72 @@
 # Changelog
 
+## [0.3.4] - 2026-04-07
+
+### Changed
+
+- **Channel config consolidated into a single `channels` object** — Previously, channel-related settings were scattered across four top-level keys: `channels` (array), `allowed_users` (object), `morning_brief` (object), and `env.DISCORD_STATE_DIR` / `env.TELEGRAM_STATE_DIR`. All channel config now lives under a single `channels` object keyed by channel name.
+
+  Old structure:
+  ```json
+  {
+    "channels": ["discord"],
+    "allowed_users": { "discord": ["123456789"] },
+    "morning_brief": { "enabled": true, "time": "07:00", "channel": "discord" },
+    "env": { "DISCORD_STATE_DIR": "/abs/path/.claude.local/channels/discord" }
+  }
+  ```
+
+  New structure:
+  ```json
+  {
+    "channels": {
+      "discord": {
+        "enabled": true,
+        "allowed_users": ["123456789"],
+        "dm_channel_id": null,
+        "state_dir": "/abs/path/.claude.local/channels/discord",
+        "morning_brief": { "enabled": true, "time": "07:00" }
+      }
+    }
+  }
+  ```
+
+  `dm_channel_id` is new — the agent learns the DM channel ID from the first inbound message and stores it here for outbound proactive notifications. Discord DM channel IDs differ from user IDs; using the user ID as a channel ID silently failed.
+
+  `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` env vars are still set with their exact static names (required by the channel plugin) — `hermit-start` now derives them from `channels.<name>.state_dir` at boot instead of reading them from `config.env`. No change to how the channel plugin sees these vars.
+
+### Fixed
+
+- **Outbound Discord DM notifications used user ID instead of channel ID** — Proactive notifications (heartbeat alerts, morning briefs, idle transitions) called the Discord `reply` tool with the user ID from `allowed_users` as the `chat_id`. Discord requires the DM channel ID, not the user ID — these are different snowflakes. The agent now reads `channels.discord.dm_channel_id`, which is populated from the first inbound message via `channel-responder`.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/config.json.template` | `channels: []` → `channels: {}`, removed `morning_brief`, removed `*_STATE_DIR` from `env` |
+| `scripts/hermit-start.py` | `build_claude_command` iterates enabled channel keys; `write_settings_env` derives `*_STATE_DIR` from `channels.<name>.state_dir`; `forward_vars` built dynamically |
+| `skills/hatch/SKILL.md` | Wizard writes new nested channel structure; removed separate `allowed_users`, `morning_brief`, `*_STATE_DIR` env instructions |
+| `skills/docker-setup/SKILL.md` | Channel setup writes `state_dir` to `channels.<name>.state_dir`; compose env lines derived from channel config |
+| `skills/channel-responder/SKILL.md` | Authorization reads `channels.<channel>.allowed_users`; new step 1d persists `chat_id` to `channels.<channel>.dm_channel_id` |
+| `state-templates/CLAUDE-APPEND.md` | Outbound notification reads `channels.<channel>.dm_channel_id`; clarified user ID ≠ DM channel ID |
+| `skills/hermit-settings/SKILL.md` | "channels" argument manages new object structure; "brief" reads/writes `channels.<channel>.morning_brief` |
+| `skills/hermit-upgrade/SKILL.md` | Added v0.3.4 migration |
+| `docs/config-reference.md` | New `channels` section; updated top-level table; updated complete example |
+| `docs/troubleshooting.md`, `docs/architecture.md`, `docs/always-on.md` | Updated channel config references |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-upgrade`. The v0.3.4 migration will:
+1. Detect the old `channels` array format and convert it to the new object structure
+2. Move `allowed_users` and `morning_brief` into each channel's entry
+3. Move `*_STATE_DIR` values into `channels.<name>.state_dir` and remove them from `env`
+4. Refresh `CLAUDE-APPEND.md` block in CLAUDE.md (outbound notification logic changed)
+5. Refresh templates
+
+After migration, send any message to your bot — `channel-responder` will populate `dm_channel_id` from the first inbound message, enabling reliable outbound notifications.
+
+**If you have no channels configured:** No config.json changes required. CLAUDE-APPEND still refreshes.
+
 ## [0.3.3] - 2026-04-06
 
 ### Fixed

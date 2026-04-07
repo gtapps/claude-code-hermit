@@ -180,8 +180,8 @@ questions: [
 ]
 ```
 
-- **If None:** record `channels: []`. **Stop — proceed directly to Phase 6. Do not ask channel follow-ups.**
-- **If Discord or Telegram:** record short name in `channels` array (e.g., `["discord"]`). Boot script maps it to the full plugin identifier. Then ask follow-ups below.
+- **If None:** record `channels: {}`. **Stop — proceed directly to Phase 6. Do not ask channel follow-ups.**
+- **If Discord or Telegram:** create a channel entry under the `channels` object (e.g., `channels.discord`). Boot script maps the key to the full plugin identifier. Then ask follow-ups below.
 - If the channel plugin isn't installed, note: "Install the channel plugin locally: `claude plugin install <plugin>@claude-plugins-official --scope local`"
 
 **Channel follow-ups (only if Discord or Telegram was selected above — AskUserQuestion batch, 2 questions):**
@@ -202,8 +202,8 @@ questions: [
 ]
 ```
 
-- **Access control:** If user ID provided, record in `allowed_users.<channel>` as a single-element array (e.g., `"allowed_users": {"discord": ["123456789"]}`). If skip, omit `allowed_users` key (absent = accept all, backwards compatible). Note: "Add more user IDs later with `/claude-code-hermit:hermit-settings channels`. An empty array [] blocks all messages."
-- **Morning brief:** If yes, record as `morning_brief: { "enabled": true, "time": "07:00", "channel": "<selected channel>" }`. If no, record `null`.
+- **Access control:** If user ID provided, record in `channels.<channel>.allowed_users` as a single-element array (e.g., `"channels": {"discord": {"allowed_users": ["123456789"]}}`). If skip, omit the key (absent = accept all). Note: "Add more user IDs later with `/claude-code-hermit:hermit-settings channels`. An empty array [] blocks all messages."
+- **Morning brief:** If yes, record as `channels.<channel>.morning_brief: { "enabled": true, "time": "07:00" }`. If no, omit the key (or set to `null`).
 
 #### Phase 6 — Deployment (AskUserQuestion batch, 2 questions)
 
@@ -250,13 +250,12 @@ Write the collected preferences to `.claude-code-hermit/config.json`:
   "timezone": null,
   "escalation": "balanced",
   "sign_off": null,
-  "channels": [],
+  "channels": {},
   "remote": true,
   "permission_mode": "acceptEdits",
   "tmux_session_name": "hermit-{project_name}",
   "auto_session": true,
   "ask_budget": false,
-  "morning_brief": null,
   "idle_behavior": "discover",
   "idle_budget": "$0.50",
   "routines": [],
@@ -286,11 +285,23 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` to get the current plugi
 
 If re-initializing: merge with existing config (preserve values not asked about, update values that were asked about).
 
-If channels were configured in Phase 5, also add channel state dirs to `env` using the **absolute project path** (resolve from `pwd`):
-- For discord: `"DISCORD_STATE_DIR": "<project_path>/.claude.local/channels/discord"`
-- For telegram: `"TELEGRAM_STATE_DIR": "<project_path>/.claude.local/channels/telegram"`
+If channels were configured in Phase 5, populate each channel's entry in the `channels` object using the **absolute project path** (resolve from `pwd`):
 
-The channel plugin writes both its token (`.env`) and access config (`access.json`) to this directory. Without `*_STATE_DIR`, the plugin defaults to `~/.claude/channels/<plugin>/` — which works on the host but is lost on Docker container restart. These env vars are written to `.claude/settings.local.json` by `hermit-start` at boot.
+```json
+"channels": {
+  "discord": {
+    "enabled": true,
+    "allowed_users": ["<user-id-if-provided>"],
+    "dm_channel_id": null,
+    "state_dir": "<project_path>/.claude.local/channels/discord",
+    "morning_brief": { "enabled": true, "time": "07:00" }
+  }
+}
+```
+
+Omit `allowed_users` if the operator skipped access control. Omit `morning_brief` (or set to `null`) if the operator declined. `dm_channel_id` always starts as `null` — it is learned from the first inbound message.
+
+`state_dir` is the absolute path where the channel plugin writes its token (`.env`) and access config (`access.json`). `hermit-start` derives the `*_STATE_DIR` env var from this field at boot — no need to duplicate it in `env`. Without `state_dir`, the plugin defaults to `~/.claude/channels/<plugin>/`, which is lost on Docker container restart.
 
 ### 5-task. Write task list ID to settings.local.json
 

@@ -15,7 +15,8 @@
 
 Hermit uses proactive channel sends for heartbeat alerts, morning briefs, and idle transition notifications. If messages aren't arriving:
 
-- **Check `allowed_users` in config.json:** Proactive sends require exactly one allowed user for the active channel. If absent, empty, or multiple users configured, there's no unambiguous outbound target. Add your user ID via `/hermit-settings channels`.
+- **Check `channels.<name>.allowed_users` in config.json:** Proactive sends require exactly one allowed user for the active channel. If absent, empty, or multiple users configured, there's no unambiguous outbound target. Add your user ID via `/hermit-settings channels`.
+- **Check `channels.<name>.dm_channel_id`:** Outbound Discord DM notifications require the DM channel ID, not the user ID. This is learned automatically from the first inbound message. If it's `null`, send any message to the bot to populate it.
 - **Verify the `reply` tool is available:** Channels must be started with `--channels` for the plugin's `reply` tool to be accessible. Check boot output.
 - **`channel-send-unavailable` alert:** If sends are failing, heartbeat records this as a deduped alert. Check SHELL.md Findings for the unsent message content.
 - **Always-on vs interactive:** In interactive mode, channel plugins may not be running. Proactive sends only work when Claude Code is launched with `--channels`.
@@ -146,6 +147,6 @@ Usually a UID mismatch between the host and the container user. The generated Do
 
 - Verify the channel plugin is installed inside the container: `hermit-docker attach`, then check with `claude plugin list`.
 - Check bot pairing: send a test message to the bot and watch the logs (`hermit-docker logs`).
-- For Discord: ensure `DISCORD_STATE_DIR` is set in `config.json` `env` and the state directory is bind-mounted.
-- For Telegram: ensure the bot token is set and `TELEGRAM_STATE_DIR` is configured.
+- For Discord: ensure `channels.discord.state_dir` is set in `config.json` and the directory is bind-mounted in `docker-compose.hermit.yml`. `hermit-start` derives `DISCORD_STATE_DIR` from this at boot.
+- For Telegram: ensure `channels.telegram.state_dir` is set and the bot token is in the state directory's `.env` file.
 

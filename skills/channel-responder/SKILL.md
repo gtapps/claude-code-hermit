@@ -24,21 +24,27 @@ If runtime.json `session_state` is `waiting` (alive but blocked on input):
 
 ## 1c. Check Authorization
 
-Read `allowed_users` from `config.json` for this channel:
+Read `config.json` → `channels.<channel>.allowed_users` for the inbound channel:
 - Extract the sender's platform user ID from the message metadata
-- If the sender is not in the allowed_users list: ignore the message silently — do not respond, do not log. Applies to ALL message types including status requests.
-- If `allowed_users` field is absent for this channel: accept all messages (backwards compatible)
+- If the sender is not in the `allowed_users` list: ignore the message silently — do not respond, do not log. Applies to ALL message types including status requests.
+- If `allowed_users` is absent for this channel: accept all messages (backwards compatible)
 - If `allowed_users` is an empty array `[]`: accept from no one (explicit lockdown)
 
-The allowlist is per-channel in config.json:
+The allowlist is per-channel inside the `channels` object in config.json:
 ```json
 {
-  "allowed_users": {
-    "discord": ["user-id-1"],
-    "telegram": ["user-id-1"]
+  "channels": {
+    "discord": { "enabled": true, "allowed_users": ["user-id-1"] },
+    "telegram": { "enabled": true, "allowed_users": ["user-id-1"] }
   }
 }
 ```
+
+## 1d. Persist Chat ID
+
+After authorization passes, store the inbound `chat_id` to `config.json` → `channels.<channel>.dm_channel_id` (e.g. `channels.discord.dm_channel_id`) if it differs from the currently stored value or hasn't been stored yet.
+
+This is how the agent learns the DM channel ID for proactive outbound notifications. In Discord, the DM channel ID differs from the user ID and is only discoverable from an inbound message. Write back to `config.json` only when the value has changed to avoid unnecessary writes.
 
 ## 2. Classify the Message
 

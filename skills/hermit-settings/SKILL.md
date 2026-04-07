@@ -113,8 +113,20 @@ Ask: "Sign-off line for channel messages and briefs? (e.g., 'Atlas out.', '— A
 Update `sign_off` in config.json. Set to `null` if operator says "none" or "clear".
 
 **If argument is "channels":**
-Ask: "Configure channels for this project? (telegram / discord / none) [current value]"
-Update `channels` array in config.json. Store short names (e.g., `"discord"`); the boot script maps them to full plugin identifiers.
+Show current channel configuration from `config.json` → `channels` object:
+```
+Channels:
+  discord  enabled  allowed_users: [123456789]  morning_brief: 07:00  state_dir: /abs/path/...
+  (or "No channels configured")
+```
+Ask: "Add, remove, or edit a channel? (add discord / add telegram / remove <name> / edit <name> / done) [done]"
+Loop until operator says "done":
+- **add <name>:** Create entry `channels.<name>: { "enabled": true, "dm_channel_id": null }`. Prompt for `allowed_users` (paste user ID or skip) and `state_dir` (absolute path — defaults to `<project_path>/.claude.local/channels/<name>`). Set `state_dir` in the channel entry. Note: "Run `/claude-code-hermit:docker-setup` to configure the channel token."
+- **remove <name>:** Delete `channels.<name>` from config.json.
+- **edit <name>:** Sub-menu — "What to change? (allowed_users / morning_brief / enabled / done)"
+  - **allowed_users:** "Paste user IDs (space-separated), or 'clear' to allow everyone, or 'block' for empty array." Update `channels.<name>.allowed_users`.
+  - **morning_brief:** "Enable morning brief for this channel? (yes <time> / no) [current]". If yes: `channels.<name>.morning_brief = { "enabled": true, "time": "<HH:MM>" }`. If no: set to `null`.
+  - **enabled:** Toggle `channels.<name>.enabled`.
 Note: "Channel changes take effect on next `hermit-start` run."
 
 **If argument is "remote":**
@@ -134,9 +146,10 @@ Update `ask_budget` in config.json.
 **If argument is "brief":**
 - If no channels configured: "Morning brief requires channels. Configure channels first with `/claude-code-hermit:hermit-settings channels`."
 - If channels configured:
+  - Show current morning_brief setting per channel: `channels.<name>.morning_brief`
   - Ask: "Enable morning brief delivery? (yes / no) [current value]"
-  - If yes: Ask "What time? (e.g., 07:00) [current or 07:00]" and "Which channel? [current or first configured]"
-  - Update `morning_brief` in config.json.
+  - If yes: Ask "What time? (e.g., 07:00) [current or 07:00]" and "Which channel? [current or first enabled channel]"
+  - Update `channels.<selected-channel>.morning_brief: { "enabled": true, "time": "<HH:MM>" }` in config.json. If no, set to `null`.
 
 **If argument is "permissions":**
 Ask: "Permission mode for Claude Code? (default / acceptEdits / plan / dontAsk / bypassPermissions) [current value]"

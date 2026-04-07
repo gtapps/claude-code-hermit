@@ -33,7 +33,10 @@
 When you need to notify the operator proactively:
 
 - If no channels are configured, respond in conversation.
-- If a channel is configured and there is exactly one allowed user for that channel, use that user ID as the outbound target and call the channel plugin's `reply` tool with `chat_id` + `text`.
+- If a channel is configured and there is exactly one allowed user for that channel:
+  - Read `config.json` → `channels.<channel>.dm_channel_id` (e.g. `channels.discord.dm_channel_id`).
+  - **If found:** use that value as `chat_id` in the channel plugin's `reply` tool call.
+  - **If not found:** the DM channel ID is unknown (no inbound message received yet). Log the unsent content to SHELL.md Findings and record a deduped `channel-send-unavailable` issue — do not use the user ID as a substitute (it will fail for Discord DMs).
 - If outbound send fails, or if there is no unambiguous outbound target:
   - Log the unsent content to SHELL.md Findings
   - Record a deduped `channel-send-unavailable` issue if appropriate

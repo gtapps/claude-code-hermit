@@ -5,7 +5,7 @@
   "timezone": null,
   "escalation": "balanced",
   "sign_off": null,
-  "channels": [],
+  "channels": {},
   "remote": true,
   "model": null,
   "permission_mode": "acceptEdits",
@@ -13,7 +13,6 @@
   "auto_session": true,
   "ask_budget": false,
   "always_on": false,
-  "morning_brief": null,
   "idle_behavior": "discover",
   "idle_budget": "$0.50",
   "routines": [

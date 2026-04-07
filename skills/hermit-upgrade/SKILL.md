@@ -207,6 +207,41 @@ This migration converts deprecated v0.0.4 config keys into the new routines syst
 3. **Create `state/.heartbeat`** — Touch the file so liveness detection has an initial timestamp.
 4. Note to operator: "v0.3.2 introduces `state/runtime.json` as the single source of lifecycle truth. `.status` file has been removed. SHELL.md `Status:` is now cosmetic only — all scripts read runtime.json for lifecycle decisions. Lifecycle lock prevents concurrent mutations. Liveness detection via `.heartbeat` file."
 
+**v0.3.4 migration — channel config consolidation:**
+
+All channel-related settings are now nested under a single `channels` object instead of being scattered across top-level keys. Run this migration before presenting new-settings questions.
+
+1. **Check if already migrated:** If `config.channels` is already a JSON object (not an array), skip this entire migration.
+
+2. **Collect old values:**
+   - `old_channels = config.channels` (array, e.g. `["discord"]`) — default `[]`
+   - `old_allowed_users = config.allowed_users` (object, e.g. `{"discord": ["123"]}`) — default `{}`
+   - `old_morning_brief = config.morning_brief` (object with `.time`/`.channel` or null)
+   - For each channel in `old_channels`, read `config.env.DISCORD_STATE_DIR` / `config.env.TELEGRAM_STATE_DIR`
+
+3. **Build new `channels` object:**
+   For each name in `old_channels`:
+   ```json
+   {
+     "enabled": true,
+     "allowed_users": "<from old_allowed_users[name] or omit>",
+     "dm_channel_id": null,
+     "state_dir": "<from config.env.<NAME>_STATE_DIR or null>"
+   }
+   ```
+   If `old_morning_brief` is not null and `old_morning_brief.channel == name`:
+   ```json
+   "morning_brief": { "enabled": true, "time": "<old_morning_brief.time>" }
+   ```
+
+4. **Write new structure:** Set `config.channels = <new object>`.
+
+5. **Remove migrated top-level keys:** Delete `config.allowed_users` and `config.morning_brief` from config.json.
+
+6. **Clean up env:** For each migrated channel whose `state_dir` was taken from `config.env.*_STATE_DIR`, delete that key from `config.env` (it is now derived from `channels.<name>.state_dir` at boot).
+
+7. **Write back** and tell operator: "Channel config consolidated — `allowed_users`, `morning_brief`, and `*_STATE_DIR` are now nested under `channels.<name>`."
+
 Tell the operator: "New settings available in this version:" then present only the questions for keys that are actually missing from their config. If no interactive keys are missing, skip this step.
 
 ### 4-task. Write task list ID to settings.local.json

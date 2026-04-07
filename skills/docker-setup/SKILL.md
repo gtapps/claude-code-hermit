@@ -70,7 +70,7 @@ Read the three templates from `${CLAUDE_SKILL_DIR}/../../state-templates/docker/
 
 **docker-compose.hermit.yml** (from `docker-compose.hermit.yml.template`):
 - `{{AUTH_ENV_LINE}}` — If apikey: `      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}\n`. If oauth: empty string (remove the line entirely — OAuth credentials live in `.credentials.json` inside the named volume, written by `claude login`).
-- `{{CHANNEL_ENV_LINES}}` — for each configured channel, add an indented environment line:
+- `{{CHANNEL_ENV_LINES}}` — for each enabled channel, derive the `*_STATE_DIR` value from `channels.<name>.state_dir` in config.json and add an indented environment line:
   - `      - DISCORD_STATE_DIR=${PWD}/.claude.local/channels/discord`
   - `      - TELEGRAM_STATE_DIR=${PWD}/.claude.local/channels/telegram`
   Remove `{{CHANNEL_ENV_LINES}}` entirely if no channels configured.
@@ -153,7 +153,7 @@ If iMessage detected, note it won't work in Docker and skip.
 For each configured channel:
 
 1. **Install plugin locally** (if not already): `claude plugin install <plugin>@claude-plugins-official --scope local`
-2. **Ensure state dir in config.json `env`:** Add `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` using the absolute project path (e.g. `/home/user/project/.claude.local/channels/discord`). Write back if changed.
+2. **Ensure state dir in config.json:** Set `channels.<channel>.state_dir` to the absolute project path (e.g. `/home/user/project/.claude.local/channels/discord`). `hermit-start` derives the `*_STATE_DIR` env var from this field at boot — no need to add it to `env`. Write back to config.json if changed.
 3. **Check local token file** (`.claude.local/channels/<plugin>/.env`):
    - Already configured → "Discord is ready — connects automatically on start."
    - Not configured → prompt: "Paste your bot token (or 'skip'):"
