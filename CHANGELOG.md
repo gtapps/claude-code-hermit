@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.3.6] - 2026-04-07
+
+### Fixed
+
+- **Docker: OAuth token expiry detected at container startup** — When the OAuth token had expired, the container would start silently and only fail once Claude Code tried to make a request (showing a 401 inside the tmux session). The entrypoint now parses `claudeAiOauth.expiresAt` from `.credentials.json` before launching and — if the token is expired — blocks with a clear banner and waits up to 10 minutes for `hermit-docker login` to supply fresh credentials, mirroring the first-boot flow. API key users are unaffected. Falls through silently if the expiry field is absent or the file is unreadable.
+
+- **Docker: OAuth hint on `up` and `restart`** — `hermit-docker up` and `hermit-docker restart` now print a short note reminding the operator to run `hermit-docker login` if the session doesn't start, as a fallback for cases where the expiry field is unavailable or the token was invalidated server-side without updating the local file.
+
+- **`hermit-evolve`: upgrade hermit plugins not yet in `_hermit_versions`** — Previously, if a hermit plugin was installed at project scope but `_hermit_versions` had no entry for it (e.g. installed after the last evolve run), the evolve skill would skip it silently. It now defaults the baseline to `"0.0.0"` and runs through all upgrade instructions, ensuring newly tracked hermits are brought up to date on first evolve.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Added OAuth expiry check (step 0b) |
+| `state-templates/bin/hermit-docker` | Added `_oauth_hint` helper; called from `up` and `restart` |
+| `skills/hermit-evolve/SKILL.md` | Default missing `_hermit_versions` entry to `"0.0.0"` |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **`hermit-docker` updated automatically** — The evolve skill copies all files from `state-templates/bin/` into `.claude-code-hermit/bin/`, so `hermit-docker` gets the OAuth hint on `up`/`restart` without any manual step.
+
+2. **Docker image rebuild required for OAuth expiry detection** — The entrypoint change lives in `docker-entrypoint.hermit.sh`, which is baked into the Docker image. To get the expiry check, re-run `/claude-code-hermit:docker-setup` (say "yes" to regenerate when prompted), then rebuild: `docker compose -f docker-compose.hermit.yml build` and `hermit-docker up`.
+
+No `config.json` changes required. CLAUDE-APPEND not affected.
+
 ## [0.3.5] - 2026-04-07
 
 ### Fixed

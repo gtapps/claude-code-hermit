@@ -38,6 +38,54 @@ if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -f "$CRED_FILE" ]; then
   echo "[docker-entrypoint] Credentials detected! Continuing startup..."
 fi
 
+# --- 0b. Check if OAuth token has expired ---
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -f "$CRED_FILE" ]; then
+  EXPIRED=$(python3 -c "
+import json, sys, time
+try:
+    with open(sys.argv[1]) as f:
+        creds = json.load(f)
+    # Credentials are nested under 'claudeAiOauth'; expiresAt is in milliseconds
+    oauth = creds.get('claudeAiOauth', {})
+    expires_at_ms = oauth.get('expiresAt')
+    if expires_at_ms and float(expires_at_ms) / 1000 < time.time():
+        print('expired')
+    else:
+        print('ok')
+except Exception:
+    print('unknown')
+" "$CRED_FILE" 2>/dev/null || echo "unknown")
+
+  if [ "$EXPIRED" = "expired" ]; then
+    echo ""
+    echo "=============================================="
+    echo "  OAuth token has expired."
+    echo "  From another terminal, run:"
+    echo ""
+    echo "    .claude-code-hermit/bin/hermit-docker login"
+    echo ""
+    echo "  Waiting for fresh credentials (timeout: 10 minutes)..."
+    echo "=============================================="
+    echo ""
+    ORIG_MTIME=$(stat -c %Y "$CRED_FILE" 2>/dev/null || echo "0")
+    WAIT_SECS=0
+    while true; do
+      sleep 5
+      WAIT_SECS=$((WAIT_SECS + 5))
+      NEW_MTIME=$(stat -c %Y "$CRED_FILE" 2>/dev/null || echo "0")
+      if [ "$NEW_MTIME" != "$ORIG_MTIME" ]; then
+        echo "[docker-entrypoint] Credentials updated! Continuing startup..."
+        break
+      fi
+      if [ "$WAIT_SECS" -ge 600 ]; then
+        echo "[docker-entrypoint] Timed out waiting for fresh credentials."
+        echo "[docker-entrypoint] Run 'claude login' inside the container, then restart it."
+        exit 1
+      fi
+    done
+  fi
+fi
+
 # --- 1. Bypass onboarding, pre-approve MCP servers, patch permission_mode ---
 CLAUDE_JSON="${CLAUDE_CONFIG_DIR}/.claude.json"
 CC_VERSION=$(claude --version 2>/dev/null | grep -oP '[\d.]+' | head -1 || echo "0.0.0")

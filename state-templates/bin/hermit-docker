@@ -39,6 +39,12 @@ SERVICE=$(cd "$PROJECT_DIR" && docker compose -f "$COMPOSE" config --services 2>
 
 DC=(docker compose -f "$COMPOSE")
 
+_oauth_hint() {
+  echo ""
+  echo "Note: if the session does not start, the OAuth token may have expired."
+  echo "      Run: .claude-code-hermit/bin/hermit-docker login"
+}
+
 case "$CMD" in
   up)
     echo "[hermit] Starting Docker container..."
@@ -50,6 +56,7 @@ case "$CMD" in
     echo ""
     echo "Detach with: Ctrl+B then D"
     echo "Status: .claude-code-hermit/bin/hermit-status"
+    _oauth_hint
     ;;
 
   down)
@@ -101,6 +108,7 @@ case "$CMD" in
     echo "[hermit] Restarting container..."
     cd "$PROJECT_DIR" && "${DC[@]}" restart "$@"
     echo "[hermit] Container restarted."
+    _oauth_hint
     ;;
 
   *)
