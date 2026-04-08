@@ -39,9 +39,9 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 
 ## Routines
 
-Routines are scheduled skills that fire at exact times (HH:MM) instead of relying on heartbeat ticks. A shell-level watcher (`scripts/routine-watcher.sh`) reads `config.json` routines every 60 seconds and fires the configured skill when the time matches. No LLM tokens are spent on clock-checking.
+Routines are scheduled skills fired by cron schedule instead of relying on heartbeat ticks. A shell-level watcher (`scripts/routine-watcher.sh`) reads `config.json` routines every 60 seconds and fires the configured skill when the schedule matches. No LLM tokens are spent on clock-checking.
 
-Each routine has an `id`, a `time` (24h format), a `skill` to invoke, and optional `args`. Default routines are `morning` (brief with forward-looking framing) and `evening` (brief with backward-looking framing).
+Each routine has an `id`, a `schedule` (5-field cron: `minute hour dom month dow`), and a `skill` to invoke. Default routines are `morning` (brief with forward-looking framing) and `evening` (brief with backward-looking framing).
 
 **Managing routines:**
 

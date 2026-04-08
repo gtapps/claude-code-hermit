@@ -60,6 +60,8 @@ No custom runtime. No server. No API keys to manage. If you have a Claude Pro, M
 
 > **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.80+, a paid Claude plan (Pro, Max, Teams, or Enterprise), and Node.js 24+.
 
+> **Platform support:** Linux, macOS, and Windows via WSL2. Docker works on any host. Always-on mode requires a POSIX shell (Linux, macOS, or WSL2). See [FAQ](docs/faq.md) for details.
+
 ### 1. Install
 
 ```bash

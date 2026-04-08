@@ -175,18 +175,23 @@ Update `permission_mode` in config.json.
   ```
   Routines (config.json routines → routine-watcher.sh):
 
-    #  ID           Time   Days      Skill                                Status
-    1. morning      08:30  daily     claude-code-hermit:brief --morning    enabled
-    2. evening      22:30  daily     claude-code-hermit:brief --evening    enabled
-    3. weekly-deps  09:00  mon       claude-code-hermit:session-start ...  disabled
+    #  ID           Schedule       Skill                                Status
+    1. morning      30 8 * * *     claude-code-hermit:brief --morning    enabled
+    2. evening      30 22 * * *    claude-code-hermit:brief --evening    enabled
+    3. weekly-deps  0 9 * * 1      claude-code-hermit:session-start ...  disabled
 
   (or "No routines configured" if empty)
   ```
 - Ask: "Add / edit / remove / enable / disable? (or 'done')"
 - **Add wizard:** ask for:
   - ID (unique name, e.g., "weekly-deps")
-  - Time (HH:MM)
-  - Days (daily, or specific days like "mon,wed,fri")
+  - Schedule — offer common presets, or accept raw 5-field cron:
+    - Daily at 08:30 → `30 8 * * *`
+    - Weekdays at 09:00 → `0 9 * * 1-5`
+    - Sundays at 23:00 → `0 23 * * 0`
+    - Every 15 minutes → `*/15 * * * *`
+    - 1st and 15th of month at 10:00 → `0 10 1,15 * *`
+    - Custom → operator types raw cron
   - Skill to run (full slash-command name, e.g. `claude-code-hermit:brief` for plugin skills, `ha-refresh-context` for local project skills)
   - Enabled (yes/no, default yes)
   - Write to `config.json` routines array. The watcher picks it up within 60 seconds.

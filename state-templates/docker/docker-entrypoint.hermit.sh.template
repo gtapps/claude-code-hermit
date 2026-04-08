@@ -67,12 +67,12 @@ except Exception:
     echo "  Waiting for fresh credentials (timeout: 10 minutes)..."
     echo "=============================================="
     echo ""
-    ORIG_MTIME=$(stat -c %Y "$CRED_FILE" 2>/dev/null || echo "0")
+    ORIG_MTIME=$(python3 -c "import os,sys; print(int(os.path.getmtime(sys.argv[1])))" "$CRED_FILE" 2>/dev/null || echo "0")
     WAIT_SECS=0
     while true; do
       sleep 5
       WAIT_SECS=$((WAIT_SECS + 5))
-      NEW_MTIME=$(stat -c %Y "$CRED_FILE" 2>/dev/null || echo "0")
+      NEW_MTIME=$(python3 -c "import os,sys; print(int(os.path.getmtime(sys.argv[1])))" "$CRED_FILE" 2>/dev/null || echo "0")
       if [ "$NEW_MTIME" != "$ORIG_MTIME" ]; then
         echo "[docker-entrypoint] Credentials updated! Continuing startup..."
         break

@@ -26,6 +26,60 @@ const REQUIRED_KEYS = {
 const VALID_ESCALATION = ['conservative', 'balanced', 'autonomous'];
 const TIME_RE = /^\d{2}:\d{2}$/;
 
+// --- Cron validation (5-field: minute hour dom month dow) ---
+function parseCronField(token, lo, hi) {
+  const values = new Set();
+  for (const part of token.split(',')) {
+    if (!part) throw new Error('empty segment in list');
+    if (part.includes('/')) {
+      const [base, stepStr] = part.split('/', 2);
+      const step = Number(stepStr);
+      if (!Number.isInteger(step) || step <= 0) throw new Error(`zero or invalid step: ${part}`);
+      let start, end;
+      if (base === '*') { start = lo; end = hi; }
+      else if (base.includes('-')) { [start, end] = base.split('-', 2).map(Number); }
+      else { start = Number(base); end = hi; }
+      if (!Number.isInteger(start) || !Number.isInteger(end)) throw new Error(`non-numeric: ${part}`);
+      if (start < lo || end > hi || start > end) throw new Error(`out of range or reverse: ${part}`);
+      for (let i = start; i <= end; i += step) values.add(i);
+    } else if (part.includes('-')) {
+      const [a, b] = part.split('-', 2).map(Number);
+      if (!Number.isInteger(a) || !Number.isInteger(b)) throw new Error(`non-numeric range: ${part}`);
+      if (a < lo || b > hi || a > b) throw new Error(`out of range or reverse range: ${part}`);
+      for (let i = a; i <= b; i++) values.add(i);
+    } else if (part === '*') {
+      for (let i = lo; i <= hi; i++) values.add(i);
+    } else {
+      const v = Number(part);
+      if (!Number.isInteger(v) || v < lo || v > hi) throw new Error(`value ${part} out of range [${lo},${hi}]`);
+      values.add(v);
+    }
+  }
+  return values;
+}
+
+function validateCronSchedule(schedule) {
+  if (schedule.startsWith('@')) return 'macros not supported';
+  const fields = schedule.split(/\s+/);
+  if (fields.length !== 5) return `expected 5 fields, got ${fields.length}`;
+  for (const f of fields) {
+    if (/[a-zA-Z]/.test(f)) return `named values not supported: ${f}`;
+  }
+  try {
+    parseCronField(fields[0], 0, 59);
+    parseCronField(fields[1], 0, 23);
+    parseCronField(fields[2], 1, 31);
+    parseCronField(fields[3], 1, 12);
+    parseCronField(fields[4], 0, 7);
+  } catch (e) {
+    return e.message;
+  }
+  const domRestricted = fields[2] !== '*';
+  const dowRestricted = fields[4] !== '*';
+  if (domRestricted && dowRestricted) return 'both DOM and DOW restricted — not supported in v1';
+  return null;
+}
+
 function validate(config) {
   const errors = [];
   const warnings = [];
@@ -51,14 +105,18 @@ function validate(config) {
     config.routines.forEach((r, i) => {
       if (!r.id) errors.push(`routines[${i}]: missing id`);
       if (!r.skill) errors.push(`routines[${i}]: missing skill`);
-      if (!r.time) {
-        errors.push(`routines[${i}]: missing time`);
-      } else if (!TIME_RE.test(r.time)) {
-        errors.push(`routines[${i}]: invalid time "${r.time}" — must be HH:MM`);
+      if (r.time !== undefined) {
+        errors.push(`routines[${i}]: legacy "time" field found — migrate to "schedule" (5-field cron)`);
+      }
+      if (r.days !== undefined) {
+        errors.push(`routines[${i}]: legacy "days" field found — migrate to "schedule" (5-field cron)`);
+      }
+      if (!r.schedule) {
+        errors.push(`routines[${i}]: missing schedule`);
       } else {
-        const [h, m] = r.time.split(':').map(Number);
-        if (h > 23 || m > 59) {
-          errors.push(`routines[${i}]: time "${r.time}" out of range`);
+        const cronErr = validateCronSchedule(r.schedule);
+        if (cronErr) {
+          errors.push(`routines[${i}]: invalid schedule "${r.schedule}" — ${cronErr}`);
         }
       }
       if (typeof r.enabled !== 'boolean') {
@@ -150,7 +208,7 @@ function main() {
         process.exit(2);
       }
 
-      if (warnings.length === 0 && errors.length === 0) {
+      else {
         process.stderr.write(`[config-validate] OK\n`);
       }
     } catch (e) {
@@ -159,4 +217,9 @@ function main() {
   });
 }
 
-main();
+// Allow tests to require individual functions
+if (require.main === module) {
+  main();
+} else {
+  module.exports = { parseCronField, validateCronSchedule };
+}

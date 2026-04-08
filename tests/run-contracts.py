@@ -367,5 +367,104 @@ class TestNegativePaths(_TempDirTest):
         self.assertEqual(result, [])
 
 
+# ============================================================
+# Cron corpus agreement tests
+# ============================================================
+
+class TestCronCorpus(unittest.TestCase):
+    """Python cron-match.py and Node validate-config.js must agree on the
+    shared test corpus for valid/invalid cron expressions."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(FIXTURES.parent / 'cron-test-corpus.json') as f:
+            cls.corpus = json.load(f)
+
+    def test_python_valid_match(self):
+        """cron-match.py returns exit 0 for valid expressions that should match."""
+        for case in self.corpus['valid_expressions']:
+            sched = case['schedule']
+            for m in case.get('matches', []):
+                if not m['expect']:
+                    continue
+                ts, dow = m['time'], str(m['dow'])
+                result = subprocess.run(
+                    ['python3', str(SCRIPTS / 'cron-match.py'), sched, ts, dow],
+                    capture_output=True, text=True, timeout=5,
+                )
+                self.assertEqual(result.returncode, 0,
+                                 f'Expected match for {sched} at {ts} dow={dow}: {result.stderr}')
+
+    def test_python_valid_no_match(self):
+        """cron-match.py returns exit 1 for valid expressions that should not match."""
+        for case in self.corpus['valid_expressions']:
+            sched = case['schedule']
+            for m in case.get('matches', []):
+                if m['expect']:
+                    continue
+                ts, dow = m['time'], str(m['dow'])
+                result = subprocess.run(
+                    ['python3', str(SCRIPTS / 'cron-match.py'), sched, ts, dow],
+                    capture_output=True, text=True, timeout=5,
+                )
+                self.assertEqual(result.returncode, 1,
+                                 f'Expected no match for {sched} at {ts} dow={dow}')
+
+    def test_python_invalid(self):
+        """cron-match.py returns exit 2 for invalid expressions."""
+        for case in self.corpus['invalid_expressions']:
+            sched = case['schedule']
+            result = subprocess.run(
+                ['python3', str(SCRIPTS / 'cron-match.py'), sched],
+                capture_output=True, text=True, timeout=5,
+            )
+            self.assertEqual(result.returncode, 2,
+                             f'Expected exit 2 for invalid expression: {sched} (reason: {case.get("reason")})')
+
+    def test_node_valid(self):
+        """validate-config.js validateCronSchedule() accepts valid expressions."""
+        exprs = json.dumps([c['schedule'] for c in self.corpus['valid_expressions']])
+        js = f"""
+        const v = require('{SCRIPTS}/validate-config.js');
+        const exprs = {exprs};
+        const fails = [];
+        for (const e of exprs) {{
+            const err = v.validateCronSchedule(e);
+            if (err) fails.push(e + ': ' + err);
+        }}
+        if (fails.length) {{
+            console.error(fails.join('\\n'));
+            process.exit(1);
+        }}
+        """
+        result = subprocess.run(
+            ['node', '-e', js], capture_output=True, text=True, timeout=5,
+        )
+        self.assertEqual(result.returncode, 0,
+                         f'Node rejected valid expressions:\n{result.stderr}')
+
+    def test_node_invalid(self):
+        """validate-config.js validateCronSchedule() rejects invalid expressions."""
+        exprs = json.dumps([c['schedule'] for c in self.corpus['invalid_expressions']])
+        js = f"""
+        const v = require('{SCRIPTS}/validate-config.js');
+        const exprs = {exprs};
+        const fails = [];
+        for (const e of exprs) {{
+            const err = v.validateCronSchedule(e);
+            if (!err) fails.push(e);
+        }}
+        if (fails.length) {{
+            console.error('Expected rejection: ' + fails.join(', '));
+            process.exit(1);
+        }}
+        """
+        result = subprocess.run(
+            ['node', '-e', js], capture_output=True, text=True, timeout=5,
+        )
+        self.assertEqual(result.returncode, 0,
+                         f'Node accepted invalid expressions:\n{result.stderr}')
+
+
 if __name__ == '__main__':
     unittest.main()

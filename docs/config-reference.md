@@ -93,9 +93,25 @@ Modify with `/hermit-settings heartbeat`.
 |-----|------|---------|-------------|
 | `idle_behavior` | string | `"discover"` | What to do when idle: `"wait"` (check tasks/channels only) or `"discover"` (also run idle tasks, reflection, and priority alignment). |
 | `idle_budget` | string | `"$0.50"` | Maximum cost per idle task from `IDLE-TASKS.md`. |
-| `routines` | array | `[]` | Scheduled routines. Each entry: `{id, time, days?, skill, run_during_waiting?, enabled}`. Managed by routine watcher. |
+| `routines` | array | `[]` | Scheduled routines. Each entry: `{id, schedule, skill, run_during_waiting?, enabled}`. `schedule` is a 5-field cron expression (`minute hour dom month dow`). Managed by routine watcher. |
 
 Modify with `/hermit-settings routines`, `/hermit-settings idle`.
+
+### Cron schedule rules
+
+The `schedule` field uses standard 5-field cron syntax: `minute hour dom month dow`.
+
+| Field | Range | Notes |
+|-------|-------|-------|
+| minute | 0–59 | |
+| hour | 0–23 | |
+| dom | 1–31 | day of month |
+| month | 1–12 | |
+| dow | 0–7 | day of week (0 and 7 = Sunday) |
+
+Atoms: `*` (any), exact value, comma-separated list (`1,15`), range (`9-17`), step (`*/15`, `0-30/10`). Named days/months and macros (`@daily`) are not supported. Both DOM and DOW non-`*` in the same expression is rejected (ambiguous semantics). Leading zeros are allowed (`09` = `9`). Step base `0` is invalid (`*/0`).
+
+Schedule is evaluated in the project's configured timezone. Each matching minute fires at most once (dedup key: `YYYY-MM-DDTHH:MM|routine-id`). DST: the watcher compares wall-clock time each tick — skipped hours never match; repeated hours may double-fire (acceptable).
 
 ---
 
@@ -219,9 +235,9 @@ A realistic `config.json` for an always-on Docker hermit with Discord:
   "idle_behavior": "discover",
   "idle_budget": "$0.50",
   "routines": [
-    {"id": "morning-brief", "time": "08:00", "skill": "claude-code-hermit:brief --morning", "run_during_waiting": true, "enabled": true},
-    {"id": "evening-summary", "time": "22:00", "skill": "claude-code-hermit:brief --evening", "run_during_waiting": true, "enabled": true},
-    {"id": "heartbeat-restart", "time": "04:00", "skill": "claude-code-hermit:heartbeat start", "run_during_waiting": true, "enabled": true}
+    {"id": "morning-brief", "schedule": "0 8 * * *", "skill": "claude-code-hermit:brief --morning", "run_during_waiting": true, "enabled": true},
+    {"id": "evening-summary", "schedule": "0 22 * * *", "skill": "claude-code-hermit:brief --evening", "run_during_waiting": true, "enabled": true},
+    {"id": "heartbeat-restart", "schedule": "0 4 * * *", "skill": "claude-code-hermit:heartbeat start", "run_during_waiting": true, "enabled": true}
   ],
   "env": {
     "AGENT_HOOK_PROFILE": "strict",

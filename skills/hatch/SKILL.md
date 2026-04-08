@@ -231,9 +231,9 @@ questions: [
 Record: `permission_mode` (default/acceptEdits/plan/dontAsk/bypassPermissions).
 
 For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, `end = 23:00`) to derive morning = `08:30` and evening = `22:30`. Add to `routines` array:
-- `{"id":"morning","time":"08:30","skill":"claude-code-hermit:brief --morning","enabled":true,"run_during_waiting":true}`
-- `{"id":"evening","time":"22:30","skill":"claude-code-hermit:brief --evening","enabled":true,"run_during_waiting":true}`
-- Always add (regardless of routine choice): `{"id":"heartbeat-restart","time":"04:00","skill":"claude-code-hermit:heartbeat start","run_during_waiting":true,"enabled":true}`
+- `{"id":"morning","schedule":"30 8 * * *","skill":"claude-code-hermit:brief --morning","enabled":true,"run_during_waiting":true}`
+- `{"id":"evening","schedule":"30 22 * * *","skill":"claude-code-hermit:brief --evening","enabled":true,"run_during_waiting":true}`
+- Always add (regardless of routine choice): `{"id":"heartbeat-restart","schedule":"0 4 * * *","skill":"claude-code-hermit:heartbeat start","run_during_waiting":true,"enabled":true}`
 - If no routines: still add heartbeat-restart to the `routines` array (it's infrastructure, not a user routine)
 
 ### 5. Write config.json

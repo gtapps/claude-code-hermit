@@ -158,16 +158,15 @@ Routines live in `config.json` as a `routines` array:
 
 ```json
 "routines": [
-  {"id": "morning", "time": "08:30", "skill": "claude-code-hermit:brief --morning", "run_during_waiting": true, "enabled": true},
-  {"id": "evening", "time": "22:30", "skill": "claude-code-hermit:brief --evening", "run_during_waiting": true, "enabled": true},
-  {"id": "heartbeat-restart", "time": "04:00", "skill": "claude-code-hermit:heartbeat start", "run_during_waiting": true, "enabled": true},
-  {"id": "weekly-deps", "time": "09:00", "days": ["mon"], "skill": "claude-code-hermit:session-start --task 'dependency audit'", "enabled": false}
+  {"id": "morning", "schedule": "30 8 * * *", "skill": "claude-code-hermit:brief --morning", "run_during_waiting": true, "enabled": true},
+  {"id": "evening", "schedule": "30 22 * * *", "skill": "claude-code-hermit:brief --evening", "run_during_waiting": true, "enabled": true},
+  {"id": "heartbeat-restart", "schedule": "0 4 * * *", "skill": "claude-code-hermit:heartbeat start", "run_during_waiting": true, "enabled": true},
+  {"id": "weekly-deps", "schedule": "0 9 * * 1", "skill": "claude-code-hermit:session-start --task 'dependency audit'", "enabled": false}
 ]
 ```
 
 - `id`: unique name for dedup and display
-- `time`: HH:MM in configured timezone
-- `days`: optional — omit for daily, or specify 3-letter day abbreviations
+- `schedule`: 5-field cron expression (`minute hour dom month dow`), evaluated in configured timezone
 - `skill`: full slash-command name (e.g. `claude-code-hermit:brief --morning` for plugin skills, `ha-refresh-context` for local project skills)
 - `run_during_waiting`: optional — if `true`, fires even when session status is `waiting` (default: `false`)
 - `enabled`: toggle without removing
@@ -181,7 +180,7 @@ The routine watcher runs as a background tmux window (started by `hermit-start.p
 2. Matches current time and day against enabled routines
 3. Checks `.claude-code-hermit/.status` — queues to `state/routine-queue.json` if `in_progress`, checks `run_during_waiting` if `waiting`
 4. Fires matching routines via `tmux send-keys` to the Claude Code pane
-5. Deduplicates: each routine fires at most once per day
+5. Deduplicates: each routine fires at most once per matching time slot
 
 Queued routines are dequeued one at a time after the session returns to idle. The heartbeat detects stale queued routines.
 

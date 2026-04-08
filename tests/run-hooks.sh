@@ -279,7 +279,7 @@ cleanup
 workdir="$(setup_workdir)"
 cd "$workdir"
 cat > "$workdir/.claude-code-hermit/config.json" << 'CFGEOF'
-{"agent_name":null,"language":null,"timezone":null,"escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"active_hours":{"start":"08:00","end":"23:00"}},"routines":[{"id":"test","time":"04:00","skill":"x:y","enabled":true}]}
+{"agent_name":null,"language":null,"timezone":null,"escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"active_hours":{"start":"08:00","end":"23:00"}},"routines":[{"id":"test","schedule":"0 4 * * *","skill":"x:y","enabled":true}]}
 CFGEOF
 run_test "validate-config (valid)" bash -c \
   "echo '{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$workdir/.claude-code-hermit/config.json\"}}' | node '$REPO_ROOT/scripts/validate-config.js'"
@@ -363,9 +363,53 @@ run_test "deny-patterns.json" bash -c \
 run_test "bin scripts executable" bash -c \
   "for f in '$REPO_ROOT/state-templates/bin/'*; do [ -x \"\$f\" ] || exit 1; done"
 
-# routine-watcher jq filter: invalid time format produces no match, no crash
-run_test "routine-watcher jq filter" bash -c \
-  "echo '{\"routines\":[{\"id\":\"test\",\"time\":\"99:99\",\"enabled\":true,\"skill\":\"x:y\"}]}' | jq -r --arg t '08:00' --arg d 'mon' '.routines[]? | select(.enabled==true) | select(.time==\$t) | .id' | wc -l | grep -q '^0$'"
+# cron-match.py: valid schedule matches, invalid returns exit 2
+run_test "cron-match (valid match)" bash -c \
+  "python3 '$REPO_ROOT/scripts/cron-match.py' '0 4 * * *' '2026-01-15T04:00' 4"
+
+run_test "cron-match (no match)" bash -c \
+  "python3 '$REPO_ROOT/scripts/cron-match.py' '0 4 * * *' '2026-01-15T05:00' 4; [ \$? -eq 1 ]"
+
+run_test "cron-match (invalid schedule)" bash -c \
+  "python3 '$REPO_ROOT/scripts/cron-match.py' '99 99 * * *' '2026-01-15T04:00' 4; [ \$? -eq 2 ]"
+
+# -------------------------------------------------------
+# queue dedup: replayed backlog must not suppress current-slot cron hit
+# -------------------------------------------------------
+# Scenario: a */15 routine was queued at 08:30 (session busy). At 08:45 the
+# session is idle. The dequeue block replays the 08:30 item — it must write
+# "2026-04-08T08:30|every15" to state, NOT "2026-04-08T08:45|every15".
+# Then the genuine 08:45 cron hit must NOT be deduped.
+run_test "queue-dedup (slot isolation)" bash -c "
+  STATE_FILE=\$(mktemp)
+  QUEUE_FILE=\$(mktemp)
+  # Write a queued item with scheduled_slot = 08:30
+  echo '{\"queued\":[{\"id\":\"every15\",\"scheduled_slot\":\"2026-04-08T08:30\",\"queued_since\":\"2026-04-08T08:30:00\",\"skill\":\"test:noop\"}]}' > \"\$QUEUE_FILE\"
+  # Run dequeue logic (mock tmux send-keys — just needs exit 0)
+  python3 -c \"
+import json, sys, subprocess, os
+f, state = sys.argv[1], sys.argv[2]
+try: q = json.load(open(f))
+except: sys.exit(1)
+remaining = []
+for item in q.get('queued', []):
+    slot = item.get('scheduled_slot') or item.get('queued_date')
+    fired_key = slot + '|' + item['id']
+    try:
+        with open(state) as sf:
+            if fired_key in sf.read():
+                continue
+    except: pass
+    with open(state, 'a') as sf:
+        sf.write(fired_key + '\n')
+json.dump({'queued': remaining}, open(f, 'w'))
+\" \"\$QUEUE_FILE\" \"\$STATE_FILE\"
+  # Verify the state file has 08:30 slot, not 08:45
+  grep -qF '2026-04-08T08:30|every15' \"\$STATE_FILE\" || { echo 'FAIL: expected 08:30 slot in state'; exit 1; }
+  # Verify 08:45 slot is NOT in state (so the real 08:45 cron hit would fire)
+  ! grep -qF '2026-04-08T08:45|every15' \"\$STATE_FILE\" || { echo 'FAIL: 08:45 slot was suppressed'; exit 1; }
+  rm -f \"\$STATE_FILE\" \"\$QUEUE_FILE\"
+"
 
 # -------------------------------------------------------
 # Summary

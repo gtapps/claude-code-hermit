@@ -2,6 +2,30 @@
 
 ## [0.3.10] - 2026-04-08
 
+### Fixed
+
+- **Queued routine dedup collision** — when a routine was queued during a busy session (e.g. `*/15` at 08:30) and replayed later (e.g. at 08:45), the dequeue block wrote the *current* minute into dedup state, suppressing the genuine 08:45 cron hit. Now stores `scheduled_slot` in each queue item and uses it for dedup during replay, so backlog items never collide with current-slot executions.
+
+- **Missing python3 causes silent routine outage** — `routine-watcher.sh` shells out to `python3` for cron matching but treated interpreter-not-found (exit 127) as a normal no-match, causing total routine outage with no error. Now validates `python3` once at startup with `command -v` and exits with a FATAL message if absent. All python3 calls use the resolved path. Exit codes 126/127 from cron-match.py are logged explicitly instead of silently swallowed.
+
+- **`validate-config.js` TIME_RE deleted** — the cron migration removed the `TIME_RE` regex but it was still used for `heartbeat.active_hours` validation, causing a silent ReferenceError (swallowed by try/catch). Restored.
+
+- **`cron-match.py` accepted unused DOM argument** — CLI accepted a 4th `DOM` positional arg that was silently ignored (DOM is always parsed from the timestamp). Removed the parameter, updated docstring, and updated all callers.
+
+- **`routine-watcher.sh` extra jq call per routine** — `run_during_waiting` flag required a second `jq` invocation per routine per tick. Now extracted in the initial jq query as a fourth tab-delimited field.
+
+- **macOS heartbeat detection** — `routine-watcher.sh` used GNU-only `stat -c %Y` which silently returns 0 on macOS (BSD stat). Replaced with portable Python `os.path.getmtime()` call. Same fix applied to `docker-entrypoint.hermit.sh.template`.
+
+- **`session-diff.js` shell syntax** — `execSync()` calls used `2>/dev/null || true` (bash shell syntax). Replaced with `stdio: ['pipe', 'pipe', 'pipe']` and separate try/catch blocks. No behavior change; removes bash dependency from a Node.js script.
+
+- **Windows native fail-fast** — `hermit-start.py` now exits with a clear message on `sys.platform == 'win32'` instead of crashing with `ModuleNotFoundError` on `import fcntl`.
+
+### Added
+
+- **`.gitattributes`** — enforces LF line endings for `.sh` and `.py` files. Prevents CRLF corruption when cloning on Windows with `core.autocrlf=true`.
+
+- **Platform support note in README** — states Linux, macOS, and Windows via WSL2 as supported; always-on mode requires a POSIX shell.
+
 ### Added
 
 - **`/claude-code-hermit:cortex-sync`** — new skill that enriches existing hermit content with frontmatter and tags. Scans sessions, proposals, and artifact paths for missing fields, clusters similar files by topic for batch confirmation (not per-file grinder), then rebuilds Connections.md if the Cortex is set up. Key design decisions: dry-run scan phase with no writes; "Proceed?" is abort-or-continue only, each cluster still requires its own confirmation; "skip" skips that cluster, not the whole run; vocabulary accumulates across cluster confirmations within a single run. Conditional rebuild: if `obsidian/` does not exist, reports "run `/obsidian-setup`" instead of failing.
@@ -10,9 +34,19 @@
 
 - **Cortex section in `docs/skills.md`** — `obsidian-setup`, `cortex-refresh`, `cortex-sync`, and `weekly-review` were absent from the skills reference. Added as a new Cortex (Obsidian) section.
 
+- **`scripts/cron-match.py`** — Python cron matcher used by `routine-watcher.sh`. Exit 0 = match, 1 = no match, 2 = parse error (logged, routine skipped). Supports `*`, exact, list, range, step atoms. Rejects both-DOM-and-DOW-restricted expressions, named values, and macros.
+
+- **Cron validation in `scripts/validate-config.js`** — `parseCronField()` and `validateCronSchedule()` replace the old `TIME_RE` check for routines. Errors on leftover `time` or `days` fields.
+
+- **Cron rules section in `docs/config-reference.md`** — Authoritative reference for schedule syntax, atoms, restrictions, DST behavior, and dedup semantics.
+
+- **Shared test corpus `tests/cron-test-corpus.json`** — 13 valid expressions with 29 match/no-match cases + 17 invalid expressions. Used by both Python and Node test suites.
+
 ### Changed
 
 - **`connections-refresh` renamed to `cortex-refresh`** — aligns with the cortex namespace (`obsidian-setup`, `cortex-sync`, `cortex-refresh`). Functionally identical; also fixes a missing `.` argument in the `build-cortex.js` call (project-root was not being passed). All references updated across CLAUDE.md, CLAUDE-APPEND.md, obsidian-setup skill, docs, and CHANGELOG history.
+
+- **Routines: `time`/`days` → `schedule` (5-field cron)** — Routine scheduling now uses a single `schedule` field with standard 5-field cron syntax (`minute hour dom month dow`) instead of the old `time` (HH:MM) + optional `days` array. This enables sub-hourly schedules, DOM-based scheduling, and eliminates the separate days field. Clean break — no dual support.
 
 ### Files affected
 
@@ -20,31 +54,64 @@
 |------|--------|
 | `skills/cortex-sync/SKILL.md` | New — content enrichment skill |
 | `skills/connections-refresh/SKILL.md` | Renamed to `skills/cortex-refresh/SKILL.md`; name, description, build args updated |
-| `skills/obsidian-setup/SKILL.md` | Step 6: routine id/skill updated to cortex-refresh; step 8: cortex-sync mention added |
+| `skills/obsidian-setup/SKILL.md` | Step 6: routine id/skill updated to cortex-refresh; step 8: cortex-sync mention added; cortex-refresh routine uses `schedule` |
 | `state-templates/CLAUDE-APPEND.md` | Tag discipline rule added; quick reference updated (cortex-refresh, cortex-sync) |
 | `CLAUDE.md` | Plugin structure skill list updated; quick reference updated |
-| `docs/skills.md` | New Cortex (Obsidian) section |
+| `docs/skills.md` | New Cortex (Obsidian) section; routine description updated |
 | `docs/obsidian-setup.md` | cortex-refresh references updated |
 | `docs/frontmatter-contract.md` | cortex-refresh reference updated |
+| `scripts/cron-match.py` | New — cron schedule matcher |
+| `scripts/validate-config.js` | Replaced TIME_RE with cron validation for routines |
+| `scripts/routine-watcher.sh` | Cron matching via cron-match.py; dedup key `YYYY-MM-DDTHH:MM\|rid`; queue uses `scheduled_slot`; python3 startup validation; `run_during_waiting` batched into initial jq |
+| `tests/cron-test-corpus.json` | New — shared test fixture |
+| `state-templates/config.json.template` | `time`/`days` → `schedule` |
+| `agents/hermit-config-validator.md` | `time` → `schedule` |
+| `skills/hermit-settings/SKILL.md` | Routine table and add wizard updated |
+| `skills/hatch/SKILL.md` | Default routine entries use `schedule` |
+| `skills/proposal-act/SKILL.md` | Required fields updated |
+| `docs/config-reference.md` | Schema, examples, and new cron rules section |
+| `docs/troubleshooting.md` | Dedup description updated |
+| `docs/always-on-ops.md` | Routine example and field descriptions updated |
+| `tests/run-hooks.sh` | Updated cron-match tests (dropped DOM arg); added queue-dedup slot isolation test |
+| `tests/run-contracts.py` | Updated cron corpus tests (dropped DOM arg) |
 | `CHANGELOG.md` | Historical cortex-refresh references updated |
 
 ### Upgrade Instructions
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
-1. **CLAUDE-APPEND refresh** — required. Adds the tag discipline rule and updates the quick reference line (`connections-refresh` → `cortex-refresh`, adds `cortex-sync`).
-
-No template changes. No `config.json` changes required from the plugin side.
+1. **CLAUDE-APPEND refresh** — required. Adds the tag discipline rule, updates the quick reference line (`connections-refresh` → `cortex-refresh`, adds `cortex-sync`), and updates routine documentation references.
+2. **Routine migration** — for each entry in `config.json` → `routines[]` that still has a `time` field:
+   - Convert `time` (HH:MM) to cron minute and hour: `"08:30"` → `"30 8"`
+   - Convert `days` array to DOW field: `["mon","wed","fri"]` → `"1,3,5"`, `["sun"]` → `"0"`, missing/null → `"*"`
+   - Assemble: `"<minute> <hour> * * <dow>"`
+   - Write the new `schedule` field, remove `time` and `days`
+   - Day name mapping: `sun=0, mon=1, tue=2, wed=3, thu=4, fri=5, sat=6`
+3. **Validate** — run `validateCronSchedule()` on each migrated expression. If any fails, report the error and keep the old fields (do not silently break routines).
 
 ### Migration Guide (Existing Hermits)
 
-The `connections-refresh` routine in your `config.json` still points to the old skill name and will fail silently at 23:30. Update it manually:
+The `connections-refresh` routine in your `config.json` still points to the old skill name and will fail silently. Update it manually:
 
 ```json
-{"id": "cortex-refresh", "time": "23:30", "skill": "claude-code-hermit:cortex-refresh", "enabled": true}
+{"id": "cortex-refresh", "schedule": "30 23 * * *", "skill": "claude-code-hermit:cortex-refresh", "enabled": true}
 ```
 
 Find the entry in `.claude-code-hermit/config.json` → `routines` array. Change `id` from `"connections-refresh"` to `"cortex-refresh"` and `skill` from `"claude-code-hermit:connections-refresh"` to `"claude-code-hermit:cortex-refresh"`.
+
+For all routines, update from `time`/`days` to `schedule`:
+
+Before:
+```json
+{"id": "morning", "time": "08:30", "skill": "...", "enabled": true}
+{"id": "weekly-review", "time": "23:00", "days": ["sun"], "skill": "...", "enabled": false}
+```
+
+After:
+```json
+{"id": "morning", "schedule": "30 8 * * *", "skill": "...", "enabled": true}
+{"id": "weekly-review", "schedule": "0 23 * * 0", "skill": "...", "enabled": false}
+```
 
 ## [0.3.9] - 2026-04-08
 

@@ -27,15 +27,21 @@ function captureDiff() {
   let diff = "";
   try {
     // Files changed in working tree + staged
-    diff = execSync("git diff --name-status HEAD 2>/dev/null || true", {
+    diff = execSync("git diff --name-status HEAD", {
       encoding: "utf-8",
       timeout: 5000,
+      stdio: ["pipe", "pipe", "pipe"],
     }).trim();
+  } catch {
+    // Not a git repo or git not available
+    return null;
+  }
 
+  try {
     // Also include committed-but-not-pushed changes if available
     const committed = execSync(
-      "git diff --name-status @{upstream}..HEAD 2>/dev/null || true",
-      { encoding: "utf-8", timeout: 5000 },
+      "git diff --name-status @{upstream}..HEAD",
+      { encoding: "utf-8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] },
     ).trim();
 
     if (committed && !diff) {
@@ -54,8 +60,7 @@ function captureDiff() {
       diff = lines.join("\n");
     }
   } catch {
-    // Not a git repo or git not available
-    return null;
+    // No upstream configured or git error — use working-tree diff only
   }
 
   if (!diff) {

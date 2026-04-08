@@ -76,7 +76,7 @@ SHELL.md from a crashed session persists. Choose **resume** or **start new** (ge
 
 - Check the `routines` array in config.json — each routine must have `enabled: true`.
 - Routines are managed by the routine watcher, which runs in its own tmux window. Check it: `tmux select-window -t <session>:routines`.
-- Each routine fires once per day — check `/tmp/hermit-routines-<session>` for dedup state to see if a routine already fired today.
+- Each routine fires once per matching time slot — check `/tmp/hermit-routines-<session>` for dedup state (format: `YYYY-MM-DDTHH:MM|routine-id`).
 - Verify your timezone is set correctly: `/claude-code-hermit:hermit-settings timezone`. The routine watcher reads `config.timezone` and sets `TZ=`.
 - Check `.claude-code-hermit/.status` — if stuck on `in_progress`, routines are queued to `state/routine-queue.json` (not skipped) and fire when session returns to idle. Check `state/routine-queue.json` for pending entries.
 

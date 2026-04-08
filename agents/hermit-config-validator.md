@@ -40,7 +40,7 @@ Verify these top-level keys exist:
 For each routine in `routines[]`:
 
 - `id` (string, required, unique)
-- `time` (string, HH:MM format, 00:00-23:59)
+- `schedule` (string, 5-field cron: `minute hour dom month dow`)
 - `skill` (string, must contain `:`)
 - `enabled` (boolean)
 

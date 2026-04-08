@@ -194,6 +194,9 @@ def check_stale_runtime(config, session_name):
 
 def acquire_lifecycle_lock():
     """Acquire exclusive lifecycle lock. Returns fd or exits on contention."""
+    if sys.platform == 'win32':
+        print('[hermit] Always-on mode requires Linux, macOS, or WSL2. See docs/faq.md.')
+        sys.exit(1)
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     lock_fd = open(LIFECYCLE_LOCK, 'w')
     try:

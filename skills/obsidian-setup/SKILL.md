@@ -111,7 +111,7 @@ This overwrites `obsidian/Connections.md` and `obsidian/Cortex Portal.md` with g
 Read `.claude-code-hermit/config.json`. Check if a routine with `id: "cortex-refresh"` already exists.
 - If not: append to the `routines` array:
   ```json
-  {"id": "cortex-refresh", "time": "23:30", "skill": "claude-code-hermit:cortex-refresh", "enabled": true}
+  {"id": "cortex-refresh", "schedule": "30 23 * * *", "skill": "claude-code-hermit:cortex-refresh", "enabled": true}
   ```
 - If it exists: skip (no duplicate).
 
