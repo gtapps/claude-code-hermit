@@ -41,6 +41,7 @@ DEFAULT_CONFIG = {
     'auto_session': True,
     'ask_budget': False,
     'always_on': False,
+    'chrome': False,
     'env': {
         'AGENT_HOOK_PROFILE': 'standard',
         'COMPACT_THRESHOLD': '50',
@@ -249,6 +250,12 @@ def build_claude_command(config):
         remote_name = config.get('agent_name') or get_session_name(config)
         cmd.extend(['--remote-control', remote_name])
 
+    if config.get('chrome'):
+        if is_container():
+            print('[hermit] WARNING: chrome=true ignored — browser not available in containers.')
+        else:
+            cmd.append('--chrome')
+
     if config.get('model'):
         cmd.extend(['--model', config['model']])
 
@@ -377,6 +384,7 @@ def main():
     print(f'[hermit] Model: {config.get("model") or "default"}')
     print(f'[hermit] Channels: {", ".join(get_enabled_channels(config)) or "none"}')
     print(f'[hermit] Remote: {"enabled" if config.get("remote") else "disabled"}')
+    print(f'[hermit] Chrome: {"enabled" if config.get("chrome") else "disabled"}')
     print(f'[hermit] Permissions: {config.get("permission_mode") or "acceptEdits"}')
 
     write_settings_env(config)

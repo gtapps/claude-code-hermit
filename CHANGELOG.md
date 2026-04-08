@@ -25,10 +25,13 @@
 - **`cost-tracker.js` redundant heartbeat write** — `touchHeartbeat()` was called inside `run()` (pipeline path) even though `stop-pipeline.js` writes the heartbeat unconditionally after all stages. Moved to standalone path only.
 - **`startup-context.js` execSync timeouts** — tightened from 5 s / 10 s to 2 s / 5 s for `read-cost.py` / `check-upgrade.sh`. These are low-priority sections; a 10 s startup block was unacceptable.
 
+- **`scripts/hermit-start.py` Chrome support** — added `chrome` key to `DEFAULT_CONFIG` (`false` by default) and `build_claude_command()` now appends `--chrome` when `chrome: true` is set in `config.json`. Includes a container guard: the flag is silently skipped with a warning when `is_container()` is true, since Chrome requires a running browser with a native messaging host that cannot exist in a headless container. Chrome status is printed at launch alongside remote/permissions. Note: enabling `--chrome` increases context usage because browser tools are always loaded; for interactive sessions the native `/chrome` → "Enabled by default" setting is equivalent and avoids touching `config.json`.
+
 ### Files affected
 
 | File | Change |
 |------|--------|
+| `scripts/hermit-start.py` | `chrome: false` in DEFAULT_CONFIG; `--chrome` flag with container guard in `build_claude_command()`; chrome status in launch output |
 | `scripts/stop-pipeline.js` | New — unified Stop hook pipeline |
 | `scripts/startup-context.js` | New — priority-ordered startup context injector |
 | `hooks/hooks.json` | Removed per-tool heartbeat + 5 separate Stop hooks; added startup-context and stop-pipeline |
