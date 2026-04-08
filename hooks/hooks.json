@@ -15,7 +15,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "(mcp__|plugin_)(discord|telegram).*reply",
+        "matcher": "(discord|telegram).*reply",
         "hooks": [
           {
             "type": "command",
