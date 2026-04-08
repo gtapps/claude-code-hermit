@@ -243,7 +243,7 @@ updated: 2026-04-10T23:30:00+01:00
 | Field       | Writer                   | When                                 |
 | ----------- | ------------------------ | ------------------------------------ |
 | `generated` | `create-cortex-pages.js` | Page creation                        |
-| `updated`   | `build-cortex.js`        | Nightly connections-refresh at 23:30 |
+| `updated`   | `build-cortex.js`        | Nightly cortex-refresh at 23:30 |
 
 ---
 

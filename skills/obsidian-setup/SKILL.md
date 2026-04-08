@@ -106,12 +106,12 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/build-cortex.js .claude-code-hermit obsidian 
 
 This overwrites `obsidian/Connections.md` and `obsidian/Cortex Portal.md` with generated content based on current session, proposal, and artifact data.
 
-## Step 6 — Add connections-refresh routine
+## Step 6 — Add cortex-refresh routine
 
-Read `.claude-code-hermit/config.json`. Check if a routine with `id: "connections-refresh"` already exists.
+Read `.claude-code-hermit/config.json`. Check if a routine with `id: "cortex-refresh"` already exists.
 - If not: append to the `routines` array:
   ```json
-  {"id": "connections-refresh", "time": "23:30", "skill": "claude-code-hermit:connections-refresh", "enabled": true}
+  {"id": "cortex-refresh", "time": "23:30", "skill": "claude-code-hermit:cortex-refresh", "enabled": true}
   ```
 - If it exists: skip (no duplicate).
 
@@ -153,6 +153,9 @@ Hermit Cortex created in obsidian/
     Update paths anytime: /claude-code-hermit:obsidian-setup --reconfigure-manifest
 
   Connections refresh nightly at 23:30.
+
+  To enrich existing content with frontmatter and tags:
+    /claude-code-hermit:cortex-sync
 ```
 
 Note: At session 1, Brain.md shows your live session and empty Dataview tables.

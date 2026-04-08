@@ -1,5 +1,51 @@
 # Changelog
 
+## [0.3.10] - 2026-04-08
+
+### Added
+
+- **`/claude-code-hermit:cortex-sync`** — new skill that enriches existing hermit content with frontmatter and tags. Scans sessions, proposals, and artifact paths for missing fields, clusters similar files by topic for batch confirmation (not per-file grinder), then rebuilds Connections.md if the Cortex is set up. Key design decisions: dry-run scan phase with no writes; "Proceed?" is abort-or-continue only, each cluster still requires its own confirmation; "skip" skips that cluster, not the whole run; vocabulary accumulates across cluster confirmations within a single run. Conditional rebuild: if `obsidian/` does not exist, reports "run `/obsidian-setup`" instead of failing.
+
+- **Tag discipline rule in CLAUDE-APPEND** — agents are now instructed to add `tags` to every session report, proposal, and artifact they create. Before tagging, scan the last 5 session reports and proposals for the existing vocabulary and reuse — introduce new tags only when nothing fits. Tags lowercase and hyphenated, 1–2 per document. Vocabulary grows organically from the hermit's own history; no operator input required.
+
+- **Cortex section in `docs/skills.md`** — `obsidian-setup`, `cortex-refresh`, `cortex-sync`, and `weekly-review` were absent from the skills reference. Added as a new Cortex (Obsidian) section.
+
+### Changed
+
+- **`connections-refresh` renamed to `cortex-refresh`** — aligns with the cortex namespace (`obsidian-setup`, `cortex-sync`, `cortex-refresh`). Functionally identical; also fixes a missing `.` argument in the `build-cortex.js` call (project-root was not being passed). All references updated across CLAUDE.md, CLAUDE-APPEND.md, obsidian-setup skill, docs, and CHANGELOG history.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/cortex-sync/SKILL.md` | New — content enrichment skill |
+| `skills/connections-refresh/SKILL.md` | Renamed to `skills/cortex-refresh/SKILL.md`; name, description, build args updated |
+| `skills/obsidian-setup/SKILL.md` | Step 6: routine id/skill updated to cortex-refresh; step 8: cortex-sync mention added |
+| `state-templates/CLAUDE-APPEND.md` | Tag discipline rule added; quick reference updated (cortex-refresh, cortex-sync) |
+| `CLAUDE.md` | Plugin structure skill list updated; quick reference updated |
+| `docs/skills.md` | New Cortex (Obsidian) section |
+| `docs/obsidian-setup.md` | cortex-refresh references updated |
+| `docs/frontmatter-contract.md` | cortex-refresh reference updated |
+| `CHANGELOG.md` | Historical cortex-refresh references updated |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **CLAUDE-APPEND refresh** — required. Adds the tag discipline rule and updates the quick reference line (`connections-refresh` → `cortex-refresh`, adds `cortex-sync`).
+
+No template changes. No `config.json` changes required from the plugin side.
+
+### Migration Guide (Existing Hermits)
+
+The `connections-refresh` routine in your `config.json` still points to the old skill name and will fail silently at 23:30. Update it manually:
+
+```json
+{"id": "cortex-refresh", "time": "23:30", "skill": "claude-code-hermit:cortex-refresh", "enabled": true}
+```
+
+Find the entry in `.claude-code-hermit/config.json` → `routines` array. Change `id` from `"connections-refresh"` to `"cortex-refresh"` and `skill` from `"claude-code-hermit:connections-refresh"` to `"claude-code-hermit:cortex-refresh"`.
+
 ## [0.3.9] - 2026-04-08
 
 ### Added
@@ -204,9 +250,9 @@ No config.json changes required. No manual steps needed.
 
 - **Hermit Cortex** — optional Obsidian surface over hermit state. Run `/claude-code-hermit:obsidian-setup` to create `obsidian/` with six pages: Brain (live session, fragile zones), Cortex (mindstate: uncertainty, regressions, operator dependence), Evolution (first vs latest, cost trend, autonomy trajectory), System Health (agent state embed), Connections (relationship map: sessions ↔ proposals), Cortex Portal (graph center). Requires Dataview plugin. Symlink and Folder Bridge path modes supported.
 
-- **`scripts/build-cortex.js`** — generates `obsidian/Connections.md` and `obsidian/Cortex Portal.md` from session and proposal frontmatter. Zero npm dependencies. Runs at setup and nightly via `connections-refresh` routine.
+- **`scripts/build-cortex.js`** — generates `obsidian/Connections.md` and `obsidian/Cortex Portal.md` from session and proposal frontmatter. Zero npm dependencies. Runs at setup and nightly via `cortex-refresh` routine.
 
-- **`/claude-code-hermit:connections-refresh`** — lightweight skill wrapper that regenerates Connections.md and Cortex Portal.md. Added as a nightly routine at 23:30 by `/obsidian-setup`.
+- **`/claude-code-hermit:cortex-refresh`** — lightweight skill wrapper that regenerates Connections.md and Cortex Portal.md. Added as a nightly routine at 23:30 by `/obsidian-setup`.
 
 - **Weekly review** (`scripts/weekly-review.js` + `/claude-code-hermit:weekly-review`) — generates `.claude-code-hermit/reviews/weekly-YYYY-WNN.md` each Sunday. Covers: session count and cost, proposal lifecycle, recently resolved with honesty-rule impact numbers, operator dependence, and open loops (proposals with 5+ sessions and no action). Updates `obsidian/Latest Review.md` — the stable pointer all cortex pages link to. Honesty rule: impact numbers shown only when the tag appears in fewer than 30% of all sessions; otherwise "observed trend." Routine ships `enabled: false` — enable after running `/obsidian-setup`.
 
@@ -245,7 +291,7 @@ No config.json changes required. No manual steps needed.
 | `scripts/weekly-review.js` | New — weekly review report + Latest Review.md pointer |
 | `scripts/lib/frontmatter.js` | New — shared YAML frontmatter parser + directory glob helper |
 | `skills/obsidian-setup/SKILL.md` | New — one-time cortex setup skill |
-| `skills/connections-refresh/SKILL.md` | New — nightly Connections + Portal regeneration |
+| `skills/cortex-refresh/SKILL.md` | New — nightly Connections + Portal regeneration |
 | `skills/weekly-review/SKILL.md` | New — weekly review wrapper skill |
 | `state-templates/obsidian/Brain.md.template` | New |
 | `state-templates/obsidian/Cortex.md.template` | New |
@@ -262,7 +308,7 @@ No config.json changes required. No manual steps needed.
 | `docs/obsidian-setup.md` | Full rewrite — Hermit Cortex framing, six-page reference, symlink-primary |
 | `docs/architecture.md` | Added `reviews/` to file map |
 | `README.md` | Added `cortex \| active` badge |
-| `CLAUDE.md` | Added obsidian-setup, connections-refresh, weekly-review to quick reference |
+| `CLAUDE.md` | Added obsidian-setup, cortex-refresh, weekly-review to quick reference |
 | `state-templates/CLAUDE-APPEND.md` | Added new skills to quick reference; added `reviews/` to agent state table |
 | `state-templates/docker/docker-entrypoint.hermit.sh.template` | Added OAuth expiry check (step 0b) |
 | `state-templates/bin/hermit-docker` | Added `_oauth_hint` helper; called from `up` and `restart` |
@@ -272,7 +318,7 @@ No config.json changes required. No manual steps needed.
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
-1. **CLAUDE-APPEND refreshed** — The session discipline block in target projects' CLAUDE.md now lists the three new skills (`obsidian-setup`, `connections-refresh`, `weekly-review`) and adds `reviews/` to the agent state table. Hermit-evolve refreshes this automatically.
+1. **CLAUDE-APPEND refreshed** — The session discipline block in target projects' CLAUDE.md now lists the three new skills (`obsidian-setup`, `cortex-refresh`, `weekly-review`) and adds `reviews/` to the agent state table. Hermit-evolve refreshes this automatically.
 
 2. **Hermit Cortex setup (optional)** — Run `/claude-code-hermit:obsidian-setup` in any project where you want the Obsidian surface. This is a one-time step per project and is not applied automatically by hermit-evolve.
 

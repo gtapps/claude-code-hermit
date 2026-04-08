@@ -80,6 +80,15 @@ Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routin
 | `hermit-takeover`  | Stops the Docker container, marks session as `operator_takeover`, loads full hermit context (OPERATOR.md, SHELL.md, latest report), presents a summary. Run locally to drive interactively. | --            |
 | `hermit-hand-back` | Summarizes operator activity via `git log`, optionally queues instructions in NEXT-TASK.md, updates SHELL.md, restarts the Docker container.                                     | --            |
 
+## Cortex (Obsidian)
+
+| Skill                | What it does                                                                                                                                                  | Auto-triggers |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `obsidian-setup`     | One-time Cortex setup. Creates the `obsidian/` vault surface with Brain, Cortex, Evolution, System Health, Connections, and Cortex Portal pages. Configures `cortex-manifest.json` for artifact indexing and adds the nightly cortex-refresh routine. | -- |
+| `cortex-refresh` | Regenerates `obsidian/Connections.md` and `obsidian/Cortex Portal.md` from current session, proposal, and artifact data. Runs nightly at 23:30 via routine. Safe to invoke manually. | Nightly routine |
+| `cortex-sync`        | Enriches existing content with frontmatter and tags. Scans sessions, proposals, and artifact paths for missing fields, clusters similar files for batch confirmation, then rebuilds Connections.md if the Cortex is set up. | -- |
+| `weekly-review`      | Generates a weekly review report in `.claude-code-hermit/reviews/` summarising sessions, proposals, costs, and open loops for the past week.                  | -- |
+
 ## Communication
 
 | Skill               | What it does                                                                                                                                                                                | Auto-triggers  |

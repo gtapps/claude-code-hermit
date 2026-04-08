@@ -136,7 +136,7 @@ Wikilinks exist only in generated pages inside `obsidian/` — not in tracked fi
 
 ## Maintenance
 
-Connections.md and Cortex Portal.md are regenerated nightly at 23:30 via the `connections-refresh` routine (added automatically by `/obsidian-setup`). You can also run `/claude-code-hermit:connections-refresh` manually at any time.
+Connections.md and Cortex Portal.md are regenerated nightly at 23:30 via the `cortex-refresh` routine (added automatically by `/obsidian-setup`). You can also run `/claude-code-hermit:cortex-refresh` manually at any time.
 
 The other four pages (Brain, Cortex, Evolution, System Health) are static Dataview queries — they update live as Dataview reads the hermit state directory. No maintenance needed.
 
