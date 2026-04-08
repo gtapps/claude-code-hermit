@@ -23,9 +23,11 @@ const SERVER_TO_CHANNEL = {
 };
 
 function resolveChannel(toolName) {
-  // Matches both MCP format (mcp__discord__reply) and
-  // Channel plugin format (plugin_discord_discord_reply)
-  const match = (toolName || '').match(/^(?:mcp__|plugin_)(discord|telegram)/);
+  // The hooks.json matcher already filters to channel reply tools.
+  // Just extract the channel name from anywhere in the tool name —
+  // covers all formats: mcp__discord__reply, plugin_discord_discord_reply,
+  // mcp__plugin_discord_discord__reply, etc.
+  const match = (toolName || '').match(/(discord|telegram)/);
   if (!match) return null;
   return SERVER_TO_CHANNEL[match[1]] || null;
 }
