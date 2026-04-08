@@ -20,7 +20,7 @@
 
 - **`build-cortex.js` accepts a third argument** — `[project-root]` (default: `.`) for resolving `artifact_paths` in the manifest. `obsidian-setup` now passes `.` explicitly: `node build-cortex.js .claude-code-hermit obsidian .`
 
-- **`obsidian-setup` step 4b** — after generating the cortex, scans the project root for candidate artifact paths (directories with 2+ `.md` files, root-level `.md` files with frontmatter, date-patterned filenames), presents candidates to the operator, and writes `cortex-manifest.json`. Skips if the file already exists.
+- **`obsidian-setup` overhauled** — step order fixed (manifest created before `build-cortex.js` runs, so artifacts are indexed on first setup); `--force` scope now explicit (static pages overwritten, `cortex-manifest.json` never overwritten); path-mode detection uses `AskUserQuestion` with options; `--reconfigure-manifest` flag added for existing installs that want to update artifact paths without re-running full setup (shows current paths, scans for new candidates, writes updated manifest, rebuilds cortex).
 
 - **`hermit-evolve` step 5a** — ensures `cortex-manifest.json` exists in the target hermit by copying from the plugin template. Skips if already present (operator-managed file, never overwrite).
 
@@ -47,7 +47,7 @@
 | `scripts/validate-frontmatter.js` | New — strict frontmatter validator, exit 0/1 |
 | `scripts/weekly-review.js` | Added `generated: true` to output frontmatter |
 | `skills/hermit-evolve/SKILL.md` | Step 5a: copy cortex-manifest.json template if missing |
-| `skills/obsidian-setup/SKILL.md` | Step 4b: artifact path discovery and manifest creation |
+| `skills/obsidian-setup/SKILL.md` | Reordered steps, --force scope table, AskUserQuestion for path mode, --reconfigure-manifest flag |
 | `skills/test-run/SKILL.md` | New — skill file that was missing since v0.3.7 |
 | `state-templates/CLAUDE-APPEND.md` | Added artifact frontmatter rule |
 | `state-templates/PROPOSAL.md.template` | Added `accepted_date: null` |
@@ -61,7 +61,7 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 1. **CLAUDE-APPEND refresh** — required. Adds the artifact frontmatter rule (agents must include `title` + `created` on any `.md` file they create outside `.claude-code-hermit/`).
 2. **Template refresh** — `PROPOSAL.md.template` now includes `accepted_date: null`. New proposals will have it automatically; existing proposals are not touched.
-3. **`cortex-manifest.json` created** — if not present, hermit-evolve copies the empty starter template. Edit `artifact_paths` to add your project's artifact directories, or re-run `/obsidian-setup` for guided discovery.
+3. **`cortex-manifest.json` created** — if not present, hermit-evolve copies the empty starter template. Edit `artifact_paths` to add your project's artifact directories, or run `/claude-code-hermit:obsidian-setup --reconfigure-manifest` for guided discovery.
 
 No `config.json` changes required.
 
