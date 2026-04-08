@@ -1,5 +1,122 @@
 # Changelog
 
+## [0.3.9] - 2026-04-08
+
+### Added
+
+- **Cortex-manifest system** — `cortex-manifest.json` lives at `.claude-code-hermit/cortex-manifest.json` and declares which project paths contain hermit-produced artifacts (calendars, reports, analysis, templates). `build-cortex.js` reads it and indexes those files into Connections.md (under **Sessions → Artifacts**, **Proposals → Artifacts**, **Domain Artifacts**, and **Unlinked Files** sections) and Cortex Portal.md (**Recent Artifacts**). Files without frontmatter appear as **Unlinked Files** — a nudge to add `title` and `created`. Completely backward compatible: missing manifest = no artifact scanning.
+
+- **`state-templates/cortex-manifest.json.template`** — starter template with an empty `artifact_paths` array, copied to `.claude-code-hermit/cortex-manifest.json` by `hermit-evolve` (step 5a) for existing hermits and by `obsidian-setup` (step 4b) for new ones.
+
+- **`docs/frontmatter-contract.md`** — the single source of truth for frontmatter fields across all cortex-relevant files. Six sections: (A) universal rules (ISO 8601, lowercase keys, flat only, tags as arrays), (B) session report, (C) proposal, (D) weekly review, (E) cortex-connected custom artifact (required: `title` + `created`; optional: `source`, `session`, `proposal`, `tags`), (F) generated Obsidian page. Defines field lifecycle (who writes what, when), enums for `status`, `source`, `category`, and `outcome`.
+
+- **`scripts/validate-frontmatter.js`** — strict zero-dependency frontmatter validator. Scans all session reports, proposals, weekly reviews, and cortex-manifest artifact paths. Reports errors and warnings per file. Exit 0 = clean; exit 1 = errors. No legacy tolerance — all files must conform to the contract.
+
+- **`/claude-code-hermit:test-run` skill** (`skills/test-run/SKILL.md`) — runs both test suites (`run-contracts.py` + `run-hooks.sh`) and reports a concise pass/fail summary. Listed in CLAUDE.md since v0.3.7 but the skill file was missing; now created.
+
+- **Artifact frontmatter rule in CLAUDE-APPEND** — agents are now instructed: any `.md` file created outside `.claude-code-hermit/` must include YAML frontmatter with at least `title` (string) and `created` (ISO 8601 with timezone). If inside a hermit session, add `session: S-NNN`. Full contract in `docs/frontmatter-contract.md`.
+
+### Changed
+
+- **`build-cortex.js` accepts a third argument** — `[project-root]` (default: `.`) for resolving `artifact_paths` in the manifest. `obsidian-setup` now passes `.` explicitly: `node build-cortex.js .claude-code-hermit obsidian .`
+
+- **`obsidian-setup` step 4b** — after generating the cortex, scans the project root for candidate artifact paths (directories with 2+ `.md` files, root-level `.md` files with frontmatter, date-patterned filenames), presents candidates to the operator, and writes `cortex-manifest.json`. Skips if the file already exists.
+
+- **`hermit-evolve` step 5a** — ensures `cortex-manifest.json` exists in the target hermit by copying from the plugin template. Skips if already present (operator-managed file, never overwrite).
+
+- **Connections.md and Cortex Portal.md templates** — description updated to reflect sessions ↔ proposals ↔ artifacts.
+
+### Fixed
+
+- **`PROPOSAL.md.template` missing `accepted_date`** — `accepted_date` was read by scripts but never written to new proposals (phantom field). Template now declares `accepted_date: null` in the frontmatter block, aligned with the frontmatter contract.
+
+- **`weekly-review.js` missing `generated: true`** — generated Obsidian pages must include `generated: true` per the frontmatter contract. Weekly review output now includes it.
+
+- **`allArtifacts` deduplication** — artifacts with both `session` and `proposal` frontmatter fields appeared in both `artifactsBySession` and `artifactsByProposal` maps, causing duplicate entries in Cortex Portal's Recent Artifacts. Fixed with a `Set` keyed by absolute path during merge.
+
+- **TOCTOU in `resolveArtifactPath`** — replaced `fs.statSync()` directory pre-check with a check for `*` in the path entry, eliminating the extra syscall and the race window. `globDirRecursive` already silently handles non-existent paths.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `docs/frontmatter-contract.md` | New — frontmatter contract for all cortex-relevant files |
+| `docs/obsidian-setup.md` | Added Artifacts section: cortex-manifest.json, artifact frontmatter, graph behavior |
+| `scripts/build-cortex.js` | Reads cortex-manifest.json, generates artifact sections in Connections.md + Portal |
+| `scripts/lib/frontmatter.js` | Added `globDirRecursive`, `resolveArtifactPath`; TOCTOU fix |
+| `scripts/validate-frontmatter.js` | New — strict frontmatter validator, exit 0/1 |
+| `scripts/weekly-review.js` | Added `generated: true` to output frontmatter |
+| `skills/hermit-evolve/SKILL.md` | Step 5a: copy cortex-manifest.json template if missing |
+| `skills/obsidian-setup/SKILL.md` | Step 4b: artifact path discovery and manifest creation |
+| `skills/test-run/SKILL.md` | New — skill file that was missing since v0.3.7 |
+| `state-templates/CLAUDE-APPEND.md` | Added artifact frontmatter rule |
+| `state-templates/PROPOSAL.md.template` | Added `accepted_date: null` |
+| `state-templates/cortex-manifest.json.template` | New — empty starter manifest |
+| `state-templates/obsidian/Connections.md.template` | Updated tagline to include artifacts |
+| `state-templates/obsidian/Cortex Portal.md.template` | Updated tagline and comment to include artifacts |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **CLAUDE-APPEND refresh** — required. Adds the artifact frontmatter rule (agents must include `title` + `created` on any `.md` file they create outside `.claude-code-hermit/`).
+2. **Template refresh** — `PROPOSAL.md.template` now includes `accepted_date: null`. New proposals will have it automatically; existing proposals are not touched.
+3. **`cortex-manifest.json` created** — if not present, hermit-evolve copies the empty starter template. Edit `artifact_paths` to add your project's artifact directories, or re-run `/obsidian-setup` for guided discovery.
+
+No `config.json` changes required.
+
+### Migration Guide (Existing Hermits)
+
+Existing session reports and proposals may not conform to the new frontmatter contract. Run the validator to see what needs fixing — warnings are acceptable short-term, errors should be resolved.
+
+**Step 1 — Run the validator**
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/validate-frontmatter.js .claude-code-hermit .
+```
+
+**Step 2 — Fix session reports** (`sessions/S-NNN-REPORT.md`)
+
+Common issues in older sessions:
+- Missing fields: add `task`, `escalation`, and `operator_turns` to the frontmatter block
+- Bare dates (`2026-03-29`) → full ISO 8601 (`2026-03-29T00:00:00+01:00`)
+- Non-standard status values (e.g., `daily_summary`) → `completed`
+- Sessions without any frontmatter → add the full block from the contract
+
+**Step 3 — Fix proposals** (`proposals/PROP-NNN.md`)
+
+Common issues in older proposals:
+- PascalCase keys (`ID`, `Title`, `Status`, `AcceptedOn`) → lowercase (`id`, `title`, `status`, `accepted_date`)
+- `AcceptedOn` → `accepted_date`, `ResolvedOn` → `resolved_date`, `ResolvedIn` → `accepted_in_session`
+- Missing `title` — must match the H1 heading in the body
+- Missing `category` — map domain values: `automation`, `energy`, `optimization` → `improvement`; `upstream-bug` → `bug`
+- Bare dates → full ISO 8601
+
+**Step 4 — Add frontmatter to custom artifacts**
+
+Any `.md` file in a path declared in `cortex-manifest.json` needs at minimum:
+```yaml
+---
+title: "Descriptive title"
+created: 2026-04-08T14:00:00+01:00
+---
+```
+Optionally add `session`, `proposal`, `source` (`session` | `interactive` | `routine`), and `tags` for graph linking.
+
+**Step 5 — Create `cortex-manifest.json`** (if not done by `hermit-evolve`)
+
+If your project has custom artifact directories:
+```json
+{
+  "version": 1,
+  "artifact_paths": ["relatorios", "templates/captions", "calendario-*.md"]
+}
+```
+Or re-run `/claude-code-hermit:obsidian-setup` — it now includes guided artifact path discovery.
+
+**Step 6 — Re-run the validator until exit 0**
+
+Warnings (missing timezone offsets on old timestamps) are acceptable short-term. Errors must be fixed.
+
 ## [0.3.8] - 2026-04-08
 
 ### Fixed

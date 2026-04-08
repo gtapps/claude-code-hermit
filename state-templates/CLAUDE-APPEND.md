@@ -1,4 +1,3 @@
-
 ---
 
 <!-- claude-code-hermit: Session Discipline -->
@@ -13,14 +12,14 @@
 
 ## Agent State
 
-| Path | Contents |
-|------|----------|
-| `sessions/SHELL.md` | Live working document |
-| `sessions/S-NNN-REPORT.md` | Archived reports |
-| `proposals/PROP-NNN.md` | Improvement proposals |
-| `reviews/` | Weekly review reports |
-| `state/` | Runtime state (alert dedup, reflection, routine queue, metrics) |
-| `OPERATOR.md` | Human-curated context (read-only for agent) |
+| Path                       | Contents                                                        |
+| -------------------------- | --------------------------------------------------------------- |
+| `sessions/SHELL.md`        | Live working document                                           |
+| `sessions/S-NNN-REPORT.md` | Archived reports                                                |
+| `proposals/PROP-NNN.md`    | Improvement proposals                                           |
+| `reviews/`                 | Weekly review reports                                           |
+| `state/`                   | Runtime state (alert dedup, reflection, routine queue, metrics) |
+| `OPERATOR.md`              | Human-curated context (read-only for agent)                     |
 
 ## Subagent: `session-mgr` (Sonnet) — session lifecycle
 
@@ -50,3 +49,4 @@ When you need to notify the operator proactively:
 - **Secrets:** Never log API keys, tokens, passwords, or credentials to SHELL.md, reports, or proposals. Session files may be committed to git.
 - **Proposals mandatory:** Every improvement goes through `/proposal-create` → operator accepts → implement. Trivial fixes (typos, one-liners) exempt.
 - **Tasks:** Use `TaskCreate`/`TaskUpdate` for multi-step work. `tasks-snapshot.md` is auto-generated — don't edit.
+- **Artifact frontmatter:** Any `.md` file you create outside `.claude-code-hermit/` must include YAML frontmatter with at least `title` (string) and `created` (ISO 8601 with timezone). If inside a hermit session, add `session: S-NNN`. Optionally add `proposal`, `source` (`session` | `interactive` | `routine` | `manual`), and `tags` (array of strings). Files without frontmatter appear as "Unlinked" in the Cortex. Full contract: `docs/frontmatter-contract.md`.

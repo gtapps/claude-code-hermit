@@ -102,6 +102,13 @@ Only update files in `templates/`:
 - `SESSION-REPORT.md.template`
 - `PROPOSAL.md.template`
 
+### 5a. Ensure cortex-manifest.json exists
+
+If `.claude-code-hermit/cortex-manifest.json` does not exist:
+- Copy from `${CLAUDE_PLUGIN_ROOT}/state-templates/cortex-manifest.json.template` to `.claude-code-hermit/cortex-manifest.json`
+- Report: "Created cortex-manifest.json (artifact indexing for Cortex). Configure artifact_paths via `/obsidian-setup` or edit directly."
+- If it already exists: skip (operator-managed file, never overwrite)
+
 ### 5b. Update boot script wrappers
 
 - Copy all files from `${CLAUDE_PLUGIN_ROOT}/state-templates/bin/` into `.claude-code-hermit/bin/`

@@ -5,6 +5,7 @@ status: proposed
 source: manual
 session: S-NNN
 created: YYYY-MM-DDTHH:MM:SS±HH:MM
+accepted_date: null
 resolved_date: null
 related_sessions: []
 category: improvement

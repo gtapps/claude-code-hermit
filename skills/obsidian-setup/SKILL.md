@@ -48,10 +48,38 @@ Templates to copy:
 
 Run:
 ```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/build-cortex.js .claude-code-hermit obsidian
+node ${CLAUDE_PLUGIN_ROOT}/scripts/build-cortex.js .claude-code-hermit obsidian .
 ```
 
-This overwrites `obsidian/Connections.md` and `obsidian/Cortex Portal.md` with generated content based on current session and proposal data.
+This overwrites `obsidian/Connections.md` and `obsidian/Cortex Portal.md` with generated content based on current session, proposal, and artifact data.
+
+## Step 4b — Generate cortex-manifest.json
+
+If `.claude-code-hermit/cortex-manifest.json` does not exist:
+
+1. Scan the project root for candidate artifact paths using these heuristics:
+   - Directories containing 2+ `.md` files (exclude `.git`, `node_modules`, `.claude-code-hermit`, `.claude`, `obsidian`, `.vscode`, `.github`)
+   - Root-level `.md` files with existing YAML frontmatter (stronger signal than bare `.md`)
+   - Root-level `.md` files matching date-like patterns (e.g. `*-2026-*.md`, `*-YYYY-*.md`)
+2. If candidates found, present them to the operator:
+   > **Artifact paths for Cortex indexing**
+   > These directories and files look like hermit-produced content.
+   > Files in these paths will appear in Connections.md and the Obsidian graph.
+   > Confirm, edit, or skip:
+   > - `relatorios/` (4 .md files)
+   > - `templates/captions/` (3 .md files)
+   > - `calendario-*.md` (3 files at root)
+3. Let the operator confirm, add, remove, or skip entirely.
+4. Write `.claude-code-hermit/cortex-manifest.json`:
+   ```json
+   {
+     "version": 1,
+     "artifact_paths": ["relatorios", "templates/captions", "calendario-*.md"]
+   }
+   ```
+5. If operator skips: write the manifest with an empty `artifact_paths` array.
+
+If the file already exists: skip (no overwrite).
 
 ## Step 5 — Add connections-refresh routine
 
@@ -91,8 +119,12 @@ Hermit Cortex created in obsidian/
     Cortex.md           — uncertainty, stability, regressions, operator dependence
     Evolution.md        — first vs latest, cost trends, autonomy trajectory
     System Health.md    — agent state, alerts, incomplete sessions
-    Connections.md      — relationship map: sessions ↔ proposals
+    Connections.md      — relationship map: sessions ↔ proposals ↔ artifacts
     Cortex Portal.md    — graph center: links everything
+
+  Artifact tracking:
+    Files declared in cortex-manifest.json appear in Connections.md.
+    Add title + created frontmatter to connect them to the graph.
 
   Connections refresh nightly at 23:30.
 ```

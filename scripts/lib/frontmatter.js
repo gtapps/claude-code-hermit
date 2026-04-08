@@ -54,4 +54,38 @@ function globDir(dir, pattern) {
   }
 }
 
-module.exports = { readFrontmatter, globDir };
+/**
+ * Recursively list all .md files in a directory.
+ * Returns full paths sorted by name.
+ */
+function globDirRecursive(dir) {
+  const results = [];
+  try {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        results.push(...globDirRecursive(full));
+      } else if (entry.isFile() && entry.name.endsWith('.md')) {
+        results.push(full);
+      }
+    }
+  } catch { /* directory doesn't exist or unreadable */ }
+  return results.sort();
+}
+
+/**
+ * Resolve an artifact_paths entry to a list of .md file paths.
+ * Supports directories (recursive scan) and simple glob patterns (*.md, name-*.md).
+ * baseDir is the project root.
+ */
+function resolveArtifactPath(baseDir, pathEntry) {
+  const full = path.resolve(baseDir, pathEntry);
+  if (!pathEntry.includes('*')) return globDirRecursive(full);
+  // Glob pattern: match files in the parent directory
+  const dir = path.dirname(full);
+  const pattern = path.basename(full);
+  const re = new RegExp('^' + pattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$');
+  return globDir(dir, re);
+}
+
+module.exports = { readFrontmatter, globDir, globDirRecursive, resolveArtifactPath };

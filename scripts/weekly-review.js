@@ -170,6 +170,7 @@ const openLoops = allProposals
 
 const frontmatter = [
   '---',
+  'generated: true',
   `week: ${weekKey}`,
   `sessions_count: ${sessionsCount}`,
   `proposals_created: ${weekCreated.length}`,
