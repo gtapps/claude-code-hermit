@@ -97,19 +97,19 @@ See [Skills Reference](skills.md) for the full list.
 
 ### Hooks
 
-| Hook               | Trigger      | Profile  | What it does                                        |
-| ------------------ | ------------ | -------- | --------------------------------------------------- |
-| Deny enforcer      | PreToolUse   | strict   | Blocks banned bash patterns before execution        |
-| Channel hook       | PostToolUse  | strict   | Forwards tool events to configured channel          |
-| Heartbeat touch    | PostToolUse  | strict   | Marks activity for heartbeat gap detection          |
-| Contract tests     | PostToolUse  | strict   | Runs plugin contract tests after changes            |
-| Config validator   | PostToolUse  | strict   | Validates config.json after mutations               |
-| Context loader     | SessionStart | all      | Loads OPERATOR.md, SHELL.md, latest report, cost data |
-| Cost tracker       | Stop         | all      | Logs tokens/cost, enforces budget                   |
-| Compact suggestion | Stop         | standard+ | Suggests `/compact` at 60% context usage           |
-| Session diff       | Stop         | standard+ | Auto-populates `## Changed` from `git diff`        |
-| Session evaluator  | Stop         | standard+ | Validates SHELL.md quality, detects zombie/stale/bloat |
-| Routine queue flush | Stop        | all      | Dequeues pending routines when session goes idle    |
+| Hook                | Trigger      | Profile   | What it does                                           |
+| ------------------- | ------------ | --------- | ------------------------------------------------------ |
+| Deny enforcer       | PreToolUse   | strict    | Blocks banned bash patterns before execution           |
+| Channel hook        | PostToolUse  | strict    | Forwards tool events to configured channel             |
+| Heartbeat touch     | PostToolUse  | strict    | Marks activity for heartbeat gap detection             |
+| Contract tests      | PostToolUse  | strict    | Runs plugin contract tests after changes               |
+| Config validator    | PostToolUse  | strict    | Validates config.json after mutations                  |
+| Context loader      | SessionStart | all       | Loads OPERATOR.md, SHELL.md, latest report, cost data  |
+| Cost tracker        | Stop         | all       | Logs tokens/cost, enforces budget                      |
+| Compact suggestion  | Stop         | standard+ | Suggests `/compact` at 60% context usage               |
+| Session diff        | Stop         | standard+ | Auto-populates `## Changed` from `git diff`            |
+| Session evaluator   | Stop         | standard+ | Validates SHELL.md quality, detects zombie/stale/bloat |
+| Routine queue flush | Stop         | all       | Dequeues pending routines when session goes idle       |
 
 Hermits may add hooks at `strict` (e.g., git-push-guard). Use `run-with-profile.js` for profile-gated execution.
 
@@ -166,19 +166,19 @@ No `package.json`, no `node_modules`, no build step.
 
 One writer per state file. No shared mutation bus.
 
-| File | Owner (sole writer) | Readers |
-|------|-------------------|---------|
-| `state/runtime.json` | session-mgr + cost-tracker | heartbeat, session-start, routine-watcher |
-| `state/alert-state.json` | heartbeat only | heartbeat; evaluate-session (read-only nudge computation) |
-| `state/reflection-state.json` | reflect + session (non-overlapping phases) | heartbeat (debounce), hermit-settings (plugin-checks display) |
-| `state/routine-queue.json` | routine-watcher only | routine-watcher |
-| `state/channel-activity.json` | channel-hook.js only | channel-responder, heartbeat |
-| `state/session-diff.json` | session-diff.js only | session-close (display) |
-| `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only) | generate-summary.js |
-| `state/micro-proposals.json` | reflect (queue) + channel-responder/brief (resolve) | brief, generate-summary.js |
-| `state/state-summary.md` | generate-summary.js only | Obsidian, humans |
-| `state/.heartbeat` | heartbeat-touch.js only | heartbeat (detect activity gaps) |
-| `state/.lifecycle.lock` | hermit-start.py only | hermit-stop.py (cleanup) |
+| File                           | Owner (sole writer)                                 | Readers                                                       |
+| ------------------------------ | --------------------------------------------------- | ------------------------------------------------------------- |
+| `state/runtime.json`           | session-mgr + cost-tracker                          | heartbeat, session-start, routine-watcher                     |
+| `state/alert-state.json`       | heartbeat only                                      | heartbeat; evaluate-session (read-only nudge computation)     |
+| `state/reflection-state.json`  | reflect + session (non-overlapping phases)          | heartbeat (debounce), hermit-settings (plugin-checks display) |
+| `state/routine-queue.json`     | routine-watcher only                                | routine-watcher                                               |
+| `state/channel-activity.json`  | channel-hook.js only                                | channel-responder, heartbeat                                  |
+| `state/session-diff.json`      | session-diff.js only                                | session-close (display)                                       |
+| `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only)        | generate-summary.js                                           |
+| `state/micro-proposals.json`   | reflect (queue) + channel-responder/brief (resolve) | brief, generate-summary.js                                    |
+| `state/state-summary.md`       | generate-summary.js only                            | Obsidian, humans                                              |
+| `state/.heartbeat`             | heartbeat-touch.js only                             | heartbeat (detect activity gaps)                              |
+| `state/.lifecycle.lock`        | hermit-start.py only                                | hermit-stop.py (cleanup)                                      |
 
 ---
 
@@ -283,13 +283,13 @@ config.json "env"  →  hermit-start.py  →  .claude/settings.local.json "env" 
 
 ### config.json env defaults
 
-| Field                             | Value      | Purpose                     |
-| --------------------------------- | ---------- | --------------------------- |
-| `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | `50`       | Auto-compact at 50% context |
-| `MAX_THINKING_TOKENS`             | `10000`    | Cap thinking budget         |
-| `AGENT_HOOK_PROFILE`              | `standard` | Active hook profile         |
-| `COMPACT_THRESHOLD`               | `50`       | Compaction suggestion threshold |
-| `DISCORD_STATE_DIR`               | (derived)  | Derived from `channels.discord.state_dir` at boot |
+| Field                             | Value      | Purpose                                            |
+| --------------------------------- | ---------- | -------------------------------------------------- |
+| `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | `50`       | Auto-compact at 50% context                        |
+| `MAX_THINKING_TOKENS`             | `10000`    | Cap thinking budget                                |
+| `AGENT_HOOK_PROFILE`              | `standard` | Active hook profile                                |
+| `COMPACT_THRESHOLD`               | `50`       | Compaction suggestion threshold                    |
+| `DISCORD_STATE_DIR`               | (derived)  | Derived from `channels.discord.state_dir` at boot  |
 | `TELEGRAM_STATE_DIR`              | (derived)  | Derived from `channels.telegram.state_dir` at boot |
 
 ### Denied operations

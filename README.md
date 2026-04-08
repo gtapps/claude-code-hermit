@@ -179,21 +179,21 @@ See [Creating Your Own Hermit](docs/creating-your-own-hermit.md) for more — fr
 
 ## Documentation
 
-| Document                                                     | Read this when...                                                          |
-| ------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| [Getting Started](docs/how-to-use.md)                        | You're new and want a walkthrough of install, first session, and daily use |
-| [Skills Reference](docs/skills.md)                           | You need the exact syntax or options for a specific skill                  |
-| [Always-On Setup](docs/always-on.md)                         | You're ready to run Hermit in Docker with crash recovery                   |
-| [Always-On Operations](docs/always-on-ops.md)                | You're running bare tmux (no Docker) or need the lifecycle reference       |
-| [Architecture](docs/architecture.md)                         | You want to understand the internals — layers, memory, learning loop       |
-| [Creating Your Own Hermit](docs/creating-your-own-hermit.md) | You want to customize OPERATOR.md, add agents, or build a reusable plugin  |
-| [Upgrading](docs/upgrading.md)                               | A new version is out and you need to update safely                         |
-| [Security](docs/security.md)                                 | You need deny patterns, defense-in-depth model, or the security checklist  |
-| [Recommended Plugins](docs/recommended-plugins.md)           | You want to add official or third-party plugins to your Docker setup       |
-| [Config Reference](docs/config-reference.md)                 | You need the full config.json schema with every key and default            |
-| [Troubleshooting](docs/troubleshooting.md)                   | Something isn't working and you need to fix it                             |
-| [FAQ](docs/faq.md)                                           | Common questions — Windows, costs, multi-project, API keys                 |
-| [Testing](docs/testing.md)                                   | You're contributing and need to run or write hook tests                    |
+| Document                                                      | Read this when...                                                          |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| [Getting Started](docs/how-to-use.md)                         | You're new and want a walkthrough of install, first session, and daily use |
+| [Skills Reference](docs/skills.md)                            | You need the exact syntax or options for a specific skill                  |
+| [Always-On Setup](docs/always-on.md)                          | You're ready to run Hermit in Docker with crash recovery                   |
+| [Always-On Operations](docs/always-on-ops.md)                 | You're running bare tmux (no Docker) or need the lifecycle reference       |
+| [Architecture](docs/architecture.md)                          | You want to understand the internals — layers, memory, learning loop       |
+| [Creating Your Own Hermit](docs/creating-your-own-hermit.md)  | You want to customize OPERATOR.md, add agents, or build a reusable plugin  |
+| [Upgrading](docs/upgrading.md)                                | A new version is out and you need to update safely                         |
+| [Security](docs/security.md)                                  | You need deny patterns, defense-in-depth model, or the security checklist  |
+| [Recommended Plugins](docs/recommended-plugins.md)            | You want to add official or third-party plugins to your Docker setup       |
+| [Config Reference](docs/config-reference.md)                  | You need the full config.json schema with every key and default            |
+| [Troubleshooting](docs/troubleshooting.md)                    | Something isn't working and you need to fix it                             |
+| [FAQ](docs/faq.md)                                            | Common questions — Windows, costs, multi-project, API keys                 |
+| [Testing](docs/testing.md)                                    | You're contributing and need to run or write hook tests                    |
 | [Hermit Cortex (Powered by Obsidian)](docs/obsidian-setup.md) | You want to see inside your hermit's brain                                 |
 
 ---

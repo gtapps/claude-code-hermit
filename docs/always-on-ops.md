@@ -79,15 +79,15 @@ hermit-start -> [in_progress] -> task done -> [idle] -> new task -> [in_progress
 
 ### Close modes
 
-|                     | Idle Transition (task boundary) | Waiting (blocked on input) | Full Shutdown (`/session-close`) |
-| ------------------- | ------------------------------- | -------------------------- | -------------------------------- |
-| **When**            | Work done — automatic           | Blocked on operator input  | You explicitly close             |
-| **Report archived** | Yes                             | No (session stays open)    | Yes                              |
-| **Reflection runs** | Yes                             | No                         | Yes                              |
-| **Heartbeat**       | Keeps running (or starts)       | Runs (skips stale checks)  | Stopped                          |
-| **Channels**        | Keep running (always-on only)   | Keep running               | Stopped                          |
-| **SHELL.md**        | Reset in-place to `idle`, Monitoring & Summary compacted if over threshold | Status set to `waiting`    | Replaced with fresh template     |
-| **Applies to**      | Both interactive and always-on  | Both interactive and always-on | Both interactive and always-on   |
+|                     | Idle Transition (task boundary)                                            | Waiting (blocked on input)     | Full Shutdown (`/session-close`) |
+| ------------------- | -------------------------------------------------------------------------- | ------------------------------ | -------------------------------- |
+| **When**            | Work done — automatic                                                      | Blocked on operator input      | You explicitly close             |
+| **Report archived** | Yes                                                                        | No (session stays open)        | Yes                              |
+| **Reflection runs** | Yes                                                                        | No                             | Yes                              |
+| **Heartbeat**       | Keeps running (or starts)                                                  | Runs (skips stale checks)      | Stopped                          |
+| **Channels**        | Keep running (always-on only)                                              | Keep running                   | Stopped                          |
+| **SHELL.md**        | Reset in-place to `idle`, Monitoring & Summary compacted if over threshold | Status set to `waiting`        | Replaced with fresh template     |
+| **Applies to**      | Both interactive and always-on                                             | Both interactive and always-on | Both interactive and always-on   |
 
 Default: idle transition when work finishes. Waiting when blocked on operator input (configurable `waiting_timeout` auto-transitions to idle). Full shutdown only via explicit `/session-close` or `hermit-stop`.
 
@@ -110,12 +110,12 @@ Default: idle transition when work finishes. Waiting when blocked on operator in
 
 Your hermit reflects on its own memory — not archived reports. Reflection triggers at these moments:
 
-| Trigger              | When                                                     |
-| -------------------- | -------------------------------------------------------- |
-| Task boundary        | After completing work, during idle transition            |
-| Heartbeat idle check | Every 4+ hours during idle |
-| Evening routine      | Last heartbeat tick of the day                           |
-| Session close        | Before archiving the final report                        |
+| Trigger              | When                                          |
+| -------------------- | --------------------------------------------- |
+| Task boundary        | After completing work, during idle transition |
+| Heartbeat idle check | Every 4+ hours during idle                    |
+| Evening routine      | Last heartbeat tick of the day                |
+| Session close        | Before archiving the final report             |
 
 **Feedback loop:** When an accepted proposal's pattern stops recurring (based on memory), it auto-resolves. The heartbeat self-evaluates every 20 ticks — suggesting stale checks to remove and relevant ones to add.
 
@@ -176,6 +176,7 @@ Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect 
 ### How it works
 
 The routine watcher runs as a background tmux window (started by `hermit-start.py`). Every 60 seconds it:
+
 1. Re-reads `config.json` for the latest routines
 2. Matches current time and day against enabled routines
 3. Checks `state/runtime.json` (session state) — queues to `state/routine-queue.json` if `in_progress`, checks `run_during_waiting` if `waiting`
@@ -190,12 +191,12 @@ The watcher dies automatically when the tmux session is killed — no cleanup ne
 
 ### Relationship to heartbeat
 
-| | Routines | Heartbeat |
-|---|---|---|
-| Timing | Exact HH:MM | Every N minutes |
-| Engine | Shell script (`date` + `jq`) | LLM evaluation |
-| Cost | Zero tokens | Checklist evaluation per tick |
-| Use for | Scheduled tasks (briefs, audits) | Continuous monitoring |
+|         | Routines                         | Heartbeat                     |
+| ------- | -------------------------------- | ----------------------------- |
+| Timing  | Exact HH:MM                      | Every N minutes               |
+| Engine  | Shell script (`date` + `jq`)     | LLM evaluation                |
+| Cost    | Zero tokens                      | Checklist evaluation per tick |
+| Use for | Scheduled tasks (briefs, audits) | Continuous monitoring         |
 
 ---
 

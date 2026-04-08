@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- **Queued routine dedup collision** — when a routine was queued during a busy session (e.g. `*/15` at 08:30) and replayed later (e.g. at 08:45), the dequeue block wrote the *current* minute into dedup state, suppressing the genuine 08:45 cron hit. Now stores `scheduled_slot` in each queue item and uses it for dedup during replay, so backlog items never collide with current-slot executions.
+- **Queued routine dedup collision** — when a routine was queued during a busy session (e.g. `*/15` at 08:30) and replayed later (e.g. at 08:45), the dequeue block wrote the _current_ minute into dedup state, suppressing the genuine 08:45 cron hit. Now stores `scheduled_slot` in each queue item and uses it for dedup during replay, so backlog items never collide with current-slot executions.
 
 - **Missing python3 causes silent routine outage** — `routine-watcher.sh` shells out to `python3` for cron matching but treated interpreter-not-found (exit 127) as a normal no-match, causing total routine outage with no error. Now validates `python3` once at startup with `command -v` and exits with a FATAL message if absent. All python3 calls use the resolved path. Exit codes 126/127 from cron-match.py are logged explicitly instead of silently swallowed.
 
@@ -52,32 +52,32 @@
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `skills/cortex-sync/SKILL.md` | New — content enrichment skill |
-| `skills/connections-refresh/SKILL.md` | Renamed to `skills/cortex-refresh/SKILL.md`; name, description, build args updated |
-| `skills/obsidian-setup/SKILL.md` | Step 6: routine id/skill updated to cortex-refresh; step 8: cortex-sync mention added; cortex-refresh routine uses `schedule` |
-| `state-templates/CLAUDE-APPEND.md` | Tag discipline rule added; quick reference updated (cortex-refresh, cortex-sync) |
-| `CLAUDE.md` | Plugin structure skill list updated; quick reference updated |
-| `docs/skills.md` | New Cortex (Obsidian) section; routine description updated |
-| `docs/obsidian-setup.md` | cortex-refresh references updated |
-| `docs/frontmatter-contract.md` | cortex-refresh reference updated |
-| `scripts/cron-match.py` | New — cron schedule matcher |
-| `scripts/validate-config.js` | Replaced TIME_RE with cron validation for routines |
-| `scripts/routine-watcher.sh` | Cron matching via cron-match.py; dedup key `YYYY-MM-DDTHH:MM\|rid`; queue uses `scheduled_slot`; python3 startup validation; `run_during_waiting` batched into initial jq |
-| `tests/cron-test-corpus.json` | New — shared test fixture |
-| `state-templates/config.json.template` | `time`/`days` → `schedule` |
-| `agents/hermit-config-validator.md` | `time` → `schedule` |
-| `skills/hermit-settings/SKILL.md` | Routine table and add wizard updated |
-| `skills/hatch/SKILL.md` | Default routine entries use `schedule` |
-| `skills/proposal-act/SKILL.md` | Required fields updated |
-| `docs/config-reference.md` | Schema, examples, and new cron rules section |
-| `docs/troubleshooting.md` | Dedup description updated |
-| `docs/always-on-ops.md` | Routine example and field descriptions updated |
-| `state-templates/bin/hermit-docker` | Graceful shutdown: `.status` → `runtime.json` + `jq` |
-| `tests/run-hooks.sh` | Updated cron-match tests (dropped DOM arg); added queue-dedup slot isolation test |
-| `tests/run-contracts.py` | Updated cron corpus tests (dropped DOM arg) |
-| `CHANGELOG.md` | Historical cortex-refresh references updated |
+| File                                   | Change                                                                                                                                                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `skills/cortex-sync/SKILL.md`          | New — content enrichment skill                                                                                                                                            |
+| `skills/connections-refresh/SKILL.md`  | Renamed to `skills/cortex-refresh/SKILL.md`; name, description, build args updated                                                                                        |
+| `skills/obsidian-setup/SKILL.md`       | Step 6: routine id/skill updated to cortex-refresh; step 8: cortex-sync mention added; cortex-refresh routine uses `schedule`                                             |
+| `state-templates/CLAUDE-APPEND.md`     | Tag discipline rule added; quick reference updated (cortex-refresh, cortex-sync)                                                                                          |
+| `CLAUDE.md`                            | Plugin structure skill list updated; quick reference updated                                                                                                              |
+| `docs/skills.md`                       | New Cortex (Obsidian) section; routine description updated                                                                                                                |
+| `docs/obsidian-setup.md`               | cortex-refresh references updated                                                                                                                                         |
+| `docs/frontmatter-contract.md`         | cortex-refresh reference updated                                                                                                                                          |
+| `scripts/cron-match.py`                | New — cron schedule matcher                                                                                                                                               |
+| `scripts/validate-config.js`           | Replaced TIME_RE with cron validation for routines                                                                                                                        |
+| `scripts/routine-watcher.sh`           | Cron matching via cron-match.py; dedup key `YYYY-MM-DDTHH:MM\|rid`; queue uses `scheduled_slot`; python3 startup validation; `run_during_waiting` batched into initial jq |
+| `tests/cron-test-corpus.json`          | New — shared test fixture                                                                                                                                                 |
+| `state-templates/config.json.template` | `time`/`days` → `schedule`                                                                                                                                                |
+| `agents/hermit-config-validator.md`    | `time` → `schedule`                                                                                                                                                       |
+| `skills/hermit-settings/SKILL.md`      | Routine table and add wizard updated                                                                                                                                      |
+| `skills/hatch/SKILL.md`                | Default routine entries use `schedule`                                                                                                                                    |
+| `skills/proposal-act/SKILL.md`         | Required fields updated                                                                                                                                                   |
+| `docs/config-reference.md`             | Schema, examples, and new cron rules section                                                                                                                              |
+| `docs/troubleshooting.md`              | Dedup description updated                                                                                                                                                 |
+| `docs/always-on-ops.md`                | Routine example and field descriptions updated                                                                                                                            |
+| `state-templates/bin/hermit-docker`    | Graceful shutdown: `.status` → `runtime.json` + `jq`                                                                                                                      |
+| `tests/run-hooks.sh`                   | Updated cron-match tests (dropped DOM arg); added queue-dedup slot isolation test                                                                                         |
+| `tests/run-contracts.py`               | Updated cron corpus tests (dropped DOM arg)                                                                                                                               |
+| `CHANGELOG.md`                         | Historical cortex-refresh references updated                                                                                                                              |
 
 ### Upgrade Instructions
 
@@ -97,7 +97,12 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 The `connections-refresh` routine in your `config.json` still points to the old skill name and will fail silently. Update it manually:
 
 ```json
-{"id": "cortex-refresh", "schedule": "30 23 * * *", "skill": "claude-code-hermit:cortex-refresh", "enabled": true}
+{
+  "id": "cortex-refresh",
+  "schedule": "30 23 * * *",
+  "skill": "claude-code-hermit:cortex-refresh",
+  "enabled": true
+}
 ```
 
 Find the entry in `.claude-code-hermit/config.json` → `routines` array. Change `id` from `"connections-refresh"` to `"cortex-refresh"` and `skill` from `"claude-code-hermit:connections-refresh"` to `"claude-code-hermit:cortex-refresh"`.
@@ -105,12 +110,14 @@ Find the entry in `.claude-code-hermit/config.json` → `routines` array. Change
 For all routines, update from `time`/`days` to `schedule`:
 
 Before:
+
 ```json
 {"id": "morning", "time": "08:30", "skill": "...", "enabled": true}
 {"id": "weekly-review", "time": "23:00", "days": ["sun"], "skill": "...", "enabled": false}
 ```
 
 After:
+
 ```json
 {"id": "morning", "schedule": "30 8 * * *", "skill": "...", "enabled": true}
 {"id": "weekly-review", "schedule": "0 23 * * 0", "skill": "...", "enabled": false}
@@ -154,22 +161,22 @@ After:
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `docs/frontmatter-contract.md` | New — frontmatter contract for all cortex-relevant files |
-| `docs/obsidian-setup.md` | Added Artifacts section: cortex-manifest.json, artifact frontmatter, graph behavior |
-| `scripts/build-cortex.js` | Reads cortex-manifest.json, generates artifact sections in Connections.md + Portal |
-| `scripts/lib/frontmatter.js` | Added `globDirRecursive`, `resolveArtifactPath`; TOCTOU fix |
-| `scripts/validate-frontmatter.js` | New — strict frontmatter validator, exit 0/1 |
-| `scripts/weekly-review.js` | Added `generated: true` to output frontmatter |
-| `skills/hermit-evolve/SKILL.md` | Step 5a: copy cortex-manifest.json template if missing |
-| `skills/obsidian-setup/SKILL.md` | Reordered steps, --force scope table, AskUserQuestion for path mode, --reconfigure-manifest flag |
-| `skills/test-run/SKILL.md` | New — skill file that was missing since v0.3.7 |
-| `state-templates/CLAUDE-APPEND.md` | Added artifact frontmatter rule |
-| `state-templates/PROPOSAL.md.template` | Added `accepted_date: null` |
-| `state-templates/cortex-manifest.json.template` | New — empty starter manifest |
-| `state-templates/obsidian/Connections.md.template` | Updated tagline to include artifacts |
-| `state-templates/obsidian/Cortex Portal.md.template` | Updated tagline and comment to include artifacts |
+| File                                                 | Change                                                                                           |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `docs/frontmatter-contract.md`                       | New — frontmatter contract for all cortex-relevant files                                         |
+| `docs/obsidian-setup.md`                             | Added Artifacts section: cortex-manifest.json, artifact frontmatter, graph behavior              |
+| `scripts/build-cortex.js`                            | Reads cortex-manifest.json, generates artifact sections in Connections.md + Portal               |
+| `scripts/lib/frontmatter.js`                         | Added `globDirRecursive`, `resolveArtifactPath`; TOCTOU fix                                      |
+| `scripts/validate-frontmatter.js`                    | New — strict frontmatter validator, exit 0/1                                                     |
+| `scripts/weekly-review.js`                           | Added `generated: true` to output frontmatter                                                    |
+| `skills/hermit-evolve/SKILL.md`                      | Step 5a: copy cortex-manifest.json template if missing                                           |
+| `skills/obsidian-setup/SKILL.md`                     | Reordered steps, --force scope table, AskUserQuestion for path mode, --reconfigure-manifest flag |
+| `skills/test-run/SKILL.md`                           | New — skill file that was missing since v0.3.7                                                   |
+| `state-templates/CLAUDE-APPEND.md`                   | Added artifact frontmatter rule                                                                  |
+| `state-templates/PROPOSAL.md.template`               | Added `accepted_date: null`                                                                      |
+| `state-templates/cortex-manifest.json.template`      | New — empty starter manifest                                                                     |
+| `state-templates/obsidian/Connections.md.template`   | Updated tagline to include artifacts                                                             |
+| `state-templates/obsidian/Cortex Portal.md.template` | Updated tagline and comment to include artifacts                                                 |
 
 ### Upgrade Instructions
 
@@ -186,6 +193,7 @@ No `config.json` changes required.
 Existing session reports and proposals may not conform to the new frontmatter contract. Run the validator to see what needs fixing — warnings are acceptable short-term, errors should be resolved.
 
 **Step 1 — Run the validator**
+
 ```bash
 node ${CLAUDE_PLUGIN_ROOT}/scripts/validate-frontmatter.js .claude-code-hermit .
 ```
@@ -193,6 +201,7 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/validate-frontmatter.js .claude-code-hermit .
 **Step 2 — Fix session reports** (`sessions/S-NNN-REPORT.md`)
 
 Common issues in older sessions:
+
 - Missing fields: add `task`, `escalation`, and `operator_turns` to the frontmatter block
 - Bare dates (`2026-03-29`) → full ISO 8601 (`2026-03-29T00:00:00+01:00`)
 - Non-standard status values (e.g., `daily_summary`) → `completed`
@@ -201,6 +210,7 @@ Common issues in older sessions:
 **Step 3 — Fix proposals** (`proposals/PROP-NNN.md`)
 
 Common issues in older proposals:
+
 - PascalCase keys (`ID`, `Title`, `Status`, `AcceptedOn`) → lowercase (`id`, `title`, `status`, `accepted_date`)
 - `AcceptedOn` → `accepted_date`, `ResolvedOn` → `resolved_date`, `ResolvedIn` → `accepted_in_session`
 - Missing `title` — must match the H1 heading in the body
@@ -210,23 +220,27 @@ Common issues in older proposals:
 **Step 4 — Add frontmatter to custom artifacts**
 
 Any `.md` file in a path declared in `cortex-manifest.json` needs at minimum:
+
 ```yaml
 ---
 title: "Descriptive title"
 created: 2026-04-08T14:00:00+01:00
 ---
 ```
+
 Optionally add `session`, `proposal`, `source` (`session` | `interactive` | `routine`), and `tags` for graph linking.
 
 **Step 5 — Create `cortex-manifest.json`** (if not done by `hermit-evolve`)
 
 If your project has custom artifact directories:
+
 ```json
 {
   "version": 1,
   "artifact_paths": ["relatorios", "templates/captions", "calendario-*.md"]
 }
 ```
+
 Or re-run `/claude-code-hermit:obsidian-setup` — it now includes guided artifact path discovery.
 
 **Step 6 — Re-run the validator until exit 0**
@@ -245,11 +259,11 @@ Warnings (missing timezone offsets on old timestamps) are acceptable short-term.
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `hooks/hooks.json` | Simplified channel hook matcher regex |
-| `scripts/channel-hook.js` | Simplified `resolveChannel()` regex |
-| `CHANGELOG.md` | Fixed config.json path references |
+| File                      | Change                                |
+| ------------------------- | ------------------------------------- |
+| `hooks/hooks.json`        | Simplified channel hook matcher regex |
+| `scripts/channel-hook.js` | Simplified `resolveChannel()` regex   |
+| `CHANGELOG.md`            | Fixed config.json path references     |
 
 ### Upgrade Instructions
 
@@ -292,18 +306,18 @@ No config.json changes required. Hermits that manually set `dm_channel_id` as a 
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `hooks/hooks.json` | Added PreToolUse, PostToolUse, Stop hooks; consolidated inline bash hooks |
-| `scripts/enforce-deny-patterns.js` | New — deny-pattern enforcement + OPERATOR.md block + template warn |
-| `scripts/channel-hook.js` | New — dm_channel_id persistence + channel activity tracking |
-| `scripts/validate-config.js` | New — `.claude-code-hermit/config.json` schema validation after edits |
-| `scripts/routine-queue-flush.js` | New — logs missed routines to SHELL.md at shutdown |
-| `skills/test-run/SKILL.md` | New — user-invoked test runner skill |
-| `state-templates/deny-patterns.json` | Removed redundant OPERATOR.md entries |
-| `tests/run-hooks.sh` | Added 16 new tests for all new hook scripts |
-| `agents/hermit-config-validator.md` | New — lightweight `.claude-code-hermit/config.json` validator agent (Haiku) |
-| `CLAUDE.md` | Updated skill list, agent table, agents description |
+| File                                 | Change                                                                      |
+| ------------------------------------ | --------------------------------------------------------------------------- |
+| `hooks/hooks.json`                   | Added PreToolUse, PostToolUse, Stop hooks; consolidated inline bash hooks   |
+| `scripts/enforce-deny-patterns.js`   | New — deny-pattern enforcement + OPERATOR.md block + template warn          |
+| `scripts/channel-hook.js`            | New — dm_channel_id persistence + channel activity tracking                 |
+| `scripts/validate-config.js`         | New — `.claude-code-hermit/config.json` schema validation after edits       |
+| `scripts/routine-queue-flush.js`     | New — logs missed routines to SHELL.md at shutdown                          |
+| `skills/test-run/SKILL.md`           | New — user-invoked test runner skill                                        |
+| `state-templates/deny-patterns.json` | Removed redundant OPERATOR.md entries                                       |
+| `tests/run-hooks.sh`                 | Added 16 new tests for all new hook scripts                                 |
+| `agents/hermit-config-validator.md`  | New — lightweight `.claude-code-hermit/config.json` validator agent (Haiku) |
+| `CLAUDE.md`                          | Updated skill list, agent table, agents description                         |
 
 ### Upgrade Instructions
 
@@ -330,7 +344,7 @@ No config.json changes required. No manual steps needed.
 
 - **`escalation` field on session reports** — snapshot of the `escalation` value from `config.json` at archive time (`conservative | balanced | autonomous`). Cortex.md shows both: escalation (configured trust level) and operator_turns (actual interaction count). Together they answer whether the operator trusted the hermit and whether that trust was justified.
 
-- **`accepted_in_session` field on proposals** — when a proposal is accepted, `proposal-act` now reads `session_id` from `runtime.json` and writes `accepted_in_session` to the proposal frontmatter. The *where* companion to the existing `accepted_date` (*when*).
+- **`accepted_in_session` field on proposals** — when a proposal is accepted, `proposal-act` now reads `session_id` from `runtime.json` and writes `accepted_in_session` to the proposal frontmatter. The _where_ companion to the existing `accepted_date` (_when_).
 
 - **Session status enum formalized** — `status` in session reports must be one of `completed | partial | blocked`. Session-mgr now enforces this: unknown values are coerced to `partial` with a visible warning in the report's `## Blockers` section.
 
@@ -354,35 +368,35 @@ No config.json changes required. No manual steps needed.
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `scripts/cost-tracker.js` | Count human transcript entries per turn; store `operator_turns` in `.status.json` |
-| `scripts/build-cortex.js` | New — generates Connections.md + Cortex Portal.md |
-| `scripts/weekly-review.js` | New — weekly review report + Latest Review.md pointer |
-| `scripts/lib/frontmatter.js` | New — shared YAML frontmatter parser + directory glob helper |
-| `skills/obsidian-setup/SKILL.md` | New — one-time cortex setup skill |
-| `skills/cortex-refresh/SKILL.md` | New — nightly Connections + Portal regeneration |
-| `skills/weekly-review/SKILL.md` | New — weekly review wrapper skill |
-| `state-templates/obsidian/Brain.md.template` | New |
-| `state-templates/obsidian/Cortex.md.template` | New |
-| `state-templates/obsidian/Evolution.md.template` | New |
-| `state-templates/obsidian/System Health.md.template` | New |
-| `state-templates/obsidian/Connections.md.template` | New (header only — body generated by script) |
-| `state-templates/obsidian/Cortex Portal.md.template` | New (header only — body generated by script) |
-| `state-templates/SESSION-REPORT.md.template` | Added `escalation`, `operator_turns` fields; formalized `status` comment |
-| `state-templates/PROPOSAL.md.template` | Added `accepted_in_session` field |
-| `state-templates/GITIGNORE-APPEND.txt` | Added `obsidian/`, `hermit-state`, `.claude-code-hermit/reviews/` |
-| `state-templates/config.json.template` | Added `weekly-review` routine (disabled by default) |
-| `agents/session-mgr.md` | Extraction rules for `escalation`, `operator_turns`, `status` enum enforcement; `.status.json` reset on idle transition and session close |
-| `skills/proposal-act/SKILL.md` | Step 3a: populate `accepted_in_session` on accept |
-| `docs/obsidian-setup.md` | Full rewrite — Hermit Cortex framing, six-page reference, symlink-primary |
-| `docs/architecture.md` | Added `reviews/` to file map |
-| `README.md` | Added `cortex \| active` badge |
-| `CLAUDE.md` | Added obsidian-setup, cortex-refresh, weekly-review to quick reference |
-| `state-templates/CLAUDE-APPEND.md` | Added new skills to quick reference; added `reviews/` to agent state table |
-| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Added OAuth expiry check (step 0b) |
-| `state-templates/bin/hermit-docker` | Added `_oauth_hint` helper; called from `up` and `restart` |
-| `skills/hermit-evolve/SKILL.md` | Default missing `_hermit_versions` entry to `"0.0.0"` |
+| File                                                          | Change                                                                                                                                    |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/cost-tracker.js`                                     | Count human transcript entries per turn; store `operator_turns` in `.status.json`                                                         |
+| `scripts/build-cortex.js`                                     | New — generates Connections.md + Cortex Portal.md                                                                                         |
+| `scripts/weekly-review.js`                                    | New — weekly review report + Latest Review.md pointer                                                                                     |
+| `scripts/lib/frontmatter.js`                                  | New — shared YAML frontmatter parser + directory glob helper                                                                              |
+| `skills/obsidian-setup/SKILL.md`                              | New — one-time cortex setup skill                                                                                                         |
+| `skills/cortex-refresh/SKILL.md`                              | New — nightly Connections + Portal regeneration                                                                                           |
+| `skills/weekly-review/SKILL.md`                               | New — weekly review wrapper skill                                                                                                         |
+| `state-templates/obsidian/Brain.md.template`                  | New                                                                                                                                       |
+| `state-templates/obsidian/Cortex.md.template`                 | New                                                                                                                                       |
+| `state-templates/obsidian/Evolution.md.template`              | New                                                                                                                                       |
+| `state-templates/obsidian/System Health.md.template`          | New                                                                                                                                       |
+| `state-templates/obsidian/Connections.md.template`            | New (header only — body generated by script)                                                                                              |
+| `state-templates/obsidian/Cortex Portal.md.template`          | New (header only — body generated by script)                                                                                              |
+| `state-templates/SESSION-REPORT.md.template`                  | Added `escalation`, `operator_turns` fields; formalized `status` comment                                                                  |
+| `state-templates/PROPOSAL.md.template`                        | Added `accepted_in_session` field                                                                                                         |
+| `state-templates/GITIGNORE-APPEND.txt`                        | Added `obsidian/`, `hermit-state`, `.claude-code-hermit/reviews/`                                                                         |
+| `state-templates/config.json.template`                        | Added `weekly-review` routine (disabled by default)                                                                                       |
+| `agents/session-mgr.md`                                       | Extraction rules for `escalation`, `operator_turns`, `status` enum enforcement; `.status.json` reset on idle transition and session close |
+| `skills/proposal-act/SKILL.md`                                | Step 3a: populate `accepted_in_session` on accept                                                                                         |
+| `docs/obsidian-setup.md`                                      | Full rewrite — Hermit Cortex framing, six-page reference, symlink-primary                                                                 |
+| `docs/architecture.md`                                        | Added `reviews/` to file map                                                                                                              |
+| `README.md`                                                   | Added `cortex \| active` badge                                                                                                            |
+| `CLAUDE.md`                                                   | Added obsidian-setup, cortex-refresh, weekly-review to quick reference                                                                    |
+| `state-templates/CLAUDE-APPEND.md`                            | Added new skills to quick reference; added `reviews/` to agent state table                                                                |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Added OAuth expiry check (step 0b)                                                                                                        |
+| `state-templates/bin/hermit-docker`                           | Added `_oauth_hint` helper; called from `up` and `restart`                                                                                |
+| `skills/hermit-evolve/SKILL.md`                               | Default missing `_hermit_versions` entry to `"0.0.0"`                                                                                     |
 
 ### Upgrade Instructions
 
@@ -432,32 +446,32 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `skills/hermit-evolve/SKILL.md` | Renamed from `skills/hermit-upgrade/`; removed hardcoded migrations, added changelog-driven step 2b |
-| `CHANGELOG.md` | All `hermit-upgrade` refs → `hermit-evolve` |
-| `CLAUDE.md` | Updated skill references |
-| `docs/skills.md` | Updated skill table |
-| `docs/upgrading.md` | Updated invocation references (9 occurrences) |
-| `docs/how-to-use.md` | Updated references |
-| `docs/security.md` | Updated reference |
-| `docs/config-reference.md` | Updated reference |
-| `docs/troubleshooting.md` | Updated reference |
-| `skills/hatch/SKILL.md` | Updated next-steps reference; CLAUDE.md overwrite prompt |
-| `skills/smoke-test/SKILL.md` | Updated version mismatch warning |
-| `scripts/check-upgrade.sh` | Updated error message |
-| `scripts/hermit-start.py` | Updated error message; `iter_channel_configs` type guard |
-| `state-templates/CLAUDE-APPEND.md` | Updated skills reference |
-| `state-templates/bin/hermit-run` | Updated reference |
-| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Updated reference |
-| `.claude/skills/release/SKILL.md` | Updated release workflow template |
-| `tests/run-contracts.py` | New — 20 Python contract tests |
-| `tests/run-hooks.sh` | 6 new assertions, `setup_workdir` creates `state/` dir, `setup_git_workdir` stages files + GPG bypass |
-| `skills/smoke-test/SKILL.md` | New — post-hatch validation skill |
-| `.github/workflows/test-hooks.yml` | Added contracts step + state-templates trigger |
-| `.gitignore` | Added `scheduled_tasks.lock` |
-| `state-templates/GITIGNORE-APPEND.txt` | Added `scheduled_tasks.lock` |
-| `scripts/.gitignore` | New — ignores `__pycache__/` |
+| File                                                          | Change                                                                                                |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `skills/hermit-evolve/SKILL.md`                               | Renamed from `skills/hermit-upgrade/`; removed hardcoded migrations, added changelog-driven step 2b   |
+| `CHANGELOG.md`                                                | All `hermit-upgrade` refs → `hermit-evolve`                                                           |
+| `CLAUDE.md`                                                   | Updated skill references                                                                              |
+| `docs/skills.md`                                              | Updated skill table                                                                                   |
+| `docs/upgrading.md`                                           | Updated invocation references (9 occurrences)                                                         |
+| `docs/how-to-use.md`                                          | Updated references                                                                                    |
+| `docs/security.md`                                            | Updated reference                                                                                     |
+| `docs/config-reference.md`                                    | Updated reference                                                                                     |
+| `docs/troubleshooting.md`                                     | Updated reference                                                                                     |
+| `skills/hatch/SKILL.md`                                       | Updated next-steps reference; CLAUDE.md overwrite prompt                                              |
+| `skills/smoke-test/SKILL.md`                                  | Updated version mismatch warning                                                                      |
+| `scripts/check-upgrade.sh`                                    | Updated error message                                                                                 |
+| `scripts/hermit-start.py`                                     | Updated error message; `iter_channel_configs` type guard                                              |
+| `state-templates/CLAUDE-APPEND.md`                            | Updated skills reference                                                                              |
+| `state-templates/bin/hermit-run`                              | Updated reference                                                                                     |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Updated reference                                                                                     |
+| `.claude/skills/release/SKILL.md`                             | Updated release workflow template                                                                     |
+| `tests/run-contracts.py`                                      | New — 20 Python contract tests                                                                        |
+| `tests/run-hooks.sh`                                          | 6 new assertions, `setup_workdir` creates `state/` dir, `setup_git_workdir` stages files + GPG bypass |
+| `skills/smoke-test/SKILL.md`                                  | New — post-hatch validation skill                                                                     |
+| `.github/workflows/test-hooks.yml`                            | Added contracts step + state-templates trigger                                                        |
+| `.gitignore`                                                  | Added `scheduled_tasks.lock`                                                                          |
+| `state-templates/GITIGNORE-APPEND.txt`                        | Added `scheduled_tasks.lock`                                                                          |
+| `scripts/.gitignore`                                          | New — ignores `__pycache__/`                                                                          |
 
 ### Upgrade Instructions
 
@@ -478,6 +492,7 @@ The smoke-test skill is automatically available after the plugin update — no m
 - **Channel config consolidated into a single `channels` object** — Previously, channel-related settings were scattered across four top-level keys: `channels` (array), `allowed_users` (object), `morning_brief` (object), and `env.DISCORD_STATE_DIR` / `env.TELEGRAM_STATE_DIR`. All channel config now lives under a single `channels` object keyed by channel name.
 
   Old structure:
+
   ```json
   {
     "channels": ["discord"],
@@ -488,6 +503,7 @@ The smoke-test skill is automatically available after the plugin update — no m
   ```
 
   New structure:
+
   ```json
   {
     "channels": {
@@ -512,22 +528,23 @@ The smoke-test skill is automatically available after the plugin update — no m
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `state-templates/config.json.template` | `channels: []` → `channels: {}`, removed `morning_brief`, removed `*_STATE_DIR` from `env` |
-| `scripts/hermit-start.py` | `build_claude_command` iterates enabled channel keys; `write_settings_env` derives `*_STATE_DIR` from `channels.<name>.state_dir`; `forward_vars` built dynamically |
-| `skills/hatch/SKILL.md` | Wizard writes new nested channel structure; removed separate `allowed_users`, `morning_brief`, `*_STATE_DIR` env instructions |
-| `skills/docker-setup/SKILL.md` | Channel setup writes `state_dir` to `channels.<name>.state_dir`; compose env lines derived from channel config |
-| `skills/channel-responder/SKILL.md` | Authorization reads `channels.<channel>.allowed_users`; new step 1d persists `chat_id` to `channels.<channel>.dm_channel_id` |
-| `state-templates/CLAUDE-APPEND.md` | Outbound notification reads `channels.<channel>.dm_channel_id`; clarified user ID ≠ DM channel ID |
-| `skills/hermit-settings/SKILL.md` | "channels" argument manages new object structure; "brief" reads/writes `channels.<channel>.morning_brief` |
-| `skills/hermit-evolve/SKILL.md` | Added v0.3.4 migration |
-| `docs/config-reference.md` | New `channels` section; updated top-level table; updated complete example |
-| `docs/troubleshooting.md`, `docs/architecture.md`, `docs/always-on.md` | Updated channel config references |
+| File                                                                   | Change                                                                                                                                                              |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `state-templates/config.json.template`                                 | `channels: []` → `channels: {}`, removed `morning_brief`, removed `*_STATE_DIR` from `env`                                                                          |
+| `scripts/hermit-start.py`                                              | `build_claude_command` iterates enabled channel keys; `write_settings_env` derives `*_STATE_DIR` from `channels.<name>.state_dir`; `forward_vars` built dynamically |
+| `skills/hatch/SKILL.md`                                                | Wizard writes new nested channel structure; removed separate `allowed_users`, `morning_brief`, `*_STATE_DIR` env instructions                                       |
+| `skills/docker-setup/SKILL.md`                                         | Channel setup writes `state_dir` to `channels.<name>.state_dir`; compose env lines derived from channel config                                                      |
+| `skills/channel-responder/SKILL.md`                                    | Authorization reads `channels.<channel>.allowed_users`; new step 1d persists `chat_id` to `channels.<channel>.dm_channel_id`                                        |
+| `state-templates/CLAUDE-APPEND.md`                                     | Outbound notification reads `channels.<channel>.dm_channel_id`; clarified user ID ≠ DM channel ID                                                                   |
+| `skills/hermit-settings/SKILL.md`                                      | "channels" argument manages new object structure; "brief" reads/writes `channels.<channel>.morning_brief`                                                           |
+| `skills/hermit-evolve/SKILL.md`                                        | Added v0.3.4 migration                                                                                                                                              |
+| `docs/config-reference.md`                                             | New `channels` section; updated top-level table; updated complete example                                                                                           |
+| `docs/troubleshooting.md`, `docs/architecture.md`, `docs/always-on.md` | Updated channel config references                                                                                                                                   |
 
 ### Upgrade Instructions
 
 Run `/claude-code-hermit:hermit-evolve`. The v0.3.4 migration will:
+
 1. Detect the old `channels` array format and convert it to the new object structure
 2. Move `allowed_users` and `morning_brief` into each channel's entry
 3. Move `*_STATE_DIR` values into `channels.<name>.state_dir` and remove them from `env`
@@ -560,10 +577,10 @@ After migration, send any message to your bot — `channel-responder` will popul
 
 ### Files affected
 
-| File | Change |
-|------|--------|
+| File                            | Change                                                                                                                                                          |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `skills/session-start/SKILL.md` | Added Always-On Notification Rule; fixed unclean-shutdown, dead-process, and transition-recovery notification paths; fixed double ping; fixed blocking language |
-| `skills/brief/SKILL.md` | Added Always-On Delivery Rule preamble; replaced duplicate per-flag delivery sentences with a reference to the shared rule |
+| `skills/brief/SKILL.md`         | Added Always-On Delivery Rule preamble; replaced duplicate per-flag delivery sentences with a reference to the shared rule                                      |
 
 ### Upgrade Instructions
 
@@ -625,26 +642,26 @@ No config.json changes required. No template changes. No manual steps beyond the
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `scripts/hermit-start.py` | runtime.json creation, lifecycle lock, stale state detection, crash recovery preservation |
-| `scripts/hermit-stop.py` | Shutdown timestamps, lock release before delegation, re-acquire for cleanup |
-| `scripts/routine-watcher.sh` | runtime.json reads, locked writes, liveness detection, cached threshold |
-| `scripts/cost-tracker.js` | runtime.json session_id, atomic .status.json, .heartbeat touch, cached read |
-| `scripts/session-diff.js` | Rewritten to write sidecar file instead of SHELL.md |
-| `agents/session-mgr.md` | Field ownership table, transition markers, session-diff merge, recovery, `task` frontmatter extraction, ISO 8601 `date` |
-| `skills/session-start/SKILL.md` | runtime.json reads, interrupted transition recovery, stale state handling |
-| `skills/session/SKILL.md` | runtime.json note for session-mgr |
-| `skills/session-close/SKILL.md` | runtime.json note for session-mgr |
-| `skills/heartbeat/SKILL.md` | runtime.json reads for session state and waiting timeout |
-| `skills/channel-responder/SKILL.md` | runtime.json reads for waiting→in_progress transition |
-| `skills/hermit-evolve/SKILL.md` | v0.3.2 migration block |
-| `state-templates/docker/docker-entrypoint.hermit.sh.template` | runtime.json reads in SIGTERM handler |
-| `state-templates/SESSION-REPORT.md.template` | Added `task` field, `date` upgraded to ISO 8601 timestamp |
-| `state-templates/PROPOSAL.md.template` | Added `title`, `resolved_date` fields, `created` upgraded to ISO 8601 timestamp |
-| `skills/proposal-create/SKILL.md` | `title`, `resolved_date` frontmatter instructions, ISO 8601 `created` |
-| `skills/proposal-act/SKILL.md` | Timestamp convention section, `resolved_date` on accept/dismiss (not defer), ISO 8601 dates |
-| `docs/OBSIDIAN-SETUP.md` | Updated queries with `task`/`title` fields, added response-time query, clarified Folder Bridge requirement |
+| File                                                          | Change                                                                                                                  |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `scripts/hermit-start.py`                                     | runtime.json creation, lifecycle lock, stale state detection, crash recovery preservation                               |
+| `scripts/hermit-stop.py`                                      | Shutdown timestamps, lock release before delegation, re-acquire for cleanup                                             |
+| `scripts/routine-watcher.sh`                                  | runtime.json reads, locked writes, liveness detection, cached threshold                                                 |
+| `scripts/cost-tracker.js`                                     | runtime.json session_id, atomic .status.json, .heartbeat touch, cached read                                             |
+| `scripts/session-diff.js`                                     | Rewritten to write sidecar file instead of SHELL.md                                                                     |
+| `agents/session-mgr.md`                                       | Field ownership table, transition markers, session-diff merge, recovery, `task` frontmatter extraction, ISO 8601 `date` |
+| `skills/session-start/SKILL.md`                               | runtime.json reads, interrupted transition recovery, stale state handling                                               |
+| `skills/session/SKILL.md`                                     | runtime.json note for session-mgr                                                                                       |
+| `skills/session-close/SKILL.md`                               | runtime.json note for session-mgr                                                                                       |
+| `skills/heartbeat/SKILL.md`                                   | runtime.json reads for session state and waiting timeout                                                                |
+| `skills/channel-responder/SKILL.md`                           | runtime.json reads for waiting→in_progress transition                                                                   |
+| `skills/hermit-evolve/SKILL.md`                               | v0.3.2 migration block                                                                                                  |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | runtime.json reads in SIGTERM handler                                                                                   |
+| `state-templates/SESSION-REPORT.md.template`                  | Added `task` field, `date` upgraded to ISO 8601 timestamp                                                               |
+| `state-templates/PROPOSAL.md.template`                        | Added `title`, `resolved_date` fields, `created` upgraded to ISO 8601 timestamp                                         |
+| `skills/proposal-create/SKILL.md`                             | `title`, `resolved_date` frontmatter instructions, ISO 8601 `created`                                                   |
+| `skills/proposal-act/SKILL.md`                                | Timestamp convention section, `resolved_date` on accept/dismiss (not defer), ISO 8601 dates                             |
+| `docs/OBSIDIAN-SETUP.md`                                      | Updated queries with `task`/`title` fields, added response-time query, clarified Folder Bridge requirement              |
 
 ### Upgrade Instructions
 
@@ -714,31 +731,31 @@ No config.json changes required. No template changes. No manual steps beyond the
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `state-templates/CLAUDE-APPEND.md` | New "Operator Notification" routing section |
-| `skills/heartbeat/SKILL.md` | Channel refs → "notify the operator" |
-| `skills/brief/SKILL.md` | Delivery instructions for morning/evening |
-| `skills/session/SKILL.md` | Step 4b: session-triggered plugin checks with error handling and merge semantics |
-| `skills/reflect/SKILL.md` | Plugin Checks section with interval logic, adjustment proposals, guard rails |
-| `skills/proposal-act/SKILL.md` | Skill-creator integration, notification language |
-| `skills/hatch/SKILL.md` | Phase 4: plugin_checks entries for accepted plugins |
-| `skills/docker-setup/SKILL.md` | Plugin_checks entries for accepted plugins |
-| `skills/hermit-settings/SKILL.md` | `plugin-checks` subcommand |
-| `skills/hermit-evolve/SKILL.md` | v0.3.1 migration block |
-| `state-templates/config.json.template` | `plugin_checks: []` key |
-| `docs/CONFIG-REFERENCE.md` | `plugin_checks` schema and runtime state |
-| `docs/RECOMMENDED-PLUGINS.md` | Plugin Checks section with trigger table |
-| `docs/TROUBLESHOOTING.md` | Channel sends and plugin checks troubleshooting |
-| `docs/SKILLS.md` | hermit-settings subcommand list |
-| `docs/ARCHITECTURE.md` | reflection-state.json dual ownership |
-| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Removed config.json bypassPermissions mutation and plugin auto-update |
-| `state-templates/docker/docker-compose.hermit.yml.template` | `network_mode: host` → `{{NETWORK_MODE_LINE}}` placeholder |
-| `state-templates/deny-patterns.json` | New canonical deny pattern source (default + always-on) |
-| `skills/docker-setup/SKILL.md` | Networking wizard question, full 25-pattern deny set |
-| `skills/hatch/SKILL.md` | Full deny sets: hardened (22), minimal (17) |
-| `docs/SECURITY.md` | .env patterns, canonical source ref, Known Limitations, no-auto-update note |
-| `docs/UPGRADING.md` | Security fixes and Docker verification steps |
+| File                                                          | Change                                                                           |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `state-templates/CLAUDE-APPEND.md`                            | New "Operator Notification" routing section                                      |
+| `skills/heartbeat/SKILL.md`                                   | Channel refs → "notify the operator"                                             |
+| `skills/brief/SKILL.md`                                       | Delivery instructions for morning/evening                                        |
+| `skills/session/SKILL.md`                                     | Step 4b: session-triggered plugin checks with error handling and merge semantics |
+| `skills/reflect/SKILL.md`                                     | Plugin Checks section with interval logic, adjustment proposals, guard rails     |
+| `skills/proposal-act/SKILL.md`                                | Skill-creator integration, notification language                                 |
+| `skills/hatch/SKILL.md`                                       | Phase 4: plugin_checks entries for accepted plugins                              |
+| `skills/docker-setup/SKILL.md`                                | Plugin_checks entries for accepted plugins                                       |
+| `skills/hermit-settings/SKILL.md`                             | `plugin-checks` subcommand                                                       |
+| `skills/hermit-evolve/SKILL.md`                               | v0.3.1 migration block                                                           |
+| `state-templates/config.json.template`                        | `plugin_checks: []` key                                                          |
+| `docs/CONFIG-REFERENCE.md`                                    | `plugin_checks` schema and runtime state                                         |
+| `docs/RECOMMENDED-PLUGINS.md`                                 | Plugin Checks section with trigger table                                         |
+| `docs/TROUBLESHOOTING.md`                                     | Channel sends and plugin checks troubleshooting                                  |
+| `docs/SKILLS.md`                                              | hermit-settings subcommand list                                                  |
+| `docs/ARCHITECTURE.md`                                        | reflection-state.json dual ownership                                             |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Removed config.json bypassPermissions mutation and plugin auto-update            |
+| `state-templates/docker/docker-compose.hermit.yml.template`   | `network_mode: host` → `{{NETWORK_MODE_LINE}}` placeholder                       |
+| `state-templates/deny-patterns.json`                          | New canonical deny pattern source (default + always-on)                          |
+| `skills/docker-setup/SKILL.md`                                | Networking wizard question, full 25-pattern deny set                             |
+| `skills/hatch/SKILL.md`                                       | Full deny sets: hardened (22), minimal (17)                                      |
+| `docs/SECURITY.md`                                            | .env patterns, canonical source ref, Known Limitations, no-auto-update note      |
+| `docs/UPGRADING.md`                                           | Security fixes and Docker verification steps                                     |
 
 ### Upgrade Instructions
 
@@ -801,35 +818,35 @@ No config.json interactive prompts. No manual steps required. Skill files update
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `scripts/generate-summary.js` | **New.** Read-only state summary generator |
-| `scripts/append-metrics.js` | **New.** Append-only JSONL helper |
-| `scripts/read-cost.js` | **New.** SessionStart hook cost reader |
-| `skills/heartbeat/SKILL.md` | Alert dedup, self-eval evidence gating, waiting state, restart-safe start, stale queue check |
-| `skills/reflect/SKILL.md` | Three-outcome tree, tier classification, micro-proposal queuing, three-condition rule |
-| `skills/proposal-create/SKILL.md` | Three-condition validation, metrics append |
-| `skills/proposal-act/SKILL.md` | First-response guard, metrics append |
-| `skills/channel-responder/SKILL.md` | Waiting state, micro-approval handling |
-| `skills/brief/SKILL.md` | Micro-proposal pending slot in morning brief |
-| `skills/session/SKILL.md` | Reflect trigger with 4h debounce |
-| `skills/session-start/SKILL.md` | Recognize waiting state |
-| `skills/hatch/SKILL.md` | state/ dir, state file init, heartbeat-restart routine |
-| `skills/hermit-evolve/SKILL.md` | 13-step v0.3.0 migration with operator notes |
-| `scripts/cost-tracker.js` | Remove SHELL.md write |
-| `scripts/evaluate-session.js` | Zombie, stale, bloat nudges |
-| `scripts/routine-watcher.sh` | Queue-not-skip with safe dequeue |
-| `scripts/hermit-start.py` | Waiting state, updated defaults |
-| `hooks/hooks.json` | SessionStart cost injection via read-cost.js |
-| `state-templates/CLAUDE-APPEND.md` | 130 → ~35 lines |
-| `state-templates/SHELL.md.template` | Waiting state, removed ## Cost |
-| `state-templates/config.json.template` | 2h frequency, waiting_timeout, heartbeat-restart routine |
-| `state-templates/PROPOSAL.md.template` | responded + self_eval_key fields |
-| `state-templates/GITIGNORE-APPEND.txt` | state/ directory |
-| `docs/ARCHITECTURE.md` | state/ directory with ownership model |
-| `docs/OBSIDIAN-SETUP.md` | Agent Health, Fleet Health, micro-proposal queries |
-| `docs/ALWAYS-ON-OPS.md` | Heartbeat-restart docs, routine-watcher update |
-| `.claude-plugin/plugin.json` | Version bump to 0.3.0 |
+| File                                   | Change                                                                                       |
+| -------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `scripts/generate-summary.js`          | **New.** Read-only state summary generator                                                   |
+| `scripts/append-metrics.js`            | **New.** Append-only JSONL helper                                                            |
+| `scripts/read-cost.js`                 | **New.** SessionStart hook cost reader                                                       |
+| `skills/heartbeat/SKILL.md`            | Alert dedup, self-eval evidence gating, waiting state, restart-safe start, stale queue check |
+| `skills/reflect/SKILL.md`              | Three-outcome tree, tier classification, micro-proposal queuing, three-condition rule        |
+| `skills/proposal-create/SKILL.md`      | Three-condition validation, metrics append                                                   |
+| `skills/proposal-act/SKILL.md`         | First-response guard, metrics append                                                         |
+| `skills/channel-responder/SKILL.md`    | Waiting state, micro-approval handling                                                       |
+| `skills/brief/SKILL.md`                | Micro-proposal pending slot in morning brief                                                 |
+| `skills/session/SKILL.md`              | Reflect trigger with 4h debounce                                                             |
+| `skills/session-start/SKILL.md`        | Recognize waiting state                                                                      |
+| `skills/hatch/SKILL.md`                | state/ dir, state file init, heartbeat-restart routine                                       |
+| `skills/hermit-evolve/SKILL.md`        | 13-step v0.3.0 migration with operator notes                                                 |
+| `scripts/cost-tracker.js`              | Remove SHELL.md write                                                                        |
+| `scripts/evaluate-session.js`          | Zombie, stale, bloat nudges                                                                  |
+| `scripts/routine-watcher.sh`           | Queue-not-skip with safe dequeue                                                             |
+| `scripts/hermit-start.py`              | Waiting state, updated defaults                                                              |
+| `hooks/hooks.json`                     | SessionStart cost injection via read-cost.js                                                 |
+| `state-templates/CLAUDE-APPEND.md`     | 130 → ~35 lines                                                                              |
+| `state-templates/SHELL.md.template`    | Waiting state, removed ## Cost                                                               |
+| `state-templates/config.json.template` | 2h frequency, waiting_timeout, heartbeat-restart routine                                     |
+| `state-templates/PROPOSAL.md.template` | responded + self_eval_key fields                                                             |
+| `state-templates/GITIGNORE-APPEND.txt` | state/ directory                                                                             |
+| `docs/ARCHITECTURE.md`                 | state/ directory with ownership model                                                        |
+| `docs/OBSIDIAN-SETUP.md`               | Agent Health, Fleet Health, micro-proposal queries                                           |
+| `docs/ALWAYS-ON-OPS.md`                | Heartbeat-restart docs, routine-watcher update                                               |
+| `.claude-plugin/plugin.json`           | Version bump to 0.3.0                                                                        |
 
 ### Upgrade Instructions
 
@@ -870,14 +887,14 @@ Run `/claude-code-hermit:hermit-evolve`. The upgrade skill handles 13 migration 
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `skills/reflect/SKILL.md` | Added Skill Health section with three-tier response pattern and skill-creator integration |
-| `state-templates/docker/docker-entrypoint.hermit.sh.template` | PATH fix, `claude plugin list` checks, symlink loop replaced with mkdir |
-| `state-templates/docker/docker-compose.hermit.yml.template` | Added `{{CHANNEL_VOLUME_LINES}}` placeholder for bind-mount volumes |
-| `skills/docker-setup/SKILL.md` | Documented `{{CHANNEL_VOLUME_LINES}}`, bind-mount rationale, plugins default to yes |
-| `skills/hatch/SKILL.md` | Recommended plugins phase, AskUserQuestion batches, phase reorder, deny rules, report updates |
-| `docs/ALWAYS-ON.md` | Updated symlink reference to bind-mount |
+| File                                                          | Change                                                                                        |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `skills/reflect/SKILL.md`                                     | Added Skill Health section with three-tier response pattern and skill-creator integration     |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | PATH fix, `claude plugin list` checks, symlink loop replaced with mkdir                       |
+| `state-templates/docker/docker-compose.hermit.yml.template`   | Added `{{CHANNEL_VOLUME_LINES}}` placeholder for bind-mount volumes                           |
+| `skills/docker-setup/SKILL.md`                                | Documented `{{CHANNEL_VOLUME_LINES}}`, bind-mount rationale, plugins default to yes           |
+| `skills/hatch/SKILL.md`                                       | Recommended plugins phase, AskUserQuestion batches, phase reorder, deny rules, report updates |
+| `docs/ALWAYS-ON.md`                                           | Updated symlink reference to bind-mount                                                       |
 
 ### Upgrade Instructions
 
@@ -899,21 +916,21 @@ Non-Docker hermits get all changes on next `claude plugin update` with no action
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `state-templates/OPERATOR.md` | Replaced 9-section template with minimal freeform document |
-| `state-templates/IDLE-TASKS.md.template` | New idle task list template |
-| `skills/hatch/SKILL.md` | Freeform OPERATOR.md onboarding, IDLE-TASKS.md copy |
-| `skills/heartbeat/SKILL.md` | Idle task pickup from IDLE-TASKS.md replaces When Idle section |
-| `skills/hermit-evolve/SKILL.md` | OPERATOR.md rethink + IDLE-TASKS.md creation |
-| `skills/hermit-settings/SKILL.md` | Updated discover description |
-| `docs/ALWAYS-ON-OPS.md` | Added idle tasks to idle agency list |
-| `docs/SKILLS.md` | Added Idle Tasks section |
-| `docs/CONFIG-REFERENCE.md` | Updated idle_behavior and idle_budget descriptions |
-| `docs/TROUBLESHOOTING.md` | Updated idle agency fallback description |
-| `docs/UPGRADING.md` | Updated idle behavior description |
-| `docs/HOW-TO-USE.md` | Updated OPERATOR.md example to freeform style |
-| `docs/SECURITY.md` | Updated checklist wording |
+| File                                     | Change                                                         |
+| ---------------------------------------- | -------------------------------------------------------------- |
+| `state-templates/OPERATOR.md`            | Replaced 9-section template with minimal freeform document     |
+| `state-templates/IDLE-TASKS.md.template` | New idle task list template                                    |
+| `skills/hatch/SKILL.md`                  | Freeform OPERATOR.md onboarding, IDLE-TASKS.md copy            |
+| `skills/heartbeat/SKILL.md`              | Idle task pickup from IDLE-TASKS.md replaces When Idle section |
+| `skills/hermit-evolve/SKILL.md`          | OPERATOR.md rethink + IDLE-TASKS.md creation                   |
+| `skills/hermit-settings/SKILL.md`        | Updated discover description                                   |
+| `docs/ALWAYS-ON-OPS.md`                  | Added idle tasks to idle agency list                           |
+| `docs/SKILLS.md`                         | Added Idle Tasks section                                       |
+| `docs/CONFIG-REFERENCE.md`               | Updated idle_behavior and idle_budget descriptions             |
+| `docs/TROUBLESHOOTING.md`                | Updated idle agency fallback description                       |
+| `docs/UPGRADING.md`                      | Updated idle behavior description                              |
+| `docs/HOW-TO-USE.md`                     | Updated OPERATOR.md example to freeform style                  |
+| `docs/SECURITY.md`                       | Updated checklist wording                                      |
 
 ### Upgrade Instructions
 
@@ -934,16 +951,16 @@ No config.json changes required. Non-Docker hermits get all changes on next `cla
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `scripts/routine-watcher.sh` | Removed hardcoded `claude-code-hermit:` prefix — sends `/${skill}` as-is |
-| `skills/hermit-evolve/SKILL.md` | Added v0.2.12 migration to prefix existing short skill names in routines |
-| `skills/hermit-settings/SKILL.md` | Updated routine display example and add wizard to use full skill names |
-| `skills/hatch/SKILL.md` | Default routines now use full names (`claude-code-hermit:brief --morning`) |
-| `skills/session-start/SKILL.md` | Morning brief check uses `contains` instead of `startsWith` |
-| `skills/reflect/SKILL.md` | Routine proposal example uses full skill name |
-| `docs/ALWAYS-ON-OPS.md` | Updated routine examples and docs |
-| `docs/TROUBLESHOOTING.md` | Updated morning brief reference to full skill name |
+| File                              | Change                                                                     |
+| --------------------------------- | -------------------------------------------------------------------------- |
+| `scripts/routine-watcher.sh`      | Removed hardcoded `claude-code-hermit:` prefix — sends `/${skill}` as-is   |
+| `skills/hermit-evolve/SKILL.md`   | Added v0.2.12 migration to prefix existing short skill names in routines   |
+| `skills/hermit-settings/SKILL.md` | Updated routine display example and add wizard to use full skill names     |
+| `skills/hatch/SKILL.md`           | Default routines now use full names (`claude-code-hermit:brief --morning`) |
+| `skills/session-start/SKILL.md`   | Morning brief check uses `contains` instead of `startsWith`                |
+| `skills/reflect/SKILL.md`         | Routine proposal example uses full skill name                              |
+| `docs/ALWAYS-ON-OPS.md`           | Updated routine examples and docs                                          |
+| `docs/TROUBLESHOOTING.md`         | Updated morning brief reference to full skill name                         |
 
 ### Upgrade Instructions
 
@@ -966,8 +983,8 @@ Operators who manually added local project skills to routines should verify thei
 
 ### Files affected
 
-| File | Change |
-|------|--------|
+| File                                                          | Change                                                                                    |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `state-templates/docker/docker-entrypoint.hermit.sh.template` | Moved official marketplace add out of channel block; added step 4 (plugin update on boot) |
 
 ### Upgrade Instructions
@@ -990,10 +1007,10 @@ No config.json changes required. Non-Docker hermits are unaffected.
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `docs/RECOMMENDED-PLUGINS.md` | Added entries for claude-md-management and skill-creator under Official Plugins |
-| `skills/docker-setup/SKILL.md` | Added both plugins to step 7b wizard prompt; generalized yes/no handling |
+| File                           | Change                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------- |
+| `docs/RECOMMENDED-PLUGINS.md`  | Added entries for claude-md-management and skill-creator under Official Plugins |
+| `skills/docker-setup/SKILL.md` | Added both plugins to step 7b wizard prompt; generalized yes/no handling        |
 
 ### Upgrade Instructions
 
@@ -1002,10 +1019,12 @@ Run `/claude-code-hermit:hermit-evolve`. The upgrade skill handles:
 1. **No automatic migration** — Recommended plugins are opt-in. Existing hermits are unaffected. The new plugins only appear during fresh `/docker-setup` runs.
 
 No config.json changes required. To install manually in an existing deployment:
+
 ```
 claude plugin install claude-md-management@claude-plugins-official --scope project
 claude plugin install skill-creator@claude-plugins-official --scope project
 ```
+
 Or add via `/claude-code-hermit:hermit-settings docker` → `add claude-md-management` / `add skill-creator`.
 
 ## [0.2.9] - 2026-04-03
@@ -1018,10 +1037,10 @@ Or add via `/claude-code-hermit:hermit-settings docker` → `add claude-md-manag
 
 ### Files affected
 
-| File | Change |
-|------|--------|
+| File                        | Change                                                                                         |
+| --------------------------- | ---------------------------------------------------------------------------------------------- |
 | `skills/heartbeat/SKILL.md` | Moved Reflection block out of `discover`-only section; renumbered Priority alignment to item 2 |
-| `skills/reflect/SKILL.md` | Added 4 operational efficiency questions to the main reflection block |
+| `skills/reflect/SKILL.md`   | Added 4 operational efficiency questions to the main reflection block                          |
 
 ### Upgrade Instructions
 
@@ -1044,14 +1063,14 @@ No config.json changes required. No manual steps needed. Hermits in `wait` mode 
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `skills/hatch/SKILL.md` | Reordered all option lists; changed idle_behavior default in config example |
-| `skills/hermit-settings/SKILL.md` | Updated idle settings display example and option order |
-| `skills/hermit-evolve/SKILL.md` | Updated idle_behavior default in upgrade table and prompt |
-| `state-templates/config.json.template` | Changed `idle_behavior` from `"wait"` to `"discover"` |
-| `docs/CONFIG-REFERENCE.md` | Updated `idle_behavior` default |
-| `docs/SKILLS.md` | Updated idle behavior description |
+| File                                   | Change                                                                      |
+| -------------------------------------- | --------------------------------------------------------------------------- |
+| `skills/hatch/SKILL.md`                | Reordered all option lists; changed idle_behavior default in config example |
+| `skills/hermit-settings/SKILL.md`      | Updated idle settings display example and option order                      |
+| `skills/hermit-evolve/SKILL.md`        | Updated idle_behavior default in upgrade table and prompt                   |
+| `state-templates/config.json.template` | Changed `idle_behavior` from `"wait"` to `"discover"`                       |
+| `docs/CONFIG-REFERENCE.md`             | Updated `idle_behavior` default                                             |
+| `docs/SKILLS.md`                       | Updated idle behavior description                                           |
 
 ### Upgrade Instructions
 
@@ -1071,12 +1090,12 @@ No config.json changes required. Operators who want the new default can switch m
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `skills/hatch/SKILL.md` | Added `default` and `plan` options to wizard; updated record line |
-| `skills/hermit-settings/SKILL.md` | Added `default`, `plan`, and `auto` note to permissions setting |
-| `scripts/hermit-start.py` | Added `plan` to valid modes passed as `--permission-mode` |
-| `docs/CONFIG-REFERENCE.md` | Added `plan` to mode list; added `auto` note |
+| File                              | Change                                                            |
+| --------------------------------- | ----------------------------------------------------------------- |
+| `skills/hatch/SKILL.md`           | Added `default` and `plan` options to wizard; updated record line |
+| `skills/hermit-settings/SKILL.md` | Added `default`, `plan`, and `auto` note to permissions setting   |
+| `scripts/hermit-start.py`         | Added `plan` to valid modes passed as `--permission-mode`         |
+| `docs/CONFIG-REFERENCE.md`        | Added `plan` to mode list; added `auto` note                      |
 
 ### Upgrade Instructions
 
@@ -1093,14 +1112,14 @@ No config.json changes required. Existing `permission_mode` values continue to w
 
 - **`hermit-docker` CLI** — New dedicated script for all Docker management. Replaces `hermit-run docker-*` subcommands and eliminates the need to type raw `docker compose -f docker-compose.hermit.yml` commands. Six subcommands:
 
-  | Command | Purpose |
-  |---------|---------|
-  | `hermit-docker up` | Build and start container |
-  | `hermit-docker down` | Graceful stop (--force to skip) |
-  | `hermit-docker attach` | Connect to tmux session |
-  | `hermit-docker login` | OAuth login inside container |
-  | `hermit-docker logs` | Follow container logs |
-  | `hermit-docker restart` | Restart container |
+  | Command                 | Purpose                         |
+  | ----------------------- | ------------------------------- |
+  | `hermit-docker up`      | Build and start container       |
+  | `hermit-docker down`    | Graceful stop (--force to skip) |
+  | `hermit-docker attach`  | Connect to tmux session         |
+  | `hermit-docker login`   | OAuth login inside container    |
+  | `hermit-docker logs`    | Follow container logs           |
+  | `hermit-docker restart` | Restart container               |
 
 ### Changed
 
@@ -1112,19 +1131,19 @@ No config.json changes required. Existing `permission_mode` values continue to w
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `state-templates/bin/hermit-docker` | New script — Docker management CLI |
-| `state-templates/bin/hermit-run` | Removed docker subcommands; boot dispatcher only |
-| `state-templates/bin/hermit-status` | Removed unused TMUX_SESSION; simplified Python block |
-| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Login hint now uses `hermit-docker login` |
-| `skills/docker-setup/SKILL.md` | All commands updated to `hermit-docker`; step 9 shows full command reference |
-| `skills/hatch/SKILL.md` | Added `hermit-docker` to file tree and bin copy step |
-| `skills/hermit-hand-back/SKILL.md` | Uses `hermit-docker up` and `hermit-docker logs` |
-| `docs/ALWAYS-ON.md` | Full command table updated; login, logs, restart use `hermit-docker` |
-| `docs/FAQ.md` | Login and restart commands updated |
-| `docs/RECOMMENDED-PLUGINS.md` | Restart command updated |
-| `README.md` | Attach command updated; version bump |
+| File                                                          | Change                                                                       |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `state-templates/bin/hermit-docker`                           | New script — Docker management CLI                                           |
+| `state-templates/bin/hermit-run`                              | Removed docker subcommands; boot dispatcher only                             |
+| `state-templates/bin/hermit-status`                           | Removed unused TMUX_SESSION; simplified Python block                         |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Login hint now uses `hermit-docker login`                                    |
+| `skills/docker-setup/SKILL.md`                                | All commands updated to `hermit-docker`; step 9 shows full command reference |
+| `skills/hatch/SKILL.md`                                       | Added `hermit-docker` to file tree and bin copy step                         |
+| `skills/hermit-hand-back/SKILL.md`                            | Uses `hermit-docker up` and `hermit-docker logs`                             |
+| `docs/ALWAYS-ON.md`                                           | Full command table updated; login, logs, restart use `hermit-docker`         |
+| `docs/FAQ.md`                                                 | Login and restart commands updated                                           |
+| `docs/RECOMMENDED-PLUGINS.md`                                 | Restart command updated                                                      |
+| `README.md`                                                   | Attach command updated; version bump                                         |
 
 ### Upgrade Instructions
 
@@ -1156,16 +1175,16 @@ No config.json changes required. The old `hermit-run docker-up` / `hermit-run do
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `skills/docker-setup/SKILL.md` | Added step 7b (recommended plugins wizard); default is no |
-| `skills/hermit-settings/SKILL.md` | Added recommended plugins management to docker section |
-| `state-templates/config.json.template` | Added empty `docker.recommended_plugins` array |
+| File                                                          | Change                                                                                      |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `skills/docker-setup/SKILL.md`                                | Added step 7b (recommended plugins wizard); default is no                                   |
+| `skills/hermit-settings/SKILL.md`                             | Added recommended plugins management to docker section                                      |
+| `state-templates/config.json.template`                        | Added empty `docker.recommended_plugins` array                                              |
 | `state-templates/docker/docker-entrypoint.hermit.sh.template` | Merged config read into init block; added recommended plugins install block (official only) |
-| `docs/RECOMMENDED-PLUGINS.md` | New document |
-| `docs/CONFIG-REFERENCE.md` | Added `recommended_plugins` entry schema with security policy |
-| `docs/SECURITY.md` | Added plugin security section and checklist items |
-| `README.md` | Added Recommended Plugins to doc table; version bump |
+| `docs/RECOMMENDED-PLUGINS.md`                                 | New document                                                                                |
+| `docs/CONFIG-REFERENCE.md`                                    | Added `recommended_plugins` entry schema with security policy                               |
+| `docs/SECURITY.md`                                            | Added plugin security section and checklist items                                           |
+| `README.md`                                                   | Added Recommended Plugins to doc table; version bump                                        |
 
 ### Upgrade Instructions
 
@@ -1196,23 +1215,23 @@ No config.json changes required. The new `docker.recommended_plugins` key is onl
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `skills/hatch/SKILL.md` | Renamed from `skills/hermit-init/`; rewrote step 4 into 5 phases; step 5a Phase 3 now uses `AskUserQuestion` for OPERATOR.md questions; removed `_plugin_root` from config template |
-| `skills/hermit-evolve/SKILL.md` | Renamed from `skills/upgrade/`; updated cross-reference from "steps 4a–4e" to "Phase 2"; removed `_plugin_root` references |
-| `skills/pulse/SKILL.md` | Renamed from `skills/status/` |
-| `CLAUDE.md` | Updated skill list and references |
-| `README.md` | Updated invocation references |
-| `CONTRIBUTING.md` | Updated setup instructions |
-| `docs/*.md` | Updated all skill invocation references |
-| `docs/CONFIG-REFERENCE.md` | Removed `_plugin_root` from schema table |
-| `scripts/hermit-start.py` | Updated skill references; removed `_plugin_root` from DEFAULT_CONFIG |
-| `scripts/check-upgrade.sh` | Updated skill references |
-| `state-templates/bin/hermit-run` | Rewrote plugin resolution: removed config.json read, now scans `~/.claude/plugins/` at runtime |
-| `state-templates/config.json.template` | Removed `_plugin_root` field |
-| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Simplified plugin root export comment |
-| `state-templates/CLAUDE-APPEND.md` | Updated quick reference |
-| `state-templates/OPERATOR.md` | Updated generator comment |
+| File                                                          | Change                                                                                                                                                                              |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `skills/hatch/SKILL.md`                                       | Renamed from `skills/hermit-init/`; rewrote step 4 into 5 phases; step 5a Phase 3 now uses `AskUserQuestion` for OPERATOR.md questions; removed `_plugin_root` from config template |
+| `skills/hermit-evolve/SKILL.md`                               | Renamed from `skills/upgrade/`; updated cross-reference from "steps 4a–4e" to "Phase 2"; removed `_plugin_root` references                                                          |
+| `skills/pulse/SKILL.md`                                       | Renamed from `skills/status/`                                                                                                                                                       |
+| `CLAUDE.md`                                                   | Updated skill list and references                                                                                                                                                   |
+| `README.md`                                                   | Updated invocation references                                                                                                                                                       |
+| `CONTRIBUTING.md`                                             | Updated setup instructions                                                                                                                                                          |
+| `docs/*.md`                                                   | Updated all skill invocation references                                                                                                                                             |
+| `docs/CONFIG-REFERENCE.md`                                    | Removed `_plugin_root` from schema table                                                                                                                                            |
+| `scripts/hermit-start.py`                                     | Updated skill references; removed `_plugin_root` from DEFAULT_CONFIG                                                                                                                |
+| `scripts/check-upgrade.sh`                                    | Updated skill references                                                                                                                                                            |
+| `state-templates/bin/hermit-run`                              | Rewrote plugin resolution: removed config.json read, now scans `~/.claude/plugins/` at runtime                                                                                      |
+| `state-templates/config.json.template`                        | Removed `_plugin_root` field                                                                                                                                                        |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Simplified plugin root export comment                                                                                                                                               |
+| `state-templates/CLAUDE-APPEND.md`                            | Updated quick reference                                                                                                                                                             |
+| `state-templates/OPERATOR.md`                                 | Updated generator comment                                                                                                                                                           |
 
 ### Upgrade Instructions
 
@@ -1236,23 +1255,23 @@ No other config.json changes required. The skill renames only affect invocation 
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `skills/hermit-init/SKILL.md` | Renamed from `skills/init/SKILL.md`; added wizard discipline instruction |
-| `README.md` | Updated skill invocation references |
-| `CLAUDE.md` | Updated skill list and template description |
-| `CONTRIBUTING.md` | Updated setup instructions |
-| `docs/HOW-TO-USE.md` | Updated invocation references |
-| `docs/FAQ.md` | Updated references |
-| `docs/CONFIG-REFERENCE.md` | Updated references |
-| `docs/ALWAYS-ON.md` | Updated references |
-| `docs/SECURITY.md` | Updated references |
-| `docs/CREATING-YOUR-OWN-HERMIT.md` | Updated references |
-| `skills/upgrade/SKILL.md` | Updated invocation and file path references |
-| `skills/hermit-settings/SKILL.md` | Updated invocation reference |
-| `skills/docker-setup/SKILL.md` | Updated invocation reference |
-| `scripts/hermit-start.py` | Updated invocation reference |
-| `state-templates/OPERATOR.md` | Updated generated-by comment |
+| File                               | Change                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------ |
+| `skills/hermit-init/SKILL.md`      | Renamed from `skills/init/SKILL.md`; added wizard discipline instruction |
+| `README.md`                        | Updated skill invocation references                                      |
+| `CLAUDE.md`                        | Updated skill list and template description                              |
+| `CONTRIBUTING.md`                  | Updated setup instructions                                               |
+| `docs/HOW-TO-USE.md`               | Updated invocation references                                            |
+| `docs/FAQ.md`                      | Updated references                                                       |
+| `docs/CONFIG-REFERENCE.md`         | Updated references                                                       |
+| `docs/ALWAYS-ON.md`                | Updated references                                                       |
+| `docs/SECURITY.md`                 | Updated references                                                       |
+| `docs/CREATING-YOUR-OWN-HERMIT.md` | Updated references                                                       |
+| `skills/upgrade/SKILL.md`          | Updated invocation and file path references                              |
+| `skills/hermit-settings/SKILL.md`  | Updated invocation reference                                             |
+| `skills/docker-setup/SKILL.md`     | Updated invocation reference                                             |
+| `scripts/hermit-start.py`          | Updated invocation reference                                             |
+| `state-templates/OPERATOR.md`      | Updated generated-by comment                                             |
 
 ### Upgrade Instructions
 
@@ -1274,8 +1293,8 @@ Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
 
 ### Files affected
 
-| File | Change |
-|------|--------|
+| File                      | Change                                                                                                                |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `skills/upgrade/SKILL.md` | Rewrote step 7 (hermit upgrades): execute changelog migrations in version order, specify CLAUDE-APPEND sync procedure |
 
 ### Upgrade Instructions
@@ -1302,12 +1321,12 @@ Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `state-templates/CLAUDE-APPEND.md` | Added "Proposal Pipeline (mandatory)" section |
+| File                                | Change                                                            |
+| ----------------------------------- | ----------------------------------------------------------------- |
+| `state-templates/CLAUDE-APPEND.md`  | Added "Proposal Pipeline (mandatory)" section                     |
 | `skills/channel-responder/SKILL.md` | Added "Proposal approval" classification before "New instruction" |
-| `skills/heartbeat/SKILL.md` | Clarified "no action" rule, proposal creation is documentation |
-| `skills/reflect/SKILL.md` | Formatted proposal-create reference |
+| `skills/heartbeat/SKILL.md`         | Clarified "no action" rule, proposal creation is documentation    |
+| `skills/reflect/SKILL.md`           | Formatted proposal-create reference                               |
 
 ### Upgrade Instructions
 
@@ -1349,27 +1368,27 @@ Run `/claude-code-hermit:upgrade`. The upgrade skill handles:
 
 ### Files affected
 
-| File | Change |
-|------|--------|
-| `state-templates/SHELL.md.template` | Removed `## Plan` section |
-| `agents/session-mgr.md` | Removed plan table ops, accepts task table from prompt |
-| `skills/session/SKILL.md` | TaskCreate/TaskUpdate workflow, task cleanup before idle |
-| `skills/session-start/SKILL.md` | Create Tasks instead of plan table |
-| `skills/session-close/SKILL.md` | Task cleanup on close, pass table to session-mgr |
-| `skills/status/SKILL.md` | TaskList for progress counts |
-| `skills/brief/SKILL.md` | TaskList for progress counts |
-| `skills/channel-responder/SKILL.md` | Removed Plan reference |
-| `skills/hermit-takeover/SKILL.md` | Updated example output |
-| `state-templates/CLAUDE-APPEND.md` | Added task discipline, removed plan table refs |
-| `scripts/lib/tasks.js` | **New** — shared task file reading helper |
-| `scripts/cost-tracker.js` | Task reading + snapshot write (replaces plan parsing) |
-| `scripts/evaluate-session.js` | Task-aware plan check + hash fix |
-| `skills/init/SKILL.md` | Writes `CLAUDE_CODE_TASK_LIST_ID` to settings.local.json |
-| `skills/upgrade/SKILL.md` | v0.2.0 migration: task list ID + legacy plan strip |
-| `tests/fixtures/shell-session.md` | Removed plan table from fixture |
-| `docs/ARCHITECTURE.md` | Updated plan lifecycle |
-| `docs/HOW-TO-USE.md` | Updated progress display |
-| `docs/OBSIDIAN-SETUP.md` | Snapshot embed, progress queries, fleet progress |
+| File                                | Change                                                   |
+| ----------------------------------- | -------------------------------------------------------- |
+| `state-templates/SHELL.md.template` | Removed `## Plan` section                                |
+| `agents/session-mgr.md`             | Removed plan table ops, accepts task table from prompt   |
+| `skills/session/SKILL.md`           | TaskCreate/TaskUpdate workflow, task cleanup before idle |
+| `skills/session-start/SKILL.md`     | Create Tasks instead of plan table                       |
+| `skills/session-close/SKILL.md`     | Task cleanup on close, pass table to session-mgr         |
+| `skills/status/SKILL.md`            | TaskList for progress counts                             |
+| `skills/brief/SKILL.md`             | TaskList for progress counts                             |
+| `skills/channel-responder/SKILL.md` | Removed Plan reference                                   |
+| `skills/hermit-takeover/SKILL.md`   | Updated example output                                   |
+| `state-templates/CLAUDE-APPEND.md`  | Added task discipline, removed plan table refs           |
+| `scripts/lib/tasks.js`              | **New** — shared task file reading helper                |
+| `scripts/cost-tracker.js`           | Task reading + snapshot write (replaces plan parsing)    |
+| `scripts/evaluate-session.js`       | Task-aware plan check + hash fix                         |
+| `skills/init/SKILL.md`              | Writes `CLAUDE_CODE_TASK_LIST_ID` to settings.local.json |
+| `skills/upgrade/SKILL.md`           | v0.2.0 migration: task list ID + legacy plan strip       |
+| `tests/fixtures/shell-session.md`   | Removed plan table from fixture                          |
+| `docs/ARCHITECTURE.md`              | Updated plan lifecycle                                   |
+| `docs/HOW-TO-USE.md`                | Updated progress display                                 |
+| `docs/OBSIDIAN-SETUP.md`            | Snapshot embed, progress queries, fleet progress         |
 
 ### Upgrade Instructions
 

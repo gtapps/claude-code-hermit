@@ -95,6 +95,7 @@ SHELL.md from a crashed session persists. Choose **resume** or **start new** (ge
 ## Hermit Keeps Suggesting Dismissed Proposals
 
 As of v0.0.8, reflect checks dismissed and deferred proposals before creating new ones. If you're still seeing re-suggestions:
+
 - Check your plugin version: the proposal is in `.claude-plugin/plugin.json` — should be `0.0.8` or later.
 - Run `/claude-code-hermit:hermit-evolve` to ensure the latest reflect skill is active.
 - If significantly more evidence has accumulated since the dismissal, Hermit may intentionally revisit — this is by design.
@@ -102,6 +103,7 @@ As of v0.0.8, reflect checks dismissed and deferred proposals before creating ne
 ## SHELL.md Getting Large / Bloated
 
 A bloated SHELL.md costs tokens on every read. Keep it lean:
+
 - Use `/compact` between steps to free context.
 - The progress log should stay under ~30 entries. If it's growing beyond that, close the session and start a new one.
 - The `session-diff` hook auto-populates `## Changed` — don't manually list files.
@@ -110,6 +112,7 @@ A bloated SHELL.md costs tokens on every read. Keep it lean:
 ## Docker Build Fails
 
 Common causes:
+
 - **UID mismatch:** The Dockerfile matches your host UID. If you're not UID 1000, rebuild after checking `id -u`. The generated Dockerfile should handle this, but manual edits may break it.
 - **Network issues during build:** `apt-get` or `npm install` fails. Check your network, proxy settings, and Docker DNS config.
 - **npm permission errors:** Claude Code installs globally. The Dockerfile sets `NPM_CONFIG_PREFIX` for the `claude` user — if you modified the Dockerfile, ensure this is preserved.
@@ -132,6 +135,7 @@ Check logs first:
 ```
 
 Common causes:
+
 - **Auth expired:** `hermit-docker login` to re-authenticate, then `hermit-docker restart`.
 - **Workspace trust not accepted:** Attach once (`hermit-docker attach`), accept the trust prompt, then detach (`Ctrl+B, D`).
 - **Missing `.env`:** If using API key auth, ensure `.env` exists with `ANTHROPIC_API_KEY` set.
@@ -149,4 +153,3 @@ Usually a UID mismatch between the host and the container user. The generated Do
 - Check bot pairing: send a test message to the bot and watch the logs (`hermit-docker logs`).
 - For Discord: ensure `channels.discord.state_dir` is set in `config.json` and the directory is bind-mounted in `docker-compose.hermit.yml`. `hermit-start` derives `DISCORD_STATE_DIR` from this at boot.
 - For Telegram: ensure `channels.telegram.state_dir` is set and the bot token is in the state directory's `.env` file.
-

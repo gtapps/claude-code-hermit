@@ -13,15 +13,16 @@ This runs each hook with fixture input and asserts exit 0.
 ## Test Structure
 
 Tests live in `tests/`:
+
 - `run-hooks.sh` — main test runner, executes all hook tests
 - `fixtures/` — input files for hook tests
 
 ### Fixture Files
 
-| File | Used by | Format |
-|------|---------|--------|
+| File                   | Used by                                     | Format                                                                            |
+| ---------------------- | ------------------------------------------- | --------------------------------------------------------------------------------- |
 | `stop-hook-input.json` | cost-tracker, suggest-compact, session-diff | JSON with `session_id`, `model`, `input_tokens`, `output_tokens`, `context_usage` |
-| `shell-session.md` | evaluate-session | SHELL.md format (copy of a live session) |
+| `shell-session.md`     | evaluate-session                            | SHELL.md format (copy of a live session)                                          |
 
 ---
 
@@ -64,12 +65,12 @@ When adding or modifying a hook:
 
 All hooks follow this contract:
 
-| Property | Rule |
-|----------|------|
-| **Stdin** | Stop hooks receive JSON. SessionStart hooks receive no stdin. |
-| **Exit code** | Always 0 on error. Non-zero only for genuine assertion failures. |
+| Property           | Rule                                                                                                                 |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| **Stdin**          | Stop hooks receive JSON. SessionStart hooks receive no stdin.                                                        |
+| **Exit code**      | Always 0 on error. Non-zero only for genuine assertion failures.                                                     |
 | **Profile gating** | Use `run-with-profile.js` or check `AGENT_HOOK_PROFILE` internally. Valid profiles: `minimal`, `standard`, `strict`. |
-| **File paths** | Resolved relative to cwd (the target project root). |
+| **File paths**     | Resolved relative to cwd (the target project root).                                                                  |
 
 ### No Test Framework
 
@@ -84,6 +85,7 @@ python3 tests/run-contracts.py
 ```
 
 Added in v0.3.5. Runs 20+ Python-based contract tests that verify:
+
 - Plugin manifest integrity (`plugin.json` fields, skill/hook references)
 - Hook script exit codes and stdin contracts
 - State file ownership constraints

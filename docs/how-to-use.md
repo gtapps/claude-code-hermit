@@ -237,16 +237,16 @@ Or just ask Hermit: "What permissions do you need?" — it'll tell you exactly w
 
 Most common actions auto-trigger from natural language — just say what you mean. Slash commands (`/claude-code-hermit:*`) are the precision fallback for when auto-triggers don't fire.
 
-| Category       | Skills                                                        |
-| -------------- | ------------------------------------------------------------- |
-| **Session**    | `session`, `session-start`, `session-close`                   |
-| **Status**     | `pulse`, `brief`                                              |
-| **Monitoring** | `monitor`, `heartbeat`                                        |
-| **Learning**   | `proposal-create`, `proposal-list`, `proposal-act`, `reflect` |
-| **Config**     | `hermit-settings`, `hatch`, `hermit-evolve`                   |
-| **Docker**     | `docker-setup`, `hermit-takeover`, `hermit-hand-back`         |
-| **Channels**   | `channel-responder`                                           |
+| Category       | Skills                                                             |
+| -------------- | ------------------------------------------------------------------ |
+| **Session**    | `session`, `session-start`, `session-close`                        |
+| **Status**     | `pulse`, `brief`                                                   |
+| **Monitoring** | `monitor`, `heartbeat`                                             |
+| **Learning**   | `proposal-create`, `proposal-list`, `proposal-act`, `reflect`      |
+| **Config**     | `hermit-settings`, `hatch`, `hermit-evolve`                        |
+| **Docker**     | `docker-setup`, `hermit-takeover`, `hermit-hand-back`              |
+| **Channels**   | `channel-responder`                                                |
 | **Cortex**     | `obsidian-setup`, `cortex-refresh`, `cortex-sync`, `weekly-review` |
-| **Testing**    | `smoke-test`, `test-run`                                      |
+| **Testing**    | `smoke-test`, `test-run`                                           |
 
 Full reference: [Skills Reference](skills.md).
