@@ -54,6 +54,8 @@ No custom runtime. No server. No API keys to manage. If you have a Claude Pro, M
 
 **4. It develops a rhythm.** Morning brief on what happened overnight. Evening summary that archives the day's work. Between tasks, it picks up accepted proposals and runs maintenance — all gated by how much autonomy you give it.
 
+**5. You can see inside it.** Browse sessions, proposals, cost trends, and learning in Obsidian — Hermit Cortex turns your hermit's memory into a navigable brain.
+
 ---
 
 ## Quick Start
@@ -110,7 +112,7 @@ See [Always-On Setup](docs/always-on.md) for the full guide — auth, channels, 
 Install the [Claude Code Channels](https://code.claude.com/docs/en/channels) plugin for your platform:
 
 ```bash
-claude /plugin install discord@claude-plugins-official   # or telegram, imessage
+claude plugin install discord@claude-plugins-official   # or telegram, imessage
 ```
 
 Pair your account by messaging the bot — it walks you through it. Once connected, you control your hermit from your phone: send instructions, check status, get alerts. Combined with [remote control](https://code.claude.com/docs/en/remote-control) (enabled by default), you never need to touch the terminal again.
@@ -192,7 +194,7 @@ See [Creating Your Own Hermit](docs/creating-your-own-hermit.md) for more — fr
 | [Troubleshooting](docs/troubleshooting.md)                   | Something isn't working and you need to fix it                             |
 | [FAQ](docs/faq.md)                                           | Common questions — Windows, costs, multi-project, API keys                 |
 | [Testing](docs/testing.md)                                   | You're contributing and need to run or write hook tests                    |
-| [Obsidian Dashboard](docs/obsidian-setup.md)                 | You want a visual dashboard for sessions and proposals                     |
+| [Hermit Cortex (Powered by Obsidian)](docs/obsidian-setup.md) | You want to see inside your hermit's brain                                 |
 
 ---
 

@@ -104,7 +104,7 @@ Default: idle transition when work finishes. Waiting when blocked on operator in
   Morning: brief + priority check. Evening: daily journal.
 ```
 
-**Hooks fire after every assistant turn:** `cost-tracker.js` (costs to `.status.json`), `suggest-compact.js` (context warnings), `session-diff.js` (changed files), `evaluate-session.js` (quality, with zombie/stale/bloat nudges).
+**Hooks fire throughout the session:** `cost-tracker.js` (costs), `suggest-compact.js` (context warnings), `session-diff.js` (changed files), and `evaluate-session.js` (quality nudges) run on every assistant turn (Stop). At the strict profile, `enforce-deny-patterns.js` blocks banned commands before execution (PreToolUse), and `channel-hook.js` + `heartbeat-touch.js` run on tool use (PostToolUse).
 
 ### When learning fires
 
@@ -178,7 +178,7 @@ Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect 
 The routine watcher runs as a background tmux window (started by `hermit-start.py`). Every 60 seconds it:
 1. Re-reads `config.json` for the latest routines
 2. Matches current time and day against enabled routines
-3. Checks `.claude-code-hermit/.status` — queues to `state/routine-queue.json` if `in_progress`, checks `run_during_waiting` if `waiting`
+3. Checks `state/runtime.json` (session state) — queues to `state/routine-queue.json` if `in_progress`, checks `run_during_waiting` if `waiting`
 4. Fires matching routines via `tmux send-keys` to the Claude Code pane
 5. Deduplicates: each routine fires at most once per matching time slot
 

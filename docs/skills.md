@@ -94,3 +94,10 @@ Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routin
 | Skill               | What it does                                                                                                                                                                                | Auto-triggers  |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
 | `channel-responder` | Handles inbound messages from [Channels](https://code.claude.com/docs/en/channels). Classifies as status request, new instruction, question, or emergency. Responds in one short paragraph. | Message-driven |
+
+## Testing
+
+| Skill      | What it does                                                                                                                                | Auto-triggers |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `smoke-test` | Runs the contract and hook test suites (`run-contracts.py`, `run-hooks.sh`, `validate-frontmatter.js`) and reports pass/fail. Use before releasing changes. | -- |
+| `test-run` | Runs a specific test file or suite by name. Accepts a path or test name pattern. Useful for focused testing during development. | -- |

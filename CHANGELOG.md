@@ -8,6 +8,8 @@
 
 - **Missing python3 causes silent routine outage** — `routine-watcher.sh` shells out to `python3` for cron matching but treated interpreter-not-found (exit 127) as a normal no-match, causing total routine outage with no error. Now validates `python3` once at startup with `command -v` and exits with a FATAL message if absent. All python3 calls use the resolved path. Exit codes 126/127 from cron-match.py are logged explicitly instead of silently swallowed.
 
+- **`hermit-docker down` force-stops immediately** — the graceful shutdown wait in `hermit-docker` read a static `.status` file (always "idle") instead of `runtime.json` (which `hermit-stop.py` actually writes to). The loop exited on iteration 1 every time, effectively force-stopping the container with no graceful close. Now reads `session_state` and `shutdown_completed_at` from `state/runtime.json` via `jq`, matching the logic in `docker-entrypoint`.
+
 - **`validate-config.js` TIME_RE deleted** — the cron migration removed the `TIME_RE` regex but it was still used for `heartbeat.active_hours` validation, causing a silent ReferenceError (swallowed by try/catch). Restored.
 
 - **`cron-match.py` accepted unused DOM argument** — CLI accepted a 4th `DOM` positional arg that was silently ignored (DOM is always parsed from the timestamp). Removed the parameter, updated docstring, and updated all callers.
@@ -72,6 +74,7 @@
 | `docs/config-reference.md` | Schema, examples, and new cron rules section |
 | `docs/troubleshooting.md` | Dedup description updated |
 | `docs/always-on-ops.md` | Routine example and field descriptions updated |
+| `state-templates/bin/hermit-docker` | Graceful shutdown: `.status` → `runtime.json` + `jq` |
 | `tests/run-hooks.sh` | Updated cron-match tests (dropped DOM arg); added queue-dedup slot isolation test |
 | `tests/run-contracts.py` | Updated cron corpus tests (dropped DOM arg) |
 | `CHANGELOG.md` | Historical cortex-refresh references updated |

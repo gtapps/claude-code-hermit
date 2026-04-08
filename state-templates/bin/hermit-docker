@@ -17,7 +17,7 @@ fi
 
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COMPOSE="$PROJECT_DIR/docker-compose.hermit.yml"
-STATUS_FILE="$PROJECT_DIR/.claude-code-hermit/.status"
+RUNTIME_FILE="$PROJECT_DIR/.claude-code-hermit/state/runtime.json"
 
 if [ ! -f "$COMPOSE" ]; then
   echo "[hermit] No docker-compose.hermit.yml found in $PROJECT_DIR" >&2
@@ -71,8 +71,9 @@ case "$CMD" in
       echo "[hermit] Waiting for session to close (up to 60s)..."
       CLOSED=false
       for i in $(seq 1 60); do
-        STATUS=$(cat "$STATUS_FILE" 2>/dev/null || echo "unknown")
-        if [ "$STATUS" = "idle" ] || [ "$STATUS" = "shutdown" ]; then
+        CUR_STATE=$(jq -r '.session_state // "unknown"' "$RUNTIME_FILE" 2>/dev/null || echo "unknown")
+        SHUTDOWN_DONE=$(jq -r '.shutdown_completed_at // empty' "$RUNTIME_FILE" 2>/dev/null)
+        if [ "$CUR_STATE" = "idle" ] || [ -n "$SHUTDOWN_DONE" ]; then
           echo "[hermit] Session closed after ${i}s."
           CLOSED=true
           break

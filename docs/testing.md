@@ -74,3 +74,33 @@ All hooks follow this contract:
 ### No Test Framework
 
 Tests are shell scripts. No Jest, Vitest, or anything else. This is a design constraint — see [Contributing](../CONTRIBUTING.md).
+
+---
+
+## Contract Tests (run-contracts.py)
+
+```bash
+python3 tests/run-contracts.py
+```
+
+Added in v0.3.5. Runs 20+ Python-based contract tests that verify:
+- Plugin manifest integrity (`plugin.json` fields, skill/hook references)
+- Hook script exit codes and stdin contracts
+- State file ownership constraints
+- Profile-gating correctness
+
+These are stricter than `run-hooks.sh` — they test the plugin's behavioral contracts, not just exit codes.
+
+### Fixture: cron-test-corpus.json
+
+`tests/cron-test-corpus.json` is a shared fixture (added v0.3.10) used by contract tests that exercise the routine watcher's schedule-matching logic. It contains time/schedule pairs with expected fire/skip decisions. Add entries when fixing schedule edge cases.
+
+---
+
+## Frontmatter Validator (validate-frontmatter.js)
+
+```bash
+node tests/validate-frontmatter.js
+```
+
+Added in v0.3.9. Validates that all `.md` files in `skills/` and `agents/` have valid YAML frontmatter with required fields (`name`, `description`). Exits non-zero if any file fails. Run before releasing skills changes.

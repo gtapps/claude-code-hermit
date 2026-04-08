@@ -128,6 +128,19 @@ See [Always-On Operations](always-on-ops.md) for tmux setup and operational deta
 
 ---
 
+## See What's Inside — Hermit Cortex
+
+Hermit Cortex is an Obsidian-powered view of your hermit's brain — sessions, proposals, cost trends, learning, and cross-file connections, all linkable and searchable.
+
+```bash
+/claude-code-hermit:obsidian-setup    # one-time setup
+/claude-code-hermit:cortex-refresh    # rebuild the index
+```
+
+See [Hermit Cortex](obsidian-setup.md) for the full guide.
+
+---
+
 ## Common Workflows
 
 **Disconnected?** — Restart Claude Code. Hermit detects the active session and shows where you left off. Type "continue."
@@ -150,13 +163,17 @@ See [Always-On Operations](always-on-ops.md) for tmux setup and operational deta
 │   └── NEXT-TASK.md           <- from accepted proposals
 ├── proposals/
 │   └── PROP-001.md            <- improvement ideas
+├── reviews/
+│   └── weekly-YYYY-WNN.md     <- weekly review reports
 ├── state/                     <- runtime observations (agent-owned)
+│   ├── runtime.json           <- session state (in_progress/waiting/idle)
 │   ├── alert-state.json       <- heartbeat alert dedup + self-eval evidence
 │   ├── reflection-state.json  <- last reflection timestamp + plugin check state
 │   ├── routine-queue.json     <- queued routines pending execution
 │   ├── proposal-metrics.jsonl <- append-only event log
 │   ├── micro-proposals.json   <- single-slot micro-approval queue
 │   └── state-summary.md       <- auto-generated health snapshot
+├── cortex-manifest.json       <- Obsidian Cortex index (optional)
 ├── OPERATOR.md                <- your rulebook
 ├── HEARTBEAT.md               <- background checklist
 └── config.json                <- settings
@@ -216,7 +233,7 @@ Or just ask Hermit: "What permissions do you need?" — it'll tell you exactly w
 
 ---
 
-## All 18 Skills
+## All 24 Skills
 
 Most common actions auto-trigger from natural language — just say what you mean. Slash commands (`/claude-code-hermit:*`) are the precision fallback for when auto-triggers don't fire.
 
@@ -226,8 +243,10 @@ Most common actions auto-trigger from natural language — just say what you mea
 | **Status**     | `pulse`, `brief`                                              |
 | **Monitoring** | `monitor`, `heartbeat`                                        |
 | **Learning**   | `proposal-create`, `proposal-list`, `proposal-act`, `reflect` |
-| **Config**     | `hermit-settings`, `hatch`, `hermit-evolve`                  |
+| **Config**     | `hermit-settings`, `hatch`, `hermit-evolve`                   |
 | **Docker**     | `docker-setup`, `hermit-takeover`, `hermit-hand-back`         |
 | **Channels**   | `channel-responder`                                           |
+| **Cortex**     | `obsidian-setup`, `cortex-refresh`, `cortex-sync`, `weekly-review` |
+| **Testing**    | `smoke-test`, `test-run`                                      |
 
 Full reference: [Skills Reference](skills.md).

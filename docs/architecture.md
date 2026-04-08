@@ -28,7 +28,7 @@ A Claude Code plugin that turns any Claude Code instance into a self-improving p
                                  |
  +-------------------------------v----------------------------------+
  |                    LAYER 4: SKILLS + HOOKS                       |
- |   18 skills    5 hooks    3 profiles (minimal/standard/strict)   |
+ |   24 skills    3 hook phases    3 profiles (minimal/standard/strict)   |
  +-------------------------------|----------------------------------+
                                  |
  +-------------------------------v----------------------------------+
@@ -91,27 +91,25 @@ Hermits extend this layer with specialized agents (e.g., `claude-code-dev-hermit
 
 ## Layer 4: Skills and Hooks
 
-### Skills (18)
+### Skills (24)
 
 See [Skills Reference](skills.md) for the full list.
 
 ### Hooks
 
-| Hook               | Trigger      | What it does                                        |
-| ------------------ | ------------ | --------------------------------------------------- |
-| Context loader     | SessionStart | Loads OPERATOR.md, SHELL.md, latest report, cost data |
-| Cost tracker       | Stop         | Logs tokens/cost to `.status.json`, enforces budget |
-| Compact suggestion | Stop         | Suggests `/compact` at 60% context usage            |
-| Session diff       | Stop         | Auto-populates `## Changed` from `git diff`         |
-| Session evaluator  | Stop         | Validates SHELL.md quality, detects zombie/stale/bloat |
-
-### Hook profiles
-
-| Profile  | Cost | Compact | Diff | Evaluation |
-| -------- | ---- | ------- | ---- | ---------- |
-| minimal  | yes  | --      | --   | --         |
-| standard | yes  | yes     | yes  | yes        |
-| strict   | yes  | yes     | yes  | yes        |
+| Hook               | Trigger      | Profile  | What it does                                        |
+| ------------------ | ------------ | -------- | --------------------------------------------------- |
+| Deny enforcer      | PreToolUse   | strict   | Blocks banned bash patterns before execution        |
+| Channel hook       | PostToolUse  | strict   | Forwards tool events to configured channel          |
+| Heartbeat touch    | PostToolUse  | strict   | Marks activity for heartbeat gap detection          |
+| Contract tests     | PostToolUse  | strict   | Runs plugin contract tests after changes            |
+| Config validator   | PostToolUse  | strict   | Validates config.json after mutations               |
+| Context loader     | SessionStart | all      | Loads OPERATOR.md, SHELL.md, latest report, cost data |
+| Cost tracker       | Stop         | all      | Logs tokens/cost, enforces budget                   |
+| Compact suggestion | Stop         | standard+ | Suggests `/compact` at 60% context usage           |
+| Session diff       | Stop         | standard+ | Auto-populates `## Changed` from `git diff`        |
+| Session evaluator  | Stop         | standard+ | Validates SHELL.md quality, detects zombie/stale/bloat |
+| Routine queue flush | Stop        | all      | Dequeues pending routines when session goes idle    |
 
 Hermits may add hooks at `strict` (e.g., git-push-guard). Use `run-with-profile.js` for profile-gated execution.
 
@@ -128,7 +126,7 @@ claude-code-hermit/
 ├── agents/session-mgr.md
 ├── hooks/hooks.json
 ├── scripts/               # Hook implementations + boot scripts
-├── skills/                 # 18 skill directories
+├── skills/                 # 24 skill directories
 ├── state-templates/        # Copied into projects by init
 └── .claude-plugin/plugin.json
 ```
@@ -143,20 +141,26 @@ your-project/
 │   ├── reviews/weekly-YYYY-WNN.md        # Weekly review reports (weekly-review.js)
 │   ├── templates/
 │   ├── state/                        # Runtime observations (agent-owned, not operator-configured)
+│   │   ├── runtime.json              # Session state: in_progress/waiting/idle (authoritative since v0.3.2)
 │   │   ├── alert-state.json          # Alert dedup state + self-eval evidence (heartbeat-owned)
 │   │   ├── reflection-state.json     # Last reflection timestamp (reflect-owned)
 │   │   ├── routine-queue.json        # Queued routines pending execution (routine-watcher-owned)
+│   │   ├── channel-activity.json     # Last channel interaction timestamp (channel-hook-owned)
+│   │   ├── session-diff.json         # Uncommitted file tracking (session-diff-owned)
 │   │   ├── proposal-metrics.jsonl    # Append-only event log (proposal-create + proposal-act)
-│   │   ├── micro-proposals.json     # Single-slot micro-approval queue (reflect + channel-responder)
-│   │   └── state-summary.md          # Auto-generated health snapshot (generate-summary.js)
+│   │   ├── micro-proposals.json      # Single-slot micro-approval queue (reflect + channel-responder)
+│   │   ├── state-summary.md          # Auto-generated health snapshot (generate-summary.js)
+│   │   ├── .heartbeat                # Activity marker (heartbeat-touch-owned)
+│   │   └── .lifecycle.lock           # Always-on lifecycle lock (hermit-start-owned)
 │   ├── bin/hermit-start, hermit-stop
 │   ├── config.json
+│   ├── cortex-manifest.json          # Obsidian Cortex index (optional, created by obsidian-setup)
 │   ├── OPERATOR.md
 │   └── HEARTBEAT.md
 └── CLAUDE.md (session discipline appended)
 ```
 
-~39 files total. No `package.json`, no `node_modules`, no build step.
+No `package.json`, no `node_modules`, no build step.
 
 #### state/ ownership model
 
@@ -164,12 +168,17 @@ One writer per state file. No shared mutation bus.
 
 | File | Owner (sole writer) | Readers |
 |------|-------------------|---------|
+| `state/runtime.json` | session-mgr + cost-tracker | heartbeat, session-start, routine-watcher |
 | `state/alert-state.json` | heartbeat only | heartbeat; evaluate-session (read-only nudge computation) |
 | `state/reflection-state.json` | reflect + session (non-overlapping phases) | heartbeat (debounce), hermit-settings (plugin-checks display) |
 | `state/routine-queue.json` | routine-watcher only | routine-watcher |
+| `state/channel-activity.json` | channel-hook.js only | channel-responder, heartbeat |
+| `state/session-diff.json` | session-diff.js only | session-close (display) |
 | `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only) | generate-summary.js |
 | `state/micro-proposals.json` | reflect (queue) + channel-responder/brief (resolve) | brief, generate-summary.js |
 | `state/state-summary.md` | generate-summary.js only | Obsidian, humans |
+| `state/.heartbeat` | heartbeat-touch.js only | heartbeat (detect activity gaps) |
+| `state/.lifecycle.lock` | hermit-start.py only | hermit-stop.py (cleanup) |
 
 ---
 
