@@ -13,6 +13,7 @@
   "auto_session": true,
   "ask_budget": false,
   "always_on": false,
+  "chrome": false,
   "idle_behavior": "discover",
   "idle_budget": "$0.50",
   "routines": [
