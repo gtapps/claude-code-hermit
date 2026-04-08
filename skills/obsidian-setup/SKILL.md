@@ -12,7 +12,7 @@ Pass `--reconfigure-manifest` to re-run only the artifact path discovery wizard 
 
 1. Read `.claude-code-hermit/config.json` to confirm the hermit is hatched.
 2. If `.claude-code-hermit/` does not exist, stop: "Run `/claude-code-hermit:hatch` first."
-3. Check whether an `obsidian/` directory already exists in the project root.
+3. Check whether an `obsidian/` directory already exists by reading `.gitignore` for an `obsidian/` entry — Step 7 always writes it there. (Do not use Glob; it respects `.gitignore` and will miss the directory.)
    - If it exists and neither `--force` nor `--reconfigure-manifest` was passed: list existing pages and ask: "Obsidian Cortex already set up. Use `--force` to overwrite static pages, or `--reconfigure-manifest` to update artifact paths."
    - If `--force` was passed: proceed (static pages will be replaced).
    - If `--reconfigure-manifest` was passed: skip to **Step 4** directly.

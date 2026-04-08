@@ -61,7 +61,7 @@ Cluster by inferred topic rather than confirming one by one:
 
 ## Step 4 — Rebuild (conditional)
 
-Check whether `obsidian/` exists in the project root.
+Check whether the Cortex is set up by reading `.gitignore` for an `obsidian/` entry — `obsidian-setup` always writes it there. (Do not use Glob; it respects `.gitignore` and will miss the directory.)
 
 **If yes:** Run:
 ```
