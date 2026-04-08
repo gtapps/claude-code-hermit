@@ -146,9 +146,13 @@ When the main session requests an idle transition (not a full close):
      - **Session Summary:** Count non-empty, non-comment lines. If count exceeds `summary_threshold`: summarize all entries except the most recent `summary_keep` into a single `[Earlier]` line — e.g., `[Earlier] 15 tasks archived (S-001 — S-015)`. If an `[Earlier]` line already exists, merge counts and extend the range. Keep the most recent `summary_keep` entries intact.
    - Append a summary line to `## Session Summary` (date-only — this is body text for human scanning, not queryable frontmatter):
      `**S-NNN** (YYYY-MM-DD): [one-line task summary] — [status] ($X.XX)`
-8. **Clear transition and update runtime.json**: `transition: null`, `transition_target: null`, `transition_started_at: null`, `session_state: "idle"`. Pre-compute next `session_id` (for the next task).
-9. If cost data is available, preserve the cumulative total in the Cost section
-10. **Reset per-session counters in `.status.json`**: write `{"cost_usd": 0, "tokens": 0, "operator_turns": 0}` (merging into existing keys, preserving `session_id`, `status`, etc.). This ensures the next task's cost-tracker readings start from zero rather than carrying over this task's totals. Use atomic write: write to `sessions/.status.json.tmp`, rename to `sessions/.status.json`.
+8. **Idle-task reconciliation.** If `idle_task` exists in runtime.json (set by heartbeat when an idle task was picked from IDLE-TASKS.md):
+   - If the task's final status is `completed`: find the line matching `idle_task.text` at `idle_task.line` in `.claude-code-hermit/IDLE-TASKS.md` and replace `- [ ]` with `- [x]`.
+   - If the task's final status is `partial` or `blocked`: leave the item unchecked.
+   - Clear `idle_task` from runtime.json (set to `null`).
+9. **Clear transition and update runtime.json**: `transition: null`, `transition_target: null`, `transition_started_at: null`, `session_state: "idle"`. Pre-compute next `session_id` (for the next task).
+10. If cost data is available, preserve the cumulative total in the Cost section
+11. **Reset per-session counters in `.status.json`**: write `{"cost_usd": 0, "tokens": 0, "operator_turns": 0}` (merging into existing keys, preserving `session_id`, `status`, etc.). This ensures the next task's cost-tracker readings start from zero rather than carrying over this task's totals. Use atomic write: write to `sessions/.status.json.tmp`, rename to `sessions/.status.json`.
 
 ## On Progress Update
 

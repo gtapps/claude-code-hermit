@@ -218,9 +218,17 @@ If no NEXT-TASK.md and no pending channel messages:
 
 1. **Idle task pickup:** Read `.claude-code-hermit/IDLE-TASKS.md`. If the file exists and has unchecked items (`- [ ]`):
    - Pick the first unchecked item (sequential, top-to-bottom).
+   - **Record provenance** before starting the session. Read-modify-write `state/runtime.json` to set:
+     ```json
+     "idle_task": {
+       "text": "<exact checkbox text>",
+       "line": <1-based line number>,
+       "picked_at": "<ISO 8601>"
+     }
+     ```
    - Start a session via `/claude-code-hermit:session-start --task '<item text>'` with cost capped at `idle_budget` from config (default: `"$0.50"`).
    - Run with `escalation: conservative` regardless of the global setting — idle tasks should never do anything risky without asking.
-   - On completion: mark the item `[x]` in IDLE-TASKS.md.
+   - **Do not mark [x] here.** The checkoff is handled by `session-mgr` during the idle transition, so it stays atomic with the archive.
    - If the idle task creates a proposal, it goes through the normal proposal pipeline — no auto-implementation.
    - Maximum one idle task per heartbeat cycle — don't chain them.
 

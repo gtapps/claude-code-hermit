@@ -100,104 +100,129 @@ function evaluateSession(content, tasks) {
   return results;
 }
 
-async function main() {
+// Core evaluation logic extracted for use by both run() and standalone main().
+async function _evaluate() {
+  // Profile gating — run on "standard" and "strict" only
+  const profile = (process.env.AGENT_HOOK_PROFILE || 'standard').trim().toLowerCase();
+  if (profile === 'minimal') {
+    return null;
+  }
+
+  // Read SHELL.md once — used for hash check and passed to evaluateSession
+  let content;
   try {
-    // Profile gating — run on "standard" and "strict" only
-    const profile = (process.env.AGENT_HOOK_PROFILE || 'standard').trim().toLowerCase();
-    if (profile === 'minimal') {
-      process.exit(0);
-    }
+    content = fs.readFileSync(SHELL_SESSION, 'utf-8');
+  } catch {
+    content = null;
+  }
 
-    // Consume stdin to avoid broken pipe (content not used for evaluation)
-    let totalSize = 0;
-    for await (const chunk of process.stdin) {
-      totalSize += chunk.length;
-      if (totalSize > 1024 * 1024) break;
-    }
+  // Read tasks once — used for hash salt and passed to evaluateSession
+  const tasks = readTasks();
+  const hash = content !== null
+    ? crypto.createHash('md5').update(content + '\0tasks:' + tasks.length).digest('hex')
+    : null;
 
-    // Read SHELL.md once — used for hash check and passed to evaluateSession
-    let content;
+  // Short-circuit if SHELL.md hasn't changed since last eval
+  if (hash !== null) {
     try {
-      content = fs.readFileSync(SHELL_SESSION, 'utf-8');
-    } catch {
-      content = null;
-    }
-
-    // Read tasks once — used for hash salt and passed to evaluateSession
-    const tasks = readTasks();
-    const hash = content !== null
-      ? crypto.createHash('md5').update(content + '\0tasks:' + tasks.length).digest('hex')
-      : null;
-
-    // Short-circuit if SHELL.md hasn't changed since last eval
-    if (hash !== null) {
-      try {
-        const cached = fs.readFileSync(HASH_FILE, 'utf-8').trim();
-        if (cached === hash) {
-          process.exit(0);
-        }
-      } catch {
-        // No cache file — first run, continue to eval
+      const cached = fs.readFileSync(HASH_FILE, 'utf-8').trim();
+      if (cached === hash) {
+        return null;
       }
+    } catch {
+      // No cache file — first run, continue to eval
     }
+  }
 
-    const results = evaluateSession(content, tasks);
+  const results = evaluateSession(content, tasks);
 
-    // Write hash after successful eval
-    if (hash !== null) {
-      try { fs.writeFileSync(HASH_FILE, hash + '\n'); } catch {}
-    }
+  // Write hash after successful eval
+  if (hash !== null) {
+    try { fs.writeFileSync(HASH_FILE, hash + '\n'); } catch {}
+  }
 
-    // Active nudges — output to stderr so they surface as hook feedback
-    if (content !== null) {
-      const status = results.status || 'unknown';
+  // Active nudges — output to stderr so they surface as hook feedback
+  if (content !== null) {
+    const status = results.status || 'unknown';
 
-      // Only nudge during in_progress — not waiting (intentionally paused) or idle
-      if (status === 'in_progress') {
-        // Find last progress log timestamp
-        const progressSection = content.match(/## Progress Log\n([\s\S]*?)(?=\n## |$)/);
-        const progressText = progressSection ? progressSection[1].trim() : '';
-        const timeEntries = progressText.match(/\[(\d{1,2}:\d{2})\]/g);
-        if (timeEntries && timeEntries.length > 0) {
-          // Parse session start date from header
-          const startMatch = content.match(/\*\*Started:\*\*\s*(\d{4}-\d{2}-\d{2})/);
-          if (startMatch) {
-            const lastTime = timeEntries[timeEntries.length - 1].replace(/[\[\]]/g, '');
-            const lastDate = new Date(`${startMatch[1]}T${lastTime}:00`);
-            const hoursAgo = (Date.now() - lastDate.getTime()) / (1000 * 60 * 60);
+    // Only nudge during in_progress — not waiting (intentionally paused) or idle
+    if (status === 'in_progress') {
+      // Find last progress log timestamp
+      const progressSection = content.match(/## Progress Log\n([\s\S]*?)(?=\n## |$)/);
+      const progressText = progressSection ? progressSection[1].trim() : '';
+      const timeEntries = progressText.match(/\[(\d{1,2}:\d{2})\]/g);
+      if (timeEntries && timeEntries.length > 0) {
+        // Parse session start date from header
+        const startMatch = content.match(/\*\*Started:\*\*\s*(\d{4}-\d{2}-\d{2})/);
+        if (startMatch) {
+          const lastTime = timeEntries[timeEntries.length - 1].replace(/[\[\]]/g, '');
+          const lastDate = new Date(`${startMatch[1]}T${lastTime}:00`);
+          const hoursAgo = (Date.now() - lastDate.getTime()) / (1000 * 60 * 60);
 
-            if (hoursAgo > 48) {
-              console.error('Session may be complete. Consider /session-close or idle transition.');
-            } else if (hoursAgo > 4) {
-              console.error(`No progress logged in ${Math.round(hoursAgo)}h. Update Progress Log or Blockers.`);
-            }
+          if (hoursAgo > 48) {
+            console.error('Session may be complete. Consider /session-close or idle transition.');
+          } else if (hoursAgo > 4) {
+            console.error(`No progress logged in ${Math.round(hoursAgo)}h. Update Progress Log or Blockers.`);
           }
         }
       }
+    }
 
-      // Monitoring bloat check (any status)
-      const monitoringSection = content.match(/## Monitoring\n([\s\S]*?)(?=\n## |$)/);
-      if (monitoringSection) {
-        const monitoringLines = (monitoringSection[1].match(/\n/g) || []).length;
-        if (monitoringLines > 40) {
-          console.error('Monitoring section too large. Alert dedup should prevent this — check if dedup is working.');
-        }
+    // Monitoring bloat check (any status)
+    const monitoringSection = content.match(/## Monitoring\n([\s\S]*?)(?=\n## |$)/);
+    if (monitoringSection) {
+      const monitoringLines = (monitoringSection[1].match(/\n/g) || []).length;
+      if (monitoringLines > 40) {
+        console.error('Monitoring section too large. Alert dedup should prevent this — check if dedup is working.');
       }
     }
+  }
 
-    // Output as structured JSON
-    console.log(JSON.stringify(results, null, 2));
+  // Human-readable summary to stderr
+  const icon = { pass: 'PASS', warn: 'WARN', fail: 'FAIL', info: 'INFO' };
+  console.error(`\n[session-eval] Overall: ${icon[results.overall]}`);
+  for (const c of results.criteria) {
+    console.error(`  [${icon[c.status]}] ${c.name}: ${c.detail}`);
+  }
 
-    // Also output human-readable summary to stderr
-    const icon = { pass: 'PASS', warn: 'WARN', fail: 'FAIL', info: 'INFO' };
-    console.error(`\n[session-eval] Overall: ${icon[results.overall]}`);
-    for (const c of results.criteria) {
-      console.error(`  [${icon[c.status]}] ${c.name}: ${c.detail}`);
-    }
+  return JSON.stringify(results, null, 2);
+}
+
+// Exported run() function for use by stop-pipeline.js.
+// Returns the JSON results string, or null if skipped/cached.
+// process.exit() calls become returns so the pipeline is not killed.
+async function run(_payload) {
+  try {
+    return await _evaluate();
   } catch (err) {
     console.error(`[session-eval] Error: ${err.message}`);
-    process.exit(0);
+    return null;
   }
 }
 
-main();
+module.exports = { run };
+
+if (require.main === module) {
+  (async () => {
+    try {
+      // Profile gating — run on "standard" and "strict" only
+      const profile = (process.env.AGENT_HOOK_PROFILE || 'standard').trim().toLowerCase();
+      if (profile === 'minimal') {
+        process.exit(0);
+      }
+
+      // Consume stdin to avoid broken pipe (content not used for evaluation)
+      let totalSize = 0;
+      for await (const chunk of process.stdin) {
+        totalSize += chunk.length;
+        if (totalSize > 1024 * 1024) break;
+      }
+
+      const result = await _evaluate();
+      if (result) console.log(result);
+    } catch (err) {
+      console.error(`[session-eval] Error: ${err.message}`);
+      process.exit(0);
+    }
+  })();
+}

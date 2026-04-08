@@ -26,26 +26,15 @@
         "description": "Persist dm_channel_id to config.json after channel reply"
       },
       {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node -e \"try{require('fs').writeFileSync('.claude-code-hermit/state/.heartbeat',new Date().toISOString()+'\\n')}catch{}\"",
-            "timeout": 2
-          }
-        ],
-        "description": "Touch heartbeat on any tool use"
-      },
-      {
         "matcher": "Edit|Write",
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'INPUT=$(cat); FILE=$(echo \"$INPUT\" | jq -r \".tool_input.file_path // empty\"); if echo \"$FILE\" | grep -qE \"scripts/|hooks/\"; then python3 tests/run-contracts.py 2>&1 | tail -5; fi'",
+            "command": "bash -c '[ -z \"${HERMIT_DEV_MODE:-}\" ] && exit 0; INPUT=$(cat); FILE=$(echo \"$INPUT\" | jq -r \".tool_input.file_path // empty\"); if [ -n \"${CLAUDE_PLUGIN_ROOT:-}\" ] && echo \"$FILE\" | grep -qF \"$CLAUDE_PLUGIN_ROOT\" && echo \"$FILE\" | grep -qE \"scripts/|hooks/\"; then python3 tests/run-contracts.py 2>&1 | tail -5; fi'",
             "timeout": 30
           }
         ],
-        "description": "Run contract tests after script/hook edits"
+        "description": "Run contract tests after script/hook edits (dev mode only: set HERMIT_DEV_MODE=1)"
       },
       {
         "matcher": "Edit|Write",
@@ -65,7 +54,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'AGENT_DIR=\".claude-code-hermit\"; rm -f \"$AGENT_DIR/sessions/.eval-hash\"; echo \"---Session Context---\"; [ -f \"$AGENT_DIR/OPERATOR.md\" ] && head -50 \"$AGENT_DIR/OPERATOR.md\"; echo \"---Active Session---\"; [ -f \"$AGENT_DIR/sessions/SHELL.md\" ] && cat \"$AGENT_DIR/sessions/SHELL.md\" || echo \"No active session\"; echo \"---Last Report---\"; ls -t \"$AGENT_DIR\"/sessions/S-*-REPORT.md 2>/dev/null | head -1 | xargs cat 2>/dev/null || echo \"No previous sessions\"; echo \"---Session Cost---\"; python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/read-cost.py\" \"$AGENT_DIR/sessions/.status.json\" 2>/dev/null || echo \"No cost data\"; bash \"${CLAUDE_PLUGIN_ROOT}/scripts/check-upgrade.sh\" \"${CLAUDE_PLUGIN_ROOT}\"'"
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/startup-context.js"
           }
         ],
         "description": "Load session context on startup"
@@ -77,55 +66,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/cost-tracker.js",
-            "timeout": 10
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/stop-pipeline.js",
+            "timeout": 15
           }
         ],
-        "description": "Track token and cost metrics per session"
-      },
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/suggest-compact.js",
-            "timeout": 5
-          }
-        ],
-        "description": "Suggest compaction when context is filling up"
-      },
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/run-with-profile.js standard,strict scripts/session-diff.js",
-            "timeout": 10
-          }
-        ],
-        "description": "Auto-populate changed files in SHELL.md from git diff"
-      },
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/evaluate-session.js",
-            "timeout": 10
-          }
-        ],
-        "description": "Evaluate session quality (task status, plan tracked, blockers documented)"
-      },
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/routine-queue-flush.js",
-            "timeout": 5
-          }
-        ],
-        "description": "Log missed queued routines to SHELL.md on shutdown"
+        "description": "Stop pipeline: cost tracking, compact suggestion, session diff, evaluation, routine flush, heartbeat"
       }
     ]
   }

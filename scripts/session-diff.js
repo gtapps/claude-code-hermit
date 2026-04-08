@@ -92,18 +92,42 @@ function writeSidecar(changedFiles) {
   fs.renameSync(SIDECAR_TMP, SIDECAR_PATH);
 }
 
-async function main() {
-  // Consume stdin to avoid broken pipe (content not used for diff)
-  let totalSize = 0;
-  for await (const chunk of process.stdin) {
-    totalSize += chunk.length;
-    if (totalSize > MAX_STDIN) break;
-  }
+const RUNTIME_JSON = path.resolve(".claude-code-hermit/state/runtime.json");
+const DEBOUNCE_MS = 60 * 1000; // 60 seconds
 
+// Exported run() function for use by stop-pipeline.js.
+// Includes state-aware debounce: skips when in_progress and sidecar is fresh.
+// Forces refresh when session state is not in_progress (archive is imminent).
+// process.exit() calls become returns so the pipeline is not killed.
+async function run(_payload) {
   // Profile gating — run on "standard" and "strict" only
   const profile = (process.env.AGENT_HOOK_PROFILE || "standard").trim().toLowerCase();
   if (profile === "minimal") {
-    process.exit(0);
+    return;
+  }
+
+  // State-aware debounce
+  let forceRefresh = false;
+  try {
+    const runtime = JSON.parse(fs.readFileSync(RUNTIME_JSON, "utf-8"));
+    // Force refresh when not in_progress — session close/idle transition reads the sidecar
+    if (runtime.session_state !== "in_progress") {
+      forceRefresh = true;
+    }
+  } catch {
+    // runtime.json missing — force refresh to be safe
+    forceRefresh = true;
+  }
+
+  if (!forceRefresh) {
+    try {
+      const stat = fs.statSync(SIDECAR_PATH);
+      if (Date.now() - stat.mtimeMs < DEBOUNCE_MS) {
+        return; // sidecar is fresh enough during active work
+      }
+    } catch {
+      // sidecar doesn't exist — run to create it
+    }
   }
 
   const changedFiles = captureDiff();
@@ -112,4 +136,26 @@ async function main() {
   }
 }
 
-main().catch(() => process.exit(0));
+module.exports = { run };
+
+if (require.main === module) {
+  (async () => {
+    // Consume stdin to avoid broken pipe (content not used for diff)
+    let totalSize = 0;
+    for await (const chunk of process.stdin) {
+      totalSize += chunk.length;
+      if (totalSize > MAX_STDIN) break;
+    }
+
+    // Profile gating — run on "standard" and "strict" only
+    const profile = (process.env.AGENT_HOOK_PROFILE || "standard").trim().toLowerCase();
+    if (profile === "minimal") {
+      process.exit(0);
+    }
+
+    const changedFiles = captureDiff();
+    if (changedFiles && changedFiles.length > 0) {
+      writeSidecar(changedFiles);
+    }
+  })().catch(() => process.exit(0));
+}

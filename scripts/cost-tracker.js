@@ -344,38 +344,21 @@ function updateShellSession(content, costStr, tokenStr) {
   return content;
 }
 
-async function main() {
+// Exported run() function for use by stop-pipeline.js.
+// Returns the summary string, or null if there is nothing to report.
+// process.exit() calls become returns so the pipeline is not killed.
+async function run(data) {
   try {
-    // Read hook input from stdin
-    const chunks = [];
-    let totalSize = 0;
-
-    for await (const chunk of process.stdin) {
-      totalSize += chunk.length;
-      if (totalSize > MAX_STDIN) {
-        console.error('[cost-tracker] Stdin exceeds 1MB limit');
-        process.exit(0);
-      }
-      chunks.push(chunk);
-    }
-
-    const raw = Buffer.concat(chunks).toString('utf-8').trim();
-    if (!raw) {
-      process.exit(0);
-    }
-
-    const data = JSON.parse(raw);
-
     const sessionId = data.session_id || 'unknown';
     const transcriptPath = data.transcript_path;
 
     if (!transcriptPath) {
-      process.exit(0);
+      return null;
     }
 
     const turn = readLastTurnUsage(transcriptPath);
     if (!turn) {
-      process.exit(0);
+      return null;
     }
 
     const { inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens, model: rawModel, hadHumanTurn } = turn;
@@ -383,7 +366,7 @@ async function main() {
 
     const totalTokens = inputTokens + cacheWriteTokens + cacheReadTokens + outputTokens;
     if (totalTokens === 0) {
-      process.exit(0);
+      return null;
     }
 
     const cost = calculateCost(model, inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens);
@@ -410,7 +393,6 @@ async function main() {
     // Running total from .status.json (O(1)), falls back to full JSONL scan on first run
     const cumulative = getCumulativeCost(roundedCost, totalTokens, hadHumanTurn);
     const costStr = `$${cumulative.cost.toFixed(4)}`;
-    const tokenStr = `${Math.round(cumulative.tokens / 1000)}K tokens`;
 
     // Read SHELL.md for status/budget — do NOT write back (avoids race condition with Claude's edits)
     try {
@@ -425,16 +407,44 @@ async function main() {
     // Regenerate cost summary (once per day)
     writeCostSummary();
 
-    // Touch heartbeat file for liveness detection (P4)
-    touchHeartbeat();
-
-    // Output brief summary
-    console.log(`[cost-tracker] ${model}: ${Math.round(totalTokens / 1000)}K tokens (${Math.round(cacheReadTokens / 1000)}K cached), $${cost.toFixed(4)} (cumulative: ${costStr})`);
+    // Return brief summary (pipeline writes this to stderr)
+    return `[cost-tracker] ${model}: ${Math.round(totalTokens / 1000)}K tokens (${Math.round(cacheReadTokens / 1000)}K cached), $${cost.toFixed(4)} (cumulative: ${costStr})`;
   } catch (err) {
     // Non-fatal — never block on cost tracking failure
     console.error(`[cost-tracker] Error: ${err.message}`);
-    process.exit(0);
+    return null;
   }
 }
 
-main();
+module.exports = { run };
+
+if (require.main === module) {
+  (async () => {
+    try {
+      const chunks = [];
+      let totalSize = 0;
+
+      for await (const chunk of process.stdin) {
+        totalSize += chunk.length;
+        if (totalSize > MAX_STDIN) {
+          console.error('[cost-tracker] Stdin exceeds 1MB limit');
+          process.exit(0);
+        }
+        chunks.push(chunk);
+      }
+
+      const raw = Buffer.concat(chunks).toString('utf-8').trim();
+      if (!raw) {
+        process.exit(0);
+      }
+
+      const data = JSON.parse(raw);
+      const summary = await run(data);
+      if (summary) console.log(summary);
+      touchHeartbeat();
+    } catch (err) {
+      console.error(`[cost-tracker] Error: ${err.message}`);
+      process.exit(0);
+    }
+  })();
+}

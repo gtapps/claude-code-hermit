@@ -1,5 +1,55 @@
 # Changelog
 
+## [0.3.11] - 2026-04-08
+
+### Added
+
+- **`scripts/stop-pipeline.js`** — unified Stop hook that orchestrates all five stop-time stages (cost-tracker, suggest-compact, session-diff, evaluate-session, routine-queue-flush) in a single Node process. Eliminates five separate hook entries; only `suggest-compact` output reaches stdout (Claude Code parses it for `additionalContext`), everything else goes to stderr. Heartbeat is written unconditionally as the final step, so liveness detection survives any stage failure.
+
+- **`scripts/startup-context.js`** — replaces the 300-char inline bash blob in the SessionStart hook with a priority-ordered, budget-capped context injector. Emits Operator context (2000 chars), active session summary (Task + last 10 progress entries + Blockers + Monitoring, 3000 chars), session cost (500 chars), last report overview (1500 chars), and upgrade check (500 chars), with a hard 8000-char total cap. Lower-priority sections are dropped, not truncated, when the cap is reached.
+
+- **Idle task provenance tracking** — `skills/heartbeat/SKILL.md` now instructs the heartbeat to record `idle_task` (text, line number, picked_at) in `state/runtime.json` before starting an idle session. `agents/session-mgr.md` handles the `[x]` checkoff atomically during the idle transition (step 8), so the checkoff is always paired with the archive rather than happening in the heartbeat skill mid-session.
+
+### Changed
+
+- **Hook consolidation** — `hooks/hooks.json` trimmed from 8 PostToolUse/Stop entries to 3. Removed the per-tool-call heartbeat touch hook (moved into stop-pipeline). Removed five separate Stop hooks (cost-tracker, suggest-compact, session-diff, evaluate-session, routine-queue-flush); replaced with a single `stop-pipeline.js` call. Contract tests gate now requires `HERMIT_DEV_MODE=1` and `CLAUDE_PLUGIN_ROOT` to be set, preventing spurious test runs in target projects.
+
+- **`scripts/session-diff.js`** — added state-aware debounce to `run()`: skips if the sidecar is less than 60 seconds old and `session_state` is `in_progress`; forces a refresh when the state is `idle` or transitioning (session-close reads the sidecar immediately after). Standalone invocation bypasses debounce as before.
+
+- **`scripts/routine-queue-flush.js`** — extracted `_flush()` synchronous core; `run()` exported for pipeline use. Also fixed queue shape handling: now accepts both bare array (`[...]`) and object with `queued` key (`{"queued": [...]}`) — matching the actual producer format.
+
+### Fixed
+
+- **`startup-context.js` emit off-by-one** — `available` calculation now subtracts 1 for the trailing newline, preventing a 1-char overshoot at the hard cap boundary.
+- **`startup-context.js` module-level mutable state** — `totalChars` and `emit()` are now local to `main()`, preventing stale counter state if the module is ever required by another script.
+- **`cost-tracker.js` redundant heartbeat write** — `touchHeartbeat()` was called inside `run()` (pipeline path) even though `stop-pipeline.js` writes the heartbeat unconditionally after all stages. Moved to standalone path only.
+- **`startup-context.js` execSync timeouts** — tightened from 5 s / 10 s to 2 s / 5 s for `read-cost.py` / `check-upgrade.sh`. These are low-priority sections; a 10 s startup block was unacceptable.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/stop-pipeline.js` | New — unified Stop hook pipeline |
+| `scripts/startup-context.js` | New — priority-ordered startup context injector |
+| `hooks/hooks.json` | Removed per-tool heartbeat + 5 separate Stop hooks; added startup-context and stop-pipeline |
+| `scripts/cost-tracker.js` | Exported `run()`; `touchHeartbeat()` moved to standalone block |
+| `scripts/evaluate-session.js` | Exported `run()`; core extracted to `_evaluate()` |
+| `scripts/routine-queue-flush.js` | Exported `run()`; extracted `_flush()`; fixed `{queued:[...]}` shape |
+| `scripts/session-diff.js` | Exported `run()`; added state-aware debounce |
+| `scripts/suggest-compact.js` | Exported `run()`; stdin reading moved to standalone block |
+| `skills/heartbeat/SKILL.md` | Idle task provenance: record `idle_task` in runtime.json before session start |
+| `agents/session-mgr.md` | Idle transition step 8: atomic idle-task checkoff from runtime.json |
+| `tests/run-hooks.sh` | New tests: stop-pipeline (3), session-diff debounce (3), startup-context (4), routine bare-array compat (1) |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **CLAUDE-APPEND refresh** — no content changes to CLAUDE-APPEND.md in this release; refresh is still recommended to pick up any drift.
+2. **No config.json changes** — no new keys required.
+3. **No template changes** — state-templates are unchanged.
+4. **Hook changes are in the plugin** — `hooks/hooks.json` ships with the plugin, not in the target project. No manual hook edits needed in target projects.
+
 ## [0.3.10] - 2026-04-08
 
 ### Fixed

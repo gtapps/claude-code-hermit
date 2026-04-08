@@ -314,12 +314,22 @@ run_test "validate-config (empty stdin)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 25. routine-queue-flush — logs missed routines
+# 25. routine-queue-flush — logs missed routines (object shape — real producer format)
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+echo '{"queued":[{"id":"heartbeat-restart","skill":"x:heartbeat start","queued_since":"2026-04-07T04:00:00Z"}]}' > "$workdir/.claude-code-hermit/state/routine-queue.json"
+run_test "routine-queue-flush (log missed)" bash -c \
+  "echo '{}' | node '$REPO_ROOT/scripts/routine-queue-flush.js' 2>/dev/null && grep -q 'heartbeat-restart' '$workdir/.claude-code-hermit/sessions/SHELL.md'"
+cleanup
+
+# -------------------------------------------------------
+# 25b. routine-queue-flush — bare array (legacy compat)
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
 echo '[{"id":"heartbeat-restart","skill":"x:heartbeat start","queued_since":"2026-04-07T04:00:00Z"}]' > "$workdir/.claude-code-hermit/state/routine-queue.json"
-run_test "routine-queue-flush (log missed)" bash -c \
+run_test "routine-queue-flush (bare array compat)" bash -c \
   "echo '{}' | node '$REPO_ROOT/scripts/routine-queue-flush.js' 2>/dev/null && grep -q 'heartbeat-restart' '$workdir/.claude-code-hermit/sessions/SHELL.md'"
 cleanup
 
@@ -349,6 +359,143 @@ workdir="$(setup_workdir)"
 cd "$workdir"
 run_test "routine-queue-flush (empty stdin)" bash -c \
   "echo '' | node '$REPO_ROOT/scripts/routine-queue-flush.js'"
+cleanup
+
+# -------------------------------------------------------
+# stop-pipeline tests
+# -------------------------------------------------------
+
+# stop-pipeline — happy path: verifies all stages ran and heartbeat written
+workdir="$(setup_git_workdir)"
+cd "$workdir"
+transcript="$workdir/.claude/transcript.jsonl"
+cp "$FIXTURES/transcript.jsonl" "$transcript"
+hook_input="$(sed "s|__TRANSCRIPT_PATH__|$transcript|" "$FIXTURES/stop-hook-input.json")"
+run_test "stop-pipeline" bash -c "
+  out=\$(echo '$hook_input' | AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/stop-pipeline.js' 2>&1)
+  echo \"\$out\" | grep -q 'cost-tracker' || exit 1
+  echo \"\$out\" | grep -q 'session-eval' || exit 1
+  [ -f '$workdir/.claude-code-hermit/state/.heartbeat' ] || exit 1
+"
+cleanup
+
+# stop-pipeline (stdout contract) — suggest-compact is sole stdout, cost-tracker/eval on stderr
+workdir="$(setup_workdir)"
+cd "$workdir"
+transcript="$workdir/.claude/transcript.jsonl"
+cp "$FIXTURES/transcript.jsonl" "$transcript"
+hook_input="$(sed "s|__TRANSCRIPT_PATH__|$transcript|" "$FIXTURES/stop-hook-input.json")"
+run_test "stop-pipeline (stdout contract)" bash -c "
+  stdout=\$(echo '$hook_input' | COMPACT_THRESHOLD=1 AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/stop-pipeline.js' 2>/dev/null)
+  stderr=\$(echo '$hook_input' | COMPACT_THRESHOLD=1 AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/stop-pipeline.js' 2>&1 >/dev/null)
+  # stdout must be empty or exactly one valid JSON line with additionalContext
+  if [ -n \"\$stdout\" ]; then
+    echo \"\$stdout\" | python3 -m json.tool >/dev/null 2>&1 || exit 1
+    echo \"\$stdout\" | python3 -c \"import json,sys; d=json.load(sys.stdin); assert 'additionalContext' in d\" || exit 1
+  fi
+  # cost-tracker and session-eval must be on stderr only, not stdout
+  echo \"\$stdout\" | grep -q 'cost-tracker' && exit 1
+  echo \"\$stdout\" | grep -q 'session-eval' && exit 1
+  echo \"\$stderr\" | grep -q 'cost-tracker' || exit 1
+"
+cleanup
+
+# stop-pipeline (malformed stdin) — must not crash
+workdir="$(setup_workdir)"
+cd "$workdir"
+run_test "stop-pipeline (malformed stdin)" bash -c "
+  err=\$(echo '{broken' | AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/stop-pipeline.js' 2>&1)
+  echo \"\$err\" | grep -q 'malformed'
+"
+cleanup
+
+# -------------------------------------------------------
+# session-diff debounce tests (via stop-pipeline)
+# -------------------------------------------------------
+
+# session-diff (debounce skip) — fresh sidecar + in_progress → skip
+workdir="$(setup_git_workdir)"
+cd "$workdir"
+echo '{"session_state":"in_progress"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo '{"changed_files":[],"captured_at":"2026-01-01T00:00:00Z"}' > "$workdir/.claude-code-hermit/state/session-diff.json"
+before_mtime="$(stat -c '%Y' "$workdir/.claude-code-hermit/state/session-diff.json" 2>/dev/null || stat -f '%m' "$workdir/.claude-code-hermit/state/session-diff.json")"
+sleep 1
+echo '{}' | AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT="$REPO_ROOT" node "$REPO_ROOT/scripts/stop-pipeline.js" >/dev/null 2>&1 || true
+after_mtime="$(stat -c '%Y' "$workdir/.claude-code-hermit/state/session-diff.json" 2>/dev/null || stat -f '%m' "$workdir/.claude-code-hermit/state/session-diff.json")"
+run_test "session-diff (debounce skip)" bash -c "[ '$before_mtime' = '$after_mtime' ]"
+cleanup
+
+# session-diff (debounce force on idle) — fresh sidecar + idle → force refresh
+workdir="$(setup_git_workdir)"
+cd "$workdir"
+echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo '{"changed_files":[],"captured_at":"2026-01-01T00:00:00Z"}' > "$workdir/.claude-code-hermit/state/session-diff.json"
+before_mtime="$(stat -c '%Y' "$workdir/.claude-code-hermit/state/session-diff.json" 2>/dev/null || stat -f '%m' "$workdir/.claude-code-hermit/state/session-diff.json")"
+sleep 1
+echo '{}' | AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT="$REPO_ROOT" node "$REPO_ROOT/scripts/stop-pipeline.js" >/dev/null 2>&1 || true
+after_mtime="$(stat -c '%Y' "$workdir/.claude-code-hermit/state/session-diff.json" 2>/dev/null || stat -f '%m' "$workdir/.claude-code-hermit/state/session-diff.json")"
+run_test "session-diff (debounce force on idle)" bash -c "[ '$before_mtime' != '$after_mtime' ]"
+cleanup
+
+# session-diff (debounce expired) — stale sidecar + in_progress → run
+workdir="$(setup_git_workdir)"
+cd "$workdir"
+echo '{"session_state":"in_progress"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo '{"changed_files":[],"captured_at":"2020-01-01T00:00:00Z"}' > "$workdir/.claude-code-hermit/state/session-diff.json"
+touch -t 202001010000 "$workdir/.claude-code-hermit/state/session-diff.json"
+before_mtime="$(stat -c '%Y' "$workdir/.claude-code-hermit/state/session-diff.json" 2>/dev/null || stat -f '%m' "$workdir/.claude-code-hermit/state/session-diff.json")"
+echo '{}' | AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT="$REPO_ROOT" node "$REPO_ROOT/scripts/stop-pipeline.js" >/dev/null 2>&1 || true
+after_mtime="$(stat -c '%Y' "$workdir/.claude-code-hermit/state/session-diff.json" 2>/dev/null || stat -f '%m' "$workdir/.claude-code-hermit/state/session-diff.json")"
+run_test "session-diff (debounce expired)" bash -c "[ '$before_mtime' != '$after_mtime' ]"
+cleanup
+
+# -------------------------------------------------------
+# startup-context tests
+# -------------------------------------------------------
+
+# startup-context — happy path
+workdir="$(setup_workdir)"
+cd "$workdir"
+run_test "startup-context" bash -c \
+  "CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/startup-context.js' | grep -qF -- '---Active Session---'"
+cleanup
+
+# startup-context — large Progress Log stays under hard cap
+workdir="$(setup_workdir)"
+cd "$workdir"
+# Build a SHELL.md with 150 progress log lines
+python3 -c "
+content = open('$FIXTURES/shell-session.md').read()
+extra = '\n'.join(f'- [10:{i:02d}] Progress entry {i}' for i in range(150))
+print(content.replace('- [10:00] Started test session', extra))
+" > "$workdir/.claude-code-hermit/sessions/SHELL.md"
+run_test "startup-context (large SHELL.md)" bash -c \
+  "out=\$(CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/startup-context.js' 2>/dev/null); [ \${#out} -lt 8000 ]"
+cleanup
+
+# startup-context — no session file
+workdir="$(setup_workdir)"
+cd "$workdir"
+rm "$workdir/.claude-code-hermit/sessions/SHELL.md"
+run_test "startup-context (no session)" bash -c \
+  "CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/startup-context.js' | grep -q 'No active session'"
+cleanup
+
+# startup-context — section priority: large OPERATOR.md fills budget, last report is dropped
+workdir="$(setup_workdir)"
+cd "$workdir"
+# Write an OPERATOR.md that uses ~1800 chars (near its 2000 budget)
+python3 -c "print('# Operator\n' + ('x' * 80 + '\n') * 22)" > "$workdir/.claude-code-hermit/OPERATOR.md"
+# Write a large SHELL.md to fill the session budget
+python3 -c "
+extra = '\n'.join(f'- [10:{i:02d}] Entry {i}' for i in range(200))
+print('# Active Session\n\n## Task\nTest\n\n## Progress Log\n' + extra + '\n\n## Blockers\nNone')
+" > "$workdir/.claude-code-hermit/sessions/SHELL.md"
+# Write a report — if priority works, this may be truncated/dropped
+mkdir -p "$workdir/.claude-code-hermit/sessions"
+echo '# Session Report: S-001\n\n## Overview\nSHOULD_NOT_APPEAR_IN_OUTPUT_IF_CAP_HIT' > "$workdir/.claude-code-hermit/sessions/S-001-REPORT.md"
+run_test "startup-context (section priority)" bash -c \
+  "out=\$(CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/startup-context.js' 2>/dev/null); echo \"\$out\" | grep -q 'Operator' && [ \${#out} -lt 8000 ]"
 cleanup
 
 # -------------------------------------------------------

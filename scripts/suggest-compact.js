@@ -45,36 +45,20 @@ function writeCounter(counterPath, value) {
   }
 }
 
-async function main() {
+// Exported run() function for use by stop-pipeline.js.
+// Returns the suggestion object {additionalContext: "..."} or null.
+// process.exit() calls become returns so the pipeline is not killed.
+async function run(data) {
   try {
-    const chunks = [];
-    let totalSize = 0;
-
-    for await (const chunk of process.stdin) {
-      totalSize += chunk.length;
-      if (totalSize > MAX_STDIN) {
-        process.exit(0);
-      }
-      chunks.push(chunk);
-    }
-
-    const raw = Buffer.concat(chunks).toString('utf-8').trim();
-    if (!raw) {
-      process.exit(0);
-    }
-
-    const data = JSON.parse(raw);
     const sessionId = data.session_id || data.sessionId || 'default';
 
     // Check context usage if provided
     const contextUsage = data.context_usage || data.contextUsage || 0;
     if (contextUsage > CONTEXT_USAGE_THRESHOLD) {
       const pct = Math.round(contextUsage * 100);
-      const result = {
+      return {
         additionalContext: `Context window is at ${pct}%. Consider running /compact to maintain response quality.`,
       };
-      console.log(JSON.stringify(result));
-      process.exit(0);
     }
 
     // Tool-call counter approach
@@ -88,16 +72,46 @@ async function main() {
       (count > COMPACT_THRESHOLD && (count - COMPACT_THRESHOLD) % SUBSEQUENT_INTERVAL === 0);
 
     if (shouldSuggest) {
-      const result = {
+      return {
         additionalContext: `You've made ${count} tool calls this session. Consider running /compact at the next logical breakpoint to maintain response quality.`,
       };
-      console.log(JSON.stringify(result));
     }
+
+    return null;
   } catch (err) {
     // Non-fatal — never block on compact suggestion failure
     console.error(`[suggest-compact] Error: ${err.message}`);
-    process.exit(0);
+    return null;
   }
 }
 
-main();
+module.exports = { run };
+
+if (require.main === module) {
+  (async () => {
+    try {
+      const chunks = [];
+      let totalSize = 0;
+
+      for await (const chunk of process.stdin) {
+        totalSize += chunk.length;
+        if (totalSize > MAX_STDIN) {
+          process.exit(0);
+        }
+        chunks.push(chunk);
+      }
+
+      const raw = Buffer.concat(chunks).toString('utf-8').trim();
+      if (!raw) {
+        process.exit(0);
+      }
+
+      const data = JSON.parse(raw);
+      const result = await run(data);
+      if (result) console.log(JSON.stringify(result));
+    } catch (err) {
+      console.error(`[suggest-compact] Error: ${err.message}`);
+      process.exit(0);
+    }
+  })();
+}
