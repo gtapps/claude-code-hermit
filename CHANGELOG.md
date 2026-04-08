@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.3.8] - 2026-04-08
+
+### Fixed
+
+- **Channel hook matcher didn't match real Discord plugin tool names** — The Discord channel plugin registers tools as `mcp__plugin_discord_discord__reply` or `plugin:discord:discord - reply` depending on the environment. The hooks.json matcher expected `mcp__(discord|telegram)__reply` which never matched. Simplified to `(discord|telegram).*reply` to cover all observed formats.
+
+- **`resolveChannel()` in channel-hook.js extracted wrong segment** — For `mcp__plugin_discord_discord__reply`, the regex `^mcp__([^_]+)__` captured `plugin` instead of `discord`, returning null. Simplified to `/(discord|telegram)/` — since the hooks.json matcher already scopes to channel reply tools, the script just needs to find the channel name anywhere in the tool name.
+
+- **Changelog references used bare `config.json`** — Updated to `.claude-code-hermit/config.json` for clarity.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `hooks/hooks.json` | Simplified channel hook matcher regex |
+| `scripts/channel-hook.js` | Simplified `resolveChannel()` regex |
+| `CHANGELOG.md` | Fixed config.json path references |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **CLAUDE-APPEND refresh** — not required this release.
+2. **hooks.json auto-loaded from plugin** — no manual migration. New matcher takes effect on next session start.
+
+No config.json changes required. Hermits that manually set `dm_channel_id` as a workaround can leave it — the hook will keep it current going forward.
+
 ## [0.3.7] - 2026-04-08
 
 ### Added
