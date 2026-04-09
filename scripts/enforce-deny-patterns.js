@@ -4,11 +4,13 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * PreToolUse hook — enforces deny-patterns.json, blocks OPERATOR.md edits,
- * and warns on state-template edits. Consolidates all PreToolUse checks
- * into a single Node process to avoid spawning multiple bash pipelines.
+ * PreToolUse hook — blocks OPERATOR.md edits, enforces deny-patterns.json,
+ * and warns on state-template edits.
  *
- * Pattern format in deny-patterns.json: "ToolName(glob)" where glob uses * as wildcard.
+ * OPERATOR.md: always blocked if the file already exists (allows creation during hatch).
+ * Deny patterns: "ToolName(glob)" where glob uses * as wildcard.
+ * "default" patterns always apply. "always_on" patterns apply only when
+ * AGENT_HOOK_PROFILE=strict (set by hermit-start in Docker/tmux).
  * Exit 2 = block the tool call.
  */
 
@@ -61,12 +63,11 @@ function main() {
       const event = JSON.parse(raw);
       const toolCall = buildToolCall(event);
 
-      // --- Check 1: Block OPERATOR.md edits ---
-      // Allow creation (file doesn't exist yet, e.g. during hatch); block edits to existing files.
+      // --- Check 1: Block OPERATOR.md edits (allow creation during hatch) ---
       if ((toolCall.tool === 'Edit' || toolCall.tool === 'Write') &&
-          toolCall.content.includes('OPERATOR.md') &&
+          toolCall.content.includes('.claude-code-hermit/OPERATOR.md') &&
           fs.existsSync(toolCall.content)) {
-        process.stderr.write('BLOCKED: OPERATOR.md is human-curated, read-only for agents\n');
+        process.stderr.write('BLOCKED: OPERATOR.md is operator-curated — edit it directly, not through the agent\n');
         process.exit(2);
       }
 
@@ -86,9 +87,10 @@ function main() {
         process.exit(0); // Missing or invalid deny file — allow
       }
 
+      const isAlwaysOn = process.env.AGENT_HOOK_PROFILE === 'strict';
       const allPatterns = [
         ...(patterns.default || []),
-        ...(patterns.always_on || []),
+        ...(isAlwaysOn ? (patterns.always_on || []) : []),
       ];
 
       for (const pattern of allPatterns) {

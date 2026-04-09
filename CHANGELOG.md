@@ -1,5 +1,56 @@
 # Changelog
 
+## [0.3.12] - 2026-04-09
+
+### Fixed
+
+- **`always_on` deny patterns blocked docker on the host** — `enforce-deny-patterns.js` loaded both `default` and `always_on` pattern sets unconditionally, causing `Bash(docker *)` to block docker-setup commands on the host. The `always_on` set now only applies when `AGENT_HOOK_PROFILE=strict` (set by hermit-start in Docker/tmux). Host interactive sessions run with `standard` or unset profile, so docker, ssh, and kubectl commands work normally.
+
+- **docker-setup self-blocking** — docker-setup step 6 wrote the full `always_on` deny set (including `Bash(docker *)`) to `.claude/settings.json` `permissions.deny`, then needed docker commands in steps 8–9. Now writes only the `default` set to settings.json; container-specific rules are enforced by the hook at runtime via the strict profile.
+
+- **OPERATOR.md check too broad** — the hardcoded OPERATOR.md block in `enforce-deny-patterns.js` used `includes('OPERATOR.md')`, matching any file named OPERATOR.md anywhere in the project. Scoped to `.claude-code-hermit/OPERATOR.md` only.
+
+- **Test workdir missing OPERATOR.md** — `setup_workdir` in `run-hooks.sh` now creates `OPERATOR.md` in the state directory, matching post-hatch state. The OPERATOR.md block test was silently broken (file didn't exist, so `fs.existsSync` allowed it through).
+
+### Added
+
+- **Settings file protection** — `deny-patterns.json` `always_on` set now includes `Edit`/`Write`/Bash-redirect deny rules for `.claude/settings.json` and `.claude/settings.local.json`. Prevents the agent from modifying its own permissions in always-on mode.
+
+- **OPERATOR.md Bash redirect protection** — `deny-patterns.json` `default` set now includes `Bash(*> *.claude-code-hermit/OPERATOR.md*)` to block shell redirect writes. The hardcoded hook check catches Edit/Write tools; this catches the Bash bypass path.
+
+### Changed
+
+- **OPERATOR.md documented as read-only** — CLAUDE.md, CLAUDE-APPEND.md, and the OPERATOR.md template all clarify that the file is read-only for the agent. CLAUDE-APPEND.md Rules section instructs the hermit to flag stale context to the operator rather than editing the file. Previously said "read-only for agent" in the state table but had no explicit rule.
+
+- **Hatch deny patterns no longer include OPERATOR.md** — removed `Edit/Write(**/.claude-code-hermit/OPERATOR.md)` from both minimal and hardened deny sets in hatch step 9. OPERATOR.md protection is now enforced by the hook (always active), not by settings.json deny rules (which the operator could accidentally remove).
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/enforce-deny-patterns.js` | `always_on` conditional on strict profile; OPERATOR.md check scoped to `.claude-code-hermit/`; updated JSDoc |
+| `state-templates/deny-patterns.json` | Added OPERATOR.md bash redirect to `default`; added settings.json/settings.local.json protection to `always_on` |
+| `skills/docker-setup/SKILL.md` | Step 6 writes only `default` deny set, not `always_on` |
+| `skills/hatch/SKILL.md` | Removed OPERATOR.md from both deny pattern sets |
+| `state-templates/CLAUDE-APPEND.md` | OPERATOR.md read-only rule in Agent State table and Rules section |
+| `state-templates/OPERATOR.md` | Template comment updated: read-only for agent |
+| `CLAUDE.md` | OPERATOR.md descriptions updated (both occurrences) |
+| `hooks/hooks.json` | Updated hook description |
+| `tests/run-hooks.sh` | `setup_workdir` creates OPERATOR.md; test covers both creation and blocking paths |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Refresh CLAUDE-APPEND block** — the session discipline block in the target project's CLAUDE.md needs updating (new OPERATOR.md rule in Rules section, updated Agent State table entry).
+2. **Update deny-patterns.json** — already updated in the plugin itself; no per-project action needed (the hook reads from the plugin directory).
+
+**Manual steps for Docker users:**
+- If you chose "hardened" deny rules during hatch, your `.claude/settings.json` `permissions.deny` may contain `Bash(docker *)`, `Bash(ssh *)`, `Bash(kubectl *)`, `Edit(**/.claude-code-hermit/OPERATOR.md)`, `Write(**/.claude-code-hermit/OPERATOR.md)`. These are now redundant (enforced by the hook). You can remove them from settings.json, but leaving them causes no harm — they just double-enforce.
+- If docker-setup was previously blocked, re-run `/claude-code-hermit:docker-setup` after updating.
+
+No config.json changes required.
+
 ## [0.3.11] - 2026-04-08
 
 ### Added

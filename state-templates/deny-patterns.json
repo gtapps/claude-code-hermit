@@ -14,7 +14,8 @@
     "Bash(cat ~/.aws/*)",
     "Bash(*API_KEY*)",
     "Bash(*SECRET*)",
-    "Bash(*TOKEN*)"
+    "Bash(*TOKEN*)",
+    "Bash(*> *.claude-code-hermit/OPERATOR.md*)"
   ],
   "always_on": [
     "Bash(ssh *)",
@@ -24,6 +25,12 @@
     "Bash(git push --force*)",
     "Bash(git push origin main*)",
     "Bash(git reset --hard*)",
-    "Bash(*--no-verify*)"
+    "Bash(*--no-verify*)",
+    "Edit(.claude/settings.json)",
+    "Write(.claude/settings.json)",
+    "Edit(.claude/settings.local.json)",
+    "Write(.claude/settings.local.json)",
+    "Bash(*> .claude/settings.json*)",
+    "Bash(*> .claude/settings.local.json*)"
   ]
 }

@@ -468,7 +468,7 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
 
 ### 9. Generate deny patterns (AskUserQuestion, single question)
 
-Add safety deny rules to `.claude/settings.json` `permissions.deny` to prevent destructive operations and protect OPERATOR.md from accidental modification.
+Add safety deny rules to `.claude/settings.json` `permissions.deny` to prevent destructive operations.
 
 ```
 questions: [
@@ -502,8 +502,6 @@ questions: [
     "Bash(*API_KEY*)",
     "Bash(*SECRET*)",
     "Bash(*TOKEN*)",
-    "Edit(**/.claude-code-hermit/OPERATOR.md)",
-    "Write(**/.claude-code-hermit/OPERATOR.md)",
     "Bash(npm publish*)",
     "Bash(git push --force*)",
     "Bash(git push origin main*)",
@@ -528,9 +526,7 @@ questions: [
     "Bash(cat ~/.aws/*)",
     "Bash(*API_KEY*)",
     "Bash(*SECRET*)",
-    "Bash(*TOKEN*)",
-    "Edit(**/.claude-code-hermit/OPERATOR.md)",
-    "Write(**/.claude-code-hermit/OPERATOR.md)"
+    "Bash(*TOKEN*)"
   ]
   ```
 - If **skip**: note: "You can add deny rules later in .claude/settings.json under permissions.deny."

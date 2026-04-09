@@ -36,6 +36,7 @@ setup_workdir() {
   mkdir -p "$workdir/.claude-code-hermit/state"
   mkdir -p "$workdir/.claude"
   cp "$FIXTURES/shell-session.md" "$workdir/.claude-code-hermit/sessions/SHELL.md"
+  touch "$workdir/.claude-code-hermit/OPERATOR.md"
   echo "$workdir"
 }
 

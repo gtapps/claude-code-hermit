@@ -104,37 +104,8 @@ Only the top-level project memory is seeded — not agent-scoped memories at `<p
    If already present, leave it — note for step 8.
    **If oauth:** No auth var needed in `.env`. Check whether `ANTHROPIC_API_KEY` is set (non-empty) in `.env`. If so, warn: "Found `ANTHROPIC_API_KEY` in `.env` — Claude Code gives API keys precedence over OAuth credentials, so the container would run in API mode (no Max/Pro, no remote control). Comment it out or remove it." Offer to comment it out automatically. Also check for and offer to remove any `CLAUDE_CODE_OAUTH_TOKEN` — this env var is not used in the new flow.
 3. Ensure `.env` is listed in both `.gitignore` and `.dockerignore` (create the files if needed, append if missing).
-4. **Deny patterns:** Docker means always-on — include the full hardened deny set (default + always-on) in `.claude/settings.json` `permissions.deny` by default (no wizard needed). Canonical source: `state-templates/deny-patterns.json`.
-   ```json
-   "deny": [
-     "Bash(rm -rf *)",
-     "Bash(chmod 777*)",
-     "Bash(*sudo *)",
-     "Bash(*> /etc/*)",
-     "Bash(curl * | bash*)",
-     "Bash(wget * | bash*)",
-     "Bash(env)",
-     "Bash(printenv)",
-     "Bash(cat .env*)",
-     "Bash(cat */.env*)",
-     "Bash(cat ~/.ssh/*)",
-     "Bash(cat ~/.aws/*)",
-     "Bash(*API_KEY*)",
-     "Bash(*SECRET*)",
-     "Bash(*TOKEN*)",
-     "Edit(**/.claude-code-hermit/OPERATOR.md)",
-     "Write(**/.claude-code-hermit/OPERATOR.md)",
-     "Bash(ssh *)",
-     "Bash(docker *)",
-     "Bash(kubectl *)",
-     "Bash(npm publish*)",
-     "Bash(git push --force*)",
-     "Bash(git push origin main*)",
-     "Bash(git reset --hard*)",
-     "Bash(*--no-verify*)"
-   ]
-   ```
-   If `.claude/settings.json` already has `permissions.deny`, merge (never remove existing entries). Tell the operator: "Added safety deny rules for always-on operation — protects against destructive commands, credential exposure, and OPERATOR.md modification."
+4. **Deny patterns:** Write the `default` set from `state-templates/deny-patterns.json` into `.claude/settings.json` `permissions.deny`. Do NOT include the `always_on` set — those patterns (docker, ssh, kubectl, git push --force, etc.) are enforced by the `enforce-deny-patterns.js` hook when `AGENT_HOOK_PROFILE=strict`, which the container runs with. Writing them to settings.json would block docker commands needed by later steps in this skill.
+   If `.claude/settings.json` already has `permissions.deny`, merge (never remove existing entries). Tell the operator: "Added safety deny rules for always-on operation — protects against destructive commands and credential exposure. Container-specific rules (docker, ssh, kubectl) are enforced by the hook at runtime."
 
 ### 7. Channel setup
 
