@@ -10,7 +10,7 @@
             "timeout": 3
           }
         ],
-        "description": "Block OPERATOR.md edits, enforce deny-patterns (always_on only when AGENT_HOOK_PROFILE=strict), warn on template edits"
+        "description": "Enforce deny-patterns (always_on incl. OPERATOR.md only when AGENT_HOOK_PROFILE=strict), warn on template edits"
       }
     ],
     "PostToolUse": [

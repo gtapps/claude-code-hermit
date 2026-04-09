@@ -26,6 +26,8 @@
     "Bash(git push origin main*)",
     "Bash(git reset --hard*)",
     "Bash(*--no-verify*)",
+    "Edit(*.claude-code-hermit/OPERATOR.md)",
+    "Write(*.claude-code-hermit/OPERATOR.md)",
     "Edit(.claude/settings.json)",
     "Write(.claude/settings.json)",
     "Edit(.claude/settings.local.json)",

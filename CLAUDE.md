@@ -38,7 +38,7 @@ When installed in a target project, state lives in `.claude-code-hermit/`:
 - `templates/` — session and proposal templates
 - `state/` — runtime observations (alert-state.json, reflection-state.json, routine-queue.json, proposal-metrics.jsonl, micro-proposals.json, state-summary.md)
 - `config.json` — project config (identity, channels, budget prefs, routines, idle agency, plugin checks)
-- `OPERATOR.md` — read-only human-curated project context and constraints
+- `OPERATOR.md` — human-curated context (draft changes, confirm before writing; hard-blocked in always-on mode)
 
 ## Development
 
@@ -72,7 +72,7 @@ All autonomous agent state lives in `.claude-code-hermit/`:
 - `proposals/PROP-NNN.md` — improvement proposals
 - `templates/` — templates for sessions and proposals
 - `state/` — runtime observations (alert dedup, reflection timestamps, routine queue, proposal metrics, micro-proposals, health summary)
-- `OPERATOR.md` — read-only human-curated project context and constraints
+- `OPERATOR.md` — human-curated context (draft changes, confirm before writing; hard-blocked in always-on mode)
 
 ## Subagent Usage
 

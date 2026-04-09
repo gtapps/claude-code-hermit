@@ -4,13 +4,13 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * PreToolUse hook — blocks OPERATOR.md edits, enforces deny-patterns.json,
- * and warns on state-template edits.
+ * PreToolUse hook — enforces deny-patterns.json and warns on state-template edits.
  *
- * OPERATOR.md: always blocked if the file already exists (allows creation during hatch).
  * Deny patterns: "ToolName(glob)" where glob uses * as wildcard.
  * "default" patterns always apply. "always_on" patterns apply only when
  * AGENT_HOOK_PROFILE=strict (set by hermit-start in Docker/tmux).
+ * OPERATOR.md Edit/Write is in the always_on set — blocked in always-on mode,
+ * allowed in interactive sessions (behavioral rule + permission prompt is the gate).
  * Exit 2 = block the tool call.
  */
 
@@ -63,21 +63,13 @@ function main() {
       const event = JSON.parse(raw);
       const toolCall = buildToolCall(event);
 
-      // --- Check 1: Block OPERATOR.md edits (allow creation during hatch) ---
-      if ((toolCall.tool === 'Edit' || toolCall.tool === 'Write') &&
-          toolCall.content.includes('.claude-code-hermit/OPERATOR.md') &&
-          fs.existsSync(toolCall.content)) {
-        process.stderr.write('BLOCKED: OPERATOR.md is operator-curated — edit it directly, not through the agent\n');
-        process.exit(2);
-      }
-
-      // --- Check 2: Warn on state-template edits ---
+      // --- Check 1: Warn on state-template edits ---
       if ((toolCall.tool === 'Edit' || toolCall.tool === 'Write') &&
           /state-templates\/.*\.template/.test(toolCall.content)) {
         process.stderr.write('Editing template file — confirm this is intentional\n');
       }
 
-      // --- Check 3: Deny patterns ---
+      // --- Check 2: Deny patterns ---
       if (!toolCall.content) process.exit(0);
 
       let patterns;

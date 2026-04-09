@@ -8,7 +8,7 @@
 
 - **docker-setup self-blocking** — docker-setup step 6 wrote the full `always_on` deny set (including `Bash(docker *)`) to `.claude/settings.json` `permissions.deny`, then needed docker commands in steps 8–9. Now writes only the `default` set to settings.json; container-specific rules are enforced by the hook at runtime via the strict profile.
 
-- **OPERATOR.md check too broad** — the hardcoded OPERATOR.md block in `enforce-deny-patterns.js` used `includes('OPERATOR.md')`, matching any file named OPERATOR.md anywhere in the project. Scoped to `.claude-code-hermit/OPERATOR.md` only.
+- **OPERATOR.md check too broad** — the hardcoded OPERATOR.md block in `enforce-deny-patterns.js` used `includes('OPERATOR.md')`, matching any file named OPERATOR.md anywhere in the project. Removed the hardcoded check entirely; OPERATOR.md protection is now handled via `deny-patterns.json` entries.
 
 - **Test workdir missing OPERATOR.md** — `setup_workdir` in `run-hooks.sh` now creates `OPERATOR.md` in the state directory, matching post-hatch state. The OPERATOR.md block test was silently broken (file didn't exist, so `fs.existsSync` allowed it through).
 
@@ -16,24 +16,28 @@
 
 - **Settings file protection** — `deny-patterns.json` `always_on` set now includes `Edit`/`Write`/Bash-redirect deny rules for `.claude/settings.json` and `.claude/settings.local.json`. Prevents the agent from modifying its own permissions in always-on mode.
 
-- **OPERATOR.md Bash redirect protection** — `deny-patterns.json` `default` set now includes `Bash(*> *.claude-code-hermit/OPERATOR.md*)` to block shell redirect writes. The hardcoded hook check catches Edit/Write tools; this catches the Bash bypass path.
+- **OPERATOR.md Bash redirect protection** — `deny-patterns.json` `default` set now includes `Bash(*> *.claude-code-hermit/OPERATOR.md*)` to block shell redirect writes in all modes.
+
+- **OPERATOR.md Edit/Write in `always_on` set** — `deny-patterns.json` `always_on` set now includes `Edit(*.claude-code-hermit/OPERATOR.md)` and `Write(*.claude-code-hermit/OPERATOR.md)`. In always-on mode (strict profile), the agent cannot touch OPERATOR.md at all. In interactive sessions, Edit/Write are allowed so the hermit can draft changes and confirm with the operator before applying.
 
 ### Changed
 
-- **OPERATOR.md documented as read-only** — CLAUDE.md, CLAUDE-APPEND.md, and the OPERATOR.md template all clarify that the file is read-only for the agent. CLAUDE-APPEND.md Rules section instructs the hermit to flag stale context to the operator rather than editing the file. Previously said "read-only for agent" in the state table but had no explicit rule.
+- **OPERATOR.md: draft+confirm in interactive, hard-blocked in always-on** — CLAUDE.md, CLAUDE-APPEND.md, and the OPERATOR.md template now describe a two-mode approach. In interactive sessions, the hermit drafts the minimal change, shows a diff, and applies only after the operator confirms. In always-on mode, the hermit flags stale context via channel instead — the operator edits directly. Previously the agent was unconditionally blocked from editing OPERATOR.md.
 
-- **Hatch deny patterns no longer include OPERATOR.md** — removed `Edit/Write(**/.claude-code-hermit/OPERATOR.md)` from both minimal and hardened deny sets in hatch step 9. OPERATOR.md protection is now enforced by the hook (always active), not by settings.json deny rules (which the operator could accidentally remove).
+- **Hardcoded OPERATOR.md check removed from hook** — `enforce-deny-patterns.js` no longer has a hardcoded `fs.existsSync` check for OPERATOR.md. All OPERATOR.md protection now flows through `deny-patterns.json` entries, making the enforcement visible and configurable.
+
+- **Hatch deny patterns no longer include OPERATOR.md** — removed `Edit/Write(**/.claude-code-hermit/OPERATOR.md)` from both minimal and hardened deny sets in hatch step 9. OPERATOR.md protection is now enforced by the hook via `deny-patterns.json` `always_on` set (active only in strict profile), not by settings.json deny rules.
 
 ### Files affected
 
 | File | Change |
 |------|--------|
-| `scripts/enforce-deny-patterns.js` | `always_on` conditional on strict profile; OPERATOR.md check scoped to `.claude-code-hermit/`; updated JSDoc |
-| `state-templates/deny-patterns.json` | Added OPERATOR.md bash redirect to `default`; added settings.json/settings.local.json protection to `always_on` |
+| `scripts/enforce-deny-patterns.js` | `always_on` conditional on strict profile; removed hardcoded OPERATOR.md check; updated JSDoc |
+| `state-templates/deny-patterns.json` | Added OPERATOR.md bash redirect to `default`; added OPERATOR.md Edit/Write + settings.json protection to `always_on` |
 | `skills/docker-setup/SKILL.md` | Step 6 writes only `default` deny set, not `always_on` |
 | `skills/hatch/SKILL.md` | Removed OPERATOR.md from both deny pattern sets |
-| `state-templates/CLAUDE-APPEND.md` | OPERATOR.md read-only rule in Agent State table and Rules section |
-| `state-templates/OPERATOR.md` | Template comment updated: read-only for agent |
+| `state-templates/CLAUDE-APPEND.md` | OPERATOR.md draft+confirm rule in Agent State table and Rules section |
+| `state-templates/OPERATOR.md` | Template comment updated: draft+confirm workflow |
 | `CLAUDE.md` | OPERATOR.md descriptions updated (both occurrences) |
 | `hooks/hooks.json` | Updated hook description |
 | `tests/run-hooks.sh` | `setup_workdir` creates OPERATOR.md; test covers both creation and blocking paths |
@@ -42,7 +46,7 @@
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
-1. **Refresh CLAUDE-APPEND block** — the session discipline block in the target project's CLAUDE.md needs updating (new OPERATOR.md rule in Rules section, updated Agent State table entry).
+1. **Refresh CLAUDE-APPEND block** — the session discipline block in the target project's CLAUDE.md needs updating (OPERATOR.md rule now describes draft+confirm workflow in interactive mode, updated Agent State table entry).
 2. **Update deny-patterns.json** — already updated in the plugin itself; no per-project action needed (the hook reads from the plugin directory).
 
 **Manual steps for Docker users:**

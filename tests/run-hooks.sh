@@ -208,12 +208,14 @@ run_test "enforce-deny-patterns (allow safe)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 15. enforce-deny-patterns — blocks OPERATOR.md edit
+# 15. enforce-deny-patterns — blocks OPERATOR.md edit in always-on
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
-run_test "enforce-deny-patterns (block OPERATOR.md)" bash -c \
-  "echo '{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\".claude-code-hermit/OPERATOR.md\"}}' | CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/enforce-deny-patterns.js' 2>/dev/null; [ \$? -eq 2 ]"
+run_test "enforce-deny-patterns (block OPERATOR.md always-on)" bash -c \
+  "echo '{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\".claude-code-hermit/OPERATOR.md\"}}' | AGENT_HOOK_PROFILE=strict CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/enforce-deny-patterns.js' 2>/dev/null; [ \$? -eq 2 ]"
+run_test "enforce-deny-patterns (allow OPERATOR.md interactive)" bash -c \
+  "echo '{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\".claude-code-hermit/OPERATOR.md\"}}' | AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/enforce-deny-patterns.js' 2>/dev/null; [ \$? -eq 0 ]"
 cleanup
 
 # -------------------------------------------------------

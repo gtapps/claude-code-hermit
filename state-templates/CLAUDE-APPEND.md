@@ -19,7 +19,7 @@
 | `proposals/PROP-NNN.md`    | Improvement proposals                                           |
 | `reviews/`                 | Weekly review reports                                           |
 | `state/`                   | Runtime state (alert dedup, reflection, routine queue, metrics) |
-| `OPERATOR.md`              | Read-only human-curated project context and constraints       |
+| `OPERATOR.md`              | Human-curated context — draft changes, confirm before writing |
 
 ## Subagent: `session-mgr` (Sonnet) — session lifecycle
 
@@ -47,7 +47,7 @@ When you need to notify the operator proactively:
 - **Rate limits:** Log pause/resume in Progress Log. Never silently stall.
 - **Self-awareness:** If stuck — say so, log it, alert via channel. Don't push through silently.
 - **Secrets:** Never log API keys, tokens, passwords, or credentials to SHELL.md, reports, or proposals. Session files may be committed to git.
-- **OPERATOR.md:** Read-only. If you notice stale or contradictory context, flag it to the operator — they edit it directly.
+- **OPERATOR.md:** Never edit autonomously. If you notice stale or contradictory context, draft the minimal change, show a diff, and apply only after the operator confirms. In always-on mode, flag it via channel instead — the operator edits directly.
 - **Proposals mandatory:** Every improvement goes through `/proposal-create` → operator accepts → implement. Trivial fixes (typos, one-liners) exempt.
 - **Tasks:** Use `TaskCreate`/`TaskUpdate` for multi-step work. `tasks-snapshot.md` is auto-generated — don't edit.
 - **Artifact frontmatter:** Any `.md` file you create outside `.claude-code-hermit/` must include YAML frontmatter with at least `title` (string) and `created` (ISO 8601 with timezone). If inside a hermit session, add `session: S-NNN`. Optionally add `proposal`, `source` (`session` | `interactive` | `routine` | `manual`), and `tags` (array of strings). Files without frontmatter appear as "Unlinked" in the Cortex. Full contract: `docs/frontmatter-contract.md`.
