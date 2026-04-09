@@ -57,6 +57,7 @@ class _TempDirTest(unittest.TestCase):
     def tearDown(self):
         os.chdir(self._orig_dir)
         shutil.rmtree(self._tmpdir, ignore_errors=True)
+        os.environ.pop('AGENT_HOOK_PROFILE', None)
 
     def _write_config(self, config):
         with open('.claude-code-hermit/config.json', 'w') as f:
@@ -160,8 +161,8 @@ class TestConfigMerge(_TempDirTest):
         self._write_config({'env': {'COMPACT_THRESHOLD': '100'}})
         merged = hermit_start.load_config()
         self.assertEqual(merged['env']['COMPACT_THRESHOLD'], '100')
-        self.assertIn('AGENT_HOOK_PROFILE', merged['env'])
-        self.assertEqual(merged['env']['AGENT_HOOK_PROFILE'], 'standard')
+        self.assertIn('MAX_THINKING_TOKENS', merged['env'])
+        self.assertEqual(merged['env']['MAX_THINKING_TOKENS'], '10000')
 
     def test_heartbeat_active_hours_deep_merge(self):
         """Custom heartbeat.active_hours.start preserves default end."""
@@ -213,11 +214,10 @@ class TestWriteSettingsEnv(_TempDirTest):
     def test_stale_bot_token_removed(self):
         """BOT_TOKEN vars in settings are cleaned up."""
         self._write_settings({'env': {
-            'AGENT_HOOK_PROFILE': 'standard',
             'DISCORD_BOT_TOKEN': 'stale-token',
             'TELEGRAM_BOT_TOKEN': 'another-stale',
         }})
-        self._write_config({'env': {'AGENT_HOOK_PROFILE': 'standard'}})
+        self._write_config({})
         config = hermit_start.load_config()
         hermit_start.write_settings_env(config)
         settings = self._read_settings()
@@ -230,7 +230,6 @@ class TestWriteSettingsEnv(_TempDirTest):
             'channels': {
                 'discord': {'enabled': True, 'state_dir': '/tmp/test-discord'},
             },
-            'env': {'AGENT_HOOK_PROFILE': 'standard'},
         })
         config = hermit_start.load_config()
         hermit_start.write_settings_env(config)
@@ -238,25 +237,28 @@ class TestWriteSettingsEnv(_TempDirTest):
         self.assertEqual(settings['env']['DISCORD_STATE_DIR'], '/tmp/test-discord')
 
     def test_invalid_profile_corrected(self):
-        """Invalid AGENT_HOOK_PROFILE defaults to standard."""
-        self._write_settings({'env': {'AGENT_HOOK_PROFILE': 'garbage'}})
+        """Invalid AGENT_HOOK_PROFILE defaults to standard in os.environ."""
         self._write_config({'env': {'AGENT_HOOK_PROFILE': 'garbage'}})
         config = hermit_start.load_config()
+        os.environ.pop('AGENT_HOOK_PROFILE', None)
         hermit_start.write_settings_env(config)
+        self.assertEqual(os.environ.get('AGENT_HOOK_PROFILE'), 'standard')
         settings = self._read_settings()
-        self.assertEqual(settings['env']['AGENT_HOOK_PROFILE'], 'standard')
+        self.assertNotIn('AGENT_HOOK_PROFILE', settings.get('env', {}))
 
     def test_always_on_profile_floor(self):
-        """always_on forces minimal profile up to standard."""
+        """always_on forces minimal profile up to standard in os.environ."""
         self._write_config({
             'always_on': True,
             'env': {'AGENT_HOOK_PROFILE': 'minimal'},
         })
         config = hermit_start.load_config()
         self.assertTrue(config.get('always_on'), 'Expected always_on=True after merge')
+        os.environ.pop('AGENT_HOOK_PROFILE', None)
         hermit_start.write_settings_env(config)
+        self.assertEqual(os.environ.get('AGENT_HOOK_PROFILE'), 'standard')
         settings = self._read_settings()
-        self.assertEqual(settings['env']['AGENT_HOOK_PROFILE'], 'standard')
+        self.assertNotIn('AGENT_HOOK_PROFILE', settings.get('env', {}))
 
     def test_always_on_strict_not_downgraded(self):
         """always_on doesn't downgrade strict to standard (floor, not ceiling)."""
@@ -266,19 +268,32 @@ class TestWriteSettingsEnv(_TempDirTest):
         })
         config = hermit_start.load_config()
         self.assertTrue(config.get('always_on'), 'Expected always_on=True after merge')
+        os.environ.pop('AGENT_HOOK_PROFILE', None)
         hermit_start.write_settings_env(config)
+        self.assertEqual(os.environ.get('AGENT_HOOK_PROFILE'), 'strict')
         settings = self._read_settings()
-        self.assertEqual(settings['env']['AGENT_HOOK_PROFILE'], 'strict')
+        self.assertNotIn('AGENT_HOOK_PROFILE', settings.get('env', {}))
 
     def test_existing_settings_preserved(self):
         """Pre-existing keys in settings.local.json survive write."""
         self._write_settings({'env': {'CUSTOM_VAR': 'keep-me'}, 'other_key': 'also-keep'})
-        self._write_config({'env': {'AGENT_HOOK_PROFILE': 'standard'}})
+        self._write_config({})
         config = hermit_start.load_config()
         hermit_start.write_settings_env(config)
         settings = self._read_settings()
         self.assertEqual(settings['env']['CUSTOM_VAR'], 'keep-me')
         self.assertEqual(settings['other_key'], 'also-keep')
+
+    def test_profile_migration_removed_from_settings(self):
+        """AGENT_HOOK_PROFILE is removed from settings.local.json (migration)."""
+        self._write_settings({'env': {'AGENT_HOOK_PROFILE': 'strict', 'OTHER': 'keep'}})
+        self._write_config({})
+        config = hermit_start.load_config()
+        os.environ.pop('AGENT_HOOK_PROFILE', None)
+        hermit_start.write_settings_env(config)
+        settings = self._read_settings()
+        self.assertNotIn('AGENT_HOOK_PROFILE', settings['env'])
+        self.assertEqual(settings['env']['OTHER'], 'keep')
 
 
 # ============================================================

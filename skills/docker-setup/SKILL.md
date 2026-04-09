@@ -48,7 +48,7 @@ Read `.claude-code-hermit/config.json` and extract:
 - `agent_name`
 - Detect project path from `pwd`
 
-Set `AGENT_HOOK_PROFILE` to `"strict"` in `config.json` `env`. Write back.
+Do NOT set `AGENT_HOOK_PROFILE` in `config.json` `env` — it stays as `standard` (the host default). The strict profile is rendered into the docker-compose environment block in step 4 via `{{AGENT_HOOK_PROFILE}}`.
 
 ### 4. Render templates
 
@@ -78,6 +78,7 @@ Read the three templates from `${CLAUDE_SKILL_DIR}/../../state-templates/docker/
   - `      - ${PWD}/.claude.local/channels/discord:/home/claude/.claude/channels/discord`
   - `      - ${PWD}/.claude.local/channels/telegram:/home/claude/.claude/channels/telegram`
   Remove `{{CHANNEL_VOLUME_LINES}}` entirely if no channels configured.
+- `{{AGENT_HOOK_PROFILE}}` — always `strict` for Docker (enforces `always_on` deny patterns inside the container)
 - `{{TMUX_SESSION_NAME}}` — resolved session name
 - `{{NETWORK_MODE_LINE}}` — If `docker.network_mode` is `"host"`: replace with `    # WARNING: host networking exposes all host-local services to the container.\n    network_mode: host`. If `"bridge"` (default): remove the line entirely (bridge is Docker's default — no directive needed).
 - **Git identity:** Check if `~/.gitconfig` exists on the host. If it does not exist, remove the `.gitconfig` bind-mount line from the rendered file and add a note in the summary: "No ~/.gitconfig found — git commits inside the container will have no author identity. Create one on the host and re-run docker-setup, or set git config manually inside the container."

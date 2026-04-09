@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.3.13] - 2026-04-09
+
+### Fixed
+
+- **AGENT_HOOK_PROFILE leaked from Docker container to host** — `hermit-start.py` wrote `AGENT_HOOK_PROFILE` to `.claude/settings.local.json`, which lives on the bind-mounted project directory. The host-side Claude Code read the same file, inheriting `strict` profile and blocking docker/ssh/kubectl commands. The profile is now set as a process environment variable instead: forwarded via tmux env file (host) or docker-compose `environment:` block (container). `settings.local.json` no longer contains `AGENT_HOOK_PROFILE`. Existing entries are automatically removed on next boot (migration).
+
+### Changed
+
+- **Docker-compose template includes `AGENT_HOOK_PROFILE`** — new `{{AGENT_HOOK_PROFILE}}` placeholder in `docker-compose.hermit.yml.template`. Docker-setup renders `strict` into the compose environment block instead of writing to `config.json` `env`. This keeps the profile container-scoped.
+
+- **`hermit-start.py` forwards `AGENT_HOOK_PROFILE` via tmux env** — added to `forward_vars` alongside `CLAUDE_CONFIG_DIR` and `ANTHROPIC_API_KEY`. The tmux session inherits the profile; interactive host sessions don't.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/hermit-start.py` | `write_settings_env()` pops profile from env dict, sets via `os.environ.setdefault()`, removes stale entries (migration); added to `forward_vars` |
+| `state-templates/docker/docker-compose.hermit.yml.template` | Added `AGENT_HOOK_PROFILE={{AGENT_HOOK_PROFILE}}` to environment block |
+| `skills/docker-setup/SKILL.md` | Step 3: no longer writes profile to config.json env; step 4: documents new placeholder |
+| `tests/run-contracts.py` | Profile tests now verify `os.environ` instead of `settings.local.json`; added migration test; tearDown cleans env |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **No CLAUDE-APPEND refresh needed** — no changes to session discipline or rules.
+2. **No config.json changes required** — `AGENT_HOOK_PROFILE` stays in config.json `env` as before (it's the source of truth for the value). The change is where `hermit-start.py` writes it at boot — process env instead of settings.local.json.
+
+**Manual steps for Docker users:**
+- Regenerate `docker-compose.hermit.yml` by re-running `/claude-code-hermit:docker-setup` (or manually add `- AGENT_HOOK_PROFILE=strict` to the `environment:` section).
+- After the next `hermit-start`, `AGENT_HOOK_PROFILE` will be automatically removed from `.claude/settings.local.json`.
+
 ## [0.3.12] - 2026-04-09
 
 ### Fixed

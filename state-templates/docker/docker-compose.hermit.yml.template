@@ -20,6 +20,7 @@ services:
     environment:
       - CLAUDE_CONFIG_DIR=/home/claude/.claude
       - NODE_OPTIONS=--max-old-space-size=4096
+      - AGENT_HOOK_PROFILE={{AGENT_HOOK_PROFILE}}
 {{AUTH_ENV_LINE}}{{CHANNEL_ENV_LINES}}
 {{NETWORK_MODE_LINE}}
     restart: unless-stopped

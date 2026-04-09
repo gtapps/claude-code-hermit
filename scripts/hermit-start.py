@@ -310,9 +310,30 @@ def write_settings_env(config):
     if 'env' not in settings:
         settings['env'] = {}
 
-    env_vars = config.get('env', {})
+    env_vars = dict(config.get('env', {}))  # copy — don't mutate config
+
+    # AGENT_HOOK_PROFILE is process-scoped: forwarded via tmux env file or
+    # docker-compose environment block. NOT written to settings.local.json,
+    # which is shared between container and host via bind mount.
+    profile = env_vars.pop('AGENT_HOOK_PROFILE', None) \
+        or os.environ.get('AGENT_HOOK_PROFILE', 'standard')
+    if profile not in PROFILE_LEVELS:
+        print(f'[hermit] Warning: invalid AGENT_HOOK_PROFILE={profile}, defaulting to standard')
+        profile = 'standard'
+    if config.get('always_on'):
+        floor = 'standard'  # non-negotiable minimum for always-on
+        if PROFILE_LEVELS[profile] < PROFILE_LEVELS[floor]:
+            print(f'[hermit] Warning: AGENT_HOOK_PROFILE={profile} below always-on '
+                  f'floor, forcing to {floor}')
+            profile = floor
+    os.environ.setdefault('AGENT_HOOK_PROFILE', profile)
+
     if env_vars:
         settings['env'].update(env_vars)
+
+    # Migration: remove AGENT_HOOK_PROFILE from settings.local.json if present
+    # (older versions wrote it there, causing host/container leak)
+    settings['env'].pop('AGENT_HOOK_PROFILE', None)
 
     # MCP servers (channel plugins) are separate processes that inherit OS env —
     # they don't read settings.local.json directly. Without *_STATE_DIR the
@@ -322,19 +343,6 @@ def write_settings_env(config):
         state_dir = ch_cfg.get('state_dir')
         if state_dir:
             settings['env'][f'{ch_name.upper()}_STATE_DIR'] = state_dir
-
-    # Validate AGENT_HOOK_PROFILE — only known profiles allowed
-    profile = settings['env'].get('AGENT_HOOK_PROFILE', 'standard')
-    if profile not in PROFILE_LEVELS:
-        print(f'[hermit] Warning: invalid AGENT_HOOK_PROFILE={profile}, defaulting to standard')
-        settings['env']['AGENT_HOOK_PROFILE'] = 'standard'
-        profile = 'standard'
-    if config.get('always_on'):
-        floor = 'standard'  # non-negotiable minimum for always-on
-        if PROFILE_LEVELS[profile] < PROFILE_LEVELS[floor]:
-            print(f'[hermit] Warning: AGENT_HOOK_PROFILE={profile} below always-on '
-                  f'floor, forcing to {floor}')
-            settings['env']['AGENT_HOOK_PROFILE'] = floor
 
     # Remove channel bot tokens — they must only live in
     # .claude.local/channels/<plugin>/.env. A stale token here
@@ -426,7 +434,7 @@ def main():
     # Auth vars must be in shell env before claude launches.
     # *_STATE_DIR vars must be OS env because MCP servers (channel plugins)
     # inherit shell env but don't read settings.local.json.
-    forward_vars = ['CLAUDE_CONFIG_DIR', 'ANTHROPIC_API_KEY']
+    forward_vars = ['CLAUDE_CONFIG_DIR', 'ANTHROPIC_API_KEY', 'AGENT_HOOK_PROFILE']
     # *_STATE_DIR vars must reach MCP servers via OS env — see write_settings_env.
     for ch_name, ch_cfg in iter_channel_configs(config):
         if ch_cfg.get('state_dir'):
