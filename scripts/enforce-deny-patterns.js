@@ -62,8 +62,10 @@ function main() {
       const toolCall = buildToolCall(event);
 
       // --- Check 1: Block OPERATOR.md edits ---
+      // Allow creation (file doesn't exist yet, e.g. during hatch); block edits to existing files.
       if ((toolCall.tool === 'Edit' || toolCall.tool === 'Write') &&
-          toolCall.content.includes('OPERATOR.md')) {
+          toolCall.content.includes('OPERATOR.md') &&
+          fs.existsSync(toolCall.content)) {
         process.stderr.write('BLOCKED: OPERATOR.md is human-curated, read-only for agents\n');
         process.exit(2);
       }
