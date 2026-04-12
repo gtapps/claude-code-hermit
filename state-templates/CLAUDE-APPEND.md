@@ -19,13 +19,31 @@
 | `proposals/PROP-NNN.md`    | Improvement proposals                                           |
 | `reviews/`                 | Weekly review reports                                           |
 | `state/`                   | Runtime state (alert dedup, reflection, routine queue, metrics) |
+| `state/monitors.runtime.json` | Active watch registry — cleared on each session start       |
 | `OPERATOR.md`              | Human-curated context — draft changes, confirm before writing |
 
 ## Subagent: `session-mgr` (Sonnet) — session lifecycle
 
+## Watches
+
+Config-defined watches auto-register on session start. Ad-hoc watches via `/watch <instruction>`.
+Registry: `state/monitors.runtime.json` (sole truth — not SHELL.md). Use `/watch status` to check, `/watch stop` to halt.
+
+Two classes:
+- **Stream (truly event-driven):** Source pushes events — `tail -f <file> | grep --line-buffered "<pat>"`, WebSocket subscriptions, `fswatch <path>` (macOS) / `inotifywait -m <path>` (Linux, needs inotify-tools)
+- **Poll (quieter polling, not event-driven):** `while true; do <check> && echo <event>; sleep <N>; done`
+
+Rules:
+- Always use `grep --line-buffered` in pipes — without it, buffering delays events by minutes
+- Add `|| true` after API calls in poll loops — one failed request shouldn't kill the watch
+- Be selective with stdout — noisy watches are auto-stopped by CC
+- All 4 CC Monitor tool params are required: `description`, `command`, `timeout_ms`, `persistent`. Always pass `timeout_ms` even when `persistent: true` (required by schema; ignored when persistent).
+- `$CLAUDE_PLUGIN_ROOT` is **NOT available** in the watch subprocess. `$PWD` is project root. Resolve plugin paths at registration time (skill execution context has the var).
+- Watch dies with the session — persistent concerns stay in `routine-watcher.sh`
+
 ## Quick Reference
 
-`/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/hermit-evolve` `/docker-setup` `/hermit-takeover` `/hermit-hand-back` `/obsidian-setup` `/cortex-refresh` `/cortex-sync` `/weekly-review` `/hermit-migrate`
+`/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/watch` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/hermit-evolve` `/docker-setup` `/hermit-takeover` `/hermit-hand-back` `/obsidian-setup` `/cortex-refresh` `/cortex-sync` `/weekly-review` `/hermit-migrate`
 (All prefixed with `/claude-code-hermit:`)
 
 ## Operator Notification

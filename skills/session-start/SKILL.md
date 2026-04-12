@@ -28,6 +28,7 @@ All state lives under `.claude-code-hermit/` in the project root.
      - Clear `last_error` after the operator decides.
    - **Dead process detection:** If `session_state == "dead_process"`: same flow as unclean shutdown above, with message: "Process died unexpectedly. Previous task: [task from SHELL.md, or 'unknown']. Reply with (1) to archive as partial and start fresh, or (2) to resume where we left off."
    - **Normal state:** If `session_state` is `idle` → ready for new task. If `in_progress` or `waiting` → existing session, offer resume.
+3b. **Watch registry reset.** Read `state/monitors.runtime.json` and clear all entries unconditionally — watches are session-scoped, so any previous entries are stale. If the file is missing, skip. This runs on every session start (new, resume, or crash recovery) before any watch registration occurs.
 4. Use the `session-mgr` agent to check session state and handle SHELL.md
 4b. If session-mgr reports SHELL.md exists with Status `idle` (or runtime.json `session_state` is `idle`):
    - This is a session between tasks — do NOT create a new session or SHELL.md
@@ -65,6 +66,9 @@ All state lives under `.claude-code-hermit/` in the project root.
         2. No budget for this session — leave Budget field blank
         3. Never ask about budget — set `ask_budget` to `false` in config.json, leave Budget blank
     - If `ask_budget` is `false`: skip the budget prompt silently.
+11b. **Watch registration.** If `config.monitors` exists and has enabled entries, invoke
+     `/claude-code-hermit:watch start` to register them. (Registry was already cleared in
+     step 3b.) This is silent — do not prompt the operator about watch registration.
 12. Identify the first actionable step and confirm with the operator before proceeding
 
 ## Context to Load

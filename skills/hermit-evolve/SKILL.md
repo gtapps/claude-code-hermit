@@ -67,6 +67,7 @@ The prompts below match the init wizard exactly. Use the same wording for consis
 | `heartbeat.stale_threshold` | 0.0.9 | no | `"2h"` |
 | `routines` | 0.0.9 | no (migrated or empty) | `[]` |
 | `plugin_checks` | 0.3.1 | no | `[]` |
+| `monitors` | 0.3.14 | no | `[]` |
 
 **Prompts** — use the same wording and interaction model as the init wizard (see `skills/hatch/SKILL.md`):
 

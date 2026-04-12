@@ -20,6 +20,7 @@
     {"id": "heartbeat-restart", "schedule": "0 4 * * *", "skill": "claude-code-hermit:heartbeat start", "run_during_waiting": true, "enabled": true},
     {"id": "weekly-review", "schedule": "0 23 * * 0", "skill": "claude-code-hermit:weekly-review", "enabled": false}
   ],
+  "monitors": [],
   "env": {
     "AGENT_HOOK_PROFILE": "standard",
     "COMPACT_THRESHOLD": "50",

@@ -85,6 +85,7 @@ hermit-start -> [in_progress] -> task done -> [idle] -> new task -> [in_progress
 | **Report archived** | Yes                                                                        | No (session stays open)        | Yes                              |
 | **Reflection runs** | Yes                                                                        | No                             | Yes                              |
 | **Heartbeat**       | Keeps running (or starts)                                                  | Runs (skips stale checks)      | Stopped                          |
+| **Monitors**        | Keep running                                                               | Keep running                   | Stopped (TaskStop + registry cleared) |
 | **Channels**        | Keep running (always-on only)                                              | Keep running                   | Stopped                          |
 | **SHELL.md**        | Reset in-place to `idle`, Monitoring & Summary compacted if over threshold | Status set to `waiting`        | Replaced with fresh template     |
 | **Applies to**      | Both interactive and always-on                                             | Both interactive and always-on | Both interactive and always-on   |
@@ -189,14 +190,19 @@ The watcher dies automatically when the tmux session is killed — no cleanup ne
 
 **`heartbeat-restart`** fires at 4am daily and restarts the heartbeat loop. Required for always-on deployments — `/loop` tasks expire after 3 days. Do not disable unless you are manually managing heartbeat restarts.
 
-### Relationship to heartbeat
+### Relationship to heartbeat and monitors
 
-|         | Routines                         | Heartbeat                     |
-| ------- | -------------------------------- | ----------------------------- |
-| Timing  | Exact HH:MM                      | Every N minutes               |
-| Engine  | Shell script (`date` + `jq`)     | LLM evaluation                |
-| Cost    | Zero tokens                      | Checklist evaluation per tick |
-| Use for | Scheduled tasks (briefs, audits) | Continuous monitoring         |
+|                | Routines                         | Heartbeat                      | Monitors                          |
+| -------------- | -------------------------------- | ------------------------------ | --------------------------------- |
+| Timing         | Exact HH:MM                      | Every N minutes                | Event-driven or interval          |
+| Engine         | Shell script (`date` + `jq`)     | LLM evaluation                 | Monitor tool (OS subprocess)      |
+| Cost           | Zero tokens                      | Checklist evaluation per tick  | Zero tokens when quiet            |
+| Survives exit  | Yes (tmux)                       | No (3-day `/loop` expiry)      | No (session-scoped)               |
+| Use for        | Scheduled tasks (briefs, audits) | Continuous monitoring          | Reactive watching / quiet polling |
+
+**Hybrid model:** Monitors handle reactive concerns (event streams, zero idle cost). `routine-watcher.sh` handles durability (survives session death, crash recovery, cron-like scheduling). Neither replaces the other.
+
+Config-defined watches auto-register at session start. Runtime truth: `.claude-code-hermit/state/monitors.runtime.json`. See `/claude-code-hermit:watch` for ad-hoc watching.
 
 ---
 

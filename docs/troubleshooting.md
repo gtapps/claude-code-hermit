@@ -51,7 +51,7 @@ Plugin checks run during idle reflection via `reflect`. If accepted plugins aren
 
 - Check `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` in `config.json` `env` (default 50). Adjust with `/hermit-settings env`.
 - Check heartbeat interval — 5m with Opus is expensive. Default is 2h; use 15m-30m only if you need faster monitoring.
-- Check if monitors are running with short intervals (`/claude-code-hermit:monitor stop`).
+- Check if watches are running with short intervals (`/claude-code-hermit:watch stop`).
 - Review SHELL.md size — bloated files cost tokens on every read.
 - Use `/cost` to check current session spend.
 

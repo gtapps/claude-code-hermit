@@ -61,6 +61,18 @@ For each channel in `channels`:
 
 All values in `env` should be strings.
 
+### 7. Monitor validation
+
+For each monitor in `monitors[]` (if present — skip if key is absent):
+
+- `id` (string, required, unique)
+- `description` (string, required)
+- `command` (string, required)
+- `persistent` (boolean, if present)
+- `enabled` (boolean, if present)
+- `class` if present: one of `stream`, `poll`
+- `timeout_ms` if present: number >= 1000
+
 ## Output
 
 ```

@@ -97,9 +97,9 @@ By design, no. OPERATOR.md is human-curated — the hermit reads it but never wr
 
 **Heartbeat** is the built-in periodic health check — runs every 2h by default, evaluates the `HEARTBEAT.md` checklist, and alerts you only when something needs attention. It's always-on infrastructure.
 
-**Monitor** (`/monitor`) is a session-scoped watcher you set up for specific concerns (e.g., "watch for CI failures every 5 minutes"). Monitors are task-specific and stop when the session closes.
+**Watch** (`/watch`) is a session-scoped background watcher you set up for specific concerns (e.g., "watch for CI failures every 5 minutes"). Watches are task-specific and stop when the session closes.
 
-See [Skills Reference](skills.md) for the heartbeat/monitor comparison table.
+See [Skills Reference](skills.md) for the heartbeat/watch comparison table.
 
 ---
 

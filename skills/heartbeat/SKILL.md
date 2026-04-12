@@ -161,16 +161,17 @@ Open `.claude-code-hermit/HEARTBEAT.md` for the operator to modify.
 - Suggest additions based on current project context (e.g., if there are open proposals, suggest a check for them)
 - Write the updated checklist back
 
-## Relationship to /monitor
+## Relationship to /watch
 
-| | Heartbeat | /monitor |
+| | Heartbeat | /watch |
 |---|---|---|
-| Triggered by | Boot script (always-on) or session skill (interactive idle) | User-invoked per task |
-| Checklist | HEARTBEAT.md (persistent, reusable) | Inline instruction (one-off) |
-| Lifecycle | Runs until stop or shutdown | Runs until stop or session close |
-| Quiet mode | Yes — suppresses OK by default | No — always logs |
-| Active hours | Yes — respects configured window | No — runs whenever invoked |
-| Purpose | Background health + proactive surfacing | Specific task monitoring |
+| Triggered by | Boot script (always-on) or session skill (interactive idle) | Config (session-start auto-register) or operator-invoked |
+| Engine | `/loop` (LLM evaluation per tick) | Monitor tool (OS subprocess, zero LLM cost) |
+| Checklist | HEARTBEAT.md (persistent, reusable) | Config entry or inline instruction |
+| Lifecycle | Runs until stop or shutdown | Runs until stop or session end |
+| Quiet mode | Yes — suppresses OK by default | Yes — only events trigger notifications |
+| Active hours | Yes — respects configured window | No — runs whenever registered |
+| Purpose | Background health + proactive surfacing | Event streaming / quiet polling |
 
 Both append findings to SHELL.md. Both notify the operator on actionable findings. They coexist without interference.
 

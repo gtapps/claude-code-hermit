@@ -91,7 +91,7 @@ class TestConfigContract(unittest.TestCase):
     # Keys that exist only in template — consumed by scripts that handle
     # their own missing-key logic (not part of load_config merge).
     TEMPLATE_ONLY_KEYS = {
-        'idle_behavior', 'idle_budget', 'routines', 'plugin_checks',
+        'idle_behavior', 'idle_budget', 'routines', 'plugin_checks', 'monitors',
         'compact', 'compact.monitoring_threshold', 'compact.monitoring_keep',
         'compact.summary_threshold', 'compact.summary_keep',
         'docker.recommended_plugins',

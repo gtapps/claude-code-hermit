@@ -5,27 +5,47 @@
 ### Added
 
 - **`hermit-migrate` skill** — A Git-first migration audit skill for moving a hermit-backed repo between machines. Inspects the repo, classifies ignored files into MUST_MIGRATE / DO_NOT_MIGRATE / REVIEW_MANUALLY, provides a dedicated hermit state assessment (including field-level config.json analysis), identifies bootstrap gaps, and produces a `migration-manifest.txt` with a verification checklist. Read-only by default.
+- **`/watch` skill** — New skill wrapping the Claude Code Monitor tool for background watching. Replaces the old `/monitor` skill (which used `/loop`). Zero token cost when quiet — only stdout lines trigger conversation notifications. Supports declared config-driven watches (auto-registered at session start) and ad-hoc operator-driven watches (`/watch <instruction>`). Subcommands: `watch <instruction>`, `watch start`, `watch stop [id]`, `watch stop --all`, `watch status`.
+- **`config.json` `monitors` key** — Optional array of declared watch definitions. Each entry has: `id` (unique), `description`, `command` (supports `${CLAUDE_PLUGIN_ROOT}` resolved at registration time), `persistent`, `enabled`, `class` (`"stream"` or `"poll"`, documentation label), optional `timeout_ms`. Not a required key — backward compatible.
+- **`state/monitors.runtime.json`** — Runtime registry, sole source of truth for active watches. Cleared unconditionally on every session start (watches are session-scoped). Fields: `id`, `task_id` (CC task ID for TaskStop), `description`, `started_at`, `source` (`config` or `adhoc`), `class`.
 
 ### Changed
 
 - **Migration documentation** — Added "How do I move my hermit to another machine?" to `docs/faq.md` and a "Moving to a new host" section to `docs/always-on.md` (Docker-specific steps with named volume gotcha). Added a dedicated Migration section to `docs/skills.md`.
 - **`state_dir` now supports relative paths** — `hermit-start.py` resolves relative `channels.<name>.state_dir` values against the project root at boot. Absolute paths continue to work unchanged. `hatch` and `hermit-settings` now write `.claude.local/channels/<name>` (relative) instead of the full host path, making fresh `config.json` files portable across machines and clones. `hermit-migrate` no longer classifies `state_dir` as machine-specific when it contains a relative path.
+- **`/monitor` skill renamed to `/watch`** — Avoids naming overlap with Claude Code's native Monitor tool. Update any config or OPERATOR.md references from `/claude-code-hermit:monitor` to `/claude-code-hermit:watch`. `hermit-evolve` handles the CLAUDE-APPEND update.
+- **Session start** — Step 3b clears the watch registry unconditionally on every start (new, resume, crash recovery). Step 11b registers enabled config monitors after the session task is known.
+- **Session close** — Stops all active watches before archiving (same pattern as heartbeat stop).
+- **Config validation** — `validate-config.js` validates the optional `monitors` key: unique `id`, required `description` and `command`, type checks for `persistent`, `enabled`, `class`, `timeout_ms`. Wrong-typed monitors key (non-array) now emits an error rather than silently skipping.
+- **`hermit-evolve`** — Adds `monitors: []` silently on upgrade (non-interactive, default `[]`).
 
 ### Files affected
 
 | File | Change |
 |------|--------|
 | `skills/hermit-migrate/SKILL.md` | New skill |
-| `state-templates/CLAUDE-APPEND.md` | Added `/hermit-migrate` to quick reference line |
-| `CLAUDE.md` | Added `hermit-migrate` to skill list and quick reference |
+| `skills/watch/SKILL.md` | New skill (renamed + full rewrite from `/loop` to Monitor tool) |
+| `skills/monitor/SKILL.md` | Deleted (superseded by `watch`) |
+| `state-templates/CLAUDE-APPEND.md` | Added `/hermit-migrate` to quick reference; added `monitors.runtime.json` row, Watches section, `/watch` to quick reference |
+| `CLAUDE.md` | Added `hermit-migrate`; updated `monitor` → `watch` in skill list |
 | `docs/skills.md` | Added Migration section |
-| `docs/faq.md` | Added migration FAQ entry |
+| `docs/faq.md` | Added migration FAQ entry; updated heartbeat/watch FAQ entry |
 | `docs/always-on.md` | Added "Moving to a new host" section |
+| `docs/always-on-ops.md` | Added Monitors comparison table and hybrid model note |
+| `docs/troubleshooting.md` | Updated `/monitor stop` → `/watch stop` reference |
 | `scripts/hermit-start.py` | `write_settings_env()`: expand relative `state_dir` to absolute via `Path.cwd()` before writing to `settings.local.json` |
+| `scripts/validate-config.js` | Added optional monitors validation block with type guard |
 | `skills/hatch/SKILL.md` | Write relative path in `channels.<name>.state_dir` instead of absolute |
 | `skills/docker-setup/SKILL.md` | Match hatch — instruct relative path for `state_dir` |
 | `skills/hermit-settings/SKILL.md` | Default to relative path in add-channel flow |
 | `skills/hermit-migrate/SKILL.md` | `state_dir` is portable when relative; legacy absolute still machine-specific |
+| `skills/hermit-evolve/SKILL.md` | Added `monitors` row to key table (`0.3.14`, default `[]`) |
+| `skills/session-start/SKILL.md` | Added step 3b (unconditional registry clear) and step 11b (watch registration) |
+| `skills/session-close/SKILL.md` | Added pre-step directive to stop all watches before archiving |
+| `skills/heartbeat/SKILL.md` | Updated "Relationship to /monitor" → "Relationship to /watch" table |
+| `skills/session/SKILL.md` | Updated reference to `/claude-code-hermit:watch` |
+| `agents/hermit-config-validator.md` | Added "### 7. Monitor validation" section |
+| `state-templates/config.json.template` | Added `"monitors": []` after routines |
 | `docs/config-reference.md` | Updated `state_dir` description and examples |
 | `tests/run-contracts.py` | Added `test_state_dir_relative_expanded` contract test |
 
@@ -33,9 +53,9 @@
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
-1. **CLAUDE-APPEND refresh** — Adds `/hermit-migrate` to the quick reference line in your project's CLAUDE.md.
-2. **No config.json changes required** — this release adds no new config keys.
-3. **No template changes** — session, proposal, and heartbeat templates are unchanged.
+1. **CLAUDE-APPEND refresh** — Adds `/hermit-migrate` to the quick reference line, `monitors.runtime.json` to the Agent State table, Watches guidance section, and `/watch` to the quick reference.
+2. **Config update** — Adds `monitors: []` to `config.json` (non-interactive).
+3. **Rename** — If your OPERATOR.md or any scripts reference `/claude-code-hermit:monitor`, update them to `/claude-code-hermit:watch`.
 
 Existing absolute `state_dir` values in `config.json` continue to work. To make your config portable, optionally replace the machine-specific prefix with a relative path:
 
