@@ -16,7 +16,8 @@
 - **`/monitor` skill renamed to `/watch`** — Avoids naming overlap with Claude Code's native Monitor tool. Update any config or OPERATOR.md references from `/claude-code-hermit:monitor` to `/claude-code-hermit:watch`. `hermit-evolve` handles the CLAUDE-APPEND update.
 - **Session start** — Step 3b clears the watch registry unconditionally on every start (new, resume, crash recovery). Step 11b registers enabled config monitors after the session task is known.
 - **Session close** — Stops all active watches before archiving (same pattern as heartbeat stop).
-- **Config validation** — `validate-config.js` validates the optional `monitors` key: unique `id`, required `description` and `command`, type checks for `persistent`, `enabled`, `class`, `timeout_ms`. Wrong-typed monitors key (non-array) now emits an error rather than silently skipping.
+- **Config validation** — `validate-config.js` validates the optional `monitors` key: unique `id`, required `description` and `command`, type checks for `persistent`, `enabled`, `class`, `timeout_ms`. Wrong-typed monitors key (non-array) now emits an error rather than silently skipping. `validate` is now exported for direct unit-test access.
+- **Monitors validation test coverage** — `TestMonitorsValidation` in `run-contracts.py` covers all monitors error and warning paths: non-array type, missing `id`, duplicate `id`, invalid `class`, `timeout_ms < 1000`, and missing required fields (`description`, `command`).
 - **`hermit-evolve`** — Adds `monitors: []` silently on upgrade (non-interactive, default `[]`).
 
 ### Files affected
@@ -34,7 +35,7 @@
 | `docs/always-on-ops.md` | Added Monitors comparison table and hybrid model note |
 | `docs/troubleshooting.md` | Updated `/monitor stop` → `/watch stop` reference |
 | `scripts/hermit-start.py` | `write_settings_env()`: expand relative `state_dir` to absolute via `Path.cwd()` before writing to `settings.local.json` |
-| `scripts/validate-config.js` | Added optional monitors validation block with type guard |
+| `scripts/validate-config.js` | Added monitors validation block; exported `validate` for unit testing |
 | `skills/hatch/SKILL.md` | Write relative path in `channels.<name>.state_dir` instead of absolute |
 | `skills/docker-setup/SKILL.md` | Match hatch — instruct relative path for `state_dir` |
 | `skills/hermit-settings/SKILL.md` | Default to relative path in add-channel flow |
@@ -47,7 +48,7 @@
 | `agents/hermit-config-validator.md` | Added "### 7. Monitor validation" section |
 | `state-templates/config.json.template` | Added `"monitors": []` after routines |
 | `docs/config-reference.md` | Updated `state_dir` description and examples |
-| `tests/run-contracts.py` | Added `test_state_dir_relative_expanded` contract test |
+| `tests/run-contracts.py` | Added `test_state_dir_relative_expanded`; added `TestMonitorsValidation` (7 cases) |
 
 ### Upgrade Instructions
 

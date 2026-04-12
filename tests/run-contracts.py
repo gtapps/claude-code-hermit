@@ -494,5 +494,97 @@ class TestCronCorpus(unittest.TestCase):
                          f'Node accepted invalid expressions:\n{result.stderr}')
 
 
+class TestMonitorsValidation(unittest.TestCase):
+    """validate-config.js monitors block — error and warning paths."""
+
+    # Minimal valid config to merge monitors into
+    BASE_CONFIG = {
+        "agent_name": None, "language": None, "timezone": None,
+        "escalation": "balanced", "channels": {}, "env": {},
+        "heartbeat": {"enabled": True, "active_hours": {"start": "08:00", "end": "23:00"}},
+        "routines": [],
+    }
+
+    def _run_validate(self, config_dict):
+        """Call validate-config.js validate() via node -e; return {errors, warnings}."""
+        config_json = json.dumps({**self.BASE_CONFIG, **config_dict})
+        js = f"""
+        const v = require('{SCRIPTS}/validate-config.js');
+        const result = v.validate({config_json});
+        process.stdout.write(JSON.stringify(result));
+        """
+        result = subprocess.run(
+            ['node', '-e', js], capture_output=True, text=True, timeout=5,
+        )
+        self.assertEqual(result.returncode, 0, f'node exited non-zero: {result.stderr}')
+        return json.loads(result.stdout)
+
+    def test_monitors_valid(self):
+        """A fully valid monitor entry produces no errors or warnings."""
+        out = self._run_validate({"monitors": [
+            {"id": "cpu", "description": "CPU watch", "command": "top -bn1",
+             "class": "poll", "timeout_ms": 5000, "persistent": False, "enabled": True}
+        ]})
+        self.assertEqual(out['errors'], [])
+        self.assertEqual(out['warnings'], [])
+
+    def test_monitors_not_array(self):
+        """monitors must be an array — non-array value is an error."""
+        out = self._run_validate({"monitors": "bad"})
+        self.assertTrue(
+            any('monitors: must be an array' in e for e in out['errors']),
+            f'expected array error, got {out}',
+        )
+
+    def test_monitors_missing_id(self):
+        """Monitor without id is an error."""
+        out = self._run_validate({"monitors": [
+            {"description": "no id here", "command": "true"}
+        ]})
+        self.assertTrue(
+            any('missing or invalid id' in e for e in out['errors']),
+            f'expected missing id error, got {out}',
+        )
+
+    def test_monitors_duplicate_id(self):
+        """Two monitors sharing the same id produce a warning."""
+        out = self._run_validate({"monitors": [
+            {"id": "dup", "description": "first", "command": "true"},
+            {"id": "dup", "description": "second", "command": "true"},
+        ]})
+        self.assertTrue(
+            any('duplicate id' in w for w in out['warnings']),
+            f'expected duplicate id warning, got {out}',
+        )
+
+    def test_monitors_invalid_class(self):
+        """class value not in (stream, poll) is an error."""
+        out = self._run_validate({"monitors": [
+            {"id": "m1", "description": "desc", "command": "true", "class": "bad"}
+        ]})
+        self.assertTrue(
+            any('class must be' in e for e in out['errors']),
+            f'expected class error, got {out}',
+        )
+
+    def test_monitors_bad_timeout(self):
+        """timeout_ms below 1000 is an error."""
+        out = self._run_validate({"monitors": [
+            {"id": "m1", "description": "desc", "command": "true", "timeout_ms": 500}
+        ]})
+        self.assertTrue(
+            any('timeout_ms' in e for e in out['errors']),
+            f'expected timeout_ms error, got {out}',
+        )
+
+    def test_monitors_missing_required_fields(self):
+        """Monitor missing both description and command produces two errors."""
+        out = self._run_validate({"monitors": [{"id": "m1"}]})
+        desc_err = any('missing description' in e for e in out['errors'])
+        cmd_err = any('missing command' in e for e in out['errors'])
+        self.assertTrue(desc_err, f'expected missing description error, got {out}')
+        self.assertTrue(cmd_err, f'expected missing command error, got {out}')
+
+
 if __name__ == '__main__':
     unittest.main()
