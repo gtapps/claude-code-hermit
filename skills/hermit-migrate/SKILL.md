@@ -1,6 +1,6 @@
 ---
 name: hermit-migrate
-description: Audit a hermit-backed repo for safe migration to another machine. Classifies files, generates a migration manifest, and produces a verification checklist. Git-first, conservative by default.
+description: Audit a hermit-backed repo for safe migration to another machine. Classifies files, generates a migration manifest, and produces a verification checklist. Git-first, conservative by default. In personal mode, detects unprotected credentials and proposes gitignore additions.
 ---
 # Migrate Hermit Repo
 
@@ -8,17 +8,23 @@ Audit the current repo for safe migration to another machine. Produce a classifi
 
 Git is the source of truth. Migration should be minimal. This skill is read-only — it does not modify files unless you explicitly ask.
 
+## Scoping
+
+- `.claude/` — **project-scoped** (settings.json, permissions). Tracked in git. Migrates with git clone. Never treat as machine-local.
+- `.claude.local/` — **machine/user-scoped** (channel state dirs, local overrides). Needs recreation on destination. Never migrated.
+
 ## Rules
 
 - Do not write or modify any files unless the operator explicitly requests it
 - Classify conservatively: when in doubt, put a file in DO_NOT_MIGRATE or REVIEW_MANUALLY
-- Never suggest migrating `.claude/` — it is machine-local, always recreate on destination
+- `.claude/` migrates with git clone — never flag it for manual migration or recreation
+- `.claude.local/` must be recreated on destination — never migrated
 - Never suggest migrating runtime state, caches, or ephemeral files
 - config.json requires field-level analysis, not just a "review manually" label
 
 ## Plan
 
-### 1. Read context
+### 1. Read context and detect mode
 
 Check if `.claude-code-hermit/` exists. If it doesn't, note in the summary that this repo hasn't been hatched — the hermit state assessment section will be N/A, but the rest of the audit (Git hygiene, ignored files, bootstrap) still applies.
 
@@ -27,8 +33,9 @@ Read the following files if they exist:
 - `.claude-code-hermit/OPERATOR.md`
 - `.claude-code-hermit/HEARTBEAT.md`
 - `.claude-code-hermit/IDLE-TASKS.md`
-- `.claude/settings.json`
 - `.gitignore`
+
+**Detect personal mode:** Check `.gitignore` for `.claude-code-hermit/sessions/`. If that pattern is absent, sessions are tracked in git → **personal mode**. If present → **private mode** (default). Record this for use in later steps.
 
 ### 2. Git hygiene audit
 
@@ -39,15 +46,39 @@ Run `git status` and `git ls-files` to check:
 
 Note: findings here do not block the migration audit, but they affect the migration risk level.
 
-### 3. Enumerate ignored files
+### 3. Credential scan (personal mode only)
 
-Run: `git ls-files --others --ignored --exclude-standard`
+**Skip this step in private mode** — everything sensitive is already gitignored by the default template.
 
-This lists all files git is actively ignoring. These are the candidates for classification.
+In personal mode, the template only ignores `.env`/`.env.*`. Batch these three git commands now — results are reused in step 4:
 
-### 4. Classify ignored files
+```
+git ls-files                                        # tracked files
+git ls-files --others --exclude-standard            # untracked, not ignored
+git ls-files --others --ignored --exclude-standard  # ignored files (for step 4)
+```
 
-Skip `.claude-code-hermit/` entries — those are handled in step 5.
+Scan for unprotected credentials across tracked and untracked-but-not-ignored files:
+
+- **File-name patterns:** `*.pem`, `*.key`, `id_rsa`, `id_ed25519`, `*.p12`, `*.pfx`, `*credentials*`, `*secret*`, `*token*`, `*auth*.json`
+- **Hermit-specific:** `.claude.local/` and any files inside it (channel tokens, `access.json`, `.env` files inside subdirs)
+- **Content patterns (reuse findings from step 2):** step 2 already flagged tracked files containing `API_KEY=`, `TOKEN=`, `SECRET=`, `PASSWORD=`, `DISCORD_TOKEN=`, `TELEGRAM_TOKEN=` — include those here without re-scanning
+
+For any unprotected credentials found, **propose gitignore additions** — list the file, explain why it should be gitignored, and provide the exact `.gitignore` line to add. This is advisory only. Do not write `.gitignore` automatically.
+
+If nothing is found, state: "No unprotected credentials found."
+
+### 4. Enumerate ignored files
+
+In **personal mode**: skip steps 4–5 entirely — hermit state is tracked in git, so the ignored file list is minimal and hermit artifact classification doesn't apply. Jump to step 6.
+
+In **private mode**: use the ignored file list from step 3's batch run (or re-run `git ls-files --others --ignored --exclude-standard` if step 3 was skipped). These are the candidates for classification.
+
+### 5. Classify ignored files
+
+**Personal mode: skip — go to step 6.**
+
+Skip `.claude-code-hermit/` entries — those are handled in step 6.
 
 Sort each remaining ignored file into one of three buckets:
 
@@ -57,17 +88,17 @@ Sort each remaining ignored file into one of three buckets:
 
 Apply classification heuristics (see below). For each file include a one-line reason.
 
-### 5. Hermit state assessment
+### 6. Hermit state assessment
 
 Classify each `.claude-code-hermit/` artifact using the defaults table. For each artifact present, state the classification and why.
 
 For `config.json` specifically, provide field-level analysis:
-- **Portable fields** (safe to copy as-is): `agent_name`, `language`, `escalation`, `sign_off`, `idle_behavior`, `idle_budget`, `auto_session`, `ask_budget`, `chrome`, `heartbeat`, `compact`, `env` (most entries), `routines`, `plugin_checks`, `docker`
+- **Portable fields** (safe to copy as-is): `agent_name`, `language`, `escalation`, `sign_off`, `idle_behavior`, `idle_budget`, `auto_session`, `ask_budget`, `chrome`, `heartbeat`, `compact`, `env` (most entries), `routines`, `plugin_checks`, `docker`, `git_tracking`
 - **Machine-specific fields** (must be updated on destination): `timezone`, `channels.*.dm_channel_id`, `tmux_session_name`, `permission_mode` — see `docs/config-reference.md` for any fields added since this list was written
 - **Note on `channels.*.state_dir`:** If the value is a relative path (e.g. `.claude.local/channels/discord`), it is portable and can be copied as-is. If it is an absolute path (legacy), treat it as machine-specific and update it on the destination.
 - Recommend either: copy then edit machine-specific fields, or recreate from `hatch` and manually port identity/behavior settings
 
-### 6. Bootstrap gap review
+### 7. Bootstrap gap review
 
 Inspect setup/context docs if present: README, Makefile, package.json, requirements.txt, pyproject.toml, Cargo.toml, go.mod, Dockerfile, docker-compose.yml, .env.example. Do not force a fixed list — read what exists and is relevant to bootstrap.
 
@@ -79,21 +110,23 @@ Based on these docs, identify what the destination machine must have:
 
 Flag anything that is assumed but not documented.
 
-### 7. Flag .claude/ recreation requirements
+### 8. Flag .claude.local/ recreation requirements
 
-`.claude/` is machine-local. Never migrate it. Using `.claude/settings.json` read in step 1, identify what must be recreated manually on the destination:
-- Plugin installs (list which plugins are configured)
-- Permission grants
-- Hooks configuration
-- Any other Claude Code local config
+`.claude.local/` is machine/user-scoped. Never migrate it. Using config.json read in step 1, identify what must be recreated on the destination:
+- Channel state dirs (list each channel and its `state_dir` path from config.json)
+- Re-pair channels after recreating state dirs
 
-State clearly: reinstall and reconfigure on destination, do not copy.
+Note: `.claude/` (project-scoped settings, permissions) migrates with git clone — no recreation needed.
 
-### 8. Generate output report
+### 9. Generate output report
 
 Produce the report in the format below.
 
 ## Output Format
+
+The output adapts to the detected mode.
+
+### Private mode (sections 1–8)
 
 ```
 ## 1. Summary & Verdict
@@ -142,10 +175,9 @@ Recommendation: [copy-then-edit or recreate-from-hatch]
 **Services:**
 - [service name]
 
-**.claude/ recreation:**
-- Install plugins: [list]
-- Re-grant permissions: [what needs approval]
-- Reconfigure hooks: [if any]
+**.claude.local/ recreation:**
+- Recreate channel state dirs: [list each channel and its state_dir path]
+- Re-pair channels after setup
 
 ## 7. Migration Steps
 
@@ -160,7 +192,7 @@ Recommendation: [copy-then-edit or recreate-from-hatch]
 5. On destination: run `/claude-code-hermit:hatch` to initialize hermit state
    - hatch preserves existing OPERATOR.md, config.json, HEARTBEAT.md, IDLE-TASKS.md if present
 6. Update machine-specific fields in config.json
-7. Reinstall plugins and reconfigure .claude/ (see section 6)
+7. Recreate .claude.local/ (channel state dirs — see section 6)
 8. Run verification checklist
 
 ## 8. Verification Checklist
@@ -170,11 +202,80 @@ Recommendation: [copy-then-edit or recreate-from-hatch]
 - [ ] config.json machine-specific fields have been updated
 - [ ] Hermit session starts without errors
 - [ ] Bootstrap requirements are met (tools, env vars, services)
-- [ ] .claude/ is reconfigured (plugins, permissions, hooks)
+- [ ] .claude.local/ is recreated (channel state dirs re-paired)
+- [ ] Run a test session to confirm normal operation
+```
+
+### Personal mode (simplified — sections 1–8)
+
+```
+## 1. Summary & Verdict
+
+[Note: personal mode detected — hermit state is tracked in git. Migration is git clone + machine-specific adjustments.]
+[One paragraph: what needs to happen beyond git clone?]
+
+## 2. Git Hygiene Findings
+
+[List of tracked files that shouldn't be, missing gitignore rules. "None found" if clean.]
+
+## 3. Credential Scan
+
+### Unprotected credentials found
+- path/to/file — reason and proposed .gitignore line
+
+### Already protected
+- path/to/file — already gitignored
+
+(Or: "No unprotected credentials found.")
+
+## 4. Hermit State Assessment
+
+[Hermit state is tracked in git — migrates with clone. Only machine-specific config fields need updating.]
+
+**config.json field breakdown:**
+Machine-specific (update on destination): timezone, channels.*.dm_channel_id, tmux_session_name, permission_mode
+Portable (copy as-is): all other fields
+
+## 5. migration-manifest.txt
+
+(typically empty — hermit state migrates via git clone; any non-hermit MUST_MIGRATE files from step 5 would appear here)
+
+## 6. Bootstrap / Recreate-on-Destination Requirements
+
+**Tools required:**
+- [tool name] [version if known]
+
+**Environment variables:**
+- [VAR_NAME] — [source or description]
+
+**Services:**
+- [service name]
+
+**.claude.local/ recreation:**
+- Recreate channel state dirs: [list each channel and its state_dir path]
+- Re-pair channels after setup
+
+## 7. Migration Steps
+
+1. On source machine: commit all changes and `git push`
+2. On destination: `git clone <repo-url>`
+3. Update machine-specific fields in config.json (timezone, channels.*.dm_channel_id, tmux_session_name)
+4. Recreate .claude.local/ (channel state dirs — see section 6)
+5. Run verification checklist
+
+## 8. Verification Checklist
+
+- [ ] `git clone` completed and `git status` is clean
+- [ ] config.json machine-specific fields updated
+- [ ] Bootstrap requirements are met (tools, env vars, services)
+- [ ] .claude.local/ is recreated (channel state dirs re-paired)
+- [ ] Hermit session starts without errors
 - [ ] Run a test session to confirm normal operation
 ```
 
 ## Hermit Artifact Defaults
+
+These apply in **private mode**. In personal mode, all artifacts are tracked in git — defaults don't apply.
 
 | Artifact | Default | Notes |
 |----------|---------|-------|
@@ -188,7 +289,8 @@ Recommendation: [copy-then-edit or recreate-from-hatch]
 | `templates/` | DO_NOT_MIGRATE | regenerated by `hatch` |
 | `bin/` | DO_NOT_MIGRATE | regenerated by `hatch` |
 | `obsidian/` | usually DO_NOT_MIGRATE | unless operator treats it as durable knowledge — signal: obsidian/ has git history (was ever tracked) |
-| `.claude/` | recreate locally | machine-local — never migrate |
+| `.claude/` | migrates with clone | project-scoped — no action needed |
+| `.claude.local/` | recreate on destination | machine/user-scoped — never migrate |
 
 The "usually" qualifiers matter. Context overrides defaults.
 

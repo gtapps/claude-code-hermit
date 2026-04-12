@@ -1,0 +1,6 @@
+
+# claude-code-hermit (personal — hermit state tracked in git)
+# Only .env files are excluded — everything else is versioned.
+# Run /claude-code-hermit:hermit-migrate to scan for unprotected credentials.
+.env
+.env.*

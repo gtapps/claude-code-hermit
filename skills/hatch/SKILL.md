@@ -205,7 +205,7 @@ questions: [
 - **Access control:** If user ID provided, record in `channels.<channel>.allowed_users` as a single-element array (e.g., `"channels": {"discord": {"allowed_users": ["123456789"]}}`). If skip, omit the key (absent = accept all). Note: "Add more user IDs later with `/claude-code-hermit:hermit-settings channels`. An empty array [] blocks all messages."
 - **Morning brief:** If yes, record as `channels.<channel>.morning_brief: { "enabled": true, "time": "07:00" }`. If no, omit the key (or set to `null`).
 
-#### Phase 6 — Deployment (AskUserQuestion batch, 2 questions)
+#### Phase 6 — Deployment (AskUserQuestion batch, 3 questions)
 
 ```
 questions: [
@@ -224,11 +224,19 @@ questions: [
     header: "Daily routines",
     question: "Set up morning and evening routines? (morning brief reviews priorities, evening summarizes the day)",
     options: [{ label: "Yes (default)" }, { label: "No" }]
+  },
+  {
+    header: "Git tracking",
+    question: "Track hermit history in git? Sessions, proposals, config, and obsidian become versioned — migration is just git clone. Recommended for personal projects. Run /hermit-migrate before committing to catch unprotected credentials.",
+    options: [
+      { label: "Private — gitignore hermit state (default, recommended for teams)" },
+      { label: "Personal — track hermit state in git (recommended for solo projects)" }
+    ]
   }
 ]
 ```
 
-Record: `permission_mode` (default/acceptEdits/plan/dontAsk/bypassPermissions).
+Record: `permission_mode` (default/acceptEdits/plan/dontAsk/bypassPermissions), `git_tracking` (`"private"` or `"personal"`).
 
 For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, `end = 23:00`) to derive morning = `08:30` and evening = `22:30`. Add to `routines` array:
 - `{"id":"morning","schedule":"30 8 * * *","skill":"claude-code-hermit:brief --morning","enabled":true,"run_during_waiting":true}`
@@ -254,6 +262,7 @@ Write the collected preferences to `.claude-code-hermit/config.json`:
   "remote": true,
   "permission_mode": "acceptEdits",
   "tmux_session_name": "hermit-{project_name}",
+  "git_tracking": "private",
   "auto_session": true,
   "ask_budget": false,
   "idle_behavior": "discover",
@@ -416,11 +425,15 @@ If a hermit was activated in step 3, also append its CLAUDE-APPEND.md here (usin
 
 ### 7. Update .gitignore
 
-- Check if `.gitignore` exists at the project root
-- If it exists: check if it already contains `.claude/cost-log.jsonl`
-  - If yes: skip
-  - If no: read `${CLAUDE_SKILL_DIR}/../../state-templates/GITIGNORE-APPEND.txt` and append its contents
-- If .gitignore doesn't exist: create it with the append content
+Use the `git_tracking` value recorded in Phase 6:
+- `"personal"` → use `${CLAUDE_SKILL_DIR}/../../state-templates/GITIGNORE-APPEND-PERSONAL.txt`
+- `"private"` (default) → use `${CLAUDE_SKILL_DIR}/../../state-templates/GITIGNORE-APPEND.txt`
+
+Select the appropriate template, then:
+- If `.gitignore` exists: check if it already contains `.claude/cost-log.jsonl` (private template) or `.env` (personal template)
+  - If the marker is already present: skip
+  - If not: append the template contents
+- If `.gitignore` doesn't exist: create it with the template contents
 
 ### 8. Ensure plugin permissions in settings.json
 

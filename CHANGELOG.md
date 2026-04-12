@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.3.15] - 2026-04-12
+
+### Added
+
+- **Personal git tracking mode** — Hermits can now use git as their versioned personal backup. Set `git_tracking: "personal"` in config.json (or answer the new hatch question) to track sessions, proposals, config, obsidian, and all hermit state in git. Migration becomes `git clone` + machine-specific adjustments — no manifest or rsync needed. Default `"private"` preserves existing behavior for team/shared repos.
+- **`GITIGNORE-APPEND-PERSONAL.txt`** — Minimal gitignore template for personal mode: only excludes `.env`/`.env.*`. Everything else is tracked.
+- **Credential scan in `hermit-migrate`** — In personal mode, the skill scans for unprotected credentials (file-name patterns: `*.pem`, `*.key`, `id_rsa`, SSH keys, credential JSON; content patterns: `API_KEY=`, `TOKEN=`, `SECRET=`, `PASSWORD=`, channel tokens in `.claude.local/`) and proposes gitignore additions to the operator. Advisory only — never writes `.gitignore` automatically.
+
+### Changed
+
+- **`hatch` wizard Phase 6** — New "Git tracking" question added to the deployment batch. Answer "Personal" to opt into git-tracked hermit state. `git_tracking` is recorded in `config.json`.
+- **`hermit-migrate` personal mode workflow** — Detects personal mode from `.gitignore` (absence of `.claude-code-hermit/sessions/` pattern). In personal mode: skips file classification steps (hermit state is already in git), runs credential scan instead, produces a simplified 5-step migration path.
+- **`hermit-migrate` `.claude/` scoping fix** — The skill previously described `.claude/` as machine-local. Corrected: `.claude/` is project-scoped and migrates with `git clone`. `.claude.local/` is machine/user-scoped and must be recreated on destination. All references updated throughout.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/GITIGNORE-APPEND-PERSONAL.txt` | New — minimal gitignore for personal mode |
+| `skills/hatch/SKILL.md` | Added git tracking question to Phase 6; conditional template selection in step 7; `git_tracking` in config.json template |
+| `skills/hermit-migrate/SKILL.md` | Personal mode detection, credential scan step, dual output format, batch git commands, `.claude/` vs `.claude.local/` scoping fix |
+| `docs/config-reference.md` | Added `git_tracking` field |
+| `skills/hermit-evolve/SKILL.md` | Added `git_tracking` row to key table |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Config update** — Adds `git_tracking: "private"` to `config.json` silently. Default `"private"` preserves existing gitignore behavior exactly — no files will be unignored for existing hermits.
+
+No CLAUDE-APPEND changes. No template changes. No manual steps required.
+
 ## [0.3.14] - 2026-04-12
 
 ### Added
