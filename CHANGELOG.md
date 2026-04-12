@@ -66,6 +66,8 @@ Existing absolute `state_dir` values in `config.json` continue to work. To make 
 
 Hermit will expand it to absolute on next boot.
 
+**Worth considering:** If you've been using `/loop` for monitoring tasks (watching log files, polling endpoints, checking build status), `/watch` is now the better tool — zero token cost when quiet, no LLM evaluation per tick. Routines that fire on a fixed interval just to check something event-driven are also candidates. Heartbeat and scheduled routines stay as-is.
+
 ## [0.3.13] - 2026-04-09
 
 ### Fixed
