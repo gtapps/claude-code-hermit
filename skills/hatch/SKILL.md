@@ -285,7 +285,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` to get the current plugi
 
 If re-initializing: merge with existing config (preserve values not asked about, update values that were asked about).
 
-If channels were configured in Phase 5, populate each channel's entry in the `channels` object using the **absolute project path** (resolve from `pwd`):
+If channels were configured in Phase 5, populate each channel's entry in the `channels` object using a **relative path** (relative to the project root):
 
 ```json
 "channels": {
@@ -293,7 +293,7 @@ If channels were configured in Phase 5, populate each channel's entry in the `ch
     "enabled": true,
     "allowed_users": ["<user-id-if-provided>"],
     "dm_channel_id": null,
-    "state_dir": "<project_path>/.claude.local/channels/discord",
+    "state_dir": ".claude.local/channels/discord",
     "morning_brief": { "enabled": true, "time": "07:00" }
   }
 }
@@ -301,7 +301,7 @@ If channels were configured in Phase 5, populate each channel's entry in the `ch
 
 Omit `allowed_users` if the operator skipped access control. Omit `morning_brief` (or set to `null`) if the operator declined. `dm_channel_id` always starts as `null` — it is learned from the first inbound message.
 
-`state_dir` is the absolute path where the channel plugin writes its token (`.env`) and access config (`access.json`). `hermit-start` derives the `*_STATE_DIR` env var from this field at boot — no need to duplicate it in `env`. Without `state_dir`, the plugin defaults to `~/.claude/channels/<plugin>/`, which is lost on Docker container restart.
+`state_dir` is the path (relative to project root, or absolute) where the channel plugin writes its token (`.env`) and access config (`access.json`). `hermit-start` resolves relative paths against `cwd` and derives the `*_STATE_DIR` env var from this field at boot — no need to duplicate it in `env`. Without `state_dir`, the plugin defaults to `~/.claude/channels/<plugin>/`, which is lost on Docker container restart.
 
 ### 5-task. Write task list ID to settings.local.json
 

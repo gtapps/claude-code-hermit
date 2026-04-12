@@ -236,6 +236,19 @@ class TestWriteSettingsEnv(_TempDirTest):
         settings = self._read_settings()
         self.assertEqual(settings['env']['DISCORD_STATE_DIR'], '/tmp/test-discord')
 
+    def test_state_dir_relative_expanded(self):
+        """Relative state_dir is expanded to absolute against cwd."""
+        self._write_config({
+            'channels': {
+                'discord': {'enabled': True, 'state_dir': '.claude.local/channels/discord'},
+            },
+        })
+        config = hermit_start.load_config()
+        hermit_start.write_settings_env(config)
+        settings = self._read_settings()
+        expected = str(Path.cwd() / '.claude.local/channels/discord')
+        self.assertEqual(settings['env']['DISCORD_STATE_DIR'], expected)
+
     def test_invalid_profile_corrected(self):
         """Invalid AGENT_HOOK_PROFILE defaults to standard in os.environ."""
         self._write_config({'env': {'AGENT_HOOK_PROFILE': 'garbage'}})

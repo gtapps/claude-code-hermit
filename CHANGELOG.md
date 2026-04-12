@@ -9,6 +9,7 @@
 ### Changed
 
 - **Migration documentation** — Added "How do I move my hermit to another machine?" to `docs/faq.md` and a "Moving to a new host" section to `docs/always-on.md` (Docker-specific steps with named volume gotcha). Added a dedicated Migration section to `docs/skills.md`.
+- **`state_dir` now supports relative paths** — `hermit-start.py` resolves relative `channels.<name>.state_dir` values against the project root at boot. Absolute paths continue to work unchanged. `hatch` and `hermit-settings` now write `.claude.local/channels/<name>` (relative) instead of the full host path, making fresh `config.json` files portable across machines and clones. `hermit-migrate` no longer classifies `state_dir` as machine-specific when it contains a relative path.
 
 ### Files affected
 
@@ -20,6 +21,13 @@
 | `docs/skills.md` | Added Migration section |
 | `docs/faq.md` | Added migration FAQ entry |
 | `docs/always-on.md` | Added "Moving to a new host" section |
+| `scripts/hermit-start.py` | `write_settings_env()`: expand relative `state_dir` to absolute via `Path.cwd()` before writing to `settings.local.json` |
+| `skills/hatch/SKILL.md` | Write relative path in `channels.<name>.state_dir` instead of absolute |
+| `skills/docker-setup/SKILL.md` | Match hatch — instruct relative path for `state_dir` |
+| `skills/hermit-settings/SKILL.md` | Default to relative path in add-channel flow |
+| `skills/hermit-migrate/SKILL.md` | `state_dir` is portable when relative; legacy absolute still machine-specific |
+| `docs/config-reference.md` | Updated `state_dir` description and examples |
+| `tests/run-contracts.py` | Added `test_state_dir_relative_expanded` contract test |
 
 ### Upgrade Instructions
 
@@ -28,6 +36,14 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 1. **CLAUDE-APPEND refresh** — Adds `/hermit-migrate` to the quick reference line in your project's CLAUDE.md.
 2. **No config.json changes required** — this release adds no new config keys.
 3. **No template changes** — session, proposal, and heartbeat templates are unchanged.
+
+Existing absolute `state_dir` values in `config.json` continue to work. To make your config portable, optionally replace the machine-specific prefix with a relative path:
+
+```json
+"state_dir": ".claude.local/channels/discord"
+```
+
+Hermit will expand it to absolute on next boot.
 
 ## [0.3.13] - 2026-04-09
 

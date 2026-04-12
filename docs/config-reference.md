@@ -50,7 +50,7 @@ Object keyed by channel name (`"discord"`, `"telegram"`, `"imessage"`). All chan
 | `enabled` | boolean | `true` | Whether this channel is active. |
 | `allowed_users` | array | _(absent)_ | User ID allowlist. Absent = accept all. `[]` = accept none. |
 | `dm_channel_id` | string | `null` | DM channel ID learned from the first inbound message. Used for proactive outbound notifications. Never set manually. |
-| `state_dir` | string | _(absent)_ | Absolute path to channel plugin state dir. `hermit-start` derives `<NAME>_STATE_DIR` from this at boot. |
+| `state_dir` | string | _(absent)_ | Path to channel plugin state dir — relative to project root or absolute. `hermit-start` resolves relative paths against `cwd` and derives `<NAME>_STATE_DIR` at boot. |
 | `morning_brief` | object | `null` | `{ "enabled": true, "time": "07:00" }` to deliver morning brief via this channel. |
 
 Example:
@@ -60,7 +60,7 @@ Example:
     "enabled": true,
     "allowed_users": ["123456789012345678"],
     "dm_channel_id": "987654321098765432",
-    "state_dir": "/home/user/myproject/.claude.local/channels/discord",
+    "state_dir": ".claude.local/channels/discord",
     "morning_brief": { "enabled": true, "time": "07:00" }
   }
 }
@@ -221,7 +221,7 @@ A realistic `config.json` for an always-on Docker hermit with Discord:
       "enabled": true,
       "allowed_users": ["123456789012345678"],
       "dm_channel_id": "987654321098765432",
-      "state_dir": "/home/user/myproject/.claude.local/channels/discord",
+      "state_dir": ".claude.local/channels/discord",
       "morning_brief": { "enabled": true, "time": "07:00" }
     }
   },

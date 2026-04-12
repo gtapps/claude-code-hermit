@@ -125,7 +125,7 @@ If iMessage detected, note it won't work in Docker and skip.
 For each configured channel:
 
 1. **Install plugin locally** (if not already): `claude plugin install <plugin>@claude-plugins-official --scope local`
-2. **Ensure state dir in config.json:** Set `channels.<channel>.state_dir` to the absolute project path (e.g. `/home/user/project/.claude.local/channels/discord`). `hermit-start` derives the `*_STATE_DIR` env var from this field at boot — no need to add it to `env`. Write back to config.json if changed.
+2. **Ensure state dir in config.json:** Set `channels.<channel>.state_dir` to a relative path (e.g. `.claude.local/channels/discord`). `hermit-start` resolves it against the project root at boot and derives the `*_STATE_DIR` env var — no need to add it to `env`. Absolute paths also work. Write back to config.json if changed.
 3. **Check local token file** (`.claude.local/channels/<plugin>/.env`):
    - Already configured → "Discord is ready — connects automatically on start."
    - Not configured → prompt: "Paste your bot token (or 'skip'):"

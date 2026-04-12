@@ -121,7 +121,7 @@ Channels:
 ```
 Ask: "Add, remove, or edit a channel? (add discord / add telegram / remove <name> / edit <name> / done) [done]"
 Loop until operator says "done":
-- **add <name>:** Create entry `channels.<name>: { "enabled": true, "dm_channel_id": null }`. Prompt for `allowed_users` (paste user ID or skip) and `state_dir` (absolute path — defaults to `<project_path>/.claude.local/channels/<name>`). Set `state_dir` in the channel entry. Note: "Run `/claude-code-hermit:docker-setup` to configure the channel token."
+- **add <name>:** Create entry `channels.<name>: { "enabled": true, "dm_channel_id": null }`. Prompt for `allowed_users` (paste user ID or skip) and `state_dir` (relative or absolute path — defaults to `.claude.local/channels/<name>`). Set `state_dir` in the channel entry. Note: "Run `/claude-code-hermit:docker-setup` to configure the channel token."
 - **remove <name>:** Delete `channels.<name>` from config.json.
 - **edit <name>:** Sub-menu — "What to change? (allowed_users / morning_brief / enabled / done)"
   - **allowed_users:** "Paste user IDs (space-separated), or 'clear' to allow everyone, or 'block' for empty array." Update `channels.<name>.allowed_users`.

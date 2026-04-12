@@ -279,7 +279,7 @@ config.json "env"  →  hermit-start.py  →  .claude/settings.local.json "env" 
 
 **Bucket B (settings.local.json only):** `AGENT_HOOK_PROFILE`, `COMPACT_THRESHOLD`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, `MAX_THINKING_TOKENS` — consumed by hooks and Claude Code itself.
 
-**Bucket C (derived at boot, written to both):** `DISCORD_STATE_DIR`, `TELEGRAM_STATE_DIR` — derived by `hermit-start` from `channels.<name>.state_dir` in config.json. Written to `settings.local.json` for hooks and forwarded into the tmux shell env (or Docker compose `environment:`) for MCP servers (channel plugins), which inherit shell env but don't read `settings.local.json`.
+**Bucket C (derived at boot, written to both):** `DISCORD_STATE_DIR`, `TELEGRAM_STATE_DIR` — derived by `hermit-start` from `channels.<name>.state_dir` in config.json (relative paths resolved against project root). Written to `settings.local.json` for hooks and forwarded into the tmux shell env (or Docker compose `environment:`) for MCP servers (channel plugins), which inherit shell env but don't read `settings.local.json`.
 
 ### config.json env defaults
 

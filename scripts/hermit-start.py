@@ -342,6 +342,12 @@ def write_settings_env(config):
     for ch_name, ch_cfg in iter_channel_configs(config):
         state_dir = ch_cfg.get('state_dir')
         if state_dir:
+            p = Path(state_dir)
+            if not p.is_absolute():
+                # Relative paths are resolved against project root (cwd at boot).
+                # In Docker, compose sets *_STATE_DIR via ${PWD} (host-side);
+                # this expansion covers the non-Docker (tmux) boot path.
+                state_dir = str(Path.cwd() / p)
             settings['env'][f'{ch_name.upper()}_STATE_DIR'] = state_dir
 
     # Remove channel bot tokens — they must only live in

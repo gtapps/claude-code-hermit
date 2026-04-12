@@ -151,5 +151,5 @@ Usually a UID mismatch between the host and the container user. The generated Do
 
 - Verify the channel plugin is installed inside the container: `hermit-docker attach`, then check with `claude plugin list`.
 - Check bot pairing: send a test message to the bot and watch the logs (`hermit-docker logs`).
-- For Discord: ensure `channels.discord.state_dir` is set in `config.json` and the directory is bind-mounted in `docker-compose.hermit.yml`. `hermit-start` derives `DISCORD_STATE_DIR` from this at boot.
+- For Discord: ensure `channels.discord.state_dir` is set in `config.json` (e.g. `.claude.local/channels/discord`) and the directory is bind-mounted in `docker-compose.hermit.yml`. `hermit-start` resolves relative paths and derives `DISCORD_STATE_DIR` at boot.
 - For Telegram: ensure `channels.telegram.state_dir` is set and the bot token is in the state directory's `.env` file.

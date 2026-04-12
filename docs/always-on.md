@@ -105,7 +105,7 @@ Channel tokens live in `.claude.local/channels/<plugin>/.env` (project-local sco
 
 The docker-compose file bind-mounts `.claude.local/channels/<plugin>/` into `~/.claude/channels/<plugin>/` inside the container. This means channel skill commands (`/discord:access pair`, `/discord:configure`, etc.) write to the right place — no manual patching needed, no permission prompts, and state persists even on ungraceful shutdown.
 
-`DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` are derived by `hermit-start` from `channels.<name>.state_dir` in config.json and written into both the Docker compose `environment:` block and `settings.local.json`. MCP servers (channel plugins) inherit shell env but don't read `settings.local.json`, so both paths are needed.
+`DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` are derived by `hermit-start` from `channels.<name>.state_dir` in config.json (relative paths are resolved against project root) and written into both the Docker compose `environment:` block and `settings.local.json`. MCP servers (channel plugins) inherit shell env but don't read `settings.local.json`, so both paths are needed.
 
 ---
 
