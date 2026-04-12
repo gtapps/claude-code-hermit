@@ -23,17 +23,18 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 
 | Skill       | What it does                                                                                                                                                                                                                     | Auto-triggers |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| `monitor`   | Session-aware recurring checks via `/loop`. Logs findings to SHELL.md with `[monitor]` prefix. Multiple monitors can run simultaneously.                                                                                         | --            |
+| `watch`     | Background event watchers via the CC Monitor tool. Each stdout line becomes a conversation notification — zero token cost when quiet. Supports config-defined watches (auto-registered at session start) and ad-hoc operator watches. Subcommands: `watch <instruction>`, `start`, `stop [id]`, `stop --all`, `status`. | --            |
 | `heartbeat` | Background health checker with idle agency and daily routines. Evaluates HEARTBEAT.md checklist, picks up autonomous work during idle, runs morning and evening routines. Subcommands: `run`, `start`, `stop`, `status`, `edit`. | --            |
 
-**Heartbeat vs Monitor:**
+**Heartbeat vs Watch:**
 
-|              | Heartbeat                                                                     | Monitor                   |
-| ------------ | ----------------------------------------------------------------------------- | ------------------------- |
-| Runs         | Persistent across tasks (guaranteed in always-on, best-effort in interactive) | Per-session, you start it |
-| Checklist    | HEARTBEAT.md (you edit it)                                                    | Inline instruction        |
-| Quiet mode   | Suppresses OK by default                                                      | Always logs               |
-| Active hours | Yes (default 08:00-23:00)                                                     | No                        |
+|              | Heartbeat                                                                     | Watch                              |
+| ------------ | ----------------------------------------------------------------------------- | ---------------------------------- |
+| Runs         | Persistent across tasks (guaranteed in always-on, best-effort in interactive) | Session-scoped, cleared on start   |
+| Checklist    | HEARTBEAT.md (you edit it)                                                    | Inline command or config `monitors`|
+| Quiet mode   | Suppresses OK by default                                                      | Silent until stdout fires          |
+| Active hours | Yes (default 08:00-23:00)                                                     | No                                 |
+| Token cost   | LLM evaluation per tick                                                       | Zero when quiet                    |
 
 **Checklist weight:** Keep the heartbeat checklist under 10 items. Items that need checking on a schedule (daily, weekly) rather than every tick belong in routines. The self-evaluation will flag overgrown checklists.
 

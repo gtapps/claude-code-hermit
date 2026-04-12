@@ -150,6 +150,7 @@ your-project/
 │   │   ├── proposal-metrics.jsonl    # Append-only event log (proposal-create + proposal-act)
 │   │   ├── micro-proposals.json      # Single-slot micro-approval queue (reflect + channel-responder)
 │   │   ├── state-summary.md          # Auto-generated health snapshot (generate-summary.js)
+│   │   ├── monitors.runtime.json     # Active watch registry, cleared on session start (watch-owned)
 │   │   ├── .heartbeat                # Activity marker (heartbeat-touch-owned)
 │   │   └── .lifecycle.lock           # Always-on lifecycle lock (hermit-start-owned)
 │   ├── bin/hermit-start, hermit-stop
@@ -177,6 +178,7 @@ One writer per state file. No shared mutation bus.
 | `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only)        | generate-summary.js                                           |
 | `state/micro-proposals.json`   | reflect (queue) + channel-responder/brief (resolve) | brief, generate-summary.js                                    |
 | `state/state-summary.md`       | generate-summary.js only                            | Obsidian, humans                                              |
+| `state/monitors.runtime.json`  | watch skill only                                    | session-start (clear on start), session-close (stop all)      |
 | `state/.heartbeat`             | heartbeat-touch.js only                             | heartbeat (detect activity gaps)                              |
 | `state/.lifecycle.lock`        | hermit-start.py only                                | hermit-stop.py (cleanup)                                      |
 

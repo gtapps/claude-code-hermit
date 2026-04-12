@@ -241,7 +241,7 @@ Most common actions auto-trigger from natural language — just say what you mea
 | -------------- | ------------------------------------------------------------------ |
 | **Session**    | `session`, `session-start`, `session-close`                        |
 | **Status**     | `pulse`, `brief`                                                   |
-| **Monitoring** | `monitor`, `heartbeat`                                             |
+| **Monitoring** | `watch`, `heartbeat`                                               |
 | **Learning**   | `proposal-create`, `proposal-list`, `proposal-act`, `reflect`      |
 | **Config**     | `hermit-settings`, `hatch`, `hermit-evolve`                        |
 | **Docker**     | `docker-setup`, `hermit-takeover`, `hermit-hand-back`              |
