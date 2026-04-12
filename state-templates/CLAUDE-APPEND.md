@@ -25,7 +25,7 @@
 
 ## Quick Reference
 
-`/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/hermit-evolve` `/docker-setup` `/hermit-takeover` `/hermit-hand-back` `/obsidian-setup` `/cortex-refresh` `/cortex-sync` `/weekly-review`
+`/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/hermit-evolve` `/docker-setup` `/hermit-takeover` `/hermit-hand-back` `/obsidian-setup` `/cortex-refresh` `/cortex-sync` `/weekly-review` `/hermit-migrate`
 (All prefixed with `/claude-code-hermit:`)
 
 ## Operator Notification

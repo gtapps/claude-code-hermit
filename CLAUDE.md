@@ -16,7 +16,7 @@ After install, run `/claude-code-hermit:hatch` in the target project to create t
 ## Plugin Structure
 
 - `agents/` — subagent definitions (session-mgr, hermit-config-validator; hermit plugins add more subagents)
-- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, pulse, brief, monitor, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, channel-responder, hatch, hermit-evolve, docker-setup, hermit-takeover, hermit-hand-back, smoke-test, test-run, obsidian-setup, cortex-refresh, cortex-sync, weekly-review
+- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, pulse, brief, monitor, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, channel-responder, hatch, hermit-evolve, docker-setup, hermit-takeover, hermit-hand-back, smoke-test, test-run, obsidian-setup, cortex-refresh, cortex-sync, weekly-review, hermit-migrate
 - `hooks/hooks.json` — hook registrations
 - `scripts/` — hook implementation scripts + boot scripts (hermit-start.py, hermit-stop.py)
 - `state-templates/` — templates copied into target projects by the `hatch` skill
@@ -102,3 +102,4 @@ Common skills (full list: [Skills Reference](docs/skills.md)):
 - `/claude-code-hermit:cortex-refresh` — regenerate Connections.md + Cortex Portal.md
 - `/claude-code-hermit:cortex-sync` — enrich existing sessions/proposals/artifacts with frontmatter and tags
 - `/claude-code-hermit:weekly-review` — generate weekly review report
+- `/claude-code-hermit:hermit-migrate` — audit repo for safe machine-to-machine migration

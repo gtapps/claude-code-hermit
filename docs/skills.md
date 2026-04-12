@@ -80,6 +80,12 @@ Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routin
 | `hermit-takeover`  | Stops the Docker container, marks session as `operator_takeover`, loads full hermit context (OPERATOR.md, SHELL.md, latest report), presents a summary. Run locally to drive interactively.                                                     | --            |
 | `hermit-hand-back` | Summarizes operator activity via `git log`, optionally queues instructions in NEXT-TASK.md, updates SHELL.md, restarts the Docker container.                                                                                                    | --            |
 
+## Migration
+
+| Skill            | What it does                                                                                                                                      | Auto-triggers |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `hermit-migrate` | Audits a hermit-backed repo for safe migration to another machine. Classifies ignored files, assesses hermit state, and produces a `migration-manifest.txt` and verification checklist. Git-first, read-only by default. | --            |
+
 ## Cortex (Obsidian)
 
 | Skill            | What it does                                                                                                                                                                                                                                          | Auto-triggers   |

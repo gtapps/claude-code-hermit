@@ -56,6 +56,16 @@ Yes. Docker is recommended for always-on mode but not required. Use `hermit-star
 
 ---
 
+## How do I move my hermit to another machine?
+
+Run `/claude-code-hermit:hermit-migrate` on the source machine before you leave. It audits Git hygiene, classifies which ignored files are portable, assesses hermit state (OPERATOR.md, config.json, HEARTBEAT.md), and produces a `migration-manifest.txt` with a verification checklist.
+
+The short version: `git clone` handles your tracked files. The manifest handles the small set of portable ignored files. `hatch` handles destination setup (it preserves OPERATOR.md and config.json on re-init). `.claude/` is machine-local — reinstall plugins and re-grant permissions on the destination.
+
+For always-on Docker setups, see [Moving to a new host](always-on.md#moving-to-a-new-host).
+
+---
+
 ## How do I reset everything and start over?
 
 ```bash

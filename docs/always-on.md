@@ -206,3 +206,15 @@ Adjust with `/hermit-settings env`.
 | `permission_mode` stays `bypassPermissions` after Docker | Reset via `/hermit-settings permissions` if you run locally later |
 | Windows paths break config | Must run from WSL2 — clone inside WSL2 (`/home/you/project`) |
 | Docker not available | Channels still work — see [Always-On Operations](always-on-ops.md) for bare tmux |
+
+---
+
+## Moving to a new host
+
+Run `/claude-code-hermit:hermit-migrate` on the source machine first — it produces a full migration review and `migration-manifest.txt`. Follow the Migration Steps in its output, then handle these Docker-specific additions:
+
+1. **Stop the container before leaving the source:** `.claude-code-hermit/bin/hermit-docker down`
+2. **Auth credentials are in the named volume** (`claude-config`) — they do not migrate with the project. Re-authenticate on the destination with `hermit-docker login` after the container is up
+3. **Rebuild the image on the destination:** run `/claude-code-hermit:docker-setup` (or bring up the existing compose file if the host environment is identical)
+
+The named volume is the main Docker-specific gotcha — it holds OAuth credentials and Claude Code's internal config. There's no way to transfer it cleanly across hosts. Plan to re-authenticate on the destination.

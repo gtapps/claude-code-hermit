@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.3.14] - 2026-04-12
+
+### Added
+
+- **`hermit-migrate` skill** — A Git-first migration audit skill for moving a hermit-backed repo between machines. Inspects the repo, classifies ignored files into MUST_MIGRATE / DO_NOT_MIGRATE / REVIEW_MANUALLY, provides a dedicated hermit state assessment (including field-level config.json analysis), identifies bootstrap gaps, and produces a `migration-manifest.txt` with a verification checklist. Read-only by default.
+
+### Changed
+
+- **Migration documentation** — Added "How do I move my hermit to another machine?" to `docs/faq.md` and a "Moving to a new host" section to `docs/always-on.md` (Docker-specific steps with named volume gotcha). Added a dedicated Migration section to `docs/skills.md`.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/hermit-migrate/SKILL.md` | New skill |
+| `state-templates/CLAUDE-APPEND.md` | Added `/hermit-migrate` to quick reference line |
+| `CLAUDE.md` | Added `hermit-migrate` to skill list and quick reference |
+| `docs/skills.md` | Added Migration section |
+| `docs/faq.md` | Added migration FAQ entry |
+| `docs/always-on.md` | Added "Moving to a new host" section |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **CLAUDE-APPEND refresh** — Adds `/hermit-migrate` to the quick reference line in your project's CLAUDE.md.
+2. **No config.json changes required** — this release adds no new config keys.
+3. **No template changes** — session, proposal, and heartbeat templates are unchanged.
+
 ## [0.3.13] - 2026-04-09
 
 ### Fixed
