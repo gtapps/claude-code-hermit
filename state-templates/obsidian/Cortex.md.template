@@ -1,0 +1,88 @@
+# Cortex
+
+> Computed mindstate. What the hermit is uncertain about, what was recently resolved, what regressed, and how much it still leans on the operator.
+
+## Current Focus
+<!-- Compact view of active task progress — not the full SHELL narrative -->
+![[.claude-code-hermit/tasks-snapshot]]
+
+## Active Uncertainty
+<!-- Problems the hermit knows about but hasn't resolved yet -->
+```dataview
+TABLE title, category, accepted_date
+FROM ".claude-code-hermit/proposals"
+WHERE id AND status = "accepted"
+SORT accepted_date ASC
+```
+
+## Fragile Zones (All Time)
+<!-- Cumulative weak domains — where sessions have historically ended incomplete -->
+```dataview
+TABLE length(rows) AS "Incomplete Sessions"
+FROM ".claude-code-hermit/sessions"
+WHERE id AND (status = "blocked" OR status = "partial")
+FLATTEN tags AS tag
+GROUP BY tag
+SORT length(rows) DESC
+LIMIT 5
+```
+
+## Recently Resolved
+<!-- Proposals that were resolved — problems the hermit addressed -->
+```dataview
+TABLE title, resolved_date, category
+FROM ".claude-code-hermit/proposals"
+WHERE id AND status = "resolved"
+SORT resolved_date DESC
+LIMIT 10
+```
+
+## Regressions
+<!-- Incomplete sessions in areas where a proposal was already resolved.
+     v1: tag overlap is a proximity signal, not proof of regression. -->
+```dataviewjs
+const proposals = dv.pages('".claude-code-hermit/proposals"')
+  .where(p => p.status === "resolved" && p.tags);
+const resolved_tags = new Set(proposals.flatMap(p => p.tags || []));
+const incomplete = dv.pages('".claude-code-hermit/sessions"')
+  .where(s => (s.status === "blocked" || s.status === "partial") && s.tags)
+  .sort(s => s.date, 'desc')
+  .limit(20);
+const hits = incomplete.filter(s =>
+  (s.tags || []).some(t => resolved_tags.has(t)));
+dv.table(["Date", "Task", "Suspect Tags"],
+  hits.map(s => [s.date, s.task,
+    (s.tags || []).filter(t => resolved_tags.has(t)).join(", ")]));
+```
+
+## Operator Dependence
+<!-- operator_turns = 0 means the hermit completed the session without a single redirect -->
+```dataview
+TABLE
+  length(filter(rows, (r) => r.operator_turns = 0)) + " / " +
+  length(rows) AS "Self-directed / Total",
+  round(length(filter(rows, (r) => r.operator_turns = 0)) /
+    length(rows) * 100) + "%" AS "Self-directed rate"
+FROM ".claude-code-hermit/sessions"
+WHERE id
+GROUP BY dateformat(date, "yyyy-'W'WW") AS "Week"
+SORT Week DESC
+LIMIT 8
+```
+
+## Escalation Profile
+<!-- Configured trust level — did the operator set the hermit loose or keep it on a leash? -->
+```dataview
+TABLE
+  length(filter(rows, (r) => r.escalation = "autonomous")) AS "Autonomous",
+  length(filter(rows, (r) => r.escalation = "balanced")) AS "Balanced",
+  length(filter(rows, (r) => r.escalation = "conservative")) AS "Conservative"
+FROM ".claude-code-hermit/sessions"
+WHERE id
+GROUP BY dateformat(date, "yyyy-'W'WW") AS "Week"
+SORT Week DESC
+LIMIT 8
+```
+
+---
+[[Brain]] · [[Cortex]] · [[Evolution]] · [[System Health]] · [[Connections]] · [[Cortex Portal]]

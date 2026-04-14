@@ -1,0 +1,13 @@
+
+# claude-code-hermit
+.claude/cost-log.jsonl
+.claude/scheduled_tasks.lock
+.claude-code-hermit/config.json
+.claude-code-hermit/sessions/
+.claude-code-hermit/proposals/
+.claude-code-hermit/reviews/
+.claude-code-hermit/MEMORY-SEED.md
+.claude-code-hermit/sessions/.eval-hash
+.claude-code-hermit/state/
+.claude-code-hermit/raw/
+.claude-code-hermit/compiled/

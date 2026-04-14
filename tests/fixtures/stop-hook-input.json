@@ -1,0 +1,9 @@
+{
+  "session_id": "test-session-001",
+  "transcript_path": "__TRANSCRIPT_PATH__",
+  "cwd": "/tmp/test-project",
+  "permission_mode": "default",
+  "hook_event_name": "Stop",
+  "stop_hook_active": false,
+  "last_assistant_message": "Done."
+}

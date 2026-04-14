@@ -1,0 +1,58 @@
+{
+  "_hermit_versions": {},
+  "agent_name": null,
+  "language": null,
+  "timezone": null,
+  "escalation": "balanced",
+  "sign_off": null,
+  "channels": {},
+  "remote": true,
+  "model": null,
+  "permission_mode": "acceptEdits",
+  "tmux_session_name": "hermit-{project_name}",
+  "scope": "local",
+  "auto_session": true,
+  "ask_budget": false,
+  "always_on": false,
+  "chrome": false,
+  "idle_behavior": "discover",
+  "idle_budget": "$0.50",
+  "routines": [
+    {"id": "heartbeat-restart", "schedule": "0 4 * * *", "skill": "claude-code-hermit:heartbeat start", "run_during_waiting": true, "enabled": true},
+    {"id": "weekly-review", "schedule": "0 23 * * 0", "skill": "claude-code-hermit:weekly-review", "enabled": false}
+  ],
+  "monitors": [],
+  "env": {
+    "AGENT_HOOK_PROFILE": "standard",
+    "COMPACT_THRESHOLD": "50",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50",
+    "MAX_THINKING_TOKENS": "10000"
+  },
+  "plugin_checks": [],
+  "docker": {
+    "packages": [],
+    "recommended_plugins": []
+  },
+  "compact": {
+    "monitoring_threshold": 30,
+    "monitoring_keep": 20,
+    "summary_threshold": 30,
+    "summary_keep": 15
+  },
+  "heartbeat": {
+    "enabled": true,
+    "every": "2h",
+    "show_ok": false,
+    "active_hours": {
+      "start": "08:00",
+      "end": "23:00"
+    },
+    "stale_threshold": "2h",
+    "waiting_timeout": null
+  },
+  "knowledge": {
+    "raw_retention_days": 14,
+    "compiled_budget_chars": 1000,
+    "working_set_warn": 20
+  }
+}

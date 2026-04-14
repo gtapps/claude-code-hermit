@@ -1,0 +1,38 @@
+{
+  "default": [
+    "Bash(rm -rf *)",
+    "Bash(chmod 777*)",
+    "Bash(*sudo *)",
+    "Bash(*> /etc/*)",
+    "Bash(curl * | bash*)",
+    "Bash(wget * | bash*)",
+    "Bash(env)",
+    "Bash(printenv)",
+    "Bash(cat .env*)",
+    "Bash(cat */.env*)",
+    "Bash(cat ~/.ssh/*)",
+    "Bash(cat ~/.aws/*)",
+    "Bash(*API_KEY*)",
+    "Bash(*SECRET*)",
+    "Bash(*TOKEN*)",
+    "Bash(*> *.claude-code-hermit/OPERATOR.md*)"
+  ],
+  "always_on": [
+    "Bash(ssh *)",
+    "Bash(docker *)",
+    "Bash(kubectl *)",
+    "Bash(npm publish*)",
+    "Bash(git push --force*)",
+    "Bash(git push origin main*)",
+    "Bash(git reset --hard*)",
+    "Bash(*--no-verify*)",
+    "Edit(*.claude-code-hermit/OPERATOR.md)",
+    "Write(*.claude-code-hermit/OPERATOR.md)",
+    "Edit(.claude/settings.json)",
+    "Write(.claude/settings.json)",
+    "Edit(.claude/settings.local.json)",
+    "Write(.claude/settings.local.json)",
+    "Bash(*> .claude/settings.json*)",
+    "Bash(*> .claude/settings.local.json*)"
+  ]
+}

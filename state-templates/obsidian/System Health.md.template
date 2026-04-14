@@ -1,0 +1,24 @@
+# System Health
+
+> Live operational state of your hermit.
+
+## Agent State
+![[.claude-code-hermit/state/state-summary]]
+
+## Health Metrics
+```dataview
+TABLE active_alerts, suppressed_alerts, micro_pending, response_rate, last_reflection
+FROM ".claude-code-hermit/state"
+WHERE file.name = "state-summary"
+```
+
+## Incomplete Sessions (Last 30 Days)
+```dataview
+TABLE date, task, status, tags
+FROM ".claude-code-hermit/sessions"
+WHERE id AND (status = "blocked" OR status = "partial") AND date >= date(today) - dur(30 days)
+SORT date DESC
+```
+
+---
+[[Brain]] · [[Cortex]] · [[Evolution]] · [[System Health]] · [[Connections]] · [[Cortex Portal]]

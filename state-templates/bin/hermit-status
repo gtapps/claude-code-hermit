@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# Quick status check — no Claude Code, no tokens.
+# Reads .status.json (written by cost-tracker hook) and prints a one-liner.
+# Run from project root: .claude-code-hermit/bin/hermit-status
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+AGENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+STATUS_FILE="$AGENT_DIR/sessions/.status.json"
+CONFIG_FILE="$AGENT_DIR/config.json"
+SHELL_FILE="$AGENT_DIR/sessions/SHELL.md"
+
+PROJECT_DIR="$(cd "$AGENT_DIR/../.." && pwd)"
+PROJECT_NAME="$(basename "$PROJECT_DIR")"
+
+# Read agent name and all status fields in a single python3 invocation
+FIELDS=$(python3 -c "
+import json, sys, os
+config_path, status_path = sys.argv[1], sys.argv[2]
+agent = ''
+if os.path.exists(config_path):
+    try:
+        cfg = json.load(open(config_path))
+        agent = cfg.get('agent_name', '') or ''
+    except: pass
+fields = [''] * 7
+if os.path.exists(status_path):
+    try:
+        s = json.load(open(status_path))
+        fields = [
+            str(s.get('status', '')),
+            str(s.get('task', '')),
+            str(s.get('plan_done', '0')),
+            str(s.get('plan_total', '0')),
+            str(s.get('cost_usd', '')),
+            str(s.get('budget_usd', '') if s.get('budget_usd') is not None else ''),
+            str(s.get('blockers', '') if s.get('blockers') is not None else ''),
+        ]
+    except: pass
+print(agent + '\t' + '\t'.join(fields))
+" "$CONFIG_FILE" "$STATUS_FILE" 2>/dev/null || echo "")
+
+IFS=$'\t' read -r AGENT_NAME STATUS TASK PLAN_DONE PLAN_TOTAL COST BUDGET BLOCKERS <<< "$FIELDS"
+[ -z "$AGENT_NAME" ] && AGENT_NAME="hermit"
+
+# Docker container status
+DOCKER_STATE=""
+COMPOSE="$PROJECT_DIR/docker-compose.hermit.yml"
+if command -v docker &>/dev/null && [ -f "$COMPOSE" ] && docker info &>/dev/null; then
+  DC=(docker compose -f "$COMPOSE")
+  SERVICE=$(cd "$PROJECT_DIR" && "${DC[@]}" ps --status running --format '{{.Service}}' 2>/dev/null | head -1 || true)
+  if [ -n "$SERVICE" ]; then
+    DOCKER_STATE="docker:up"
+  else
+    DOCKER_STATE="docker:down"
+  fi
+fi
+
+# If no status data, try basic info from SHELL.md
+if [ -z "$STATUS" ]; then
+  if [ -f "$SHELL_FILE" ]; then
+    STATUS=$(grep -oP '\*\*Status:\*\*\s*\K\S+' "$SHELL_FILE" 2>/dev/null || echo "unknown")
+    echo "$AGENT_NAME ($PROJECT_NAME) | $STATUS | no cost data yet${DOCKER_STATE:+ | $DOCKER_STATE}"
+  else
+    echo "$AGENT_NAME ($PROJECT_NAME) | no session${DOCKER_STATE:+ | $DOCKER_STATE}"
+  fi
+  exit 0
+fi
+
+# Format fields
+[ -n "$TASK" ] && TASK="\"$TASK\"" || TASK="—"
+
+PROGRESS="—"
+if [ "$PLAN_TOTAL" != "0" ] && [ -n "$PLAN_TOTAL" ]; then
+  PROGRESS="${PLAN_DONE}/${PLAN_TOTAL} steps"
+fi
+
+COST_STR="—"
+if [ -n "$COST" ]; then
+  if [ -n "$BUDGET" ]; then
+    COST_STR="\$${COST}/\$${BUDGET}"
+  else
+    COST_STR="\$${COST}"
+  fi
+fi
+
+BLOCKER_STR="no blockers"
+[ -n "$BLOCKERS" ] && BLOCKER_STR="BLOCKED: $BLOCKERS"
+
+echo "$AGENT_NAME ($PROJECT_NAME) | ${STATUS} | $TASK | $PROGRESS | $COST_STR | $BLOCKER_STR${DOCKER_STATE:+ | $DOCKER_STATE}"
+
+if [ "$DOCKER_STATE" = "docker:up" ]; then
+  echo "  attach: .claude-code-hermit/bin/hermit-docker attach"
+fi

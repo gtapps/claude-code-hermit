@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Start a persistent hermit session in tmux.
+# Run from project root: .claude-code-hermit/bin/hermit-start
+exec "$(dirname "$0")/hermit-run" hermit-start.py "$@"

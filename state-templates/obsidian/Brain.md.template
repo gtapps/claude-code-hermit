@@ -1,0 +1,39 @@
+# Brain
+
+> See what your hermit is working on, where it struggles, and where to look next.
+
+## Right Now
+![[.claude-code-hermit/sessions/SHELL]]
+
+## Fragile Zones (Last 30 Days)
+<!-- Tags on incomplete sessions — recent window only -->
+```dataview
+TABLE length(rows) AS "Incomplete", round(sum(rows.cost_usd), 2) AS "Cost Burned"
+FROM ".claude-code-hermit/sessions"
+WHERE id AND (status = "blocked" OR status = "partial") AND date >= date(today) - dur(30 days)
+FLATTEN tags AS tag
+GROUP BY tag
+SORT length(rows) DESC
+LIMIT 5
+```
+
+## What Just Changed
+```dataview
+TABLE date, task, status, cost_usd AS "Cost"
+FROM ".claude-code-hermit/sessions"
+WHERE id
+SORT date DESC
+LIMIT 5
+```
+
+## Needs Attention
+<!-- Accepted proposals waiting for implementation -->
+```dataview
+TABLE title, category, accepted_date
+FROM ".claude-code-hermit/proposals"
+WHERE id AND status = "accepted"
+SORT accepted_date ASC
+```
+
+---
+[[Brain]] · [[Cortex]] · [[Evolution]] · [[System Health]] · [[Connections]] · [[Cortex Portal]]

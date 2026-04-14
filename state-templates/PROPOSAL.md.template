@@ -1,0 +1,31 @@
+---
+id: PROP-NNN
+title: "" # must match the H1 heading title
+status: proposed
+source: manual
+session: S-NNN
+created: YYYY-MM-DDTHH:MM:SS±HH:MM
+accepted_date: null
+resolved_date: null
+related_sessions: []
+category: improvement
+responded: false
+self_eval_key: null
+accepted_in_session: null
+---
+# Proposal: PROP-NNN — [Title]
+
+## Context
+<!-- What session/task surfaced this? -->
+
+## Problem
+<!-- What's currently wrong or missing? -->
+
+## Proposed Solution
+<!-- Concrete, actionable steps -->
+
+## Impact
+<!-- Effort vs benefit estimate -->
+
+## Operator Decision
+<!-- Filled in by operator during review -->

@@ -1,0 +1,34 @@
+# Knowledge Schema
+
+<!-- Co-evolve this file with your operator over time.
+     Defines what this hermit produces — plumbing, not policy.
+     Quality judgments and attention priorities belong in OPERATOR.md or auto-memory. -->
+
+## Work Products
+<!-- What domain outputs does this hermit produce?
+     For each work product, describe:
+     - type: the frontmatter `type` value used in compiled/ filenames
+     - trigger: what routine or event produces it
+     - format: approximate structure (e.g., bullet summary, narrative, table)
+     Example:
+       - briefing: daily intelligence summary across monitored domains.
+         Triggered by daily morning routine.
+-->
+
+## Raw Captures
+<!-- What operational inputs does this hermit collect into raw/?
+     For each capture type, describe:
+     - type: the frontmatter `type` value used in raw/ filenames
+     - feeds: which work products this raw type feeds
+     Example:
+       - source: fetched articles and RSS items. Feeds briefing.
+       - snapshot: point-in-time data dumps. Feeds weekly reports.
+-->
+
+## Retention
+<!-- How long do different raw types live before archival?
+     Reference config.json knowledge.raw_retention_days for the default.
+     Example:
+       - source: 7 days
+       - snapshot: 3 days
+-->
