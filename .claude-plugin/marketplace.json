@@ -1,0 +1,14 @@
+{
+  "name": "claude-code-dev-hermit",
+  "owner": {
+    "name": "gtapps"
+  },
+  "plugins": [
+    {
+      "name": "claude-code-dev-hermit",
+      "source": "./",
+      "description": "Git safety, quality workflow, and dev conventions for claude-code-hermit",
+      "version": "0.1.0"
+    }
+  ]
+}

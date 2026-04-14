@@ -1,0 +1,79 @@
+
+---
+<!-- claude-code-dev-hermit: Development Workflow -->
+
+## Dev Agent (claude-code-dev-hermit)
+
+| Agent | When to use | Model |
+|-------|------------|-------|
+| `implementer` | Writing code, bug fixes, refactoring (worktree isolated) | Sonnet |
+
+## Git Safety
+
+- Never push to main or master directly
+- Never use `--no-verify` on git commands
+- Always create feature branches for work
+
+## Technical Constraints
+
+Subagents cannot invoke skills (/simplify, /batch, etc.) — those must run in the main session only.
+
+Session state (`in_progress`/`waiting`/`idle`/`dead_process`) must be read from `.claude-code-hermit/state/runtime.json` (`.session_state`). SHELL.md `Status:` is cosmetic — never parse it for programmatic checks.
+
+Core rules (artifact frontmatter, tag discipline, proposals) apply to all dev work — see the `## Session Discipline (claude-code-hermit)` block above.
+
+## Dev Workflow
+
+When doing development work:
+
+1. **Plan**: break the task into steps, create a Task for each
+2. **Implement**: use the `implementer` agent for code changes (worktree-isolated feature branches)
+3. **After implementer returns**: update SHELL.md — log branch name in Progress Log, append changed files to Changed section, note any test failures or concerns in Blockers
+4. **Quality pass**: run `/claude-code-dev-hermit:dev-quality`
+5. **If critical issues**: loop back to implementation before proceeding
+6. **Task boundary**: invoke `reflect`, serialize and delete all Tasks
+7. **If blocked**: when waiting on external input (PR review, operator decision, CI pipeline), set session status to `waiting` with a reason. Resume on unblock.
+
+First session (no prior `S-*-REPORT.md` files): explore the codebase to orient yourself before starting work.
+
+### Parallel Work
+
+- Same change across many files: use `/batch`
+- Independent tasks in different areas: use multiple Agent tool calls in a single message, otherwise implement sequentially
+- When unsure: ask the operator
+- After parallel work: run `/simplify`, code review, and re-check constraints in main session (workers lack skill and OPERATOR.md access)
+
+### Before Archiving a Task
+
+- `/dev-quality` passed (tests + simplify + review)
+- Feature branch committed, no uncommitted changes
+- If partial: Session Summary describes what remains
+
+## Dev Session Hygiene
+
+- **Tasks**: skip TaskCreate for trivial single-step tasks; serialize and delete all Tasks at task boundaries
+- **Progress Log**: if entries exceed 50, summarize older entries into a compact block; keep last 10 in detail
+
+## Dev Knowledge
+
+Dev artifacts that persist across sessions go to `compiled/` with frontmatter (`title`, `created`, `type`, `tags`). Examples: architecture decisions, codebase health assessments, review pattern summaries, dependency audit snapshots. Ephemeral inputs (CI logs, code snapshots under analysis) go to `raw/`. Lessons and patterns go to auto-memory — don't duplicate into `compiled/`.
+
+## Dev Proposal Categories
+
+Use these prefixes in proposal titles for consistent sorting:
+- **[missing-tests]** — Uncovered code paths
+- **[tech-debt]** — Code that works but should be refactored
+- **[dependency]** — Stale, vulnerable, or unnecessary deps
+- **[tooling]** — Missing linter rules, CI checks, dev scripts
+- **[architecture]** — Structural improvements
+
+All dev proposals must pass the three-condition gate: (1) repeated pattern across sessions, (2) meaningful consequence if unaddressed, (3) operator-actionable change.
+
+Tier mapping:
+- **Tier 2** (micro-approval): `[tech-debt]`, `[tooling]`, `[dependency]` updates
+- **Tier 3** (full PROP-NNN): `[missing-tests]`, `[architecture]`, `[dependency]` removals
+
+## Dev Quick Reference
+
+- Quality pass: `/claude-code-dev-hermit:dev-quality`
+- Branch cleanup: `/claude-code-dev-hermit:dev-cleanup`
