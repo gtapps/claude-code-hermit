@@ -11,7 +11,7 @@ For skill details, see [Skills Reference](skills.md).
 | Requirement              | For          | Notes                                      |
 | ------------------------ | ------------ | ------------------------------------------ |
 | **tmux**                 | Boot scripts | `brew install tmux` / `apt install tmux`   |
-| **Node.js 24+**          | Hooks        | Cost tracking, session evaluation          |
+| **Node.js 22+**          | Hooks        | Cost tracking, session evaluation          |
 | **Claude Code v2.1.98+** | Channels     | Required for the channels research preview |
 
 tmux is required. Channels are optional.

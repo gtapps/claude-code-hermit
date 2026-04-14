@@ -11,9 +11,15 @@
 
 **A personal assistant that lives in your project and gets smarter every session — pure Claude Code, no extras.**
 
+<p align="center">
+  <img src="assets/demo.gif" alt="claude-code-hermit demo — Obsidian dashboard, Discord control, autonomous briefings, remote access" width="720" />
+</p>
+
 I love Claude Code. I love what OpenClaw did for autonomous agents. Hermit is my take — a plugin that turns any Claude Code instance into a persistent, self-improving personal assistant you can talk to from your phone.
 
-No custom runtime. No server. No API keys to manage. If you have a Claude Pro, Max, Teams, or Enterprise subscription, you already have everything you need. Each hermit is just a Claude Code process — lightweight enough to run several side by side on a single laptop.
+The rule from day one: leverage everything Claude Code offers, don't reinvent or overengineer and evolve as Claude Code evolves.
+
+No server. No API keys to manage. If you have a Claude Pro, Max, Teams, or Enterprise subscription, you already have everything you need. Each hermit is just a Claude Code process — lightweight enough to run several side by side on a single laptop.
 
 ---
 
@@ -52,7 +58,7 @@ No custom runtime. No server. No API keys to manage. If you have a Claude Pro, M
 
 **3. It learns from experience.** Hermit reflects on its own memory — recurring blockers, repeated workarounds, rising costs. When it notices a pattern, it creates an improvement proposal. You review it. You decide. The assistant adapts.
 
-**4. It develops a rhythm.** Morning brief on what happened overnight. Evening summary that archives the day's work. Between tasks, it picks up accepted proposals and runs maintenance — all gated by how much autonomy you give it.
+**4. It develops a rhythm.** Morning brief on what happened overnight. Evening summary that archives the day's work. Between tasks, it picks up accepted proposals and runs maintenance — all gated by how much autonomy you give it. Add your own scheduled routines and background monitors to make it fit your workflow.
 
 **5. You can see inside it.** Browse sessions, proposals, cost trends, and learning in Obsidian — Hermit Cortex turns your hermit's memory into a navigable brain.
 
@@ -60,7 +66,7 @@ No custom runtime. No server. No API keys to manage. If you have a Claude Pro, M
 
 ## Quick Start
 
-> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.98+, a paid Claude plan (Pro, Max, Teams, or Enterprise), and Node.js 24+.
+> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.98+, a paid Claude plan (Pro, Max, Teams, or Enterprise), and Node.js 22+.
 
 > **Platform support:** Linux, macOS, and Windows via WSL2. Docker works on any host. Always-on mode requires a POSIX shell (Linux, macOS, or WSL2). See [FAQ](docs/faq.md) for details.
 
@@ -201,6 +207,7 @@ See [Creating Your Own Hermit](docs/creating-your-own-hermit.md) for more — fr
 ## Credits
 
 - **[Everything Claude Code](https://github.com/affaan-m/everything-claude-code)** — Hook patterns and lifecycle architecture
+- **[Andrej Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)** — Inspiration for the raw/compiled knowledge system
 
 ## License
 

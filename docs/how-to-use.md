@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-[Claude Code](https://code.claude.com) v2.1.98+ and a paid Claude plan (Pro or Max). Node.js 24+ for hooks. Optional: **tmux** for always-on mode, **Bun** for phone channels (Discord, Telegram).
+[Claude Code](https://code.claude.com) v2.1.98+ and a paid Claude plan (Pro or Max). Node.js 22+ for hooks. Optional: **tmux** for always-on mode, **Bun** for phone channels (Discord, Telegram).
 
 ---
 

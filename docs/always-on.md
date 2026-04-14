@@ -17,7 +17,7 @@ You get four things at once: safe permission bypass, config isolation, crash rec
 | Requirement              | For          | Notes                                          |
 | ------------------------ | ------------ | ---------------------------------------------- |
 | **Docker**               | Container    | `docker compose` v2 (Docker Desktop or modern Docker Engine) |
-| **Node.js 24+**          | Hooks        | Inside the container — handled by the Dockerfile |
+| **Node.js 22+**          | Hooks        | Inside the container — handled by the Dockerfile |
 | **Bun**                  | Plugins      | Inside the container — always included          |
 | **Claude Code v2.1.98+** | Channels     | Required for the channels research preview     |
 
