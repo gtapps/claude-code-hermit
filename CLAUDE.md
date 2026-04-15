@@ -45,6 +45,12 @@ When installed in a target project, state lives in `.claude-code-hermit/`:
 - `config.json` — project config (identity, channels, budget prefs, routines, idle agency, plugin checks)
 - `OPERATOR.md` — human-curated context (draft changes, confirm before writing; hard-blocked in always-on mode)
 
+## Migrations
+
+When a change needs to be applied to existing hermits (not just the template for new ones), document it in `CHANGELOG.md` under the relevant version's `### Upgrade Instructions` section. The `hermit-evolve` skill reads and **executes** those instructions — write them as imperative steps the skill will follow, not passive notes.
+
+Example: removing a line from an operator-editable file (like `HEARTBEAT.md`) that `hermit-evolve` would otherwise skip.
+
 ## Development
 
 To test locally against a target project:

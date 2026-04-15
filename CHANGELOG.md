@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.0.3] - 2026-04-15
+
+### Changed
+
+- **HEARTBEAT.md.template: removed two redundant built-in checks** — "Check for NEXT-TASK.md" and "Check if current task has blocked items that may have resolved" are already handled natively by the heartbeat skill itself (Idle Agency section and stale-session check respectively). Keeping them in the template caused the LLM to reason about them on every tick with zero marginal value. The template now starts with only the proposals check, which has no native equivalent in the skill. Existing hermits are unaffected — their HEARTBEAT.md is operator-editable and hermit-evolve never overwrites it; the self-eval mechanism will propose the same removals organically after 20 ticks / 3 clean sessions.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/HEARTBEAT.md.template` | Removed `## Task Checks` and `## Idle Checks` sections with their redundant items |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. No config changes required.
+
+**Clean up HEARTBEAT.md (if applicable):**
+
+1. Read `.claude-code-hermit/HEARTBEAT.md`. If the file does not exist, skip these steps.
+2. Remove the line `- Check for NEXT-TASK.md` if present. Remove the line `- Check if current task has blocked items that may have resolved` if present.
+3. After both removals, for each of `## Idle Checks` and `## Task Checks`: if the header now has no remaining checklist items beneath it, remove that header too.
+4. If any changes were made, write the file back and report what was cleaned up. If nothing changed, skip silently.
+
 ## [1.0.2] - 2026-04-15
 
 ### Fixed
