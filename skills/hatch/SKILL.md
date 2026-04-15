@@ -46,14 +46,14 @@ Create the following directories and files:
 └── knowledge-schema.md
 ```
 
-Initialize state files:
-- `state/alert-state.json`: `{"alerts": {}, "last_digest_date": null, "self_eval": {}, "total_ticks": 0}`
-- `state/reflection-state.json`: `{"last_reflection": null}`
-- `state/routine-queue.json`: `{"queued": []}`
-- `state/proposal-metrics.jsonl`: empty file
-- `state/micro-proposals.json`: `{"active": null}`
+Initialize state files (inline — shape-insensitive or append-only):
+- `.claude-code-hermit/state/reflection-state.json`: `{"last_reflection": null}` — no code path is materially shape-sensitive to its initial form
+- `.claude-code-hermit/state/proposal-metrics.jsonl`: empty file — append-only, not schema-sensitive JSON state
 
 - Read the template files from `${CLAUDE_SKILL_DIR}/../../state-templates/`
+- Copy `alert-state.json.template` → `.claude-code-hermit/state/alert-state.json`
+- Copy `routine-queue.json.template` → `.claude-code-hermit/state/routine-queue.json`
+- Copy `micro-proposals.json.template` → `.claude-code-hermit/state/micro-proposals.json`
 - Copy `SHELL.md.template`, `SESSION-REPORT.md.template`, `PROPOSAL.md.template` into `templates/`
 - **OPERATOR.md guard:** If `.claude-code-hermit/OPERATOR.md` already exists, do NOT copy the template over it. Remember this fact as `operator_existed = true` for use in step 5a. If it does not exist, copy `OPERATOR.md` from the templates into the state directory root.
 - Copy `HEARTBEAT.md.template` → `.claude-code-hermit/HEARTBEAT.md` (the operator's editable checklist)
