@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.1.0-green.svg" alt="Version 0.1.0" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.1.1-green.svg" alt="Version 0.1.1" /></a>
   <a href="https://github.com/gtapps/claude-code-hermit"><img src="https://img.shields.io/badge/requires-claude--code--hermit%20v1.0.0%2B-blue.svg" alt="Requires claude-code-hermit v1.0.0+" /></a>
   <img src="https://img.shields.io/badge/Claude-Pro%20%7C%20Max-blueviolet.svg" alt="Claude Pro/Max Compatible" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
@@ -50,7 +50,7 @@ The implementer never touches main. It commits to feature branches, runs tests, 
 
 | Agent | Model | What it does |
 |-------|-------|-------------|
-| `implementer` | Sonnet | Writes code in an isolated worktree. Feature branches only. Tests before and after. |
+| `claude-code-dev-hermit:implementer` | Sonnet | Writes code in an isolated worktree. Feature branches only. Tests before and after. |
 
 ### Skills
 
