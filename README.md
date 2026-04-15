@@ -9,7 +9,7 @@
 
 # claude-code-hermit
 
-**A personal assistant that lives in your project and gets smarter every session — pure Claude Code, no extras.**
+**A personal assistant that lives in your project that actually learns — pure Claude Code.**
 
 <p align="center">
   <img src="assets/demo.gif" alt="claude-code-hermit demo — Obsidian dashboard, Discord control, autonomous briefings, remote access" width="720" />
