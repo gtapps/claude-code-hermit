@@ -28,8 +28,26 @@ All state lives under `.claude-code-hermit/` in the project root.
    - **Dead process detection:** If `session_state == "dead_process"`: same flow as unclean shutdown above, with message: "Process died unexpectedly. Previous task: [task from SHELL.md, or 'unknown']. Reply with (1) to archive as partial and start fresh, or (2) to resume where we left off."
    - **Normal state:** If `session_state` is `idle` → ready for new task. If `in_progress` or `waiting` → existing session, offer resume.
 3b. **Watch registry reset.** Read `state/monitors.runtime.json` and clear all entries unconditionally — watches are session-scoped, so any previous entries are stale. If the file is missing, skip. This runs on every session start (new, resume, or crash recovery) before any watch registration occurs.
-4. Use the `claude-code-hermit:session-mgr` agent to check session state and handle SHELL.md
-4b. If session-mgr reports SHELL.md exists with Status `idle` (or runtime.json `session_state` is `idle`):
+4. **Session state routing** — evaluate the fast-path gate before spawning session-mgr.
+
+   **Fast path (skip session-mgr) — ALL five must be true:**
+   - `runtime.json` was found and parsed successfully (not missing, not malformed)
+   - `session_state` ∈ {`in_progress`, `idle`, `waiting`}
+   - `transition` is null
+   - `last_error` is null
+   - `.claude-code-hermit/sessions/SHELL.md` exists
+
+   If all five are true: SHELL.md content is already available from the startup hook injection. Proceed directly to step 4b with the data already in hand. Do **not** spawn session-mgr.
+
+   **Slow path (spawn session-mgr) — any condition above fails:**
+   - `runtime.json` is missing or malformed → first run or corrupted state
+   - `session_state` is `dead_process` or any unrecognized value
+   - `transition` is not null → interrupted transition recovery needed
+   - `last_error` is not null → error recovery needed
+   - `SHELL.md` is missing → session-mgr must create it from template
+
+   On the slow path: use `claude-code-hermit:session-mgr` to check session state, handle recovery, and create/update SHELL.md as needed.
+4b. If `runtime.json` `session_state` is `idle` (session between tasks — SHELL.md exists but no active task):
    - This is a session between tasks — do NOT create a new session or SHELL.md
    - Present: session start date, tasks completed count, latest entry from Session Summary
    - Skip to step 5 (NEXT-TASK.md check) to determine the task source

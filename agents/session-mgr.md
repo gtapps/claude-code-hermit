@@ -3,7 +3,7 @@ name: session-mgr
 description: Manages the session lifecycle — creates SHELL.md, tracks progress, handles closeout, and archives session reports. Use at session start and end.
 model: sonnet
 effort: medium
-maxTurns: 15
+maxTurns: 12
 tools:
   - Read
   - Write
@@ -57,11 +57,11 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
    - Leave Task blank — the main session will provide it
    - Set Status to `in_progress` (cosmetic)
 6. **Pre-compute session ID:** List all `.claude-code-hermit/sessions/S-*-REPORT.md` files, extract the highest NNN, increment by 1. If none exist, use `S-001`. Write this to runtime.json `session_id` field.
-7. Update runtime.json: set `session_state` to `in_progress`
+7. Update runtime.json: set `session_state` to `in_progress`. If `session_id` is null or missing, pre-compute it now (same sequential S-NNN logic as step 6) and write it in the same update.
 
 ## On Session Close
 
-1. Update `.claude-code-hermit/sessions/SHELL.md` with final status, completed items, blockers, and lessons
+1. Update `.claude-code-hermit/sessions/SHELL.md` with final status, completed items, blockers, and lessons. **If the invocation prompt includes final task data (status, blockers, lessons, changed files), use those values directly — they take precedence over stale SHELL.md content.** Read SHELL.md for the progress log and monitoring history only.
 2. **Merge session-diff.json** into SHELL.md `## Changed` section: read `state/session-diff.json` (if it exists). For each entry in `changed_files`, format as `- \`<file>\` (<status>)` and write to the Changed section. If Changed already has non-comment content, merge without duplicating.
 3. Determine the next session ID:
    - Read `session_id` from runtime.json. If set, use it.
@@ -123,7 +123,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
 
 When the main session requests an idle transition (not a full close):
 
-1. Update `.claude-code-hermit/sessions/SHELL.md` with final task status, completed items, blockers, and lessons
+1. Update `.claude-code-hermit/sessions/SHELL.md` with final task status, completed items, blockers, and lessons. **If the invocation prompt includes final task data (status, blockers, lessons, changed files), use those values directly — they take precedence over stale SHELL.md content.** Read SHELL.md for the progress log and monitoring history only.
 2. **Merge session-diff.json** into SHELL.md `## Changed` section (same logic as On Session Close step 2)
 3. Determine the next report ID:
    - Read `session_id` from runtime.json. If set, use it.

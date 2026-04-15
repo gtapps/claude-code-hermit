@@ -45,13 +45,28 @@ Work through tasks using whatever tools, skills, and agents are available:
 
 When the work is done, or the operator decides to move on (even if partial or blocked):
 
-1. Finalize SHELL.md — ensure all progress, blockers, and findings are recorded
-2. Verify quality: task status is accurate (`completed` | `partial` | `blocked`), changed files listed, cost recorded
+1. Compile final session data **in context** — do NOT write to SHELL.md at this point. session-mgr owns the final write. Gather:
+   - `Status:` one of `completed` | `partial` | `blocked`
+   - `Blockers:` one line each, enough context for a cold start
+   - `Lessons:` only genuinely useful ones
+   - `Changed:` list of files modified
+2. Verify quality in-context before passing to session-mgr:
+   - Task status is one of `completed` | `partial` | `blocked`
+   - Changed files are identified
+   - Blockers have enough context for a cold start
+   - Cost data recorded (if available)
 3. Create proposals for any high-leverage improvements discovered during work
 4. **Reflect (with debounce).** Read `state/reflection-state.json` for `last_reflection`. Only invoke the `claude-code-hermit:reflect` skill if `last_reflection` is null or older than 4 hours. For quick tasks (no tasks created, under 5 minutes), skip entirely — progress log is sufficient.
 4b. **Session-triggered plugin checks.** For each `plugin_checks` entry (from config already loaded) with `trigger: "session"` and `enabled: true`, invoke the skill. Skip for quick tasks (no tasks created, under 5 minutes). If a skill is unavailable or errors, skip it and continue — never block session finalization on a plugin check failure. For each check that completed successfully, read-modify-write `state/reflection-state.json`: update only `plugin_checks.<id>.last_run` to today's ISO date, preserving all other keys. Do not update `last_run` for failed checks.
 5. If native Tasks exist: call `TaskList`, format as a markdown table. Then `TaskUpdate(status=deleted)` for all tasks (idle = clean slate).
-6. Use `claude-code-hermit:session-mgr` to perform an **idle transition** (archive report, reset task-scoped sections, set status to `idle`). session-mgr handles updating both SHELL.md (cosmetic) and `state/runtime.json` (lifecycle truth). Pass the task table in the prompt for the archived report.
+6. Use `claude-code-hermit:session-mgr` to perform an **idle transition** (finalize SHELL.md, archive report, reset task-scoped sections, set status to `idle`). session-mgr handles updating both SHELL.md (cosmetic) and `state/runtime.json` (lifecycle truth). Pass the following compact structured payload in the prompt — keep it brief, no freeform prose:
+   ```
+   Status: <completed|partial|blocked>
+   Blockers: <one line each, or none>
+   Lessons: <one line each, or none>
+   Changed: <file list, or none>
+   ```
+   Also include the task table (if native Tasks were created).
 7. If `heartbeat.enabled` is true in config and heartbeat is not already running: start it (`/claude-code-hermit:heartbeat start`)
 8. Notify the operator: "Archived as S-NNN. Task: [summary]. Status: [outcome]. Ready for what's next."
 9. Once the operator says what's next: go to step 4 (plan the work)

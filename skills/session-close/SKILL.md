@@ -21,15 +21,25 @@ session-mgr handles updating both SHELL.md (cosmetic) and `state/runtime.json` (
 
 Use this when the operator wants to end everything (via `hermit-stop` or explicit `--shutdown`).
 
-1. Use the `claude-code-hermit:session-mgr` agent to finalize `.claude-code-hermit/sessions/SHELL.md`
+1. Compile final session data **in context** — do NOT write to SHELL.md yet. session-mgr owns the final write. Gather:
+   - `Status:` one of `completed` | `partial` | `blocked`
+   - `Blockers:` one line each, enough context for a cold start
+   - `Lessons:` only genuinely useful ones
+   - `Changed:` list of files modified
 2. Ensure all native Tasks reflect their correct status (`completed`, `pending`)
-3. Document any blockers with enough context for the next session to understand them without re-investigating
-4. Record lessons learned — only genuinely useful ones, not obvious statements
-5. If any high-leverage improvements were discovered during work, create proposals via the `claude-code-hermit:proposal-create` skill
-6. Confirm the "Next Start Point" is clear enough for a fresh session to resume without questions
-7. Invoke the `claude-code-hermit:reflect` skill to reflect on accumulated experience. Reflect no longer requires archived reports — it uses memory. This runs before archiving so any findings are included in the archived report.
-8. If native Tasks exist: call `TaskList`, format as a markdown table. Then `TaskUpdate(status=deleted)` for completed tasks only — pending/in_progress tasks persist for next session.
-9. Archive the session via `claude-code-hermit:session-mgr` (full close — replace SHELL.md with fresh template). Pass the task table in the prompt for the archived report.
+3. Confirm the "Next Start Point" is clear enough for a fresh session to resume without questions
+4. If any high-leverage improvements were discovered during work, create proposals via the `claude-code-hermit:proposal-create` skill
+5. Invoke the `claude-code-hermit:reflect` skill to reflect on accumulated experience. Reflect no longer requires archived reports — it uses memory. This runs before archiving so any findings are included in the archived report.
+6. If native Tasks exist: call `TaskList`, format as a markdown table. Then `TaskUpdate(status=deleted)` for completed tasks only — pending/in_progress tasks persist for next session.
+7. Archive the session via `claude-code-hermit:session-mgr` (full close — finalize SHELL.md and replace with fresh template in one operation). Pass the following compact structured payload in the prompt — keep it brief, no freeform prose:
+   ```
+   Status: <completed|partial|blocked>
+   Blockers: <one line each, or none>
+   Lessons: <one line each, or none>
+   Changed: <file list, or none>
+   Next Start Point: <one line>
+   ```
+   Also include the task table (if native Tasks were created).
 
 ---
 
