@@ -46,43 +46,46 @@ Display all current settings in a readable format:
 Hermit Settings (.claude-code-hermit/config.json)
 
 Identity:
-  Agent name:      Atlas (agent_name: "Atlas")
-  Language:        pt (language: "pt")
-  Timezone:        Europe/Lisbon (timezone: "Europe/Lisbon")
-  Escalation:      balanced (escalation: "balanced")
-  Sign-off:        Atlas out. (sign_off: "Atlas out.")
+  Agent name:      Atlas          → any string | 'none' to clear
+  Language:        pt             → any locale code (e.g. en, pt, es, fr)
+  Timezone:        Europe/Lisbon  → any tz (e.g. UTC, America/New_York)
+  Escalation:      balanced       → balanced | conservative | autonomous
+  Sign-off:        Atlas out.     → any string | 'none' to clear
 
 Operational:
-  Channels:        none
-  Remote control:  disabled (remote: false)
-  Model:           default (model: null)
-  Budget prompts:  disabled (ask_budget: false)
-  Morning brief:   disabled
-  Idle behavior:   discover (idle_behavior: "discover")
-  Idle budget:     $0.50 (idle_budget: "$0.50")
-  Heartbeat:       disabled (every: 30m, show_ok: false, active: 08:00-23:00, stale: 2h)
-  Routines:        2 configured (morning 08:30, evening 22:30)
-  Permission mode:  acceptEdits (permission_mode: "acceptEdits")
-  Auto session:    enabled (auto_session: true)
-  tmux name:       hermit-myproject
+  Channels:        none           → run: /claude-code-hermit:hermit-settings channels
+  Remote control:  disabled       → yes | no
+  Model:           default        → opus | sonnet | haiku | none (for default)
+  Budget prompts:  disabled       → always | never
+  Morning brief:   disabled       → run: /claude-code-hermit:hermit-settings brief
+  Idle behavior:   discover       → discover | wait
+  Idle budget:     $0.50          → any dollar amount (e.g. $0.25, $1.00)
+  Heartbeat:       disabled       → yes | no  (interval, show_ok, active hours, stale threshold)
+  Routines:        2 configured   → run: /claude-code-hermit:hermit-settings routines
+  Permission mode: acceptEdits    → default | acceptEdits | plan | dontAsk | bypassPermissions
+  Auto session:    enabled        → read-only
+  tmux name:       hermit-myproject → read-only
 
 Compaction:
-  Monitoring:      compact at 30 lines, keep 20 (compact.monitoring_threshold/keep)
-  Session Summary: compact at 30 lines, keep 15 (compact.summary_threshold/keep)
+  Monitoring:      compact at 30 lines, keep 20
+  Session Summary: compact at 30 lines, keep 15
+  → run: /claude-code-hermit:hermit-settings compact
 
 Environment (env):
   AGENT_HOOK_PROFILE              standard
   COMPACT_THRESHOLD               50
   CLAUDE_AUTOCOMPACT_PCT_OVERRIDE 50
   MAX_THINKING_TOKENS             10000
+  → run: /claude-code-hermit:hermit-settings env
 
 Plugin Checks:
   automation-recommender  claude-code-setup     interval  7 days   2026-04-01  enabled
   md-audit                claude-md-management  interval  7 days   (never)     enabled
   md-revise               claude-md-management  session   —        2026-04-06  enabled
+  → run: /claude-code-hermit:hermit-settings plugin-checks
 
 Docker:
-  Packages:          build-essential, ffmpeg (or "none")
+  Packages: build-essential, ffmpeg  → run: /claude-code-hermit:hermit-settings docker
 ```
 
 **If argument is "name":**
@@ -130,17 +133,28 @@ Loop until operator says "done":
 Note: "Channel changes take effect on next `hermit-start` run."
 
 **If argument is "remote":**
-Ask: "Enable remote control? Connect from a browser or phone via claude.ai/code. (yes / no) [current value]"
+Ask: "Enable remote control? Connect from a browser or phone via claude.ai/code.
+  yes — enable remote control
+  no  — disable remote control
+[current: <value>]"
 Update `remote` in config.json.
 Note: "Remote control changes take effect on next `hermit-start` run."
 
 **If argument is "model":**
-Ask: "Claude model to use? (e.g., opus, sonnet, haiku, claude-sonnet-4-5-20250514, or 'none' for default) [current value or default]"
+Ask: "Claude model to use?
+  opus   → claude-opus-4-6
+  sonnet → claude-sonnet-4-6
+  haiku  → claude-haiku-4-5-20251001
+  none   → use Claude Code default (inherit from user config)
+[current: <value or 'default'>]"
 Update `model` in config.json. Set to `null` if operator says "none", "default", or "clear".
 Note: "Model changes take effect on next `hermit-start` run."
 
 **If argument is "budget":**
-Ask: "Ask for a cost budget at session start? (always / never) [current value]"
+Ask: "Ask for a cost budget at session start?
+  always — prompt for a $ cap at every session start
+  never  — skip the budget prompt
+[current: <value>]"
 Update `ask_budget` in config.json.
 
 **If argument is "brief":**
@@ -164,9 +178,16 @@ Update `permission_mode` in config.json.
 
 **If argument is "heartbeat":**
 - Show current heartbeat config (including `stale_threshold`)
-- Ask: "Enable background heartbeat? (yes / no) [current value]"
-- If yes: ask for interval, show_ok, active hours, and stale threshold
-  - Stale threshold: "Alert if an active session has no progress for how long? (e.g., 2h, 30m) [current value]"
+- Ask: "Enable background heartbeat? (yes / no) [current: <value>]"
+- If yes: show the configurable sub-fields before asking each one:
+  ```
+  Heartbeat sub-fields (press Enter to keep current value):
+    interval  — how often to check (e.g. 5m, 15m, 30m)         [current]
+    show_ok   — post a message on healthy checks (yes / no)     [current]
+    active    — active hours window (e.g. 08:00-23:00)          [current]
+    stale     — alert if no session progress for (e.g. 2h, 30m) [current]
+  ```
+  Then ask each field in sequence.
 - Update `heartbeat` object in config.json.
   - Note: "Heartbeat changes take effect on next `/claude-code-hermit:heartbeat start` or `hermit-start.py` run."
 
