@@ -6,7 +6,7 @@
 
 | Agent | When to use | Model |
 |-------|------------|-------|
-| `implementer` | Writing code, bug fixes, refactoring (worktree isolated) | Sonnet |
+| `claude-code-dev-hermit:implementer` | Writing code, bug fixes, refactoring (worktree isolated) | Sonnet |
 
 ## Git Safety
 
@@ -27,7 +27,7 @@ Core rules (artifact frontmatter, tag discipline, proposals) apply to all dev wo
 When doing development work:
 
 1. **Plan**: break the task into steps, create a Task for each
-2. **Implement**: use the `implementer` agent for code changes (worktree-isolated feature branches)
+2. **Implement**: use the `claude-code-dev-hermit:implementer` agent for code changes (worktree-isolated feature branches)
 3. **After implementer returns**: update SHELL.md — log branch name in Progress Log, append changed files to Changed section, note any test failures or concerns in Blockers
 4. **Quality pass**: run `/claude-code-dev-hermit:dev-quality`
 5. **If critical issues**: loop back to implementation before proceeding
@@ -45,7 +45,7 @@ First session (no prior `S-*-REPORT.md` files): explore the codebase to orient y
 
 ### Before Archiving a Task
 
-- `/dev-quality` passed (tests + simplify + review)
+- `/claude-code-dev-hermit:dev-quality` passed (tests + simplify + review)
 - Feature branch committed, no uncommitted changes
 - If partial: Session Summary describes what remains
 

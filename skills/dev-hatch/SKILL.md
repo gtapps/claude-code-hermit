@@ -193,7 +193,7 @@ Available skills:
   /claude-code-dev-hermit:dev-cleanup   — branch cleanup
 
 Available agent:
-  implementer   — code writing in worktree (Sonnet)
+  claude-code-dev-hermit:implementer   — code writing in worktree (Sonnet)
 
 Other core skills (optional):
   /claude-code-hermit:channel-setup     — local/tmux channel messaging between operator and hermit

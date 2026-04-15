@@ -4,7 +4,7 @@ description: Run the post-implementation quality pass — tests, simplify, tests
 ---
 # /dev-quality
 
-Run the full quality pass on the current implementation. Invoke this after implementation completes (via `implementer` agent or direct edits), before the task completion checklist.
+Run the full quality pass on the current implementation. Invoke this after implementation completes (via `claude-code-dev-hermit:implementer` agent or direct edits), before the task completion checklist.
 
 ## Steps
 
@@ -25,7 +25,7 @@ Confirm `/simplify` didn't break anything.
   - Log to SHELL.md: "simplify caused test regression — committed without simplification"
   - Proceed to review with the pre-simplify code
 
-### 4. Run code review (via `code-review` plugin)
+### 4. Run `code-review:code-review`
 
 - If critical issues are found: report them to the operator and loop back to implementation
 - If clean or minor issues only: proceed
