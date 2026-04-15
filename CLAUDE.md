@@ -68,3 +68,4 @@ bash tests/run-hooks.sh
 - No build step — skills are plain markdown, hooks are standalone `.js`/`.sh` scripts.
 - Hooks fail open — a hook must never block Claude Code. Catch all errors, `process.exit(0)`. Never exit non-zero on transient failures.
 - Consume stdin — every hook must read stdin to completion even if unused (avoids broken pipe errors).
+- Agent references in skill instructions must always use the full namespaced form `claude-code-hermit:<agent-name>` (e.g., `claude-code-hermit:session-mgr`). Bare names are auto-namespaced by the harness on load, so bare-name invocations from skill text will fail with "Agent type not found".

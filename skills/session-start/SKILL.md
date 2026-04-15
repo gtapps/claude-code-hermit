@@ -16,7 +16,7 @@ All state lives under `.claude-code-hermit/` in the project root.
 3. **Read `state/runtime.json`** for lifecycle state. This is the single source of truth — never parse SHELL.md `Status:` for decisions.
    - **Advisory lock check:** Try to acquire `state/.lifecycle.lock` non-blocking. If held by another process (hermit-start.py, hermit-stop.py, routine-watcher), tell the operator "A lifecycle operation is in progress — wait for it to complete" and abort.
    - **If runtime.json is missing:** This is either a first run or a pre-runtime.json installation. If SHELL.md exists, treat as a first session and proceed normally. If neither exists, this is a fresh installation — proceed to step 5.
-   - **Interrupted transition recovery (P3):** If `transition` is not null, use `session-mgr` to resume the interrupted operation:
+   - **Interrupted transition recovery (P3):** If `transition` is not null, use `claude-code-hermit:session-mgr` to resume the interrupted operation:
      - `transition == "archiving"` + target file missing → re-run archive
      - `transition == "archiving"` + target file exists → skip to SHELL.md cleanup
      - `transition == "cleaning"` → re-run SHELL.md cleanup
@@ -28,12 +28,12 @@ All state lives under `.claude-code-hermit/` in the project root.
    - **Dead process detection:** If `session_state == "dead_process"`: same flow as unclean shutdown above, with message: "Process died unexpectedly. Previous task: [task from SHELL.md, or 'unknown']. Reply with (1) to archive as partial and start fresh, or (2) to resume where we left off."
    - **Normal state:** If `session_state` is `idle` → ready for new task. If `in_progress` or `waiting` → existing session, offer resume.
 3b. **Watch registry reset.** Read `state/monitors.runtime.json` and clear all entries unconditionally — watches are session-scoped, so any previous entries are stale. If the file is missing, skip. This runs on every session start (new, resume, or crash recovery) before any watch registration occurs.
-4. Use the `session-mgr` agent to check session state and handle SHELL.md
+4. Use the `claude-code-hermit:session-mgr` agent to check session state and handle SHELL.md
 4b. If session-mgr reports SHELL.md exists with Status `idle` (or runtime.json `session_state` is `idle`):
    - This is a session between tasks — do NOT create a new session or SHELL.md
    - Present: session start date, tasks completed count, latest entry from Session Summary
    - Skip to step 5 (NEXT-TASK.md check) to determine the task source
-   - When a task is provided: use `session-mgr` to set Status back to `in_progress` (cosmetic in SHELL.md) and update runtime.json `session_state` to `in_progress`. Fill in Task. After confirming the plan with the operator, create native Tasks (`TaskCreate`) for each step.
+   - When a task is provided: use `claude-code-hermit:session-mgr` to set Status back to `in_progress` (cosmetic in SHELL.md) and update runtime.json `session_state` to `in_progress`. Fill in Task. After confirming the plan with the operator, create native Tasks (`TaskCreate`) for each step.
    - The session ID is pre-computed in runtime.json (set by session-mgr on previous idle transition)
    - If heartbeat is running, it continues
 5. Read `.claude-code-hermit/OPERATOR.md` for project context and constraints
@@ -53,10 +53,10 @@ All state lives under `.claude-code-hermit/` in the project root.
 9b. If resuming an idle session (runtime.json `session_state` is `idle`):
    - Show session continuity info: tasks completed, session duration, cumulative cost
    - Ask: "What should I work on next?" (unless a NEXT-TASK.md was accepted in step 6)
-   - Once provided, use `session-mgr` to update SHELL.md: set Status to `in_progress` (cosmetic), fill Task. Update runtime.json `session_state` to `in_progress`. After confirming the plan, create native Tasks for each step.
+   - Once provided, use `claude-code-hermit:session-mgr` to update SHELL.md: set Status to `in_progress` (cosmetic), fill Task. Update runtime.json `session_state` to `in_progress`. After confirming the plan, create native Tasks for each step.
 10. If starting a new session:
    - Ask the operator: "What should I help with?" (unless a NEXT-TASK.md was accepted in step 6)
-   - Once provided, use `session-mgr` to create the session with the task. After confirming the plan, create native Tasks (`TaskCreate`) for each step.
+   - Once provided, use `claude-code-hermit:session-mgr` to create the session with the task. After confirming the plan, create native Tasks (`TaskCreate`) for each step.
 11. Once I know what to work on (new session only):
     - **Tags:** Ask "Any tags for this session? (e.g., refactor, frontend, urgent) Enter to skip." Write the answer to the `Tags:` field in SHELL.md. If skipped, leave blank.
     - **Budget:** Check `ask_budget` from the config read in step 1. If `ask_budget` is `true`:
