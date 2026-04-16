@@ -208,8 +208,9 @@ if [ "$NEEDS_OFFICIAL" = true ] && [ -n "$CHANNELS" ]; then
   for plugin in $CHANNELS; do
     if ! echo "$INSTALLED_PLUGINS" | grep -qF "${plugin}@claude-plugins-official"; then
       echo "[docker-entrypoint] Installing channel plugin: ${plugin}"
-      claude plugin install "${plugin}@claude-plugins-official" --scope local || \
-        echo "[docker-entrypoint] Warning: failed to install ${plugin} plugin — install manually"
+      claude plugin install "${plugin}@claude-plugins-official" --scope local && \
+        claude plugin enable "${plugin}@claude-plugins-official" --scope local || \
+        echo "[docker-entrypoint] Warning: failed to install/enable ${plugin} plugin — install manually"
     fi
   done
 fi
@@ -240,6 +241,10 @@ for entry in plugins:
     result = subprocess.run(['claude', 'plugin', 'install', install_target, '--scope', scope])
     if result.returncode != 0:
         print(f'[docker-entrypoint] Warning: failed to install {plugin} — install manually')
+        continue
+    result = subprocess.run(['claude', 'plugin', 'enable', install_target, '--scope', scope])
+    if result.returncode != 0:
+        print(f'[docker-entrypoint] Warning: failed to enable {plugin} — run: claude plugin enable {install_target}')
 " "$RECOMMENDED_PLUGINS_JSON" "$INSTALLED_PLUGINS"
 fi
 
