@@ -173,9 +173,9 @@ MARKETPLACE_DIR="${CLAUDE_CONFIG_DIR}/plugins/marketplaces"
 # Hermit marketplace + plugin
 if [ ! -d "${MARKETPLACE_DIR}/claude-code-hermit" ]; then
   echo "[docker-entrypoint] Adding hermit marketplace..."
-  claude plugin marketplace add gtapps/claude-code-hermit 2>/dev/null || true
+  claude plugin marketplace add gtapps/claude-code-hermit || true
   echo "[docker-entrypoint] Installing hermit plugin..."
-  claude plugin install claude-code-hermit@claude-code-hermit --scope project 2>/dev/null || \
+  claude plugin install claude-code-hermit@claude-code-hermit --scope project || \
     echo "[docker-entrypoint] Warning: failed to install hermit plugin — install manually"
 fi
 
@@ -185,7 +185,7 @@ NEEDS_OFFICIAL=false
 [ -n "$RECOMMENDED_PLUGINS_JSON" ] && [ "$RECOMMENDED_PLUGINS_JSON" != "[]" ] && NEEDS_OFFICIAL=true
 if [ "$NEEDS_OFFICIAL" = true ] && [ ! -d "${MARKETPLACE_DIR}/claude-plugins-official" ]; then
   echo "[docker-entrypoint] Adding official plugins marketplace..."
-  claude plugin marketplace add anthropics/claude-plugins-official 2>/dev/null || true
+  claude plugin marketplace add anthropics/claude-plugins-official || true
 fi
 
 # Snapshot installed plugins once — used by channel and recommended plugin checks below.
@@ -196,7 +196,7 @@ if [ -n "$CHANNELS" ]; then
   for plugin in $CHANNELS; do
     if ! echo "$INSTALLED_PLUGINS" | grep -qF "${plugin}@claude-plugins-official"; then
       echo "[docker-entrypoint] Installing channel plugin: ${plugin}"
-      claude plugin install "${plugin}@claude-plugins-official" --scope local 2>/dev/null || \
+      claude plugin install "${plugin}@claude-plugins-official" --scope local || \
         echo "[docker-entrypoint] Warning: failed to install ${plugin} plugin — install manually"
     fi
   done
