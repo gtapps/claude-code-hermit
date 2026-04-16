@@ -109,7 +109,12 @@ config_path = os.path.join(project, '.claude-code-hermit', 'config.json')
 channels = []
 if os.path.exists(config_path):
     with open(config_path) as f: cfg = json.load(f)
-    channels = cfg.get('channels', [])
+    channels_raw = cfg.get('channels', {})
+    if isinstance(channels_raw, dict):
+        channels = [name for name, entry in channels_raw.items()
+                    if not isinstance(entry, dict) or entry.get('enabled', True)]
+    else:
+        channels = list(channels_raw)
 if channels:
     plugin_ids = {
         'discord': 'plugin:discord:discord',
@@ -185,14 +190,21 @@ NEEDS_OFFICIAL=false
 [ -n "$RECOMMENDED_PLUGINS_JSON" ] && [ "$RECOMMENDED_PLUGINS_JSON" != "[]" ] && NEEDS_OFFICIAL=true
 if [ "$NEEDS_OFFICIAL" = true ] && [ ! -d "${MARKETPLACE_DIR}/claude-plugins-official" ]; then
   echo "[docker-entrypoint] Adding official plugins marketplace..."
-  claude plugin marketplace add anthropics/claude-plugins-official || true
+  if ! claude plugin marketplace add anthropics/claude-plugins-official; then
+    echo "[docker-entrypoint] ERROR: failed to add claude-plugins-official marketplace."
+    echo "[docker-entrypoint]        Channel and recommended plugins will NOT be installed."
+    echo "[docker-entrypoint]        Fix: shell into the container and run the command manually:"
+    echo "[docker-entrypoint]          .claude-code-hermit/bin/hermit-docker bash"
+    echo "[docker-entrypoint]          claude plugin marketplace add anthropics/claude-plugins-official"
+    NEEDS_OFFICIAL=false
+  fi
 fi
 
 # Snapshot installed plugins once — used by channel and recommended plugin checks below.
 INSTALLED_PLUGINS=$(claude plugin list 2>/dev/null || echo "")
 
 # Channel plugins
-if [ -n "$CHANNELS" ]; then
+if [ "$NEEDS_OFFICIAL" = true ] && [ -n "$CHANNELS" ]; then
   for plugin in $CHANNELS; do
     if ! echo "$INSTALLED_PLUGINS" | grep -qF "${plugin}@claude-plugins-official"; then
       echo "[docker-entrypoint] Installing channel plugin: ${plugin}"
@@ -205,7 +217,7 @@ fi
 # Recommended plugins (enabled entries extracted from config.json above)
 # Only auto-installs from claude-plugins-official. Third-party plugins are skipped
 # with a warning — they must be installed manually due to bypassPermissions risk.
-if [ -n "$RECOMMENDED_PLUGINS_JSON" ] && [ "$RECOMMENDED_PLUGINS_JSON" != "[]" ]; then
+if [ "$NEEDS_OFFICIAL" = true ] && [ -n "$RECOMMENDED_PLUGINS_JSON" ] && [ "$RECOMMENDED_PLUGINS_JSON" != "[]" ]; then
   python3 -c "
 import json, subprocess, sys
 
