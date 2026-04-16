@@ -2,6 +2,15 @@
 
 ## [1.0.4] - 2026-04-16
 
+### Fixed
+
+- **`waiting_reason` field in `runtime.json`** — New field that records why a session entered `waiting` state: `"unclean_shutdown"`, `"dead_process"`, `"conservative_pickup"`, or `"operator_input"`. Cleared to `null` when exiting `waiting`. Fixes `channel-responder` routing: on unclean shutdown or dead process, an operator reply of `(1)` / `(2)` now correctly triggers archive-or-resume via `session-mgr` instead of being treated as a task instruction.
+- **`session-mgr`: `session_id` written to SHELL.md on open** — Step 6 now patches the `**ID:**` placeholder in SHELL.md with the actual `S-NNN` value so the session header is correct from the first tick. Previously the placeholder persisted until close.
+- **`session-mgr`: `cost_usd` reads `.status.json` first** — On session close, `cost_usd` is read from `.claude-code-hermit/sessions/.status.json` (written by the cost-tracker hook) before falling back to parsing the SHELL.md `## Cost` section. Fixes sessions where the hook-written cost was silently discarded.
+- **`session-start`: fast-path gate patches SHELL.md ID placeholder** — When the fast path fires (no session-mgr spawn), if `runtime.json` has a `session_id` and SHELL.md still shows the `S-NNN` placeholder, it is updated in-context without spawning session-mgr.
+- **`routine-watcher.sh`: drain stale queue entries on startup** — Entries older than 2 hours (one heartbeat cycle) are pruned from `routine-queue.json` at watcher start. Prevents phantom stale-routine alerts from accumulating across restarts.
+- **`heartbeat`: micro-proposal pending alert** — New step 6 checks `micro-proposals.json` for pending tier-1 entries and appends a monitoring alert using semantic key `micro-proposal-pending:<id>`. Prevents tier-1 micro-proposals from silently expiring if the operator doesn't notice them. Stale queue alert message now includes elapsed time for clarity.
+
 ### Changed
 
 - **`proposal-act`: accept no longer stamps `resolved_date`** — Accept flow now sets only `status: accepted` + `accepted_date`. `resolved_date` is set later by `reflect` when it confirms the pattern is actually gone (3 consecutive session reports with no recurrence). This fixes a semantic mismatch where `weekly-review.js`'s resolution count was always zero despite accepted proposals.
@@ -18,13 +27,16 @@
 
 | File | Change |
 |------|--------|
+| `agents/session-mgr.md` | `waiting_reason` field docs; `session_id` → SHELL.md on open; `cost_usd` reads `.status.json` first |
+| `scripts/routine-watcher.sh` | Drain stale queue entries older than 2h on startup |
+| `skills/channel-responder/SKILL.md` | Route `waiting_reason` for unclean shutdown / dead process replies |
+| `skills/heartbeat/SKILL.md` | `micro-proposal-pending` alert key; step 6 micro-proposal check; `noise_ticks` self-eval field; stale queue message includes elapsed time; `waiting_reason` on NEXT-TASK.md conservative pickup |
+| `skills/session-start/SKILL.md` | Set `waiting_reason` on unclean shutdown / dead process; fast-path patches SHELL.md ID; de-duplicate notification routing |
 | `skills/proposal-act/SKILL.md` | Remove `resolved_date` stamp from accept flow |
 | `skills/reflect/SKILL.md` | Add resolution check procedure; de-duplicate notification routing; preserve micro-proposal `question` in JSONL |
 | `agents/reflection-judge.md` | Add explicit `Sessions: none` suppression gate |
 | `skills/proposal-create/SKILL.md` | Add `source` and `category` to `created` metrics events |
 | `scripts/generate-summary.js` | Per-source acceptance rates and resolved count |
-| `skills/session-start/SKILL.md` | De-duplicate notification routing |
-| `skills/heartbeat/SKILL.md` | Add `noise_ticks` self-eval field |
 | `docs/frontmatter-contract.md` | Update `resolved_date` lifecycle table |
 
 ### Upgrade Instructions
