@@ -17,7 +17,7 @@ Turn Claude Code into a Always-on Personal AI assistant that lives in your proje
 <p align="center">
   <img src="assets/demo.gif" alt="claude-code-hermit demo — Obsidian dashboard, Discord control, autonomous briefings, remote access" width="720" />
 </p>
-> Three commands to a running hermit:
+ Three commands to a running hermit:
 > ```
 > claude plugin install claude-code-hermit@claude-code-hermit --scope project
 > /claude-code-hermit:hatch # setup in your project & folder
@@ -82,16 +82,6 @@ To attach interactively (debug, check in, or run commands):
 For more, check out [Always-On Setup](docs/always-on.md).
 
 > **Don't want to use Docker?** See [Always-On Operations](docs/always-on-ops.md) for running with bare tmux — lighter but without container isolation.
-
-### 5. Connect your phone (Recommended)
-
-Install the [Claude Code Channels](https://code.claude.com/docs/en/channels) plugin for your platform:
-
-```bash
-claude plugin install discord@claude-plugins-official   # or telegram, imessage
-```
-
-Pair your account by messaging the bot — it walks you through it. Once connected, you control your hermit from your phone: send instructions, check status, get alerts. Combined with [remote control](https://code.claude.com/docs/en/remote-control) (enabled by default), you never need to touch the terminal again.
 
 ---
 
