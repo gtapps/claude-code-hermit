@@ -25,7 +25,7 @@ All timestamps in frontmatter and Operator Decision text use ISO 8601 with timez
 When the operator accepts a proposal:
 
 1. Read the proposal file from `.claude-code-hermit/proposals/PROP-NNN.md`
-2. Update the YAML frontmatter: set `status` to `accepted`, add `accepted_date` and `resolved_date` as timestamps. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
+2. Update the YAML frontmatter: set `status` to `accepted`, add `accepted_date` as timestamp. Do NOT set `resolved_date` — resolution happens when reflect confirms the pattern is gone. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
 2b. **First-response tracking:** Check if the proposal's `responded` field is already `true`. If `false`: set `responded: true` in frontmatter, then append a `responded` event:
    ```
    node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"responded","proposal_id":"PROP-NNN","action":"accept"}'

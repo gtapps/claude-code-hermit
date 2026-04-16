@@ -44,7 +44,7 @@ Evidence: <one-paragraph evidence summary>
    - Write YAML frontmatter with:
      - `id`: the assigned PROP-NNN
      - `status`: `proposed`
-     - `source`: `manual` (default) or `auto-detected` (when invoked by `reflect`)
+     - `source`: `manual` (default), `auto-detected` (when invoked by `reflect`), or `operator-request` (when triggered by a direct operator request)
      - `session`: the current session ID (S-NNN)
      - `created`: current ISO 8601 timestamp with timezone offset (e.g., `2026-04-06T14:30:00+01:00`). Use the timezone from `config.json` if set, otherwise UTC.
      - `related_sessions`: relevant session IDs as YAML array (optional — used by auto-detected proposals to link evidence across multiple sessions). Use `[]` if none.
@@ -53,8 +53,9 @@ Evidence: <one-paragraph evidence summary>
        - `routine` — repeating scheduled task
        - `capability` — new agent, skill, or heartbeat item
        - `constraint` — OPERATOR.md refinement
+       - `bug` — incorrect or broken behavior
      - `title`: short proposal title (same text used in the H1 heading after the dash)
-     - `resolved_date`: `null` (set later by proposal-act)
+     - `resolved_date`: `null` (set later by reflect when pattern is confirmed gone)
    - Fill in the title in the H1 heading
    - Write a clear Context, Problem, Proposed Solution, and Impact
    - Leave "Operator Decision" blank — the operator fills that in
@@ -62,9 +63,9 @@ Evidence: <one-paragraph evidence summary>
 
 3. Add a reference to the proposal in `.claude-code-hermit/sessions/SHELL.md` under the Findings section
 
-4. Append a `created` event to proposal metrics:
+4. Append a `created` event to proposal metrics (include `source` and `category` from the frontmatter):
    ```
-   node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"created","proposal_id":"PROP-NNN"}'
+   node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"created","proposal_id":"PROP-NNN","source":"manual","category":"improvement"}'
    ```
 5. Update state summary:
    ```

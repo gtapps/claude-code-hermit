@@ -102,15 +102,24 @@ Triggered every 20 ticks. The tick counter persists in `state/alert-state.json` 
 
    **`sessions_seen` definition:** Number of distinct session IDs (read from SHELL.md `**ID:**` field) during which this item was evaluated. Incremented only when the current session ID differs from `last_session_id`.
 
-   **Self-eval entry fields:** `text` (string), `clean_ticks` (int, reset to 0 on alert), `sessions_seen` (int), `last_session_id` (string), `first_observed` (date string), `proposed` (bool).
+   **Self-eval entry fields:** `text` (string), `clean_ticks` (int, reset to 0 on alert), `noise_ticks` (int, see below), `sessions_seen` (int), `last_session_id` (string), `first_observed` (date string), `proposed` (bool).
 
-2b. **Dismissal cleanup:** Scan `proposals/` for PROP-NNN files where all of the following are true: `source` is `auto-detected`, `status` is `dismissed`, and `self_eval_key` is present and non-null in frontmatter. For each such proposal, look up the matching entry in `self_eval` by `self_eval_key` (not by text). If found and `proposed: true`: reset `proposed: false` and clear `clean_ticks` to 0. This runs on every self-eval pass. Heartbeat owns its own state cleanup — no dependency on reflect or proposal-act timing.
+2b. **Proposals scan (dismissal cleanup + noise tracking):** Scan `proposals/` once for all PROP-NNN files that have `self_eval_key` present and non-null in frontmatter. For each matched proposal, look up the `self_eval` entry by `self_eval_key`, then apply both rules in a single pass:
+
+   **Dismissal cleanup** (runs for all items, every self-eval pass):
+   - If `source` is `auto-detected`, `status` is `dismissed`, and `proposed: true` → reset `proposed: false` and clear `clean_ticks` to 0. Heartbeat owns its own state cleanup — no dependency on reflect or proposal-act timing.
+
+   **Noise tracking** (runs only for items where alerts fired in the last 20 ticks):
+   - If `status` is `accepted` or `resolved` → reset `noise_ticks` to 0 (the alert led somewhere useful).
+   - If `status` is `dismissed` → increment `noise_ticks` by 1 (alert fired, fix was dismissed — noisy signal).
+   - If no linked proposal exists for the item: no change to `noise_ticks`.
 
 3. **Checklist weight:** Count items in HEARTBEAT.md. If > 10: track in `self_eval` with text `"Checklist weight: {N} items"`.
 
 4. **Proposal threshold check:** For each `self_eval` entry where `proposed: false`:
    - `clean_ticks >= 20` AND `sessions_seen >= 3` → create proposal via `/claude-code-hermit:proposal-create` with category `capability`, `source: auto-detected`, `self_eval_key: <item_key>`, evidence: `"Item '{text}' has been clean for {clean_ticks} consecutive ticks across {sessions_seen} sessions. Consider removing it from HEARTBEAT.md to reduce token cost."`
-   - Set `proposed: true`.
+   - `noise_ticks >= 20` AND `sessions_seen >= 3` → create proposal via `/claude-code-hermit:proposal-create` with category `capability`, `source: auto-detected`, `self_eval_key: <item_key>`, evidence: `"Item '{text}' has fired {noise_ticks} consecutive noisy alerts (alerts tied to dismissed proposals) across {sessions_seen} sessions. Consider retuning or removing it from HEARTBEAT.md."`
+   - Set `proposed: true` after creating either type of proposal.
    - Checklist weight violation uses same threshold: 20 ticks + 3 sessions with > 10 items.
 
 5. **No channel message. No SHELL.md append.** Output only flows through the proposal pipeline.

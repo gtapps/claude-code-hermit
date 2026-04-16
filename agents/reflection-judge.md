@@ -31,6 +31,14 @@ Multiple candidates may be passed in one invocation.
 
 ## For Each Candidate
 
+### 0. Sessions: none check
+
+If `Sessions: none` is passed, return immediately:
+```
+SUPPRESS: <title> — no cross-session evidence cited
+```
+Do not proceed to evidence verification or tier check.
+
 ### 1. Evidence verification (when sessions are cited)
 
 For each cited session ID:

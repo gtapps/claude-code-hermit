@@ -4,8 +4,8 @@ description: Initializes or resumes a work session. Loads context from OPERATOR.
 ---
 # Session Start
 
-## Always-On Notification Rule
-In always-on mode (`runtime_mode` is `tmux`/`docker`) with channels configured, deliver all operator-facing output via the channel — the terminal is unmonitored. Apply to every step that says "tell the operator", "offer", "ask", or "notify".
+## Operator Notification
+Notify the operator per the channel policy in CLAUDE.md (§ Operator Notification).
 
 When starting a new session:
 

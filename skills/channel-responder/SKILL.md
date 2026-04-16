@@ -70,9 +70,9 @@ This is how the agent learns the DM channel ID for proactive outbound notificati
 
 - **Micro-approval response** ("yes", "no", or similar while a pending micro-proposal exists)
   - Read `state/micro-proposals.json`. If `active` is not null and `status` is `pending`:
-    - **"yes"** on tier 1 → execute the change at next idle, log outcome in SHELL.md, set `status: "approved"`, clear `active` to null. Append `micro-resolved` event via `append-metrics.js`: `{"ts":"<now ISO>","type":"micro-resolved","micro_id":"<id>","action":"approved"}`
-    - **"yes"** on tier 2 → create PROP-NNN via `/claude-code-hermit:proposal-create`, queue for next idle, set `status: "approved"`, clear `active` to null. Append `micro-resolved` event.
-    - **"no"** → set `status: "rejected"`, clear `active` to null. Append `micro-resolved` event with `"action":"rejected"`.
+    - **"yes"** on tier 1 → execute the change at next idle, log outcome in SHELL.md, set `status: "approved"`, clear `active` to null. Append `micro-resolved` event via `append-metrics.js`: `{"ts":"<now ISO>","type":"micro-resolved","micro_id":"<id>","action":"approved","question":"<active.question>"}` (read `question` from the active slot before clearing)
+    - **"yes"** on tier 2 → create PROP-NNN via `/claude-code-hermit:proposal-create`, queue for next idle, set `status: "approved"`, clear `active` to null. Append `micro-resolved` event with `"question":"<active.question>"`.
+    - **"no"** → set `status: "rejected"`, clear `active` to null. Append `micro-resolved` event with `"action":"rejected","question":"<active.question>"`.
     - **Ambiguous response** → ask for clarification once, do not resolve yet.
   - If no pending micro-proposal: classify as normal message (fall through to categories below).
 

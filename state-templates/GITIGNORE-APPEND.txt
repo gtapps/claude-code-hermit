@@ -11,3 +11,4 @@
 .claude-code-hermit/state/
 .claude-code-hermit/raw/
 .claude-code-hermit/compiled/
+.claude-code-hermit/cost-summary.md

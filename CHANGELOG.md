@@ -1,5 +1,29 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **`proposal-act`: accept no longer stamps `resolved_date`** — Accept flow now sets only `status: accepted` + `accepted_date`. `resolved_date` is set later by `reflect` when it confirms the pattern is actually gone (3 consecutive session reports with no recurrence). This fixes a semantic mismatch where `weekly-review.js`'s resolution count was always zero despite accepted proposals.
+- **`reflect`: concrete Resolution Check procedure** — Added a bounded round-robin step (up to 5 accepted proposals per reflect cycle) that reads each proposal's evidence, scans the last 3 session reports, and marks resolved if the pattern is absent. Tracks round-robin position in `state/reflection-state.json` under `last_resolution_check`. Appends a `resolved` metrics event on each transition.
+- **`reflection-judge`: explicit gate for `Sessions: none`** — Added a step 0 rule: if `Sessions: none` is passed, the judge immediately returns `SUPPRESS: <title> — no cross-session evidence cited`. No evidence verification or tier check is performed. `reflect` notes SUPPRESSED candidates in SHELL.md Findings for future revisit.
+- **`proposal-create`: `created` events now include `source` and `category`** — The metrics payload for proposal creation now includes `source` (manual / auto-detected / operator-request) and `category` (improvement / routine / capability / constraint / bug). Adds `operator-request` and `bug` to enums (previously documented in `frontmatter-contract.md` but absent from the skill).
+- **`generate-summary.js`: per-source acceptance rates and resolved count** — New metrics: auto-detected acceptance rate, manual acceptance rate, resolved proposal count. Frontmatter gains `proposals_resolved` and `auto_detect_accept_rate` fields. Allows answering "are autonomous proposals good?" for the first time.
+- **`reflect`, `session-start`: notification routing de-duplicated** — The "Always-On Notification Rule" block (identical in both skills) replaced with a one-liner deferring to CLAUDE.md § Operator Notification. Single source of truth stays in `CLAUDE-APPEND.md`.
+- **`reflect`: micro-proposal `question` text preserved in JSONL** — `micro-queued` events now include `question` (full text). The question is also stored in `micro-proposals.json` active slot so `channel-responder` and `brief` can echo it in `micro-resolved` events. Enables post-hoc analysis of what was asked and operator response patterns.
+- **`heartbeat`: `noise_ticks` self-eval field** — Self-eval entries gain a `noise_ticks` counter incremented when an alert fires and is linked to a dismissed proposal (via `self_eval_key`). Lazy reset when a linked proposal is accepted or resolved. At 20+ noise ticks across 3+ sessions, creates a proposal to retune or remove the noisy check — mirrors the existing `clean_ticks` removal pathway.
+- **`docs/frontmatter-contract.md`: lifecycle table updated** — `resolved_date` writer changed from `proposal-act` to `reflect skill (pattern absence)`.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **No config.json changes required** — all changes are in skill/agent files.
+2. **`state/reflection-state.json`** — if it exists and lacks a `last_resolution_check` key, no action needed; the resolution check procedure initializes it on first run.
+3. **`state/alert-state.json` self_eval entries** — existing entries lack `noise_ticks`. The heartbeat self-eval step initializes missing fields as 0 on first read; no manual migration needed.
+4. **Existing `proposal-metrics.jsonl` events** — old `created` events without `source`/`category` fields are handled by `generate-summary.js` bucketing them as `unknown`. No backfill required.
+5. **Accepted proposals with `resolved_date` already set** — these were stamped at accept time under the old behavior. They may show a `resolved_date` even though `status` is `accepted`, not `resolved`. On first reflect run, the resolution check will re-evaluate them. If the pattern is gone, they'll be promoted to `resolved` (updating `resolved_date` to the current time). If not, `resolved_date` stays set but `status` remains `accepted` — a cosmetically odd but non-breaking state that will self-heal.
+
 ## [1.0.3] - 2026-04-16
 
 ### Added

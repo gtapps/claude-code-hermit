@@ -32,7 +32,7 @@ After composing the morning brief, check `state/micro-proposals.json`:
   Append with softer framing: "Still waiting on: [question] — ignore again to drop it"
   Then increment `follow_up_count` to 2.
 - If `active` is not null and `status` is `pending` and `follow_up_count` >= 2:
-  Set `status: "expired"`, clear `active` to null. Append `micro-resolved` event via `append-metrics.js` with `"action":"expired"`. Do not resurrect unless fresh evidence accumulates from scratch.
+  Read `active.question` first, then set `status: "expired"`, clear `active` to null. Append `micro-resolved` event via `append-metrics.js` with `"action":"expired","question":"<active.question>"`. Do not resurrect unless fresh evidence accumulates from scratch.
 - If no active pending: brief ends without a decision prompt.
 Never append more than one pending decision.
 

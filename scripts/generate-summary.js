@@ -59,15 +59,31 @@ try {
 // Read proposal metrics
 let proposalsCreated = 0;
 let proposalsResponded = 0;
+let proposalsResolved = 0;
 let microQueued = 0;
 let microApproved = 0;
+const proposalSource = {}; // proposal_id -> source (for cross-referencing accepts by source)
+const createdBySource = {}; // source -> count
+const acceptedBySource = {}; // source -> count
 try {
   const lines = fs.readFileSync(METRICS_FILE, 'utf-8').trim().split('\n').filter(Boolean);
   for (const line of lines) {
     try {
       const event = JSON.parse(line);
-      if (event.type === 'created') proposalsCreated++;
-      if (event.type === 'responded') proposalsResponded++;
+      if (event.type === 'created') {
+        proposalsCreated++;
+        const src = event.source || 'unknown';
+        if (event.proposal_id) proposalSource[event.proposal_id] = src;
+        createdBySource[src] = (createdBySource[src] || 0) + 1;
+      }
+      if (event.type === 'responded') {
+        proposalsResponded++;
+        if (event.action === 'accept' && event.proposal_id) {
+          const src = proposalSource[event.proposal_id] || 'unknown';
+          acceptedBySource[src] = (acceptedBySource[src] || 0) + 1;
+        }
+      }
+      if (event.type === 'resolved') proposalsResolved++;
       if (event.type === 'micro-queued') microQueued++;
       if (event.type === 'micro-resolved' && event.action === 'approved') microApproved++;
     } catch {}
@@ -75,6 +91,19 @@ try {
 } catch (err) {
   if (err.code !== 'ENOENT') process.stderr.write(`generate-summary: failed to read metrics: ${err.message}\n`);
 }
+
+// Acceptance rate per source
+function srcAcceptRate(src) {
+  const created = createdBySource[src] || 0;
+  const accepted = acceptedBySource[src] || 0;
+  return created > 0 ? Math.round((accepted / created) * 100) : null;
+}
+const autoDetectAcceptRate = srcAcceptRate('auto-detected');
+const manualAcceptRate = srcAcceptRate('manual');
+
+// Rate formatting helpers
+const fmtRate = (rate) => rate !== null ? (rate / 100).toFixed(2) : 'null';
+const fmtRateStr = (rate) => rate !== null ? `${rate}%` : 'no data';
 
 // Read micro-proposals state
 let microPending = false;
@@ -95,12 +124,12 @@ const lastReflectionStr = lastReflection
   ? new Date(lastReflection).toISOString().replace('T', ' ').slice(0, 16)
   : 'never';
 
-const responseRateStr = responseRate !== null ? `${responseRate}%` : 'no data';
+const responseRateStr = fmtRateStr(responseRate);
 
 const microApprovalRate = microQueued > 0
   ? Math.round((microApproved / microQueued) * 100)
   : null;
-const microApprovalRateStr = microApprovalRate !== null ? `${microApprovalRate}%` : 'no data';
+const microApprovalRateStr = fmtRateStr(microApprovalRate);
 
 const content = `---
 updated: ${new Date().toISOString()}
@@ -108,9 +137,12 @@ active_alerts: ${activeAlerts}
 suppressed_alerts: ${suppressedAlerts}
 proposals_created: ${proposalsCreated}
 proposals_responded: ${proposalsResponded}
-response_rate: ${responseRate !== null ? (responseRate / 100).toFixed(2) : 'null'}
+proposals_resolved: ${proposalsResolved}
+response_rate: ${fmtRate(responseRate)}
+auto_detect_accept_rate: ${fmtRate(autoDetectAcceptRate)}
+manual_accept_rate: ${fmtRate(manualAcceptRate)}
 micro_pending: ${microPending}
-micro_approval_rate: ${microApprovalRate !== null ? (microApprovalRate / 100).toFixed(2) : 'null'}
+micro_approval_rate: ${fmtRate(microApprovalRate)}
 last_reflection: ${lastReflection || 'null'}
 ---
 # Agent State
@@ -120,9 +152,12 @@ Active: ${activeAlerts}
 Suppressed: ${suppressedAlerts}
 
 ## Proposals
-Created: ${proposalsCreated}
+Created: ${proposalsCreated} (auto-detected: ${createdBySource['auto-detected'] || 0}, manual: ${createdBySource['manual'] || 0})
 Responded: ${proposalsResponded}
+Resolved: ${proposalsResolved}
 Response rate: ${responseRateStr}
+Auto-detected accept rate: ${fmtRateStr(autoDetectAcceptRate)}
+Manual accept rate: ${fmtRateStr(manualAcceptRate)}
 
 ## Micro-Proposals
 Pending: ${microPending ? 'yes' : 'no'}

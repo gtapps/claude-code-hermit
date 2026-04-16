@@ -4,14 +4,30 @@ description: Reflect on recent work and propose improvements if patterns are not
 ---
 # Reflect
 
-## Always-On Notification Rule
-In always-on mode (`runtime_mode` is `tmux`/`docker`) with channels configured, deliver all operator-facing output via the channel — the terminal is unmonitored. Apply to every step that says "tell the operator", "offer", "ask", or "notify".
+## Operator Notification
+Notify the operator per the channel policy in CLAUDE.md (§ Operator Notification).
 
 Pause and think about your recent work.
 
 1. Read SHELL.md for current context
 2. Read last 20 lines of cost-log.jsonl for cost data
 3. Scan proposals/ for existing proposals (dedup, stale check, feedback loop). Parse metadata from YAML frontmatter if present (file starts with `---`). Fall back to parsing bullet-point metadata (`**Status:**`, `**Source:**`, etc.) for pre-Observatory proposals.
+
+4. **Resolution Check** — check whether any accepted proposals can be marked resolved. **Cap: check up to 5 per reflect cycle, round-robin.**
+
+   a. Read `state/reflection-state.json` → `last_resolution_check` (last PROP-NNN checked, or null if first run).
+   b. Read all proposals with `status: accepted`. Sort by `accepted_date` ascending. Resume from the proposal after `last_resolution_check`, wrapping around. Take up to 5.
+   c. If the accepted list from step b is empty, skip to step f.
+   d. For each proposal: read its `title` and Evidence section to understand the original pattern.
+      Glob `.claude-code-hermit/sessions/S-*-REPORT.md`, sort descending, take the 3 most recent.
+   e. If the pattern is **absent** from all 3 checked sessions → mark resolved:
+      - Update frontmatter: `status: resolved`, `resolved_date: <now ISO>`.
+      - Append a `resolved` event:
+        ```
+        node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"resolved","proposal_id":"PROP-NNN"}'
+        ```
+      - Note in SHELL.md Findings: "PROP-NNN resolved — pattern absent from last 3 sessions."
+   f. Note the last PROP-NNN checked (or null if batch was empty). Include as `last_resolution_check` in the final state write in the State Update section below — do NOT write `reflection-state.json` here.
 
 Now reflect — using your memory and the context above:
 - Is anything recurring that shouldn't be?
@@ -21,8 +37,6 @@ Now reflect — using your memory and the context above:
 - Did I do something manually that a skill already covers?
 - Could a subagent have handled a repeating subtask within this session?
 - Was context bloat avoidable — did I load files I didn't need, or keep large content in context longer than necessary?
-- Are there accepted proposals that the problem hasn't come back for?
-  If so, mark them resolved.
 
 If SHELL.md status is `idle` — think broader:
 - Should any recurring check be added to HEARTBEAT.md?
@@ -114,7 +128,7 @@ Sessions: <S-001, S-002, ...> (or "none")
 
 - **ACCEPT** — proceed with the candidate at its original tier
 - **DOWNGRADE:<new-tier>** — proceed at the revised tier
-- **SUPPRESS** — drop silently, no SHELL.md entry needed
+- **SUPPRESS** — if suppressed due to `Sessions: none`, note the candidate in SHELL.md Findings for future revisit. Otherwise drop silently.
 
 Only act on ACCEPT and DOWNGRADE verdicts.
 
@@ -122,8 +136,7 @@ Only act on ACCEPT and DOWNGRADE verdicts.
 
 After reflecting and validating with `claude-code-hermit:reflection-judge`, choose exactly one outcome per observation:
 
-1. **No action** — pattern not strong enough, already handled, OR previously
-   accepted proposal's problem no longer appears → mark proposal resolved
+1. **No action** — pattern not strong enough, already handled, or already addressed by the Resolution Check above.
 2. **Memory update** — fact worth recording → update project memory directly
 3. **Proposal candidate** — repeated pattern + clear consequence + operator-actionable
    → classify tier (see Proposal Tier Classification below):
@@ -178,12 +191,12 @@ Do not queue vague questions like "Found a pattern. Want me to improve it?" — 
 ### Queuing procedure
 
 1. Generate ID: `MP-YYYYMMDD-N` where N increments within the same day (0, 1, 2). Check existing `micro-queued` events in `proposal-metrics.jsonl` for today to determine N.
-2. Write to `state/micro-proposals.json`: set `active` to the new entry with `status: "pending"`, `follow_up_count: 0`. Append `micro-queued` event to `proposal-metrics.jsonl` via `append-metrics.js`: `{"ts":"<now ISO>","type":"micro-queued","micro_id":"MP-YYYYMMDD-N","tier":1}`
+2. Write to `state/micro-proposals.json`: set `active` to the new entry with `status: "pending"`, `follow_up_count: 0`, `question: "<full question text>"`. Append `micro-queued` event to `proposal-metrics.jsonl` via `append-metrics.js`: `{"ts":"<now ISO>","type":"micro-queued","micro_id":"MP-YYYYMMDD-N","tier":1,"question":"<full question text>"}`
 3. Notify the operator with the question.
 
 ## State Update
 
 After each reflection run:
-1. Merge `{"last_reflection": "<now ISO with timezone offset from config>"}` into `state/reflection-state.json` (preserve existing keys including `plugin_checks`).
+1. Merge `{"last_reflection": "<now ISO with timezone offset from config>", "last_resolution_check": "<last PROP-NNN checked or null>"}` into `state/reflection-state.json` (preserve existing keys including `plugin_checks`). This is the single write to `reflection-state.json` per reflect run.
 
 If nothing stands out: say nothing.

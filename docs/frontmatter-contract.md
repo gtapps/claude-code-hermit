@@ -126,7 +126,7 @@ accepted_in_session: S-052
 | `id`, `title`, `status`, `source`, `session`, `created`, `category` | `session-mgr` via `proposal-create` | Proposal creation                         |
 | `accepted_date`                                                     | `proposal-act` skill                | Operator accepts proposal                 |
 | `accepted_in_session`                                               | `proposal-act` skill                | Operator accepts during an active session |
-| `resolved_date`                                                     | `proposal-act` skill                | Proposal marked resolved                  |
+| `resolved_date`                                                     | `reflect` skill                     | Pattern absent from last 3 sessions       |
 | `responded`                                                         | `proposal-act` skill                | Operator gives feedback                   |
 | `related_sessions`                                                  | `reflect` skill                     | Auto-detection links evidence sessions    |
 | `self_eval_key`                                                     | `session-mgr` via `proposal-create` | Creation (if metric hint applicable)      |
