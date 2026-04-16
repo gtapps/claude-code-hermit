@@ -11,8 +11,9 @@
   <a href="docs/obsidian-setup.md"><img src="https://img.shields.io/badge/obsidian-active-7c3aed.svg" alt="Obsidian Integration" /></a>
 </p>
 
-# 🦀 claude-code-hermit — Pure Claude Code always-on, self-improving assistant
+# 🦀 claude-code-hermit
 
+Pure Claude Code always-on, self-improving assistant
 <p align="center">
   <img src="assets/demo.gif" alt="claude-code-hermit demo — Obsidian dashboard, Discord control, autonomous briefings, remote access" width="720" />
 </p>
