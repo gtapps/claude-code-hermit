@@ -16,6 +16,7 @@ Git is the source of truth. Migration should be minimal. This skill is read-only
 ## Rules
 
 - Do not write or modify any files unless the operator explicitly requests it
+- Step 0 may mutate `config.json`, `.gitignore`, and the git index if the operator explicitly requests a scope change. Every other step remains read-only.
 - Classify conservatively: when in doubt, put a file in DO_NOT_MIGRATE or REVIEW_MANUALLY
 - `.claude/` migrates with git clone — never flag it for manual migration or recreation
 - `.claude.local/` must be recreated on destination — never migrated
@@ -23,6 +24,82 @@ Git is the source of truth. Migration should be minimal. This skill is read-only
 - config.json requires field-level analysis, not just a "review manually" label
 
 ## Plan
+
+### 0. Confirm scope
+
+This step runs first, before reading any other state. It gates the rest of the audit on a known-good scope value. Valid scope values are `"local"` and `"project"` (see Scoping section above).
+
+**Read scope from config:**
+
+- If `.claude-code-hermit/config.json` exists, read it and extract the `scope` field. If the field is absent, treat it as `"local"` (matches `hermit-evolve` backfill behavior).
+- If `.claude-code-hermit/` does not exist at all, skip the rest of Step 0 entirely — the repo is unhatched and the audit will note N/A for hermit state.
+
+**Cross-check gitignore:**
+
+- Check `.gitignore` for the literal line `.claude-code-hermit/sessions/`.
+  - Present → gitignore signals **local** scope.
+  - Absent → gitignore signals **project** scope.
+- If config and gitignore disagree, flag it:
+  > ⚠️ Scope divergence: `config.json` says `{config_scope}` but `.gitignore` signals `{gitignore_scope}`. This will be logged in Section 2 regardless of what you choose here.
+
+**Present to operator:**
+
+Show the current scope and offer two choices:
+
+> **Current scope: `{scope}`**
+>
+> - [A] Keep `{scope}` and proceed with the audit.
+> - [B] Switch to `{other_scope}` — update config, reconcile `.gitignore`, and then audit.
+
+If the operator chooses **[A]** (or there is no config), record `scope` and jump to Step 1.
+
+If the operator chooses **[B]**, run the reconciliation sub-flow below, then proceed to Step 1 with the new scope value.
+
+**Reconciliation sub-flow (only runs on explicit operator switch):**
+
+Before writing anything, compute the full change set and present it to the operator as a single summary for one confirmation:
+
+> **Proposed changes:**
+> - `config.json`: set `scope` → `{new_scope}`
+> - `.gitignore`: remove {N} lines, append {M} lines
+> - `git rm --cached`: {list of tracked paths that will be untracked, or "none"}
+>
+> Proceed with all changes? [Y/N]
+
+If the operator declines, abort the sub-flow, leave everything unchanged, note the declined change in Section 2 (Git Hygiene), and continue to Step 1 with the original scope.
+
+*Phase A. Update `config.json`*
+
+Read the full file, set `scope` to the new value, and rewrite the file in place (preserve all other keys and their order; write with trailing newline).
+
+*Phase B. Reconcile `.gitignore`*
+
+Determine what to add and remove based on direction:
+
+**`local → project`:**
+- Remove lines that appear verbatim in `state-templates/GITIGNORE-APPEND.txt` (the block starting with `# claude-code-hermit` through `.claude-code-hermit/cost-summary.md`). Only remove lines that match exactly; leave any operator-added rules untouched.
+- Append the contents of `state-templates/GITIGNORE-APPEND-PROJECT.txt` if the marker line `.env` is not already present.
+
+**`project → local`:**
+- The `.env` and `.env.*` lines from `state-templates/GITIGNORE-APPEND-PROJECT.txt` are near-universal and many operators will want to keep them. Include the question in the pre-confirmation summary above:
+  > Remove `.env` and `.env.*` from `.gitignore`? (They are redundant with the local-scope block but common and harmless to keep.)
+- Append the contents of `state-templates/GITIGNORE-APPEND.txt` if the marker line `.claude/cost-log.jsonl` is not already present.
+
+*Phase C. Reconcile git tracking (`project → local` only)*
+
+The hermit state directories are now ignored. If they were previously tracked in git they must be untracked.
+
+Run `git ls-files -- .claude-code-hermit/sessions/ .claude-code-hermit/sessions/.eval-hash .claude-code-hermit/proposals/ .claude-code-hermit/reviews/ .claude-code-hermit/state/ .claude-code-hermit/raw/ .claude-code-hermit/compiled/ .claude-code-hermit/config.json .claude-code-hermit/MEMORY-SEED.md .claude-code-hermit/cost-summary.md .claude/cost-log.jsonl .claude/scheduled_tasks.lock` to find tracked files that will become newly ignored. Include any matches in the pre-confirmation summary above.
+
+After confirmation, run `git rm --cached -r` on each matched path. Do not commit — leave the staged removals for the operator to review and commit.
+
+For `local → project` switches: previously-ignored hermit state is now eligible to be tracked, but do **not** auto-run `git add`. Note in the report that the operator should review and commit hermit state if desired.
+
+*Phase D. Print reconciliation summary*
+
+List every file mutated (`config.json`, `.gitignore`) and every path passed to `git rm --cached`, then continue to Step 1.
+
+---
 
 ### 1. Read context and detect mode
 
@@ -35,7 +112,11 @@ Read the following files if they exist:
 - `.claude-code-hermit/IDLE-TASKS.md`
 - `.gitignore`
 
-**Detect project scope:** Check `.gitignore` for `.claude-code-hermit/sessions/`. If that pattern is absent, sessions are tracked in git → **project scope**. If present → **local scope** (default). Record this for use in later steps.
+**Detect project scope:** Use the `scope` value confirmed in Step 0 — treat it as authoritative. Do not re-run the detection logic from Step 0.
+
+Reuse the `config.json` and `.gitignore` content already read in Step 0; do not re-read them. If reconciliation ran in Step 0 and modified these files, re-read them now before continuing.
+
+As a hygiene check: compare the authoritative `scope` against what `.gitignore` signals (`.claude-code-hermit/sessions/` present → local; absent → project). If they disagree, log the divergence in Section 2 (Git Hygiene Findings).
 
 ### 2. Git hygiene audit
 
@@ -309,3 +390,4 @@ For files not covered by the defaults above:
 - Run `/claude-code-hermit:hatch` on the destination to handle hermit initialization — it preserves OPERATOR.md, config.json, and operator-customized files during re-init
 - If the destination has a different plugin version, run `/claude-code-hermit:hermit-evolve` after hatch to apply any upgrade steps
 - Dual-machine sync and ongoing state replication are out of scope for this skill
+- Scope switches are supported via Step 0. If you only want to change scope (not migrate), run `/claude-code-hermit:migrate` and choose [B] at the scope prompt — the reconciliation will run, then the audit continues as a free hygiene check.

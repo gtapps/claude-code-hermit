@@ -15,11 +15,13 @@
 ### Changed
 
 - **`hatch` completion message** — "Go always-on" step now leads with `docker-setup` (recommended) before the bare-tmux option. `smoke-test` moved to a troubleshooting note rather than a required step. `bypassPermissions` promoted to first option in the permissions question with a clearer description.
+- **`migrate`: scope confirmation gate (Step 0)** — The skill now opens by reading `config.json.scope` (authoritative) and cross-checking against `.gitignore`, surfacing any divergence. The operator is prompted to keep or switch scope before the audit runs. Switching triggers full reconciliation: updates `config.json`, reconciles `.gitignore` (removes the outbound scope's template lines, appends the target scope's lines), and for `project → local` switches runs `git rm --cached` on newly-ignored tracked paths — all behind a single pre-flight confirmation. Step 1 scope detection updated to trust the Step 0 value instead of re-detecting from `.gitignore`.
 
 ### Files affected
 
 | File | Change |
 |------|--------|
+| `skills/migrate/SKILL.md` | Step 0 scope confirmation + reconciliation sub-flow; Step 1 scope detection updated |
 | `state-templates/bin/hermit-docker` | `_require_running` helper; `claude login` → `claude /login` |
 | `state-templates/docker/docker-entrypoint.hermit.sh.template` | `claude login` → `claude /login` in echo messages and comment |
 | `skills/docker-setup/SKILL.md` | Step 8 readiness gates; doc link fix; `claude login` → `claude /login` |
