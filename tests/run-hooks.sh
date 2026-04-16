@@ -1,90 +1,17 @@
 #!/usr/bin/env bash
 # Hook contract tests for claude-code-hermit.
-# Runs each hook script with fixture input and asserts exit code 0.
+# Tests every script registered in hooks/hooks.json plus their stop-pipeline sub-stages.
 # Usage: bash tests/run-hooks.sh
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-FIXTURES="$SCRIPT_DIR/fixtures"
-ORIG_DIR="$(pwd)"
-
-PASSED=0
-FAILED=0
-failures=()
-
-run_test() {
-  local name="$1"
-  shift
-  if "$@" >/dev/null 2>&1; then
-    echo "  PASS  $name"
-    ((PASSED++)) || true
-  else
-    local code=$?
-    echo "  FAIL  $name (exit $code)"
-    ((FAILED++)) || true
-    failures+=("$name")
-  fi
-}
-
-# Create a temp workdir with the file structure hooks expect.
-# Hooks resolve paths relative to cwd.
-setup_workdir() {
-  local workdir
-  workdir="$(mktemp -d)"
-  mkdir -p "$workdir/.claude-code-hermit/sessions"
-  mkdir -p "$workdir/.claude-code-hermit/state"
-  mkdir -p "$workdir/.claude"
-  cp "$FIXTURES/shell-session.md" "$workdir/.claude-code-hermit/sessions/SHELL.md"
-  touch "$workdir/.claude-code-hermit/OPERATOR.md"
-  echo "$workdir"
-}
-
-# Same as setup_workdir but with a git repo (needed by session-diff).
-setup_git_workdir() {
-  local workdir
-  workdir="$(setup_workdir)"
-  (
-    cd "$workdir"
-    git init -q
-    git -c user.name="test" -c user.email="test@test" -c commit.gpgsign=false commit -q --allow-empty -m "init"
-    # Stage the existing files
-    git add -A
-    git -c user.name="test" -c user.email="test@test" -c commit.gpgsign=false commit -q -m "add fixtures"
-    # Create a new file and stage it so git diff --name-status HEAD finds it
-    echo "new" > newfile.txt
-    git add newfile.txt
-  )
-  echo "$workdir"
-}
-
-cleanup() {
-  cd "$ORIG_DIR"
-  if [ -n "${workdir:-}" ] && [ -d "${workdir:-}" ]; then
-    rm -rf "$workdir"
-  fi
-}
+source "$SCRIPT_DIR/lib.sh"
 
 echo "=== Hook Contract Tests ==="
 echo ""
 
 # -------------------------------------------------------
-# 1. cost-tracker — happy path
-# -------------------------------------------------------
-workdir="$(setup_workdir)"
-cd "$workdir"
-transcript="$workdir/.claude/transcript.jsonl"
-cp "$FIXTURES/transcript.jsonl" "$transcript"
-hook_input="$(sed "s|__TRANSCRIPT_PATH__|$transcript|" "$FIXTURES/stop-hook-input.json")"
-run_test "cost-tracker" bash -c \
-  "echo '$hook_input' | node '$REPO_ROOT/scripts/cost-tracker.js'"
-# Post-test: verify cost-log.jsonl was created with valid JSON
-run_test "cost-tracker output" bash -c \
-  "[ -f '$workdir/.claude/cost-log.jsonl' ] && head -1 '$workdir/.claude/cost-log.jsonl' | python3 -m json.tool >/dev/null 2>&1"
-cleanup
-
-# -------------------------------------------------------
-# 2. cost-tracker — empty stdin
+# 1. cost-tracker — empty stdin (fail-open)
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -93,7 +20,7 @@ run_test "cost-tracker (empty stdin)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 3. suggest-compact — happy path
+# 2. suggest-compact — happy path
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -102,7 +29,7 @@ run_test "suggest-compact" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 4. suggest-compact — empty stdin
+# 3. suggest-compact — empty stdin
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -111,25 +38,7 @@ run_test "suggest-compact (empty stdin)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 5. evaluate-session — standard profile, happy path
-# -------------------------------------------------------
-workdir="$(setup_workdir)"
-cd "$workdir"
-run_test "evaluate-session (standard)" bash -c \
-  "echo '{}' | AGENT_HOOK_PROFILE=standard node '$REPO_ROOT/scripts/evaluate-session.js'"
-cleanup
-
-# -------------------------------------------------------
-# 6. evaluate-session — minimal profile (should skip)
-# -------------------------------------------------------
-workdir="$(setup_workdir)"
-cd "$workdir"
-run_test "evaluate-session (minimal skip)" bash -c \
-  "echo '{}' | AGENT_HOOK_PROFILE=minimal node '$REPO_ROOT/scripts/evaluate-session.js'"
-cleanup
-
-# -------------------------------------------------------
-# 7. evaluate-session — empty stdin
+# 4. evaluate-session — empty stdin (fail-open)
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -138,7 +47,7 @@ run_test "evaluate-session (empty stdin)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 8. run-with-profile — profile matches
+# 5. run-with-profile — profile matches
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -147,7 +56,7 @@ run_test "run-with-profile (match)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 9. run-with-profile — profile does not match
+# 6. run-with-profile — profile does not match
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -156,7 +65,7 @@ run_test "run-with-profile (no match)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 10. session-diff — happy path (needs git repo)
+# 7. session-diff — happy path (needs git repo)
 # -------------------------------------------------------
 workdir="$(setup_git_workdir)"
 cd "$workdir"
@@ -168,7 +77,7 @@ run_test "session-diff sidecar" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 11. session-diff — empty stdin (needs git repo)
+# 8. session-diff — empty stdin (needs git repo)
 # -------------------------------------------------------
 workdir="$(setup_git_workdir)"
 cd "$workdir"
@@ -177,20 +86,7 @@ run_test "session-diff (empty stdin)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 12. check-upgrade.sh
-# -------------------------------------------------------
-workdir="$(setup_workdir)"
-cd "$workdir"
-# Create a minimal config.json for check-upgrade to read
-echo '{"_hermit_versions":{"claude-code-hermit":"0.0.0"}}' > "$workdir/.claude-code-hermit/config.json"
-# Run once, capture output, assert both exit code and content
-upgrade_out="$(bash "$REPO_ROOT/scripts/check-upgrade.sh" "$REPO_ROOT" 2>&1)" || true
-run_test "check-upgrade.sh" bash -c "[ -n '$upgrade_out' ]"
-run_test "check-upgrade output" bash -c "echo '$upgrade_out' | grep -qF -- '---Upgrade Available---'"
-cleanup
-
-# -------------------------------------------------------
-# 13. enforce-deny-patterns — blocks dangerous Bash command
+# 9. enforce-deny-patterns — blocks dangerous Bash command
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -199,7 +95,7 @@ run_test "enforce-deny-patterns (block rm -rf)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 14. enforce-deny-patterns — allows safe command
+# 10. enforce-deny-patterns — allows safe command
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -208,7 +104,7 @@ run_test "enforce-deny-patterns (allow safe)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 15. enforce-deny-patterns — blocks OPERATOR.md edit in always-on
+# 11. enforce-deny-patterns — blocks OPERATOR.md edit in always-on
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -219,7 +115,7 @@ run_test "enforce-deny-patterns (allow OPERATOR.md interactive)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 16. enforce-deny-patterns — empty stdin
+# 12. enforce-deny-patterns — empty stdin
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -228,7 +124,7 @@ run_test "enforce-deny-patterns (empty stdin)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 17. channel-hook — persists dm_channel_id
+# 13. channel-hook — persists dm_channel_id
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -238,7 +134,7 @@ run_test "channel-hook (persist dm_channel_id)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 18. channel-hook — skips unconfigured channel
+# 14. channel-hook — skips unconfigured channel
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -248,7 +144,7 @@ run_test "channel-hook (skip unconfigured)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 19. channel-hook — writes channel-activity.json
+# 15. channel-hook — writes channel-activity.json
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -258,7 +154,7 @@ run_test "channel-hook (activity file)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 20. channel-hook — plugin_ prefix (channel plugin format)
+# 16. channel-hook — plugin_ prefix (channel plugin format)
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -268,7 +164,7 @@ run_test "channel-hook (plugin_ prefix)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 21. channel-hook — empty stdin
+# 17. channel-hook — empty stdin
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -277,7 +173,7 @@ run_test "channel-hook (empty stdin)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 21. validate-config — valid config passes
+# 18. validate-config — valid config passes
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -289,7 +185,7 @@ run_test "validate-config (valid)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 22. validate-config — invalid config fails
+# 19. validate-config — invalid config fails
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -299,7 +195,7 @@ run_test "validate-config (invalid)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 23. validate-config — skips non-config files
+# 20. validate-config — skips non-config files
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -308,7 +204,7 @@ run_test "validate-config (skip non-config)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 24. validate-config — empty stdin
+# 21. validate-config — empty stdin
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -317,7 +213,7 @@ run_test "validate-config (empty stdin)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 25. routine-queue-flush — logs missed routines (object shape — real producer format)
+# 22. routine-queue-flush — logs missed routines (object shape)
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -327,7 +223,7 @@ run_test "routine-queue-flush (log missed)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 25b. routine-queue-flush — bare array (legacy compat)
+# 23. routine-queue-flush — bare array (legacy compat)
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -337,7 +233,7 @@ run_test "routine-queue-flush (bare array compat)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 26. routine-queue-flush — empty queue
+# 24. routine-queue-flush — empty queue
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -347,7 +243,7 @@ run_test "routine-queue-flush (empty queue)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 27. routine-queue-flush — no queue file
+# 25. routine-queue-flush — no queue file
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -356,7 +252,7 @@ run_test "routine-queue-flush (no queue file)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 28. routine-queue-flush — empty stdin
+# 26. routine-queue-flush — empty stdin
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
@@ -368,7 +264,7 @@ cleanup
 # stop-pipeline tests
 # -------------------------------------------------------
 
-# stop-pipeline — happy path: verifies all stages ran and heartbeat written
+# 27. stop-pipeline — happy path: verifies all stages ran and heartbeat written
 workdir="$(setup_git_workdir)"
 cd "$workdir"
 transcript="$workdir/.claude/transcript.jsonl"
@@ -382,7 +278,7 @@ run_test "stop-pipeline" bash -c "
 "
 cleanup
 
-# stop-pipeline (stdout contract) — suggest-compact is sole stdout, cost-tracker/eval on stderr
+# 28. stop-pipeline — stdout contract: suggest-compact is sole stdout
 workdir="$(setup_workdir)"
 cd "$workdir"
 transcript="$workdir/.claude/transcript.jsonl"
@@ -391,19 +287,17 @@ hook_input="$(sed "s|__TRANSCRIPT_PATH__|$transcript|" "$FIXTURES/stop-hook-inpu
 run_test "stop-pipeline (stdout contract)" bash -c "
   stdout=\$(echo '$hook_input' | COMPACT_THRESHOLD=1 AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/stop-pipeline.js' 2>/dev/null)
   stderr=\$(echo '$hook_input' | COMPACT_THRESHOLD=1 AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/stop-pipeline.js' 2>&1 >/dev/null)
-  # stdout must be empty or exactly one valid JSON line with additionalContext
   if [ -n \"\$stdout\" ]; then
     echo \"\$stdout\" | python3 -m json.tool >/dev/null 2>&1 || exit 1
     echo \"\$stdout\" | python3 -c \"import json,sys; d=json.load(sys.stdin); assert 'additionalContext' in d\" || exit 1
   fi
-  # cost-tracker and session-eval must be on stderr only, not stdout
   echo \"\$stdout\" | grep -q 'cost-tracker' && exit 1
   echo \"\$stdout\" | grep -q 'session-eval' && exit 1
   echo \"\$stderr\" | grep -q 'cost-tracker' || exit 1
 "
 cleanup
 
-# stop-pipeline (malformed stdin) — must not crash
+# 29. stop-pipeline — malformed stdin must not crash
 workdir="$(setup_workdir)"
 cd "$workdir"
 run_test "stop-pipeline (malformed stdin)" bash -c "
@@ -416,7 +310,7 @@ cleanup
 # session-diff debounce tests (via stop-pipeline)
 # -------------------------------------------------------
 
-# session-diff (debounce skip) — fresh sidecar + in_progress → skip
+# 30. session-diff (debounce skip) — fresh sidecar + in_progress → skip
 workdir="$(setup_git_workdir)"
 cd "$workdir"
 echo '{"session_state":"in_progress"}' > "$workdir/.claude-code-hermit/state/runtime.json"
@@ -428,7 +322,7 @@ after_mtime="$(stat -c '%Y' "$workdir/.claude-code-hermit/state/session-diff.jso
 run_test "session-diff (debounce skip)" bash -c "[ '$before_mtime' = '$after_mtime' ]"
 cleanup
 
-# session-diff (debounce force on idle) — fresh sidecar + idle → force refresh
+# 31. session-diff (debounce force on idle) — fresh sidecar + idle → force refresh
 workdir="$(setup_git_workdir)"
 cd "$workdir"
 echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
@@ -440,7 +334,7 @@ after_mtime="$(stat -c '%Y' "$workdir/.claude-code-hermit/state/session-diff.jso
 run_test "session-diff (debounce force on idle)" bash -c "[ '$before_mtime' != '$after_mtime' ]"
 cleanup
 
-# session-diff (debounce expired) — stale sidecar + in_progress → run
+# 32. session-diff (debounce expired) — stale sidecar + in_progress → run
 workdir="$(setup_git_workdir)"
 cd "$workdir"
 echo '{"session_state":"in_progress"}' > "$workdir/.claude-code-hermit/state/runtime.json"
@@ -456,17 +350,16 @@ cleanup
 # startup-context tests
 # -------------------------------------------------------
 
-# startup-context — happy path
+# 33. startup-context — happy path
 workdir="$(setup_workdir)"
 cd "$workdir"
 run_test "startup-context" bash -c \
   "CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/startup-context.js' | grep -qF -- '---Active Session---'"
 cleanup
 
-# startup-context — large Progress Log stays under hard cap
+# 34. startup-context — large Progress Log stays under hard cap
 workdir="$(setup_workdir)"
 cd "$workdir"
-# Build a SHELL.md with 150 progress log lines
 python3 -c "
 content = open('$FIXTURES/shell-session.md').read()
 extra = '\n'.join(f'- [10:{i:02d}] Progress entry {i}' for i in range(150))
@@ -476,7 +369,7 @@ run_test "startup-context (large SHELL.md)" bash -c \
   "out=\$(CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/startup-context.js' 2>/dev/null); [ \${#out} -lt 8000 ]"
 cleanup
 
-# startup-context — no session file
+# 35. startup-context — no session file
 workdir="$(setup_workdir)"
 cd "$workdir"
 rm "$workdir/.claude-code-hermit/sessions/SHELL.md"
@@ -484,17 +377,14 @@ run_test "startup-context (no session)" bash -c \
   "CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/startup-context.js' | grep -q 'No active session'"
 cleanup
 
-# startup-context — section priority: large OPERATOR.md fills budget, last report is dropped
+# 36. startup-context — section priority: large OPERATOR.md fills budget, last report is dropped
 workdir="$(setup_workdir)"
 cd "$workdir"
-# Write an OPERATOR.md that uses ~1800 chars (near its 2000 budget)
 python3 -c "print('# Operator\n' + ('x' * 80 + '\n') * 22)" > "$workdir/.claude-code-hermit/OPERATOR.md"
-# Write a large SHELL.md to fill the session budget
 python3 -c "
 extra = '\n'.join(f'- [10:{i:02d}] Entry {i}' for i in range(200))
 print('# Active Session\n\n## Task\nTest\n\n## Progress Log\n' + extra + '\n\n## Blockers\nNone')
 " > "$workdir/.claude-code-hermit/sessions/SHELL.md"
-# Write a report — if priority works, this may be truncated/dropped
 mkdir -p "$workdir/.claude-code-hermit/sessions"
 echo '# Session Report: S-001\n\n## Overview\nSHOULD_NOT_APPEAR_IN_OUTPUT_IF_CAP_HIT' > "$workdir/.claude-code-hermit/sessions/S-001-REPORT.md"
 run_test "startup-context (section priority)" bash -c \
@@ -502,77 +392,17 @@ run_test "startup-context (section priority)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# Static file checks
+# generate-summary tests
 # -------------------------------------------------------
 
-# deny-patterns.json: valid JSON with expected arrays
-run_test "deny-patterns.json" bash -c \
-  "python3 -c \"import json; d=json.load(open('$REPO_ROOT/state-templates/deny-patterns.json')); assert isinstance(d.get('default'),list) and isinstance(d.get('always_on'),list)\""
-
-# Bin scripts are executable
-run_test "bin scripts executable" bash -c \
-  "for f in '$REPO_ROOT/state-templates/bin/'*; do [ -x \"\$f\" ] || exit 1; done"
-
-# cron-match.py: valid schedule matches, invalid returns exit 2
-run_test "cron-match (valid match)" bash -c \
-  "python3 '$REPO_ROOT/scripts/cron-match.py' '0 4 * * *' '2026-01-15T04:00' 4"
-
-run_test "cron-match (no match)" bash -c \
-  "python3 '$REPO_ROOT/scripts/cron-match.py' '0 4 * * *' '2026-01-15T05:00' 4; [ \$? -eq 1 ]"
-
-run_test "cron-match (invalid schedule)" bash -c \
-  "python3 '$REPO_ROOT/scripts/cron-match.py' '99 99 * * *' '2026-01-15T04:00' 4; [ \$? -eq 2 ]"
-
-# -------------------------------------------------------
-# queue dedup: replayed backlog must not suppress current-slot cron hit
-# -------------------------------------------------------
-# Scenario: a */15 routine was queued at 08:30 (session busy). At 08:45 the
-# session is idle. The dequeue block replays the 08:30 item — it must write
-# "2026-04-08T08:30|every15" to state, NOT "2026-04-08T08:45|every15".
-# Then the genuine 08:45 cron hit must NOT be deduped.
-run_test "queue-dedup (slot isolation)" bash -c "
-  STATE_FILE=\$(mktemp)
-  QUEUE_FILE=\$(mktemp)
-  # Write a queued item with scheduled_slot = 08:30
-  echo '{\"queued\":[{\"id\":\"every15\",\"scheduled_slot\":\"2026-04-08T08:30\",\"queued_since\":\"2026-04-08T08:30:00\",\"skill\":\"test:noop\"}]}' > \"\$QUEUE_FILE\"
-  # Run dequeue logic (mock tmux send-keys — just needs exit 0)
-  python3 -c \"
-import json, sys, subprocess, os
-f, state = sys.argv[1], sys.argv[2]
-try: q = json.load(open(f))
-except: sys.exit(1)
-remaining = []
-for item in q.get('queued', []):
-    slot = item.get('scheduled_slot') or item.get('queued_date')
-    fired_key = slot + '|' + item['id']
-    try:
-        with open(state) as sf:
-            if fired_key in sf.read():
-                continue
-    except: pass
-    with open(state, 'a') as sf:
-        sf.write(fired_key + '\n')
-json.dump({'queued': remaining}, open(f, 'w'))
-\" \"\$QUEUE_FILE\" \"\$STATE_FILE\"
-  # Verify the state file has 08:30 slot, not 08:45
-  grep -qF '2026-04-08T08:30|every15' \"\$STATE_FILE\" || { echo 'FAIL: expected 08:30 slot in state'; exit 1; }
-  # Verify 08:45 slot is NOT in state (so the real 08:45 cron hit would fire)
-  ! grep -qF '2026-04-08T08:45|every15' \"\$STATE_FILE\" || { echo 'FAIL: 08:45 slot was suppressed'; exit 1; }
-  rm -f \"\$STATE_FILE\" \"\$QUEUE_FILE\"
-"
-
-# -------------------------------------------------------
-# generate-summary (hook mode)
-# -------------------------------------------------------
-
-# skips non-state files
+# 37. generate-summary — skips non-state files
 workdir="$(setup_workdir)"
 cd "$workdir"
 run_test "generate-summary (skip non-state)" bash -c \
   "echo '{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"README.md\"}}' | node '$REPO_ROOT/scripts/generate-summary.js'"
 cleanup
 
-# fires on state/ file — writes state-summary.md
+# 38. generate-summary — fires on state/ file, writes state-summary.md
 workdir="$(setup_workdir)"
 cd "$workdir"
 echo '{"alerts":{},"last_digest_date":null,"self_eval":{}}' > "$workdir/.claude-code-hermit/state/alert-state.json"
@@ -580,7 +410,7 @@ run_test "generate-summary (writes summary)" bash -c \
   "echo '{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$workdir/.claude-code-hermit/state/alert-state.json\"}}' | node '$REPO_ROOT/scripts/generate-summary.js' && [ -f '$workdir/.claude-code-hermit/state/state-summary.md' ]"
 cleanup
 
-# empty stdin
+# 39. generate-summary — empty stdin
 workdir="$(setup_workdir)"
 cd "$workdir"
 run_test "generate-summary (empty stdin)" bash -c \
@@ -590,17 +420,7 @@ cleanup
 # -------------------------------------------------------
 # Summary
 # -------------------------------------------------------
-echo ""
-echo "=== Results: $PASSED passed, $FAILED failed ==="
-if [ ${#failures[@]} -gt 0 ]; then
-  echo "Failed:"
-  for f in "${failures[@]}"; do
-    echo "  - $f"
-  done
-  # Clean suggest-compact counter files left in /tmp (local runs)
-  rm -rf /tmp/claude-agent-compact-*/counter-test-session-*.txt 2>/dev/null || true
-  exit 1
-fi
-
-# Clean suggest-compact counter files left in /tmp (local runs)
+# Clean up any suggest-compact counter files left in /tmp
 rm -rf /tmp/claude-agent-compact-*/counter-test-session-*.txt 2>/dev/null || true
+
+print_results

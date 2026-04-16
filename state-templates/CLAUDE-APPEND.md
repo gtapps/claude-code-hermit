@@ -22,7 +22,11 @@
 | `state/monitors.runtime.json` | Active watch registry — cleared on each session start       |
 | `OPERATOR.md`              | Human-curated context — draft changes, confirm before writing |
 
-## Subagent: `session-mgr` (Sonnet) — session lifecycle
+## Subagents
+
+- `session-mgr` (Sonnet) — session lifecycle (open, archive, idle transitions)
+- `proposal-triage` (Haiku) — pre-creation gate: deduplicates proposals and applies the three-condition rule before queuing
+- `reflection-judge` (Sonnet) — post-reflect validator: verifies cross-session evidence citations exist before proposals are queued
 
 ## Watches
 
@@ -43,7 +47,7 @@ Rules:
 
 ## Quick Reference
 
-`/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/watch` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/hermit-evolve` `/docker-setup` `/hermit-takeover` `/hermit-hand-back` `/obsidian-setup` `/cortex-refresh` `/cortex-sync` `/weekly-review` `/migrate`
+`/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/watch` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/hermit-evolve` `/docker-setup` `/hermit-takeover` `/hermit-hand-back` `/obsidian-setup` `/cortex-refresh` `/cortex-sync` `/weekly-review` `/migrate` `/knowledge`
 (All prefixed with `/claude-code-hermit:`)
 
 ## Operator Notification

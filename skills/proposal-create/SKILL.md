@@ -20,6 +20,18 @@ Only create a proposal if all three are true:
 If any of the three cannot be stated concretely, do not create the proposal.
 Respond: "Not enough evidence yet. Note it in SHELL.md Findings and revisit after more sessions."
 
+## Pre-Creation Gate
+
+Before creating the proposal, call `claude-code-hermit:proposal-triage`:
+```
+Title: <proposal title>
+Evidence: <one-paragraph evidence summary>
+```
+
+- `CREATE` — proceed with the steps below
+- `DUPLICATE:<PROP-ID> — <reason>`: stop, report to the caller: "Proposal already exists as <PROP-ID>"
+- `SUPPRESS — <reason>`: stop, report the suppression reason to the caller
+
 ## How to Create
 
 1. Determine the next proposal ID:

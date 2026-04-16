@@ -10,6 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const { readFrontmatter, parseFrontmatter, newestByType, globDir } = require('./lib/frontmatter');
+const { lint: knowledgeLint } = require('./knowledge-lint');
 
 // --- Args ---
 const hermitDir = process.argv[2] || '.claude-code-hermit';
@@ -243,99 +244,14 @@ if (openLoops.length > 0) {
   body += '\n';
 }
 
-// --- Knowledge Health ---
-const compiledDir = path.join(hermitDir, 'compiled');
-const rawDir = path.join(hermitDir, 'raw');
-
+// --- Knowledge Health (via shared knowledge-lint.js) ---
 let knowledgeSection = '';
 try {
-  // Read knowledge config
-  let retentionDays = 14;
-  let workingSetWarn = 20;
-  try {
-    const config = JSON.parse(fs.readFileSync(path.join(hermitDir, 'config.json'), 'utf8'));
-    if (config.knowledge) {
-      if (typeof config.knowledge.raw_retention_days === 'number') retentionDays = config.knowledge.raw_retention_days;
-      if (typeof config.knowledge.working_set_warn === 'number') workingSetWarn = config.knowledge.working_set_warn;
-    }
-  } catch {}
-
-  const cutoffMs = retentionDays * 24 * 60 * 60 * 1000;
-  const STALE_DAYS = 60;
-  const staleCutoffMs = STALE_DAYS * 24 * 60 * 60 * 1000;
-  const LINE_LIMIT = 150;
-  const TAG_VARIANTS = ['foundation', 'core', 'important', 'essential', 'permanent'];
-
-  const knowledgeIssues = [];
-
-  // --- compiled/ checks ---
-  let compiledArtifacts = [];
-  try {
-    const files = fs.readdirSync(compiledDir).filter(f => f.endsWith('.md') && !f.startsWith('.'));
-    compiledArtifacts = files.map(f => {
-      try {
-        const content = fs.readFileSync(path.join(compiledDir, f), 'utf8');
-        const fm = parseFrontmatter(content);
-        const lineCount = content.split('\n').length;
-        return { file: f, fm, lineCount };
-      } catch { return null; }
-    }).filter(a => a && a.fm);
-  } catch {}
-
-  if (compiledArtifacts.length > 0) {
-    const workingSet = Array.from(newestByType(compiledArtifacts).values());
-
-    if (workingSet.length > workingSetWarn) {
-      knowledgeIssues.push(`Working set has ${workingSet.length} active types (warn threshold: ${workingSetWarn}).`);
-    }
-
-    // Stale compiled (not foundational, older than 60 days)
-    const staleCompiled = workingSet.filter(a => {
-      if (!a.fm.created) return false;
-      if ((a.fm.tags || []).includes('foundational')) return false;
-      return now - new Date(a.fm.created).getTime() > staleCutoffMs;
-    });
-    if (staleCompiled.length > 0) {
-      knowledgeIssues.push(`${staleCompiled.length} stale compiled artifact${staleCompiled.length !== 1 ? 's' : ''} (>${STALE_DAYS}d, not foundational): ${staleCompiled.map(a => a.file).join(', ')}`);
-    }
-
-    // Line count violations
-    const overLimit = compiledArtifacts.filter(a => a.lineCount > LINE_LIMIT);
-    if (overLimit.length > 0) {
-      knowledgeIssues.push(`${overLimit.length} compiled artifact${overLimit.length !== 1 ? 's' : ''} exceed ${LINE_LIMIT} lines: ${overLimit.map(a => `${a.file} (${a.lineCount})`).join(', ')}`);
-    }
-
-    // Tag variant warnings (soft)
-    const variantWarnings = [];
-    for (const a of compiledArtifacts) {
-      const offenders = (a.fm.tags || []).filter(t => TAG_VARIANTS.includes(t));
-      if (offenders.length > 0) variantWarnings.push(`${a.file}: [${offenders.join(', ')}] — did you mean \`foundational\`?`);
-    }
-    if (variantWarnings.length > 0) {
-      knowledgeIssues.push(`Tag variants near "foundational" (soft warning):\n  ${variantWarnings.join('\n  ')}`);
-    }
-  }
-
-  // --- raw/ checks ---
-  let rawExpiry = [];
-  try {
-    const rawFiles = fs.readdirSync(rawDir).filter(f => f.endsWith('.md') && !f.startsWith('.'));
-    rawExpiry = rawFiles.filter(f => {
-      const fm = readFrontmatter(path.join(rawDir, f));
-      if (!fm || !fm.created) return false;
-      const created = new Date(fm.created);
-      return !isNaN(created.getTime()) && now - created.getTime() > cutoffMs;
-    });
-  } catch {}
-
-  if (rawExpiry.length > 0) {
-    knowledgeIssues.push(`${rawExpiry.length} raw artifact${rawExpiry.length !== 1 ? 's' : ''} past retention (>${retentionDays}d): ${rawExpiry.join(', ')}`);
-  }
-
-  if (knowledgeIssues.length > 0) {
+  const { findings } = knowledgeLint(hermitDir);
+  if (findings.length > 0) {
     knowledgeSection = `### Knowledge Health\n`;
-    for (const issue of knowledgeIssues) {
-      knowledgeSection += `- ${issue}\n`;
+    for (const f of findings) {
+      knowledgeSection += `- ${f.file} [${f.age}] — ${f.reason}\n`;
     }
     knowledgeSection += '\n';
   }

@@ -16,8 +16,9 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 
 | Skill   | What it does                                                                                                 | Auto-triggers                                                     |
 | ------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| `pulse` | Compact session summary, under 10 lines. Channel-friendly.                                                   | "status", "progress", "what are you working on", "how's it going" |
+| `pulse` | Compact session summary, under 10 lines. Channel-friendly. Pass `--full` to append infrastructure health (proposals, routines, last activity, knowledge counts). | "status", "progress", "what are you working on", "how's it going" |
 | `brief` | 5-line executive summary. Checks active session, falls back to latest report. Also supports daily summaries. | "brief", "what happened", "morning update", "overnight summary"   |
+| `knowledge` | Read-only lint of `raw/` and `compiled/` — flags stale, unreferenced, missing-type, and oversized artifacts. | "check knowledge", "lint knowledge", "knowledge health" |
 
 ## Monitoring
 

@@ -226,6 +226,8 @@ OPERATOR.md is human-curated — your hermit reads it but never modifies it. Aut
   knowledge-schema.md  # Per-hermit behavioral schema: what to produce and when
 ```
 
+**Ownership boundary:** Claude Code memory owns instructions, preferences, and recurring operating context; hermit knowledge owns domain artifacts; skills own procedures.
+
 **Scope boundary:**
 
 | Concern | Owner |

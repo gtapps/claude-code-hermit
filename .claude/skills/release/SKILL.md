@@ -14,8 +14,7 @@ Run before anything else. Abort the release if any step fails.
 
 1. **Run test suites:**
    ```bash
-   python3 tests/run-contracts.py -v 2>&1
-   bash tests/run-hooks.sh 2>&1
+   bash tests/run-all.sh 2>&1
    ```
    If any test fails, stop and fix before releasing.
 
@@ -104,8 +103,7 @@ Update the version string in:
 
 Run tests one more time to confirm nothing broke during the changelog/version edits:
 ```bash
-python3 tests/run-contracts.py 2>&1 | tail -3
-bash tests/run-hooks.sh 2>&1 | tail -3
+bash tests/run-all.sh 2>&1 | tail -6
 ```
 
 ### 6. Commit and push

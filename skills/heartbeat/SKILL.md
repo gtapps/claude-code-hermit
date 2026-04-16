@@ -150,6 +150,14 @@ Open `.claude-code-hermit/HEARTBEAT.md` for the operator to modify.
 - Suggest additions based on current project context (e.g., if there are open proposals, suggest a check for them)
 - Write the updated checklist back
 
+If the operator asks about idle tasks (add, remove, manage idle work):
+- Read `.claude-code-hermit/IDLE-TASKS.md` instead of HEARTBEAT.md
+- If the file doesn't exist, create it from the `IDLE-TASKS.md.template` in `state-templates/`
+- Display all tasks with line numbers
+- If `idle_behavior` is not `"discover"` in config, warn: "idle_behavior is set to 'wait' — these tasks won't be picked up automatically"
+- Ask what to add, remove, or change
+- Write the updated file back
+
 ## Idle Agency
 
 After evaluating the checklist, if SHELL.md status is `idle`:

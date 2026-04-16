@@ -17,8 +17,8 @@ After install, run `/claude-code-hermit:hatch` in the target project to create t
 
 ## Plugin Structure
 
-- `agents/` — subagent definitions (session-mgr, hermit-config-validator; hermit plugins add more subagents)
-- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, pulse, brief, watch, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, channel-responder, channel-setup, hatch, hermit-evolve, docker-setup, hermit-takeover, hermit-hand-back, smoke-test, test-run, obsidian-setup, cortex-refresh, cortex-sync, weekly-review, migrate
+- `agents/` — subagent definitions (session-mgr, hermit-config-validator, proposal-triage, reflection-judge; hermit plugins add more subagents)
+- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, pulse, brief, watch, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, channel-responder, channel-setup, hatch, hermit-evolve, docker-setup, hermit-takeover, hermit-hand-back, smoke-test, test-run, obsidian-setup, cortex-refresh, cortex-sync, weekly-review, migrate, knowledge
 - `hooks/hooks.json` — hook registrations
 - `scripts/` — hook implementation scripts + boot scripts (hermit-start.py, hermit-stop.py)
 - `state-templates/` — templates copied into target projects by the `hatch` skill
@@ -65,7 +65,7 @@ Then run `/claude-code-hermit:hatch` to set up the target project.
 Run tests:
 
 ```
-bash tests/run-hooks.sh
+bash tests/run-all.sh
 ```
 
 **Development constraints (non-negotiable):**

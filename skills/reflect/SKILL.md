@@ -100,17 +100,35 @@ Only create a proposal if all three are true:
 If any of the three cannot be stated concretely, do not create the proposal.
 Note it in SHELL.md Findings and revisit after more sessions.
 
+## Evidence Validation
+
+Before acting on any proposal candidate, delegate to `claude-code-hermit:reflection-judge`.
+
+Pass each candidate as:
+```
+Candidate: <title>
+Tier: <1|2|3>
+Evidence: <summary>
+Sessions: <S-001, S-002, ...> (or "none")
+```
+
+- **ACCEPT** — proceed with the candidate at its original tier
+- **DOWNGRADE:<new-tier>** — proceed at the revised tier
+- **SUPPRESS** — drop silently, no SHELL.md entry needed
+
+Only act on ACCEPT and DOWNGRADE verdicts.
+
 ## Outcomes
 
-After reflecting, choose exactly one outcome per observation:
+After reflecting and validating with `claude-code-hermit:reflection-judge`, choose exactly one outcome per observation:
 
 1. **No action** — pattern not strong enough, already handled, OR previously
    accepted proposal's problem no longer appears → mark proposal resolved
 2. **Memory update** — fact worth recording → update project memory directly
 3. **Proposal candidate** — repeated pattern + clear consequence + operator-actionable
    → classify tier (see Proposal Tier Classification below):
-   - Tier 1/2: queue micro-approval in `state/micro-proposals.json`
-   - Tier 3: call `/claude-code-hermit:proposal-create`
+   - Tier 1/2: gate with `claude-code-hermit:proposal-triage` first (see below), then queue micro-approval in `state/micro-proposals.json`
+   - Tier 3: gate with `claude-code-hermit:proposal-triage` first (see below), then call `/claude-code-hermit:proposal-create`
 
 Anything that doesn't map to one of these three is not worth surfacing.
 Do not generate observations for their own sake.
@@ -132,6 +150,18 @@ Example: "Morning brief is consistently ignored on weekdays before 9am. Proposin
 
 **Tier 3 — safety-critical, irreversible, or cross-hermit scope:** create PROP-NNN immediately via `/claude-code-hermit:proposal-create`, skip micro-approval entirely.
 Example: "Operator's gate automation script has an error that could trigger physical actuators unexpectedly. Requires explicit review before any change."
+
+### Proposal triage gate
+
+Before queuing a micro-approval or calling `proposal-create`, call `claude-code-hermit:proposal-triage`:
+```
+Title: <title>
+Evidence: <one-paragraph evidence summary>
+```
+
+- `CREATE` — proceed
+- `DUPLICATE:<PROP-ID>` — link to existing proposal in SHELL.md Findings instead, do not create
+- `SUPPRESS` — drop silently
 
 ### Micro-approval queuing
 

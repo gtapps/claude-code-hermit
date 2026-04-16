@@ -1,3 +1,7 @@
+
+
+
+
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
@@ -7,19 +11,15 @@
   <a href="docs/obsidian-setup.md"><img src="https://img.shields.io/badge/obsidian-active-7c3aed.svg" alt="Obsidian Integration" /></a>
 </p>
 
-# claude-code-hermit
-
-**A personal assistant that lives in your project that actually learns — pure Claude Code.**
+# 🦀 claude-code-hermit — Personal AI Assistant
 
 <p align="center">
   <img src="assets/demo.gif" alt="claude-code-hermit demo — Obsidian dashboard, Discord control, autonomous briefings, remote access" width="720" />
 </p>
 
-I love Claude Code. I love what OpenClaw did for autonomous agents. Hermit is my take — a plugin that turns any Claude Code instance into a persistent, self-improving personal assistant you can talk to from your phone.
+Hermit is my take on what OpenClaw started — a plugin that turns any Claude Code instance into a persistent, self-improving personal assistant you can talk to from your phone. No server. No API keys. If you have a Claude subscription, you already have everything you need. Each hermit is just a Claude Code process — lightweight enough to run several side by side on a single laptop.
 
-The rule from day one: leverage everything Claude Code offers, don't reinvent or overengineer and evolve as Claude Code evolves.
-
-No server. No API keys to manage. If you have a Claude Pro, Max, Teams, or Enterprise subscription, you already have everything you need. Each hermit is just a Claude Code process — lightweight enough to run several side by side on a single laptop.
+The rule from day one: leverage everything Claude Code offers, don't reinvent or overengineer, and evolve as Claude Code evolves.
 
 ---
 
@@ -65,6 +65,12 @@ No server. No API keys to manage. If you have a Claude Pro, Max, Teams, or Enter
 ---
 
 ## Quick Start
+
+> Running in 2 commands:
+> ```
+> claude plugin install claude-code-hermit@claude-code-hermit --scope project
+> /claude-code-hermit:hatch
+> ```
 
 > **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.98+, a paid Claude plan (Pro, Max, Teams, or Enterprise), and Node.js 22+.
 
@@ -206,6 +212,7 @@ See [Creating Your Own Hermit](docs/creating-your-own-hermit.md) for more — fr
 
 ## Credits
 
+- **[OpenClaw](https://github.com/openclaw/openclaw)** — Inspiration for autonomous agent ergonomics
 - **[Everything Claude Code](https://github.com/affaan-m/everything-claude-code)** — Hook patterns and lifecycle architecture
 - **[Andrej Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)** — Inspiration for the raw/compiled knowledge system
 

@@ -1,37 +1,30 @@
 ---
 name: test-run
-description: Run contract and hook test suites, report pass/fail summary
+description: Run all plugin test suites, report pass/fail summary
 disable-model-invocation: true
 ---
 # Test Run
 
-Run both test suites and report a concise summary.
+Run all test suites and report a concise summary.
 
 ## Plan
 
-### 1. Run contract tests
+### 1. Run all suites
 
 ```bash
-python3 tests/run-contracts.py -v 2>&1
+bash tests/run-all.sh 2>&1
 ```
 
-Capture the output. Extract pass/fail counts from the summary line.
+Capture the output. Extract pass/fail counts from each suite's summary line.
 
-### 2. Run hook tests
-
-```bash
-bash tests/run-hooks.sh 2>&1
-```
-
-Capture the output. Extract pass/fail counts from the summary line.
-
-### 3. Report
+### 2. Report
 
 Output a concise summary:
 
 ```
-Contract tests: X passed, Y failed
 Hook tests:     X passed, Y failed
+Contract tests: X passed, Y failed
+Script tests:   X passed, Y failed
 Overall:        PASS / FAIL
 ```
 

@@ -18,40 +18,34 @@ You run the plugin's test suites and report results. You do NOT fix anything —
 
 ## Test suites
 
-### 1. Contract tests
+Run via the unified entry point:
 ```bash
-python3 tests/run-contracts.py -v
+bash tests/run-all.sh
 ```
-These validate: config template/runtime sync, boot merge logic, hook outputs, negative paths.
 
-### 2. Hook tests
-```bash
-bash tests/run-hooks.sh
-```
-These validate: each hook script runs with fixture input and exits 0.
+This runs three suites in sequence:
+1. **Hook tests** (`run-hooks.sh`) — each hook script runs with fixture input and exits 0
+2. **Contract tests** (`run-contracts.py`) — config sync, boot merge logic, hook output contracts
+3. **Script tests** (`run-scripts.sh`) — standalone scripts and static file checks
 
 ## Execution
 
-1. Run both test suites
-2. Capture full output
-3. Parse results for pass/fail counts
+1. Run `bash tests/run-all.sh`, capture full output
+2. Parse results for pass/fail counts per suite
 
 ## Output format
 
 ```
 ## Test Results
 
-### Contract Tests
-- Total: X
-- Passed: Y
-- Failed: Z
-[list any failures with details]
-
 ### Hook Tests
-- Total: X
-- Passed: Y
-- Failed: Z
-[list any failures with details]
+- Total: X, Passed: Y, Failed: Z
+
+### Contract Tests
+- Total: X, Passed: Y, Failed: Z
+
+### Script Tests
+- Total: X, Passed: Y, Failed: Z
 
 ### Overall: PASS / FAIL
 ```
