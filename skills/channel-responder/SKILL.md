@@ -22,8 +22,12 @@ If runtime.json `session_state` is `idle` (no active task):
 
 If runtime.json `session_state` is `waiting` (alive but blocked on input):
 
+Read `waiting_reason` from runtime.json to understand why:
+- `"unclean_shutdown"` or `"dead_process"` → operator reply is an archive/resume choice: `(1)` = archive as partial and start fresh, `(2)` = resume as-is. Handle accordingly via `claude-code-hermit:session-mgr` — session-mgr owns the full state transition including clearing `waiting_reason`.
+- `"operator_input"`, `"conservative_pickup"`, or null → treat as normal task resumption.
+
 - **Status request** → respond with current context, stay `waiting`
-- **New instruction or answer to a question** → update runtime.json `session_state` to `in_progress`, update SHELL.md Status to `in_progress` (cosmetic), resume work
+- **New instruction or answer to a question** → update runtime.json `session_state` to `in_progress`, clear `waiting_reason` to `null`, update SHELL.md Status to `in_progress` (cosmetic), resume work
 - **Anything else** → respond, stay `waiting`
 
 ## 1c. Check Authorization

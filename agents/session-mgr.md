@@ -37,6 +37,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
 | `shutdown_requested_at` | hermit-stop.py | Set when shutdown initiated |
 | `shutdown_completed_at` | hermit-stop.py / session-close | Set when shutdown completes cleanly |
 | `last_error` | Any writer | `unclean_shutdown`, `heartbeat_stale`, `missing_tmux_session`, `interrupted_archiving` |
+| `waiting_reason` | session-start, heartbeat, channel-responder | One of: `operator_input`, `unclean_shutdown`, `dead_process`, `conservative_pickup`. Cleared (set to `null`) when exiting `waiting` state. |
 
 **SHELL.md `Status:` is cosmetic only.** Update it as a secondary effect of lifecycle transitions for operator readability. No script or hook reads it for decisions. Exception: evaluate-session.js reads it for cosmetic nudges only.
 
@@ -56,7 +57,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
    - Fill in the current date/time for "Started"
    - Leave Task blank — the main session will provide it
    - Set Status to `in_progress` (cosmetic)
-6. **Pre-compute session ID:** List all `.claude-code-hermit/sessions/S-*-REPORT.md` files, extract the highest NNN, increment by 1. If none exist, use `S-001`. Write this to runtime.json `session_id` field.
+6. **Pre-compute session ID:** List all `.claude-code-hermit/sessions/S-*-REPORT.md` files, extract the highest NNN, increment by 1. If none exist, use `S-001`. Write this to runtime.json `session_id` field. Update SHELL.md `**ID:**` field with this session ID (replace the placeholder `S-NNN (assigned on close)` with the actual value, e.g., `S-009`).
 7. Update runtime.json: set `session_state` to `in_progress`. If `session_id` is null or missing, pre-compute it now (same sequential S-NNN logic as step 6) and write it in the same update.
 
 ## On Session Close
@@ -73,7 +74,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
      - `status`: from the `**Status:**` field in SHELL.md (e.g., `completed`, `partial`, `blocked`)
      - `date`: current ISO 8601 timestamp with timezone offset (e.g., `2026-04-06T14:30:00+01:00`). Use the timezone from `config.json` if set, otherwise UTC.
      - `duration`: compute from `**Started:**` timestamp to now (e.g., `2h 15m`, `45m`)
-     - `cost_usd`: parse from `## Cost` section — strip `$`, take the number before `(`. E.g., `$1.2345 (138K tokens)` → `1.2345`. Use `0.00` if no cost data.
+     - `cost_usd`: read `cost_usd` from `.claude-code-hermit/sessions/.status.json`. Fall back to parsing `## Cost` section from SHELL.md (strip `$`, take the number before `(`). Use `0.00` if neither is available.
      - `tags`: from `**Tags:**` field, split on comma, trim whitespace, output as YAML array. E.g., `refactor, frontend` → `[refactor, frontend]`. Use `[]` if empty.
      - `proposals_created`: scan `## Proposals Created` section for PROP-NNN patterns, output as YAML array. Use `[]` if none.
      - `task`: extract the first non-comment, non-empty line from `## Task` in SHELL.md. Trim to 120 characters max. Use `""` if blank.

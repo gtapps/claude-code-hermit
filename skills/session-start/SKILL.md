@@ -22,10 +22,10 @@ All state lives under `.claude-code-hermit/` in the project root.
      - `transition == "cleaning"` → re-run SHELL.md cleanup
      - Notify the operator: "Recovered from interrupted [transition]. Session is now idle."
    - **Unclean shutdown detection:** If `last_error == "unclean_shutdown"`:
-     - In always-on mode: set `session_state` to `waiting` in runtime.json, notify the operator via channel: "Came back up after unclean shutdown. Previous task: [task from SHELL.md, or 'unknown']. Reply with (1) to archive as partial and start fresh, or (2) to resume where we left off." Then stop — channel-responder handles the reply.
+     - In always-on mode: set `session_state` to `waiting` and `waiting_reason` to `"unclean_shutdown"` in runtime.json, notify the operator via channel: "Came back up after unclean shutdown. Previous task: [task from SHELL.md, or 'unknown']. Reply with (1) to archive as partial and start fresh, or (2) to resume where we left off." Then stop — channel-responder handles the reply. If `heartbeat.waiting_timeout` is set, heartbeat will auto-transition to `idle` after timeout elapses with no channel activity.
      - In interactive mode: tell the operator "Previous session was not closed cleanly." Offer: (a) Archive as `partial` and start fresh, (b) Resume as-is.
      - Clear `last_error` after the operator decides.
-   - **Dead process detection:** If `session_state == "dead_process"`: same flow as unclean shutdown above, with message: "Process died unexpectedly. Previous task: [task from SHELL.md, or 'unknown']. Reply with (1) to archive as partial and start fresh, or (2) to resume where we left off."
+   - **Dead process detection:** If `session_state == "dead_process"`: same flow as unclean shutdown above. Set `waiting_reason` to `"dead_process"` in runtime.json. Message: "Process died unexpectedly. Previous task: [task from SHELL.md, or 'unknown']. Reply with (1) to archive as partial and start fresh, or (2) to resume where we left off."
    - **Normal state:** If `session_state` is `idle` → ready for new task. If `in_progress` or `waiting` → existing session, offer resume.
 3b. **Watch registry reset.** Read `state/monitors.runtime.json` and clear all entries unconditionally — watches are session-scoped, so any previous entries are stale. If the file is missing, skip. This runs on every session start (new, resume, or crash recovery) before any watch registration occurs.
 4. **Session state routing** — evaluate the fast-path gate before spawning session-mgr.
@@ -37,7 +37,7 @@ All state lives under `.claude-code-hermit/` in the project root.
    - `last_error` is null
    - `.claude-code-hermit/sessions/SHELL.md` exists
 
-   If all five are true: SHELL.md content is already available from the startup hook injection. Proceed directly to step 4b with the data already in hand. Do **not** spawn session-mgr.
+   If all five are true: SHELL.md content is already available from the startup hook injection. Proceed directly to step 4b with the data already in hand. Do **not** spawn session-mgr. Read `session_id` from runtime.json — if set and SHELL.md `**ID:**` still contains the placeholder `S-NNN`, update it to the actual session ID (e.g., `S-009`) in-context without spawning session-mgr.
 
    **Slow path (spawn session-mgr) — any condition above fails:**
    - `runtime.json` is missing or malformed → first run or corrupted state

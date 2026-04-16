@@ -76,6 +76,28 @@ if not any(e['id'] == rid and e.get('scheduled_slot', e.get('queued_date')) == s
 
 # Reset ephemeral state on start
 > "$STATE"
+
+# Drain stale queue entries from previous runs (older than 2h = one heartbeat cycle)
+if [ -f "$QUEUE_FILE" ]; then
+  "$PYTHON3" -c "
+import json, sys, datetime
+f = sys.argv[1]
+try: q = json.load(open(f))
+except: sys.exit(0)
+now = datetime.datetime.now()
+fresh = []
+for item in q.get('queued', []):
+    try:
+        qs = datetime.datetime.fromisoformat(item['queued_since'])
+        if (now - qs).total_seconds() < 7200:
+            fresh.append(item)
+    except:
+        fresh.append(item)  # keep items we can't parse rather than silently dropping them
+if len(fresh) != len(q.get('queued', [])):
+    json.dump({'queued': fresh}, open(f, 'w'))
+" "$QUEUE_FILE" 2>/dev/null
+fi
+
 LAST_DATE=""
 SUSPECT_COUNT=0
 CACHED_HB_EVERY=""
