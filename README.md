@@ -17,7 +17,8 @@ Turn Claude Code into a Always-on Personal AI assistant that lives in your proje
 <p align="center">
   <img src="assets/demo.gif" alt="claude-code-hermit demo — Obsidian dashboard, Discord control, autonomous briefings, remote access" width="720" />
 </p>
- Three commands to a running hermit:
+
+Three commands to a running hermit:
 > ```
 > claude plugin install claude-code-hermit@claude-code-hermit --scope project
 > /claude-code-hermit:hatch # setup in your project & folder
@@ -31,13 +32,13 @@ Hermit is the glue between Claude Code's native capabilities and a 24/7 agent th
 ## How It Works
 
 **1. Set it up anywhere.** An existing codebase, a fresh folder for a personal assistant, a new idea — anything. Hermit scans what's there, asks a few questions, and generates a personalized rulebook (`OPERATOR.md`) with your priorities and constraints.
- 
+
 **2. Give it a task and walk away.** From your terminal, your phone, or remote — tell your hermit what you need. It plans, works, logs, and pings you when it's blocked or done. Close your laptop. Reboot your machine. Come back tomorrow. It's still there.
- 
+
 **3. It learns from experience.** Hermit reflects on its own memory — recurring blockers, repeated workarounds, token usage. When it spots a pattern, it creates a proposal. You review, you decide, it adapts.
- 
+
 **4. Routines.** Morning briefs, evening summaries, background monitors. Between tasks it picks up accepted proposals and runs maintenance — all gated by how much autonomy you give it.
- 
+
 **5. You can see inside it.** Obsidian Powered - browse sessions, proposals, cost trends, and learning.— Hermit Cortex turns your hermit's memory into a navigable brain you can view in Obsidian.
 
 ---
@@ -123,16 +124,16 @@ You can also talk to Hermit about how it can improve. Ask what slowed it down, w
 ## Creating Your Own Hermit
 
 Every hermit is yours from the moment you run `/claude-code-hermit:hatch`. Drop it into an existing codebase — it becomes your project's assistant. Create a fresh folder for personal finance, research, or writing — it becomes that kind of assistant. The wizard adapts to whatever it finds.
- 
+
 Over time, Hermit learns what your work actually needs. Ask it to suggest specialized agents based on your recent sessions — it'll propose them, you approve, and it creates them for you. You don't design these upfront — they emerge from how you actually work.
- 
+
 For ready-made specialists, install a hermit plugin like the dev hermit:
- 
+
 ```bash
 claude plugin marketplace add gtapps/claude-code-dev-hermit
 claude plugin install claude-code-dev-hermit@claude-code-dev-hermit --scope project
 ```
- 
+
 See [Creating Your Own Hermit](docs/creating-your-own-hermit.md) for more.
 
 ---
