@@ -46,7 +46,7 @@ Plugin checks run during idle reflection via `reflect`. If accepted plugins aren
 
 - **Workspace trust:** Run `claude` interactively once first and accept the trust prompt. Then restart headless.
 - **Orphaned SHELL.md:** A crash left an active session. Attach to tmux and choose resume/new, or delete `sessions/SHELL.md`.
-- **Auth expired:** Check with `claude --version`. Run `claude login` if needed.
+- **Auth expired:** Check with `claude --version`. Run `claude /login` if needed.
 
 ## Costs Unexpectedly High
 

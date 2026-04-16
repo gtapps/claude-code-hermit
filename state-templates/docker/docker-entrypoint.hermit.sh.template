@@ -10,7 +10,7 @@ echo "[docker-entrypoint] Starting hermit container..."
 echo "[docker-entrypoint] Project: ${PROJECT_DIR}"
 
 # --- 0. Wait for auth credentials ---
-# OAuth users must run `claude login` inside the container on first boot.
+# OAuth users must run `claude /login` inside the container on first boot.
 # The login writes .credentials.json to the named volume, which persists
 # across restarts. API key users set ANTHROPIC_API_KEY in .env instead.
 CRED_FILE="${CLAUDE_CONFIG_DIR}/.credentials.json"
@@ -31,7 +31,7 @@ if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -f "$CRED_FILE" ]; then
     WAIT_SECS=$((WAIT_SECS + 5))
     if [ "$WAIT_SECS" -ge 600 ]; then
       echo "[docker-entrypoint] Timed out waiting for credentials after 10 minutes."
-      echo "[docker-entrypoint] Run 'claude login' inside the container, then restart it."
+      echo "[docker-entrypoint] Run 'claude /login' inside the container, then restart it."
       exit 1
     fi
   done
@@ -79,7 +79,7 @@ except Exception:
       fi
       if [ "$WAIT_SECS" -ge 600 ]; then
         echo "[docker-entrypoint] Timed out waiting for fresh credentials."
-        echo "[docker-entrypoint] Run 'claude login' inside the container, then restart it."
+        echo "[docker-entrypoint] Run 'claude /login' inside the container, then restart it."
         exit 1
       fi
     done

@@ -34,7 +34,7 @@ Set a per-session budget with `/hermit-settings budget`. A typical interactive s
 
 ## What happens if my auth token expires?
 
-The hermit stops responding. Re-run `claude login` inside the container to refresh credentials:
+The hermit stops responding. Re-run `claude /login` inside the container to refresh credentials:
 
 ```bash
 .claude-code-hermit/bin/hermit-docker login

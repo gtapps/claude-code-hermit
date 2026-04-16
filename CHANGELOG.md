@@ -1,5 +1,44 @@
 # Changelog
 
+## [1.0.5] - 2026-04-16
+
+### Fixed
+
+- **`claude login` → `claude /login`** — The correct Claude Code CLI invocation for OAuth login is `claude /login`, not `claude login`. Updated everywhere: `hermit-docker` executable, `docker-entrypoint.hermit.sh.template` echo messages, `docker-setup/SKILL.md`, and all docs (`faq.md`, `troubleshooting.md`, `always-on.md`, `config-reference.md`, `architecture.md`, `hermit-start.py`).
+- **`hermit-docker`: `_require_running` preflight for `attach`, `bash`, `login`, `restart`** — These subcommands now check that `$SERVICE` specifically is running (not just any service in the compose file) before attempting `docker compose exec`. If the container is down they print a clear `Container is not running. Start it first: .claude-code-hermit/bin/hermit-docker up` message instead of a raw Docker error.
+- **`docker-setup` Step 8: container readiness gates** — Prevents the skill from issuing `docker exec` commands against a non-running container. Three gates added: (1) "No — manual" branch now prints a self-contained manual deployment guide and skips directly to Step 9 — Login, Workspace trust, and Channel pairing are not attempted when the container hasn't been started. (2) "Yes — build now" polls `docker compose ps --status running` for up to 10s after `hermit-docker up` and shows container logs for diagnosis if the service never appears. (3) Workspace trust and Channel pairing both gate on `tmux has-session` (30s retry) before issuing `tmux send-keys`, preventing the `no server running on /tmp/tmux-.../default` error when the entrypoint is still installing plugins.
+- **`docker-setup` Step 8: `access.json` verification** — Channel pairing now checks `.claude.local/channels/<plugin>/access.json` after ~3s (one retry at ~8s) and falls through to `tmux capture-pane` diagnostics if absent, instead of silently declaring success after "a few seconds".
+- **`docker-setup`: broken doc link** — `docs/recommended-plugins.md` link at the end of Step 7b fixed to `../../docs/recommended-plugins.md` (relative to the skill file).
+
+### Changed
+
+- **`hatch` completion message** — "Go always-on" step now leads with `docker-setup` (recommended) before the bare-tmux option. `smoke-test` moved to a troubleshooting note rather than a required step. `bypassPermissions` promoted to first option in the permissions question with a clearer description.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/bin/hermit-docker` | `_require_running` helper; `claude login` → `claude /login` |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | `claude login` → `claude /login` in echo messages and comment |
+| `skills/docker-setup/SKILL.md` | Step 8 readiness gates; doc link fix; `claude login` → `claude /login` |
+| `skills/hatch/SKILL.md` | Completion message reorder; permissions option order; formatting |
+| `docs/faq.md` | `claude login` → `claude /login` |
+| `docs/troubleshooting.md` | `claude login` → `claude /login` |
+| `docs/always-on.md` | `claude login` → `claude /login` |
+| `docs/config-reference.md` | `claude login` → `claude /login` |
+| `docs/architecture.md` | `claude login` → `claude /login` |
+| `scripts/hermit-start.py` | `claude login` → `claude /login` in comment |
+| `README.md` | Restructured introduction and quick start |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **`hermit-docker` script** — Copy updated `state-templates/bin/hermit-docker` to `.claude-code-hermit/bin/hermit-docker`. This picks up the `_require_running` helper and the `claude /login` fix.
+2. **`docker-entrypoint.hermit.sh`** — If Docker is in use, patch the rendered entrypoint at the project root: replace `claude login` with `claude /login` (two echo lines in the timeout paths). This is a cosmetic fix; the container still works — it only affects the error message shown when the 10-minute credential wait times out.
+
+No `config.json` changes required.
+
 ## [1.0.4] - 2026-04-16
 
 ### Fixed

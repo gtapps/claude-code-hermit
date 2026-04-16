@@ -87,7 +87,7 @@ All bin scripts are pure bash — no Claude Code process, no tokens burned.
 
 ## Auth
 
-**OAuth login (recommended for Pro/Max):** After the container starts for the first time, run `claude login` inside it:
+**OAuth login (recommended for Pro/Max):** After the container starts for the first time, run `claude /login` inside it:
 
 ```bash
 .claude-code-hermit/bin/hermit-docker login

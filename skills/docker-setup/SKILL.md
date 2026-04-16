@@ -35,7 +35,7 @@ questions: [
     header: "Auth",
     question: "Authentication method for the container?",
     options: [
-      { label: "OAuth", description: "Run claude login inside the container — recommended" },
+      { label: "OAuth", description: "Run claude /login inside the container — recommended" },
       { label: "API Key", description: "Set ANTHROPIC_API_KEY in .env" }
     ],
   },
@@ -90,7 +90,7 @@ Read the three templates from `${CLAUDE_SKILL_DIR}/../../state-templates/docker/
 - `{{TMUX_SESSION_NAME}}` — resolved session name
 
 **docker-compose.hermit.yml** (from `docker-compose.hermit.yml.template`):
-- `{{AUTH_ENV_LINE}}` — If apikey: `      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}\n`. If oauth: empty string (remove the line entirely — OAuth credentials live in `.credentials.json` inside the named volume, written by `claude login`).
+- `{{AUTH_ENV_LINE}}` — If apikey: `      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}\n`. If oauth: empty string (remove the line entirely — OAuth credentials live in `.credentials.json` inside the named volume, written by `claude /login`).
 - `{{CHANNEL_ENV_LINES}}` — for each enabled channel, derive the `*_STATE_DIR` value from `channels.<name>.state_dir` in config.json and add an indented environment line:
   - `      - DISCORD_STATE_DIR=${PWD}/.claude.local/channels/discord`
   - `      - TELEGRAM_STATE_DIR=${PWD}/.claude.local/channels/telegram`
@@ -181,7 +181,7 @@ Record the final list as `docker.recommended_plugins`. Each entry has:
 ```json
 {"marketplace": "claude-plugins-official", "plugin": "<plugin-name>", "scope": "project", "enabled": true}
 ```
-The entrypoint installs enabled plugins on first boot. Only plugins from `claude-plugins-official` are auto-installed — third-party plugins must be installed manually. See [Recommended Plugins](docs/recommended-plugins.md) for the full policy.
+The entrypoint installs enabled plugins on first boot. Only plugins from `claude-plugins-official` are auto-installed — third-party plugins must be installed manually. See [Recommended Plugins](../../docs/recommended-plugins.md) for the full policy.
 
 If the operator chose plugins not already in `plugin_checks`, also record the corresponding `plugin_checks` entries (same as hatch Phase 4).
 
@@ -209,20 +209,52 @@ docker-compose.hermit.yml      — orchestration config
 
 **Build and start:** Ask with `AskUserQuestion` (header: "Deploy"): **Yes — build now** (run hermit-docker up immediately) / **No — manual** (print commands to run later).
 
-If "Yes — build now":
-1. `.claude-code-hermit/bin/hermit-docker up` — builds and starts. Help fix errors (daemon not running, network, disk).
+**If "No — manual":** Print the full manual deployment guide below, then skip directly to Step 9 (do not attempt Login, Workspace trust, or Channel pairing — the container is not running yet):
 
-If "No — manual": print the manual commands and skip to verify.
+```
+Manual deployment guide
+──────────────────────
+1. Start the container:
+   .claude-code-hermit/bin/hermit-docker up
 
-**Login (oauth only):** If operator chose oauth, guide them through the container login:
+2. (OAuth only) From a second terminal, complete login:
+   .claude-code-hermit/bin/hermit-docker login
+
+3. Accept workspace trust (press Enter, then Ctrl+B D to detach):
+   .claude-code-hermit/bin/hermit-docker attach
+
+4. (Channels only) Pair each bot — DM it to get a 6-char code, then run:
+   docker exec <container> tmux send-keys -t <session> \
+     '/<plugin>:access pair <code> — save access.json to <project_path>/.claude.local/channels/<plugin>/ not ~/.claude' Enter
+   docker exec <container> tmux send-keys -t <session> \
+     '/<plugin>:access policy allowlist' Enter
+   Verify access.json landed at: .claude.local/channels/<plugin>/access.json
+
+5. Verify everything is healthy:
+   .claude-code-hermit/bin/hermit-status
+
+Re-run /claude-code-hermit:docker-setup any time you want guided help.
+```
+
+**If "Yes — build now":**
+1. Run `.claude-code-hermit/bin/hermit-docker up` — builds and starts. Help fix errors (daemon not running, network, disk).
+2. **Verify the container stayed running:** Poll `docker compose -f docker-compose.hermit.yml ps --status running --format '{{.Service}}'` every 2s for up to 10s. If the service appears — continue to the next sub-section. If it never appears after 10s, run `docker compose -f docker-compose.hermit.yml logs --tail=30 hermit` and show the output. Help diagnose (common: image build failure, missing `.env` var, port conflict, Docker daemon not fully ready). **Do not continue to Login / Workspace trust / Channel pairing while the container is down — stop here and ask the operator to fix and re-run the skill.**
+
+**Login (oauth only):** If operator chose oauth, proceed only once the container is confirmed running. Guide them through login:
 1. Tell them: "The container is waiting for you to log in. Run this from another terminal:"
    ```
    .claude-code-hermit/bin/hermit-docker login
    ```
 2. This opens a browser URL for OAuth. After completing the login, credentials are saved to the named volume and the container starts automatically.
-3. Wait for the operator to confirm they've logged in. Then verify by checking container logs for "Credentials detected" or "hermit-start" output.
+3. Wait for the operator to confirm they've logged in. Then verify by checking `docker compose -f docker-compose.hermit.yml logs --tail=20 hermit` for "Credentials detected" or "hermit-start" output.
 
-**Workspace trust:** Tell the operator to attach and accept the trust prompt:
+**Workspace trust:** Before asking the operator to attach, verify the tmux session exists inside the container (the entrypoint may still be installing plugins):
+```
+docker compose -f docker-compose.hermit.yml exec -T hermit tmux has-session -t <TMUX_SESSION_NAME>
+```
+If the session is not ready, wait and retry every 5s for up to 30s. If still absent after 30s, show the last 30 lines of entrypoint logs (`docker compose logs --tail=30 hermit`) to help diagnose, then stop.
+
+Once the session exists, tell the operator to attach and accept the trust prompt:
 ```
 .claude-code-hermit/bin/hermit-docker attach
 ```
@@ -230,16 +262,19 @@ Press Enter to accept, then Ctrl+B, D to detach. Wait for confirmation.
 
 **Channel pairing** (skip if no channels or no tokens configured):
 
+Before pairing, confirm the tmux session still exists (reuse the `has-session` check from Workspace trust). If it's gone, surface container logs and stop.
+
 For each channel, ask if already paired. If not:
 1. Operator DMs the bot → gets a 6-char code → pastes it
 2. Send pair command into tmux — append the local state dir so the LLM writes there instead of the default user path:
    ```
-   docker exec <container> tmux send-keys -t <session> '/<plugin>:access pair <code> — save access.json to <project_path>/.claude.local/channels/<plugin>/ not ~/.claude' Enter
+   docker compose -f docker-compose.hermit.yml exec -T hermit \
+     tmux send-keys -t <session> '/<plugin>:access pair <code> — save access.json to <project_path>/.claude.local/channels/<plugin>/ not ~/.claude' Enter
    ```
-3. Wait a few seconds, then set policy: `docker exec <container> tmux send-keys -t <session> '/<plugin>:access policy allowlist' Enter`
-4. **Verify `access.json` landed in the right place:** Check that `access.json` exists at `.claude.local/channels/<plugin>/access.json`. If it still landed in `~/.claude/channels/<plugin>/`, move it:
+3. Set policy: `docker compose -f docker-compose.hermit.yml exec -T hermit tmux send-keys -t <session> '/<plugin>:access policy allowlist' Enter`
+4. **Verify `access.json` landed in the right place:** Check `.claude.local/channels/<plugin>/access.json` after ~3s; retry once after another 5s. If still absent, run `docker compose exec -T hermit tmux capture-pane -t <session> -p` to see whether the pair command echoed (common cause: plugin not installed in container yet, or operator paired too early before entrypoint finished). If it landed in `~/.claude/channels/<plugin>/` instead, move it:
    ```
-   docker exec <container> bash -c 'src="${CLAUDE_CONFIG_DIR:-/home/claude/.claude}/channels/<plugin>/access.json"; dst="<project_path>/.claude.local/channels/<plugin>/"; [ -f "$src" ] && mkdir -p "$dst" && mv "$src" "$dst" && echo moved'
+   docker compose exec -T hermit bash -c 'src="${CLAUDE_CONFIG_DIR:-/home/claude/.claude}/channels/<plugin>/access.json"; dst="<project_path>/.claude.local/channels/<plugin>/"; [ -f "$src" ] && mkdir -p "$dst" && mv "$src" "$dst" && echo moved'
    ```
 5. Confirm: "Paired and locked down. If the bot doesn't respond to your first message, give it up to 2 minutes — the hermit may still be booting or running initial checks (plugin installs, workspace trust, auto-memory seeding)."
 

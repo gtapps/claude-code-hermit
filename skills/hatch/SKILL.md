@@ -2,6 +2,7 @@
 name: hatch
 description: Initializes the autonomous agent in the current project. Creates the state directory, templates, OPERATOR.md, and config.json. Appends session discipline to CLAUDE.md. Detects installed hermits. Run once per project, like git init.
 ---
+
 # Initialize Autonomous Agent
 
 Set up the autonomous agent for this project. This creates the per-project state directory, configures the project for session-based work, and optionally activates hermits.
@@ -11,6 +12,7 @@ Set up the autonomous agent for this project. This creates the per-project state
 ### 1. Check if already initialized
 
 Check if `.claude-code-hermit/` exists in the current project.
+
 - If it exists and has content: inform the operator that the agent is already initialized. Ask if they want to reinitialize (which resets templates but preserves sessions, proposals, config, and OPERATOR.md).
 - If it doesn't exist: proceed with initialization.
 
@@ -47,6 +49,7 @@ Create the following directories and files:
 ```
 
 Initialize state files (inline — shape-insensitive or append-only):
+
 - `.claude-code-hermit/state/reflection-state.json`: `{"last_reflection": null}` — no code path is materially shape-sensitive to its initial form
 - `.claude-code-hermit/state/proposal-metrics.jsonl`: empty file — append-only, not schema-sensitive JSON state
 
@@ -64,9 +67,10 @@ Initialize state files (inline — shape-insensitive or append-only):
 ### 3. Detect hermits
 
 Look for sibling plugin directories that extend Hermit:
+
 - Use Glob on `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json`
 - Read each found `plugin.json` and check if the `name` field contains "hermit" but is NOT "claude-code-hermit"
-If hermits are found:
+  If hermits are found:
 - List them and ask: "Activate a hermit for this project?"
 - If the operator selects one: read that hermit's `state-templates/CLAUDE-APPEND.md` and append it to the target project's CLAUDE.md (after the core append in step 5)
 - If none found or operator declines: skip
@@ -78,19 +82,23 @@ Collect project preferences in 4–5 interactions. Use `AskUserQuestion` for all
 #### Phase 1 — Auto-detect (silent, parallel)
 
 Run both Bash commands in a single turn before asking anything:
+
 - Language: `echo $LANG | cut -d_ -f1` (fallback: `en`)
 - Timezone: `cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value 2>/dev/null || date +%Z` (fallback: `UTC`)
 
 #### Phase 2 — Identity
 
 **4a. Agent name** — ask with `AskUserQuestion` (header: "Agent name"). Options: **Atlas** / **Hermit** / **Skip** — plus Other for a custom name.
+
 - If "Skip" or Other left blank: record as `agent_name: null`
 - Otherwise: record the selected or typed value as `agent_name`
 
 **4b+4c. Language + Timezone** — batch both in one `AskUserQuestion` call (header: "Language" / "Timezone"). For each, offer the auto-detected value as the first option and one common alternative (e.g., "en" / "UTC"). If auto-detected already matches the alternative, swap in a different one to avoid duplicates.
+
 - Record selected label or Other free-text as the value
 
 **4d. Sign-off style** (only if agent_name was provided in 4a) — ask with `AskUserQuestion` (header: "Sign-off"). Options: **{name} out.** / **-- {initial}.** / **Skip** — plus Other for custom phrasing. Replace `{name}` and `{initial}` from the agent name.
+
 - If "Skip": record as `sign_off: null`
 - Otherwise: record selected or typed value as `sign_off`
 
@@ -155,14 +163,16 @@ questions: [
   }
 ]
 ```
+
 Note: `multiSelect: true` is intentional — all three plugins can be selected at once.
 
 - All plugins are selected by default — deselect to skip
 - If "None" is selected, skip all plugin installs
 - For each selected plugin (not "None"), install it immediately:
-`claude plugin install <plugin>@claude-plugins-official --scope project`
+  `claude plugin install <plugin>@claude-plugins-official --scope project`
 
 For each accepted plugin, also add the corresponding `plugin_checks` entries to config.json:
+
 - `claude-code-setup` → `{"id":"automation-recommender","plugin":"claude-code-setup","skill":"/claude-code-setup:claude-automation-recommender","enabled":true,"trigger":"interval","interval_days":7}`
 - `claude-md-management` → two entries:
   - `{"id":"md-audit","plugin":"claude-md-management","skill":"/claude-md-management:claude-md-improver","enabled":true,"trigger":"interval","interval_days":7}`
@@ -188,6 +198,7 @@ questions: [
 - Channel plugins require Bun and manual setup (bot creation, token, pairing). After saving the preference to `config.json`, note:
 
   > **Channel preference saved.**
+  >
   > - Local/tmux: run `/claude-code-hermit:channel-setup` to activate it (installs plugin, configures token, guides pairing).
   > - Docker: `/claude-code-hermit:docker-setup` handles channels automatically.
   > - Full guide: https://code.claude.com/docs/en/channels
@@ -226,10 +237,10 @@ questions: [
     header: "Permissions",
     question: "Permission mode for Claude Code?",
     options: [
-      { label: "acceptEdits", description: "Auto-approve file edits, prompt for shell commands (default)" },
+      { label: "bypassPermissions", description: "No permission prompts. Best for true always-on use in isolated, trusted environments (Docker)" },
+      { label: "acceptEdits", description: "Auto-approve file edits, prompt for shell commands. Good balance for semi-autonomous use." },
       { label: "default", description: "Prompt for permission on first use of each tool" },
-      { label: "dontAsk", description: "Deny all tools not in permissions.allow — requires curated allowlist" },
-      { label: "bypassPermissions", description: "No checks — isolated containers/VMs only" }
+      { label: "dontAsk", description: "Deny all tools not in permissions.allow — requires curated allowlist" }
     ]
   },
   {
@@ -254,6 +265,7 @@ questions: [
 Record: `permission_mode` (default/acceptEdits/plan/dontAsk/bypassPermissions), `scope` (`"local"` or `"project"`). `plan` mode can be typed via Other if needed.
 
 For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, `end = 23:00`) to derive morning = `08:30` and evening = `22:30`. Add to `routines` array:
+
 - `{"id":"morning","schedule":"30 8 * * *","skill":"claude-code-hermit:brief --morning","enabled":true,"run_during_waiting":true}`
 - `{"id":"evening","schedule":"30 22 * * *","skill":"claude-code-hermit:brief --evening","enabled":true,"run_during_waiting":true}`
 - Always add (regardless of routine choice): `{"id":"heartbeat-restart","schedule":"0 4 * * *","skill":"claude-code-hermit:heartbeat start","run_during_waiting":true,"enabled":true}`
@@ -343,6 +355,7 @@ This enables native Tasks for plan tracking. The cost-tracker hook reads task fi
 Generate OPERATOR.md through a project scan and targeted conversation instead of asking the operator to edit it manually.
 
 **Re-init guard:** If `operator_existed` is true (from step 2):
+
 - Ask: "OPERATOR.md already exists — regenerate it from a fresh project scan? Your current one will be saved as OPERATOR.md.bak."
 - If yes: rename existing to `.claude-code-hermit/OPERATOR.md.bak`, then proceed with phases below.
 - If no: skip this entire step.
@@ -351,19 +364,19 @@ Generate OPERATOR.md through a project scan and targeted conversation instead of
 
 Scan the target project for context. Read ONLY the following if they exist — never read source code files. **Read all existing files in parallel** (batch into a single tool-call turn) to minimize scan time:
 
-| File | Read scope |
-|------|-----------|
-| `CLAUDE.md` | Full file |
-| `README.md` | First 200 lines |
-| `package.json` | Full file |
-| `requirements.txt` | Full file |
-| `pyproject.toml` | Full file |
-| `Cargo.toml` | Full file |
-| `go.mod` | Full file |
-| `docker-compose.yml` | Full file |
+| File                 | Read scope                                   |
+| -------------------- | -------------------------------------------- |
+| `CLAUDE.md`          | Full file                                    |
+| `README.md`          | First 200 lines                              |
+| `package.json`       | Full file                                    |
+| `requirements.txt`   | Full file                                    |
+| `pyproject.toml`     | Full file                                    |
+| `Cargo.toml`         | Full file                                    |
+| `go.mod`             | Full file                                    |
+| `docker-compose.yml` | Full file                                    |
 | `.github/workflows/` | List filenames; read the first workflow file |
-| `.gitlab-ci.yml` | First 100 lines |
-| `Makefile` | First 50 lines |
+| `.gitlab-ci.yml`     | First 100 lines                              |
+| `Makefile`           | First 50 lines                               |
 
 Also get the directory structure (2 levels deep) to understand the project layout.
 
@@ -386,22 +399,22 @@ Questions are split into two `AskUserQuestion` calls (max 4 per call). Q1–Q4 a
 
 **Call 1 — always sent (4 questions):**
 
-| # | Header | Question | Options (+ Other for free text) |
-|---|--------|----------|----------------------------------|
-| 1 | Focus | "What should I focus on in this project?" | Active development / Stabilization / Exploration |
-| 2 | Constraints | "Are there hard rules or areas I should avoid touching without asking?" | None / Config files |
-| 3 | Approval | "What actions require your explicit approval before I proceed?" | Deploys only / Breaking changes / Nothing extra |
-| 4 | Comms style | "How do you prefer I communicate?" | Concise / Detailed / Ask first |
+| #   | Header      | Question                                                                | Options (+ Other for free text)                  |
+| --- | ----------- | ----------------------------------------------------------------------- | ------------------------------------------------ |
+| 1   | Focus       | "What should I focus on in this project?"                               | Active development / Stabilization / Exploration |
+| 2   | Constraints | "Are there hard rules or areas I should avoid touching without asking?" | None / Config files                              |
+| 3   | Approval    | "What actions require your explicit approval before I proceed?"         | Deploys only / Breaking changes / Nothing extra  |
+| 4   | Comms style | "How do you prefer I communicate?"                                      | Concise / Detailed / Ask first                   |
 
 Accept any answer including free-text via Other. Expand into OPERATOR.md prose in Phase 4 — don't take options too literally.
 
 **Call 2 — only if any of Q5–Q7 apply (skip conditions below):**
 
-| # | Header | Question | Options | Skip if... |
-|---|--------|----------|---------|------------|
-| 5 | CI/CD | "Any CI/CD quirks I should know about? (flaky tests, required checks, deploy process)" | Standard / Has quirks | No CI config found in Phase 1 |
-| 6 | Testing | "How should I handle testing? (run before commit, specific commands, coverage requirements)" | Before commit / CI handles it / As needed | CLAUDE.md already covers testing |
-| 7 | Team | "Who's working on this? (solo / small team / large team — and any ownership boundaries)" | Solo / Small team / Large team | Skip if Q5 or Q6 is included (batch already ≥2) |
+| #   | Header  | Question                                                                                     | Options                                   | Skip if...                                      |
+| --- | ------- | -------------------------------------------------------------------------------------------- | ----------------------------------------- | ----------------------------------------------- |
+| 5   | CI/CD   | "Any CI/CD quirks I should know about? (flaky tests, required checks, deploy process)"       | Standard / Has quirks                     | No CI config found in Phase 1                   |
+| 6   | Testing | "How should I handle testing? (run before commit, specific commands, coverage requirements)" | Before commit / CI handles it / As needed | CLAUDE.md already covers testing                |
+| 7   | Team    | "Who's working on this? (solo / small team / large team — and any ownership boundaries)"     | Solo / Small team / Large team            | Skip if Q5 or Q6 is included (batch already ≥2) |
 
 If none of Q5–Q7 apply, skip Call 2 entirely.
 
@@ -414,6 +427,7 @@ All questions use the `AskUserQuestion` structures defined above. Accept short a
 #### Phase 4 — Write final OPERATOR.md
 
 Incorporate the operator's answers into the draft:
+
 - Weave answers into the document as concise prose
 - Use headers only where they add clarity — don't force a section for every answer
 - Strip the HTML comment from the template (replace with actual content)
@@ -441,10 +455,12 @@ If a hermit was activated in step 3, also append its CLAUDE-APPEND.md here (usin
 ### 7. Update .gitignore
 
 Use the `scope` value recorded in Phase 6:
+
 - `"project"` → use `${CLAUDE_SKILL_DIR}/../../state-templates/GITIGNORE-APPEND-PROJECT.txt`
 - `"local"` (default) → use `${CLAUDE_SKILL_DIR}/../../state-templates/GITIGNORE-APPEND.txt`
 
 Select the appropriate template, then:
+
 - If `.gitignore` exists: check if it already contains `.claude/cost-log.jsonl` (local template) or `.env` (project template)
   - If the marker is already present: skip
   - If not: append the template contents
@@ -455,6 +471,7 @@ Select the appropriate template, then:
 The plugin's hooks and boot scripts require specific Bash permissions to run without prompting. Merge these into `.claude/settings.json` (the project-level, committed settings file):
 
 **Required permissions:**
+
 ```json
 {
   "permissions": {
@@ -477,12 +494,14 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
 ```
 
 **Why each one:**
+
 - `git diff`, `git status`, `git log` — session-diff.js hook auto-populates `## Changed` in SHELL.md
 - `node */scripts/<name>.js` — Stop hooks (cost-tracker, suggest-compact, session-diff, evaluate-session), scoped to plugin scripts only
 - `bash -c 'AGENT_DIR=...` — SessionStart hook that loads session context on every startup
 - `Edit`, `Write` on `.claude-code-hermit/**` — heartbeat appends to SHELL.md, increments config.json tick counter, and skills update session state without prompting
 
 **Steps:**
+
 1. If `.claude/settings.json` exists: read it and identify which required permissions are missing from `permissions.allow`
 2. If `.claude/settings.json` does not exist: all permissions are missing
 3. If no permissions are missing: skip silently
@@ -500,8 +519,8 @@ questions: [
     header: "Safety rules",
     question: "Planning always-on operation (Docker/tmux)? This determines which deny rules to apply.",
     options: [
-      { label: "No — minimal", description: "Blocks destructive commands and credential exposure (default)" },
       { label: "Yes — hardened", description: "Adds git push, npm publish, and unattended-operation protections" },
+      { label: "No — minimal", description: "Blocks destructive commands and credential exposure (default)" },
       { label: "Skip", description: "No deny rules — add later in settings.json" }
     ]
   }
@@ -599,12 +618,14 @@ Updated:
 
 Next steps:
   1. Run /reload-plugins to pick up newly installed plugins in this session
-  2. Run /claude-code-hermit:smoke-test to verify the setup
-  3. Run /claude-code-hermit:session to start your first session
+  2. For always-on mode: /claude-code-hermit:docker-setup (Recommended) or .claude-code-hermit/bin/hermit-start (requires tmux)
+  3. If you just want to try it out: /claude-code-hermit:session
   4. Refine OPERATOR.md anytime — just tell me what changed
   5. Change settings with /claude-code-hermit:hermit-settings
   6. For an Obsidian dashboard: /claude-code-hermit:obsidian-setup
-  7. For always-on operation: /claude-code-hermit:docker-setup or .claude-code-hermit/bin/hermit-start (requires tmux — install with `apt install tmux` or `brew install tmux`)
-  8. After plugin updates: /claude-code-hermit:hermit-evolve
-  9. (If a channel was configured) Activate it: /claude-code-hermit:channel-setup
+
+  7. After plugin updates: /claude-code-hermit:hermit-evolve
+  8. (If a channel was configured and you are not running via docker) Activate it: /claude-code-hermit:channel-setup
+  9. To troubleshoot any setup issues run /claude-code-hermit:smoke-test
+
 ```

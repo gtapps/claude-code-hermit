@@ -45,6 +45,16 @@ _oauth_hint() {
   echo "      Run: .claude-code-hermit/bin/hermit-docker login"
 }
 
+_require_running() {
+  local running
+  running="$(cd "$PROJECT_DIR" && "${DC[@]}" ps --status running --format '{{.Service}}' 2>/dev/null | grep -x "$SERVICE")"
+  if [ -z "$running" ]; then
+    echo "[hermit] Container is not running. Start it first:" >&2
+    echo "  .claude-code-hermit/bin/hermit-docker up" >&2
+    exit 1
+  fi
+}
+
 case "$CMD" in
   up)
     echo "[hermit] Starting Docker container..."
@@ -91,18 +101,21 @@ case "$CMD" in
     ;;
 
   attach)
+    _require_running
     echo "[hermit] Attaching to tmux session: $TMUX_SESSION"
     echo "[hermit] Detach with: Ctrl+B then D"
     cd "$PROJECT_DIR" && "${DC[@]}" exec "$SERVICE" tmux attach -t "$TMUX_SESSION"
     ;;
 
   bash)
+    _require_running
     cd "$PROJECT_DIR" && "${DC[@]}" exec -it "$SERVICE" /bin/bash "$@"
     ;;
 
   login)
+    _require_running
     echo "[hermit] Opening Claude Code login inside container..."
-    cd "$PROJECT_DIR" && "${DC[@]}" exec -it "$SERVICE" claude login
+    cd "$PROJECT_DIR" && "${DC[@]}" exec -it "$SERVICE" claude /login
     ;;
 
   logs)
@@ -110,6 +123,7 @@ case "$CMD" in
     ;;
 
   restart)
+    _require_running
     echo "[hermit] Restarting container..."
     cd "$PROJECT_DIR" && "${DC[@]}" restart "$@"
     echo "[hermit] Container restarted."

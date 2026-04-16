@@ -351,7 +351,7 @@ def write_settings_env(config):
 
     Auth vars (ANTHROPIC_API_KEY, CLAUDE_CONFIG_DIR) are NOT written here —
     they must be in the shell env before claude launches. OAuth credentials
-    live in .credentials.json (written by `claude login`).
+    live in .credentials.json (written by `claude /login`).
     """
     settings_path = Path('.claude/settings.local.json')
     settings_path.parent.mkdir(parents=True, exist_ok=True)
