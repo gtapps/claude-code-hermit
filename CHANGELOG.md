@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.4] - 2026-04-16
 
 ### Changed
 
@@ -13,6 +13,19 @@
 - **`reflect`: micro-proposal `question` text preserved in JSONL** — `micro-queued` events now include `question` (full text). The question is also stored in `micro-proposals.json` active slot so `channel-responder` and `brief` can echo it in `micro-resolved` events. Enables post-hoc analysis of what was asked and operator response patterns.
 - **`heartbeat`: `noise_ticks` self-eval field** — Self-eval entries gain a `noise_ticks` counter incremented when an alert fires and is linked to a dismissed proposal (via `self_eval_key`). Lazy reset when a linked proposal is accepted or resolved. At 20+ noise ticks across 3+ sessions, creates a proposal to retune or remove the noisy check — mirrors the existing `clean_ticks` removal pathway.
 - **`docs/frontmatter-contract.md`: lifecycle table updated** — `resolved_date` writer changed from `proposal-act` to `reflect skill (pattern absence)`.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/proposal-act/SKILL.md` | Remove `resolved_date` stamp from accept flow |
+| `skills/reflect/SKILL.md` | Add resolution check procedure; de-duplicate notification routing; preserve micro-proposal `question` in JSONL |
+| `agents/reflection-judge.md` | Add explicit `Sessions: none` suppression gate |
+| `skills/proposal-create/SKILL.md` | Add `source` and `category` to `created` metrics events |
+| `scripts/generate-summary.js` | Per-source acceptance rates and resolved count |
+| `skills/session-start/SKILL.md` | De-duplicate notification routing |
+| `skills/heartbeat/SKILL.md` | Add `noise_ticks` self-eval field |
+| `docs/frontmatter-contract.md` | Update `resolved_date` lifecycle table |
 
 ### Upgrade Instructions
 
