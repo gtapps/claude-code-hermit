@@ -28,7 +28,7 @@ Then run `/claude-code-hermit:hatch` to create the state directory. Edits to ski
 ## Testing
 
 ```bash
-bash tests/run-hooks.sh
+bash tests/run-all.sh
 ```
 
 See [Testing](docs/testing.md) for hook test details, fixtures, manual testing, and how to write new tests.
@@ -37,6 +37,6 @@ See [Testing](docs/testing.md) for hook test details, fixtures, manual testing, 
 
 1. Create a feature branch
 2. Make changes
-3. Run `bash tests/run-hooks.sh` locally
+3. Run `bash tests/run-all.sh` locally
 4. Push — CI runs the same tests
 5. Keep commits focused — one concern per PR

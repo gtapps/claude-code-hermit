@@ -3,10 +3,10 @@
 ## Running Tests
 
 ```bash
-bash tests/run-hooks.sh
+bash tests/run-all.sh
 ```
 
-This runs each hook with fixture input and asserts exit 0.
+This runs all test suites — hook tests, contract tests, and frontmatter validation.
 
 ---
 
@@ -14,7 +14,7 @@ This runs each hook with fixture input and asserts exit 0.
 
 Tests live in `tests/`:
 
-- `run-hooks.sh` — main test runner, executes all hook tests
+- `run-all.sh` — main test runner, executes all test suites
 - `fixtures/` — input files for hook tests
 
 ### Fixture Files
@@ -84,7 +84,7 @@ Tests are shell scripts. No Jest, Vitest, or anything else. This is a design con
 python3 tests/run-contracts.py
 ```
 
-Added in v0.3.5. Runs 20+ Python-based contract tests that verify:
+Runs 20+ Python-based contract tests that verify:
 
 - Plugin manifest integrity (`plugin.json` fields, skill/hook references)
 - Hook script exit codes and stdin contracts
@@ -95,7 +95,7 @@ These are stricter than `run-hooks.sh` — they test the plugin's behavioral con
 
 ### Fixture: cron-test-corpus.json
 
-`tests/cron-test-corpus.json` is a shared fixture (added v0.3.10) used by contract tests that exercise the routine watcher's schedule-matching logic. It contains time/schedule pairs with expected fire/skip decisions. Add entries when fixing schedule edge cases.
+`tests/cron-test-corpus.json` is a shared fixture used by contract tests that exercise the routine watcher's schedule-matching logic. It contains time/schedule pairs with expected fire/skip decisions. Add entries when fixing schedule edge cases.
 
 ---
 
@@ -105,4 +105,4 @@ These are stricter than `run-hooks.sh` — they test the plugin's behavioral con
 node tests/validate-frontmatter.js
 ```
 
-Added in v0.3.9. Validates that all `.md` files in `skills/` and `agents/` have valid YAML frontmatter with required fields (`name`, `description`). Exits non-zero if any file fails. Run before releasing skills changes.
+Validates that all `.md` files in `skills/` and `agents/` have valid YAML frontmatter with required fields (`name`, `description`). Exits non-zero if any file fails. Run before releasing skills changes.

@@ -76,7 +76,7 @@ Manage with `/hermit-settings channels` and `/hermit-settings brief`.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `enabled` | boolean | `true` | Enable heartbeat on idle transitions. |
-| `every` | string | `"2h"` | Heartbeat interval (e.g., `"15m"`, `"1h"`, `"2h"`). Changed from `"30m"` in v0.3.0. |
+| `every` | string | `"2h"` | Heartbeat interval (e.g., `"15m"`, `"1h"`, `"2h"`). |
 | `show_ok` | boolean | `false` | Log OK results (false = silence means healthy). |
 | `active_hours.start` | string | `"08:00"` | Start of active window (heartbeat pauses outside). |
 | `active_hours.end` | string | `"23:00"` | End of active window. |
@@ -234,7 +234,7 @@ A realistic `config.json` for an always-on Docker hermit with Discord:
 ```json
 {
   "_hermit_versions": {
-    "claude-code-hermit": "0.3.2"
+    "claude-code-hermit": "1.0.6"
   },
   "agent_name": "Atlas",
   "language": "en",

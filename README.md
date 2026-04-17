@@ -156,6 +156,7 @@ See [Creating Your Own Hermit](docs/creating-your-own-hermit.md) for more.
 | [FAQ](docs/faq.md)                                            | Common questions — Windows, costs, multi-project, API keys                 |
 | [Testing](docs/testing.md)                                    | You're contributing and need to run or write hook tests                    |
 | [Hermit Cortex (Powered by Obsidian)](docs/obsidian-setup.md) | You want to see inside your hermit's brain                                 |
+| [Plugin Hermit Storage](docs/plugin-hermit-storage.md)        | You're building a hermit plugin and need the raw/compiled storage rules    |
 
 ---
 

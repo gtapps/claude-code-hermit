@@ -81,7 +81,7 @@ Your proposals, session history, and config will be gone. OPERATOR.md can be reg
 
 ## Can the hermit modify OPERATOR.md?
 
-By design, no. OPERATOR.md is human-curated — the hermit reads it but never writes to it. As of v0.0.8, deny patterns also mechanically block `Edit` and `Write` to OPERATOR.md. Tell the hermit "update OPERATOR.md with [change]" and it will ask you to make the edit.
+By design, no. OPERATOR.md is human-curated — the hermit reads it but never writes to it. Deny patterns mechanically block `Edit` and `Write` to OPERATOR.md. Tell the hermit "update OPERATOR.md with [change]" and it will ask you to make the edit.
 
 ---
 

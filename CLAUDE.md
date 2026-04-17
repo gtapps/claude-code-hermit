@@ -13,7 +13,7 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope project
 
 After install, run `/claude-code-hermit:hatch` in the target project to create the state directory.
 
-**Git scope (v0.3.15):** Set `scope: "project"` in `config.json` to version hermit state in git. Default is `"local"` (state gitignored).
+**Git scope:** Set `scope: "project"` in `config.json` to version hermit state in git. Default is `"local"` (state gitignored).
 
 ## Plugin Structure
 
@@ -38,12 +38,14 @@ When installed in a target project, state lives in `.claude-code-hermit/`:
 - `sessions/S-NNN-REPORT.md` — archived reports
 - `proposals/PROP-NNN.md` — improvement proposals
 - `templates/` — session and proposal templates
-- `state/` — runtime observations (alert-state.json, reflection-state.json, routine-queue.json, proposal-metrics.jsonl, micro-proposals.json, state-summary.md)
-- `raw/` — domain inputs (fetched content, snapshots, logs); `raw/.archive/` holds expired artifacts
-- `compiled/` — durable domain outputs (briefings, decisions, assessments) injected at session start
+- `state/` — runtime observations (alert-state.json, reflection-state.json, routine-queue.json, proposal-metrics.jsonl, micro-proposals.json, state-summary.md, monitors.runtime.json)
+- `raw/` — domain inputs (fetched content, snapshots, logs); flat layout only (no subdirectories). `raw/.archive/` holds expired artifacts. See [plugin-hermit-storage](docs/plugin-hermit-storage.md).
+- `compiled/` — durable domain outputs (briefings, decisions, assessments) injected at session start; flat layout only (no subdirectories)
 - `knowledge-schema.md` — per-hermit behavioral schema (what it produces and when)
 - `config.json` — project config (identity, channels, budget prefs, routines, idle agency, plugin checks)
 - `OPERATOR.md` — human-curated context (draft changes, confirm before writing; hard-blocked in always-on mode)
+
+`hatch` also seeds `bin/` (lifecycle scripts), `docker/` (container scaffolding), `obsidian/` (Cortex vault templates), `HEARTBEAT.md`, `IDLE-TASKS.md`, and `SESSION-REPORT.md` — see `state-templates/` for the full set.
 
 ## Migrations
 
