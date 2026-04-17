@@ -4,7 +4,11 @@
 
 ### Fixed
 
-- **Domain hermit (and third-party) plugins not installed in container** — `docker-setup` step 7b now mirrors plugins already installed on the host (project + user scope) instead of presenting a canned list of official-only plugins. The entrypoint's recommended-plugin loop now adds each plugin's marketplace before installing, rather than skipping any non-`claude-plugins-official` entry. Domain hermits (e.g. `claude-code-homeassistant-hermit`) are picked up automatically because they are already installed on the host when the setup flow runs.
+- **Domain hermit (and third-party) plugins not installed in container** — `docker-setup` step 7b now mirrors plugins installed on the host (project or local scope only — user-scope plugins are intentionally excluded as host-personal) instead of presenting a canned list of official-only plugins. The entrypoint's recommended-plugin loop now adds each plugin's marketplace before installing, rather than skipping any non-`claude-plugins-official` entry. Domain hermits (e.g. `claude-code-homeassistant-hermit`) are picked up automatically because they are already installed on the host when the setup flow runs. Marketplace `org/repo` is resolved from `claude plugin marketplace list` (bare slug previously caused `marketplace add` to fail on first boot).
+
+  Security gates added alongside this change: a **safelist** preselects only `claude-plugins-official` and `gtapps/*` plugins during the operator confirmation — third-party plugins require explicit per-entry opt-in. An **`org/repo` regex validator** rejects malformed marketplace values before they reach `config.json`.
+
+- **Entrypoint recommended-plugin re-install loop** — the `if install_target in installed` guard compared against raw `claude plugin list` line output using set membership, so it never matched. Every plugin was being re-installed on every container boot, producing misleading "failed to install" warnings. Switched to substring match against the whole blob.
 
 - **Docker OAuth double-login bug** — `hermit-docker login` previously ran `claude /login` (full REPL). On a container with no credentials, the REPL's startup auth check opened one OAuth URL and the `/login` slash command opened a second, causing a race on `.credentials.json`. Fixed by switching to `claude auth login` (one-shot, no REPL) guarded by a `claude auth status --json` pre-check: if already authenticated, the command reports the email and exits cleanly instead of forcing a re-login.
 
@@ -34,7 +38,7 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 1. **Create `state/routine-metrics.jsonl`** — If `.claude-code-hermit/state/routine-metrics.jsonl` does not exist, create it as an empty file. No content required — `routine-watcher.sh` appends to it on the next routine fire.
 
-2. **Add domain hermit or third-party plugins to container** — Re-run `/claude-code-hermit:docker-setup` (or `/hermit-settings docker`) to mirror host-installed plugins into `config.json docker.recommended_plugins`, then rebuild the container. If a domain hermit is already installed on the host but missing from `docker.recommended_plugins`, add it manually: `add <plugin> <org/repo-marketplace>`.
+2. **Add domain hermit or third-party plugins to container** — Re-run `/claude-code-hermit:docker-setup` (or `/hermit-settings docker`) to mirror host-installed plugins into `config.json docker.recommended_plugins`, then rebuild the container. Only `project` and `local`-scope plugins are mirrored; user-scope plugins are ignored (install them at `project` scope on the host first if you want them in the container). If a domain hermit is already installed on the host but missing from `docker.recommended_plugins`, add it manually: `add <plugin> <org/repo-marketplace>`.
 
 3. **Update `bin/hermit-docker` login subcommand** — Replace the `login)` case body in `.claude-code-hermit/bin/hermit-docker` with the new auth-status-gated form. Find the block starting with `login)` and ending with `;;`, and replace the body so `hermit-docker login` runs `claude auth status --json` first, then `claude auth login` only if not already authenticated.
 

@@ -160,8 +160,8 @@ Mirror host-installed plugins into the container so the container starts with th
 
 > **SECURITY-CRITICAL STEP.** Every plugin written here is auto-installed on container boot with `bypassPermissions` (full unrestricted execution). Do not shortcut the safelist, validation, or deselection rules below. If you find yourself about to skip one, stop and re-read this section.
 
-1. Run `claude plugin list` to enumerate plugins installed in `project` or `user` scope on the host.
-2. Filter out:
+1. Run `claude plugin list` to enumerate plugins. Parse the `Scope:` line for each entry and **keep only `project` or `local`-scope plugins**. Drop `user`-scope plugins entirely — those are the host user's personal choices (e.g. plugins they use across every project) and do not belong in a project-specific container. If the operator wants a user-scope plugin in the container, they can install it at `project` scope on the host first and re-run this skill.
+2. Filter out additionally:
    - `claude-code-hermit@claude-code-hermit` — the entrypoint already handles it unconditionally.
    - Any channel plugins already picked up via `config.channels` (they flow through the entrypoint's channel branch).
 3. Run `claude plugin marketplace list` and build a slug → `org/repo` map from each `Source: GitHub (org/repo)` line. Use this to resolve the full `org/repo` for each plugin's marketplace slug. The `marketplace` field in `docker.recommended_plugins` must be `org/repo` (e.g. `gtapps/claude-code-dev-hermit`), not just the slug — the entrypoint calls `claude plugin marketplace add <marketplace>` on first boot and a bare slug will fail.
@@ -192,14 +192,14 @@ Mirror host-installed plugins into the container so the container starts with th
 6. **Present the choices in plain text first**, so the operator sees the full list before any prompt (`AskUserQuestion` caps options at 4, so we cannot enumerate plugins in a single question):
 
    ```
-   Host-installed plugins detected:
+   Host-installed plugins detected (project + local scope only):
 
    Safelisted (trusted sources):
-     - claude-code-setup @ claude-plugins-official (user)
+     - claude-code-setup @ claude-plugins-official (project)
      - claude-code-homeassistant-hermit @ gtapps/claude-code-homeassistant-hermit (project)
 
    Third-party (require individual opt-in):
-     - superpowers @ obra/superpowers-marketplace (user)
+     - superpowers @ obra/superpowers-marketplace (local)
    ```
 
 7. **If the SAFE group is non-empty**, ask once with `AskUserQuestion` (header: `"Plugins"`):
