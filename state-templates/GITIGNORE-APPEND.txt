@@ -12,3 +12,4 @@
 .claude-code-hermit/raw/
 .claude-code-hermit/compiled/
 .claude-code-hermit/cost-summary.md
+.claude-code-hermit/tasks-snapshot.md
