@@ -160,18 +160,22 @@ Mirror host-installed plugins into the container so the container starts with th
 
 > **SECURITY-CRITICAL STEP.** Every plugin written here is auto-installed on container boot with `bypassPermissions` (full unrestricted execution). Do not shortcut the safelist, validation, or deselection rules below. If you find yourself about to skip one, stop and re-read this section.
 
-1. Run `claude plugin list` to enumerate plugins. Parse the `Scope:` line for each entry and **keep only `project` or `local`-scope plugins**. Drop `user`-scope plugins entirely — those are the host user's personal choices (e.g. plugins they use across every project) and do not belong in a project-specific container. If the operator wants a user-scope plugin in the container, they can install it at `project` scope on the host first and re-run this skill.
+1. Run `claude plugin list --json` to enumerate plugins. Each entry has `id` (in the form `plugin@slug`), `scope`, `enabled`, and `projectPath`. **Keep only entries where:**
+   - `scope == "project"` **and** `projectPath` equals the current project root (the same `id` can appear multiple times for different projects — do not mirror another project's plugins), **OR**
+   - `scope == "local"`.
+
+   Drop `user`-scope entries entirely — those are the host user's personal choices across every project and do not belong in a project-specific container. If the operator wants a user-scope plugin in the container, they can install it at `project` scope on the host first and re-run this skill.
 2. Filter out additionally:
    - `claude-code-hermit@claude-code-hermit` — the entrypoint already handles it unconditionally.
    - Any channel plugins already picked up via `config.channels` (they flow through the entrypoint's channel branch).
-3. Run `claude plugin marketplace list` and build a slug → `org/repo` map from each `Source: GitHub (org/repo)` line. Use this to resolve the full `org/repo` for each plugin's marketplace slug. The `marketplace` field in `docker.recommended_plugins` must be `org/repo` (e.g. `gtapps/claude-code-dev-hermit`), not just the slug — the entrypoint calls `claude plugin marketplace add <marketplace>` on first boot and a bare slug will fail.
-   - If a marketplace has no `Source` line (e.g. a locally-installed one), ask: "What's the GitHub source for the `<slug>` marketplace? (e.g. `org/repo`)" before presenting the plugin list.
+3. Run `claude plugin marketplace list --json` and build a slug → `repo` map from each entry's `name` (slug) and `repo` (`org/repo`) fields. Split each plugin `id` as `plugin@slug` and look up the slug in the map to get the full `org/repo`. The `marketplace` field written to `docker.recommended_plugins` must be `org/repo` — the entrypoint calls `claude plugin marketplace add <marketplace>` on first boot and a bare slug will fail.
+   - If a marketplace entry has `source != "github"` or no `repo` field (e.g. a locally-added marketplace), ask: "What's the GitHub source for the `<slug>` marketplace? (e.g. `org/repo`)" before presenting the plugin list.
 
 4. **Validation gate — apply to every `org/repo` before it reaches the plugin list or `config.json`:**
    - Regex: `^[A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*$`
-   - Applies to: values parsed from `claude plugin marketplace list` AND values typed by the operator.
+   - Applies to: `repo` values read from the marketplace JSON AND values typed by the operator.
    - If a value does not match: reject, explain why, re-prompt. Never write a failing value to config.
-   - Purpose: prevents typos, junk, or injected strings landing in `config.json` and being passed to `claude plugin marketplace add` on boot.
+   - Purpose: defense-in-depth against malformed JSON, typos, or injected strings landing in `config.json` and being passed to `claude plugin marketplace add` on boot.
 
 5. **Partition the filtered list using the safelist:**
 
