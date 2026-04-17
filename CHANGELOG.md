@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.0.6] - 2026-04-17
+
+### Changed
+
+- **Storage convention tightened for plugin hermits** — `type` in frontmatter is now the explicit discriminator; subdirectories inside `raw/` or `compiled/` and new top-level folders inside `.claude-code-hermit/` are prohibited. This fixes silent breakage where artifacts in ad-hoc paths (e.g. `audits/`, `reports/`, `raw/audits/`) were invisible to session-start injection and retention archival. `CLAUDE-APPEND.md`, `knowledge-schema.md.template`, `docs/creating-your-own-hermit.md` updated with explicit do/don't rules. New `docs/plugin-hermit-storage.md` is the canonical reference for plugin authors.
+- **`CLAUDE-APPEND.md`: stale `reviews/` row removed from Agent State table** — `reviews/` was listed as a first-class directory but is prohibited by the storage rules in the same file. Removed to eliminate the contradiction.
+- **`CLAUDE-APPEND.md`: `memory/` added to prohibited top-level directory list** — Matches the prohibition list in `docs/creating-your-own-hermit.md`.
+- **`knowledge-schema.md.template`: `location:` field casing normalized** — Per-example `Location:` entries (capitalized) normalized to lowercase `location:` to match the field declaration style in the section headers.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/CLAUDE-APPEND.md` | Storage rules updated; `reviews/` row removed; `memory/` added to prohibited list |
+| `state-templates/knowledge-schema.md.template` | `location:` fields added to Work Products and Raw Captures sections; casing normalized |
+| `docs/creating-your-own-hermit.md` | Knowledge outputs section rewritten with explicit path format and prohibitions |
+| `docs/plugin-hermit-storage.md` | New canonical reference for plugin hermit storage convention |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **CLAUDE-APPEND.md refresh** — Replace the existing `CLAUDE-APPEND.md` appendix in the target project's `.claude/` directory with the updated template. This picks up the corrected Agent State table (no `reviews/` row) and the expanded prohibited-directory list (now includes `memory/`).
+
+No `config.json` changes required. The `knowledge-schema.md.template` change only affects new hermits hatched from this version onward — existing `knowledge-schema.md` files in target projects are operator-editable and are not overwritten by `hermit-evolve`.
+
 ## [1.0.5] - 2026-04-16
 
 ### Fixed

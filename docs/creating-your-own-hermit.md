@@ -152,14 +152,18 @@ The `/docker-setup` skill reads `docker.packages` and includes them in the gener
 
 ### Knowledge outputs
 
-If your domain hermit produces recurring outputs (reports, briefings, assessments), route them through the knowledge convention:
+All domain artifacts must live in exactly two directories — `raw/` and `compiled/`. See **[`docs/plugin-hermit-storage.md`](plugin-hermit-storage.md)** for the full convention, compliant/non-compliant path examples, and a reviewer checklist.
 
-- **`raw/`** — ephemeral inputs your hermit fetches or captures (API data, snapshots, logs). Archived after `knowledge.raw_retention_days`.
-- **`compiled/`** — durable outputs worth keeping across sessions (briefings, decisions, postmortems). Injected into session context at startup within the `compiled_budget_chars` budget.
+Short version:
 
-Tag compiled artifacts with `foundational` to pin them to every session start regardless of age. Add a `knowledge-schema.md` to document what your hermit produces and when — this is the behavioral contract your operators read to understand what the hermit does automatically.
+- **`raw/<type>-<slug>-<date>.md`** — ephemeral inputs (API data, snapshots, logs). Archived after `knowledge.raw_retention_days`.
+- **`compiled/<type>-<slug>-<date>.md`** — durable outputs (briefings, decisions, audit results). Injected into session context at startup within `compiled_budget_chars`.
 
-Your hermit's `hatch` skill should create `raw/`, `compiled/`, and `raw/.archive/` directories alongside the core scaffold.
+**Never create new top-level folders inside `.claude-code-hermit/`** (no `audits/`, `reports/`, `reviews/`, `memory/`, `tmp/`). **Never add subdirectories inside `raw/` or `compiled/`** (e.g. `raw/audits/`). Use the `type` field in frontmatter — not the filesystem — to discriminate work products within each directory.
+
+Tag compiled artifacts `foundational` to pin them to every session start regardless of age. Cite the raw source in compiled frontmatter (`source: raw/<type>-<slug>-<date>.md`).
+
+Add a `knowledge-schema.md` to document what your hermit produces and when — this is the behavioral contract operators read. Your `hatch` skill should create `raw/`, `compiled/`, and `raw/.archive/` alongside the core scaffold.
 
 ### Operator notification routing
 

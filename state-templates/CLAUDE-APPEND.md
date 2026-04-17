@@ -17,7 +17,6 @@
 | `sessions/SHELL.md`        | Live working document                                           |
 | `sessions/S-NNN-REPORT.md` | Archived reports                                                |
 | `proposals/PROP-NNN.md`    | Improvement proposals                                           |
-| `reviews/`                 | Weekly review reports                                           |
 | `state/`                   | Runtime state (alert dedup, reflection, routine queue, metrics) |
 | `state/monitors.runtime.json` | Active watch registry — cleared on each session start       |
 | `OPERATOR.md`              | Human-curated context — draft changes, confirm before writing |
@@ -68,8 +67,9 @@ When you need to notify the operator proactively:
 
 Auto-memory handles all learning. `compiled/` is for durable domain outputs and records the operator may want surfaced across sessions and in Cortex. Don't duplicate lessons into `compiled/`.
 
-- Domain inputs go to `raw/` with frontmatter (`title`, `type`, `created`, `tags` required).
-- Domain outputs go to `compiled/` with frontmatter. Max 150 lines, self-contained. Add `session: S-NNN` when inside a session.
+- Domain inputs go to `raw/<type>-<slug>-<date>.md` with frontmatter (`title`, `type`, `created`, `tags` required).
+- Domain outputs go to `compiled/<type>-<slug>-<date>.md` with frontmatter. Max 150 lines, self-contained. Add `session: S-NNN` when inside a session. Cite source in frontmatter (`source: raw/<type>-<slug>-<date>.md`).
+- **`type` in frontmatter is the discriminator — never a folder.** Do not create subdirectories inside `raw/` or `compiled/`, and do not create new top-level directories inside `.claude-code-hermit/` (e.g. `audits/`, `reports/`, `reviews/`, `memory/`, `tmp/`). Artifacts outside `raw/` and `compiled/` are invisible to session injection and retention.
 - On session start: scan `compiled/` for recent and foundational artifacts likely to be useful. If two compiled artifacts share a `type`, the newest wins.
 - On recurring routines that produce domain output: write to `compiled/` instead of ad-hoc paths. Consult `knowledge-schema.md` for what this hermit produces and in what format.
 - Raw inputs are retained per `config.json knowledge.raw_retention_days`. Expired raw artifacts are archived to `raw/.archive/` by the weekly review.

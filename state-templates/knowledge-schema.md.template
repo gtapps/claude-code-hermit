@@ -10,9 +10,11 @@
      - type: the frontmatter `type` value used in compiled/ filenames
      - trigger: what routine or event produces it
      - format: approximate structure (e.g., bullet summary, narrative, table)
+     - location: compiled/<type>-<slug>-<date>.md  (flat — no subdirs)
      Example:
        - briefing: daily intelligence summary across monitored domains.
          Triggered by daily morning routine.
+         location: compiled/briefing-<slug>-<date>.md
 -->
 
 ## Raw Captures
@@ -20,9 +22,12 @@
      For each capture type, describe:
      - type: the frontmatter `type` value used in raw/ filenames
      - feeds: which work products this raw type feeds
+     - location: raw/<type>-<slug>-<date>.md  (flat — no subdirs; raw/.archive/ for expired)
      Example:
        - source: fetched articles and RSS items. Feeds briefing.
+         location: raw/source-<slug>-<date>.md
        - snapshot: point-in-time data dumps. Feeds weekly reports.
+         location: raw/snapshot-<slug>-<date>.md
 -->
 
 ## Retention
