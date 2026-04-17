@@ -126,6 +126,15 @@ const activeProposals = proposals.filter(p =>
   p.fm.status === 'proposed' || p.fm.status === 'accepted'
 );
 
+// --- Load reflect counters ---
+let reflectCounters = null;
+try {
+  const rstate = JSON.parse(fs.readFileSync(path.join(hermitDir, 'state', 'reflection-state.json'), 'utf8'));
+  if (rstate && rstate.counters && typeof rstate.counters.total_runs === 'number') {
+    reflectCounters = rstate.counters;
+  }
+} catch { /* missing or unparseable — leave null */ }
+
 function wikilink(artifact) {
   const stem = path.basename(artifact.file, '.md');
   const title = artifact.fm && artifact.fm.title;
@@ -253,6 +262,25 @@ const portalArtifactLinks = recentArtifacts.length > 0
   ? recentArtifacts.map(a => `- ${wikilink(a)}`).join('\n')
   : '';
 
+function buildReflectHealthBlock(c) {
+  if (!c) return '## Reflect Health\n_No counter data — run reflect once to populate._\n';
+  const since = c.since ? c.since.slice(0, 10) : '—';
+  if (c.total_runs === 0) {
+    return `## Reflect Health\n_No runs yet (since ${since})_\n`;
+  }
+  const lastRun = c.last_run_at ? c.last_run_at.slice(0, 10) : '—';
+  const emptyPct = Math.round((c.empty_runs / c.total_runs) * 100);
+  const lines = [
+    `## Reflect Health`,
+    `- **Runs:** ${c.total_runs} total, ${c.empty_runs} empty (${emptyPct}%) | since ${since} | last ${lastRun}`,
+    `- **Candidates:** ${c.runs_with_candidates} runs with candidates | judge: ${c.judge_accept} accepted / ${c.judge_downgrade} downgraded / ${c.judge_suppress} suppressed`,
+  ];
+  if (c.proposals_created > 0 || c.micro_proposals_queued > 0) {
+    lines.push(`- **Output:** ${c.proposals_created} proposals created, ${c.micro_proposals_queued} micro queued`);
+  }
+  return lines.join('\n') + '\n';
+}
+
 const portalBody = `---
 generated: true
 updated: ${now}
@@ -277,7 +305,8 @@ ${portalSessionLinks}
 
 ## Active Proposals
 ${portalProposalLinks}
-${portalArtifactLinks ? `\n## Recent Artifacts\n${portalArtifactLinks}\n` : ''}`;
+
+${buildReflectHealthBlock(reflectCounters)}${portalArtifactLinks ? `\n## Recent Artifacts\n${portalArtifactLinks}\n` : ''}`;
 
 // --- Write output ---
 fs.mkdirSync(obsidianDir, { recursive: true });

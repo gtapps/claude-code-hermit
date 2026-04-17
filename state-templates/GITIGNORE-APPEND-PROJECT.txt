@@ -4,3 +4,4 @@
 # Run /claude-code-hermit:migrate to scan for unprotected credentials.
 .env
 .env.*
+.claude-code-hermit/.baseline-pending

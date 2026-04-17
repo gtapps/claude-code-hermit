@@ -52,7 +52,7 @@ This answers "is my hermit healthy?" — not a config dump (that's `hermit-setti
 6. Glob `.claude-code-hermit/proposals/PROP-*.md`. For each file, parse the `status` field from YAML frontmatter (or bullet-point metadata for legacy files). Count per status (proposed, accepted, in_progress, resolved, dismissed, deferred).
 7. Read `.claude-code-hermit/state/micro-proposals.json`. Count entries where `status` is `pending`.
 8. From config.json `routines` array: list each routine as `id (schedule, on/off)`.
-9. Read `.claude-code-hermit/state/reflection-state.json` for `last_reflection` timestamp. Read `.claude-code-hermit/state/alert-state.json` for the most recent alert timestamp. Compute relative age ("2h ago", "45m ago").
+9. Read `.claude-code-hermit/state/reflection-state.json` for `last_reflection` timestamp and `counters`. Read `.claude-code-hermit/state/alert-state.json` for the most recent alert timestamp. Compute relative age ("2h ago", "45m ago").
 10. Glob file counts: `.claude-code-hermit/raw/**` (excluding `.archive/`), `.claude-code-hermit/compiled/**`, `.claude-code-hermit/raw/.archive/**`.
 
 Format the additional sections:
@@ -62,9 +62,14 @@ Proposals: N proposed, N accepted, N in_progress
 Micro: N pending decision
 Routines: morning-brief (08:00 daily), weekly-deps (09:00 mon, off)
 Last: reflect 2h ago, heartbeat 45m ago
+Reflect: N runs, N empty | judge: N accepted / N downgraded / N suppressed | output: N proposals, N micro | since YYYY-MM-DD
 Knowledge: N raw, N compiled, N archived
 ```
 
 - If a section has no data or the source file is missing, show `—` (not an error)
 - Omit the Micro line entirely if there are zero pending micro-proposals
+- **Reflect line rules:**
+  - If `counters` is absent: `Reflect: —`
+  - If `total_runs` is 0: `Reflect: no runs yet (since YYYY-MM-DD)`
+  - Otherwise: full format as above; omit the `| output: ...` clause if both `proposals_created` and `micro_proposals_queued` are 0
 - Total output (session + infrastructure) should stay under 12 lines

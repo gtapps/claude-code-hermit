@@ -26,6 +26,7 @@
 - `session-mgr` (Sonnet) — session lifecycle (open, archive, idle transitions)
 - `proposal-triage` (Haiku) — pre-creation gate: deduplicates proposals and applies the three-condition rule before queuing
 - `reflection-judge` (Sonnet) — post-reflect validator: verifies cross-session evidence citations exist before proposals are queued
+- `hermit-config-validator` (Haiku) — lightweight config.json validator: checks required keys, types, routine times, channel structure, env naming. Use after hermit-settings, hermit-evolve, or any config mutation.
 
 ## Watches
 

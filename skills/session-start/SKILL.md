@@ -55,6 +55,47 @@ All state lives under `.claude-code-hermit/` in the project root.
    - The session ID is pre-computed in runtime.json (set by session-mgr on previous idle transition)
    - If heartbeat is running, it continues
 5. Read `.claude-code-hermit/OPERATOR.md` for project context and constraints
+5b. **Baseline audit offer (first session only).**
+
+   Check for `.claude-code-hermit/.baseline-pending`. If absent, skip this step entirely.
+
+   <!-- Compatible-plugin list is mirrored in hatch Phase 4 options, Phase 4b eligibility, and session-start step 5b. Update all three when adding. -->
+
+   If present:
+
+   1. Notify per channel policy (always-on: channel; interactive: inline). Operator message:
+
+      > "First session on this project. Want me to run a one-time audit using the plugins you installed at hatch? It'll surface CLAUDE.md gaps and automation opportunities. (yes / no)"
+
+      In always-on mode, only this single prompt and the final summary go through the channel. Plugin invocations run in-agent without channel chatter.
+
+   2. Handle response:
+      - **no / decline** → delete marker, log one SHELL.md Findings line ("Baseline audit declined."), continue to step 6.
+      - **yes** → **delete `.claude-code-hermit/.baseline-pending` immediately** (before invoking any skill). Marker semantic = "we haven't offered yet." Once consented, the offer is consumed regardless of invocation outcome. If a skill crashes mid-run, the operator re-invokes it manually; we do not re-offer on next session. Then proceed to step 3.
+
+   3. Pre-flight: scan `config.json` `plugin_checks` for any entry in the fixed list below with `enabled: true`. If **none** qualify, delete the marker silently and continue to step 6.
+
+      For each skill in the fixed list below, in order:
+      - `/claude-md-management:claude-md-improver`
+      - `/claude-code-setup:claude-automation-recommender`
+
+      Do NOT invoke `/claude-md-management:revise-claude-md` — it is a session-trigger skill, not an audit, and runs separately via its own `plugin_checks` entry.
+
+      For each audit skill:
+      - Check `config.json` `plugin_checks` for a matching `skill` field with `enabled: true`. If absent or disabled, skip silently.
+      - Emit a one-line progress signal before invoking (channel in always-on, inline otherwise): "Running {skill}…"
+      - Invoke the skill.
+      - If it reports unavailable/not-installed: append one SHELL.md Findings line ("Baseline audit: {skill} unavailable") and continue.
+      - If it returns findings: route through `/claude-code-hermit:proposal-create` as **one proposal per plugin invocation**, with **`source: operator-request`** in the frontmatter. (Not `auto-detected` — that routes through reflection-judge expecting cross-session evidence citations the audit cannot provide.) Write the Problem section as a prioritized summary of all findings (top 3 inline, remainder as a bulleted list).
+
+   4. Surface a single-line summary to the operator (channel in always-on, inline otherwise):
+
+      > "Baseline audit done. {N} proposals queued: PROP-XXX[, PROP-YYY]. Review with /claude-code-hermit:proposal-list."
+
+   **Guard:** the marker is the one-shot gate. Absent marker → this step never fires.
+
+   **Note for maintainers:** `md-audit` and `automation-recommender` are already scheduled on 7-day intervals via `plugin_checks`. This step pulls the first run forward to day 1 with operator consent — it is not an independent execution path.
+
 6. Check if `.claude-code-hermit/sessions/NEXT-TASK.md` exists. If it does:
    - Present the prepared task to the operator as the suggested task for this session
    - If the operator accepts it: use it as the task (skip asking "What should I help with?")
@@ -96,7 +137,3 @@ All state lives under `.claude-code-hermit/` in the project root.
 - `.claude-code-hermit/state/runtime.json` (always — for lifecycle state)
 
 Do NOT load all session reports — only the most recent one.
-
-## First Session on a Codebase
-
-If this is the first session (no prior reports exist), explore the project structure using Glob and Read tools before proposing a plan. If a hermit provides a specialized orientation agent, prefer that instead.

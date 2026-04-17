@@ -229,7 +229,7 @@ All state is in `sessions/SHELL.md` on disk. A disconnect loses conversation con
 1. Run `hermit-status` to check current state (includes the tmux attach command for Docker)
 2. Reattach to tmux, start Claude Code
 3. SessionStart hook loads OPERATOR.md, SHELL.md, latest report
-4. `session-start` presents current work, progress, blockers
+4. `session-start` presents current work, progress, blockers. On the very first session after hatch, it may offer a one-time baseline audit — the prompt and audit summary are routed via channel in always-on mode.
 5. Confirm resume or start fresh
 
 ---

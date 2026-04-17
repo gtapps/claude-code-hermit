@@ -50,7 +50,25 @@ Create the following directories and files:
 
 Initialize state files (inline — shape-insensitive or append-only):
 
-- `.claude-code-hermit/state/reflection-state.json`: `{"last_reflection": null}` — no code path is materially shape-sensitive to its initial form
+- `.claude-code-hermit/state/reflection-state.json`: initialize with the schema below. Use the current ISO timestamp (with offset) for `counters.since`.
+  ```json
+  {
+    "last_reflection": null,
+    "counters": {
+      "total_runs": 0,
+      "empty_runs": 0,
+      "runs_with_candidates": 0,
+      "judge_accept": 0,
+      "judge_downgrade": 0,
+      "judge_suppress": 0,
+      "proposals_created": 0,
+      "micro_proposals_queued": 0,
+      "last_run_at": null,
+      "last_output_at": null,
+      "since": "<current-iso-timestamp>"
+    }
+  }
+  ```
 - `.claude-code-hermit/state/proposal-metrics.jsonl`: empty file — append-only, not schema-sensitive JSON state
 
 - Read the template files from `${CLAUDE_SKILL_DIR}/../../state-templates/`
@@ -148,6 +166,8 @@ Record: `escalation` (conservative/balanced/autonomous), `remote` (true/false), 
 
 #### Phase 4 — Recommended plugins (AskUserQuestion, single multiSelect question)
 
+<!-- Compatible-plugin list is mirrored in hatch Phase 4 options, Phase 4b eligibility, and session-start step 5b. Update all three when adding. -->
+
 ```
 questions: [
   {
@@ -180,6 +200,21 @@ For each accepted plugin, also add the corresponding `plugin_checks` entries to 
 - `skill-creator` → no entry (event-driven via proposal-act, not scheduled)
 
 For each plugin the operator declines, skip silently. Note: "You can add it later with `/claude-code-hermit:hermit-settings`."
+
+#### Phase 4b — Baseline audit marker (conditional)
+
+<!-- Compatible-plugin list is mirrored in hatch Phase 4 options, Phase 4b eligibility, and session-start step 5b. Update all three when adding. -->
+
+Create `.claude-code-hermit/.baseline-pending` (empty file) ONLY if **all three** are true:
+
+1. This is a **fresh init**, not a re-init. (Step 1 of hatch branches on an existing `.claude-code-hermit/`; skip this phase on re-init.)
+2. Phase 4 accepted **either** `claude-md-management` **or** `claude-code-setup`.
+3. The project is an **existing codebase** — at least one of the following files exists at the project root:
+   - `package.json`, `requirements.txt`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Gemfile`, `composer.json`, `pom.xml`, `build.gradle`
+
+`README.md` and `CLAUDE.md` alone do NOT qualify. If none of the eligibility conditions hold, skip silently — no operator prompt here.
+
+The marker's existence is the entire state model. No JSON, no timestamp, no content.
 
 #### Phase 5 — Channels (AskUserQuestion, single question)
 

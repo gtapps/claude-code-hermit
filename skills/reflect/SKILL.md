@@ -196,7 +196,27 @@ Do not queue vague questions like "Found a pattern. Want me to improve it?" — 
 
 ## State Update
 
-After each reflection run:
-1. Merge `{"last_reflection": "<now ISO with timezone offset from config>", "last_resolution_check": "<last PROP-NNN checked or null>"}` into `state/reflection-state.json` (preserve existing keys including `plugin_checks`). This is the single write to `reflection-state.json` per reflect run.
+After each reflection run, perform a **single** read-modify-write on `state/reflection-state.json`:
+
+1. Set `last_reflection` = current ISO timestamp (with timezone offset from config).
+2. Set `last_resolution_check` = last PROP-NNN checked (or null if batch was empty).
+3. Update `counters` (passive observation — does not influence reflect behavior):
+   - If `counters` is missing on read, treat all integer fields as 0 and both timestamp fields as null.
+   - `total_runs` → +1
+   - `last_run_at` → current ISO timestamp (with offset)
+   - `runs_with_candidates` → +1 if **any** proposal candidates were generated this run (pre-judge). Once per run, not per candidate.
+   - `empty_runs` → +1 if `runs_with_candidates` did not increment this run
+   - Per judge verdict observed this run (can increment multiple times):
+     - `ACCEPT` → `judge_accept` +1
+     - `DOWNGRADE:<tier>` → `judge_downgrade` +1
+     - `SUPPRESS` → `judge_suppress` +1
+   - `proposals_created` → +N (full PROP-NNN.md files written this run)
+   - `micro_proposals_queued` → +N (entries queued to `state/micro-proposals.json` this run)
+   - If `proposals_created + micro_proposals_queued > 0` → `last_output_at` = current ISO timestamp
+   - Do NOT touch `since` (set once at hatch / migration).
+4. Preserve all other existing keys (`plugin_checks`, etc.).
+5. Write the merged object back. One write per run.
+
+If the write fails, log to SHELL.md Findings once ("Counter write failed: <reason>") and continue. Counters are diagnostic, not audit-grade — a missed increment is acceptable.
 
 If nothing stands out: say nothing.
