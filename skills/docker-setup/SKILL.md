@@ -158,28 +158,61 @@ For each configured channel:
 
 Mirror host-installed plugins into the container so the container starts with the same plugin set the operator already curated — including any domain hermit (e.g. `claude-code-homeassistant-hermit`) that may have triggered this setup flow.
 
+> **SECURITY-CRITICAL STEP.** Every plugin written here is auto-installed on container boot with `bypassPermissions` (full unrestricted execution). Do not shortcut the safelist, validation, or deselection rules below. If you find yourself about to skip one, stop and re-read this section.
+
 1. Run `claude plugin list` to enumerate plugins installed in `project` or `user` scope on the host.
 2. Filter out:
    - `claude-code-hermit@claude-code-hermit` — the entrypoint already handles it unconditionally.
    - Any channel plugins already picked up via `config.channels` (they flow through the entrypoint's channel branch).
 3. Run `claude plugin marketplace list` and build a slug → `org/repo` map from each `Source: GitHub (org/repo)` line. Use this to resolve the full `org/repo` for each plugin's marketplace slug. The `marketplace` field in `docker.recommended_plugins` must be `org/repo` (e.g. `gtapps/claude-code-dev-hermit`), not just the slug — the entrypoint calls `claude plugin marketplace add <marketplace>` on first boot and a bare slug will fail.
    - If a marketplace has no `Source` line (e.g. a locally-installed one), ask: "What's the GitHub source for the `<slug>` marketplace? (e.g. `org/repo`)" before presenting the plugin list.
-   - **Validate every `org/repo`** against the regex `^[A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*$` — both for values parsed from `marketplace list` output and for operator-supplied answers. Reject anything that doesn't match and re-prompt. Prevents typos or junk values landing in `config.json` and being auto-installed on boot.
-4. If the filtered list is **non-empty**, present it with `AskUserQuestion`:
-   ```
-   {
-     header: "Plugins",
-     question: "These plugins are installed on the host. Mirror them into the container? Trusted sources are preselected.",
-     options: <one option per plugin: label = "plugin@org/repo (scope)", description = "from <org/repo>">,
-     multiSelect: true
-   }
-   ```
-   **Preselection policy (security gate):** preselect an option only if its marketplace is in the safelist:
-   - `claude-plugins-official`
-   - any marketplace starting with `gtapps/` (hermit's own org)
 
-   Every other entry (third-party plugins, non-`gtapps` domain hermits, unknown sources) is presented **deselected** — the operator must explicitly opt in. This prevents careless click-through from auto-installing arbitrary code with `bypassPermissions`.
-5. If the filtered list is **empty** (no extras installed on the host), skip silently — no prompt, no entries written.
+4. **Validation gate — apply to every `org/repo` before it reaches the plugin list or `config.json`:**
+   - Regex: `^[A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*$`
+   - Applies to: values parsed from `claude plugin marketplace list` AND values typed by the operator.
+   - If a value does not match: reject, explain why, re-prompt. Never write a failing value to config.
+   - Purpose: prevents typos, junk, or injected strings landing in `config.json` and being passed to `claude plugin marketplace add` on boot.
+
+5. **Partition the filtered list using the safelist:**
+
+   ```
+   def is_safelisted(marketplace):
+       return (
+           marketplace == "claude-plugins-official"
+           or marketplace.startswith("gtapps/")
+       )
+   ```
+
+   Split into two groups:
+   - **SAFE** — `is_safelisted(marketplace)` is `True`. Examples: `claude-code-setup@claude-plugins-official`, `claude-code-homeassistant-hermit@gtapps/claude-code-homeassistant-hermit`.
+   - **THIRD-PARTY** — everything else. Examples: `obra/superpowers-marketplace`, any non-`gtapps` `org/repo`, any locally-added marketplace without a GitHub `Source`.
+
+   The SAFE group can be accepted as a batch. The THIRD-PARTY group **must be confirmed one-by-one**. Do not bulk-accept third-party plugins for the operator's convenience — the host list is the **candidate** set, not the trusted set.
+
+6. **Present the choices in plain text first**, so the operator sees the full list before any prompt (`AskUserQuestion` caps options at 4, so we cannot enumerate plugins in a single question):
+
+   ```
+   Host-installed plugins detected:
+
+   Safelisted (trusted sources):
+     - claude-code-setup @ claude-plugins-official (user)
+     - claude-code-homeassistant-hermit @ gtapps/claude-code-homeassistant-hermit (project)
+
+   Third-party (require individual opt-in):
+     - superpowers @ obra/superpowers-marketplace (user)
+   ```
+
+7. **If the SAFE group is non-empty**, ask once with `AskUserQuestion` (header: `"Plugins"`):
+   - Options: `"Mirror all"` (Recommended) / `"Pick each"` / `"Skip all"`.
+   - On `Mirror all`: add every SAFE plugin to `docker.recommended_plugins` with `enabled: true`.
+   - On `Pick each`: loop through the SAFE plugins; for each, ask a 2-option yes/no (`"Include"` / `"Skip"`). Only include the ones the operator confirms.
+   - On `Skip all`: add nothing from this group.
+
+8. **For the THIRD-PARTY group**, loop through each plugin individually. For each, ask a 2-option `AskUserQuestion` (header: `"Third-party"`) — `"Include"` / `"Skip"`. Include only when the operator explicitly confirms. Never batch-accept this group.
+
+9. After both groups are processed: any plugin not explicitly confirmed must **not** be written to `docker.recommended_plugins`. Write only confirmed entries with `enabled: true`.
+
+10. If the filtered list is **empty** (no extras installed on the host), skip silently — no prompt, no entries written.
 
 Record the confirmed selection as `docker.recommended_plugins`. Each entry has:
 ```json

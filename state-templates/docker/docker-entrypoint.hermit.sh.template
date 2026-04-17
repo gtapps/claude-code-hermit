@@ -226,7 +226,9 @@ if [ -n "$RECOMMENDED_PLUGINS_JSON" ] && [ "$RECOMMENDED_PLUGINS_JSON" != "[]" ]
 import json, os, subprocess, sys
 
 plugins = json.loads(sys.argv[1])
-installed = set(sys.argv[2].splitlines())
+# 'claude plugin list' output is free-form ('  ❯ plugin@slug' plus Version/Scope lines).
+# Substring match against the whole blob is more robust than exact-line set membership.
+installed_blob = sys.argv[2]
 marketplace_dir = sys.argv[3]
 
 for entry in plugins:
@@ -236,7 +238,6 @@ for entry in plugins:
 
     slug = marketplace.split('/')[-1] if '/' in marketplace else marketplace
 
-    # Add marketplace if not yet registered
     if not os.path.isdir(os.path.join(marketplace_dir, slug)):
         print(f'[docker-entrypoint] Adding marketplace: {marketplace}')
         result = subprocess.run(['claude', 'plugin', 'marketplace', 'add', marketplace], check=False)
@@ -245,7 +246,7 @@ for entry in plugins:
             continue
 
     install_target = f'{plugin}@{slug}'
-    if install_target in installed:
+    if install_target in installed_blob:
         continue
     print(f'[docker-entrypoint] Installing recommended plugin: {plugin}')
     result = subprocess.run(['claude', 'plugin', 'install', install_target, '--scope', scope])
