@@ -187,9 +187,11 @@ Mirror host-installed plugins into the container so the container starts with th
        )
    ```
 
+   The `marketplace` value passed to `is_safelisted` is the resolved `org/repo` from step 3 (or the literal string `claude-plugins-official` for official plugins) — **never** the slug from the `plugin@slug` id. If you're about to pass `claude-code-homeassistant-hermit` to `is_safelisted`, you skipped the lookup — go back to step 3.
+
    Split into two groups:
-   - **SAFE** — `is_safelisted(marketplace)` is `True`. Examples: `claude-code-setup@claude-plugins-official`, `claude-code-homeassistant-hermit@gtapps/claude-code-homeassistant-hermit`.
-   - **THIRD-PARTY** — everything else. Examples: `obra/superpowers-marketplace`, any non-`gtapps` `org/repo`, any locally-added marketplace without a GitHub `Source`.
+   - **SAFE** — `is_safelisted(marketplace)` is `True`. Examples: marketplace `claude-plugins-official`, marketplace `gtapps/claude-code-homeassistant-hermit`.
+   - **THIRD-PARTY** — everything else. Examples: `obra/superpowers-marketplace`, any non-`gtapps` `org/repo`, any locally-added marketplace without a GitHub source.
 
    The SAFE group can be accepted as a batch. The THIRD-PARTY group **must be confirmed one-by-one**. Do not bulk-accept third-party plugins for the operator's convenience — the host list is the **candidate** set, not the trusted set.
 
@@ -214,9 +216,21 @@ Mirror host-installed plugins into the container so the container starts with th
 
 8. **For the THIRD-PARTY group**, loop through each plugin individually. For each, ask a 2-option `AskUserQuestion` (header: `"Third-party"`) — `"Include"` / `"Skip"`. Include only when the operator explicitly confirms. Never batch-accept this group.
 
+8b. **Public-repo pre-flight (for every non-`claude-plugins-official` entry that the operator has tentatively confirmed in steps 7 or 8).** From the host, run an unauthenticated check against `https://github.com/<org>/<repo>` (e.g. `curl -fsI -o /dev/null -w '%{http_code}' https://github.com/<org>/<repo>`). If the response is not `200` (i.e. `404`, redirect-to-login, or network error), the repo is private or unreachable. Tell the operator:
+
+   > `<org>/<repo>` appears private or unreachable. The container cannot clone private repos automatically.
+
+   Then ask with `AskUserQuestion` (header: `"Private repo"`) — `"Include anyway"` / `"Skip"`. On `Skip`: drop the entry. On `Include anyway`: keep it. Do not suggest remediations.
+
 9. After both groups are processed: any plugin not explicitly confirmed must **not** be written to `docker.recommended_plugins`. Write only confirmed entries with `enabled: true`.
 
-10. If the filtered list is **empty** (no extras installed on the host), skip silently — no prompt, no entries written.
+10. **Write-time assertion — run this before handing entries to step 7c.** For each confirmed entry:
+    - If `marketplace == "claude-plugins-official"` → accept.
+    - Else assert `marketplace` matches `^[A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*$` (has a slash; is `org/repo`).
+    - If any entry fails: **stop, do not write config.** Re-derive the failed entry's marketplace from the `claude plugin marketplace list --json` output (look up the slug → `repo`). If the lookup cannot produce a valid `org/repo`, prompt the operator for it (same prompt as step 3). Re-run the assertion. Only proceed to step 7c once every entry passes.
+    - This catches the common failure mode where the slug from `plugin@slug` in `claude plugin list` gets written as the marketplace field verbatim (e.g. `claude-code-homeassistant-hermit` instead of `gtapps/claude-code-homeassistant-hermit`). For `claude-plugins-official` entries both forms are identical, so the bug only surfaces on non-official plugins — don't let the official entries trick you into thinking the set is valid.
+
+11. If the filtered list is **empty** (no extras installed on the host), skip silently — no prompt, no entries written.
 
 Record the confirmed selection as `docker.recommended_plugins`. Each entry has:
 ```json
@@ -224,14 +238,18 @@ Record the confirmed selection as `docker.recommended_plugins`. Each entry has:
 ```
 The entrypoint adds the marketplace (if needed) and installs every enabled entry on first boot. See [Recommended Plugins](../../docs/recommended-plugins.md) for the full policy.
 
+**On container-side `claude plugin marketplace add` / `plugin install` failure (either in entrypoint logs or when re-running the command manually after boot):** if the error mentions SSH auth, HTTPS credentials, `gh` not found, or `.gitconfig` read-only, **stop immediately — do not attempt workarounds inside the container.** The container has no SSH client, no `gh` CLI, and `.gitconfig` is bind-mounted read-only by design. Iterating on `GIT_CONFIG_NOSYSTEM`, `git config --global url...insteadOf`, or similar is guaranteed to fail and wastes the operator's time. Surface the error to the operator verbatim and move on — no retry unless the operator changes something host-side (makes the repo public, mirrors it, etc.) and asks to retry.
+
 If the operator selected plugins that have corresponding `plugin_checks` entries in hatch Phase 4 (claude-code-setup, claude-md-management, skill-creator), also record those `plugin_checks` entries if not already present.
 
 ### 7c. Write Docker settings to config.json
 
+**Pre-write gate for `docker.recommended_plugins`:** Re-run the step 7b.10 assertion on every entry. If any fails, do **not** write — return to step 7b.3 to re-resolve. This gate is the final backstop; do not bypass it even "just this once."
+
 Write all collected Docker settings to config.json in a single update:
 - `docker.network_mode` (from Step 2)
 - `docker.packages` (from Step 2.3)
-- `docker.recommended_plugins` (from Step 7b)
+- `docker.recommended_plugins` (from Step 7b, post-gate)
 - `channels.<channel>.state_dir` (from Step 7, if applicable)
 
 Merge into existing config — never remove existing keys.
