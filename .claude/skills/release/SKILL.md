@@ -97,6 +97,7 @@ Skip this step if no new components were added.
 
 Update the version string in:
 - `.claude-plugin/plugin.json` → `"version"` field
+- `.claude-plugin/marketplace.json` → `"version"` field
 - `README.md` → version badge (the `img.shields.io` URL and alt text)
 
 ### 5. Final validation
