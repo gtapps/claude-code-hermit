@@ -114,8 +114,17 @@ case "$CMD" in
 
   login)
     _require_running
-    echo "[hermit] Opening Claude Code login inside container..."
-    cd "$PROJECT_DIR" && "${DC[@]}" exec -it "$SERVICE" claude /login
+    AUTH_STATUS=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" claude auth status --json 2>/dev/null || echo '{}')
+    PARSED=$(echo "$AUTH_STATUS" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('loggedIn','false')); print(d.get('email','unknown'))" 2>/dev/null || printf 'false\nunknown')
+    LOGGED_IN="${PARSED%%$'\n'*}"
+    EMAIL="${PARSED#*$'\n'}"
+    if [ "$LOGGED_IN" = "True" ] || [ "$LOGGED_IN" = "true" ]; then
+      echo "[hermit] Already authenticated as ${EMAIL}."
+      echo "[hermit] To switch accounts: hermit-docker bash → claude auth logout, then re-run hermit-docker login."
+    else
+      echo "[hermit] Opening Claude Code login inside container..."
+      cd "$PROJECT_DIR" && "${DC[@]}" exec -it "$SERVICE" claude auth login
+    fi
     ;;
 
   logs)

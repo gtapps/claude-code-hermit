@@ -22,6 +22,9 @@ if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -f "$CRED_FILE" ]; then
   echo ""
   echo "    .claude-code-hermit/bin/hermit-docker login"
   echo ""
+  echo "  Do NOT run 'claude' manually inside the container"
+  echo "  while waiting — use hermit-docker login only."
+  echo ""
   echo "  Waiting for credentials (timeout: 10 minutes)..."
   echo "=============================================="
   echo ""
@@ -31,7 +34,7 @@ if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -f "$CRED_FILE" ]; then
     WAIT_SECS=$((WAIT_SECS + 5))
     if [ "$WAIT_SECS" -ge 600 ]; then
       echo "[docker-entrypoint] Timed out waiting for credentials after 10 minutes."
-      echo "[docker-entrypoint] Run 'claude /login' inside the container, then restart it."
+      echo "[docker-entrypoint] Run 'hermit-docker login' from another terminal, then restart."
       exit 1
     fi
   done
@@ -184,10 +187,9 @@ if [ ! -d "${MARKETPLACE_DIR}/claude-code-hermit" ]; then
     echo "[docker-entrypoint] Warning: failed to install hermit plugin — install manually"
 fi
 
-# Official marketplace (needed by channel plugins and recommended plugins)
+# Official marketplace (needed by channel plugins)
 NEEDS_OFFICIAL=false
 [ -n "$CHANNELS" ] && NEEDS_OFFICIAL=true
-[ -n "$RECOMMENDED_PLUGINS_JSON" ] && [ "$RECOMMENDED_PLUGINS_JSON" != "[]" ] && NEEDS_OFFICIAL=true
 if [ "$NEEDS_OFFICIAL" = true ] && [ ! -d "${MARKETPLACE_DIR}/claude-plugins-official" ]; then
   echo "[docker-entrypoint] Adding official plugins marketplace..."
   if ! claude plugin marketplace add anthropics/claude-plugins-official; then
@@ -216,25 +218,33 @@ if [ "$NEEDS_OFFICIAL" = true ] && [ -n "$CHANNELS" ]; then
 fi
 
 # Recommended plugins (enabled entries extracted from config.json above)
-# Only auto-installs from claude-plugins-official. Third-party plugins are skipped
-# with a warning — they must be installed manually due to bypassPermissions risk.
-if [ "$NEEDS_OFFICIAL" = true ] && [ -n "$RECOMMENDED_PLUGINS_JSON" ] && [ "$RECOMMENDED_PLUGINS_JSON" != "[]" ]; then
+# Mirrors the host-installed plugin set confirmed during docker-setup (project + user scope).
+# Each entry may reference any marketplace — the entrypoint adds it on first boot as needed.
+# Operator confirmed these plugins during docker-setup, so no auto-install guard is needed.
+if [ -n "$RECOMMENDED_PLUGINS_JSON" ] && [ "$RECOMMENDED_PLUGINS_JSON" != "[]" ]; then
   python3 -c "
-import json, subprocess, sys
+import json, os, subprocess, sys
 
 plugins = json.loads(sys.argv[1])
 installed = set(sys.argv[2].splitlines())
+marketplace_dir = sys.argv[3]
 
 for entry in plugins:
     plugin = entry['plugin']
     marketplace = entry.get('marketplace', 'claude-plugins-official')
     scope = entry.get('scope', 'project')
 
-    if marketplace != 'claude-plugins-official':
-        print(f'[docker-entrypoint] Skipping {plugin} — third-party plugins ({marketplace}) must be installed manually')
-        continue
+    slug = marketplace.split('/')[-1] if '/' in marketplace else marketplace
 
-    install_target = f'{plugin}@{marketplace}'
+    # Add marketplace if not yet registered
+    if not os.path.isdir(os.path.join(marketplace_dir, slug)):
+        print(f'[docker-entrypoint] Adding marketplace: {marketplace}')
+        result = subprocess.run(['claude', 'plugin', 'marketplace', 'add', marketplace], check=False)
+        if result.returncode != 0:
+            print(f'[docker-entrypoint] Warning: failed to add marketplace {marketplace} — skipping {plugin}')
+            continue
+
+    install_target = f'{plugin}@{slug}'
     if install_target in installed:
         continue
     print(f'[docker-entrypoint] Installing recommended plugin: {plugin}')
@@ -245,7 +255,7 @@ for entry in plugins:
     result = subprocess.run(['claude', 'plugin', 'enable', install_target, '--scope', scope])
     if result.returncode != 0:
         print(f'[docker-entrypoint] Warning: failed to enable {plugin} — run: claude plugin enable {install_target}')
-" "$RECOMMENDED_PLUGINS_JSON" "$INSTALLED_PLUGINS"
+" "$RECOMMENDED_PLUGINS_JSON" "$INSTALLED_PLUGINS" "$MARKETPLACE_DIR"
 fi
 
 # --- Plugin updates are NOT run on boot ---

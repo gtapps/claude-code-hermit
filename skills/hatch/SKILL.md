@@ -70,6 +70,7 @@ Initialize state files (inline — shape-insensitive or append-only):
   }
   ```
 - `.claude-code-hermit/state/proposal-metrics.jsonl`: empty file — append-only, not schema-sensitive JSON state
+- `.claude-code-hermit/state/routine-metrics.jsonl`: empty file — append-only routine fire log (`fired`/`queued`/`dequeued` events written by `routine-watcher.sh`)
 
 - Read the template files from `${CLAUDE_SKILL_DIR}/../../state-templates/`
 - Copy `alert-state.json.template` → `.claude-code-hermit/state/alert-state.json`

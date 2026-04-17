@@ -156,34 +156,38 @@ For each configured channel:
 
 ### 7b. Recommended plugins
 
-Read `plugin_checks` from config.json and extract unique plugin names where `enabled: true`. These are the plugins the operator already chose during hatch.
+Mirror host-installed plugins into the container so the container starts with the same plugin set the operator already curated — including any domain hermit (e.g. `claude-code-homeassistant-hermit`) that may have triggered this setup flow.
 
-- **If plugins found:** present them — "These plugins are already configured. Install them in the container?" with `AskUserQuestion` (header: "Plugins"): **Yes — use current** (install all configured plugins in container) / **Adjust** (change selection via Other). If "Adjust": let the operator type which plugins to include or exclude, then record the final list.
-- **If none found:** fall back to the full selection (same as hatch Phase 4):
+1. Run `claude plugin list` to enumerate plugins installed in `project` or `user` scope on the host.
+2. Filter out:
+   - `claude-code-hermit@claude-code-hermit` — the entrypoint already handles it unconditionally.
+   - Any channel plugins already picked up via `config.channels` (they flow through the entrypoint's channel branch).
+3. Run `claude plugin marketplace list` and build a slug → `org/repo` map from each `Source: GitHub (org/repo)` line. Use this to resolve the full `org/repo` for each plugin's marketplace slug. The `marketplace` field in `docker.recommended_plugins` must be `org/repo` (e.g. `gtapps/claude-code-dev-hermit`), not just the slug — the entrypoint calls `claude plugin marketplace add <marketplace>` on first boot and a bare slug will fail.
+   - If a marketplace has no `Source` line (e.g. a locally-installed one), ask: "What's the GitHub source for the `<slug>` marketplace? (e.g. `org/repo`)" before presenting the plugin list.
+   - **Validate every `org/repo`** against the regex `^[A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*$` — both for values parsed from `marketplace list` output and for operator-supplied answers. Reject anything that doesn't match and re-prompt. Prevents typos or junk values landing in `config.json` and being auto-installed on boot.
+4. If the filtered list is **non-empty**, present it with `AskUserQuestion`:
+   ```
+   {
+     header: "Plugins",
+     question: "These plugins are installed on the host. Mirror them into the container? Trusted sources are preselected.",
+     options: <one option per plugin: label = "plugin@org/repo (scope)", description = "from <org/repo>">,
+     multiSelect: true
+   }
+   ```
+   **Preselection policy (security gate):** preselect an option only if its marketplace is in the safelist:
+   - `claude-plugins-official`
+   - any marketplace starting with `gtapps/` (hermit's own org)
 
-```
-questions: [
-  {
-    header: "Plugins",
-    question: "Which recommended plugins should be installed in the container? All are from claude-plugins-official.",
-    options: [
-      { label: "claude-code-setup", description: "Analyzes codebase, recommends automations (skills, hooks, MCP servers, subagents)" },
-      { label: "claude-md-management", description: "Audits and improves CLAUDE.md files — grades quality, proposes fixes" },
-      { label: "skill-creator", description: "Builds and refines new skills from proposals" },
-      { label: "None", description: "Skip all — add later via hermit-settings docker" }
-    ],
-    multiSelect: true
-  }
-]
-```
+   Every other entry (third-party plugins, non-`gtapps` domain hermits, unknown sources) is presented **deselected** — the operator must explicitly opt in. This prevents careless click-through from auto-installing arbitrary code with `bypassPermissions`.
+5. If the filtered list is **empty** (no extras installed on the host), skip silently — no prompt, no entries written.
 
-Record the final list as `docker.recommended_plugins`. Each entry has:
+Record the confirmed selection as `docker.recommended_plugins`. Each entry has:
 ```json
-{"marketplace": "claude-plugins-official", "plugin": "<plugin-name>", "scope": "project", "enabled": true}
+{"marketplace": "<marketplace-or-org/repo>", "plugin": "<plugin-name>", "scope": "<scope>", "enabled": true}
 ```
-The entrypoint installs enabled plugins on first boot. Only plugins from `claude-plugins-official` are auto-installed — third-party plugins must be installed manually. See [Recommended Plugins](../../docs/recommended-plugins.md) for the full policy.
+The entrypoint adds the marketplace (if needed) and installs every enabled entry on first boot. See [Recommended Plugins](../../docs/recommended-plugins.md) for the full policy.
 
-If the operator chose plugins not already in `plugin_checks`, also record the corresponding `plugin_checks` entries (same as hatch Phase 4).
+If the operator selected plugins that have corresponding `plugin_checks` entries in hatch Phase 4 (claude-code-setup, claude-md-management, skill-creator), also record those `plugin_checks` entries if not already present.
 
 ### 7c. Write Docker settings to config.json
 
@@ -220,8 +224,11 @@ Manual deployment guide
 2. (OAuth only) From a second terminal, complete login:
    .claude-code-hermit/bin/hermit-docker login
 
-3. Accept workspace trust (press Enter, then Ctrl+B D to detach):
+3. Accept first-run prompts (press Ctrl+B D to detach when done):
    .claude-code-hermit/bin/hermit-docker attach
+
+   Screen 1 — Workspace trust: press Enter to accept.
+   Screen 2 — Bypass Permissions (bypassPermissions mode only): arrow keys → "Yes, I accept" → Enter.
 
 4. (Channels only) Pair each bot — DM it to get a 6-char code, then run:
    docker exec <container> tmux send-keys -t <session> \
@@ -241,28 +248,42 @@ Re-run /claude-code-hermit:docker-setup any time you want guided help.
 2. **Verify the container stayed running:** Poll `docker compose -f docker-compose.hermit.yml ps --status running --format '{{.Service}}'` every 2s for up to 10s. If the service appears — continue to the next sub-section. If it never appears after 10s, run `docker compose -f docker-compose.hermit.yml logs --tail=30 hermit` and show the output. Help diagnose (common: image build failure, missing `.env` var, port conflict, Docker daemon not fully ready). **Do not continue to Login / Workspace trust / Channel pairing while the container is down — stop here and ask the operator to fix and re-run the skill.**
 
 **Login (oauth only):** If operator chose oauth, proceed only once the container is confirmed running. Guide them through login:
-1. Tell them: "The container is waiting for you to log in. Run this from another terminal:"
+1. Tell them: "The container is waiting for you to log in. Run this from another terminal — do not attach and run `claude` yourself, it will trigger a second login prompt and race with this one:"
    ```
    .claude-code-hermit/bin/hermit-docker login
    ```
 2. This opens a browser URL for OAuth. After completing the login, credentials are saved to the named volume and the container starts automatically.
 3. Wait for the operator to confirm they've logged in. Then verify by checking `docker compose -f docker-compose.hermit.yml logs --tail=20 hermit` for "Credentials detected" or "hermit-start" output.
 
-**Workspace trust:** Before asking the operator to attach, verify the tmux session exists inside the container (the entrypoint may still be installing plugins):
+**First-run acceptance (workspace trust + bypass mode):** Before asking the operator to attach, verify the tmux session exists inside the container (the entrypoint may still be installing plugins):
 ```
 docker compose -f docker-compose.hermit.yml exec -T hermit tmux has-session -t <TMUX_SESSION_NAME>
 ```
 If the session is not ready, wait and retry every 5s for up to 30s. If still absent after 30s, show the last 30 lines of entrypoint logs (`docker compose logs --tail=30 hermit`) to help diagnose, then stop.
 
-Once the session exists, tell the operator to attach and accept the trust prompt:
-```
-.claude-code-hermit/bin/hermit-docker attach
-```
-Press Enter to accept, then Ctrl+B, D to detach. Wait for confirmation.
+Note: a running tmux session does **not** mean claude has finished booting — it may still be sitting on an acceptance screen waiting for input.
+
+Once the session exists, tell the operator:
+
+> "Attach now and accept two prompts in order — claude will look frozen until you do, and later steps will misdiagnose it as a crash if you skip this:"
+> ```
+> .claude-code-hermit/bin/hermit-docker attach
+> ```
+> **Screen 1 — Workspace trust** (always): You'll see "Accessing workspace … Quick safety check: Is this a project you created or one you trust?" — press **Enter** to accept.
+>
+> **Screen 2 — Bypass Permissions mode** (only if `permission_mode: bypassPermissions`, the Docker default): You'll then see the `--dangerously-skip-permissions` acknowledgement. Use the **arrow keys** to select **"Yes, I accept"**, then press **Enter**.
+>
+> Then press **Ctrl+B, D** to detach.
+
+Read `config.permission_mode` from `.claude-code-hermit/config.json`. If it is NOT `bypassPermissions`, omit the "Screen 2" paragraph entirely.
+
+Wait for the operator to confirm they have detached before continuing.
 
 **Channel pairing** (skip if no channels or no tokens configured):
 
-Before pairing, confirm the tmux session still exists (reuse the `has-session` check from Workspace trust). If it's gone, surface container logs and stop.
+Before pairing, confirm the operator has completed the first-run acceptance step above — if they haven't, `tmux send-keys` commands will be swallowed by the consent screen and appear to do nothing.
+
+Confirm the tmux session still exists (reuse the `has-session` check from the acceptance step). If it's gone, surface container logs and stop.
 
 For each channel, ask if already paired. If not:
 1. Operator DMs the bot → gets a 6-char code → pastes it

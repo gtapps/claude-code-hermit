@@ -196,9 +196,9 @@ Modify with `/hermit-settings plugin-checks`.
 | `marketplace` | string | `"claude-plugins-official"` | Marketplace name. Use `"claude-plugins-official"` for official plugins, or `"org/repo"` for third-party (e.g. `"obra/superpowers-marketplace"`). |
 | `plugin` | string | _(required)_ | Plugin name to install. |
 | `scope` | string | `"project"` | Install scope: `"project"` or `"local"`. |
-| `enabled` | boolean | `false` | Whether to install on container boot. Only honored for `claude-plugins-official` — third-party plugins are tracked but must be installed manually. |
+| `enabled` | boolean | `false` | Whether to install on container boot. |
 
-**Security policy:** Only plugins from `claude-plugins-official` are auto-installed by the entrypoint. Third-party plugins are stored for tracking/reference but skipped during boot — they must be installed manually inside the container. This is because Docker containers run with `bypassPermissions`, and auto-installing untrusted code in that context is a security risk. See [Recommended Plugins](recommended-plugins.md) for details.
+**Security model:** The entrypoint installs every `enabled` entry regardless of marketplace. The safety gate is at configuration time — entries are only written here when the operator explicitly confirms the list during `/docker-setup` or `/hermit-settings docker`. See [Recommended Plugins](recommended-plugins.md) for details.
 
 Modify with `/hermit-settings docker`.
 

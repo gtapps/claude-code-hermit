@@ -8,6 +8,7 @@ CONFIG="$2"
 TARGET="$SESSION:0.0"
 STATE_DIR="$(dirname "$CONFIG")/state"
 QUEUE_FILE="$STATE_DIR/routine-queue.json"
+METRICS_FILE="$STATE_DIR/routine-metrics.jsonl"
 RUNTIME_JSON="$STATE_DIR/runtime.json"
 LIFECYCLE_LOCK="$STATE_DIR/.lifecycle.lock"
 HEARTBEAT_FILE="$STATE_DIR/.heartbeat"
@@ -72,6 +73,12 @@ if not any(e['id'] == rid and e.get('scheduled_slot', e.get('queued_date')) == s
     })
     json.dump(q, open(f, 'w'))
 " "$QUEUE_FILE" "$1" "$2" "$3" 2>/dev/null
+  log_metric "$1" "$2" "queued"
+}
+
+log_metric() {
+  printf '{"ts":"%s","routine_id":"%s","skill":"%s","event":"%s"}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2" "$3" >> "$METRICS_FILE" 2>/dev/null || true
 }
 
 # Reset ephemeral state on start
@@ -176,10 +183,11 @@ else:
   if [ "$STATUS" = "idle" ] || [ "$STATUS" = "waiting" ]; then
     if [ -f "$QUEUE_FILE" ]; then
       "$PYTHON3" -c "
-import json, sys, subprocess
+import json, sys, subprocess, datetime
 f, target, state = sys.argv[1], sys.argv[2], sys.argv[3]
 config_path = sys.argv[4]
 status = sys.argv[5]
+metrics_file = sys.argv[6]
 try: q = json.load(open(f))
 except: sys.exit(0)
 # Read config once for run_during_waiting lookups
@@ -216,11 +224,16 @@ for item in q.get('queued', []):
     if result.returncode == 0:
         with open(state, 'a') as sf:
             sf.write(fired_key + '\n')
+        try:
+            ts = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+            with open(metrics_file, 'a') as mf:
+                mf.write(json.dumps({'ts':ts,'routine_id':item['id'],'skill':item.get('skill',''),'event':'dequeued'}) + '\n')
+        except Exception: pass
         processed_one = True
     else:
         remaining.append(item)
 json.dump({'queued': remaining}, open(f, 'w'))
-" "$QUEUE_FILE" "$TARGET" "$STATE" "$CONFIG" "$STATUS" 2>/dev/null
+" "$QUEUE_FILE" "$TARGET" "$STATE" "$CONFIG" "$STATUS" "$METRICS_FILE" 2>/dev/null
     fi
   fi
 
@@ -265,6 +278,7 @@ json.dump({'queued': remaining}, open(f, 'w'))
     # Fire the routine (idle, or waiting with run_during_waiting=true)
     echo "$FIRED_KEY" >> "$STATE"
     tmux send-keys -t "$TARGET" "/${skill}" Enter
+    log_metric "$rid" "$skill" "fired"
   done
 
   sleep 60

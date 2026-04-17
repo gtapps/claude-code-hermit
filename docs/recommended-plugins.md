@@ -48,32 +48,33 @@ Builds, tests, and refines new skills through structured iteration — from inte
 
 ## Third-Party Plugins
 
-> **Third-party plugins are NOT auto-installed.** Because Docker containers run with `bypassPermissions`, auto-installing third-party plugins would grant untrusted code full unrestricted execution. You must install them manually.
+The entrypoint installs every enabled entry in `docker.recommended_plugins`, regardless of marketplace. This includes domain hermits (e.g. `claude-code-homeassistant-hermit`) and any other third-party plugin.
 
-You can track third-party plugins in your config for documentation purposes, but the entrypoint will skip them with a warning and not install them.
+The safety gate is at **configuration time**: entries only land in `docker.recommended_plugins` when the operator explicitly confirms the mirrored plugin list during `/docker-setup` or `/hermit-settings docker`. The host-installed list is the vetted set — the operator already installed these plugins on the host before triggering docker-setup.
 
-### Manual Installation
+> **Reminder:** Plugins run with the same permissions as Hermit. In Docker mode (`bypassPermissions`), this means full unrestricted execution. Only add plugins you trust.
 
-To install a third-party plugin inside a running container:
+### Trust model
 
-```bash
-# Attach to the container
-.claude-code-hermit/bin/hermit-docker attach
-# Then from the tmux session, or directly:
-docker compose -f docker-compose.hermit.yml exec hermit bash
+1. **Preselection safelist.** During `/docker-setup`, only plugins from `claude-plugins-official` or any `gtapps/*` marketplace (hermit's own org) are preselected. Third-party and unknown-source plugins are shown deselected — the operator must explicitly opt in. This prevents careless click-through from auto-installing arbitrary code.
 
-# Add the marketplace and install
-claude plugin marketplace add obra/superpowers-marketplace
-claude plugin install superpowers@superpowers-marketplace --scope project
-```
+2. **No re-confirmation on rebuild.** Once an entry is in `config.json`, the entrypoint installs it on every fresh volume without prompting again. If a marketplace repo is compromised between the original install and a later rebuild, the container will silently pull the updated version. Review `docker.recommended_plugins` periodically with `/hermit-settings docker`, and remove entries you no longer trust.
 
-You can optionally track it in config via `/hermit-settings docker`:
+3. **`org/repo` validation.** Marketplace sources written to `config.json` must match `^[A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*$`. Typos or junk values are rejected before landing in config.
+
+### Adding a plugin after initial setup
+
+Use `/hermit-settings docker` to add a plugin to `docker.recommended_plugins`:
 
 ```bash
 add superpowers obra/superpowers-marketplace
 ```
 
-This writes the entry to `config.json` for reference, but the entrypoint will not auto-install it.
+Then restart the container to install it:
+
+```bash
+.claude-code-hermit/bin/hermit-docker restart
+```
 
 ---
 

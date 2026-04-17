@@ -47,9 +47,19 @@ If SHELL.md status is `idle` — think broader:
   If so: create a proposal with `Type: routine` and a `## Config` block containing the routine JSON:
   ```markdown
   ## Config
-  {"id":"weekly-deps","time":"09:00","days":["mon"],"skill":"claude-code-hermit:session-start --task 'dependency audit'","enabled":true}
+  {"id":"weekly-deps","schedule":"0 9 * * 1","skill":"claude-code-hermit:session-start --task 'dependency audit'","enabled":true}
   ```
   When accepted via `proposal-act`, this JSON is parsed and added to `config.json` routines automatically.
+
+- Is a routine firing repeatedly with no visible downstream effect? Read the tail of `state/routine-metrics.jsonl` (last 200 lines), group `fired` events by `routine_id`, and cross-reference with the last 3 session reports (`sessions/S-*-REPORT.md`). If a routine has ≥5 fires in the last 14 days and no session report cites its `routine_id` or skill output as producing findings, decisions, or follow-ups — apply the three-condition rule. If all three conditions hold:
+  - Propose `enabled: false` (disable) via a `Type: routine` proposal reusing the existing `id`. `proposal-act` upserts by `id`, so no delete path is needed.
+  - Or propose a changed `schedule` if the routine is valuable but mis-timed.
+  - Include the fire count + window in the proposal's Evidence section.
+  - Tier: `disable` → Tier 1 (micro-approval). Re-time → Tier 1. Both are fully reversible. Operators can clean up disabled entries any time via `/hermit-settings routines`.
+  ```markdown
+  ## Config
+  {"id":"weekly-deps","schedule":"0 9 * * 1","skill":"claude-code-hermit:session-start --task 'dependency audit'","enabled":false}
+  ```
 
 ## Skill Health
 
