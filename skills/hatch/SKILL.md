@@ -520,6 +520,7 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
       "Bash(node */scripts/evaluate-session.js*)",
       "Bash(node */scripts/append-metrics.js*)",
       "Bash(node */scripts/generate-summary.js*)",
+      "Bash(node */scripts/update-reflection-state.js*)",
       "Bash(bash -c 'AGENT_DIR=\".claude-code-hermit\"*)",
       "Edit(.claude-code-hermit/**)",
       "Write(.claude-code-hermit/**)"

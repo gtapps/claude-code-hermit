@@ -196,27 +196,14 @@ Do not queue vague questions like "Found a pattern. Want me to improve it?" — 
 
 ## State Update
 
-After each reflection run, perform a **single** read-modify-write on `state/reflection-state.json`:
+After each reflection run, call `update-reflection-state.js` with the run's verdict counts:
 
-1. Set `last_reflection` = current ISO timestamp (with timezone offset from config).
-2. Set `last_resolution_check` = last PROP-NNN checked (or null if batch was empty).
-3. Update `counters` (passive observation — does not influence reflect behavior):
-   - If `counters` is missing on read, treat all integer fields as 0 and both timestamp fields as null.
-   - `total_runs` → +1
-   - `last_run_at` → current ISO timestamp (with offset)
-   - `runs_with_candidates` → +1 if **any** proposal candidates were generated this run (pre-judge). Once per run, not per candidate.
-   - `empty_runs` → +1 if `runs_with_candidates` did not increment this run
-   - Per judge verdict observed this run (can increment multiple times):
-     - `ACCEPT` → `judge_accept` +1
-     - `DOWNGRADE:<tier>` → `judge_downgrade` +1
-     - `SUPPRESS` → `judge_suppress` +1
-   - `proposals_created` → +N (full PROP-NNN.md files written this run)
-   - `micro_proposals_queued` → +N (entries queued to `state/micro-proposals.json` this run)
-   - If `proposals_created + micro_proposals_queued > 0` → `last_output_at` = current ISO timestamp
-   - Do NOT touch `since` (set once at hatch / migration).
-4. Preserve all other existing keys (`plugin_checks`, etc.).
-5. Write the merged object back. One write per run.
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/update-reflection-state.js \
+  .claude-code-hermit/state/reflection-state.json \
+  '{"last_resolution_check":"<last-PROP-NNN-or-null>","ran_with_candidates":<true|false>,"judge_accept":<N>,"judge_downgrade":<N>,"judge_suppress":<N>,"proposals_created":<N>,"micro_proposals_queued":<N>}'
+```
 
-If the write fails, log to SHELL.md Findings once ("Counter write failed: <reason>") and continue. Counters are diagnostic, not audit-grade — a missed increment is acceptable.
+The script handles: counter increments, `last_reflection`/`last_run_at` timestamps, missing-counters fallback, `since` preservation, and atomic write. It always exits 0 — if the write fails it logs one line to stderr and continues. Counters are diagnostic, not audit-grade — a missed increment is acceptable.
 
 If nothing stands out: say nothing.

@@ -79,6 +79,50 @@ run_test "knowledge-lint (clean state)" bash -c \
 cleanup
 
 # -------------------------------------------------------
+# update-reflection-state.js
+# -------------------------------------------------------
+
+# 7. Fresh state file — initializes counters from scratch
+workdir="$(setup_workdir)"
+echo '{"last_reflection":null}' > "$workdir/.claude-code-hermit/state/reflection-state.json"
+node "$REPO_ROOT/scripts/update-reflection-state.js" \
+  "$workdir/.claude-code-hermit/state/reflection-state.json" \
+  '{"ran_with_candidates":true,"judge_accept":2,"proposals_created":1}' >/dev/null
+run_test "update-reflection-state (initializes counters)" bash -c \
+  "python3 -c \"import json; d=json.load(open('$workdir/.claude-code-hermit/state/reflection-state.json')); c=d['counters']; assert c['total_runs']==1 and c['runs_with_candidates']==1 and c['empty_runs']==0 and c['judge_accept']==2 and c['proposals_created']==1 and c['last_output_at'] is not None\""
+cleanup
+
+# 8. Empty run — increments empty_runs, leaves last_output_at null, preserves other keys
+workdir="$(setup_workdir)"
+echo '{"plugin_checks":{"md-audit":{"last_run":"2026-04-01"}},"counters":{"total_runs":5,"empty_runs":2,"runs_with_candidates":3,"last_output_at":null}}' \
+  > "$workdir/.claude-code-hermit/state/reflection-state.json"
+node "$REPO_ROOT/scripts/update-reflection-state.js" \
+  "$workdir/.claude-code-hermit/state/reflection-state.json" \
+  '{"ran_with_candidates":false}' >/dev/null
+run_test "update-reflection-state (empty run, preserves other keys)" bash -c \
+  "python3 -c \"import json; d=json.load(open('$workdir/.claude-code-hermit/state/reflection-state.json')); c=d['counters']; assert c['total_runs']==6 and c['empty_runs']==3 and c['runs_with_candidates']==3 and c['last_output_at'] is None and d['plugin_checks']['md-audit']['last_run']=='2026-04-01'\""
+cleanup
+
+# 9. Missing counters object — treated as all-zero, seeds counters with since key
+workdir="$(setup_workdir)"
+echo '{"last_reflection":"2026-04-01T00:00:00Z"}' > "$workdir/.claude-code-hermit/state/reflection-state.json"
+node "$REPO_ROOT/scripts/update-reflection-state.js" \
+  "$workdir/.claude-code-hermit/state/reflection-state.json" \
+  '{"ran_with_candidates":true,"micro_proposals_queued":1}' >/dev/null
+run_test "update-reflection-state (missing counters object)" bash -c \
+  "python3 -c \"import json; d=json.load(open('$workdir/.claude-code-hermit/state/reflection-state.json')); c=d['counters']; assert c['total_runs']==1 and c['micro_proposals_queued']==1 and c['last_output_at'] is not None and 'since' in c\""
+cleanup
+
+# 10. Missing state file — fail-open: exits 0 and writes valid JSON
+workdir="$(setup_workdir)"
+node "$REPO_ROOT/scripts/update-reflection-state.js" \
+  "$workdir/.claude-code-hermit/state/reflection-state.json" \
+  '{"ran_with_candidates":false}' >/dev/null
+run_test "update-reflection-state (missing state file, fail-open)" bash -c \
+  "python3 -c \"import json; d=json.load(open('$workdir/.claude-code-hermit/state/reflection-state.json')); assert d['counters']['total_runs']==1\""
+cleanup
+
+# -------------------------------------------------------
 # Summary
 # -------------------------------------------------------
 print_results
