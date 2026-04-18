@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- **`claude-code-hermit` plugin installed but not enabled in container** — the entrypoint installed the hermit plugin on first boot but never called `claude plugin enable`, leaving hermit skills/hooks present on disk but dormant at runtime. An unconditional idempotent `claude plugin enable` now runs on every boot so containers self-heal on restart after the entrypoint is updated.
+
+- **Channel pairing commands sometimes swallowed by a stale REPL** — `docker-setup` now sends `/reload-plugins` via `tmux send-keys` once before the first pair command, ensuring channel plugins registered by the entrypoint are live in the running claude session.
+
 - **Domain hermit (and third-party) plugins not installed in container** — `docker-setup` step 7b now mirrors plugins installed on the host (project or local scope only — user-scope plugins are intentionally excluded as host-personal) instead of presenting a canned list of official-only plugins. The entrypoint's recommended-plugin loop now adds each plugin's marketplace before installing, rather than skipping any non-`claude-plugins-official` entry. Domain hermits (e.g. `claude-code-homeassistant-hermit`) are picked up automatically because they are already installed on the host when the setup flow runs. Marketplace `org/repo` is resolved from `claude plugin marketplace list` (bare slug previously caused `marketplace add` to fail on first boot).
 
   Security gates added alongside this change: a **safelist** preselects only `claude-plugins-official` and `gtapps/*` plugins during the operator confirmation — third-party plugins require explicit per-entry opt-in. An **`org/repo` regex validator** rejects malformed marketplace values before they reach `config.json`.
@@ -23,8 +27,8 @@
 | File | Change |
 |------|--------|
 | `state-templates/bin/hermit-docker` | `login` subcommand replaced `claude /login` with auth-status-gated `claude auth login` |
-| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Banner warns against manual `claude` invocation; timeout error message updated; third-party marketplace auto-add on boot |
-| `skills/docker-setup/SKILL.md` | Step 7b now mirrors host-installed plugins; login guidance updated |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Banner warns against manual `claude` invocation; timeout error message updated; third-party marketplace auto-add on boot; unconditional idempotent `claude plugin enable claude-code-hermit` on every boot |
+| `skills/docker-setup/SKILL.md` | Step 7b now mirrors host-installed plugins; login guidance updated; `/reload-plugins` sent once before channel pairing |
 | `skills/hermit-settings/SKILL.md` | Removed third-party plugin warning; unified restart instruction |
 | `skills/reflect/SKILL.md` | Routine health check reads `routine-metrics.jsonl`; idle routine proposal path added |
 | `skills/hatch/SKILL.md` | Initializes `state/routine-metrics.jsonl` |
@@ -41,6 +45,8 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 2. **Add domain hermit or third-party plugins to container** — Re-run `/claude-code-hermit:docker-setup` (or `/hermit-settings docker`) to mirror host-installed plugins into `config.json docker.recommended_plugins`, then rebuild the container. Only `project` and `local`-scope plugins are mirrored; user-scope plugins are ignored (install them at `project` scope on the host first if you want them in the container). If a domain hermit is already installed on the host but missing from `docker.recommended_plugins`, add it manually: `add <plugin> <org/repo-marketplace>`.
 
 3. **Update `bin/hermit-docker` login subcommand** — Replace the `login)` case body in `.claude-code-hermit/bin/hermit-docker` with the new auth-status-gated form. Find the block starting with `login)` and ending with `;;`, and replace the body so `hermit-docker login` runs `claude auth status --json` first, then `claude auth login` only if not already authenticated.
+
+4. **Regenerate `docker-entrypoint.hermit.sh` for the self-heal fix** — the entrypoint is COPY'd into the image at build time, so the self-heal `claude plugin enable` only applies after the file is regenerated AND the image is rebuilt. Re-run `/claude-code-hermit:docker-setup` (which regenerates the file and triggers rebuild on next `hermit-docker up`), OR manually remediate now without a rebuild: `docker compose -f docker-compose.hermit.yml exec hermit claude plugin enable claude-code-hermit@claude-code-hermit --scope project`.
 
 No `config.json` changes required.
 

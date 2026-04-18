@@ -340,6 +340,13 @@ Before pairing, confirm the operator has completed the first-run acceptance step
 
 Confirm the tmux session still exists (reuse the `has-session` check from the acceptance step). If it's gone, surface container logs and stop.
 
+**Reload plugins first (once, before any pair command):** The claude REPL may have started before the entrypoint finished enabling channel plugins. Send one reload to make sure the `/<plugin>:access` commands are registered, then wait ~2s:
+
+```
+docker compose -f docker-compose.hermit.yml exec -T hermit \
+  tmux send-keys -t <session> '/reload-plugins' Enter
+```
+
 For each channel, ask if already paired. If not:
 1. Operator DMs the bot → gets a 6-char code → pastes it
 2. Send pair command into tmux — append the local state dir so the LLM writes there instead of the default user path:

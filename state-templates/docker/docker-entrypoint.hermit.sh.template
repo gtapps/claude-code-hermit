@@ -187,6 +187,9 @@ if [ ! -d "${MARKETPLACE_DIR}/claude-code-hermit" ]; then
     echo "[docker-entrypoint] Warning: failed to install hermit plugin — install manually"
 fi
 
+# Idempotent enable — runs every boot to self-heal if plugin was disabled.
+claude plugin enable claude-code-hermit@claude-code-hermit --scope project 2>/dev/null || true
+
 # Official marketplace (needed by channel plugins)
 NEEDS_OFFICIAL=false
 [ -n "$CHANNELS" ] && NEEDS_OFFICIAL=true
