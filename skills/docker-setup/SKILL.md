@@ -299,7 +299,7 @@ Re-run /claude-code-hermit:docker-setup any time you want guided help.
 ```
 
 **If "Yes — build now":**
-1. Run `.claude-code-hermit/bin/hermit-docker up` — builds and starts. Help fix errors (daemon not running, network, disk).
+1. Run `docker compose -f docker-compose.hermit.yml up -d --build` — builds and starts. Help fix errors (daemon not running, network, disk). Do **not** use `.claude-code-hermit/bin/hermit-docker up` here — its trailing echo prints attach/detach instructions that look like imperative commands and can mislead the LLM running this skill into executing them mid-setup. The final hand-off at step 9 provides the canonical attach guidance.
 2. **Verify the container stayed running:** Poll `docker compose -f docker-compose.hermit.yml ps --status running --format '{{.Service}}'` every 2s for up to 10s. If the service appears — continue to the next sub-section. If it never appears after 10s, run `docker compose -f docker-compose.hermit.yml logs --tail=30 hermit` and show the output. Help diagnose (common: image build failure, missing `.env` var, port conflict, Docker daemon not fully ready). **Do not continue to Login / Workspace trust / Channel pairing while the container is down — stop here and ask the operator to fix and re-run the skill.**
 
 **Login (oauth only):** If operator chose oauth, proceed only once the container is confirmed running. Guide them through login:
@@ -362,6 +362,26 @@ For each channel, ask if already paired. If not:
 5. Confirm: "Paired and locked down. If the bot doesn't respond to your first message, give it up to 2 minutes — the hermit may still be booting or running initial checks (plugin installs, workspace trust, auto-memory seeding)."
 
 If "skip": tell them to DM the bot later and run the commands manually.
+
+### 8b. Finalize — clean restart
+
+**Skip this step entirely if the operator chose "No — manual" at step 8.** The container isn't running, so there's nothing to restart.
+
+Tell the operator (set expectations — this step takes ~30-60s and otherwise looks like a hang):
+
+> "Finalizing setup with a clean restart so the first real hermit session starts with everything configured and plugins fully loaded."
+
+Then run, in sequence:
+
+1. `.claude-code-hermit/bin/hermit-docker down` — sends `/session-close --shutdown` via tmux and polls for graceful close up to 60s before removing the container. If it prints "Timed out waiting for graceful close; forcing stop", flag it in the final summary (session that witnessed setup didn't close cleanly — not blocking but worth noting).
+
+2. `docker compose -f docker-compose.hermit.yml up -d` — recreates the container. Do **not** use `hermit-docker up` here for the same LLM-misleading-echo reason as step 8. Docker's named volume preserves credentials, plugins, workspace trust. Bind-mounts preserve `.claude.local/channels/<plugin>/access.json` and `.claude-code-hermit/`.
+
+3. Re-verify the container stayed running (same poll as step 8.2). If it failed to come back up, surface `docker compose logs --tail=30 hermit` and stop — don't proceed to step 9.
+
+Why this step exists: mid-setup, claude REPL starts before plugins are fully enabled and channel pairing completes. The session it was running is a "bootstrap session" full of setup chatter. A clean restart gives the operator a first *real* session with correctly-loaded plugins, fresh tmux state, and no config-time noise.
+
+Why not `hermit-docker restart`: Docker's default stop_grace_period is 10s, which is shorter than the entrypoint's 30-iteration session-close poll — SIGKILL can land mid-close. (We raised `stop_grace_period` to 60s in the compose template, so `restart` is now also safe in principle, but `down+up` gives a recreated container which is stronger: clears ephemeral container-layer state and re-runs the entrypoint from a clean slate.)
 
 ### 9. Verify
 

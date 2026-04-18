@@ -24,6 +24,10 @@ services:
 {{AUTH_ENV_LINE}}{{CHANNEL_ENV_LINES}}
 {{NETWORK_MODE_LINE}}
     restart: unless-stopped
+    # Give the entrypoint's SIGTERM trap (30-iteration graceful session-close poll)
+    # time to finish before Docker escalates to SIGKILL. Default is 10s which is
+    # not enough for session-close to complete cleanly.
+    stop_grace_period: 60s
     healthcheck:
       test: ["CMD", "tmux", "has-session", "-t", "{{TMUX_SESSION_NAME}}"]
       interval: 60s

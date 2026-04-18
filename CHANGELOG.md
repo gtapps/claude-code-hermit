@@ -8,6 +8,10 @@
 
 - **Channel pairing commands sometimes swallowed by a stale REPL** — `docker-setup` now sends `/reload-plugins` via `tmux send-keys` once before the first pair command, ensuring channel plugins registered by the entrypoint are live in the running claude session.
 
+- **`stop_grace_period` too short for graceful session-close** — compose template default was Docker's 10s, but the entrypoint's SIGTERM trap polls for session-close up to 30 iterations. `docker compose restart` (and any external stop without pre-close) could SIGKILL mid-graceful-close. Raised to 60s.
+
+- **LLM running docker-setup could act on `hermit-docker up` echo hints** — `hermit-docker up`'s trailing "To attach… run hermit-docker attach" output looks like imperative instructions. The outer LLM could follow them mid-setup, blocking on an interactive tmux attach. `docker-setup` now uses `docker compose ... up -d` directly during setup; `hermit-docker up` is reserved for operator-facing contexts.
+
 - **Domain hermit (and third-party) plugins not installed in container** — `docker-setup` step 7b now mirrors plugins installed on the host (project or local scope only — user-scope plugins are intentionally excluded as host-personal) instead of presenting a canned list of official-only plugins. The entrypoint's recommended-plugin loop now adds each plugin's marketplace before installing, rather than skipping any non-`claude-plugins-official` entry. Domain hermits (e.g. `claude-code-homeassistant-hermit`) are picked up automatically because they are already installed on the host when the setup flow runs. Marketplace `org/repo` is resolved from `claude plugin marketplace list` (bare slug previously caused `marketplace add` to fail on first boot).
 
   Security gates added alongside this change: a **safelist** preselects only `claude-plugins-official` and `gtapps/*` plugins during the operator confirmation — third-party plugins require explicit per-entry opt-in. An **`org/repo` regex validator** rejects malformed marketplace values before they reach `config.json`.
@@ -20,6 +24,8 @@
 
 ### Added
 
+- **End-of-setup clean restart (step 8b)** — `docker-setup` now finishes with `hermit-docker down` + `docker compose up -d` so the first "real" hermit session starts with plugins fully loaded, fresh tmux state, and no setup chatter in the session transcript. Skipped if the operator chose "No — manual" at step 8.
+
 - **Routine fire metrics** — `routine-watcher.sh` now appends `queued`, `fired`, and `dequeued` events to `state/routine-metrics.jsonl`. The `reflect` skill reads this log to detect routines that fire repeatedly with no downstream effect and proposes disabling or re-timing them. `hatch` initializes the file.
 
 ### Files affected
@@ -28,7 +34,8 @@
 |------|--------|
 | `state-templates/bin/hermit-docker` | `login` subcommand replaced `claude /login` with auth-status-gated `claude auth login` |
 | `state-templates/docker/docker-entrypoint.hermit.sh.template` | Banner warns against manual `claude` invocation; timeout error message updated; third-party marketplace auto-add on boot; unconditional idempotent `claude plugin enable claude-code-hermit` on every boot |
-| `skills/docker-setup/SKILL.md` | Step 7b now mirrors host-installed plugins; login guidance updated; `/reload-plugins` sent once before channel pairing |
+| `skills/docker-setup/SKILL.md` | Step 7b now mirrors host-installed plugins; login guidance updated; `/reload-plugins` sent once before channel pairing; mid-setup uses raw `docker compose up -d` to avoid LLM-misleading echo hints; new step 8b clean-restart at end |
+| `state-templates/docker/docker-compose.hermit.yml.template` | `stop_grace_period: 60s` added so SIGTERM graceful session-close has time to complete |
 | `skills/hermit-settings/SKILL.md` | Removed third-party plugin warning; unified restart instruction |
 | `skills/reflect/SKILL.md` | Routine health check reads `routine-metrics.jsonl`; idle routine proposal path added |
 | `skills/hatch/SKILL.md` | Initializes `state/routine-metrics.jsonl` |
@@ -46,7 +53,7 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 3. **Update `bin/hermit-docker` login subcommand** — Replace the `login)` case body in `.claude-code-hermit/bin/hermit-docker` with the new auth-status-gated form. Find the block starting with `login)` and ending with `;;`, and replace the body so `hermit-docker login` runs `claude auth status --json` first, then `claude auth login` only if not already authenticated.
 
-4. **Regenerate `docker-entrypoint.hermit.sh` for the self-heal fix** — the entrypoint is COPY'd into the image at build time, so the self-heal `claude plugin enable` only applies after the file is regenerated AND the image is rebuilt. Re-run `/claude-code-hermit:docker-setup` (which regenerates the file and triggers rebuild on next `hermit-docker up`), OR manually remediate now without a rebuild: `docker compose -f docker-compose.hermit.yml exec hermit claude plugin enable claude-code-hermit@claude-code-hermit --scope project`.
+4. **Regenerate Docker scaffolding** — the entrypoint self-heal fix is COPY'd into the image at build time, and the `stop_grace_period: 60s` fix is in `docker-compose.hermit.yml`. Both apply only after regeneration. Re-run `/claude-code-hermit:docker-setup` (which regenerates `docker-entrypoint.hermit.sh` and `docker-compose.hermit.yml` and triggers rebuild on next up), OR for the hermit-enable fix alone, remediate now without rebuild: `docker compose -f docker-compose.hermit.yml exec hermit claude plugin enable claude-code-hermit@claude-code-hermit --scope project`.
 
 No `config.json` changes required.
 
