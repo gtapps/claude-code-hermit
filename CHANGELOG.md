@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.0.10] - 2026-04-19
+
+### Fixed
+
+- **Always-on bootstrap silently dropped `/heartbeat start` and `/routines load`** — `hermit-start.py` was sending three slash commands via separate back-to-back `tmux send-keys` calls (`/session`, then `/heartbeat start`, then `/routines load`) with zero delay between them. `/session` runs the `session-start` skill, which is heavyweight (can take 30+ seconds and pauses for "What should I help with?"). The follow-up keystrokes landed inside the still-running `/session` turn and were silently swallowed — the same root cause as the original `routine-watcher.sh` bug. Heartbeat and routines never registered, so always-on hermits had no scheduled work and no health checks. Replaced with a single composite bootstrap prompt that asks Claude to invoke heartbeat-start, routines-load, then session in order — one tmux send, one Claude turn, no race possible.
+
+- **`/routines` missing from `CLAUDE-APPEND.md` Quick Reference** — the routines skill landed in v1.0.9 but was not listed in the quick-reference line, so operators reading the appendix could not discover it.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/hermit-start.py` | Bootstrap rewritten — three racing `tmux send-keys` replaced with one composite prompt that orders heartbeat-start → routines-load → session in a single Claude turn; respects existing `auto_session` / `heartbeat.enabled` / `routines` config gates |
+| `state-templates/CLAUDE-APPEND.md` | `/routines` added to Quick Reference line |
+
+### Upgrade Instructions
+
+`hermit-evolve` executes these steps in order:
+
+1. **Refresh `CLAUDE-APPEND.md`** — re-append the updated appendix to the project's `.claude/CLAUDE.md` so operators see `/routines` in the Quick Reference. The skill itself has been usable since v1.0.9; this only fixes discoverability.
+2. **No `bin/hermit-start` regeneration needed** — `bin/hermit-start` is a thin wrapper that invokes the plugin's `scripts/hermit-start.py`. The fix lands automatically when the plugin updates; just run `bin/hermit-stop && bin/hermit-start` to pick up the new bootstrap behavior. Verify by checking the operator-visible log shows `Bootstrap: ... queued` lines AND that `/claude-code-hermit:routines status` reports active CronCreate registrations after launch.
+
+No `config.json` changes required.
+
+---
+
 ## [1.0.9] - 2026-04-19
 
 ### Fixed

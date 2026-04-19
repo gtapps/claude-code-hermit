@@ -575,31 +575,41 @@ def main():
         write_runtime_json(existing)
         os.execvp(cmd[0], cmd)
 
-    # Auto-run /session if configured
-    if config.get('auto_session', True):
-        subprocess.run(
-            ['tmux', 'send-keys', '-t', session_name,
-             '/claude-code-hermit:session', 'Enter'],
-        )
-        print('[hermit] Auto-sent /claude-code-hermit:session')
-
-    # Start heartbeat if enabled
+    # Bootstrap: send ONE composite prompt so all startup commands execute in a single
+    # Claude turn. Three separate `tmux send-keys` raced — the second/third landed inside
+    # the still-running /session turn and were silently swallowed (same failure mode as
+    # the old routine-watcher's send-keys). One prompt = one turn = no race.
     hb = config.get('heartbeat', {})
-    if hb.get('enabled', False):
+    auto_session = config.get('auto_session', True)
+    hb_enabled = hb.get('enabled', False)
+    has_routines = bool(config.get('routines'))
+
+    steps = []
+    if hb_enabled:
+        steps.append('/claude-code-hermit:heartbeat start')
+    if has_routines:
+        steps.append('/claude-code-hermit:routines load')
+    if auto_session:
+        steps.append('/claude-code-hermit:session')
+
+    if steps:
+        if len(steps) == 1:
+            bootstrap = steps[0]
+        else:
+            numbered = ', '.join(f'({i+1}) {s}' for i, s in enumerate(steps))
+            bootstrap = f'Always-on bootstrap. Invoke these skills in order: {numbered}.'
         subprocess.run(
-            ['tmux', 'send-keys', '-t', session_name,
-             '/claude-code-hermit:heartbeat start', 'Enter'],
+            ['tmux', 'send-keys', '-t', session_name, bootstrap, 'Enter'],
         )
-        print(f'[hermit] Heartbeat started (every {hb.get("every", "30m")})')
+
+    if hb_enabled:
+        print(f'[hermit] Bootstrap: /claude-code-hermit:heartbeat start queued (every {hb.get("every", "30m")})')
     else:
         print('[hermit] Heartbeat: disabled')
-
-    if config.get('routines'):
-        subprocess.run(
-            ['tmux', 'send-keys', '-t', session_name,
-             '/claude-code-hermit:routines load', 'Enter'],
-        )
-        print('[hermit] Routines load triggered')
+    if has_routines:
+        print('[hermit] Bootstrap: /claude-code-hermit:routines load queued')
+    if auto_session:
+        print('[hermit] Bootstrap: /claude-code-hermit:session queued')
 
     print(f'[hermit] Mode: always-on (session stays open between tasks)')
     print(f'[hermit] Attach: tmux attach -t {session_name}')
