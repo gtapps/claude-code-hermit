@@ -55,13 +55,9 @@ Track `passed`, `warnings`, `failures` counts. Collect output lines for the fina
 
 ### 6. State file validation
 
-Template defaults: `${CLAUDE_PLUGIN_ROOT}/state-templates/` — `routine-queue.json.template`, `alert-state.json.template`, `micro-proposals.json.template`.
+Template defaults: `${CLAUDE_PLUGIN_ROOT}/state-templates/` — `alert-state.json.template`, `micro-proposals.json.template`.
 
 For each file: parse JSON. If missing or unparseable, rewrite from the corresponding template. If parseable but wrong shape, repair in place — backfill missing keys from template defaults, overwrite keys that exist with the wrong type, preserve all other existing data. Emit one **WARN** per file that needed repair (noting what was fixed), or **PASS** if valid.
-
-- **`.claude-code-hermit/state/routine-queue.json`** — object with `queued` as an array
-  - Bare array (e.g. `[]`): wrap as `{"queued": <existing array>}` → **WARN** `routine-queue.json was bare array — wrapped to object`
-  - Object missing `queued` key: add `"queued": []` → **WARN** `routine-queue.json missing queued key — backfilled`
 
 - **`.claude-code-hermit/state/alert-state.json`** — object with: `alerts` (object), `self_eval` (object), `total_ticks` (number), `last_digest_date` (any, presence required)
   - For each missing or wrong-type key: overwrite with template default (e.g. `alerts: {}`, `self_eval: {}`, `total_ticks: 0`, `last_digest_date: null`) → **WARN** `alert-state.json repaired: <keys>`

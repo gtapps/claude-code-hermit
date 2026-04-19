@@ -27,7 +27,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
 | Field | Owner | Notes |
 |-------|-------|-------|
 | `version` | hermit-start.py | Set on creation only |
-| `session_state` | session-mgr (via lifecycle skills) | Authorized secondary writers: heartbeat (waiting→idle on timeout), channel-responder (waiting→in_progress on inbound message). routine-watcher may only set `suspect_process` or `dead_process` when no lock is held. |
+| `session_state` | session-mgr (via lifecycle skills) | Authorized secondary writers: heartbeat (waiting→idle on timeout), channel-responder (waiting→in_progress on inbound message). |
 | `session_id` | session-mgr | Pre-computed on session start (next S-NNN), confirmed on archive |
 | `created_at` | hermit-start.py / session-start | Set once per lifecycle |
 | `updated_at` | Any writer | Updated on every write |

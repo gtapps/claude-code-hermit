@@ -213,54 +213,6 @@ run_test "validate-config (empty stdin)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 22. routine-queue-flush — logs missed routines (object shape)
-# -------------------------------------------------------
-workdir="$(setup_workdir)"
-cd "$workdir"
-echo '{"queued":[{"id":"heartbeat-restart","skill":"x:heartbeat start","queued_since":"2026-04-07T04:00:00Z"}]}' > "$workdir/.claude-code-hermit/state/routine-queue.json"
-run_test "routine-queue-flush (log missed)" bash -c \
-  "echo '{}' | node '$REPO_ROOT/scripts/routine-queue-flush.js' 2>/dev/null && grep -q 'heartbeat-restart' '$workdir/.claude-code-hermit/sessions/SHELL.md'"
-cleanup
-
-# -------------------------------------------------------
-# 23. routine-queue-flush — bare array (legacy compat)
-# -------------------------------------------------------
-workdir="$(setup_workdir)"
-cd "$workdir"
-echo '[{"id":"heartbeat-restart","skill":"x:heartbeat start","queued_since":"2026-04-07T04:00:00Z"}]' > "$workdir/.claude-code-hermit/state/routine-queue.json"
-run_test "routine-queue-flush (bare array compat)" bash -c \
-  "echo '{}' | node '$REPO_ROOT/scripts/routine-queue-flush.js' 2>/dev/null && grep -q 'heartbeat-restart' '$workdir/.claude-code-hermit/sessions/SHELL.md'"
-cleanup
-
-# -------------------------------------------------------
-# 24. routine-queue-flush — empty queue
-# -------------------------------------------------------
-workdir="$(setup_workdir)"
-cd "$workdir"
-echo '[]' > "$workdir/.claude-code-hermit/state/routine-queue.json"
-run_test "routine-queue-flush (empty queue)" bash -c \
-  "echo '{}' | node '$REPO_ROOT/scripts/routine-queue-flush.js'"
-cleanup
-
-# -------------------------------------------------------
-# 25. routine-queue-flush — no queue file
-# -------------------------------------------------------
-workdir="$(setup_workdir)"
-cd "$workdir"
-run_test "routine-queue-flush (no queue file)" bash -c \
-  "echo '{}' | node '$REPO_ROOT/scripts/routine-queue-flush.js'"
-cleanup
-
-# -------------------------------------------------------
-# 26. routine-queue-flush — empty stdin
-# -------------------------------------------------------
-workdir="$(setup_workdir)"
-cd "$workdir"
-run_test "routine-queue-flush (empty stdin)" bash -c \
-  "echo '' | node '$REPO_ROOT/scripts/routine-queue-flush.js'"
-cleanup
-
-# -------------------------------------------------------
 # stop-pipeline tests
 # -------------------------------------------------------
 

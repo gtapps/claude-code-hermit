@@ -9,7 +9,6 @@ const { run: costTracker } = require('./cost-tracker');
 const { run: suggestCompact } = require('./suggest-compact');
 const { run: sessionDiff } = require('./session-diff');
 const { run: evaluateSession } = require('./evaluate-session');
-const { run: routineQueueFlush } = require('./routine-queue-flush');
 const fs = require('fs');
 const path = require('path');
 
@@ -67,10 +66,6 @@ async function main() {
       if (out) console.error(out);
     } catch (e) { console.error(`[stop-pipeline] evaluate-session: ${e.message}`); }
   }
-
-  // Stage 5: routine-queue-flush (always)
-  try { await routineQueueFlush(payload); }
-  catch (e) { console.error(`[stop-pipeline] routine-queue-flush: ${e.message}`); }
 
   // Guaranteed heartbeat touch — runs even if all stages fail
   try { fs.writeFileSync(HEARTBEAT_FILE, new Date().toISOString() + '\n'); } catch {}

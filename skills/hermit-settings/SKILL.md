@@ -194,7 +194,7 @@ Update `permission_mode` in config.json.
 **If argument is "routines":**
 - Show current routines from `config.routines` array:
   ```
-  Routines (config.json routines → routine-watcher.sh):
+  Routines (config.json routines → /claude-code-hermit:routines CronCreates):
 
     #  ID           Schedule       Skill                                Status
     1. morning      30 8 * * *     claude-code-hermit:brief --morning    enabled
@@ -215,12 +215,14 @@ Update `permission_mode` in config.json.
     - Custom → operator types raw cron
   - Skill to run (full slash-command name, e.g. `claude-code-hermit:brief` for plugin skills, `ha-refresh-context` for local project skills)
   - Enabled (yes/no, default yes)
-  - Write to `config.json` routines array. The watcher picks it up within 60 seconds.
+  - Write to `config.json` routines array.
 - **Edit:** select by number, change any field.
 - **Remove:** select by number, delete from array.
 - **Enable/disable:** select by number, toggle `enabled` field.
 - Loop until operator says "done".
-- Note: "Routine changes take effect within 60 seconds (watcher re-reads config each cycle)."
+- **After all edits are written**, invoke `/claude-code-hermit:routines load` via the Skill tool to apply the new schedule live (no restart). Surface the result inline:
+  - Success: "Routines reloaded: <id1>, <id2> (<N> total). Active immediately."
+  - Failure: "Settings saved to config.json, but `/routines load` failed: <reason>. Run `/claude-code-hermit:routines load` manually to apply."
 
 **If argument is "idle":**
 - Show current `idle_behavior` and `idle_budget` values

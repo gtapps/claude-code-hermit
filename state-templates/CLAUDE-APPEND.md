@@ -43,7 +43,7 @@ Rules:
 - Be selective with stdout — noisy watches are auto-stopped by CC
 - All 4 CC Monitor tool params are required: `description`, `command`, `timeout_ms`, `persistent`. Always pass `timeout_ms` even when `persistent: true` (required by schema; ignored when persistent).
 - `$CLAUDE_PLUGIN_ROOT` is **NOT available** in the watch subprocess. `$PWD` is project root. Resolve plugin paths at registration time (skill execution context has the var).
-- Watch dies with the session — persistent concerns stay in `routine-watcher.sh`
+- Watch dies with the session — for scheduled work, use `/claude-code-hermit:routines` (re-registered on every always-on launch by `hermit-start.py`)
 
 ## Quick Reference
 

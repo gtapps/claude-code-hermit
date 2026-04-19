@@ -18,7 +18,7 @@ After install, run `/claude-code-hermit:hatch` in the target project to create t
 ## Plugin Structure
 
 - `agents/` — subagent definitions (session-mgr, hermit-config-validator, proposal-triage, reflection-judge; hermit plugins add more subagents)
-- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, pulse, brief, watch, heartbeat, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, channel-responder, channel-setup, hatch, hermit-evolve, docker-setup, hermit-takeover, hermit-hand-back, smoke-test, test-run, obsidian-setup, cortex-refresh, cortex-sync, weekly-review, migrate, knowledge
+- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, pulse, brief, watch, heartbeat, routines, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, channel-responder, channel-setup, hatch, hermit-evolve, docker-setup, hermit-takeover, hermit-hand-back, smoke-test, test-run, obsidian-setup, cortex-refresh, cortex-sync, weekly-review, migrate, knowledge
 - `hooks/hooks.json` — hook registrations
 - `scripts/` — hook implementation scripts + boot scripts (hermit-start.py, hermit-stop.py)
 - `state-templates/` — templates copied into target projects by the `hatch` skill
@@ -38,7 +38,7 @@ When installed in a target project, state lives in `.claude-code-hermit/`:
 - `sessions/S-NNN-REPORT.md` — archived reports
 - `proposals/PROP-NNN.md` — improvement proposals
 - `templates/` — session and proposal templates
-- `state/` — runtime observations (alert-state.json, reflection-state.json, routine-queue.json, proposal-metrics.jsonl, micro-proposals.json, state-summary.md, monitors.runtime.json)
+- `state/` — runtime observations (alert-state.json, reflection-state.json, routine-metrics.jsonl, proposal-metrics.jsonl, micro-proposals.json, state-summary.md, monitors.runtime.json)
 - `raw/` — domain inputs (fetched content, snapshots, logs); flat layout only (no subdirectories). `raw/.archive/` holds expired artifacts. See [plugin-hermit-storage](docs/plugin-hermit-storage.md).
 - `compiled/` — durable domain outputs (briefings, decisions, assessments) injected at session start; flat layout only (no subdirectories)
 - `knowledge-schema.md` — per-hermit behavioral schema (what it produces and when)

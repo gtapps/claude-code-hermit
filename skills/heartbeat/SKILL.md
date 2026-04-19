@@ -45,7 +45,6 @@ Execute one heartbeat tick immediately. Useful for testing the checklist.
 - Checklist item: `checklist:<first-8-chars-of-item-normalized>`
 - Proposal pending: `proposal-pending:<PROP-NNN>`
 - Waiting timeout: `waiting-timeout`
-- Stale routine queue: `routine-stale:<id>`
 - Micro-proposal pending: `micro-proposal-pending:<id>`
 - Custom/freeform: `custom:<first-100-chars-normalized>` — fallback only
 
@@ -63,9 +62,8 @@ Before appending any alert to SHELL.md Monitoring, run this procedure:
    - **Not suppressed:** Append `[HH:MM] Heartbeat: resolved — {text}`. Remove entry.
    - **Suppressed:** Resolve silently — remove entry, omit from next daily digest. Don't add noise announcing the absence of noise.
 4. **Daily digest:** First tick of each day where `last_digest_date` is not today: if any suppressed alerts exist, notify the operator: `Suppressed alert digest: {list with counts and ages}`. Set `last_digest_date` to today.
-5. **Stale queue check:** Read `.claude-code-hermit/state/routine-queue.json`. For any entry where `queued_since` is older than one heartbeat interval AND current status is `idle` or `waiting`: append to Monitoring: `[HH:MM] Heartbeat: routine '{id}' queued {elapsed} ago (since {queued_date}) — dispatch may have failed.` Use semantic key `routine-stale:<id>` for dedup.
-6. **Micro-proposal check:** Read `.claude-code-hermit/state/micro-proposals.json`. For any entry where `status` is `"pending"` and `tier` is `1`: append to Monitoring: `[HH:MM] Heartbeat: micro-proposal '{id}' awaiting operator input — {question}`. Use semantic key `micro-proposal-pending:<id>` for dedup.
-7. Write `state/alert-state.json`.
+5. **Micro-proposal check:** Read `.claude-code-hermit/state/micro-proposals.json`. For any entry where `status` is `"pending"` and `tier` is `1`: append to Monitoring: `[HH:MM] Heartbeat: micro-proposal '{id}' awaiting operator input — {question}`. Use semantic key `micro-proposal-pending:<id>` for dedup.
+6. Write `state/alert-state.json`.
 
 **If nothing actionable:**
 - Do NOT append to SHELL.md (the tick is already recorded via `total_ticks` in alert-state.json)
@@ -212,6 +210,6 @@ If no NEXT-TASK.md and no pending channel messages:
 
 ---
 
-Morning/evening routines are handled by `scripts/routine-watcher.sh`, not heartbeat.
+Morning/evening routines are handled by `/claude-code-hermit:routines` — each routine is a per-session CronCreate registered by `hermit-start.py` on launch.
 
 Manage routines with `/claude-code-hermit:hermit-settings routines`. See the brief skill for `--morning` and `--evening` flag behavior.

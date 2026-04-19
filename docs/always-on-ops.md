@@ -151,7 +151,7 @@ When idle and `idle_behavior` is `"discover"` (set via `/hermit-settings idle`),
 
 ## Routines
 
-Routines are time-triggered skills managed by a shell-level watcher (`scripts/routine-watcher.sh`). Unlike heartbeat checks (which run every tick), routines fire at exact times — no LLM needed to check the clock.
+Routines are time-triggered skills registered as per-session `CronCreate` jobs by the `/claude-code-hermit:routines` skill. Unlike heartbeat checks (which run every tick), routines fire at exact cron times — no LLM needed to check the clock, and CronCreate is idle-gated so routines never interrupt mid-task.
 
 ### Config
 
@@ -167,40 +167,39 @@ Routines live in `config.json` as a `routines` array:
 ```
 
 - `id`: unique name for dedup and display
-- `schedule`: 5-field cron expression (`minute hour dom month dow`), evaluated in configured timezone
+- `schedule`: 5-field cron expression (`minute hour dom month dow`), interpreted by CronCreate in local time
 - `skill`: full slash-command name (e.g. `claude-code-hermit:brief --morning` for plugin skills, `ha-refresh-context` for local project skills)
 - `run_during_waiting`: optional — if `true`, fires even when session status is `waiting` (default: `false`)
 - `enabled`: toggle without removing
 
-Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect within 60 seconds.
+Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect immediately — `hermit-settings` auto-runs `/routines load` after writing config. If you edit `config.json` by hand, run `/claude-code-hermit:routines load` to apply.
 
 ### How it works
 
-The routine watcher runs as a background tmux window (started by `hermit-start.py`). Every 60 seconds it:
+`hermit-start.py` auto-sends `/claude-code-hermit:routines load` after launching the always-on session. The skill:
 
-1. Re-reads `config.json` for the latest routines
-2. Matches current time and day against enabled routines
-3. Checks `state/runtime.json` (session state) — queues to `state/routine-queue.json` if `in_progress`, checks `run_during_waiting` if `waiting`
-4. Fires matching routines via `tmux send-keys` to the Claude Code pane
-5. Deduplicates: each routine fires at most once per matching time slot
+1. Resolves `$CLAUDE_PLUGIN_ROOT` (available at skill execution time, NOT in cron-delivered prompts)
+2. Calls `CronList`, `CronDelete`s every `[hermit-routine:*]` entry — clears stale registrations and resets the 7-day expiry clock
+3. For each enabled routine, registers a fresh `CronCreate` with the routine's schedule and a prompt that invokes the skill plus logs to `state/routine-metrics.jsonl`
 
-Queued routines are dequeued one at a time after the session returns to idle. The heartbeat detects stale queued routines.
+CronCreate fires only between REPL turns — never mid-task. There is no queue: if Claude is mid-task when the cron time hits, the fire is deferred (not dropped) until idle. `run_during_waiting: false` routines additionally check `runtime.json` and self-suppress with a `skipped-waiting` event when `session_state == "waiting"`.
 
-The watcher dies automatically when the tmux session is killed — no cleanup needed.
+**`heartbeat-restart`** fires at 4am daily and restarts both the heartbeat `/loop` and the routine registrations (CronCreate auto-expires after 7 days; daily re-arm keeps everything fresh).
 
-**`heartbeat-restart`** fires at 4am daily and restarts the heartbeat loop. Required for always-on deployments — `/loop` tasks expire after 3 days. Do not disable unless you are manually managing heartbeat restarts.
+Inspect live registrations with `/claude-code-hermit:routines status` (calls `CronList` under the hood). Inspect fire history with `tail .claude-code-hermit/state/routine-metrics.jsonl`.
 
 ### Relationship to heartbeat and monitors
 
 |                | Routines                         | Heartbeat                      | Monitors                          |
 | -------------- | -------------------------------- | ------------------------------ | --------------------------------- |
-| Timing         | Exact HH:MM                      | Every N minutes                | Event-driven or interval          |
-| Engine         | Shell script (`date` + `jq`)     | LLM evaluation                 | Monitor tool (OS subprocess)      |
-| Cost           | Zero tokens                      | Checklist evaluation per tick  | Zero tokens when quiet            |
-| Survives exit  | Yes (tmux)                       | No (3-day `/loop` expiry)      | No (session-scoped)               |
+| Timing         | Exact cron schedule              | Every N minutes                | Event-driven or interval          |
+| Engine         | CronCreate (idle-gated)          | LLM evaluation                 | Monitor tool (OS subprocess)      |
+| Cost           | Zero tokens until fire           | Checklist evaluation per tick  | Zero tokens when quiet            |
+| Survives exit  | No (re-registered on launch)     | No (3-day `/loop` expiry)      | No (session-scoped)               |
+| Mid-task fire  | Deferred until idle              | N/A                            | Yes (interrupts)                  |
 | Use for        | Scheduled tasks (briefs, audits) | Continuous monitoring          | Reactive watching / quiet polling |
 
-**Hybrid model:** Monitors handle reactive concerns (event streams, zero idle cost). `routine-watcher.sh` handles durability (survives session death, crash recovery, cron-like scheduling). Neither replaces the other.
+**Hybrid model:** Monitors handle reactive event streams (interrupt-OK). Routines handle scheduled work (idle-gated, never interrupt). Heartbeat handles continuous health checks. Neither replaces the others.
 
 Config-defined watches auto-register at session start. Runtime truth: `.claude-code-hermit/state/monitors.runtime.json`. See `/claude-code-hermit:watch` for ad-hoc watching.
 

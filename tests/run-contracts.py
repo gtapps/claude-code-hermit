@@ -400,54 +400,15 @@ class TestNegativePaths(_TempDirTest):
 # ============================================================
 
 class TestCronCorpus(unittest.TestCase):
-    """Python cron-match.py and Node validate-config.js must agree on the
-    shared test corpus for valid/invalid cron expressions."""
+    """validate-config.js validateCronSchedule() must accept the shared
+    corpus of valid expressions and reject the invalid ones. Cron schedules
+    are now consumed directly by CronCreate (via /routines), not parsed
+    by hermit code — only config-time validation remains."""
 
     @classmethod
     def setUpClass(cls):
         with open(FIXTURES.parent / 'cron-test-corpus.json') as f:
             cls.corpus = json.load(f)
-
-    def test_python_valid_match(self):
-        """cron-match.py returns exit 0 for valid expressions that should match."""
-        for case in self.corpus['valid_expressions']:
-            sched = case['schedule']
-            for m in case.get('matches', []):
-                if not m['expect']:
-                    continue
-                ts, dow = m['time'], str(m['dow'])
-                result = subprocess.run(
-                    ['python3', str(SCRIPTS / 'cron-match.py'), sched, ts, dow],
-                    capture_output=True, text=True, timeout=5,
-                )
-                self.assertEqual(result.returncode, 0,
-                                 f'Expected match for {sched} at {ts} dow={dow}: {result.stderr}')
-
-    def test_python_valid_no_match(self):
-        """cron-match.py returns exit 1 for valid expressions that should not match."""
-        for case in self.corpus['valid_expressions']:
-            sched = case['schedule']
-            for m in case.get('matches', []):
-                if m['expect']:
-                    continue
-                ts, dow = m['time'], str(m['dow'])
-                result = subprocess.run(
-                    ['python3', str(SCRIPTS / 'cron-match.py'), sched, ts, dow],
-                    capture_output=True, text=True, timeout=5,
-                )
-                self.assertEqual(result.returncode, 1,
-                                 f'Expected no match for {sched} at {ts} dow={dow}')
-
-    def test_python_invalid(self):
-        """cron-match.py returns exit 2 for invalid expressions."""
-        for case in self.corpus['invalid_expressions']:
-            sched = case['schedule']
-            result = subprocess.run(
-                ['python3', str(SCRIPTS / 'cron-match.py'), sched],
-                capture_output=True, text=True, timeout=5,
-            )
-            self.assertEqual(result.returncode, 2,
-                             f'Expected exit 2 for invalid expression: {sched} (reason: {case.get("reason")})')
 
     def test_node_valid(self):
         """validate-config.js validateCronSchedule() accepts valid expressions."""

@@ -1,5 +1,51 @@
 # Changelog
 
+## [1.0.9] - 2026-04-19
+
+### Fixed
+
+- **Routine delivery silently dropped in `--remote-control` + channels mode** — `routine-watcher.sh` used `tmux send-keys` to invoke skills, which is event-displaced when Claude is in remote-control mode (the keystrokes land in the input buffer but are silently dropped between turns). The bash watcher and queue file are removed entirely. Each enabled routine is now a per-session `CronCreate` registered by the new `/claude-code-hermit:routines` skill (mirrors `/watch`). CronCreate is idle-gated: routines defer until the REPL is between turns and never interrupt mid-task. `hermit-start.py` invokes `/routines load` automatically on always-on launches. `routine-metrics.jsonl` adds a `delivery: "cron-create"` field on `fired` events.
+
+### Added
+
+- **`/claude-code-hermit:routines` skill** — manages per-session CronCreate registrations. Subcommands: `load` (register all enabled config.routines), `list` (show configured routines), `status` (show active CronCreate entries via CronList), `stop [id]` / `stop --all` (CronDelete). Changes take effect immediately — `hermit-settings routines` auto-runs `/routines load` after writing config.
+
+- **`scripts/log-routine-event.sh`** — helper invoked by routine cron prompts to append timestamped fire events to `state/routine-metrics.jsonl` without asking the LLM to construct JSON.
+
+### Removed
+
+- `scripts/routine-watcher.sh`, `scripts/cron-match.py`, `scripts/routine-queue-flush.js`, `state-templates/routine-queue.json.template`, the `routines` tmux window in `hermit-start.py`, `routine-queue-flush` Stage 5 in `stop-pipeline.js`, the `routine-stale:<id>` heartbeat alert, and corresponding tests.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/routines/SKILL.md` | New skill — load/list/status/stop subcommands |
+| `scripts/log-routine-event.sh` | New helper — append `fired` events to `routine-metrics.jsonl` |
+| `scripts/hermit-start.py` | Removed routine-watcher tmux window; auto-sends `/routines load` after `/heartbeat start` when `config.routines` is set |
+| `scripts/stop-pipeline.js` | Removed Stage 5 `routine-queue-flush` call |
+| `skills/heartbeat/SKILL.md` | Removed stale-queue check and `routine-stale:<id>` alert; footer updated |
+| `skills/hermit-settings/SKILL.md` | Routines section auto-invokes `/routines load` after config write — changes apply live, no restart needed |
+| `skills/hatch/SKILL.md` | No longer copies `routine-queue.json.template`; metrics log description updated |
+| `skills/smoke-test/SKILL.md` | Removed `routine-queue.json` shape repair |
+| `skills/session-start/SKILL.md` | Removed `routine-watcher` from advisory-lock holders list |
+| `agents/session-mgr.md` | Removed routine-watcher from `session_state` writers note |
+| `tests/run-hooks.sh`, `tests/run-contracts.py` | Removed routine-queue-flush and cron-match tests |
+| Docs | `always-on-ops.md`, `troubleshooting.md`, `architecture.md`, `skills.md`, `how-to-use.md`, `state-templates/CLAUDE-APPEND.md` updated |
+
+### Upgrade Instructions
+
+`hermit-evolve` executes these steps in order:
+
+1. **Delete the obsolete queue file.** `rm -f .claude-code-hermit/state/routine-queue.json` — the bash watcher no longer exists, the file is orphaned.
+2. **Register routines via CronCreate.** Invoke `/claude-code-hermit:routines load`. This replaces the old bash-watcher behavior live with no session restart. Confirm the result line shows `Routines registered: <ids> (<N> ok, 0 failed)`.
+3. **Verify.** Invoke `/claude-code-hermit:routines status` and confirm one `[hermit-routine:<id>]` entry per enabled routine in `config.json`.
+4. **Tell the operator about residual tmux noise.** If the hermit is running in always-on / tmux mode, the old `routines` tmux window keeps a defunct `routine-watcher.sh` process alive (POSIX keeps the process running even though the script file was deleted). It will print `python3: can't open file '.../cron-match.py'` errors on its loop until next `bin/hermit-stop`. **Harmless — ignore.** Operators who want a clean tmux state can do a one-time `bin/hermit-stop && bin/hermit-start` at their convenience.
+
+No `config.json` changes required. Interactive `/session` users who want routines active in interactive mode must run `/claude-code-hermit:routines load` themselves — `hermit-start.py` only auto-loads in always-on mode.
+
+---
+
 ## [1.0.8] - 2026-04-18
 
 ### Fixed

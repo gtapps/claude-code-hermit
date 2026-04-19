@@ -586,7 +586,6 @@ def main():
     # Start heartbeat if enabled
     hb = config.get('heartbeat', {})
     if hb.get('enabled', False):
-        time.sleep(2)  # Wait for /session to initialize
         subprocess.run(
             ['tmux', 'send-keys', '-t', session_name,
              '/claude-code-hermit:heartbeat start', 'Enter'],
@@ -595,19 +594,12 @@ def main():
     else:
         print('[hermit] Heartbeat: disabled')
 
-    # Start routine watcher as a background tmux window
-    routine_script = Path(__file__).resolve().parent / 'routine-watcher.sh'
-    if routine_script.exists():
-        result = subprocess.run(
-            ['tmux', 'new-window', '-t', session_name,
-             '-n', 'routines', '-d',
-             'bash', str(routine_script), session_name, str(CONFIG_PATH)],
-            capture_output=True,
+    if config.get('routines'):
+        subprocess.run(
+            ['tmux', 'send-keys', '-t', session_name,
+             '/claude-code-hermit:routines load', 'Enter'],
         )
-        if result.returncode == 0:
-            print('[hermit] Routine watcher started')
-        else:
-            print('[hermit] Routine watcher: failed to start')
+        print('[hermit] Routines load triggered')
 
     print(f'[hermit] Mode: always-on (session stays open between tasks)')
     print(f'[hermit] Attach: tmux attach -t {session_name}')

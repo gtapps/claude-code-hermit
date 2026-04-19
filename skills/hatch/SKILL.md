@@ -31,7 +31,7 @@ Create the following directories and files:
 ├── state/
 │   ├── alert-state.json
 │   ├── reflection-state.json
-│   ├── routine-queue.json
+│   ├── routine-metrics.jsonl
 │   ├── proposal-metrics.jsonl
 │   └── micro-proposals.json
 ├── raw/
@@ -70,11 +70,10 @@ Initialize state files (inline — shape-insensitive or append-only):
   }
   ```
 - `.claude-code-hermit/state/proposal-metrics.jsonl`: empty file — append-only, not schema-sensitive JSON state
-- `.claude-code-hermit/state/routine-metrics.jsonl`: empty file — append-only routine fire log (`fired`/`queued`/`dequeued` events written by `routine-watcher.sh`)
+- `.claude-code-hermit/state/routine-metrics.jsonl`: empty file — append-only routine fire log (`fired` events written by `scripts/log-routine-event.sh` from CronCreate prompts)
 
 - Read the template files from `${CLAUDE_SKILL_DIR}/../../state-templates/`
 - Copy `alert-state.json.template` → `.claude-code-hermit/state/alert-state.json`
-- Copy `routine-queue.json.template` → `.claude-code-hermit/state/routine-queue.json`
 - Copy `micro-proposals.json.template` → `.claude-code-hermit/state/micro-proposals.json`
 - Copy `SHELL.md.template`, `SESSION-REPORT.md.template`, `PROPOSAL.md.template` into `templates/`
 - **OPERATOR.md guard:** If `.claude-code-hermit/OPERATOR.md` already exists, do NOT copy the template over it. Remember this fact as `operator_existed = true` for use in step 5a. If it does not exist, copy `OPERATOR.md` from the templates into the state directory root.
@@ -306,6 +305,7 @@ For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, 
 - `{"id":"evening","schedule":"30 22 * * *","skill":"claude-code-hermit:brief --evening","enabled":true,"run_during_waiting":true}`
 - Always add (regardless of routine choice): `{"id":"heartbeat-restart","schedule":"0 4 * * *","skill":"claude-code-hermit:heartbeat start","run_during_waiting":true,"enabled":true}`
 - If no routines: still add heartbeat-restart to the `routines` array (it's infrastructure, not a user routine)
+- **Routines auto-register only on always-on launches via `hermit-start.py`.** Interactive `/session` users who want routines active in interactive mode must run `/claude-code-hermit:routines load` themselves. Mention this once at the end of hatch if the operator is running interactively.
 
 ### 5. Write config.json
 

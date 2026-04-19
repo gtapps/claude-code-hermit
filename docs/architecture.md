@@ -144,7 +144,6 @@ your-project/
 │   │   ├── runtime.json              # Session state: in_progress/waiting/idle (authoritative since v0.3.2)
 │   │   ├── alert-state.json          # Alert dedup state + self-eval evidence (heartbeat-owned)
 │   │   ├── reflection-state.json     # Last reflection timestamp (reflect-owned)
-│   │   ├── routine-queue.json        # Queued routines pending execution (routine-watcher-owned)
 │   │   ├── channel-activity.json     # Last channel interaction timestamp (channel-hook-owned)
 │   │   ├── session-diff.json         # Uncommitted file tracking (session-diff-owned)
 │   │   ├── proposal-metrics.jsonl    # Append-only event log (proposal-create + proposal-act)
@@ -169,10 +168,9 @@ One writer per state file. No shared mutation bus.
 
 | File                           | Owner (sole writer)                                 | Readers                                                       |
 | ------------------------------ | --------------------------------------------------- | ------------------------------------------------------------- |
-| `state/runtime.json`           | session-mgr + cost-tracker                          | heartbeat, session-start, routine-watcher                     |
+| `state/runtime.json`           | session-mgr + cost-tracker                          | heartbeat, session-start, /routines (rdw=false suppression)   |
 | `state/alert-state.json`       | heartbeat only                                      | heartbeat; evaluate-session (read-only nudge computation)     |
 | `state/reflection-state.json`  | reflect + session (non-overlapping phases)          | heartbeat (debounce), hermit-settings (plugin-checks display) |
-| `state/routine-queue.json`     | routine-watcher only                                | routine-watcher                                               |
 | `state/channel-activity.json`  | channel-hook.js only                                | channel-responder, heartbeat                                  |
 | `state/session-diff.json`      | session-diff.js only                                | session-close (display)                                       |
 | `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only)        | generate-summary.js                                           |
@@ -278,7 +276,7 @@ Hermit provides the **timing infrastructure** (when to reflect), the **proposal 
 Morning routine (configurable time, default: active hours start + 30m): brief, proposal review, priority check, pending micro-proposal surfaced.
 Evening routine (configurable time, default: active hours end - 30m): daily journal archived as S-NNN, reflection, preparation for tomorrow.
 
-Both are managed by the routine watcher (shell-level, not LLM-dependent). Fire once per day at exact times. Routines that fire during `in_progress` are queued to `state/routine-queue.json` and dequeued when idle. A daily 4am `heartbeat-restart` routine prevents silent `/loop` expiry in always-on deployments.
+Both are managed by `/claude-code-hermit:routines` (per-session CronCreate registrations). Fire at exact cron times. CronCreate is idle-gated: routines that come due during `in_progress` are deferred until the REPL is between turns — never dropped, never interrupting mid-task. A daily 4am `heartbeat-restart` routine re-runs `/routines load` to re-arm both the heartbeat `/loop` (3-day expiry) and the routine CronCreates (7-day expiry).
 
 ---
 
