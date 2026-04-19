@@ -9,6 +9,7 @@ const { run: costTracker } = require('./cost-tracker');
 const { run: suggestCompact } = require('./suggest-compact');
 const { run: sessionDiff } = require('./session-diff');
 const { run: evaluateSession } = require('./evaluate-session');
+const { run: cortexRefresh } = require('./cortex-refresh-stage');
 const fs = require('fs');
 const path = require('path');
 
@@ -65,6 +66,12 @@ async function main() {
       const out = await evaluateSession(payload);
       if (out) console.error(out);
     } catch (e) { console.error(`[stop-pipeline] evaluate-session: ${e.message}`); }
+  }
+
+  // Stage 5: cortex-refresh (standard+, mtime-gated)
+  if (isStandardPlus) {
+    try { await cortexRefresh(); }
+    catch (e) { console.error(`[stop-pipeline] cortex-refresh: ${e.message}`); }
   }
 
   // Guaranteed heartbeat touch — runs even if all stages fail

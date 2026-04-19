@@ -26,6 +26,19 @@ SORT date DESC
 LIMIT 5
 ```
 
+## Recent Inputs
+<!-- What the hermit has been reading — raw/ sorted by recency, excludes archive -->
+```dataview
+TABLE
+  dateformat(file.mtime, "yyyy-MM-dd HH:mm") AS "Fetched",
+  default(title, file.name) AS "Item",
+  source
+FROM ".claude-code-hermit/raw"
+WHERE !contains(file.folder, ".archive")
+SORT file.mtime DESC
+LIMIT 10
+```
+
 ## Needs Attention
 <!-- Accepted proposals waiting for implementation -->
 ```dataview

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// build-cortex.js — generates obsidian/Connections.md and obsidian/Cortex Portal.md
+// build-cortex.js — generates obsidian/Connections.md
 // Scans .claude-code-hermit/ session and proposal frontmatter to build the relationship map.
 // Zero npm dependencies. Node stdlib only.
 // Usage: node build-cortex.js <hermit-state-dir> [obsidian-output-dir] [project-root]
@@ -77,20 +77,6 @@ try {
   }
 } catch { /* no manifest or invalid json — skip artifact scanning */ }
 
-// All artifacts with frontmatter (for portal recency); deduplicate by path since
-// an artifact with both session + proposal fields appears in both maps.
-const _seenArt = new Set();
-const allArtifacts = [
-  ...Object.values(artifactsBySession).flat(),
-  ...Object.values(artifactsByProposal).flat(),
-  ...domainArtifacts,
-].filter(a => {
-  const abs = path.resolve(a.file);
-  if (_seenArt.has(abs)) return false;
-  _seenArt.add(abs);
-  return true;
-}).sort((a, b) => (b.fm.created || '').localeCompare(a.fm.created || ''));
-
 // --- Build relationship maps ---
 
 // sessions_to_proposals: session id -> proposal ids it created
@@ -125,15 +111,6 @@ for (const [sessId, propIds] of Object.entries(sessionToProps)) {
 const activeProposals = proposals.filter(p =>
   p.fm.status === 'proposed' || p.fm.status === 'accepted'
 );
-
-// --- Load reflect counters ---
-let reflectCounters = null;
-try {
-  const rstate = JSON.parse(fs.readFileSync(path.join(hermitDir, 'state', 'reflection-state.json'), 'utf8'));
-  if (rstate && rstate.counters && typeof rstate.counters.total_runs === 'number') {
-    reflectCounters = rstate.counters;
-  }
-} catch { /* missing or unparseable — leave null */ }
 
 function wikilink(artifact) {
   const stem = path.basename(artifact.file, '.md');
@@ -246,76 +223,11 @@ if (unlinkedFiles.length > 0) {
   connectionsBody += '\n';
 }
 
-// --- Generate Cortex Portal.md ---
-
-const recentSessions = sessions.slice(0, 5);
-const portalSessionLinks = recentSessions.length > 0
-  ? recentSessions.map(s => `- [[${s.fm.id}-REPORT]]`).join('\n')
-  : '_No sessions yet._';
-
-const portalProposalLinks = activeProposals.length > 0
-  ? activeProposals.map(p => `- [[${p.fm.id}]] — ${p.fm.status}${p.fm.title ? ', ' + p.fm.title : ''}`).join('\n')
-  : '_No active proposals._';
-
-const recentArtifacts = allArtifacts.slice(0, 5);
-const portalArtifactLinks = recentArtifacts.length > 0
-  ? recentArtifacts.map(a => `- ${wikilink(a)}`).join('\n')
-  : '';
-
-function buildReflectHealthBlock(c) {
-  if (!c) return '## Reflect Health\n_No counter data — run reflect once to populate._\n';
-  const since = c.since ? c.since.slice(0, 10) : '—';
-  if (c.total_runs === 0) {
-    return `## Reflect Health\n_No runs yet (since ${since})_\n`;
-  }
-  const lastRun = c.last_run_at ? c.last_run_at.slice(0, 10) : '—';
-  const emptyPct = Math.round((c.empty_runs / c.total_runs) * 100);
-  const lines = [
-    `## Reflect Health`,
-    `- **Runs:** ${c.total_runs} total, ${c.empty_runs} empty (${emptyPct}%) | since ${since} | last ${lastRun}`,
-    `- **Candidates:** ${c.runs_with_candidates} runs with candidates | judge: ${c.judge_accept} accepted / ${c.judge_downgrade} downgraded / ${c.judge_suppress} suppressed`,
-  ];
-  if (c.proposals_created > 0 || c.micro_proposals_queued > 0) {
-    lines.push(`- **Output:** ${c.proposals_created} proposals created, ${c.micro_proposals_queued} micro queued`);
-  }
-  return lines.join('\n') + '\n';
-}
-
-const portalBody = `---
-generated: true
-updated: ${now}
----
-# Cortex Portal
-
-> Graph center — links all cortex pages, recent sessions, and active proposals.
-> Open **graph view** (Ctrl+G / Cmd+G) or **local graph** for the best visual.
-
-## Cortex Pages
-- [[Brain]] — live session, fragile zones, needs attention
-- [[Cortex]] — mindstate: uncertainty, stability, regressions, operator dependence
-- [[Evolution]] — first vs latest, cost trend, autonomy trajectory
-- [[System Health]] — agent state, alerts, incomplete sessions
-- [[Connections]] — relationship map: sessions ↔ proposals
-
-## Latest Weekly Review
-- [[Latest Review]]
-
-## Recent Sessions
-${portalSessionLinks}
-
-## Active Proposals
-${portalProposalLinks}
-
-${buildReflectHealthBlock(reflectCounters)}${portalArtifactLinks ? `\n## Recent Artifacts\n${portalArtifactLinks}\n` : ''}`;
-
 // --- Write output ---
 fs.mkdirSync(obsidianDir, { recursive: true });
 
 const connectionsPath = path.join(obsidianDir, 'Connections.md');
-const portalPath = path.join(obsidianDir, 'Cortex Portal.md');
 
 fs.writeFileSync(connectionsPath, connectionsBody, 'utf8');
-fs.writeFileSync(portalPath, portalBody, 'utf8');
 
 console.log(`Connections updated: ${connectionsPath}`);
-console.log(`Cortex Portal updated: ${portalPath}`);

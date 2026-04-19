@@ -67,7 +67,7 @@ Check whether the Cortex is set up by using `Glob("obsidian/*.md")` — if it re
 ```
 node ${CLAUDE_PLUGIN_ROOT}/scripts/build-cortex.js .claude-code-hermit obsidian .
 ```
-This regenerates Connections.md and Cortex Portal.md with the enriched content.
+This regenerates `Connections.md` with the enriched content. `Cortex Portal.md` is a live Dataview template and does not need to be rebuilt.
 
 **If no:** Skip the rebuild and report:
 > "Content enriched. Run `/claude-code-hermit:obsidian-setup` to generate Cortex pages."

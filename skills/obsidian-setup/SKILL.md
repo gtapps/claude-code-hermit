@@ -106,7 +106,7 @@ Run:
 node ${CLAUDE_PLUGIN_ROOT}/scripts/build-cortex.js .claude-code-hermit obsidian .
 ```
 
-This overwrites `obsidian/Connections.md` and `obsidian/Cortex Portal.md` with generated content based on current session, proposal, and artifact data.
+This generates `obsidian/Connections.md` from current session, proposal, and artifact data. `obsidian/Cortex Portal.md` is a static Dataview template copied from the plugin — it does not need generation and should not be overwritten by this script.
 
 ## Step 5b — Create Latest Review placeholder
 

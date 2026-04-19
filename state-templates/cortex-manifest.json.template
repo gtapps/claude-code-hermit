@@ -1,4 +1,4 @@
 {
   "version": 1,
-  "artifact_paths": []
+  "artifact_paths": ["compiled"]
 }

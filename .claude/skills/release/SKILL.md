@@ -115,11 +115,12 @@ Stage only the changed files (not `git add -A`). Commit with:
 vX.Y.Z: One-line summary of the release
 ```
 
-Push to origin. Then tag and push the tag:
+Push to origin. Then tag, push the tag, and create the GitHub release:
 
 ```bash
 git tag vX.Y.Z
 git push origin vX.Y.Z
+gh release create vX.Y.Z --title "vX.Y.Z" --generate-notes
 ```
 
 ### 7. Report
