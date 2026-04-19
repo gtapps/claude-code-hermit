@@ -617,7 +617,7 @@ def main():
 
     print(f'[hermit] Mode: always-on (session stays open between tasks)')
     print(f'[hermit] Attach: tmux attach -t {session_name}')
-    print(f'[hermit] Stop: python scripts/hermit-stop.py')
+    print(f'[hermit] Stop: .claude-code-hermit/bin/hermit-stop')
 
 
 if __name__ == '__main__':
