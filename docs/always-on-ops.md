@@ -127,7 +127,7 @@ If routines are configured (default after init or upgrade):
 - **Morning routine** — `brief --morning` at configured time (default: active hours start + 30m): generates a brief, reviews pending proposals, checks priorities. Framing adapts to `always_on` setting.
 - **Evening routine** — `brief --evening` at configured time (default: active hours end - 30m): summarizes the day's work, archives via session-close, flags tomorrow's priorities.
 
-Both are managed by the routine watcher, not the heartbeat. Configure with `/claude-code-hermit:hermit-settings routines`.
+Both fire via per-session CronCreate jobs registered by `/claude-code-hermit:hermit-routines`. Configure with `/claude-code-hermit:hermit-settings routines`.
 
 ### Idle agency
 
@@ -151,7 +151,7 @@ When idle and `idle_behavior` is `"discover"` (set via `/hermit-settings idle`),
 
 ## Routines
 
-Routines are time-triggered skills registered as per-session `CronCreate` jobs by the `/claude-code-hermit:routines` skill. Unlike heartbeat checks (which run every tick), routines fire at exact cron times — no LLM needed to check the clock, and CronCreate is idle-gated so routines never interrupt mid-task.
+Routines are time-triggered skills registered as per-session `CronCreate` jobs by the `/claude-code-hermit:hermit-routines` skill. Unlike heartbeat checks (which run every tick), routines fire at exact cron times — no LLM needed to check the clock, and CronCreate is idle-gated so routines never interrupt mid-task.
 
 ### Config
 
@@ -172,11 +172,11 @@ Routines live in `config.json` as a `routines` array:
 - `run_during_waiting`: optional — if `true`, fires even when session status is `waiting` (default: `false`)
 - `enabled`: toggle without removing
 
-Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect immediately — `hermit-settings` auto-runs `/routines load` after writing config. If you edit `config.json` by hand, run `/claude-code-hermit:routines load` to apply.
+Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect immediately — `hermit-settings` auto-runs `/claude-code-hermit:hermit-routines load` after writing config. If you edit `config.json` by hand, run `/claude-code-hermit:hermit-routines load` to apply.
 
 ### How it works
 
-`hermit-start.py` auto-sends `/claude-code-hermit:routines load` after launching the always-on session. The skill:
+`hermit-start.py` auto-sends `/claude-code-hermit:hermit-routines load` after launching the always-on session. The skill:
 
 1. Resolves `$CLAUDE_PLUGIN_ROOT` (available at skill execution time, NOT in cron-delivered prompts)
 2. Calls `CronList`, `CronDelete`s every `[hermit-routine:*]` entry — clears stale registrations and resets the 7-day expiry clock
@@ -186,7 +186,7 @@ CronCreate fires only between REPL turns — never mid-task. There is no queue: 
 
 **`heartbeat-restart`** fires at 4am daily and restarts both the heartbeat `/loop` and the routine registrations (CronCreate auto-expires after 7 days; daily re-arm keeps everything fresh).
 
-Inspect live registrations with `/claude-code-hermit:routines status` (calls `CronList` under the hood). Inspect fire history with `tail .claude-code-hermit/state/routine-metrics.jsonl`.
+Inspect live registrations with `/claude-code-hermit:hermit-routines status` (calls `CronList` under the hood). Inspect fire history with `tail .claude-code-hermit/state/routine-metrics.jsonl`.
 
 ### Relationship to heartbeat and monitors
 

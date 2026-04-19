@@ -95,7 +95,7 @@ These are stricter than `run-hooks.sh` — they test the plugin's behavioral con
 
 ### Fixture: cron-test-corpus.json
 
-`tests/cron-test-corpus.json` is a shared fixture used by contract tests that exercise the routine watcher's schedule-matching logic. It contains time/schedule pairs with expected fire/skip decisions. Add entries when fixing schedule edge cases.
+`tests/cron-test-corpus.json` is a shared fixture used by contract tests that validate cron expression parsing. It contains time/schedule pairs with expected fire/skip decisions. Add entries when fixing schedule edge cases.
 
 ---
 

@@ -42,7 +42,7 @@ When the operator accepts a proposal:
     - Parse the JSON block. Validate: must have `id`, `schedule`, `skill`, `enabled` fields.
     - Check for duplicate `id` in existing `config.json` routines array — if found, update the existing entry instead of appending.
     - If no duplicate found, append the routine entry to `config.json` routines array.
-    - Respond: "Routine '{id}' added to config. The routine watcher picks it up within 60 seconds."
+    - Respond: "Routine '{id}' added to config. Run `/claude-code-hermit:hermit-routines load` to register it immediately."
     - Notify the operator.
     - Skip step 4 — no further implementation needed.
 

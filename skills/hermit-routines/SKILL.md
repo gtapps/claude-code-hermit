@@ -1,5 +1,5 @@
 ---
-name: routines
+name: hermit-routines
 description: Manages scheduled routines as per-session CronCreate jobs. Each enabled routine in config.json becomes an idle-gated CronCreate registered at session launch.
 ---
 # Routines
@@ -9,11 +9,11 @@ Register and manage scheduled routines as per-session CronCreate jobs. Each rout
 ## Usage
 
 ```
-/claude-code-hermit:routines load              register all enabled config.routines as CronCreates
-/claude-code-hermit:routines list              list configured routines from config.json
-/claude-code-hermit:routines status            list active CronCreate registrations
-/claude-code-hermit:routines stop [id]         stop a specific routine's CronCreate
-/claude-code-hermit:routines stop --all        stop all active routine CronCreates
+/claude-code-hermit:hermit-routines load              register all enabled config.routines as CronCreates
+/claude-code-hermit:hermit-routines list              list configured routines from config.json
+/claude-code-hermit:hermit-routines status            list active CronCreate registrations
+/claude-code-hermit:hermit-routines stop [id]         stop a specific routine's CronCreate
+/claude-code-hermit:hermit-routines stop --all        stop all active routine CronCreates
 ```
 
 ## Plan
@@ -54,7 +54,7 @@ and stop. Otherwise: invoke /<skill>. After it completes, run:
 
 Replace `<pluginRoot>` with the resolved absolute path from step 1, `<id>` with the routine's `id`, and `<skill>` with the routine's `skill` field. The skill string is passed verbatim to the slash invocation (so `claude-code-hermit:brief --morning` becomes `/claude-code-hermit:brief --morning`). `log-routine-event.sh` takes `<id> <event>` only.
 
-**Special case — `heartbeat-restart`:** append ` Then invoke /claude-code-hermit:routines load to re-arm all routine CronCreates and reset the 7-day expiry clock.` to the prompt (after the trailing `fired` log line). Daily re-arm via this routine is what keeps routine CronCreates from ever reaching the 7-day auto-expiry in always-on deployments.
+**Special case — `heartbeat-restart`:** append ` Then invoke /claude-code-hermit:hermit-routines load to re-arm all routine CronCreates and reset the 7-day expiry clock.` to the prompt (after the trailing `fired` log line). Daily re-arm via this routine is what keeps routine CronCreates from ever reaching the 7-day auto-expiry in always-on deployments.
 
 ### list
 
@@ -75,7 +75,7 @@ Routines (config.json):
 Show active CronCreate registrations for hermit routines.
 
 1. Call `CronList`. Filter entries whose prompt starts with `[hermit-routine:`.
-2. If none: "No active routine CronCreates. Run `/claude-code-hermit:routines load` to register."
+2. If none: "No active routine CronCreates. Run `/claude-code-hermit:hermit-routines load` to register."
 3. Display table:
 ```
 Active routine CronCreates:
@@ -103,9 +103,9 @@ Extract the routine ID from the `[hermit-routine:<id>]` prefix in the prompt.
 
 ## Notes
 
-- **Changes take effect immediately.** `hermit-settings routines` automatically invokes `/routines load` after writing config. If you edit `config.json` by hand, run `/claude-code-hermit:routines load` to apply — no session restart needed.
-- **Interactive mode does not auto-register routines.** `hermit-start.py` calls `/routines load` only on always-on launches. Operators using `/session` interactively who want routines must run `/claude-code-hermit:routines load` themselves.
+- **Changes take effect immediately.** `hermit-settings routines` automatically invokes `/claude-code-hermit:hermit-routines load` after writing config. If you edit `config.json` by hand, run `/claude-code-hermit:hermit-routines load` to apply — no session restart needed.
+- **Interactive mode does not auto-register routines.** `hermit-start.py` calls `/claude-code-hermit:hermit-routines load` only on always-on launches. Operators using `/session` interactively who want routines must run `/claude-code-hermit:hermit-routines load` themselves.
 - **`$CLAUDE_PLUGIN_ROOT` is NOT available in cron-delivered prompts.** Always resolve and bake the absolute path at `load` time.
 - **CronCreate is idle-gated.** Routines only fire between REPL turns — never mid-task.
 - **`durable: false` (default).** CronCreates die with the session. `hermit-start.py` re-registers on every always-on launch.
-- **7-day auto-expiry depends on `heartbeat-restart`.** `load` resets the 7-day clock unconditionally on each call. The `heartbeat-restart` routine fires daily and re-invokes `/routines load`, so entries never reach expiry. **If you disable `heartbeat-restart`, routine CronCreates expire after 7 days** — re-enable it, or run `/routines load` weekly by hand.
+- **7-day auto-expiry depends on `heartbeat-restart`.** `load` resets the 7-day clock unconditionally on each call. The `heartbeat-restart` routine fires daily and re-invokes `/claude-code-hermit:hermit-routines load`, so entries never reach expiry. **If you disable `heartbeat-restart`, routine CronCreates expire after 7 days** — re-enable it, or run `/claude-code-hermit:hermit-routines load` weekly by hand.

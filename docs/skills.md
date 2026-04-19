@@ -41,7 +41,7 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 
 ## Routines
 
-Routines are scheduled skills fired by cron schedule instead of relying on heartbeat ticks. The `/claude-code-hermit:routines` skill registers each enabled `config.json` routine as a per-session `CronCreate` job — idle-gated (never interrupts mid-task) and zero token cost until fire. `hermit-start.py` auto-registers them on always-on launch.
+Routines are scheduled skills fired by cron schedule instead of relying on heartbeat ticks. The `/claude-code-hermit:hermit-routines` skill registers each enabled `config.json` routine as a per-session `CronCreate` job — idle-gated (never interrupts mid-task) and zero token cost until fire. `hermit-start.py` auto-registers them on always-on launch.
 
 Each routine has an `id`, a `schedule` (5-field cron: `minute hour dom month dow`), and a `skill` to invoke. Default routines are `morning` (brief with forward-looking framing) and `evening` (brief with backward-looking framing).
 

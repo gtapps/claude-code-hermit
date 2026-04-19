@@ -210,6 +210,6 @@ If no NEXT-TASK.md and no pending channel messages:
 
 ---
 
-Morning/evening routines are handled by `/claude-code-hermit:routines` — each routine is a per-session CronCreate registered by `hermit-start.py` on launch.
+Morning/evening routines are handled by `/claude-code-hermit:hermit-routines` — each routine is a per-session CronCreate registered by `hermit-start.py` on launch.
 
 Manage routines with `/claude-code-hermit:hermit-settings routines`. See the brief skill for `--morning` and `--evening` flag behavior.

@@ -109,7 +109,7 @@ See [Skills Reference](skills.md) for the full list.
 | Compact suggestion  | Stop         | standard+ | Suggests `/compact` at 60% context usage               |
 | Session diff        | Stop         | standard+ | Auto-populates `## Changed` from `git diff`            |
 | Session evaluator   | Stop         | standard+ | Validates SHELL.md quality, detects zombie/stale/bloat |
-| Routine queue flush | Stop         | all       | Dequeues pending routines when session goes idle       |
+| Stop pipeline       | Stop         | all       | Cost tracking, compact suggestion, session diff, evaluation, heartbeat |
 
 Hermits may add hooks at `strict` (e.g., git-push-guard). Use `run-with-profile.js` for profile-gated execution.
 
@@ -168,7 +168,7 @@ One writer per state file. No shared mutation bus.
 
 | File                           | Owner (sole writer)                                 | Readers                                                       |
 | ------------------------------ | --------------------------------------------------- | ------------------------------------------------------------- |
-| `state/runtime.json`           | session-mgr + cost-tracker                          | heartbeat, session-start, /routines (rdw=false suppression)   |
+| `state/runtime.json`           | session-mgr + cost-tracker                          | heartbeat, session-start, /hermit-routines (rdw=false suppression)   |
 | `state/alert-state.json`       | heartbeat only                                      | heartbeat; evaluate-session (read-only nudge computation)     |
 | `state/reflection-state.json`  | reflect + session (non-overlapping phases)          | heartbeat (debounce), hermit-settings (plugin-checks display) |
 | `state/channel-activity.json`  | channel-hook.js only                                | channel-responder, heartbeat                                  |
@@ -276,7 +276,7 @@ Hermit provides the **timing infrastructure** (when to reflect), the **proposal 
 Morning routine (configurable time, default: active hours start + 30m): brief, proposal review, priority check, pending micro-proposal surfaced.
 Evening routine (configurable time, default: active hours end - 30m): daily journal archived as S-NNN, reflection, preparation for tomorrow.
 
-Both are managed by `/claude-code-hermit:routines` (per-session CronCreate registrations). Fire at exact cron times. CronCreate is idle-gated: routines that come due during `in_progress` are deferred until the REPL is between turns — never dropped, never interrupting mid-task. A daily 4am `heartbeat-restart` routine re-runs `/routines load` to re-arm both the heartbeat `/loop` (3-day expiry) and the routine CronCreates (7-day expiry).
+Both are managed by `/claude-code-hermit:hermit-routines` (per-session CronCreate registrations). Fire at exact cron times. CronCreate is idle-gated: routines that come due during `in_progress` are deferred until the REPL is between turns — never dropped, never interrupting mid-task. A daily 4am `heartbeat-restart` routine re-runs `/claude-code-hermit:hermit-routines load` to re-arm both the heartbeat `/loop` (3-day expiry) and the routine CronCreates (7-day expiry).
 
 ---
 

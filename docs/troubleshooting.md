@@ -76,11 +76,11 @@ SHELL.md from a crashed session persists. Choose **resume** or **start new** (ge
 ## Routines Not Firing
 
 - Check the `routines` array in config.json — each routine must have `enabled: true`.
-- Verify routines are registered: `/claude-code-hermit:routines status` (lists active CronCreate registrations from `CronList`). Should show one entry per enabled routine, prefixed with `[hermit-routine:<id>]`.
-- If `status` is empty: confirm `always_on: true` in config.json (only always-on hermits auto-register on launch). Manual fix: run `/claude-code-hermit:routines load`.
+- Verify routines are registered: `/claude-code-hermit:hermit-routines status` (lists active CronCreate registrations from `CronList`). Should show one entry per enabled routine, prefixed with `[hermit-routine:<id>]`.
+- If `status` is empty: confirm `always_on: true` in config.json (only always-on hermits auto-register on launch). Manual fix: run `/claude-code-hermit:hermit-routines load`.
 - Inspect fire history: `tail .claude-code-hermit/state/routine-metrics.jsonl` — `fired` events with `"delivery":"cron-create"` mean the routine ran; `skipped-waiting` means `run_during_waiting: false` suppressed it because session was `waiting`.
 - CronCreate is idle-gated. If Claude was mid-task when the cron time hit, the fire is **deferred until idle, not dropped**. Long mid-task spans push fires later but never lose them.
-- CronCreate auto-expires after 7 days. The daily `heartbeat-restart` routine (4am) re-runs `/routines load` to reset the clock — if you've disabled it, routines will silently stop firing after a week.
+- CronCreate auto-expires after 7 days. The daily `heartbeat-restart` routine (4am) re-runs `/claude-code-hermit:hermit-routines load` to reset the clock — if you've disabled it, routines will silently stop firing after a week.
 
 ## Idle Agency Not Working
 

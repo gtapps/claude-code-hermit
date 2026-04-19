@@ -194,7 +194,7 @@ Update `permission_mode` in config.json.
 **If argument is "routines":**
 - Show current routines from `config.routines` array:
   ```
-  Routines (config.json routines → /claude-code-hermit:routines CronCreates):
+  Routines (config.json routines → /claude-code-hermit:hermit-routines CronCreates):
 
     #  ID           Schedule       Skill                                Status
     1. morning      30 8 * * *     claude-code-hermit:brief --morning    enabled
@@ -220,9 +220,9 @@ Update `permission_mode` in config.json.
 - **Remove:** select by number, delete from array.
 - **Enable/disable:** select by number, toggle `enabled` field.
 - Loop until operator says "done".
-- **After all edits are written**, invoke `/claude-code-hermit:routines load` via the Skill tool to apply the new schedule live (no restart). Surface the result inline:
+- **After all edits are written**, invoke `/claude-code-hermit:hermit-routines load` via the Skill tool to apply the new schedule live (no restart). Surface the result inline:
   - Success: "Routines reloaded: <id1>, <id2> (<N> total). Active immediately."
-  - Failure: "Settings saved to config.json, but `/routines load` failed: <reason>. Run `/claude-code-hermit:routines load` manually to apply."
+  - Failure: "Settings saved to config.json, but `/claude-code-hermit:hermit-routines load` failed: <reason>. Run `/claude-code-hermit:hermit-routines load` manually to apply."
 
 **If argument is "idle":**
 - Show current `idle_behavior` and `idle_budget` values

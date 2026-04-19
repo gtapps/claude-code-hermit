@@ -402,7 +402,7 @@ class TestNegativePaths(_TempDirTest):
 class TestCronCorpus(unittest.TestCase):
     """validate-config.js validateCronSchedule() must accept the shared
     corpus of valid expressions and reject the invalid ones. Cron schedules
-    are now consumed directly by CronCreate (via /routines), not parsed
+    are now consumed directly by CronCreate (via /hermit-routines), not parsed
     by hermit code — only config-time validation remains."""
 
     @classmethod

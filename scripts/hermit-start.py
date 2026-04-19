@@ -588,7 +588,7 @@ def main():
     if hb_enabled:
         steps.append('/claude-code-hermit:heartbeat start')
     if has_routines:
-        steps.append('/claude-code-hermit:routines load')
+        steps.append('/claude-code-hermit:hermit-routines load')
     if auto_session:
         steps.append('/claude-code-hermit:session')
 
@@ -611,7 +611,7 @@ def main():
     else:
         print('[hermit] Heartbeat: disabled')
     if has_routines:
-        print('[hermit] Bootstrap: /claude-code-hermit:routines load queued')
+        print('[hermit] Bootstrap: /claude-code-hermit:hermit-routines load queued')
     if auto_session:
         print('[hermit] Bootstrap: /claude-code-hermit:session queued')
 

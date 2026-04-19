@@ -81,7 +81,7 @@
             "timeout": 15
           }
         ],
-        "description": "Stop pipeline: cost tracking, compact suggestion, session diff, evaluation, routine flush, heartbeat"
+        "description": "Stop pipeline: cost tracking, compact suggestion, session diff, evaluation, heartbeat"
       }
     ]
   }
