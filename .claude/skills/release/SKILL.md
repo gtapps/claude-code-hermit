@@ -115,7 +115,12 @@ Stage only the changed files (not `git add -A`). Commit with:
 vX.Y.Z: One-line summary of the release
 ```
 
-Push to origin.
+Push to origin. Then tag and push the tag:
+
+```bash
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
 
 ### 7. Report
 
