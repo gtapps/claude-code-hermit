@@ -1,17 +1,11 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.12] - 2026-04-20
 
 ### Changed
 
 - **`routines` skill renamed to `hermit-routines`** — avoids collision with Claude Code's native schedule/routines concepts. The slash command is now `/claude-code-hermit:hermit-routines` (and bare `/hermit-routines`). The `config.json` `routines` array key, `hermit-settings routines` subcommand, `routine-metrics.jsonl`, and `[hermit-routine:<id>]` CronCreate tags are unchanged.
 - **Stale routine-watcher prose removed** — several docs and skills still referenced the old bash watcher (removed in 0.0.9). Cleaned up `docs/always-on-ops.md`, `docs/architecture.md`, `docs/testing.md`, `skills/proposal-act/SKILL.md`, `hooks/hooks.json`.
-
-### Upgrade Instructions
-
-1. Update any manual invocations of `/claude-code-hermit:routines` to `/claude-code-hermit:hermit-routines`. No config or state changes required — the `routines` array in `config.json` is unchanged.
-2. If you have custom scripts or notes that reference `/routines load` or `/routines status`, update those references.
-
 - **Cortex Portal.md is now a live Dataview template** — replaced the generated `obsidian/Cortex Portal.md` (rewritten by `build-cortex.js` on every refresh) with a static Dataview/dataviewjs template. Recent sessions, active proposals, reflect health, and recent artifacts now update live in Obsidian without any rebuild trigger.
 - **Connections.md refreshes automatically** — a new mtime-gated stage in the Stop hook (`scripts/cortex-refresh-stage.js`) rebuilds `Connections.md` at the end of any turn that modified sessions, proposals, or artifact manifest. Cost on no-change turns is a handful of `stat()` calls. The nightly `cortex-refresh` routine remains as a safety net.
 
@@ -19,11 +13,12 @@
 
 | File | Change |
 |------|--------|
+| `skills/hermit-routines/SKILL.md` | Renamed from `skills/routines/SKILL.md`; updated all internal invocation references |
 | `state-templates/obsidian/Cortex Portal.md.template` | Rewritten as Dataview/dataviewjs template |
 | `scripts/build-cortex.js` | Removed Portal generation; now writes `Connections.md` only |
 | `scripts/cortex-refresh-stage.js` | New: mtime-gated Stop hook stage |
 | `scripts/stop-pipeline.js` | Added cortex-refresh as stage 5 (standard+ only) |
-| `skills/cortex-refresh/SKILL.md` | Updated description and step 3 copy |
+| `skills/cortex-refresh/SKILL.md` | Updated description to reflect Portal is now live Dataview |
 | `skills/cortex-sync/SKILL.md` | Updated step 4 to note Portal is live Dataview |
 | `skills/obsidian-setup/SKILL.md` | Updated step 5 to clarify script scope |
 | `state-templates/obsidian/Brain.md.template` | Added **Recent Inputs** Dataview section — live view of `raw/` sorted by recency, excluding `.archive/` |
@@ -31,13 +26,17 @@
 
 ### Upgrade Instructions
 
-`hermit-evolve` executes these steps in order:
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
-1. **Replace `obsidian/Cortex Portal.md`** with the new Dataview template — copy `${PLUGIN_ROOT}/state-templates/obsidian/Cortex Portal.md.template` to `obsidian/Cortex Portal.md` (overwrite). The file was previously machine-generated; it is now a static template that Obsidian's Dataview plugin renders live.
+1. **Update `/routines` invocations** — replace any manual invocations of `/claude-code-hermit:routines` with `/claude-code-hermit:hermit-routines`. If you have custom scripts or notes that reference `/routines load` or `/routines status`, update those references. No config or state changes required — the `routines` array in `config.json` is unchanged.
 
-2. **Seed `cortex-manifest.json` with `compiled/`** — read `.claude-code-hermit/cortex-manifest.json`. If `artifact_paths` does not already contain `"compiled"`, append it. Write the file back. Skip if the file does not exist.
+2. **Replace `obsidian/Cortex Portal.md`** with the new Dataview template — copy `${PLUGIN_ROOT}/state-templates/obsidian/Cortex Portal.md.template` to `obsidian/Cortex Portal.md` (overwrite). The file was previously machine-generated; it is now a static template that Obsidian's Dataview plugin renders live.
 
-3. **Replace `obsidian/Brain.md`** with the new template — copy `${PLUGIN_ROOT}/state-templates/obsidian/Brain.md.template` to `obsidian/Brain.md` (overwrite). Adds the **Recent Inputs** Dataview section so operators can see what the hermit has been reading without `raw/` polluting the relationship map.
+3. **Seed `cortex-manifest.json` with `compiled/`** — read `.claude-code-hermit/cortex-manifest.json`. If `artifact_paths` does not already contain `"compiled"`, append it. Write the file back. Skip if the file does not exist.
+
+4. **Replace `obsidian/Brain.md`** with the new template — copy `${PLUGIN_ROOT}/state-templates/obsidian/Brain.md.template` to `obsidian/Brain.md` (overwrite). Adds the **Recent Inputs** Dataview section so operators can see what the hermit has been reading without `raw/` polluting the relationship map.
+
+No `config.json` changes required.
 
 ---
 
