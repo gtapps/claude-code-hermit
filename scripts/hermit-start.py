@@ -598,9 +598,13 @@ def main():
         else:
             numbered = ', '.join(f'({i+1}) {s}' for i, s in enumerate(steps))
             bootstrap = f'Always-on bootstrap. Invoke these skills in order: {numbered}.'
-        subprocess.run(
-            ['tmux', 'send-keys', '-t', session_name, bootstrap, 'Enter'],
-        )
+        # Send text and Enter in separate calls — Claude Code's TUI treats a
+        # fast burst of text+Enter as bracketed paste, so the trailing Enter
+        # becomes a literal newline instead of submit. A brief pause between
+        # the two lets the paste window close before Enter is registered.
+        subprocess.run(['tmux', 'send-keys', '-t', session_name, bootstrap])
+        time.sleep(0.5)
+        subprocess.run(['tmux', 'send-keys', '-t', session_name, 'Enter'])
 
     if hb_enabled:
         print(f'[hermit] Bootstrap: /claude-code-hermit:heartbeat start queued (every {hb.get("every", "30m")})')

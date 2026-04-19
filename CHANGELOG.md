@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.0.11] - 2026-04-19
+
+### Fixed
+
+- **Always-on bootstrap prompt never submitted** — after v1.0.10 collapsed the startup skills into a single composite prompt, `tmux send-keys -t <session> <bootstrap> Enter` in one call still delivered the text and Enter back-to-back. Claude Code's TUI treated the burst as bracketed paste, so the trailing Enter became a literal newline inside the composer rather than a submit — the bootstrap prompt sat visible in the input box but was never processed. Split into two `send-keys` calls with a 0.5s gap so the paste window closes before Enter is registered.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/hermit-start.py` | Bootstrap send split into two `tmux send-keys` calls (text, 0.5s sleep, Enter) so Claude Code's paste detection doesn't swallow the submit keystroke |
+
+### Upgrade Instructions
+
+`hermit-evolve` executes these steps in order:
+
+1. **No `bin/hermit-start` regeneration needed** — `bin/hermit-start` is a thin wrapper that invokes the plugin's `scripts/hermit-start.py`. The fix lands automatically when the plugin updates; run `.claude-code-hermit/bin/hermit-stop && .claude-code-hermit/bin/hermit-start` to pick it up. Verify by attaching (`tmux attach -t <session>`) and confirming the composite bootstrap prompt is auto-submitted rather than sitting unprocessed in the composer.
+
+No `config.json` changes required.
+
+---
+
 ## [1.0.10] - 2026-04-19
 
 ### Fixed
