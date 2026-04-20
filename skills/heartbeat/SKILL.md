@@ -178,12 +178,6 @@ Check for `sessions/NEXT-TASK.md`. If found, respect the configured escalation l
 - **balanced:** start it automatically via `/claude-code-hermit:session-start`
 - **autonomous:** start it, notify the operator on completion
 
-**Reflection** (active for both `wait` and `discover` idle behavior):
-
-If no NEXT-TASK.md was picked up and `last_reflection` in `state/reflection-state.json` is null or 4+ hours ago:
-- Invoke `/claude-code-hermit:reflect`
-- Reflect writes `state/reflection-state.json` itself (heartbeat does not write this file)
-
 **The following only activate when `idle_behavior` is `"discover"` in config:**
 
 If no NEXT-TASK.md and no pending channel messages:

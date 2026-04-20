@@ -26,9 +26,25 @@
 | `skills/reflect/SKILL.md` | Top-of-skill notification removed; cost-spike detection + proposal-metrics tail added; operator-value bullet added; Three-Condition Rule moved earlier; sub-threshold observation handling reframed; Resolution Check 14-day guard; Skill Health → Component Health |
 | `agents/reflection-judge.md` | Current-session fallback path tightened with explicit trigger and distinct verdict labels |
 
+### Fixed
+
+- **heartbeat: reflect removed from inline idle agency** — heartbeat was invoking `/claude-code-hermit:reflect` synchronously within its own REPL turn. Reflect + plugin checks could take 30–40 minutes; a queued heartbeat tick would then fire and trigger idle task pickup, chaining into further REPL occupation. CronCreate-scheduled routines (e.g. morning brief) were delayed 90+ minutes as a result. Reflect is now exclusively a routine — a default `reflect` entry (`0 9 * * *`, enabled) is seeded into new hermit configs via `config.json.template`. Heartbeat is now a pure health-check tick.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/heartbeat/SKILL.md` | Removed Reflection section from Idle Agency |
+| `state-templates/config.json.template` | Added `reflect` routine (`0 9 * * *`, enabled by default) |
+
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-evolve`. No state migration required — all changes are plugin-side (skill + agent definition edits). Existing `reflection-state.json` counters are reused; no new state files are introduced.
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Add reflect routine** — if `config.json` does not already have a routine with `"id": "reflect"`, add `{"id": "reflect", "schedule": "0 9 * * *", "skill": "claude-code-hermit:reflect", "enabled": true}` to the `routines` array.
+2. **Register the new routine** — after updating `config.json`, invoke `/claude-code-hermit:hermit-routines load` to register the reflect CronCreate for the current session.
+
+Operators who already have a reflect routine (or who prefer to trigger reflect manually) can skip step 1 or set `"enabled": false`. No other config changes required.
 
 ---
 
