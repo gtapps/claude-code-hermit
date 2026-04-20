@@ -205,17 +205,40 @@ if [ "$NEEDS_OFFICIAL" = true ] && [ ! -d "${MARKETPLACE_DIR}/claude-plugins-off
   fi
 fi
 
-# Snapshot installed plugins once — used by channel and recommended plugin checks below.
-INSTALLED_PLUGINS=$(claude plugin list 2>/dev/null || echo "")
+# Snapshot installed plugins once — used by recommended plugin check below.
+# stderr is kept visible so CLI errors surface in `docker compose logs`.
+INSTALLED_PLUGINS=$(claude plugin list || echo "")
 
 # Channel plugins
+# Installed at --scope local so the entry lives in the named config volume and
+# does not leak into the project's .claude/settings.json via the bind mount.
+# stderr is NOT suppressed — install/enable failures must be visible.
 if [ "$NEEDS_OFFICIAL" = true ] && [ -n "$CHANNELS" ]; then
   for plugin in $CHANNELS; do
-    if ! echo "$INSTALLED_PLUGINS" | grep -qF "${plugin}@claude-plugins-official"; then
-      echo "[docker-entrypoint] Installing channel plugin: ${plugin}"
-      claude plugin install "${plugin}@claude-plugins-official" --scope local && \
-        claude plugin enable "${plugin}@claude-plugins-official" --scope local || \
-        echo "[docker-entrypoint] Warning: failed to install/enable ${plugin} plugin — install manually"
+    target="${plugin}@claude-plugins-official"
+    if echo "$INSTALLED_PLUGINS" | grep -qF "$target"; then
+      # Idempotent re-enable covers the "listed but disabled" case.
+      claude plugin enable "$target" --scope local || true
+      continue
+    fi
+    echo "[docker-entrypoint] Installing channel plugin: ${plugin}"
+    if ! claude plugin install "$target" --scope local; then
+      echo "[docker-entrypoint] ERROR: 'claude plugin install ${target}' failed — see stderr above."
+      continue
+    fi
+    if ! claude plugin enable "$target" --scope local; then
+      echo "[docker-entrypoint] ERROR: 'claude plugin enable ${target}' failed — see stderr above."
+      continue
+    fi
+    # Post-install verification — re-query list and confirm the entry landed.
+    # Catches the "CLI exits 0 but nothing was fetched" silent-failure mode.
+    if ! claude plugin list | grep -qF "$target"; then
+      echo "[docker-entrypoint] ERROR: ${target} not present in 'claude plugin list' after install."
+      echo "[docker-entrypoint]        Current plugin list:"
+      claude plugin list | sed 's/^/[docker-entrypoint]          /' || true
+      echo "[docker-entrypoint]        Fix: shell in and reinstall manually:"
+      echo "[docker-entrypoint]          .claude-code-hermit/bin/hermit-docker bash"
+      echo "[docker-entrypoint]          claude plugin install ${target} --scope local"
     fi
   done
 fi

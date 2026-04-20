@@ -132,7 +132,7 @@ Only the top-level project memory is seeded — not agent-scoped memories at `<p
 
 ### 7. Channel setup
 
-Skip if no channels in `config.json`.
+Skip if no enabled channels in `config.json`. Read `.claude-code-hermit/config.json` from the project root (same root verified in Step 1 — do not rely on cwd). A channel counts as present when `config.channels[<name>].enabled !== false` (missing `enabled` is treated as enabled). Empty `channels: {}` skips.
 
 **Token locations in Docker:** Always use `.claude.local/channels/<plugin>/.env` (project-local scope). Never read or copy from global `~/.claude/channels/`.
 
