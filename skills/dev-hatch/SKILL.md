@@ -140,6 +140,19 @@ Only show plugins NOT already installed. If only one plugin is missing, still us
 
 If HEARTBEAT.md doesn't exist: skip the question, note in the report: "Heartbeat not configured — run `/claude-code-hermit:heartbeat edit` to set it up."
 
+**Dev cleanup routine** — skip if `_hermit_versions["claude-code-hermit"]` < `1.0.12`:
+
+```
+{
+  header: "Cleanup routine",
+  question: "Add a weekly branch cleanup routine? (requires hermit v1.0.12+)",
+  options: [
+    { label: "Yes (Mondays 10am)", description: "Runs /dev-cleanup weekly as a scheduled routine — suggests branch deletions interactively" },
+    { label: "Skip", description: "Run /dev-cleanup manually when needed" }
+  ]
+}
+```
+
 #### After the wizard
 
 **Install plugins** — for each selected plugin:
@@ -166,6 +179,9 @@ Flush all pending config.json changes in a single write:
 - `docker.recommended_plugins` (if plugins were selected)
 - `plugin_checks` entries (if plugins were selected; create the array if absent)
 - `_hermit_versions["claude-code-dev-hermit"]` set to the plugin version cached in Phase 1
+- `routines` array (if dev-cleanup routine was accepted): append `{"id": "dev-cleanup", "schedule": "0 10 * * 1", "skill": "claude-code-dev-hermit:dev-cleanup", "enabled": true}` — create the array if absent; skip if an entry with `"id": "dev-cleanup"` already exists
+
+After the config write: invoke `/claude-code-hermit:hermit-routines load` to register all enabled routines.
 
 ### 5. Report results
 
@@ -196,6 +212,7 @@ Available agent:
   claude-code-dev-hermit:implementer   — code writing in worktree (Sonnet)
 
 Other core skills (optional):
+  /claude-code-hermit:hermit-routines   — manage scheduled routines
   /claude-code-hermit:channel-setup     — local/tmux channel messaging between operator and hermit
   /claude-code-hermit:obsidian-setup    — Hermit Cortex (Obsidian surface over hermit state)
   /claude-code-hermit:weekly-review     — weekly review reports (enable via /hermit-settings)

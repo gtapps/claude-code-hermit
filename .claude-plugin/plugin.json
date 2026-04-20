@@ -1,10 +1,15 @@
 {
   "name": "claude-code-dev-hermit",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Git safety, quality workflow, and dev conventions for claude-code-hermit",
   "author": {
     "name": "gtapps"
   },
   "license": "MIT",
-  "keywords": ["development", "git-safety", "code-review", "gtapps"]
+  "keywords": [
+    "development",
+    "git-safety",
+    "code-review",
+    "gtapps"
+  ]
 }

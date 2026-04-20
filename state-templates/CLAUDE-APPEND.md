@@ -32,6 +32,9 @@ When doing development work:
 4. **Quality pass**: run `/claude-code-dev-hermit:dev-quality`
 5. **If critical issues**: loop back to implementation before proceeding
 6. **Task boundary**: invoke `reflect`, serialize and delete all Tasks
+
+   > Reflect also runs as a daily routine (9am). Fresh hermits (<3 days old) produce fewer proposals — this is the `newborn` phase and is expected.
+
 7. **If blocked**: when waiting on external input (PR review, operator decision, CI pipeline), set session status to `waiting` with a reason. Resume on unblock.
 
 First session (no prior `S-*-REPORT.md` files): explore the codebase to orient yourself before starting work.
@@ -77,3 +80,4 @@ Tier mapping:
 
 - Quality pass: `/claude-code-dev-hermit:dev-quality`
 - Branch cleanup: `/claude-code-dev-hermit:dev-cleanup`
+- Manage routines (reflect 9am daily, dev-cleanup weekly if enabled): `/claude-code-hermit:hermit-routines`
