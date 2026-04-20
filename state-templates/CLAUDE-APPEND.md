@@ -47,7 +47,7 @@ Rules:
 
 ## Quick Reference
 
-`/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/watch` `/hermit-routines` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/hermit-evolve` `/docker-setup` `/hermit-takeover` `/hermit-hand-back` `/obsidian-setup` `/cortex-refresh` `/cortex-sync` `/weekly-review` `/migrate` `/knowledge`
+`/session-start` `/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/watch` `/reflect` `/hermit-routines` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/hermit-evolve` `/channel-setup` `/docker-setup` `/hermit-takeover` `/hermit-hand-back` `/hatch` `/smoke-test` `/obsidian-setup` `/cortex-refresh` `/cortex-sync` `/weekly-review` `/migrate` `/knowledge`
 (All prefixed with `/claude-code-hermit:`)
 
 ## Operator Notification

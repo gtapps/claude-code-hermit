@@ -47,6 +47,7 @@ DEFAULT_CONFIG = {
     'idle_budget': '$0.50',
     'routines': [
         {'id': 'heartbeat-restart', 'schedule': '0 4 * * *', 'skill': 'claude-code-hermit:heartbeat start', 'run_during_waiting': True, 'enabled': True},
+        {'id': 'reflect', 'schedule': '0 9 * * *', 'skill': 'claude-code-hermit:reflect', 'enabled': True},
         {'id': 'weekly-review', 'schedule': '0 23 * * 0', 'skill': 'claude-code-hermit:weekly-review', 'enabled': False},
     ],
     'monitors': [],

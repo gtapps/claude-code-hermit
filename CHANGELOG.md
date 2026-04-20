@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+---
+
+## [1.0.13] - 2026-04-20
+
 ### Added
 
 - **reflect: adaptive phase-gated recurrence** — reflect now computes a phase (`newborn` < 3 days, `juvenile` 3–13 days, `adult` 14+ days) from `counters.since` in `reflection-state.json` and adapts its gates accordingly. `newborn` allows single-session evidence for Tier 1 candidates (citing `Sessions: current`, routed through `reflection-judge`'s existing `ACCEPT (current-session)` path) and surfaces each sub-threshold observation as `Noticed: <pattern>` in SHELL.md Findings. `juvenile` emits a 7-day-cadence digest (`Noticed (digest): ...`) gated by a new top-level `last_digest_at` field. `adult` preserves current strict behavior. Tier 2/3 candidates are untouched in every phase — safety-critical and meaningful proposals always require real cross-session evidence. Closes the cold-start gap where fresh installs produced zero visible output for days. Phase appears in the Progress Log annotation (`reflect (<phase>)`). On missing/unparseable `since`, reflect defaults to `adult` and never blocks.
@@ -15,11 +19,12 @@
 
 - **reflect: silent by default** — the unconditional top-of-skill operator notification was removed. Reflect now only notifies on outcomes (proposal candidate, micro-approval, resolved proposal, graduated sub-threshold observation, or cost spike).
 - **reflect: Three-Condition Rule moved before first use** — previously defined after three references; now defined directly after the reflection questions. All three prior references are pointers to the single definition.
-- **reflect: sub-threshold observations routed to project memory** — line 156's "do not generate observations for their own sake" was reframed: sub-threshold observations (interesting but failing the rule) are now explicitly recorded to project memory with a pattern label and session_id so they can graduate on recurrence. Suppression-by-default remains; the change is that the carry-forward path is now explicit.
+- **reflect: sub-threshold observations routed to project memory** — sub-threshold observations (interesting but failing the rule) are now explicitly recorded to project memory with a pattern label and session_id so they can graduate on recurrence. Suppression-by-default remains; the carry-forward path is now explicit.
 - **reflect: Resolution Check 14-day guard** — resolving an accepted proposal now requires both absence from 3 checked sessions **and** ≥14 days elapsed since `accepted_date`. Prevents wrongly resolving monthly-cadence patterns on daily reflects.
 - **reflect: Skill Health → Component Health** — broadened to cover agents (with a concrete reflection-judge counter check) and hooks (documented as out-of-scope pending hook telemetry). Skills retain the existing weak/moderate/strong signal ladder.
 - **reflection-judge: current-session evidence path tightened** — the fallback from `S-NNN-REPORT.md` to `SHELL.md` now has an explicit trigger (no archived report + ID matches the current SHELL.md Session Info), and emits `ACCEPT (current-session)` / `DOWNGRADE:N (current-session)` / `SUPPRESS (current-session)` so the caller can tell the evidence hasn't been archived yet. Unblocks proposals whose only evidence is the live session.
 - **update-reflection-state.js: `preserve()` helper extracted** — the repeated `(key in payload) ? payload[key] : (state[key] ?? null)` pattern (used for `last_resolution_check` and `last_digest_at`) is now a one-liner helper. Reduces key-name repetition and makes adding future optional fields a single line.
+- **CLAUDE-APPEND.md quick reference updated** — added `/session-start`, `/reflect`, `/channel-setup`, `/hatch`, `/smoke-test` to the operator quick reference; these were previously present as skills but absent from the injected reference line.
 
 ### Files affected
 
@@ -31,7 +36,7 @@
 
 ### Fixed
 
-- **heartbeat: reflect removed from inline idle agency** — heartbeat was invoking `/claude-code-hermit:reflect` synchronously within its own REPL turn. Reflect + plugin checks could take 30–40 minutes; a queued heartbeat tick would then fire and trigger idle task pickup, chaining into further REPL occupation. CronCreate-scheduled routines (e.g. morning brief) were delayed 90+ minutes as a result. Reflect is now exclusively a routine — a default `reflect` entry (`0 9 * * *`, enabled) is seeded into new hermit configs via `config.json.template`. Heartbeat is now a pure health-check tick.
+- **heartbeat: reflect removed from inline idle agency** — heartbeat was invoking `/claude-code-hermit:reflect` synchronously within its own REPL turn. Reflect + plugin checks could take 30–40 minutes; a queued heartbeat tick would then fire and trigger idle task pickup, chaining into further REPL occupation. CronCreate-scheduled routines (e.g. morning brief) were delayed 90+ minutes as a result. Reflect is now exclusively a routine — a default `reflect` entry (`0 9 * * *`, enabled) is seeded into new hermit configs via `config.json.template` and `DEFAULT_CONFIG` in `hermit-start.py`. Heartbeat is now a pure health-check tick.
 
 ### Files affected
 
@@ -39,6 +44,8 @@
 |------|--------|
 | `skills/heartbeat/SKILL.md` | Removed Reflection section from Idle Agency |
 | `state-templates/config.json.template` | Added `reflect` routine (`0 9 * * *`, enabled by default) |
+| `scripts/hermit-start.py` | Added `reflect` routine to `DEFAULT_CONFIG` to match `config.json.template` |
+| `state-templates/CLAUDE-APPEND.md` | Quick reference updated with 5 previously missing skills |
 
 ### Upgrade Instructions
 
@@ -46,8 +53,9 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 1. **Add reflect routine** — if `config.json` does not already have a routine with `"id": "reflect"`, add `{"id": "reflect", "schedule": "0 9 * * *", "skill": "claude-code-hermit:reflect", "enabled": true}` to the `routines` array.
 2. **Register the new routine** — after updating `config.json`, invoke `/claude-code-hermit:hermit-routines load` to register the reflect CronCreate for the current session.
+3. **Refresh CLAUDE-APPEND** — re-run `hatch` or manually copy the updated `state-templates/CLAUDE-APPEND.md` into the project's `.claude/` injection point so the expanded quick reference takes effect.
 
-Operators who already have a reflect routine (or who prefer to trigger reflect manually) can skip step 1 or set `"enabled": false`. No other config changes required.
+Operators who already have a reflect routine (or who prefer to trigger reflect manually) can skip step 1–2 or set `"enabled": false`. No other config changes required.
 
 **Adaptive reflect phases — no operator action required.** Phase is computed from `counters.since` in `reflection-state.json` automatically on the next reflect run. Hermits ≥14 days old land in `adult` (identical to prior behavior). Hermits <14 days old will start surfacing sub-threshold observations in SHELL.md Findings (`Noticed: <pattern>` inline in `newborn`, `Noticed (digest): ...` weekly in `juvenile`) — design intent for cold-start visibility, but a behavior delta worth knowing about. To suppress: no knob exists; the hermit will naturally graduate to `adult` at 14 days.
 
