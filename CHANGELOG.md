@@ -4,6 +4,7 @@
 
 ### Added
 
+- **reflect: adaptive phase-gated recurrence** — reflect now computes a phase (`newborn` < 3 days, `juvenile` 3–13 days, `adult` 14+ days) from `counters.since` in `reflection-state.json` and adapts its gates accordingly. `newborn` allows single-session evidence for Tier 1 candidates (citing `Sessions: current`, routed through `reflection-judge`'s existing `ACCEPT (current-session)` path) and surfaces each sub-threshold observation as `Noticed: <pattern>` in SHELL.md Findings. `juvenile` emits a 7-day-cadence digest (`Noticed (digest): ...`) gated by a new top-level `last_digest_at` field. `adult` preserves current strict behavior. Tier 2/3 candidates are untouched in every phase — safety-critical and meaningful proposals always require real cross-session evidence. Closes the cold-start gap where fresh installs produced zero visible output for days. Phase appears in the Progress Log annotation (`reflect (<phase>)`). On missing/unparseable `since`, reflect defaults to `adult` and never blocks.
 - **reflect: operator-value self-check** — a new bullet in the always-run reflection questions asks whether recent outputs are actually being used, cross-referencing `responded` event counts (accept/defer/dismiss) from `proposal-metrics.jsonl` and deferred-proposal build-up. Closes the gap where operators had to manually ask "how can you be more useful?"
 - **reflect: cost-spike detection** — step 2 now computes today's cost vs the 7-day median; a spike (today > 2× median) is recorded to project memory as a sub-threshold observation that can graduate via recurrence.
 - **reflect: `proposal-metrics.jsonl` tailed at step 3** — dismissal ratios feed the new operator-value self-check. No new infrastructure; the log was already being written.
@@ -18,13 +19,15 @@
 - **reflect: Resolution Check 14-day guard** — resolving an accepted proposal now requires both absence from 3 checked sessions **and** ≥14 days elapsed since `accepted_date`. Prevents wrongly resolving monthly-cadence patterns on daily reflects.
 - **reflect: Skill Health → Component Health** — broadened to cover agents (with a concrete reflection-judge counter check) and hooks (documented as out-of-scope pending hook telemetry). Skills retain the existing weak/moderate/strong signal ladder.
 - **reflection-judge: current-session evidence path tightened** — the fallback from `S-NNN-REPORT.md` to `SHELL.md` now has an explicit trigger (no archived report + ID matches the current SHELL.md Session Info), and emits `ACCEPT (current-session)` / `DOWNGRADE:N (current-session)` / `SUPPRESS (current-session)` so the caller can tell the evidence hasn't been archived yet. Unblocks proposals whose only evidence is the live session.
+- **update-reflection-state.js: `preserve()` helper extracted** — the repeated `(key in payload) ? payload[key] : (state[key] ?? null)` pattern (used for `last_resolution_check` and `last_digest_at`) is now a one-liner helper. Reduces key-name repetition and makes adding future optional fields a single line.
 
 ### Files affected
 
 | File | Change |
 |------|--------|
-| `skills/reflect/SKILL.md` | Top-of-skill notification removed; cost-spike detection + proposal-metrics tail added; operator-value bullet added; Three-Condition Rule moved earlier; sub-threshold observation handling reframed; Resolution Check 14-day guard; Skill Health → Component Health |
+| `skills/reflect/SKILL.md` | Top-of-skill notification removed; cost-spike detection + proposal-metrics tail added; operator-value bullet added; Three-Condition Rule moved earlier; sub-threshold observation handling reframed; Resolution Check 14-day guard; Skill Health → Component Health; adaptive phase gates (newborn/juvenile/adult) with phase-aware recurrence and sub-threshold surfacing |
 | `agents/reflection-judge.md` | Current-session fallback path tightened with explicit trigger and distinct verdict labels |
+| `scripts/update-reflection-state.js` | `last_digest_at` passthrough (juvenile digest cadence anchor); `preserve()` helper extracted |
 
 ### Fixed
 
@@ -45,6 +48,8 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 2. **Register the new routine** — after updating `config.json`, invoke `/claude-code-hermit:hermit-routines load` to register the reflect CronCreate for the current session.
 
 Operators who already have a reflect routine (or who prefer to trigger reflect manually) can skip step 1 or set `"enabled": false`. No other config changes required.
+
+**Adaptive reflect phases — no operator action required.** Phase is computed from `counters.since` in `reflection-state.json` automatically on the next reflect run. Hermits ≥14 days old land in `adult` (identical to prior behavior). Hermits <14 days old will start surfacing sub-threshold observations in SHELL.md Findings (`Noticed: <pattern>` inline in `newborn`, `Noticed (digest): ...` weekly in `juvenile`) — design intent for cold-start visibility, but a behavior delta worth knowing about. To suppress: no knob exists; the hermit will naturally graduate to `adult` at 14 days.
 
 ---
 

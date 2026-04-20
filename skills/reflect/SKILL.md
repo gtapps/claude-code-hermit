@@ -10,6 +10,15 @@ This skill is **silent by default**. Only notify the operator (per the channel p
 
 1. Read SHELL.md for current context
 2. Read last 20 lines of cost-log.jsonl. Compute today's total and the 7-day median. If today's total > 2× the 7-day median (and both are non-zero), record the spike to project memory as a sub-threshold observation with pattern `cost_spike: $X.XX vs 7d median $Y.YY` and today's session_id — it becomes input to later reflects and may graduate via the recurrence rule.
+2b. **Compute phase** — gates adapt to hermit age so cold-start installs produce visible output without eroding mature-hermit rigor.
+   - Read `counters.since` from `state/reflection-state.json` (set once at hatch, never rewritten). If missing or unparseable → default `$PHASE = adult` and continue. Never block.
+   - `age_days` = whole days between `counters.since` and now.
+   - `$PHASE` table (age is monotonic → no hysteresis):
+     - `newborn` — `age_days < 3`
+     - `juvenile` — `3 ≤ age_days < 14`
+     - `adult` — `age_days ≥ 14`
+   - Bind `$PHASE` for the rest of this run; it gates recurrence (Three-Condition Rule #1), sub-threshold surfacing (Outcomes), and the Progress Log annotation.
+
 3. Scan proposals/ for existing proposals (dedup, stale check, feedback loop). Parse metadata from YAML frontmatter if present (file starts with `---`). Fall back to parsing bullet-point metadata (`**Status:**`, `**Source:**`, etc.) for pre-Observatory proposals. Also tail the last 100 lines of `state/proposal-metrics.jsonl` and count `responded` events by `action` (accept / defer / dismiss) — the dismissal ratio feeds the operator-value self-check below.
 
 4. **Resolution Check** — check whether any accepted proposals can be marked resolved. **Cap: check up to 5 per reflect cycle, round-robin.**
@@ -41,7 +50,9 @@ Now reflect — using your memory and the context above:
 ## Three-Condition Rule
 
 Only create a proposal if all three are true:
-1. **Repeated pattern** — observed more than once, across sessions
+1. **Repeated pattern** — phase-aware recurrence:
+   - `newborn`: 1+ session acceptable for **Tier 1 only** — cite `Sessions: current` when the pattern is present only in the live SHELL.md (judge returns `ACCEPT (current-session)`). Tier 2/3 still require 2+ sessions.
+   - `juvenile` / `adult`: 2+ sessions (baseline — observed more than once, across sessions).
 2. **Meaningful consequence** — something goes wrong without fixing it
 3. **Operator-actionable change** — something the operator can concretely approve
 
@@ -159,7 +170,12 @@ After reflecting and validating with `claude-code-hermit:reflection-judge`, choo
    - Tier 1/2: gate with `claude-code-hermit:proposal-triage` first (see below), then queue micro-approval in `state/micro-proposals.json`
    - Tier 3: gate with `claude-code-hermit:proposal-triage` first (see below), then call `/claude-code-hermit:proposal-create`
 
-Sub-threshold observations (interesting but failing the Three-Condition Rule — typically single-occurrence) do not surface to the operator. Record them to project memory with a short pattern label and today's session_id so they can graduate via recurrence on a later reflect. Do not generate observations for their own sake, and do not surface them before they graduate.
+Sub-threshold observations (interesting but failing the Three-Condition Rule — typically single-occurrence) do not surface to the operator in steady state. Record them to project memory with a short pattern label and today's session_id so they can graduate via recurrence on a later reflect. Do not generate observations for their own sake, and do not surface them before they graduate.
+
+**Phase-aware surfacing exception:**
+- `newborn`: also log each sub-threshold observation inline to SHELL.md Findings as `Noticed: <pattern>` (single line, no ceremony). Gives the operator early signal that reflect is watching while recurrence data accumulates.
+- `juvenile`: emit a weekly digest instead of per-observation lines. Read `last_digest_at` from `state/reflection-state.json` (top-level, may be absent). If absent or older than 7 days, write a single `Noticed (digest): <N> observations — <top 3 pattern labels>` line to SHELL.md Findings, and include `"last_digest_at": "<now ISO>"` in the State Update payload below so the update script persists it.
+- `adult`: silent (baseline).
 
 Review past dismissed and deferred proposals.
 Avoid re-suggesting recently dismissed ideas.
@@ -219,12 +235,16 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/update-reflection-state.js \
   '{"last_resolution_check":"<last-PROP-NNN-or-null>","ran_with_candidates":<true|false>,"judge_accept":<N>,"judge_downgrade":<N>,"judge_suppress":<N>,"proposals_created":<N>,"micro_proposals_queued":<N>}'
 ```
 
-The script handles: counter increments, `last_reflection`/`last_run_at` timestamps, missing-counters fallback, `since` preservation, and atomic write. It always exits 0 — if the write fails it logs one line to stderr and continues. Counters are diagnostic, not audit-grade — a missed increment is acceptable.
+Include `"last_digest_at":"<now ISO>"` in the payload only when a juvenile digest fired in this run (see Outcomes → phase-aware surfacing). Omit otherwise — the script preserves the prior value.
+
+The script handles: counter increments, `last_reflection`/`last_run_at` timestamps, missing-counters fallback, `since` preservation, `last_digest_at` passthrough, and atomic write. It always exits 0 — if the write fails it logs one line to stderr and continues. Counters are diagnostic, not audit-grade — a missed increment is acceptable.
 
 ## Progress Log Entry (always)
 
 On every reflect run, including empty ones, append one line to SHELL.md `## Progress Log`:
 
-`[HH:MM] reflect — N candidates; verdicts: accept=A downgrade=D suppress=S; outcomes: <list or "none">`
+`[HH:MM] reflect (<phase>) — N candidates; verdicts: accept=A downgrade=D suppress=S; outcomes: <list or "none">`
+
+`<phase>` is one of `newborn` / `juvenile` / `adult` (from step 2b). If phase detection fell back to `adult` due to missing `counters.since`, annotate as `adult` silently — no operator-facing distinction.
 
 This is the audit trail. The silent-by-default rule at the top governs operator pings only — the log line always goes in.

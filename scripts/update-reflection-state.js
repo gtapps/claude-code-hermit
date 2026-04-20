@@ -62,10 +62,13 @@ c.last_output_at = (proposalsCreated + microQueued > 0) ? now : (c.last_output_a
 
 if (!('since' in c)) c.since = null;
 
+const preserve = (key) => (key in payload) ? payload[key] : (state[key] ?? null);
+
 const updated = {
   ...state,
   last_reflection: now,
-  last_resolution_check: ('last_resolution_check' in payload) ? payload.last_resolution_check : (state.last_resolution_check ?? null),
+  last_resolution_check: preserve('last_resolution_check'),
+  last_digest_at: preserve('last_digest_at'),
   counters: c,
 };
 
