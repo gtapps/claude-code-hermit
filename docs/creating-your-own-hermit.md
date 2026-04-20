@@ -165,6 +165,34 @@ Tag compiled artifacts `foundational` to pin them to every session start regardl
 
 Add a `knowledge-schema.md` to document what your hermit produces and when — this is the behavioral contract operators read. Your `hatch` skill should create `raw/`, `compiled/`, and `raw/.archive/` alongside the core scaffold.
 
+### Periodic skill invocation via reflect
+
+If your hermit has a skill that should run on a cadence (e.g. `ha-analyze-patterns` checking home patterns weekly), register it in `plugin_checks` instead of building your own scheduler. Reflect picks one due entry per run, invokes your skill, and funnels its output through the proposal pipeline — no extra infrastructure.
+
+**How to register.** Your init/hatch skill appends an entry to `config.json.plugin_checks` (deduplicate by `id`):
+
+```json
+{
+  "id": "ha-patterns",
+  "plugin": "claude-code-homeassistant-hermit",
+  "skill": "claude-code-homeassistant-hermit:ha-analyze-patterns",
+  "enabled": true,
+  "trigger": "interval",
+  "interval_days": 7
+}
+```
+
+Full schema: [`config-reference.md#plugin_checks`](config-reference.md#plugin_checks).
+
+**Contract your skill must honor** (reflect's auto-tuning depends on it):
+
+- **Idempotent** — reflect may invoke it at any point in an idle cycle.
+- **Return actionable findings or nothing** — a finding becomes a proposal candidate (gated by Three-Condition Rule + reflection-judge). Emit nothing when there's nothing to say; reflect's `consecutive_empty` counter drives automatic interval tuning.
+- **Don't self-schedule** — `interval_days` is authoritative. Operators raise/lower it via accepted proposals.
+- **Fail silently on unavailability** — if a prerequisite is missing, return a clear "skill unavailable" message. Reflect suppresses retries for `interval_days`.
+
+**What you get for free:** operator opt-in at hatch (via recommended-plugins flow, if listed there), `/hermit-settings plugin-checks` management, interval auto-tuning proposals, and unavailability suppression. No cron, no hook, no state file of your own.
+
 ### Operator notification routing
 
 Skills should say "notify the operator" instead of referencing specific channels. Core's CLAUDE-APPEND.md includes a routing section that handles delivery transparently: conversation output in interactive mode, channel `reply` tool in always-on mode. This keeps your hermit plugin channel-agnostic.
@@ -179,3 +207,4 @@ Skills should say "notify the operator" instead of referencing specific channels
 - [ ] Hooks are profile-gated
 - [ ] Zero dependencies — no `package.json`, no build step
 - [ ] All scripts handle missing state files gracefully
+- [ ] Cadence-driven skills registered in `plugin_checks` (not a bespoke scheduler)
