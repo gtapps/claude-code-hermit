@@ -49,39 +49,56 @@ Present the suggested version and rationale. Wait for confirmation before procee
 
 Prepend a new entry to `CHANGELOG.md` immediately after the `# Changelog` header, before the previous version entry.
 
-**Format** (follow the existing entries exactly):
+**Format**:
 
 ```markdown
 ## [X.Y.Z] - YYYY-MM-DD
 
-### Changed / Fixed / Added
+### Added / Changed / Fixed
 (use whichever sections apply — skip empty ones)
 
-- **Bold summary** — Detailed explanation of what changed and why.
+- **component: one-line summary** — optional ≤1-sentence rationale.
 
 ### Files affected
 
 | File | Change |
 |------|--------|
-| `path/to/file` | One-line description |
+| `path/to/file` | terse one-line description |
 
 ### Upgrade Instructions
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
-1. **What it does** — Explanation of what the upgrade skill will do automatically.
+1. **Imperative step title** — what to do, in one sentence.
 
-(Add notes about manual steps if any. State "No config.json changes required" if true.)
+No `config.json` changes required.
 ```
 
-**The Upgrade Instructions section is the most important part.** The evolve skill reads this to know what actions to take for each hermit. Be specific about:
-- Whether CLAUDE-APPEND needs refreshing (it almost always does)
-- Whether templates changed
-- Whether config.json needs new keys (reference the table in `skills/hermit-evolve/SKILL.md` if adding new interactive/silent keys)
-- Whether there are manual steps the operator needs to take
-- What is NOT affected (so the upgrade skill doesn't touch things unnecessarily)
+**Template constraints (enforce these):**
 
-Each changelog bullet should be a complete thought — a hermit operator reading it should understand what changed and whether it affects them.
+1. **Narrative bullets (Added / Changed / Fixed)** — each bullet is ONE line, ≤25 words, in this shape:
+   `- **component: what changed** — ≤1 sentence of rationale (optional, only if non-obvious).`
+   - Lead with the component or subsystem (`reflect:`, `session-mgr:`, `hermit-docker:`).
+   - Do NOT list internal refactors, helper extractions, test scaffolding, or renamed variables — those are visible in `git diff`.
+   - Do NOT repeat what `Files affected` already shows.
+   - Do NOT narrate root cause at length. Fixes describe the behavior change, not the 4-paragraph debugging story.
+   - If a change genuinely needs more context, link a commit hash. Don't inline it.
+
+2. **Upgrade Instructions** — strict imperative block:
+   - Every step starts with a verb (`Add`, `Replace`, `Copy`, `Run`, `Delete`, `Refresh`).
+   - Each step is a single action. No "also do X, but only if Y, unless Z" run-ons — split into separate numbered steps.
+   - No passive voice, no rationale clauses. If an operator needs to understand *why*, that belongs in the Changed bullet above, not here.
+   - Include what `hermit-evolve` does NOT need to touch only if omission would cause it to act destructively. Otherwise silence.
+   - Close with `No config.json changes required.` if true — it's the most common case and operators scan for it.
+
+3. **Files affected table** — one line per file, ≤15 words per Change cell. If a file had many sub-changes, summarize the category, not the enumeration.
+
+4. **What belongs where:**
+   - Why it changed → Changed/Fixed bullet.
+   - What evolve executes → Upgrade Instructions (imperative, numbered).
+   - Behavior deltas that need no action but operators should know → one final line after the numbered list, prefixed `**Note:**`. Not a step.
+
+**The Upgrade Instructions section is the most important part.** The evolve skill reads this to know what actions to take for each hermit. Non-imperative steps cause evolve to misparse or skip them.
 
 ### 3. Update CLAUDE.md and CLAUDE-APPEND references
 
@@ -98,7 +115,7 @@ Skip this step if no new components were added.
 Update the version string in:
 - `.claude-plugin/plugin.json` → `"version"` field
 - `.claude-plugin/marketplace.json` → `"version"` field
-- `README.md` → version badge (the `img.shields.io` URL and alt text)
+- `README.md` → version badge: both the `img.shields.io` URL slug (`version-X.Y.Z-green.svg`) and the `alt` text (`Version X.Y.Z`). Confirm with `grep "version-" README.md` that the new version appears and the old one does not.
 
 ### 5. Final validation
 

@@ -8,56 +8,49 @@
 
 ### Added
 
-- **reflect: adaptive phase-gated recurrence** — reflect now computes a phase (`newborn` < 3 days, `juvenile` 3–13 days, `adult` 14+ days) from `counters.since` in `reflection-state.json` and adapts its gates accordingly. `newborn` allows single-session evidence for Tier 1 candidates (citing `Sessions: current`, routed through `reflection-judge`'s existing `ACCEPT (current-session)` path) and surfaces each sub-threshold observation as `Noticed: <pattern>` in SHELL.md Findings. `juvenile` emits a 7-day-cadence digest (`Noticed (digest): ...`) gated by a new top-level `last_digest_at` field. `adult` preserves current strict behavior. Tier 2/3 candidates are untouched in every phase — safety-critical and meaningful proposals always require real cross-session evidence. Closes the cold-start gap where fresh installs produced zero visible output for days. Phase appears in the Progress Log annotation (`reflect (<phase>)`). On missing/unparseable `since`, reflect defaults to `adult` and never blocks.
-- **reflect: operator-value self-check** — a new bullet in the always-run reflection questions asks whether recent outputs are actually being used, cross-referencing `responded` event counts (accept/defer/dismiss) from `proposal-metrics.jsonl` and deferred-proposal build-up. Closes the gap where operators had to manually ask "how can you be more useful?"
-- **reflect: cost-spike detection** — step 2 now computes today's cost vs the 7-day median; a spike (today > 2× median) is recorded to project memory as a sub-threshold observation that can graduate via recurrence.
-- **reflect: `proposal-metrics.jsonl` tailed at step 3** — dismissal ratios feed the new operator-value self-check. No new infrastructure; the log was already being written.
-- **reflect: Component Health agent check** — `reflection-judge` verdict counters in `reflection-state.json` are now read to detect an over-strict gate (rough flag: `judge_suppress > 2× judge_accept` with ≥5 total verdicts since `since`).
-- **reflect: mandatory Progress Log entry** — every reflect run (including empty runs) appends a one-line summary to `SHELL.md` `## Progress Log` with candidate count, verdict breakdown, and outcomes. Makes reflect's work visible for audit/weekly-review without interrupting the operator. Silent-by-default applies only to operator pings, not the audit trail.
+- **reflect: adaptive phase gates** — `newborn` (<3d) / `juvenile` (3–13d) / `adult` (14+d) gate recurrence and sub-threshold surfacing; closes the cold-start silence on fresh installs. Tier 2/3 still require real cross-session evidence in every phase.
+- **reflect: operator-value self-check** — reflection questions now include dismiss-ratio and deferred-proposal-buildup checks from `proposal-metrics.jsonl`.
+- **reflect: cost-spike detection** — today's cost vs 7-day median; `>2×` records a sub-threshold observation eligible for recurrence graduation.
+- **reflect: Component Health agent check** — flags `reflection-judge` when `judge_suppress > 2× judge_accept` with ≥5 verdicts.
+- **reflect: mandatory Progress Log entry** — every run (including empty) appends `[HH:MM] reflect (<phase>) — ...` to SHELL.md.
 
 ### Changed
 
-- **reflect: silent by default** — the unconditional top-of-skill operator notification was removed. Reflect now only notifies on outcomes (proposal candidate, micro-approval, resolved proposal, graduated sub-threshold observation, or cost spike).
-- **reflect: Three-Condition Rule moved before first use** — previously defined after three references; now defined directly after the reflection questions. All three prior references are pointers to the single definition.
-- **reflect: sub-threshold observations routed to project memory** — sub-threshold observations (interesting but failing the rule) are now explicitly recorded to project memory with a pattern label and session_id so they can graduate on recurrence. Suppression-by-default remains; the carry-forward path is now explicit.
-- **reflect: Resolution Check 14-day guard** — resolving an accepted proposal now requires both absence from 3 checked sessions **and** ≥14 days elapsed since `accepted_date`. Prevents wrongly resolving monthly-cadence patterns on daily reflects.
-- **reflect: Skill Health → Component Health** — broadened to cover agents (with a concrete reflection-judge counter check) and hooks (documented as out-of-scope pending hook telemetry). Skills retain the existing weak/moderate/strong signal ladder.
-- **reflection-judge: current-session evidence path tightened** — the fallback from `S-NNN-REPORT.md` to `SHELL.md` now has an explicit trigger (no archived report + ID matches the current SHELL.md Session Info), and emits `ACCEPT (current-session)` / `DOWNGRADE:N (current-session)` / `SUPPRESS (current-session)` so the caller can tell the evidence hasn't been archived yet. Unblocks proposals whose only evidence is the live session.
-- **update-reflection-state.js: `preserve()` helper extracted** — the repeated `(key in payload) ? payload[key] : (state[key] ?? null)` pattern (used for `last_resolution_check` and `last_digest_at`) is now a one-liner helper. Reduces key-name repetition and makes adding future optional fields a single line.
-- **CLAUDE-APPEND.md quick reference updated** — added `/session-start`, `/reflect`, `/channel-setup`, `/hatch`, `/smoke-test` to the operator quick reference; these were previously present as skills but absent from the injected reference line.
-
-### Files affected
-
-| File | Change |
-|------|--------|
-| `skills/reflect/SKILL.md` | Top-of-skill notification removed; cost-spike detection + proposal-metrics tail added; operator-value bullet added; Three-Condition Rule moved earlier; sub-threshold observation handling reframed; Resolution Check 14-day guard; Skill Health → Component Health; adaptive phase gates (newborn/juvenile/adult) with phase-aware recurrence and sub-threshold surfacing |
-| `agents/reflection-judge.md` | Current-session fallback path tightened with explicit trigger and distinct verdict labels |
-| `scripts/update-reflection-state.js` | `last_digest_at` passthrough (juvenile digest cadence anchor); `preserve()` helper extracted |
+- **reflect: silent by default** — unconditional top-of-skill operator notification removed; notify only on outcomes.
+- **reflect: Three-Condition Rule hoisted** — defined once before first reference.
+- **reflect: sub-threshold → project memory** — recorded with pattern label + session_id so recurrence can graduate them.
+- **reflect: Resolution Check 14-day guard** — requires both pattern absence from 3 sessions AND ≥14 days since `accepted_date`.
+- **reflect: Skill Health → Component Health** — broadened to agents and hooks (hooks out-of-scope pending telemetry).
+- **reflection-judge: `(current-session)` verdict variants** — explicit trigger for SHELL.md fallback when no archived report exists; callers can tell evidence isn't archived yet.
+- **CLAUDE-APPEND.md quick reference** — added `/session-start`, `/reflect`, `/channel-setup`, `/hatch`, `/smoke-test`.
 
 ### Fixed
 
-- **heartbeat: reflect removed from inline idle agency** — heartbeat was invoking `/claude-code-hermit:reflect` synchronously within its own REPL turn. Reflect + plugin checks could take 30–40 minutes; a queued heartbeat tick would then fire and trigger idle task pickup, chaining into further REPL occupation. CronCreate-scheduled routines (e.g. morning brief) were delayed 90+ minutes as a result. Reflect is now exclusively a routine — a default `reflect` entry (`0 9 * * *`, enabled) is seeded into new hermit configs via `config.json.template` and `DEFAULT_CONFIG` in `hermit-start.py`. Heartbeat is now a pure health-check tick.
+- **heartbeat: reflect no longer inline** — long reflect runs (30–40 min) occupied the REPL and delayed CronCreate routines 90+ min. Reflect is now routine-only (default `0 9 * * *`, seeded in `config.json.template` and `DEFAULT_CONFIG`). Heartbeat reverts to a pure health tick.
 
 ### Files affected
 
 | File | Change |
 |------|--------|
-| `skills/heartbeat/SKILL.md` | Removed Reflection section from Idle Agency |
-| `state-templates/config.json.template` | Added `reflect` routine (`0 9 * * *`, enabled by default) |
-| `scripts/hermit-start.py` | Added `reflect` routine to `DEFAULT_CONFIG` to match `config.json.template` |
+| `skills/reflect/SKILL.md` | Adaptive phase gates, cost-spike detection, operator-value self-check, mandatory Progress Log entry, Component Health broadened, Resolution Check 14-day guard |
+| `agents/reflection-judge.md` | Current-session fallback path and `(current-session)` verdict variants |
+| `scripts/update-reflection-state.js` | `preserve()` helper extracted; `last_digest_at` passthrough added |
+| `skills/heartbeat/SKILL.md` | Reflection section removed from Idle Agency |
+| `state-templates/config.json.template` | `reflect` routine added (`0 9 * * *`, enabled by default) |
+| `scripts/hermit-start.py` | `reflect` routine added to `DEFAULT_CONFIG` |
 | `state-templates/CLAUDE-APPEND.md` | Quick reference updated with 5 previously missing skills |
 
 ### Upgrade Instructions
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
-1. **Add reflect routine** — if `config.json` does not already have a routine with `"id": "reflect"`, add `{"id": "reflect", "schedule": "0 9 * * *", "skill": "claude-code-hermit:reflect", "enabled": true}` to the `routines` array.
-2. **Register the new routine** — after updating `config.json`, invoke `/claude-code-hermit:hermit-routines load` to register the reflect CronCreate for the current session.
-3. **Refresh CLAUDE-APPEND** — re-run `hatch` or manually copy the updated `state-templates/CLAUDE-APPEND.md` into the project's `.claude/` injection point so the expanded quick reference takes effect.
+1. **Add reflect routine** — append `{"id": "reflect", "schedule": "0 9 * * *", "skill": "claude-code-hermit:reflect", "enabled": true}` to the `routines` array in `config.json` if no entry with `"id": "reflect"` exists.
+2. **Register the new routine** — invoke `/claude-code-hermit:hermit-routines load` after updating `config.json`.
+3. **Refresh CLAUDE-APPEND** — copy the updated `state-templates/CLAUDE-APPEND.md` into the project's `.claude/` injection point.
 
-Operators who already have a reflect routine (or who prefer to trigger reflect manually) can skip step 1–2 or set `"enabled": false`. No other config changes required.
+No other config changes required.
 
-**Adaptive reflect phases — no operator action required.** Phase is computed from `counters.since` in `reflection-state.json` automatically on the next reflect run. Hermits ≥14 days old land in `adult` (identical to prior behavior). Hermits <14 days old will start surfacing sub-threshold observations in SHELL.md Findings (`Noticed: <pattern>` inline in `newborn`, `Noticed (digest): ...` weekly in `juvenile`) — design intent for cold-start visibility, but a behavior delta worth knowing about. To suppress: no knob exists; the hermit will naturally graduate to `adult` at 14 days.
+**Note:** Hermits <14 days old will start surfacing sub-threshold observations in SHELL.md Findings — `Noticed: <pattern>` in `newborn` phase, `Noticed (digest): ...` weekly in `juvenile`. Hermits ≥14 days old land in `adult` (identical to prior behavior). To opt out: set `"enabled": false` on the reflect routine.
 
 ---
 
@@ -199,29 +192,18 @@ No `config.json` changes required. Interactive `/session` users who want routine
 
 ### Fixed
 
-- **`claude-code-hermit` plugin installed but not enabled in container** — the entrypoint installed the hermit plugin on first boot but never called `claude plugin enable`, leaving hermit skills/hooks present on disk but dormant at runtime. An unconditional idempotent `claude plugin enable` now runs on every boot so containers self-heal on restart after the entrypoint is updated.
-
-- **Channel pairing commands sometimes swallowed by a stale REPL** — `docker-setup` now sends `/reload-plugins` via `tmux send-keys` once before the first pair command, ensuring channel plugins registered by the entrypoint are live in the running claude session.
-
-- **`stop_grace_period` too short for graceful session-close** — compose template default was Docker's 10s, but the entrypoint's SIGTERM trap polls for session-close up to 30 iterations. `docker compose restart` (and any external stop without pre-close) could SIGKILL mid-graceful-close. Raised to 60s.
-
-- **LLM running docker-setup could act on `hermit-docker up` echo hints** — `hermit-docker up`'s trailing "To attach… run hermit-docker attach" output looks like imperative instructions. The outer LLM could follow them mid-setup, blocking on an interactive tmux attach. `docker-setup` now uses `docker compose ... up -d` directly during setup; `hermit-docker up` is reserved for operator-facing contexts.
-
-- **Domain hermit (and third-party) plugins not installed in container** — `docker-setup` step 7b now mirrors plugins installed on the host (project or local scope only — user-scope plugins are intentionally excluded as host-personal) instead of presenting a canned list of official-only plugins. The entrypoint's recommended-plugin loop now adds each plugin's marketplace before installing, rather than skipping any non-`claude-plugins-official` entry. Domain hermits (e.g. `claude-code-homeassistant-hermit`) are picked up automatically because they are already installed on the host when the setup flow runs. Marketplace `org/repo` is resolved from `claude plugin marketplace list` (bare slug previously caused `marketplace add` to fail on first boot).
-
-  Security gates added alongside this change: a **safelist** preselects only `claude-plugins-official` and `gtapps/*` plugins during the operator confirmation — third-party plugins require explicit per-entry opt-in. An **`org/repo` regex validator** rejects malformed marketplace values before they reach `config.json`.
-
-- **Entrypoint recommended-plugin re-install loop** — the `if install_target in installed` guard compared against raw `claude plugin list` line output using set membership, so it never matched. Every plugin was being re-installed on every container boot, producing misleading "failed to install" warnings. Switched to substring match against the whole blob.
-
-- **Docker OAuth double-login bug** — `hermit-docker login` previously ran `claude /login` (full REPL). On a container with no credentials, the REPL's startup auth check opened one OAuth URL and the `/login` slash command opened a second, causing a race on `.credentials.json`. Fixed by switching to `claude auth login` (one-shot, no REPL) guarded by a `claude auth status --json` pre-check: if already authenticated, the command reports the email and exits cleanly instead of forcing a re-login.
-
-  The entrypoint banner also now explicitly warns operators not to run `claude` manually inside the container while waiting for credentials.
+- **docker: hermit plugin installed but not enabled** — entrypoint now runs idempotent `claude plugin enable` every boot so containers self-heal on restart.
+- **docker-setup: stale REPL swallowed channel pairing** — sends `/reload-plugins` once before first pair command.
+- **docker-compose: `stop_grace_period` raised to 60s** — 10s SIGKILL'd mid graceful session-close.
+- **docker-setup: avoids `hermit-docker up` echo hints** — uses `docker compose up -d` directly during setup so the outer LLM doesn't follow the trailing "attach" suggestion.
+- **docker-setup: recommended plugins mirror host install** — step 7b reads host project/local plugins instead of a canned list; entrypoint adds marketplace before install; safelist preselects `claude-plugins-official` + `gtapps/*` only, third-party requires explicit opt-in; `org/repo` regex validator rejects malformed values.
+- **entrypoint: recommended-plugin re-install loop** — `install_target in installed` set-membership check never matched raw line output; switched to substring match.
+- **hermit-docker login: double-OAuth race** — REPL's auth check + `/login` opened two URLs racing on `.credentials.json`. Now uses one-shot `claude auth login` gated by `claude auth status --json`.
 
 ### Added
 
-- **End-of-setup clean restart (step 8b)** — `docker-setup` now finishes with `hermit-docker down` + `docker compose up -d` so the first "real" hermit session starts with plugins fully loaded, fresh tmux state, and no setup chatter in the session transcript. Skipped if the operator chose "No — manual" at step 8.
-
-- **Routine fire metrics** — `routine-watcher.sh` now appends `queued`, `fired`, and `dequeued` events to `state/routine-metrics.jsonl`. The `reflect` skill reads this log to detect routines that fire repeatedly with no downstream effect and proposes disabling or re-timing them. `hatch` initializes the file.
+- **docker-setup step 8b: clean restart** — `hermit-docker down` + `up -d` so first real session has plugins loaded and no setup chatter in transcript.
+- **routine fire metrics** — `routine-watcher.sh` appends `queued`/`fired`/`dequeued` to `state/routine-metrics.jsonl`; reflect uses it to propose retiming idle routines.
 
 ### Files affected
 
@@ -333,18 +315,18 @@ No `config.json` changes required. The `knowledge-schema.md.template` change onl
 
 ### Fixed
 
-- **`docker-entrypoint`: channel schema mismatch + silent marketplace failure** — The entrypoint was reading `channels` as a list but `config.json` stores it as an object (`{"discord": {"enabled": true, ...}}`). This was harmless for name extraction (iterating a dict yields keys) but `enabled: false` was never checked, so disabled channels still triggered MCP enablement and plugin install attempts. More critically, `claude plugin marketplace add anthropics/claude-plugins-official` was followed by `|| true`, swallowing failures silently and leaving channel/recommended plugin installs broken on the first boot with no diagnostic output. Fixed: channel extraction now reads the object shape and filters by `enabled`; marketplace add failure surfaces a clear `ERROR:` block and sets `NEEDS_OFFICIAL=false` to skip downstream install loops that would only produce noise.
-- **`docker-entrypoint`: channel and recommended plugins installed but left disabled** — `claude plugin install` installs plugins in a disabled state by default. The entrypoint was not calling `claude plugin enable` after install, so channel and recommended plugins were present but dormant — their commands never registered. Fixed: `claude plugin enable` is now called immediately after each successful install for both channel plugins and recommended plugins.
-- **`claude login` → `claude /login`** — The correct Claude Code CLI invocation for OAuth login is `claude /login`, not `claude login`. Updated everywhere: `hermit-docker` executable, `docker-entrypoint.hermit.sh.template` echo messages, `docker-setup/SKILL.md`, and all docs (`faq.md`, `troubleshooting.md`, `always-on.md`, `config-reference.md`, `architecture.md`, `hermit-start.py`).
-- **`hermit-docker`: `_require_running` preflight for `attach`, `bash`, `login`, `restart`** — These subcommands now check that `$SERVICE` specifically is running (not just any service in the compose file) before attempting `docker compose exec`. If the container is down they print a clear `Container is not running. Start it first: .claude-code-hermit/bin/hermit-docker up` message instead of a raw Docker error.
-- **`docker-setup` Step 8: container readiness gates** — Prevents the skill from issuing `docker exec` commands against a non-running container. Three gates added: (1) "No — manual" branch now prints a self-contained manual deployment guide and skips directly to Step 9 — Login, Workspace trust, and Channel pairing are not attempted when the container hasn't been started. (2) "Yes — build now" polls `docker compose ps --status running` for up to 10s after `hermit-docker up` and shows container logs for diagnosis if the service never appears. (3) Workspace trust and Channel pairing both gate on `tmux has-session` (30s retry) before issuing `tmux send-keys`, preventing the `no server running on /tmp/tmux-.../default` error when the entrypoint is still installing plugins.
-- **`docker-setup` Step 8: `access.json` verification** — Channel pairing now checks `.claude.local/channels/<plugin>/access.json` after ~3s (one retry at ~8s) and falls through to `tmux capture-pane` diagnostics if absent, instead of silently declaring success after "a few seconds".
-- **`docker-setup`: broken doc link** — `docs/recommended-plugins.md` link at the end of Step 7b fixed to `../../docs/recommended-plugins.md` (relative to the skill file).
+- **docker-entrypoint: channel schema + silent marketplace failure** — channels read as list instead of object so `enabled: false` was ignored; `marketplace add` failures swallowed by `|| true`. Now filters disabled channels and surfaces marketplace errors explicitly.
+- **docker-entrypoint: plugins installed but left disabled** — `claude plugin install` leaves plugins dormant; now calls `claude plugin enable` after each channel/recommended install.
+- **`claude login` → `claude /login`** — correct CLI invocation; updated across `hermit-docker`, entrypoint, skills, and docs.
+- **hermit-docker: `_require_running` preflight** — `attach`/`bash`/`login`/`restart` now check `$SERVICE` is up before `docker compose exec` and print a clear start-it-first message.
+- **docker-setup step 8: readiness gates** — manual branch skips exec'd steps; "build now" polls `docker compose ps` 10s; workspace trust + channel pairing gate on `tmux has-session` to avoid "no server running" races.
+- **docker-setup step 8: `access.json` verification** — channel pairing polls `.claude.local/channels/<plugin>/access.json` (~3s, retry ~8s) and shows `tmux capture-pane` on miss instead of declaring success.
+- **docker-setup: broken doc link** — `recommended-plugins.md` path fixed to `../../docs/...`.
 
 ### Changed
 
-- **`hatch` completion message** — "Go always-on" step now leads with `docker-setup` (recommended) before the bare-tmux option. `smoke-test` moved to a troubleshooting note rather than a required step. `bypassPermissions` promoted to first option in the permissions question with a clearer description.
-- **`migrate`: scope confirmation gate (Step 0)** — The skill now opens by reading `config.json.scope` (authoritative) and cross-checking against `.gitignore`, surfacing any divergence. The operator is prompted to keep or switch scope before the audit runs. Switching triggers full reconciliation: updates `config.json`, reconciles `.gitignore` (removes the outbound scope's template lines, appends the target scope's lines), and for `project → local` switches runs `git rm --cached` on newly-ignored tracked paths — all behind a single pre-flight confirmation. Step 1 scope detection updated to trust the Step 0 value instead of re-detecting from `.gitignore`.
+- **hatch completion message** — "Go always-on" leads with `docker-setup`; `smoke-test` moved to troubleshooting note; `bypassPermissions` promoted to first permissions option.
+- **migrate: scope confirmation gate (step 0)** — reads `config.json.scope` as authoritative, surfaces divergence with `.gitignore`, prompts to switch. Switching reconciles `config.json`, `.gitignore`, and `git rm --cached` for newly-ignored tracked paths behind one confirmation.
 
 ### Files affected
 
@@ -376,24 +358,24 @@ No `config.json` changes required.
 
 ### Fixed
 
-- **`waiting_reason` field in `runtime.json`** — New field that records why a session entered `waiting` state: `"unclean_shutdown"`, `"dead_process"`, `"conservative_pickup"`, or `"operator_input"`. Cleared to `null` when exiting `waiting`. Fixes `channel-responder` routing: on unclean shutdown or dead process, an operator reply of `(1)` / `(2)` now correctly triggers archive-or-resume via `session-mgr` instead of being treated as a task instruction.
-- **`session-mgr`: `session_id` written to SHELL.md on open** — Step 6 now patches the `**ID:**` placeholder in SHELL.md with the actual `S-NNN` value so the session header is correct from the first tick. Previously the placeholder persisted until close.
-- **`session-mgr`: `cost_usd` reads `.status.json` first** — On session close, `cost_usd` is read from `.claude-code-hermit/sessions/.status.json` (written by the cost-tracker hook) before falling back to parsing the SHELL.md `## Cost` section. Fixes sessions where the hook-written cost was silently discarded.
-- **`session-start`: fast-path gate patches SHELL.md ID placeholder** — When the fast path fires (no session-mgr spawn), if `runtime.json` has a `session_id` and SHELL.md still shows the `S-NNN` placeholder, it is updated in-context without spawning session-mgr.
-- **`routine-watcher.sh`: drain stale queue entries on startup** — Entries older than 2 hours (one heartbeat cycle) are pruned from `routine-queue.json` at watcher start. Prevents phantom stale-routine alerts from accumulating across restarts.
-- **`heartbeat`: micro-proposal pending alert** — New step 6 checks `micro-proposals.json` for pending tier-1 entries and appends a monitoring alert using semantic key `micro-proposal-pending:<id>`. Prevents tier-1 micro-proposals from silently expiring if the operator doesn't notice them. Stale queue alert message now includes elapsed time for clarity.
+- **runtime.json: `waiting_reason` field** — records why session entered `waiting` (`unclean_shutdown`/`dead_process`/`conservative_pickup`/`operator_input`) so `channel-responder` routes `(1)`/`(2)` replies to archive-or-resume instead of treating them as task instructions.
+- **session-mgr: `session_id` patched into SHELL.md on open** — header now correct from first tick instead of holding the placeholder until close.
+- **session-mgr: `cost_usd` reads `.status.json` first** — hook-written cost was silently discarded when SHELL.md parse won; now status file takes precedence.
+- **session-start fast-path: patches SHELL.md ID placeholder** — updates in-context without spawning session-mgr when runtime has the ID.
+- **routine-watcher: drains stale queue entries on startup** — prunes entries >2h old to prevent phantom stale-routine alerts across restarts.
+- **heartbeat: micro-proposal pending alert** — step 6 flags tier-1 entries in `micro-proposals.json` via `micro-proposal-pending:<id>` so they don't silently expire; stale queue message now includes elapsed time.
 
 ### Changed
 
-- **`proposal-act`: accept no longer stamps `resolved_date`** — Accept flow now sets only `status: accepted` + `accepted_date`. `resolved_date` is set later by `reflect` when it confirms the pattern is actually gone (3 consecutive session reports with no recurrence). This fixes a semantic mismatch where `weekly-review.js`'s resolution count was always zero despite accepted proposals.
-- **`reflect`: concrete Resolution Check procedure** — Added a bounded round-robin step (up to 5 accepted proposals per reflect cycle) that reads each proposal's evidence, scans the last 3 session reports, and marks resolved if the pattern is absent. Tracks round-robin position in `state/reflection-state.json` under `last_resolution_check`. Appends a `resolved` metrics event on each transition.
-- **`reflection-judge`: explicit gate for `Sessions: none`** — Added a step 0 rule: if `Sessions: none` is passed, the judge immediately returns `SUPPRESS: <title> — no cross-session evidence cited`. No evidence verification or tier check is performed. `reflect` notes SUPPRESSED candidates in SHELL.md Findings for future revisit.
-- **`proposal-create`: `created` events now include `source` and `category`** — The metrics payload for proposal creation now includes `source` (manual / auto-detected / operator-request) and `category` (improvement / routine / capability / constraint / bug). Adds `operator-request` and `bug` to enums (previously documented in `frontmatter-contract.md` but absent from the skill).
-- **`generate-summary.js`: per-source acceptance rates and resolved count** — New metrics: auto-detected acceptance rate, manual acceptance rate, resolved proposal count. Frontmatter gains `proposals_resolved` and `auto_detect_accept_rate` fields. Allows answering "are autonomous proposals good?" for the first time.
-- **`reflect`, `session-start`: notification routing de-duplicated** — The "Always-On Notification Rule" block (identical in both skills) replaced with a one-liner deferring to CLAUDE.md § Operator Notification. Single source of truth stays in `CLAUDE-APPEND.md`.
-- **`reflect`: micro-proposal `question` text preserved in JSONL** — `micro-queued` events now include `question` (full text). The question is also stored in `micro-proposals.json` active slot so `channel-responder` and `brief` can echo it in `micro-resolved` events. Enables post-hoc analysis of what was asked and operator response patterns.
-- **`heartbeat`: `noise_ticks` self-eval field** — Self-eval entries gain a `noise_ticks` counter incremented when an alert fires and is linked to a dismissed proposal (via `self_eval_key`). Lazy reset when a linked proposal is accepted or resolved. At 20+ noise ticks across 3+ sessions, creates a proposal to retune or remove the noisy check — mirrors the existing `clean_ticks` removal pathway.
-- **`docs/frontmatter-contract.md`: lifecycle table updated** — `resolved_date` writer changed from `proposal-act` to `reflect skill (pattern absence)`.
+- **proposal-act: accept no longer stamps `resolved_date`** — only sets `accepted_date`. `reflect` stamps `resolved_date` later once the pattern is absent from 3 sessions. Fixes `weekly-review.js` resolution count always being zero.
+- **reflect: concrete Resolution Check procedure** — bounded round-robin (≤5/cycle) reads each accepted proposal's evidence, scans last 3 reports, marks resolved if absent. Position tracked in `reflection-state.json.last_resolution_check`.
+- **reflection-judge: explicit `Sessions: none` gate** — step 0 short-circuits to `SUPPRESS` without evidence verification; reflect notes the suppression in SHELL.md Findings for revisit.
+- **proposal-create: `source` + `category` in `created` events** — metrics now distinguish manual / auto-detected / operator-request and improvement / routine / capability / constraint / bug.
+- **generate-summary.js: per-source acceptance + resolved count** — new `proposals_resolved` and `auto_detect_accept_rate` frontmatter fields answer "are autonomous proposals good?".
+- **reflect + session-start: notification routing de-duplicated** — "Always-On Notification Rule" block replaced with one-liner deferring to CLAUDE-APPEND's Operator Notification section.
+- **reflect: preserves micro-proposal `question` text in JSONL + active slot** — enables post-hoc analysis of what was asked vs operator response.
+- **heartbeat: `noise_ticks` self-eval field** — counters increment when a dismissed-proposal-linked alert fires; at 20+ across 3+ sessions, proposes retuning or removing the check (mirrors `clean_ticks`).
+- **docs/frontmatter-contract.md** — `resolved_date` writer updated to `reflect (pattern absence)`.
 
 ### Files affected
 
