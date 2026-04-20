@@ -576,6 +576,15 @@ def main():
         write_runtime_json(existing)
         os.execvp(cmd[0], cmd)
 
+    # Setup-mode gate: docker-setup touches this marker before first boot so channel
+    # pairing commands land on an idle REPL prompt rather than racing the bootstrap turn.
+    # Consumed (deleted) here — one-shot, so a crashed setup doesn't suppress bootstrap permanently.
+    setup_marker = STATE_DIR / '.setup-mode'
+    setup_mode = setup_marker.exists()
+    if setup_mode:
+        setup_marker.unlink(missing_ok=True)
+        print('[hermit] Setup mode — skipping bootstrap prompt (one-shot)')
+
     # Bootstrap: send ONE composite prompt so all startup commands execute in a single
     # Claude turn. Three separate `tmux send-keys` raced — the second/third landed inside
     # the still-running /session turn and were silently swallowed (same failure mode as
@@ -593,7 +602,7 @@ def main():
     if auto_session:
         steps.append('/claude-code-hermit:session')
 
-    if steps:
+    if steps and not setup_mode:
         if len(steps) == 1:
             bootstrap = steps[0]
         else:

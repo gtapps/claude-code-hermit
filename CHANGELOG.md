@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **hermit-docker login: revert to REPL `/login`** — `claude auth login` (introduced in v1.0.8) opens a browser callback URL on the same host, which doesn't work in Docker or tmux environments where the user can't return the OAuth code. Reverted to launching the claude REPL via `docker exec -it <container> claude` so the user can type `/login`, follow the URL in any browser, and paste the code back. The v1.0.8 auth-status gate is kept (avoids re-login when already authenticated). Post-REPL credential verification added — exits non-zero with a clear message if `.credentials.json` was not written.
+- **docker-setup: setup-mode bootstrap suppression** — first container boot during docker-setup now lands at an idle REPL prompt instead of running the composite bootstrap (`/session`, `/heartbeat start`, `/routines load`). `hermit-start.py` checks for `.claude-code-hermit/state/.setup-mode`, skips the bootstrap send, and deletes the marker (one-shot). `docker-setup` skill touches the marker before `docker compose up -d --build`. Step 8b's second boot runs the full bootstrap normally. Fixes channel pair commands being silently queued behind a 30–60s bootstrap turn, then killed by the step 8b `docker compose down`.
+- **docker-setup: drop `/reload-plugins` pre-pair** — was a workaround for the bootstrap-turn collision; unnecessary now that setup-mode suppresses bootstrap.
+- **docker-setup: channel pairing confirmation gates** — skill now blocks with `AskUserQuestion` before sending the pair command ("I have the code") and again before verifying `access.json` ("Bot confirmed paired"). Eliminates racing past unfinished pairing.
+- **docker-setup: login AskUserQuestion gate** — skill now asks "Done / Failed" after `hermit-docker login` instruction. On "Failed": surfaces container logs and stops — no rebuild retries.
+- **docker-setup step 9: "no session" is expected** — added explicit note so the LLM doesn't add `sleep` loops waiting for a session that won't appear until the first cron/channel event.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/bin/hermit-docker` | `login)` reverts to REPL-based `docker exec -it ... claude`; credential verification added |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Updated "do not run claude" banner to "do not attach to tmux" (login now explicitly uses a REPL) |
+| `scripts/hermit-start.py` | Setup-mode marker check: reads-and-deletes `.setup-mode`, skips bootstrap send if present |
+| `skills/docker-setup/SKILL.md` | Login: AskUserQuestion gate; step 8 build: touch marker; first-run acceptance: blank-prompt note; channel pairing: drop reload-plugins, add confirmation gates; step 9: no-session note |
+
 ---
 
 ## [1.0.13] - 2026-04-20

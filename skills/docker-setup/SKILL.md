@@ -299,16 +299,18 @@ Re-run /claude-code-hermit:docker-setup any time you want guided help.
 ```
 
 **If "Yes — build now":**
-1. Run `docker compose -f docker-compose.hermit.yml up -d --build` — builds and starts. Help fix errors (daemon not running, network, disk). Do **not** use `.claude-code-hermit/bin/hermit-docker up` here — its trailing echo prints attach/detach instructions that look like imperative commands and can mislead the LLM running this skill into executing them mid-setup. The final hand-off at step 9 provides the canonical attach guidance.
+1. Run `mkdir -p .claude-code-hermit/state && touch .claude-code-hermit/state/.setup-mode` to put the container in setup mode (suppresses the bootstrap prompt so channel pairing commands land on an idle REPL, not a busy session turn). Then run `docker compose -f docker-compose.hermit.yml up -d --build` — builds and starts. Help fix errors (daemon not running, network, disk). Do **not** use `.claude-code-hermit/bin/hermit-docker up` here — its trailing echo prints attach/detach instructions that look like imperative commands and can mislead the LLM running this skill into executing them mid-setup. The final hand-off at step 9 provides the canonical attach guidance.
 2. **Verify the container stayed running:** Poll `docker compose -f docker-compose.hermit.yml ps --status running --format '{{.Service}}'` every 2s for up to 10s. If the service appears — continue to the next sub-section. If it never appears after 10s, run `docker compose -f docker-compose.hermit.yml logs --tail=30 hermit` and show the output. Help diagnose (common: image build failure, missing `.env` var, port conflict, Docker daemon not fully ready). **Do not continue to Login / Workspace trust / Channel pairing while the container is down — stop here and ask the operator to fix and re-run the skill.**
 
 **Login (oauth only):** If operator chose oauth, proceed only once the container is confirmed running. Guide them through login:
-1. Tell them: "The container is waiting for you to log in. Run this from another terminal — do not attach and run `claude` yourself, it will trigger a second login prompt and race with this one:"
+1. Tell them: "The container is waiting for you to log in. Run this from another terminal:"
    ```
    .claude-code-hermit/bin/hermit-docker login
    ```
-2. This opens a browser URL for OAuth. After completing the login, credentials are saved to the named volume and the container starts automatically.
-3. Wait for the operator to confirm they've logged in. Then verify by checking `docker compose -f docker-compose.hermit.yml logs --tail=20 hermit` for "Credentials detected" or "hermit-start" output.
+   This opens a claude REPL inside the container. Type `/login`, follow the URL in a browser, then paste the code back when prompted. Type `/exit` when done — the hermit starts automatically.
+2. Ask with `AskUserQuestion` (header: `"Login"`) — `"Done — login succeeded"` / `"Failed — couldn't complete login"`. Do **not** poll logs in a loop. Do **not** rebuild or restart the container.
+3. On `"Failed"`: run `docker compose -f docker-compose.hermit.yml logs --tail=30 hermit` and show output, then **stop** — operator re-runs `/claude-code-hermit:docker-setup` after resolving the issue.
+4. On `"Done"`: verify by checking `docker compose -f docker-compose.hermit.yml logs --tail=20 hermit` for "Credentials detected" or "hermit-start" output.
 
 **First-run acceptance (workspace trust + bypass mode):** Before asking the operator to attach, verify the tmux session exists inside the container (the entrypoint may still be installing plugins):
 ```
@@ -328,6 +330,8 @@ Once the session exists, tell the operator:
 >
 > **Screen 2 — Bypass Permissions mode** (only if `permission_mode: bypassPermissions`, the Docker default): You'll then see the `--dangerously-skip-permissions` acknowledgement. Use the **arrow keys** to select **"Yes, I accept"**, then press **Enter**.
 >
+> After accepting, you'll see a **blank claude prompt** — that's expected during setup. The skill will send pair commands from here; don't type `/session` yourself.
+>
 > Then press **Ctrl+B, D** to detach.
 
 Read `config.permission_mode` from `.claude-code-hermit/config.json`. If it is NOT `bypassPermissions`, omit the "Screen 2" paragraph entirely.
@@ -340,26 +344,20 @@ Before pairing, confirm the operator has completed the first-run acceptance step
 
 Confirm the tmux session still exists (reuse the `has-session` check from the acceptance step). If it's gone, surface container logs and stop.
 
-**Reload plugins first (once, before any pair command):** The claude REPL may have started before the entrypoint finished enabling channel plugins. Send one reload to make sure the `/<plugin>:access` commands are registered, then wait ~2s:
-
-```
-docker compose -f docker-compose.hermit.yml exec -T hermit \
-  tmux send-keys -t <session> '/reload-plugins' Enter
-```
-
 For each channel, ask if already paired. If not:
-1. Operator DMs the bot → gets a 6-char code → pastes it
+1. Ask with `AskUserQuestion` (header: `"<channel> pairing"`) — `"I have the code"` / `"Skip this channel"`. On `"I have the code"`: ask for the 6-char code via `Other` (header: `"Bot code"`).
 2. Send pair command into tmux — append the local state dir so the LLM writes there instead of the default user path:
    ```
    docker compose -f docker-compose.hermit.yml exec -T hermit \
      tmux send-keys -t <session> '/<plugin>:access pair <code> — save access.json to <project_path>/.claude.local/channels/<plugin>/ not ~/.claude' Enter
    ```
 3. Set policy: `docker compose -f docker-compose.hermit.yml exec -T hermit tmux send-keys -t <session> '/<plugin>:access policy allowlist' Enter`
-4. **Verify `access.json` landed in the right place:** Check `.claude.local/channels/<plugin>/access.json` after ~3s; retry once after another 5s. If still absent, run `docker compose exec -T hermit tmux capture-pane -t <session> -p` to see whether the pair command echoed (common cause: plugin not installed in container yet, or operator paired too early before entrypoint finished). If it landed in `~/.claude/channels/<plugin>/` instead, move it:
+4. Ask with `AskUserQuestion` (header: `"Pair result"`) — `"Bot confirmed paired"` / `"No response"`. On `"No response"`: run `docker compose exec -T hermit tmux capture-pane -t <session> -p`, show output, and skip `access.json` verification for this channel — don't fail the whole setup.
+5. **Verify `access.json` landed in the right place** (only on `"Bot confirmed paired"`): Check `.claude.local/channels/<plugin>/access.json`. If absent, run `docker compose exec -T hermit tmux capture-pane -t <session> -p` and show output. If it landed in `~/.claude/channels/<plugin>/` instead, move it:
    ```
    docker compose exec -T hermit bash -c 'src="${CLAUDE_CONFIG_DIR:-/home/claude/.claude}/channels/<plugin>/access.json"; dst="<project_path>/.claude.local/channels/<plugin>/"; [ -f "$src" ] && mkdir -p "$dst" && mv "$src" "$dst" && echo moved'
    ```
-5. Confirm: "Paired and locked down. If the bot doesn't respond to your first message, give it up to 2 minutes — the hermit may still be booting or running initial checks (plugin installs, workspace trust, auto-memory seeding)."
+6. Confirm: "Paired and locked down. If the bot doesn't respond to your first message, give it up to 2 minutes — the hermit may still be booting or running initial checks (plugin installs, workspace trust, auto-memory seeding)."
 
 If "skip": tell them to DM the bot later and run the commands manually.
 
@@ -385,7 +383,7 @@ Why not `hermit-docker restart`: Docker's default stop_grace_period is 10s, whic
 
 ### 9. Verify
 
-Run `.claude-code-hermit/bin/hermit-status` and show output.
+Run `.claude-code-hermit/bin/hermit-status` and show output. `no session` is the expected output on a fresh setup — it means the container is up and will start its first session on the next cron routine or channel message. Do **not** add `sleep` before `hermit-status`; if you need to wait for a session to appear, use `Monitor` with an `until`-loop (not chained sleeps).
 
 If healthy:
 ```

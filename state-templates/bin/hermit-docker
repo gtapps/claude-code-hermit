@@ -122,8 +122,21 @@ case "$CMD" in
       echo "[hermit] Already authenticated as ${EMAIL}."
       echo "[hermit] To switch accounts: hermit-docker bash → claude auth logout, then re-run hermit-docker login."
     else
-      echo "[hermit] Opening Claude Code login inside container..."
-      cd "$PROJECT_DIR" && "${DC[@]}" exec -it "$SERVICE" claude auth login
+      echo "[hermit] Opening Claude Code REPL for login..."
+      echo "[hermit] → Type /login and press Enter"
+      echo "[hermit] → Open the URL in your browser and complete OAuth"
+      echo "[hermit] → Paste the code back into this terminal when prompted"
+      echo "[hermit] → Type /exit when done — the hermit will start automatically"
+      echo ""
+      cd "$PROJECT_DIR" && "${DC[@]}" exec -it "$SERVICE" claude
+      if ! cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+          sh -c 'test -f "${CLAUDE_CONFIG_DIR:-/home/claude/.claude}/.credentials.json"' 2>/dev/null; then
+        echo "" >&2
+        echo "[hermit] Login may not have completed — .credentials.json not found." >&2
+        echo "[hermit] Re-run hermit-docker login to try again." >&2
+        exit 1
+      fi
+      echo "[hermit] Credentials saved. The hermit will start shortly."
     fi
     ;;
 
