@@ -1,5 +1,37 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **reflect: operator-value self-check** — a new bullet in the always-run reflection questions asks whether recent outputs are actually being used, cross-referencing `responded` event counts (accept/defer/dismiss) from `proposal-metrics.jsonl` and deferred-proposal build-up. Closes the gap where operators had to manually ask "how can you be more useful?"
+- **reflect: cost-spike detection** — step 2 now computes today's cost vs the 7-day median; a spike (today > 2× median) is recorded to project memory as a sub-threshold observation that can graduate via recurrence.
+- **reflect: `proposal-metrics.jsonl` tailed at step 3** — dismissal ratios feed the new operator-value self-check. No new infrastructure; the log was already being written.
+- **reflect: Component Health agent check** — `reflection-judge` verdict counters in `reflection-state.json` are now read to detect an over-strict gate (rough flag: `judge_suppress > 2× judge_accept` with ≥5 total verdicts since `since`).
+- **reflect: mandatory Progress Log entry** — every reflect run (including empty runs) appends a one-line summary to `SHELL.md` `## Progress Log` with candidate count, verdict breakdown, and outcomes. Makes reflect's work visible for audit/weekly-review without interrupting the operator. Silent-by-default applies only to operator pings, not the audit trail.
+
+### Changed
+
+- **reflect: silent by default** — the unconditional top-of-skill operator notification was removed. Reflect now only notifies on outcomes (proposal candidate, micro-approval, resolved proposal, graduated sub-threshold observation, or cost spike).
+- **reflect: Three-Condition Rule moved before first use** — previously defined after three references; now defined directly after the reflection questions. All three prior references are pointers to the single definition.
+- **reflect: sub-threshold observations routed to project memory** — line 156's "do not generate observations for their own sake" was reframed: sub-threshold observations (interesting but failing the rule) are now explicitly recorded to project memory with a pattern label and session_id so they can graduate on recurrence. Suppression-by-default remains; the change is that the carry-forward path is now explicit.
+- **reflect: Resolution Check 14-day guard** — resolving an accepted proposal now requires both absence from 3 checked sessions **and** ≥14 days elapsed since `accepted_date`. Prevents wrongly resolving monthly-cadence patterns on daily reflects.
+- **reflect: Skill Health → Component Health** — broadened to cover agents (with a concrete reflection-judge counter check) and hooks (documented as out-of-scope pending hook telemetry). Skills retain the existing weak/moderate/strong signal ladder.
+- **reflection-judge: current-session evidence path tightened** — the fallback from `S-NNN-REPORT.md` to `SHELL.md` now has an explicit trigger (no archived report + ID matches the current SHELL.md Session Info), and emits `ACCEPT (current-session)` / `DOWNGRADE:N (current-session)` / `SUPPRESS (current-session)` so the caller can tell the evidence hasn't been archived yet. Unblocks proposals whose only evidence is the live session.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/reflect/SKILL.md` | Top-of-skill notification removed; cost-spike detection + proposal-metrics tail added; operator-value bullet added; Three-Condition Rule moved earlier; sub-threshold observation handling reframed; Resolution Check 14-day guard; Skill Health → Component Health |
+| `agents/reflection-judge.md` | Current-session fallback path tightened with explicit trigger and distinct verdict labels |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. No state migration required — all changes are plugin-side (skill + agent definition edits). Existing `reflection-state.json` counters are reused; no new state files are introduced.
+
+---
+
 ## [1.0.12] - 2026-04-20
 
 ### Changed

@@ -42,8 +42,9 @@ Do not proceed to evidence verification or tier check.
 ### 1. Evidence verification (when sessions are cited)
 
 For each cited session ID:
-- Glob `.claude-code-hermit/sessions/<session-id>-REPORT.md` (or `SHELL.md` if report not yet archived)
-- Read the file — focus on `## Findings`, `## Blockers`, `## Overview` sections
+- Glob `.claude-code-hermit/sessions/<session-id>-REPORT.md`.
+- **If a report file is found:** read it. Focus on `## Findings`, `## Blockers`, `## Overview`.
+- **If no report file is found** (the cited session is the current, unarchived one — the ID may be literally `current`, the in-progress session's assigned ID, or any ID that matches the Session Info block in `.claude-code-hermit/sessions/SHELL.md`): read `SHELL.md` instead. Focus on `## Findings` and `## Blockers`. Proceed with the same "confirms the pattern" check below, and in this case emit the verdict as `ACCEPT (current-session)` / `DOWNGRADE:N (current-session)` / `SUPPRESS (current-session)` so the caller knows the evidence has not been archived yet.
 - Determine: does this session actually describe the claimed pattern?
 
 A session "confirms" the pattern if:
@@ -65,8 +66,9 @@ Tier 3 is reserved for genuine safety/irreversibility concerns. Operational fric
 For each candidate, return exactly one verdict:
 
 - `ACCEPT: <title>` — evidence verified, tier correct
-- `DOWNGRADE:<new-tier>: <title> — <one-line reason>` — evidence real but tier too high
-- `SUPPRESS: <title> — <one-line reason>` — cited sessions don't contain the pattern, or evidence doesn't meet the bar
+- `ACCEPT (current-session): <title>` — same, but evidence is from the in-progress `SHELL.md`, not an archived report
+- `DOWNGRADE:<new-tier>: <title> — <one-line reason>` — evidence real but tier too high (append ` (current-session)` if sourced from SHELL.md)
+- `SUPPRESS: <title> — <one-line reason>` — cited sessions don't contain the pattern, or evidence doesn't meet the bar (append ` (current-session)` if sourced from SHELL.md)
 
 ## Output Format
 

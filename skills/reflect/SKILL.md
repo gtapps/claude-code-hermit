@@ -4,14 +4,13 @@ description: Reflect on recent work and propose improvements if patterns are not
 ---
 # Reflect
 
-## Operator Notification
-Notify the operator per the channel policy in CLAUDE.md (§ Operator Notification).
-
 Pause and think about your recent work.
 
+This skill is **silent by default**. Only notify the operator (per the channel policy in CLAUDE.md § Operator Notification) if reflect produces an outcome: a proposal candidate, a micro-approval, a resolved proposal, a graduated sub-threshold observation, or a cost spike.
+
 1. Read SHELL.md for current context
-2. Read last 20 lines of cost-log.jsonl for cost data
-3. Scan proposals/ for existing proposals (dedup, stale check, feedback loop). Parse metadata from YAML frontmatter if present (file starts with `---`). Fall back to parsing bullet-point metadata (`**Status:**`, `**Source:**`, etc.) for pre-Observatory proposals.
+2. Read last 20 lines of cost-log.jsonl. Compute today's total and the 7-day median. If today's total > 2× the 7-day median (and both are non-zero), record the spike to project memory as a sub-threshold observation with pattern `cost_spike: $X.XX vs 7d median $Y.YY` and today's session_id — it becomes input to later reflects and may graduate via the recurrence rule.
+3. Scan proposals/ for existing proposals (dedup, stale check, feedback loop). Parse metadata from YAML frontmatter if present (file starts with `---`). Fall back to parsing bullet-point metadata (`**Status:**`, `**Source:**`, etc.) for pre-Observatory proposals. Also tail the last 100 lines of `state/proposal-metrics.jsonl` and count `responded` events by `action` (accept / defer / dismiss) — the dismissal ratio feeds the operator-value self-check below.
 
 4. **Resolution Check** — check whether any accepted proposals can be marked resolved. **Cap: check up to 5 per reflect cycle, round-robin.**
 
@@ -20,7 +19,7 @@ Pause and think about your recent work.
    c. If the accepted list from step b is empty, skip to step f.
    d. For each proposal: read its `title` and Evidence section to understand the original pattern.
       Glob `.claude-code-hermit/sessions/S-*-REPORT.md`, sort descending, take the 3 most recent.
-   e. If the pattern is **absent** from all 3 checked sessions → mark resolved:
+   e. If the pattern is **absent** from all 3 checked sessions **and** at least 14 days have elapsed since `accepted_date` → mark resolved. Both conditions are required — the age guard prevents wrongly resolving monthly-cadence patterns after 3 daily reflects. If the pattern is absent but less than 14 days have elapsed, skip and revisit next cycle.
       - Update frontmatter: `status: resolved`, `resolved_date: <now ISO>`.
       - Append a `resolved` event:
         ```
@@ -37,6 +36,17 @@ Now reflect — using your memory and the context above:
 - Did I do something manually that a skill already covers?
 - Could a subagent have handled a repeating subtask within this session?
 - Was context bloat avoidable — did I load files I didn't need, or keep large content in context longer than necessary?
+- Am I producing value the operator actually uses? Cross-reference the `responded` event counts from step 3: a high `dismiss` ratio, proposals stacking in `deferred`, or compiled/brief outputs that go uncited in subsequent sessions are signals that some output is noise. If the signal is strong, treat it like the routine-silence check below and consider a Tier 1 micro-proposal to pare back the offending output.
+
+## Three-Condition Rule
+
+Only create a proposal if all three are true:
+1. **Repeated pattern** — observed more than once, across sessions
+2. **Meaningful consequence** — something goes wrong without fixing it
+3. **Operator-actionable change** — something the operator can concretely approve
+
+If any of the three cannot be stated concretely, do not create the proposal.
+Sub-threshold observations (interesting but failing the rule) are recorded to project memory so they can graduate on later recurrence — see the Outcomes section.
 
 If SHELL.md status is `idle` — think broader:
 - Should any recurring check be added to HEARTBEAT.md?
@@ -51,7 +61,7 @@ If SHELL.md status is `idle` — think broader:
   ```
   When accepted via `proposal-act`, this JSON is parsed and added to `config.json` routines automatically.
 
-- Is a routine firing repeatedly with no visible downstream effect? Read the tail of `state/routine-metrics.jsonl` (last 200 lines), group `fired` events by `routine_id`, and cross-reference with the last 3 session reports (`sessions/S-*-REPORT.md`). If a routine has ≥5 fires in the last 14 days and no session report cites its `routine_id` or skill output as producing findings, decisions, or follow-ups — apply the three-condition rule. If all three conditions hold:
+- Is a routine firing repeatedly with no visible downstream effect? Read the tail of `state/routine-metrics.jsonl` (last 200 lines), group `fired` events by `routine_id`, and cross-reference with the last 3 session reports (`sessions/S-*-REPORT.md`). If a routine has ≥5 fires in the last 14 days and no session report cites its `routine_id` or skill output as producing findings, decisions, or follow-ups — apply the Three-Condition Rule. If all three conditions hold:
   - Propose `enabled: false` (disable) via a `Type: routine` proposal reusing the existing `id`. `proposal-act` upserts by `id`, so no delete path is needed.
   - Or propose a changed `schedule` if the routine is valuable but mis-timed.
   - Include the fire count + window in the proposal's Evidence section.
@@ -61,18 +71,24 @@ If SHELL.md status is `idle` — think broader:
   {"id":"weekly-deps","schedule":"0 9 * * 1","skill":"claude-code-hermit:session-start --task 'dependency audit'","enabled":false}
   ```
 
-## Skill Health
+## Component Health
 
-Check whether any skill is underperforming:
+Check whether any skill, agent, or hook is underperforming.
+
+**Skills:**
 - Is a skill's output consistently corrected or reworked after use?
 - Is a skill being avoided in favor of manual steps?
 - Did a skill fail to catch something it should have?
 - Is a skill burning disproportionate tokens for the value it delivers?
 
-If you spot a pattern:
+**Agents:** read `state/reflection-state.json` cumulative counters (they accumulate since the `since` timestamp). Flag if `reflection-judge` shows `judge_suppress` dominating `judge_accept` (rough threshold: suppress count > 2× accept count, with at least 5 total verdicts since `since`) — the gate may be too strict and killing legitimate candidates. `proposal-triage` has no verdict counters today; treat it as a known gap and skip unless qualitative evidence (e.g., a recent DUPLICATE verdict that was actually novel) is visible in SHELL.md Findings.
+
+**Hooks:** out of scope here — there is no hook execution telemetry. Document as a known gap if hook misbehavior is suspected; do not try to infer from side-effects.
+
+Signal ladder (same for all three):
 - **Weak signal** (one-off or ambiguous): no action — not worth surfacing.
-- **Moderate signal** (pattern across 2-3 sessions): create a proposal via `/claude-code-hermit:proposal-create` with the evidence (subject to three-condition rule).
-- **Strong signal** (clear, repeated pattern): create a proposal via `/claude-code-hermit:proposal-create` with the evidence and include a `## Skill Improvement` section listing the skill name, observed failures, and suggested eval criteria. When the proposal is accepted via `proposal-act`, use `/skill-creator eval` and `/skill-creator improve` to implement the changes. If `/skill-creator` is not available, apply the changes to the skill's SKILL.md directly.
+- **Moderate signal** (pattern across 2-3 sessions): create a proposal via `/claude-code-hermit:proposal-create` with the evidence (subject to Three-Condition Rule).
+- **Strong signal** (clear, repeated pattern): create a proposal via `/claude-code-hermit:proposal-create` with the evidence and include a `## Skill Improvement` section (or `## Agent Improvement`) listing the component name, observed failures, and suggested eval criteria. When the proposal is accepted via `proposal-act`, use `/skill-creator eval` and `/skill-creator improve` to implement the changes. If `/skill-creator` is not available, apply the changes to the component's definition file directly.
 
 ## Plugin Checks
 
@@ -108,21 +124,11 @@ Track signal density per check via `consecutive_empty` in each check's `state/re
 - **3+ consecutive empty runs** → create a proposal to increase `interval_days` (e.g., 7 → 14).
 - **3+ actionable findings in a single run** → create a proposal to decrease `interval_days` (e.g., 7 → 3).
 - Adjustments always go through PROP-NNN — hermit never auto-adjusts.
-- These proposals use the standard three-condition rule (repeated pattern + meaningful consequence + operator-actionable).
+- These proposals use the standard Three-Condition Rule (repeated pattern + meaningful consequence + operator-actionable).
 
 ### Guard rails
 
 - If a check errors or times out, log the error in SHELL.md Findings and skip — don't retry until next scheduled run
-
-## Three-Condition Rule
-
-Only create a proposal if all three are true:
-1. **Repeated pattern** — observed more than once, across sessions
-2. **Meaningful consequence** — something goes wrong without fixing it
-3. **Operator-actionable change** — something the operator can concretely approve
-
-If any of the three cannot be stated concretely, do not create the proposal.
-Note it in SHELL.md Findings and revisit after more sessions.
 
 ## Evidence Validation
 
@@ -153,8 +159,7 @@ After reflecting and validating with `claude-code-hermit:reflection-judge`, choo
    - Tier 1/2: gate with `claude-code-hermit:proposal-triage` first (see below), then queue micro-approval in `state/micro-proposals.json`
    - Tier 3: gate with `claude-code-hermit:proposal-triage` first (see below), then call `/claude-code-hermit:proposal-create`
 
-Anything that doesn't map to one of these three is not worth surfacing.
-Do not generate observations for their own sake.
+Sub-threshold observations (interesting but failing the Three-Condition Rule — typically single-occurrence) do not surface to the operator. Record them to project memory with a short pattern label and today's session_id so they can graduate via recurrence on a later reflect. Do not generate observations for their own sake, and do not surface them before they graduate.
 
 Review past dismissed and deferred proposals.
 Avoid re-suggesting recently dismissed ideas.
@@ -216,4 +221,10 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/update-reflection-state.js \
 
 The script handles: counter increments, `last_reflection`/`last_run_at` timestamps, missing-counters fallback, `since` preservation, and atomic write. It always exits 0 — if the write fails it logs one line to stderr and continues. Counters are diagnostic, not audit-grade — a missed increment is acceptable.
 
-If nothing stands out: say nothing.
+## Progress Log Entry (always)
+
+On every reflect run, including empty ones, append one line to SHELL.md `## Progress Log`:
+
+`[HH:MM] reflect — N candidates; verdicts: accept=A downgrade=D suppress=S; outcomes: <list or "none">`
+
+This is the audit trail. The silent-by-default rule at the top governs operator pings only — the log line always goes in.
