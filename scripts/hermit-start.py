@@ -57,6 +57,7 @@ DEFAULT_CONFIG = {
         'CLAUDE_AUTOCOMPACT_PCT_OVERRIDE': '50',
         'MAX_THINKING_TOKENS': '10000',
     },
+    'boot_skill': None,
     'plugin_checks': [],
     'docker': {
         'packages': [],

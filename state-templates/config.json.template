@@ -29,6 +29,7 @@
     "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50",
     "MAX_THINKING_TOKENS": "10000"
   },
+  "boot_skill": null,
   "plugin_checks": [],
   "docker": {
     "packages": [],

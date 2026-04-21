@@ -22,6 +22,7 @@
 - **docker-setup: pre-create channel state dirs before compose up** — if `.claude.local/channels/<plugin>/` doesn't exist on the host when `docker compose up` runs, Docker creates it as root; the `claude` user inside the container then can't write to the bind-mount. Skill now runs `mkdir -p .claude.local/channels/<plugin>` for each channel before `docker compose up -d --build`.
 - **tmux send-keys: split text and Enter into two calls** — Claude Code's TUI treated one-shot `send-keys '<text>' Enter` as bracketed paste, turning `Enter` into a literal newline instead of submit. Pair commands, policy commands, and graceful-shutdown requests now send text and `Enter` as separate `send-keys` calls with a 0.5s pause between them (same fix already applied in `scripts/hermit-start.py`). Affects `state-templates/bin/hermit-docker`, `state-templates/docker/docker-entrypoint.hermit.sh.template`, and `skills/docker-setup/SKILL.md` (manual deployment + channel pairing steps).
 - **docker-setup: verify channel token before pairing** — before asking for a pairing code, step 8 now checks that `.claude.local/channels/<plugin>/.env` exists and contains the expected `*_BOT_TOKEN` var; if missing, pairing is skipped for that channel with a clear next-step message instead of prompting for a code that can't be used.
+- **config template: add boot_skill field** — `boot_skill` was used by `hermit-start.py` but absent from `config.json.template` and `DEFAULT_CONFIG`; new projects now have the field populated as `null`.
 
 ### Files affected
 
@@ -34,6 +35,8 @@
 | `skills/hermit-settings/SKILL.md` | New `boot-skill` argument to view/clear/change `config.boot_skill` |
 | `skills/docker-setup/SKILL.md` | Login gate; setup-mode touch before build; blank-prompt note; drop reload-plugins; pairing gates; step 9 no-session note; step 2.3 defers confirmation; new step 7b.packages unions project + plugin-declared apt deps |
 | `docs/creating-your-own-hermit.md` | New Docker dependencies section documenting the `## Docker apt dependencies` convention (hermit-owned vs project-owned scope split); simplified hatch naming to just `hatch` (plugin namespace disambiguates) |
+| `state-templates/config.json.template` | Added `boot_skill: null` top-level key |
+| `scripts/hermit-start.py` | Added `boot_skill: None` to `DEFAULT_CONFIG` |
 
 ### Upgrade Instructions
 
