@@ -23,7 +23,7 @@ cd /path/to/your-project
 claude --plugin-dir /path/to/claude-code-dev-hermit
 ```
 
-Then run `/claude-code-dev-hermit:dev-hatch` to activate. Edits to skills, hooks, and scripts take effect immediately — no restart needed.
+Then run `/claude-code-dev-hermit:hatch` to activate. Edits to skills, hooks, and scripts take effect immediately — no restart needed.
 
 ### Prerequisites
 
@@ -43,7 +43,7 @@ The test suite covers 18 cases for the git-push-guard hook — blocked operation
 
 ```
 agents/           — subagent definitions (implementer)
-skills/           — dev-hatch, dev-quality, dev-cleanup
+skills/           — hatch, dev-quality, dev-cleanup
 hooks/            — hooks.json (hook registry)
 scripts/          — hook implementations + tests
 state-templates/  — CLAUDE-APPEND.md (appended to target project's CLAUDE.md)

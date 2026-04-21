@@ -58,7 +58,7 @@ A PreToolUse hook that intercepts Bash commands before they execute.
 
 Or edit `.claude-code-hermit/config.json` directly: `"env": { "AGENT_HOOK_PROFILE": "strict" }`
 
-The `dev-hatch` wizard offers to enable strict profile during setup.
+The `/claude-code-dev-hermit:hatch` wizard offers to enable strict profile during setup.
 
 ---
 

@@ -13,12 +13,12 @@
 ```bash
 claude plugin marketplace add gtapps/claude-code-dev-hermit
 claude plugin install claude-code-dev-hermit@claude-code-dev-hermit --scope project
-/claude-code-dev-hermit:dev-hatch
+/claude-code-dev-hermit:hatch
 ```
 
 The wizard handles everything — dev workflow rules in CLAUDE.md, git safety profile, companion plugins, heartbeat items. Run it once per project.
 
-**Already set up and updated the plugin?** Run `/claude-code-dev-hermit:dev-hatch` again — it detects the existing block and offers to reinitialize with the latest content.
+**Already set up and updated the plugin?** Run `/claude-code-dev-hermit:hatch` again — it detects the existing block and offers to reinitialize with the latest content.
 
 ---
 

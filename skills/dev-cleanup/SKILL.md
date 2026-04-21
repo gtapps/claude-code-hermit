@@ -9,7 +9,7 @@ List local branches and identify cleanup candidates.
 ## Prerequisites
 
 - Verify `.claude-code-hermit/sessions/` exists (core + dev hermit initialized)
-- If not: inform the operator to run `/claude-code-hermit:hatch` and `/claude-code-dev-hermit:dev-hatch` first, then exit
+- If not: inform the operator to run `/claude-code-hermit:hatch` and `/claude-code-dev-hermit:hatch` first, then exit
 
 ## Plan
 

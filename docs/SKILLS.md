@@ -4,7 +4,7 @@ Three skills, each invoked with `/claude-code-dev-hermit:`.
 
 ---
 
-## dev-hatch
+## hatch
 
 One-time project setup. Run after `/claude-code-hermit:hatch`.
 

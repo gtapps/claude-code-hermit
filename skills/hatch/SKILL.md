@@ -1,5 +1,5 @@
 ---
-name: dev-hatch
+name: hatch
 description: Activates the dev hermit in the current project. Appends dev workflow to CLAUDE.md, configures git safety, suggests dev heartbeat items, and installs companion plugins. Run once per project after /claude-code-hermit:hatch.
 ---
 # Activate Dev Hermit

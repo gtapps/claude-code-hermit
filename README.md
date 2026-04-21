@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.1.2-green.svg" alt="Version 0.1.2" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.1.3-green.svg" alt="Version 0.1.3" /></a>
   <a href="https://github.com/gtapps/claude-code-hermit"><img src="https://img.shields.io/badge/requires-claude--code--hermit%20v1.0.0%2B-blue.svg" alt="Requires claude-code-hermit v1.0.0+" /></a>
   <img src="https://img.shields.io/badge/Claude-Pro%20%7C%20Max-blueviolet.svg" alt="Claude Pro/Max Compatible" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
@@ -29,7 +29,7 @@ claude plugin marketplace add gtapps/claude-code-dev-hermit
 claude plugin install claude-code-dev-hermit@claude-code-dev-hermit --scope project
 
 # Initialize
-/claude-code-dev-hermit:dev-hatch
+/claude-code-dev-hermit:hatch
 ```
 
 The setup wizard asks about your branch naming, deploy process, and hook profile. It also offers companion plugins (code-review, feature-dev, context7) and suggests dev-specific heartbeat checks.
@@ -57,7 +57,7 @@ The implementer never touches main. It commits to feature branches, runs tests, 
 
 | Skill | What it does |
 |-------|-------------|
-| `dev-hatch` | One-time project setup — appends dev workflow to CLAUDE.md, configures git safety, installs companion plugins |
+| `hatch` | One-time project setup — appends dev workflow to CLAUDE.md, configures git safety, installs companion plugins |
 | `dev-quality` | Post-implementation quality pass — tests, simplify, tests, code review |
 | `dev-cleanup` | Lists stale/merged branches and offers to clean them up safely |
 

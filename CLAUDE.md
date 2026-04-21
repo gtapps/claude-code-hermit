@@ -15,13 +15,13 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope project
 
 claude plugin marketplace add gtapps/claude-code-dev-hermit
 claude plugin install claude-code-dev-hermit@claude-code-dev-hermit --scope project
-/claude-code-dev-hermit:dev-hatch
+/claude-code-dev-hermit:hatch
 ```
 
 ## Plugin Structure
 
 - `agents/` — implementer agent (worktree-isolated code writing)
-- `skills/` — dev-hatch, dev-quality, dev-cleanup
+- `skills/` — hatch, dev-quality, dev-cleanup
 - `hooks/hooks.json` — git-push-guard hook (strict profile only)
 - `scripts/` — hook scripts
 - `state-templates/` — CLAUDE-APPEND.md (dev workflow rules appended to CLAUDE.md)
@@ -36,7 +36,7 @@ claude plugin install claude-code-dev-hermit@claude-code-dev-hermit --scope proj
 ## Hook Profiles
 
 The `git-push-guard` hook activates at **strict** profile only (`AGENT_HOOK_PROFILE=strict`).
-The dev-hatch skill recommends enabling strict profile during setup.
+The `hatch` skill recommends enabling strict profile during setup.
 
 ## Built-in Claude Code Skills Used
 
@@ -44,7 +44,7 @@ The dev-hatch skill recommends enabling strict profile during setup.
 - `/batch` — parallel pattern-based execution
 - `/debug` — diagnostics for blocked work
 
-Code review comes from the `code-review` plugin (`code-review@claude-plugins-official`), recommended during dev-hatch.
+Code review comes from the `code-review` plugin (`code-review@claude-plugins-official`), recommended during `/claude-code-dev-hermit:hatch`.
 
 ## Depends On
 
@@ -58,5 +58,5 @@ Code review comes from the `code-review` plugin (`code-review@claude-plugins-off
 4. Learning loop: invoke `reflect` at every task boundary
 5. Ambient dev rules: git safety, task checklist, and proposal categories apply to all dev work regardless of how it was initiated
 6. Proposal gate: three-condition rule and tier mapping — see CLAUDE-APPEND.md Dev Proposal Categories
-7. Plugin checks: companion plugin health registered via `plugin_checks` in config.json during dev-hatch setup
+7. Plugin checks: companion plugin health registered via `plugin_checks` in config.json during `/claude-code-dev-hermit:hatch` setup
 8. Session state: `state/runtime.json` is the authoritative lifecycle source; SHELL.md `Status:` is cosmetic only — never read it for programmatic state checks

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.3] - 2026-04-21
+
+### Changed
+
+- **Skill renamed: `dev-hatch` → `hatch`** — The `dev-` prefix was redundant; the plugin namespace (`claude-code-dev-hermit:`) already conveys scope. Invoke as `/claude-code-dev-hermit:hatch`.
+
+---
+
 ## [0.1.2] - 2026-04-20
 
 ### Added

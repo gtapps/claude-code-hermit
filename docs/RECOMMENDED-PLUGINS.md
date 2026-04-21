@@ -1,6 +1,6 @@
 # Recommended Plugins
 
-The `dev-hatch` wizard offers these during setup. All are official plugins from `claude-plugins-official` — install individually or accept them all at once.
+The `/claude-code-dev-hermit:hatch` wizard offers these during setup. All are official plugins from `claude-plugins-official` — install individually or accept them all at once.
 
 ---
 
@@ -48,7 +48,7 @@ Useful when the implementer agent or you are working with frameworks where API d
 
 ## Plugin Health Checks
 
-When you accept plugins during `dev-hatch`, they're registered in `plugin_checks` in `.claude-code-hermit/config.json`. Core's reflect and heartbeat skills periodically verify that installed plugins are still loadable:
+When you accept plugins during `/claude-code-dev-hermit:hatch`, they're registered in `plugin_checks` in `.claude-code-hermit/config.json`. Core's reflect and heartbeat skills periodically verify that installed plugins are still loadable:
 
 | Plugin | Trigger | Interval |
 |--------|---------|----------|
@@ -56,7 +56,7 @@ When you accept plugins during `dev-hatch`, they're registered in `plugin_checks
 | feature-dev | interval | 7 days |
 | context7 | — | not checked (MCP server) |
 
-If you installed companion plugins manually (before dev-hatch or without it), rerun `/claude-code-dev-hermit:dev-hatch` to register their health checks.
+If you installed companion plugins manually (before running hatch or without it), rerun `/claude-code-dev-hermit:hatch` to register their health checks.
 
 ---
 
