@@ -372,7 +372,9 @@ Before pairing, confirm the operator has completed the first-run acceptance step
 
 Confirm the tmux session still exists (reuse the `has-session` check from the acceptance step). If it's gone, surface container logs and stop.
 
-For each channel, ask if already paired. If not:
+For each channel, **first verify the token is configured** — check that `.claude.local/channels/<plugin>/.env` exists and contains the expected `*_BOT_TOKEN` var. If missing, skip pairing for this channel and tell the operator: "No token configured for `<channel>` — write it to `.claude.local/channels/<plugin>/.env`, restart the container, then re-run `/claude-code-hermit:docker-setup` to pair." Move to the next channel.
+
+If the token is present, ask if already paired. If not:
 1. Ask with `AskUserQuestion` (header: `"<channel> pairing"`) — `"I have the code"` / `"Skip this channel"`. On `"I have the code"`: ask for the 6-char code via `Other` (header: `"Bot code"`).
 2. Send pair command into tmux — append the local state dir so the LLM writes there instead of the default user path. Send text and `Enter` as **two separate `send-keys` calls** with a `sleep 0.5` between them — Claude Code's TUI treats text+Enter in one burst as bracketed paste and turns `Enter` into a literal newline instead of submit (same fix as `scripts/hermit-start.py:611-617`):
    ```
