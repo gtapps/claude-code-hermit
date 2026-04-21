@@ -308,11 +308,17 @@ Manual deployment guide
    Screen 1 — Workspace trust: press Enter to accept.
    Screen 2 — Bypass Permissions (bypassPermissions mode only): arrow keys → "Yes, I accept" → Enter.
 
-4. (Channels only) Pair each bot — DM it to get a 6-char code, then run:
+4. (Channels only) Pair each bot — DM it to get a 6-char code, then run
+   (send text and Enter as two separate calls with a 0.5s pause — one-shot
+   text+Enter is swallowed as bracketed paste):
    docker exec <container> tmux send-keys -t <session> \
-     '/<plugin>:access pair <code> — save access.json to <project_path>/.claude.local/channels/<plugin>/ not ~/.claude' Enter
+     '/<plugin>:access pair <code> — save access.json to <project_path>/.claude.local/channels/<plugin>/ not ~/.claude'
+   sleep 0.5
+   docker exec <container> tmux send-keys -t <session> Enter
    docker exec <container> tmux send-keys -t <session> \
-     '/<plugin>:access policy allowlist' Enter
+     '/<plugin>:access policy allowlist'
+   sleep 0.5
+   docker exec <container> tmux send-keys -t <session> Enter
    Verify access.json landed at: .claude.local/channels/<plugin>/access.json
 
 5. Verify everything is healthy:
@@ -368,12 +374,20 @@ Confirm the tmux session still exists (reuse the `has-session` check from the ac
 
 For each channel, ask if already paired. If not:
 1. Ask with `AskUserQuestion` (header: `"<channel> pairing"`) — `"I have the code"` / `"Skip this channel"`. On `"I have the code"`: ask for the 6-char code via `Other` (header: `"Bot code"`).
-2. Send pair command into tmux — append the local state dir so the LLM writes there instead of the default user path:
+2. Send pair command into tmux — append the local state dir so the LLM writes there instead of the default user path. Send text and `Enter` as **two separate `send-keys` calls** with a `sleep 0.5` between them — Claude Code's TUI treats text+Enter in one burst as bracketed paste and turns `Enter` into a literal newline instead of submit (same fix as `scripts/hermit-start.py:611-617`):
    ```
    docker compose -f docker-compose.hermit.yml exec -T hermit \
-     tmux send-keys -t <session> '/<plugin>:access pair <code> — save access.json to <project_path>/.claude.local/channels/<plugin>/ not ~/.claude' Enter
+     tmux send-keys -t <session> '/<plugin>:access pair <code> — save access.json to <project_path>/.claude.local/channels/<plugin>/ not ~/.claude'
+   sleep 0.5
+   docker compose -f docker-compose.hermit.yml exec -T hermit \
+     tmux send-keys -t <session> Enter
    ```
-3. Set policy: `docker compose -f docker-compose.hermit.yml exec -T hermit tmux send-keys -t <session> '/<plugin>:access policy allowlist' Enter`
+3. Set policy (same two-call pattern):
+   ```
+   docker compose -f docker-compose.hermit.yml exec -T hermit tmux send-keys -t <session> '/<plugin>:access policy allowlist'
+   sleep 0.5
+   docker compose -f docker-compose.hermit.yml exec -T hermit tmux send-keys -t <session> Enter
+   ```
 4. Ask with `AskUserQuestion` (header: `"Pair result"`) — `"Bot confirmed paired"` / `"No response"`. On `"No response"`: run `docker compose exec -T hermit tmux capture-pane -t <session> -p`, show output, and skip `access.json` verification for this channel — don't fail the whole setup.
 5. **Verify `access.json` landed in the right place** (only on `"Bot confirmed paired"`): Check `.claude.local/channels/<plugin>/access.json`. If absent, run `docker compose exec -T hermit tmux capture-pane -t <session> -p` and show output. If it landed in `~/.claude/channels/<plugin>/` instead, move it:
    ```

@@ -19,6 +19,7 @@
 - **docker-setup: drop `/reload-plugins` pre-pair** — was a workaround for bootstrap-turn collision; no longer needed.
 - **docker-setup step 9: clarify no-session on fresh setup** — explicit note prevents LLM adding sleep loops waiting for a session.
 - **docker-setup: pre-create channel state dirs before compose up** — if `.claude.local/channels/<plugin>/` doesn't exist on the host when `docker compose up` runs, Docker creates it as root; the `claude` user inside the container then can't write to the bind-mount. Skill now runs `mkdir -p .claude.local/channels/<plugin>` for each channel before `docker compose up -d --build`.
+- **tmux send-keys: split text and Enter into two calls** — Claude Code's TUI treated one-shot `send-keys '<text>' Enter` as bracketed paste, turning `Enter` into a literal newline instead of submit. Pair commands, policy commands, and graceful-shutdown requests now send text and `Enter` as separate `send-keys` calls with a 0.5s pause between them (same fix already applied in `scripts/hermit-start.py`). Affects `state-templates/bin/hermit-docker`, `state-templates/docker/docker-entrypoint.hermit.sh.template`, and `skills/docker-setup/SKILL.md` (manual deployment + channel pairing steps).
 
 ### Files affected
 

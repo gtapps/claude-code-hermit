@@ -75,8 +75,14 @@ case "$CMD" in
 
     if [ "$FORCE" = false ]; then
       echo "[hermit] Requesting graceful session close..."
+      # Split text and Enter into two send-keys calls with a pause — Claude Code's
+      # TUI treats text+Enter in one burst as bracketed paste and Enter becomes a
+      # literal newline instead of submit. Same fix as scripts/hermit-start.py.
       cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
-        tmux send-keys -t "$TMUX_SESSION:0.0" "/claude-code-hermit:session-close --shutdown" Enter 2>/dev/null || true
+        tmux send-keys -t "$TMUX_SESSION:0.0" "/claude-code-hermit:session-close --shutdown" 2>/dev/null || true
+      sleep 0.5
+      cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+        tmux send-keys -t "$TMUX_SESSION:0.0" Enter 2>/dev/null || true
 
       echo "[hermit] Waiting for session to close (up to 60s)..."
       CLOSED=false
