@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ha-agent-lab"
+version = "0.0.1"
+description = "Autonomous Home Assistant agent powered by Claude Code and claude-code-hermit."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "gtapps" }]
+requires-python = ">=3.12"
+dependencies = [
+  "PyYAML>=6.0",
+  "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
