@@ -16,17 +16,18 @@ Turn Claude Code into an Always-on Personal AI assistant that lives in your proj
 </p>
 
 Three steps to a running 24/7 hermit:
-> ```
-> # Boot claude code and install
-> /plugin marketplace add gtapps/claude-code-hermit
-> /plugin install claude-code-hermit@claude-code-hermit --scope project
->
-> # Setup Wizard
-> /claude-code-hermit:hatch
 
-> # Go always-on
-> /claude-code-hermit:docker-setup
-> ```
+```
+# Boot claude code and install
+/plugin marketplace add gtapps/claude-code-hermit
+/plugin install claude-code-hermit@claude-code-hermit --scope project
+
+# Setup Wizard
+/claude-code-hermit:hatch
+
+# Go always-on
+/claude-code-hermit:docker-setup
+```
 
 Hermit is the glue between Claude Code's native capabilities and a 24/7 agent that improves itself. One subscription to run multiple hermits.
 
@@ -42,7 +43,7 @@ Hermit is the glue between Claude Code's native capabilities and a 24/7 agent th
 
 **4. Routines and daily rhythm.** Morning briefs, evening summaries, background monitors. Between tasks it picks up accepted proposals and runs maintenance. Silence means everything's fine.
 
-**5. See inside it.** Hermit Cortex (Obsidian Powered) turns your agent's memory — sessions, proposals, cost trends, learnings — into an Obsidian vault you can browse.
+**5. See inside it.** Hermit Cortex (Obsidian-powered) turns your agent's memory — sessions, proposals, cost trends, learnings — into an Obsidian vault you can browse.
 
 ---
 
@@ -82,10 +83,10 @@ See [Always-On Setup](docs/always-on.md) for the full guide — including how to
 
 ### Upgrading
 
-> ```
-> claude plugin update claude-code-hermit@claude-code-hermit --scope project
-> /claude-code-hermit:evolve
-> ```
+```
+claude plugin update claude-code-hermit@claude-code-hermit --scope project
+/claude-code-hermit:evolve
+```
 
 See [Upgrading](docs/upgrading.md) for details.
 
