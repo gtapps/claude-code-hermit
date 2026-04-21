@@ -1,10 +1,14 @@
 # Changelog
 
-## [Unreleased]
-
----
-
 ## [1.0.14] - 2026-04-20
+
+### Added
+
+- **docker-setup: plugin-declared apt dependencies (step 7b.packages)** — domain plugins can now declare the apt packages their own scripts require by adding a `## Docker apt dependencies` section to their `hatch` SKILL.md or a `DOCKER.md` file at the plugin root. `docker-setup` reads these declarations for every confirmed mirrored plugin (step 7b.packages), unions them with the project-level scan results, validates each name against `^[a-z0-9][a-z0-9+\-.]+$`, and presents a single unified confirmation prompt with origin labels before baking the approved set into `Dockerfile.hermit` via `{{PACKAGES_BLOCK}}`. Packages installed at image build time eliminate the need for runtime venvs or post-install scripts inside ephemeral container volumes.
+
+### Changed
+
+- **docker-setup: package confirmation deferred to after plugin selection** — the project-signal apt scan (step 2.3) now collects candidates without immediately writing `docker.packages`; final confirmation happens in new step 7b.packages after the plugin list is finalized, so plugin-declared deps can be included in a single unified prompt.
 
 ### Fixed
 
@@ -23,7 +27,8 @@
 | `state-templates/bin/hermit-docker` | Login reverts to REPL via `compose exec`; post-exit credential verification; use `CLAUDE_CONFIG_DIR` env var |
 | `state-templates/docker/docker-entrypoint.hermit.sh.template` | Banner updated to match REPL-based login flow |
 | `scripts/hermit-start.py` | Setup-mode marker check: read-and-delete `.setup-mode`, skip bootstrap if present |
-| `skills/docker-setup/SKILL.md` | Login gate; setup-mode touch before build; blank-prompt note; drop reload-plugins; pairing gates; step 9 no-session note |
+| `skills/docker-setup/SKILL.md` | Login gate; setup-mode touch before build; blank-prompt note; drop reload-plugins; pairing gates; step 9 no-session note; step 2.3 defers confirmation; new step 7b.packages unions project + plugin-declared apt deps |
+| `docs/creating-your-own-hermit.md` | New Docker dependencies section documenting the `## Docker apt dependencies` convention (hermit-owned vs project-owned scope split); simplified hatch naming to just `hatch` (plugin namespace disambiguates) |
 
 ### Upgrade Instructions
 

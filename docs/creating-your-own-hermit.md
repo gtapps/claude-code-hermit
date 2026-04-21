@@ -114,20 +114,22 @@ Your hermit handles domain-specific work. Core handles session lifecycle.
 
 ### Required files
 
-| File                               | Purpose                                                            |
-| ---------------------------------- | ------------------------------------------------------------------ |
-| `skills/hatch/SKILL.md`      | Checks core prerequisite, appends CLAUDE-APPEND.md, is idempotent |
-| `state-templates/CLAUDE-APPEND.md` | Agent table, safety rules, quick reference — appended to CLAUDE.md |
-| `skills/domain-session/SKILL.md`   | Your main workflow, bookended with core's session lifecycle        |
+| File                                  | Purpose                                                            |
+| ------------------------------------- | ------------------------------------------------------------------ |
+| `skills/hatch/SKILL.md`               | Optional — setup/init skill. Checks core prerequisite, appends CLAUDE-APPEND.md, is idempotent |
+| `state-templates/CLAUDE-APPEND.md`    | Agent table, safety rules, quick reference — appended to CLAUDE.md |
+| `skills/domain-session/SKILL.md`      | Your main workflow, bookended with core's session lifecycle        |
 
-### Init pattern
+### Hatch pattern (optional)
 
-Every hermit needs an init that checks for core and is idempotent:
+Only needed if your hermit has setup steps beyond what core's `/claude-code-hermit:hatch` does (e.g. appending a domain CLAUDE-APPEND.md, creating extra state dirs, registering plugin_checks). If your plugin is a thin layer of agents/skills with no setup needed, skip this entirely.
+
+Name the skill simply `hatch` — the plugin namespace already disambiguates it from core's hatch (`/claude-code-your-domain-hermit:hatch` vs `/claude-code-hermit:hatch`).
 
 ```markdown
 ---
-name: init
-description: Initialize DOMAIN hermit. Requires claude-code-hermit core.
+name: hatch
+description: Initialize your domain hermit. Requires claude-code-hermit core.
 ---
 
 Check that `.claude-code-hermit/` exists. If not: "Run `/claude-code-hermit:hatch` first."
@@ -141,14 +143,24 @@ Follow core's `scripts/` directory as reference. Profile-gate safety hooks to `s
 
 ### Docker dependencies
 
-If your hermit needs system packages in Docker (e.g., a database client, media tools), append them to `docker.packages` in your init skill:
+If your hermit needs system packages in Docker (e.g. `python3-yaml`, `postgresql-client`), declare them with a `## Docker apt dependencies` section in your `hatch` SKILL.md or in a `DOCKER.md` file at the plugin root:
 
-1. Read `.claude-code-hermit/config.json`
-2. Add your packages to `docker.packages` (deduplicate against existing entries)
-3. Write back config.json
-4. Note to the operator: "Added [packages] to docker.packages — rebuild your container if using Docker."
+```markdown
+## Docker apt dependencies
 
-The `/docker-setup` skill reads `docker.packages` and includes them in the generated Dockerfile as a separate layer. Operators can also manage packages via `/hermit-settings docker`.
+- python3-yaml
+- python3-dotenv
+```
+
+Rules: one Debian-bookworm package name per bullet; names must match `^[a-z0-9][a-z0-9+\-.]+$`. Lines starting with `#` are ignored.
+
+During `/docker-setup`, the wizard reads this section for every mirrored plugin, validates the names, and presents them to the operator in a unified confirmation prompt alongside the project-level signal scan. Approved packages are baked into `Dockerfile.hermit` at build time — no runtime venv or post-install scripts needed.
+
+**Scope:** declare only packages your plugin's own scripts need (hermit-owned). Do not declare the user's project's build deps (e.g. `libsqlite3-dev` for a native addon) — those are live-scanned from the project tree each time `/docker-setup` runs and would drift if declared statically in your plugin.
+
+**Why not write to `docker.packages` from your hatch?** The plugin directory lives in Docker's `claude-config` named volume, which is wiped on `docker compose down -v`, plugin updates, and fresh installs. Anything written there (venvs, caches, stamps) is ephemeral. Using the declaration convention bakes deps into the image at build time, making them permanent and removing the need for runtime installation.
+
+Operators can review and adjust the approved package list via `/hermit-settings docker`.
 
 ### Knowledge outputs
 
@@ -201,10 +213,11 @@ Skills should say "notify the operator" instead of referencing specific channels
 
 - [ ] Every agent has `disallowedTools`
 - [ ] Destructive agents use `isolation: worktree`
-- [ ] Init checks for core and is idempotent
+- [ ] If present, `hatch` checks for core and is idempotent
 - [ ] CLAUDE-APPEND.md has a marker comment
 - [ ] Skills use "notify the operator" instead of channel-specific references
 - [ ] Hooks are profile-gated
 - [ ] Zero dependencies — no `package.json`, no build step
 - [ ] All scripts handle missing state files gracefully
 - [ ] Cadence-driven skills registered in `plugin_checks` (not a bespoke scheduler)
+- [ ] Docker system packages (if any) declared in a `## Docker apt dependencies` section in the hatch SKILL.md or `DOCKER.md` at plugin root

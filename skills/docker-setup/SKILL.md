@@ -60,7 +60,7 @@ Record networking choice as `docker.network_mode` (`"bridge"` or `"host"`).
    - OPERATOR.md mentions of tools/stack
    - `.claude/settings.json` and `.claude/settings.local.json` `permissions.allow` entries — allowed Bash commands reveal tools the project expects (e.g. `Bash(docker *)` → docker CLI, `Bash(python *)` → python3, `Bash(psql *)` → postgresql-client). Check for commands that need system packages not in the base image.
 
-   Present findings conversationally with reasoning. If nothing found, say so. Record approved list as `docker.packages`.
+   Present findings conversationally with reasoning. If nothing found, say so. Collect as provisional candidates — confirmation is deferred to step 7b.packages after plugin selection, where plugin-declared deps are unioned in.
 
 ### 3. Read config and prepare
 
@@ -242,13 +242,36 @@ The entrypoint adds the marketplace (if needed) and installs every enabled entry
 
 If the operator selected plugins that have corresponding `plugin_checks` entries in hatch Phase 4 (claude-code-setup, claude-md-management, skill-creator), also record those `plugin_checks` entries if not already present.
 
+### 7b.packages: Plugin-declared apt dependencies
+
+After plugin selection is finalized, union the two sources of apt package candidates before writing to config:
+
+1. **Project candidates** (from step 2.3 scan) — project-owned signals (native addons, Python stack, build tools, etc.). Live-scanned from project files each run.
+
+2. **Plugin declarations** — for each confirmed entry in `docker.recommended_plugins`, locate the plugin's installed root via `claude plugin list --json` (inspect path fields). In the plugin root:
+   - Check for a `## Docker apt dependencies` section in `skills/hatch/SKILL.md`.
+   - Also check for a `DOCKER.md` file at the plugin root with the same section.
+   - Extract the bullet-list entries under that heading (stop at the next `##` heading). Ignore lines starting with `#`.
+   - **Validate every extracted package name** against `^[a-z0-9][a-z0-9+\-.]+$`. Entries that fail are dropped with a clear warning to the operator — never passed to Dockerfile rendering.
+   - Track provenance: `<package-name> — declared by <plugin-name>`.
+   - If no section is found for a plugin, skip silently (backward-compatible with plugins that predate this convention).
+
+3. **Unified confirmation prompt** — present the combined deduped list with origin labels:
+   ```
+   Proposed image packages:
+     libsqlite3-dev       — project signal (package.json sqlite3)
+     <package-a>          — declared by <plugin-name>
+     <package-b>          — declared by <plugin-name>
+   ```
+   Operator approves, removes, or adds entries. Write the approved set as the final `docker.packages` (passed to step 7c for config.json write).
+
 ### 7c. Write Docker settings to config.json
 
 **Pre-write gate for `docker.recommended_plugins`:** Re-run the step 7b.10 assertion on every entry. If any fails, do **not** write — return to step 7b.3 to re-resolve. This gate is the final backstop; do not bypass it even "just this once."
 
 Write all collected Docker settings to config.json in a single update:
 - `docker.network_mode` (from Step 2)
-- `docker.packages` (from Step 2.3)
+- `docker.packages` (from Step 7b.packages)
 - `docker.recommended_plugins` (from Step 7b, post-gate)
 - `channels.<channel>.state_dir` (from Step 7, if applicable)
 
@@ -413,3 +436,5 @@ If something looks wrong, help diagnose — suggest concrete next steps.
 **Why a named volume for config?** The container gets its own Claude Code config (`/home/claude/.claude`) via a Docker named volume instead of sharing the host's `~/.claude`. This prevents container state (onboarding, auto-memory, plugin cache) from leaking into host interactive sessions. The volume persists across restarts — onboarding bypass and channel plugins survive `docker compose restart`. First run is slower while the volume is populated.
 
 **Want shared config instead?** Replace the `claude-config` named volume with a bind-mount in `docker-compose.hermit.yml`: `- ${HOME}/.claude:${HOME}/.claude` and set `CLAUDE_CONFIG_DIR=${HOME}/.claude`. Not recommended — changes in either direction leak.
+
+**Domain-plugin apt dependencies.** Declare system packages your plugin needs in a `## Docker apt dependencies` section in the plugin's hatch SKILL.md or a `DOCKER.md` at the plugin root. See step 7b.packages and [Creating Your Own Hermit — Docker dependencies](../../docs/creating-your-own-hermit.md#docker-dependencies).
