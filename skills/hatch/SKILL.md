@@ -90,7 +90,9 @@ Look for sibling plugin directories that extend Hermit:
 - Read each found `plugin.json` and check if the `name` field contains "hermit" but is NOT "claude-code-hermit"
   If hermits are found:
 - List them and ask: "Activate a hermit for this project?"
-- If the operator selects one: read that hermit's `state-templates/CLAUDE-APPEND.md` and append it to the target project's CLAUDE.md (after the core append in step 5)
+- If the operator selects one:
+  - Read that hermit's `state-templates/CLAUDE-APPEND.md` and append it to the target project's CLAUDE.md (after the core append in step 5).
+  - Read its `plugin.json`: if it declares a `hermit.boot_skill` field (e.g. `"/claude-code-homeassistant-hermit:ha-boot"`), record it for step 5 to write as `boot_skill` in `config.json`. This replaces the default `/claude-code-hermit:session` bootstrap so the domain hermit's custom boot logic fires on every always-on launch. If the field is absent, leave `boot_skill` unset (core behavior).
 - If none found or operator declines: skip
 
 ### 4. Setup wizard
@@ -327,6 +329,7 @@ Write the collected preferences to `.claude-code-hermit/config.json`:
   "tmux_session_name": "hermit-{project_name}",
   "scope": "local",
   "auto_session": true,
+  "boot_skill": null,
   "ask_budget": false,
   "idle_behavior": "discover",
   "idle_budget": "$0.50",
@@ -353,7 +356,7 @@ Write the collected preferences to `.claude-code-hermit/config.json`:
 
 Replace `{project_name}` with the actual project directory name in the template.
 
-Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` to get the current plugin version and write it into `_hermit_versions["claude-code-hermit"]`. If a hermit was activated in step 3, also stamp its version.
+Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` to get the current plugin version and write it into `_hermit_versions["claude-code-hermit"]`. If a hermit was activated in step 3, also stamp its version. If that hermit declared `hermit.boot_skill`, write it to the top-level `boot_skill` field (otherwise leave as `null`).
 
 If re-initializing: merge with existing config (preserve values not asked about, update values that were asked about).
 

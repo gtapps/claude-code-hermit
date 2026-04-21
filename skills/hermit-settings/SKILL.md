@@ -29,6 +29,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings compact          — configure SHELL.md compaction thresholds
 /claude-code-hermit:hermit-settings docker           — view/edit Docker packages
 /claude-code-hermit:hermit-settings plugin-checks    — manage scheduled plugin skill checks
+/claude-code-hermit:hermit-settings boot-skill       — view/clear/change the always-on boot skill
 ```
 
 ## Plan
@@ -64,6 +65,7 @@ Operational:
   Routines:        2 configured   → run: /claude-code-hermit:hermit-settings routines
   Permission mode: acceptEdits    → default | acceptEdits | plan | dontAsk | bypassPermissions
   Auto session:    enabled        → read-only
+  Boot skill:      /claude-code-hermit:session  → any namespaced skill | 'none' to reset to default
   tmux name:       hermit-myproject → read-only
 
 Compaction:
@@ -164,6 +166,14 @@ Update `ask_budget` in config.json.
   - Ask: "Enable morning brief delivery? (yes / no) [current value]"
   - If yes: Ask "What time? (e.g., 07:00) [current or 07:00]" and "Which channel? [current or first enabled channel]"
   - Update `channels.<selected-channel>.morning_brief: { "enabled": true, "time": "<HH:MM>" }` in config.json. If no, set to `null`.
+
+**If argument is "boot-skill":**
+Ask: "Boot skill to invoke on always-on launch? This runs after heartbeat/routines when the tmux session starts. Domain hermits (e.g. `claude-code-homeassistant-hermit`) declare their own — `/claude-code-homeassistant-hermit:ha-boot`. Leave as `none` to use the default (`/claude-code-hermit:session`).
+  <skill>  — any namespaced skill (e.g. `/claude-code-foo-hermit:foo-boot`)
+  none     — clear (falls back to `/claude-code-hermit:session`)
+[current: <value or 'default'>]"
+Update `boot_skill` in config.json. Set to `null` if operator says "none", "default", or "clear". The domain boot skill is responsible for calling `/claude-code-hermit:session-start` itself — this setting just controls the single bootstrap command `hermit-start.py` fires into the REPL.
+Note: "Boot skill changes take effect on next `hermit-start` run."
 
 **If argument is "permissions":**
 Ask: "Permission mode for Claude Code? (default / acceptEdits / plan / dontAsk / bypassPermissions) [current value]"

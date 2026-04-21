@@ -5,6 +5,7 @@
 ### Added
 
 - **docker-setup: plugin-declared apt dependencies (step 7b.packages)** — domain plugins can now declare the apt packages their own scripts require by adding a `## Docker apt dependencies` section to their `hatch` SKILL.md or a `DOCKER.md` file at the plugin root. `docker-setup` reads these declarations for every confirmed mirrored plugin (step 7b.packages), unions them with the project-level scan results, validates each name against `^[a-z0-9][a-z0-9+\-.]+$`, and presents a single unified confirmation prompt with origin labels before baking the approved set into `Dockerfile.hermit` via `{{PACKAGES_BLOCK}}`. Packages installed at image build time eliminate the need for runtime venvs or post-install scripts inside ephemeral container volumes.
+- **boot_skill: domain hermits can override the always-on bootstrap skill** — `hermit-start.py` now reads an optional top-level `boot_skill` field from `config.json`. When set (e.g. `"/claude-code-homeassistant-hermit:ha-boot"`), it replaces the default `/claude-code-hermit:session` bootstrap the core boot script sends into the tmux REPL. The domain boot skill is responsible for invoking `/claude-code-hermit:session-start` itself before running domain-specific setup (HA probes, context refresh, etc.). Domain hermits declare their skill once in `.claude-plugin/plugin.json` under `hermit.boot_skill`; `hatch` reads that field when activating the hermit and writes it into the project config. No new bin scripts, no shim-swapping — boot stays core-owned, composition lives in the skill layer. Operators can view/clear/change via `/claude-code-hermit:hermit-settings boot-skill`.
 
 ### Changed
 
@@ -27,7 +28,9 @@
 |------|--------|
 | `state-templates/bin/hermit-docker` | Login reverts to REPL via `compose exec`; post-exit credential verification; use `CLAUDE_CONFIG_DIR` env var |
 | `state-templates/docker/docker-entrypoint.hermit.sh.template` | Banner updated to match REPL-based login flow |
-| `scripts/hermit-start.py` | Setup-mode marker check: read-and-delete `.setup-mode`, skip bootstrap if present |
+| `scripts/hermit-start.py` | Setup-mode marker check: read-and-delete `.setup-mode`, skip bootstrap if present; `boot_skill` config field overrides the default `/claude-code-hermit:session` bootstrap |
+| `skills/hatch/SKILL.md` | Step 3 reads `hermit.boot_skill` from activated hermit's `plugin.json`; step 5 writes it to `config.boot_skill` |
+| `skills/hermit-settings/SKILL.md` | New `boot-skill` argument to view/clear/change `config.boot_skill` |
 | `skills/docker-setup/SKILL.md` | Login gate; setup-mode touch before build; blank-prompt note; drop reload-plugins; pairing gates; step 9 no-session note; step 2.3 defers confirmation; new step 7b.packages unions project + plugin-declared apt deps |
 | `docs/creating-your-own-hermit.md` | New Docker dependencies section documenting the `## Docker apt dependencies` convention (hermit-owned vs project-owned scope split); simplified hatch naming to just `hatch` (plugin namespace disambiguates) |
 
@@ -37,10 +40,18 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 1. **Replace** `state-templates/bin/hermit-docker` with the updated version from the plugin.
 2. **Replace** `state-templates/docker/docker-entrypoint.hermit.sh.template` with the updated version from the plugin.
+3. **Sync `boot_skill` from any activated domain hermit.** For each hermit recorded in `_hermit_versions` (excluding `claude-code-hermit`):
+   - Locate the hermit's `plugin.json` via the same sibling-plugin scan used at init (`${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json`).
+   - If its manifest declares `hermit.boot_skill` (e.g. `"/claude-code-homeassistant-hermit:ha-boot"`):
+     - If the project's `config.boot_skill` is `null` or missing: set it to the declared value.
+     - If `config.boot_skill` is already set and matches the declared value: no-op.
+     - If `config.boot_skill` is set to a skill in a *different* plugin's namespace: leave it alone and warn the operator about the conflict.
+   - If the hermit's manifest omits `hermit.boot_skill` but `config.boot_skill` currently points at a skill in that hermit's namespace: clear `config.boot_skill` to `null` so the default `/claude-code-hermit:session` takes over.
+   - If no domain hermit is activated: leave `config.boot_skill` as-is (likely `null`).
 
 **If you have root-owned `.claude.local/channels/` dirs from a previous setup:** fix them on the host with `sudo chown -R $USER .claude.local/` from the project root, then restart the container.
 
-No `config.json` changes required.
+`config.json` gains an optional top-level `boot_skill` field (string or `null`). Step 3 above handles population for existing projects with a domain hermit; core-only projects need no manual change.
 
 ---
 

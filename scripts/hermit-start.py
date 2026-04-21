@@ -593,6 +593,11 @@ def main():
     auto_session = config.get('auto_session', True)
     hb_enabled = hb.get('enabled', False)
     has_routines = bool(config.get('routines'))
+    # Domain hermits (e.g. homeassistant-hermit) declare a boot_skill that
+    # wraps /claude-code-hermit:session-start plus their own domain setup.
+    # When set, it replaces the core session skill in the bootstrap — the
+    # domain skill is responsible for calling session-start itself.
+    boot_skill = config.get('boot_skill') or '/claude-code-hermit:session'
 
     steps = []
     if hb_enabled:
@@ -600,7 +605,7 @@ def main():
     if has_routines:
         steps.append('/claude-code-hermit:hermit-routines load')
     if auto_session:
-        steps.append('/claude-code-hermit:session')
+        steps.append(boot_skill)
 
     if steps and not setup_mode:
         if len(steps) == 1:
@@ -623,7 +628,7 @@ def main():
     if has_routines:
         print('[hermit] Bootstrap: /claude-code-hermit:hermit-routines load queued')
     if auto_session:
-        print('[hermit] Bootstrap: /claude-code-hermit:session queued')
+        print(f'[hermit] Bootstrap: {boot_skill} queued')
 
     print(f'[hermit] Mode: always-on (session stays open between tasks)')
     print(f'[hermit] Attach: tmux attach -t {session_name}')

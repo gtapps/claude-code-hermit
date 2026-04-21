@@ -137,6 +137,38 @@ Check if CLAUDE.md contains the marker comment. If found: "Already initialized."
 Otherwise: read and append CLAUDE-APPEND.md.
 ```
 
+### Custom boot skill
+
+If your hermit needs to run domain-specific setup on every always-on launch (e.g. connectivity probe, context refresh, pulling a live snapshot), declare a boot skill and wire it via your plugin manifest. Core's `hermit-start.py` will fire it into the tmux REPL at boot instead of the default `/claude-code-hermit:session`.
+
+1. **Write the boot skill** — a normal skill at `skills/<your>-boot/SKILL.md`. First line of the skill's plan must invoke core session init: `/claude-code-hermit:session-start`. After that, run your domain setup. Example from `claude-code-homeassistant-hermit`:
+
+   ```markdown
+   1. Invoke /claude-code-hermit:session-start
+   2. Run ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status --probe
+   3. If stale, refresh HA context
+   ```
+
+2. **Declare it in your plugin manifest** — add a `hermit` block to `.claude-plugin/plugin.json`:
+
+   ```json
+   {
+     "name": "claude-code-homeassistant-hermit",
+     "version": "0.3.0",
+     "hermit": {
+       "boot_skill": "/claude-code-homeassistant-hermit:ha-boot"
+     }
+   }
+   ```
+
+   Core's `hatch` reads `hermit.boot_skill` when the operator activates your hermit and writes it to the project's `config.json` as a top-level `boot_skill` field. `hermit-start.py` then substitutes it for the default bootstrap on every launch — local tmux and Docker alike.
+
+**Contract:** your boot skill owns the full bootstrap turn. Core does not call `session-start` before invoking it; your skill must. This keeps composition in the skill layer so core's boot script stays domain-agnostic.
+
+**Opt-out:** omit `hermit.boot_skill` entirely if your hermit has no launch-time setup. Core's default bootstrap (`/claude-code-hermit:session`) runs instead.
+
+**Operator override:** operators can change or clear the boot skill via `/claude-code-hermit:hermit-settings boot-skill` — useful if they install multiple domain hermits and need to pick one, or want to temporarily disable domain bootstrap.
+
 ### Hook patterns
 
 Follow core's `scripts/` directory as reference. Profile-gate safety hooks to `strict`, quality hooks to `standard,strict`. Fail open (exit 0 on parse errors). Drain stdin. No npm dependencies.
