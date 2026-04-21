@@ -15,18 +15,20 @@ Turn Claude Code into an Always-on Personal AI assistant that lives in your proj
   <img src="assets/demo.gif" alt="claude-code-hermit demo — Obsidian dashboard, Discord control, autonomous briefings, remote access" width="720" />
 </p>
 
-Three commands to a running hermit:
+Three steps to a running 24/7 hermit:
 > ```
-> claude plugin install claude-code-hermit@claude-code-hermit --scope project
-> /claude-code-hermit:hatch # setup in your project & folder
-> /claude-code-hermit:docker-setup # go always-on
+> # Boot claude code and install
+> /plugin marketplace add gtapps/claude-code-hermit
+> /plugin install claude-code-hermit@claude-code-hermit --scope project
+>
+> # Setup Wizard
+> /claude-code-hermit:hatch
+
+> # Go always-on
+> /claude-code-hermit:docker-setup
 > ```
 
 Hermit is the glue between Claude Code's native capabilities and a 24/7 agent that improves itself. One subscription to run multiple hermits.
-
-### Upgrading
-
-Run `/claude-code-hermit:hermit-evolve` to upgrade your hermit to the latest version. See [Upgrading](docs/upgrading.md) for details.
 
 ---
 
@@ -64,6 +66,8 @@ claude /claude-code-hermit:hatch
 
 The wizard sets up your agent's identity, scans your folder, and generates `OPERATOR.md` — the rulebook Hermit reads at every session start.
 
+> **Just want to try it?** After `hatch`, run `.claude-code-hermit/bin/hermit-start --no-tmux` in your terminal. You get sessions, routines, heartbeat, and the learning loop — minus the 24/7 autonomy. Ctrl+C exits cleanly. Want Discord or Telegram before going always-on? Run `/claude-code-hermit:channel-setup`. When you're ready for the full 24/7 setup, continue to step 3.
+
 ### 3. Go Always-on
 
 ```
@@ -72,16 +76,18 @@ The wizard sets up your agent's identity, scans your folder, and generates `OPER
 
 The wizard generates the Docker files, builds the image, starts the container, and walks you through auth and channel pairing. When it's done, your hermit is running with safe permission bypass, crash recovery, and restart on reboot.
 
-To attach interactively:
+See [Always-On Setup](docs/always-on.md) for the full guide — including how to attach, detach, and manage the running container.
 
-```bash
-.claude-code-hermit/bin/hermit-docker attach
-# Ctrl+B, D to detach without stopping
+> **Want always-on without Docker?** See [Always-On Operations](docs/always-on-ops.md) for bare tmux — lighter, no container isolation.
+
+### Upgrading
+
+```
+/plugin update claude-code-hermit@claude-code-hermit --scope project
+/claude-code-hermit:evolve
 ```
 
-See [Always-On Setup](docs/always-on.md) for the full guide.
-
-> **Don't want to use Docker?** See [Always-On Operations](docs/always-on-ops.md) for bare tmux — lighter, no container isolation.
+See [Upgrading](docs/upgrading.md) for details.
 
 ---
 
@@ -111,8 +117,8 @@ Hermits ride on Claude Code's native intelligence and add a `raw/` → `compiled
 For ready-made specialists, install a hermit plugin like the dev hermit:
 
 ```bash
-claude plugin marketplace add gtapps/claude-code-dev-hermit
-claude plugin install claude-code-dev-hermit@claude-code-dev-hermit --scope project
+/plugin marketplace add gtapps/claude-code-dev-hermit
+/plugin install claude-code-dev-hermit@claude-code-dev-hermit --scope project
 ```
 
 ---
