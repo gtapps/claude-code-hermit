@@ -38,7 +38,7 @@ Hermit is the glue between Claude Code's native capabilities and a 24/7 agent th
 
 **2. Give it a task and walk away.** Tell it what you need from your terminal, phone, or anywhere. It plans, works, and pings when blocked or done. Crashes, reboots, SSH drops — state is on disk, sessions resume where they stopped.
 
-**3. It learns from experience.** Hermit spots patterns in its own memory — recurring blockers, repeated workarounds, odd spending — and proposes fixes. You decide what sticks.
+**3. It learns from experience.** Hermit spots patterns in its own memory — recurring blockers, repeated workarounds, odd spending — and proposes fixes. You decide what sticks. Under the hood, raw session notes distill into compiled artifacts that reload next session — the [raw-vs-compiled pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) Karpathy described for his wiki-LLM.
 
 **4. Routines and daily rhythm.** Morning briefs, evening summaries, background monitors. Between tasks it picks up accepted proposals and runs maintenance. Silence means everything's fine.
 
@@ -82,10 +82,10 @@ See [Always-On Setup](docs/always-on.md) for the full guide — including how to
 
 ### Upgrading
 
-```
-/plugin update claude-code-hermit@claude-code-hermit --scope project
-/claude-code-hermit:evolve
-```
+> ```
+> claude plugin update claude-code-hermit@claude-code-hermit --scope project
+> /claude-code-hermit:evolve
+> ```
 
 See [Upgrading](docs/upgrading.md) for details.
 
@@ -112,7 +112,7 @@ You can also ask Hermit directly how it could improve. It reflects on recent ses
 
 Every hermit is yours from the moment you run `/claude-code-hermit:hatch`. See [Creating Your Own Hermit](docs/creating-your-own-hermit.md) for OPERATOR.md tuning, custom agents, and building reusable hermit plugins.
 
-Hermits ride on Claude Code's native intelligence and add a `raw/` → `compiled/` layer — raw notes distilled into durable artifacts the agent reloads next session. Inspired by [Andrej Karpathy's raw-vs-compiled pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f). See [Plugin Hermit Storage](docs/plugin-hermit-storage.md).
+Hermits ride on Claude Code's native intelligence and add a `raw/` → `compiled/` layer — raw notes distilled into durable artifacts the agent reloads next session. See [Plugin Hermit Storage](docs/plugin-hermit-storage.md).
 
 For ready-made specialists, install a hermit plugin like the dev hermit:
 
