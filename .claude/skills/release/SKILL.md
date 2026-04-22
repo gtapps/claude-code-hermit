@@ -1,6 +1,6 @@
 ---
 name: release
-description: Cut a release for this plugin — bumps semver in plugin.json, marketplace.json, and the README badge, writes a CHANGELOG entry, commits, and pushes. Use whenever releasing a new version of claude-code-dev-hermit.
+description: Cut a release for this plugin — bumps semver in plugin.json, marketplace.json, and the README badge, writes a CHANGELOG entry, commits, tags, pushes, and creates a GitHub release. Use whenever releasing a new version of claude-code-dev-hermit.
 ---
 
 # Release
@@ -58,17 +58,27 @@ Use today's date.
 
 Run `claude plugin validate .` in the repo root. If it reports errors, fix them before committing. Surface any warnings to the operator but do not block the release.
 
-### 4. Commit and push
+### 4. Commit, tag, and push
 
 ```bash
 git add .claude-plugin/plugin.json .claude-plugin/marketplace.json README.md CHANGELOG.md
 git commit -m "vNEW — <one-line summary from first line of changelog body>"
+git tag vNEW
 git push
+git push origin vNEW
 ```
 
-If no upstream is set: `git push --set-upstream origin main`.
+If no upstream is set: `git push --set-upstream origin main` before pushing the tag.
 
-### 5. Confirm
+### 5. Create GitHub release
+
+```bash
+gh release create vNEW \
+  --title "vNEW" \
+  --notes "<full changelog body for this release>"
+```
+
+### 6. Confirm
 
 ```
 Released vNEW
@@ -76,5 +86,7 @@ Released vNEW
   marketplace.json  ✓
   README.md badge   ✓
   CHANGELOG.md      ✓
+  Git tag vNEW      ✓
+  GitHub release    ✓
   Pushed            ✓
 ```
