@@ -1,5 +1,8 @@
 {
   "name": "claude-code-dev-hermit",
+  "metadata": {
+    "description": "Git safety, quality workflow, and dev conventions for claude-code-hermit"
+  },
   "owner": {
     "name": "gtapps"
   },
