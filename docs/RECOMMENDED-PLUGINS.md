@@ -12,9 +12,9 @@ GitHub: [anthropics/code-review](https://github.com/anthropics/claude-code/tree/
 claude plugin install code-review@claude-plugins-official --scope project
 ```
 
-Official Anthropic plugin - Code review for PRs and changed files. The `dev-quality` skill uses this as its final step — after tests pass and `/simplify` runs, code-review checks for bugs, security issues, and convention violations.
+Official Anthropic plugin — code review for PRs and changed files.
 
-Without this plugin, the quality pass skips the review step.
+**Optional.** `dev-quality` no longer calls this by default: `/simplify` already runs parallel reuse/quality/efficiency review agents on the changed files, which covers the quality bar for typical solo work. Install `code-review` if you want a heavier second-pass harness (git blame context, prior PR comments, inline GitHub comments) for reviewing someone else's PR, security-sensitive changes, or large refactors where history matters — then invoke `/code-review` explicitly when the stakes warrant it.
 
 ---
 
@@ -52,7 +52,7 @@ When you accept plugins during `/claude-code-dev-hermit:hatch`, they're register
 
 | Plugin | Trigger | Interval |
 |--------|---------|----------|
-| code-review | interval | 7 days |
+| code-review | — | not checked (optional, not in default flow) |
 | feature-dev | interval | 7 days |
 | context7 | — | not checked (MCP server) |
 

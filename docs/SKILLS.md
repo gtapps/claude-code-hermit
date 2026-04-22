@@ -17,7 +17,7 @@ One-time project setup. Run after `/claude-code-hermit:hatch`.
    - Asks about hook profile, deploy process, code review expectations
    - Offers companion plugins (code-review, feature-dev, context7)
 4. Suggests dev-specific heartbeat items (test suite, uncommitted changes, stale branches, dependency audits)
-5. Registers `plugin_checks` entries for installed companion plugins (code-review, feature-dev)
+5. Registers `scheduled_checks` entries for installed companion plugins (feature-dev)
 6. Stamps the plugin version in config.json
 
 **Idempotent.** Running it again detects the existing setup and offers to reinitialize — useful after plugin updates.
@@ -31,11 +31,12 @@ Post-implementation quality gate. Run after code changes are done, before markin
 **What it does:**
 
 1. Runs tests — if they fail, stops immediately (fix the code first)
-2. Runs `/simplify` on changed files
+2. Runs `/simplify` on changed files (its parallel review agents cover reuse, quality, and efficiency)
 3. Runs tests again — if `/simplify` broke something, it reverts and proceeds with the pre-simplify code
-4. Runs code review via the `code-review` plugin — if critical issues are found, loops back to implementation
 
-**Output:** test status (before/after simplify), whether simplify was applied or reverted, review recommendation, critical issues if any.
+**Output:** test status (before/after simplify), whether simplify was applied or reverted.
+
+For PR review, security-sensitive code, or large refactors where git history context matters, invoke `code-review:code-review` explicitly after the quality pass.
 
 ---
 

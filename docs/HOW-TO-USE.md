@@ -49,13 +49,12 @@ After implementation, run the quality pass:
 /claude-code-dev-hermit:dev-quality
 ```
 
-This runs four steps in sequence:
+This runs three steps in sequence:
 1. **Tests** — confirm everything passes
-2. **`/simplify`** — auto-cleanup on changed files
+2. **`/simplify`** — auto-cleanup on changed files (also runs parallel reuse/quality/efficiency review agents)
 3. **Tests again** — make sure `/simplify` didn't break anything (reverts if it did)
-4. **Code review** — via the `code-review` plugin
 
-If critical issues surface, the hermit loops back to implementation before moving on.
+For PR review, security-sensitive changes, or large refactors, invoke `code-review:code-review` explicitly after the quality pass — it's an optional companion, not part of the default flow.
 
 ### Waiting State
 
@@ -83,7 +82,7 @@ This lists merged and stale branches, cross-references active sessions and pendi
 
 - **Same change across many files** — use `/batch`
 - **Independent tasks** — use multiple Agent tool calls in a single message, or implement sequentially
-- **After parallel work** — run `/simplify` and code review in the main session, since subagents can't invoke skills
+- **After parallel work** — run `/simplify` in the main session, since subagents can't invoke skills
 
 ---
 

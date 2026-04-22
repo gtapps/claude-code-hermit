@@ -116,7 +116,7 @@ Build a single AskUserQuestion call with up to 2 questions. Skip questions that 
   question: "Install companion dev plugins?",
   multiSelect: true,
   options: [
-    { label: "code-review", description: "Official Anthropic code review for PRs and changed files" },
+    { label: "code-review", description: "Optional — second-pass review for PRs and high-stakes code (not part of the default dev-quality flow)" },
     { label: "feature-dev", description: "Guided feature development with codebase understanding" },
     { label: "context7", description: "Live documentation lookup for framework APIs" }
   ]
@@ -158,7 +158,7 @@ If HEARTBEAT.md doesn't exist: skip the question, note in the report: "Heartbeat
 **Install plugins** — for each selected plugin:
 1. Run `claude plugin install <plugin>@claude-plugins-official --scope project`
 2. Queue additions to `docker.recommended_plugins` and `scheduled_checks` for the config.json write in Step 4:
-   - code-review: `{ "id": "dev-code-review", "skill": "code-review", "trigger": "interval", "interval_days": 7, "enabled": true }`
+   - code-review: add to `docker.recommended_plugins` only — no `scheduled_checks` entry (optional companion, not part of any default code path)
    - feature-dev: `{ "id": "dev-feature-dev", "skill": "feature-dev", "trigger": "interval", "interval_days": 7, "enabled": true }`
    - context7: skip scheduled_checks (MCP server — no meaningful periodic check), still add to `docker.recommended_plugins`
    - Skip entries that already exist in `scheduled_checks`.
@@ -199,7 +199,7 @@ Updated:
   OPERATOR.md — dev conventions [added / already present / skipped]
   Dev heartbeat items: [added / skipped / heartbeat not configured]
   config.json — dev hermit version stamped
-  scheduled_checks — [code-review / feature-dev entries added / skipped]
+  scheduled_checks — [feature-dev entry added / skipped]
 
 Companion plugins:
   [code-review + feature-dev + context7 / partial / skipped]

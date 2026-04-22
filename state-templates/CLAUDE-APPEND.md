@@ -46,11 +46,11 @@ First session (no prior `S-*-REPORT.md` files): explore the codebase to orient y
 - Same change across many files: use `/batch`
 - Independent tasks in different areas: use multiple Agent tool calls in a single message, otherwise implement sequentially
 - When unsure: ask the operator
-- After parallel work: run `/simplify`, code review, and re-check constraints in main session (workers lack skill and OPERATOR.md access)
+- After parallel work: run `/simplify` and re-check constraints in main session (workers lack skill and OPERATOR.md access)
 
 ### Before Archiving a Task
 
-- `/claude-code-dev-hermit:dev-quality` passed (tests + simplify + review)
+- `/claude-code-dev-hermit:dev-quality` passed (tests + simplify)
 - Feature branch committed, no uncommitted changes
 - If partial: Session Summary describes what remains
 

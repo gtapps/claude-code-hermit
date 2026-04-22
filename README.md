@@ -11,7 +11,7 @@
 
 **The dev muscle for your hermit — git safety, quality gates, and a code-writing agent that works on branches so you don't have to worry about main.**
 
-Your hermit already knows how to manage sessions, learn from its work, and keep things organized. This plugin adds the ability to actually build things — an `implementer` agent that writes code in isolated git worktrees, a quality pipeline that runs tests and code review, and git safety rules that keep main clean. Same philosophy as core: leverage what Claude Code offers, don't reinvent.
+Your hermit already knows how to manage sessions, learn from its work, and keep things organized. This plugin adds the ability to actually build things — an `implementer` agent that writes code in isolated git worktrees, a quality pipeline that runs tests and `/simplify` (whose parallel review agents cover reuse/quality/efficiency), and git safety rules that keep main clean. Same philosophy as core: leverage what Claude Code offers, don't reinvent.
 
 ## Requires
 
@@ -32,7 +32,7 @@ claude plugin install claude-code-dev-hermit@claude-code-dev-hermit --scope proj
 /claude-code-dev-hermit:hatch
 ```
 
-The setup wizard asks about your branch naming, deploy process, and hook profile. It also offers companion plugins (code-review, feature-dev, context7) and suggests dev-specific heartbeat checks.
+The setup wizard asks about your branch naming, deploy process, and hook profile. It also offers companion plugins (code-review — optional, for PR review; feature-dev; context7) and suggests dev-specific heartbeat checks.
 
 ## How It Works
 
@@ -40,7 +40,7 @@ This plugin adds a development workflow on top of your hermit's session and lear
 
 1. **Plan** — break the task into steps (native Tasks)
 2. **Implement** — delegate to the `implementer` agent, which works in an isolated git worktree on a feature branch
-3. **Quality pass** — run `/claude-code-dev-hermit:dev-quality` (tests, `/simplify`, tests again, code review)
+3. **Quality pass** — run `/claude-code-dev-hermit:dev-quality` (tests, `/simplify`, tests again)
 4. **Reflect** — the hermit reflects on what it learned before moving on
 
 The implementer never touches main. It commits to feature branches, runs tests, and hands back a structured summary. You review and merge on your terms.
@@ -58,7 +58,7 @@ The implementer never touches main. It commits to feature branches, runs tests, 
 | Skill | What it does |
 |-------|-------------|
 | `hatch` | One-time project setup — appends dev workflow to CLAUDE.md, configures git safety, installs companion plugins |
-| `dev-quality` | Post-implementation quality pass — tests, simplify, tests, code review |
+| `dev-quality` | Post-implementation quality pass — tests, simplify, tests |
 | `dev-cleanup` | Lists stale/merged branches and offers to clean them up safely |
 
 ### Git Safety

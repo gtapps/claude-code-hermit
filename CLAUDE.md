@@ -44,7 +44,7 @@ The `hatch` skill recommends enabling strict profile during setup.
 - `/batch` — parallel pattern-based execution
 - `/debug` — diagnostics for blocked work
 
-Code review comes from the `code-review` plugin (`code-review@claude-plugins-official`), recommended during `/claude-code-dev-hermit:hatch`.
+Code review: `/simplify` runs parallel review agents (reuse/quality/efficiency) as part of `/claude-code-dev-hermit:dev-quality` and covers the quality bar for typical solo work. The `code-review` plugin (`code-review@claude-plugins-official`) is an optional companion offered during `/claude-code-dev-hermit:hatch` for PR review and high-stakes code — invoke `/code-review` explicitly when warranted.
 
 ## Depends On
 
