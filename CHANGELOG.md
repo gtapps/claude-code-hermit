@@ -6,6 +6,28 @@
 
 ### Added
 
+- **iMessage channel support in channel-hook** — `scripts/channel-hook.js` now recognizes `imessage` tool names (via both `SERVER_TO_CHANNEL` and the tool-name regex), so `dm_channel_id` persistence works for iMessage MCP bots the same way it does for Discord and Telegram. `hooks/hooks.json` PostToolUse matcher extended to `(discord|telegram|imessage).*reply`. Test added to `tests/run-hooks.sh` (17b).
+- **plugin-validator: native `claude plugin validate` as Check 0** — the agent now runs the official Claude Code validator first and treats its findings as authoritative for schema compliance; hermit-specific checks (1–7) layer cross-references on top.
+- **release-auditor: marketplace.json version cross-check** — audits `plugins[0].version` in marketplace.json against `plugin.json.version`. The plugin manifest wins silently when they differ, so a mismatch is a FAIL.
+
+### Changed
+
+- **marketplace.json: full metadata** — adds top-level `metadata.description`, and per-plugin `author`, `license`, `homepage`, `repository`, and `keywords` so marketplace listings render correctly.
+- **release skill: native validator + marketplace version sync** — step 1 now runs `/plugin validate .` before tests; step 4 verifies plugin.json and marketplace.json versions agree via `jq`; step 6 derives the tag name from `jq` instead of a typed literal so the tag can't drift from the bumped version.
+- **docs/security.md: Docker plugin trust model** — reflects the current policy: the entrypoint installs every enabled entry in `docker.recommended_plugins` regardless of marketplace; the trust gate is at configuration time (explicit operator confirmation during `/docker-setup` or `/hermit-settings docker`), with preselection restricted to `claude-plugins-official` and `gtapps/*`.
+- **brief skill: no longer auto-closes sessions** — if SHELL.md is `in_progress`, brief notes "run /session-close to archive" and lets the operator decide instead of delegating to `/session-close --idle`. Idle transitions are owned by the `session` skill and `session-mgr`. Output cap relaxed to 6 lines (5 content + optional proposal line).
+- **smoke-test skill: cron schedule validation** — routine validator now requires the `schedule` key (5-field cron) and FAILs on legacy `time`/`days` fields, matching the routines schema in config.
+
+### Fixed
+
+- **hermit-stop in interactive mode no longer corrupts runtime state** — when the operator is driving Claude in a terminal (no tmux session), `hermit-stop.py` prints the "terminate Claude manually" message and exits early instead of falling through to `update_runtime_field({session_state: 'idle', ...})`. The Stop hook owns the idle transition when Claude actually exits; preempting it left `runtime.json` claiming `idle` while Claude was still running.
+- **docs/skills.md: smoke-test vs test-run descriptions swapped** — the table had the two descriptions transposed; smoke-test is post-hatch validation, test-run is the full test suite.
+- **docs/testing.md: frontmatter validator path** — script moved from `tests/` to `scripts/`; doc updated to match.
+- **README.md: `/claude-code-hermit:evolve` → `/claude-code-hermit:hermit-evolve`** — upgrade instructions referenced the old skill name.
+- **SHELL.md.template: `/monitor` → `/watch`** — monitoring section pointed to the old skill name.
+
+### Added
+
 - **knowledge-lint: `schema-empty` and `schema-missing` findings** — previously, a freshly-hatched hermit with an all-commented `knowledge-schema.md` silently disabled all type enforcement (the template's example bullets are inside `<!-- -->`, so `parseSchema` returned `null`). Both new findings now emit at normal verbosity (no `--verbose` required). Findings are suppressed when the hermit has no artifacts yet (empty hermit).
 - **knowledge-schema.md template: starter bullets** — the template now ships with one uncommented entry under `## Work Products` (`note`) and one under `## Raw Captures` (`input`). Fresh hermits start with type enforcement active; operators replace these with their real types.
 - **startup-context: `---Storage Drift---` section** — at session start, scans `.claude-code-hermit/` for artifacts in paths invisible to session injection and archival: unknown top-level dirs, and subdirs under `raw/`/`compiled/`. Emits a capped warning only when drift is present; completely silent when the hermit is clean (zero recurring context cost).

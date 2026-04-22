@@ -20,6 +20,7 @@ const MAX_STDIN = 64 * 1024;
 const SERVER_TO_CHANNEL = {
   discord: 'discord',
   telegram: 'telegram',
+  imessage: 'imessage',
 };
 
 function resolveChannel(toolName) {
@@ -27,7 +28,7 @@ function resolveChannel(toolName) {
   // Just extract the channel name from anywhere in the tool name —
   // covers all formats: mcp__discord__reply, plugin_discord_discord_reply,
   // mcp__plugin_discord_discord__reply, etc.
-  const match = (toolName || '').match(/(discord|telegram)/);
+  const match = (toolName || '').match(/(discord|telegram|imessage)/);
   if (!match) return null;
   return SERVER_TO_CHANNEL[match[1]] || null;
 }

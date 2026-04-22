@@ -12,20 +12,23 @@ Bump version, write changelog, commit, and push. The changelog entry is critical
 
 Run before anything else. Abort the release if any step fails.
 
-1. **Run test suites:**
+1. **Run the native plugin validator:**
+   Run `/plugin validate .` in the session. If it reports any errors, stop and fix before releasing.
+
+2. **Run test suites:**
    ```bash
    bash tests/run-all.sh 2>&1
    ```
    If any test fails, stop and fix before releasing.
 
-2. **Run the release-auditor agent** to cross-reference plugin integrity:
+3. **Run the release-auditor agent** to cross-reference plugin integrity:
    - Skills in CLAUDE.md/CLAUDE-APPEND match actual `skills/` directories
    - Agents in CLAUDE.md match actual `agents/` files
    - Hook scripts referenced in `hooks/hooks.json` exist in `scripts/`
    - State-template JSON files parse correctly
    - `config.json.template` keys are in sync with `DEFAULT_CONFIG` in `hermit-start.py`
 
-3. **Check for stale references** — if new skills, agents, or hooks were added since the last release:
+4. **Check for stale references** — if new skills, agents, or hooks were added since the last release:
    - Verify they appear in `CLAUDE.md` quick reference and subagent table
    - Verify they appear in `state-templates/CLAUDE-APPEND.md` quick reference
    - Verify `docs/skills.md` lists them (if that doc exists)
@@ -114,8 +117,15 @@ Skip this step if no new components were added.
 
 Update the version string in:
 - `.claude-plugin/plugin.json` → `"version"` field
-- `.claude-plugin/marketplace.json` → `"version"` field
+- `.claude-plugin/marketplace.json` → `"version"` field inside `plugins[0]`
 - `README.md` → version badge: both the `img.shields.io` URL slug (`version-X.Y.Z-green.svg`) and the `alt` text (`Version X.Y.Z`). Confirm with `grep "version-" README.md` that the new version appears and the old one does not.
+
+After editing, verify the two files are in sync — the plugin manifest wins silently if they differ:
+```bash
+jq -r '.version' .claude-plugin/plugin.json
+jq -r '.plugins[0].version' .claude-plugin/marketplace.json
+```
+Both must print the same string. If they differ, fix `marketplace.json` before continuing.
 
 ### 5. Final validation
 
@@ -132,12 +142,15 @@ Stage only the changed files (not `git add -A`). Commit with:
 vX.Y.Z: One-line summary of the release
 ```
 
-Push to origin. Then tag, push the tag, and create the GitHub release:
+Push to origin. Then tag, push the tag, and create the GitHub release.
+
+Before tagging, confirm the tag name matches the version you just bumped — a typo here creates a tag that disagrees with both manifests and `gh release` will happily publish it:
 
 ```bash
-git tag vX.Y.Z
-git push origin vX.Y.Z
-gh release create vX.Y.Z --title "vX.Y.Z" --generate-notes
+VERSION=$(jq -r '.version' .claude-plugin/plugin.json)
+git tag "v$VERSION"
+git push origin "v$VERSION"
+gh release create "v$VERSION" --title "v$VERSION" --generate-notes
 ```
 
 ### 7. Report

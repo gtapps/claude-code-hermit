@@ -102,7 +102,7 @@ These are stricter than `run-hooks.sh` — they test the plugin's behavioral con
 ## Frontmatter Validator (validate-frontmatter.js)
 
 ```bash
-node tests/validate-frontmatter.js
+node scripts/validate-frontmatter.js
 ```
 
 Validates that all `.md` files in `skills/` and `agents/` have valid YAML frontmatter with required fields (`name`, `description`). Exits non-zero if any file fails. Run before releasing skills changes.

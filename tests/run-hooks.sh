@@ -173,6 +173,16 @@ run_test "channel-hook (empty stdin)" bash -c \
 cleanup
 
 # -------------------------------------------------------
+# 17b. channel-hook — iMessage persists dm_channel_id
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+echo '{"channels":{"imessage":{"enabled":true,"dm_channel_id":null}}}' > "$workdir/.claude-code-hermit/config.json"
+run_test "channel-hook (iMessage persist dm_channel_id)" bash -c \
+  "echo '{\"tool_name\":\"mcp__imessage__reply\",\"tool_input\":{\"chat_id\":\"+15550001234\"}}' | node '$REPO_ROOT/scripts/channel-hook.js' 2>/dev/null && python3 -c \"import json; c=json.load(open('$workdir/.claude-code-hermit/config.json')); assert c['channels']['imessage']['dm_channel_id']=='+15550001234', c\""
+cleanup
+
+# -------------------------------------------------------
 # 18. validate-config — valid config passes
 # -------------------------------------------------------
 workdir="$(setup_workdir)"

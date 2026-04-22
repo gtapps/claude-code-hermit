@@ -140,10 +140,16 @@ def main():
     if not session_exists(session_name):
         runtime = read_runtime_json()
         if runtime and runtime.get('runtime_mode') == 'interactive':
+            # Claude is still running in the operator's terminal — don't corrupt
+            # lifecycle truth. The Stop hook (triggered when Claude exits) owns
+            # the transition to idle.
             print('[hermit] Hermit is running in interactive mode.')
             print('[hermit] Terminate the Claude process in your terminal (Ctrl+C).')
-        else:
-            print(f'[hermit] No running session: {session_name}')
+            config['always_on'] = False
+            save_config(config)
+            release_lifecycle_lock(lock_fd)
+            sys.exit(0)
+        print(f'[hermit] No running session: {session_name}')
         config['always_on'] = False
         save_config(config)
         update_runtime_field({

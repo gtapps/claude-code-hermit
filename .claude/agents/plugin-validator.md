@@ -19,7 +19,19 @@ You are a read-only validation agent for the claude-code-hermit plugin.
 
 Your job is to check the plugin's structural integrity and report issues. You do NOT fix anything — you report findings.
 
+Check 0 is the authority for schema compliance. Checks 1–7 add hermit-specific cross-references that the native validator does not know about.
+
 ## What to validate
+
+### 0. Native plugin validator
+
+Run the official Claude Code validator via Bash and surface its output verbatim:
+
+```bash
+claude plugin validate .
+```
+
+Report the full output. Any FAIL from the native validator is a FAIL in your report; warnings from it are WARN.
 
 ### 1. plugin.json
 - Read `.claude-plugin/plugin.json`

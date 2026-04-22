@@ -21,6 +21,8 @@ You audit the plugin before release. You do NOT fix anything — you report find
 
 ### 1. Version consistency
 - Read `.claude-plugin/plugin.json` → `version`
+- Read `.claude-plugin/marketplace.json` → `plugins[0].version`
+- Both must be identical — the plugin manifest wins silently if they differ, so a mismatch means the marketplace entry is lying to users: FAIL on any mismatch
 - Check CHANGELOG.md has a section for this version (e.g., `## v0.3.7` or `## 0.3.7`)
 - If no changelog entry: FAIL
 

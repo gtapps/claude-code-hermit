@@ -47,10 +47,11 @@ Track `passed`, `warnings`, `failures` counts. Collect output lines for the fina
 
 - Read `routines` array from config.json
 - For each routine:
-  - Check required keys (`id`, `time`, `skill`, `enabled`): **FAIL** per missing key
-  - Validate `time` matches `^\d{2}:\d{2}$` and hours 00-23, minutes 00-59: **FAIL** with expected format
+  - Check required keys (`id`, `schedule`, `skill`, `enabled`): **FAIL** per missing key
+  - If `time` or `days` keys are present: **FAIL** `routine "<id>" uses legacy "time"/"days" — migrate to "schedule" (5-field cron)`
+  - Validate `schedule` is a 5-field cron expression (space-separated, 5 fields: min hour dom month dow): **FAIL** if malformed
   - Validate `skill` contains `:` (plugin:skill-name format): **FAIL** with expected format
-  - **PASS** `routine "<id>" valid (<time>, <skill>)`
+  - **PASS** `routine "<id>" valid (<schedule>, <skill>)`
 - Check for duplicate routine IDs: **WARN** per duplicate
 
 ### 6. State file validation
@@ -86,9 +87,9 @@ Output each check result as exactly one line:
 PASS  config.json parsed and version matches plugin (0.3.4)
 WARN  OPERATOR.md contains unfilled {{ placeholders
 WARN  scheduled_checks[0]: skill not found at ../claude-code-setup/skills/claude-automation-recommender — may be installed globally
-PASS  routine "heartbeat-restart" valid (04:00, claude-code-hermit:heartbeat start)
-PASS  routine "morning" valid (08:30, claude-code-hermit:brief --morning)
-FAIL  routine "bad" has invalid time "25:00" — must be HH:MM (00:00-23:59)
+PASS  routine "heartbeat-restart" valid (0 4 * * *, claude-code-hermit:heartbeat start)
+PASS  routine "morning" valid (0 9 * * *, claude-code-hermit:reflect)
+FAIL  routine "bad" uses legacy "time" field — migrate to "schedule" (5-field cron)
 ```
 
 Summary line at end:

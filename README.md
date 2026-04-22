@@ -85,7 +85,7 @@ See [Always-On Setup](docs/always-on.md) for the full guide — including how to
 
 ```
 claude plugin update claude-code-hermit@claude-code-hermit --scope project
-/claude-code-hermit:evolve
+/claude-code-hermit:hermit-evolve
 ```
 
 See [Upgrading](docs/upgrading.md) for details.

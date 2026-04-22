@@ -26,7 +26,7 @@
 <!-- Populated by session-diff hook, or list files manually -->
 
 ## Monitoring
-<!-- Active monitors (/claude-code-hermit:monitor) and heartbeat ticks (/claude-code-hermit:heartbeat) append here -->
+<!-- Active monitors (/claude-code-hermit:watch) and heartbeat ticks (/claude-code-hermit:heartbeat) append here -->
 
 ## Session Summary
 <!-- One-line entries per completed task. Added on idle transition. -->

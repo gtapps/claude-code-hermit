@@ -108,5 +108,5 @@ Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routin
 
 | Skill        | What it does                                                                                                                                                | Auto-triggers |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| `smoke-test` | Runs the contract and hook test suites (`run-contracts.py`, `run-hooks.sh`, `validate-frontmatter.js`) and reports pass/fail. Use before releasing changes. | --            |
-| `test-run`   | Runs a specific test file or suite by name. Accepts a path or test name pattern. Useful for focused testing during development.                             | --            |
+| `smoke-test` | Post-hatch validation — checks config structure, OPERATOR.md, routine schema, plugin references, and optionally sends a channel test message. Run after hatch to verify setup. | --            |
+| `test-run`   | Runs the full hermit test suite (`run-contracts.py`, `run-hooks.sh`, `validate-frontmatter.js`) and reports pass/fail. Use before releasing changes.       | --            |

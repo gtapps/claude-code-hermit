@@ -45,7 +45,7 @@ Emphasize backward-looking content:
 - Read `.claude-code-hermit/cost-summary.md` for today's cost. If the summary is stale (its frontmatter `updated` date is not today), the cost-tracker will regenerate it on the next interaction — use the trend table's today entry or fall back to scanning reports.
 - Key findings or patterns noticed
 - What to look at tomorrow
-- After generating summary: if SHELL.md Status is `in_progress` or has progress entries since last report, delegate archiving to `/claude-code-hermit:session-close --idle` (keeps S-NNN report ID logic centralized in session-mgr). If already `idle` with no new entries, skip archiving.
+- After generating summary: if SHELL.md Status is `in_progress` or has progress entries since last report, note it in the brief (e.g., "Session still open — run /session-close to archive.") and let the operator close explicitly. Idle transitions are owned by the `session` skill and `session-mgr`; brief does not trigger them.
 
 ### No flag (default)
 
@@ -70,7 +70,7 @@ Current behavior — general purpose summary as described below.
 
 ## Output Format
 
-Keep the output to exactly 5 lines maximum:
+Keep the output to 5 lines, plus an optional 6th line for pending proposals (see Rules below):
 
 ```
 [Brief] YYYY-MM-DD | [tags if present]
@@ -82,7 +82,7 @@ Next: description of next action (or "Session complete" if all done)
 
 ## Rules
 
-- Never exceed 5 lines — this is designed for phone/channel consumption
+- Never exceed 6 lines total (5 content lines + optional proposal line) — this is designed for phone/channel consumption
 - Use the session's date, not today's date
 - Include tags in the header only if they exist
 - For the "Done" line: list completed task subjects from `TaskList`, comma-separated. If too many, show first 3 and "+ N more"
