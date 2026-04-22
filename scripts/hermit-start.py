@@ -500,6 +500,10 @@ def main():
             forward_vars.append(f'{ch_name.upper()}_STATE_DIR')
     env_file = Path('/tmp') / f'.hermit-env-{session_name}'
     with open(env_file, 'w') as f:
+        # CLAUDE_PLUGIN_ROOT is not injected into the tmux shell by the harness;
+        # set it explicitly so Bash tool calls in skills work in cron-triggered sessions.
+        plugin_root = str(Path(__file__).resolve().parent.parent)
+        f.write(f'export CLAUDE_PLUGIN_ROOT={shlex.quote(plugin_root)}\n')
         for var in forward_vars:
             val = os.environ.get(var)
             if val is not None:

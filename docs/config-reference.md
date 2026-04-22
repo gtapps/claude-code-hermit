@@ -176,7 +176,8 @@ Keyed by check `id`. Owned by reflect (sole writer for interval checks) and sess
 | Key | Type | Applies to | Description |
 |-----|------|-----------|-------------|
 | `last_run` | string/null | both | ISO date of last successful invocation. |
-| `last_unavailable_at` | string/null | interval only | ISO date of last unavailable/skip. Suppresses retries for `interval_days`. |
+| `last_unavailable_at` | string/null | interval only | ISO date of last `unavailable` outcome (skill missing or not installed). Retries after a fixed 4-hour cooldown. |
+| `last_error_at` | string/null | interval only | ISO date of last `error` outcome (skill errored or timed out). Suppresses retries for `interval_days` (persistent back-off). |
 | `consecutive_empty` | integer | interval only | Consecutive runs with zero findings. Reset to 0 on any non-empty run. |
 
 Modify with `/hermit-settings scheduled-checks`.

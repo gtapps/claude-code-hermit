@@ -147,7 +147,7 @@ your-project/
 │   │   ├── channel-activity.json     # Last channel interaction timestamp (channel-hook-owned)
 │   │   ├── session-diff.json         # Uncommitted file tracking (session-diff-owned)
 │   │   ├── proposal-metrics.jsonl    # Append-only event log (proposal-create + proposal-act)
-│   │   ├── micro-proposals.json      # Single-slot micro-approval queue (reflect + channel-responder)
+│   │   ├── micro-proposals.json      # Pending micro-approvals list (reflect + channel-responder)
 │   │   ├── state-summary.md          # Auto-generated health snapshot (generate-summary.js)
 │   │   ├── monitors.runtime.json     # Active watch registry, cleared on session start (watch-owned)
 │   │   ├── .heartbeat                # Activity marker (heartbeat-touch-owned)
@@ -267,13 +267,13 @@ Reflection uses auto-memory as primary input. Your hermit reflects on what it re
 
 **Three-condition gate:** Every proposal candidate must satisfy three conditions: (1) repeated pattern observed across sessions, (2) meaningful consequence if left unaddressed, and (3) an operator-actionable change. This prevents trivial or one-off observations from cluttering the proposal pipeline.
 
-**Micro-proposals (tier 2):** For changes that are meaningful but not safety-critical, reflect queues a micro-proposal — a single yes/no question sent via channel. One slot at a time (`state/micro-proposals.json`). Ignored micro-proposals expire after 2 morning briefs.
+**Micro-proposals (tier 1/2):** For changes that are reversible or non-critical, reflect queues a micro-proposal — a yes/no question sent via channel. Multiple pending micro-proposals can coexist (`state/micro-proposals.json → pending[]`); operator answers by ID. Ignored micro-proposals expire after 2 morning briefs.
 
 Hermit provides the **timing infrastructure** (when to reflect), the **proposal pipeline** (structured proposals with an operator gate), and the **tier classification** (which proposals need what level of approval). Claude handles the intelligence — noticing patterns, assessing confidence, formulating proposals.
 
 ### Daily Rhythm
 
-Morning routine (configurable time, default: active hours start + 30m): brief, proposal review, priority check, pending micro-proposal surfaced.
+Morning routine (configurable time, default: active hours start + 30m): brief, proposal review, priority check, pending micro-proposals surfaced.
 Evening routine (configurable time, default: active hours end - 30m): daily journal archived as S-NNN, reflection, preparation for tomorrow.
 
 Both are managed by `/claude-code-hermit:hermit-routines` (per-session CronCreate registrations). Fire at exact cron times. CronCreate is idle-gated: routines that come due during `in_progress` are deferred until the REPL is between turns — never dropped, never interrupting mid-task. A daily 4am `heartbeat-restart` routine re-runs `/claude-code-hermit:hermit-routines load` to re-arm both the heartbeat `/loop` (3-day expiry) and the routine CronCreates (7-day expiry).

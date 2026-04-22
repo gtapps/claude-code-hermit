@@ -25,16 +25,11 @@ Emphasize forward-looking content:
 - What's queued (NEXT-TASK.md, open proposals)
 - If auto-memory seems sparse (new instance, fresh machine), read the latest S-NNN-REPORT.md for context recovery
 
-After composing the morning brief, check `state/micro-proposals.json`:
-- If `active` is not null and `status` is `pending` and `follow_up_count` is 0:
-  Append as final line: "One thing waiting on you: [question]"
-- If `active` is not null and `status` is `pending` and `follow_up_count` is 1:
-  Append with softer framing: "Still waiting on: [question] — ignore again to drop it"
-  Then increment `follow_up_count` to 2.
-- If `active` is not null and `status` is `pending` and `follow_up_count` >= 2:
-  Read `active.question` first, then set `status: "expired"`, clear `active` to null. Append `micro-resolved` event via `append-metrics.js` with `"action":"expired","question":"<active.question>"`. Do not resurrect unless fresh evidence accumulates from scratch.
-- If no active pending: brief ends without a decision prompt.
-Never append more than one pending decision.
+After composing the morning brief, check `state/micro-proposals.json → pending` for entries with `status: "pending"`:
+- If **one or more** pending entries with `follow_up_count` of 0: append each as a final line: `MP-YYYYMMDD-N (tier N): [question]` — Reply `"MP-YYYYMMDD-N yes"` or `"MP-YYYYMMDD-N no"`. (Bare `yes`/`no` accepted when only one pending.)
+- For any entry with `follow_up_count` of 1: append with softer framing: "Still waiting on MP-YYYYMMDD-N: [question] — ignore again to drop it". Increment `follow_up_count` to 2.
+- For any entry with `follow_up_count` >= 2: read `question` first, then set `status: "expired"`, remove from `pending`. Append `micro-resolved` event via `append-metrics.js` with `"action":"expired","question":"<question>"`. Do not resurrect unless fresh evidence accumulates from scratch.
+- If no pending entries: brief ends without a decision prompt.
 
 ### --evening (routine mode)
 

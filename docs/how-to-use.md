@@ -173,7 +173,7 @@ See [Hermit Cortex](obsidian-setup.md) for the full guide.
 │   ├── reflection-state.json  <- last reflection timestamp + scheduled check state
 │   ├── routine-metrics.jsonl <- append-only routine fire log
 │   ├── proposal-metrics.jsonl <- append-only event log
-│   ├── micro-proposals.json   <- single-slot micro-approval queue
+│   ├── micro-proposals.json   <- pending micro-approvals list (pending[])
 │   └── state-summary.md       <- auto-generated health snapshot
 ├── raw/                       <- domain inputs (fetched content, snapshots, logs)
 │   └── .archive/              <- expired raw artifacts

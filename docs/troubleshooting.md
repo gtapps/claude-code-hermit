@@ -30,8 +30,18 @@ Scheduled checks run during idle reflection via `reflect`. If configured checks 
 
 - **Check `scheduled_checks` in config.json:** Must have entries with `enabled: true`. View with `/hermit-settings scheduled-checks`.
 - **Check reflection cadence:** Reflection runs every 4+ hours during idle. If the hermit is always `in_progress`, scheduled checks won't fire (they're idle-only).
-- **Unavailable suppression:** If a check's skill is missing or uninstalled, the check is suppressed for `interval_days`. Check `state/reflection-state.json` for `last_unavailable_at`.
+- **Unavailable suppression:** If a check's skill is missing or uninstalled, the check is suppressed for 4 hours (transient cooldown). A persistent `error` outcome suppresses for `interval_days`. Check `state/reflection-state.json` for `last_unavailable_at` and `last_error_at`.
 - **One per reflect:** Only one scheduled check runs per reflect invocation. If multiple are due, the oldest fires first.
+
+---
+
+## `$CLAUDE_PLUGIN_ROOT` Empty in Skill Bash Calls
+
+`$CLAUDE_PLUGIN_ROOT` is injected by Claude Code's harness in hook invocations but is not forwarded to the tmux shell environment in always-on mode. This means Bash tool calls inside skills that use `${CLAUDE_PLUGIN_ROOT}` may fail in cron-triggered sessions.
+
+**Fixed in hermit-start.py** (v1.0.16+): the env file written before launching the tmux session now derives and exports `CLAUDE_PLUGIN_ROOT` from hermit-start.py's own location. Upgrade hermit to get the fix; no operator action needed.
+
+**If still occurring after upgrade:** verify the always-on session was restarted (`/claude-code-hermit:hermit-takeover` then re-hatch or restart the session). The env file is only written at launch.
 
 ---
 

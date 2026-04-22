@@ -18,9 +18,10 @@
   "idle_behavior": "discover",
   "idle_budget": "$0.50",
   "routines": [
-    {"id": "heartbeat-restart", "schedule": "0 4 * * *", "skill": "claude-code-hermit:heartbeat start", "run_during_waiting": true, "enabled": true},
-    {"id": "reflect",           "schedule": "0 9 * * *", "skill": "claude-code-hermit:reflect", "enabled": true},
-    {"id": "weekly-review",     "schedule": "0 23 * * 0", "skill": "claude-code-hermit:weekly-review", "enabled": false}
+    {"id": "heartbeat-restart",   "schedule": "0 4 * * *",  "skill": "claude-code-hermit:heartbeat start",             "run_during_waiting": true, "enabled": true},
+    {"id": "reflect",             "schedule": "0 9 * * *",  "skill": "claude-code-hermit:reflect",                     "enabled": true},
+    {"id": "scheduled-checks",    "schedule": "5 9 * * *",  "skill": "claude-code-hermit:reflect-scheduled-checks",    "run_during_waiting": true, "enabled": true},
+    {"id": "weekly-review",       "schedule": "0 23 * * 0", "skill": "claude-code-hermit:weekly-review",                "enabled": false}
   ],
   "monitors": [],
   "env": {

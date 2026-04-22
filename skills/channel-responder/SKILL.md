@@ -68,13 +68,20 @@ This is how the agent learns the DM channel ID for proactive outbound notificati
   - The session-start skill handles filling Task and setting Status; plan items are created as native Tasks
   - Confirm via channel: "On it: [summary]."
 
-- **Micro-approval response** ("yes", "no", or similar while a pending micro-proposal exists)
-  - Read `state/micro-proposals.json`. If `active` is not null and `status` is `pending`:
-    - **"yes"** on tier 1 → execute the change at next idle, log outcome in SHELL.md, set `status: "approved"`, clear `active` to null. Append `micro-resolved` event via `append-metrics.js`: `{"ts":"<now ISO>","type":"micro-resolved","micro_id":"<id>","action":"approved","question":"<active.question>"}` (read `question` from the active slot before clearing)
-    - **"yes"** on tier 2 → create PROP-NNN via `/claude-code-hermit:proposal-create`, queue for next idle, set `status: "approved"`, clear `active` to null. Append `micro-resolved` event with `"question":"<active.question>"`.
-    - **"no"** → set `status: "rejected"`, clear `active` to null. Append `micro-resolved` event with `"action":"rejected","question":"<active.question>"`.
+- **Micro-approval response** ("yes", "no", "MP-… yes/no", or similar while any pending micro-proposal exists)
+  - Read `state/micro-proposals.json → pending`. Filter to `status: "pending"` entries.
+  - **Resolve which entry the response targets:**
+    - If the message includes an ID prefix (`MP-YYYYMMDD-N yes`): match that entry by id.
+    - If bare `yes`/`no` and exactly one pending entry: apply to that entry.
+    - If bare `yes`/`no` and multiple pending entries: reply listing the pending IDs and ask the operator to specify (e.g. `"MP-20260422-0 yes"`). Do not resolve yet.
+  - **On resolved entry:**
+    - Read `question` from the entry before modifying.
+    - **"yes"** on tier 1 → execute the change at next idle, log outcome in SHELL.md, set `status: "approved"`. Append `micro-resolved` event via `append-metrics.js`: `{"ts":"<now ISO>","type":"micro-resolved","micro_id":"<id>","action":"approved","question":"<question>"}`
+    - **"yes"** on tier 2 → create PROP-NNN via `/claude-code-hermit:proposal-create`, queue for next idle, set `status: "approved"`. Append `micro-resolved` event with `"action":"approved"`.
+    - **"no"** → set `status: "rejected"`. Append `micro-resolved` event with `"action":"rejected","question":"<question>"`.
+    - Remove the resolved entry from `pending`. Write the file.
     - **Ambiguous response** → ask for clarification once, do not resolve yet.
-  - If no pending micro-proposal: classify as normal message (fall through to categories below).
+  - If no pending micro-proposals: classify as normal message (fall through to categories below).
 
 - **Proposal approval** ("accept PROP-", "go ahead with PROP-", "approve PROP-", or referencing proposal numbers)
   - Route through `/claude-code-hermit:proposal-act accept PROP-NNN` for each referenced proposal

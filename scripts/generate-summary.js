@@ -106,14 +106,15 @@ const fmtRate = (rate) => rate !== null ? (rate / 100).toFixed(2) : 'null';
 const fmtRateStr = (rate) => rate !== null ? `${rate}%` : 'no data';
 
 // Read micro-proposals state
-let microPending = false;
+let microPendingCount = 0;
 let microQuestion = null;
 try {
   const mp = JSON.parse(fs.readFileSync(MICRO_FILE, 'utf-8'));
-  if (mp.active && mp.active.status === 'pending') {
-    microPending = true;
-    microQuestion = mp.active.question || null;
-  }
+  const pending = Array.isArray(mp.pending) ? mp.pending : [];
+  const activePending = pending.filter(e => e && e.status === 'pending');
+  const count = activePending.length;
+  microPendingCount = count;
+  microQuestion = count === 1 ? (activePending[0].question || null) : null;
 } catch {}
 
 const responseRate = proposalsCreated > 0
@@ -141,7 +142,7 @@ proposals_resolved: ${proposalsResolved}
 response_rate: ${fmtRate(responseRate)}
 auto_detect_accept_rate: ${fmtRate(autoDetectAcceptRate)}
 manual_accept_rate: ${fmtRate(manualAcceptRate)}
-micro_pending: ${microPending}
+micro_pending: ${microPendingCount}
 micro_approval_rate: ${fmtRate(microApprovalRate)}
 last_reflection: ${lastReflection || 'null'}
 ---
@@ -160,8 +161,8 @@ Auto-detected accept rate: ${fmtRateStr(autoDetectAcceptRate)}
 Manual accept rate: ${fmtRateStr(manualAcceptRate)}
 
 ## Micro-Proposals
-Pending: ${microPending ? 'yes' : 'no'}
-Question: ${microQuestion || 'none'}
+Pending: ${microPendingCount}
+Question: ${microQuestion || (microPendingCount > 1 ? `${microPendingCount} questions pending` : 'none')}
 Approval rate: ${microApprovalRateStr}
 
 ## Reflection

@@ -63,8 +63,10 @@ For each file: parse JSON. If missing or unparseable, rewrite from the correspon
 - **`.claude-code-hermit/state/alert-state.json`** — object with: `alerts` (object), `self_eval` (object), `total_ticks` (number), `last_digest_date` (any, presence required)
   - For each missing or wrong-type key: overwrite with template default (e.g. `alerts: {}`, `self_eval: {}`, `total_ticks: 0`, `last_digest_date: null`) → **WARN** `alert-state.json repaired: <keys>`
 
-- **`.claude-code-hermit/state/micro-proposals.json`** — object with `active` key present (any value)
-  - Missing `active` key: add `"active": null` → **WARN** `micro-proposals.json missing active key — backfilled`
+- **`.claude-code-hermit/state/micro-proposals.json`** — object with `pending` key (array)
+  - Missing `pending` key (and `active` key present): migrate — read `active` value; if non-null, set `pending: [<active value>]`; if null, set `pending: []`; remove `active` key → **WARN** `micro-proposals.json migrated: active → pending`
+  - Missing `pending` key (and no `active` key): add `"pending": []` → **WARN** `micro-proposals.json missing pending key — backfilled`
+  - `pending` is not an array: overwrite with `[]` → **WARN** `micro-proposals.json pending is not an array — reset`
 
 ### 7. Channel test (optional)
 

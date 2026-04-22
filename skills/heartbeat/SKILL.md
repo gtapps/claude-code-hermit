@@ -62,7 +62,7 @@ Before appending any alert to SHELL.md Monitoring, run this procedure:
    - **Not suppressed:** Append `[HH:MM] Heartbeat: resolved — {text}`. Remove entry.
    - **Suppressed:** Resolve silently — remove entry, omit from next daily digest. Don't add noise announcing the absence of noise.
 4. **Daily digest:** First tick of each day where `last_digest_date` is not today: if any suppressed alerts exist, notify the operator: `Suppressed alert digest: {list with counts and ages}`. Set `last_digest_date` to today.
-5. **Micro-proposal check:** Read `.claude-code-hermit/state/micro-proposals.json`. For any entry where `status` is `"pending"` and `tier` is `1`: append to Monitoring: `[HH:MM] Heartbeat: micro-proposal '{id}' awaiting operator input — {question}`. Use semantic key `micro-proposal-pending:<id>` for dedup.
+5. **Micro-proposal check:** Read `.claude-code-hermit/state/micro-proposals.json → pending`. For each entry in the array where `status` is `"pending"` and `tier` is `1`: append to Monitoring: `[HH:MM] Heartbeat: micro-proposal '{id}' awaiting operator input — {question}`. Use semantic key `micro-proposal-pending:<id>` for dedup.
 6. Write `state/alert-state.json`.
 
 **If nothing actionable:**

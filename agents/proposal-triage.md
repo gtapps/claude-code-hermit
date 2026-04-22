@@ -3,7 +3,7 @@ name: proposal-triage
 description: Pre-creation gate for proposals — deduplicates against existing PROP-NNN files and applies the three-condition rule. Returns CREATE | SUPPRESS:<reason> | DUPLICATE:<id> — <reason>. Call before proposal-create and before queuing micro-proposals in reflect.
 model: haiku
 effort: low
-maxTurns: 5
+maxTurns: 8
 tools:
   - Read
   - Glob
@@ -59,4 +59,4 @@ Return exactly one of:
 - `SUPPRESS — <code>: <one sentence reason>` where `<code>` is one of: `weak-recurrence` (failed #1), `weak-consequence` (failed #2), `not-actionable` (failed #3)
 - `DUPLICATE:<PROP-ID> — <one-line reason>`
 
-Nothing else.
+Nothing else. Your response is not complete without this verdict line. If you have finished reading files and have not yet emitted one of the three verdicts above, emit it now before stopping.

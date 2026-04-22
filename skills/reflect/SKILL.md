@@ -119,36 +119,6 @@ Signal ladder (same for all three):
 - **Moderate signal** (pattern across 2-3 sessions): create a proposal via `/claude-code-hermit:proposal-create` with the evidence (subject to Three-Condition Rule).
 - **Strong signal** (clear, repeated pattern): create a proposal via `/claude-code-hermit:proposal-create` with the evidence and include a `## Skill Improvement` section (or `## Agent Improvement`) listing the component name, observed failures, and suggested eval criteria. When the proposal is accepted via `proposal-act`, use `/skill-creator eval` and `/skill-creator improve` to implement the changes. If `/skill-creator` is not available, apply the changes to the component's definition file directly.
 
-## Scheduled Checks
-
-If `scheduled_checks` exists in config.json and has entries with `trigger: "interval"`, delegate to `/claude-code-hermit:reflect-scheduled-checks`. Otherwise skip this section entirely.
-
-Pass the relevant config entries and current `state/reflection-state.json → scheduled_checks` state to the helper. The helper runs at most one due check and returns a `SCHEDULED-CHECK-RESULT` block.
-
-**Consuming the result block:**
-- `actionable` / `contextual`: treat findings as a proposal candidate tagged `Evidence Source: scheduled-check/<id>`. Pass through `reflection-judge` + `proposal-triage` gates. Context improvements may be applied directly if trivial.
-- `empty`: no candidate. Check `state_delta_consecutive_empty` for interval-adjustment proposals (see below) — these use the **normal Three-Condition Rule** and are **not** tagged `Evidence Source: scheduled-check`.
-- `unavailable` / `error`: note in SHELL.md Findings once (e.g., "Scheduled check skipped: {id} — skill unavailable"). No candidate.
-- `skipped`: nothing due; no action.
-
-**Apply state_delta** to `state/reflection-state.json → scheduled_checks.<id>` as part of the consolidated State Update step at the end. Update the fields returned by the helper (omit any with `null` value — don't overwrite existing data with null).
-
-### Interval adjustment proposals
-
-Using `state_delta_consecutive_empty` from the result block (or the existing state value if outcome was `skipped`):
-
-**Reset rules (per check):**
-- `empty` outcome → `consecutive_empty += 1`
-- `actionable` / `contextual` outcome → reset `consecutive_empty = 0`
-- Interval increase proposal accepted → reset to 0
-- Interval increase proposal dismissed → also reset to 0 (prevents immediate re-proposal)
-
-**Proposals:**
-- **3+ consecutive empty runs** → create a proposal to increase `interval_days` (e.g., 7 → 14).
-- **3+ actionable findings in a single run** → create a proposal to decrease `interval_days` (e.g., 7 → 3).
-- Adjustments always go through PROP-NNN — hermit never auto-adjusts.
-- These proposals use the standard Three-Condition Rule (repeated pattern + meaningful consequence + operator-actionable). They are **not** tagged `Evidence Source: scheduled-check` — they are recurrence observations over run history and must follow the normal evidence-verification path (`current-session` or `archived-session`).
-
 ## Evidence integrity rule (applies before calling reflection-judge)
 
 For any candidate with `Evidence Source: current-session`, reflect must **not** add or rewrite evidence-bearing lines in `## Findings` or `## Blockers` of SHELL.md before `reflection-judge` runs. The judge validates against pre-existing session content; injecting the pattern text immediately before the judge reads it would make the system self-certifying.
@@ -233,21 +203,18 @@ Evidence: <one-paragraph evidence summary>
 
 ### Micro-approval queuing
 
-Before queuing, check `state/micro-proposals.json`. If `active` is not null and `status` is `pending`: do NOT create a new one. Note the candidate in SHELL.md Findings and re-evaluate next reflect cycle.
-
-### Question format (required)
-
 Every micro-proposal question must include: **[observed pattern + duration] + [consequence] + [exact proposed change] + "Yes / No"**
 
-Example: "For 3 weeks I've added the same 5 hashtags manually every post. Want me to make that automatic? Yes / No"
-
 Do not queue vague questions like "Found a pattern. Want me to improve it?" — all three components must be present.
+
+Dedup: do not re-append the same candidate if an entry with the same title/id already exists in `pending`.
 
 ### Queuing procedure
 
 1. Generate ID: `MP-YYYYMMDD-N` where N increments within the same day (0, 1, 2). Check existing `micro-queued` events in `proposal-metrics.jsonl` for today to determine N.
-2. Write to `state/micro-proposals.json`: set `active` to the new entry with `status: "pending"`, `follow_up_count: 0`, `question: "<full question text>"`. Append `micro-queued` event to `proposal-metrics.jsonl` via `append-metrics.js`: `{"ts":"<now ISO>","type":"micro-queued","micro_id":"MP-YYYYMMDD-N","tier":1,"question":"<full question text>"}`
-3. Notify the operator with the question.
+2. Read `state/micro-proposals.json`. Append a new entry to `pending` with `id: "MP-YYYYMMDD-N"`, `tier: <1|2>`, `status: "pending"`, `follow_up_count: 0`, `ts: "<now ISO>"`, `question: "<full question text>"`. Write the file.
+3. Append `micro-queued` event to `proposal-metrics.jsonl` via `append-metrics.js`: `{"ts":"<now ISO>","type":"micro-queued","micro_id":"MP-YYYYMMDD-N","tier":1,"question":"<full question text>"}`
+4. Notify the operator with the question in the form: `MP-YYYYMMDD-N (tier <N>): <question>` — Reply `"MP-YYYYMMDD-N yes"` or `"MP-YYYYMMDD-N no"` (bare `yes`/`no` accepted when only one entry is pending).
 
 ## State Update
 

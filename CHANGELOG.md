@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **proposal-triage agent: verdict enforcement** — raised `maxTurns` from 5 to 8 (prevents turn exhaustion on multi-file dedup runs) and added a terminal imperative to the `## Output` section so the agent can't stop before emitting its verdict line.
+- **scheduled-checks decoupled from reflect** — `reflect-scheduled-checks` is now a self-contained routine skill; it filters, invokes, gates through reflection-judge + proposal-triage, applies state, and logs without returning a result block. The `## Scheduled Checks` section and interval-adjustment logic have been removed from `reflect`. A new `scheduled-checks` routine fires daily at `5 9 * * *` (5 minutes after reflect). Reflect context is now leaner.
+- **reflect-scheduled-checks: split unavailable/error gating (Fix D)** — `unavailable` outcomes (skill missing or briefly unavailable) now suppress retries for 4 hours only; `error` outcomes still back off for `interval_days`. New `last_error_at` field in `state/reflection-state.json → scheduled_checks.<id>`.
+- **micro-proposals: drop single-slot constraint** — `state/micro-proposals.json` schema changes from `{active: null}` to `{pending: []}`. Multiple micro-proposals can now coexist; channel-responder matches answers by ID (`MP-YYYYMMDD-N yes/no`); bare yes/no accepted when exactly one pending entry exists. Updates: reflect, channel-responder, heartbeat, brief, smoke-test, generate-summary.js, docs.
+- **hermit-start.py: export `CLAUDE_PLUGIN_ROOT` to tmux session** — the env file sourced before launching Claude Code in always-on mode now includes `CLAUDE_PLUGIN_ROOT` derived from `hermit-start.py`'s own path, so Bash tool calls within skills have the variable available in cron-triggered sessions.
+
+### Upgrade Instructions
+
+1. **Migrate `micro-proposals.json`:** If `micro-proposals.json` contains a top-level key `active`: read its value. If null, rewrite the file as `{"pending": []}`. If an object, rewrite as `{"pending": [<that object with tier set to 1 if missing>]}`. Remove the `active` key in both cases.
+
+2. **Add `scheduled-checks` routine:** If `config.json` routines does not contain an entry with `id: "scheduled-checks"`, append: `{"id": "scheduled-checks", "schedule": "5 9 * * *", "skill": "claude-code-hermit:reflect-scheduled-checks", "run_during_waiting": true, "enabled": true}`. Upsert by id — do not duplicate if already present.
+
+3. **Add `last_error_at` field:** For each entry under `state/reflection-state.json → scheduled_checks`, if `last_error_at` is absent, add `"last_error_at": null`.
+
+4. **Restart always-on session:** After upgrading, restart the hermit session (`hermit-stop` then `hermit-start`) so the new `CLAUDE_PLUGIN_ROOT` export takes effect in the tmux environment.
+
 ## [1.0.15] - 2026-04-22
 
 ### Added
