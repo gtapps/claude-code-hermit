@@ -12,10 +12,10 @@ Ephemeral inputs. Archived after `knowledge.raw_retention_days`.
 | `snapshot-ha-normalized-latest.json` | `snapshot` | `ha-refresh-context` | Same run; overwritten each refresh |
 | `automation-<slug>-<date>.yaml` | `automation` | `ha-build-automation` | Each automation draft |
 | `script-<slug>-<date>.yaml` | `script` | `ha-build-automation` | Each script draft |
-| `audit-safety-<date>.md` | `audit` | `ha-safety-audit` | Weekly plugin_check |
-| `audit-integration-health-<date>.md` | `audit` | `ha-integration-health` | Daily plugin_check |
-| `audit-automation-errors-<date>.md` | `audit` | `ha-automation-error-review` | Daily plugin_check |
-| `patterns-<date>.md` | `analysis` | `ha-analyze-patterns` | Weekly plugin_check |
+| `audit-safety-<date>.md` | `audit` | `ha-safety-audit` | Weekly scheduled check |
+| `audit-integration-health-<date>.md` | `audit` | `ha-integration-health` | Daily scheduled check |
+| `audit-automation-errors-<date>.md` | `audit` | `ha-automation-error-review` | Daily scheduled check |
+| `patterns-<date>.md` | `analysis` | `ha-analyze-patterns` | Weekly scheduled check |
 
 ## compiled/
 

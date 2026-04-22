@@ -28,7 +28,7 @@ allowed-tools:
 6. **Update memory**:
    - Update `MEMORY.md` Learned Patterns section with key findings.
    - If findings are extensive, write details to `memory/house-entities.md`.
-7. **Emit summary for reflect**: Always output a plain-text findings block to stdout, regardless of how the skill was invoked. Reflect reads this when running the skill as a `plugin_check` and routes actionable items through the proposal pipeline. Use this format:
+7. **Emit summary for reflect-scheduled-checks**: Always output a plain-text findings block to stdout, regardless of how the skill was invoked. reflect-scheduled-checks reads this when running the skill as a scheduled check and routes actionable items through the proposal pipeline. Use this format:
 
    ```
    ha-analyze-patterns findings — <date>

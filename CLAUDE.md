@@ -23,7 +23,7 @@ After install, run `/claude-code-homeassistant-hermit:hatch` in the target proje
 - `settings.json` — pre-approved permissions for safe CLI and read-only MCP tools
 - `state-templates/CLAUDE-APPEND.md` — block injected into the target project's `CLAUDE.md` by `hatch`
 - `tests/` — hook and policy tests
-- `.claude-plugin/plugin.json` — plugin manifest (`requires: claude-code-hermit >= 1.0.15`)
+- `.claude-plugin/plugin.json` — plugin manifest (`requires: claude-code-hermit >= 1.0.16`)
 
 ## Core Rules
 
@@ -60,7 +60,7 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url
 `hatch` registers entries in `.claude-code-hermit/config.json`:
 
 - **Routines**: `daily-ha-context` (08:30 daily, enabled), `morning-brief` (09:00 daily, disabled until the operator confirms the house profile).
-- **Scheduled checks** (reflect-driven, proposal-producing): `ha-patterns` (weekly), `ha-safety-audit` (weekly), `ha-integration-health` (daily), `ha-automation-errors` (daily).
+- **Scheduled checks** (driven by the core `scheduled-checks` routine via `reflect-scheduled-checks`, proposal-producing): `ha-patterns` (weekly), `ha-safety-audit` (weekly), `ha-integration-health` (daily), `ha-automation-errors` (daily).
 
 In interactive sessions, run `/claude-code-hermit:hermit-routines load` once to activate scheduled routines. In always-on deployments they load automatically.
 

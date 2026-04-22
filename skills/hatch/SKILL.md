@@ -13,7 +13,7 @@ Set up the Home Assistant layer for this project. Idempotent — safe to re-run;
 
 Read `.claude-code-hermit/config.json`.
 
-- If the file is missing or `_hermit_versions["claude-code-hermit"]` is absent or less than `1.0.15`:
+- If the file is missing or `_hermit_versions["claude-code-hermit"]` is absent or less than `1.0.16`:
   - `AskUserQuestion`: "Core hermit is not initialized. Run `/claude-code-hermit:hatch` now?"
   - Yes → invoke `/claude-code-hermit:hatch`, then continue.
   - No → stop and explain what is required.
@@ -171,7 +171,7 @@ The skill name format is `/<plugin-id>:<skill-id>`. Parse the plugin-id as the t
 
 After adding any new entries, remind the operator: "Run `/claude-code-hermit:hermit-routines load` to activate routines in the current session."
 
-**Scheduled checks registration**: `config.scheduled_checks` is an array of periodic skill entries that reflect invokes on a cadence and funnels through the proposal pipeline. For each entry below, check whether an existing record has the same `id`. If not, append it — no prompt needed, all four are safe read-only analyses.
+**Scheduled checks registration**: `config.scheduled_checks` is an array of periodic skill entries that the `scheduled-checks` routine (via `reflect-scheduled-checks`) invokes on a cadence and funnels through the proposal pipeline. For each entry below, check whether an existing record has the same `id`. If not, append it — no prompt needed, all four are safe read-only analyses.
 
 ```json
 {"id": "ha-patterns",            "plugin": "claude-code-homeassistant-hermit", "skill": "claude-code-homeassistant-hermit:ha-analyze-patterns",        "enabled": true, "trigger": "interval", "interval_days": 7}
@@ -180,7 +180,7 @@ After adding any new entries, remind the operator: "Run `/claude-code-hermit:her
 {"id": "ha-automation-errors",   "plugin": "claude-code-homeassistant-hermit", "skill": "claude-code-homeassistant-hermit:ha-automation-error-review", "enabled": true, "trigger": "interval", "interval_days": 1}
 ```
 
-These replace any need for CronCreate routines around analysis/observability — reflect picks up whichever check is due, runs it, and any findings surface as proposals automatically.
+These replace any need for CronCreate routines around analysis/observability — the `scheduled-checks` routine picks up whichever check is due, runs it, and any findings surface as proposals automatically.
 
 ## Docker apt dependencies
 

@@ -1,6 +1,6 @@
 ---
 name: ha-automation-error-review
-description: Scan the Home Assistant error log for recurring automation failures. Surfaces any automation that appears in error-flagged log lines three or more times, which typically indicates a silently broken automation. Runs daily as a plugin_check via reflect.
+description: Scan the Home Assistant error log for recurring automation failures. Surfaces any automation that appears in error-flagged log lines three or more times, which typically indicates a silently broken automation. Runs daily as a scheduled check via reflect-scheduled-checks.
 allowed-tools:
   - Bash
   - Read
@@ -37,4 +37,4 @@ If nothing meets the threshold: `No actionable findings.`
 ## Failure modes
 
 - HA unreachable or `/api/error_log` returns empty → `No actionable findings. (0 lines scanned)` — not a problem, just means the log rotated or HA has been quiet.
-- CLI exits non-zero only on connection / auth errors. Reflect should treat those as "skipped."
+- CLI exits non-zero only on connection / auth errors. reflect-scheduled-checks should treat those as "skipped."
