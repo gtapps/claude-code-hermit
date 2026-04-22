@@ -1,6 +1,6 @@
 {
   "name": "claude-code-dev-hermit",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Git safety, quality workflow, and dev conventions for claude-code-hermit",
   "author": {
     "name": "gtapps"
