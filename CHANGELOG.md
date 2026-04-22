@@ -1,25 +1,50 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.16] - 2026-04-22
 
 ### Changed
 
-- **reflect-scheduled-checks: fix false-negative unavailable classification** — replaced filesystem-based plugin presence checks (grepping `~/.claude/plugins/cache/`) with authoritative loaded-skills list inspection; added explicit `Skill` tool invocation directive and clarified unavailable vs error outcome criteria.
-- **proposal-triage agent: verdict enforcement** — raised `maxTurns` from 5 to 8 (prevents turn exhaustion on multi-file dedup runs) and added a terminal imperative to the `## Output` section so the agent can't stop before emitting its verdict line.
-- **scheduled-checks decoupled from reflect** — `reflect-scheduled-checks` is now a self-contained routine skill; it filters, invokes, gates through reflection-judge + proposal-triage, applies state, and logs without returning a result block. The `## Scheduled Checks` section and interval-adjustment logic have been removed from `reflect`. A new `scheduled-checks` routine fires daily at `5 9 * * *` (5 minutes after reflect). Reflect context is now leaner.
-- **reflect-scheduled-checks: split unavailable/error gating (Fix D)** — `unavailable` outcomes (skill missing or briefly unavailable) now suppress retries for 4 hours only; `error` outcomes still back off for `interval_days`. New `last_error_at` field in `state/reflection-state.json → scheduled_checks.<id>`.
-- **micro-proposals: drop single-slot constraint** — `state/micro-proposals.json` schema changes from `{active: null}` to `{pending: []}`. Multiple micro-proposals can now coexist; channel-responder matches answers by ID (`MP-YYYYMMDD-N yes/no`); bare yes/no accepted when exactly one pending entry exists. Updates: reflect, channel-responder, heartbeat, brief, smoke-test, generate-summary.js, docs.
-- **hermit-start.py: export `CLAUDE_PLUGIN_ROOT` to tmux session** — the env file sourced before launching Claude Code in always-on mode now includes `CLAUDE_PLUGIN_ROOT` derived from `hermit-start.py`'s own path, so Bash tool calls within skills have the variable available in cron-triggered sessions.
+- **reflect-scheduled-checks: decoupled from reflect** — now a self-contained routine skill; `reflect` no longer runs or adjusts scheduled checks. New `scheduled-checks` routine fires at `5 9 * * *`.
+- **reflect-scheduled-checks: split unavailable/error gating** — `unavailable` backs off 4 hours only; `error` backs off `interval_days`. Adds `last_error_at` field to state.
+- **micro-proposals: drop single-slot constraint** — schema changes from `{active: null}` to `{pending: []}`, allowing multiple concurrent proposals; channel-responder matches by ID.
+- **hermit-start.py: export `CLAUDE_PLUGIN_ROOT` to always-on tmux session** — Bash tool calls inside cron-triggered skills now have the variable available.
+
+### Fixed
+
+- **reflect-scheduled-checks: false-negative unavailable classification** — uses loaded-skills list instead of filesystem grep for presence checks.
+- **proposal-triage: prevent turn exhaustion on multi-file dedup runs** — `maxTurns` raised from 5 to 8; verdict directive added to prevent early exit.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/reflect-scheduled-checks/SKILL.md` | Standalone routine; unavailable/error gating split; loaded-skills presence check |
+| `skills/reflect/SKILL.md` | Removed scheduled-checks section and interval-adjustment logic |
+| `agents/proposal-triage.md` | maxTurns 5→8; terminal verdict directive added |
+| `skills/channel-responder/SKILL.md` | Multi-slot micro-proposals: ID-based answer matching |
+| `skills/heartbeat/SKILL.md` | Multi-slot micro-proposals: pending array |
+| `skills/brief/SKILL.md` | Multi-slot micro-proposals: pending array |
+| `skills/smoke-test/SKILL.md` | Multi-slot micro-proposals: pending array |
+| `scripts/generate-summary.js` | Multi-slot micro-proposals: pending array |
+| `scripts/hermit-start.py` | CLAUDE_PLUGIN_ROOT export; scheduled-checks routine in DEFAULT_CONFIG |
+| `state-templates/config.json.template` | scheduled-checks routine added |
+| `state-templates/micro-proposals.json.template` | Schema: `{active: null}` → `{pending: []}` |
+| `CLAUDE.md` | `reflect-scheduled-checks` added to skills list |
+| `state-templates/CLAUDE-APPEND.md` | `reflect-scheduled-checks`, `channel-responder` added to quick reference |
 
 ### Upgrade Instructions
 
-1. **Migrate `micro-proposals.json`:** If `micro-proposals.json` contains a top-level key `active`: read its value. If null, rewrite the file as `{"pending": []}`. If an object, rewrite as `{"pending": [<that object with tier set to 1 if missing>]}`. Remove the `active` key in both cases.
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
-2. **Add `scheduled-checks` routine:** If `config.json` routines does not contain an entry with `id: "scheduled-checks"`, append: `{"id": "scheduled-checks", "schedule": "5 9 * * *", "skill": "claude-code-hermit:reflect-scheduled-checks", "run_during_waiting": true, "enabled": true}`. Upsert by id — do not duplicate if already present.
+1. **Migrate `micro-proposals.json`:** Read `micro-proposals.json`. If it has a top-level `active` key: if value is null, rewrite as `{"pending": []}`. If value is an object, rewrite as `{"pending": [<that object with tier: 1 if missing>]}`. Remove `active` in both cases.
+
+2. **Add `scheduled-checks` routine:** If `config.json` routines contains no entry with `id: "scheduled-checks"`, append `{"id": "scheduled-checks", "schedule": "5 9 * * *", "skill": "claude-code-hermit:reflect-scheduled-checks", "run_during_waiting": true, "enabled": true}`. Skip if already present.
 
 3. **Add `last_error_at` field:** For each entry under `state/reflection-state.json → scheduled_checks`, if `last_error_at` is absent, add `"last_error_at": null`.
 
-4. **Restart always-on session:** After upgrading, restart the hermit session (`hermit-stop` then `hermit-start`) so the new `CLAUDE_PLUGIN_ROOT` export takes effect in the tmux environment.
+4. **Restart always-on session:** Run `hermit-stop` then `hermit-start` so the new `CLAUDE_PLUGIN_ROOT` export takes effect in the tmux environment.
+
+No `config.json` schema changes required beyond the routine addition in step 2.
 
 ## [1.0.15] - 2026-04-22
 

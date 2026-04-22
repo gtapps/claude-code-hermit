@@ -48,6 +48,7 @@ DEFAULT_CONFIG = {
     'routines': [
         {'id': 'heartbeat-restart', 'schedule': '0 4 * * *', 'skill': 'claude-code-hermit:heartbeat start', 'run_during_waiting': True, 'enabled': True},
         {'id': 'reflect', 'schedule': '0 9 * * *', 'skill': 'claude-code-hermit:reflect', 'enabled': True},
+        {'id': 'scheduled-checks', 'schedule': '5 9 * * *', 'skill': 'claude-code-hermit:reflect-scheduled-checks', 'run_during_waiting': True, 'enabled': True},
         {'id': 'weekly-review', 'schedule': '0 23 * * 0', 'skill': 'claude-code-hermit:weekly-review', 'enabled': False},
     ],
     'monitors': [],
