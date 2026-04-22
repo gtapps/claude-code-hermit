@@ -26,9 +26,9 @@ GitHub: [anthropic/feature-dev](https://github.com/anthropics/claude-code/tree/m
 claude plugin install feature-dev@claude-plugins-official --scope project
 ```
 
-Official Anthropic plugin - Guided feature development with codebase understanding. Useful when you want a structured approach to building a new feature — it analyzes the existing codebase, designs an architecture, and walks through implementation.
+Official Anthropic plugin — guided feature development with codebase exploration, clarifying questions, and multi-option architecture design. Use it when the task touches unfamiliar code paths or framework internals (features, refactors, or bugfixes alike); skip for doc/config edits, single-line fixes, and changes you already know how to make. See [The Dev Workflow](HOW-TO-USE.md#the-dev-workflow) for the full trigger heuristic.
 
-Works independently from the dev hermit workflow. Use it when you want more guidance on _what_ to build before the hermit builds it.
+When installed, the dev hermit workflow surfaces it as an optional planning gate before the `implementer` agent: run `/feature-dev:feature-dev` to nail down the approach, record the chosen architecture in the Task or Progress Log, then hand it to the implementer to execute.
 
 ---
 

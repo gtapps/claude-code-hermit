@@ -30,6 +30,8 @@ Once activated, your hermit follows this cycle for development tasks:
 
 Break the task into steps. Each step becomes a native Task (via TaskCreate). For trivial single-step tasks, skip this — just go straight to implementation.
 
+**Optional planning gate (non-trivial code only)** — if `/feature-dev:feature-dev` is installed and the task touches a code path you haven't read end-to-end, or uses a framework feature you can't explain from memory (framework lifecycle hooks, ORM internals, build-tool plugins, auth middleware, request-time vs boot-time resolution), run it before step 2. The trigger is **unfamiliarity, not urgency** — a hotfix touching unfamiliar wiring is exactly when slowing down pays off. Record the chosen architecture in the Task description or Progress Log so the constraint survives context churn. Skip for doc/config edits, single-line fixes, and changes you already know how to make.
+
 ### 2. Implement
 
 The hermit delegates code changes to the `implementer` agent. This agent:
@@ -40,6 +42,8 @@ The hermit delegates code changes to the `implementer` agent. This agent:
 - Returns a structured summary: changes, files modified, test results, concerns, branch name
 
 The implementer works on feature branches only — see [Git Safety](GIT-SAFETY.md) for the full safety model.
+
+**Before overriding any implementer choice**: if it produced tests, run them first. If they pass, treat the choice as potentially load-bearing and trace the framework/library behavior before replacing it with a more idiomatic-looking alternative. If no tests exist, trace before overriding.
 
 ### 3. Quality Pass
 
@@ -53,6 +57,8 @@ This runs three steps in sequence:
 1. **Tests** — confirm everything passes
 2. **`/simplify`** — auto-cleanup on changed files (also runs parallel reuse/quality/efficiency review agents)
 3. **Tests again** — make sure `/simplify` didn't break anything (reverts if it did)
+
+Use `/simplify` directly only for mid-task cleanup or after `/batch` — not as the end-of-task gate (that's what `/dev-quality` is for).
 
 For PR review, security-sensitive changes, or large refactors, invoke `code-review:code-review` explicitly after the quality pass — it's an optional companion, not part of the default flow.
 

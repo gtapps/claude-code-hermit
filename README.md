@@ -38,9 +38,9 @@ The setup wizard asks about your branch naming, deploy process, and hook profile
 
 This plugin adds a development workflow on top of your hermit's session and learning capabilities:
 
-1. **Plan** — break the task into steps (native Tasks)
-2. **Implement** — delegate to the `implementer` agent, which works in an isolated git worktree on a feature branch
-3. **Quality pass** — run `/claude-code-dev-hermit:dev-quality` (tests, `/simplify`, tests again)
+1. **Plan** — break the task into steps (native Tasks); for non-trivial code touching unfamiliar framework wiring, optionally run `/feature-dev:feature-dev` first — record the chosen architecture in the Task or Progress Log before handing off to the implementer
+2. **Implement** — delegate to the `implementer` agent, which works in an isolated git worktree on a feature branch; before overriding any implementer choice, run its tests first
+3. **Quality pass** — run `/claude-code-dev-hermit:dev-quality` (tests, `/simplify`, tests again); use `/simplify` directly only for mid-task cleanup or after `/batch`, not as the end-of-task gate
 4. **Reflect** — the hermit reflects on what it learned before moving on
 
 The implementer never touches main. It commits to feature branches, runs tests, and hands back a structured summary. You review and merge on your terms.

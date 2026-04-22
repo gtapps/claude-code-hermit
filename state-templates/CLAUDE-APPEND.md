@@ -27,9 +27,12 @@ Core rules (artifact frontmatter, tag discipline, proposals) apply to all dev wo
 When doing development work:
 
 1. **Plan**: break the task into steps, create a Task for each
+
+   > **Optional planning gate (non-trivial code only)** — if `/feature-dev:feature-dev` is installed and the task touches a code path you haven't read end-to-end, or uses a framework feature you can't explain from memory (e.g. framework lifecycle hooks, ORM internals, build-tool plugins, auth middleware, request-time vs boot-time resolution), run it first. The trigger is **unfamiliarity, not urgency** — a hotfix touching unfamiliar wiring is exactly when slowing down pays off. Record the chosen architecture in the Task description or Progress Log before invoking the implementer. **Skip for**: doc/prompt/config edits, single-line fixes, and changes you already know how to make.
+
 2. **Implement**: use the `claude-code-dev-hermit:implementer` agent for code changes (worktree-isolated feature branches)
-3. **After implementer returns**: update SHELL.md — log branch name in Progress Log, append changed files to Changed section, note any test failures or concerns in Blockers
-4. **Quality pass**: run `/claude-code-dev-hermit:dev-quality`
+3. **After implementer returns**: update SHELL.md — log branch name in Progress Log, append changed files to Changed section, note any test failures or concerns in Blockers. **Before overriding any implementer choice**: if the implementer produced tests, run them first; if they pass, treat the choice as potentially load-bearing and trace the framework/library behavior before replacing it with a more idiomatic-looking alternative. If no tests exist, trace before overriding.
+4. **Quality pass**: run `/claude-code-dev-hermit:dev-quality` (this wraps `/simplify` plus test invocation — don't call `/simplify` directly at end-of-task; reserve it for mid-task cleanup or post-`/batch` follow-up)
 5. **If critical issues**: loop back to implementation before proceeding
 6. **Task boundary**: invoke `reflect`, serialize and delete all Tasks
 
