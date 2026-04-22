@@ -30,7 +30,7 @@
     "MAX_THINKING_TOKENS": "10000"
   },
   "boot_skill": null,
-  "plugin_checks": [],
+  "scheduled_checks": [],
   "docker": {
     "packages": [],
     "recommended_plugins": []

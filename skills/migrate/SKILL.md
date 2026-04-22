@@ -174,7 +174,7 @@ Apply classification heuristics (see below). For each file include a one-line re
 Classify each `.claude-code-hermit/` artifact using the defaults table. For each artifact present, state the classification and why.
 
 For `config.json` specifically, provide field-level analysis:
-- **Portable fields** (safe to copy as-is): `agent_name`, `language`, `escalation`, `sign_off`, `idle_behavior`, `idle_budget`, `auto_session`, `ask_budget`, `chrome`, `heartbeat`, `compact`, `env` (most entries), `routines`, `plugin_checks`, `docker`, `scope`
+- **Portable fields** (safe to copy as-is): `agent_name`, `language`, `escalation`, `sign_off`, `idle_behavior`, `idle_budget`, `auto_session`, `ask_budget`, `chrome`, `heartbeat`, `compact`, `env` (most entries), `routines`, `scheduled_checks`, `docker`, `scope`
 - **Machine-specific fields** (must be updated on destination): `timezone`, `channels.*.dm_channel_id`, `tmux_session_name`, `permission_mode` — see `docs/config-reference.md` for any fields added since this list was written
 - **Note on `channels.*.state_dir`:** If the value is a relative path (e.g. `.claude.local/channels/discord`), it is portable and can be copied as-is. If it is an absolute path (legacy), treat it as machine-specific and update it on the destination.
 - Recommend either: copy then edit machine-specific fields, or recreate from `hatch` and manually port identity/behavior settings

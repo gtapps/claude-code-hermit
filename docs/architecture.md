@@ -170,7 +170,7 @@ One writer per state file. No shared mutation bus.
 | ------------------------------ | --------------------------------------------------- | ------------------------------------------------------------- |
 | `state/runtime.json`           | session-mgr + cost-tracker                          | heartbeat, session-start, /hermit-routines (rdw=false suppression)   |
 | `state/alert-state.json`       | heartbeat only                                      | heartbeat; evaluate-session (read-only nudge computation)     |
-| `state/reflection-state.json`  | reflect + session (non-overlapping phases)          | heartbeat (debounce), hermit-settings (plugin-checks display) |
+| `state/reflection-state.json`  | reflect + session (non-overlapping phases)          | heartbeat (debounce), hermit-settings (scheduled-checks display) |
 | `state/channel-activity.json`  | channel-hook.js only                                | channel-responder, heartbeat                                  |
 | `state/session-diff.json`      | session-diff.js only                                | session-close (display)                                       |
 | `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only)        | generate-summary.js                                           |

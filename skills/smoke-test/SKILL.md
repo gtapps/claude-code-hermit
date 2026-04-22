@@ -34,14 +34,14 @@ Track `passed`, `warnings`, `failures` counts. Collect output lines for the fina
     - Found: **WARN** `OPERATOR.md contains unfilled {{ placeholders`
     - Not found: **PASS** `OPERATOR.md readable`
 
-### 4. Plugin check references
+### 4. Scheduled check references
 
-- Read `plugin_checks` array from config.json
+- Read `scheduled_checks` array from config.json
 - For each entry:
   - Extract the plugin name and skill name from the `skill` field (format: `/plugin:skill-name` or `plugin:skill-name`)
   - Check if the skill directory exists at `${CLAUDE_PLUGIN_ROOT}/../<plugin>/skills/<skill-name>/SKILL.md`
-  - Exists: **PASS** `plugin_checks[N]: <id> resolves`
-  - Missing: **WARN** `plugin_checks[N]: skill not found at <path> — may be installed globally` (sibling directory layout is not guaranteed for marketplace installs)
+  - Exists: **PASS** `scheduled_checks[N]: <id> resolves`
+  - Missing: **WARN** `scheduled_checks[N]: skill not found at <path> — may be installed globally` (sibling directory layout is not guaranteed for marketplace installs)
 
 ### 5. Routine validation (static)
 
@@ -85,7 +85,7 @@ Output each check result as exactly one line:
 ```
 PASS  config.json parsed and version matches plugin (0.3.4)
 WARN  OPERATOR.md contains unfilled {{ placeholders
-WARN  plugin_checks[0]: skill not found at ../claude-code-setup/skills/claude-automation-recommender — may be installed globally
+WARN  scheduled_checks[0]: skill not found at ../claude-code-setup/skills/claude-automation-recommender — may be installed globally
 PASS  routine "heartbeat-restart" valid (04:00, claude-code-hermit:heartbeat start)
 PASS  routine "morning" valid (08:30, claude-code-hermit:brief --morning)
 FAIL  routine "bad" has invalid time "25:00" — must be HH:MM (00:00-23:59)

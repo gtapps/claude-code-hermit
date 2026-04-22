@@ -21,12 +21,13 @@ const HARD_CAP = 9000;
 // If a section exceeds its budget, it is truncated with [...truncated].
 // Lower-priority sections are dropped entirely once HARD_CAP is reached.
 const BUDGETS = {
-  operator:   2000,
-  session:    3000,
-  knowledge:  1000, // compiled/ artifacts — read from config, 1000 default
-  cost:        500,
-  report:     1500,
-  upgrade:     500,
+  operator:      2000,
+  session:       3000,
+  knowledge:     1000, // compiled/ artifacts — read from config, 1000 default
+  storageDrift:   500, // only emitted when misplaced files are found
+  cost:           500,
+  report:        1500,
+  upgrade:        500,
 };
 
 // Emit artifact entries for a list, tracking chars used against a budget.
@@ -61,6 +62,42 @@ function extractSection(md, name) {
 function lastLines(text, n) {
   const lines = text.split('\n').filter(l => l.trim());
   return lines.slice(-n).join('\n');
+}
+
+// Scan hermitDir for artifacts written outside raw/ and compiled/ (flat).
+// Returns an array of human-readable hit strings, empty when clean.
+function findStorageDrift(hermitDir) {
+  const KNOWN_DIRS = new Set(['raw', 'compiled', 'sessions', 'proposals', 'state', 'templates',
+    'memory', 'reviews', 'obsidian', 'bin', 'docker']);
+  const hits = [];
+
+  function countEntries(dir) {
+    try { return fs.readdirSync(dir).filter(f => !f.startsWith('.')).length; } catch { return 0; }
+  }
+
+  // Unknown top-level dirs inside .claude-code-hermit/
+  try {
+    for (const entry of fs.readdirSync(hermitDir, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+      if (!KNOWN_DIRS.has(entry.name)) {
+        const n = countEntries(path.join(hermitDir, entry.name));
+        hits.push(`.claude-code-hermit/${entry.name}/ (${n} file${n !== 1 ? 's' : ''})`);
+      }
+    }
+  } catch {}
+
+  // Subdirs under raw/ and compiled/ (except .archive)
+  for (const side of ['raw', 'compiled']) {
+    try {
+      for (const entry of fs.readdirSync(path.join(hermitDir, side), { withFileTypes: true })) {
+        if (!entry.isDirectory() || entry.name === '.archive') continue;
+        const n = countEntries(path.join(hermitDir, side, entry.name));
+        hits.push(`.claude-code-hermit/${side}/${entry.name}/ (${n} file${n !== 1 ? 's' : ''})`);
+      }
+    } catch {}
+  }
+
+  return hits;
 }
 
 function main() {
@@ -204,7 +241,22 @@ function main() {
   }
 
   // -------------------------------------------------------
-  // 5. Session cost (priority 3, budget 500)
+  // 5. Storage drift (priority 2.8, budget 500 — silent when clean)
+  // -------------------------------------------------------
+  if (totalChars < HARD_CAP) {
+    try {
+      const hits = findStorageDrift(AGENT_DIR);
+      if (hits.length > 0) {
+        const lines = hits.slice(0, 5).map(h => `- ${h}`).join('\n');
+        const suffix = hits.length > 5 ? `\n(${hits.length - 5} more)` : '';
+        const body = `${hits.length} path${hits.length !== 1 ? 's' : ''} invisible to session injection and archival:\n${lines}${suffix}\nMove files into .claude-code-hermit/raw/ or compiled/ (flat). See docs/plugin-hermit-storage.md.`;
+        emit('Storage Drift', body.slice(0, BUDGETS.storageDrift));
+      }
+    } catch {}
+  }
+
+  // -------------------------------------------------------
+  // 6. Session cost (priority 3, budget 500) — was 5
   // -------------------------------------------------------
   try {
     const statusPath = path.resolve(AGENT_DIR, 'sessions', '.status.json');
@@ -218,7 +270,7 @@ function main() {
   }
 
   // -------------------------------------------------------
-  // 6. Last report (priority 4, budget 1500)
+  // 7. Last report (priority 4, budget 1500)
   // -------------------------------------------------------
   if (totalChars < HARD_CAP) {
     try {
@@ -251,7 +303,7 @@ function main() {
   }
 
   // -------------------------------------------------------
-  // 7. Upgrade check (priority 5, budget 500)
+  // 8. Upgrade check (priority 5, budget 500)
   // -------------------------------------------------------
   if (totalChars < HARD_CAP) {
     try {

@@ -193,7 +193,7 @@ Note: `multiSelect: true` is intentional — all three plugins can be selected a
 - For each selected plugin (not "None"), install it immediately:
   `claude plugin install <plugin>@claude-plugins-official --scope project`
 
-For each accepted plugin, also add the corresponding `plugin_checks` entries to config.json:
+For each accepted plugin, also add the corresponding `scheduled_checks` entries to config.json:
 
 - `claude-code-setup` → `{"id":"automation-recommender","plugin":"claude-code-setup","skill":"/claude-code-setup:claude-automation-recommender","enabled":true,"trigger":"interval","interval_days":7}`
 - `claude-md-management` → two entries:

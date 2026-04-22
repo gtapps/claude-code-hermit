@@ -1,4 +1,5 @@
 # Knowledge Schema
+<!-- knowledge-lint.js reads ## Work Products and ## Raw Captures to enforce type declarations. Bullet lines matching `- <type>:` are parsed; HTML comment blocks are ignored. -->
 
 <!-- Co-evolve this file with your operator over time.
      Defines what this hermit produces — plumbing, not policy.
@@ -16,6 +17,7 @@
          Triggered by daily morning routine.
          location: compiled/briefing-<slug>-<date>.md
 -->
+- note: general-purpose compiled note. location: compiled/note-<slug>-<date>.md
 
 ## Raw Captures
 <!-- What operational inputs does this hermit collect into raw/?
@@ -29,6 +31,7 @@
        - snapshot: point-in-time data dumps. Feeds weekly reports.
          location: raw/snapshot-<slug>-<date>.md
 -->
+- input: general-purpose raw capture. location: raw/input-<slug>-<date>.md
 
 ## Retention
 <!-- How long do different raw types live before archival?

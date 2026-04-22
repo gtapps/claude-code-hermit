@@ -240,7 +240,7 @@ The entrypoint adds the marketplace (if needed) and installs every enabled entry
 
 **On container-side `claude plugin marketplace add` / `plugin install` failure (either in entrypoint logs or when re-running the command manually after boot):** if the error mentions SSH auth, HTTPS credentials, `gh` not found, or `.gitconfig` read-only, **stop immediately — do not attempt workarounds inside the container.** The container has no SSH client, no `gh` CLI, and `.gitconfig` is bind-mounted read-only by design. Iterating on `GIT_CONFIG_NOSYSTEM`, `git config --global url...insteadOf`, or similar is guaranteed to fail and wastes the operator's time. Surface the error to the operator verbatim and move on — no retry unless the operator changes something host-side (makes the repo public, mirrors it, etc.) and asks to retry.
 
-If the operator selected plugins that have corresponding `plugin_checks` entries in hatch Phase 4 (claude-code-setup, claude-md-management, skill-creator), also record those `plugin_checks` entries if not already present.
+If the operator selected plugins that have corresponding `scheduled_checks` entries in hatch Phase 4 (claude-code-setup, claude-md-management, skill-creator), also record those `scheduled_checks` entries if not already present.
 
 ### 7b.packages: Plugin-declared apt dependencies
 

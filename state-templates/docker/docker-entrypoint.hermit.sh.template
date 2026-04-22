@@ -205,7 +205,7 @@ if [ "$NEEDS_OFFICIAL" = true ] && [ ! -d "${MARKETPLACE_DIR}/claude-plugins-off
   fi
 fi
 
-# Snapshot installed plugins once — used by recommended plugin check below.
+# Snapshot installed plugins once — used by the recommended-plugin scheduled check below.
 # stderr is kept visible so CLI errors surface in `docker compose logs`.
 INSTALLED_PLUGINS=$(claude plugin list || echo "")
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Static consistency test: verifies that every recurrence gate file contains
-# the plugin-check / operator-request bypass phrases and that each gate
+# the scheduled-check / operator-request bypass phrases and that each gate
 # documents the canonical suppress codes it can emit.
 #
 # What this catches: the ROP-001 class of bug where a bypass is added to one
@@ -24,8 +24,8 @@ echo "=== Recurrence gate: exception coverage ==="
 for file in "${GATE_FILES[@]}"; do
   label="$(basename "$(dirname "$file")")/$(basename "$file")"
 
-  if ! grep -q "plugin-check" "$file"; then
-    echo "FAIL [$label]: missing 'plugin-check' bypass phrase"
+  if ! grep -q "scheduled-check" "$file"; then
+    echo "FAIL [$label]: missing 'scheduled-check' bypass phrase"
     rc=1
   fi
 
@@ -74,7 +74,7 @@ fi
 # ── 4. Verdict-tag coverage in judge output examples ────────────────────────
 echo "=== Recurrence gate: verdict-tag coverage ==="
 
-for tag in "current-session" "plugin-check" "operator-request"; do
+for tag in "current-session" "scheduled-check" "operator-request"; do
   if ! grep -q "($tag)" "$judge"; then
     echo "FAIL [agents/reflection-judge.md]: no example verdict line with source tag '($tag)'"
     rc=1

@@ -58,7 +58,7 @@ DEFAULT_CONFIG = {
         'MAX_THINKING_TOKENS': '10000',
     },
     'boot_skill': None,
-    'plugin_checks': [],
+    'scheduled_checks': [],
     'docker': {
         'packages': [],
         'recommended_plugins': [],

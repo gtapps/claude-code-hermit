@@ -128,6 +128,6 @@ Both modes run the heartbeat if enabled. Change with `/hermit-settings idle`.
 
 ---
 
-## What are plugin checks?
+## What are scheduled checks?
 
-Automatic invocations of skills from installed plugins (e.g., `claude-md-management:claude-md-improver`). They run during idle reflection at configurable intervals. Configure with `/hermit-settings plugin-checks`. See [Config Reference](config-reference.md#plugin_checks) for the schema.
+Automatic invocations of skills on a cadence — either from installed plugins (e.g., `claude-md-management:claude-md-improver`) or from your own hermit. They run during idle reflection at configurable intervals and must conform to the [scheduled-check contract](../skills/reflect-scheduled-checks/SKILL.md) (idempotent, returns findings or nothing, no self-scheduling). Configure with `/hermit-settings scheduled-checks`. See [Config Reference](config-reference.md#scheduled_checks) for the schema.

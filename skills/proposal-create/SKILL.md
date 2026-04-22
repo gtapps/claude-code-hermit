@@ -13,7 +13,7 @@ Create a proposal only when you discover something with real leverage:
 ## Three-Condition Rule
 
 Only create a proposal if all three are true:
-1. **Repeated pattern** — observed more than once, across sessions. **Skip for `plugin-check/*`, `operator-request`, and `current-session` evidence sources** — recurrence is either established by the check's own analysis or was validated upstream by `reflection-judge`.
+1. **Repeated pattern** — observed more than once, across sessions. **Skip for `scheduled-check/*`, `operator-request`, and `current-session` evidence sources** — recurrence is either established by the check's own analysis or was validated upstream by `reflection-judge`.
 2. **Meaningful consequence** — something goes wrong without fixing it
 3. **Operator-actionable change** — something the operator can concretely approve
 
@@ -25,7 +25,7 @@ Respond: "Not enough evidence yet. Note it in SHELL.md Findings and revisit afte
 Before creating the proposal, call `claude-code-hermit:proposal-triage`. Pass `Evidence Source:` when known:
 ```
 Title: <proposal title>
-Evidence Source: <archived-session | current-session | plugin-check/<id> | operator-request>
+Evidence Source: <archived-session | current-session | scheduled-check/<id> | operator-request>
 Evidence: <one-paragraph evidence summary>
 ```
 

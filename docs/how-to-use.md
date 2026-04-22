@@ -170,7 +170,7 @@ See [Hermit Cortex](obsidian-setup.md) for the full guide.
 ├── state/                     <- runtime observations (agent-owned)
 │   ├── runtime.json           <- session state (in_progress/waiting/idle)
 │   ├── alert-state.json       <- heartbeat alert dedup + self-eval evidence
-│   ├── reflection-state.json  <- last reflection timestamp + plugin check state
+│   ├── reflection-state.json  <- last reflection timestamp + scheduled check state
 │   ├── routine-metrics.jsonl <- append-only routine fire log
 │   ├── proposal-metrics.jsonl <- append-only event log
 │   ├── micro-proposals.json   <- single-slot micro-approval queue

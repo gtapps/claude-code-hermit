@@ -28,7 +28,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings env              — view/edit environment variables
 /claude-code-hermit:hermit-settings compact          — configure SHELL.md compaction thresholds
 /claude-code-hermit:hermit-settings docker           — view/edit Docker packages
-/claude-code-hermit:hermit-settings plugin-checks    — manage scheduled plugin skill checks
+/claude-code-hermit:hermit-settings scheduled-checks    — manage scheduled plugin skill checks
 /claude-code-hermit:hermit-settings boot-skill       — view/clear/change the always-on boot skill
 ```
 
@@ -80,11 +80,11 @@ Environment (env):
   MAX_THINKING_TOKENS             10000
   → run: /claude-code-hermit:hermit-settings env
 
-Plugin Checks:
+Scheduled Checks:
   automation-recommender  claude-code-setup     interval  7 days   2026-04-01  enabled
   md-audit                claude-md-management  interval  7 days   (never)     enabled
   md-revise               claude-md-management  session   —        2026-04-06  enabled
-  → run: /claude-code-hermit:hermit-settings plugin-checks
+  → run: /claude-code-hermit:hermit-settings scheduled-checks
 
 Docker:
   Packages: build-essential, ffmpeg  → run: /claude-code-hermit:hermit-settings docker
@@ -315,18 +315,18 @@ Update `permission_mode` in config.json.
   - If input is just a plugin name without a verb: treat as `enable` if it exists, `add` if it doesn't
 - After changes, note: "Restart container to install new plugins: `.claude-code-hermit/bin/hermit-docker restart`"
 
-**If argument is "plugin-checks":**
+**If argument is "scheduled-checks":**
 - Read `state/reflection-state.json` for runtime state (last run dates). If missing, show "(no runs yet)" for all.
-- Show current `plugin_checks` entries from config.json:
+- Show current `scheduled_checks` entries from config.json:
   ```
-  Plugin Checks (config.json plugin_checks)
+  Scheduled Checks (config.json scheduled_checks)
 
     #  ID                      Plugin               Trigger   Interval  Last Run    Status
     1. automation-recommender  claude-code-setup     interval  7 days    2026-04-01  enabled
     2. md-audit                claude-md-management  interval  7 days    (never)     enabled
     3. md-revise               claude-md-management  session   —         2026-04-06  enabled
 
-  (or "No plugin checks configured" if empty)
+  (or "No scheduled checks configured" if empty)
   ```
 - Ask: "Enable, disable, add, remove, or change interval? (e.g., 'disable md-audit', 'interval automation-recommender 14', 'add my-check my-plugin /my-plugin:my-skill interval 7', 'add my-check my-plugin /my-plugin:my-skill session', or 'done') [done]"
 - Loop until operator says "done", "skip", or presses Enter:

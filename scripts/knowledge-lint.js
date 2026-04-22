@@ -6,8 +6,9 @@
 // Usage as lib:   require('./knowledge-lint').lint(hermitDir) => { findings, counts }
 //
 // findings: array of { type, file, age, reason }
-//   type: 'unreferenced' | 'stale' | 'missing-type' | 'oversized' | 'working-set' | 'stale-compiled' | 'line-limit' | 'tag-variant'
+//   type: 'unreferenced' | 'stale' | 'missing-type' | 'oversized' | 'working-set' | 'stale-compiled' | 'line-limit' | 'tag-variant' | 'undeclared-type' | 'unused-declaration'
 // counts: { raw, compiled, archived }
+// options: { verbose: false } — unused-declaration findings only included when verbose=true
 
 'use strict';
 
@@ -15,7 +16,30 @@ const fs = require('fs');
 const path = require('path');
 const { readFrontmatter, readFileWithFrontmatter, newestByType, globDirRecursive } = require('./lib/frontmatter');
 
-function lint(hermitDir) {
+function parseSchema(schemaPath) {
+  // Returns { workProducts: Set<string>, rawCaptures: Set<string> }, null if present but empty, false if missing.
+  // Bullet grammar: lines matching `^-\s+([\w-]+):` under each section heading.
+  let text;
+  try { text = fs.readFileSync(schemaPath, 'utf8'); } catch { return false; }
+  text = text.replace(/<!--[\s\S]*?-->/g, '');
+  const workProducts = new Set();
+  const rawCaptures = new Set();
+  let section = null;
+  for (const line of text.split('\n')) {
+    if (/^##\s+Work Products\b/.test(line)) { section = 'work'; continue; }
+    if (/^##\s+Raw Captures\b/.test(line)) { section = 'raw'; continue; }
+    if (/^##/.test(line)) { section = null; continue; }
+    const m = line.match(/^-\s+([\w-]+):/);
+    if (!m) continue;
+    if (section === 'work') workProducts.add(m[1]);
+    if (section === 'raw') rawCaptures.add(m[1]);
+  }
+  if (workProducts.size === 0 && rawCaptures.size === 0) return null;
+  return { workProducts, rawCaptures };
+}
+
+function lint(hermitDir, options = {}) {
+  const verbose = !!options.verbose;
   const rawDir = path.join(hermitDir, 'raw');
   const archiveDir = path.join(rawDir, '.archive');
   const compiledDir = path.join(hermitDir, 'compiled');
@@ -42,6 +66,10 @@ function lint(hermitDir) {
 
   const findings = [];
 
+  // --- Schema (parsed once; false=missing, null=present-but-empty, object=usable) ---
+  const schemaPath = path.join(hermitDir, 'knowledge-schema.md');
+  const schema = parseSchema(schemaPath);
+
   // --- Load compiled artifacts (shared across checks) ---
   let compiledArtifacts = [];
   const compiledBodies = new Map(); // filename -> body text
@@ -67,6 +95,25 @@ function lint(hermitDir) {
       .map(f => ({ file: f, fm: readFrontmatter(path.join(rawDir, f)) }))
       .filter(r => r.fm);
   } catch {}
+
+  // --- Schema presence check — only when artifacts exist (no-op on empty hermit) ---
+  if (rawFiles.length > 0 || compiledArtifacts.length > 0) {
+    if (schema === false) {
+      findings.push({
+        type: 'schema-missing',
+        file: 'knowledge-schema.md',
+        age: '—',
+        reason: 'knowledge-schema.md not found — type declarations not enforced. Run /hatch or create the file.'
+      });
+    } else if (schema === null) {
+      findings.push({
+        type: 'schema-empty',
+        file: 'knowledge-schema.md',
+        age: '—',
+        reason: 'knowledge-schema.md has no declared types — add entries under ## Work Products and ## Raw Captures.'
+      });
+    }
+  }
 
   for (const raw of rawFiles) {
     const filename = raw.file;
@@ -97,6 +144,31 @@ function lint(hermitDir) {
           file: `raw/${filename}`,
           age: ageStr,
           reason: 'Possibly unreferenced — no compiled/ body mentions this filename.'
+        });
+      }
+    }
+
+    // Schema: undeclared raw type
+    if (schema && raw.fm.type && !schema.rawCaptures.has(raw.fm.type)) {
+      findings.push({
+        type: 'undeclared-type',
+        file: `raw/${filename}`,
+        age: '—',
+        reason: `Type \`${raw.fm.type}\` not declared in knowledge-schema.md ## Raw Captures.`
+      });
+    }
+  }
+
+  // Schema: unused raw declarations (verbose only)
+  if (schema && verbose) {
+    const usedRawTypes = new Set(rawFiles.map(r => r.fm.type).filter(Boolean));
+    for (const declared of schema.rawCaptures) {
+      if (!usedRawTypes.has(declared)) {
+        findings.push({
+          type: 'unused-declaration',
+          file: 'raw/',
+          age: '—',
+          reason: `Type \`${declared}\` declared in knowledge-schema.md but no raw/ files use it.`
         });
       }
     }
@@ -172,6 +244,31 @@ function lint(hermitDir) {
           reason: `Tag [${offenders.join(', ')}] — did you mean \`foundational\`?`
         });
       }
+
+      // Schema: undeclared compiled type
+      if (schema && a.fm.type && !schema.workProducts.has(a.fm.type)) {
+        findings.push({
+          type: 'undeclared-type',
+          file: `compiled/${a.file}`,
+          age: '—',
+          reason: `Type \`${a.fm.type}\` not declared in knowledge-schema.md ## Work Products.`
+        });
+      }
+    }
+
+    // Schema: unused work-product declarations (verbose only)
+    if (schema && verbose) {
+      const usedCompiledTypes = new Set(compiledArtifacts.map(a => a.fm.type).filter(Boolean));
+      for (const declared of schema.workProducts) {
+        if (!usedCompiledTypes.has(declared)) {
+          findings.push({
+            type: 'unused-declaration',
+            file: 'compiled/',
+            age: '—',
+            reason: `Type \`${declared}\` declared in knowledge-schema.md but no compiled/ files use it.`
+          });
+        }
+      }
     }
   }
 
@@ -187,17 +284,23 @@ function lint(hermitDir) {
       raw: rawFiles.length,
       compiled: compiledArtifacts.length,
       archived: archivedCount
-    }
+    },
+    schemaPresent: schema !== false
   };
 }
 
 // --- CLI mode ---
 if (require.main === module) {
-  const hermitDir = process.argv[2] || '.claude-code-hermit';
-  const { findings, counts } = lint(hermitDir);
+  const args = process.argv.slice(2);
+  const verbose = args.includes('--verbose');
+  const hermitDir = args.find(a => !a.startsWith('--')) || '.claude-code-hermit';
+  const { findings, counts, schemaPresent } = lint(hermitDir, { verbose });
 
   if (findings.length === 0) {
     console.log(`Knowledge base is clean. (${counts.raw} raw, ${counts.compiled} compiled, ${counts.archived} archived)`);
+    if (verbose && !schemaPresent) {
+      console.log('info: knowledge-schema.md missing — type declarations not enforced');
+    }
     process.exit(0);
   }
 
@@ -221,6 +324,9 @@ if (require.main === module) {
   if (groups.has('oversized')) console.log('Oversized compiled artifacts will be truncated when injected into session context.');
   if (groups.has('unreferenced')) console.log('Possibly unreferenced — verify before cleanup.');
   if (groups.has('missing-type')) console.log('Add a `type` field to frontmatter for proper grouping at session start.');
+  if (groups.has('undeclared-type')) console.log('Undeclared types — add entries to knowledge-schema.md or remove unused type values.');
+  if (groups.has('schema-empty')) console.log('Add type declarations to knowledge-schema.md — Work Products and Raw Captures sections.');
+  if (groups.has('schema-missing')) console.log('Create knowledge-schema.md (run /hatch or copy the template).');
 
   console.log(`\n(${counts.raw} raw, ${counts.compiled} compiled, ${counts.archived} archived)`);
 }

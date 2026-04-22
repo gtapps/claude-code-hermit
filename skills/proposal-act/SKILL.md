@@ -1,10 +1,10 @@
 ---
 name: proposal-act
-description: Accept, defer, or dismiss a proposal. For accepted proposals, asks how to proceed — create a session task or note for manual implementation. Activates on messages like "accept PROP-", "dismiss PROP-", "defer PROP-".
+description: Accept, defer, dismiss, or resolve a proposal. For accepted proposals, asks how to proceed — create a session task or note for manual implementation. Activates on messages like "accept PROP-", "dismiss PROP-", "defer PROP-", "resolve PROP-".
 ---
 # Proposal Act
 
-Take action on a proposal: accept, defer, or dismiss.
+Take action on a proposal: accept, defer, dismiss, or resolve.
 
 ## Usage
 
@@ -12,6 +12,7 @@ Take action on a proposal: accept, defer, or dismiss.
 /claude-code-hermit:proposal-act accept PROP-019
 /claude-code-hermit:proposal-act defer PROP-015
 /claude-code-hermit:proposal-act dismiss PROP-012
+/claude-code-hermit:proposal-act resolve PROP-008
 ```
 
 If no action or ID is provided, ask the operator which proposal and action.
@@ -106,3 +107,21 @@ Deferred proposals still appear in `/proposal-list` but are sorted below open pr
 5. Respond: "PROP-NNN dismissed."
 
 Dismissed proposals are hidden from the default `/proposal-list` view. Use "show all" with `/proposal-list` to see them.
+
+## Resolve Flow
+
+Used when reflect has surfaced a sparse-cadence proposal as a resolution candidate (pattern absent from recent sessions but cadence too infrequent to auto-resolve). Also available directly: `/claude-code-hermit:proposal-act resolve PROP-NNN`.
+
+1. Read the proposal file
+2. Update the YAML frontmatter: set `status` to `resolved`, `resolved_date` to current timestamp. Do NOT set `dismissed_date`. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
+3. Append a `resolved` event to proposal-metrics.jsonl:
+   ```
+   node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"resolved","proposal_id":"PROP-NNN"}'
+   ```
+4. Append to the Operator Decision section:
+   ```
+   Resolved on 2026-04-06T14:30:00+01:00. Pattern confirmed absent.
+   ```
+5. Respond: "PROP-NNN resolved."
+
+No first-response tracking on resolve — the proposal was already accepted and that event was already logged.

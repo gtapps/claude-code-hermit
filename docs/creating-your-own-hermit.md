@@ -122,7 +122,7 @@ Your hermit handles domain-specific work. Core handles session lifecycle.
 
 ### Hatch pattern (optional)
 
-Only needed if your hermit has setup steps beyond what core's `/claude-code-hermit:hatch` does (e.g. appending a domain CLAUDE-APPEND.md, creating extra state dirs, registering plugin_checks). If your plugin is a thin layer of agents/skills with no setup needed, skip this entirely.
+Only needed if your hermit has setup steps beyond what core's `/claude-code-hermit:hatch` does (e.g. appending a domain CLAUDE-APPEND.md, creating extra state dirs, registering scheduled_checks). If your plugin is a thin layer of agents/skills with no setup needed, skip this entirely.
 
 Name the skill simply `hatch` — the plugin namespace already disambiguates it from core's hatch (`/claude-code-your-domain-hermit:hatch` vs `/claude-code-hermit:hatch`).
 
@@ -211,9 +211,9 @@ Add a `knowledge-schema.md` to document what your hermit produces and when — t
 
 ### Periodic skill invocation via reflect
 
-If your hermit has a skill that should run on a cadence (e.g. `ha-analyze-patterns` checking home patterns weekly), register it in `plugin_checks` instead of building your own scheduler. Reflect picks one due entry per run, invokes your skill, and funnels its output through the proposal pipeline — no extra infrastructure.
+If your hermit has a skill that should run on a cadence (e.g. `ha-analyze-patterns` checking home patterns weekly), register it in `scheduled_checks` instead of building your own scheduler. Reflect picks one due entry per run, invokes your skill, and funnels its output through the proposal pipeline — no extra infrastructure.
 
-**How to register.** Your init/hatch skill appends an entry to `config.json.plugin_checks` (deduplicate by `id`):
+**How to register.** Your init/hatch skill appends an entry to `config.json.scheduled_checks` (deduplicate by `id`):
 
 ```json
 {
@@ -226,16 +226,16 @@ If your hermit has a skill that should run on a cadence (e.g. `ha-analyze-patter
 }
 ```
 
-Full schema: [`config-reference.md#plugin_checks`](config-reference.md#plugin_checks).
+Full schema: [`config-reference.md#scheduled_checks`](config-reference.md#scheduled_checks).
 
 **Contract your skill must honor** (reflect's auto-tuning depends on it):
 
 - **Idempotent** — reflect may invoke it at any point in an idle cycle.
-- **Return actionable findings or nothing** — a finding becomes a proposal candidate tagged `Evidence Source: plugin-check/<id>`, which **bypasses the cross-session recurrence check** (Three-Condition Rule #1) at every gate. Conditions #2 (meaningful consequence) and #3 (operator-actionable) still apply. Emit nothing when there's nothing to say; reflect's `consecutive_empty` counter drives automatic interval tuning.
+- **Return actionable findings or nothing** — a finding becomes a proposal candidate tagged `Evidence Source: scheduled-check/<id>`, which **bypasses the cross-session recurrence check** (Three-Condition Rule #1) at every gate. Conditions #2 (meaningful consequence) and #3 (operator-actionable) still apply. Emit nothing when there's nothing to say; reflect's `consecutive_empty` counter drives automatic interval tuning.
 - **Don't self-schedule** — `interval_days` is authoritative. Operators raise/lower it via accepted proposals.
 - **Fail silently on unavailability** — if a prerequisite is missing, return a clear "skill unavailable" message. Reflect suppresses retries for `interval_days`.
 
-**What you get for free:** operator opt-in at hatch (via recommended-plugins flow, if listed there), `/hermit-settings plugin-checks` management, interval auto-tuning proposals, and unavailability suppression. No cron, no hook, no state file of your own.
+**What you get for free:** operator opt-in at hatch (via recommended-plugins flow, if listed there), `/hermit-settings scheduled-checks` management, interval auto-tuning proposals, and unavailability suppression. No cron, no hook, no state file of your own.
 
 ### Operator notification routing
 
@@ -251,5 +251,5 @@ Skills should say "notify the operator" instead of referencing specific channels
 - [ ] Hooks are profile-gated
 - [ ] Zero dependencies — no `package.json`, no build step
 - [ ] All scripts handle missing state files gracefully
-- [ ] Cadence-driven skills registered in `plugin_checks` (not a bespoke scheduler)
+- [ ] Cadence-driven skills registered in `scheduled_checks` (not a bespoke scheduler)
 - [ ] Docker system packages (if any) declared in a `## Docker apt dependencies` section in the hatch SKILL.md or `DOCKER.md` at plugin root

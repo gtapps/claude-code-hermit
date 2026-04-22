@@ -28,13 +28,31 @@ This skill is **silent by default**. Only notify the operator (per the channel p
    c. If the accepted list from step b is empty, skip to step f.
    d. For each proposal: read its `title` and Evidence section to understand the original pattern.
       Glob `.claude-code-hermit/sessions/S-*-REPORT.md`, sort descending, take the 3 most recent.
-   e. If the pattern is **absent** from all 3 checked sessions **and** at least 14 days have elapsed since `accepted_date` → mark resolved. Both conditions are required — the age guard prevents wrongly resolving monthly-cadence patterns after 3 daily reflects. If the pattern is absent but less than 14 days have elapsed, skip and revisit next cycle.
+   e. If the pattern is **absent** from all 3 checked sessions — apply the cadence-aware resolution rule:
+
+      **Compute original cadence:**
+      - Read the proposal's `related_sessions` list from frontmatter.
+      - For each `S-NNN`, read `date:` from `sessions/S-NNN-REPORT.md` frontmatter.
+      - `original_cadence_days = max(date) - min(date)` in whole days. Single session → 0.
+      - If any session report is unreadable or `related_sessions` is empty → treat as **sparse** (conservative fallback).
+
+      **Frequent pattern** (`original_cadence_days ≤ 14`) — auto-resolve if ≥ 14 days have elapsed since `accepted_date`:
       - Update frontmatter: `status: resolved`, `resolved_date: <now ISO>`.
       - Append a `resolved` event:
         ```
         node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"resolved","proposal_id":"PROP-NNN"}'
         ```
       - Note in SHELL.md Findings: "PROP-NNN resolved — pattern absent from last 3 sessions."
+
+      **Sparse pattern** (`original_cadence_days > 14`) — never auto-resolve. Surface for operator confirmation if elapsed ≥ `2 × original_cadence_days` since `accepted_date`:
+      - Check `state/reflection-state.json → last_sparse_nudge.<PROP-NNN>`. If present and fewer than 7 days have elapsed since that date, skip (prevents daily re-nudge noise).
+      - Otherwise, add to SHELL.md Findings:
+        ```
+        PROP-NNN appears resolved (pattern absent 3/3 recent sessions, original cadence Nd, Xd since accept). Run /claude-code-hermit:proposal-act resolve PROP-NNN to confirm.
+        ```
+      - Record nudge: include `"last_sparse_nudge": {"<PROP-NNN>": "<now ISO>"}` in the State Update payload below. The update script merges under the top-level `last_sparse_nudge` key.
+
+      If the pattern is absent but the elapsed guard is not yet met (frequent: < 14d, sparse: < 2×cadence), skip and revisit next cycle.
    f. Note the last PROP-NNN checked (or null if batch was empty). Include as `last_resolution_check` in the final state write in the State Update section below — do NOT write `reflection-state.json` here.
 
 Now reflect — using your memory and the context above:
@@ -101,33 +119,27 @@ Signal ladder (same for all three):
 - **Moderate signal** (pattern across 2-3 sessions): create a proposal via `/claude-code-hermit:proposal-create` with the evidence (subject to Three-Condition Rule).
 - **Strong signal** (clear, repeated pattern): create a proposal via `/claude-code-hermit:proposal-create` with the evidence and include a `## Skill Improvement` section (or `## Agent Improvement`) listing the component name, observed failures, and suggested eval criteria. When the proposal is accepted via `proposal-act`, use `/skill-creator eval` and `/skill-creator improve` to implement the changes. If `/skill-creator` is not available, apply the changes to the component's definition file directly.
 
-## Plugin Checks
+## Scheduled Checks
 
-If `plugin_checks` exists in config.json and has entries with `trigger: "interval"`:
+If `scheduled_checks` exists in config.json and has entries with `trigger: "interval"`, delegate to `/claude-code-hermit:reflect-scheduled-checks`. Otherwise skip this section entirely.
 
-1. Read `state/reflection-state.json`. Plugin check state lives under the `plugin_checks` key (initialize `{}` if missing).
-2. Filter to `enabled: true` and `trigger: "interval"` entries where the matching state entry in `plugin_checks` has:
-   - `last_run` null or older than `interval_days`, AND
-   - `last_unavailable_at` null or older than `interval_days` (don't retry unavailable checks every reflect)
-3. **Cap: one plugin check per reflect invocation.** If multiple are due, pick the one with the oldest `last_run` (null sorts first). Remaining checks fire on subsequent reflects.
-4. Invoke the `skill` command string as-is. If Claude reports the skill is unavailable or not installed:
-   - Log to SHELL.md Findings once: "Plugin check skipped: {id} — skill unavailable"
-   - Set `last_unavailable_at` to today's ISO date (suppresses retries for `interval_days`)
-   - Do NOT update `last_run` — don't count as a successful run
-   - Move on
-5. On successful invocation: update `last_run` to today's ISO date in `state/reflection-state.json`
-6. Evaluate the output through the normal reflect outcome flow. Plugin-check candidates **bypass the Three-Condition Rule recurrence check (#1)** — the check's own interval analysis establishes the pattern; conditions #2 and #3 still apply. Tag each candidate with `Evidence Source: plugin-check/<id>` when passing to `reflection-judge`, `proposal-triage`, and `proposal-create`.
-   - Actionable improvement → proposal candidate with `Evidence Source: plugin-check/<id>` (tier classification applies)
-   - Context improvement (CLAUDE.md fix from md-improver) → apply directly if trivial, propose if significant (also tag with `Evidence Source: plugin-check/<id>` if going through the proposal pipeline)
-   - Nothing found → increment `consecutive_empty` for this check's entry in state, no action
+Pass the relevant config entries and current `state/reflection-state.json → scheduled_checks` state to the helper. The helper runs at most one due check and returns a `SCHEDULED-CHECK-RESULT` block.
+
+**Consuming the result block:**
+- `actionable` / `contextual`: treat findings as a proposal candidate tagged `Evidence Source: scheduled-check/<id>`. Pass through `reflection-judge` + `proposal-triage` gates. Context improvements may be applied directly if trivial.
+- `empty`: no candidate. Check `state_delta_consecutive_empty` for interval-adjustment proposals (see below) — these use the **normal Three-Condition Rule** and are **not** tagged `Evidence Source: scheduled-check`.
+- `unavailable` / `error`: note in SHELL.md Findings once (e.g., "Scheduled check skipped: {id} — skill unavailable"). No candidate.
+- `skipped`: nothing due; no action.
+
+**Apply state_delta** to `state/reflection-state.json → scheduled_checks.<id>` as part of the consolidated State Update step at the end. Update the fields returned by the helper (omit any with `null` value — don't overwrite existing data with null).
 
 ### Interval adjustment proposals
 
-Track signal density per check via `consecutive_empty` in each check's `state/reflection-state.json` entry:
+Using `state_delta_consecutive_empty` from the result block (or the existing state value if outcome was `skipped`):
 
 **Reset rules (per check):**
-- Empty run → `consecutive_empty += 1`
-- Any non-empty run (actionable or contextual findings) → reset `consecutive_empty = 0`
+- `empty` outcome → `consecutive_empty += 1`
+- `actionable` / `contextual` outcome → reset `consecutive_empty = 0`
 - Interval increase proposal accepted → reset to 0
 - Interval increase proposal dismissed → also reset to 0 (prevents immediate re-proposal)
 
@@ -135,17 +147,13 @@ Track signal density per check via `consecutive_empty` in each check's `state/re
 - **3+ consecutive empty runs** → create a proposal to increase `interval_days` (e.g., 7 → 14).
 - **3+ actionable findings in a single run** → create a proposal to decrease `interval_days` (e.g., 7 → 3).
 - Adjustments always go through PROP-NNN — hermit never auto-adjusts.
-- These proposals use the standard Three-Condition Rule (repeated pattern + meaningful consequence + operator-actionable). They are **not** tagged `Evidence Source: plugin-check` — they are recurrence observations over run history and must follow the normal evidence-verification path (`current-session` or `archived-session`).
-
-### Guard rails
-
-- If a check errors or times out, log the error in SHELL.md Findings and skip — don't retry until next scheduled run
+- These proposals use the standard Three-Condition Rule (repeated pattern + meaningful consequence + operator-actionable). They are **not** tagged `Evidence Source: scheduled-check` — they are recurrence observations over run history and must follow the normal evidence-verification path (`current-session` or `archived-session`).
 
 ## Evidence integrity rule (applies before calling reflection-judge)
 
 For any candidate with `Evidence Source: current-session`, reflect must **not** add or rewrite evidence-bearing lines in `## Findings` or `## Blockers` of SHELL.md before `reflection-judge` runs. The judge validates against pre-existing session content; injecting the pattern text immediately before the judge reads it would make the system self-certifying.
 
-**Exempt** (always allowed, any time): the mandatory `## Progress Log` append (see § Progress Log Entry) and housekeeping notes that do not describe the candidate's pattern (e.g. skipped-plugin-check lines, resolved-proposal notes).
+**Exempt** (always allowed, any time): the mandatory `## Progress Log` append (see § Progress Log Entry) and housekeeping notes that do not describe the candidate's pattern (e.g. skipped-scheduled-check lines, resolved-proposal notes).
 
 If the pattern is only visible to reflect via inference (cost log, token counters, timing), the candidate is not eligible for `Evidence Source: current-session` in that run. Keep it sub-threshold until it recurs and can be cited from independent historical evidence (`Evidence Source: archived-session`).
 
@@ -157,14 +165,14 @@ Pass each candidate as:
 ```
 Candidate: <title>
 Tier: <1|2|3>
-Evidence Source: archived-session | current-session | plugin-check/<id> | operator-request
+Evidence Source: archived-session | current-session | scheduled-check/<id> | operator-request
 Evidence: <summary>
 Sessions: <S-001, S-002, ...> (or "none")
 ```
 
-`Evidence Source:` defaults to `archived-session` if omitted. Plugin-check candidates use `Evidence Source: plugin-check/<id>` with `Sessions: none`. Newborn Tier-1 candidates from live SHELL.md evidence use `Evidence Source: current-session` with `Sessions: current`.
+`Evidence Source:` defaults to `archived-session` if omitted. Plugin-check candidates use `Evidence Source: scheduled-check/<id>` with `Sessions: none`. Newborn Tier-1 candidates from live SHELL.md evidence use `Evidence Source: current-session` with `Sessions: current`.
 
-`plugin-check/<id>` and `operator-request` share the same bypass policy at every gate (skip recurrence, enforce consequence + actionability). They are **kept distinct on purpose**: `plugin-check/<id>` carries the check identifier for telemetry and debugging; `operator-request` marks human-initiated flows (e.g. baseline audits in `session-start`). Future routing (e.g. KAIROS) will read them as different provenance classes. Do not collapse them into one value.
+`scheduled-check/<id>` and `operator-request` share the same bypass policy at every gate (skip recurrence, enforce consequence + actionability). They are **kept distinct on purpose**: `scheduled-check/<id>` carries the check identifier for telemetry and debugging; `operator-request` marks human-initiated flows (e.g. baseline audits in `session-start`). Future routing (e.g. KAIROS) will read them as different provenance classes. Do not collapse them into one value.
 
 - **ACCEPT** or **ACCEPT (<source>)** — proceed with the candidate at its original tier
 - **DOWNGRADE:<new-tier>** or **DOWNGRADE:<new-tier> (<source>)** — proceed at the revised tier
@@ -185,7 +193,7 @@ After reflecting and validating with `claude-code-hermit:reflection-judge`, choo
 
 Sub-threshold observations (interesting but failing the Three-Condition Rule — typically single-occurrence) do not surface to the operator in steady state. Record them to project memory with a short pattern label and today's session_id so they can graduate via recurrence on a later reflect. Do not generate observations for their own sake, and do not surface them before they graduate.
 
-Reflect-generated inferences (cost spikes, token-count shapes, timing patterns) **never** use bypass Evidence Sources (`plugin-check/*` or `operator-request`). They remain sub-threshold observations recorded to project memory and graduate only by genuine recurrence across sessions, at which point they can be cited as `Evidence Source: archived-session` or `current-session` like any other session-grounded observation.
+Reflect-generated inferences (cost spikes, token-count shapes, timing patterns) **never** use bypass Evidence Sources (`scheduled-check/*` or `operator-request`). They remain sub-threshold observations recorded to project memory and graduate only by genuine recurrence across sessions, at which point they can be cited as `Evidence Source: archived-session` or `current-session` like any other session-grounded observation.
 
 **Phase-aware surfacing exception:**
 - `newborn`: also log each sub-threshold observation inline to SHELL.md Findings as `Noticed: <pattern>` (single line, no ceremony). Gives the operator early signal that reflect is watching while recurrence data accumulates.
@@ -253,7 +261,9 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/update-reflection-state.js \
 
 Include `"last_digest_at":"<now ISO>"` in the payload only when a juvenile digest fired in this run (see Outcomes → phase-aware surfacing). Omit otherwise — the script preserves the prior value.
 
-The script handles: counter increments, `last_reflection`/`last_run_at` timestamps, missing-counters fallback, `since` preservation, `last_digest_at` passthrough, and atomic write. It always exits 0 — if the write fails it logs one line to stderr and continues. Counters are diagnostic, not audit-grade — a missed increment is acceptable.
+Include `"last_sparse_nudge":{"<PROP-NNN>":"<now ISO>"}` when a sparse-pattern nudge was emitted this run (step 4e). The script merges the provided map into the existing `last_sparse_nudge` top-level key. Omit if no sparse nudge was emitted — the script preserves the prior map.
+
+The script handles: counter increments, `last_reflection`/`last_run_at` timestamps, missing-counters fallback, `since` preservation, `last_digest_at` passthrough, `last_sparse_nudge` merge, and atomic write. It always exits 0 — if the write fails it logs one line to stderr and continues. Counters are diagnostic, not audit-grade — a missed increment is acceptable.
 
 ## Progress Log Entry (always)
 

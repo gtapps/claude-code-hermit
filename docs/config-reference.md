@@ -156,9 +156,9 @@ Setting `keep` equal to `threshold` effectively disables compaction for that sec
 
 ---
 
-## `plugin_checks`
+## `scheduled_checks`
 
-Automatic invocations of installed plugin skills. Config stores operator intent; runtime state lives in `state/reflection-state.json` under the `plugin_checks` key.
+Automatic invocations of installed plugin skills. Config stores operator intent; runtime state lives in `state/reflection-state.json` under the `scheduled_checks` key.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -169,7 +169,7 @@ Automatic invocations of installed plugin skills. Config stores operator intent;
 | `trigger` | string | _(required)_ | `"interval"` (periodic during idle reflection) or `"session"` (at task completion). |
 | `interval_days` | integer | `7` | Minimum days between invocations. **Required for `trigger: "interval"`. Must not be set for `trigger: "session"`.** |
 
-### Runtime state — `state/reflection-state.json` (under `plugin_checks` key)
+### Runtime state — `state/reflection-state.json` (under `scheduled_checks` key)
 
 Keyed by check `id`. Owned by reflect (sole writer for interval checks) and session (sole writer for session checks). Lives alongside `last_reflection` in the same file.
 
@@ -179,7 +179,7 @@ Keyed by check `id`. Owned by reflect (sole writer for interval checks) and sess
 | `last_unavailable_at` | string/null | interval only | ISO date of last unavailable/skip. Suppresses retries for `interval_days`. |
 | `consecutive_empty` | integer | interval only | Consecutive runs with zero findings. Reset to 0 on any non-empty run. |
 
-Modify with `/hermit-settings plugin-checks`.
+Modify with `/hermit-settings scheduled-checks`.
 
 ---
 
@@ -271,7 +271,7 @@ A realistic `config.json` for an always-on Docker hermit with Discord:
     "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50",
     "MAX_THINKING_TOKENS": "10000"
   },
-  "plugin_checks": [
+  "scheduled_checks": [
     {"id": "claude-md-check", "plugin": "claude-md-management", "skill": "claude-md-management:claude-md-improver", "enabled": true, "trigger": "interval", "interval_days": 7}
   ],
   "docker": {

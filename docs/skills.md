@@ -70,8 +70,8 @@ Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routin
 
 | Skill             | What it does                                                                                                                                                                                                                                                | Auto-triggers |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| `hermit-settings` | View or change project config. Subcommands: `name`, `language`, `timezone`, `escalation`, `sign-off`, `channels`, `remote`, `model`, `budget`, `brief`, `permissions`, `heartbeat`, `routines`, `idle-agency`, `env`, `compact`, `docker`, `plugin-checks`. | --            |
-| `hatch`           | One-time project setup. Creates state directory, runs the wizard, scans your project, writes OPERATOR.md, and configures plugin checks for accepted plugins.                                                                                                | --            |
+| `hermit-settings` | View or change project config. Subcommands: `name`, `language`, `timezone`, `escalation`, `sign-off`, `channels`, `remote`, `model`, `budget`, `brief`, `permissions`, `heartbeat`, `routines`, `idle-agency`, `env`, `compact`, `docker`, `scheduled-checks`. | --            |
+| `hatch`           | One-time project setup. Creates state directory, runs the wizard, scans your project, writes OPERATOR.md, and configures scheduled checks for accepted plugins.                                                                                                | --            |
 | `hermit-evolve`   | Run after updating the plugin. Detects version gaps, refreshes templates, prompts for new settings.                                                                                                                                                         | --            |
 
 ## Docker & Takeover

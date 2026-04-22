@@ -64,11 +64,17 @@ if (!('since' in c)) c.since = null;
 
 const preserve = (key) => (key in payload) ? payload[key] : (state[key] ?? null);
 
+// Merge last_sparse_nudge map: payload may carry new PROP-NNN → ISO entries.
+const existingNudge = (state.last_sparse_nudge && typeof state.last_sparse_nudge === 'object') ? state.last_sparse_nudge : {};
+const payloadNudge = (payload.last_sparse_nudge && typeof payload.last_sparse_nudge === 'object') ? payload.last_sparse_nudge : {};
+const mergedNudge = { ...existingNudge, ...payloadNudge };
+
 const updated = {
   ...state,
   last_reflection: now,
   last_resolution_check: preserve('last_resolution_check'),
   last_digest_at: preserve('last_digest_at'),
+  last_sparse_nudge: Object.keys(mergedNudge).length > 0 ? mergedNudge : null,
   counters: c,
 };
 

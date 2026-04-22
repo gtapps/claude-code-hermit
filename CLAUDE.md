@@ -42,7 +42,7 @@ When installed in a target project, state lives in `.claude-code-hermit/`:
 - `raw/` — domain inputs (fetched content, snapshots, logs); flat layout only (no subdirectories). `raw/.archive/` holds expired artifacts. See [plugin-hermit-storage](docs/plugin-hermit-storage.md).
 - `compiled/` — durable domain outputs (briefings, decisions, assessments) injected at session start; flat layout only (no subdirectories)
 - `knowledge-schema.md` — per-hermit behavioral schema (what it produces and when)
-- `config.json` — project config (identity, channels, budget prefs, routines, idle agency, plugin checks)
+- `config.json` — project config (identity, channels, budget prefs, routines, idle agency, scheduled checks)
 - `OPERATOR.md` — human-curated context (draft changes, confirm before writing; hard-blocked in always-on mode)
 
 `hatch` also seeds `bin/` (lifecycle scripts), `docker/` (container scaffolding), `obsidian/` (Cortex vault templates), `HEARTBEAT.md`, `IDLE-TASKS.md`, and `SESSION-REPORT.md` — see `state-templates/` for the full set.

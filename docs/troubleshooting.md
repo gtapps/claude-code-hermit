@@ -24,14 +24,14 @@ Hermit uses proactive channel sends for heartbeat alerts, morning briefs, and id
 
 ---
 
-## Plugin Checks Not Running
+## Scheduled Checks Not Running
 
-Plugin checks run during idle reflection via `reflect`. If accepted plugins aren't being invoked:
+Scheduled checks run during idle reflection via `reflect`. If configured checks aren't being invoked:
 
-- **Check `plugin_checks` in config.json:** Must have entries with `enabled: true`. View with `/hermit-settings plugin-checks`.
-- **Check reflection cadence:** Reflection runs every 4+ hours during idle. If the hermit is always `in_progress`, plugin checks won't fire (they're idle-only).
-- **Unavailable suppression:** If a plugin skill is missing or uninstalled, the check is suppressed for `interval_days`. Check `state/reflection-state.json` for `last_unavailable_at`.
-- **One per reflect:** Only one plugin check runs per reflect invocation. If multiple are due, the oldest fires first.
+- **Check `scheduled_checks` in config.json:** Must have entries with `enabled: true`. View with `/hermit-settings scheduled-checks`.
+- **Check reflection cadence:** Reflection runs every 4+ hours during idle. If the hermit is always `in_progress`, scheduled checks won't fire (they're idle-only).
+- **Unavailable suppression:** If a check's skill is missing or uninstalled, the check is suppressed for `interval_days`. Check `state/reflection-state.json` for `last_unavailable_at`.
+- **One per reflect:** Only one scheduled check runs per reflect invocation. If multiple are due, the oldest fires first.
 
 ---
 

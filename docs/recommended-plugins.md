@@ -29,7 +29,7 @@ Analyzes your codebase and recommends Claude Code automations — skills, hooks,
 Audits and improves CLAUDE.md files across your project. Scans for all variants, grades quality (A–F), identifies gaps in command documentation, architectural clarity, and project patterns, then proposes targeted fixes — dense, actionable, no generic advice.
 
 Two capabilities:
-- **`claude-md-improver`** (skill) — full audit and quality grading. Invoked periodically via plugin checks (default: weekly).
+- **`claude-md-improver`** (skill) — full audit and quality grading. Invoked periodically via scheduled checks (default: weekly).
 - **`revise-claude-md`** (command) — lightweight session-end revision, captures learnings into CLAUDE.md. Invoked automatically at task completion.
 
 **Why it matters for Hermit:** CLAUDE.md is Hermit's primary project context. Better CLAUDE.md means better sessions — fewer misunderstandings, less wasted context asking about project structure.
@@ -93,9 +93,9 @@ See [Config Reference](config-reference.md#recommended_plugins-entry-schema) for
 
 ---
 
-## Plugin Checks (Automatic Invocation)
+## Scheduled Checks (Automatic Invocation)
 
-When you accept a recommended plugin during `/hatch` or `/docker-setup`, Hermit adds corresponding `plugin_checks` entries to `config.json`:
+When you accept a recommended plugin during `/hatch` or `/docker-setup`, Hermit adds corresponding `scheduled_checks` entries to `config.json`:
 
 | Plugin | Check ID | Skill Invoked | Trigger | Cadence |
 |--------|----------|---------------|---------|---------|
@@ -110,7 +110,7 @@ When you accept a recommended plugin during `/hatch` or `/docker-setup`, Hermit 
 
 **Interval tuning:** 3+ consecutive empty runs → propose increasing interval. 3+ actionable findings in a single run → propose decreasing. Always through PROP-NNN.
 
-**Managing checks:** `/hermit-settings plugin-checks` to view, enable/disable, change intervals, or add checks for any installed plugin's skills. All checks are optional — disable or remove any time.
+**Managing checks:** `/hermit-settings scheduled-checks` to view, enable/disable, change intervals, or add checks for any installed plugin's skills. All checks are optional — disable or remove any time.
 
 ---
 

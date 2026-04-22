@@ -2,18 +2,49 @@
 
 ## [Unreleased]
 
+## [1.0.15] - 2026-04-22
+
 ### Added
 
-- **reflection-judge: `ACCEPT (operator-request)` verdict tag** — adds `operator-request` as a valid source tag in the judge's output grammar, completing coverage alongside `current-session` and `plugin-check`. Test suite (section 4 of `recurrence-gate-matrix.sh`) now validates all three tags have example verdict lines in the agent definition.
-- **tests: DOWNGRADE grammar and verdict-tag coverage checks** — `recurrence-gate-matrix.sh` gains two new sections: section 3 verifies `reflection-judge.md` contains a `DOWNGRADE` example; section 4 verifies all source tags (`current-session`, `plugin-check`, `operator-request`) have example verdict lines.
+- **knowledge-lint: `schema-empty` and `schema-missing` findings** — previously, a freshly-hatched hermit with an all-commented `knowledge-schema.md` silently disabled all type enforcement (the template's example bullets are inside `<!-- -->`, so `parseSchema` returned `null`). Both new findings now emit at normal verbosity (no `--verbose` required). Findings are suppressed when the hermit has no artifacts yet (empty hermit).
+- **knowledge-schema.md template: starter bullets** — the template now ships with one uncommented entry under `## Work Products` (`note`) and one under `## Raw Captures` (`input`). Fresh hermits start with type enforcement active; operators replace these with their real types.
+- **startup-context: `---Storage Drift---` section** — at session start, scans `.claude-code-hermit/` for artifacts in paths invisible to session injection and archival: unknown top-level dirs, and subdirs under `raw/`/`compiled/`. Emits a capped warning only when drift is present; completely silent when the hermit is clean (zero recurring context cost).
+
+### Changed
+
+- **knowledge-lint: `parseSchema` sentinel split** — `parseSchema` now returns `false` for a missing file and `null` for a present-but-empty schema (previously both returned `null`). Removes the `fs.accessSync` TOCTOU pre-check that existed only to distinguish those two cases, and drops the redundant `verbose && !schemaPresent` info line in the findings-present path (covered by the `schema-missing` finding and advice line).
+- **update-reflection-state: simplified `last_sparse_nudge` fallback** — the fallback `state.last_sparse_nudge ?? null` was unreachable when `mergedNudge` is empty (empty merge implies existing state was also empty); simplified to `null`.
+- **`plugin_checks` renamed to `scheduled_checks`** — the config key, state key, `/hermit-settings` subcommand, and `reflect-plugin-checks` sub-skill were named for their original use case (running installed plugin skills on a cadence), but the execution path is fully generic: any skill that conforms to the contract (idempotent, returns findings or nothing, no self-scheduling, safe during reflect cadence) can be registered. The "plugin" framing misled hermit authors into thinking custom skills needed a separate mechanism. Rename surfaces:
+  - Config key: `config.json.plugin_checks` → `config.json.scheduled_checks`
+  - State key: `state/reflection-state.json.plugin_checks` → `state/reflection-state.json.scheduled_checks`
+  - Subcommand: `/hermit-settings plugin-checks` → `/hermit-settings scheduled-checks`
+  - Sub-skill: `claude-code-hermit:reflect-plugin-checks` → `claude-code-hermit:reflect-scheduled-checks`
+  - Evidence Source tag: `plugin-check/<id>` → `scheduled-check/<id>` (proposal pipeline provenance)
+  - Operator-facing copy: "Plugin Checks" → "Scheduled Checks" in docs and `/hermit-settings` output
+  - The check execution pipeline is unchanged; only names change.
+
+### Added
+
+- **reflection-judge: `ACCEPT (operator-request)` verdict tag** — adds `operator-request` as a valid source tag in the judge's output grammar, completing coverage alongside `current-session` and `scheduled-check`. Test suite (section 4 of `recurrence-gate-matrix.sh`) now validates all three tags have example verdict lines in the agent definition.
+- **tests: DOWNGRADE grammar and verdict-tag coverage checks** — `recurrence-gate-matrix.sh` gains two new sections: section 3 verifies `reflection-judge.md` contains a `DOWNGRADE` example; section 4 verifies all source tags (`current-session`, `scheduled-check`, `operator-request`) have example verdict lines.
 - **docs: `source` field semantics clarified in frontmatter-contract** — `source:` is documented as origin-only; gate bypass is governed by the candidate-level `Evidence Source:` field, not by `source:`. The `session` field exemption for `operator-request` is now annotated as a structural legacy rule with a pointer to the validating code.
 - **CLAUDE.md: "Avoid overengineering" constraint** — added to development constraints.
 - **.gitignore: `.codex` entry** — excludes Codex CLI working directory from version control.
 
-- **reflect/proposal pipeline: Evidence Source provenance tags** — `reflection-judge`, `proposal-triage`, `proposal-create`, and `reflect` now accept an optional `Evidence Source:` field (`archived-session` | `current-session` | `plugin-check/<id>` | `operator-request`). Plugin-check and operator-request sources bypass the cross-session recurrence check (Three-Condition Rule #1) at every gate; conditions #2 and #3 still apply. Structured suppress codes (`no-evidence`, `no-sessions`, `weak-recurrence`, `weak-consequence`, `not-actionable`) replace free-text reasons for machine-parseable audit trails.
+- **reflect/proposal pipeline: Evidence Source provenance tags** — `reflection-judge`, `proposal-triage`, `proposal-create`, and `reflect` now accept an optional `Evidence Source:` field (`archived-session` | `current-session` | `scheduled-check/<id>` | `operator-request`). Scheduled-check and operator-request sources bypass the cross-session recurrence check (Three-Condition Rule #1) at every gate; conditions #2 and #3 still apply. Structured suppress codes (`no-evidence`, `no-sessions`, `weak-recurrence`, `weak-consequence`, `not-actionable`) replace free-text reasons for machine-parseable audit trails.
 - **reflect: evidence integrity rule** — for `current-session` candidates, reflect must not inject evidence into `SHELL.md` before `reflection-judge` reads it; doing so would make the system self-certifying. Inferred patterns (cost, timing, token counts) are ineligible for `current-session` sourcing in the same run.
 - **reflect: suppression detail in Progress Log** — when suppressions occur, the progress-log line now appends a `suppressed: [<slug>: <code>, ...]` suffix (capped at 3 entries) for compact audit.
 - **tests: recurrence-gate-matrix test suite** — `tests/recurrence-gate-matrix.sh` added to `run-all.sh`; validates Evidence Source bypass behaviour across all pipeline gates.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill executes these steps:
+
+1. **Rename config key in `.claude-code-hermit/config.json`:** if a top-level `plugin_checks` array exists, rename it to `scheduled_checks`. If both `plugin_checks` and `scheduled_checks` exist, merge entries by `id` (scheduled_checks wins on conflict); log the merge to stderr and continue. Preserve all other top-level keys unchanged. If neither exists, no-op.
+2. **Rename state key in `.claude-code-hermit/state/reflection-state.json`:** if a top-level `plugin_checks` object exists, rename it to `scheduled_checks` (pure key move, values unchanged). If `reflection-state.json` is missing, no-op. Preserve all other top-level keys unchanged.
+3. **Evidence Source tag in proposals:** no automated migration. If `.claude-code-hermit/proposals/PROP-*.md` contains the string `plugin-check/`, it refers to historical provenance and can be left as-is — the tag is human-readable and does not affect gate behavior for accepted/resolved proposals. Operators may manually search-replace to `scheduled-check/` if desired.
+4. **Operators invoking `/hermit-settings plugin-checks` will get "unknown subcommand"** after upgrade. Use `/hermit-settings scheduled-checks` instead.
+5. **Seed starter bullets if `knowledge-schema.md` parses empty:** if `.claude-code-hermit/knowledge-schema.md` exists and has no uncommented bullet lines under `## Work Products` or `## Raw Captures` (all bullets inside HTML comments), append `- note: general-purpose compiled note. location: compiled/note-<slug>-<date>.md` under `## Work Products` and `- input: general-purpose raw capture. location: raw/input-<slug>-<date>.md` under `## Raw Captures`. Preserve all existing content and comments. If the section headers are missing, append them with the bullets. If the file is missing, no-op (hatch creates it on first run).
 
 ## [1.0.14] - 2026-04-20
 

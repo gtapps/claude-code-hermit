@@ -23,7 +23,7 @@ The caller passes a list of candidates:
 ```
 Candidate: <title>
 Tier: <1|2|3>
-Evidence Source: archived-session | current-session | plugin-check/<id> | operator-request
+Evidence Source: archived-session | current-session | scheduled-check/<id> | operator-request
 Evidence: <summary>
 Sessions: <S-001, S-002, ...> (or "none" if no sessions cited)
 ```
@@ -38,10 +38,10 @@ Multiple candidates may be passed in one invocation.
 
 Check `Evidence Source:` first — it overrides the session-based flow.
 
-**If `Evidence Source: plugin-check/*` or `Evidence Source: operator-request`:**
+**If `Evidence Source: scheduled-check/*` or `Evidence Source: operator-request`:**
 - Skip §§ 0.5 and 1 entirely (recurrence is not required for this source type).
 - Go directly to § 2 Tier check.
-- Emit the verdict with the appropriate source tag: `(plugin-check)` or `(operator-request)`.
+- Emit the verdict with the appropriate source tag: `(scheduled-check)` or `(operator-request)`.
 
 **Otherwise** (`archived-session` or `current-session`, or field absent): continue to § 0.5.
 
@@ -67,7 +67,7 @@ A session "confirms" the pattern if:
 
 ### 2. Tier check
 
-Given confirmed evidence (or bypassed evidence for plugin-check/operator-request), is the tier classification correct?
+Given confirmed evidence (or bypassed evidence for scheduled-check/operator-request), is the tier classification correct?
 
 - **Tier 1** — reversible, routine, low-scope (automation of a repeated manual step)
 - **Tier 2** — meaningful but non-critical (workflow change, timing adjustment)
@@ -82,14 +82,14 @@ For each candidate, return exactly one verdict using the canonical grammar below
 **Grammar:**
 ```
 ACCEPT: <title>                                          # archived-session (default, no tag)
-ACCEPT (<source>): <title>                               # current-session | plugin-check | operator-request
+ACCEPT (<source>): <title>                               # current-session | scheduled-check | operator-request
 DOWNGRADE:<N>: <title> — <reason>                        # archived-session
 DOWNGRADE:<N> (<source>): <title> — <reason>             # other sources
 SUPPRESS: <title> — <code>: <reason>                     # archived-session
 SUPPRESS (<source>): <title> — <code>: <reason>          # other sources
 ```
 
-`<source>` tag in parentheses: use `current-session`, `plugin-check`, or `operator-request` (omit the `/<id>` suffix for brevity).
+`<source>` tag in parentheses: use `current-session`, `scheduled-check`, or `operator-request` (omit the `/<id>` suffix for brevity).
 
 **Canonical suppress codes** (use exactly these strings — no others):
 - `no-evidence` — cited sessions don't contain the pattern
@@ -100,7 +100,7 @@ SUPPRESS (<source>): <title> — <code>: <reason>          # other sources
 ```
 ACCEPT: <title>
 ACCEPT (current-session): <title>
-ACCEPT (plugin-check): <title>
+ACCEPT (scheduled-check): <title>
 ACCEPT (operator-request): <title>
 DOWNGRADE:2: <title> — <reason>
 SUPPRESS: <title> — no-evidence: <reason>

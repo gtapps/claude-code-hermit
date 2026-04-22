@@ -73,16 +73,16 @@ All state lives under `.claude-code-hermit/` in the project root.
       - **no / decline** → delete marker, log one SHELL.md Findings line ("Baseline audit declined."), continue to step 6.
       - **yes** → **delete `.claude-code-hermit/.baseline-pending` immediately** (before invoking any skill). Marker semantic = "we haven't offered yet." Once consented, the offer is consumed regardless of invocation outcome. If a skill crashes mid-run, the operator re-invokes it manually; we do not re-offer on next session. Then proceed to step 3.
 
-   3. Pre-flight: scan `config.json` `plugin_checks` for any entry in the fixed list below with `enabled: true`. If **none** qualify, delete the marker silently and continue to step 6.
+   3. Pre-flight: scan `config.json` `scheduled_checks` for any entry in the fixed list below with `enabled: true`. If **none** qualify, delete the marker silently and continue to step 6.
 
       For each skill in the fixed list below, in order:
       - `/claude-md-management:claude-md-improver`
       - `/claude-code-setup:claude-automation-recommender`
 
-      Do NOT invoke `/claude-md-management:revise-claude-md` — it is a session-trigger skill, not an audit, and runs separately via its own `plugin_checks` entry.
+      Do NOT invoke `/claude-md-management:revise-claude-md` — it is a session-trigger skill, not an audit, and runs separately via its own `scheduled_checks` entry.
 
       For each audit skill:
-      - Check `config.json` `plugin_checks` for a matching `skill` field with `enabled: true`. If absent or disabled, skip silently.
+      - Check `config.json` `scheduled_checks` for a matching `skill` field with `enabled: true`. If absent or disabled, skip silently.
       - Emit a one-line progress signal before invoking (channel in always-on, inline otherwise): "Running {skill}…"
       - Invoke the skill.
       - If it reports unavailable/not-installed: append one SHELL.md Findings line ("Baseline audit: {skill} unavailable") and continue.
@@ -94,7 +94,7 @@ All state lives under `.claude-code-hermit/` in the project root.
 
    **Guard:** the marker is the one-shot gate. Absent marker → this step never fires.
 
-   **Note for maintainers:** `md-audit` and `automation-recommender` are already scheduled on 7-day intervals via `plugin_checks`. This step pulls the first run forward to day 1 with operator consent — it is not an independent execution path.
+   **Note for maintainers:** `md-audit` and `automation-recommender` are already scheduled on 7-day intervals via `scheduled_checks`. This step pulls the first run forward to day 1 with operator consent — it is not an independent execution path.
 
 6. Check if `.claude-code-hermit/sessions/NEXT-TASK.md` exists. If it does:
    - Present the prepared task to the operator as the suggested task for this session
