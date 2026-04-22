@@ -91,6 +91,7 @@ Run tests:
 
 **Development constraints:**
 
+- When aligning with a new hermit version, include `docs/` in terminology sweeps — `docs/knowledge-schema.md` and other doc files carry hermit-facing terms that go stale. Verification grep: `grep -rn "stale_term" skills/ agents/ state-templates/ docs/ CLAUDE.md .claude-plugin/`
 - Python deps (`PyYAML`, `python-dotenv`) are installed into a project-local `.venv` by `hatch`. Do not assume system Python has them.
 - The safety hook fails closed — if an MCP call's target cannot be resolved to concrete entity IDs, it is blocked.
 - The deny-pattern hook blocks Bash commands whose arguments contain the literal string `TOKEN`. Read credentials via the CLI (`bin/ha-agent-lab boot status`) or via `dotenv`, never `cat .env` / `echo $HOMEASSISTANT_TOKEN`.
