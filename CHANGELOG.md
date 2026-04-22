@@ -4,6 +4,7 @@
 
 ### Changed
 
+- **reflect-scheduled-checks: fix false-negative unavailable classification** — replaced filesystem-based plugin presence checks (grepping `~/.claude/plugins/cache/`) with authoritative loaded-skills list inspection; added explicit `Skill` tool invocation directive and clarified unavailable vs error outcome criteria.
 - **proposal-triage agent: verdict enforcement** — raised `maxTurns` from 5 to 8 (prevents turn exhaustion on multi-file dedup runs) and added a terminal imperative to the `## Output` section so the agent can't stop before emitting its verdict line.
 - **scheduled-checks decoupled from reflect** — `reflect-scheduled-checks` is now a self-contained routine skill; it filters, invokes, gates through reflection-judge + proposal-triage, applies state, and logs without returning a result block. The `## Scheduled Checks` section and interval-adjustment logic have been removed from `reflect`. A new `scheduled-checks` routine fires daily at `5 9 * * *` (5 minutes after reflect). Reflect context is now leaner.
 - **reflect-scheduled-checks: split unavailable/error gating (Fix D)** — `unavailable` outcomes (skill missing or briefly unavailable) now suppress retries for 4 hours only; `error` outcomes still back off for `interval_days`. New `last_error_at` field in `state/reflection-state.json → scheduled_checks.<id>`.

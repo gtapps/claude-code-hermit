@@ -36,11 +36,13 @@ Select the entry with the oldest `last_run` (null sorts first). If none are due,
 
 ### 4. Invoke
 
-Call the `skill` command string as-is.
+Invoke the `skill` command string as-is, using the `Skill` tool. Do not "verify installation" first — the harness's loaded-skills list (shown in system-reminders) is authoritative. In particular, **never grep `~/.claude/plugins/cache/` or any plugin directory to check whether a plugin is installed** — the cache layout is `cache/<marketplace>/<plugin>/`, not `cache/<plugin>/`, and assumption-based path checks have produced false-negative `unavailable` outcomes.
 
-- If Claude reports the skill is unavailable or not installed → `outcome: unavailable`
-- If the call errors or times out → `outcome: error`
-- Otherwise → evaluate the output (step 5)
+Classify the result:
+
+- The skill name is not present in the available-skills list, or the `Skill` tool rejects it as unknown → `outcome: unavailable`
+- The skill runs but errors or times out → `outcome: error`
+- The skill runs to completion → evaluate the output (step 5)
 
 ### 5. Evaluate
 
