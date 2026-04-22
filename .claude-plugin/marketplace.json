@@ -1,5 +1,8 @@
 {
     "name": "claude-code-homeassistant-hermit",
+    "metadata": {
+        "description": "Home Assistant domain plugins for claude-code-hermit"
+    },
     "owner": {
         "name": "gtapps"
     },
