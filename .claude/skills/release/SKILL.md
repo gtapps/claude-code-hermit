@@ -58,17 +58,29 @@ Use today's date.
 
 Run `claude plugin validate .` in the repo root. If it reports errors, fix them before committing. Surface any warnings to the operator but do not block the release.
 
-### 4. Commit and push
+### 4. Commit, tag, and push
 
 ```bash
 git add .claude-plugin/plugin.json .claude-plugin/marketplace.json README.md CHANGELOG.md
 git commit -m "vNEW — <one-line summary from first line of changelog body>"
-git push
+git tag vNEW
+git push                   # or git push --set-upstream origin main if no upstream
+git push origin vNEW
 ```
 
-If no upstream is set: `git push --set-upstream origin main`.
+### 5. Create GitHub release
 
-### 5. Confirm
+Use `gh` to create the release so it appears in the GitHub Releases section (a pushed tag alone does not):
+
+```bash
+gh release create vNEW \
+  --title "vNEW" \
+  --notes "<changelog body verbatim>"
+```
+
+Pass the full changelog body (the markdown written in step 2) as `--notes`. Do not add a version header — GitHub prepends the tag name automatically.
+
+### 6. Confirm
 
 ```
 Released vNEW
@@ -77,4 +89,5 @@ Released vNEW
   README.md badge   ✓
   CHANGELOG.md      ✓
   Pushed            ✓
+  GitHub release    ✓  https://github.com/.../releases/tag/vNEW
 ```
