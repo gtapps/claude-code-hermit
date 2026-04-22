@@ -42,6 +42,7 @@ Compute new version from the answer.
 1. `.claude-plugin/plugin.json` — `"version": "OLD"` → `"version": "NEW"`
 2. `.claude-plugin/marketplace.json` — `"version": "OLD"` → `"version": "NEW"`
 3. `README.md` — badge segment `version-OLD-green` → `version-NEW-green` and alt text `Version OLD` → `Version NEW`
+   Also check: if the min core hermit version changed, update the `requires-claude--code--hermit%20vX.Y.Z%2B` badge to match.
 4. `CHANGELOG.md` — prepend after the `# Changelog` heading:
 
 ```
