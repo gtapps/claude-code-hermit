@@ -62,6 +62,25 @@ for code in weak-recurrence weak-consequence not-actionable; do
   fi
 done
 
+# ── 3. DOWNGRADE grammar ────────────────────────────────────────────────────
+echo "=== Recurrence gate: DOWNGRADE grammar ==="
+
+# Only reflection-judge emits DOWNGRADE; proposal-triage output is CREATE|SUPPRESS|DUPLICATE
+if ! grep -q "DOWNGRADE" "$judge"; then
+  echo "FAIL [agents/reflection-judge.md]: no DOWNGRADE example in verdict grammar"
+  rc=1
+fi
+
+# ── 4. Verdict-tag coverage in judge output examples ────────────────────────
+echo "=== Recurrence gate: verdict-tag coverage ==="
+
+for tag in "current-session" "plugin-check" "operator-request"; do
+  if ! grep -q "($tag)" "$judge"; then
+    echo "FAIL [agents/reflection-judge.md]: no example verdict line with source tag '($tag)'"
+    rc=1
+  fi
+done
+
 if [[ $rc -eq 0 ]]; then
   echo "PASS: all recurrence gate checks passed"
 fi

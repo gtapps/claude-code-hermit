@@ -101,6 +101,7 @@ SUPPRESS (<source>): <title> — <code>: <reason>          # other sources
 ACCEPT: <title>
 ACCEPT (current-session): <title>
 ACCEPT (plugin-check): <title>
+ACCEPT (operator-request): <title>
 DOWNGRADE:2: <title> — <reason>
 SUPPRESS: <title> — no-evidence: <reason>
 SUPPRESS (current-session): <title> — no-evidence: <reason>

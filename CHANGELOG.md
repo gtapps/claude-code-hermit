@@ -4,6 +4,12 @@
 
 ### Added
 
+- **reflection-judge: `ACCEPT (operator-request)` verdict tag** — adds `operator-request` as a valid source tag in the judge's output grammar, completing coverage alongside `current-session` and `plugin-check`. Test suite (section 4 of `recurrence-gate-matrix.sh`) now validates all three tags have example verdict lines in the agent definition.
+- **tests: DOWNGRADE grammar and verdict-tag coverage checks** — `recurrence-gate-matrix.sh` gains two new sections: section 3 verifies `reflection-judge.md` contains a `DOWNGRADE` example; section 4 verifies all source tags (`current-session`, `plugin-check`, `operator-request`) have example verdict lines.
+- **docs: `source` field semantics clarified in frontmatter-contract** — `source:` is documented as origin-only; gate bypass is governed by the candidate-level `Evidence Source:` field, not by `source:`. The `session` field exemption for `operator-request` is now annotated as a structural legacy rule with a pointer to the validating code.
+- **CLAUDE.md: "Avoid overengineering" constraint** — added to development constraints.
+- **.gitignore: `.codex` entry** — excludes Codex CLI working directory from version control.
+
 - **reflect/proposal pipeline: Evidence Source provenance tags** — `reflection-judge`, `proposal-triage`, `proposal-create`, and `reflect` now accept an optional `Evidence Source:` field (`archived-session` | `current-session` | `plugin-check/<id>` | `operator-request`). Plugin-check and operator-request sources bypass the cross-session recurrence check (Three-Condition Rule #1) at every gate; conditions #2 and #3 still apply. Structured suppress codes (`no-evidence`, `no-sessions`, `weak-recurrence`, `weak-consequence`, `not-actionable`) replace free-text reasons for machine-parseable audit trails.
 - **reflect: evidence integrity rule** — for `current-session` candidates, reflect must not inject evidence into `SHELL.md` before `reflection-judge` reads it; doing so would make the system self-certifying. Inferred patterns (cost, timing, token counts) are ineligible for `current-session` sourcing in the same run.
 - **reflect: suppression detail in Progress Log** — when suppressions occur, the progress-log line now appends a `suppressed: [<slug>: <code>, ...]` suffix (capped at 3 entries) for compact audit.

@@ -47,7 +47,7 @@ Evidence: <one-paragraph evidence summary>
    - Write YAML frontmatter with:
      - `id`: the assigned PROP-NNN
      - `status`: `proposed`
-     - `source`: `manual` (default), `auto-detected` (when invoked by `reflect`), or `operator-request` (when triggered by a direct operator request)
+     - `source`: `manual` (default), `auto-detected` (when invoked by `reflect`), or `operator-request` (when triggered by a direct operator request). This field records **proposal origin only** — gate bypass is controlled by the caller-supplied `Evidence Source:` above, not by `source:`.
      - `session`: the current session ID (S-NNN)
      - `created`: current ISO 8601 timestamp with timezone offset (e.g., `2026-04-06T14:30:00+01:00`). Use the timezone from `config.json` if set, otherwise UTC.
      - `related_sessions`: relevant session IDs as YAML array (optional — used by auto-detected proposals to link evidence across multiple sessions). Use `[]` if none.
