@@ -13,24 +13,27 @@ Create a proposal only when you discover something with real leverage:
 ## Three-Condition Rule
 
 Only create a proposal if all three are true:
-1. **Repeated pattern** — observed more than once, across sessions
+1. **Repeated pattern** — observed more than once, across sessions. **Skip for `plugin-check/*`, `operator-request`, and `current-session` evidence sources** — recurrence is either established by the check's own analysis or was validated upstream by `reflection-judge`.
 2. **Meaningful consequence** — something goes wrong without fixing it
 3. **Operator-actionable change** — something the operator can concretely approve
 
-If any of the three cannot be stated concretely, do not create the proposal.
+If any applicable condition cannot be stated concretely, do not create the proposal.
 Respond: "Not enough evidence yet. Note it in SHELL.md Findings and revisit after more sessions."
 
 ## Pre-Creation Gate
 
-Before creating the proposal, call `claude-code-hermit:proposal-triage`:
+Before creating the proposal, call `claude-code-hermit:proposal-triage`. Pass `Evidence Source:` when known:
 ```
 Title: <proposal title>
+Evidence Source: <archived-session | current-session | plugin-check/<id> | operator-request>
 Evidence: <one-paragraph evidence summary>
 ```
 
+`Evidence Source:` is optional (default: `archived-session`).
+
 - `CREATE` — proceed with the steps below
 - `DUPLICATE:<PROP-ID> — <reason>`: stop, report to the caller: "Proposal already exists as <PROP-ID>"
-- `SUPPRESS — <reason>`: stop, report the suppression reason to the caller
+- `SUPPRESS — <code>: <reason>`: stop, report the suppression reason to the caller
 
 ## How to Create
 

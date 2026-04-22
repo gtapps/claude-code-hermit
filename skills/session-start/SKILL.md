@@ -86,7 +86,7 @@ All state lives under `.claude-code-hermit/` in the project root.
       - Emit a one-line progress signal before invoking (channel in always-on, inline otherwise): "Running {skill}…"
       - Invoke the skill.
       - If it reports unavailable/not-installed: append one SHELL.md Findings line ("Baseline audit: {skill} unavailable") and continue.
-      - If it returns findings: route through `/claude-code-hermit:proposal-create` as **one proposal per plugin invocation**, with **`source: operator-request`** in the frontmatter. (Not `auto-detected` — that routes through reflection-judge expecting cross-session evidence citations the audit cannot provide.) Write the Problem section as a prioritized summary of all findings (top 3 inline, remainder as a bulleted list).
+      - If it returns findings: route through `/claude-code-hermit:proposal-create` as **one proposal per plugin invocation**, passing `Evidence Source: operator-request` and with **`source: operator-request`** in the frontmatter. (Not `auto-detected` — that routes through reflection-judge expecting cross-session evidence citations the audit cannot provide.) Write the Problem section as a prioritized summary of all findings (top 3 inline, remainder as a bulleted list).
 
    4. Surface a single-line summary to the operator (channel in always-on, inline otherwise):
 

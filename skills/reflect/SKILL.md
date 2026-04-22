@@ -51,7 +51,7 @@ Now reflect — using your memory and the context above:
 
 Only create a proposal if all three are true:
 1. **Repeated pattern** — phase-aware recurrence:
-   - `newborn`: 1+ session acceptable for **Tier 1 only** — cite `Sessions: current` when the pattern is present only in the live SHELL.md (judge returns `ACCEPT (current-session)`). Tier 2/3 still require 2+ sessions.
+   - `newborn`: 1+ session acceptable for **Tier 1 only** — use `Evidence Source: current-session` and cite `Sessions: current` when the pattern is present only in the live SHELL.md (judge returns `ACCEPT (current-session)`). Tier 2/3 still require 2+ sessions.
    - `juvenile` / `adult`: 2+ sessions (baseline — observed more than once, across sessions).
 2. **Meaningful consequence** — something goes wrong without fixing it
 3. **Operator-actionable change** — something the operator can concretely approve
@@ -116,9 +116,9 @@ If `plugin_checks` exists in config.json and has entries with `trigger: "interva
    - Do NOT update `last_run` — don't count as a successful run
    - Move on
 5. On successful invocation: update `last_run` to today's ISO date in `state/reflection-state.json`
-6. Evaluate the output through the normal reflect outcome flow:
-   - Actionable improvement → proposal candidate (tier classification applies)
-   - Context improvement (CLAUDE.md fix from md-improver) → apply directly if trivial, propose if significant
+6. Evaluate the output through the normal reflect outcome flow. Plugin-check candidates **bypass the Three-Condition Rule recurrence check (#1)** — the check's own interval analysis establishes the pattern; conditions #2 and #3 still apply. Tag each candidate with `Evidence Source: plugin-check/<id>` when passing to `reflection-judge`, `proposal-triage`, and `proposal-create`.
+   - Actionable improvement → proposal candidate with `Evidence Source: plugin-check/<id>` (tier classification applies)
+   - Context improvement (CLAUDE.md fix from md-improver) → apply directly if trivial, propose if significant (also tag with `Evidence Source: plugin-check/<id>` if going through the proposal pipeline)
    - Nothing found → increment `consecutive_empty` for this check's entry in state, no action
 
 ### Interval adjustment proposals
@@ -135,11 +135,19 @@ Track signal density per check via `consecutive_empty` in each check's `state/re
 - **3+ consecutive empty runs** → create a proposal to increase `interval_days` (e.g., 7 → 14).
 - **3+ actionable findings in a single run** → create a proposal to decrease `interval_days` (e.g., 7 → 3).
 - Adjustments always go through PROP-NNN — hermit never auto-adjusts.
-- These proposals use the standard Three-Condition Rule (repeated pattern + meaningful consequence + operator-actionable).
+- These proposals use the standard Three-Condition Rule (repeated pattern + meaningful consequence + operator-actionable). They are **not** tagged `Evidence Source: plugin-check` — they are recurrence observations over run history and must follow the normal evidence-verification path (`current-session` or `archived-session`).
 
 ### Guard rails
 
 - If a check errors or times out, log the error in SHELL.md Findings and skip — don't retry until next scheduled run
+
+## Evidence integrity rule (applies before calling reflection-judge)
+
+For any candidate with `Evidence Source: current-session`, reflect must **not** add or rewrite evidence-bearing lines in `## Findings` or `## Blockers` of SHELL.md before `reflection-judge` runs. The judge validates against pre-existing session content; injecting the pattern text immediately before the judge reads it would make the system self-certifying.
+
+**Exempt** (always allowed, any time): the mandatory `## Progress Log` append (see § Progress Log Entry) and housekeeping notes that do not describe the candidate's pattern (e.g. skipped-plugin-check lines, resolved-proposal notes).
+
+If the pattern is only visible to reflect via inference (cost log, token counters, timing), the candidate is not eligible for `Evidence Source: current-session` in that run. Keep it sub-threshold until it recurs and can be cited from independent historical evidence (`Evidence Source: archived-session`).
 
 ## Evidence Validation
 
@@ -149,13 +157,18 @@ Pass each candidate as:
 ```
 Candidate: <title>
 Tier: <1|2|3>
+Evidence Source: archived-session | current-session | plugin-check/<id> | operator-request
 Evidence: <summary>
 Sessions: <S-001, S-002, ...> (or "none")
 ```
 
-- **ACCEPT** — proceed with the candidate at its original tier
-- **DOWNGRADE:<new-tier>** — proceed at the revised tier
-- **SUPPRESS** — if suppressed due to `Sessions: none`, note the candidate in SHELL.md Findings for future revisit. Otherwise drop silently.
+`Evidence Source:` defaults to `archived-session` if omitted. Plugin-check candidates use `Evidence Source: plugin-check/<id>` with `Sessions: none`. Newborn Tier-1 candidates from live SHELL.md evidence use `Evidence Source: current-session` with `Sessions: current`.
+
+`plugin-check/<id>` and `operator-request` share the same bypass policy at every gate (skip recurrence, enforce consequence + actionability). They are **kept distinct on purpose**: `plugin-check/<id>` carries the check identifier for telemetry and debugging; `operator-request` marks human-initiated flows (e.g. baseline audits in `session-start`). Future routing (e.g. KAIROS) will read them as different provenance classes. Do not collapse them into one value.
+
+- **ACCEPT** or **ACCEPT (<source>)** — proceed with the candidate at its original tier
+- **DOWNGRADE:<new-tier>** or **DOWNGRADE:<new-tier> (<source>)** — proceed at the revised tier
+- **SUPPRESS** — if suppressed with code `no-sessions`, note the candidate in SHELL.md Findings for future revisit. Otherwise drop silently.
 
 Only act on ACCEPT and DOWNGRADE verdicts.
 
@@ -171,6 +184,8 @@ After reflecting and validating with `claude-code-hermit:reflection-judge`, choo
    - Tier 3: gate with `claude-code-hermit:proposal-triage` first (see below), then call `/claude-code-hermit:proposal-create`
 
 Sub-threshold observations (interesting but failing the Three-Condition Rule — typically single-occurrence) do not surface to the operator in steady state. Record them to project memory with a short pattern label and today's session_id so they can graduate via recurrence on a later reflect. Do not generate observations for their own sake, and do not surface them before they graduate.
+
+Reflect-generated inferences (cost spikes, token-count shapes, timing patterns) **never** use bypass Evidence Sources (`plugin-check/*` or `operator-request`). They remain sub-threshold observations recorded to project memory and graduate only by genuine recurrence across sessions, at which point they can be cited as `Evidence Source: archived-session` or `current-session` like any other session-grounded observation.
 
 **Phase-aware surfacing exception:**
 - `newborn`: also log each sub-threshold observation inline to SHELL.md Findings as `Noticed: <pattern>` (single line, no ceremony). Gives the operator early signal that reflect is watching while recurrence data accumulates.
@@ -197,9 +212,10 @@ Example: "Operator's gate automation script has an error that could trigger phys
 
 ### Proposal triage gate
 
-Before queuing a micro-approval or calling `proposal-create`, call `claude-code-hermit:proposal-triage`:
+Before queuing a micro-approval or calling `proposal-create`, call `claude-code-hermit:proposal-triage`. Pass `Evidence Source:` when known:
 ```
 Title: <title>
+Evidence Source: <value from the candidate, or omit to default to archived-session>
 Evidence: <one-paragraph evidence summary>
 ```
 
@@ -244,6 +260,12 @@ The script handles: counter increments, `last_reflection`/`last_run_at` timestam
 On every reflect run, including empty ones, append one line to SHELL.md `## Progress Log`:
 
 `[HH:MM] reflect (<phase>) — N candidates; verdicts: accept=A downgrade=D suppress=S; outcomes: <list or "none">`
+
+When any suppressions occurred, append a compact suffix:
+
+`[HH:MM] reflect (<phase>) — N candidates; verdicts: accept=A downgrade=D suppress=S; outcomes: <list or "none">; suppressed: [<slug>: <code>, ...]`
+
+Format per suppression: `<candidate-title-slug>: <code>` where `<code>` is the canonical code from the judge or triage verdict (`no-evidence`, `no-sessions`, `weak-recurrence`, `weak-consequence`, `not-actionable`). Cap at 3 entries with `+N more` overflow. Omit the `suppressed:` suffix entirely when suppress=0.
 
 `<phase>` is one of `newborn` / `juvenile` / `adult` (from step 2b). If phase detection fell back to `adult` due to missing `counters.since`, annotate as `adult` silently — no operator-facing distinction.
 

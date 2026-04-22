@@ -231,7 +231,7 @@ Full schema: [`config-reference.md#plugin_checks`](config-reference.md#plugin_ch
 **Contract your skill must honor** (reflect's auto-tuning depends on it):
 
 - **Idempotent** — reflect may invoke it at any point in an idle cycle.
-- **Return actionable findings or nothing** — a finding becomes a proposal candidate (gated by Three-Condition Rule + reflection-judge). Emit nothing when there's nothing to say; reflect's `consecutive_empty` counter drives automatic interval tuning.
+- **Return actionable findings or nothing** — a finding becomes a proposal candidate tagged `Evidence Source: plugin-check/<id>`, which **bypasses the cross-session recurrence check** (Three-Condition Rule #1) at every gate. Conditions #2 (meaningful consequence) and #3 (operator-actionable) still apply. Emit nothing when there's nothing to say; reflect's `consecutive_empty` counter drives automatic interval tuning.
 - **Don't self-schedule** — `interval_days` is authoritative. Operators raise/lower it via accepted proposals.
 - **Fail silently on unavailability** — if a prerequisite is missing, return a clear "skill unavailable" message. Reflect suppresses retries for `interval_days`.
 

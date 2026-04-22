@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **reflect/proposal pipeline: Evidence Source provenance tags** — `reflection-judge`, `proposal-triage`, `proposal-create`, and `reflect` now accept an optional `Evidence Source:` field (`archived-session` | `current-session` | `plugin-check/<id>` | `operator-request`). Plugin-check and operator-request sources bypass the cross-session recurrence check (Three-Condition Rule #1) at every gate; conditions #2 and #3 still apply. Structured suppress codes (`no-evidence`, `no-sessions`, `weak-recurrence`, `weak-consequence`, `not-actionable`) replace free-text reasons for machine-parseable audit trails.
+- **reflect: evidence integrity rule** — for `current-session` candidates, reflect must not inject evidence into `SHELL.md` before `reflection-judge` reads it; doing so would make the system self-certifying. Inferred patterns (cost, timing, token counts) are ineligible for `current-session` sourcing in the same run.
+- **reflect: suppression detail in Progress Log** — when suppressions occur, the progress-log line now appends a `suppressed: [<slug>: <code>, ...]` suffix (capped at 3 entries) for compact audit.
+- **tests: recurrence-gate-matrix test suite** — `tests/recurrence-gate-matrix.sh` added to `run-all.sh`; validates Evidence Source bypass behaviour across all pipeline gates.
+
 ## [1.0.14] - 2026-04-20
 
 ### Added

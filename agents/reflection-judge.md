@@ -23,19 +23,33 @@ The caller passes a list of candidates:
 ```
 Candidate: <title>
 Tier: <1|2|3>
+Evidence Source: archived-session | current-session | plugin-check/<id> | operator-request
 Evidence: <summary>
 Sessions: <S-001, S-002, ...> (or "none" if no sessions cited)
 ```
+
+`Evidence Source:` is optional. Default: `archived-session`.
 
 Multiple candidates may be passed in one invocation.
 
 ## For Each Candidate
 
-### 0. Sessions: none check
+### 0. Evidence Source dispatch
 
-If `Sessions: none` is passed, return immediately:
+Check `Evidence Source:` first — it overrides the session-based flow.
+
+**If `Evidence Source: plugin-check/*` or `Evidence Source: operator-request`:**
+- Skip §§ 0.5 and 1 entirely (recurrence is not required for this source type).
+- Go directly to § 2 Tier check.
+- Emit the verdict with the appropriate source tag: `(plugin-check)` or `(operator-request)`.
+
+**Otherwise** (`archived-session` or `current-session`, or field absent): continue to § 0.5.
+
+### 0.5. Sessions: none check
+
+If `Sessions: none` is passed (and Evidence Source is not a bypass source), return immediately:
 ```
-SUPPRESS: <title> — no cross-session evidence cited
+SUPPRESS: <title> — no-sessions: no cross-session evidence cited
 ```
 Do not proceed to evidence verification or tier check.
 
@@ -44,7 +58,7 @@ Do not proceed to evidence verification or tier check.
 For each cited session ID:
 - Glob `.claude-code-hermit/sessions/<session-id>-REPORT.md`.
 - **If a report file is found:** read it. Focus on `## Findings`, `## Blockers`, `## Overview`.
-- **If no report file is found** (the cited session is the current, unarchived one — the ID may be literally `current`, the in-progress session's assigned ID, or any ID that matches the Session Info block in `.claude-code-hermit/sessions/SHELL.md`): read `SHELL.md` instead. Focus on `## Findings` and `## Blockers`. Proceed with the same "confirms the pattern" check below, and in this case emit the verdict as `ACCEPT (current-session)` / `DOWNGRADE:N (current-session)` / `SUPPRESS (current-session)` so the caller knows the evidence has not been archived yet.
+- **If no report file is found** (the cited session is the current, unarchived one — the ID may be literally `current`, the in-progress session's assigned ID, or any ID that matches the Session Info block in `.claude-code-hermit/sessions/SHELL.md`): read `SHELL.md` instead. Focus on `## Findings` and `## Blockers`. Proceed with the same "confirms the pattern" check below, and treat the source as `current-session` for verdict tagging.
 - Determine: does this session actually describe the claimed pattern?
 
 A session "confirms" the pattern if:
@@ -53,7 +67,7 @@ A session "confirms" the pattern if:
 
 ### 2. Tier check
 
-Given confirmed evidence, is the tier classification correct?
+Given confirmed evidence (or bypassed evidence for plugin-check/operator-request), is the tier classification correct?
 
 - **Tier 1** — reversible, routine, low-scope (automation of a repeated manual step)
 - **Tier 2** — meaningful but non-critical (workflow change, timing adjustment)
@@ -63,19 +77,33 @@ Tier 3 is reserved for genuine safety/irreversibility concerns. Operational fric
 
 ## Verdicts
 
-For each candidate, return exactly one verdict:
+For each candidate, return exactly one verdict using the canonical grammar below.
 
-- `ACCEPT: <title>` — evidence verified, tier correct
-- `ACCEPT (current-session): <title>` — same, but evidence is from the in-progress `SHELL.md`, not an archived report
-- `DOWNGRADE:<new-tier>: <title> — <one-line reason>` — evidence real but tier too high (append ` (current-session)` if sourced from SHELL.md)
-- `SUPPRESS: <title> — <one-line reason>` — cited sessions don't contain the pattern, or evidence doesn't meet the bar (append ` (current-session)` if sourced from SHELL.md)
+**Grammar:**
+```
+ACCEPT: <title>                                          # archived-session (default, no tag)
+ACCEPT (<source>): <title>                               # current-session | plugin-check | operator-request
+DOWNGRADE:<N>: <title> — <reason>                        # archived-session
+DOWNGRADE:<N> (<source>): <title> — <reason>             # other sources
+SUPPRESS: <title> — <code>: <reason>                     # archived-session
+SUPPRESS (<source>): <title> — <code>: <reason>          # other sources
+```
+
+`<source>` tag in parentheses: use `current-session`, `plugin-check`, or `operator-request` (omit the `/<id>` suffix for brevity).
+
+**Canonical suppress codes** (use exactly these strings — no others):
+- `no-evidence` — cited sessions don't contain the pattern
+- `no-sessions` — `Sessions: none` with no bypass source
 
 ## Output Format
 
 ```
 ACCEPT: <title>
+ACCEPT (current-session): <title>
+ACCEPT (plugin-check): <title>
 DOWNGRADE:2: <title> — <reason>
-SUPPRESS: <title> — <reason>
+SUPPRESS: <title> — no-evidence: <reason>
+SUPPRESS (current-session): <title> — no-evidence: <reason>
 ```
 
 One line per candidate. Nothing else.
