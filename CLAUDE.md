@@ -4,7 +4,7 @@ Git safety, quality workflow, and dev conventions for claude-code-hermit.
 
 ## This Repo is a Plugin
 
-This repo is a Claude Code plugin. It extends `claude-code-hermit` (core v1.0.0+) with software development capabilities.
+This repo is a Claude Code plugin. It extends `claude-code-hermit` (core v1.0.15+) with software development capabilities.
 
 Install flow for target projects:
 
@@ -48,7 +48,7 @@ Code review comes from the `code-review` plugin (`code-review@claude-plugins-off
 
 ## Depends On
 
-- `claude-code-hermit` v1.0.0+ (core)
+- `claude-code-hermit` v1.0.15+ (core)
 
 ## Core Contracts
 
@@ -58,5 +58,5 @@ Code review comes from the `code-review` plugin (`code-review@claude-plugins-off
 4. Learning loop: invoke `reflect` at every task boundary
 5. Ambient dev rules: git safety, task checklist, and proposal categories apply to all dev work regardless of how it was initiated
 6. Proposal gate: three-condition rule and tier mapping — see CLAUDE-APPEND.md Dev Proposal Categories
-7. Plugin checks: companion plugin health registered via `plugin_checks` in config.json during `/claude-code-dev-hermit:hatch` setup
+7. Scheduled checks: companion plugin health registered via `scheduled_checks` in config.json during `/claude-code-dev-hermit:hatch` setup
 8. Session state: `state/runtime.json` is the authoritative lifecycle source; SHELL.md `Status:` is cosmetic only — never read it for programmatic state checks

@@ -48,7 +48,7 @@ Useful when the implementer agent or you are working with frameworks where API d
 
 ## Plugin Health Checks
 
-When you accept plugins during `/claude-code-dev-hermit:hatch`, they're registered in `plugin_checks` in `.claude-code-hermit/config.json`. Core's reflect and heartbeat skills periodically verify that installed plugins are still loadable:
+When you accept plugins during `/claude-code-dev-hermit:hatch`, they're registered in `scheduled_checks` in `.claude-code-hermit/config.json`. Core's reflect and heartbeat skills periodically verify that installed plugins are still loadable:
 
 | Plugin | Trigger | Interval |
 |--------|---------|----------|

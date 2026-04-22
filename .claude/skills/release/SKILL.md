@@ -54,6 +54,10 @@ Compute new version from the answer.
 
 Use today's date.
 
+### 3.5. Validate plugin
+
+Run `claude plugin validate` in the repo root. If it reports errors, fix them before committing. Surface any warnings to the operator but do not block the release.
+
 ### 4. Commit and push
 
 ```bash

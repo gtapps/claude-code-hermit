@@ -13,8 +13,8 @@ Set up development workflow for this project. Requires claude-code-hermit core t
 Check if `.claude-code-hermit/` exists in the current project.
 - If it does NOT exist: ask the operator "Core hermit isn't set up yet. Run `/claude-code-hermit:hatch` now?" using AskUserQuestion with options "Yes — run hatch now" / "No — I'll do it later". If yes: invoke `/claude-code-hermit:hatch`, then continue to step 2 when it completes. If no: stop.
 - If it exists: read `.claude-code-hermit/config.json` and check that `_hermit_versions["claude-code-hermit"]` is present. If missing: ask "Core version not tracked — run `/claude-code-hermit:hatch` now to initialize?" using AskUserQuestion with options "Yes — run hatch now" / "Skip — proceed anyway". If yes: invoke `/claude-code-hermit:hatch`, then continue. If skip: proceed with a warning.
-- If version is present but less than `1.0.0`: ask "Core v1.0.0+ required (found vX.Y.Z). Run `/claude-code-hermit:hermit-evolve` now?" using AskUserQuestion with options "Yes — upgrade now" / "Skip — proceed anyway". If yes: invoke `/claude-code-hermit:hermit-evolve`, then continue. If skip: proceed with a warning.
-- If version is `1.0.0` or later: check that `.claude-code-hermit/state/runtime.json` exists. If missing, warn: "runtime.json not found — state may be incomplete. Re-run `/claude-code-hermit:hatch` or `/claude-code-hermit:hermit-evolve` to repair." Allow proceeding. Otherwise proceed.
+- If version is present but less than `1.0.15`: ask "Core v1.0.15+ required (found vX.Y.Z). Run `/claude-code-hermit:hermit-evolve` now?" using AskUserQuestion with options "Yes — upgrade now" / "Skip — proceed anyway". If yes: invoke `/claude-code-hermit:hermit-evolve`, then continue. If skip: proceed with a warning.
+- If version is `1.0.15` or later: check that `.claude-code-hermit/state/runtime.json` exists. If missing, warn: "runtime.json not found — state may be incomplete. Re-run `/claude-code-hermit:hatch` or `/claude-code-hermit:hermit-evolve` to repair." Allow proceeding. Otherwise proceed.
 - Check `.claude/settings.local.json` for `CLAUDE_CODE_TASK_LIST_ID`. If missing, warn: "Task tracking requires core init. Run `/claude-code-hermit:hatch` to set it up."
 
 ### 2. Update CLAUDE.md dev block
@@ -140,12 +140,12 @@ Only show plugins NOT already installed. If only one plugin is missing, still us
 
 If HEARTBEAT.md doesn't exist: skip the question, note in the report: "Heartbeat not configured — run `/claude-code-hermit:heartbeat edit` to set it up."
 
-**Dev cleanup routine** — skip if `_hermit_versions["claude-code-hermit"]` < `1.0.12`:
+**Dev cleanup routine:**
 
 ```
 {
   header: "Cleanup routine",
-  question: "Add a weekly branch cleanup routine? (requires hermit v1.0.12+)",
+  question: "Add a weekly branch cleanup routine?",
   options: [
     { label: "Yes (Mondays 10am)", description: "Runs /dev-cleanup weekly as a scheduled routine — suggests branch deletions interactively" },
     { label: "Skip", description: "Run /dev-cleanup manually when needed" }
@@ -157,11 +157,11 @@ If HEARTBEAT.md doesn't exist: skip the question, note in the report: "Heartbeat
 
 **Install plugins** — for each selected plugin:
 1. Run `claude plugin install <plugin>@claude-plugins-official --scope project`
-2. Queue additions to `docker.recommended_plugins` and `plugin_checks` for the config.json write in Step 4:
+2. Queue additions to `docker.recommended_plugins` and `scheduled_checks` for the config.json write in Step 4:
    - code-review: `{ "id": "dev-code-review", "skill": "code-review", "trigger": "interval", "interval_days": 7, "enabled": true }`
    - feature-dev: `{ "id": "dev-feature-dev", "skill": "feature-dev", "trigger": "interval", "interval_days": 7, "enabled": true }`
-   - context7: skip plugin_checks (MCP server — no meaningful periodic check), still add to `docker.recommended_plugins`
-   - Skip entries that already exist in `plugin_checks`.
+   - context7: skip scheduled_checks (MCP server — no meaningful periodic check), still add to `docker.recommended_plugins`
+   - Skip entries that already exist in `scheduled_checks`.
 
 **Add heartbeat items** — if accepted, append to HEARTBEAT.md:
 ```
@@ -177,7 +177,7 @@ If HEARTBEAT.md doesn't exist: skip the question, note in the report: "Heartbeat
 Flush all pending config.json changes in a single write:
 - `env.AGENT_HOOK_PROFILE` (if changed in Round 1)
 - `docker.recommended_plugins` (if plugins were selected)
-- `plugin_checks` entries (if plugins were selected; create the array if absent)
+- `scheduled_checks` entries (if plugins were selected; create the array if absent)
 - `_hermit_versions["claude-code-dev-hermit"]` set to the plugin version cached in Phase 1
 - `routines` array (if dev-cleanup routine was accepted): append `{"id": "dev-cleanup", "schedule": "0 10 * * 1", "skill": "claude-code-dev-hermit:dev-cleanup", "enabled": true}` — create the array if absent; skip if an entry with `"id": "dev-cleanup"` already exists
 
@@ -199,7 +199,7 @@ Updated:
   OPERATOR.md — dev conventions [added / already present / skipped]
   Dev heartbeat items: [added / skipped / heartbeat not configured]
   config.json — dev hermit version stamped
-  plugin_checks — [code-review / feature-dev entries added / skipped]
+  scheduled_checks — [code-review / feature-dev entries added / skipped]
 
 Companion plugins:
   [code-review + feature-dev + context7 / partial / skipped]
@@ -213,6 +213,7 @@ Available agent:
 
 Other core skills (optional):
   /claude-code-hermit:hermit-routines   — manage scheduled routines
+  /claude-code-hermit:hermit-settings boot-skill   — view/change/clear the configured boot skill
   /claude-code-hermit:channel-setup     — local/tmux channel messaging between operator and hermit
   /claude-code-hermit:obsidian-setup    — Hermit Cortex (Obsidian surface over hermit state)
   /claude-code-hermit:weekly-review     — weekly review reports (enable via /hermit-settings)

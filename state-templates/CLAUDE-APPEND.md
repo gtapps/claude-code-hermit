@@ -34,6 +34,8 @@ When doing development work:
 6. **Task boundary**: invoke `reflect`, serialize and delete all Tasks
 
    > Reflect also runs as a daily routine (9am). Fresh hermits (<3 days old) produce fewer proposals — this is the `newborn` phase and is expected.
+   >
+   > Suppressed candidates appear in the Progress Log with a structured code (`no-evidence`, `weak-recurrence`, `weak-consequence`, `not-actionable`, `no-sessions`) — useful for tuning proposal tiers.
 
 7. **If blocked**: when waiting on external input (PR review, operator decision, CI pipeline), set session status to `waiting` with a reason. Resume on unblock.
 
@@ -59,7 +61,7 @@ First session (no prior `S-*-REPORT.md` files): explore the codebase to orient y
 
 ## Dev Knowledge
 
-Dev artifacts that persist across sessions go to `compiled/` with frontmatter (`title`, `created`, `type`, `tags`). Examples: architecture decisions, codebase health assessments, review pattern summaries, dependency audit snapshots. Ephemeral inputs (CI logs, code snapshots under analysis) go to `raw/`. Lessons and patterns go to auto-memory — don't duplicate into `compiled/`.
+Dev artifacts that persist across sessions go to `compiled/` with frontmatter (`title`, `created`, `type`, `tags`). Examples: architecture decisions, codebase health assessments, review pattern summaries, dependency audit snapshots. Ephemeral inputs (CI logs, code snapshots under analysis) go to `raw/`. Lessons and patterns go to auto-memory — don't duplicate into `compiled/`. If the project has a `knowledge-schema.md`, consult it before writing any `compiled/` artifact — it defines what the hermit produces and when.
 
 ## Dev Proposal Categories
 
