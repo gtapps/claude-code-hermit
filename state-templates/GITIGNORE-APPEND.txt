@@ -2,6 +2,7 @@
 # claude-code-hermit
 .claude/cost-log.jsonl
 .claude/scheduled_tasks.lock
+.claude-code-hermit/cost-log.jsonl
 .claude-code-hermit/config.json
 .claude-code-hermit/sessions/
 .claude-code-hermit/proposals/
