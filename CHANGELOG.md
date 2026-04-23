@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **channel-responder: recognize slash commands** — added a `Slash command` branch at the top of step 2 classification. Messages starting with `/` (e.g. `/simplify`, `/plugin:command`) are now routed to the matching skill, slash command, or subagent via the appropriate tool instead of being misclassified and drawing an improvised "don't recognize this command" reply.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/channel-responder/SKILL.md` | Slash command branch added to classifier |
+
 ## [1.0.16] - 2026-04-22
 
 ### Changed

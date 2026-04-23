@@ -58,6 +58,10 @@ This is how the agent learns the DM channel ID for proactive outbound notificati
 
 ## 2. Classify the Message
 
+- **Slash command** (message starts with `/`, e.g. `/simplify`, `/plugin:command`)
+  - Invoke the matching skill, slash command, or subagent via the appropriate tool. Pass any remaining text as arguments/prompt.
+  - If nothing matches, say so briefly.
+
 - **Status request** ("what are you working on?", "status", "progress")
   - If Status is `idle`: respond with session summary — tasks completed, cumulative cost, "ready for what's next"
   - If Status is `in_progress`: respond with a concise summary of SHELL.md: task, current step, blockers
