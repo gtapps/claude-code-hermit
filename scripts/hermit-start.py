@@ -520,7 +520,7 @@ def main():
         stderr_msg = result.stderr.decode().strip() if result.stderr else ''
         if 'duplicate session' in stderr_msg:
             print(f'[hermit] Session "{session_name}" already running (always-on).')
-            print(f'[hermit] Attach: tmux attach -t {session_name}')
+            print(f'[hermit] Attach: .claude-code-hermit/bin/hermit-attach  (or: tmux attach -t {session_name})')
             print(f'[hermit] Send tasks via channel, or run hermit-stop to shut down.')
             sys.exit(0)
         else:
@@ -637,7 +637,7 @@ def main():
         print(f'[hermit] Bootstrap: {boot_skill} queued')
 
     print(f'[hermit] Mode: always-on (session stays open between tasks)')
-    print(f'[hermit] Attach: tmux attach -t {session_name}')
+    print(f'[hermit] Attach: .claude-code-hermit/bin/hermit-attach  (or: tmux attach -t {session_name})')
     print(f'[hermit] Stop: .claude-code-hermit/bin/hermit-stop')
 
 

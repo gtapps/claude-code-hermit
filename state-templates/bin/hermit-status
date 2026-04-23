@@ -91,4 +91,6 @@ echo "$AGENT_NAME ($PROJECT_NAME) | ${STATUS} | $TASK | $PROGRESS | $COST_STR | 
 
 if [ "$DOCKER_STATE" = "docker:up" ]; then
   echo "  attach: .claude-code-hermit/bin/hermit-docker attach"
+elif [ -z "$DOCKER_STATE" ]; then
+  echo "  attach: .claude-code-hermit/bin/hermit-attach"
 fi

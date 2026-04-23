@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Reconnect to the running hermit session (tmux or docker).
+# Run from project root: .claude-code-hermit/bin/hermit-attach
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+AGENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+RUNTIME_FILE="$AGENT_DIR/state/runtime.json"
+
+if [ ! -f "$RUNTIME_FILE" ]; then
+  echo "[hermit] No runtime found — run bin/hermit-start first." >&2
+  exit 1
+fi
+
+FIELDS=$(python3 -c "
+import json, sys
+try:
+    r = json.load(open(sys.argv[1]))
+    print(r.get('runtime_mode', '') + '\t' + (r.get('tmux_session') or ''))
+except Exception as e:
+    print('\t')
+" "$RUNTIME_FILE" 2>/dev/null || echo "	")
+
+IFS=$'\t' read -r RUNTIME_MODE TMUX_SESSION <<< "$FIELDS"
+
+case "$RUNTIME_MODE" in
+  docker)
+    exec "$SCRIPT_DIR/hermit-docker" attach
+    ;;
+  tmux)
+    if [ -z "$TMUX_SESSION" ]; then
+      echo "[hermit] No tmux session recorded — run bin/hermit-start to launch." >&2
+      exit 1
+    fi
+    if ! tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
+      echo "[hermit] Session \"$TMUX_SESSION\" is not alive — run bin/hermit-start to relaunch." >&2
+      exit 1
+    fi
+    exec tmux attach -t "$TMUX_SESSION"
+    ;;
+  interactive)
+    echo "[hermit] Hermit is running in foreground (interactive mode) — nothing to attach to." >&2
+    exit 1
+    ;;
+  *)
+    echo "[hermit] Unknown runtime mode \"$RUNTIME_MODE\" — inspect state/runtime.json." >&2
+    exit 1
+    ;;
+esac

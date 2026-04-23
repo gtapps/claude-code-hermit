@@ -39,6 +39,7 @@ Create the following directories and files:
 │   └── .archive/
 ├── compiled/
 ├── bin/
+│   ├── hermit-attach
 │   ├── hermit-docker
 │   ├── hermit-run
 │   ├── hermit-start
@@ -81,7 +82,7 @@ Initialize state files (inline — shape-insensitive or append-only):
 - **OPERATOR.md guard:** If `.claude-code-hermit/OPERATOR.md` already exists, do NOT copy the template over it. Remember this fact as `operator_existed = true` for use in step 5a. If it does not exist, copy `OPERATOR.md` from the templates into the state directory root.
 - Copy `HEARTBEAT.md.template` → `.claude-code-hermit/HEARTBEAT.md` (the operator's editable checklist)
 - Copy `IDLE-TASKS.md.template` → `.claude-code-hermit/IDLE-TASKS.md` (the operator's idle task list)
-- Copy `bin/hermit-docker`, `bin/hermit-run`, `bin/hermit-start`, `bin/hermit-stop`, and `bin/hermit-status` from `${CLAUDE_SKILL_DIR}/../../state-templates/bin/` into `.claude-code-hermit/bin/`. Ensure they are executable (`chmod +x`).
+- Copy `bin/hermit-attach`, `bin/hermit-docker`, `bin/hermit-run`, `bin/hermit-start`, `bin/hermit-stop`, and `bin/hermit-status` from `${CLAUDE_SKILL_DIR}/../../state-templates/bin/` into `.claude-code-hermit/bin/`. Ensure they are executable (`chmod +x`).
 - Copy `knowledge-schema.md.template` → `.claude-code-hermit/knowledge-schema.md` (the operator's behavioral schema for domain outputs).
 
 ### 3. Detect hermits
@@ -633,7 +634,7 @@ Created:
   .claude-code-hermit/templates/ (3 templates)
   .claude-code-hermit/OPERATOR.md (onboarded)
   .claude-code-hermit/HEARTBEAT.md
-  .claude-code-hermit/bin/ (hermit-start, hermit-stop, hermit-status)
+  .claude-code-hermit/bin/ (hermit-attach, hermit-start, hermit-stop, hermit-status)
   .claude-code-hermit/config.json
 
 Identity:

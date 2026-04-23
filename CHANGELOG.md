@@ -4,6 +4,8 @@
 
 ### Added
 
+- **`bin/hermit-attach` helper** — one short command (`.claude-code-hermit/bin/hermit-attach`) to reconnect to the running hermit in either tmux or docker mode. Reads `state/runtime.json` and dispatches to `tmux attach` or `hermit-docker attach`. `hermit-start` now prints `bin/hermit-attach` as the primary attach hint; `hermit-status` echoes it for non-docker runtimes.
+
 - **`hermit-docker update` subcommand** — explicit command to update the Claude Code CLI and refresh plugin marketplace catalogs. Three modes: full (image rebuild + marketplace refresh), `--cc-only` (rebuild only), `--plugins-only` (marketplace refresh + `/reload-plugins` into the live tmux session, zero downtime). Includes `--dry-run`, `--yes`, and preview output. Logs each run to `state/update-history.jsonl`.
 
 ### Changed
@@ -14,7 +16,10 @@
 
 | File | Change |
 |------|--------|
+| `state-templates/bin/hermit-attach` | New helper — reconnect to tmux or docker session |
 | `state-templates/bin/hermit-docker` | `update` subcommand added |
+| `state-templates/bin/hermit-status` | Attach hint added for tmux runtime |
+| `scripts/hermit-start.py` | Attach hint now shows `bin/hermit-attach` |
 | `skills/docker-setup/SKILL.md` | `update` added to step 9 command reference |
 | `skills/hatch/SKILL.md` | `update-history.jsonl` added to state init list |
 | `skills/channel-responder/SKILL.md` | Slash command branch added to classifier |
@@ -25,6 +30,8 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 1. **bin/hermit-docker update support:** rewrite `.claude-code-hermit/bin/hermit-docker` from the updated template (step 5b already does this wholesale). No operator action needed.
 2. **update-history.jsonl:** create empty `.claude-code-hermit/state/update-history.jsonl` if it does not exist.
+3. **bin/hermit-attach:** copy `state-templates/bin/hermit-attach` to `.claude-code-hermit/bin/hermit-attach` and `chmod +x`. Overwrite if present.
+4. **bin/hermit-status:** rewrite `.claude-code-hermit/bin/hermit-status` from the updated template (step 5b already does this).
 
 ## [1.0.16] - 2026-04-22
 
