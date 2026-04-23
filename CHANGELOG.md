@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`hermit-docker update` subcommand** — explicit command to update the Claude Code CLI and refresh plugin marketplace catalogs. Three modes: full (image rebuild + marketplace refresh), `--cc-only` (rebuild only), `--plugins-only` (marketplace refresh + `/reload-plugins` into the live tmux session, zero downtime). Includes `--dry-run`, `--yes`, and preview output. Logs each run to `state/update-history.jsonl`.
+
 ### Changed
 
 - **channel-responder: recognize slash commands** — added a `Slash command` branch at the top of step 2 classification. Messages starting with `/` (e.g. `/simplify`, `/plugin:command`) are now routed to the matching skill, slash command, or subagent via the appropriate tool instead of being misclassified and drawing an improvised "don't recognize this command" reply.
@@ -10,7 +14,17 @@
 
 | File | Change |
 |------|--------|
+| `state-templates/bin/hermit-docker` | `update` subcommand added |
+| `skills/docker-setup/SKILL.md` | `update` added to step 9 command reference |
+| `skills/hatch/SKILL.md` | `update-history.jsonl` added to state init list |
 | `skills/channel-responder/SKILL.md` | Slash command branch added to classifier |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **bin/hermit-docker update support:** rewrite `.claude-code-hermit/bin/hermit-docker` from the updated template (step 5b already does this wholesale). No operator action needed.
+2. **update-history.jsonl:** create empty `.claude-code-hermit/state/update-history.jsonl` if it does not exist.
 
 ## [1.0.16] - 2026-04-22
 
