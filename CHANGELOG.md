@@ -4,6 +4,8 @@
 
 ### Added
 
+- **`scripts/prompt-context.js` — UserPromptSubmit hook that injects `[Now: <Day>, <date> <HH:MM> <TZ>]` before every prompt** — hermits were occasionally losing track of the day across long sessions because CC's `# currentDate` is TZ-naive and contains no weekday. Passive injection per prompt means the model always has a fresh, TZ-correct timestamp without needing to infer or remember. Falls back to UTC if `config.timezone` is absent or invalid; emits nothing on unexpected errors (fail-open).
+
 - **`bin/hermit-attach` helper** — one short command (`.claude-code-hermit/bin/hermit-attach`) to reconnect to the running hermit in either tmux or docker mode. Reads `state/runtime.json` and dispatches to `tmux attach` or `hermit-docker attach`. `hermit-start` now prints `bin/hermit-attach` as the primary attach hint; `hermit-status` echoes it for non-docker runtimes.
 
 - **`hermit-docker update` subcommand** — explicit command to update the Claude Code CLI and refresh plugin marketplace catalogs. Three modes: full (image rebuild + marketplace refresh), `--cc-only` (rebuild only), `--plugins-only` (marketplace refresh + `/reload-plugins` into the live tmux session, zero downtime). Includes `--dry-run`, `--yes`, and preview output. Logs each run to `state/update-history.jsonl`.

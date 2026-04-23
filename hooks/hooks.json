@@ -59,6 +59,18 @@
         "description": "Regenerate state-summary.md after state/ file edits"
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/prompt-context.js"
+          }
+        ],
+        "description": "Inject current local time before every prompt so the model never anchors to a stale 'now'"
+      }
+    ],
     "SessionStart": [
       {
         "matcher": "",

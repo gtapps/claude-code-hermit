@@ -380,6 +380,43 @@ run_test "generate-summary (empty stdin)" bash -c \
 cleanup
 
 # -------------------------------------------------------
+# prompt-context (UserPromptSubmit hook)
+# -------------------------------------------------------
+
+# 40. No config — falls back to UTC, emits [Now: ...] line
+workdir="$(setup_workdir)"
+cd "$workdir"
+out="$(echo '' | AGENT_DIR="$workdir/.claude-code-hermit" node "$REPO_ROOT/scripts/prompt-context.js")"
+run_test "prompt-context (UTC fallback)" bash -c "echo '$out' | grep -qE '^\[Now: .+ UTC\]'"
+cleanup
+
+# 41. Configured TZ — output contains the configured TZ abbreviation
+workdir="$(setup_workdir)"
+cd "$workdir"
+echo '{"timezone":"America/New_York"}' > "$workdir/.claude-code-hermit/config.json"
+out="$(echo '' | AGENT_DIR="$workdir/.claude-code-hermit" node "$REPO_ROOT/scripts/prompt-context.js")"
+run_test "prompt-context (configured TZ)" bash -c "echo '$out' | grep -qE '^\[Now: .+ (EST|EDT)\]'"
+cleanup
+
+# 42. Invalid TZ — emits nothing, exits 0 (fail-open)
+workdir="$(setup_workdir)"
+cd "$workdir"
+echo '{"timezone":"Bogus/Zone"}' > "$workdir/.claude-code-hermit/config.json"
+run_test "prompt-context (invalid TZ, exits 0)" \
+  bash -c "echo '' | AGENT_DIR='$workdir/.claude-code-hermit' node '$REPO_ROOT/scripts/prompt-context.js'"
+run_test "prompt-context (invalid TZ, no [Now:] line)" bash -c \
+  "out=\$(echo '' | AGENT_DIR='$workdir/.claude-code-hermit' node '$REPO_ROOT/scripts/prompt-context.js'); [ -z \"\$out\" ]"
+cleanup
+
+# 43. Malformed config.json — exits 0 (fail-open)
+workdir="$(setup_workdir)"
+cd "$workdir"
+echo 'not json' > "$workdir/.claude-code-hermit/config.json"
+run_test "prompt-context (malformed config, exits 0)" \
+  bash -c "echo '' | AGENT_DIR='$workdir/.claude-code-hermit' node '$REPO_ROOT/scripts/prompt-context.js'"
+cleanup
+
+# -------------------------------------------------------
 # Summary
 # -------------------------------------------------------
 # Clean up any suggest-compact counter files left in /tmp
