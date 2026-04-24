@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.7] - 2026-04-24
+
+### Added
+- `create-pr` skill — push, draft title/body, open PR via `gh`
+- `dev-doctor` skill — manual + scheduled modes, composes core validators
+- `dev-adapt` skill — project profiling, config persistence, compiled artifact
+- Implementer stop conditions + config-driven test command
+- Config-driven `git-push-guard` with tokenizer parser + propagate protected branches
+
+### Fixed
+- Hardened implementer worktree isolation — branch-handoff, safety rails, `.worktreeinclude`
+- Implementer handoff, dev-quality bugs, commit-format detection
+
+### Changed
+- Rewrote `/dev-quality` — deterministic commands, surgical undo, judgment risk assessment
+- Namespaced dev-hermit config keys under `claude-code-dev-hermit`
+
+---
+
 ## [Unreleased]
 
 ### Added

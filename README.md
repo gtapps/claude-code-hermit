@@ -1,8 +1,8 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.1.6-green.svg" alt="Version 0.1.6" /></a>
-  <a href="https://github.com/gtapps/claude-code-hermit"><img src="https://img.shields.io/badge/requires-claude--code--hermit%20v1.0.16%2B-blue.svg" alt="Requires claude-code-hermit v1.0.16+" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.1.7-green.svg" alt="Version 0.1.7" /></a>
+  <a href="https://github.com/gtapps/claude-code-hermit"><img src="https://img.shields.io/badge/requires-claude--code--hermit%20v1.0.17%2B-blue.svg" alt="Requires claude-code-hermit v1.0.17+" /></a>
   <img src="https://img.shields.io/badge/Claude-Pro%20%7C%20Max-blueviolet.svg" alt="Claude Pro/Max Compatible" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
 </p>
@@ -15,7 +15,7 @@ Your hermit already knows how to manage sessions, learn from its work, and keep 
 
 ## Requires
 
-- [claude-code-hermit](https://github.com/gtapps/claude-code-hermit) v1.0.16+ (installed and hatched)
+- [claude-code-hermit](https://github.com/gtapps/claude-code-hermit) v1.0.17+ (installed and hatched)
 
 ## Install
 
