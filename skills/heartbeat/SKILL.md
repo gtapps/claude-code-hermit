@@ -31,7 +31,7 @@ Execute one heartbeat tick immediately. Useful for testing the checklist.
 5. **Stale session check.** Read `session_state` from `state/runtime.json` (the single source of lifecycle truth — never parse SHELL.md `Status:` for decisions). If `session_state` is `waiting`: skip this check entirely (agent is intentionally blocked). If `session_state` is `in_progress`:
    - Read the last `## Progress Log` entry timestamp from SHELL.md. If no progress entry exists, use the session start time from SHELL.md header.
    - Calculate elapsed time since that timestamp. Read `heartbeat.stale_threshold` from config (default: `"2h"`).
-   - If elapsed > stale_threshold: generate alert with key `stale-session` and text "No progress for {elapsed}. Process may have died or be stuck in a rate limit."
+   - If elapsed > stale_threshold: generate alert with key `stale-session` and text "No progress for {elapsed}. Process may have died, be stuck in a rate limit, or desynced after context compaction. Reply `resume` to unstick via `/claude-code-hermit:session-start`, or `idle` to drop the session."
 6. **Waiting timeout check.** If `session_state` is `waiting` (from runtime.json) and `heartbeat.waiting_timeout` is set (not null):
    - Calculate how long the session has been `waiting` (from last Progress Log entry or status change).
    - If elapsed > `waiting_timeout` with no channel activity: update runtime.json `session_state` to `idle`, update SHELL.md Status to `idle` (cosmetic), notify the operator: "No operator response for {timeout}. Transitioning to idle."

@@ -45,7 +45,7 @@ tags: [home, sensors]
 ---
 ```
 
-Inside a session add `session: S-NNN`. For compiled artifacts, add a `source:` citation pointing to the raw artifact(s) they were derived from:
+Inside a session add `session: S-NNN`, and cite the artifact from the session report's `## Artifacts` section so the next session's `startup-context.js` injection surfaces it. For compiled artifacts, add a `source:` citation pointing to the raw artifact(s) they were derived from:
 
 ```yaml
 source: raw/snapshot-home-2026-04-17.md

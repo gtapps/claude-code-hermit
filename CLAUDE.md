@@ -18,7 +18,7 @@ After install, run `/claude-code-hermit:hatch` in the target project to create t
 ## Plugin Structure
 
 - `agents/` — subagent definitions (session-mgr, hermit-config-validator, proposal-triage, reflection-judge; hermit plugins add more subagents)
-- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, pulse, brief, watch, heartbeat, hermit-routines, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, reflect-scheduled-checks, channel-responder, channel-setup, hatch, hermit-evolve, docker-setup, hermit-takeover, hermit-hand-back, smoke-test, test-run, obsidian-setup, cortex-refresh, cortex-sync, weekly-review, migrate, knowledge
+- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, pulse, brief, watch, heartbeat, hermit-routines, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, reflect-scheduled-checks, channel-responder, channel-setup, hatch, hermit-evolve, docker-setup, hermit-takeover, hermit-hand-back, smoke-test, test-run, obsidian-setup, cortex-refresh, cortex-sync, weekly-review, migrate, knowledge, doctor
 - `hooks/hooks.json` — hook registrations
 - `scripts/` — hook implementation scripts + boot scripts (hermit-start.py, hermit-stop.py)
 - `state-templates/` — templates copied into target projects by the `hatch` skill
@@ -74,7 +74,7 @@ bash tests/run-all.sh
 
 - No dependencies — no `package.json`, no `node_modules`. Hook scripts use Node.js stdlib only.
 - No build step — skills are plain markdown, hooks are standalone `.js`/`.sh` scripts.
-- Don't overengineer.
+- Avoid overengineering.
 - Hooks fail open — a hook must never block Claude Code. Catch all errors, `process.exit(0)`. Never exit non-zero on transient failures.
 - Consume stdin — every hook must read stdin to completion even if unused (avoids broken pipe errors).
 - Agent references in skill instructions must always use the full namespaced form `claude-code-hermit:<agent-name>` (e.g., `claude-code-hermit:session-mgr`). Bare names are auto-namespaced by the harness on load, so bare-name invocations from skill text will fail with "Agent type not found".

@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.0.16-green.svg" alt="Version 1.0.16" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.0.17-green.svg" alt="Version 1.0.17" /></a>
   <img src="https://img.shields.io/badge/Claude-Pro%20%7C%20Max-blueviolet.svg" alt="Claude Pro/Max Compatible" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
   <a href="docs/obsidian-setup.md"><img src="https://img.shields.io/badge/obsidian-active-7c3aed.svg" alt="Obsidian Integration" /></a>
@@ -143,6 +143,7 @@ For ready-made specialists, install a hermit plugin like the dev hermit:
 | [Testing](docs/testing.md)                                    | You're contributing and need to run or write hook tests                    |
 | [Hermit Cortex (Powered by Obsidian)](docs/obsidian-setup.md) | You want to see inside your hermit's brain                                 |
 | [Plugin Hermit Storage](docs/plugin-hermit-storage.md)        | You're building a hermit plugin and need the raw/compiled storage rules    |
+| [Artifact Naming](docs/artifact-naming.md)                    | You're adding a new artifact or domain and need the naming convention      |
 
 ---
 

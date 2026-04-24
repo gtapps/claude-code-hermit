@@ -142,9 +142,22 @@ Stage only the changed files (not `git add -A`). Commit with:
 vX.Y.Z: One-line summary of the release
 ```
 
-Push to origin. Then tag, push the tag, and create the GitHub release.
+Push to origin.
 
-Before tagging, confirm the tag name matches the version you just bumped — a typo here creates a tag that disagrees with both manifests and `gh release` will happily publish it:
+### 6a. Branch check before tagging
+
+Run `git branch --show-current` and compare to `main` (or the repo's default branch from `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`).
+
+- **On `main`/default branch** → tag immediately (step 6b).
+- **On a release branch** (e.g. `release/X.Y.Z`) → **stop**. Do not tag yet. Tagging the branch tip creates a commit SHA that `main` never carries after merge (PR squash/rebase changes the SHA), leaving the tag stranded on an orphan commit.
+  Report the branch name and two options to the user:
+  1. **Tag now** — accept the stranded-tag risk; release goes live immediately. Proceed to step 6b.
+  2. **Hold tag** — open a PR (offer `/create-pr` if available), wait for merge into `main`, then re-run `/release` from `main` (it will detect version is already bumped and skip ahead to tagging) OR run step 6b manually after checkout.
+  Wait for explicit user choice before proceeding.
+
+### 6b. Tag and publish
+
+Confirm the tag name matches the version you just bumped — a typo here creates a tag that disagrees with both manifests and `gh release` will happily publish it:
 
 ```bash
 VERSION=$(jq -r '.version' .claude-plugin/plugin.json)

@@ -135,10 +135,16 @@ accepted_in_session: S-052
 
 ## D. Weekly Review
 
-**File pattern:** `reviews/W-YYYY-WNN.md`
+**File pattern:** `compiled/review-weekly-YYYY-Www.md`
+
+Weekly reviews are a `type: review` compiled artifact — session-start injection surfaces the newest one via `newestByType`, `knowledge-lint` stale-flags them after 60 days, no special-case directory.
 
 ```yaml
 ---
+type: review
+title: "Weekly Review: 2026-W15"
+created: 2026-04-12T23:00:00.000Z
+tags: [weekly, review]
 generated: true
 week: 2026-W15
 sessions_count: 12
@@ -153,17 +159,21 @@ self_directed_rate: 0.75
 
 ### Fields
 
-| Field                  | Type   | Description                                     |
-| ---------------------- | ------ | ----------------------------------------------- |
-| `generated`            | bool   | Always `true` — marks file as machine-generated |
-| `week`                 | string | ISO week: `YYYY-Www`                            |
-| `sessions_count`       | int    | Sessions in this week                           |
-| `proposals_created`    | int    | Proposals created this week                     |
-| `proposals_accepted`   | int    | Proposals accepted this week                    |
-| `proposals_resolved`   | int    | Proposals resolved this week                    |
-| `total_cost_usd`       | float  | Sum of all session costs                        |
-| `avg_session_cost_usd` | float  | Mean cost per session                           |
-| `self_directed_rate`   | float  | Fraction of sessions with `operator_turns=0`    |
+| Field                  | Type     | Description                                                             |
+| ---------------------- | -------- | ----------------------------------------------------------------------- |
+| `type`                 | string   | Always `review` — discriminator for `newestByType` injection            |
+| `title`                | string   | Human-readable title, e.g. `"Weekly Review: 2026-W15"`                  |
+| `created`              | ISO 8601 | Generation timestamp (not week-end); drives staleness                   |
+| `tags`                 | array    | Always `[weekly, review]`; no `foundational` (recency is enough)        |
+| `generated`            | bool     | Always `true` — marks file as machine-produced (orthogonal to `type`)   |
+| `week`                 | string   | ISO week: `YYYY-Www`                                                    |
+| `sessions_count`       | int      | Sessions in this week                                                   |
+| `proposals_created`    | int      | Proposals created this week                                             |
+| `proposals_accepted`   | int      | Proposals accepted this week                                            |
+| `proposals_resolved`   | int      | Proposals resolved this week                                            |
+| `total_cost_usd`       | float    | Sum of all session costs                                                |
+| `avg_session_cost_usd` | float    | Mean cost per session                                                   |
+| `self_directed_rate`   | float    | Fraction of sessions with `operator_turns=0`                            |
 
 All fields are required. All fields are written by a single script.
 

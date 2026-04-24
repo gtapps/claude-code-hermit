@@ -1,5 +1,74 @@
 # Changelog
 
+## [1.0.17] - 2026-04-24
+
+### Added
+
+- **`scripts/prompt-context.js` — UserPromptSubmit hook that injects `[Now: <Day>, <date> <HH:MM> <TZ>]` before every prompt** — hermits were occasionally losing track of the day across long sessions because CC's `# currentDate` is TZ-naive and contains no weekday. Passive injection per prompt means the model always has a fresh, TZ-correct timestamp without needing to infer or remember. Falls back to UTC if `config.timezone` is absent or invalid; emits nothing on unexpected errors (fail-open).
+
+- **`bin/hermit-attach` helper** — one short command (`.claude-code-hermit/bin/hermit-attach`) to reconnect to the running hermit in either tmux or docker mode. Reads `state/runtime.json` and dispatches to `tmux attach` or `hermit-docker attach`. `hermit-start` now prints `bin/hermit-attach` as the primary attach hint; `hermit-status` echoes it for non-docker runtimes.
+
+- **`/create-pr` skill at `.claude/skills/create-pr/SKILL.md`** — project-local skill that opens a PR for the current branch: detects base + commits ahead, pushes with upstream if needed, drafts a Conventional Commits title and Summary/Test-plan body (or fills `.github/PULL_REQUEST_TEMPLATE.md` if present), auto-links `#N` / `closes #N` references, and gates on AskUserQuestion (Approve / Open as draft / Edit / Cancel) before calling `gh pr create`. Guards against running on main, dirty tree, detached HEAD, zero commits ahead, or an already-open PR.
+
+- **`hermit-docker update` subcommand** — explicit command to update the Claude Code CLI and refresh plugin marketplace catalogs. Three modes: full (image rebuild + marketplace refresh), `--cc-only` (rebuild only), `--plugins-only` (marketplace refresh + `/reload-plugins` into the live tmux session, zero downtime). Includes `--dry-run`, `--yes`, and preview output. Logs each run to `state/update-history.jsonl`.
+
+### Changed
+
+- **`state-templates/GITIGNORE-APPEND.txt`: ignore `.claude-code-hermit/cost-log.jsonl`** — cost log was only ignored under `.claude/`; the hermit-prefixed path was missing. Entries reordered so all `.claude/` lines precede `.claude-code-hermit/` lines.
+
+- **heartbeat: stale-session alert includes recovery hint** — updated alert text to name context-compaction desync as a cause and give the operator two direct recovery commands (`resume` via `/claude-code-hermit:session-start`, or `idle` to drop the session). Avoids adding state-machine scaffolding to a subsystem scheduled for retirement post-KAIROS GA.
+
+- **channel-responder: recognize slash commands** — added a `Slash command` branch at the top of step 2 classification. Messages starting with `/` (e.g. `/simplify`, `/plugin:command`) are now routed to the matching skill, slash command, or subagent via the appropriate tool instead of being misclassified and drawing an improvised "don't recognize this command" reply.
+
+- **`/doctor` skill — six-check installation health report** — new `skills/doctor/` skill backed by `scripts/doctor-check.js`. Runs six read-only checks (config validity, hook registration, state file integrity, cost budget, proposal health, file permissions), writes `.claude-code-hermit/state/doctor-report.json`, and surfaces a summary block in SHELL.md. Exits 0 always (fail-open); individual check failures are recorded in the report. Three new tests in `tests/run-hooks.sh` (minimal install, corrupt state, missing config).
+
+- **`docs/artifact-naming.md`** — new reference doc covering the four-bucket layout (`raw/`, `compiled/`, `state/`, `proposals/`), naming conventions, and frontmatter requirements for new domains and skills. Added to README docs table.
+
+- **Weekly reviews migrated to `compiled/`** — `scripts/weekly-review.js` now writes to `.claude-code-hermit/compiled/review-weekly-YYYY-Www.md` instead of the special-cased `.claude-code-hermit/reviews/` directory. Frontmatter gains `type: review`, `title`, `created` (ISO 8601 generation timestamp), `tags: [weekly, review]`; `generated: true` is preserved as an orthogonal machine-produced marker. Session-start injection now surfaces the latest review automatically via `newestByType`, and `knowledge-lint.js` stale-flags reviews after 60 days. The `reviews/` tolerance in `KNOWN_DIRS` (`scripts/startup-context.js`) and `state-templates/GITIGNORE-APPEND.txt` is removed. Obsidian `Latest Review.md` embed path updated. Fixes a pre-existing doc bug in `docs/frontmatter-contract.md` that declared the path as `reviews/W-YYYY-WNN.md` while code wrote `reviews/weekly-YYYY-WNN.md`.
+
+- **Session reports gain `## Artifacts` section** — new section in `state-templates/SESSION-REPORT.md.template` (between `## Changed` and `## Blockers`) for citing durable outputs a session wrote to `compiled/`. If a session produces a research note, decision doc, or audit summary, write it to `compiled/<type>-<slug>-<date>.md` with `session: S-NNN` in the frontmatter and cite the wikilink from this section. `agents/session-mgr.md` and `skills/session-close/SKILL.md` updated to document the convention.
+
+- **`ultrathink` keyword at planning-heavy reasoning steps** — added to `agents/reflection-judge.md` (per-candidate verdict block), `skills/reflect/SKILL.md` (open-ended reasoning block), and `skills/proposal-create/SKILL.md` (body synthesis and capability Suggested Plan). Per-turn reasoning boost at the three decisive judgment points in the proposal pipeline. No model or effort-level changes; cost delta should be minor. Phase B (potential `reflection-judge` bump to opus) is deferred pending observation of Phase A suppress/accept ratios and operator feedback.
+
+- **`config.model` defaults to `"sonnet"` for new hatches** — was `null` (deferred to CC's tier default, which is sonnet in most cases). Explicit default makes the launch model visible and reproducible, especially for always-on docker deployments. Operators can set `"opus"`, `"haiku"`, or any CC alias. Existing hermits with `model: null` are prompted interactively via `hermit-evolve` — the flip is opt-in.
+
+- **Model and effort tuning documented in `docs/how-to-use.md`** — new section covering `config.model` and the optional `CLAUDE_CODE_EFFORT_LEVEL` env var (set via `config.env`), with a direct link to the CC model-config docs. Values are not mirrored inline since that doc updates frequently.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/bin/hermit-attach` | New helper — reconnect to tmux or docker session |
+| `state-templates/bin/hermit-docker` | `update` subcommand added |
+| `state-templates/bin/hermit-status` | Attach hint added for tmux runtime |
+| `scripts/hermit-start.py` | Attach hint now shows `bin/hermit-attach` |
+| `skills/docker-setup/SKILL.md` | `update` added to step 9 command reference |
+| `skills/hatch/SKILL.md` | `update-history.jsonl` added to state init list |
+| `skills/channel-responder/SKILL.md` | Slash command branch added to classifier |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **bin/hermit-docker update support:** rewrite `.claude-code-hermit/bin/hermit-docker` from the updated template (step 5b already does this wholesale). No operator action needed.
+2. **update-history.jsonl:** create empty `.claude-code-hermit/state/update-history.jsonl` if it does not exist.
+3. **bin/hermit-attach:** copy `state-templates/bin/hermit-attach` to `.claude-code-hermit/bin/hermit-attach` and `chmod +x`. Overwrite if present.
+4. **bin/hermit-status:** rewrite `.claude-code-hermit/bin/hermit-status` from the updated template (step 5b already does this).
+5. **Migrate weekly reviews to compiled/:** if `.claude-code-hermit/reviews/` exists, for each `weekly-<weekKey>.md`:
+   - Compute target path `.claude-code-hermit/compiled/review-weekly-<weekKey>.md`. If the target already exists and its frontmatter contains `type: review`, skip this file (idempotence guard — safe to re-run).
+   - Read the source file's frontmatter. Synthesize the new frontmatter by prepending these fields in order: `type: review`, `title: "Weekly Review: <weekKey>"`, `created: <source file mtime as ISO 8601>`, `tags: [weekly, review]`. Preserve `generated: true` and all existing metric fields (`week`, `sessions_count`, `proposals_created`, `proposals_accepted`, `proposals_resolved`, `total_cost_usd`, `avg_session_cost_usd`, `self_directed_rate`). Preserve the body verbatim.
+   - Write to the target path. Delete the source file.
+   - After processing all files, remove the `.claude-code-hermit/reviews/` directory if now empty.
+6. **Update project `.gitignore`:** if `.claude-code-hermit/reviews/` appears as a line in the project's `.gitignore`, remove it. The migration eliminates the directory.
+7. **SESSION-REPORT.md.template drift:** the template now includes a `## Artifacts` section between `## Changed` and `## Blockers`. If `.claude-code-hermit/templates/SESSION-REPORT.md.template` exists in the project state dir and lacks this section, add it. The evolve template-diff machinery already handles this — just confirm the diff includes the `## Artifacts` insertion.
+8. **Obsidian `Latest Review.md`:** if `obsidian/Latest Review.md` exists and still embeds `reviews/weekly-<weekKey>`, rewrite the embed to `compiled/review-weekly-<weekKey>`. Otherwise the next weekly-review run regenerates it.
+
+Declaring a `review` type in `knowledge-schema.md` is left to the operator — the schema is project-owned, so hermit-evolve does not append.
+
+9. **Interactive model migration:** if `config.model` is `null` or missing, ask the operator:
+   > "Hermit now defaults to `"sonnet"` for new installs (matches the effective default on most tiers). Your hermit currently inherits the Claude Code default at launch. Pin it to `"sonnet"` (recommended), keep `null` (continue inheriting), or set another alias (`opus`, `haiku`, `best`)?"
+   Apply the operator's choice. If they choose "keep null", write `null` explicitly. If they skip or close without answering, leave the key as-is.
+
 ## [1.0.16] - 2026-04-22
 
 ### Changed

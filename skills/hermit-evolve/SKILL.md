@@ -55,7 +55,7 @@ For each new key, check the table below. If the key is interactive, ask the oper
 
 **Silent keys** (add with default if missing):
 - `always_on` (0.0.1): `false` | `scope` (0.3.15): `"local"` | `auto_session` (0.0.1): `true`
-- `model` (0.0.1): `null` | `permission_mode` (0.0.1): `"acceptEdits"` | `ask_budget` (0.0.1): `false`
+- `model` (0.0.1): `"sonnet"` | `permission_mode` (0.0.1): `"acceptEdits"` | `ask_budget` (0.0.1): `false`
 - `tmux_session_name` (0.0.1): `"hermit-{project_name}"` | `chrome` (0.0.1): `false`
 - `channels` (0.0.1): `{}` | `monitors` (0.3.14): `[]`
 - `heartbeat.waiting_timeout` (0.3.0): `null` | `heartbeat.stale_threshold` (0.0.9): `"2h"`

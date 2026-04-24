@@ -6,7 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG="$SCRIPT_DIR/../config.json"
-CMD="${1:?Usage: hermit-docker <up|down|attach|bash|login|logs|restart> [args...]}"
+CMD="${1:?Usage: hermit-docker <up|down|attach|bash|login|logs|restart|update> [args...]}"
 shift
 
 if [ ! -f "$CONFIG" ]; then
@@ -158,8 +158,177 @@ case "$CMD" in
     _oauth_hint
     ;;
 
+  update)
+    DRY_RUN=false; CC_ONLY=false; PLUGINS_ONLY=false; ASSUME_YES=false
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --dry-run) DRY_RUN=true ;;
+        --cc-only) CC_ONLY=true ;;
+        --plugins-only) PLUGINS_ONLY=true ;;
+        --yes|-y) ASSUME_YES=true ;;
+        *) echo "[hermit] Unknown flag: $1" >&2; exit 2 ;;
+      esac
+      shift
+    done
+    [ "$CC_ONLY" = true ] && [ "$PLUGINS_ONLY" = true ] && \
+      { echo "[hermit] --cc-only and --plugins-only are mutually exclusive" >&2; exit 2; }
+
+    _require_running
+
+    CC_BEFORE=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" claude --version 2>/dev/null \
+      | grep -oP '[\d.]+' | head -1 || echo "unknown")
+    CC_LATEST="(skipped)"
+    [ "$PLUGINS_ONLY" = false ] && CC_LATEST=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+      npm view @anthropic-ai/claude-code version 2>/dev/null || echo "unknown") || true
+    PLUGINS_COUNT_BEFORE=0
+    [ "$CC_ONLY" = false ] && PLUGINS_COUNT_BEFORE=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+      claude plugin list --json 2>/dev/null \
+      | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' || echo "0") || true
+    MARKETPLACES=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+      claude plugin marketplace list --json 2>/dev/null \
+      | python3 -c "import json,sys; d=json.load(sys.stdin); print('\n'.join(m.get('name','') for m in d if m.get('name')))" \
+      2>/dev/null || echo "")
+
+    echo "[hermit] Update plan:"
+    [ "$PLUGINS_ONLY" = false ] && \
+      echo "  Claude Code:  ${CC_BEFORE} → ${CC_LATEST} (image rebuild, container bounces)" || true
+    if [ "$CC_ONLY" = false ]; then
+      echo "  Marketplaces to refresh:"
+      [ -z "$MARKETPLACES" ] && echo "    (none)" || echo "$MARKETPLACES" | sed 's/^/    - /'
+      [ "$PLUGINS_ONLY" = true ] && \
+        echo "  Apply method: /reload-plugins sent into tmux (queues if hermit is mid-turn)" || true
+    fi
+
+    if [ "$DRY_RUN" = true ]; then
+      echo "[hermit] --dry-run: no changes made."
+      exit 0
+    fi
+
+    if [ "$ASSUME_YES" = false ]; then
+      read -rp "Continue? [y/N] " ANS
+      case "$ANS" in [yY]|[yY][eE][sS]) ;; *) echo "[hermit] Aborted."; exit 0 ;; esac
+    fi
+
+    # Graceful session close is handled by the entrypoint's SIGTERM trap (cleanup()
+    # in docker-entrypoint.hermit.sh) — stop_grace_period: 60s in the compose template
+    # gives it enough headroom. No need to duplicate that logic here.
+    if [ "$PLUGINS_ONLY" = false ]; then
+      echo "[hermit] Rebuilding image with latest Claude Code..."
+      if ! (cd "$PROJECT_DIR" && "${DC[@]}" build --pull); then
+        echo "[hermit] Image build failed — old container still running, no changes applied." >&2
+        exit 1
+      fi
+      echo "[hermit] Bouncing container..."
+      cd "$PROJECT_DIR" && "${DC[@]}" down
+      cd "$PROJECT_DIR" && "${DC[@]}" up -d
+
+      RUNNING=""
+      for _i in $(seq 1 5); do
+        RUNNING=$(cd "$PROJECT_DIR" && "${DC[@]}" ps --status running --format '{{.Service}}' 2>/dev/null | grep -x "$SERVICE" || true)
+        [ -n "$RUNNING" ] && break
+        sleep 2
+      done
+      if [ -z "$RUNNING" ]; then
+        echo "[hermit] Container failed to come back up." >&2
+        cd "$PROJECT_DIR" && "${DC[@]}" logs --tail=30 "$SERVICE" >&2
+        exit 1
+      fi
+
+      echo "[hermit] Waiting for tmux session to appear (up to 30s)..."
+      for _i in $(seq 1 6); do
+        (cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+          tmux has-session -t "$TMUX_SESSION" 2>/dev/null) && break
+        sleep 5
+      done
+    fi
+
+    MARKETPLACES_OK=()
+    MARKETPLACES_FAIL=()
+    if [ "$CC_ONLY" = false ] && [ -n "$MARKETPLACES" ]; then
+      while IFS= read -r slug; do
+        [ -z "$slug" ] && continue
+        echo "[hermit] Refreshing marketplace: $slug"
+        if (cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+            claude plugin marketplace update "$slug"); then
+          MARKETPLACES_OK+=("$slug")
+        else
+          MARKETPLACES_FAIL+=("$slug")
+          echo "[hermit] Warning: marketplace update failed for $slug" >&2
+        fi
+      done <<< "$MARKETPLACES"
+
+      # Split text + Enter into two send-keys calls with sleep 0.5 between them —
+      # Claude Code's TUI treats text+Enter in one burst as bracketed paste and Enter
+      # becomes a literal newline instead of submit. Commands queue in the tmux buffer
+      # if the hermit is mid-turn and apply when idle.
+      echo "[hermit] Sending /reload-plugins to tmux session (queues if hermit is mid-turn)..."
+      cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+        tmux send-keys -t "$TMUX_SESSION:0.0" "/reload-plugins" 2>/dev/null || \
+        echo "[hermit] Warning: could not reach tmux session — /reload-plugins not sent" >&2
+      sleep 0.5
+      cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+        tmux send-keys -t "$TMUX_SESSION:0.0" Enter 2>/dev/null || true
+    fi
+
+    CC_AFTER=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" claude --version 2>/dev/null \
+      | grep -oP '[\d.]+' | head -1 || echo "unknown")
+    PLUGINS_COUNT_AFTER=0
+    [ "$CC_ONLY" = false ] && PLUGINS_COUNT_AFTER=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+      claude plugin list --json 2>/dev/null \
+      | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' || echo "0") || true
+    LOG_FILE="$PROJECT_DIR/.claude-code-hermit/state/update-history.jsonl"
+    mkdir -p "$(dirname "$LOG_FILE")"
+    UPDATE_MODE="full"
+    [ "$CC_ONLY" = true ] && UPDATE_MODE="cc-only"
+    [ "$PLUGINS_ONLY" = true ] && UPDATE_MODE="plugins-only"
+    if [ ${#MARKETPLACES_OK[@]} -gt 0 ]; then
+      OK_JSON=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' -- "${MARKETPLACES_OK[@]}")
+    else
+      OK_JSON='[]'
+    fi
+    if [ ${#MARKETPLACES_FAIL[@]} -gt 0 ]; then
+      FAIL_JSON=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' -- "${MARKETPLACES_FAIL[@]}")
+    else
+      FAIL_JSON='[]'
+    fi
+    python3 - "$UPDATE_MODE" "$CC_BEFORE" "$CC_AFTER" \
+              "$OK_JSON" "$FAIL_JSON" \
+              "$PLUGINS_COUNT_BEFORE" "$PLUGINS_COUNT_AFTER" "$LOG_FILE" <<'PYEOF' || \
+      echo "[hermit] Warning: could not write update log" >&2
+import json, sys, time
+mode, cc_before, cc_after, ok_json, fail_json, pb_count, pa_count, log_file = sys.argv[1:]
+entry = {
+    'ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+    'trigger': 'hermit-docker update',
+    'mode': mode,
+    'cc_before': cc_before, 'cc_after': cc_after,
+    'marketplaces_refreshed': json.loads(ok_json),
+    'marketplaces_failed': json.loads(fail_json),
+    'plugins_before_count': int(pb_count),
+    'plugins_after_count': int(pa_count),
+    'reload_plugins_queued': mode in ('full', 'plugins-only'),
+}
+with open(log_file, 'a') as f:
+    f.write(json.dumps(entry) + '\n')
+PYEOF
+
+    echo ""
+    echo "[hermit] Update complete."
+    [ "$PLUGINS_ONLY" = false ] && echo "  Claude Code: ${CC_BEFORE} → ${CC_AFTER}" || true
+    [ ${#MARKETPLACES_OK[@]} -gt 0 ] && echo "  Marketplaces refreshed: ${MARKETPLACES_OK[*]}" || true
+    [ ${#MARKETPLACES_FAIL[@]} -gt 0 ] && echo "  Marketplaces failed:    ${MARKETPLACES_FAIL[*]}" || true
+    if [ "$CC_ONLY" = false ]; then
+      echo "  /reload-plugins queued in tmux session — applies when hermit next idles."
+    fi
+    echo ""
+    echo "Verify with:  .claude-code-hermit/bin/hermit-status"
+    echo "Attach with:  .claude-code-hermit/bin/hermit-docker attach"
+    echo "If the hermit plugin version bumped, run: /claude-code-hermit:hermit-evolve"
+    _oauth_hint
+    ;;
+
   *)
-    echo "Usage: hermit-docker <up|down|attach|bash|login|logs|restart> [args...]" >&2
+    echo "Usage: hermit-docker <up|down|attach|bash|login|logs|restart|update> [args...]" >&2
     exit 1
     ;;
 esac

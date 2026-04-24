@@ -138,7 +138,7 @@ your-project/
 ├── .claude-code-hermit/
 │   ├── sessions/SHELL.md, S-NNN-REPORT.md
 │   ├── proposals/PROP-NNN.md
-│   ├── reviews/weekly-YYYY-WNN.md        # Weekly review reports (weekly-review.js)
+│   ├── compiled/review-weekly-YYYY-Www.md  # Weekly review reports (weekly-review.js; type: review)
 │   ├── templates/
 │   ├── state/                        # Runtime observations (agent-owned, not operator-configured)
 │   │   ├── runtime.json              # Session state: in_progress/waiting/idle (authoritative since v0.3.2)

@@ -7,7 +7,7 @@
   "sign_off": null,
   "channels": {},
   "remote": true,
-  "model": null,
+  "model": "sonnet",
   "permission_mode": "acceptEdits",
   "tmux_session_name": "hermit-{project_name}",
   "scope": "local",

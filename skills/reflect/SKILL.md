@@ -55,7 +55,7 @@ This skill is **silent by default**. Only notify the operator (per the channel p
       If the pattern is absent but the elapsed guard is not yet met (frequent: < 14d, sparse: < 2×cadence), skip and revisit next cycle.
    f. Note the last PROP-NNN checked (or null if batch was empty). Include as `last_resolution_check` in the final state write in the State Update section below — do NOT write `reflection-state.json` here.
 
-Now reflect — using your memory and the context above:
+Now reflect — ultrathink — using your memory and the context above:
 - Is anything recurring that shouldn't be?
 - Have you been working around something that deserves a real fix?
 - Is spending proportional to the work being done?

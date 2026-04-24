@@ -434,6 +434,7 @@ You're all set! Your hermit is live and running autonomously.
   .claude-code-hermit/bin/hermit-docker login     — OAuth login
   .claude-code-hermit/bin/hermit-docker logs -f   — follow logs
   .claude-code-hermit/bin/hermit-docker restart   — restart container
+  .claude-code-hermit/bin/hermit-docker update    — rebuild image + refresh plugin marketplaces
   .claude-code-hermit/bin/hermit-status           — quick check
 ```
 

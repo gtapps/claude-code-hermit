@@ -165,8 +165,6 @@ See [Hermit Cortex](obsidian-setup.md) for the full guide.
 │   └── NEXT-TASK.md           <- from accepted proposals
 ├── proposals/
 │   └── PROP-001.md            <- improvement ideas
-├── reviews/
-│   └── weekly-YYYY-WNN.md     <- weekly review reports
 ├── state/                     <- runtime observations (agent-owned)
 │   ├── runtime.json           <- session state (in_progress/waiting/idle)
 │   ├── alert-state.json       <- heartbeat alert dedup + self-eval evidence
@@ -177,7 +175,7 @@ See [Hermit Cortex](obsidian-setup.md) for the full guide.
 │   └── state-summary.md       <- auto-generated health snapshot
 ├── raw/                       <- domain inputs (fetched content, snapshots, logs)
 │   └── .archive/              <- expired raw artifacts
-├── compiled/                  <- durable domain outputs (briefings, decisions)
+├── compiled/                  <- durable domain outputs (briefings, decisions, review-weekly-YYYY-Www.md)
 ├── knowledge-schema.md        <- what this hermit produces and when
 ├── cortex-manifest.json       <- Obsidian Cortex index (optional)
 ├── OPERATOR.md                <- your rulebook
@@ -186,6 +184,14 @@ See [Hermit Cortex](obsidian-setup.md) for the full guide.
 ```
 
 > Files in `state/` are managed by the plugin at runtime — do not edit them manually. Files you own and can edit: `config.json`, `OPERATOR.md`, `HEARTBEAT.md`, `IDLE-TASKS.md`.
+
+---
+
+## Model and Effort
+
+**`config.model`** controls which Claude model your hermit runs on. Default: `"sonnet"`. Set to `"opus"` for premium reasoning or `"haiku"` for cheap idle loops. See the [Claude Code model configuration docs](https://code.claude.com/docs/en/model-config) for aliases, version pinning, and tier behavior.
+
+**`CLAUDE_CODE_EFFORT_LEVEL`** (optional) sets the reasoning effort level. Add it to `config.env` if you want to override the model default — note the env var takes highest priority and overrides runtime `/effort`, so omit it for interactive sessions where you want per-turn control. Valid values and defaults: [CC model-config docs](https://code.claude.com/docs/en/model-config#adjust-effort-level).
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: weekly-review
-description: Generate the weekly review report for the current ISO week. Writes to .claude-code-hermit/reviews/ and updates obsidian/Latest Review.md if the cortex is set up. Runs every Sunday at 23:00 via routine.
+description: Generate the weekly review report for the current ISO week. Writes to .claude-code-hermit/compiled/review-weekly-YYYY-Www.md and updates obsidian/Latest Review.md if the cortex is set up. Runs every Sunday at 23:00 via routine.
 ---
 # Weekly Review
 
@@ -15,7 +15,7 @@ Generates the weekly review for the current ISO week.
 
 2. Report the result. On success, output the review filename and whether `Latest Review.md` was updated. If a **Knowledge Health** section appears in the review output, summarize the issues to the operator.
 
-3. If `obsidian/` does not exist, the script skips the `Latest Review.md` update and logs a note. No action required — the review file is still written to `.claude-code-hermit/reviews/`.
+3. If `obsidian/` does not exist, the script skips the `Latest Review.md` update and logs a note. No action required — the review file is still written to `.claude-code-hermit/compiled/review-weekly-<week>.md`.
 
 4. Archive expired raw artifacts:
    ```
