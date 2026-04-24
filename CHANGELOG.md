@@ -6,6 +6,24 @@
 
 - **`create-pr` skill** — fills the gap between `/commit` and `/release`: pushes the current branch if needed, auto-drafts a Conventional Commits title and `## Summary` + `## Test plan` body from the commit range and diff, detects issue references for `Closes #N` links, shows the draft for approval, then runs `gh pr create`. Refuses early if on the default branch, dirty tree, no commits ahead, or a PR already exists.
 
+### Fixed
+
+- **`dev-quality`: lint never ran despite being configured** — Steps 3 and 6 now run `commands.lint` alongside test and typecheck. Lint at baseline (Step 3) is report-only and does not block simplify; lint regression after simplify (Step 6) triggers the same revert path as test regression.
+- **`dev-quality`: pre-simplify snapshot failed on committed code** — replaced `git stash push` (fails silently on a clean working tree) with `PRESIMPLIFY=$(git stash create); [ -z "$PRESIMPLIFY" ] && PRESIMPLIFY=$(git rev-parse HEAD)`. Revert now uses `git checkout $PRESIMPLIFY -- <files>`. Works correctly after the implementer commits, after direct edits, and with concurrent operator changes (with a staged-edits warning).
+- **`CLAUDE-APPEND.md`: main session did not check out the implementer's branch** — Step 3 now instructs the main session to run `git status -s` and, if the tree is clean, `git checkout <branch>` using the branch name from the implementer's `Branch:` line before updating SHELL.md and before running `dev-quality`. Without this, `dev-quality`'s diff detection targeted the wrong HEAD and `git diff merge-base` returned zero changed files on every run.
+- **`agents/implementer.md`: pinned `Branch:` output format** — the `### Branch` return section now specifies the exact format `Branch: <branch-name>` (one token, no trailing prose) so the main session can parse it deterministically.
+
+### Changed
+
+- **Minimum core version bumped to v1.0.17** — dev-hermit now requires `claude-code-hermit` v1.0.17+ so that the new `/doctor` skill (added in core v1.0.17) is available for composition in `dev-doctor` manual mode.
+- **`dev-doctor`: compose `/claude-code-hermit:doctor` in manual mode** — Step 1 now runs `/doctor` in parallel alongside `smoke-test` and `hermit-config-validator`. Adds six new checks (config validity, hook scripts, state file integrity, cost vs idle_budget, open proposals health, file permissions) to the manual health report; scheduled mode is unchanged.
+- **`dev-doctor`: check #5 validates test-command binary** — previously checked only that `commands.test` is non-null; now also strips env-var prefixes, splits compound commands, and runs `command -v` on the first executable token. Handles `npx`/`pnpm dlx`/`bunx` by checking the second token too. FAIL on unresolvable binary.
+- **`dev-doctor`: check #11 — `commit_format` shape** — if `commit_format` is set but `commit_format_pattern` is absent (or vice versa), WARN and direct operator to re-run `/dev-adapt`.
+- **`dev-adapt`: detect commit message format** — scans `git log --no-merges -50` and classifies the project's style as `conventional` / `gitmoji` / `null` (freeform or too few commits). Threshold: ≥70% match AND ≥10 commits. Persists `commit_format` and `commit_format_pattern` (the matched regex) to `config.json`. Surfaces in the `dev-profile` artifact under `## Commit format`.
+- **`agents/implementer`: read `commit_format` from config** — if `commit_format` is set in config, applies it to all commit messages and validates each subject against `commit_format_pattern` before committing.
+- **`agents/implementer`: `ultrathink` at pre-edit planning step** — new step 3 in "Before Starting" instructs the implementer to reason deeply through the task before the first file mutation. Mirrors the pattern core v1.0.17 added to reflect, reflection-judge, and proposal-create. Especially effective for refactors, unfamiliar code paths, and cross-file changes.
+- **`CLAUDE.md`: remove `reviews/` from state dir listing** — the `reviews/` directory was removed from the core in v1.0.17 (weekly reviews now write to `compiled/review-weekly-*`). The state dir contract is updated to match.
+
 ---
 
 ## [0.1.6] - 2026-04-22

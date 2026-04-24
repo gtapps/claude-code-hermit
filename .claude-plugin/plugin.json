@@ -1,7 +1,7 @@
 {
   "name": "claude-code-dev-hermit",
   "version": "0.1.6",
-  "required_core_version": "1.0.16",
+  "required_core_version": "1.0.17",
   "description": "Git safety, quality workflow, and dev conventions for claude-code-hermit",
   "author": {
     "name": "gtapps"

@@ -24,21 +24,26 @@ Get the set of changed files using, in order of preference:
 
 ### 3. Baseline test run
 
-Run `claude-code-dev-hermit.commands.test` (and `claude-code-dev-hermit.commands.typecheck` if configured). Capture exit code and last 30 lines of output.
+Run `claude-code-dev-hermit.commands.test`, plus `claude-code-dev-hermit.commands.typecheck` and `claude-code-dev-hermit.commands.lint` if configured. Capture exit code and last 30 lines of output for each.
 
 If tests fail: **stop and report** — there is a pre-existing failure to fix before running quality. Do not proceed to simplify.
 
+Lint failure at this stage is **report-only** — do not block simplify. Style nits are exactly what simplify may clean up. Record the result for the regression comparison in step 6.
+
 ### 4. Snapshot pre-simplify state
 
-Before running `/simplify`, snapshot the changed files cleanly:
+Before running `/simplify`, record a snapshot SHA that works regardless of dirty/clean working tree:
 
 ```bash
-git stash push --include-untracked -m "dev-quality pre-simplify snapshot" -- <changed files list>
+PRESIMPLIFY=$(git stash create)
+[ -z "$PRESIMPLIFY" ] && PRESIMPLIFY=$(git rev-parse HEAD)
 ```
 
-If stash fails (e.g., no changes staged), use `git diff HEAD -- <files> > /tmp/dev-quality-pre-simplify.patch` as fallback.
+`git stash create` writes a stash commit object without touching the index, working tree, or stash stack. It returns an empty string (exit 0) when the tree is already clean — the fallback to `HEAD` handles that case. **Do not use `git stash push`** — it fails silently when the tree is clean, which is the normal state after the implementer commits.
 
-Record which method was used.
+**Staged-edits warning:** if `git diff --cached --quiet` exits non-zero, warn the operator: "staged edits exist at snapshot time — revert via PRESIMPLIFY will overwrite them."
+
+Note: `git stash create` does not include untracked files. For the standard implementer flow (all changes committed), this is fine. If the operator has untracked files in the changed-files set, surface a warning rather than silently losing them.
 
 ### 5. Run /simplify
 
@@ -48,15 +53,18 @@ Invoke `/simplify` on the changed files identified in step 2.
 
 Run the same commands as step 3.
 
-**If tests pass:** proceed. The stash/patch from step 4 is no longer needed (discard it).
+**If tests pass and lint did not regress:** proceed. The `PRESIMPLIFY` snapshot from step 4 is no longer needed.
 
-**If tests regress:**
+**If lint regresses** (was passing in step 3, fails now after simplify): treat it as a test regression — trigger the revert path below.
 
-1. Attempt to reverse only the simplify delta:
-   - If stash was used: `git stash pop` to restore the pre-simplify state
-   - If patch was used: `git apply --reverse /tmp/dev-quality-pre-simplify.patch`
-2. If the reverse applies cleanly: proceed with the pre-simplify code. Log to SHELL.md: `simplify caused test regression — reverted to pre-simplify code`.
-3. If the reverse does NOT apply cleanly (operator had concurrent edits): **stop and ask the operator** — do not silently overwrite their edits. Log the conflict to SHELL.md.
+**If tests regress (or lint regressed):**
+
+1. Restore the changed files to their pre-simplify state using the file list from Step 2:
+   ```bash
+   git checkout $PRESIMPLIFY -- <file1> <file2> ...
+   ```
+2. If the checkout applies cleanly: proceed with the pre-simplify code. Log to SHELL.md: `simplify caused regression — reverted to pre-simplify snapshot`.
+3. If the checkout fails (e.g. merge conflict, missing path): **stop and ask the operator** — do not silently overwrite their edits. Log the conflict to SHELL.md.
 
 ### 7. Risk classification
 

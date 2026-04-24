@@ -4,7 +4,7 @@ Git safety, quality workflow, and dev conventions for claude-code-hermit.
 
 ## This Repo is a Plugin
 
-This repo is a Claude Code plugin. It extends `claude-code-hermit` (core v1.0.16+) with software development capabilities.
+This repo is a Claude Code plugin. It extends `claude-code-hermit` (core v1.0.17+) with software development capabilities.
 
 Install flow for target projects:
 
@@ -48,13 +48,13 @@ Code review: `/simplify` runs parallel review agents (reuse/quality/efficiency) 
 
 ## Depends On
 
-- `claude-code-hermit` v1.0.16+ (core)
+- `claude-code-hermit` v1.0.17+ (core)
 
 ## Core Contracts
 
 1. Profile-gating via `AGENT_HOOK_PROFILE` env var (`minimal`/`standard`/`strict`)
 2. Session lifecycle: dev workflow operates within core's session loop; `/session-close` is only called by the operator
-3. State dir: `.claude-code-hermit/` (sessions/, proposals/, reviews/, templates/, state/, raw/, compiled/)
+3. State dir: `.claude-code-hermit/` (sessions/, proposals/, templates/, state/, raw/, compiled/)
 4. Learning loop: invoke `reflect` at every task boundary
 5. Ambient dev rules: git safety, task checklist, and proposal categories apply to all dev work regardless of how it was initiated
 6. Proposal gate: three-condition rule and tier mapping — see CLAUDE-APPEND.md Dev Proposal Categories

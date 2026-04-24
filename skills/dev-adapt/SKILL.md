@@ -26,6 +26,7 @@ Also run:
 ```bash
 git branch -r 2>/dev/null | head -20
 git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null
+git log --no-merges --pretty=format:'%s' -50
 ```
 
 ### 2. Propose findings
@@ -37,6 +38,12 @@ Using everything read in step 1, propose:
 - `confidence`: `high` (direct evidence in package.json scripts / pyproject test section / Cargo.toml) | `medium` (inferred from CI or README) | `low` (guessed from tool presence)
 - `evidence`: one-line citation ("from `package.json scripts.test`", "from CI workflow `ci.yml` step `Run tests`", "inferred from `pytest.ini` presence")
 - `null` if no reliable signal — do not guess
+
+**Commit format** — classify the commit subjects from `git log`:
+- **Conventional Commits:** `^(feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert)(\([^)]+\))?!?: .+`
+- **Gitmoji** (both `:emoji_name:` and raw unicode emoji): `^(:[a-z_]+:|<unicode emoji>) .+` — apply this by reading the first character of each subject line, not via shell regex
+- **Threshold:** if ≥70% of commits match one pattern AND the log has ≥10 commits, classify as `"conventional"` or `"gitmoji"`. Otherwise: `null` (freeform or too few commits to judge).
+- Persist the matched regex alongside the classification — the implementer uses it to validate its own commit messages.
 
 **Protected branches** — propose the list by combining:
 - Branches matching names seen in CI `on.push.branches`, `environment:` deployments, `branches:` filters
@@ -93,10 +100,14 @@ Write confirmed values to `.claude-code-hermit/config.json` under `claude-code-d
       "typecheck": "<confirmed command or null>",
       "lint": "<confirmed command or null>"
     },
-    "protected_branches": ["<branch1>", "release/*"]
+    "protected_branches": ["<branch1>", "release/*"],
+    "commit_format": "conventional" | "gitmoji" | null,
+    "commit_format_pattern": "<the matched regex string, or null>"
   }
 }
 ```
+
+`commit_format` is auto-detected — no operator confirmation needed (it's derived from existing history, not a choice). If the repo has fewer than 10 commits or mixed style, write `null` and omit `commit_format_pattern`.
 
 Merge into existing config — do not overwrite unrelated keys. The plugin-name key matches the `_hermit_versions["claude-code-dev-hermit"]` pattern already established by core, keeping plugin-owned state plugin-scoped.
 
@@ -141,6 +152,9 @@ Protected: <list>
 "auth code lives under packages/auth/, migrations under db/migrations/,
 deploy config in infra/ — flag these categories for extra review">
 
+## Commit format
+<conventional|gitmoji|freeform> — <N of 50 non-merge commits matched>
+
 ## Dependency tooling
 <lockfile type, audit tool if any>
 
@@ -162,6 +176,7 @@ dev-adapt complete
   typecheck: npm run typecheck     (medium — tsconfig.json present)
   lint:      null                  (no signal found)
   protected: main, staging
+  commit_format: conventional     (42 of 50 recent commits match)
 
   Written: .claude-code-hermit/compiled/dev-profile-2026-04-24.md
   Config:  .claude-code-hermit/config.json → claude-code-dev-hermit.* updated
