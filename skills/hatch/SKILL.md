@@ -40,9 +40,11 @@ Run these in a single parallel turn before asking anything:
 
 **Bash commands:**
 - Branch naming: `git log --oneline --all -20 | grep -oE '(feature|fix|hotfix|chore|release)/[^ ]+' | head -5`
-- Protected branches: `git branch -r 2>/dev/null | grep -E 'main|master|staging|production' | head -5`
 - CI config: `ls .github/workflows/ 2>/dev/null; ls .gitlab-ci.yml 2>/dev/null; ls Jenkinsfile 2>/dev/null`
-- Test commands: `grep -E '"test"' package.json 2>/dev/null; ls pytest.ini setup.cfg pyproject.toml 2>/dev/null | head -3`
+
+**Run `/claude-code-dev-hermit:dev-adapt` in the background** to discover test commands, protected branches, and stack details. This skill handles all project-file reading, proposes commands with confidence ratings, and will prompt the operator for any medium/low-confidence values. It writes the confirmed values to `config.json → dev.*` and emits `compiled/dev-profile-<date>.md` for future sessions.
+
+Do not duplicate the detection logic here — let `dev-adapt` own it.
 
 **File reads (parallel with Bash):**
 - `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` — cache the plugin version for use in Steps 2 and 4
@@ -181,6 +183,8 @@ Flush all pending config.json changes in a single write:
 - `_hermit_versions["claude-code-dev-hermit"]` set to the plugin version cached in Phase 1
 - `routines` array (if dev-cleanup routine was accepted): append `{"id": "dev-cleanup", "schedule": "0 10 * * 1", "skill": "claude-code-dev-hermit:dev-cleanup", "enabled": true}` — create the array if absent; skip if an entry with `"id": "dev-cleanup"` already exists
 
+**Note:** `dev.commands` and `dev.protected_branches` are written by `/dev-adapt` (run in Phase 1), not by this step. Do not overwrite them here.
+
 After the config write: invoke `/claude-code-hermit:hermit-routines load` to register all enabled routines.
 
 ### 5. Report results
@@ -207,6 +211,8 @@ Companion plugins:
 Available skills:
   /claude-code-dev-hermit:dev-quality   — post-implementation quality pass
   /claude-code-dev-hermit:dev-cleanup   — branch cleanup
+  /claude-code-dev-hermit:dev-adapt     — re-profile project (test commands, branches, stack)
+  /claude-code-dev-hermit:dev-doctor    — check setup is implementer-safe
 
 Available agent:
   claude-code-dev-hermit:implementer   — code writing in worktree (Sonnet)
