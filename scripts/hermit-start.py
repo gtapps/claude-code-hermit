@@ -35,7 +35,7 @@ DEFAULT_CONFIG = {
     'sign_off': None,
     'channels': {},
     'remote': True,
-    'model': None,
+    'model': 'sonnet',
     'permission_mode': 'acceptEdits',
     'tmux_session_name': 'hermit-{project_name}',
     'scope': 'local',

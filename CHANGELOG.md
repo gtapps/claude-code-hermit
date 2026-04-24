@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.0.18] - 2026-04-24
+
+### Changed
+
+- **hermit-doctor: rename from doctor** — avoids collision with Claude Code's built-in `/doctor` command; follows the `hermit-*` naming convention.
+- **hermit-start: align DEFAULT_CONFIG model with template** — `model` fallback was `None`; now `'sonnet'` to match `config.json.template`.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/hermit-doctor/SKILL.md` | Renamed from `skills/doctor/`; heading, name, and activation keyword updated |
+| `state-templates/CLAUDE-APPEND.md` | `/doctor` → `/hermit-doctor` in quick-reference |
+| `CLAUDE.md` | `doctor` → `hermit-doctor` in skills list |
+| `docs/artifact-naming.md` | `/doctor` → `/hermit-doctor` |
+| `scripts/hermit-start.py` | `DEFAULT_CONFIG model: None` → `'sonnet'` |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Patch `/doctor` → `/hermit-doctor` in target-project `CLAUDE.md`:** find the Quick Reference line containing the backtick-quoted token `` `/doctor` ``. If `` `/hermit-doctor` `` is already present, or if neither token appears, skip without error. Otherwise replace `` `/doctor` `` with `` `/hermit-doctor` `` on that line only and write the file back.
+
+No `config.json` changes required.
+
 ## [1.0.17] - 2026-04-24
 
 ### Added
