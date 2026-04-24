@@ -58,8 +58,10 @@ The implementer never touches main. It commits to feature branches, runs tests, 
 | Skill | What it does |
 |-------|-------------|
 | `hatch` | One-time project setup — appends dev workflow to CLAUDE.md, configures git safety, installs companion plugins |
+| `dev-adapt` | Profile the project's test commands, protected branches, and stack; persists findings to config |
 | `dev-quality` | Post-implementation quality pass — tests, simplify, tests |
 | `dev-cleanup` | Lists stale/merged branches and offers to clean them up safely |
+| `dev-doctor` | Diagnose dev-hermit setup issues; safe for weekly scheduled checks |
 
 ### Git Safety
 
