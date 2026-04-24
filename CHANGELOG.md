@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.0.18] - 2026-04-24
+
+### Changed
+
+- **hermit-doctor: rename from doctor** — avoids collision with Claude Code's built-in `/doctor` command; follows the `hermit-*` naming convention.
+- **hermit-start: align DEFAULT_CONFIG model with template** — `model` fallback was `None`; now `'sonnet'` to match `config.json.template`.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/hermit-doctor/SKILL.md` | Renamed from `skills/doctor/`; heading, name, and activation keyword updated |
+| `state-templates/CLAUDE-APPEND.md` | `/doctor` → `/hermit-doctor` in quick-reference |
+| `CLAUDE.md` | `doctor` → `hermit-doctor` in skills list |
+| `docs/artifact-naming.md` | `/doctor` → `/hermit-doctor` |
+| `scripts/hermit-start.py` | `DEFAULT_CONFIG model: None` → `'sonnet'` |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Patch `/doctor` → `/hermit-doctor` in target-project `CLAUDE.md`:** find the Quick Reference line containing the backtick-quoted token `` `/doctor` ``. If `` `/hermit-doctor` `` is already present, or if neither token appears, skip without error. Otherwise replace `` `/doctor` `` with `` `/hermit-doctor` `` on that line only and write the file back.
+
+No `config.json` changes required.
+
 ## [1.0.17] - 2026-04-24
 
 ### Added
@@ -21,6 +46,8 @@
 - **channel-responder: recognize slash commands** — added a `Slash command` branch at the top of step 2 classification. Messages starting with `/` (e.g. `/simplify`, `/plugin:command`) are now routed to the matching skill, slash command, or subagent via the appropriate tool instead of being misclassified and drawing an improvised "don't recognize this command" reply.
 
 - **`/doctor` skill — six-check installation health report** — new `skills/doctor/` skill backed by `scripts/doctor-check.js`. Runs six read-only checks (config validity, hook registration, state file integrity, cost budget, proposal health, file permissions), writes `.claude-code-hermit/state/doctor-report.json`, and surfaces a summary block in SHELL.md. Exits 0 always (fail-open); individual check failures are recorded in the report. Three new tests in `tests/run-hooks.sh` (minimal install, corrupt state, missing config).
+
+- **`/doctor` → `/hermit-doctor` skill rename** — avoids collision with Claude Code's built-in `/doctor` command. Skill directory moved from `skills/doctor/` to `skills/hermit-doctor/`; `CLAUDE-APPEND.md` quick-reference and `CLAUDE.md` skills list updated. Internal `scripts/doctor-check.js` and `state/doctor-report.json` are unchanged.
 
 - **`docs/artifact-naming.md`** — new reference doc covering the four-bucket layout (`raw/`, `compiled/`, `state/`, `proposals/`), naming conventions, and frontmatter requirements for new domains and skills. Added to README docs table.
 
@@ -45,6 +72,7 @@
 | `skills/docker-setup/SKILL.md` | `update` added to step 9 command reference |
 | `skills/hatch/SKILL.md` | `update-history.jsonl` added to state init list |
 | `skills/channel-responder/SKILL.md` | Slash command branch added to classifier |
+| `skills/hermit-doctor/SKILL.md` | Renamed from `skills/doctor/`; name and activation keyword updated |
 
 ### Upgrade Instructions
 
@@ -65,7 +93,9 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 Declaring a `review` type in `knowledge-schema.md` is left to the operator — the schema is project-owned, so hermit-evolve does not append.
 
-9. **Interactive model migration:** if `config.model` is `null` or missing, ask the operator:
+9. **Patch `/doctor` → `/hermit-doctor` in target-project `CLAUDE.md`:** read the project's `CLAUDE.md` (not the plugin's). Find the line in the Quick Reference section that lists backtick-quoted hermit skill commands — it will contain `` `/doctor` `` (the form used by `state-templates/CLAUDE-APPEND.md`). If `` `/hermit-doctor` `` is already present, or if neither token appears in the file, skip without error (fail-open). Otherwise replace the token `` `/doctor` `` with `` `/hermit-doctor` `` on that line and write the file back. Do not alter any other line.
+
+10. **Interactive model migration:** if `config.model` is `null` or missing, ask the operator:
    > "Hermit now defaults to `"sonnet"` for new installs (matches the effective default on most tiers). Your hermit currently inherits the Claude Code default at launch. Pin it to `"sonnet"` (recommended), keep `null` (continue inheriting), or set another alias (`opus`, `haiku`, `best`)?"
    Apply the operator's choice. If they choose "keep null", write `null` explicitly. If they skip or close without answering, leave the key as-is.
 
