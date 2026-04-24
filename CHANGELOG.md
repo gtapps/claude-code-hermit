@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`create-pr` skill** — fills the gap between `/commit` and `/release`: pushes the current branch if needed, auto-drafts a Conventional Commits title and `## Summary` + `## Test plan` body from the commit range and diff, detects issue references for `Closes #N` links, shows the draft for approval, then runs `gh pr create`. Refuses early if on the default branch, dirty tree, no commits ahead, or a PR already exists.
+
 ---
 
 ## [0.1.6] - 2026-04-22
