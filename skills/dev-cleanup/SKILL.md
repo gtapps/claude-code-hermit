@@ -13,7 +13,7 @@ List local branches and identify cleanup candidates.
 
 ## Plan
 
-1. Run `git branch --merged main` to find fully merged branches
+1. Read `dev.protected_branches` from `.claude-code-hermit/config.json` (default: `["main", "master"]` if absent). Run `git branch --merged <first-protected-branch>` to find fully merged branches.
 2. Run `git branch -v` to find branches with no recent commits
 3. Cross-reference with `.claude-code-hermit/sessions/SHELL.md`
    **and** all `S-*-REPORT.md` files in the sessions directory to
@@ -44,7 +44,7 @@ List local branches and identify cleanup candidates.
 
 ## Rules
 
-- Never delete the current branch or main/master
+- Never delete the current branch or any branch in `dev.protected_branches` (defaults to main/master)
 - Never force-delete without explicit operator confirmation per branch
 - Never delete remote branches — local cleanup only
 - Cross-reference branches against ALL session reports (`S-*-REPORT.md`),

@@ -21,23 +21,40 @@ These apply regardless of profile. The dev workflow rules in CLAUDE.md reinforce
 
 A PreToolUse hook that intercepts Bash commands before they execute.
 
+**Protected branches** — configurable via `dev.protected_branches` in `.claude-code-hermit/config.json`. Defaults to `["main", "master"]` if the field is absent or the config is unreadable.
+
+```json
+{
+  "dev": {
+    "protected_branches": ["main", "staging", "release/*"]
+  }
+}
+```
+
+Patterns support glob syntax: `release/*` matches `release/1.2`, `release/2.0`, etc.
+
 **Blocks:**
 
 | Command | Why |
 |---------|-----|
-| `git push` to main/master | Protects the mainline |
+| `git push` to any protected branch | Protects configured mainlines |
+| `git push --delete` / `:branch` to protected branch | Prevents remote branch deletion |
+| `git push --mirror` / `--all` | Would push everything, including protected branches |
 | `--no-verify` on any command | Prevents bypassing pre-commit hooks |
 | `--force` or `-f` push | Prevents history rewriting |
-| `--force-with-lease` to main/master | Protects mainline even with lease |
+| `--force-with-lease` to protected branch | Protects mainline even with lease |
+| `--force-with-lease` with no explicit refspec | Ambiguous target — blocked to be safe |
 
 **Allows:**
 
-- Push to feature branches
-- `--force-with-lease` to feature branches (safe rebase workflow)
+- Push to non-protected feature branches
+- `--force-with-lease origin feature/x` (explicit non-protected target)
 - All non-git commands
 - Everything at non-strict profiles
 
-**Implementation:** `scripts/git-push-guard.js` — reads JSON from stdin, pattern-matches the command, exits 0 (allow) or 2 (block). Fails open on parse errors (exit 0). No dependencies.
+**Limitation:** `git push` with no remote and no refspec (pushes to the tracking branch) is **not inspected** — the guard cannot resolve tracking-branch configuration without network/git access. Operators relying on tracking branches to push to protected branches should set strict profile and use explicit refspecs.
+
+**Implementation:** `scripts/git-push-guard.js` — tokenizer-based parser, reads JSON from stdin, exits 0 (allow) or 2 (block). Fails open on parse errors (exit 0). No runtime dependencies.
 
 ---
 

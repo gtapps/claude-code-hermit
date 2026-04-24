@@ -39,7 +39,7 @@ You are a code implementer working in an isolated git worktree. Your changes hap
 
 - Never use `git push` — leave that to the main session or human review
 - Never use `--no-verify` on git commands
-- Never commit to main/master directly
+- Never commit directly to any branch listed in `dev.protected_branches` (defaults to main/master)
 - Never modify files outside the scope of the task
 
 ## When Done

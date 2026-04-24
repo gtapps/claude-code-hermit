@@ -3,8 +3,10 @@
 // Tests for git-push-guard.js
 // Run with: node scripts/git-push-guard.test.js
 
-const { execSync, spawnSync } = require('child_process');
+const { spawnSync } = require('child_process');
 const path = require('path');
+const os = require('os');
+const fs = require('fs');
 
 const GUARD = path.join(__dirname, 'git-push-guard.js');
 
@@ -24,7 +26,27 @@ function runRaw(rawInput, env = {}) {
     input: rawInput,
     env: { ...process.env, ...env },
     encoding: 'utf-8',
+    cwd: process.cwd(),
   });
+  return result.status;
+}
+
+// Run guard with a temporary config that sets custom protected branches
+function runWithConfig(command, protectedBranches, env = {}) {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-test-'));
+  const hermitDir = path.join(tmpDir, '.claude-code-hermit');
+  fs.mkdirSync(hermitDir);
+  fs.writeFileSync(
+    path.join(hermitDir, 'config.json'),
+    JSON.stringify({ dev: { protected_branches: protectedBranches } })
+  );
+  const result = spawnSync(process.execPath, [GUARD], {
+    input: makeInput(command),
+    env: { ...process.env, AGENT_HOOK_PROFILE: 'strict', ...env },
+    encoding: 'utf-8',
+    cwd: tmpDir,
+  });
+  fs.rmSync(tmpDir, { recursive: true, force: true });
   return result.status;
 }
 
@@ -69,10 +91,61 @@ assert('--force-with-lease to feature branch is allowed', run('git push --force-
 assert('non-git command is allowed', run('npm test', { AGENT_HOOK_PROFILE: 'strict' }), 0);
 assert('"main" in branch name like main-staging is allowed', run('git push origin main-staging', { AGENT_HOOK_PROFILE: 'strict' }), 0);
 
-// --- Edge cases ---
+// --- Edge cases (existing) ---
 console.log('\nEdge cases:');
 assert('empty stdin exits cleanly', runRaw('', { AGENT_HOOK_PROFILE: 'strict' }), 0);
 assert('malformed JSON exits cleanly', runRaw('not-json', { AGENT_HOOK_PROFILE: 'strict' }), 0);
+
+// --- Parser improvements: git -C, env prefix, -c key=val ---
+console.log('\nParser improvements:');
+assert('git -C /path push origin main is blocked', run('git -C /some/path push origin main', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('git -C /path push to feature is allowed', run('git -C /some/path push origin feature/x', { AGENT_HOOK_PROFILE: 'strict' }), 0);
+assert('env GIT_SSH=x git push origin main is blocked', run('GIT_SSH=x git push origin main', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('git -c http.extraHeader=x push origin main is blocked', run('git -c http.extraHeader=foo push origin main', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+
+// --- Chained commands ---
+console.log('\nChained commands:');
+assert('git checkout main && git push origin feature/x is allowed', run('git checkout main && git push origin feature/x', { AGENT_HOOK_PROFILE: 'strict' }), 0);
+assert('git push origin feature/x && git push origin main is blocked', run('git push origin feature/x && git push origin main', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('git push origin feature/x; git push origin master is blocked', run('git push origin feature/x; git push origin master', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+
+// --- Refspec forms ---
+console.log('\nRefspec forms:');
+assert('HEAD:main refspec is blocked', run('git push origin HEAD:main', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('HEAD:feature is allowed', run('git push origin HEAD:feature/x', { AGENT_HOOK_PROFILE: 'strict' }), 0);
+assert('+main force refspec is blocked', run('git push origin +main', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('+feature force refspec is allowed', run('git push origin +feature/x', { AGENT_HOOK_PROFILE: 'strict' }), 0);
+assert(':main delete-by-empty-source is blocked', run('git push origin :main', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert(':feature delete-by-empty-source is allowed', run('git push origin :feature/x', { AGENT_HOOK_PROFILE: 'strict' }), 0);
+assert('refs/heads/main is blocked', run('git push origin refs/heads/main', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('refs/heads/feature/x is allowed', run('git push origin refs/heads/feature/x', { AGENT_HOOK_PROFILE: 'strict' }), 0);
+
+// --- Delete and dangerous flags ---
+console.log('\nDelete and dangerous flags:');
+assert('--delete main is blocked', run('git push origin --delete main', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('--delete feature/x is allowed', run('git push origin --delete feature/x', { AGENT_HOOK_PROFILE: 'strict' }), 0);
+assert('-d main is blocked', run('git push origin -d main', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('--mirror is blocked', run('git push --mirror origin', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('--all is blocked', run('git push --all origin', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('-a is blocked', run('git push -a origin', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+
+// --- force-with-lease edge cases ---
+console.log('\nForce-with-lease edge cases:');
+assert('--force-with-lease with no refspec is blocked (ambiguous)', run('git push --force-with-lease origin', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('--force-with-lease to feature branch is allowed', run('git push --force-with-lease origin feature/my-branch', { AGENT_HOOK_PROFILE: 'strict' }), 0);
+
+// --- Plain push (no refspec) ---
+console.log('\nPlain push:');
+assert('git push (no remote, no refspec) is allowed', run('git push', { AGENT_HOOK_PROFILE: 'strict' }), 0);
+assert('git push origin (remote, no refspec) is allowed', run('git push origin', { AGENT_HOOK_PROFILE: 'strict' }), 0);
+
+// --- Config-driven protected branches ---
+console.log('\nConfig-driven protected branches:');
+assert('release/1.2 blocked when release/* is protected', runWithConfig('git push origin release/1.2', ['release/*']), 2);
+assert('release/1.2 allowed with default config', run('git push origin release/1.2', { AGENT_HOOK_PROFILE: 'strict' }), 0);
+assert('staging blocked when staging is in config', runWithConfig('git push origin staging', ['main', 'staging']), 2);
+assert('feature/x allowed with custom config', runWithConfig('git push origin feature/x', ['main', 'staging']), 0);
+assert('config still blocks main', runWithConfig('git push origin main', ['main', 'staging']), 2);
 
 // --- Summary ---
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);

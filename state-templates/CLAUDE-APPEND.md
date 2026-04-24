@@ -10,7 +10,7 @@
 
 ## Git Safety
 
-- Never push to main or master directly
+- Never push to any branch in `dev.protected_branches` (defaults to `main`/`master` if unset)
 - Never use `--no-verify` on git commands
 - Always create feature branches for work
 

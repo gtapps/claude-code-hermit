@@ -66,7 +66,7 @@ Available question slots (include only those needed, max 4):
 questions: [
   {
     header: "Hook profile",
-    question: "Enable git-push-guard? Blocks direct pushes to main, --no-verify, and force push.",
+    question: "Enable git-push-guard? Blocks direct pushes to protected branches, --no-verify, force push, and --mirror/--all.",
     options: [
       { label: "Strict (recommended)", description: "git-push-guard active — blocks dangerous git operations" },
       { label: "Standard", description: "No hook enforcement — prompt-level rules still apply" }
