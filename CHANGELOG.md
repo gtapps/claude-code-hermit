@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.8] - 2026-04-24
+
+### Changed
+- **Minimum core version bumped to v1.0.18** — adapts to the `/doctor` → `/hermit-doctor` rename in claude-code-hermit v1.0.18; `dev-doctor` manual mode composition and the hatch prereq gate are updated accordingly.
+
+### Added
+- **`docs/WORKFLOW.md`** — end-to-end task lifecycle reference (what fires, in what order, what state it writes); linked from README Documentation.
+
+---
+
 ## [0.1.7] - 2026-04-24
 
 ### Added
