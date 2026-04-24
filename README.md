@@ -65,7 +65,7 @@ The implementer never touches main. It commits to feature branches, runs tests, 
 
 The `git-push-guard` hook blocks dangerous git operations:
 
-- Direct push to any protected branch (configured via `dev.protected_branches`; defaults to `main`/`master`)
+- Direct push to any protected branch (configured via `claude-code-dev-hermit.protected_branches`; defaults to `main`/`master`)
 - `--no-verify` on any command
 - Force push on any branch
 - `--force-with-lease` to a protected branch
@@ -75,7 +75,7 @@ The `git-push-guard` hook blocks dangerous git operations:
 Protected branches are configurable in `.claude-code-hermit/config.json`:
 
 ```json
-{ "dev": { "protected_branches": ["main", "staging", "release/*"] } }
+{ "claude-code-dev-hermit": { "protected_branches": ["main", "staging", "release/*"] } }
 ```
 
 The hook only activates at **strict** profile. At standard (default), git commands are unchecked by hooks. The implementer agent also has its own prompt-level rules that always apply — no push, no `--no-verify`, no commits to protected branches.

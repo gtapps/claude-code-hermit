@@ -44,9 +44,9 @@ For each property below, read the relevant file(s) and emit `PASS`, `WARN`, or `
 | 1 | Core hermit version ≥ required | Compare `_hermit_versions["claude-code-hermit"]` in config.json with `required_core_version` in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` |
 | 2 | Dev workflow marker in CLAUDE.md | `grep "claude-code-dev-hermit: Development Workflow" CLAUDE.md` |
 | 3 | always_on + strict profile | If `always_on: true` in config, `env.AGENT_HOOK_PROFILE` must be `strict`; FAIL if not |
-| 4 | Protected branches configured | `dev.protected_branches` in config must be non-empty array |
-| 5 | Test command configured | `dev.commands.test` must be non-null |
-| 6 | Typecheck or lint configured | At least one of `dev.commands.typecheck` / `dev.commands.lint` non-null; WARN only if both absent |
+| 4 | Protected branches configured | `claude-code-dev-hermit.protected_branches` in config must be non-empty array |
+| 5 | Test command configured | `claude-code-dev-hermit.commands.test` must be non-null |
+| 6 | Typecheck or lint configured | At least one of `claude-code-dev-hermit.commands.typecheck` / `claude-code-dev-hermit.commands.lint` non-null; WARN only if both absent |
 | 7 | Worktree support | Run `git worktree list` — must exit 0 |
 | 8 | Hook script valid | Run `node --check ${CLAUDE_PLUGIN_ROOT}/scripts/git-push-guard.js` — must exit 0 |
 | 9 | .gitignore covers state and secrets | `.gitignore` must contain `.claude-code-hermit/state/` (or `.claude-code-hermit/`), `.env`, `.env.local`; WARN for each missing entry |

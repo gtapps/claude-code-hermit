@@ -199,7 +199,7 @@ Flush all pending config.json changes in a single write:
 - `routines` array (if dev-cleanup routine was accepted): append `{"id": "dev-cleanup", "schedule": "0 10 * * 1", "skill": "claude-code-dev-hermit:dev-cleanup", "enabled": true}` — create the array if absent; skip if an entry with `"id": "dev-cleanup"` already exists
 - `scheduled_checks` array (if dev-doctor was accepted): append `{"id": "dev-doctor", "plugin": "claude-code-dev-hermit", "skill": "claude-code-dev-hermit:dev-doctor", "trigger": "interval", "interval_days": 7, "enabled": true}` — skip if entry with `"id": "dev-doctor"` already exists
 
-**Note:** `dev.commands` and `dev.protected_branches` are written by `/dev-adapt` (run in Phase 1), not by this step. Do not overwrite them here.
+**Note:** `claude-code-dev-hermit.commands` and `claude-code-dev-hermit.protected_branches` are written by `/dev-adapt` (run in Phase 1), not by this step. Do not overwrite them here.
 
 After the config write: invoke `/claude-code-hermit:hermit-routines load` to register all enabled routines.
 

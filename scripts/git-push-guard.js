@@ -18,7 +18,7 @@ function loadProtectedBranches() {
     const configPath = path.join(process.cwd(), '.claude-code-hermit', 'config.json');
     const raw = fs.readFileSync(configPath, 'utf-8');
     const cfg = JSON.parse(raw);
-    const branches = cfg?.dev?.protected_branches;
+    const branches = cfg?.['claude-code-dev-hermit']?.protected_branches;
     if (Array.isArray(branches) && branches.length > 0) {
       return branches;
     }

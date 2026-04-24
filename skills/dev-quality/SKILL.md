@@ -10,9 +10,9 @@ Run the full quality pass on the current implementation. Call after implementati
 
 ### 1. Read config
 
-Read `.claude-code-hermit/config.json` → `dev.commands.test`, `dev.commands.typecheck`, `dev.commands.lint`, and `dev.protected_branches`.
+Read `.claude-code-hermit/config.json` → `claude-code-dev-hermit.commands.test`, `claude-code-dev-hermit.commands.typecheck`, `claude-code-dev-hermit.commands.lint`, and `claude-code-dev-hermit.protected_branches`.
 
-If `dev.commands.test` is null or absent: emit one line — `No test command configured. Run /claude-code-dev-hermit:dev-adapt to set one.` — then stop with an advisory (do not fail the task; the operator may not have tests).
+If `claude-code-dev-hermit.commands.test` is null or absent: emit one line — `No test command configured. Run /claude-code-dev-hermit:dev-adapt to set one.` — then stop with an advisory (do not fail the task; the operator may not have tests).
 
 ### 2. Determine the diff
 
@@ -24,7 +24,7 @@ Get the set of changed files using, in order of preference:
 
 ### 3. Baseline test run
 
-Run `dev.commands.test` (and `dev.commands.typecheck` if configured). Capture exit code and last 30 lines of output.
+Run `claude-code-dev-hermit.commands.test` (and `claude-code-dev-hermit.commands.typecheck` if configured). Capture exit code and last 30 lines of output.
 
 If tests fail: **stop and report** — there is a pre-existing failure to fix before running quality. Do not proceed to simplify.
 

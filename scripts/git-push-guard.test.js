@@ -38,7 +38,7 @@ function runWithConfig(command, protectedBranches, env = {}) {
   fs.mkdirSync(hermitDir);
   fs.writeFileSync(
     path.join(hermitDir, 'config.json'),
-    JSON.stringify({ dev: { protected_branches: protectedBranches } })
+    JSON.stringify({ 'claude-code-dev-hermit': { protected_branches: protectedBranches } })
   );
   const result = spawnSync(process.execPath, [GUARD], {
     input: makeInput(command),

@@ -21,11 +21,11 @@ These apply regardless of profile. The dev workflow rules in CLAUDE.md reinforce
 
 A PreToolUse hook that intercepts Bash commands before they execute.
 
-**Protected branches** — configurable via `dev.protected_branches` in `.claude-code-hermit/config.json`. Defaults to `["main", "master"]` if the field is absent or the config is unreadable.
+**Protected branches** — configurable via `claude-code-dev-hermit.protected_branches` in `.claude-code-hermit/config.json`. Defaults to `["main", "master"]` if the field is absent or the config is unreadable.
 
 ```json
 {
-  "dev": {
+  "claude-code-dev-hermit": {
     "protected_branches": ["main", "staging", "release/*"]
   }
 }

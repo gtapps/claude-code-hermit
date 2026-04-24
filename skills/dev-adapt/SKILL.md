@@ -19,7 +19,7 @@ In parallel, read:
 - `.gitlab-ci.yml`, `Jenkinsfile`, `.circleci/config.yml` if present
 - Root `README.md` and `CONTRIBUTING.md` — sections mentioning "test", "lint", "typecheck", "build"
 - `CLAUDE.md`, `OPERATOR.md` — any existing documented test/lint commands
-- `dev.*` fields from `.claude-code-hermit/config.json` — show currently persisted values
+- `claude-code-dev-hermit.*` fields from `.claude-code-hermit/config.json` — show currently persisted values
 
 Also run:
 
@@ -46,7 +46,7 @@ Using everything read in step 1, propose:
 
 ### 3. Confirm with operator
 
-Use `AskUserQuestion` with up to 3 confirmations. Skip any question whose answer was already confirmed in a prior run (compare with existing `dev.*` config).
+Use `AskUserQuestion` with up to 3 confirmations. Skip any question whose answer was already confirmed in a prior run (compare with existing `claude-code-dev-hermit.*` config).
 
 ```
 questions: [
@@ -54,7 +54,7 @@ questions: [
     header: "Test command",
     question: "Detected test command [confidence]: `<command>` — from <evidence>. Use this?",
     options: [
-      { label: "Yes", description: "Persist as dev.commands.test" },
+      { label: "Yes", description: "Persist as claude-code-dev-hermit.commands.test" },
       { label: "Edit", description: "I'll provide the correct command" },
       { label: "Skip", description: "Don't configure a test command" }
     ]
@@ -83,11 +83,11 @@ If confidence is `high` for a command, inline-confirm without asking ("Detected:
 
 ### 4. Persist to config
 
-Write confirmed values to `.claude-code-hermit/config.json` under `dev`:
+Write confirmed values to `.claude-code-hermit/config.json` under `claude-code-dev-hermit`:
 
 ```json
 {
-  "dev": {
+  "claude-code-dev-hermit": {
     "commands": {
       "test": "<confirmed command or null>",
       "typecheck": "<confirmed command or null>",
@@ -98,7 +98,7 @@ Write confirmed values to `.claude-code-hermit/config.json` under `dev`:
 }
 ```
 
-Merge into existing config — do not overwrite unrelated keys.
+Merge into existing config — do not overwrite unrelated keys. The plugin-name key matches the `_hermit_versions["claude-code-dev-hermit"]` pattern already established by core, keeping plugin-owned state plugin-scoped.
 
 ### 5. Write compiled artifact
 
@@ -164,5 +164,5 @@ dev-adapt complete
   protected: main, staging
 
   Written: .claude-code-hermit/compiled/dev-profile-2026-04-24.md
-  Config:  .claude-code-hermit/config.json → dev.* updated
+  Config:  .claude-code-hermit/config.json → claude-code-dev-hermit.* updated
 ```
