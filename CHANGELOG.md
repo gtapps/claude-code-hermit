@@ -12,6 +12,25 @@
 - **`dev-quality`: pre-simplify snapshot failed on committed code** — replaced `git stash push` (fails silently on a clean working tree) with `PRESIMPLIFY=$(git stash create); [ -z "$PRESIMPLIFY" ] && PRESIMPLIFY=$(git rev-parse HEAD)`. Revert now uses `git checkout $PRESIMPLIFY -- <files>`. Works correctly after the implementer commits, after direct edits, and with concurrent operator changes (with a staged-edits warning).
 - **`CLAUDE-APPEND.md`: main session did not check out the implementer's branch** — Step 3 now instructs the main session to run `git status -s` and, if the tree is clean, `git checkout <branch>` using the branch name from the implementer's `Branch:` line before updating SHELL.md and before running `dev-quality`. Without this, `dev-quality`'s diff detection targeted the wrong HEAD and `git diff merge-base` returned zero changed files on every run.
 - **`agents/implementer.md`: pinned `Branch:` output format** — the `### Branch` return section now specifies the exact format `Branch: <branch-name>` (one token, no trailing prose) so the main session can parse it deterministically.
+- **Worktree isolation hardening** — implementer's worktree is a fresh checkout, so `.claude-code-hermit/` (typically gitignored) is absent inside it. Two gaps closed: (1) branch-handoff collision — `git checkout <branch>` in the main repo failed with "already checked out at .claude/worktrees/<name>" because the subagent worktree persisted; fixed by adding a `Worktree:` return line to the implementer and updating CLAUDE-APPEND step 3 to prune → check → remove → checkout; (2) silent safety-rail degradation — `protected_branches` and `commit_format` fell back to defaults without warning; fixed by prompt-passing these values from the main session's config.json read and adding a scoped Concerns flag when defaults were used on a commit. Also: hatch now unconditionally writes a `.worktreeinclude` block so future implementer runs can fall back to file-read when prompt-passing is absent; dev-doctor gains checks 12 (`.claude/worktrees/` gitignored) and 13 (`.worktreeinclude` covers hermit config).
+
+### Upgrade Instructions
+
+1. Ensure `.worktreeinclude` at the repo root contains the claude-code-dev-hermit marker block. Run `/claude-code-hermit:hermit-evolve` — it will execute this step automatically. Or run `/claude-code-dev-hermit:hatch` manually if you prefer.
+
+   If applying manually: create or append to `.worktreeinclude` at repo root:
+   ```
+   # claude-code-dev-hermit — implementer subagent worktree files
+   .claude-code-hermit/config.json
+   .claude-code-hermit/OPERATOR.md
+   .env
+   .env.local
+   .env.test
+   # end claude-code-dev-hermit
+   ```
+   If the marker is already present, skip — the block is idempotent.
+
+2. No config.json changes required.
 
 ### Changed
 

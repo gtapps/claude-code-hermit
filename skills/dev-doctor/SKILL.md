@@ -38,7 +38,7 @@ Skip smoke-test and hermit-config-validator invocations. Run only the dev-specif
 
 ## Dev-specific checks
 
-For each property below, read the relevant file(s) and emit `PASS`, `WARN`, or `FAIL` with a one-sentence explanation. Use judgment for judgment calls (e.g., "test command looks safe") rather than pattern matching.
+For each property below, read the relevant file(s) and emit `PASS`, `WARN`, or `FAIL` with a one-sentence explanation. Use judgment for judgment calls (e.g., "test command looks safe") rather than pattern matching. Read `.gitignore` once and reuse the result across checks 9, 12, and 13.
 
 | # | Property | How to check |
 |---|---|---|
@@ -53,6 +53,8 @@ For each property below, read the relevant file(s) and emit `PASS`, `WARN`, or `
 | 9 | .gitignore covers state and secrets | `.gitignore` must contain `.claude-code-hermit/state/` (or `.claude-code-hermit/`), `.env`, `.env.local`; WARN for each missing entry |
 | 10 | Test command safety | Read the configured test command — WARN if it looks potentially destructive (e.g., contains `rm`, `curl \| sh`, drops tables); this is a judgment call |
 | 11 | commit_format shape | If `commit_format` is set but `commit_format_pattern` is absent (or vice versa): WARN — re-run `/dev-adapt` to re-detect. Both null is fine; mismatch is not. |
+| 12 | `.claude/worktrees/` gitignored | Check `.gitignore` (and any parent `.gitignore`) for `.claude/worktrees/` or `.claude/`. WARN if absent — untracked worktree dirs will appear in `git status` of the main repo. Suggestion: append `.claude/worktrees/` to `.gitignore`. |
+| 13 | `.worktreeinclude` covers hermit config | If `.claude-code-hermit/config.json` is gitignored (check `.gitignore`), verify `.worktreeinclude` contains `.claude-code-hermit/config.json`. WARN if absent — the implementer agent may silently use default protected_branches and commit_format inside its worktree. Point at `/claude-code-dev-hermit:hatch` to generate the file. |
 
 ## Output format
 
@@ -74,6 +76,8 @@ PASS  git-push-guard.js parses cleanly
 WARN  .gitignore missing .env.local entry
 PASS  test command safety — looks safe
 WARN  commit_format set but commit_format_pattern absent — re-run /dev-adapt
+WARN  .gitignore missing .claude/worktrees/ entry — add it to suppress untracked worktree dirs
+WARN  .worktreeinclude missing .claude-code-hermit/config.json — run /hatch to generate
 
 Safe for implementer: no   (2 FAIL)
 Next: set AGENT_HOOK_PROFILE=strict; fix test command via /dev-adapt
@@ -101,7 +105,7 @@ Add to hatch's Phase 3 AskUserQuestion:
 ```
 {
   header: "Dev doctor",
-  question: "Run a weekly automated setup check? Verifies test commands, protected branches, hook profile, and worktree support.",
+  question: "Run a weekly automated setup check? Verifies test commands, protected branches, hook profile, worktree support, and .worktreeinclude coverage.",
   options: [
     { label: "Yes (weekly)", description: "Register dev-doctor as a scheduled check — findings flow through the reflection pipeline" },
     { label: "Skip", description: "Run /dev-doctor manually when needed" }

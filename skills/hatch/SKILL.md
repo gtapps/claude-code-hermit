@@ -160,7 +160,7 @@ If HEARTBEAT.md doesn't exist: skip the question, note in the report: "Heartbeat
 ```
 {
   header: "Dev doctor",
-  question: "Run a weekly automated setup check? Verifies test commands, protected branches, hook profile, and worktree support.",
+  question: "Run a weekly automated setup check? Verifies test commands, protected branches, hook profile, worktree support, and .worktreeinclude coverage.",
   options: [
     { label: "Yes (weekly)", description: "Register dev-doctor as a scheduled check — findings flow through the reflection pipeline" },
     { label: "Skip", description: "Run /dev-doctor manually when needed" }
@@ -179,6 +179,25 @@ If accepted, queue for the config flush: `{ "id": "dev-doctor", "plugin": "claud
    - feature-dev: `{ "id": "dev-feature-dev", "skill": "feature-dev", "trigger": "interval", "interval_days": 7, "enabled": true }`
    - context7: skip scheduled_checks (MCP server — no meaningful periodic check), still add to `docker.recommended_plugins`
    - Skip entries that already exist in `scheduled_checks`.
+
+**Write `.worktreeinclude`** — always run, no operator question needed (`.worktreeinclude` only copies files that are both matched and gitignored, so entries are safe regardless of project layout):
+
+Check `.worktreeinclude` at repo root for the marker `# claude-code-dev-hermit — implementer subagent worktree files`:
+- Marker absent and file doesn't exist: create the file with the block below.
+- Marker absent and file exists: append the block below, preserving all existing content.
+- Marker present: skip (idempotent).
+
+```
+# claude-code-dev-hermit — implementer subagent worktree files
+.claude-code-hermit/config.json
+.claude-code-hermit/OPERATOR.md
+.env
+.env.local
+.env.test
+# end claude-code-dev-hermit
+```
+
+Report line: `.worktreeinclude — [created / block added / already current]`
 
 **Add heartbeat items** — if accepted, append to HEARTBEAT.md:
 ```
@@ -217,6 +236,7 @@ Git safety:
 Updated:
   CLAUDE.md — dev workflow block [appended / updated to vX.Y.Z / already current]
   OPERATOR.md — dev conventions [added / already present / skipped]
+  .worktreeinclude — [created / block added / already current]
   Dev heartbeat items: [added / skipped / heartbeat not configured]
   config.json — dev hermit version stamped
   scheduled_checks — [feature-dev entry added / skipped]

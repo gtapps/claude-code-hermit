@@ -4,6 +4,8 @@ description: Lists and offers to clean up stale or merged git branches. Use when
 ---
 # Dev Cleanup
 
+**Scope:** merged local branches in the main repo. Orphaned subagent worktrees under `.claude/worktrees/` are Claude Code's responsibility — they're auto-swept at session startup once older than `cleanupPeriodDays`, provided they're clean (no uncommitted changes, no untracked files, no unpushed commits). Do not add worktree sweeping here.
+
 List local branches and identify cleanup candidates.
 
 ## Prerequisites
