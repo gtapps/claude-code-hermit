@@ -4,7 +4,7 @@ Git safety, quality workflow, and dev conventions for claude-code-hermit.
 
 ## This Repo is a Plugin
 
-This repo is a Claude Code plugin. It extends `claude-code-hermit` (core v1.0.17+) with software development capabilities.
+This repo is a Claude Code plugin. It extends `claude-code-hermit` (core v1.0.18+) with software development capabilities.
 
 Install flow for target projects:
 
@@ -48,7 +48,7 @@ Code review: `/simplify` runs parallel review agents (reuse/quality/efficiency) 
 
 ## Depends On
 
-- `claude-code-hermit` v1.0.17+ (core)
+- `claude-code-hermit` v1.0.18+ (core)
 
 ## Core Contracts
 

@@ -11,7 +11,7 @@ Verify the dev-hermit setup is implementer-safe. Produces a `PASS / WARN / FAIL`
 
 This skill runs differently depending on how it is invoked:
 
-- **Manual** (operator runs `/dev-doctor` directly): full check including `/claude-code-hermit:smoke-test`, `/claude-code-hermit:doctor`, and the `hermit-config-validator` agent
+- **Manual** (operator runs `/dev-doctor` directly): full check including `/claude-code-hermit:smoke-test`, `/claude-code-hermit:hermit-doctor`, and the `hermit-config-validator` agent
 - **Scheduled** (fired by `reflect-scheduled-checks` via `scheduled_checks` config entry): findings-only subset — skip smoke-test to avoid side effects (state-file repairs, channel test messages)
 
 Detect scheduled mode by checking the invocation context: if invoked from `reflect-scheduled-checks` or if a `--scheduled` flag is passed, run scheduled mode. Otherwise run manual mode.
@@ -26,7 +26,7 @@ Run in parallel:
 
 1. Invoke `/claude-code-hermit:smoke-test` — captures plugin references, OPERATOR.md, CLAUDE.md markers, routines, scheduled_checks registration. Record its PASS/FAIL summary.
 2. Invoke `hermit-config-validator` agent — validates config.json structure (required keys, routine times, channel structure, env naming). Record its verdict.
-3. Invoke `/claude-code-hermit:doctor` — six-check health report (config validity, hook scripts, state file integrity, cost vs idle_budget, open proposals health, file permissions). Record its PASS/WARN/FAIL summary.
+3. Invoke `/claude-code-hermit:hermit-doctor` — six-check health report (config validity, hook scripts, state file integrity, cost vs idle_budget, open proposals health, file permissions). Record its PASS/WARN/FAIL summary.
 
 **Step 2 — Dev-specific checks** (same as scheduled mode, see below)
 
@@ -65,7 +65,7 @@ dev-doctor report
 [config-validator: PASS / FAIL]           ← manual mode only
 [doctor: PASS / WARN / FAIL — N checks]  ← manual mode only
 
-PASS  core v1.0.17 ≥ required v1.0.17
+PASS  core v1.0.18 ≥ required v1.0.18
 PASS  dev workflow marker present in CLAUDE.md
 FAIL  always_on=true but AGENT_HOOK_PROFILE is not strict — guard will never fire
 PASS  protected branches configured: main, staging

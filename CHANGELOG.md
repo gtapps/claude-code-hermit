@@ -23,6 +23,8 @@
 
 ### Added
 
+- **`docs/WORKFLOW.md` — end-to-end task lifecycle reference** — lays out what fires in what order across `/hatch`, `/dev-adapt`, implementer, `/dev-quality`, `/dev-cleanup`, `/dev-doctor`, and the core reflect/session-mgr loop, including the state each step writes. Linked from README Documentation section. Skills already cross-reference this path; the file now exists.
+
 - **`create-pr` skill** — fills the gap between `/commit` and `/release`: pushes the current branch if needed, auto-drafts a Conventional Commits title and `## Summary` + `## Test plan` body from the commit range and diff, detects issue references for `Closes #N` links, shows the draft for approval, then runs `gh pr create`. Refuses early if on the default branch, dirty tree, no commits ahead, or a PR already exists.
 
 ### Fixed
@@ -53,8 +55,8 @@
 
 ### Changed
 
-- **Minimum core version bumped to v1.0.17** — dev-hermit now requires `claude-code-hermit` v1.0.17+ so that the new `/doctor` skill (added in core v1.0.17) is available for composition in `dev-doctor` manual mode.
-- **`dev-doctor`: compose `/claude-code-hermit:doctor` in manual mode** — Step 1 now runs `/doctor` in parallel alongside `smoke-test` and `hermit-config-validator`. Adds six new checks (config validity, hook scripts, state file integrity, cost vs idle_budget, open proposals health, file permissions) to the manual health report; scheduled mode is unchanged.
+- **Minimum core version bumped to v1.0.18** — `claude-code-hermit` v1.0.18 renamed `/doctor` to `/hermit-doctor` to avoid collision with Claude Code's built-in `/doctor`. `dev-doctor` manual mode composes this skill, so `required_core_version` in `plugin.json` is bumped and the composition callsites are updated accordingly. Operators on older cores are prompted by hatch's prereq gate to run `/claude-code-hermit:hermit-evolve`.
+- **`dev-doctor`: compose `/claude-code-hermit:hermit-doctor` in manual mode** — Step 1 now runs `/hermit-doctor` in parallel alongside `smoke-test` and `hermit-config-validator`. Adds six new checks (config validity, hook scripts, state file integrity, cost vs idle_budget, open proposals health, file permissions) to the manual health report; scheduled mode is unchanged.
 - **`dev-doctor`: check #5 validates test-command binary** — previously checked only that `commands.test` is non-null; now also strips env-var prefixes, splits compound commands, and runs `command -v` on the first executable token. Handles `npx`/`pnpm dlx`/`bunx` by checking the second token too. FAIL on unresolvable binary.
 - **`dev-doctor`: check #11 — `commit_format` shape** — if `commit_format` is set but `commit_format_pattern` is absent (or vice versa), WARN and direct operator to re-run `/dev-adapt`.
 - **`dev-adapt`: detect commit message format** — scans `git log --no-merges -50` and classifies the project's style as `conventional` / `gitmoji` / `null` (freeform or too few commits). Threshold: ≥70% match AND ≥10 commits. Persists `commit_format` and `commit_format_pattern` (the matched regex) to `config.json`. Surfaces in the `dev-profile` artifact under `## Commit format`.
