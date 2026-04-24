@@ -10,7 +10,7 @@ One-time project setup. Run after `/claude-code-hermit:hatch`.
 
 **What it does:**
 
-1. Checks prerequisites (core v1.0.0+, Task List ID configured)
+1. Checks prerequisites (core v1.0.16+, Task List ID configured)
 2. Appends the dev workflow block to CLAUDE.md (or replaces it if reinitializing)
 3. Runs a setup wizard:
    - Auto-detects branch naming, protected branches, CI config, test commands

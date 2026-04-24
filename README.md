@@ -15,7 +15,7 @@ Your hermit already knows how to manage sessions, learn from its work, and keep 
 
 ## Requires
 
-- [claude-code-hermit](https://github.com/gtapps/claude-code-hermit) v1.0.15+ (installed and hatched)
+- [claude-code-hermit](https://github.com/gtapps/claude-code-hermit) v1.0.16+ (installed and hatched)
 
 ## Install
 

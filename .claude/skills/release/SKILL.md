@@ -37,6 +37,18 @@ questions: [
 
 Compute new version from the answer.
 
+### 2.5. Pre-release drift check
+
+Before touching any files, verify consistency against the current values in `.claude-plugin/plugin.json`:
+
+1. **Core version mentions** — read `required_core_version` from `plugin.json`. Grep `README.md`, all files under `docs/`, `CONTRIBUTING.md`, and `skills/hatch/SKILL.md` for any string matching `claude-code-hermit v`. Every match must equal `required_core_version`. If any file has a different value, list the offending file and line, then **stop and ask the operator to fix the mismatch before continuing**.
+
+2. **Plugin version badge** — confirm `README.md` contains the current `version` from `plugin.json` in the badge URL (`version-X.Y.Z-green`) and alt text (`Version X.Y.Z`). If either doesn't match, list the discrepancy and **stop and ask**.
+
+3. **Skills/agents sync** — confirm every directory under `skills/` and `.claude/skills/` has a corresponding entry in `README.md`'s "Skills" table, and every `agents/*.md` has a corresponding entry in the "Agent" table. **Warn only** (do not stop) — the operator may be adding skills in this release.
+
+If checks 1 or 2 fail, do not proceed to Step 3. Ask the operator to reconcile first.
+
 ### 3. Update files
 
 1. `.claude-plugin/plugin.json` — `"version": "OLD"` → `"version": "NEW"`
