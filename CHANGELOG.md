@@ -28,6 +28,10 @@
 
 - **`ultrathink` keyword at planning-heavy reasoning steps** — added to `agents/reflection-judge.md` (per-candidate verdict block), `skills/reflect/SKILL.md` (open-ended reasoning block), and `skills/proposal-create/SKILL.md` (body synthesis and capability Suggested Plan). Per-turn reasoning boost at the three decisive judgment points in the proposal pipeline. No model or effort-level changes; cost delta should be minor. Phase B (potential `reflection-judge` bump to opus) is deferred pending observation of Phase A suppress/accept ratios and operator feedback.
 
+- **`config.model` defaults to `"sonnet"` for new hatches** — was `null` (deferred to CC's tier default, which is sonnet in most cases). Explicit default makes the launch model visible and reproducible, especially for always-on docker deployments. Operators can set `"opus"`, `"haiku"`, or any CC alias. Existing hermits with `model: null` are prompted interactively via `hermit-evolve` — the flip is opt-in.
+
+- **Model and effort tuning documented in `docs/how-to-use.md`** — new section covering `config.model` and the optional `CLAUDE_CODE_EFFORT_LEVEL` env var (set via `config.env`), with a direct link to the CC model-config docs. Values are not mirrored inline since that doc updates frequently.
+
 ### Files affected
 
 | File | Change |
@@ -58,6 +62,10 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 8. **Obsidian `Latest Review.md`:** if `obsidian/Latest Review.md` exists and still embeds `reviews/weekly-<weekKey>`, rewrite the embed to `compiled/review-weekly-<weekKey>`. Otherwise the next weekly-review run regenerates it.
 
 Declaring a `review` type in `knowledge-schema.md` is left to the operator — the schema is project-owned, so hermit-evolve does not append.
+
+9. **Interactive model migration:** if `config.model` is `null` or missing, ask the operator:
+   > "Hermit now defaults to `"sonnet"` for new installs (matches the effective default on most tiers). Your hermit currently inherits the Claude Code default at launch. Pin it to `"sonnet"` (recommended), keep `null` (continue inheriting), or set another alias (`opus`, `haiku`, `best`)?"
+   Apply the operator's choice. If they choose "keep null", write `null` explicitly. If they skip or close without answering, leave the key as-is.
 
 ## [1.0.16] - 2026-04-22
 

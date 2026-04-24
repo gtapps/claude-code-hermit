@@ -187,6 +187,14 @@ See [Hermit Cortex](obsidian-setup.md) for the full guide.
 
 ---
 
+## Model and Effort
+
+**`config.model`** controls which Claude model your hermit runs on. Default: `"sonnet"`. Set to `"opus"` for premium reasoning or `"haiku"` for cheap idle loops. See the [Claude Code model configuration docs](https://code.claude.com/docs/en/model-config) for aliases, version pinning, and tier behavior.
+
+**`CLAUDE_CODE_EFFORT_LEVEL`** (optional) sets the reasoning effort level. Add it to `config.env` if you want to override the model default — note the env var takes highest priority and overrides runtime `/effort`, so omit it for interactive sessions where you want per-turn control. Valid values and defaults: [CC model-config docs](https://code.claude.com/docs/en/model-config#adjust-effort-level).
+
+---
+
 ## Hook Profiles
 
 | Profile                | What runs                                      | Best for                       |
