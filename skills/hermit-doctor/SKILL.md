@@ -1,9 +1,9 @@
 ---
-name: doctor
-description: Returns a six-check health report on the hermit installation — config validity, hook registration, state file integrity, cost budget, proposal health, file permissions. Use when diagnosing an install, before a release, or after suspicious behavior. Activates on messages like "/doctor", "health check", "diagnose the hermit", "what's wrong", "run diagnostic".
+name: hermit-doctor
+description: Returns a six-check health report on the hermit installation — config validity, hook registration, state file integrity, cost budget, proposal health, file permissions. Use when diagnosing an install, before a release, or after suspicious behavior. Activates on messages like "/hermit-doctor", "health check", "diagnose the hermit", "what's wrong", "run diagnostic".
 ---
 
-# Doctor
+# Hermit Doctor
 
 Runs six read-only health checks against the current hermit install and surfaces the
 summary. Safe to run at any time. Produces no side effects beyond writing
