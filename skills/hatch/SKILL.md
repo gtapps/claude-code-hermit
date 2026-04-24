@@ -108,7 +108,7 @@ If OPERATOR.md exists (already read in Phase 1) and does NOT contain `## Develop
 
 #### Phase 3 — Plugins and heartbeat (Round 2)
 
-Build a single AskUserQuestion call with up to 2 questions. Skip questions that don't apply.
+Build a single AskUserQuestion call with up to 3 questions. Skip questions that don't apply.
 
 **Companion plugins** — skip entirely if all three are already installed. Use multiSelect so operators can pick exactly what they want in one step:
 
@@ -155,6 +155,21 @@ If HEARTBEAT.md doesn't exist: skip the question, note in the report: "Heartbeat
 }
 ```
 
+**Dev doctor scheduled check** — skip if a `dev-doctor` entry already exists in `scheduled_checks`:
+
+```
+{
+  header: "Dev doctor",
+  question: "Run a weekly automated setup check? Verifies test commands, protected branches, hook profile, and worktree support.",
+  options: [
+    { label: "Yes (weekly)", description: "Register dev-doctor as a scheduled check — findings flow through the reflection pipeline" },
+    { label: "Skip", description: "Run /dev-doctor manually when needed" }
+  ]
+}
+```
+
+If accepted, queue for the config flush: `{ "id": "dev-doctor", "plugin": "claude-code-dev-hermit", "skill": "claude-code-dev-hermit:dev-doctor", "trigger": "interval", "interval_days": 7, "enabled": true }`
+
 #### After the wizard
 
 **Install plugins** — for each selected plugin:
@@ -182,6 +197,7 @@ Flush all pending config.json changes in a single write:
 - `scheduled_checks` entries (if plugins were selected; create the array if absent)
 - `_hermit_versions["claude-code-dev-hermit"]` set to the plugin version cached in Phase 1
 - `routines` array (if dev-cleanup routine was accepted): append `{"id": "dev-cleanup", "schedule": "0 10 * * 1", "skill": "claude-code-dev-hermit:dev-cleanup", "enabled": true}` — create the array if absent; skip if an entry with `"id": "dev-cleanup"` already exists
+- `scheduled_checks` array (if dev-doctor was accepted): append `{"id": "dev-doctor", "plugin": "claude-code-dev-hermit", "skill": "claude-code-dev-hermit:dev-doctor", "trigger": "interval", "interval_days": 7, "enabled": true}` — skip if entry with `"id": "dev-doctor"` already exists
 
 **Note:** `dev.commands` and `dev.protected_branches` are written by `/dev-adapt` (run in Phase 1), not by this step. Do not overwrite them here.
 
