@@ -8,6 +8,8 @@
 
 - **`bin/hermit-attach` helper** — one short command (`.claude-code-hermit/bin/hermit-attach`) to reconnect to the running hermit in either tmux or docker mode. Reads `state/runtime.json` and dispatches to `tmux attach` or `hermit-docker attach`. `hermit-start` now prints `bin/hermit-attach` as the primary attach hint; `hermit-status` echoes it for non-docker runtimes.
 
+- **`/create-pr` skill at `.claude/skills/create-pr/SKILL.md`** — project-local skill that opens a PR for the current branch: detects base + commits ahead, pushes with upstream if needed, drafts a Conventional Commits title and Summary/Test-plan body (or fills `.github/PULL_REQUEST_TEMPLATE.md` if present), auto-links `#N` / `closes #N` references, and gates on AskUserQuestion (Approve / Open as draft / Edit / Cancel) before calling `gh pr create`. Guards against running on main, dirty tree, detached HEAD, zero commits ahead, or an already-open PR.
+
 - **`hermit-docker update` subcommand** — explicit command to update the Claude Code CLI and refresh plugin marketplace catalogs. Three modes: full (image rebuild + marketplace refresh), `--cc-only` (rebuild only), `--plugins-only` (marketplace refresh + `/reload-plugins` into the live tmux session, zero downtime). Includes `--dry-run`, `--yes`, and preview output. Logs each run to `state/update-history.jsonl`.
 
 ### Changed
