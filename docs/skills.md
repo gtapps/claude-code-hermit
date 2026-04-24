@@ -95,7 +95,7 @@ Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routin
 | `obsidian-setup` | One-time Cortex setup. Creates the `obsidian/` vault surface with Brain, Cortex, Evolution, System Health, Connections, and Cortex Portal pages. Configures `cortex-manifest.json` for artifact indexing and adds the nightly cortex-refresh routine. | --              |
 | `cortex-refresh` | Regenerates `obsidian/Connections.md` and `obsidian/Cortex Portal.md` from current session, proposal, and artifact data. Runs nightly at 23:30 via routine. Safe to invoke manually.                                                                  | Nightly routine |
 | `cortex-sync`    | Enriches existing content with frontmatter and tags. Scans sessions, proposals, and artifact paths for missing fields, clusters similar files for batch confirmation, then rebuilds Connections.md if the Cortex is set up.                           | --              |
-| `weekly-review`  | Generates a weekly review report in `.claude-code-hermit/reviews/` summarising sessions, proposals, costs, open loops, and **knowledge health** (stale artifacts, working set growth, raw expiry candidates). **Archives expired raw artifacts** to `raw/.archive/` after the report. | --              |
+| `weekly-review`  | Generates a weekly review report at `.claude-code-hermit/compiled/review-weekly-YYYY-Www.md` (type: `review`) summarising sessions, proposals, costs, open loops, and **knowledge health** (stale artifacts, working set growth, raw expiry candidates). **Archives expired raw artifacts** to `raw/.archive/` after the report. | --              |
 
 ## Communication
 

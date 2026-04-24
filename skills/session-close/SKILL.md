@@ -26,6 +26,7 @@ Use this when the operator wants to end everything (via `hermit-stop` or explici
    - `Blockers:` one line each, enough context for a cold start
    - `Lessons:` only genuinely useful ones
    - `Changed:` list of files modified
+   - `Artifacts:` if this session produced a durable output (research note, decision doc, audit summary), write it to `compiled/<type>-<slug>-<date>.md` with `session: S-NNN` in the frontmatter and list the wikilink here. Don't leave domain output wedged in SHELL.md Findings or a proposal body.
 2. Ensure all native Tasks reflect their correct status (`completed`, `pending`)
 3. Confirm the "Next Start Point" is clear enough for a fresh session to resume without questions
 4. If any high-leverage improvements were discovered during work, create proposals via the `claude-code-hermit:proposal-create` skill
@@ -37,6 +38,7 @@ Use this when the operator wants to end everything (via `hermit-stop` or explici
    Blockers: <one line each, or none>
    Lessons: <one line each, or none>
    Changed: <file list, or none>
+   Artifacts: <wikilinks to compiled/ outputs produced this session, or none>
    Next Start Point: <one line>
    ```
    Also include the task table (if native Tasks were created).

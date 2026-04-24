@@ -83,6 +83,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
      - `operator_turns`: read `operator_turns` from `.claude-code-hermit/sessions/.status.json`. Use `0` if the field is missing or the file doesn't exist. This is the count of human-type transcript entries for this session, maintained by the cost-tracker hook.
    - **Write `## Overview`** with the one-line task description from `## Task`
    - **If a task table was provided in the invocation prompt**, include it as `## Plan` in the report
+   - **Write `## Artifacts`** listing any durable outputs this session wrote to `compiled/`. Format each as a bulleted wikilink: `- [[compiled/<type>-<slug>-<date>]] — one-line annotation`. Leave the section present with no bullets if none were produced (mirrors `## Proposals Created`).
    - **Do NOT write a `## Summary` bullet list** — all structured metadata is in frontmatter only
    - Use `.claude-code-hermit/templates/SESSION-REPORT.md.template` as reference for the full structure
    - Example of a correctly generated report:

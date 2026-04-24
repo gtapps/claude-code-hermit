@@ -68,7 +68,7 @@ function lastLines(text, n) {
 // Returns an array of human-readable hit strings, empty when clean.
 function findStorageDrift(hermitDir) {
   const KNOWN_DIRS = new Set(['raw', 'compiled', 'sessions', 'proposals', 'state', 'templates',
-    'memory', 'reviews', 'obsidian', 'bin', 'docker']);
+    'memory', 'obsidian', 'bin', 'docker']);
   const hits = [];
 
   function countEntries(dir) {

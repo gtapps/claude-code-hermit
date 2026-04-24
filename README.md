@@ -143,6 +143,7 @@ For ready-made specialists, install a hermit plugin like the dev hermit:
 | [Testing](docs/testing.md)                                    | You're contributing and need to run or write hook tests                    |
 | [Hermit Cortex (Powered by Obsidian)](docs/obsidian-setup.md) | You want to see inside your hermit's brain                                 |
 | [Plugin Hermit Storage](docs/plugin-hermit-storage.md)        | You're building a hermit plugin and need the raw/compiled storage rules    |
+| [Artifact Naming](docs/artifact-naming.md)                    | You're adding a new artifact or domain and need the naming convention      |
 
 ---
 

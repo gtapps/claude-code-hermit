@@ -89,7 +89,7 @@ Determine what to add and remove based on direction:
 
 The hermit state directories are now ignored. If they were previously tracked in git they must be untracked.
 
-Run `git ls-files -- .claude-code-hermit/sessions/ .claude-code-hermit/sessions/.eval-hash .claude-code-hermit/proposals/ .claude-code-hermit/reviews/ .claude-code-hermit/state/ .claude-code-hermit/raw/ .claude-code-hermit/compiled/ .claude-code-hermit/config.json .claude-code-hermit/MEMORY-SEED.md .claude-code-hermit/cost-summary.md .claude/cost-log.jsonl .claude/scheduled_tasks.lock` to find tracked files that will become newly ignored. Include any matches in the pre-confirmation summary above.
+Run `git ls-files -- .claude-code-hermit/sessions/ .claude-code-hermit/sessions/.eval-hash .claude-code-hermit/proposals/ .claude-code-hermit/state/ .claude-code-hermit/raw/ .claude-code-hermit/compiled/ .claude-code-hermit/config.json .claude-code-hermit/MEMORY-SEED.md .claude-code-hermit/cost-summary.md .claude/cost-log.jsonl .claude/scheduled_tasks.lock` to find tracked files that will become newly ignored. Include any matches in the pre-confirmation summary above.
 
 After confirmation, run `git rm --cached -r` on each matched path. Do not commit — leave the staged removals for the operator to review and commit.
 

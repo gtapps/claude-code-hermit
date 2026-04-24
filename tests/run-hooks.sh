@@ -417,6 +417,43 @@ run_test "prompt-context (malformed config, exits 0)" \
 cleanup
 
 # -------------------------------------------------------
+# 44. doctor-check — minimal install returns 6 checks, exits 0
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+mkdir -p "$workdir/.claude-code-hermit/proposals"
+cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
+{"agent_name":"test","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"active_hours":{"start":"08:00","end":"23:00"}},"routines":[],"idle_budget":"$0.50"}
+EOF
+run_test "doctor-check (minimal install, 6 checks)" bash -c \
+  "node '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); ids=[c['id'] for c in r['checks']]; assert ids==['config','hooks','state','cost','proposals','permissions'], ids\""
+cleanup
+
+# -------------------------------------------------------
+# 45. doctor-check — corrupt state file flags state=fail
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+mkdir -p "$workdir/.claude-code-hermit/proposals"
+cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
+{"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[]}
+EOF
+echo 'not json' > "$workdir/.claude-code-hermit/state/alert-state.json"
+run_test "doctor-check (corrupt state → fail)" bash -c \
+  "node '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); s=[c for c in r['checks'] if c['id']=='state'][0]; assert s['status']=='fail' and 'alert-state.json' in s['detail'], s\""
+cleanup
+
+# -------------------------------------------------------
+# 46. doctor-check — missing config → exits 0, config check fails
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+rm -f "$workdir/.claude-code-hermit/config.json"
+run_test "doctor-check (missing config → fail, exits 0)" bash -c \
+  "node '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); c=[x for x in r['checks'] if x['id']=='config'][0]; assert c['status']=='fail', c\""
+cleanup
+
+# -------------------------------------------------------
 # Summary
 # -------------------------------------------------------
 # Clean up any suggest-compact counter files left in /tmp
