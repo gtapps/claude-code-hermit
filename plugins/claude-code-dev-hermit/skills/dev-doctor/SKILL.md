@@ -26,7 +26,7 @@ Run in parallel:
 
 1. Invoke `/claude-code-hermit:smoke-test` — captures plugin references, OPERATOR.md, CLAUDE.md markers, routines, scheduled_checks registration. Record its PASS/FAIL summary.
 2. Invoke `hermit-config-validator` agent — validates config.json structure (required keys, routine times, channel structure, env naming). Record its verdict.
-3. Invoke `/claude-code-hermit:hermit-doctor` — six-check health report (config validity, hook scripts, state file integrity, cost vs idle_budget, open proposals health, file permissions). Record its PASS/WARN/FAIL summary.
+3. Invoke `/claude-code-hermit:hermit-doctor` — seven-check health report (config validity, hook scripts, state file integrity, cost vs idle_budget, open proposals health, sibling dependency ranges, file permissions). Record its PASS/WARN/FAIL summary.
 
 **Step 2 — Dev-specific checks** (same as scheduled mode, see below)
 

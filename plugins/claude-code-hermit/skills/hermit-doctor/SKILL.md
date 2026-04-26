@@ -36,7 +36,7 @@ summary. Safe to run at any time. Produces no side effects beyond writing
 
 - If every check is `ok`, return only: `All seven checks passed.` Do not notify via
   channel (Tier 0). Still append to SHELL.md so the run is traceable.
-- If any check is `warn` or `fail`, return the full six-line summary. Channel
+- If any check is `warn` or `fail`, return the full seven-line summary. Channel
   notification follows the usual § Operator Notification policy in CLAUDE.md —
   `fail` warrants a proactive ping; `warn` alone does not unless the operator asked.
 

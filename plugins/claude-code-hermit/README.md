@@ -118,8 +118,8 @@ Hermits ride on Claude Code's native intelligence and add a `raw/` → `compiled
 For ready-made specialists, install a hermit plugin like the dev hermit:
 
 ```bash
-/plugin marketplace add gtapps/claude-code-dev-hermit
-/plugin install claude-code-dev-hermit@claude-code-dev-hermit --scope project
+/plugin marketplace add gtapps/claude-code-hermit
+/plugin install claude-code-dev-hermit@claude-code-hermit --scope project
 ```
 
 ---

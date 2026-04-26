@@ -125,10 +125,11 @@ If `.claude-code-hermit/cortex-manifest.json` does not exist:
 
 ### 7. Hermit upgrades
 
-- Detect installed hermits using the same logic as init: scan `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json` for names containing "hermit" that aren't "claude-code-hermit"
-- For each detected hermit:
+- Detect installed hermits: scan `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json` for names containing "hermit" that aren't "claude-code-hermit"
+- **Gate on `_hermit_versions` key existence** — only consider a hermit for upgrade when its name is *already* a key in `_hermit_versions`. The monorepo marketplace cache surfaces every sibling plugin under `${CLAUDE_PLUGIN_ROOT}/../*` regardless of what the operator actually installed; without this gate the skill would execute uninstalled siblings' Upgrade Instructions and append their CLAUDE-APPEND blocks. Initial activation is owned by the hermit's own `hatch` skill, which is what writes the key.
+- For each gated hermit:
   - Read the hermit's `plugin.json` version
-  - Compare against `_hermit_versions[hermit_name]` (default `"0.0.0"` if missing)
+  - Compare against `_hermit_versions[hermit_name]`
   - If version gap exists:
     - Read the hermit's `CHANGELOG.md` if it exists and extract version entries between the config version (exclusive) and the current version (inclusive)
     - Present a summary: "{hermit_name}: upgrading from vOLD to vNEW. Here's what changed:" followed by only the relevant changelog sections
@@ -138,6 +139,7 @@ If `.claude-code-hermit/cortex-manifest.json` does not exist:
       - Marker: the first HTML comment line in that template (e.g. `<!-- hermit-name: Section Title -->`)
     - Update `_hermit_versions[hermit_name]` to the current hermit version
   - If no gap: skip silently
+- For hermits detected on disk but **not** present in `_hermit_versions`: skip silently. The operator opted in to core only; sibling activation belongs to that sibling's own `hatch`.
 
 ### 8. Ensure plugin permissions in settings.json
 
