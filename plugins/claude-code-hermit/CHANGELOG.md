@@ -8,6 +8,8 @@
 
 - **`bin/hermit-run`: scan for plugin under monorepo layout.** The plugin-root scan that powers `hermit-start` / `hermit-stop` was looking at `~/.claude/plugins/marketplaces/*/` (one level deep, legacy flat layout). It now scans `~/.claude/plugins/marketplaces/*/plugins/*/` (monorepo layout). Operators on already-hatched target projects must replace their `.claude-code-hermit/bin/hermit-run` to pick up the fix — see Upgrade Instructions.
 
+- **`docker/docker-entrypoint.hermit.sh.template`: monorepo-aware HERMIT_PLUGIN_ROOT export.** The Docker entrypoint used to `find ... -maxdepth 2 -name plugin.json -path "*/.claude-plugin/*"` against the marketplace cache, which (a) was too shallow for monorepo (depth 4 now) and (b) could match dev-hermit's or HA-hermit's manifest first instead of core's. Replaced with a direct check at `${MARKETPLACE_DIR}/claude-code-hermit/plugins/claude-code-hermit/.claude-plugin/plugin.json`. Docker deployments rebuilt from this template will export the correct `HERMIT_PLUGIN_ROOT` automatically.
+
 - **`hermit-doctor` adds a seventh check, `dependencies`.** Reads `required_core_version` from each sibling plugin's `plugin.json` and warns if the running core version doesn't satisfy the declared semver range. Unknown range forms are treated as ok (no false fails). The `dependencies` ID is inserted between `proposals` and `permissions` in the report.
 
 ### Files affected
@@ -15,6 +17,7 @@
 | File | Change |
 |------|--------|
 | `state-templates/bin/hermit-run` | Marketplace cache scan glob: `marketplaces/*/` → `marketplaces/*/plugins/*/` |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Replaced shallow `find -maxdepth 2` plugin.json discovery with a direct path check at `marketplaces/claude-code-hermit/plugins/claude-code-hermit/` |
 | `scripts/doctor-check.js` | New `checkDependencies()` function and `satisfiesRange()` helper; added to `runAllChecks()` between `checkProposals` and `checkPermissions` |
 | `skills/hermit-doctor/SKILL.md` | Description, body, and check table updated from "six checks" to "seven checks"; new `dependencies` row added |
 | `tests/run-hooks.sh` | doctor-check minimal-install assertion bumped from 6 to 7 expected checks; expected ID list includes `dependencies` |
@@ -24,6 +27,8 @@
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 1. **Replace `.claude-code-hermit/bin/hermit-run` with the new template.** Read `${CLAUDE_PLUGIN_ROOT}/state-templates/bin/hermit-run` and overwrite the target project's `.claude-code-hermit/bin/hermit-run`. Preserve executable bit (`chmod +x`). Without this step, `bin/hermit-start` will continue to fail with `[hermit] Plugin root not found or invalid:` because the old scan glob doesn't match the monorepo cache layout.
+
+2. **For Docker-deployed hermits: rebuild the container.** The `docker-entrypoint.hermit.sh.template` baked into the image carries a stale `find` invocation that won't locate the plugin under the monorepo cache. Run `.claude-code-hermit/bin/hermit-docker update --cc-only` (or a full `update`) so the next boot picks up the new entrypoint. Non-Docker (tmux/local) operators can skip this step.
 
 No `config.json` changes required. The `dependencies` doctor check requires no operator action — it's read-only and reports ok by default.
 

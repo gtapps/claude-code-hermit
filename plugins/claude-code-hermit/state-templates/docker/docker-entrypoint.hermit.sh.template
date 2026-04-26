@@ -290,13 +290,11 @@ fi
 # Update explicitly: /claude-code-hermit:hermit-evolve or rebuild the image.
 
 # Export plugin root so hermit-run can skip the directory scan.
-HERMIT_MARKETPLACE="${MARKETPLACE_DIR}/claude-code-hermit"
-if [ -d "$HERMIT_MARKETPLACE" ]; then
-  FOUND=$(find "$HERMIT_MARKETPLACE" -maxdepth 2 -name "plugin.json" -path "*/.claude-plugin/*" -print -quit 2>/dev/null || true)
-  if [ -n "$FOUND" ]; then
-    export HERMIT_PLUGIN_ROOT="$(dirname "$(dirname "$FOUND")")"
-    echo "[docker-entrypoint] Plugin root: ${HERMIT_PLUGIN_ROOT}"
-  fi
+# Monorepo layout: <marketplace>/plugins/claude-code-hermit/ is the plugin root.
+HERMIT_PLUGIN_ROOT_CANDIDATE="${MARKETPLACE_DIR}/claude-code-hermit/plugins/claude-code-hermit"
+if [ -f "${HERMIT_PLUGIN_ROOT_CANDIDATE}/.claude-plugin/plugin.json" ]; then
+  export HERMIT_PLUGIN_ROOT="${HERMIT_PLUGIN_ROOT_CANDIDATE}"
+  echo "[docker-entrypoint] Plugin root: ${HERMIT_PLUGIN_ROOT}"
 fi
 
 # --- 4. Seed auto-memory (one-time, skipped if container has built its own) ---
