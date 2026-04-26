@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **`smoke-test`: scheduled-check skill resolution uses the harness's loaded-skills list instead of path-walking the plugin cache.** The previous approach checked `${CLAUDE_PLUGIN_ROOT}/../<plugin>/skills/<skill-name>/SKILL.md`, which only finds siblings under the same marketplace. Cross-marketplace plugins (e.g. `claude-code-setup` and `claude-md-management` installed from `claude-plugins-official`) always produced false-negative WARNs even when fully installed and loaded. The skill now looks up `<plugin>:<skill-name>` in the available-skills list from the harness system-reminder, which is authoritative across all marketplaces — matching the documented best practice in `reflect-scheduled-checks/SKILL.md`.
+
 ### Changed
 
 - **Monorepo layout — `gtapps/claude-code-hermit` now ships as a multi-plugin marketplace.** The repo's plugin source moved from the repo root to `plugins/claude-code-hermit/`. CC's per-plugin `${CLAUDE_PLUGIN_ROOT}` resolves to the new path automatically; sibling-scan patterns (`${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json`) keep working and now reliably find sibling hermits since they're guaranteed siblings under `plugins/`. The marketplace cache layout is no longer flat — the cached marketplace dir contains `plugins/<name>/` subdirs.
