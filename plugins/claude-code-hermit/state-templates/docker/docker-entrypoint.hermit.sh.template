@@ -9,6 +9,22 @@ CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-/home/claude/.claude}"
 echo "[docker-entrypoint] Starting hermit container..."
 echo "[docker-entrypoint] Project: ${PROJECT_DIR}"
 
+# Recover from interrupted claude self-update: the CLI atomically swaps the
+# /home/claude/.npm-global/bin/claude symlink by renaming it to .claude-<rand>
+# first, then writing the replacement. If the entrypoint died between those
+# two steps on a previous boot, the symlink is gone and only the orphan
+# remains. Detect and repair before any downstream `claude ...` invocation.
+CLAUDE_BIN="/home/claude/.npm-global/bin/claude"
+if [ ! -e "$CLAUDE_BIN" ] && [ ! -L "$CLAUDE_BIN" ]; then
+  TEMP_LINK=$(ls /home/claude/.npm-global/bin/.claude-* 2>/dev/null | head -1 || true)
+  if [ -n "$TEMP_LINK" ]; then
+    mv "$TEMP_LINK" "$CLAUDE_BIN"
+    echo "[docker-entrypoint] Recovered claude symlink from interrupted self-update (was: $(basename "$TEMP_LINK"))"
+  else
+    echo "[docker-entrypoint] WARNING: claude binary missing and no temp symlink found — startup may fail"
+  fi
+fi
+
 # --- 0. Wait for auth credentials ---
 # OAuth users must run `claude /login` inside the container on first boot.
 # The login writes .credentials.json to the named volume, which persists
@@ -265,24 +281,36 @@ for entry in plugins:
     slug = marketplace.split('/')[-1] if '/' in marketplace else marketplace
 
     if not os.path.isdir(os.path.join(marketplace_dir, slug)):
-        print(f'[docker-entrypoint] Adding marketplace: {marketplace}')
-        result = subprocess.run(['claude', 'plugin', 'marketplace', 'add', marketplace], check=False)
+        print(f'[docker-entrypoint] Adding marketplace: {marketplace}', flush=True)
+        try:
+            result = subprocess.run(['claude', 'plugin', 'marketplace', 'add', marketplace], check=False)
+        except FileNotFoundError:
+            print(f'[docker-entrypoint] Warning: claude not found adding marketplace {marketplace} — skipping {plugin}', flush=True)
+            continue
         if result.returncode != 0:
-            print(f'[docker-entrypoint] Warning: failed to add marketplace {marketplace} — skipping {plugin}')
+            print(f'[docker-entrypoint] Warning: failed to add marketplace {marketplace} — skipping {plugin}', flush=True)
             continue
 
     install_target = f'{plugin}@{slug}'
     if install_target in installed_blob:
         continue
-    print(f'[docker-entrypoint] Installing recommended plugin: {plugin}')
-    result = subprocess.run(['claude', 'plugin', 'install', install_target, '--scope', scope])
-    if result.returncode != 0:
-        print(f'[docker-entrypoint] Warning: failed to install {plugin} — install manually')
+    print(f'[docker-entrypoint] Installing recommended plugin: {plugin}', flush=True)
+    try:
+        result = subprocess.run(['claude', 'plugin', 'install', install_target, '--scope', scope])
+    except FileNotFoundError:
+        print(f'[docker-entrypoint] Warning: claude not found installing {plugin} — may have self-updated; will retry on next restart', flush=True)
         continue
-    result = subprocess.run(['claude', 'plugin', 'enable', install_target, '--scope', scope])
     if result.returncode != 0:
-        print(f'[docker-entrypoint] Warning: failed to enable {plugin} — run: claude plugin enable {install_target}')
-" "$RECOMMENDED_PLUGINS_JSON" "$INSTALLED_PLUGINS" "$MARKETPLACE_DIR"
+        print(f'[docker-entrypoint] Warning: failed to install {plugin} — install manually', flush=True)
+        continue
+    try:
+        result = subprocess.run(['claude', 'plugin', 'enable', install_target, '--scope', scope])
+    except FileNotFoundError:
+        print(f'[docker-entrypoint] Warning: claude not found enabling {plugin} — plugin installed but enable skipped; will self-heal on next restart', flush=True)
+        continue
+    if result.returncode != 0:
+        print(f'[docker-entrypoint] Warning: failed to enable {plugin} — run: claude plugin enable {install_target}', flush=True)
+" "$RECOMMENDED_PLUGINS_JSON" "$INSTALLED_PLUGINS" "$MARKETPLACE_DIR" || echo "[docker-entrypoint] Warning: recommended plugin install block encountered errors, continuing"
 fi
 
 # --- Plugin updates are NOT run on boot ---

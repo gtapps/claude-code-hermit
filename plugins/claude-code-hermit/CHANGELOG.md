@@ -12,12 +12,14 @@
 
 - **`hermit-doctor` adds a seventh check, `dependencies`.** Reads `required_core_version` from each sibling plugin's `plugin.json` and warns if the running core version doesn't satisfy the declared semver range. Unknown range forms are treated as ok (no false fails). The `dependencies` ID is inserted between `proposals` and `permissions` in the report.
 
+- **Docker entrypoint: survive interrupted Claude CLI self-update.** The Claude Code CLI self-updates by atomically renaming `~/.npm-global/bin/claude` → `.claude-<rand>` then writing the replacement. If the entrypoint died between those steps (e.g. a `subprocess.run(['claude', ...])` raised `FileNotFoundError` mid-update and `set -euo pipefail` propagated), the container would wedge — `claude` gone, only an orphan temp symlink left, every restart crashing the same way. Two-layer fix: (1) a boot-time recovery shim at the top of the entrypoint detects the missing-symlink + orphan pattern and renames the orphan back to `claude` before any downstream invocation; (2) the Python recommended-plugins block now wraps each `subprocess.run(['claude', ...])` in `try/except FileNotFoundError` and the heredoc ends with `|| echo "..."` so a non-zero Python exit no longer tears down the entrypoint under `set -e`. CLI auto-update remains enabled (operator policy: keep CC current); the fix makes the boot script resilient to the mid-flight window. Manual unwedge for an already-broken container that can't reach the new entrypoint: `docker compose -f .claude-code-hermit/docker/docker-compose.hermit.yml run --rm --entrypoint bash hermit -c 'mv /home/claude/.npm-global/bin/.claude-* /home/claude/.npm-global/bin/claude'` then `.claude-code-hermit/bin/hermit-docker up`.
+
 ### Files affected
 
 | File | Change |
 |------|--------|
 | `state-templates/bin/hermit-run` | Marketplace cache scan glob: `marketplaces/*/` → `marketplaces/*/plugins/*/` |
-| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Replaced shallow `find -maxdepth 2` plugin.json discovery with a direct path check at `marketplaces/claude-code-hermit/plugins/claude-code-hermit/` |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | (a) Replaced shallow `find -maxdepth 2` plugin.json discovery with a direct path check at `marketplaces/claude-code-hermit/plugins/claude-code-hermit/`. (b) Added boot-time orphan-symlink recovery for `~/.npm-global/bin/claude`. (c) Hardened the Python recommended-plugins block with `try/except FileNotFoundError` per `subprocess.run` plus a trailing `|| echo` after the heredoc so the entrypoint cannot be killed by a transient missing `claude` mid-self-update. |
 | `scripts/doctor-check.js` | New `checkDependencies()` function and `satisfiesRange()` helper; added to `runAllChecks()` between `checkProposals` and `checkPermissions` |
 | `skills/hermit-doctor/SKILL.md` | Description, body, and check table updated from "six checks" to "seven checks"; new `dependencies` row added |
 | `tests/run-hooks.sh` | doctor-check minimal-install assertion bumped from 6 to 7 expected checks; expected ID list includes `dependencies` |
