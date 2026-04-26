@@ -2,11 +2,21 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
-## [Unreleased]
+## [0.0.5] — 2026-04-27
 
 ### Added
 
 - **GitHub Actions workflow `Test HA Hermit`.** New `.github/workflows/test-ha.yml` runs the existing pytest suite (`plugins/claude-code-homeassistant-hermit/tests/test_*.py`) on every PR or push that touches HA-hermit. Installs `pyproject.toml`'s `[dev]` extras (pytest≥8) on Python 3.12 and runs `pytest tests/ -v`. Filtered to `plugins/claude-code-homeassistant-hermit/**` so unrelated plugin edits don't trigger HA CI. Closes the gap from the monorepo migration where HA's tests had no CI runner of their own.
+
+### Changed
+
+- **Monorepo housekeeping.** Plugin source moved into `plugins/claude-code-homeassistant-hermit/` of the `gtapps/claude-code-hermit` monorepo. `required_core_version` standardized as a top-level semver-range field (`>=1.0.17`); `requires.claude-code-hermit` restored to mirror it. Inner `.claude-plugin/marketplace.json` removed (the repo-root marketplace catalog is now authoritative). `plugin.json` `homepage` and `repository` URLs point at the monorepo path. README and Documentation links point at the monorepo.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. No operator action required — internal manifest cleanup plus CI-only addition.
+
+No `config.json` changes required.
 
 ---
 
