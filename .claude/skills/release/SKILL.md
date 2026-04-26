@@ -36,11 +36,19 @@ Run before anything else. Abort the release if any step fails.
 1. **Run the native plugin validator from the repo root:**
    Run `/plugin validate .` in the session. This validates the entire marketplace including all plugins under `plugins/`. If it reports any errors, stop and fix before releasing.
 
-2. **Run test suites for the target plugin:**
-   ```bash
-   bash plugins/<slug>/tests/run-all.sh 2>&1
-   ```
-   If any test fails, stop and fix before releasing. (If the plugin has no `tests/` directory, skip this step and note it in the release report.)
+2. **Run test suites for the target plugin.** Detect the convention and dispatch:
+   - If `plugins/<slug>/tests/run-all.sh` exists (bash entrypoint, used by core hermit):
+     ```bash
+     bash plugins/<slug>/tests/run-all.sh 2>&1
+     ```
+   - Else if `plugins/<slug>/tests/conftest.py` or any `plugins/<slug>/tests/test_*.py` exists (pytest convention, used by HA hermit):
+     ```bash
+     cd plugins/<slug> && .venv/bin/pytest tests/ -v 2>&1
+     ```
+     If `.venv/bin/pytest` is missing, abort the release with: `Plugin uses pytest but plugins/<slug>/.venv/bin/pytest is missing — run plugin's hatch/install first.` Do not silently skip — releases must run the suite.
+   - Else: no recognized test convention → skip this step and note it in the release report.
+
+   If any test fails, stop and fix before releasing.
 
 3. **Run the release-auditor agent** to cross-reference plugin integrity. Pass it the plugin path explicitly so it knows which plugin to audit:
    - Skills in `plugins/<slug>/CLAUDE.md` / `state-templates/CLAUDE-APPEND.md` match actual `plugins/<slug>/skills/` directories
@@ -150,11 +158,10 @@ Both must print the same string. If they differ, fix `.claude-plugin/marketplace
 
 ### 6. Final validation
 
-Run tests one more time to confirm nothing broke during the changelog/version edits:
-```bash
-bash plugins/<slug>/tests/run-all.sh 2>&1 | tail -6
-```
-(Skip if the plugin has no `tests/` directory.)
+Run tests one more time to confirm nothing broke during the changelog/version edits. Use the same dispatch as step 1.2:
+- Bash entrypoint: `bash plugins/<slug>/tests/run-all.sh 2>&1 | tail -6`
+- Pytest: `cd plugins/<slug> && .venv/bin/pytest tests/ -v 2>&1 | tail -6`
+- Neither: no recognized test convention → skip and note in the release report.
 
 ### 7. Commit and push
 

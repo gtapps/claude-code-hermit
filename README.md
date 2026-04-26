@@ -123,15 +123,15 @@ For ready-made specialists, install another hermit plugin from the same marketpl
 
 ## Fleet
 
-This repo is a multi-plugin marketplace. One `marketplace add`, install whichever plugins you want:
+This repo is a multi-plugin marketplace. One `/plugin marketplace add`, then pick your hermits.
 
-| Plugin                                                                                                       | What it adds                                                                            | When to install                              |
-| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | -------------------------------------------- |
-| **`claude-code-hermit`** (this README)                                                                       | Core runtime — sessions, memory, daily rhythm, idle agency, the learning loop          | Always — domain plugins build on top of it   |
-| [`claude-code-dev-hermit`](plugins/claude-code-dev-hermit/README.md)                                          | Git safety, quality workflow, an `implementer` agent that works in isolated worktrees   | If you're building software with this hermit |
-| [`claude-code-homeassistant-hermit`](plugins/claude-code-homeassistant-hermit/README.md)                      | Home Assistant skills, safety hook, automation builder, Python CLI                     | If you have a Home Assistant instance        |
+| Plugin                                                                                   | For                  | What it adds                                                                |
+| ---------------------------------------------------------------------------------------- | -------------------- | --------------------------------------------------------------------------- |
+| **`claude-code-hermit`**                                                                 | everyone             | Core runtime: sessions, memory, daily rhythm, idle agency, learning loop    |
+| [`claude-code-dev-hermit`](plugins/claude-code-dev-hermit/README.md)                     | software builders    | Git safety, quality workflow, isolated-worktree `implementer` agent         |
+| [`claude-code-homeassistant-hermit`](plugins/claude-code-homeassistant-hermit/README.md) | Home Assistant users | HA skills, safety hook, automation builder, Python CLI                      |
 
-Domain plugins declare a `required_core_version` against core; installing one and forgetting core gets caught by `/claude-code-hermit:hermit-doctor`.
+Domain plugins pin `required_core_version` against core. `/claude-code-hermit:hermit-doctor` catches missing core.
 
 ---
 

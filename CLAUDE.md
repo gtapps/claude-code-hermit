@@ -15,6 +15,12 @@ The top-level `.claude-plugin/marketplace.json` is the only marketplace. The REA
 - **Dependency fields**: `required_core_version` AND `requires` are kept in sync intentionally (defensive duplication for in-monorepo + external consumers). Update both if either bumps.
 - **Marketplace.json bumps**: only the matching plugin's entry. The release skill takes a slug arg: `/release <plugin-slug>`.
 
+## Commits
+
+- **Use `/commit` for every commit in this repo.** It detects which plugin's scope the diff belongs to, routes the CHANGELOG entry to that plugin's `CHANGELOG.md`, path-scopes staging (never `git add -A`), and runs `/simplify` on every diff (including markdown-only). The skill enforces "one plugin per commit" — cross-plugin changes are split into separate `/commit` runs.
+- Root-scope edits (CI, root README, `.claude/`, `.claude-plugin/marketplace.json`) skip the CHANGELOG step entirely — they don't ship to operators. `/commit` handles that automatically.
+- Releases still go through `/release <slug>`, which promotes a plugin's `[Unreleased]` section to a real version. `/commit` accumulates those entries during day-to-day work.
+
 ## Layout gotchas
 
 - **Sibling-scan pattern**: `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json` resolves to `plugins/*/...` and finds all fleet plugins as guaranteed siblings.
