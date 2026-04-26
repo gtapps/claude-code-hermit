@@ -26,12 +26,14 @@ if [ -n "${HERMIT_PLUGIN_ROOT:-}" ] && [ -d "$HERMIT_PLUGIN_ROOT" ]; then
   PLUGIN_ROOT="$HERMIT_PLUGIN_ROOT"
 fi
 
-# 2. Scan plugin directories for claude-code-hermit
+# 2. Scan marketplace cache for the claude-code-hermit plugin under
+# plugins/<name>/ (monorepo layout — gtapps/claude-code-hermit ships as a
+# multi-plugin marketplace).
 if [ -z "$PLUGIN_ROOT" ]; then
   SEARCH_BASE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   _old_nullglob=$(shopt -p nullglob 2>/dev/null || true)
   shopt -s nullglob
-  for d in "$SEARCH_BASE"/plugins/marketplaces/*/; do
+  for d in "$SEARCH_BASE"/plugins/marketplaces/*/plugins/*/; do
     if [ -d "$d/scripts" ] && [ -f "$d/.claude-plugin/plugin.json" ]; then
       FOUND_NAME=$(grep -o '"name"[^,]*' "$d/.claude-plugin/plugin.json" 2>/dev/null | head -1 | cut -d'"' -f4)
       [ "$FOUND_NAME" = "claude-code-hermit" ] && PLUGIN_ROOT="${d%/}" && break

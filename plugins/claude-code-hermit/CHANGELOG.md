@@ -1,5 +1,32 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Monorepo layout — `gtapps/claude-code-hermit` now ships as a multi-plugin marketplace.** The repo's plugin source moved from the repo root to `plugins/claude-code-hermit/`. CC's per-plugin `${CLAUDE_PLUGIN_ROOT}` resolves to the new path automatically; sibling-scan patterns (`${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json`) keep working and now reliably find sibling hermits since they're guaranteed siblings under `plugins/`. The marketplace cache layout is no longer flat — the cached marketplace dir contains `plugins/<name>/` subdirs.
+
+- **`bin/hermit-run`: scan for plugin under monorepo layout.** The plugin-root scan that powers `hermit-start` / `hermit-stop` was looking at `~/.claude/plugins/marketplaces/*/` (one level deep, legacy flat layout). It now scans `~/.claude/plugins/marketplaces/*/plugins/*/` (monorepo layout). Operators on already-hatched target projects must replace their `.claude-code-hermit/bin/hermit-run` to pick up the fix — see Upgrade Instructions.
+
+- **`hermit-doctor` adds a seventh check, `dependencies`.** Reads `required_core_version` from each sibling plugin's `plugin.json` and warns if the running core version doesn't satisfy the declared semver range. Unknown range forms are treated as ok (no false fails). The `dependencies` ID is inserted between `proposals` and `permissions` in the report.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/bin/hermit-run` | Marketplace cache scan glob: `marketplaces/*/` → `marketplaces/*/plugins/*/` |
+| `scripts/doctor-check.js` | New `checkDependencies()` function and `satisfiesRange()` helper; added to `runAllChecks()` between `checkProposals` and `checkPermissions` |
+| `skills/hermit-doctor/SKILL.md` | Description, body, and check table updated from "six checks" to "seven checks"; new `dependencies` row added |
+| `tests/run-hooks.sh` | doctor-check minimal-install assertion bumped from 6 to 7 expected checks; expected ID list includes `dependencies` |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Replace `.claude-code-hermit/bin/hermit-run` with the new template.** Read `${CLAUDE_PLUGIN_ROOT}/state-templates/bin/hermit-run` and overwrite the target project's `.claude-code-hermit/bin/hermit-run`. Preserve executable bit (`chmod +x`). Without this step, `bin/hermit-start` will continue to fail with `[hermit] Plugin root not found or invalid:` because the old scan glob doesn't match the monorepo cache layout.
+
+No `config.json` changes required. The `dependencies` doctor check requires no operator action — it's read-only and reports ok by default.
+
 ## [1.0.18] - 2026-04-24
 
 ### Changed
