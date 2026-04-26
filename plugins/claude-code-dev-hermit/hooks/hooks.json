@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/git-push-guard.js"
+          }
+        ],
+        "description": "Block direct git push to main and --no-verify usage"
+      }
+    ]
+  }
+}

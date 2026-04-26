@@ -1,0 +1,24 @@
+{
+  "name": "claude-code-dev-hermit",
+  "metadata": {
+    "description": "Git safety, quality workflow, and dev conventions for claude-code-hermit"
+  },
+  "owner": {
+    "name": "gtapps"
+  },
+  "plugins": [
+    {
+      "name": "claude-code-dev-hermit",
+      "source": "./",
+      "description": "Git safety, quality workflow, and dev conventions for claude-code-hermit",
+      "version": "0.1.8",
+      "author": {
+        "name": "gtapps"
+      },
+      "license": "MIT",
+      "homepage": "https://github.com/gtapps/claude-code-dev-hermit",
+      "repository": "https://github.com/gtapps/claude-code-dev-hermit",
+      "keywords": ["development", "git-safety", "code-review", "worktree", "gtapps"]
+    }
+  ]
+}
