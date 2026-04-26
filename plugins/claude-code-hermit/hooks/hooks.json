@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c '[ -z \"${HERMIT_DEV_MODE:-}\" ] && exit 0; INPUT=$(cat); FILE=$(echo \"$INPUT\" | jq -r \".tool_input.file_path // empty\"); if [ -n \"${CLAUDE_PLUGIN_ROOT:-}\" ] && echo \"$FILE\" | grep -qF \"$CLAUDE_PLUGIN_ROOT\" && echo \"$FILE\" | grep -qE \"scripts/|hooks/\"; then python3 tests/run-contracts.py 2>&1 | tail -5; fi'",
+            "command": "bash -c '[ -z \"${HERMIT_DEV_MODE:-}\" ] && exit 0; INPUT=$(cat); FILE=$(echo \"$INPUT\" | jq -r \".tool_input.file_path // empty\"); if [ -n \"${CLAUDE_PLUGIN_ROOT:-}\" ] && echo \"$FILE\" | grep -qF \"$CLAUDE_PLUGIN_ROOT\" && echo \"$FILE\" | grep -qE \"scripts/|hooks/\"; then python3 \"${CLAUDE_PLUGIN_ROOT}/tests/run-contracts.py\" 2>&1 | tail -5; fi'",
             "timeout": 30
           }
         ],

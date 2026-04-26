@@ -4,14 +4,15 @@
     "name": "gtapps"
   },
   "metadata": {
-    "description": "A personal assistant that lives in your project — memory-driven learning, daily rhythm, idle agency, and operational hygiene for Claude Code."
+    "description": "Hermit fleet — autonomous personal assistants for Claude Code projects. Core runtime plus domain hermits."
   },
   "plugins": [
     {
       "name": "claude-code-hermit",
-      "source": "./",
-      "description": "A personal assistant that lives in your project — memory-driven learning, daily rhythm, idle agency, and operational hygiene for Claude Code",
+      "source": "./plugins/claude-code-hermit",
+      "description": "Core hermit — memory-driven learning, daily rhythm, idle agency, and operational hygiene for Claude Code",
       "version": "1.0.18",
+      "category": "productivity",
       "author": {
         "name": "gtapps"
       },
@@ -19,6 +20,35 @@
       "homepage": "https://github.com/gtapps/claude-code-hermit",
       "repository": "https://github.com/gtapps/claude-code-hermit",
       "keywords": ["autonomous", "agent", "session", "subagents", "gtapps"]
+    },
+    {
+      "name": "claude-code-dev-hermit",
+      "source": "./plugins/claude-code-dev-hermit",
+      "description": "Git safety, quality workflow, and dev conventions for claude-code-hermit",
+      "version": "0.1.8",
+      "category": "development",
+      "author": {
+        "name": "gtapps"
+      },
+      "license": "MIT",
+      "homepage": "https://github.com/gtapps/claude-code-hermit",
+      "repository": "https://github.com/gtapps/claude-code-hermit",
+      "keywords": ["development", "git-safety", "code-review", "gtapps"]
+    },
+    {
+      "name": "claude-code-homeassistant-hermit",
+      "source": "./plugins/claude-code-homeassistant-hermit",
+      "description": "Home Assistant layer for claude-code-hermit — skills, subagents, safety hook, and Python CLI for an autonomous HA assistant",
+      "version": "0.0.4",
+      "category": "home-automation",
+      "author": {
+        "name": "gtapps",
+        "url": "https://github.com/gtapps"
+      },
+      "license": "MIT",
+      "homepage": "https://github.com/gtapps/claude-code-hermit",
+      "repository": "https://github.com/gtapps/claude-code-hermit",
+      "keywords": ["home-assistant", "automation", "mcp", "gtapps"]
     }
   ]
 }
