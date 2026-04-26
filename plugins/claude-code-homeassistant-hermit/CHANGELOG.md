@@ -4,6 +4,10 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ## [Unreleased]
 
+### Added
+
+- **GitHub Actions workflow `Test HA Hermit`.** New `.github/workflows/test-ha.yml` runs the existing pytest suite (`plugins/claude-code-homeassistant-hermit/tests/test_*.py`) on every PR or push that touches HA-hermit. Installs `pyproject.toml`'s `[dev]` extras (pytest≥8) on Python 3.12 and runs `pytest tests/ -v`. Filtered to `plugins/claude-code-homeassistant-hermit/**` so unrelated plugin edits don't trigger HA CI. Closes the gap from the monorepo migration where HA's tests had no CI runner of their own.
+
 ---
 
 ## [0.0.4] — 2026-04-24

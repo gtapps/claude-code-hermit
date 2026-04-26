@@ -1,0 +1,28 @@
+name: Test HA Hermit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'plugins/claude-code-homeassistant-hermit/**'
+      - '.github/workflows/test-ha.yml'
+  pull_request:
+    paths:
+      - 'plugins/claude-code-homeassistant-hermit/**'
+      - '.github/workflows/test-ha.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plugins/claude-code-homeassistant-hermit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: plugins/claude-code-homeassistant-hermit/pyproject.toml
+      - run: pip install -e ".[dev]"
+      - run: pytest tests/ -v
