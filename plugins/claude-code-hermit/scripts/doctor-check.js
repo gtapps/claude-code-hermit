@@ -179,6 +179,84 @@ function checkProposals() {
   }
 }
 
+// Lightweight semver-range check. Supports `>=X.Y.Z` and `X.Y.Z` (treated as `>=X.Y.Z`).
+// Pre-release tags and complex ranges (`^`, `~`, `||`, `<`) are not supported — fall back to ok.
+function satisfiesRange(version, range) {
+  if (typeof version !== 'string' || typeof range !== 'string') return true;
+  const m = range.match(/^\s*(>=|=)?\s*(\d+)\.(\d+)\.(\d+)\s*$/);
+  if (!m) return true; // unrecognized range form — don't second-guess
+  const [, , rMaj, rMin, rPatch] = m;
+  const v = version.match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!v) return true;
+  const [, vMaj, vMin, vPatch] = v;
+  const cmp = [
+    parseInt(vMaj, 10) - parseInt(rMaj, 10),
+    parseInt(vMin, 10) - parseInt(rMin, 10),
+    parseInt(vPatch, 10) - parseInt(rPatch, 10),
+  ];
+  for (const c of cmp) {
+    if (c > 0) return true;
+    if (c < 0) return false;
+  }
+  return true; // equal
+}
+
+function checkDependencies() {
+  try {
+    // Scan sibling plugins under plugins/<name>/.claude-plugin/plugin.json (monorepo)
+    // or ${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json (legacy flat cache).
+    // Read core version from this plugin's own manifest.
+    const corePj = path.join(pluginRoot, '.claude-plugin', 'plugin.json');
+    if (!fs.existsSync(corePj)) {
+      return { id: 'dependencies', status: 'ok', detail: 'core manifest absent — skipping range check' };
+    }
+    let coreVersion;
+    try {
+      coreVersion = JSON.parse(fs.readFileSync(corePj, 'utf8')).version;
+    } catch {
+      return { id: 'dependencies', status: 'warn', detail: 'core plugin.json unreadable' };
+    }
+    if (!coreVersion) {
+      return { id: 'dependencies', status: 'ok', detail: 'core version not set — skipping range check' };
+    }
+
+    const siblingsRoot = path.resolve(pluginRoot, '..');
+    let siblingDirs = [];
+    try { siblingDirs = fs.readdirSync(siblingsRoot, { withFileTypes: true }); } catch {}
+
+    const mismatches = [];
+    let checked = 0;
+    for (const ent of siblingDirs) {
+      if (!ent.isDirectory()) continue;
+      if (path.join(siblingsRoot, ent.name) === pluginRoot) continue; // skip self
+      const pj = path.join(siblingsRoot, ent.name, '.claude-plugin', 'plugin.json');
+      if (!fs.existsSync(pj)) continue;
+      let manifest;
+      try { manifest = JSON.parse(fs.readFileSync(pj, 'utf8')); } catch { continue; }
+      const range = manifest.required_core_version;
+      if (!range) continue;
+      checked++;
+      if (!satisfiesRange(coreVersion, range)) {
+        mismatches.push(`${manifest.name || ent.name} requires ${range} (core is ${coreVersion})`);
+      }
+    }
+
+    if (mismatches.length > 0) {
+      return {
+        id: 'dependencies',
+        status: 'warn',
+        detail: `${mismatches.length} sibling(s) outside required_core_version range: ${mismatches[0]}${mismatches.length > 1 ? '…' : ''}`,
+      };
+    }
+    if (checked === 0) {
+      return { id: 'dependencies', status: 'ok', detail: 'no sibling plugins declare required_core_version' };
+    }
+    return { id: 'dependencies', status: 'ok', detail: `${checked} sibling plugin(s) within required_core_version range` };
+  } catch (e) {
+    return { id: 'dependencies', status: 'warn', detail: `check failed: ${e.message}` };
+  }
+}
+
 function checkPermissions() {
   try {
     const looseFiles = [];
@@ -217,6 +295,7 @@ function runAllChecks() {
     checkStateFiles(),
     checkCost(),
     checkProposals(),
+    checkDependencies(),
     checkPermissions(),
   ];
 }
@@ -248,7 +327,8 @@ if (require.main === module) {
 } else {
   module.exports = {
     checkConfig, checkHooks, checkStateFiles,
-    checkCost, checkProposals, checkPermissions,
+    checkCost, checkProposals, checkDependencies, checkPermissions,
+    satisfiesRange,
     runAllChecks, writeReport,
   };
 }
