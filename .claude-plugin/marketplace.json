@@ -11,7 +11,7 @@
       "name": "claude-code-hermit",
       "source": "./plugins/claude-code-hermit",
       "description": "Core hermit — memory-driven learning, daily rhythm, idle agency, and operational hygiene for Claude Code",
-      "version": "1.0.18",
+      "version": "1.0.19",
       "category": "productivity",
       "author": {
         "name": "gtapps"

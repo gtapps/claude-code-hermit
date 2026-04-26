@@ -108,5 +108,6 @@ Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routin
 
 | Skill        | What it does                                                                                                                                                | Auto-triggers |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| `smoke-test` | Post-hatch validation — checks config structure, OPERATOR.md, routine schema, plugin references, and optionally sends a channel test message. Run after hatch to verify setup. | --            |
-| `test-run`   | Runs the full hermit test suite (`run-contracts.py`, `run-hooks.sh`, `validate-frontmatter.js`) and reports pass/fail. Use before releasing changes.       | --            |
+| `smoke-test`    | Post-hatch validation — checks config structure, OPERATOR.md, routine schema, plugin references, and optionally sends a channel test message. Run after hatch to verify setup. | --            |
+| `hermit-doctor` | Seven-check installation health report — config validity, hook registration, state file integrity, cost budget, proposal health, sibling dependency ranges, file permissions. Use when diagnosing an install, before a release, or after suspicious behavior. | --            |
+| `test-run`      | Runs the full hermit test suite (`run-contracts.py`, `run-hooks.sh`, `validate-frontmatter.js`) and reports pass/fail. Use before releasing changes.       | --            |
