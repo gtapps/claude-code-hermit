@@ -1,0 +1,382 @@
+#!/usr/bin/env bash
+export PATH="/home/claude/.npm-global/bin:${PATH}"
+set -euo pipefail
+
+PROJECT_DIR="$(pwd)"
+AGENT_DIR="${PROJECT_DIR}/.claude-code-hermit"
+CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-/home/claude/.claude}"
+
+echo "[docker-entrypoint] Starting hermit container..."
+echo "[docker-entrypoint] Project: ${PROJECT_DIR}"
+
+# Recover from interrupted claude self-update: the CLI atomically swaps the
+# /home/claude/.npm-global/bin/claude symlink by renaming it to .claude-<rand>
+# first, then writing the replacement. If the entrypoint died between those
+# two steps on a previous boot, the symlink is gone and only the orphan
+# remains. Detect and repair before any downstream `claude ...` invocation.
+CLAUDE_BIN="/home/claude/.npm-global/bin/claude"
+if [ ! -e "$CLAUDE_BIN" ] && [ ! -L "$CLAUDE_BIN" ]; then
+  TEMP_LINK=$(ls /home/claude/.npm-global/bin/.claude-* 2>/dev/null | head -1 || true)
+  if [ -n "$TEMP_LINK" ]; then
+    mv "$TEMP_LINK" "$CLAUDE_BIN"
+    echo "[docker-entrypoint] Recovered claude symlink from interrupted self-update (was: $(basename "$TEMP_LINK"))"
+  else
+    echo "[docker-entrypoint] WARNING: claude binary missing and no temp symlink found — startup may fail"
+  fi
+fi
+
+# --- 0. Wait for auth credentials ---
+# OAuth users must run `claude /login` inside the container on first boot.
+# The login writes .credentials.json to the named volume, which persists
+# across restarts. API key users set ANTHROPIC_API_KEY in .env instead.
+CRED_FILE="${CLAUDE_CONFIG_DIR}/.credentials.json"
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -f "$CRED_FILE" ]; then
+  echo ""
+  echo "=============================================="
+  echo "  No auth credentials found."
+  echo "  From another terminal, run:"
+  echo ""
+  echo "    .claude-code-hermit/bin/hermit-docker login"
+  echo ""
+  echo "  Do NOT attach to tmux and run claude while waiting"
+  echo "  — use hermit-docker login only."
+  echo ""
+  echo "  Waiting for credentials (timeout: 10 minutes)..."
+  echo "=============================================="
+  echo ""
+  WAIT_SECS=0
+  while [ ! -f "$CRED_FILE" ]; do
+    sleep 5
+    WAIT_SECS=$((WAIT_SECS + 5))
+    if [ "$WAIT_SECS" -ge 600 ]; then
+      echo "[docker-entrypoint] Timed out waiting for credentials after 10 minutes."
+      echo "[docker-entrypoint] Run 'hermit-docker login' from another terminal, then restart."
+      exit 1
+    fi
+  done
+  echo "[docker-entrypoint] Credentials detected! Continuing startup..."
+fi
+
+# --- 0b. Check if OAuth token has expired ---
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -f "$CRED_FILE" ]; then
+  EXPIRED=$(python3 -c "
+import json, sys, time
+try:
+    with open(sys.argv[1]) as f:
+        creds = json.load(f)
+    # Credentials are nested under 'claudeAiOauth'; expiresAt is in milliseconds
+    oauth = creds.get('claudeAiOauth', {})
+    expires_at_ms = oauth.get('expiresAt')
+    if expires_at_ms and float(expires_at_ms) / 1000 < time.time():
+        print('expired')
+    else:
+        print('ok')
+except Exception:
+    print('unknown')
+" "$CRED_FILE" 2>/dev/null || echo "unknown")
+
+  if [ "$EXPIRED" = "expired" ]; then
+    echo ""
+    echo "=============================================="
+    echo "  OAuth token has expired."
+    echo "  From another terminal, run:"
+    echo ""
+    echo "    .claude-code-hermit/bin/hermit-docker login"
+    echo ""
+    echo "  Waiting for fresh credentials (timeout: 10 minutes)..."
+    echo "=============================================="
+    echo ""
+    ORIG_MTIME=$(python3 -c "import os,sys; print(int(os.path.getmtime(sys.argv[1])))" "$CRED_FILE" 2>/dev/null || echo "0")
+    WAIT_SECS=0
+    while true; do
+      sleep 5
+      WAIT_SECS=$((WAIT_SECS + 5))
+      NEW_MTIME=$(python3 -c "import os,sys; print(int(os.path.getmtime(sys.argv[1])))" "$CRED_FILE" 2>/dev/null || echo "0")
+      if [ "$NEW_MTIME" != "$ORIG_MTIME" ]; then
+        echo "[docker-entrypoint] Credentials updated! Continuing startup..."
+        break
+      fi
+      if [ "$WAIT_SECS" -ge 600 ]; then
+        echo "[docker-entrypoint] Timed out waiting for fresh credentials."
+        echo "[docker-entrypoint] Run 'claude /login' inside the container, then restart it."
+        exit 1
+      fi
+    done
+  fi
+fi
+
+# --- 1. Bypass onboarding, pre-approve MCP servers, patch permission_mode ---
+CLAUDE_JSON="${CLAUDE_CONFIG_DIR}/.claude.json"
+CC_VERSION=$(claude --version 2>/dev/null | grep -oP '[\d.]+' | head -1 || echo "0.0.0")
+INIT_OUTPUT=$(python3 -c "
+import json, sys, os
+claude_json, version, project = sys.argv[1], sys.argv[2], sys.argv[3]
+
+# --- .claude.json: onboarding + MCP approval ---
+if os.path.exists(claude_json):
+    with open(claude_json) as f: d = json.load(f)
+else:
+    d = {}
+changed = False
+
+if not d.get('hasCompletedOnboarding') or d.get('lastOnboardingVersion') != version:
+    d.update({'hasCompletedOnboarding': True, 'lastOnboardingVersion': version})
+    changed = True
+    print(f'[docker-entrypoint] Onboarding bypass set for Claude Code v{version}', file=sys.stderr)
+
+config_path = os.path.join(project, '.claude-code-hermit', 'config.json')
+channels = []
+if os.path.exists(config_path):
+    with open(config_path) as f: cfg = json.load(f)
+    channels_raw = cfg.get('channels', {})
+    if isinstance(channels_raw, dict):
+        channels = [name for name, entry in channels_raw.items()
+                    if not isinstance(entry, dict) or entry.get('enabled', True)]
+    else:
+        channels = list(channels_raw)
+if channels:
+    plugin_ids = {
+        'discord': 'plugin:discord:discord',
+        'telegram': 'plugin:telegram:telegram',
+    }
+    proj = d.setdefault('projects', {}).setdefault(project, {})
+    enabled = proj.get('enabledMcpjsonServers', [])
+    disabled_json = proj.get('disabledMcpjsonServers', [])
+    disabled_mcp = proj.get('disabledMcpServers', [])
+    for ch in channels:
+        pid = plugin_ids.get(ch)
+        if not pid:
+            continue
+        if pid not in enabled:
+            enabled.append(pid)
+            changed = True
+            print(f'[docker-entrypoint] MCP server {pid}: added to enabledMcpjsonServers', file=sys.stderr)
+        if pid in disabled_json:
+            disabled_json.remove(pid)
+            changed = True
+        if pid in disabled_mcp:
+            disabled_mcp.remove(pid)
+            changed = True
+    proj['enabledMcpjsonServers'] = enabled
+    proj['disabledMcpjsonServers'] = disabled_json
+    proj['disabledMcpServers'] = disabled_mcp
+
+if changed:
+    with open(claude_json, 'w') as f: json.dump(d, f)
+
+# permission_mode is handled at launch by hermit-start.py (--dangerously-skip-permissions flag).
+# Do NOT mutate config.json here — it lives on the host bind mount and would persist
+# container-only privilege escalation into the shared project config.
+
+# Emit channel list on stdout line 1, recommended plugins as JSON on line 2
+print(' '.join(ch for ch in channels if ch != 'imessage'))
+rec = cfg.get('docker', {}).get('recommended_plugins', []) if os.path.exists(config_path) else []
+print(json.dumps([e for e in rec if e.get('enabled', False)]))
+" "$CLAUDE_JSON" "$CC_VERSION" "$PROJECT_DIR")
+CHANNELS=$(echo "$INIT_OUTPUT" | sed -n '1p')
+RECOMMENDED_PLUGINS_JSON=$(echo "$INIT_OUTPUT" | sed -n '2p')
+
+# --- 2. Ensure channel state dirs exist (bind-mounted by docker-compose) ---
+# Channel state is bind-mounted from the project-local dir into ~/.claude/channels/
+# so that channel plugin writes stay inside the project tree (no permission prompts)
+# and persist across container restarts without sync logic.
+for var_name in DISCORD_STATE_DIR TELEGRAM_STATE_DIR; do
+  local_dir="${!var_name:-}"
+  if [ -n "$local_dir" ]; then
+    mkdir -p "$local_dir"
+  fi
+done
+
+# --- 3. Install plugins (named volume starts empty on first run) ---
+# Marketplace directory check is used only for "has the marketplace been added yet?"
+# Plugin installation is verified via `claude plugin list` — the marketplace catalog
+# populates external_plugins/ for ALL plugins on add, so directory checks can't
+# distinguish "cataloged" from "installed".
+MARKETPLACE_DIR="${CLAUDE_CONFIG_DIR}/plugins/marketplaces"
+
+# Hermit marketplace + plugin
+if [ ! -d "${MARKETPLACE_DIR}/claude-code-hermit" ]; then
+  echo "[docker-entrypoint] Adding hermit marketplace..."
+  claude plugin marketplace add gtapps/claude-code-hermit || true
+  echo "[docker-entrypoint] Installing hermit plugin..."
+  claude plugin install claude-code-hermit@claude-code-hermit --scope project || \
+    echo "[docker-entrypoint] Warning: failed to install hermit plugin — install manually"
+fi
+
+# Idempotent enable — runs every boot to self-heal if plugin was disabled.
+claude plugin enable claude-code-hermit@claude-code-hermit --scope project 2>/dev/null || true
+
+# Official marketplace (needed by channel plugins)
+NEEDS_OFFICIAL=false
+[ -n "$CHANNELS" ] && NEEDS_OFFICIAL=true
+if [ "$NEEDS_OFFICIAL" = true ] && [ ! -d "${MARKETPLACE_DIR}/claude-plugins-official" ]; then
+  echo "[docker-entrypoint] Adding official plugins marketplace..."
+  if ! claude plugin marketplace add anthropics/claude-plugins-official; then
+    echo "[docker-entrypoint] ERROR: failed to add claude-plugins-official marketplace."
+    echo "[docker-entrypoint]        Channel and recommended plugins will NOT be installed."
+    echo "[docker-entrypoint]        Fix: shell into the container and run the command manually:"
+    echo "[docker-entrypoint]          .claude-code-hermit/bin/hermit-docker bash"
+    echo "[docker-entrypoint]          claude plugin marketplace add anthropics/claude-plugins-official"
+    NEEDS_OFFICIAL=false
+  fi
+fi
+
+# Snapshot installed plugins once — used by the recommended-plugin scheduled check below.
+# stderr is kept visible so CLI errors surface in `docker compose logs`.
+INSTALLED_PLUGINS=$(claude plugin list || echo "")
+
+# Channel plugins
+# Installed at --scope local so the entry lives in the named config volume and
+# does not leak into the project's .claude/settings.json via the bind mount.
+# stderr is NOT suppressed — install/enable failures must be visible.
+if [ "$NEEDS_OFFICIAL" = true ] && [ -n "$CHANNELS" ]; then
+  for plugin in $CHANNELS; do
+    target="${plugin}@claude-plugins-official"
+    if echo "$INSTALLED_PLUGINS" | grep -qF "$target"; then
+      # Idempotent re-enable covers the "listed but disabled" case.
+      claude plugin enable "$target" --scope local || true
+      continue
+    fi
+    echo "[docker-entrypoint] Installing channel plugin: ${plugin}"
+    if ! claude plugin install "$target" --scope local; then
+      echo "[docker-entrypoint] ERROR: 'claude plugin install ${target}' failed — see stderr above."
+      continue
+    fi
+    if ! claude plugin enable "$target" --scope local; then
+      echo "[docker-entrypoint] ERROR: 'claude plugin enable ${target}' failed — see stderr above."
+      continue
+    fi
+    # Post-install verification — re-query list and confirm the entry landed.
+    # Catches the "CLI exits 0 but nothing was fetched" silent-failure mode.
+    if ! claude plugin list | grep -qF "$target"; then
+      echo "[docker-entrypoint] ERROR: ${target} not present in 'claude plugin list' after install."
+      echo "[docker-entrypoint]        Current plugin list:"
+      claude plugin list | sed 's/^/[docker-entrypoint]          /' || true
+      echo "[docker-entrypoint]        Fix: shell in and reinstall manually:"
+      echo "[docker-entrypoint]          .claude-code-hermit/bin/hermit-docker bash"
+      echo "[docker-entrypoint]          claude plugin install ${target} --scope local"
+    fi
+  done
+fi
+
+# Recommended plugins (enabled entries extracted from config.json above)
+# Mirrors the host-installed plugin set confirmed during docker-setup (project + user scope).
+# Each entry may reference any marketplace — the entrypoint adds it on first boot as needed.
+# Operator confirmed these plugins during docker-setup, so no auto-install guard is needed.
+if [ -n "$RECOMMENDED_PLUGINS_JSON" ] && [ "$RECOMMENDED_PLUGINS_JSON" != "[]" ]; then
+  python3 -c "
+import json, os, subprocess, sys
+
+plugins = json.loads(sys.argv[1])
+# 'claude plugin list' output is free-form ('  ❯ plugin@slug' plus Version/Scope lines).
+# Substring match against the whole blob is more robust than exact-line set membership.
+installed_blob = sys.argv[2]
+marketplace_dir = sys.argv[3]
+
+for entry in plugins:
+    plugin = entry['plugin']
+    marketplace = entry.get('marketplace', 'claude-plugins-official')
+    scope = entry.get('scope', 'project')
+
+    slug = marketplace.split('/')[-1] if '/' in marketplace else marketplace
+
+    if not os.path.isdir(os.path.join(marketplace_dir, slug)):
+        print(f'[docker-entrypoint] Adding marketplace: {marketplace}', flush=True)
+        try:
+            result = subprocess.run(['claude', 'plugin', 'marketplace', 'add', marketplace], check=False)
+        except FileNotFoundError:
+            print(f'[docker-entrypoint] Warning: claude not found adding marketplace {marketplace} — skipping {plugin}', flush=True)
+            continue
+        if result.returncode != 0:
+            print(f'[docker-entrypoint] Warning: failed to add marketplace {marketplace} — skipping {plugin}', flush=True)
+            continue
+
+    install_target = f'{plugin}@{slug}'
+    if install_target in installed_blob:
+        continue
+    print(f'[docker-entrypoint] Installing recommended plugin: {plugin}', flush=True)
+    try:
+        result = subprocess.run(['claude', 'plugin', 'install', install_target, '--scope', scope])
+    except FileNotFoundError:
+        print(f'[docker-entrypoint] Warning: claude not found installing {plugin} — may have self-updated; will retry on next restart', flush=True)
+        continue
+    if result.returncode != 0:
+        print(f'[docker-entrypoint] Warning: failed to install {plugin} — install manually', flush=True)
+        continue
+    try:
+        result = subprocess.run(['claude', 'plugin', 'enable', install_target, '--scope', scope])
+    except FileNotFoundError:
+        print(f'[docker-entrypoint] Warning: claude not found enabling {plugin} — plugin installed but enable skipped; will self-heal on next restart', flush=True)
+        continue
+    if result.returncode != 0:
+        print(f'[docker-entrypoint] Warning: failed to enable {plugin} — run: claude plugin enable {install_target}', flush=True)
+" "$RECOMMENDED_PLUGINS_JSON" "$INSTALLED_PLUGINS" "$MARKETPLACE_DIR" || echo "[docker-entrypoint] Warning: recommended plugin install block encountered errors, continuing"
+fi
+
+# --- Plugin updates are NOT run on boot ---
+# Auto-updates would pull unreviewed code that runs with bypassPermissions.
+# Update explicitly: /claude-code-hermit:hermit-evolve or rebuild the image.
+
+# Export plugin root so hermit-run can skip the directory scan.
+# Monorepo layout: <marketplace>/plugins/claude-code-hermit/ is the plugin root.
+HERMIT_PLUGIN_ROOT_CANDIDATE="${MARKETPLACE_DIR}/claude-code-hermit/plugins/claude-code-hermit"
+if [ -f "${HERMIT_PLUGIN_ROOT_CANDIDATE}/.claude-plugin/plugin.json" ]; then
+  export HERMIT_PLUGIN_ROOT="${HERMIT_PLUGIN_ROOT_CANDIDATE}"
+  echo "[docker-entrypoint] Plugin root: ${HERMIT_PLUGIN_ROOT}"
+fi
+
+# --- 4. Seed auto-memory (one-time, skipped if container has built its own) ---
+MEMORY_SEED="${AGENT_DIR}/MEMORY-SEED.md"
+if [ -f "$MEMORY_SEED" ]; then
+  PATH_KEY="${PROJECT_DIR//\//-}"
+  MEMORY_DIR="${CLAUDE_CONFIG_DIR}/projects/${PATH_KEY}/memory"
+  if [ ! -f "${MEMORY_DIR}/MEMORY.md" ]; then
+    mkdir -p "$MEMORY_DIR" && \
+      cp "$MEMORY_SEED" "${MEMORY_DIR}/MEMORY.md" && \
+      echo "[docker-entrypoint] Seeded auto-memory from host (one-time)" || \
+      echo "[docker-entrypoint] Warning: failed to seed auto-memory — continuing"
+  fi
+fi
+
+# --- 5. Launch hermit-start ---
+"${AGENT_DIR}/bin/hermit-start" "$@"
+
+# --- 6. Keep PID 1 alive, handle graceful shutdown ---
+SESSION_NAME="{{TMUX_SESSION_NAME}}"
+
+# SIGTERM trap: attempt graceful session close before container dies.
+# docker compose down sends SIGTERM to PID 1. Without this trap, the hermit
+# would be killed mid-session with no report archival.
+cleanup() {
+  echo "[docker-entrypoint] SIGTERM received..."
+  RUNTIME_FILE="${AGENT_DIR}/state/runtime.json"
+  # Skip if already closed (e.g., hermit-docker down already handled it)
+  CUR_STATE=$(jq -r '.session_state // "unknown"' "$RUNTIME_FILE" 2>/dev/null || echo "unknown")
+  if [ "$CUR_STATE" = "idle" ] || [ "$(jq -r '.shutdown_completed_at // empty' "$RUNTIME_FILE" 2>/dev/null)" != "" ]; then
+    echo "[docker-entrypoint] Session already closed. Shutting down."
+    exit 0
+  fi
+  echo "[docker-entrypoint] Requesting graceful session close..."
+  # Split text and Enter into two send-keys calls with a pause — Claude Code's
+  # TUI treats text+Enter in one burst as bracketed paste and Enter becomes a
+  # literal newline instead of submit. Same fix as scripts/hermit-start.py.
+  tmux send-keys -t "$SESSION_NAME:0.0" "/claude-code-hermit:session-close --shutdown" 2>/dev/null || true
+  sleep 0.5
+  tmux send-keys -t "$SESSION_NAME:0.0" Enter 2>/dev/null || true
+  for i in $(seq 1 30); do
+    CUR_STATE=$(jq -r '.session_state // "unknown"' "$RUNTIME_FILE" 2>/dev/null || echo "unknown")
+    SHUTDOWN_DONE=$(jq -r '.shutdown_completed_at // empty' "$RUNTIME_FILE" 2>/dev/null)
+    [ "$CUR_STATE" = "idle" ] || [ -n "$SHUTDOWN_DONE" ] && break
+    sleep 1
+  done
+  echo "[docker-entrypoint] Shutting down."
+  exit 0
+}
+trap cleanup SIGTERM SIGINT
+
+echo "[docker-entrypoint] Watching tmux session: ${SESSION_NAME}"
+while tmux has-session -t "$SESSION_NAME" 2>/dev/null; do
+  sleep 30 &
+  wait $! || true
+done
+echo "[docker-entrypoint] tmux session ended — container exiting"

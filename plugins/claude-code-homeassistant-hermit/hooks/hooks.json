@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__homeassistant__Hass.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/mcp-safety-gate.py"
+          }
+        ],
+        "description": "Block MCP actuation calls targeting sensitive HA entities. Tool IDs assume the HA MCP Server is registered in Claude Code as 'homeassistant'."
+      },
+      {
+        "matcher": "Bash",
+        "profile": "standard,strict",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/curl-host-gate.py",
+            "timeout": 5
+          }
+        ],
+        "description": "Auto-approve curl/wget calls whose command string contains a known HA URL (from .env). All other Bash commands pass through unchanged."
+      }
+    ]
+  }
+}
