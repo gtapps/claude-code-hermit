@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.9] - 2026-04-27
+
+### Changed
+
+- **Monorepo housekeeping.** Plugin source moved into `plugins/claude-code-dev-hermit/` of the `gtapps/claude-code-hermit` monorepo. `required_core_version` reconciled to semver-range form (`>=1.0.18`); a parallel `requires.claude-code-hermit` field was added to mirror it. Inner `.claude-plugin/marketplace.json` removed (the repo-root marketplace catalog is now authoritative). README and Documentation links now point at the monorepo.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. No operator action required — internal manifest cleanup only.
+
+No `config.json` changes required.
+
 ## [0.1.8] - 2026-04-24
 
 ### Changed

@@ -25,7 +25,7 @@
       "name": "claude-code-dev-hermit",
       "source": "./plugins/claude-code-dev-hermit",
       "description": "Git safety, quality workflow, and dev conventions for claude-code-hermit",
-      "version": "0.1.8",
+      "version": "0.1.9",
       "category": "development",
       "author": {
         "name": "gtapps"
