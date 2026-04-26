@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.0.20] - 2026-04-26
+
+### Changed
+
+- **CHANGELOG: clarify v1.0.19 upgrade for always-on operators.** The v1.0.19 fix replaces `bin/hermit-run`, but `bin/hermit-stop` shares that same dispatcher — so always-on operators (tmux or Docker) couldn't cleanly stop the hermit before upgrading. v1.0.19's Upgrade Instructions block now leads with a `tmux kill-session` / `hermit-docker down` step.
+- **`release-auditor` agent: slug-aware refactor for monorepo.** The agent now takes a plugin slug, derives `$PLUGIN_DIR = plugins/<slug>/`, and looks up the version in the repo-root `.claude-plugin/marketplace.json` via `.plugins[] | select(.name == $slug)`. Pre-refactor it produced two false-positive FAILs on every release because it was reading paths from the pre-monorepo layout — releases that ignore noisy auditor output erode the signal over time.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `plugins/claude-code-hermit/CHANGELOG.md` | v1.0.19 Upgrade Instructions: new step 1 for always-on operators (existing 1→2, 2→3) |
+| `.claude/agents/release-auditor.md` | Slug-aware refactor: input contract, all path references rewritten under `plugins/<slug>/`, repo-root marketplace lookup, core-only DEFAULT_CONFIG check gate |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. No operator action required — this is a documentation-only patch on top of v1.0.19.
+
+No `config.json` changes required.
+
 ## [1.0.19] - 2026-04-26
 
 ### Fixed
@@ -40,9 +60,11 @@
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
-1. **Replace `.claude-code-hermit/bin/hermit-run` with the new template.** Read `${CLAUDE_PLUGIN_ROOT}/state-templates/bin/hermit-run` and overwrite the target project's `.claude-code-hermit/bin/hermit-run`. Preserve executable bit (`chmod +x`). Without this step, `bin/hermit-start` will continue to fail with `[hermit] Plugin root not found or invalid:` because the old scan glob doesn't match the monorepo cache layout.
+1. **Always-on operators only: stop the running hermit cleanly before continuing.** If a hermit is currently running for this project (`bin/hermit-status` reports it active), tear it down manually first — `bin/hermit-stop` is broken in this version because it shares the broken `bin/hermit-run` dispatcher with `bin/hermit-start`. For tmux operators: `tmux kill-session -t <session-name>` (find it via `tmux ls`). For Docker operators: `.claude-code-hermit/bin/hermit-docker down`. Then continue with step 2 below; restart with `bin/hermit-start` (or `bin/hermit-docker up`) after `hermit-evolve` finishes. If no hermit is currently running for this project, this step is a no-op.
 
-2. **For Docker-deployed hermits: rebuild the container.** The `docker-entrypoint.hermit.sh.template` baked into the image carries a stale `find` invocation that won't locate the plugin under the monorepo cache. Run `.claude-code-hermit/bin/hermit-docker update --cc-only` (or a full `update`) so the next boot picks up the new entrypoint. Non-Docker (tmux/local) operators can skip this step.
+2. **Replace `.claude-code-hermit/bin/hermit-run` with the new template.** Read `${CLAUDE_PLUGIN_ROOT}/state-templates/bin/hermit-run` and overwrite the target project's `.claude-code-hermit/bin/hermit-run`. Preserve executable bit (`chmod +x`). Without this step, `bin/hermit-start` will continue to fail with `[hermit] Plugin root not found or invalid:` because the old scan glob doesn't match the monorepo cache layout.
+
+3. **For Docker-deployed hermits: rebuild the container.** The `docker-entrypoint.hermit.sh.template` baked into the image carries a stale `find` invocation that won't locate the plugin under the monorepo cache. Run `.claude-code-hermit/bin/hermit-docker update --cc-only` (or a full `update`) so the next boot picks up the new entrypoint. Non-Docker (tmux/local) operators can skip this step.
 
 No `config.json` changes required. The `dependencies` doctor check requires no operator action — it's read-only and reports ok by default.
 
