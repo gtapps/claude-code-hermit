@@ -28,7 +28,13 @@ Then run `/claude-code-hermit:hatch` to create the state directory. Edits to ski
 ## Testing
 
 ```bash
-bash tests/run-all.sh
+( cd plugins/claude-code-hermit && bash tests/run-all.sh )
+```
+
+For HA-hermit changes:
+
+```bash
+( cd plugins/claude-code-homeassistant-hermit && pytest tests/ -v )
 ```
 
 See [Testing](docs/testing.md) for hook test details, fixtures, manual testing, and how to write new tests.
@@ -37,6 +43,6 @@ See [Testing](docs/testing.md) for hook test details, fixtures, manual testing, 
 
 1. Create a feature branch
 2. Make changes
-3. Run `bash tests/run-all.sh` locally
+3. Run `( cd plugins/claude-code-hermit && bash tests/run-all.sh )` locally (and the HA pytest suite if HA code changed)
 4. Push — CI runs the same tests
 5. Keep commits focused — one concern per PR
