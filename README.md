@@ -31,18 +31,6 @@ Three steps to a running 24/7 hermit:
 
 Hermit is the glue between Claude Code's native capabilities and a 24/7 agent that improves itself. One subscription to run multiple hermits.
 
-## Fleet
-
-This repo is a multi-plugin marketplace. One `marketplace add`, install whichever plugins you want:
-
-| Plugin                                                                                                       | What it adds                                                                            | When to install                              |
-| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | -------------------------------------------- |
-| **`claude-code-hermit`** (this README)                                                                       | Core runtime — sessions, memory, daily rhythm, idle agency, the learning loop          | Always — domain plugins build on top of it   |
-| [`claude-code-dev-hermit`](plugins/claude-code-dev-hermit/README.md)                                          | Git safety, quality workflow, an `implementer` agent that works in isolated worktrees   | If you're building software with this hermit |
-| [`claude-code-homeassistant-hermit`](plugins/claude-code-homeassistant-hermit/README.md)                      | Home Assistant skills, safety hook, automation builder, Python CLI                     | If you have a Home Assistant instance        |
-
-Domain plugins declare a `required_core_version` against core; installing one and forgetting core gets caught by `/claude-code-hermit:hermit-doctor`.
-
 ---
 
 ## How It Works
@@ -70,6 +58,8 @@ cd /path/to/your/project   # or any folder — even an empty one
 claude plugin marketplace add gtapps/claude-code-hermit
 claude plugin install claude-code-hermit@claude-code-hermit --scope project
 ```
+
+> See the [Fleet](#fleet) below for existing plug-play domain hermits.
 
 ### 2. Initialize
 
@@ -127,7 +117,21 @@ Every hermit is yours from the moment you run `/claude-code-hermit:hatch`. See [
 
 Hermits ride on Claude Code's native intelligence and add a `raw/` → `compiled/` layer — raw notes distilled into durable artifacts the agent reloads next session. See [Plugin Hermit Storage](plugins/claude-code-hermit/docs/plugin-hermit-storage.md).
 
-For ready-made specialists, install another hermit plugin from the same marketplace — see the [Fleet](#fleet) table above.
+For ready-made specialists, install another hermit plugin from the same marketplace — see the [Fleet](#fleet) table below.
+
+---
+
+## Fleet
+
+This repo is a multi-plugin marketplace. One `marketplace add`, install whichever plugins you want:
+
+| Plugin                                                                                                       | What it adds                                                                            | When to install                              |
+| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | -------------------------------------------- |
+| **`claude-code-hermit`** (this README)                                                                       | Core runtime — sessions, memory, daily rhythm, idle agency, the learning loop          | Always — domain plugins build on top of it   |
+| [`claude-code-dev-hermit`](plugins/claude-code-dev-hermit/README.md)                                          | Git safety, quality workflow, an `implementer` agent that works in isolated worktrees   | If you're building software with this hermit |
+| [`claude-code-homeassistant-hermit`](plugins/claude-code-homeassistant-hermit/README.md)                      | Home Assistant skills, safety hook, automation builder, Python CLI                     | If you have a Home Assistant instance        |
+
+Domain plugins declare a `required_core_version` against core; installing one and forgetting core gets caught by `/claude-code-hermit:hermit-doctor`.
 
 ---
 
