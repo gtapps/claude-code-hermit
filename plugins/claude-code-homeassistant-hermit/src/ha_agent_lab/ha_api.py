@@ -11,7 +11,7 @@ from urllib import error, request
 from . import __version__
 from .config import AppConfig, load_config
 
-_USER_AGENT = os.environ.get("HOMEASSISTANT_USER_AGENT") or f"ha-agent-lab/{__version__} (+https://github.com/gtapps/claude-code-homeassistant-hermit)"
+_USER_AGENT = os.environ.get("HOMEASSISTANT_USER_AGENT") or f"ha-agent-lab/{__version__} (+https://github.com/gtapps/claude-code-hermit)"
 
 
 @dataclass(slots=True)

@@ -65,7 +65,7 @@ docs/             — user-facing documentation
 - **Hook improvements** that make git safety smarter without being annoying
 - **Bug fixes** with a test case that reproduces the issue
 - **Doc improvements** — clearer explanations, missing examples, typo fixes
-- **Ideas** — open an [issue](https://github.com/gtapps/claude-code-dev-hermit/issues) to discuss before building something big
+- **Ideas** — open an [issue](https://github.com/gtapps/claude-code-hermit/issues) to discuss before building something big
 
 ## What to Avoid
 

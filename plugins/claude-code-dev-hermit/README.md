@@ -19,14 +19,17 @@ Your hermit already knows how to manage sessions, learn from its work, and keep 
 
 ## Install
 
+Both core and dev hermit ship from the same monorepo marketplace:
+
 ```bash
-# Install core first (skip if already done)
+# Add the fleet marketplace once (skip if already added)
 claude plugin marketplace add gtapps/claude-code-hermit
+
+# Install core first (skip if already done)
 claude plugin install claude-code-hermit@claude-code-hermit --scope project
 
 # Then install the dev plugin
-claude plugin marketplace add gtapps/claude-code-dev-hermit
-claude plugin install claude-code-dev-hermit@claude-code-dev-hermit --scope project
+claude plugin install claude-code-dev-hermit@claude-code-hermit --scope project
 
 # Initialize
 /claude-code-dev-hermit:hatch
@@ -110,8 +113,8 @@ We'd love your help. Bug fixes, new skills, better docs — all welcome.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for design constraints, local dev setup, and PR workflow.
 
-- [Open an issue](https://github.com/gtapps/claude-code-dev-hermit/issues) — bugs, feature ideas, questions
-- [Start a discussion](https://github.com/gtapps/claude-code-dev-hermit/discussions) — broader topics, show & tell, hermit customization ideas
+- [Open an issue](https://github.com/gtapps/claude-code-hermit/issues) — bugs, feature ideas, questions
+- [Start a discussion](https://github.com/gtapps/claude-code-hermit/discussions) — broader topics, show & tell, hermit customization ideas
 
 ## Credits
 

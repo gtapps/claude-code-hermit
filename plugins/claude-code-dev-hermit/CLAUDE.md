@@ -13,8 +13,7 @@ claude plugin marketplace add gtapps/claude-code-hermit
 claude plugin install claude-code-hermit@claude-code-hermit --scope project
 /claude-code-hermit:hatch
 
-claude plugin marketplace add gtapps/claude-code-dev-hermit
-claude plugin install claude-code-dev-hermit@claude-code-dev-hermit --scope project
+claude plugin install claude-code-dev-hermit@claude-code-hermit --scope project
 /claude-code-dev-hermit:hatch
 ```
 

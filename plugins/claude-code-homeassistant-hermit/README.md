@@ -17,9 +17,8 @@ Three steps to a running 24/7 Home Assistant hermit:
 > ```
 > # Install
 > claude plugin marketplace add gtapps/claude-code-hermit
-> claude plugin marketplace add gtapps/claude-code-homeassistant-hermit
 > claude plugin install claude-code-hermit@claude-code-hermit --scope project
-> claude plugin install claude-code-homeassistant-hermit@claude-code-homeassistant-hermit --scope project
+> claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scope project
 >
 > # Setup Wizard
 > /claude-code-homeassistant-hermit:hatch
@@ -56,10 +55,9 @@ Three steps to a running 24/7 Home Assistant hermit:
 cd /path/to/your/project   # any folder — empty is fine
 
 claude plugin marketplace add gtapps/claude-code-hermit
-claude plugin marketplace add gtapps/claude-code-homeassistant-hermit
 
 claude plugin install claude-code-hermit@claude-code-hermit --scope project
-claude plugin install claude-code-homeassistant-hermit@claude-code-homeassistant-hermit --scope project
+claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scope project
 ```
 
 ### 2. Initialize
@@ -88,7 +86,7 @@ See [Always-On Setup](https://github.com/gtapps/claude-code-hermit/blob/main/doc
 
 > ```
 > claude plugin update claude-code-hermit@claude-code-hermit --scope project
-> claude plugin update claude-code-homeassistant-hermit@claude-code-homeassistant-hermit --scope project
+> claude plugin update claude-code-homeassistant-hermit@claude-code-hermit --scope project
 > /claude-code-hermit:hermit-evolve
 > ```
 

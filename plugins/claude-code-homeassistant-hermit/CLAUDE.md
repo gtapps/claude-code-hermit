@@ -2,13 +2,13 @@
 
 A Home Assistant domain layer for `claude-code-hermit`: skills, subagents, a safety hook, and a Python CLI for bulk work.
 
-## This Repo is a Plugin
+## This Plugin
 
-This repo is structured as a Claude Code plugin. It is NOT a standalone project — it gets installed into other projects via:
+This is a plugin that ships from the `gtapps/claude-code-hermit` monorepo marketplace. It is NOT a standalone project — it gets installed into other projects via:
 
 ```
-claude plugin marketplace add gtapps/claude-code-homeassistant-hermit
-claude plugin install claude-code-homeassistant-hermit@claude-code-homeassistant-hermit --scope project
+claude plugin marketplace add gtapps/claude-code-hermit
+claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scope project
 ```
 
 After install, run `/claude-code-homeassistant-hermit:hatch` in the target project. The core hermit (`claude-code-hermit`) must be installed and hatched first — `hatch` will prompt if it isn't.
