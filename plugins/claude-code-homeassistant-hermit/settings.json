@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./bin/ha-agent-lab *)",
+      "Bash(.venv/bin/python -m ha_agent_lab *)",
+      "Bash(.venv/bin/pytest *)",
+      "Bash(python -c *ha_agent_lab*)",
+      "mcp__homeassistant__GetLiveContext",
+      "mcp__homeassistant__GetDateTime",
+      "Bash(git status)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Edit(.claude-code-hermit/**)",
+      "Write(.claude-code-hermit/**)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(chmod 777*)",
+      "Bash(curl * | bash*)",
+      "Bash(wget * | bash*)",
+      "Edit(**/.claude-code-hermit/OPERATOR.md)",
+      "Write(**/.claude-code-hermit/OPERATOR.md)",
+      "Edit(.env)",
+      "Write(.env)"
+    ]
+  }
+}
