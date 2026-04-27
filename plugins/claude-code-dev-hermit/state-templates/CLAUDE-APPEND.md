@@ -65,6 +65,8 @@ For tasks that need the running app (browser-testing, API integration checks, an
 
 **Error surfacing:** for projects whose dev server logs to a **file** (Winston/Pino daily, Rails `log/development.log`, structlog), run `/claude-code-dev-hermit:dev-log-watch` once during onboarding. It writes a Monitor entry into `config.monitors[]` that auto-registers each session and surfaces matched log lines as notifications. For stdout/journald/Docker stacks, see `docs/DEV-LOG-WATCH.md` `## Use instead`.
 
+**Quick status read:** `/claude-code-dev-hermit:dev-status` returns three lines — current branch state, dev-server monitor health, and worktree refs (active + prunable). Read-only; useful any time you want to answer "is the server up? what branch am I on? is anything stale?" without scanning three places.
+
 ### Before Archiving a Task
 
 - `/claude-code-dev-hermit:dev-quality` passed (tests + simplify)

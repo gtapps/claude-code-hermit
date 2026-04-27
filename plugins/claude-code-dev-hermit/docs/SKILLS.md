@@ -1,6 +1,6 @@
 # Skills Reference
 
-Nine skills, each invoked with `/claude-code-dev-hermit:`.
+Ten skills, each invoked with `/claude-code-dev-hermit:`.
 
 ---
 
@@ -101,6 +101,18 @@ Generate a Monitor entry that tails the dev-server log file for error patterns. 
 **What it does:** four gates — config check (`dev_log_path_pattern` + `dev_error_pattern` required); build the canonical bash one-liner via `scripts/lib/log-watch-builder.js`, which detects `$(date ...)` substrings and emits the midnight while-loop wrapper for date-rotating logs (Winston/Pino/structlog) or plain `tail -F` for fixed paths (Rails `log/development.log`); verify the log directory exists; register either persistently into `config.monitors[]` (auto-registers each session) or ad-hoc for the current session only.
 
 **Use only for file logs.** stdout/journald/Docker stacks have native primitives — see `docs/DEV-LOG-WATCH.md` `## Use instead`.
+
+---
+
+## dev-status
+
+One-shot read-only status. Run any time you want to know "is the server up? what branch am I on? is anything stale?" without scanning three places.
+
+**What it does:** three lines of output — branch state (current branch, dirty/clean, ahead/behind upstream), dev-server monitor state (registry presence, pid liveness, optional health probe via `scripts/lib/health-poll.js` with 3s timeout), worktree state (active count + sample, prunable count + sample with the `git worktree prune` recovery hint).
+
+**Read-only.** Names commands the operator can run (`/dev-down`, `git worktree prune`) but never executes them. No FAIL gates; if a section's read fails, that section reports `(read failed)` and the others continue.
+
+**No port probes, no SHELL.md parse, no dev-log-errors monitor reporting** — different questions, different skills (`/dev-up`, native `git status`, `/watch status`).
 
 ---
 

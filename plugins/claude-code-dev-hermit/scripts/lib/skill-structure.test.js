@@ -17,10 +17,12 @@ const path = require('path');
 const SKILL_DIR = path.join(__dirname, '..', '..', 'skills');
 
 // Per-skill expectations. Update if a skill's gate count changes.
+// gates: 0 → skill has no Gate N — section structure (e.g., read-only status skills).
 const SKILLS = [
   { name: 'dev-up', gates: 7 },         // Gate 0..6
   { name: 'dev-down', gates: 3 },       // Gate 0..2
   { name: 'dev-log-watch', gates: 4 },  // Gate 0..3
+  { name: 'dev-status', gates: 0 },     // read-only status, no gates
 ];
 
 let passed = 0;
@@ -66,9 +68,11 @@ for (const { name, gates } of SKILLS) {
   const gateMatches = fm.body.match(/^### Gate \d+ —/gm) || [];
   ok(`expected ${gates} Gate headers`, gateMatches.length === gates, `found ${gateMatches.length}`);
 
-  // First and last gate present.
-  ok('Gate 0 present', /^### Gate 0 —/m.test(fm.body));
-  ok(`Gate ${gates - 1} present`, new RegExp(`^### Gate ${gates - 1} —`, 'm').test(fm.body));
+  // First and last gate present — only when the skill is gate-shaped.
+  if (gates > 0) {
+    ok('Gate 0 present', /^### Gate 0 —/m.test(fm.body));
+    ok(`Gate ${gates - 1} present`, new RegExp(`^### Gate ${gates - 1} —`, 'm').test(fm.body));
+  }
 
   // Internal links: resolve [text](relative/path) and verify the target exists.
   // Skip absolute URLs (http://, mailto:) and same-document anchors (#section).

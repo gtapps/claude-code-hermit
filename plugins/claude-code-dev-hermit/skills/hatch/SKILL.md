@@ -250,6 +250,7 @@ Available skills:
   /claude-code-dev-hermit:dev-up          — boot a session-scoped dev server (Monitor-managed)
   /claude-code-dev-hermit:dev-down        — stop the dev server
   /claude-code-dev-hermit:dev-log-watch   — register an error-tailing monitor for the dev log
+  /claude-code-dev-hermit:dev-status      — one-shot read of branch / dev-server / worktree state
   /claude-code-dev-hermit:dev-quality     — post-implementation quality pass
   /claude-code-dev-hermit:dev-cleanup     — branch cleanup
   /claude-code-dev-hermit:dev-doctor      — check setup is implementer-safe

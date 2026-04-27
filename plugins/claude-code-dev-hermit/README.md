@@ -66,6 +66,7 @@ The implementer never touches main. It commits to feature branches, runs tests, 
 | `dev-up` | Boot a session-scoped dev server via the Monitor tool — port checks, optional auth probe, optional HTTP health-poll |
 | `dev-down` | Stop the dev server — runs `commands.dev_stop` if configured (compose/supervisord), else Monitor SIGTERM/SIGKILL |
 | `dev-log-watch` | Generate a Monitor entry that tails rotating or fixed dev-server logs for error patterns |
+| `dev-status` | Three-line read of branch state, dev-server monitor health, and worktree refs — read-only, no setup required |
 | `dev-quality` | Post-implementation quality pass — tests, simplify, tests |
 | `dev-cleanup` | Lists stale/merged branches and offers to clean them up safely |
 | `dev-doctor` | Diagnose dev-hermit setup issues; safe for weekly scheduled checks |
