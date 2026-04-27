@@ -2,6 +2,13 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Changed
+
+- **plugin.json: native `dependencies` field added** — `dependencies: [{ name: "claude-code-hermit", version: ">=1.0.17" }]` enables Claude Code's native dependency resolver to auto-install core; the hermit-internal `requires` field remains for runtime version gating.
+- **release skill: double-dash tag format** — tag step now uses `claude plugin tag --push` (produces `claude-code-homeassistant-hermit--vX.Y.Z`); `git tag vNEW` removed.
+
 ## [0.0.5] — 2026-04-27
 
 ### Added

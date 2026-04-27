@@ -62,19 +62,20 @@ Run `claude plugin validate .` in the repo root. If it reports errors, fix them 
 
 ```bash
 git add .claude-plugin/plugin.json .claude-plugin/marketplace.json README.md CHANGELOG.md
-git commit -m "vNEW — <one-line summary from first line of changelog body>"
-git tag vNEW
-git push                   # or git push --set-upstream origin main if no upstream
-git push origin vNEW
+git commit -m "claude-code-homeassistant-hermit--vNEW — <one-line summary from first line of changelog body>"
+claude plugin tag --push
+git push origin main
 ```
+
+If no upstream is set: `git push --set-upstream origin main` before tagging.
 
 ### 5. Create GitHub release
 
 Use `gh` to create the release so it appears in the GitHub Releases section (a pushed tag alone does not):
 
 ```bash
-gh release create vNEW \
-  --title "vNEW" \
+gh release create "claude-code-homeassistant-hermit--vNEW" \
+  --title "claude-code-homeassistant-hermit--vNEW" \
   --notes "<changelog body verbatim>"
 ```
 
@@ -83,11 +84,11 @@ Pass the full changelog body (the markdown written in step 2) as `--notes`. Do n
 ### 6. Confirm
 
 ```
-Released vNEW
+Released claude-code-homeassistant-hermit--vNEW
   plugin.json       ✓
   marketplace.json  ✓
   README.md badge   ✓
   CHANGELOG.md      ✓
   Pushed            ✓
-  GitHub release    ✓  https://github.com/.../releases/tag/vNEW
+  GitHub release    ✓  https://github.com/.../releases/tag/claude-code-homeassistant-hermit--vNEW
 ```
