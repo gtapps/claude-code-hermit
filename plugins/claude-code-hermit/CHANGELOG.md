@@ -1,24 +1,30 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.21] - 2026-04-27
 
 ### Changed
 
-- **doctor-check: read `required_core_version` from `hermit-meta.json` sidecar.** Domain plugins now store hermit-internal manifest fields in a validator-invisible sidecar so `claude plugin tag --push` passes cleanly.
+- **doctor-check: read `required_core_version` from `hermit-meta.json` sidecar only.** Drops the `plugin.json` fallback — domain plugins store hermit-internal manifest fields in the validator-invisible sidecar so `claude plugin tag --push` passes cleanly.
 - **docs: bump Claude Code prerequisite to v2.1.110+.** The dependency resolver and `claude plugin tag` both require v2.1.110+; operators on v2.1.98–v2.1.109 would hit a broken install flow. Updated across `docs/how-to-use.md`, `docs/always-on.md`, `docs/always-on-ops.md`, and `skills/channel-responder/SKILL.md`.
+- **docs: update `boot_skill` declaration guidance to `hermit-meta.json`.** `config-reference.md` and `creating-your-own-hermit.md` previously said to declare `hermit.boot_skill` in `plugin.json`; both now point to `hermit-meta.json` to match the sidecar migration.
 
 ### Files affected
 
 | File | Change |
 |------|--------|
+| `plugins/claude-code-hermit/scripts/doctor-check.js` | Reads `required_core_version` from hermit-meta.json; drops plugin.json fallback |
 | `plugins/claude-code-hermit/docs/how-to-use.md` | Claude Code prerequisite: v2.1.98+ → v2.1.110+ |
 | `plugins/claude-code-hermit/docs/always-on.md` | Claude Code prerequisite: v2.1.98+ → v2.1.110+ |
 | `plugins/claude-code-hermit/docs/always-on-ops.md` | Claude Code prerequisite: v2.1.98+ → v2.1.110+ |
 | `plugins/claude-code-hermit/skills/channel-responder/SKILL.md` | Channels preview version note: v2.1.98+ → v2.1.110+ |
+| `plugins/claude-code-hermit/docs/config-reference.md` | `boot_skill` declaration: plugin.json → hermit-meta.json |
+| `plugins/claude-code-hermit/docs/creating-your-own-hermit.md` | `boot_skill` guide: plugin.json → hermit-meta.json |
 
 ### Upgrade Instructions
 
-No operator action required — documentation update only.
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Refresh** `scripts/doctor-check.js` from the updated plugin.
 
 No `config.json` changes required.
 
