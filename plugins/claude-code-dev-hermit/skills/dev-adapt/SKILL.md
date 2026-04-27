@@ -20,7 +20,7 @@ In parallel, read:
 - Root `README.md` and `CONTRIBUTING.md` — sections mentioning "test", "lint", "typecheck", "build"
 - `CLAUDE.md`, `OPERATOR.md` — any existing documented test/lint commands
 - `claude-code-dev-hermit.*` fields from `.claude-code-hermit/config.json` — show currently persisted values
-- `package.json` `scripts.dev` / `scripts.start:dev` / `scripts.local:dev`, `composer.json` `scripts.serve` / `scripts.start` / `scripts.dev`, `Procfile.dev` / `bin/dev` / `artisan` (Laravel) / `bin/console` (Symfony) — dev-server start command signals
+- `package.json` `scripts.dev` / `scripts.start:dev` / `scripts.start`, `composer.json` `scripts.serve` / `scripts.start` / `scripts.dev`, `Procfile.dev` / `bin/dev` / `artisan` (Laravel) / `bin/console` (Symfony) — dev-server start command signals
 - `.infisical.json`, `.envrc`, `.op-secrets.json`, `.envrc.example` — auth/secrets tooling presence
 - `logs/`, `log/`, `var/log/`, `storage/logs/` directory listings — dev log file locations (date-suffixed Winston/Pino/structlog/Laravel-daily vs fixed Rails/Laravel-single/Symfony-Monolog)
 
@@ -56,7 +56,7 @@ Using everything read in step 1, propose:
 
 **Dev environment** — propose the dev-server setup. **Skip this entire block** for stacks where it doesn't apply (mobile dev, desktop apps, libraries, embedded). Indicators of "service-on-port" archetype: `package.json` has `scripts.dev`/`scripts.start:dev`, framework files (`next.config.*`, `nuxt.config.*`, `vite.config.*`, `manage.py`, `config/application.rb`, Spring `pom.xml`/`build.gradle`, `main.go` with HTTP serving, Laravel `artisan` + `routes/web.php`, Symfony `bin/console` + `composer.json` `symfony/framework-bundle`, generic PHP with `composer.json` + `index.php`, etc.).
 
-- **`commands.dev_start`** — scan `package.json#scripts` (priority order: `dev`, `start:dev`, `local:dev`, `start`); also check `composer.json#scripts` for `serve`/`start`/`dev`. Fall back to language defaults: `cargo run`, `bundle exec rails s`, `mvn spring-boot:run`, `python manage.py runserver`, `flask run`, `uvicorn main:app --reload`, `php artisan serve` (Laravel), `symfony serve --no-tls` (Symfony with the `symfony` CLI), `php -S localhost:8000 -t public` (vanilla PHP), `go run ./cmd/...`.
+- **`commands.dev_start`** — scan `package.json#scripts` (priority order: `dev`, `start:dev`, `start`); also check `composer.json#scripts` for `serve`/`start`/`dev`. Fall back to language defaults: `cargo run`, `bundle exec rails s`, `mvn spring-boot:run`, `python manage.py runserver`, `flask run`, `uvicorn main:app --reload`, `php artisan serve` (Laravel), `symfony serve --no-tls` (Symfony with the `symfony` CLI), `php -S localhost:8000 -t public` (vanilla PHP), `go run ./cmd/...`.
 - **`commands.dev_stop`** — leave null by default. Set to `docker compose down` if `docker-compose.yml` is the dev entry, `bin/dev stop` if `bin/dev` exists, or operator-supplied for supervisord/foreman.
 - **`dev_required_ports`** — parse the start command for `--port`/`-p N`/`PORT=N`; otherwise use language conventions: Next/Vite 3000, Nuxt 3000, Rails 3000, Django 8000, Flask 5000, FastAPI 8000, Spring 8080, Go conventional 8080, Laravel `artisan serve` 8000, Symfony 8000, vanilla PHP `-S` whatever the command pins (commonly 8000). Multi-port stacks (e.g., separate websocket): list all detected.
 - **`dev_health_url`** — leave null. We cannot probe candidate endpoints without booting the server, and a "low confidence proposal" forces an unproductive AskUserQuestion ("is /api/health the right URL?" — operator doesn't know without running it). `/dev-up` Gate 6 PASS-with-skips when this is null. The operator can fill it in later by editing `config.json` directly or re-running `/dev-adapt` after they've verified the endpoint manually. Do NOT include `dev_health_url` in the AskUserQuestion proposal — surface the recommendation in the report instead: "tip: once your dev server is running, set `dev_health_url` to the readiness endpoint (e.g. `/api/health`, `/healthz`, `/actuator/health`) so `/dev-up` can verify boot before returning."
@@ -227,11 +227,11 @@ dev-adapt complete
   protected:     main, staging
   commit_format: conventional          (42 of 50 recent commits match)
 
-  dev_start:     pnpm local:dev        (high — package.json scripts.local:dev)
+  dev_start:     npm run dev           (high — package.json scripts.dev)
   dev_ports:     [3000]                (Next.js conventional)
   dev_health:    /api/health           (low — operator confirm if endpoint exists)
   dev_log:       logs/app-$(date +%Y-%m-%d).log  (Winston daily transport)
-  dev_auth:      infisical secrets --silent >/dev/null
+  dev_auth:      direnv status | grep -q "Loaded RC"
 
   Written: .claude-code-hermit/compiled/dev-profile-2026-04-24.md
   Config:  .claude-code-hermit/config.json → claude-code-dev-hermit.* updated

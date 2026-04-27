@@ -159,7 +159,7 @@ Helper returns JSON `{ ok, status, elapsedMs, error? }` and exits 0 on 2xx, 1 on
 
 ```
 dev-up
-  start:    pnpm local:dev (commands.dev_start)
+  start:    npm run dev (commands.dev_start)
   ports:    3000 free, 4000 held by encore (allowed via dev_expected_listeners)
   monitor:  dev-server registered (session-scoped)
   health:   200 OK at http://localhost:3000/api/health (after 4123ms)

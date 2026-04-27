@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **`dev-adapt` and `dev-up` examples neutralized for OSS** — dropped `local:dev` from the `package.json#scripts` priority list (uncommon outside specific orgs); swapped worked-example output from `pnpm local:dev` / `infisical secrets ...` to `npm run dev` / `direnv status ...` so the docs read as plain conventions instead of personal tooling. Detection logic for Infisical/1Password/direnv unchanged — still proposes whichever marker file is present.
+
 ## [0.2.0] - 2026-04-27
 
 ### Added
