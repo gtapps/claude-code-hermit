@@ -33,8 +33,11 @@ Throughout the rest of this skill, `$PLUGIN_DIR` refers to `plugins/<slug>/`.
 
 Run before anything else. Abort the release if any step fails.
 
-1. **Run the native plugin validator from the repo root:**
-   Run `/plugin validate .` in the session. This validates the entire marketplace including all plugins under `plugins/`. If it reports any errors, stop and fix before releasing.
+1. **Run the native plugin validator (CLI form):**
+   ```bash
+   claude plugin validate plugins/<slug> 2>&1
+   ```
+   **Tolerate the known systemic rejection:** domain plugins (`claude-code-dev-hermit`, `claude-code-homeassistant-hermit`) carry hermit-internal manifest extensions (`required_core_version`, `requires`, `hermit`) that the native schema flags as `Unrecognized keys`. That single error is **expected and not a blocker** — these fields are documented in the project root `CLAUDE.md` as authoritative for the hermit runtime. Only stop the release if the validator reports any **other** error (missing required fields, malformed JSON, invalid version, etc.). The core plugin (`claude-code-hermit`) carries no extensions and should pass cleanly.
 
 2. **Run test suites for the target plugin.** Detect the convention and dispatch:
    - If `plugins/<slug>/tests/run-all.sh` exists (bash entrypoint, used by core hermit):
