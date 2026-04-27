@@ -19,7 +19,7 @@
   "requires": {
     "claude-code-hermit": ">=1.0.17"
   },
-  "dependencies": [{ "name": "claude-code-hermit", "version": ">=1.0.17" }],
+  "dependencies": [{ "name": "claude-code-hermit", "version": "^1.0.17" }],
   "hermit": {
     "boot_skill": "/claude-code-homeassistant-hermit:ha-boot"
   }

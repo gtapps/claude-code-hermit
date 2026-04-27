@@ -6,6 +6,24 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ### Changed
 
+- **docs: bump Claude Code prerequisite to v2.1.110+** — dep resolver and `claude plugin tag` both require v2.1.110+; operators on older versions can't install this plugin cleanly. Updated `README.md`.
+- **plugin.json: tighten `dependencies` range to `^1.0.17`** — caret range is the conventional semver signal for "tested against this major version, expect patch-compat"; was `>=1.0.17` (open-ended). `required_core_version` and `requires` remain `>=` for runtime minimum-version checks.
+- **remove per-plugin release skill** — `.claude/skills/release/SKILL.md` deleted; the root `/release claude-code-homeassistant-hermit` skill covers the full validation suite. Per-plugin skill was a lower-fidelity duplicate with zero audience.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `plugins/claude-code-homeassistant-hermit/README.md` | Prerequisite: v2.1.98+ → v2.1.110+ |
+| `plugins/claude-code-homeassistant-hermit/.claude-plugin/plugin.json` | `dependencies[0].version`: `>=1.0.17` → `^1.0.17` |
+| `plugins/claude-code-homeassistant-hermit/.claude/skills/release/SKILL.md` | Deleted |
+
+### Upgrade Instructions
+
+No operator action required.
+
+No `config.json` changes required.
+
 - **CLAUDE.md tightened for contributor audience** — dropped the "This Plugin" install block (duplicated in README) and the trailing "HA API references" section (URLs and gotcha consolidated into a new "HA API gotchas" section); promoted "Memory Conventions" directly under "Core Rules" (most non-obvious section in the plugin); promoted "Development constraints" from a nested bold heading to a top-level section so contributor pitfalls (`TOKEN` deny-pattern, fail-closed safety hook, namespaced-agent dispatch) are surfaced; added safety rationale to the sensitive-domains rule (real-world physical access, no software undo) and `garage_door`/`gate` edge-case prompt; replaced placeholder `"stale_term"` grep with `"<old-term>"`; tightened Plugin Structure and de-duplicated the test-runner line. Net −38 lines.
 - **plugin.json: native `dependencies` field added** — `dependencies: [{ name: "claude-code-hermit", version: ">=1.0.17" }]` enables Claude Code's native dependency resolver to auto-install core; the hermit-internal `requires` field remains for runtime version gating.
 - **release skill: double-dash tag format** — tag step now uses `claude plugin tag --push` (produces `claude-code-homeassistant-hermit--vX.Y.Z`); `git tag vNEW` removed.

@@ -47,7 +47,7 @@ Three steps to a running 24/7 Home Assistant hermit:
 
 ## Quick Start
 
-> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.98+, a paid Claude plan (Pro, Max, Teams, or Enterprise), Python 3.12+, and a running [Home Assistant](https://www.home-assistant.io/) instance with the Official [MCP Server](https://www.home-assistant.io/integrations/mcp_server/)  & [API](https://www.home-assistant.io/integrations/api/) integration enabled and a Long-Lived Access Token (create one under `/profile/security` on your HA instance).
+> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.110+, a paid Claude plan (Pro, Max, Teams, or Enterprise), Python 3.12+, and a running [Home Assistant](https://www.home-assistant.io/) instance with the Official [MCP Server](https://www.home-assistant.io/integrations/mcp_server/)  & [API](https://www.home-assistant.io/integrations/api/) integration enabled and a Long-Lived Access Token (create one under `/profile/security` on your HA instance).
 
 ### 1. Install
 
