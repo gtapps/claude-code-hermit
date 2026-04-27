@@ -6,6 +6,7 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ### Changed
 
+- **CLAUDE.md tightened for contributor audience** — dropped the "This Plugin" install block (duplicated in README) and the trailing "HA API references" section (URLs and gotcha consolidated into a new "HA API gotchas" section); promoted "Memory Conventions" directly under "Core Rules" (most non-obvious section in the plugin); promoted "Development constraints" from a nested bold heading to a top-level section so contributor pitfalls (`TOKEN` deny-pattern, fail-closed safety hook, namespaced-agent dispatch) are surfaced; added safety rationale to the sensitive-domains rule (real-world physical access, no software undo) and `garage_door`/`gate` edge-case prompt; replaced placeholder `"stale_term"` grep with `"<old-term>"`; tightened Plugin Structure and de-duplicated the test-runner line. Net −38 lines.
 - **plugin.json: native `dependencies` field added** — `dependencies: [{ name: "claude-code-hermit", version: ">=1.0.17" }]` enables Claude Code's native dependency resolver to auto-install core; the hermit-internal `requires` field remains for runtime version gating.
 - **release skill: double-dash tag format** — tag step now uses `claude plugin tag --push` (produces `claude-code-homeassistant-hermit--vX.Y.Z`); `git tag vNEW` removed.
 - **release skill: branch-agnostic push** — branch push uses plain `git push` so releases from non-main branches work correctly.
