@@ -27,6 +27,7 @@
 - **manifest: move hermit-internal fields to `hermit-meta.json` sidecar.** `required_core_version` and `requires` removed from `plugin.json` so `claude plugin tag --push` passes the native validator cleanly.
 - **Prerequisite bumped to Claude Code v2.1.110+** — required by `claude plugin tag` and the dep resolver. Updated `docs/HOW-TO-USE.md`, `CONTRIBUTING.md`.
 - **Per-plugin release skill removed** — root `/release claude-code-dev-hermit` covers the full validation suite; per-plugin skill was a lower-fidelity duplicate.
+- **core requirement bumped to `>=1.0.21` / `^1.0.21`** — was `>=1.0.18` / `^1.0.18`. Aligns the dev plugin with the upcoming core release. `required_core_version` + `requires` (in `hermit-meta.json`) and `dependencies[0].version` (in `plugin.json`) all bumped together. Updated `README.md` (badge + Prerequisites), `CLAUDE.md` (Depends On), `CONTRIBUTING.md` (also clears stale `v1.0.16+` reference).
 
 ### Files affected
 
@@ -55,6 +56,11 @@
 | `CONTRIBUTING.md` | Prerequisite: v2.1.80+ → v2.1.110+ |
 | `.claude-plugin/plugin.json` | `dependencies` array added; range tightened to `^1.0.18` |
 | `.claude/skills/release/SKILL.md` | Deleted: superseded by root `/release` skill |
+| `.claude-plugin/hermit-meta.json` | `required_core_version` + `requires`: `>=1.0.18` → `>=1.0.21` |
+| `.claude-plugin/plugin.json` | `dependencies[0].version`: `^1.0.18` → `^1.0.21` |
+| `README.md` | Badge + Prerequisites line: `v1.0.18+` → `v1.0.21+` |
+| `CLAUDE.md` | Depends On: `v1.0.18+` → `v1.0.21+` |
+| `CONTRIBUTING.md` | Prereq: `v1.0.16+` → `v1.0.21+` (stale) |
 
 ### Upgrade Instructions
 
