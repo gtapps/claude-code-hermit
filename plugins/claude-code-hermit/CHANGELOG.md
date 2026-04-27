@@ -4,6 +4,7 @@
 
 ### Changed
 
+- **doctor-check: read `required_core_version` from `hermit-meta.json` sidecar with fallback to `plugin.json`.** Domain plugins now store hermit-internal manifest fields in a validator-invisible sidecar so `claude plugin tag --push` passes cleanly; fallback keeps unmigrated plugins working.
 - **docs: bump Claude Code prerequisite to v2.1.110+.** The dependency resolver and `claude plugin tag` both require v2.1.110+; operators on v2.1.98–v2.1.109 would hit a broken install flow. Updated across `docs/how-to-use.md`, `docs/always-on.md`, `docs/always-on-ops.md`, and `skills/channel-responder/SKILL.md`.
 
 ### Files affected

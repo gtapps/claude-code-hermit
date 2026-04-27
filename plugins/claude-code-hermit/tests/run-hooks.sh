@@ -455,15 +455,18 @@ cleanup
 
 # -------------------------------------------------------
 # 47. Sibling manifest invariant — required_core_version vs requires.claude-code-hermit agree
-# Walks live monorepo plugins/*/.claude-plugin/plugin.json. Skips plugins missing either field.
+# Checks both plugin.json (legacy layout) and hermit-meta.json (sidecar layout).
+# Skips plugins missing either field in whichever source they use.
 # -------------------------------------------------------
 run_test "sibling manifests: required_core_version vs requires consistency" bash -c '
   for pj in "$1"/plugins/*/.claude-plugin/plugin.json; do
     [ -f "$pj" ] || continue
-    rcv=$(jq -r ".required_core_version // empty" "$pj")
-    req=$(jq -r ".requires[\"claude-code-hermit\"] // empty" "$pj")
+    meta="$(dirname "$pj")/hermit-meta.json"
+    src="$pj"; [ -f "$meta" ] && src="$meta"
+    rcv=$(jq -r ".required_core_version // empty" "$src")
+    req=$(jq -r ".requires[\"claude-code-hermit\"] // empty" "$src")
     if [ -n "$rcv" ] && [ -n "$req" ] && [ "$rcv" != "$req" ]; then
-      echo "MISMATCH in $pj: required_core_version=$rcv requires.claude-code-hermit=$req" >&2
+      echo "MISMATCH in $src: required_core_version=$rcv requires.claude-code-hermit=$req" >&2
       exit 1
     fi
   done
@@ -546,6 +549,23 @@ cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
 EOF
 run_test "checkDependencies (unrecognized range → ok pass-through)" bash -c \
   "CLAUDE_PLUGIN_ROOT='$workdir/plugins/claude-code-hermit' node '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='dependencies'][0]; assert d['status']=='ok', d\""
+cleanup
+
+# -------------------------------------------------------
+# 53. checkDependencies — required_core_version in hermit-meta.json sidecar (not plugin.json) → read correctly
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+mkdir -p "$workdir/plugins/claude-code-hermit/.claude-plugin" "$workdir/plugins/example-sibling/.claude-plugin"
+echo '{"name":"claude-code-hermit","version":"1.0.20"}' > "$workdir/plugins/claude-code-hermit/.claude-plugin/plugin.json"
+echo '{"name":"example-sibling","version":"0.1.0"}' > "$workdir/plugins/example-sibling/.claude-plugin/plugin.json"
+echo '{"required_core_version":">=1.0.0","requires":{"claude-code-hermit":">=1.0.0"}}' > "$workdir/plugins/example-sibling/.claude-plugin/hermit-meta.json"
+mkdir -p "$workdir/.claude-code-hermit/proposals"
+cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
+{"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[]}
+EOF
+run_test "checkDependencies (required_core_version in hermit-meta.json sidecar → ok)" bash -c \
+  "CLAUDE_PLUGIN_ROOT='$workdir/plugins/claude-code-hermit' node '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='dependencies'][0]; assert d['status']=='ok' and 'within' in d['detail'], d\""
 cleanup
 
 # -------------------------------------------------------
