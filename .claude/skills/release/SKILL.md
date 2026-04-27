@@ -148,6 +148,7 @@ Update the version string in:
 - `plugins/<slug>/.claude-plugin/plugin.json` → `"version"` field
 - `.claude-plugin/marketplace.json` → find the entry in `plugins[]` where `"name" == "<slug>"` and update its `"version"` field. Other plugin entries are untouched.
 - `plugins/<slug>/README.md` → version badge if present: both the `img.shields.io` URL slug (`version-X.Y.Z-green.svg`) and the `alt` text (`Version X.Y.Z`). Confirm with `grep "version-" plugins/<slug>/README.md` that the new version appears and the old one does not. Skip silently if the README has no version badge.
+- If `<slug>` is `claude-code-hermit`: also update the root `README.md` badge — `version-OLD-green.svg` → `version-NEW-green.svg` and `Version OLD` → `Version NEW`. This is the only plugin whose version the root README tracks.
 
 After editing, verify the manifest and marketplace are in sync — the plugin manifest wins silently if they differ:
 ```bash
