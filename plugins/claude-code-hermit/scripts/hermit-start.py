@@ -330,7 +330,7 @@ def build_claude_command(config, tools):
                 print('[hermit] Aborted. Change permission_mode in config.json or use a container.')
                 sys.exit(1)
         cmd.append('--dangerously-skip-permissions')
-    elif mode in ('acceptEdits', 'plan', 'dontAsk'):
+    elif mode in ('acceptEdits', 'plan', 'dontAsk', 'auto'):
         cmd.extend(['--permission-mode', mode])
     elif mode not in ('default', None):
         print(f'[hermit] WARNING: unknown permission_mode "{mode}" — skipping (using default)')

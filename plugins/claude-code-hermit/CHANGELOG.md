@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **`auto` permission mode added to `/hatch` and `/hermit-settings permissions`.** `hermit-start.py` now passes `--permission-mode auto` to Claude Code instead of treating it as an unknown mode. Max plan requires Opus 4.7; Team/Enterprise/API plans support Sonnet 4.6 or Opus 4.6/4.7. Replaces the outdated "Teams/Enterprise only" note. Not available on Pro, Haiku, or non-Anthropic providers (Bedrock/Vertex/Foundry).
+- **Channel-setup discoverability: three deployment modes mapped explicitly in hatch and channel-setup.** Hatch Phase 5 channel-save note now names all three modes (Docker/tmux/interactive) with their activation paths. Hatch Step 10 next-steps restructured into "Pick a mode / After picking / Anytime" groups so `/channel-setup` is visible for tmux and interactive users instead of buried at item 8. `channel-setup` step 1 gains a Docker-mode guard: reads `state/runtime.json` and redirects to `/docker-setup` if `runtime_mode == "docker"`, with a fallback check for `docker/Dockerfile.hermit` for scaffolded-but-unbooted projects. `hermit-settings channels add` note updated to mention both setup paths.
+
 ## [1.0.21] - 2026-04-27
 
 ### Changed

@@ -63,7 +63,7 @@ Operational:
   Idle budget:     $0.50          → any dollar amount (e.g. $0.25, $1.00)
   Heartbeat:       disabled       → yes | no  (interval, show_ok, active hours, stale threshold)
   Routines:        2 configured   → run: /claude-code-hermit:hermit-settings routines
-  Permission mode: acceptEdits    → default | acceptEdits | plan | dontAsk | bypassPermissions
+  Permission mode: acceptEdits    → default | acceptEdits | auto | plan | dontAsk | bypassPermissions
   Auto session:    enabled        → read-only
   Boot skill:      /claude-code-hermit:session  → any namespaced skill | 'none' to reset to default
   tmux name:       hermit-myproject → read-only
@@ -126,7 +126,7 @@ Channels:
 ```
 Ask: "Add, remove, or edit a channel? (add discord / add telegram / remove <name> / edit <name> / done) [done]"
 Loop until operator says "done":
-- **add <name>:** Create entry `channels.<name>: { "enabled": true, "dm_channel_id": null }`. Prompt for `allowed_users` (paste user ID or skip) and `state_dir` (relative or absolute path — defaults to `.claude.local/channels/<name>`). Set `state_dir` in the channel entry. Note: "Run `/claude-code-hermit:docker-setup` to configure the channel token."
+- **add <name>:** Create entry `channels.<name>: { "enabled": true, "dm_channel_id": null }`. Prompt for `allowed_users` (paste user ID or skip) and `state_dir` (relative or absolute path — defaults to `.claude.local/channels/<name>`). Set `state_dir` in the channel entry. Note: "Configure the channel token next: Docker → `/claude-code-hermit:docker-setup`; tmux or interactive → `/claude-code-hermit:channel-setup`."
 - **remove <name>:** Delete `channels.<name>` from config.json.
 - **edit <name>:** Sub-menu — "What to change? (allowed_users / morning_brief / enabled / done)"
   - **allowed_users:** "Paste user IDs (space-separated), or 'clear' to allow everyone, or 'block' for empty array." Update `channels.<name>.allowed_users`.
@@ -176,14 +176,14 @@ Update `boot_skill` in config.json. Set to `null` if operator says "none", "defa
 Note: "Boot skill changes take effect on next `hermit-start` run."
 
 **If argument is "permissions":**
-Ask: "Permission mode for Claude Code? (default / acceptEdits / plan / dontAsk / bypassPermissions) [current value]"
+Ask: "Permission mode for Claude Code? (default / acceptEdits / auto / plan / dontAsk / bypassPermissions) [current value]"
 - `default` — prompts for permission on first use of each tool
 - `acceptEdits` — auto-approves file edits, prompts for shell commands (default)
+- `auto` — autonomous mode; a classifier reviews each action before it runs. Max plan → Opus 4.7 only. Team/Enterprise/API → Sonnet 4.6 or Opus 4.6/4.7. Not available on Pro, Haiku, or non-Anthropic providers.
 - `plan` — read-only exploration, no file modifications or shell commands
 - `dontAsk` — denies all tools not in `permissions.allow`; requires a curated allowlist in `settings.json`
 - `bypassPermissions` — no checks; isolated containers/VMs only
-- Note: `auto` mode exists but is only available for Teams and Enterprise accounts
-- See [Permission Modes](https://code.claude.com/docs/en/permission-modes)
+- Note: `auto` may report "unavailable" at launch if your plan/model/provider doesn't qualify — see [Permission Modes](https://code.claude.com/docs/en/permission-modes)
 Update `permission_mode` in config.json.
 
 **If argument is "heartbeat":**

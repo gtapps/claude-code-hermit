@@ -10,6 +10,15 @@ Activate a channel configured in `config.json` for local/tmux operation. This mi
 
 ### 1. Read config and detect channels
 
+**Docker check (first):** read `.claude-code-hermit/state/runtime.json` if it exists.
+
+- If `runtime_mode == "docker"`: stop and redirect —
+  > This project is running in Docker. Channel token and pairing must happen inside the container, not on the host.
+  > Run `/claude-code-hermit:docker-setup` — it configures channels container-side.
+  Stop.
+- If `runtime.json` is missing AND `.claude-code-hermit/docker/Dockerfile.hermit` exists (Docker scaffolded but not yet booted): same redirect.
+- Otherwise: proceed.
+
 Read `.claude-code-hermit/config.json`. Collect all entries under `channels` that are valid objects.
 
 - If no channels configured: tell the operator — "No channels in config.json. Run `/claude-code-hermit:hatch` or `/claude-code-hermit:hermit-settings channels` to add one first." Stop.

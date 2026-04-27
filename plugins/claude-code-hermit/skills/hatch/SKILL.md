@@ -237,10 +237,11 @@ questions: [
 - **If Discord or Telegram:** create a channel entry under the `channels` object (e.g., `channels.discord`). Boot script maps the key to the full plugin identifier. Then ask follow-ups below.
 - Channel plugins require Bun and manual setup (bot creation, token, pairing). After saving the preference to `config.json`, note:
 
-  > **Channel preference saved.**
+  > **Channel preference saved.** Activation depends on how you run hermit:
   >
-  > - Local/tmux: run `/claude-code-hermit:channel-setup` to activate it (installs plugin, configures token, guides pairing).
-  > - Docker: `/claude-code-hermit:docker-setup` handles channels automatically.
+  > - **Docker (always-on):** `/claude-code-hermit:docker-setup` configures the token and pairing inside the container.
+  > - **tmux (always-on, host):** boot with `.claude-code-hermit/bin/hermit-start` (passes `--channels` automatically), then run `/claude-code-hermit:channel-setup` to set the token and pair.
+  > - **Interactive (just trying it):** run `/claude-code-hermit:channel-setup` for token + pairing, then restart with `claude --channels plugin:<channel>@claude-plugins-official` so the channel is active in your session.
   > - Full guide: https://code.claude.com/docs/en/channels
 
 **Channel follow-ups (only if Discord or Telegram was selected above — AskUserQuestion batch, 2 questions):**
@@ -277,8 +278,9 @@ questions: [
     header: "Permissions",
     question: "Permission mode for Claude Code?",
     options: [
-      { label: "bypassPermissions", description: "No permission prompts. Best for true always-on use in isolated, trusted environments (Docker)" },
       { label: "acceptEdits", description: "Auto-approve file edits, prompt for shell commands. Good balance for semi-autonomous use." },
+      { label: "auto", description: "Classifier-reviewed autonomy — each action reviewed before it runs. Requires Max, Team, or Enterprise plan (not Pro/Haiku)." },
+      { label: "bypassPermissions", description: "No permission prompts. Best for true always-on use in isolated, trusted environments (Docker)" },
       { label: "default", description: "Prompt for permission on first use of each tool" },
       { label: "dontAsk", description: "Deny all tools not in permissions.allow — requires curated allowlist" }
     ]
@@ -302,7 +304,7 @@ questions: [
 ]
 ```
 
-Record: `permission_mode` (default/acceptEdits/plan/dontAsk/bypassPermissions), `scope` (`"local"` or `"project"`). `plan` mode can be typed via Other if needed.
+Record: `permission_mode` (default/acceptEdits/auto/plan/dontAsk/bypassPermissions), `scope` (`"local"` or `"project"`). `plan` mode can be typed via Other if needed.
 
 For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, `end = 23:00`) to derive morning = `08:30` and evening = `22:30`. Add to `routines` array:
 
@@ -660,15 +662,22 @@ Updated:
   .claude/settings.json — plugin permissions added
 
 Next steps:
-  1. Run /reload-plugins to pick up newly installed plugins in this session
-  2. For always-on mode: /claude-code-hermit:docker-setup (Recommended) or .claude-code-hermit/bin/hermit-start (requires tmux)
-  3. If you just want to try it out: /claude-code-hermit:session
-  4. Refine OPERATOR.md anytime — just tell me what changed
-  5. Change settings with /claude-code-hermit:hermit-settings
-  6. For an Obsidian dashboard: /claude-code-hermit:obsidian-setup
 
-  7. After plugin updates: /claude-code-hermit:hermit-evolve
-  8. (If a channel was configured and you are not running via docker) Activate it: /claude-code-hermit:channel-setup
-  9. To troubleshoot any setup issues run /claude-code-hermit:smoke-test
+  Pick how you'll run hermit:
+    A. Docker always-on (recommended)   /claude-code-hermit:docker-setup
+    B. tmux always-on (host)            .claude-code-hermit/bin/hermit-start
+    C. Interactive — try it now         /claude-code-hermit:session
+
+  After picking:
+    - /reload-plugins                       load newly installed plugins in this session
+    - /claude-code-hermit:channel-setup     if a channel was configured AND you chose B or C
+                                              (A handles channels inside docker-setup)
+    - /claude-code-hermit:obsidian-setup    optional Obsidian dashboard
+
+  Anytime:
+    - /claude-code-hermit:hermit-settings   change settings
+    - /claude-code-hermit:hermit-evolve     after plugin updates
+    - /claude-code-hermit:smoke-test        troubleshoot setup
+    - Refine OPERATOR.md — just tell me what changed
 
 ```
