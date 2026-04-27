@@ -1,6 +1,6 @@
 {
   "name": "claude-code-dev-hermit",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "required_core_version": ">=1.0.18",
   "requires": {
     "claude-code-hermit": ">=1.0.18"
