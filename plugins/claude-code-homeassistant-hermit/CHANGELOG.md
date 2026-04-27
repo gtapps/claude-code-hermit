@@ -2,38 +2,32 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
-## [Unreleased]
+## [0.0.6] - 2026-04-27
 
 ### Changed
 
-- **docs: bump Claude Code prerequisite to v2.1.110+** — dep resolver and `claude plugin tag` both require v2.1.110+; operators on older versions can't install this plugin cleanly. Updated `README.md`.
-- **plugin.json: tighten `dependencies` range to `^1.0.17`** — caret range is the conventional semver signal for "tested against this major version, expect patch-compat"; was `>=1.0.17` (open-ended).
-- **manifest: move hermit-internal fields to `hermit-meta.json` sidecar.** `required_core_version`, `requires`, and `hermit.boot_skill` removed from `plugin.json` so `claude plugin tag --push` passes the native validator cleanly.
-- **remove per-plugin release skill** — `.claude/skills/release/SKILL.md` deleted; the root `/release claude-code-homeassistant-hermit` skill covers the full validation suite. Per-plugin skill was a lower-fidelity duplicate with zero audience.
-- **README architecture diagram: core version pin updated to `≥ 1.0.17`** — was a stale `≥ 1.0.15` left over from the v0.0.4 bump.
-- **plugin.json + hermit-meta.json: bump core requirement to `>=1.0.21` / `^1.0.21`** — was `>=1.0.17` / `^1.0.17`. Aligns the HA plugin with the upcoming core release. `required_core_version`, `requires.claude-code-hermit` (in `hermit-meta.json`), and `dependencies[0].version` (in `plugin.json`) all bumped together. Updated `README.md` architecture diagram.
+- **manifest: migrate hermit-internal fields to `hermit-meta.json` sidecar** — `required_core_version`, `requires`, and `hermit.boot_skill` moved out of `plugin.json` so `claude plugin validate` and `claude plugin tag --push` pass the native validator cleanly.
+- **deps: bump core requirement to `>=1.0.21` / `^1.0.21`** — was `>=1.0.17`; `required_core_version` and `requires.claude-code-hermit` in `hermit-meta.json` and `dependencies[0].version` in `plugin.json` all updated together.
+- **plugin.json: native `dependencies` field added** — enables Claude Code's native dependency resolver to auto-install core; hermit-internal `requires` field remains for runtime version gating.
+- **docs: Claude Code prerequisite raised to v2.1.110+** — dep resolver and `claude plugin tag` both require v2.1.110+.
+- **docs: CLAUDE.md tightened for contributor audience** — install block removed (duplicated in README); development constraints promoted to a top-level section; safety rationale added to sensitive-domains rule.
 
 ### Files affected
 
 | File | Change |
 |------|--------|
-| `plugins/claude-code-homeassistant-hermit/README.md` | Prerequisite: v2.1.98+ → v2.1.110+; architecture block core pin: `≥ 1.0.15` → `≥ 1.0.17` |
-| `plugins/claude-code-homeassistant-hermit/.claude-plugin/plugin.json` | `dependencies[0].version`: `>=1.0.17` → `^1.0.17` |
-| `plugins/claude-code-homeassistant-hermit/.claude/skills/release/SKILL.md` | Deleted |
-| `plugins/claude-code-homeassistant-hermit/.claude-plugin/hermit-meta.json` | `required_core_version` + `requires`: `>=1.0.17` → `>=1.0.21` |
-| `plugins/claude-code-homeassistant-hermit/.claude-plugin/plugin.json` | `dependencies[0].version`: `^1.0.17` → `^1.0.21` |
-| `plugins/claude-code-homeassistant-hermit/README.md` | Architecture core pin: `≥ 1.0.17` → `≥ 1.0.21` |
+| `.claude-plugin/hermit-meta.json` | Hermit-internal fields migrated here; `required_core_version` + `requires` bumped to `>=1.0.21` |
+| `.claude-plugin/plugin.json` | Hermit-internal fields removed; `dependencies` field added; version bumped to `^1.0.21` |
+| `README.md` | Prereq `v2.1.98+` → `v2.1.110+`; architecture core pin updated to `≥ 1.0.21` |
+| `CLAUDE.md` | Contributor docs restructured; stale version references corrected |
 
 ### Upgrade Instructions
 
-Operators on core `<1.0.21` should upgrade core first (`/claude-code-hermit:hermit-evolve`); `hermit-doctor` will flag the gap until core is at `>=1.0.21`.
+Run `/claude-code-hermit:hermit-evolve`. No file changes required for this release.
+
+**Note:** Operators on core `<1.0.21` should upgrade core first; `hermit-doctor` will flag the version gap.
 
 No `config.json` changes required.
-
-- **CLAUDE.md tightened for contributor audience** — dropped the "This Plugin" install block (duplicated in README) and the trailing "HA API references" section (URLs and gotcha consolidated into a new "HA API gotchas" section); promoted "Memory Conventions" directly under "Core Rules" (most non-obvious section in the plugin); promoted "Development constraints" from a nested bold heading to a top-level section so contributor pitfalls (`TOKEN` deny-pattern, fail-closed safety hook, namespaced-agent dispatch) are surfaced; added safety rationale to the sensitive-domains rule (real-world physical access, no software undo) and `garage_door`/`gate` edge-case prompt; replaced placeholder `"stale_term"` grep with `"<old-term>"`; tightened Plugin Structure and de-duplicated the test-runner line. Net −38 lines.
-- **plugin.json: native `dependencies` field added** — `dependencies: [{ name: "claude-code-hermit", version: ">=1.0.17" }]` enables Claude Code's native dependency resolver to auto-install core; the hermit-internal `requires` field remains for runtime version gating.
-- **release skill: double-dash tag format** — tag step now uses `claude plugin tag --push` (produces `claude-code-homeassistant-hermit--vX.Y.Z`); `git tag vNEW` removed.
-- **release skill: branch-agnostic push** — branch push uses plain `git push` so releases from non-main branches work correctly.
 
 ## [0.0.5] — 2026-04-27
 
