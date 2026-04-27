@@ -57,21 +57,27 @@ This repo is a multi-plugin marketplace. The catalog lives at the repo root in `
 
 To add a first-party (pattern 1) hermit:
 
-1. Create `plugins/<your-hermit>/` with `.claude-plugin/plugin.json` (set `name`, `version`, `description`, `author`, `required_core_version`).
+1. Create `plugins/<your-hermit>/` with `.claude-plugin/plugin.json` (set `name`, `version`, `description`, `author`) and `.claude-plugin/hermit-meta.json` (set `required_core_version`, `requires`).
 2. Add the matching entry to the root `.claude-plugin/marketplace.json` `plugins[]` array — keep `name`, `version`, and the URL fields in sync.
 3. Add `tests/run-all.sh` if you have tests (see the per-plugin runner pattern below).
 4. Cut releases via `/release <your-hermit>` — the skill bumps versions in both manifest and marketplace, tags as `<your-hermit>-vX.Y.Z`, and pushes.
 
 ## The `required_core_version` Convention
 
-Every plugin in this fleet that depends on the core hermit declares a semver-range string in its `plugin.json`:
+Every plugin in this fleet that depends on the core hermit declares three version fields that must stay in sync:
 
+**`.claude-plugin/hermit-meta.json`** (hermit-internal; not validated by `claude plugin tag`):
 ```json
 "required_core_version": ">=1.0.21",
 "requires": { "claude-code-hermit": ">=1.0.21" }
 ```
 
-`required_core_version` is the canonical fleet contract. It is read by the core plugin's `hermit-doctor` (the `dependencies` check), `smoke-test`, and `hermit-evolve`, and by external/third-party hermits that live outside this monorepo. The parallel `requires.claude-code-hermit` field mirrors it — the two must agree, and `tests/run-hooks.sh` enforces this on every CI run (test `sibling manifests: required_core_version vs requires consistency`). When you bump one, bump both.
+**`.claude-plugin/plugin.json`** (native Claude Code resolver field):
+```json
+"dependencies": [{ "name": "claude-code-hermit", "version": "^1.0.21" }]
+```
+
+`required_core_version` is the canonical fleet contract. It is read by the core plugin's `hermit-doctor` (the `dependencies` check), `smoke-test`, and `hermit-evolve`, and by external/third-party hermits that live outside this monorepo. The parallel `requires.claude-code-hermit` field mirrors it — the two must agree, and `tests/run-hooks.sh` enforces this on every CI run (test `sibling manifests: required_core_version vs requires consistency`). When you bump one, bump all three.
 
 ## Per-Plugin Test Runner Pattern
 
