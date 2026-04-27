@@ -1,5 +1,26 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **docs: bump Claude Code prerequisite to v2.1.110+.** The dependency resolver and `claude plugin tag` both require v2.1.110+; operators on v2.1.98–v2.1.109 would hit a broken install flow. Updated across `docs/how-to-use.md`, `docs/always-on.md`, `docs/always-on-ops.md`, and `skills/channel-responder/SKILL.md`.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `plugins/claude-code-hermit/docs/how-to-use.md` | Claude Code prerequisite: v2.1.98+ → v2.1.110+ |
+| `plugins/claude-code-hermit/docs/always-on.md` | Claude Code prerequisite: v2.1.98+ → v2.1.110+ |
+| `plugins/claude-code-hermit/docs/always-on-ops.md` | Claude Code prerequisite: v2.1.98+ → v2.1.110+ |
+| `plugins/claude-code-hermit/skills/channel-responder/SKILL.md` | Channels preview version note: v2.1.98+ → v2.1.110+ |
+
+### Upgrade Instructions
+
+No operator action required — documentation update only.
+
+No `config.json` changes required.
+
 ## [1.0.20] - 2026-04-26
 
 ### Changed

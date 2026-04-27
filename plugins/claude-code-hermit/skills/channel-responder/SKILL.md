@@ -114,7 +114,7 @@ This is how the agent learns the DM channel ID for proactive outbound notificati
 
 ## Note
 
-This skill is a stub for the Channels research preview (Claude Code v2.1.98+). As Channels matures, extend this skill with:
+This skill is a stub for the Channels research preview (Claude Code v2.1.110+). As Channels matures, extend this skill with:
 
 - Platform-specific formatting (Telegram markdown vs Discord markdown)
 - Rich responses (buttons, inline keyboards)
