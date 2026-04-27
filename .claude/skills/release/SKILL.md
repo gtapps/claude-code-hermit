@@ -37,7 +37,7 @@ Run before anything else. Abort the release if any step fails.
    ```bash
    claude plugin validate plugins/<slug> 2>&1
    ```
-   All domain plugins store hermit-internal fields (`required_core_version`, `requires`, `hermit.*`) in `.claude-plugin/hermit-meta.json`, not `plugin.json`. All three plugins should now pass the native validator cleanly. If the validator reports `Unrecognized keys`, a plugin has not completed its hermit-meta.json migration — fix that before releasing. Only stop the release if the validator reports any **other** error (missing required fields, malformed JSON, invalid version, etc.).
+   Abort on any error other than `Unrecognized keys` — that one means an incomplete hermit-meta.json migration; fix the migration elsewhere, then resume. Background on the migration lives in each plugin's `CONTRIBUTING.md`.
 
 2. **Run test suites for the target plugin.** Detect the convention and dispatch:
    - If `plugins/<slug>/tests/run-all.sh` exists (bash entrypoint, used by core hermit):
@@ -60,12 +60,7 @@ Run before anything else. Abort the release if any step fails.
    - State-template JSON files parse correctly
    - `config.json.template` keys are in sync with `DEFAULT_CONFIG` in `plugins/<slug>/scripts/hermit-start.py` (core only)
 
-4. **Check for stale references** — if new skills, agents, or hooks were added since the last release of this plugin:
-   - Verify they appear in `plugins/<slug>/CLAUDE.md` quick reference and subagent table
-   - Verify they appear in `plugins/<slug>/state-templates/CLAUDE-APPEND.md` quick reference (if that file exists for this plugin)
-   - Verify `plugins/<slug>/docs/skills.md` lists them (if that doc exists)
-
-If the auditor reports any FAIL, fix before proceeding. WARNs are acceptable if justified.
+If the auditor reports any FAIL, fix before proceeding. WARNs are acceptable if justified. Stale-reference detection-and-fix is consolidated into Step 4 below.
 
 ### 2. Determine version bump
 
@@ -111,13 +106,13 @@ No `config.json` changes required.
 
 **Template constraints (enforce these):**
 
-1. **Narrative bullets (Added / Changed / Fixed)** — each bullet is ONE line, ≤25 words, in this shape:
-   `- **component: what changed** — ≤1 sentence of rationale (optional, only if non-obvious).`
+1. **Narrative bullets (Added / Changed / Fixed)** — open with a one-line summary in this shape:
+   `- **component: what changed** — short rationale.`
+   Expand only when an operator running `/hermit-evolve` would be surprised without the context — fixes that cross subsystems, change runtime behavior, or require a non-obvious migration earn paragraphs (and may include shell snippets for manual recovery). Cosmetic fixes, copy tweaks, and refactors do not.
    - Lead with the component or subsystem (`reflect:`, `session-mgr:`, `hermit-docker:`).
    - Do NOT list internal refactors, helper extractions, test scaffolding, or renamed variables — those are visible in `git diff`.
    - Do NOT repeat what `Files affected` already shows.
-   - Do NOT narrate root cause at length. Fixes describe the behavior change, not the 4-paragraph debugging story.
-   - If a change genuinely needs more context, link a commit hash. Don't inline it.
+   - The test for "does this earn extra detail" is operator impact, not author effort. A 4-paragraph debugging story rarely passes; a 4-paragraph recovery procedure often does.
 
 2. **Upgrade Instructions** — strict imperative block:
    - Every step starts with a verb (`Add`, `Replace`, `Copy`, `Run`, `Delete`, `Refresh`).
@@ -135,15 +130,16 @@ No `config.json` changes required.
 
 **The Upgrade Instructions section is the most important part.** The evolve skill reads this to know what actions to take for each hermit. Non-imperative steps cause evolve to misparse or skip them.
 
-### 4. Update CLAUDE.md and CLAUDE-APPEND references
+### 4. Refresh references
 
-If new skills, agents, or hooks were added in this release:
+For each new skill, agent, or hook added since the last release of this plugin, detect missing entries and add them in one pass:
 
-- Add new skills to the `plugins/<slug>/CLAUDE.md` quick reference list and `plugins/<slug>/state-templates/CLAUDE-APPEND.md` quick reference (if that template exists for this plugin)
-- Add new agents to the `plugins/<slug>/CLAUDE.md` subagent table
-- Update hook descriptions in `plugins/<slug>/CLAUDE.md` if the hook surface area changed significantly
+- `plugins/<slug>/CLAUDE.md` quick reference list (skills) and subagent table (agents)
+- `plugins/<slug>/state-templates/CLAUDE-APPEND.md` quick reference (if the template exists for this plugin)
+- `plugins/<slug>/docs/skills.md` (if the doc exists)
+- Hook descriptions in `plugins/<slug>/CLAUDE.md` if the hook surface area changed
 
-Skip this step if no new components were added.
+Skip the step entirely if nothing was added. The release-auditor (Step 1.3) covers structural integrity; this step is about narrative references.
 
 ### 5. Bump version in all locations
 
@@ -162,10 +158,15 @@ Both must print the same string. If they differ, fix `.claude-plugin/marketplace
 
 ### 6. Final validation
 
-Run tests one more time to confirm nothing broke during the changelog/version edits. Use the same dispatch as step 1.2:
-- Bash entrypoint: `bash plugins/<slug>/tests/run-all.sh 2>&1 | tail -6`
-- Pytest: `cd plugins/<slug> && .venv/bin/pytest tests/ -v 2>&1 | tail -6`
-- Neither: no recognized test convention → skip and note in the release report.
+Steps 3–5 only edit Markdown and JSON, so re-running the test suite is unnecessary. Confirm:
+
+```bash
+jq -e . plugins/<slug>/.claude-plugin/plugin.json > /dev/null
+jq -e . .claude-plugin/marketplace.json > /dev/null
+git status --short
+```
+
+Both `jq` checks must succeed and `git status` must show only the files this release touched (CHANGELOG, plugin.json, marketplace.json, optional CLAUDE.md / README badge / state-templates updates). Any unexpected entry → investigate before committing.
 
 ### 7. Commit and push
 
@@ -177,18 +178,18 @@ Stage only the changed files (not `git add -A`). Commit with:
 
 Push to origin.
 
-### 7a. Branch check before tagging
+### 8. Branch check before tagging
 
 Run `git branch --show-current` and compare to `main` (or the repo's default branch from `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`).
 
-- **On `main`/default branch** → tag immediately (step 7b).
+- **On `main`/default branch** → tag immediately (step 9).
 - **On a release branch** (e.g. `release/X.Y.Z`) → **stop**. Do not tag yet. Tagging the branch tip creates a commit SHA that `main` never carries after merge (PR squash/rebase changes the SHA), leaving the tag stranded on an orphan commit.
   Report the branch name and two options to the user:
-  1. **Tag now** — accept the stranded-tag risk; release goes live immediately. Proceed to step 7b.
-  2. **Hold tag** — open a PR (offer `/create-pr` if available), wait for merge into `main`, then re-run `/release <slug>` from `main` (it will detect the version is already bumped and skip ahead to tagging) OR run step 7b manually after checkout.
+  1. **Tag now** — accept the stranded-tag risk; release goes live immediately. Proceed to step 9.
+  2. **Hold tag** — open a PR (offer `/create-pr` if available), wait for merge into `main`, then re-run `/release <slug>` from `main` (it will detect the version is already bumped and skip ahead to tagging) OR run step 9 manually after checkout.
   Wait for explicit user choice before proceeding.
 
-### 7b. Tag and publish
+### 9. Tag and publish
 
 The tag format is **plugin-prefixed with double-dash separator**: `<slug>--v<X.Y.Z>`. This is the format Claude Code's native dependency resolver requires to find matching versions for `dependencies` entries.
 
@@ -216,6 +217,6 @@ rm "$NOTES_FILE"
 
 **Note on legacy tags:** the core plugin (`claude-code-hermit`) historically released under the unprefixed `v<X.Y.Z>` format (e.g. `v1.0.18`) and the prefixed single-dash format (e.g. `claude-code-hermit-v1.0.20`). Those tags remain in place. From this point forward, all plugins use the double-dash format (`<slug>--v<X.Y.Z>`). Existing single-dash release tags were backfilled with double-dash aliases in April 2026.
 
-### 8. Report
+### 10. Report
 
 Print the slug, the new version, the commit hash, the tag name, and a one-liner confirming it's pushed.
