@@ -11,7 +11,7 @@ tags: [routine, training]
 
 ## Task
 
-Read last week's training load from `state/strava-weekly-baselines.json` (written by weekly-load-review on Sunday). Generate a concrete weekly training plan suggestion and send via Discord.
+Read last week's training load from `state/strava-weekly-baselines.json` (written by weekly-load-review on Sunday). Generate a concrete weekly training plan suggestion and deliver it via the configured channel.
 
 ## Steps
 
@@ -19,7 +19,7 @@ Read last week's training load from `state/strava-weekly-baselines.json` (writte
 2. Read last week's totals: run km, run sessions, elevation, strength sessions, bike sessions.
 3. Read the 4-week rolling average from the baseline file (or compute from available data).
 4. Apply planning logic (see below) to generate a 5–7 day training structure.
-5. Send Discord message:
+5. Send a message via the configured channel. If no channel is configured, log the plan to SHELL.md Progress Log instead and skip the notification.
    ```
    🗓️ Week plan — [Mon date]
    Based on last week: [X]km running, [load flag]

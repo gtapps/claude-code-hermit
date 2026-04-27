@@ -7,7 +7,7 @@ tags: [routine, training]
 
 # Routine: Weekly Training Load Review
 # Fires: Sunday 18:00
-# Purpose: Compute week-over-week load delta, flag trends, send Discord summary
+# Purpose: Compute week-over-week load delta, flag trends, send a channel summary
 
 ## Task
 
@@ -15,7 +15,7 @@ Pull the last 14 days of Strava activities and compute weekly training load summ
 
 ## Steps
 
-1. Call `mcp__strava__check-strava-connection`. If disconnected, alert and stop.
+1. Call `mcp__strava__check-strava-connection`. If disconnected, alert the operator via the configured channel and stop. If no channel is configured, log the disconnection to SHELL.md Findings and stop.
 2. Call `mcp__strava__get-recent-activities` with `perPage: 30` to cover 14+ days.
 3. Determine the two week boundaries: this week is the most recent Mon–Sun period ending today (Sunday); the prior week is the Mon–Sun before that. Compute the exact date ranges from today's date.
 4. For each week compute:
@@ -29,7 +29,7 @@ Pull the last 14 days of Strava activities and compute weekly training load summ
    - >25% below average → 🟡 "Load dip: [X]km vs [avg]km average"
    - Within range → 🟢 "Consistent load"
 7. Update `state/strava-weekly-baselines.json`: append this week's totals. Keep only the last 8 weeks.
-8. Send Discord message (max 5 lines):
+8. Send a message via the configured channel (max 5 lines). If no channel is configured, log the summary to SHELL.md Progress Log instead and skip the notification.
    ```
    📅 Weekly review — w/e [date]
    🏃 Run: [X]km ([N] sessions, [E]m elev) [flag]
