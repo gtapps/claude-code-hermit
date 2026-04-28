@@ -4,7 +4,7 @@
 
 ### Changed
 
-- **`state-templates/CLAUDE-APPEND.md`** — rewritten as the language-agnostic safety layer for v0.3.0. Absorbs the safety posture previously enforced by the `implementer` agent's system prompt: explicit Git Safety rules (no push, no `--no-verify`, no commits to protected, no force-push), Branch Discipline (clean-tree gate, branch from `protected_branches[0]`, prefix detection, verbatim 5-step slug rules), Implementation Flow (run configured test command before declaring done), Tests Before PR (re-run after `/simplify`, revert on regression). Removed the Dev Agent table, the elaborate 7-step Dev Workflow, the Local Dev Environment / dev-up / dev-adapt / dev-log-watch / dev-status sections, the watchdog reference, and the entire Always-on Worktree Topology section. Rules now apply to whatever agent the operator uses (native `Agent` tool, `feature-dev:code-implementer`, custom subagents) — the plugin no longer ships its own implementer.
+- **`state-templates/CLAUDE-APPEND.md`** — rewritten as the language-agnostic safety layer for v0.3.0. Absorbs the safety posture previously enforced by the `implementer` agent's system prompt: explicit Git Safety rules (no push, no `--no-verify`, no commits to protected, no force-push), Branch Discipline (clean-tree gate, branch from `protected_branches[0]`, prefix detection, verbatim 5-step slug rules), Implementation Flow (run configured test command before declaring done), Tests Before PR (re-run after `/simplify`, revert on regression). Removed the Dev Agent table, the elaborate 7-step Dev Workflow, the Local Dev Environment / dev-up / dev-adapt / dev-log-watch / dev-status sections, the watchdog reference, and the entire Always-on Worktree Topology section. Rules now apply to whatever agent the operator uses (native `Agent` tool, custom subagents) — the plugin no longer ships its own implementer.
 
 ### Removed
 
@@ -13,7 +13,13 @@
 
 ### Changed
 
-- **`tests/skill-structure.test.js`** — pruned the SKILLS array to the surviving skills (`dev-pr`, `dev-branch`, `dev-cleanup`); the four dev-server skill entries were removed.
+- **`tests/skill-structure.test.js`** — pruned the SKILLS array to the surviving skill (`dev-pr`); the four dev-server and three workflow-ceremony skill entries were removed across the v0.3.0 sweep.
+- **`tests/run-all.sh`** — removed the `agents-structure.test.js` invocation (the test file and the agent it asserted are gone).
+- **`state-templates/CLAUDE-APPEND.md`** — corrected the agent enumeration in §Git Safety; `feature-dev` ships `code-architect`, `code-explorer`, `code-reviewer` agents (no `code-implementer`), so the rules now reference "native `Agent` tool, custom subagents" without the wrong name.
+
+### Removed
+
+- **Workflow ceremony + implementer agent** — deleted skills `dev-branch`, `dev-quality`, `dev-cleanup`, `dev-doctor`, `dev-adapt` plus `agents/implementer.md` (entire `agents/` directory), `scripts/check-protected-branch.{js,test.js}`, and `tests/agents-structure.test.js` (~3,500 lines). The implementer's safety posture (no push, no `--no-verify`, refuse on protected branches) is now enforced by the rules in `state-templates/CLAUDE-APPEND.md` (added in step 1) and the `git-push-guard` hook at strict profile. Operators use the native `Agent` tool, `feature-dev`'s research/architect agents, or their own custom subagents — all read the injected CLAUDE-APPEND rules. `/dev-branch`'s slug rules and clean-tree gate are absorbed into CLAUDE-APPEND. `/dev-quality`'s tests-then-simplify-then-tests pattern with revert-on-regression is absorbed as the §Tests Before PR rule. `/dev-cleanup`'s SHELL.md/S-*-REPORT.md cross-reference is dropped (operators use `git branch --merged | grep -v <protected> | xargs git branch -d`). `/dev-doctor` is dropped (if `hatch` works and tests pass, the plugin works). `/dev-adapt` is folded into the `hatch` rewrite (step 7).
 
 ## [0.2.3] - 2026-04-28
 

@@ -7,7 +7,6 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 rc=0
 
 node "$SCRIPT_DIR/skill-structure.test.js" || rc=$?
-node "$SCRIPT_DIR/agents-structure.test.js" || rc=$?
 
 while IFS= read -r f; do
   node "$f" || rc=$?

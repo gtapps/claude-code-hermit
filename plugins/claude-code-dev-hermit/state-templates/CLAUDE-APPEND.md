@@ -4,7 +4,7 @@
 
 ## Git Safety (always applies)
 
-These rules apply to every agent doing dev work in this project — the native `Agent` tool, `feature-dev:code-implementer`, custom subagents, the main session. The `git-push-guard` hook backs them at strict profile.
+These rules apply to every agent doing dev work in this project — the native `Agent` tool, custom subagents, the main session. The `git-push-guard` hook backs them at strict profile.
 
 - **Never `git push`** from agent context. The operator pushes.
 - **Never use `--no-verify`** on any git command (commit, push, merge, rebase). Pre-commit hooks exist for a reason.
