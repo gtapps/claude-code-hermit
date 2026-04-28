@@ -8,11 +8,13 @@
 
 # claude-code-dev-hermit
 
-**One safety layer for every code-writing agent your hermit spawns — regardless of which agent framework you use.** Ships a `git-push-guard` hook (strict-by-default), a test-result recorder, a `/hatch` setup wizard, a `/dev-pr` skill, and a CLAUDE-APPEND template that injects safety rules into your project's `CLAUDE.md`. No built-in implementer — operators use the native `Agent` tool, `feature-dev`'s research/architect agents, or their own subagents. The rules apply to whichever agent runs; the `git-push-guard` hook backs them at strict profile; the test-result recorder closes the loop so `/dev-pr` only opens PRs after tests actually pass on the current commit.
+**One safety layer for every code-writing agent your hermit spawns — regardless of which agent framework you use.**
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/gtapps/claude-code-hermit/main/plugins/claude-code-hermit/assets/demo.gif" alt="claude-code-hermit demo (the core hermit — dev-hermit extends it with the safety layer described below)" width="720" />
 </p>
+
+Ships a `git-push-guard` hook (strict-by-default), a test-result recorder, a `/hatch` setup wizard, a `/dev-pr` skill, and a CLAUDE-APPEND template that injects safety rules into your project's `CLAUDE.md`. No built-in implementer — operators use the native `Agent` tool, `feature-dev`'s research/architect agents, or their own subagents. The rules apply to whichever agent runs; the `git-push-guard` hook backs them at strict profile; the test-result recorder closes the loop so `/dev-pr` only opens PRs after tests actually pass on the current commit.
 
 Three steps to a hermit that won't push to main:
 
@@ -141,20 +143,6 @@ The CLAUDE-APPEND.md `§Tests Before PR` rule wraps `/simplify` with a tests-the
 | [Task Workflow](docs/WORKFLOW.md) | You need the end-to-end mechanics of a ticket from branch → PR |
 | [Git Safety](docs/GIT-SAFETY.md) | You're tuning protected branches, hook profile, or want the full safety model |
 | [Recommended Plugins](docs/RECOMMENDED-PLUGINS.md) | You want context on companion plugins offered by `/hatch` |
-
----
-
-## Migrating from v0.2.x
-
-If you're upgrading from a v0.2.x install, the `[0.3.0]` entry in [CHANGELOG.md](CHANGELOG.md) lists every removed surface and the migration path. Quick summary:
-
-- The `implementer` agent is gone. Use the native `Agent` tool, `feature-dev:code-architect` (research) + `feature-dev:code-explorer` (read), or your own subagent. All read the rules in CLAUDE-APPEND.md and follow them.
-- `/dev-up`, `/dev-down`, `/dev-log-watch`, `/dev-status` are gone. Use `tmux` + `Bash run_in_background` for dev servers, `tail -F | grep` for logs.
-- `/dev-quality` is gone. The tests-then-`/simplify`-then-tests pattern is now CLAUDE-APPEND.md `§Tests Before PR` — agents follow it; there's no skill wrapper.
-- `/dev-doctor`, `/dev-cleanup`, `/dev-adapt`, `/dev-branch` are gone. Their roles are absorbed into `/hatch` or CLAUDE-APPEND.md.
-- The watchdog system, `pr-body-builder.js`, `check-protected-branch.js`, and most `scripts/lib/` helpers are deleted (~6,000 lines removed).
-
-`hermit-evolve` will surface this on your next run; existing config keys for the dropped features become inert (harmless but unused).
 
 ---
 
