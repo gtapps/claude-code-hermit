@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.23] - 2026-04-28
 
 ### Removed
 
@@ -9,6 +9,13 @@
 ### Changed
 
 - **`docs/architecture.md`: agent layer description** — the line claiming dev-hermit "adds repo-mapper, implementer, reviewer" was always wrong (dev-hermit historically shipped only an `implementer`; v0.3.0 ships zero agents). Replaced with a generic statement pointing operators at each plugin's CLAUDE.md for its actual agent set.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `plugins/claude-code-hermit/scripts/hermit-start.py` | Removed `setup_agent_worktree()` (~60 lines), call site, and `HERMIT_AGENT_WORKTREE` env export |
+| `plugins/claude-code-hermit/docs/architecture.md` | Generalized agent-layer line (no concrete plugin example) |
 
 ### Upgrade Instructions
 
