@@ -55,7 +55,6 @@ cd /path/to/your/project   # any folder — empty is fine
 
 claude plugin marketplace add gtapps/claude-code-hermit
 
-claude plugin install claude-code-hermit@claude-code-hermit --scope project
 claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scope project
 ```
 
