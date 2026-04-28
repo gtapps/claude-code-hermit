@@ -128,7 +128,7 @@ This repo is a multi-plugin marketplace. One `/plugin marketplace add`, then pic
 | Plugin                                                                                   | For                  | What it adds                                                                |
 | ---------------------------------------------------------------------------------------- | -------------------- | --------------------------------------------------------------------------- |
 | **`claude-code-hermit`**                                                                 | everyone             | Core runtime: sessions, memory, daily rhythm, idle agency, learning loop    |
-| [`claude-code-dev-hermit`](plugins/claude-code-dev-hermit/README.md)                     | software builders    | Implementer agent on isolated branches, quality pipeline, dev-server lifecycle (pairs with Claude Code's Chrome extension for browser verification), git-safety hooks |
+| [`claude-code-dev-hermit`](plugins/claude-code-dev-hermit/README.md)                     | software builders    | Implementer agent on isolated worktrees (always-on hermit works on its own branch without touching your checkout), quality pipeline, dev-server lifecycle with health/error watchdogs (pairs with Claude Code's Chrome extension for browser verification), PR creation, git-safety hooks |
 | [`claude-code-homeassistant-hermit`](plugins/claude-code-homeassistant-hermit/README.md) | Home Assistant users | HA skills, safety hook, automation builder, Python CLI                      |
 | [`claude-code-fitness-hermit`](plugins/claude-code-fitness-hermit/README.md)             | runners / cyclists   | Strava MCP wiring, activity deep-dives, race debriefs, and weekly-load routines |
 
