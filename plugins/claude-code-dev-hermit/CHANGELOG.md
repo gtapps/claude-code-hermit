@@ -9,6 +9,11 @@
 ### Removed
 
 - **Watchdog system** — deleted `scripts/watchdog-health.js`, `scripts/watchdog-errors.js`, `scripts/lib/alerts-store.js`, and their test siblings (~1,033 lines). The health-poll + error-spike + `state/alerts.json` pipeline was babysitter-watching-babysitter for a feature that fired only in always-on mode and only when `dev_health_url` and `dev_log_path_pattern` were configured. Monitor's own stderr-on-exit notification covers "dev server died" without a dedicated watchdog. `/dev-pr`'s `--force`-bypassable alert gate is removed in a later v0.3.0 commit when `/dev-pr` is rewritten. Operator config keys `claude-code-dev-hermit.dev_health_url`, `dev_log_path_pattern`, `dev_error_pattern`, `dev_watchdog.*` become inert (harmless but unused).
+- **Dev-server orchestration** — deleted skills `dev-up`, `dev-down`, `dev-log-watch`, `dev-status` and their helper modules `scripts/lib/dev-server-command.js`, `health-poll.js`, `log-watch-builder.js`, `port-check.js` plus tests (~1,722 lines). Every language's dev server is different (npm/cargo/go run/rails s/uvicorn/dotnet run); a portable abstraction over `dev_start`/`dev_stop` config + port resolution + auth probe + tee-grep pipeline cannot be made language-agnostic without operator-specific knobs. Operators write a 20-line project-specific skill or use `tmux` / `Bash run_in_background` directly. The Monitor notification-budget tee-grep insight (which was non-obvious) is preserved as a note in `docs/` (added in step 8). `/dev-status`, being a composite read of `git status` + Monitor list + `runtime.json`, was pure convenience and goes too. Orphaned config keys `claude-code-dev-hermit.commands.dev_start`, `commands.dev_stop`, `dev_port_agent`, `dev_required_ports`, `dev_auth_check`, `dev_expected_listeners` become inert.
+
+### Changed
+
+- **`tests/skill-structure.test.js`** — pruned the SKILLS array to the surviving skills (`dev-pr`, `dev-branch`, `dev-cleanup`); the four dev-server skill entries were removed.
 
 ## [0.2.3] - 2026-04-28
 
