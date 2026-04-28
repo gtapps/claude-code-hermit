@@ -1,286 +1,106 @@
-// Adapted from Everything Claude Code (https://github.com/affaan-m/everything-claude-code)
-// Original: scripts/hooks/pre-bash-git-push-reminder.js + --no-verify blocker — MIT License
-// Changes: Merged both scripts into one, uses exit code 2 to hard-block,
-//          gated to "strict" profile only via AGENT_HOOK_PROFILE,
-//          config-driven protected branches, tokenizer-based command parser.
-
 'use strict';
 
+// Adapted from Everything Claude Code (https://github.com/affaan-m/everything-claude-code) — MIT.
+// v0.3.0 simplified the original tokenizer-based parser to regex-only.
+// Strict-profile only (AGENT_HOOK_PROFILE=strict). Exit 2 hard-blocks the bash call.
+
+const fs = require('fs');
 const path = require('path');
 
-const MAX_STDIN = 1024 * 1024; // 1MB
+const MAX_STDIN = 1024 * 1024;
 
-const { loadProtectedBranches, isProtected } = require('./lib/protected-branches');
-
-// --- Command tokenizer ---
-
-function splitOnOperators(cmd) {
-  // Split unquoted &&, ||, ;, | into sub-commands
-  const parts = [];
-  let current = '';
-  let inSingle = false;
-  let inDouble = false;
-
-  for (let i = 0; i < cmd.length; i++) {
-    const c = cmd[i];
-    if (c === "'" && !inDouble) { inSingle = !inSingle; current += c; continue; }
-    if (c === '"' && !inSingle) { inDouble = !inDouble; current += c; continue; }
-    if (inSingle || inDouble) { current += c; continue; }
-
-    // Check for &&, ||
-    if ((c === '&' || c === '|') && cmd[i + 1] === c) {
-      parts.push(current.trim());
-      current = '';
-      i++; // skip second char
-      continue;
-    }
-    if (c === ';') {
-      parts.push(current.trim());
-      current = '';
-      continue;
-    }
-    if (c === '|' && cmd[i + 1] !== '|') {
-      parts.push(current.trim());
-      current = '';
-      continue;
-    }
-    current += c;
+function findHermitDir(startDir) {
+  let dir = startDir;
+  for (let i = 0; i < 8; i++) {
+    if (fs.existsSync(path.join(dir, '.claude-code-hermit', 'config.json'))) return path.join(dir, '.claude-code-hermit');
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
   }
-  if (current.trim()) parts.push(current.trim());
-  return parts.filter(Boolean);
+  return null;
 }
 
-function tokenize(str) {
-  // Split on whitespace, respecting single/double quotes
-  const tokens = [];
-  let current = '';
-  let inSingle = false;
-  let inDouble = false;
-
-  for (let i = 0; i < str.length; i++) {
-    const c = str[i];
-    if (c === "'" && !inDouble) { inSingle = !inSingle; continue; }
-    if (c === '"' && !inSingle) { inDouble = !inDouble; continue; }
-    if (!inSingle && !inDouble && /\s/.test(c)) {
-      if (current) { tokens.push(current); current = ''; }
-      continue;
-    }
-    current += c;
-  }
-  if (current) tokens.push(current);
-  return tokens;
+function loadProtectedBranches() {
+  try {
+    const hermitDir = findHermitDir(process.cwd());
+    if (!hermitDir) return ['main', 'master'];
+    const raw = fs.readFileSync(path.join(hermitDir, 'config.json'), 'utf-8');
+    const branches = JSON.parse(raw)?.['claude-code-dev-hermit']?.protected_branches;
+    if (Array.isArray(branches) && branches.length > 0) return branches;
+  } catch (_) {}
+  return ['main', 'master'];
 }
 
-function extractGitPushInfo(subcmd) {
-  // Returns null if not a git push, or { isForce, isForceWithLease, isMirror, isAll, isDelete, refs }
-  let tokens = tokenize(subcmd);
-  if (!tokens.length) return null;
-
-  // Strip leading env-var assignments (FOO=bar)
-  while (tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[0])) {
-    tokens = tokens.slice(1);
-  }
-  // Strip leading 'command' or 'exec' alias
-  while (tokens.length && (tokens[0] === 'command' || tokens[0] === 'exec')) {
-    tokens = tokens.slice(1);
-  }
-  if (!tokens.length) return null;
-
-  // Must start with 'git'
-  if (tokens[0] !== 'git') return null;
-  tokens = tokens.slice(1);
-
-  // Skip git global flags: -C <path>, --git-dir=..., --work-tree=..., -c key=val
-  while (tokens.length) {
-    if ((tokens[0] === '-C' || tokens[0] === '--git-dir' || tokens[0] === '--work-tree') && tokens[1]) {
-      tokens = tokens.slice(2);
-    } else if (tokens[0] === '-c' && tokens[1]) {
-      tokens = tokens.slice(2);
-    } else if (/^--git-dir=/.test(tokens[0]) || /^--work-tree=/.test(tokens[0]) || /^-c[A-Za-z]/.test(tokens[0])) {
-      tokens = tokens.slice(1);
-    } else {
-      break;
-    }
-  }
-
-  if (!tokens.length || tokens[0] !== 'push') return null;
-  tokens = tokens.slice(1); // consume 'push'
-
-  // Parse push flags and refs
-  let isForce = false;
-  let isForceWithLease = false;
-  let isMirror = false;
-  let isAll = false;
-  let isDelete = false;
-  let noRefspec = true;
-  const refs = [];
-  let sawRemote = false; // first non-flag positional is the remote
-
-  for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i];
-    if (t === '--force' || t === '-f') { isForce = true; continue; }
-    if (t === '--force-with-lease' || /^--force-with-lease=/.test(t)) { isForceWithLease = true; continue; }
-    if (t === '--mirror') { isMirror = true; continue; }
-    if (t === '--all' || t === '-a') { isAll = true; continue; }
-    if (t === '--delete' || t === '-d') { isDelete = true; continue; }
-    if (t === '--no-verify') continue; // handled separately
-    if (t === '--tags' || t === '--follow-tags') continue;
-    if (t === '--dry-run' || t === '-n') continue;
-    if (t === '--porcelain' || t === '--progress' || t === '--verbose' || t === '-v') continue;
-    if (t === '--set-upstream' || t === '-u') continue;
-    if (t === '--push-option' || t === '-o') { i++; continue; } // skip value
-    if (/^--push-option=/.test(t)) continue;
-    if (/^-/.test(t)) continue; // unknown flag — skip
-
-    // Positional args
-    if (!sawRemote) {
-      sawRemote = true; // first positional is the remote, ignore it
-      continue;
-    }
-    noRefspec = false;
-    refs.push(t);
-  }
-
-  return { isForce, isForceWithLease, isMirror, isAll, isDelete, noRefspec, refs };
+function branchRegex(pattern) {
+  const escaped = pattern
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, '§§')
+    .replace(/\*/g, '[^/\\s]*')
+    .replace(/§§/g, '.*');
+  return new RegExp(`(?<![a-z0-9-])${escaped}(?![a-z0-9-])`, 'i');
 }
 
-function extractBranchesFromRef(ref) {
-  // Given a refspec token, extract branch name(s) to check
-  // Handles: main, origin/main, refs/heads/main, HEAD:main, :main, +main, +HEAD:main
-  const names = [];
-  let r = ref;
-
-  // Strip leading +
-  if (r.startsWith('+')) r = r.slice(1);
-
-  // :branch — delete by empty source (e.g. :main)
-  if (r.startsWith(':')) {
-    names.push(r.slice(1));
-    return names;
-  }
-
-  // src:dest
-  if (r.includes(':')) {
-    const dest = r.split(':')[1];
-    if (dest) names.push(dest);
-    return names;
-  }
-
-  names.push(r);
-  return names;
+function block(msg) {
+  console.error(`[git-push-guard] BLOCKED: ${msg}`);
+  process.exit(2);
 }
-
-// --- Main ---
 
 async function main() {
-  try {
-    const profile = (process.env.AGENT_HOOK_PROFILE || 'standard').trim().toLowerCase();
-    if (profile !== 'strict') {
-      process.exit(0);
-    }
+  if ((process.env.AGENT_HOOK_PROFILE || 'standard').trim().toLowerCase() !== 'strict') process.exit(0);
 
-    const chunks = [];
-    let totalSize = 0;
-    for await (const chunk of process.stdin) {
-      totalSize += chunk.length;
-      if (totalSize > MAX_STDIN) { process.exit(0); }
-      chunks.push(chunk);
-    }
-
-    const raw = Buffer.concat(chunks).toString('utf-8').trim();
-    if (!raw) process.exit(0);
-
-    const data = JSON.parse(raw);
-    const command = data.tool_input?.command || data.input?.command || '';
-    if (!command) process.exit(0);
-
-    // Check --no-verify anywhere in the full command string
-    if (/--no-verify/.test(command)) {
-      console.error(
-        '[git-push-guard] BLOCKED: --no-verify is not allowed. ' +
-        'Fix the issue that the hook caught instead of bypassing it.'
-      );
-      process.exit(2);
-    }
-
-    // Quick pre-check: does the raw command even contain 'push'?
-    if (!/\bpush\b/.test(command)) process.exit(0);
-
-    const { branches: protectedBranches } = loadProtectedBranches();
-    const subcmds = splitOnOperators(command);
-
-    for (const subcmd of subcmds) {
-      const info = extractGitPushInfo(subcmd);
-      if (!info) continue;
-
-      const { isForce, isForceWithLease, isMirror, isAll, isDelete, noRefspec, refs } = info;
-
-      // --mirror and --all always blocked (would push everything, including protected)
-      if (isMirror || isAll) {
-        console.error(
-          '[git-push-guard] BLOCKED: --mirror and --all are not allowed. ' +
-          'Push specific branches instead.'
-        );
-        process.exit(2);
-      }
-
-      // --force (not lease) is always blocked
-      if (isForce && !isForceWithLease) {
-        console.error(
-          '[git-push-guard] BLOCKED: Force push is not allowed. ' +
-          'Use --force-with-lease on feature branches if you must overwrite.'
-        );
-        process.exit(2);
-      }
-
-      // --force-with-lease with no explicit refspec: block (can't verify target branch)
-      if (isForceWithLease && noRefspec) {
-        console.error(
-          '[git-push-guard] BLOCKED: --force-with-lease without an explicit refspec is not allowed. ' +
-          'Specify the target branch explicitly (e.g. git push --force-with-lease origin feature/my-branch).'
-        );
-        process.exit(2);
-      }
-
-      // Collect all branch names to check
-      const branchesToCheck = [];
-      if (isDelete) {
-        // --delete main / -d main
-        branchesToCheck.push(...refs);
-      } else {
-        for (const ref of refs) {
-          branchesToCheck.push(...extractBranchesFromRef(ref));
-        }
-      }
-
-      for (const branch of branchesToCheck) {
-        if (!branch || branch === 'HEAD') continue;
-        if (isProtected(branch, protectedBranches)) {
-          if (isForceWithLease) {
-            console.error(
-              `[git-push-guard] BLOCKED: --force-with-lease to protected branch '${branch}' is not allowed.`
-            );
-          } else if (isDelete) {
-            console.error(
-              `[git-push-guard] BLOCKED: Deleting protected branch '${branch}' is not allowed.`
-            );
-          } else {
-            console.error(
-              `[git-push-guard] BLOCKED: Direct push to protected branch '${branch}' is not allowed. ` +
-              'Push to a feature branch and create a pull request instead.'
-            );
-          }
-          process.exit(2);
-        }
-      }
-    }
-
-    process.exit(0);
-  } catch (err) {
-    // On parse error or unexpected failure, allow through — don't block on guard failure
-    console.error(`[git-push-guard] Error: ${err.message}`);
-    process.exit(0);
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of process.stdin) {
+    total += chunk.length;
+    if (total > MAX_STDIN) process.exit(0);
+    chunks.push(chunk);
   }
+  const raw = Buffer.concat(chunks).toString('utf-8').trim();
+  if (!raw) process.exit(0);
+
+  let command;
+  try {
+    const data = JSON.parse(raw);
+    command = (data.tool_input || data.input || {}).command || '';
+  } catch { process.exit(0); }
+  if (!command) process.exit(0);
+
+  if (/(?:^|\s)--no-verify(?:\s|$|=)/.test(command)) {
+    block('--no-verify is not allowed. Fix the underlying issue, do not bypass.');
+  }
+
+  const subcmds = command.split(/(?:&&|\|\||;|\|)/);
+  if (!subcmds.some(s => /\bgit\b[\s\S]*\bpush\b/.test(s))) process.exit(0);
+
+  const branchRegexes = loadProtectedBranches().map(p => ({ pattern: p, rx: branchRegex(p) }));
+
+  for (const subcmd of subcmds) {
+    if (!/\bgit\b[\s\S]*\bpush\b/.test(subcmd)) continue;
+
+    const hasForceWithLease = /(?:^|\s)--force-with-lease\b/.test(subcmd);
+    const hasBareForce = /(?:^|\s)(?:--force(?!-with-lease)\b|-f\b)/.test(subcmd);
+
+    if (hasBareForce) {
+      block('Bare force push is not allowed (--force, -f). Use --force-with-lease on a non-protected branch with an explicit refspec if you must overwrite.');
+    }
+    if (/(?:^|\s)(?:--mirror\b|--all\b|-a\b)/.test(subcmd)) {
+      block('--mirror, --all, and -a are not allowed (would push everything, including protected branches).');
+    }
+    for (const { pattern, rx } of branchRegexes) {
+      if (rx.test(subcmd)) {
+        block(`Direct push to protected branch '${pattern}' is not allowed. Push to a feature branch and open a PR.`);
+      }
+    }
+    if (hasForceWithLease) {
+      const afterPush = subcmd.replace(/^[\s\S]*?\bpush\b/, '');
+      const positionals = afterPush.trim().split(/\s+/).filter(t => t && !t.startsWith('-'));
+      if (positionals.length < 2) {
+        block('--force-with-lease without an explicit refspec is not allowed (ambiguous target).');
+      }
+    }
+  }
+
+  process.exit(0);
 }
 
 main();

@@ -9,7 +9,19 @@
             "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/git-push-guard.js"
           }
         ],
-        "description": "Block direct git push to main and --no-verify usage"
+        "description": "Block direct git push to protected branches, --no-verify, force-push (strict profile)"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/record-test-result.js"
+          }
+        ],
+        "description": "Record exit code + duration of the configured test command to state/last-test.json (consumed by /dev-pr)"
       }
     ]
   }

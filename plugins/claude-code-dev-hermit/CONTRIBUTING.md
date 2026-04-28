@@ -43,16 +43,17 @@ The test suite covers all hooks and helpers; add tests for any new hook or lib l
 ## Project Structure
 
 ```
-agents/           — subagent definitions (implementer)
-skills/           — see skills/ directory for the full list
-hooks/            — hooks.json (hook registry)
-scripts/          — process entrypoints (git-push-guard, watchdog-*)
-scripts/lib/      — shared pure helpers (alerts-store, health-poll, …)
-tests/            — run-all.sh runner + cross-cutting structural lints
-state-templates/  — CLAUDE-APPEND.md (appended to target project's CLAUDE.md)
-docs/             — user-facing documentation
-.claude-plugin/   — plugin manifest + marketplace metadata
+skills/hatch/        — one-time setup wizard
+skills/dev-pr/       — push branch + open PR
+hooks/hooks.json     — registers git-push-guard
+scripts/             — git-push-guard.js (the only script)
+tests/               — run-all.sh + skill-structure.test.js
+state-templates/     — CLAUDE-APPEND.md (injected into target project's CLAUDE.md)
+docs/                — user-facing documentation
+.claude-plugin/      — plugin manifest + hermit-meta.json
 ```
+
+The plugin shipped no agents and no `scripts/lib/` after v0.3.0 — see CHANGELOG `[0.3.0]` for what was removed.
 
 ## PR Workflow
 

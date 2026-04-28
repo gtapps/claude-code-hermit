@@ -1,58 +1,52 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.2.3-green.svg" alt="Version 0.2.3" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.3.0-green.svg" alt="Version 0.3.0" /></a>
   <img src="https://img.shields.io/badge/Claude-Pro%20%7C%20Max-blueviolet.svg" alt="Claude Pro/Max Compatible" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
 </p>
 
 # claude-code-dev-hermit
 
-**The dev muscle for your hermit — git safety, quality gates, a code-writing agent that works on branches so you don't have to worry about main, and opens the PR when you're done.**
+**One safety layer for every code-writing agent your hermit spawns — regardless of which agent framework you use.** Ships a `git-push-guard` hook (strict-by-default), a test-result recorder, a `/hatch` setup wizard, a `/dev-pr` skill, and a CLAUDE-APPEND template that injects safety rules into your project's `CLAUDE.md`. No built-in implementer — operators use the native `Agent` tool, `feature-dev`'s research/architect agents, or their own subagents. The rules apply to whichever agent runs; the `git-push-guard` hook backs them at strict profile; the test-result recorder closes the loop so `/dev-pr` only opens PRs after tests actually pass on the current commit.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/gtapps/claude-code-hermit/main/plugins/claude-code-hermit/assets/demo.gif" alt="claude-code-hermit demo — Obsidian dashboard, Discord control, autonomous briefings, remote access" width="720" />
+  <img src="https://raw.githubusercontent.com/gtapps/claude-code-hermit/main/plugins/claude-code-hermit/assets/demo.gif" alt="claude-code-hermit demo (the core hermit — dev-hermit extends it with the safety layer described below)" width="720" />
 </p>
 
-Your hermit already knows how to manage sessions, learn from its work, and keep things organized. This plugin adds the ability to actually *build* things — an `implementer` agent that writes code on caller-prepared feature branches (worktree setup owned by `/dev-branch`), a quality pipeline that runs tests and `/simplify` (whose parallel review agents cover reuse/quality/efficiency), a session-scoped dev server it can boot and watchdog, `/dev-pr` to push and open the resulting PR, and git-safety rules that keep main clean. **In always-on mode, the whole loop — branch, server, tests, PR — runs on the hermit's own worktree, so your local checkout and dev port never have to stop.** Same philosophy as core: leverage what Claude Code offers, don't reinvent.
-
-Three steps to a dev-hermit you can hand a feature to:
+Three steps to a hermit that won't push to main:
 
 ```
 # Install
 /plugin marketplace add gtapps/claude-code-hermit
 /plugin install claude-code-dev-hermit@claude-code-hermit --scope project
 
-# Setup wizard
+# Setup wizard (idempotent — re-run any time to update settings)
 /claude-code-dev-hermit:hatch
 
-# Boot for active dev
+# Boot the hermit (core)
 .claude-code-hermit/bin/hermit-start
 ```
 
-> **Want it always-on on docker?**  For 24/7 background work, follow the core hermit's [`/claude-code-hermit:docker-setup`](https://github.com/gtapps/claude-code-hermit/blob/main/plugins/claude-code-hermit/docs/always-on.md) instead.
+> **Always-on on Docker?** Follow the core hermit's [`/claude-code-hermit:docker-setup`](https://github.com/gtapps/claude-code-hermit/blob/main/plugins/claude-code-hermit/docs/always-on.md) for 24/7 background work.
 
 ---
 
-## How It Works
+## What you get
 
-**1. Hand it a task.** It plans, then runs `/dev-branch` to create a feature branch — and in interactive mode a `.claude/worktrees/<slug>/` worktree — before delegating to the `implementer`. Your working tree stays clean. Main never sees it.
+**1. Git safety, two layers.** Prose rules apply at every profile via CLAUDE-APPEND.md (no push, no `--no-verify`, no commits to protected branches, no force-push). At strict profile, `git-push-guard` backs them with hard `bash`-time blocking.
 
-**2. It writes code on a feature branch.** Tests run before and after. You get back a structured summary — files changed, test results, concerns, branch name.
+**2. A working agreement for any code-writing agent.** The CLAUDE-APPEND.md template, injected into your project's CLAUDE.md, gives every agent the same rules: clean tree before starting, branch from `protected_branches[0]`, name as `<prefix>/<slug>`, run the configured test command before declaring done, re-run after `/simplify`, revert on regression. Whether you spawn the native `Agent` tool, `feature-dev:code-architect`, or your own subagent — they all read the same rules.
 
-**3. The quality pipeline runs.** `/dev-quality` runs your tests, then `/simplify` (parallel reuse/quality/efficiency review agents), then your tests again. Reverts if simplification broke anything.
+**3. `/dev-pr` to close the loop.** Pushes the current feature branch and opens a PR with a body assembled inline from your commits, last test result, screenshots, and an optional project PR template. Refuses on protected branches, dirty trees, or zero commits ahead. Calls `gh pr create` (or `glab pr create` if `git remote` points at GitLab).
 
-**4. It boots, watches, and verifies your dev server.** `/dev-up` starts your stack in a session-scoped Monitor; `/dev-log-watch` tails errors as conversation notifications; `/dev-down` cleans up. In always-on mode the dev server runs inside the agent's worktree on its own port (`dev_port_agent`), so your local checkout and dev port stay free while the hermit works in parallel — and `/dev-up` registers health and error-spike watchdogs whose alerts surface as notifications and gate `/dev-pr` until acknowledged. Pair with Claude Code's [Chrome extension](https://code.claude.com/docs/en/chrome) (`claude --chrome` or `/chrome`) and the hermit can drive your browser against the running server — submit forms with test creds, read console errors, verify visual changes — and even record the session as a GIF.
-
-**5. Git safety is enforced at two layers.** Prompt rules apply at every profile: no push, no `--no-verify`, no commits to protected branches. At strict profile, the `git-push-guard` hook backs the rules with bash-level blocking.
-
-**6. You stay in the merge driver's seat.** Review the implementer's summary, then either merge on your terms or run `/dev-pr` to push the branch and open a PR — title and body assembled from your `/dev-quality` run, commit log, work-binding context, screenshots, and any project PR template. The hermit reflects at every task boundary — recurring pain becomes a proposal you can accept.
+That's it. Three things, ~500 lines of plugin. Whatever you don't need from the dev-server lifecycle, the watchdog, the worktree dance, the implementer agent — gone. Operators bring their own `tmux`, `npm run dev`, `tail -f`, and however they like to spawn agents.
 
 ---
 
 ## Quick Start
 
-> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.110+, a Claude plan (Pro, Max, Teams, or Enterprise), Node.js 24+ (for the `git-push-guard` hook at strict profile). For browser verification: the [Claude in Chrome extension](https://chromewebstore.google.com/detail/claude/fcoeoabgfenejglbffodgkkbkcdhcgfn).
+> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.110+, a Claude plan (Pro, Max, Teams, or Enterprise), Node.js 24+ (for the `git-push-guard` hook at strict profile), `gh` (or `glab`) for `/dev-pr`.
 
 ### 1. Install
 
@@ -68,21 +62,21 @@ claude plugin install claude-code-dev-hermit@claude-code-hermit --scope project
 /claude-code-dev-hermit:hatch
 ```
 
-The wizard asks about your branch naming, deploy process, and hook profile. It also offers companion plugins (code-review, feature-dev, context7) and suggests dev-specific heartbeat checks. Run it once per project.
+The wizard asks for your test/lint/format commands, protected branches, and PR template path. Defaults to installing `git-push-guard` at strict profile (with an explicit opt-out). Re-run any time to update individual settings — the wizard offers `Keep current (<value>)` for keys already set, so you can sweep through with Enter-presses.
 
-### 3. Boot for active dev
+### 3. Boot the hermit (core)
 
 ```
 .claude-code-hermit/bin/hermit-start
 ```
 
-Boots the hermit in a tmux session (default name `hermit-{project_name}`) — sessions, routines, heartbeat, and the learning loop, with detach/reattach so it survives SSH drops. Append `--no-tmux` for a foreground run with no multiplexer (Ctrl+C exits cleanly).
+Boots the hermit in a tmux session — sessions, routines, heartbeat, and the learning loop, with detach/reattach so it survives SSH drops. Append `--no-tmux` for a foreground run.
 
-> **Pair with the Chrome extension** for web work: run `claude --chrome` (or `/chrome` mid-session) so the hermit can drive your dev server while you sit back. See [Chrome integration](https://code.claude.com/docs/en/chrome).
+> **Pair with the Chrome extension** for web work: run `claude --chrome` (or `/chrome` mid-session) so the hermit can drive your dev server. See [Chrome integration](https://code.claude.com/docs/en/chrome).
 
 ### Upgrading
 
-```
+```bash
 claude plugin update claude-code-dev-hermit@claude-code-hermit --scope project
 /claude-code-hermit:hermit-evolve
 ```
@@ -91,16 +85,20 @@ claude plugin update claude-code-dev-hermit@claude-code-hermit --scope project
 
 ## Git Safety
 
-By default Claude Code will happily push to main, run `git commit --no-verify`, and force-push your branch. Dev-hermit makes that progressively harder — prompt rules at every profile, plus a hook at strict that blocks the dangerous commands at bash time.
+By default Claude Code will happily push to main, run `git commit --no-verify`, and force-push your branch. dev-hermit makes that progressively harder:
 
-The `git-push-guard` hook blocks:
+| Profile | Hook enforcement |
+|---------|-----------------|
+| `minimal` | None — only prose rules in CLAUDE-APPEND.md |
+| `standard` | None — only prose rules |
+| `strict` (default after `/hatch`) | `git-push-guard` active |
 
-- Direct push to any protected branch (configured via `claude-code-dev-hermit.protected_branches`; defaults to `main`/`master`)
-- `--no-verify` on any command
-- Force push on any branch
-- `--force-with-lease` to a protected branch
-- `--delete` / `--mirror` / `--all` targeting protected branches
-- `--force-with-lease` with no explicit refspec (ambiguous target)
+The `git-push-guard` hook blocks (at strict only):
+
+- Direct push to any branch in `claude-code-dev-hermit.protected_branches` (defaults to `main`/`master`)
+- `--no-verify` on any git command
+- Force push: `--force`, `-f`, or `--force-with-lease` (all blocked, on any target)
+- `--mirror`, `--all`, `-a` (would push everything, including protected)
 
 Protected branches are configurable in `.claude-code-hermit/config.json`:
 
@@ -108,31 +106,18 @@ Protected branches are configurable in `.claude-code-hermit/config.json`:
 { "claude-code-dev-hermit": { "protected_branches": ["main", "staging", "release/*"] } }
 ```
 
-| Profile | Hook enforcement |
-|---------|-----------------|
-| `minimal` | None |
-| `standard` (default) | None |
-| `strict` | `git-push-guard` active |
-
-The `implementer` agent enforces a two-gate pre-flight before touching any file: it refuses if called without a `Worktree:` token from `/dev-branch` (Step 0a), and refuses again if the worktree is on a protected branch (Step 0b). Only then does it proceed — no push, no `--no-verify` thereafter.
+See [docs/GIT-SAFETY.md](docs/GIT-SAFETY.md) for the full safety model and the trade-offs of the regex-based guard.
 
 ---
 
 ## What's Included
 
-| Skill | What it does |
+| Surface | Role |
 |-------|-------------|
-| `hatch` | One-time project setup — appends dev workflow to CLAUDE.md, configures git safety, installs companion plugins |
-| `dev-adapt` | Profile the project's test commands, protected branches, dev-server setup, stack, and PR templates (GitHub + GitLab); persists findings to config |
-| `dev-branch` | Create a feature branch with gates — clean tree, base from protected_branches, no collisions. In active-dev mode also creates `.claude/worktrees/<slug>/` and emits `Worktree:`/`Branch:` tokens the caller passes to the implementer |
-| `dev-up` | Boot a session-scoped dev server via the Monitor tool — port checks, optional auth probe, optional HTTP health-poll. In always-on mode, `cd`s into the agent's worktree (resolving `dev_port_agent`) and registers health/error watchdogs |
-| `dev-down` | Stop the dev server and shut down the watchdog Monitor entries — runs `commands.dev_stop` if configured (compose/supervisord), else Monitor SIGTERM/SIGKILL |
-| `dev-log-watch` | Generate a Monitor entry that tails rotating or fixed dev-server logs for error patterns |
-| `dev-status` | Three-line read of branch state, dev-server monitor health, watchdog alerts, and worktree refs — read-only, no setup required |
-| `dev-quality` | Post-implementation quality pass — tests, simplify, tests |
-| `dev-pr` | Push the feature branch and open a PR — title/body assembled from `/dev-quality`, commits, work-binding context, screenshots, and an optional project PR template; gated on protected-branch, clean tree, fresh quality run, and unack'd watchdog alerts (override with `--force`) |
-| `dev-cleanup` | Lists stale/merged branches and offers to clean them up safely; removes associated managed worktrees before branch deletion |
-| `dev-doctor` | Diagnose dev-hermit setup issues; safe for weekly scheduled checks |
+| `hatch` skill | One-time setup wizard. Idempotent / re-runnable. Captures test/lint/format/protected/PR-template/hook-profile. Installs `git-push-guard` at strict by default. |
+| `dev-pr` skill | Push the current feature branch and open a PR with body assembled from commits + last test result + screenshots + optional project template. |
+| `git-push-guard` hook | Strict-profile-only `PreToolUse` Bash hook. Blocks the dangerous git operations listed above. |
+| `state-templates/CLAUDE-APPEND.md` | Injected into your project's `CLAUDE.md` by `/hatch`. The rules-of-the-road every agent reads when working on this project. |
 
 ---
 
@@ -144,33 +129,47 @@ These are Claude Code built-ins — no installation needed:
 - `/batch` — same change across many files in parallel
 - `/debug` — diagnostics when something's stuck
 
+The CLAUDE-APPEND.md `§Tests Before PR` rule wraps `/simplify` with a tests-then-revert-on-regression discipline; this is enforced by the agent reading the rule, not by a separate skill.
+
 ---
 
 ## Documentation
 
 | Document | Read this when... |
 |----------|-------------------|
-| [How to Use](docs/HOW-TO-USE.md) | You want a walkthrough of day-to-day workflow and tips |
-| [Task Workflow](docs/WORKFLOW.md) | You need the end-to-end mechanics — what fires, in what order, what state it writes |
+| [How to Use](docs/HOW-TO-USE.md) | You want a walkthrough of day-to-day workflow |
+| [Task Workflow](docs/WORKFLOW.md) | You need the end-to-end mechanics of a ticket from branch → PR |
 | [Git Safety](docs/GIT-SAFETY.md) | You're tuning protected branches, hook profile, or want the full safety model |
-| [Dev Log Watch](docs/DEV-LOG-WATCH.md) | You're tailing rotating dev logs (Winston, Pino, Rails, structlog) into a Monitor |
-| [Recommended Plugins](docs/RECOMMENDED-PLUGINS.md) | You want context on companion plugins offered during setup |
+| [Recommended Plugins](docs/RECOMMENDED-PLUGINS.md) | You want context on companion plugins offered by `/hatch` |
+
+---
+
+## Migrating from v0.2.x
+
+If you're upgrading from a v0.2.x install, the `[0.3.0]` entry in [CHANGELOG.md](CHANGELOG.md) lists every removed surface and the migration path. Quick summary:
+
+- The `implementer` agent is gone. Use the native `Agent` tool, `feature-dev:code-architect` (research) + `feature-dev:code-explorer` (read), or your own subagent. All read the rules in CLAUDE-APPEND.md and follow them.
+- `/dev-up`, `/dev-down`, `/dev-log-watch`, `/dev-status` are gone. Use `tmux` + `Bash run_in_background` for dev servers, `tail -F | grep` for logs.
+- `/dev-quality` is gone. The tests-then-`/simplify`-then-tests pattern is now CLAUDE-APPEND.md `§Tests Before PR` — agents follow it; there's no skill wrapper.
+- `/dev-doctor`, `/dev-cleanup`, `/dev-adapt`, `/dev-branch` are gone. Their roles are absorbed into `/hatch` or CLAUDE-APPEND.md.
+- The watchdog system, `pr-body-builder.js`, `check-protected-branch.js`, and most `scripts/lib/` helpers are deleted (~6,000 lines removed).
+
+`hermit-evolve` will surface this on your next run; existing config keys for the dropped features become inert (harmless but unused).
 
 ---
 
 ## Contributing
 
-We'd love your help. Bug fixes, new skills, better docs — all welcome.
+We'd love your help. Bug fixes, doc improvements, sharper rules in CLAUDE-APPEND.md — all welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for design constraints and PR workflow.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for design constraints, local dev setup, and PR workflow.
-
-- [Open an issue](https://github.com/gtapps/claude-code-hermit/issues) — bugs, feature ideas, questions
-- [Start a discussion](https://github.com/gtapps/claude-code-hermit/discussions) — broader topics, show & tell, hermit customization ideas
+- [Open an issue](https://github.com/gtapps/claude-code-hermit/issues) — bugs, ideas, questions
+- [Start a discussion](https://github.com/gtapps/claude-code-hermit/discussions) — broader topics, customization
 
 ## Credits
 
 - **[claude-code-hermit](https://github.com/gtapps/claude-code-hermit)** — The core plugin this extends
 - **[Claude Code plugins](https://github.com/anthropics/claude-code)** — The plugin platform that makes this possible
+- The `git-push-guard` hook is adapted from [Everything Claude Code](https://github.com/affaan-m/everything-claude-code) (MIT)
 
 ## License
 

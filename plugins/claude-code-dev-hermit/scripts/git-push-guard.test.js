@@ -87,9 +87,11 @@ assert('--force-with-lease to master is blocked', run('git push --force-with-lea
 // --- Strict profile: allowed commands ---
 console.log('\nStrict profile — allowed:');
 assert('push to feature branch is allowed', run('git push origin feature/my-feature', { AGENT_HOOK_PROFILE: 'strict' }), 0);
-assert('--force-with-lease to feature branch is allowed', run('git push --force-with-lease origin feature/x', { AGENT_HOOK_PROFILE: 'strict' }), 0);
 assert('non-git command is allowed', run('npm test', { AGENT_HOOK_PROFILE: 'strict' }), 0);
 assert('"main" in branch name like main-staging is allowed', run('git push origin main-staging', { AGENT_HOOK_PROFILE: 'strict' }), 0);
+
+// v0.3.0 policy: --force-with-lease to a non-protected branch with explicit refspec is the safe case.
+assert('--force-with-lease to feature branch with refspec is allowed', run('git push --force-with-lease origin feature/x', { AGENT_HOOK_PROFILE: 'strict' }), 0);
 
 // --- Edge cases (existing) ---
 console.log('\nEdge cases:');
@@ -129,15 +131,18 @@ assert('--mirror is blocked', run('git push --mirror origin', { AGENT_HOOK_PROFI
 assert('--all is blocked', run('git push --all origin', { AGENT_HOOK_PROFILE: 'strict' }), 2);
 assert('-a is blocked', run('git push -a origin', { AGENT_HOOK_PROFILE: 'strict' }), 2);
 
-// --- force-with-lease edge cases ---
-console.log('\nForce-with-lease edge cases:');
-assert('--force-with-lease with no refspec is blocked (ambiguous)', run('git push --force-with-lease origin', { AGENT_HOOK_PROFILE: 'strict' }), 2);
-assert('--force-with-lease to feature branch is allowed', run('git push --force-with-lease origin feature/my-branch', { AGENT_HOOK_PROFILE: 'strict' }), 0);
-
 // --- Plain push (no refspec) ---
 console.log('\nPlain push:');
 assert('git push (no remote, no refspec) is allowed', run('git push', { AGENT_HOOK_PROFILE: 'strict' }), 0);
 assert('git push origin (remote, no refspec) is allowed', run('git push origin', { AGENT_HOOK_PROFILE: 'strict' }), 0);
+
+// --- Force-with-lease policy ---
+console.log('\nForce-with-lease policy:');
+assert('--force-with-lease to main is blocked', run('git push --force-with-lease origin main', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('--force-with-lease to master is blocked', run('git push --force-with-lease origin master', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('--force-with-lease without refspec is blocked', run('git push --force-with-lease origin', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('--force-with-lease alone (no remote) is blocked', run('git push --force-with-lease', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('--force-with-lease to branch named with literal "push" word is allowed', run('git push --force-with-lease origin feature/push-button-fix', { AGENT_HOOK_PROFILE: 'strict' }), 0);
 
 // --- Config-driven protected branches ---
 console.log('\nConfig-driven protected branches:');

@@ -20,13 +20,7 @@ const SKILL_DIR = path.join(__dirname, '..', 'skills');
 // Per-skill expectations. Update if a skill's gate count changes.
 // gates: 0 → skill has no Gate N — section structure (e.g., read-only status skills).
 const SKILLS = [
-  { name: 'dev-up', gates: 7 },         // Gate 0..6
-  { name: 'dev-down', gates: 3 },       // Gate 0..2
-  { name: 'dev-log-watch', gates: 4 },  // Gate 0..3
-  { name: 'dev-status', gates: 0 },     // read-only status, no gates
   { name: 'dev-pr', gates: 5 },         // Gate 0..4
-  { name: 'dev-branch', gates: 8 },     // Gate 0..7
-  { name: 'dev-cleanup', gates: 0 },    // numbered steps, no Gate N headings
 ];
 
 let passed = 0;
