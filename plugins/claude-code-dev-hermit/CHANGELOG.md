@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **`state-templates/CLAUDE-APPEND.md`** — rewritten as the language-agnostic safety layer for v0.3.0. Absorbs the safety posture previously enforced by the `implementer` agent's system prompt: explicit Git Safety rules (no push, no `--no-verify`, no commits to protected, no force-push), Branch Discipline (clean-tree gate, branch from `protected_branches[0]`, prefix detection, verbatim 5-step slug rules), Implementation Flow (run configured test command before declaring done), Tests Before PR (re-run after `/simplify`, revert on regression). Removed the Dev Agent table, the elaborate 7-step Dev Workflow, the Local Dev Environment / dev-up / dev-adapt / dev-log-watch / dev-status sections, the watchdog reference, and the entire Always-on Worktree Topology section. Rules now apply to whatever agent the operator uses (native `Agent` tool, `feature-dev:code-implementer`, custom subagents) — the plugin no longer ships its own implementer.
+
 ## [0.2.3] - 2026-04-28
 
 ### Added
