@@ -25,7 +25,7 @@ The `hatch` skill recommends enabling strict profile during setup.
 
 ## Depends On
 
-- `claude-code-hermit` v1.0.21+ (core)
+- `claude-code-hermit` v1.0.22+ (core)
 
 ## Core Contracts
 

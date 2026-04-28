@@ -1,23 +1,56 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.2] - 2026-04-28
 
 ### Added
 
-- **`/dev-pr` skill** — opens a PR from the current feature branch. Assembles title + body from `/dev-quality` output, commit history, work-binding context, screenshots, and an optional project PR template (`.github/PULL_REQUEST_TEMPLATE.md` or `pr_template_path`). Gates: protected-branch check, clean tree, commits-ahead, fresh quality report, no unresolved health-degraded alerts. Accepts `--force` to skip quality and alert gates. Writes PR URL to `state/bindings.json`. Backed by `scripts/lib/pr-body-builder.js`.
-- **Watchdog infrastructure** — `watchdog-health.js` polls `dev_health_url` on a configurable interval and emits `health-degraded`/`health-recovered` events; `watchdog-errors.js` tails the dev-server log and emits `error-spike`/`error-cleared` events when the rolling error count crosses `dev_watchdog.log_error_alert_threshold`. Both write atomically to `state/alerts.json` via `alerts-store.js`. Registered by `/dev-up` Gate 5b in always-on mode (`runtime_mode ∈ {tmux,docker}`); skipped in interactive mode and when `dev_watchdog.enabled === false`.
-- **`scripts/lib/alerts-store.js`** — atomic read/write helpers for `state/alerts.json` with MAX_ALERTS=50 pruning and deduplication. Exports `readAlerts`, `atomicAppendAlert`, `markAcknowledged`, `isDuped`, `emitAlert`. Used by both watchdog processes and `/dev-status`.
-- **`scripts/lib/pr-body-builder.js`** — pure function that assembles PR title and body from commits, quality report, binding, screenshots, config, and project template. Supports template heading fill with fallback to built-in sections.
+- **dev-pr: new skill** — opens a PR from the current feature branch. Assembles title + body from `/dev-quality` output, commits, work-binding context, screenshots, and an optional project PR template. Gates: protected-branch, clean tree, commits-ahead, fresh quality report, no unresolved health-degraded alerts. Accepts `--force` to skip quality and alert gates. Writes PR URL to `state/bindings.json`.
+- **watchdog: health + error monitors** — `watchdog-health.js` polls `dev_health_url` and emits `health-degraded`/`health-recovered`; `watchdog-errors.js` tails the dev-server log and emits `error-spike`/`error-cleared` when rolling error count crosses `dev_watchdog.log_error_alert_threshold`. Registered by `/dev-up` Gate 5b in always-on mode; skipped in interactive mode or when `dev_watchdog.enabled === false`.
+- **`scripts/lib/alerts-store.js`** — atomic `state/alerts.json` helpers with MAX_ALERTS=50 pruning and deduplication. Shared by both watchdog processes and `/dev-status`.
+- **`scripts/lib/pr-body-builder.js`** — pure function assembling PR title + body from commits, quality report, binding, screenshots, and project template.
 
 ### Changed
 
-- **`/dev-up` Gate 5: worktree `cwd` support** — `dev-server-command.js` now accepts a `cwd` parameter; when `$HERMIT_AGENT_WORKTREE` is set, it prepends `cd <worktree>` to the Monitor pipeline so the dev server reflects the agent's branch. A `cd` failure emits a `[dev-up] Fatal:` sentinel that surfaces through the `grep` filter as a Monitor notification rather than silently running in the main checkout.
-- **`/dev-up` Gate 5b: watchdog registration** — after the dev-server Monitor entry starts in always-on mode, registers `dev-watchdog-health` (if `dev_health_url` is set) and `dev-watchdog-errors` as persistent background Monitor entries. Both are shut down by `/dev-down`.
-- **`/dev-up` port resolution** — reads `dev_port_agent` from config; when `$HERMIT_AGENT_WORKTREE` is set, exports that as the resolved port (`PORT` + `HERMIT_DEV_PORT`) rather than `dev_required_ports[0]`.
-- **`/dev-adapt`** — reads `.github/PULL_REQUEST_TEMPLATE.md` / `docs/pull_request_template.md` during discovery and detects `.gitlab-ci.yml` to set `commands.pr_create` default for GitLab remotes.
-- **`/dev-quality`, `/dev-status`, `/dev-branch`, `/dev-down`, `/dev-cleanup`, `/dev-doctor`** — updated to surface watchdog alerts in status output, shut down watchdog entries in `/dev-down`, and reflect the new state file layout.
-- **`state-templates/CLAUDE-APPEND.md`** — updated operator rules to cover `/dev-pr` usage and watchdog alert acknowledgement flow.
-- **README rewrite for fleet marketing launch** — restructure to match the hermit family voice: hero + 3-step install callout above the fold, narrative `How It Works` (folds in v0.2.0 `/dev-up` family + Chrome-extension verification pairing), Quick Start with Prerequisites, narrative preamble on Git Safety, trimmed three component tables to one, and Documentation list switched to "Read this when..." annotated style. No code or behaviour changes.
+- **dev-up: worktree `cwd` support** — when `$HERMIT_AGENT_WORKTREE` is set, the dev-server Monitor pipeline `cd`s into the worktree first so the server runs on the agent's branch, not the operator's checkout. A `cd` failure emits a `[dev-up] Fatal:` sentinel surfaced as a notification rather than silently falling back.
+- **dev-up: watchdog registration (Gate 5b)** — in always-on mode, registers `dev-watchdog-health` and `dev-watchdog-errors` as persistent Monitor entries after the dev-server starts. Both shut down on `/dev-down`.
+- **dev-up: `dev_port_agent` config key** — when `$HERMIT_AGENT_WORKTREE` is set, resolves the port from `dev_port_agent` instead of `dev_required_ports[0]`, so the agent's server doesn't collide with the operator's.
+- **dev-adapt: PR template + GitLab detection** — reads `.github/PULL_REQUEST_TEMPLATE.md` / `docs/pull_request_template.md` during discovery; detects `.gitlab-ci.yml` and sets `commands.pr_create` default for GitLab remotes.
+- **dev-quality / dev-status / dev-branch / dev-down / dev-cleanup / dev-doctor** — surface watchdog alerts in status output; `/dev-down` shuts down watchdog entries.
+- **state-templates/CLAUDE-APPEND.md** — `/dev-pr` usage rules and watchdog alert acknowledgement flow added.
+- **required_core_version: bumped to `>=1.0.22`** — worktree cwd support depends on `$HERMIT_AGENT_WORKTREE` set by hermit-start.py v1.0.22.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/dev-pr/SKILL.md` | New skill |
+| `scripts/lib/pr-body-builder.js` + `.test.js` | New: PR body builder (66 tests) |
+| `scripts/lib/alerts-store.js` + `.test.js` | New: atomic alerts store (16 tests) |
+| `scripts/watchdog-health.js` + `.test.js` | New: health watchdog (19 tests) |
+| `scripts/watchdog-errors.js` + `.test.js` | New: error-spike watchdog (27 tests) |
+| `skills/dev-up/SKILL.md` | Worktree cwd, watchdog registration, `dev_port_agent` resolution |
+| `skills/dev-adapt/SKILL.md` | PR template detection; GitLab `commands.pr_create` default |
+| `skills/dev-quality/SKILL.md` | Watchdog alert surfacing |
+| `skills/dev-status/SKILL.md` | Watchdog alert surfacing |
+| `skills/dev-branch/SKILL.md` | Watchdog alert surfacing |
+| `skills/dev-down/SKILL.md` | Watchdog Monitor entry shutdown |
+| `skills/dev-cleanup/SKILL.md` | Watchdog state cleanup |
+| `skills/dev-doctor/SKILL.md` | Watchdog config checks |
+| `state-templates/CLAUDE-APPEND.md` | `/dev-pr` rules + watchdog ack flow |
+| `.claude-plugin/hermit-meta.json` | `required_core_version`: `>=1.0.21` → `>=1.0.22` |
+| `README.md` | Rewrite for hermit fleet marketing launch |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Refresh** all `skills/dev-*.md` files from the updated plugin.
+2. **Copy** `scripts/lib/alerts-store.js`, `scripts/watchdog-health.js`, `scripts/watchdog-errors.js`, and `scripts/lib/pr-body-builder.js` into the hermit's scripts directory.
+3. **Append** the `/dev-pr` usage rules and watchdog alert acknowledgement section to the hermit's `CLAUDE.md` (from `state-templates/CLAUDE-APPEND.md`).
+
+No `config.json` changes required.
+
+**Note:** Two new optional config keys: `dev_port_agent` (integer, port for the agent-worktree dev server) and `dev_watchdog` (object with `enabled`, `log_error_alert_threshold`, `poll_interval_ms`). Watchdog is enabled by default when `dev_health_url` is set.
 
 ## [0.2.1] - 2026-04-27
 
