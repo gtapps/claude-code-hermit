@@ -46,7 +46,23 @@ Run the guardrails against these results before continuing.
 
 **Body:**
 
-- **Plugin release branch**: read `plugins/<slug>/CHANGELOG.md` and extract the `## [Unreleased]` section (everything between the `[Unreleased]` header and the next `## [` header). Use that as the Summary block — it was written for exactly this purpose. Append the squash-merge warning below.
+- **Plugin release branch**: detect which workflow applies and extract changelog content accordingly.
+
+  **Post-release-prep (standard):** Run `git log <base>..HEAD --oneline` and look for lines matching the release commit format `<slug> v<X.Y.Z>: <summary>` (e.g. `claude-code-dev-hermit v0.2.2: /dev-pr skill, watchdog infrastructure`). For each matched slug+version, extract the `## [X.Y.Z]` section from `plugins/<slug>/CHANGELOG.md`:
+
+  ```bash
+  awk -v ver="X.Y.Z" '
+    $0 ~ "^## \\[" ver "\\]" {flag=1; next}
+    /^## \[/ && flag {exit}
+    flag {print}
+  ' plugins/<slug>/CHANGELOG.md
+  ```
+
+  For multi-plugin releases (multiple release commits on this branch), concatenate all sections in release order (core first), each preceded by a `### <slug> v<X.Y.Z>` heading.
+
+  **Pre-release-prep (fallback):** If no release commits are found (PR opened before `/release` prep runs), fall back to reading the `## [Unreleased]` section from `plugins/<slug>/CHANGELOG.md` using the slug inferred from the branch name.
+
+  Use the extracted content as the Summary block. Append the squash-merge warning below.
 - **Otherwise**: check for `.github/PULL_REQUEST_TEMPLATE.md`. If present, fill it in using the commit range + diff as context. If no template:
 
   ```
@@ -65,7 +81,7 @@ Append to the body after the Summary block:
 ---
 > ⚠️ **Merge as merge commit — not squash or rebase.** Squash changes the
 > SHA and strands the release tag on an orphan commit. After merging, run
-> `/release <slug>` from `main` to tag.
+> `/release <slug>` from `main` for each released plugin to tag.
 ```
 
 **Issue links:**

@@ -1,0 +1,22 @@
+[
+  {"query": "what's ready to ship?", "should_trigger": true},
+  {"query": "before we start releasing, can you check where everything stands", "should_trigger": true},
+  {"query": "show me release status for all plugins", "should_trigger": true},
+  {"query": "which plugins have unreleased changes right now", "should_trigger": true},
+  {"query": "is ha-hermit's required_core_version still in sync with core?", "should_trigger": true},
+  {"query": "we're about to do a release session — give me the pipeline overview", "should_trigger": true},
+  {"query": "are there any plugins that are awaiting tag", "should_trigger": true},
+  {"query": "quick check — any [Unreleased] sections I should know about", "should_trigger": true},
+  {"query": "does anything need to ship before I open the PR", "should_trigger": true},
+  {"query": "give me a snapshot of where the release pipeline is at", "should_trigger": true},
+  {"query": "release claude-code-dev-hermit", "should_trigger": false},
+  {"query": "open a PR for this branch", "should_trigger": false},
+  {"query": "what changed in the last commit", "should_trigger": false},
+  {"query": "run the test suite for core", "should_trigger": false},
+  {"query": "bump the version for claude-code-hermit", "should_trigger": false},
+  {"query": "do a fleet release for core and dev-hermit", "should_trigger": false},
+  {"query": "commit these changelog updates", "should_trigger": false},
+  {"query": "is the required_core_version bumped to 1.0.22 in my local edit", "should_trigger": false},
+  {"query": "what plugins are installed on this hermit", "should_trigger": false},
+  {"query": "show me git log since the last tag for dev-hermit", "should_trigger": false}
+]

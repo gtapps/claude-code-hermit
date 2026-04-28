@@ -1,0 +1,22 @@
+[
+  {"query": "do a fleet release for core and dev-hermit", "should_trigger": true},
+  {"query": "both plugins changed on this branch, release them in the right order", "should_trigger": true},
+  {"query": "run fleet-release and auto-detect what needs to ship", "should_trigger": true},
+  {"query": "release core first then dev-hermit, and sync the hermit-meta", "should_trigger": true},
+  {"query": "I need to release multiple plugins together, auto-detect which ones", "should_trigger": true},
+  {"query": "we touched both claude-code-hermit and claude-code-dev-hermit on this branch — ship them together", "should_trigger": true},
+  {"query": "release all changed plugins on this branch in dependency order", "should_trigger": true},
+  {"query": "orchestrate the release for core + dev-hermit", "should_trigger": true},
+  {"query": "/fleet-release --dry-run to see what would ship", "should_trigger": true},
+  {"query": "do the full multi-plugin release prep and then open a PR", "should_trigger": true},
+  {"query": "release claude-code-hermit", "should_trigger": false},
+  {"query": "what's ready to ship", "should_trigger": false},
+  {"query": "commit the dev-hermit changes", "should_trigger": false},
+  {"query": "open a PR for this branch", "should_trigger": false},
+  {"query": "release core to 1.0.23", "should_trigger": false},
+  {"query": "update the required_core_version in hermit-meta for dev-hermit", "should_trigger": false},
+  {"query": "run the tests for all plugins", "should_trigger": false},
+  {"query": "what's the dependency between dev-hermit and core", "should_trigger": false},
+  {"query": "merge the release branch to main", "should_trigger": false},
+  {"query": "can you check if the release commits are in the right format", "should_trigger": false}
+]

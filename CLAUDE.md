@@ -22,7 +22,7 @@ Always launch Claude Code from this repo's root, not from inside a plugin dir. A
 - **Use `/commit` for every commit in this repo.** It detects which plugin's scope the diff belongs to, routes the CHANGELOG entry to that plugin's `CHANGELOG.md`, path-scopes staging (never `git add -A`), and runs `/simplify` on every diff (including markdown-only). The skill enforces "one plugin per commit" — cross-plugin changes are split into separate `/commit` runs.
 - Root-scope edits (CI, root README, `.claude/`, `.claude-plugin/marketplace.json`) skip the CHANGELOG step entirely — they don't ship to operators. `/commit` handles that automatically.
 - Releases still go through `/release <slug>`, which promotes a plugin's `[Unreleased]` section to a real version. `/commit` accumulates those entries during day-to-day work.
-- **Where these skills live**: `/commit`, `/release`, `/create-pr`, `/test-run` are repo-internal skills under `.claude/skills/` — they're not shipped to operators, only used during monorepo dev.
+- **Where these skills live**: `/commit`, `/release`, `/create-pr`, `/release-status`, `/fleet-release`, `/test-run` are repo-internal skills under `.claude/skills/` — they're not shipped to operators, only used during monorepo dev. Use `/release-status` for a read-only pipeline snapshot before any release session; use `/fleet-release` when multiple plugins change together on one branch (handles dep ordering and `required_core_version` sync automatically).
 
 ## Branching
 

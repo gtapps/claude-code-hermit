@@ -42,10 +42,11 @@ See [Testing](docs/testing.md) for hook test details, fixtures, manual testing, 
 ## PR Workflow
 
 1. Create a feature branch
-2. Make changes
-3. Run `( cd plugins/claude-code-hermit && bash tests/run-all.sh )` locally (and the HA pytest suite if HA code changed)
-4. Push — CI runs the same tests
-5. Keep commits focused — one concern per PR
+2. Run `/release-status` for a read-only pipeline snapshot (flags stale `required_core_version`, shows what's awaiting tag)
+3. Make changes
+4. Run `( cd plugins/claude-code-hermit && bash tests/run-all.sh )` locally (and the HA pytest suite if HA code changed)
+5. Push — CI runs the same tests
+6. Keep commits focused — one concern per PR
 
 ## Adding a New Hermit
 
@@ -78,6 +79,8 @@ Every plugin in this fleet that depends on the core hermit declares three versio
 ```
 
 `required_core_version` is the canonical fleet contract. It is read by the core plugin's `hermit-doctor` (the `dependencies` check), `smoke-test`, and `hermit-evolve`, and by external/third-party hermits that live outside this monorepo. The parallel `requires.claude-code-hermit` field mirrors it — the two must agree, and `tests/run-hooks.sh` enforces this on every CI run (test `sibling manifests: required_core_version vs requires consistency`). When you bump one, bump all three.
+
+When releasing core and a domain plugin together, use `/fleet-release` — it updates all three fields automatically after the core prep commit, before the domain plugin's release runs.
 
 ## Per-Plugin Test Runner Pattern
 
