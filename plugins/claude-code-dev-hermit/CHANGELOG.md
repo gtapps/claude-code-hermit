@@ -17,6 +17,7 @@
 - **dev-adapt: PR template + GitLab detection** — reads `.github/PULL_REQUEST_TEMPLATE.md` / `docs/pull_request_template.md` during discovery; detects `.gitlab-ci.yml` and sets `commands.pr_create` default for GitLab remotes.
 - **dev-quality / dev-status / dev-branch / dev-down / dev-cleanup / dev-doctor** — surface watchdog alerts in status output; `/dev-down` shuts down watchdog entries.
 - **state-templates/CLAUDE-APPEND.md** — `/dev-pr` usage rules and watchdog alert acknowledgement flow added.
+- **state-templates/CLAUDE-APPEND.md: routine schedule pointer** — removed hardcoded cron times from the routines quick-reference line; schedules and `enabled` state now point to `config.json → routines[]` (edit via `/claude-code-hermit:hermit-settings`) so the runtime context stays in sync with config.
 - **required_core_version: bumped to `>=1.0.22`** — worktree cwd support depends on `$HERMIT_AGENT_WORKTREE` set by hermit-start.py v1.0.22.
 
 ### Files affected
@@ -36,7 +37,7 @@
 | `skills/dev-down/SKILL.md` | Watchdog Monitor entry shutdown |
 | `skills/dev-cleanup/SKILL.md` | Watchdog state cleanup |
 | `skills/dev-doctor/SKILL.md` | Watchdog config checks |
-| `state-templates/CLAUDE-APPEND.md` | `/dev-pr` rules + watchdog ack flow |
+| `state-templates/CLAUDE-APPEND.md` | `/dev-pr` rules + watchdog ack flow; routine schedule pointer |
 | `.claude-plugin/hermit-meta.json` | `required_core_version`: `>=1.0.21` → `>=1.0.22` |
 | `README.md` | Rewrite for hermit fleet marketing launch |
 

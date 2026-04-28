@@ -141,4 +141,4 @@ An `agent:` line shows the worktree's branch and configured port alongside the s
 
 - Quality pass: `/claude-code-dev-hermit:dev-quality`
 - Branch cleanup: `/claude-code-dev-hermit:dev-cleanup`
-- Manage routines (reflect 9am daily, dev-cleanup weekly if enabled): `/claude-code-hermit:hermit-routines`
+- Manage routines (reflect, dev-cleanup if enabled): `/claude-code-hermit:hermit-routines` — schedules and `enabled` state live in `config.json` → `routines[]` (edit via `/claude-code-hermit:hermit-settings`)
