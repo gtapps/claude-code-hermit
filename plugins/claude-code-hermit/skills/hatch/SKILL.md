@@ -408,6 +408,13 @@ Generate OPERATOR.md through a project scan and targeted conversation instead of
 
 Scan the target project for context. Read ONLY the following if they exist — never read source code files. **Read all existing files in parallel** (batch into a single tool-call turn) to minimize scan time:
 
+<!-- Intentionally NOT in this list: `.claude-code-hermit/config.json`.
+     Reading config.json during the draft scan would invite the model to
+     mine it for OPERATOR.md content, which is exactly the leak Phase 4's
+     scrub exists to prevent. The model is config-blind during draft by
+     design; the scrub catches any leakage from CLAUDE.md or Phase 3
+     answers. Do not add config.json to this scan. -->
+
 | File                 | Read scope                                   |
 | -------------------- | -------------------------------------------- |
 | `CLAUDE.md`          | Full file                                    |
@@ -431,9 +438,10 @@ Collect findings silently. Do NOT print scan results to the operator.
 Using the scan results, write a concise context document. Follow these rules:
 
 1. **Never duplicate CLAUDE.md content.** If CLAUDE.md already covers a topic (testing, conventions, build commands), don't repeat it.
-2. **Only include high-confidence inferences.** If the scan clearly reveals something (e.g., package.json shows Node.js, README describes the project), include it. If uncertain, leave it for Phase 3 questions.
-3. **Keep it under 50 lines.** OPERATOR.md is loaded every session-start — bloat costs tokens. Write concise prose, not documentation.
-4. **No rigid sections required.** Use headers if they help organize, but don't create empty sections. The goal is a useful context document, not a filled-in form.
+2. **Never duplicate `config.json` fields.** `routines`, `channels` (including Discord/Telegram user IDs and `morning_brief`), `permission_mode`, `agent_name`, `sign_off`, `escalation`, `idle_behavior`, `boot_skill`, and `_hermit_versions` are already loaded structurally — do not restate them as prose. OPERATOR.md is for context the model can't infer from config (project focus, constraints, approval gates, comms style, project rationale).
+3. **Only include high-confidence inferences.** If the scan clearly reveals something (e.g., package.json shows Node.js, README describes the project), include it. If uncertain, leave it for Phase 3 questions.
+4. **Keep it under 50 lines.** OPERATOR.md is loaded every session-start — bloat costs tokens. Write concise prose, not documentation.
+5. **No rigid sections required.** Use headers if they help organize, but don't create empty sections. The goal is a useful context document, not a filled-in form.
 
 Write the draft to `.claude-code-hermit/OPERATOR.md`.
 
@@ -477,6 +485,8 @@ Incorporate the operator's answers into the draft:
 - Strip the HTML comment from the template (replace with actual content)
 - Keep the document under 50 lines total
 - For hermit-specific context, append after the core content
+
+**Before writing, scrub the draft for `config.json` mirroring.** Re-scan and remove any sentence that restates a `config.json` field (routine schedules, Discord/Telegram user IDs, `morning_brief` time, `permission_mode`, `agent_name`, `sign_off`, `escalation`, `idle_behavior`, `boot_skill`). If removing a sentence leaves a paragraph hollow, drop the paragraph. Those facts are already loaded from config.json on every session-start — duplicating them in OPERATOR.md is pure token tax and drifts when config changes.
 
 Write the final version to `.claude-code-hermit/OPERATOR.md`.
 

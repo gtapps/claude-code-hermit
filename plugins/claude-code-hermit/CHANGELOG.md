@@ -13,6 +13,9 @@
 - **hatch + hermit-settings: `auto` surfaced in permission mode options** — replaces the outdated "Teams/Enterprise only" note with accurate plan/model requirements.
 - **channel-setup: Docker-mode guard** — step 1 reads `state/runtime.json` and redirects to `/docker-setup` if `runtime_mode == "docker"`, with a fallback check for `docker/Dockerfile.hermit` for scaffolded-but-unbooted projects.
 - **hatch: deployment-mode next-steps** — Step 10 next-steps restructured into "Pick a mode / After picking / Anytime" groups so `/channel-setup` is visible for tmux and interactive users; channel-save note now names all three modes (Docker/tmux/interactive) with their activation paths.
+- **hatch: config.json leak prevention** — Phase 2 draft rule now explicitly prohibits restating config fields (`routines`, `channels`, `permission_mode`, `agent_name`, `sign_off`, `escalation`, `idle_behavior`, `boot_skill`, `_hermit_versions`) in OPERATOR.md. Phase 4 scrub step added: re-scans the draft and removes any sentence that mirrors a config field before writing the final file. config.json is intentionally excluded from the Phase 1 scan to prevent the model from mining it for content. proposal-create's "Do NOT include" list extended to redirect config-mirroring proposals to `/hermit-settings` instead.
+- **OPERATOR.md template: four-question scaffold** — comment rewritten to give operators a clearer mental model (Focus / Constraints / Approval / Comms style) and explicitly warn against restating config fields.
+- **CLAUDE.md: CLAUDE-APPEND contract** — documents the rule that state-templates/CLAUDE-APPEND.md must not restate config.json values (schedules, channel IDs, flags) — those are loaded structurally; CLAUDE-APPEND describes behavior and workflow shape only.
 
 ### Files affected
 
@@ -22,7 +25,10 @@
 | `plugins/claude-code-hermit/state-templates/GITIGNORE-APPEND.txt` | `.claude/worktrees/` added |
 | `plugins/claude-code-hermit/state-templates/GITIGNORE-APPEND-PROJECT.txt` | `.claude/worktrees/` added |
 | `plugins/claude-code-hermit/skills/channel-setup/SKILL.md` | Docker-mode guard at step 1 |
-| `plugins/claude-code-hermit/skills/hatch/SKILL.md` | Deployment-mode next-steps; `auto` permission mode option |
+| `plugins/claude-code-hermit/skills/hatch/SKILL.md` | Deployment-mode next-steps; `auto` permission mode option; config.json leak prevention (Phase 2 rule, Phase 4 scrub, scan exclusion comment) |
+| `plugins/claude-code-hermit/skills/proposal-create/SKILL.md` | "Do NOT include" extended: config-mirroring proposals redirected to `/hermit-settings` |
+| `plugins/claude-code-hermit/state-templates/OPERATOR.md` | Comment rewritten with four-question scaffold; config field warning added |
+| `plugins/claude-code-hermit/CLAUDE.md` | CLAUDE-APPEND contract: must not restate config.json values |
 | `plugins/claude-code-hermit/skills/hermit-settings/SKILL.md` | `auto` added to permission mode options |
 | `plugins/claude-code-hermit/docs/config-reference.md` | `permission_mode` entry updated for `auto` with plan requirements |
 

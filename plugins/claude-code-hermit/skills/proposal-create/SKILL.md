@@ -81,6 +81,7 @@ Evidence: <one-paragraph evidence summary>
 - Style preferences — put those in `OPERATOR.md`
 - Things that auto-memory already handles
 - Hypothetical future needs — only real problems observed during work
+- **Mirroring `config.json` into OPERATOR.md** — propose a `/claude-code-hermit:hermit-settings` change instead. Operator-editable prose is for things `config.json` can't express (focus, constraints, approval gates, comms style). Routine schedules, channel IDs, `permission_mode`, `agent_name`, `sign_off`, `escalation`, and `idle_behavior` are loaded structurally — duplicating them into OPERATOR.md is a token tax that drifts when config changes.
 
 ## Capability Proposals
 
