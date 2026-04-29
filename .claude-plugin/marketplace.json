@@ -4,13 +4,13 @@
     "name": "gtapps"
   },
   "metadata": {
-    "description": "Hermit fleet \u2014 autonomous personal assistants for Claude Code projects. Core runtime plus domain hermits."
+    "description": "Hermit fleet - autonomous personal assistants for Claude Code projects. Core runtime plus domain hermits."
   },
   "plugins": [
     {
       "name": "claude-code-hermit",
       "source": "./plugins/claude-code-hermit",
-      "description": "Core hermit \u2014 memory-driven learning, daily rhythm, idle agency, and operational hygiene for Claude Code",
+      "description": "Core hermit - memory-driven learning, daily rhythm, idle agency, and operational hygiene for Claude Code",
       "version": "1.0.24",
       "category": "productivity",
       "author": {
