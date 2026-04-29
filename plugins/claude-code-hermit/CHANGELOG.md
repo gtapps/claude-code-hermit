@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.24] - 2026-04-29
 
 ### Added
 
@@ -8,11 +8,42 @@
 
 - **`GITIGNORE-APPEND.txt`: complete local-scope coverage** — added `templates/`, `bin/`, `HEARTBEAT.md`, `IDLE-TASKS.md`, `knowledge-schema.md`, and `.claude.local/` (channel state dir). Previously hatch's gitignore append left bin/ and operator-editable files unignored, so `.claude-code-hermit/` kept showing as untracked in projects with local scope.
 
+- **`hatch`: operator consent before `.gitignore` writes** — step 7 now shows the entries to be appended and waits for `AskUserQuestion` confirmation before modifying or creating the project `.gitignore`.
+
 ### Removed
 
 - **`scope` config field and `project` scope** — the `scope` field (`"local"` | `"project"`) has been removed. Hermit state is now always gitignored (local scope only). `project` scope caused LLM-generated session reports, `raw/`, and `compiled/` artifacts — which may contain credentials or sensitive context encountered during work — to be committed to git history. The credential scan in `/migrate` is pattern-based and cannot reliably catch novel secret formats in LLM prose. The migration-via-git-clone convenience is already covered by the `/migrate` skill itself. `GITIGNORE-APPEND-PROJECT.txt` has been deleted.
 
+### Fixed
+
+- **`channel-setup`: inject `<CHANNEL>_STATE_DIR` into `settings.local.json`** — the skill wrote the bot token to the project-local `state_dir` but never wired the MCP server subprocess to read from there. Without `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` in the session env, channel servers defaulted to `~/.claude/channels/<channel>/` even when `state_dir` pointed elsewhere, causing "Failed to reconnect" errors and misplaced `access.json` files. The token write and the `settings.local.json` update (stale-token cleanup + `STATE_DIR` injection) are now a single read-modify-write in step 6, and the fix also runs when the token was already configured.
+
+- **`hatch`: add `heartbeat-precheck.js` and `reflect-precheck.js` to required permissions** — both scripts are called on every heartbeat tick and reflect run but were missing from the `permissions.allow` block, causing operators to be prompted on every invocation.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/heartbeat-precheck.js` | New — heartbeat precheck script |
+| `scripts/reflect-precheck.js` | New — reflect precheck script |
+| `scripts/lib/time.js` | New — shared timezone helpers |
+| `skills/heartbeat/SKILL.md` | Thinned to 94 lines; precheck integration |
+| `skills/heartbeat/reference.md` | New — alert dedup and self-eval detail, loaded on demand |
+| `skills/reflect/SKILL.md` | Precheck integration in step 1 |
+| `skills/hatch/SKILL.md` | Gitignore consent gate; precheck permissions added |
+| `skills/channel-setup/SKILL.md` | STATE_DIR injection in step 6 |
+| `skills/hermit-evolve/SKILL.md` | Upgrade instruction execution |
+| `skills/migrate/SKILL.md` | Scope removal references updated |
+| `state-templates/GITIGNORE-APPEND.txt` | Extended local-scope entries |
+| `state-templates/GITIGNORE-APPEND-PROJECT.txt` | Deleted |
+| `state-templates/config.json.template` | `scope` field removed |
+| `scripts/hermit-start.py` | `scope` handling and worktree setup removed |
+| `docs/config-reference.md` | `scope` field entry removed |
+| `tests/run-scripts.sh` | Precheck test cases added (34 → 52 script tests) |
+
 ### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 1. If `config.json` contains `"scope": "project"`:
    - **Warn the operator** (channel in always-on mode; inline in interactive mode):
@@ -22,10 +53,6 @@
 2. If `config.json` contains `"scope": "local"` or no `scope` key: silently remove the `scope` key from `config.json` and continue.
 3. Add missing precheck script permissions to `.claude/settings.json`. Check if `permissions.allow` contains `"Bash(node */scripts/heartbeat-precheck.js*)"` and `"Bash(node */scripts/reflect-precheck.js*)"`. If either is missing, show the operator the entries to add and ask with `AskUserQuestion` (header: "Precheck permissions") — options: **Yes — add** (default) / **No — skip**. If confirmed, merge the missing entries into `permissions.allow`.
 4. Apply extended `.gitignore` coverage to existing projects. Read the project `.gitignore`. Check if it contains `.claude-code-hermit/bin/`. If not, show the operator the lines that will be appended (from `${CLAUDE_PLUGIN_ROOT}/state-templates/GITIGNORE-APPEND.txt`, filtered to entries not already present) and ask with `AskUserQuestion` (header: "Update .gitignore") — options: **Yes — append** (default) / **No — skip**. Append only if confirmed.
-
-### Fixed
-
-- **`channel-setup`: inject `<CHANNEL>_STATE_DIR` into `settings.local.json`** — the skill wrote the bot token to the project-local `state_dir` but never wired the MCP server subprocess to read from there. Without `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` in the session env, channel servers defaulted to `~/.claude/channels/<channel>/` even when `state_dir` pointed elsewhere, causing "Failed to reconnect" errors and misplaced `access.json` files. The token write and the `settings.local.json` update (stale-token cleanup + `STATE_DIR` injection) are now a single read-modify-write in step 6, and the fix also runs when the token was already configured.
 
 ## [1.0.23] - 2026-04-28
 

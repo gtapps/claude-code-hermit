@@ -4,14 +4,14 @@
     "name": "gtapps"
   },
   "metadata": {
-    "description": "Hermit fleet — autonomous personal assistants for Claude Code projects. Core runtime plus domain hermits."
+    "description": "Hermit fleet \u2014 autonomous personal assistants for Claude Code projects. Core runtime plus domain hermits."
   },
   "plugins": [
     {
       "name": "claude-code-hermit",
       "source": "./plugins/claude-code-hermit",
-      "description": "Core hermit — memory-driven learning, daily rhythm, idle agency, and operational hygiene for Claude Code",
-      "version": "1.0.23",
+      "description": "Core hermit \u2014 memory-driven learning, daily rhythm, idle agency, and operational hygiene for Claude Code",
+      "version": "1.0.24",
       "category": "productivity",
       "author": {
         "name": "gtapps"
@@ -49,7 +49,7 @@
     {
       "name": "claude-code-homeassistant-hermit",
       "source": "./plugins/claude-code-homeassistant-hermit",
-      "description": "Home Assistant layer for claude-code-hermit — skills, subagents, safety hook, and Python CLI for an autonomous HA assistant",
+      "description": "Home Assistant layer for claude-code-hermit \u2014 skills, subagents, safety hook, and Python CLI for an autonomous HA assistant",
       "version": "0.0.6",
       "category": "home-automation",
       "author": {
@@ -69,7 +69,7 @@
     {
       "name": "claude-code-fitness-hermit",
       "source": "./plugins/claude-code-fitness-hermit",
-      "description": "Fitness/training layer for claude-code-hermit — Strava MCP integration, activity analysis skills, and routine templates for an autonomous training assistant",
+      "description": "Fitness/training layer for claude-code-hermit \u2014 Strava MCP integration, activity analysis skills, and routine templates for an autonomous training assistant",
       "version": "0.0.1",
       "category": "fitness",
       "author": {
