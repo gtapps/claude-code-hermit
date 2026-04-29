@@ -1,8 +1,4 @@
 {
-  "enabledPlugins": {
-    "claude-code-dev-hermit@claude-code-hermit": true,
-    "claude-code-hermit@claude-code-hermit": true
-  },
   "permissions": {
     "allow": [
       "Bash(git diff:*)",
@@ -37,5 +33,8 @@
       "Bash(*TOKEN*)",
       "Bash(*> *.claude-code-hermit/OPERATOR.md*)"
     ]
+  },
+  "enabledPlugins": {
+    "claude-code-hermit@claude-code-hermit": true
   }
 }
