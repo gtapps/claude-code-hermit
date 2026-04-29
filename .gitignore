@@ -31,13 +31,26 @@ Thumbs.db
 # Session local state (settings.local.json is per-developer)
 .claude/settings.local.json
 
-# Hermit session state (ephemeral; proposals/ and OPERATOR.md are tracked)
+# Hermit local state (scope=local — OPERATOR.md is the only tracked file)
 .claude-code-hermit/sessions/
 .claude-code-hermit/templates/
+.claude-code-hermit/cost-log.jsonl
+.claude-code-hermit/config.json
+.claude-code-hermit/proposals/
+.claude-code-hermit/MEMORY-SEED.md
+.claude-code-hermit/sessions/.eval-hash
+.claude-code-hermit/state/
+.claude-code-hermit/raw/
+.claude-code-hermit/compiled/
+.claude-code-hermit/cost-summary.md
+.claude-code-hermit/tasks-snapshot.md
+.claude-code-hermit/bin/
+.claude-code-hermit/HEARTBEAT.md
+.claude-code-hermit/IDLE-TASKS.md
+.claude-code-hermit/knowledge-schema.md
 
 
 # Claude Code internal state
-.claude/worktrees/
 .claude/agent-memory/
 .claude/scheduled_tasks.lock
 
@@ -46,6 +59,7 @@ Thumbs.db
 
 # Local data
 .local
+.claude.local/
 
 # Local obsidian
 .obsidian/

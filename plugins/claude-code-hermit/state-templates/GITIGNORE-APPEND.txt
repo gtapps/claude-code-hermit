@@ -2,15 +2,20 @@
 # claude-code-hermit
 .claude/cost-log.jsonl
 .claude/scheduled_tasks.lock
-.claude/worktrees/
 .claude-code-hermit/cost-log.jsonl
 .claude-code-hermit/config.json
 .claude-code-hermit/sessions/
+.claude-code-hermit/templates/
 .claude-code-hermit/proposals/
 .claude-code-hermit/MEMORY-SEED.md
 .claude-code-hermit/sessions/.eval-hash
 .claude-code-hermit/state/
 .claude-code-hermit/raw/
 .claude-code-hermit/compiled/
+.claude-code-hermit/bin/
+.claude-code-hermit/HEARTBEAT.md
+.claude-code-hermit/IDLE-TASKS.md
+.claude-code-hermit/knowledge-schema.md
 .claude-code-hermit/cost-summary.md
 .claude-code-hermit/tasks-snapshot.md
+.claude.local/
