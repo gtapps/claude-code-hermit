@@ -6,6 +6,8 @@ Language-agnostic safety layer for any agent doing dev work in a hermit project.
 
 - `skills/hatch/` — one-time setup wizard. Idempotent, re-runnable, defaults to strict hook profile.
 - `skills/dev-pr/` — push the current feature branch and open a PR with an inline-assembled body. Refuses on protected branches, dirty trees, or zero commits ahead.
+- `skills/dev-quality/` — pre-wrap quality gate: runs `/simplify` on the working-tree diff and re-runs `commands.test` if configured. Surfaces failures; suggests `/code-review:code-review` when installed.
+- `skills/dev-test/` — run the configured test suite and record the result to `state/last-test.json`. Useful for mid-task verification and warming the `/dev-pr` test cache.
 - `scripts/git-push-guard.js` — strict-profile-only `PreToolUse` hook for Bash. Blocks `--no-verify`, force-push (incl. `--force-with-lease`), `--mirror`/`--all`, and direct push to any branch in `claude-code-dev-hermit.protected_branches`.
 - `hooks/hooks.json` — registers `git-push-guard.js`.
 - `state-templates/CLAUDE-APPEND.md` — the rules-of-the-road for any agent doing dev work in this project. Sections: §Git Safety, §Branch Discipline, §Implementation Flow, §Tests Before PR, §Technical Constraints, §Before Archiving a Task, §Dev Session Hygiene, §Dev Knowledge, §Dev Proposal Categories, §Dev Quick Reference. Injected by `/hatch` into the target project's `CLAUDE.md`.

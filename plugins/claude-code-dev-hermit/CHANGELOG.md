@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.1] - 2026-04-29
 
 ### Added
 
@@ -13,6 +13,24 @@
 - **`scripts/record-test-result.js`** — adds `run` subcommand (executes `commands.test`, records real exit code + duration) and `write <exit_code> <duration_ms>` subcommand (for direct callers and CI). Hook path now silently skips on missing exit code instead of writing `status:"unknown"`. Interrupted runs (`tool_response.interrupted === true`) are skipped.
 - **`/dev-quality`** — test step now calls `record-test-result.js run` instead of `$COMMANDS_TEST`, so the result is recorded to `last-test.json` (note: SHA is pre-commit; `/dev-pr` will still re-run after commit).
 - **`state-templates/CLAUDE-APPEND.md`** — adds step 4 to §Implementation Flow pointing to `/dev-quality`; rewrites §Tests Before PR to reference `/dev-quality` as the `/simplify`+re-run owner. Operators must re-run `/claude-code-dev-hermit:hatch` to refresh their project's CLAUDE.md.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/dev-test/SKILL.md` | New skill — run tests and record result to `last-test.json` |
+| `skills/dev-quality/SKILL.md` | New skill — `/simplify` + test re-run quality gate |
+| `scripts/record-test-result.js` | Adds `run` and `write` subcommands; drops `status:"unknown"`; skips interrupted runs |
+| `skills/dev-pr/SKILL.md` | Gate 0 auto-runs tests on cache miss instead of blocking |
+| `state-templates/CLAUDE-APPEND.md` | §Implementation Flow step 4 + §Tests Before PR rewritten; §Dev Quick Reference updated |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Re-run `/claude-code-dev-hermit:hatch`** in each project using this plugin to refresh the injected `CLAUDE.md` with the updated §Implementation Flow and §Tests Before PR sections.
+
+No `config.json` changes required.
 
 ## [0.3.0] - 2026-04-28
 
