@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **`/dev-test` skill (`skills/dev-test/SKILL.md`)** — run the configured test suite and record the result to `last-test.json`. Useful for mid-task verification and warming the `/dev-pr` test cache. Internally calls `record-test-result.js run`.
+- **`/dev-quality` skill (`skills/dev-quality/SKILL.md`)** — re-introduces a `/dev-quality` skill (removed in v0.3.0 as "workflow ceremony") in leaner form as a mechanical pre-wrap quality gate: runs `/simplify` on the working-tree diff, re-runs `commands.test` if set, and reports results. On test regression, surfaces the failure and stops — no auto-rollback. If `/code-review:code-review` (`code-review@claude-plugins-official`) is in the agent's available slash-command list, the skill tells the agent to suggest it to the operator (never invokes it autonomously).
+
+### Changed
+
+- **`/dev-pr` Gate 0 tests check** — now runs tests automatically on cache miss instead of blocking with "run the test command yourself". A fresh `status:"pass"` record at the current HEAD is a cache hit (instant); anything else triggers `record-test-result.js run`. Fixes #12 (hook couldn't observe exit codes; gate previously refused all PRs).
+- **`scripts/record-test-result.js`** — adds `run` subcommand (executes `commands.test`, records real exit code + duration) and `write <exit_code> <duration_ms>` subcommand (for direct callers and CI). Hook path now silently skips on missing exit code instead of writing `status:"unknown"`. Interrupted runs (`tool_response.interrupted === true`) are skipped.
+- **`/dev-quality`** — test step now calls `record-test-result.js run` instead of `$COMMANDS_TEST`, so the result is recorded to `last-test.json` (note: SHA is pre-commit; `/dev-pr` will still re-run after commit).
+- **`state-templates/CLAUDE-APPEND.md`** — adds step 4 to §Implementation Flow pointing to `/dev-quality`; rewrites §Tests Before PR to reference `/dev-quality` as the `/simplify`+re-run owner. Operators must re-run `/claude-code-dev-hermit:hatch` to refresh their project's CLAUDE.md.
+
 ## [0.3.0] - 2026-04-28
 
 **v0.3.0 — language-agnostic safety layer.** Mass cleanup: dropped ~6,000 lines (~70% of the plugin) to reframe dev-hermit as a thin safety layer instead of a stack-aware orchestrator. The plugin now ships 2 skills (`hatch`, `dev-pr`), 1 hook (`git-push-guard`), and a CLAUDE-APPEND template that injects safety rules into the project's CLAUDE.md. No built-in implementer agent — operators use the native `Agent` tool, `feature-dev`'s research/architect agents, or custom subagents, all governed by the injected rules. Three audits (value / complexity / native-delegation) and a series of design-iteration conversations led to this redesign; full rationale in the v0.3.0 plan (`/home/d0m/.claude/plans/cryptic-weaving-dolphin.md`).

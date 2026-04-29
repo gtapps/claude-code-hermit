@@ -16,9 +16,10 @@ function setupProject(testCmd) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-test-'));
   const hermit = path.join(tmp, '.claude-code-hermit');
   fs.mkdirSync(hermit, { recursive: true });
-  fs.writeFileSync(path.join(hermit, 'config.json'), JSON.stringify({
-    'claude-code-dev-hermit': { commands: { test: testCmd } },
-  }));
+  const cfg = testCmd !== null
+    ? { 'claude-code-dev-hermit': { commands: { test: testCmd } } }
+    : {};
+  fs.writeFileSync(path.join(hermit, 'config.json'), JSON.stringify(cfg));
   const gitEnv = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
   execSync('git init -q && git commit -q --allow-empty -m init', { cwd: tmp, env: gitEnv, stdio: 'ignore' });
   return tmp;
@@ -54,7 +55,7 @@ let proj = setupProject('npm test');
 runHook(proj, { tool_input: { command: 'npm test' }, tool_response: { exit_code: 0, duration_ms: 1234 } });
 let s = readState(proj);
 assert('records pass with exit_code 0', s !== null && s.status === 'pass' && s.exit_code === 0);
-assert('records duration_ms', s && s.duration_ms === 1234);
+assert('hook path writes duration_ms null (run subcommand provides timing)', s && s.duration_ms === null);
 assert('records command', s && s.command === 'npm test');
 assert('records ts', s && typeof s.ts === 'string' && s.ts.includes('T'));
 cleanup(proj);
@@ -75,7 +76,7 @@ cleanup(proj);
 proj = setupProject('npm test');
 runHook(proj, { tool_input: { command: 'npm test' }, tool_response: {} });
 s = readState(proj);
-assert('records unknown when no exit_code in response', s !== null && s.status === 'unknown' && s.exit_code === null);
+assert('does not write when no exit_code in response', s === null);
 cleanup(proj);
 
 proj = setupProject('npm test');
@@ -104,6 +105,63 @@ const rc2 = runHook(tmp2, { tool_input: { command: 'anything' }, tool_response: 
 assert('exits 0 when commands.test is not configured', rc2 === 0);
 assert('does not write last-test.json without configured command', !fs.existsSync(path.join(tmp2, '.claude-code-hermit', 'state', 'last-test.json')));
 fs.rmSync(tmp2, { recursive: true, force: true });
+
+// interrupted guard
+proj = setupProject('npm test');
+runHook(proj, { tool_input: { command: 'npm test' }, tool_response: { interrupted: true } });
+s = readState(proj);
+assert('does not write when tool_response.interrupted is true', s === null);
+cleanup(proj);
+
+// write subcommand — pass
+proj = setupProject('npm test');
+spawnSync(process.execPath, [HOOK, 'write', '0', '1234'], { cwd: proj });
+s = readState(proj);
+const expectedSha = execSync('git rev-parse HEAD', { cwd: proj, encoding: 'utf-8' }).trim();
+assert('write: records pass with exit_code 0', s !== null && s.exit_code === 0 && s.status === 'pass');
+assert('write: records duration_ms', s !== null && s.duration_ms === 1234);
+assert('write: records git HEAD sha', s !== null && s.sha === expectedSha);
+cleanup(proj);
+
+// write subcommand — fail
+proj = setupProject('npm test');
+spawnSync(process.execPath, [HOOK, 'write', '1', '500'], { cwd: proj });
+s = readState(proj);
+assert('write: records fail with exit_code 1', s !== null && s.exit_code === 1 && s.status === 'fail');
+cleanup(proj);
+
+// write subcommand — invalid args
+proj = setupProject('npm test');
+spawnSync(process.execPath, [HOOK, 'write', '0abc', '1234'], { cwd: proj });
+s = readState(proj);
+assert('write: does not write on invalid exit_code arg', s === null);
+cleanup(proj);
+
+// run subcommand — pass
+proj = setupProject('exit 0');
+const runPass = spawnSync(process.execPath, [HOOK, 'run'], { cwd: proj, encoding: 'utf-8' });
+s = readState(proj);
+const runSha = execSync('git rev-parse HEAD', { cwd: proj, encoding: 'utf-8' }).trim();
+assert('run: exits 0 on passing test command', runPass.status === 0);
+assert('run: records pass', s !== null && s.status === 'pass');
+assert('run: records git HEAD sha', s !== null && s.sha === runSha);
+cleanup(proj);
+
+// run subcommand — fail
+proj = setupProject('exit 1');
+const runFail = spawnSync(process.execPath, [HOOK, 'run'], { cwd: proj, encoding: 'utf-8' });
+s = readState(proj);
+assert('run: exits 1 on failing test command', runFail.status === 1);
+assert('run: records fail', s !== null && s.status === 'fail');
+cleanup(proj);
+
+// run subcommand — no commands.test
+proj = setupProject(null);
+const runNoCmd = spawnSync(process.execPath, [HOOK, 'run'], { cwd: proj, encoding: 'utf-8' });
+s = readState(proj);
+assert('run: exits 1 when commands.test not configured', runNoCmd.status === 1);
+assert('run: does not write when commands.test not configured', s === null);
+cleanup(proj);
 
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

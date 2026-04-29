@@ -35,11 +35,22 @@ done
 
 **2. Clean-tree check.** `git status --porcelain` must return empty. If non-empty: FAIL with `"commit or stash changes before opening a PR"`.
 
-**3. Tests-ran check.** Read `.claude-code-hermit/state/last-test.json` (written by the `record-test-result` `PostToolUse` hook whenever the configured `commands.test` runs via Bash). Three failure modes:
+**3. Tests check.** Read `commands.test` from `.claude-code-hermit/config.json`.
 
-- File missing: FAIL `"no test result recorded — run the configured test command (commands.test) before /dev-pr; if commands.test is unset, run /claude-code-dev-hermit:hatch to configure it"`.
-- `sha !== current HEAD`: FAIL `"last test run was on <sha>, now at <head> — re-run commands.test"`.
-- `status !== 'pass'`: FAIL `"last test run failed (exit <exit_code>) — fix and re-run commands.test"`.
+- If `commands.test` is **unset**: warn `"No test command configured — test check skipped."` and proceed.
+
+Otherwise, read `.claude-code-hermit/state/last-test.json`:
+
+- If the file exists **and** `sha === current HEAD` **and** `status === "pass"`: cache hit — skip test run and proceed.
+- Anything else (file missing, stale SHA, or `status !== "pass"`): run tests now:
+
+  ```bash
+  node "${CLAUDE_PLUGIN_ROOT}/scripts/record-test-result.js" run
+  ```
+
+  Use `timeout: 600000`. If exit non-zero: FAIL `"tests failed (exit N) — fix and re-run /dev-pr"`. If exit 0: proceed.
+
+  For suites longer than 10 min: run tests in a terminal, record with `node <PLUGIN_ROOT>/scripts/record-test-result.js write <exit_code> <duration_ms>`, then re-run `/dev-pr`.
 
 This is the gate that enforces CLAUDE-APPEND §Tests Before PR mechanically rather than relying on the agent's self-report.
 
@@ -160,7 +171,7 @@ On Gate 3 FAIL: show the host-tool exit message + a one-line recovery hint.
 ## Rules
 
 - **Never skips clean-tree or protected-branch checks.** No `--force` flag exists; the only escape is to fix the underlying condition.
-- **No code edits, no test runs.** Run tests yourself (per CLAUDE-APPEND §Tests Before PR) before invoking `/dev-pr`. This skill is a push-and-create operation only.
+- **Runs tests on cache miss.** If no fresh pass exists at HEAD, Gate 0 runs `record-test-result.js run` automatically. First `/dev-pr` after changes may take time; subsequent calls at the same HEAD hit cache instantly.
 - **No screenshot creation.** Reads from `raw/screenshots/<binding-id>/manifest.json`. Producing screenshots is a stack-specific plugin's job.
 - **No merge.** Opening the PR is the terminal step; merging is a separate operator decision.
 - **Never force-push.** Even on divergence — surface the conflict, let the operator resolve. The `git-push-guard` hook blocks force-push at strict profile; this skill respects the same rule unconditionally.

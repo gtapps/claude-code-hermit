@@ -41,16 +41,14 @@ After making code changes:
 1. Run the configured test command (`claude-code-dev-hermit.commands.test`, set via `/claude-code-dev-hermit:hatch`). If unset, ask the operator for the command and offer to save it via `hatch`.
 2. If tests fail, fix the failures or surface them in the response — **do not declare the task done with broken tests**.
 3. If the task is non-trivial and `/feature-dev:feature-dev` is installed, run it first when the code path is unfamiliar (framework lifecycle hooks, ORM internals, build-tool plugins, auth middleware). The trigger is **unfamiliarity, not urgency**. Skip for: doc/prompt/config edits, single-line fixes, code paths you've already read end-to-end.
+4. Before declaring the task done: run `/claude-code-dev-hermit:dev-quality`. It runs `/simplify` on the diff and re-runs `commands.test` if configured. If tests regress, investigate before committing. If `/code-review:code-review` is installed (`code-review@claude-plugins-official`), the skill will tell you to suggest it to the operator — do not invoke that skill autonomously.
 
 ## Tests Before PR
 
-After implementation and after `/simplify`:
-
-1. Re-run the test command via Bash. The plugin's `record-test-result` hook captures the exit code, duration, and current HEAD sha into `.claude-code-hermit/state/last-test.json` automatically — you don't write the file, the hook does.
-2. If tests pass, proceed.
-3. If tests fail, run `git checkout -- <changed-files>` to revert the simplify pass and stop. Surface the regression to the operator.
-
-Then run `/claude-code-dev-hermit:dev-pr`. Its Gate 0 reads `last-test.json` and refuses if missing, on a stale sha, or with a non-pass status — closing the loop without trusting the agent's self-report.
+1. Run `/claude-code-dev-hermit:dev-quality` — handles `/simplify` + test re-run (see §Implementation Flow step 4).
+2. Commit.
+3. If you committed after `/dev-quality` ran and `commands.test` is configured, re-run it once — `/dev-pr` Gate 0 checks `last-test.json` against the current HEAD sha.
+4. Run `/claude-code-dev-hermit:dev-pr`. Gate 0 reads `last-test.json` and refuses if missing, on a stale sha, or with a non-pass status.
 
 ## Technical Constraints
 
@@ -93,6 +91,7 @@ Tier mapping:
 ## Dev Quick Reference
 
 - One-time setup / re-config: `/claude-code-dev-hermit:hatch`
+- Pre-wrap quality gate: `/claude-code-dev-hermit:dev-quality`
 - Open the PR: `/claude-code-dev-hermit:dev-pr`
 - Cleanup: `/simplify` (built-in)
 - Parallel changes across many files: `/batch` (built-in)

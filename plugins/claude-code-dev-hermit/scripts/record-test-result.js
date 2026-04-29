@@ -14,7 +14,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
 
 const MAX_STDIN = 1024 * 1024;
 
@@ -48,6 +48,50 @@ function atomicWrite(filePath, content) {
   fs.renameSync(tmp, filePath);
 }
 
+function writeRecord(hermitDir, command, exitCode, durationMs) {
+  const sha = gitHead(process.cwd());
+  if (!sha) return;
+  const record = {
+    command,
+    exit_code: exitCode,
+    duration_ms: durationMs,
+    status: exitCode === 0 ? 'pass' : 'fail',
+    sha,
+    ts: new Date().toISOString(),
+  };
+  const stateDir = path.join(hermitDir, 'state');
+  try {
+    fs.mkdirSync(stateDir, { recursive: true });
+    atomicWrite(path.join(stateDir, 'last-test.json'), JSON.stringify(record, null, 2) + '\n');
+  } catch (_) {}
+}
+
+const argv = process.argv;
+
+// run subcommand: execute commands.test and record the result
+if (argv[2] === 'run') {
+  const hermitDir = findHermitDir(process.cwd());
+  if (!hermitDir) { console.error('No .claude-code-hermit/ found'); process.exit(1); }
+  const testCmd = loadTestCommand(hermitDir);
+  if (!testCmd) { console.error('commands.test not configured'); process.exit(1); }
+  const start = Date.now();
+  const r = spawnSync('bash', ['-c', testCmd], { stdio: 'inherit' });
+  writeRecord(hermitDir, testCmd, r.status ?? 1, Date.now() - start);
+  process.exit(r.status ?? 1);
+}
+
+// write subcommand: record a known exit code (for direct callers / CI)
+if (argv[2] === 'write') {
+  const ecArg = argv[3];
+  const durArg = argv[4];
+  if (!/^-?\d+$/.test(ecArg) || !/^-?\d+$/.test(durArg)) process.exit(0);
+  const hermitDir = findHermitDir(process.cwd());
+  if (!hermitDir) process.exit(0);
+  const testCmd = loadTestCommand(hermitDir) || '';
+  writeRecord(hermitDir, testCmd, parseInt(ecArg, 10), parseInt(durArg, 10));
+  process.exit(0);
+}
+
 async function main() {
   const chunks = [];
   let total = 0;
@@ -61,6 +105,8 @@ async function main() {
 
   let data;
   try { data = JSON.parse(raw); } catch { process.exit(0); }
+
+  if (data.tool_response?.interrupted === true) process.exit(0);
 
   const command = data.tool_input?.command || '';
   if (!command) process.exit(0);
@@ -76,27 +122,9 @@ async function main() {
   const tr = data.tool_response || {};
   const exitCode = typeof tr.exit_code === 'number' ? tr.exit_code
                  : typeof tr.exitCode === 'number' ? tr.exitCode : null;
-  const durationMs = typeof tr.duration_ms === 'number' ? tr.duration_ms
-                   : typeof tr.durationMs === 'number' ? tr.durationMs : null;
+  if (exitCode === null) process.exit(0);
 
-  const sha = gitHead(process.cwd());
-  if (!sha) process.exit(0);
-
-  const record = {
-    command,
-    exit_code: exitCode,
-    duration_ms: durationMs,
-    status: exitCode === 0 ? 'pass' : exitCode === null ? 'unknown' : 'fail',
-    sha,
-    ts: new Date().toISOString(),
-  };
-
-  const stateDir = path.join(hermitDir, 'state');
-  try {
-    fs.mkdirSync(stateDir, { recursive: true });
-    atomicWrite(path.join(stateDir, 'last-test.json'), JSON.stringify(record, null, 2) + '\n');
-  } catch (_) {}
-
+  writeRecord(hermitDir, command, exitCode, null);
   process.exit(0);
 }
 
