@@ -92,8 +92,13 @@ Operator pastes the token via Other, or selects Skip.
 2. Write `<TOKEN_VAR>=<pasted-token>` to `<state_dir>/.env` (overwrite if exists)
 3. `chmod 600 <state_dir>/.env`
 4. Ensure `.claude.local/` is in `.gitignore`: check if `.gitignore` exists and contains `.claude.local/`; if missing, append `.claude.local/`.
-5. Clean stale `*_BOT_TOKEN` from `.claude/settings.local.json` `env` block if present (tokens must only live in `.env`).
-6. If `channels.<channel>.state_dir` was not set in config.json, write it now as a relative path (e.g. `.claude.local/channels/<channel>`).
+5. If `channels.<channel>.state_dir` was not set in config.json, write it now as a relative path (e.g. `.claude.local/channels/<channel>`).
+6. Update `.claude/settings.local.json` in a single read-modify-write (create `{}` if missing):
+   - Remove any stale `*_BOT_TOKEN` from the `env` block (tokens must only live in `.env`).
+   - Compute the absolute path of `state_dir`. Set `env.<CHANNEL_UPPERCASE>_STATE_DIR = <absolute_state_dir>` if not already correct. Same naming convention as token vars (step 4) — suffix `_STATE_DIR` instead of `_BOT_TOKEN`.
+   - Write the file. Confirm: "Wired `<CHANNEL_UPPERCASE>_STATE_DIR` → `<absolute_state_dir>` in `.claude/settings.local.json` (takes effect on next restart)."
+
+**If token already configured:** also run step 6 before proceeding to step 5.
 
 **If Skip:** print the manual command:
 ```
