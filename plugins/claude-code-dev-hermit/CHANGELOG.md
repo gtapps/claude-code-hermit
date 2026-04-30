@@ -22,6 +22,7 @@
 | `state-templates/CLAUDE-APPEND-SAFETY.md` | New safety-mode template |
 | `skills/hatch/SKILL.md` | Capability scan, mode question, conditional prompts, mode-aware template selection, `hatch_mode` persistence |
 | `.claude-plugin/plugin.json` | Version bump to 0.3.2 |
+| `.claude-plugin/marketplace.json` | Version synced to 0.3.2 |
 
 ### Upgrade Instructions
 

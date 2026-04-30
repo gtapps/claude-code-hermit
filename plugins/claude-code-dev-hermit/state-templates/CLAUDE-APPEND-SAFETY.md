@@ -1,4 +1,3 @@
-
 ---
 <!-- claude-code-dev-hermit: Development Workflow -->
 
