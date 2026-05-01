@@ -185,6 +185,20 @@ Check if `access.json` exists at `<state_dir>/access.json`.
   Confirm: "Moved access.json to `<state_dir>/`."
 - If found in neither location: note — "access.json not found. Pairing may not have completed. Run `/<channel>:access pair <code>` after DMing your bot."
 
+### 6b. Default delivery settings
+
+Once `access.json` is at `<state_dir>/access.json` (§6), set sensible delivery defaults the operator hasn't customized.
+
+Skip this step if the current channel is `imessage`. Otherwise:
+
+1. Read `<state_dir>/access.json`. If `ackReaction` is already a non-empty string, skip — don't overwrite operator customization.
+2. Otherwise run, with the state-dir hint (same pattern as §5):
+   ```
+   /<channel>:access set ackReaction 👀 — save access.json to <state_dir>/, not ~/.claude
+   ```
+
+`👀` works on Discord (any unicode emoji accepted) and is in Telegram's fixed reaction whitelist. Operators get an emoji on their inbound DM as soon as the bot receives it — fills the gap after the 5–10s typing indicator times out. Idempotent: re-running channel-setup leaves customized values alone.
+
 ### 7. Summary
 
 ```
