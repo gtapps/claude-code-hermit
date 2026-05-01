@@ -8,9 +8,9 @@ Brings existing hermit content up to date with the frontmatter contract. Safe to
 
 ## Step 1 — Scan (no writes)
 
-Delegate the gap scan to the built-in `Explore` subagent. Prompt: `Scan three locations and return a JSON object with these keys, each holding a list of file paths: sessions_missing_tags (any .claude-code-hermit/sessions/S-NNN-REPORT.md whose YAML frontmatter lacks the tags field), proposals_missing_tags (same for .claude-code-hermit/proposals/PROP-NNN.md), artifacts_missing_frontmatter (paths from .claude-code-hermit/cortex-manifest.json artifact_paths whose files lack title or created in frontmatter), artifacts_missing_tags (artifact files that have frontmatter but no tags field). If cortex-manifest.json does not exist or artifact_paths is empty, set both artifact_* lists to []. Return only file paths and gap counts — no file bodies.`
+Delegate the gap scan to the built-in `Explore` subagent. Prompt: `Scan and return a JSON object with these keys: sessions_missing_tags (list of .claude-code-hermit/sessions/S-NNN-REPORT.md paths whose YAML frontmatter lacks the tags field), proposals_missing_tags (same for .claude-code-hermit/proposals/PROP-NNN.md), artifacts_missing_frontmatter (paths from .claude-code-hermit/cortex-manifest.json artifact_paths whose files lack title or created), artifacts_missing_tags (artifact files that have frontmatter but no tags), cortex_manifest_configured (false if cortex-manifest.json does not exist or its artifact_paths is empty, otherwise true). Return file paths and counts only — no file bodies.`
 
-Use the returned counts to render the operator-facing summary:
+Use the returned data to render the operator-facing summary:
 
 ```
 Cortex sync — gaps found:
@@ -23,7 +23,7 @@ Cortex sync — gaps found:
 Proceed? (y/n)
 ```
 
-If `cortex-manifest.json` does not exist or `artifact_paths` is empty: include in the summary: "No artifact paths configured — skipping artifact enrichment. Run `/claude-code-hermit:obsidian-setup` to configure."
+If `cortex_manifest_configured` is `false` in the Explore result: include in the summary: "No artifact paths configured — skipping artifact enrichment. Run `/claude-code-hermit:obsidian-setup` to configure."
 
 "Proceed?" is abort-or-continue only — not blanket approval. Each cluster in the following steps still requires its own confirmation. Within each cluster, "skip" skips that cluster only — the skill continues with remaining clusters. If nothing is missing: "All content is up to date. Nothing to do." Stop.
 
