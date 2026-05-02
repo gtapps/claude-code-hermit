@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/Claude-Pro%20%7C%20Max-blueviolet.svg" alt="Claude Pro/Max Compatible" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
   <a href="plugins/claude-code-hermit/docs/obsidian-setup.md"><img src="https://img.shields.io/badge/obsidian-active-7c3aed.svg" alt="Obsidian Integration" /></a>
-  <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/main/.github/badges/clones.json" alt="Clones" />
+  <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/main/.github/badges/clones.json" alt="Downloads" />
 </p>
 
 # claude-code-hermit
