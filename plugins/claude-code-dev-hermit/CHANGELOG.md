@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.3] - 2026-05-03
 
 ### Added
 
@@ -14,6 +14,30 @@
 - **`/hatch` safety-mode skip list** — `pr_base_branch` added to the list of keys not written in safety mode (these feed `/dev-pr` which is not prescribed in that mode).
 - **`/hatch` Docker network requirements section** — adds an explicit "intentionally empty" Docker domains/LAN block with an explanation for why the plugin cannot pre-declare DNS allowlist entries (language-agnostic; dev workflows vary per project).
 - **core requirement bumped to `>=1.0.26` / `^1.0.26`** — was `>=1.0.22` / `^1.0.22`. `required_core_version` + `requires` (in `hermit-meta.json`) and `dependencies[0].version` (in `plugin.json`) all bumped together. Updated `CLAUDE.md`, `CONTRIBUTING.md`, `docs/HOW-TO-USE.md`.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/record-test-result.js` | Adds `likely_cause` classification for OOM, timeout, user-interrupt exits |
+| `scripts/record-test-result.test.js` | Tests for `likely_cause` field and absence on generic exits |
+| `skills/dev-quality/SKILL.md` | Gate 0: commits-ahead NOTICE when working tree is clean |
+| `skills/dev-pr/SKILL.md` | Gate 4: session-close nudge appended after successful PR create |
+| `skills/hatch/SKILL.md` | Base-branch detection, `pr_base_branch` safety-mode skip, Docker network section |
+| `.claude-plugin/hermit-meta.json` | `required_core_version` and `requires` bumped to `>=1.0.26` |
+| `.claude-plugin/plugin.json` | Version bump to 0.3.3; `dependencies` core entry bumped to `^1.0.26` |
+| `.claude-plugin/marketplace.json` | Version synced to 0.3.3 |
+| `CLAUDE.md` | Core dependency reference updated to v1.0.26+ |
+| `CONTRIBUTING.md` | Core version reference updated |
+| `docs/HOW-TO-USE.md` | Core version reference updated |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Refresh skill files** — picks up updated `/dev-pr`, `/dev-quality`, and `/hatch` behavior.
+
+No `config.json` changes required.
 
 ## [0.3.2] - 2026-04-29
 
