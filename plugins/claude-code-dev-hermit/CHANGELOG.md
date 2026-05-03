@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **`likely_cause` field in `state/last-test.json`** — when `record-test-result.js` records a non-zero exit, it now classifies well-known signal exits: `137` → `"oom"`, `124` → `"timeout"`, `130` → `"user-interrupt"`. Surfaced in `/dev-pr` Gate 0 and `/dev-quality` Gate 2 failure messages so operators see `tests failed (exit 137, likely OOM)` instead of an opaque exit code.
+- **`/dev-quality` commits-ahead NOTICE** — when Gate 0 fails on a clean working tree, `/dev-quality` checks whether HEAD has commits ahead of the base. If so, it emits a NOTICE explaining the correct ordering (`/dev-quality → commit → /dev-pr`) and points to `/dev-test` for post-commit verification. Resolves the common foot-gun of committing first and then finding `/dev-quality` has nothing to act on.
+- **`/hatch` base-branch detection** — during the capability scan in step 2, hatch now detects common base branches from the remote (`main`, `master`, `develop`, `development`, `dev`, `trunk`). If exactly one candidate differs from what `/dev-pr`'s fallback chain would resolve, it is written as `pr_base_branch` automatically. If two or more candidates are detected, a `Base branch` question is added to the Round 2 `AskUserQuestion` batch. In both cases, the key is only written when the value differs from the fallback — ordinary trunk repos see no change in behavior.
+
+### Changed
+
+- **`/dev-pr` Gate 4 session-close nudge** — after a successful `gh pr create`, `/dev-pr` now appends `next: PR opened — consider /claude-code-hermit:session-close to wrap the session` to the report. Reduces false-positive stale-session heartbeat alerts caused by sessions left open after PR creation.
+- **`/hatch` safety-mode skip list** — `pr_base_branch` added to the list of keys not written in safety mode (these feed `/dev-pr` which is not prescribed in that mode).
+- **`/hatch` Docker network requirements section** — adds an explicit "intentionally empty" Docker domains/LAN block with an explanation for why the plugin cannot pre-declare DNS allowlist entries (language-agnostic; dev workflows vary per project).
+
 ## [0.3.2] - 2026-04-29
 
 ### Added

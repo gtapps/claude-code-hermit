@@ -59,6 +59,13 @@ function writeRecord(hermitDir, command, exitCode, durationMs) {
     sha,
     ts: new Date().toISOString(),
   };
+  if (exitCode !== 0) {
+    const likelyCause = exitCode === 137 ? 'oom'
+                      : exitCode === 124 ? 'timeout'
+                      : exitCode === 130 ? 'user-interrupt'
+                      : null;
+    if (likelyCause) record.likely_cause = likelyCause;
+  }
   const stateDir = path.join(hermitDir, 'state');
   try {
     fs.mkdirSync(stateDir, { recursive: true });

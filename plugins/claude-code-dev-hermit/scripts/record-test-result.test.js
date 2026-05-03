@@ -163,5 +163,33 @@ assert('run: exits 1 when commands.test not configured', runNoCmd.status === 1);
 assert('run: does not write when commands.test not configured', s === null);
 cleanup(proj);
 
+// likely_cause — oom (137)
+proj = setupProject('exit 137');
+spawnSync(process.execPath, [HOOK, 'run'], { cwd: proj });
+s = readState(proj);
+assert('likely_cause: oom on exit 137', s !== null && s.likely_cause === 'oom');
+cleanup(proj);
+
+// likely_cause — timeout (124)
+proj = setupProject('exit 124');
+spawnSync(process.execPath, [HOOK, 'run'], { cwd: proj });
+s = readState(proj);
+assert('likely_cause: timeout on exit 124', s !== null && s.likely_cause === 'timeout');
+cleanup(proj);
+
+// likely_cause — user-interrupt (130)
+proj = setupProject('exit 130');
+spawnSync(process.execPath, [HOOK, 'run'], { cwd: proj });
+s = readState(proj);
+assert('likely_cause: user-interrupt on exit 130', s !== null && s.likely_cause === 'user-interrupt');
+cleanup(proj);
+
+// likely_cause — absent on generic non-zero
+proj = setupProject('exit 1');
+spawnSync(process.execPath, [HOOK, 'run'], { cwd: proj });
+s = readState(proj);
+assert('likely_cause: absent on generic exit 1', s !== null && !('likely_cause' in s));
+cleanup(proj);
+
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

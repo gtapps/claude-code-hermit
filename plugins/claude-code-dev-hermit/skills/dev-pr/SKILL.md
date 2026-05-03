@@ -48,7 +48,7 @@ Otherwise, read `.claude-code-hermit/state/last-test.json`:
   node "${CLAUDE_PLUGIN_ROOT}/scripts/record-test-result.js" run
   ```
 
-  Use `timeout: 600000`. If exit non-zero: FAIL `"tests failed (exit N) — fix and re-run /dev-pr"`. If exit 0: proceed.
+  Use `timeout: 600000`. If exit non-zero: read the just-written `state/last-test.json` and include `likely_cause` in the message if present (`tests failed (exit 137, likely OOM) — fix and re-run /dev-pr`); otherwise FAIL `"tests failed (exit N) — fix and re-run /dev-pr"`. If exit 0: proceed.
 
   For suites longer than 10 min: run tests in a terminal, record with `node <PLUGIN_ROOT>/scripts/record-test-result.js write <exit_code> <duration_ms>`, then re-run `/dev-pr`.
 
@@ -144,6 +144,11 @@ rm -f "$PR_BODY_TMP"
 
 **Append to SHELL.md Progress Log:** `[HH:MM] PR opened: <url>`.
 
+**Emit session-close nudge:** append to the report:
+```
+next: PR opened — consider /claude-code-hermit:session-close to wrap the session
+```
+
 ## Output
 
 ```
@@ -156,6 +161,7 @@ dev-pr
   body:     4 sections, 2 screenshots embedded
   template: project (.github/PULL_REQUEST_TEMPLATE.md appended)
   status:   created
+  next:     PR opened — consider /claude-code-hermit:session-close to wrap the session
 ```
 
 On Gate 0 FAIL: name the failed check and give the exact command to satisfy it. Example:

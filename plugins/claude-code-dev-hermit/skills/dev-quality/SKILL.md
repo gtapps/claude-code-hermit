@@ -20,7 +20,20 @@ Run a quality pass on the working-tree diff before declaring the task done. Invo
 git diff --quiet && git diff --cached --quiet
 ```
 
-If both are empty: FAIL `"no working-tree diff — nothing to simplify"`.
+If both are empty: working tree is clean. Before failing, check whether HEAD has commits ahead of the base:
+
+1. Resolve `BASE_NAME` using the same priority order as `/dev-pr` Gate 0 step 4 (`pr_base_branch` → first non-glob `protected_branches` → `origin/HEAD` → `main`/`master`).
+2. Resolve `BASE_REF`: try `git rev-parse --verify "$BASE_NAME" 2>/dev/null`; on failure try `git rev-parse --verify "origin/$BASE_NAME" 2>/dev/null`; if neither resolves, skip the NOTICE.
+3. If `git rev-list --count "$BASE_REF..HEAD"` > 0, emit before failing:
+
+   ```
+   NOTICE: working tree is clean but HEAD has N commits ahead of <BASE_NAME>.
+           /dev-quality is designed to run BEFORE commit (so /simplify can edit the diff).
+           Correct order: /dev-quality → commit → /dev-pr.
+           To verify the committed state passes tests, run /dev-test instead.
+   ```
+
+Then FAIL `"no working-tree diff — nothing to simplify"`.
 
 ### Gate 1 — run `/simplify`
 
@@ -50,7 +63,7 @@ Do **not** invoke `/code-review:code-review` autonomously — operator decision 
 
 **Tests fail:**
 
-FAIL with `"tests regressed after /simplify (exit <N>) — investigate before committing"` and the last 20 lines of stderr. Leave the working tree as-is (post-simplify state) — the agent or operator decides whether to fix forward or revert the simplify pass manually (`git checkout -- <files>`).
+Read `state/last-test.json` and include `likely_cause` in the failure message if present. FAIL with `"tests regressed after /simplify (exit <N>[, likely OOM|timeout|user-interrupt]) — investigate before committing"` and the last 20 lines of stderr. Leave the working tree as-is (post-simplify state) — the agent or operator decides whether to fix forward or revert the simplify pass manually (`git checkout -- <files>`).
 
 ## Output
 
@@ -69,7 +82,7 @@ On Gate 3 failure:
 dev-quality
   diff:     12 files modified
   simplify: applied
-  tests:    FAIL (exit 1, 8.7s)
+  tests:    FAIL (exit 137, likely OOM, 8.7s)
   recovery: investigate the regression; fix forward or `git checkout -- <files>` to revert the simplify pass
   status:   tests-regressed
 ```
@@ -84,7 +97,18 @@ dev-quality
   status:   ok
 ```
 
-On Gate 0 failure:
+On Gate 0 failure (clean tree, commits ahead):
+
+```
+dev-quality
+  NOTICE: working tree is clean but HEAD has 3 commits ahead of main.
+          /dev-quality is designed to run BEFORE commit (so /simplify can edit the diff).
+          Correct order: /dev-quality → commit → /dev-pr.
+          To verify the committed state passes tests, run /dev-test instead.
+  FAIL (Gate 0): no working-tree diff — nothing to simplify
+```
+
+On Gate 0 failure (clean tree, no commits ahead or base unresolvable):
 
 ```
 dev-quality

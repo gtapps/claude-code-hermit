@@ -27,6 +27,7 @@ Run all detection in a single parallel turn:
 - Installed plugins: `claude plugin list 2>/dev/null` or read `.claude/settings.json`.
 - Remote host (for `commands.pr_create` default): `git remote get-url origin 2>/dev/null` — if the URL contains `gitlab`, default `pr_create` to `glab pr create`; else default to `gh pr create`.
 - Capability scan: `ls .claude/skills/ 2>/dev/null` — list skill directory names. Match if any of the following dir names are present: `commit`, `create-pr`, `pr`, `pull-request`, `release`, `git-commit`. Record the matched names.
+- Base-branch detection: `git branch -r --format='%(refname:short)' 2>/dev/null | sed 's|^origin/||'` — collect remote branch names. Record which of the following are present: `main`, `master`, `develop`, `development`, `dev`, `trunk`. Call this set `CANDIDATE_BASES`.
 
 **File reads:**
 - `OPERATOR.md` if present (check for `## Development Conventions` section).
@@ -134,6 +135,14 @@ In `safety` mode, ask only the `Protected` question (single `AskUserQuestion` ca
 
 If `env.AGENT_HOOK_PROFILE` is already `"strict"` in config, replace the Hook question's options below with a single `Keep current (strict already active)` confirmation — never present an opt-out path that would silently downgrade an existing strict install.
 
+Before asking Round 2, compute `FALLBACK_BASE` using the same priority order as `/dev-pr` Gate 0 step 4, but from the **just-confirmed** `protected_branches` from Round 1 (first non-glob entry → `origin/HEAD` → `main`/`master`). Then determine whether to include a `Base branch` question:
+
+- **If `CANDIDATE_BASES` has 2+ entries:** include the question with those branches as options (plus `Other`).
+- **If `CANDIDATE_BASES` has exactly 1 entry and it differs from `FALLBACK_BASE`:** silently set `AUTO_BASE` to that entry — no question needed, handled at step 5. Do not include the question in Round 2.
+- **All other cases (0 entries, 1 entry matching fallback, no remote):** skip entirely — no question, no write at step 5.
+
+On re-run: if `pr_base_branch` is already set in config, always include the question when `CANDIDATE_BASES` has 2+ entries, and prepend `Keep current (<value>)` as the first (recommended) option.
+
 ```
 questions: [
   {
@@ -145,13 +154,22 @@ questions: [
     ]
   },
   {
-    header: "PR template",
+    header: "PR template",   // standard mode only (see below)
     question: "PR template path? (auto-detected: `<detected or 'none'>`)",
     options: [
       { label: "Keep current (<value>)", description: "Already configured" },                  // re-run
       { label: "<detected path>", description: "Append this template after the assembled body" },  // when detected
       { label: "Skip", description: "No project PR template" },
       { label: "Other", description: "Type a path" }
+    ]
+  },
+  {
+    header: "Base branch",   // only when CANDIDATE_BASES has 2+ entries (standard mode only)
+    question: "Which branch do PRs target? (detected candidates: <CANDIDATE_BASES>)",
+    options: [
+      { label: "Keep current (<value>)", description: "Already configured" },   // re-run only
+      { label: "<branch>", description: "..." },   // one option per CANDIDATE_BASES entry
+      { label: "Other", description: "Type a branch name" }
     ]
   },
   {
@@ -167,7 +185,7 @@ questions: [
 ]
 ```
 
-In `safety` mode, skip the `PR template` question and do not write `pr_template_path` to config (it feeds `/dev-pr` which is not prescribed in safety mode). Keep `Hook` and `Plugins`.
+In `safety` mode, skip the `PR template` and `Base branch` questions; do not write `pr_template_path` or `pr_base_branch` to config (these feed `/dev-pr` which is not prescribed in safety mode). Keep `Hook` and `Plugins`.
 
 Filter the Plugins `options` array to only those NOT already installed (per the `claude plugin list` detection above). If the filtered list is empty, skip the Plugins question entirely.
 
@@ -191,6 +209,7 @@ In `standard` mode only, also write:
 - `claude-code-dev-hermit.commands.format` — optional.
 - `claude-code-dev-hermit.commands.pr_create` — from the remote-host detection above (`gh pr create` / `glab pr create`); preserve any existing operator override.
 - `claude-code-dev-hermit.pr_template_path` — optional, from Round 2.
+- `claude-code-dev-hermit.pr_base_branch` — write only if the chosen branch (from the Round 2 `Base branch` question, or `AUTO_BASE` from the single-match case) differs from `FALLBACK_BASE`. If equal or not set, leave the key absent so `/dev-pr`'s fallback chain operates undisturbed.
 
 For each selected companion plugin: `claude plugin install <plugin>@claude-plugins-official --scope project`.
 
@@ -233,6 +252,24 @@ Conventions are in CLAUDE.md (§Git Safety, §Branch Discipline,
 §Implementation Flow, §Tests Before PR). [standard]
 Any agent doing dev work in this project — native Agent, feature-dev, custom — must follow them.
 ```
+
+## Docker network requirements
+
+Read by `/claude-code-hermit:docker-security` when the operator enables LAN containment + DNS policy. **Intentionally empty** for this plugin.
+
+### Domains (DNS allowlist)
+
+(none — see note below)
+
+### LAN allowlist suggestions
+
+(none — see note below)
+
+> **Why empty.** `claude-code-dev-hermit` is a language-agnostic safety layer. Dev workflows are inherently arbitrary — a project might pull packages from any registry (npm, PyPI, RubyGems, crates.io, Maven Central, Docker Hub, custom internal mirrors), reach any cloud provider's API, fetch from any git host, or talk to any local service. We can't pre-declare what your specific project needs without being wrong for the next operator.
+>
+> **What to do instead:** in `/docker-security`, choose **"Yes — recommended (LAN block + DNS log-only)"** for Prompt 1 the first time you run it. Run your usual dev workflows for a few days, then read `.claude-code-hermit/state/dns.log` for the domains your project actually contacted. Add the ones you trust to `.claude-code-hermit/docker/dnsmasq.allowlist` (one `server=/<domain>/1.1.1.1` line each), restart the netguard sidecar, and re-run `/docker-security` to flip to enforce mode. Strict DNS is hostile to arbitrary dev workflows out of the box — log-only is the right starting posture.
+
+---
 
 ## Rules
 
