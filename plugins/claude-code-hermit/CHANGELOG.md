@@ -1,24 +1,41 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.27] - 2026-05-04
 
 ### Fixed
-- docker-security: detect operator-added `ports:` on `hermit` and offer to move them to `hermit-netguard` (the netns owner) when LAN containment is enabled. Wizard hard-gates `hermit-docker up` until the operator deletes the base `ports:` block, so a half-applied state cannot reach the daemon. Previously caused `conflicting options: port publishing and the container type network mode`.
-- docker-security: auto-pick a free /24 subnet for `hermit-net` instead of hardcoding `172.28.0.0/24`. Scans all host Docker networks (excluding this project's own via Compose labels), walks `172.28-31` then `10.244-247` before prompting. Previously caused `Pool overlaps with other one on this address space` when a second hermit project (or any unrelated network in the same range) ran on the same host.
-- docker-security: `publish_ports` config persists across reruns — operators who deleted the base `ports:` block on a previous run will not lose the netguard publish mapping on the next wizard pass.
-- docker-security: pre-flight Docker daemon check (`docker info`) exits early with a clear message instead of cryptic subprocess errors.
+- **docker-security: port-conflict guard** — detect operator-added `ports:` on `hermit` and offer to move them to `hermit-netguard` (the netns owner) when LAN containment is enabled. Wizard hard-gates `hermit-docker up` until the operator removes the base `ports:` block, preventing the `conflicting options: port publishing and the container type network mode` error.
+- **docker-security: auto-pick free subnet** — scan all host Docker networks and walk `172.28-31` then `10.244-247` before prompting, instead of hardcoding `172.28.0.0/24`. Eliminates `Pool overlaps with other one on this address space` on hosts with multiple hermit projects or colliding networks.
+- **docker-security: `publish_ports` survives reruns** — operators who removed the base `ports:` block on a previous run no longer lose the netguard publish mapping on the next wizard pass.
+- **docker-security: early daemon guard** — `docker info` preflight now exits with a clear message instead of cryptic subprocess errors when the Docker daemon is unreachable.
 
 ### Added
-- hermit-doctor: `docker-security` check now flags subnet collisions (`warn`) and hermit-side `ports:` blocks that conflict with LAN containment (`fail`). Daemon-unreachable degrades to `warn` rather than `fail`. Existing 8-check structure unchanged.
-- Host-only skills (`docker-setup`, `docker-security`, `hermit-takeover`, `hermit-hand-back`) now refuse to run inside the hermit container — each detects `/.dockerenv` / `/run/.containerenv` at step 0 and prints a tailored redirect (e.g. docker-setup points operators to `/hermit-doctor` for in-container inspection). Prevents partial-success file writes that would corrupt host scaffolding from the wrong vantage point.
+- **hermit-doctor: expanded docker-security check** — now flags subnet collisions (`warn`) and hermit-side `ports:` blocks that conflict with LAN containment (`fail`). Daemon-unreachable degrades to `warn` rather than `fail`. Existing 8-check structure unchanged.
+- **Container guard for host-only skills** — `docker-setup`, `docker-security`, `hermit-takeover`, and `hermit-hand-back` each detect `/.dockerenv` / `/run/.containerenv` at step 0 and refuse to run inside the container, printing a redirect to the correct vantage point. Prevents partial-success file writes that corrupt host scaffolding when invoked from inside the hermit container.
 
 ### Changed
-- docker-security: moved design rationale, limitations, DNS allowlist tuning, and reversal prose out of the skill and into `docs/docker-security.md` (new `## Design rationale` section). The skill — loaded into model context every time the wizard fires — now carries only operational instructions and a single GitHub URL pointer back to the docs. SKILL.md trimmed from 572 → 552 lines.
+- **docker-security: design rationale relocated** — limitations, DNS allowlist tuning, and reversal prose moved from the skill body into `docs/docker-security.md`. SKILL.md trimmed from 572 → 552 lines; a pointer to the docs URL is the only reference kept in the skill.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/docker-security/SKILL.md` | Container guard, port-conflict + subnet fix, rationale relocated |
+| `skills/docker-setup/SKILL.md` | Container guard at step 0 |
+| `skills/hermit-takeover/SKILL.md` | Container guard at step 0 |
+| `skills/hermit-hand-back/SKILL.md` | Container guard at step 0 |
+| `scripts/doctor-check.js` | docker-security check: subnet collision + ports-conflict branches |
+| `docs/docker-security.md` | New: design rationale, limitations, DNS tuning, reversal guide |
+| `tests/run-hooks.sh` | New docker-security check test cases |
 
 ### Upgrade Instructions
-For operators on v1.0.26 with docker-security already configured:
-- Run `/claude-code-hermit:hermit-doctor`. If the docker-security check surfaces a WARN or FAIL, re-run `/claude-code-hermit:docker-security` and accept the defaults — the wizard re-renders the overlay with a fresh subnet and walks any port conflict. Then run `hermit-docker down && hermit-docker up`.
-- Operators with no overlay or no collision will see no change.
+
+1. Run `/claude-code-hermit:hermit-doctor`.
+2. If the `docker-security` check surfaces a WARN or FAIL, run `/claude-code-hermit:docker-security` and accept the defaults.
+3. Run `hermit-docker down && hermit-docker up`.
+
+**Note:** Operators without a docker-security overlay need no action.
+
+No `config.json` changes required.
 
 ## [1.0.26] - 2026-05-03
 
