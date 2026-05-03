@@ -128,3 +128,19 @@ In the plugin's `skills/hatch/SKILL.md` or a `DOCKER.md` at the plugin root, add
 Validation: domain regex `^[a-z0-9][a-z0-9.-]+$`; CIDRs validated as IPv4. The token `ASK_OPERATOR_FOR_*_IP` triggers an Other-field prompt for the IP. Plugins without this section contribute nothing — backward compatible.
 
 See [Creating Your Own Hermit](creating-your-own-hermit.md#docker-network-requirements) for the full contract.
+
+## Troubleshooting
+
+### `conflicting options: port publishing and the container type network mode`
+
+Your `docker-compose.hermit.yml` has a `ports:` block on the `hermit` service. With LAN containment on, hermit joins `hermit-netguard`'s network namespace — Docker forbids port publishing on a container that joins another container's netns. Only the netns owner (`hermit-netguard`) can publish ports.
+
+**Fix:** Re-run `/claude-code-hermit:docker-security`. The wizard detects the ports and offers to move them to `hermit-netguard`. When prompted, delete the `ports:` block from `docker-compose.hermit.yml`. The wizard hard-gates `hermit-docker up` until that's done, so a partial state can't reach the daemon.
+
+### `invalid pool request: Pool overlaps with other one on this address space`
+
+The overlay's `hermit-net` subnet (`172.28.0.0/24` by default) collides with another Docker network on the host. This happens most often when a second hermit project (each project gets its own `<proj>_hermit-net` network name, but subnets are host-global) or an unrelated Compose stack already claims that range.
+
+**Fix:** Re-run `/claude-code-hermit:docker-security`. The wizard now scans all Docker networks on the host, excludes this project's own `hermit-net` via Compose labels, and auto-picks the first free /24 from a candidate list (`172.28-31`, then `10.244-247`). If all candidates are taken it prompts for a custom CIDR.
+
+The new `docker.security.network.subnet` field in `config.json` records the chosen subnet. Running `/hermit-doctor` will flag a WARN before the next `hermit-docker up` if the stored subnet has since been claimed by another network.

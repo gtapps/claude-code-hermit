@@ -569,6 +569,131 @@ run_test "checkDependencies (required_core_version in hermit-meta.json sidecar �
 cleanup
 
 # -------------------------------------------------------
+# 54. cidrOverlap pure helper (exported from doctor-check.js)
+# -------------------------------------------------------
+run_test "cidrOverlap pure helper" node -e "
+const { cidrOverlap } = require('$REPO_ROOT/scripts/doctor-check');
+const assert = (cond, msg) => { if (!cond) { console.error('ASSERT:', msg); process.exit(1); } };
+assert(cidrOverlap('172.28.0.0/24', '172.28.0.0/24') === true,  'identical /24 overlaps');
+assert(cidrOverlap('172.28.0.0/16', '172.28.5.0/24') === true,  '/16 contains /24');
+assert(cidrOverlap('172.28.0.0/24', '172.29.0.0/24') === false, 'adjacent /24s disjoint');
+assert(cidrOverlap('10.0.0.0/8',   '172.28.0.0/24') === false,  'different blocks disjoint');
+assert(cidrOverlap('bad-cidr',     '172.28.0.0/24') === false,  'bad input returns false (fail-open)');
+"
+
+# -------------------------------------------------------
+# 55. doctor-check docker-security — docker unavailable → warn (not fail)
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+mkdir -p "$workdir/.claude-code-hermit/proposals"
+cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
+{"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[],"docker":{"security":{"network":{"enabled":true,"subnet":"172.28.0.0/24","gateway":"172.28.0.1","netguard_ip":"172.28.0.2"}}}}
+EOF
+# create stub files so both overlay and base compose appear to exist
+touch "$workdir/docker-compose.hermit.yml"
+touch "$workdir/docker-compose.security.yml"
+fake_bin="$(mktemp -d)"
+printf '#!/bin/bash\nexit 1\n' > "$fake_bin/docker"
+chmod +x "$fake_bin/docker"
+run_test "docker-security check (docker unavailable → warn, not fail)" bash -c \
+  "PATH='$fake_bin:$PATH' node '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='docker-security'][0]; assert d['status']=='warn', d\""
+rm -rf "$fake_bin"
+cleanup
+
+# -------------------------------------------------------
+# 56. doctor-check docker-security — hermit has ports + network_mode:service → fail
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+mkdir -p "$workdir/.claude-code-hermit/proposals"
+cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
+{"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[],"docker":{"security":{"network":{"enabled":true,"subnet":"172.28.0.0/24","gateway":"172.28.0.1","netguard_ip":"172.28.0.2"}}}}
+EOF
+touch "$workdir/docker-compose.hermit.yml"
+touch "$workdir/docker-compose.security.yml"
+# fake docker: compose config returns hermit with ports + network_mode conflict
+fake_bin="$(mktemp -d)"
+cat > "$fake_bin/docker" <<'FAKEEOF'
+#!/bin/bash
+if [[ "$*" == *"config"*"--format"*"json"* ]]; then
+  echo '{"name":"testproj","services":{"hermit":{"ports":[{"target":3000,"published":"3000","protocol":"tcp","mode":"ingress"}],"network_mode":"service:hermit-netguard"}},"networks":{}}'
+  exit 0
+fi
+if [[ "$*" == *"network ls"* ]]; then printf ''; exit 0; fi
+exit 1
+FAKEEOF
+chmod +x "$fake_bin/docker"
+run_test "docker-security check (ports + network_mode:service → fail)" bash -c \
+  "PATH='$fake_bin:$PATH' node '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='docker-security'][0]; assert d['status']=='fail' and 'ports' in d['detail'], d\""
+rm -rf "$fake_bin"
+cleanup
+
+# -------------------------------------------------------
+# 57. doctor-check docker-security — subnet collision with other network → warn
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+mkdir -p "$workdir/.claude-code-hermit/proposals"
+cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
+{"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[],"docker":{"security":{"network":{"enabled":true,"subnet":"172.28.0.0/24","gateway":"172.28.0.1","netguard_ip":"172.28.0.2"}}}}
+EOF
+touch "$workdir/docker-compose.hermit.yml"
+touch "$workdir/docker-compose.security.yml"
+fake_bin="$(mktemp -d)"
+cat > "$fake_bin/docker" <<'FAKEEOF'
+#!/bin/bash
+# compose config — no ports conflict
+if [[ "$*" == *"config"*"--format"*"json"* ]]; then
+  echo '{"name":"testproj","services":{"hermit":{"ports":[],"network_mode":"service:hermit-netguard"}},"networks":{}}'
+  exit 0
+fi
+if [[ "$*" == *"network ls"* ]]; then printf 'other-net\n'; exit 0; fi
+if [[ "$*" == *"network inspect"* ]]; then
+  # Return subnet that overlaps 172.28.0.0/24, no compose labels
+  printf '172.28.0.0/24|||{}\n'; exit 0
+fi
+exit 0
+FAKEEOF
+chmod +x "$fake_bin/docker"
+run_test "docker-security check (subnet collision with other-net → warn)" bash -c \
+  "PATH='$fake_bin:$PATH' node '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='docker-security'][0]; assert d['status']=='warn' and 'overlaps' in d['detail'], d\""
+rm -rf "$fake_bin"
+cleanup
+
+# -------------------------------------------------------
+# 58. doctor-check docker-security — own hermit-net excluded from collision → ok
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+mkdir -p "$workdir/.claude-code-hermit/proposals"
+cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
+{"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[],"docker":{"security":{"network":{"enabled":true,"subnet":"172.28.0.0/24","gateway":"172.28.0.1","netguard_ip":"172.28.0.2"}}}}
+EOF
+touch "$workdir/docker-compose.hermit.yml"
+touch "$workdir/docker-compose.security.yml"
+fake_bin="$(mktemp -d)"
+cat > "$fake_bin/docker" <<'FAKEEOF'
+#!/bin/bash
+if [[ "$*" == *"config"*"--format"*"json"* ]]; then
+  echo '{"name":"testproj","services":{"hermit":{"ports":[]}},"networks":{}}'
+  exit 0
+fi
+if [[ "$*" == *"network ls"* ]]; then printf 'testproj_hermit-net\n'; exit 0; fi
+if [[ "$*" == *"network inspect"* ]]; then
+  # Own hermit-net — same subnet but has the compose labels identifying it as ours
+  printf '172.28.0.0/24|||{"com.docker.compose.project":"testproj","com.docker.compose.network":"hermit-net"}\n'
+  exit 0
+fi
+exit 0
+FAKEEOF
+chmod +x "$fake_bin/docker"
+run_test "docker-security check (own hermit-net excluded → ok)" bash -c \
+  "PATH='$fake_bin:$PATH' node '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='docker-security'][0]; assert d['status']=='ok', d\""
+rm -rf "$fake_bin"
+cleanup
+
+# -------------------------------------------------------
 # Summary
 # -------------------------------------------------------
 # Clean up any suggest-compact counter files left in /tmp

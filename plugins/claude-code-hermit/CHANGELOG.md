@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- docker-security: detect operator-added `ports:` on `hermit` and offer to move them to `hermit-netguard` (the netns owner) when LAN containment is enabled. Wizard hard-gates `hermit-docker up` until the operator deletes the base `ports:` block, so a half-applied state cannot reach the daemon. Previously caused `conflicting options: port publishing and the container type network mode`.
+- docker-security: auto-pick a free /24 subnet for `hermit-net` instead of hardcoding `172.28.0.0/24`. Scans all host Docker networks (excluding this project's own via Compose labels), walks `172.28-31` then `10.244-247` before prompting. Previously caused `Pool overlaps with other one on this address space` when a second hermit project (or any unrelated network in the same range) ran on the same host.
+- docker-security: `publish_ports` config persists across reruns — operators who deleted the base `ports:` block on a previous run will not lose the netguard publish mapping on the next wizard pass.
+- docker-security: pre-flight Docker daemon check (`docker info`) exits early with a clear message instead of cryptic subprocess errors.
+
+### Added
+- hermit-doctor: `docker-security` check now flags subnet collisions (`warn`) and hermit-side `ports:` blocks that conflict with LAN containment (`fail`). Daemon-unreachable degrades to `warn` rather than `fail`. Existing 8-check structure unchanged.
+
+### Upgrade Instructions
+For operators on v1.0.26 with docker-security already configured:
+- Run `/claude-code-hermit:hermit-doctor`. If the docker-security check surfaces a WARN or FAIL, re-run `/claude-code-hermit:docker-security` and accept the defaults — the wizard re-renders the overlay with a fresh subnet and walks any port conflict. Then run `hermit-docker down && hermit-docker up`.
+- Operators with no overlay or no collision will see no change.
+
 ## [1.0.26] - 2026-05-03
 
 ### Fixed
