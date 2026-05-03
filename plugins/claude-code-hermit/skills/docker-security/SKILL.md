@@ -300,11 +300,9 @@ If LAN containment is not enabled, omit `subnet`, `gateway`, `netguard_ip` from 
 
 If at least one toggle is enabled, render the overlay. Otherwise (all-off): handled in the all-off branch above.
 
-#### 7a. dnsmasq UID is hardcoded (not probed)
+#### 7a. dnsmasq UID is hardcoded
 
-The Alpine `dnsmasq` package consistently ships `dnsmasq` as **uid 100** (its `apk` post-install script runs `adduser -u 100 -D -H -s /sbin/nologin dnsmasq`). The wizard renders `100` directly into `nftables.conf` — no probe step required.
-
-If a future Alpine release ever changes this UID, the netguard sidecar's fail-safe entrypoint will hold the netns open instead of crash-looping (`tail -f /dev/null` after rule-load failure), and the operator can `docker exec hermit-netguard getent passwd dnsmasq` to grep the live UID and update the rendered `nftables.conf` manually. For v1, the simpler hardcoded path is the right tradeoff.
+Render `100` directly into `nftables.conf` as the dnsmasq UID — no probe step. Rationale and recovery path if Alpine ever changes it: see [docs/docker-security.md#design-rationale](https://github.com/gtapps/claude-code-hermit/blob/main/plugins/claude-code-hermit/docs/docker-security.md#design-rationale).
 
 `docker compose build hermit-netguard` runs as part of `hermit-docker up` after the overlay is written — no separate build invocation by the wizard.
 
@@ -551,19 +549,4 @@ Tune DNS allowlist: edit .claude-code-hermit/docker/dnsmasq.allowlist,
 
 ## Notes
 
-**Reversal.** Re-run this skill and answer No to every prompt. The wizard removes `docker-compose.security.yml` and clears `docker.security.*` from config.json. Operators who want to bypass the wizard entirely can `rm docker-compose.security.yml` — the `hermit-docker` wrapper no-ops on its absence.
-
-**Tuning the DNS allowlist.** In log-only mode, blocked domains land in `.claude-code-hermit/state/dns.log`. Read it, decide which to allow, edit `.claude-code-hermit/docker/dnsmasq.allowlist`, then `hermit-docker restart hermit-netguard`. When the log is quiet, re-run `/docker-security` and switch to enforce mode. (The wizard does not auto-promote — manual review keeps the trust boundary at the operator.)
-
-**Documented limitations.** See [docs/docker-security.md](../../docs/docker-security.md). Briefly:
-- Public-IP egress (hardcoded IPs, no DNS) is **not** blocked. v1.1 may add nftset-driven IP allowlisting.
-- Docker's default bridge (172.17.0.0/16) is dropped by the LAN block — operators with adjacent Compose stacks must add carve-outs for the bridge IP.
-- Compose service-name DNS (`db`, etc.) doesn't work through dnsmasq. Add per-service-name lines like `server=/db/127.0.0.11`.
-- mDNS / `.local` (e.g. `homeassistant.local`) doesn't resolve. Use IP-based URLs with LAN carve-outs.
-- Host-bound services unreachable in bridge+containment mode — refactor to bind on the bridge IP if needed.
-
-**Why one combined sidecar.** nftables and dnsmasq share the same network namespace by design (the port-53 redirect points to local dnsmasq). Separating them would require careful coordination and provides no operational benefit. Single failure domain, single image to maintain, one health signal.
-
-**Why the dnsmasq UID exemption.** dnsmasq's own upstream queries to `1.1.1.1:53` would otherwise hit the port-53 redirect rule and loop back to itself, breaking all DNS resolution. The `meta skuid != <DNSMASQ_UID>` rule in `nftables.conf` exempts dnsmasq's outbound DNS so it can actually resolve.
-
-**Why a named volume for `.npm-global` under read-only root.** Claude Code self-updates by writing to `/home/claude/.npm-global/bin/claude`. Under `read_only: true`, that path is read-only unless backed by a volume or tmpfs. tmpfs would lose the new version on every restart. The named volume snapshots the image's `.npm-global` on first run, then persists across restarts. To force a downgrade or refresh, use `hermit-docker update` (rebuilds the image and recreates the volume).
+**Reversal, limitations, DNS allowlist tuning, and design rationale**: see [docs/docker-security.md](https://github.com/gtapps/claude-code-hermit/blob/main/plugins/claude-code-hermit/docs/docker-security.md).

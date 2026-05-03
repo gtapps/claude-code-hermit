@@ -108,6 +108,18 @@ Two ways:
 
 To reverse just one toggle: re-run the wizard, answer Yes to the toggles you still want and No to the one you're disabling.
 
+## Design rationale
+
+A few decisions that operators occasionally ask about:
+
+**Why one combined sidecar.** nftables and dnsmasq share the same network namespace by design — the port-53 redirect rule points to local dnsmasq. Separating them would require careful coordination and provides no operational benefit. Single failure domain, single image to maintain, one health signal.
+
+**Why the dnsmasq UID exemption.** dnsmasq's own upstream queries to `1.1.1.1:53` would otherwise hit the port-53 redirect rule and loop back to itself, breaking all DNS resolution. The `meta skuid != <DNSMASQ_UID>` rule in `nftables.conf` exempts dnsmasq's outbound DNS so it can actually resolve.
+
+**Why the dnsmasq UID is hardcoded.** Alpine's `dnsmasq` package consistently ships `dnsmasq` as uid 100 (its `apk` post-install runs `adduser -u 100 -D -H -s /sbin/nologin dnsmasq`). The wizard renders `100` directly into `nftables.conf` — no probe step. If a future Alpine release ever changes this, the netguard sidecar's fail-safe entrypoint holds the netns open instead of crash-looping (`tail -f /dev/null` after rule-load failure), and the operator can `docker exec hermit-netguard getent passwd dnsmasq` to grep the live UID and update the rendered `nftables.conf` by hand.
+
+**Why a named volume for `.npm-global` under read-only root.** Claude Code self-updates by writing to `/home/claude/.npm-global/bin/claude`. Under `read_only: true`, that path is read-only unless backed by a volume or tmpfs. tmpfs would lose the new version on every restart. The named volume snapshots the image's `.npm-global` on first run, then persists across restarts. To force a downgrade or refresh, use `hermit-docker update` (rebuilds the image and recreates the volume).
+
 ## For plugin authors — declaring network requirements
 
 Fleet plugins can declare their network requirements so `/docker-security` surfaces them as pre-checked additions during Prompt 1's fleet-aware seeding sub-step.
