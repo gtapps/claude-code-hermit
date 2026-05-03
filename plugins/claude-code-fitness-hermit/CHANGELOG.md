@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Bumped core hermit dependency floor from `>=1.0.22` to `>=1.0.27`.
+- Bumped core hermit dependency floor from `>=1.0.22` to `>=1.0.26`.
 
 ---
 

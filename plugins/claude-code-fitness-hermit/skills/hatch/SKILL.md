@@ -22,9 +22,9 @@ Use `AskUserQuestion`: "Would you like to run `/claude-code-hermit:hatch` now? (
 - **yes** → invoke `/claude-code-hermit:hatch`, wait for completion, then continue to Step 2.
 - **no** → stop.
 
-If `_hermit_versions["claude-code-hermit"]` is present but the version string is earlier than `1.0.27` (compare major.minor.patch numerically), warn:
+If `_hermit_versions["claude-code-hermit"]` is present but the version string is earlier than `1.0.26` (compare major.minor.patch numerically), warn:
 
-> "Base hermit version is {version}; this plugin requires ≥1.0.27. Run `/claude-code-hermit:hermit-evolve` to upgrade, then re-run this hatch."
+> "Base hermit version is {version}; this plugin requires ≥1.0.26. Run `/claude-code-hermit:hermit-evolve` to upgrade, then re-run this hatch."
 
 Stop.
 

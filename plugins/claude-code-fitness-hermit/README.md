@@ -130,7 +130,7 @@ claude-code-fitness-hermit (this plugin)
   ├── docs/               knowledge-schema.md
   └── settings.json       Strava read allow-list, write tools blocked
 
-claude-code-hermit (core, required ≥ 1.0.27)
+claude-code-hermit (core, required ≥ 1.0.26)
   └── Session lifecycle, routines, channels, memory, cost tracking
 ```
 
