@@ -1,0 +1,130 @@
+# Docker Security — Advanced Hardening
+
+`/claude-code-hermit:docker-security` is an opt-in advanced wizard for hermit operators who want stronger container isolation than the v1.0.26 baseline (`cap_drop: ALL`, `no-new-privileges`, `pids_limit: 2048`). It applies a `docker-compose.security.yml` overlay alongside the base compose file — never modifying it. The `hermit-docker` wrapper auto-detects the overlay and chains it onto every command.
+
+> **Trust model.** Installing a plugin runs that plugin's hooks and skills with the same authority as hermit. The hardening here reduces what a *compromised* plugin can do to the host kernel and your local network — it does not vet the plugin's intent, sandbox its file access within the project, or prevent it from acting on your behalf via the agent. A malicious or careless plugin still runs as you. See [Plugin Security](security.md#plugin-security).
+
+## When to run it
+
+- You run hermit on a home or office machine alongside HA, NAS, printer, personal laptops, etc. (LAN containment is the headline gain.)
+- You're worried about an injected prompt or a compromised plugin exfiltrating data via DNS or scanning your local network.
+- You want kernel-level guarantees on top of the agent-level deny patterns.
+
+## When *not* to run it
+
+- You use `docker.network_mode: "host"` and need host-bound services to remain reachable. The wizard will hard-skip the LAN containment prompt; the other toggles still apply.
+- You run an arbitrary dev workflow that hits many third-party domains (e.g. multiple package ecosystems beyond npm/pypi/github). The strict DNS allowlist will break things until you tune it. Use **log-only mode** instead and tune over a few days before flipping to enforce.
+
+## What each toggle does
+
+| Toggle | What it does | Real teeth? |
+|--------|--------------|-------------|
+| **LAN containment + DNS policy** (Prompt 1) | Spins up a `hermit-netguard` Alpine sidecar with nftables + dnsmasq. Hermit shares the sidecar's network namespace via `network_mode: "service:hermit-netguard"`. nftables drops RFC1918 + link-local egress AND redirects all egress :53 to local dnsmasq for actual DNS-policy enforcement. | **Yes — categorical.** Today: a compromised hermit on your home network can scan your router, NAS, HA, printer, etc. After: it cannot. |
+| **Read-only root filesystem** (Prompt 2) | Mounts `/` read-only, with tmpfs for `/tmp`, `/run`, `/home/claude/.npm`, `/home/claude/.cache`, `/home/claude/.config`, plus a named volume for `/home/claude/.npm-global` so Claude Code self-update survives. The wizard runs a real-write smoke test before considering the toggle persisted. | **Yes** — catches drop-binary attacks (e.g. injected payload writes a setuid binary to `/usr/local/bin`). |
+| **Resource bounds + kernel hygiene** (Prompt 3) | `mem_limit` / `cpus` caps + a network sysctl bundle (`accept_redirects=0`, `accept_source_route=0`, …). Sysctls placed on the netns owner: hermit-netguard if Prompt 1 is on, hermit otherwise. Sysctls **omitted entirely** in `network_mode: host` — Docker rejects them. | Resource caps are hygiene, not a security primitive. Sysctls block exotic ICMP-redirect / source-routing tricks. |
+| **Boot-time plugin install audit log** (Prompt 4) | The entrypoint appends a JSONL line to `.claude-code-hermit/state/plugin-installs.jsonl` for every `claude plugin install` it performs (hermit core, channels, recommended plugins). | Cheap paper trail, not a security primitive on its own. **Honest scope:** post-boot installs run by the operator via tmux are NOT captured. **Empty-log expectation:** the log only grows when an install actually fires — on subsequent boots when the marketplace + plugin set is unchanged, the entrypoint short-circuits the install path and writes nothing. An empty log on a boot where nothing changed is normal, not a failure. |
+
+## Documented limitations
+
+The wizard makes the container *meaningfully harder to abuse*. It does not make it bulletproof. Operators should know the gaps:
+
+- **Public-IP egress is unconstrained.** A compromised process can still `connect()` to a hardcoded public IP and skip DNS entirely. The DNS policy makes off-the-shelf C2 / exfil that uses domains harder, but doesn't close direct-IP egress. v1.1 may add nftset-driven IP allowlisting (dnsmasq populates an `nftset` of resolved-and-allowed IPs; nftables defaults to deny on output).
+- **Docker's default bridge (172.17.0.0/16) is dropped** by the LAN block — it sits inside `172.16.0.0/12`. Operators with adjacent Compose stacks must add carve-outs for the relevant bridge IPs (Prompt 1b "Extra LAN carve-outs").
+- **Compose service-name DNS doesn't work through dnsmasq** — Compose's embedded resolver at 127.0.0.11 isn't an upstream. Operators with adjacent services like `db`, `cache`, etc. must add per-service-name lines to the allowlist:
+  ```
+  server=/db/127.0.0.11
+  ```
+  Edit `.claude-code-hermit/docker/dnsmasq.allowlist`, then `hermit-docker restart hermit-netguard`.
+- **mDNS / `.local`** (e.g. `homeassistant.local`) doesn't resolve. HA-hermit operators must use IP-based URLs (with a LAN carve-out) or remote/Nabu Casa domains.
+- **Host-bound services unreachable in bridge+containment mode** — `localhost`/`127.0.0.1` on the host is only reachable when `network_mode: host`. Operators wanting both LAN containment AND host-bound access need to refactor their host service to bind on the bridge IP and add a carve-out for that IP.
+- **Sidecar crash isolates hermit** — because hermit shares hermit-netguard's network namespace, if the sidecar dies hermit loses *all* networking until you bring it back up. The sidecar has `restart: unless-stopped` and a fail-safe entrypoint (loads-rules-or-tail-stay-up rather than crash-loop), but a misconfigured `nftables.conf` can still strand hermit. If this happens, `docker compose -f docker-compose.hermit.yml -f docker-compose.security.yml logs hermit-netguard` will tell you what went wrong.
+
+## How to run it
+
+1. Run `/claude-code-hermit:docker-security` in Claude Code.
+2. Answer each of the 4 prompts. The wizard will:
+   - Detect host-network mode and gate Prompt 1 / Prompt 3 sysctls accordingly.
+   - Scan installed fleet plugins (`claude-code-homeassistant-hermit`, `claude-code-fitness-hermit`, etc.) for declared `## Docker network requirements`. Surface their domain/LAN suggestions for per-entry confirmation.
+   - Render `docker-compose.security.yml` and (if Prompt 1) the `.claude-code-hermit/docker/{Dockerfile.hermit-netguard,netguard-entrypoint.sh,nftables.conf,dnsmasq.allowlist}` files.
+   - Bring the container down and back up so the new settings take effect (Docker only applies `read_only`, `cap_drop`, `network_mode`, etc. at container creation, not on `restart`).
+   - Run a verification pass and print a per-toggle pass/fail table.
+3. Re-run the wizard at any time to change toggles. Answer No to a prompt to disable that toggle.
+
+## Verifying it's active
+
+The wizard runs verification automatically. To re-verify later from the host:
+
+```bash
+.claude-code-hermit/bin/hermit-docker bash -c 'sh -s' <<'VERIFY_EOF'
+echo "=== Baseline ==="
+grep -E '^Cap(Eff|Bnd)' /proc/self/status            # both 0000000000000000
+grep NoNewPrivs /proc/self/status                    # NoNewPrivs: 1
+echo "pids.max: $(cat /sys/fs/cgroup/pids.max)"      # 2048
+
+echo "=== LAN containment (when on) ==="
+python3 -c "import socket; s=socket.socket(); s.settimeout(2); s.connect(('192.168.1.1',22))" 2>&1 \
+  | grep -qE 'timed out|refused|Network is unreachable' && echo "OK"
+
+echo "=== DNS policy (enforce mode) ==="
+getent hosts api.anthropic.com >/dev/null && echo "allow OK"
+python3 -c "import socket; socket.gethostbyname('example.com')" 2>&1 \
+  | grep -q 'Name or service not known' && echo "block OK"
+
+echo "=== Read-only root (when on) ==="
+touch /etc/canary 2>&1 | grep -q "Read-only" && echo "OK"
+touch /home/claude/.npm-global/.canary && rm /home/claude/.npm-global/.canary && echo "self-update OK"
+
+echo "=== Resource bounds + sysctls (when on, applicable) ==="
+cat /sys/fs/cgroup/memory.max
+cat /proc/sys/net/ipv4/conf/all/accept_redirects     # 0 if sysctls active
+VERIFY_EOF
+```
+
+Or use `/hermit-doctor` — the `docker-security` check flags drift between declared posture and the rendered overlay.
+
+## Tuning the DNS allowlist
+
+In **log-only mode**, dnsmasq writes every blocked-by-policy domain to `.claude-code-hermit/state/dns.log`. Read it, decide which domains to allow, then:
+
+1. Edit `.claude-code-hermit/docker/dnsmasq.allowlist`. Add lines like:
+   ```
+   server=/example-vendor.com/1.1.1.1
+   ```
+2. Restart only the sidecar (faster than a full hermit restart):
+   ```
+   .claude-code-hermit/bin/hermit-docker bash  # actually: use the underlying docker compose
+   docker compose -f docker-compose.hermit.yml -f docker-compose.security.yml restart hermit-netguard
+   ```
+3. When the log goes quiet, re-run `/docker-security` and switch from "Yes — recommended (log-only)" to "Yes — strict (enforce)".
+
+The wizard does not auto-promote blocked domains. Manual review keeps the trust boundary at the operator.
+
+## Reversal
+
+Two ways:
+
+1. **Through the wizard** (preferred — keeps config and overlay consistent): re-run `/claude-code-hermit:docker-security` and answer No to every prompt. The wizard removes `docker-compose.security.yml`, clears `docker.security.*` from `config.json`, and offers to restart the container.
+2. **By hand**: `rm docker-compose.security.yml` and run `hermit-docker down && hermit-docker up`. The wrapper no-ops on the overlay's absence. This leaves `docker.security.*` in `config.json` (which `/hermit-doctor` will warn about — re-run the wizard to reconcile).
+
+To reverse just one toggle: re-run the wizard, answer Yes to the toggles you still want and No to the one you're disabling.
+
+## For plugin authors — declaring network requirements
+
+Fleet plugins can declare their network requirements so `/docker-security` surfaces them as pre-checked additions during Prompt 1's fleet-aware seeding sub-step.
+
+In the plugin's `skills/hatch/SKILL.md` or a `DOCKER.md` at the plugin root, add:
+
+```markdown
+## Docker network requirements
+
+### Domains (DNS allowlist)
+- api.example.com
+- www.example.com
+
+### LAN allowlist suggestions
+- ASK_OPERATOR_FOR_HA_IP    # special token: wizard prompts operator for the IP
+```
+
+Validation: domain regex `^[a-z0-9][a-z0-9.-]+$`; CIDRs validated as IPv4. The token `ASK_OPERATOR_FOR_*_IP` triggers an Other-field prompt for the IP. Plugins without this section contribute nothing — backward compatible.
+
+See [Creating Your Own Hermit](creating-your-own-hermit.md#docker-network-requirements) for the full contract.

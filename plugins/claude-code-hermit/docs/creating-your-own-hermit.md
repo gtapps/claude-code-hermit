@@ -192,6 +192,45 @@ During `/docker-setup`, the wizard reads this section for every mirrored plugin,
 
 Operators can review and adjust the approved package list via `/hermit-settings docker`.
 
+### Docker network requirements
+
+If your hermit needs specific network access — outbound domains for an external API, a LAN IP for a local service — declare them so `/claude-code-hermit:docker-security` can surface them as pre-checked additions during the LAN containment + DNS policy prompt.
+
+In your `hatch` SKILL.md or in a `DOCKER.md` file at the plugin root, add a `## Docker network requirements` section. Two subsections, both optional:
+
+```markdown
+## Docker network requirements
+
+### Domains (DNS allowlist)
+- api.example.com
+- www.example.com
+
+### LAN allowlist suggestions
+- ASK_OPERATOR_FOR_HA_IP    # special token: wizard prompts operator for the IP
+- 10.42.0.0/24              # or a literal CIDR if you know it
+```
+
+**Validation rules** (the wizard rejects entries that fail; do not write entries that won't validate):
+
+- **Domains**: regex `^[a-z0-9][a-z0-9.-]+$`. Lowercase, dots, hyphens. No protocols, ports, or paths.
+- **LAN allowlist suggestions**: either an IPv4 CIDR (`192.168.1.50` or `10.0.0.0/24`) OR a special token of the form `ASK_OPERATOR_FOR_<NAME>_IP`. The wizard will prompt the operator for the IP via an Other field and substitute the typed value (validated as CIDR).
+
+**Scope:** declare only network access your plugin's *own* code needs. Don't declare the user's project's network needs — operators add those via the wizard's "Extra LAN carve-outs" / "Extra domains" prompts.
+
+**Backward compatible:** plugins without this section contribute nothing. The wizard skips silently.
+
+**What it looks like to the operator:** during `/docker-security`, after they confirm LAN containment, the wizard scans installed fleet plugins, parses these declarations, and presents:
+
+```
+Fleet plugins request these network exceptions:
+  api.example.com           — your-plugin (DNS)
+  ASK_OPERATOR_FOR_HA_IP    — your-plugin (LAN, will prompt for IP)
+```
+
+The operator picks "Include all" (default), "Pick each", or "Skip all". Each `ASK_OPERATOR_FOR_*_IP` token gets a follow-up prompt for the actual IP. Confirmed entries land in the rendered `nftables.conf` and `dnsmasq.allowlist` files, with provenance comments noting the source plugin.
+
+See [Docker Security — For plugin authors](docker-security.md#for-plugin-authors--declaring-network-requirements).
+
 ### Knowledge outputs
 
 All domain artifacts must live in exactly two directories — `raw/` and `compiled/`. See **[`docs/plugin-hermit-storage.md`](plugin-hermit-storage.md)** for the full convention, compliant/non-compliant path examples, and a reviewer checklist.
@@ -251,3 +290,4 @@ Skills should say "notify the operator" instead of referencing specific channels
 - [ ] All scripts handle missing state files gracefully
 - [ ] Cadence-driven skills registered in `scheduled_checks` (not a bespoke scheduler)
 - [ ] Docker system packages (if any) declared in a `## Docker apt dependencies` section in the hatch SKILL.md or `DOCKER.md` at plugin root
+- [ ] Docker network requirements (if any) declared in a `## Docker network requirements` section so `/docker-security` can surface them — outbound domains and LAN-IP suggestions (use `ASK_OPERATOR_FOR_<NAME>_IP` if the IP is operator-specific)

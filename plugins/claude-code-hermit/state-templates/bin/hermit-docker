@@ -17,6 +17,7 @@ fi
 
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COMPOSE="$PROJECT_DIR/docker-compose.hermit.yml"
+COMPOSE_SEC="$PROJECT_DIR/docker-compose.security.yml"
 RUNTIME_FILE="$PROJECT_DIR/.claude-code-hermit/state/runtime.json"
 
 if [ ! -f "$COMPOSE" ]; then
@@ -34,10 +35,17 @@ project = os.path.basename(sys.argv[2])
 print(name.replace('{project_name}', project))
 " "$CONFIG" "$PROJECT_DIR" 2>/dev/null || echo "hermit")
 
-# Get compose service name
-SERVICE=$(cd "$PROJECT_DIR" && docker compose -f "$COMPOSE" config --services 2>/dev/null | head -1 || echo "hermit")
+# SERVICE is pinned to "hermit". When the security overlay is in use,
+# `docker compose config --services` lists hermit-netguard (or other future
+# sidecars) too — never auto-pick first; bash/login/attach must always
+# target hermit.
+SERVICE="hermit"
 
+# Compose invocation: chain the security overlay if present so every command
+# (up/down/exec/logs/...) sees the merged config. Idempotent — wrapper
+# behavior is unchanged when the overlay is absent.
 DC=(docker compose -f "$COMPOSE")
+[ -f "$COMPOSE_SEC" ] && DC=(docker compose -f "$COMPOSE" -f "$COMPOSE_SEC")
 
 _oauth_hint() {
   echo ""

@@ -260,6 +260,46 @@ function checkDependencies() {
   }
 }
 
+function checkDockerSecurity() {
+  // Two-state presence check between docker.security.* in config.json and the
+  // rendered docker-compose.security.yml overlay at the project root. No YAML
+  // parsing — Node stdlib has no parser and the plugin's no-deps rule rules
+  // out adding one. Per-key drift detection deferred (would need sentinel
+  // regex; not worth the maintenance for v1).
+  try {
+    const overlayPath = path.resolve('docker-compose.security.yml');
+    const overlayPresent = fs.existsSync(overlayPath);
+
+    let config = {};
+    try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch {}
+    const sec = (config.docker && config.docker.security) || null;
+    const declared = sec && Object.values(sec).some(v =>
+      v && typeof v === 'object' ? v.enabled === true : v === true
+    );
+
+    if (!declared && !overlayPresent) {
+      return { id: 'docker-security', status: 'ok', detail: 'not configured (run /docker-security to enable)' };
+    }
+    if (declared && !overlayPresent) {
+      return {
+        id: 'docker-security',
+        status: 'warn',
+        detail: 'posture declared in config but docker-compose.security.yml is missing — re-run /docker-security',
+      };
+    }
+    if (!declared && overlayPresent) {
+      return {
+        id: 'docker-security',
+        status: 'warn',
+        detail: 'overlay present but no posture declared in config — likely a manual edit; re-run /docker-security to reconcile',
+      };
+    }
+    return { id: 'docker-security', status: 'ok', detail: 'posture declared and overlay present' };
+  } catch (e) {
+    return { id: 'docker-security', status: 'fail', detail: `check failed: ${e.message}` };
+  }
+}
+
 function checkPermissions() {
   try {
     const looseFiles = [];
@@ -300,6 +340,7 @@ function runAllChecks() {
     checkProposals(),
     checkDependencies(),
     checkPermissions(),
+    checkDockerSecurity(),
   ];
 }
 
@@ -331,6 +372,7 @@ if (require.main === module) {
   module.exports = {
     checkConfig, checkHooks, checkStateFiles,
     checkCost, checkProposals, checkDependencies, checkPermissions,
+    checkDockerSecurity,
     satisfiesRange,
     runAllChecks, writeReport,
   };

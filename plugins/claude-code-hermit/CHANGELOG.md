@@ -6,6 +6,14 @@
 
 - **Container hardening**: docker-compose template now blocks setuid escalation (`security_opt: no-new-privileges:true`), drops all Linux capabilities (`cap_drop: ALL`), and caps process count (`pids_limit: 2048`). Defense in depth for `bypassPermissions` containers. The load-bearing stanza is `no-new-privileges` — it closes the setuid-escalation vector against future supply-chain compromise of any installed plugin; the other two are incremental ambient-surface reductions. Verified against entrypoint, hermit-start, and plugin-install paths; nothing in the runtime needs the dropped capabilities or setuid binaries, and steady-state PID usage sits well under the cap.
 
+- **`/claude-code-hermit:docker-security` advanced wizard**: opt-in hardening for already-deployed hermit containers. Four toggles, each with honest cost/benefit framing: (1) **LAN containment + DNS policy** — firewall + DNS sidecar (`hermit-netguard`) sharing hermit's network namespace, with nftables-driven port-53 redirect for *actual* DNS-policy enforcement (not just resolver hints); (2) **read-only root filesystem** with concrete smoke test (real `npm install` + plugin add/remove + claude-owned canary write before persisting); (3) **resource bounds + kernel hygiene** (`mem_limit`, `cpus`, network sysctls — sysctl placement is conditional on whether the netguard sidecar owns the netns); (4) **boot-time plugin install audit log**. Applied as a `docker-compose.security.yml` overlay — never modifies the base compose. Hard-skips the LAN containment prompt when `docker.network_mode: "host"` (would break host-bound HA workflows). Fleet-aware: scans installed fleet plugins for `## Docker network requirements` declarations and offers their domains/LAN suggestions for per-entry confirmation. Documented limitations: public-IP egress is not blocked (v1.1 may add nftset-driven IP allowlisting); Docker default bridge falls in the LAN drop range; Compose service-name DNS and mDNS don't work through dnsmasq.
+
+- **`hermit-doctor`** gains an eighth check, `docker-security`, that flags drift between declared `docker.security.*` posture in `config.json` and the presence of `docker-compose.security.yml`. Two-state presence check; no YAML parsing.
+
+- **`hermit-docker`** wrapper: pins `SERVICE="hermit"` explicitly (was deriving from `docker compose config --services | head -1`, which becomes ambiguous once the security overlay introduces a netguard sidecar — `bash`/`login`/`attach` could land on the wrong service). Also auto-detects `docker-compose.security.yml` and chains it onto every compose command. No effect when the overlay is absent.
+
+- **Per-fleet-plugin contract**: plugins can declare network requirements in a `## Docker network requirements` section in `skills/hatch/SKILL.md` or `DOCKER.md` (mirrors the existing `## Docker apt dependencies` pattern). The `/docker-security` wizard reads these and offers per-entry confirmation. Special token `ASK_OPERATOR_FOR_<NAME>_IP` triggers an operator IP prompt for plugin-specific LAN endpoints. Backward-compatible: plugins without the section contribute nothing.
+
 ### Upgrade Instructions
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
@@ -54,6 +62,12 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
    > The named config volume preserves credentials, plugins, and onboarding state."
 
 No `config.json` changes required.
+
+8. **Inform the operator about the new advanced wizard (no automatic action).** After steps 1–7 complete (or are skipped), tell them:
+
+   > "v1.0.26 also ships an opt-in advanced wizard, `/claude-code-hermit:docker-security`, for stronger isolation than the baseline. The headline gain is blocking your container from reaching your local network — meaningful if you run hermit on a home or office machine alongside HA, NAS, printer, etc. Run `/claude-code-hermit:docker-security` when you're ready; nothing changes until you do. See [`docs/docker-security.md`](docs/docker-security.md) for the full toggle reference and documented limitations."
+
+   This step is informational only — the wizard is opt-in by design, never invoked automatically by `/hermit-evolve`.
 
 ## [1.0.25] - 2026-05-01
 

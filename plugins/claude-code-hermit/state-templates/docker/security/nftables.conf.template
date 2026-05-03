@@ -1,0 +1,50 @@
+# nftables ruleset for the hermit-netguard sidecar.
+#
+# The hermit container shares this network namespace via
+# `network_mode: "service:hermit-netguard"`, so every rule here applies
+# to hermit's outbound traffic.
+#
+# {{LAN_ALLOWLIST_RULES}} is rendered at overlay-render time from
+# docker.security.network.lan_allowlist (merged with fleet-plugin LAN
+# suggestions confirmed by the operator during /docker-security).
+#
+# {{DNSMASQ_UID}} is hardcoded to 100 by the wizard (Alpine's dnsmasq
+# package's static UID). CRITICAL: this exempts dnsmasq's OWN upstream
+# queries from the port-53 redirect — without it, dnsmasq would receive
+# its own outbound queries in a loop and DNS would stop working.
+# If a future Alpine release changes this UID, the netguard entrypoint's
+# fail-safe (set +e + tail-stay-up on rule-load failure) catches it
+# without crash-looping; operator can `docker exec` in to inspect.
+
+flush ruleset
+
+table inet firewall {
+    chain output {
+        type filter hook output priority 0; policy accept;
+
+        oifname lo accept
+        ct state vmap { established : accept, related : accept, invalid : drop }
+
+        # Operator-confirmed LAN carve-outs. Rendered first so they accept
+        # before the RFC1918 drop below. Empty by default.
+        {{LAN_ALLOWLIST_RULES}}
+
+        # Block private RFC1918 + link-local (cloud metadata at 169.254/16).
+        # Note: Docker's default bridge (172.17.0.0/16) sits inside 172.16/12
+        # and is also dropped — operators with adjacent Compose stacks must
+        # add carve-outs for the relevant bridge IPs.
+        ip daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16 } drop
+        ip6 daddr { fc00::/7, fe80::/10 } drop
+    }
+
+    # Redirect all egress UDP/TCP :53 to local dnsmasq. THIS is what makes
+    # DNS policy actually enforced — without it, hermit can pick its own
+    # /etc/resolv.conf entries and bypass the allowlist.
+    #
+    # The skuid exemption keeps dnsmasq's own upstream queries from looping
+    # back to itself.
+    chain output_nat {
+        type nat hook output priority -100;
+        meta skuid != {{DNSMASQ_UID}} meta l4proto { tcp, udp } th dport 53 redirect to :53
+    }
+}

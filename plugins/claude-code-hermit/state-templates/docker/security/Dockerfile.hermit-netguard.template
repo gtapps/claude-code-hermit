@@ -1,0 +1,15 @@
+# Network-guard sidecar image: nftables + dnsmasq, baked at first
+# /docker-security run. Built locally (not pulled from a registry beyond the
+# alpine base layer).
+#
+# Alpine pin: revisit at every release. alpine:3.20 went EOL on 2026-04-01;
+# 3.23 is the active branch as of 2026-05-03. Track:
+# https://alpinelinux.org/releases/
+FROM alpine:3.23
+
+RUN apk add --no-cache nftables dnsmasq
+
+COPY netguard-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
