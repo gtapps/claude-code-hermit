@@ -22,9 +22,9 @@ Use `AskUserQuestion`: "Would you like to run `/claude-code-hermit:hatch` now? (
 - **yes** → invoke `/claude-code-hermit:hatch`, wait for completion, then continue to Step 2.
 - **no** → stop.
 
-If `_hermit_versions["claude-code-hermit"]` is present but the version string is earlier than `1.0.21` (compare major.minor.patch numerically), warn:
+If `_hermit_versions["claude-code-hermit"]` is present but the version string is earlier than `1.0.27` (compare major.minor.patch numerically), warn:
 
-> "Base hermit version is {version}; this plugin requires ≥1.0.21. Run `/claude-code-hermit:hermit-evolve` to upgrade, then re-run this hatch."
+> "Base hermit version is {version}; this plugin requires ≥1.0.27. Run `/claude-code-hermit:hermit-evolve` to upgrade, then re-run this hatch."
 
 Stop.
 
@@ -275,3 +275,19 @@ Installed subagent:
 
 Security reminder: .env and .mcp.json contain real Strava credentials. Both are gitignored — verify before any git push.
 ```
+
+---
+
+## Docker network requirements
+
+Read by `/claude-code-hermit:docker-security` when the operator enables LAN containment + DNS policy. Each entry is surfaced as a per-entry confirmation prompt; nothing here is auto-applied.
+
+### Domains (DNS allowlist)
+
+- strava.com
+
+`server=/strava.com/...` matches both `www.strava.com` (web) and `api.strava.com` (API) via dnsmasq's subdomain-match semantics. The Strava MCP server (`@r-huijts/strava-mcp-server` via `npx`) also needs `npmjs.org`, but that's already in the wizard's seed allowlist for npm/plugin installs.
+
+### LAN allowlist suggestions
+
+(none — Strava is a cloud service)

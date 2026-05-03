@@ -11,7 +11,7 @@ claude plugin marketplace add gtapps/claude-code-hermit
 claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope project
 ```
 
-After install, run `/claude-code-fitness-hermit:hatch` in the target project. The core hermit (`claude-code-hermit` ≥1.0.21) must be installed and hatched first — `hatch` will prompt if it isn't.
+After install, run `/claude-code-fitness-hermit:hatch` in the target project. The core hermit (`claude-code-hermit` ≥1.0.27) must be installed and hatched first — `hatch` will prompt if it isn't.
 
 ## Plugin Structure
 
