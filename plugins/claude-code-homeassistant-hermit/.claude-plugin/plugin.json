@@ -15,5 +15,5 @@
     "mcp",
     "gtapps"
   ],
-  "dependencies": [{ "name": "claude-code-hermit", "version": "^1.0.21" }]
+  "dependencies": [{ "name": "claude-code-hermit", "version": "^1.0.26" }]
 }

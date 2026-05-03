@@ -4,7 +4,7 @@ import json
 import pytest
 from pathlib import Path
 
-from ha_agent_lab.audits import audit_automations, review_automation_errors
+from ha_agent_lab.audits import audit_automations
 from ha_agent_lab.ha_api import HomeAssistantError
 
 
@@ -133,34 +133,3 @@ def test_audit_automations_propagates_unexpected_errors(tmp_path: Path) -> None:
         audit_automations(tmp_path, client)
 
     assert exc_info.value.status_code == 500
-
-
-def test_review_automation_errors_flags_recurring(tmp_path: Path) -> None:
-    (tmp_path / ".claude-code-hermit" / "raw").mkdir(parents=True)
-    log = "\n".join(
-        [
-            "2026-04-20 09:00:01 ERROR Failed to call service in automation.broken_flow",
-            "2026-04-20 09:05:02 ERROR automation.broken_flow: timeout waiting for light",
-            "2026-04-20 09:10:03 ERROR Error running automation.broken_flow step 2",
-            "2026-04-20 10:00:00 INFO automation.ok_flow triggered by state",
-            "2026-04-20 11:00:00 ERROR automation.transient_flow: error in condition",
-        ]
-    )
-    client = FakeClient({"/api/error_log": log})
-
-    summary = review_automation_errors(tmp_path, client, min_hits=3)
-
-    assert summary["min_hits"] == 3
-    flagged_ids = [item["entity_id"] for item in summary["flagged_automations"]]
-    assert flagged_ids == ["automation.broken_flow"]
-    assert summary["flagged_automations"][0]["count"] == 3
-
-
-def test_review_automation_errors_empty_log(tmp_path: Path) -> None:
-    (tmp_path / ".claude-code-hermit" / "raw").mkdir(parents=True)
-    client = FakeClient({"/api/error_log": ""})
-
-    summary = review_automation_errors(tmp_path, client)
-
-    assert summary["flagged_automations"] == []
-    assert summary["total_lines_scanned"] == 0

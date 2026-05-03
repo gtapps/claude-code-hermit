@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
@@ -9,10 +8,6 @@ from .artifacts import current_session_id, standard_metadata, write_json_artifac
 from .ha_api import HomeAssistantClient, HomeAssistantError
 from .policy import evaluate_references
 from .simulate import collect_references
-
-
-ERROR_PATTERNS = ("error", "failed", "timeout", "could not", "unable to")
-ERROR_REGEX = re.compile(r"(automation\.[a-z0-9_]+)", re.IGNORECASE)
 
 
 def _fetch_automation_config(
@@ -120,71 +115,5 @@ def audit_automations(root: Path, client: HomeAssistantClient) -> dict[str, Any]
         ),
         "\n".join(body_lines),
         latest_name="audit-ha-safety-latest.md",
-    )
-    return summary
-
-
-def review_automation_errors(root: Path, client: HomeAssistantClient, min_hits: int = 3) -> dict[str, Any]:
-    raw = client.get("/api/error_log")
-    text = raw if isinstance(raw, str) else ""
-
-    lines = text.splitlines()
-    counts: dict[str, int] = {}
-    for line in lines:
-        lower = line.lower()
-        if not any(p in lower for p in ERROR_PATTERNS):
-            continue
-        for match in ERROR_REGEX.findall(lower):
-            counts[match] = counts.get(match, 0) + 1
-
-    flagged = [
-        {"entity_id": eid, "count": count}
-        for eid, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
-        if count >= min_hits
-    ]
-
-    summary = {
-        "min_hits": min_hits,
-        "total_lines_scanned": len(lines),
-        "flagged_automations": flagged,
-    }
-
-    write_json_artifact(
-        root,
-        ".claude-code-hermit/raw",
-        "audit-ha-automation-errors",
-        summary,
-        latest_name="audit-ha-automation-errors-latest.json",
-    )
-
-    body_lines = [
-        "# HA Automation Error Review",
-        "",
-        f"- log lines scanned: {summary['total_lines_scanned']}",
-        f"- threshold: >= {min_hits} hits",
-        f"- automations flagged: {len(flagged)}",
-    ]
-    if flagged:
-        body_lines.extend(["", "## Flagged Automations"])
-        for item in flagged:
-            body_lines.append(f"- `{item['entity_id']}` — {item['count']} error-pattern hits")
-
-    write_markdown_artifact(
-        root,
-        ".claude-code-hermit/raw",
-        "audit-ha-automation-errors",
-        standard_metadata(
-            "audit",
-            "HA Automation Errors",
-            session=current_session_id(root),
-            tags=["ha-automation", "errors", "review"],
-            extra={
-                "source": "scheduled-check",
-                "min_hits": min_hits,
-                "flagged": len(flagged),
-            },
-        ),
-        "\n".join(body_lines),
-        latest_name="audit-ha-automation-errors-latest.md",
     )
     return summary

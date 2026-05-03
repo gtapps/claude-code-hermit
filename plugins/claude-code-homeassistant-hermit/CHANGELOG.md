@@ -2,6 +2,67 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Added
+
+- **Docker network requirements section in `skills/hatch/SKILL.md`** — declares `nabu.casa` (DNS allowlist) and `ASK_OPERATOR_FOR_HA_IP` (LAN allowlist suggestion) for `/claude-code-hermit:docker-security` step 3a fleet scan. Operators running the docker-security wizard with this plugin installed are prompted per-entry; nothing is auto-applied. This is the consumer that requires the core `>=1.0.26` bump below.
+
+### Changed
+
+- **deps: bump core requirement to `>=1.0.26` / `^1.0.26`** — was `>=1.0.21`; `required_core_version` and `requires.claude-code-hermit` in `hermit-meta.json` and `dependencies[0].version` in `plugin.json` all updated together. README prereq line updated to match. Required by the new `## Docker network requirements` section in `skills/hatch/SKILL.md` (parsed by core 1.0.26's `/docker-security` step 3a).
+
+### Removed
+
+- **`ha-automation-errors` scheduled check retired end-to-end.** The check depended on `/api/error_log`, which is no longer reliably available on current Home Assistant installs (returns 404 for many operators; even on installs where it returned 200 the existing code couldn't parse the plain-text body — the JSON-only client raised `Malformed JSON`, crashing the check). Migrating to `/api/logbook` was evaluated and rejected: logbook surfaces state changes, not automation execution errors, so a clean run there would give operators false confidence that nothing is broken. Removing the check end-to-end (audit function, CLI subcommand, skill, hatch registration, docs) until a replacement signal is designed.
+- **`ha automation-errors` CLI subcommand** (`./bin/ha-agent-lab ha automation-errors [--min-hits N]`).
+- **`ha-automation-error-review` skill** (`/claude-code-homeassistant-hermit:ha-automation-error-review`).
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `src/ha_agent_lab/audits.py` | `review_automation_errors`, `ERROR_PATTERNS`, `ERROR_REGEX` removed; `import re` no longer needed |
+| `src/ha_agent_lab/cli.py` | `automation-errors` subparser, dispatcher branch, and `_print_automation_errors_summary` removed |
+| `tests/test_audits.py` | `review_automation_errors` import + two tests removed |
+| `skills/ha-automation-error-review/` | Directory deleted |
+| `skills/hatch/SKILL.md` | `ha-automation-errors` removed from `scheduled_checks` registration, success-message bullet, and surrounding prose ("all four" → "all three"); new `## Docker network requirements` section appended for `/docker-security` fleet scan |
+| `state-templates/CLAUDE-APPEND.md` | Skills-table row and CLI-usage line removed |
+| `CLAUDE.md` | CLI line and scheduled-checks listing updated |
+| `docs/knowledge-schema.md` | Artifact row removed |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. It will execute the steps below.
+
+1. **Detect leftover references.** Check each location independently:
+   - `.claude-code-hermit/config.json` — is there an entry whose `id == "ha-automation-errors"` in `scheduled_checks`?
+   - `.claude-code-hermit/state/reflection-state.json` — does `scheduled_checks["ha-automation-errors"]` exist?
+
+   If both are absent, print `ha-automation-errors not present in config or runtime state — nothing to retire.` and do not execute steps 2 or 3.
+
+2. **Ask the operator using `AskUserQuestion`:**
+   - Question: `"The 'ha-automation-errors' daily check has been retired — its skill and CLI are gone in this release. Clean up any leftover references from config and runtime state?"`
+   - Header: `"Retire check"`
+   - Options:
+     1. Label: `"Remove (Recommended)"` — Description: `"Drop the entry from scheduled_checks and prune the matching runtime-state key. Cleanest end state. A replacement may be added in a future release."`
+     2. Label: `"Skip — handle manually"` — Description: `"Do nothing. The entry will point at a missing skill; the next scheduled-checks pass will log a 'skill not found' warning until you remove it."`
+   - `multiSelect`: `false`
+   - (AskUserQuestion also auto-injects an `Other` option for free-text input.)
+
+3. **If the operator picked `Remove`, apply the cleanup:**
+   - In `.claude-code-hermit/config.json` (if `scheduled_checks` contains the entry): filter it out. Preserve every other entry, key ordering, and 2-space indentation. Write back.
+   - In `.claude-code-hermit/state/reflection-state.json` (if the key exists): delete `scheduled_checks["ha-automation-errors"]`. Preserve every sibling key. Write back.
+   - Print `Retired ha-automation-errors check: removed from config and runtime state.` Omit whichever location was already clean.
+
+   If the operator picked `Skip — handle manually`, print `Left ha-automation-errors references in place — expect a 'skill not found' warning on the next scheduled-checks pass.` and do not modify any files.
+
+   If the operator picked `Other`, ask them what specifically they want done before modifying anything.
+
+No template, CLAUDE-APPEND, or settings changes required for this release.
+
+---
+
 ## [0.0.6] - 2026-04-27
 
 ### Changed

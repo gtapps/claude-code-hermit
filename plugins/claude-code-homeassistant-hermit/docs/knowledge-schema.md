@@ -30,7 +30,6 @@ Ephemeral inputs and rolling snapshots. Archived after `knowledge.raw_retention_
 | `script-<slug>-<date>.yaml` | `script` | `ha-build-automation` | Each script draft |
 | `audit-ha-safety-<date>.md` | `audit` | `ha-safety-audit` | Weekly scheduled check |
 | `audit-ha-integration-health-<date>.md` | `audit` | `ha-integration-health` | Daily scheduled check |
-| `audit-ha-automation-errors-<date>.md` | `audit` | `ha-automation-error-review` | Daily scheduled check |
 | `audit-ha-context-refresh-<date>.md` | `audit` | `ha-refresh-context` | Each context refresh |
 | `audit-ha-simulation-<slug>-<date>.md` | `simulation` | `ha-simulate` | Each simulation run |
 | `audit-ha-apply-<slug>-<date>.md` | `apply` | `ha-apply-change` | Each apply run |
