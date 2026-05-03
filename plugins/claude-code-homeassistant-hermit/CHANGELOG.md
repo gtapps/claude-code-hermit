@@ -4,6 +4,10 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ## [Unreleased]
 
+### Changed
+
+- **deps: bump core requirement to `>=1.0.27` / `^1.0.27`** — was `>=1.0.21`; `required_core_version` and `requires.claude-code-hermit` in `hermit-meta.json` and `dependencies[0].version` in `plugin.json` all updated together. README prereq line updated to match.
+
 ### Removed
 
 - **`ha-automation-errors` scheduled check retired end-to-end.** The check depended on `/api/error_log`, which is no longer reliably available on current Home Assistant installs (returns 404 for many operators; even on installs where it returned 200 the existing code couldn't parse the plain-text body — the JSON-only client raised `Malformed JSON`, crashing the check). Migrating to `/api/logbook` was evaluated and rejected: logbook surfaces state changes, not automation execution errors, so a clean run there would give operators false confidence that nothing is broken. Removing the check end-to-end (audit function, CLI subcommand, skill, hatch registration, docs) until a replacement signal is designed.
