@@ -171,13 +171,12 @@ The skill name format is `/<plugin-id>:<skill-id>`. Parse the plugin-id as the t
 
 After adding any new entries, remind the operator: "Run `/claude-code-hermit:hermit-routines load` to activate routines in the current session."
 
-**Scheduled checks registration**: `config.scheduled_checks` is an array of periodic skill entries that the `scheduled-checks` routine (via `reflect-scheduled-checks`) invokes on a cadence and funnels through the proposal pipeline. For each entry below, check whether an existing record has the same `id`. If not, append it — no prompt needed, all four are safe read-only analyses.
+**Scheduled checks registration**: `config.scheduled_checks` is an array of periodic skill entries that the `scheduled-checks` routine (via `reflect-scheduled-checks`) invokes on a cadence and funnels through the proposal pipeline. For each entry below, check whether an existing record has the same `id`. If not, append it — no prompt needed, all three are safe read-only analyses.
 
 ```json
 {"id": "ha-patterns",            "plugin": "claude-code-homeassistant-hermit", "skill": "claude-code-homeassistant-hermit:ha-analyze-patterns",        "enabled": true, "trigger": "interval", "interval_days": 7}
 {"id": "ha-safety-audit",        "plugin": "claude-code-homeassistant-hermit", "skill": "claude-code-homeassistant-hermit:ha-safety-audit",           "enabled": true, "trigger": "interval", "interval_days": 7}
 {"id": "ha-integration-health",  "plugin": "claude-code-homeassistant-hermit", "skill": "claude-code-homeassistant-hermit:ha-integration-health",    "enabled": true, "trigger": "interval", "interval_days": 1}
-{"id": "ha-automation-errors",   "plugin": "claude-code-homeassistant-hermit", "skill": "claude-code-homeassistant-hermit:ha-automation-error-review", "enabled": true, "trigger": "interval", "interval_days": 1}
 ```
 
 These replace any need for CronCreate routines around analysis/observability — the `scheduled-checks` routine picks up whichever check is due, runs it, and any findings surface as proposals automatically.
@@ -201,7 +200,7 @@ hatch complete
   ✓  config.json stamped v<version>
   ✓  boot_skill: /claude-code-homeassistant-hermit:ha-boot (set | already set | operator override preserved)
   ✓  Routines registered: daily-ha-context, morning-brief (disabled by default)
-  ✓  Scheduled checks registered: ha-patterns, ha-safety-audit, ha-integration-health, ha-automation-errors
+  ✓  Scheduled checks registered: ha-patterns, ha-safety-audit, ha-integration-health
 
 Manual steps remaining:
   - Enable 'Model Context Protocol Server' integration in Home Assistant (if not done)
@@ -226,3 +225,19 @@ Prefer to test interactively first?
 The always-on runtime does both of these automatically — the interactive
 steps are only for a test drive before handing over to the runtime.
 ```
+
+---
+
+## Docker network requirements
+
+Read by `/claude-code-hermit:docker-security` when the operator enables LAN containment + DNS policy. Each entry is surfaced as a per-entry confirmation prompt; nothing here is auto-applied.
+
+### Domains (DNS allowlist)
+
+- nabu.casa
+
+### LAN allowlist suggestions
+
+- ASK_OPERATOR_FOR_HA_IP
+
+The `nabu.casa` entry covers Nabu Casa Cloud (`<id>.ui.nabu.casa`) since dnsmasq's `server=/nabu.casa/...` pattern matches subdomains. Operators on a self-hosted local HA instance should accept `ASK_OPERATOR_FOR_HA_IP` and provide the LAN IP of their HA box. mDNS / `homeassistant.local` does not work through dnsmasq — use the IP directly.

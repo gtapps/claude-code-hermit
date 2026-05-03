@@ -60,17 +60,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     probe_parser.add_argument("path", help="HA REST path, e.g. /api/config/automation/config/1234")
 
-    errors_parser = ha_subparsers.add_parser(
-        "automation-errors",
-        help="Scan HA error log for recurring automation failures (plugin_check entry point).",
-    )
-    errors_parser.add_argument(
-        "--min-hits",
-        type=int,
-        default=3,
-        help="Minimum error-pattern hits per automation to flag (default: 3).",
-    )
-
     return parser
 
 
@@ -160,18 +149,6 @@ def main(argv: list[str] | None = None) -> int:
             print(str(exc))
             return 1
 
-    if args.command == "ha" and args.ha_command == "automation-errors":
-        try:
-            from .audits import review_automation_errors
-
-            client = HomeAssistantClient(config)
-            summary = review_automation_errors(root, client, min_hits=args.min_hits)
-            _print_automation_errors_summary(summary)
-            return 0
-        except HomeAssistantError as exc:
-            print(str(exc))
-            return 1
-
     if args.command == "ha" and args.ha_command == "probe":
         try:
             client = HomeAssistantClient(config)
@@ -224,17 +201,6 @@ def _print_safety_audit_summary(summary: dict[str, Any]) -> None:
         print(f"Skipped (no numeric id): {len(unmanaged)}")
     if fetch_failures:
         print(f"Skipped (404 on config fetch): {len(fetch_failures)}")
-
-
-def _print_automation_errors_summary(summary: dict[str, Any]) -> None:
-    flagged = summary.get("flagged_automations", [])
-    print(f"ha-automation-errors findings — {date.today().isoformat()}")
-    if not flagged:
-        print("No actionable findings.")
-        return
-    print(f"Automations with recurring errors: {len(flagged)}")
-    for item in flagged:
-        print(f"- {item['entity_id']}: {item['count']} error-pattern hits")
 
 
 def _handle_policy_check(target: str) -> int:

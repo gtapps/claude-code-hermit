@@ -48,7 +48,6 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha simulate <artifact>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha validate-apply <artifact> [--reload automation|script]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <entity_id_or_yaml>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-automations
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha automation-errors [--min-hits N]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha probe <path>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status [--probe]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url> [--token <token>]
@@ -79,7 +78,7 @@ Before changing HA endpoint usage, verify against upstream (WebFetch or the `fin
 `hatch` registers entries in `.claude-code-hermit/config.json`:
 
 - **Routines**: `daily-ha-context` (08:30 daily, enabled), `morning-brief` (09:00 daily, disabled until the operator confirms the house profile).
-- **Scheduled checks** (driven by the core `scheduled-checks` routine via `reflect-scheduled-checks`, proposal-producing): `ha-patterns` (weekly), `ha-safety-audit` (weekly), `ha-integration-health` (daily), `ha-automation-errors` (daily).
+- **Scheduled checks** (driven by the core `scheduled-checks` routine via `reflect-scheduled-checks`, proposal-producing): `ha-patterns` (weekly), `ha-safety-audit` (weekly), `ha-integration-health` (daily).
 
 In interactive sessions, run `/claude-code-hermit:hermit-routines load` once to activate scheduled routines. In always-on deployments they load automatically.
 
