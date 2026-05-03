@@ -133,5 +133,3 @@ def test_audit_automations_propagates_unexpected_errors(tmp_path: Path) -> None:
         audit_automations(tmp_path, client)
 
     assert exc_info.value.status_code == 500
-
-

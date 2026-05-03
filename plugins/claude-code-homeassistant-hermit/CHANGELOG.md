@@ -4,9 +4,13 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ## [Unreleased]
 
+### Added
+
+- **Docker network requirements section in `skills/hatch/SKILL.md`** — declares `nabu.casa` (DNS allowlist) and `ASK_OPERATOR_FOR_HA_IP` (LAN allowlist suggestion) for `/claude-code-hermit:docker-security` step 3a fleet scan. Operators running the docker-security wizard with this plugin installed are prompted per-entry; nothing is auto-applied. This is the consumer that requires the core `>=1.0.26` bump below.
+
 ### Changed
 
-- **deps: bump core requirement to `>=1.0.26` / `^1.0.26`** — was `>=1.0.21`; `required_core_version` and `requires.claude-code-hermit` in `hermit-meta.json` and `dependencies[0].version` in `plugin.json` all updated together. README prereq line updated to match.
+- **deps: bump core requirement to `>=1.0.26` / `^1.0.26`** — was `>=1.0.21`; `required_core_version` and `requires.claude-code-hermit` in `hermit-meta.json` and `dependencies[0].version` in `plugin.json` all updated together. README prereq line updated to match. Required by the new `## Docker network requirements` section in `skills/hatch/SKILL.md` (parsed by core 1.0.26's `/docker-security` step 3a).
 
 ### Removed
 
@@ -22,7 +26,7 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 | `src/ha_agent_lab/cli.py` | `automation-errors` subparser, dispatcher branch, and `_print_automation_errors_summary` removed |
 | `tests/test_audits.py` | `review_automation_errors` import + two tests removed |
 | `skills/ha-automation-error-review/` | Directory deleted |
-| `skills/hatch/SKILL.md` | `ha-automation-errors` removed from `scheduled_checks` registration, success-message bullet, and surrounding prose ("all four" → "all three") |
+| `skills/hatch/SKILL.md` | `ha-automation-errors` removed from `scheduled_checks` registration, success-message bullet, and surrounding prose ("all four" → "all three"); new `## Docker network requirements` section appended for `/docker-security` fleet scan |
 | `state-templates/CLAUDE-APPEND.md` | Skills-table row and CLI-usage line removed |
 | `CLAUDE.md` | CLI line and scheduled-checks listing updated |
 | `docs/knowledge-schema.md` | Artifact row removed |

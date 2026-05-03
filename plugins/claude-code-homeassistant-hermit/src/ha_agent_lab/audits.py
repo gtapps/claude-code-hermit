@@ -117,5 +117,3 @@ def audit_automations(root: Path, client: HomeAssistantClient) -> dict[str, Any]
         latest_name="audit-ha-safety-latest.md",
     )
     return summary
-
-
