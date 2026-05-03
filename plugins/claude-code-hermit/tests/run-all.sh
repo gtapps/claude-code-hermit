@@ -10,4 +10,5 @@ bash "$SCRIPT_DIR/run-hooks.sh"               || rc=$?
 python3 "$SCRIPT_DIR/run-contracts.py"        || rc=$?
 bash "$SCRIPT_DIR/run-scripts.sh"             || rc=$?
 bash "$SCRIPT_DIR/recurrence-gate-matrix.sh"  || rc=$?
+bash "$SCRIPT_DIR/cron-tz-shift.test.sh"      || rc=$?
 exit $rc

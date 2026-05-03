@@ -43,6 +43,13 @@ Track `passed`, `warnings`, `failures` counts. Collect output lines for the fina
   - Found: **PASS** `scheduled_checks[N]: <plugin>:<skill-name> loaded`
   - Not found: **WARN** `scheduled_checks[N]: <plugin>:<skill-name> not loaded — install the plugin or remove the entry`
 
+### 4b. Verify cron-tz-shift helper
+
+Run: `node ${CLAUDE_PLUGIN_ROOT}/scripts/cron-tz-shift.js "0 4 * * *" "UTC"`
+
+- Exit 0 and stdout is `0 4 * * *`: **PASS** `cron-tz-shift helper available`
+- Exit non-zero or wrong stdout: **FAIL** `cron-tz-shift helper missing or broken — run /hermit-evolve`
+
 ### 5. Routine validation (static)
 
 - Read `routines` array from config.json

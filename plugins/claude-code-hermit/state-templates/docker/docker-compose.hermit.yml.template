@@ -23,6 +23,14 @@ services:
       - AGENT_HOOK_PROFILE={{AGENT_HOOK_PROFILE}}
 {{AUTH_ENV_LINE}}{{CHANNEL_ENV_LINES}}
 {{NETWORK_MODE_LINE}}
+    # Defense in depth — see docs/security.md#container-hardening for rationale and override path.
+    cap_drop:
+      - ALL
+    # Load-bearing: blocks setuid escalation even from a planted binary in a compromised plugin.
+    security_opt:
+      - no-new-privileges:true
+    # Caps fork-bombs; 2048 covers npm install bursts (cgroup v2 counts threads as PIDs).
+    pids_limit: 2048
     restart: unless-stopped
     # Give the entrypoint's SIGTERM trap (30-iteration graceful session-close poll)
     # time to finish before Docker escalates to SIGKILL. Default is 10s which is

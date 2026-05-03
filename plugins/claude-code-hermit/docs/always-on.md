@@ -37,7 +37,7 @@ The wizard scans your project for dependencies, asks about auth, and generates f
 | ----------------------------- | ----------------------------------------------------- |
 | `Dockerfile.hermit`           | Ubuntu 24.04, Node 24, Bun, Claude Code, project packages, host UID matching |
 | `docker-entrypoint.hermit.sh` | Onboarding bypass, MCP approval, permission patch, channel symlinks, graceful SIGTERM handling, PID 1 keepalive |
-| `docker-compose.hermit.yml`   | Named volume, bind mounts, env vars, healthcheck, restart policy |
+| `docker-compose.hermit.yml`   | Named volume, bind mounts, env vars, healthcheck, restart policy, kernel-enforced hardening (`no-new-privileges`, `cap_drop: ALL`, `pids_limit`) |
 | `.env`                        | Auth token (appended if file already exists)           |
 
 The wizard also checks `.claude/settings.json` permissions to detect tools your project needs in the container.
@@ -61,6 +61,29 @@ Accept the one-time **workspace trust prompt** — use the attach command from t
 Persisted in the `claude-config` named volume — won't appear on restarts. After this, your hermit runs fully unattended!
 
 > **First run is slower** — the named volume starts empty, so the entrypoint runs onboarding bypass and installs channel plugins. Subsequent restarts are fast.
+
+---
+
+## Advanced Hardening (opt-in)
+
+Once the container is up and stable, consider running the advanced hardening wizard:
+
+```
+/claude-code-hermit:docker-security
+```
+
+It applies a `docker-compose.security.yml` overlay that the `hermit-docker` wrapper auto-detects on the next `up`. Each toggle is opt-in with honest cost/benefit framing, fully reversible, and verified live against your container:
+
+| Toggle | What it adds | Honest limitation |
+| --- | --- | --- |
+| LAN containment + DNS policy | nftables firewall + dnsmasq sidecar sharing hermit's netns; blocks RFC1918, cloud metadata; port-53 redirect for actual DNS-policy enforcement | Direct-IP egress to a hardcoded public IP is **not** blocked (no DNS lookup to intercept) |
+| Read-only root filesystem | tmpfs + named volume for paths that need to be writable; smoke test (real `npm install`, plugin add/remove, canary writes) before persisting | None worth flagging — operators with custom workloads can answer No |
+| Resource bounds + sysctls | `mem_limit`, `cpus`, ICMP-redirect / source-route hardening | Network sysctls auto-skip when `network_mode: host` |
+| Plugin install audit log | One JSONL line per boot-time `claude plugin install` to `state/plugin-installs.jsonl` | Post-boot installs run via tmux are not captured |
+
+The wizard is fleet-aware: it scans installed `*-hermit` plugins for a `## Docker network requirements` section and offers their domains and LAN suggestions for per-entry confirmation. The LAN containment toggle is **hard-skipped** when `docker.network_mode: "host"` — host mode and bridge-based netns sharing are mutually exclusive.
+
+Reverse anytime: re-run `/docker-security` and answer No to every prompt, or `rm docker-compose.security.yml` and `hermit-docker up`. See [Security](security.md#advanced-hardening--docker-security) for the deeper treatment of what each toggle protects against and the documented limitations.
 
 ---
 

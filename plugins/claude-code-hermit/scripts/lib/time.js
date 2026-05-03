@@ -2,14 +2,15 @@
 
 // Returns 'HH:MM' in the given IANA timezone, or null on error.
 // Normalises Intl's '24:xx' (some locales emit this for midnight) to '00:xx'.
-function currentHHMM(timezone) {
+// Optional ref date; defaults to now.
+function currentHHMM(timezone, ref) {
   try {
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
-    }).formatToParts(new Date());
+    }).formatToParts(ref || new Date());
     const h = String(parts.find(p => p.type === 'hour')?.value ?? '0').padStart(2, '0');
     const m = String(parts.find(p => p.type === 'minute')?.value ?? '0').padStart(2, '0');
     return (h === '24' ? '00' : h) + ':' + m;

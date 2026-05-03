@@ -1,5 +1,101 @@
 # Changelog
 
+## [1.0.26] - 2026-05-03
+
+### Fixed
+
+- **hermit-routines: routine schedules now shift from `config.timezone` to machine timezone** before CronCreate registration. Previously the routines pipeline ignored `config.timezone`, so a UTC server with `timezone: "Europe/Lisbon"` would fire daily routines at the wrong wall-clock hour during BST. A new `scripts/cron-tz-shift.js` helper handles the conversion with minute-granularity offsets (30/45-minute IANA zones work), automatic DOW adjustment on day-wrap, and fail-open pass-through for patterns that can't collapse into a single cron. DST self-corrects within 24h via the daily `heartbeat-restart` reload.
+
+- **`hermit-doctor` `docker-security` check: anchor overlay path to the agent dir, not `process.cwd()`.** The check was resolving `docker-compose.security.yml` relative to the current working directory, which diverged from the rest of doctor-check (which derives every path from `hermitDir` / argv). Invoking doctor with an explicit agent-dir argument from a different CWD would have looked in the wrong place and falsely reported "not configured." Now uses `path.join(hermitDir, '..', 'docker-compose.security.yml')` for consistency with the file's other path constants.
+
+### Added
+
+- **Container hardening**: docker-compose template now blocks setuid escalation (`security_opt: no-new-privileges:true`), drops all Linux capabilities (`cap_drop: ALL`), and caps process count (`pids_limit: 2048`). Defense in depth for `bypassPermissions` containers. The load-bearing stanza is `no-new-privileges` — it closes the setuid-escalation vector against future supply-chain compromise of any installed plugin; the other two are incremental ambient-surface reductions. Verified against entrypoint, hermit-start, and plugin-install paths; nothing in the runtime needs the dropped capabilities or setuid binaries, and steady-state PID usage sits well under the cap.
+
+- **`/claude-code-hermit:docker-security` advanced wizard**: opt-in hardening for already-deployed hermit containers. Four toggles, each with honest cost/benefit framing: (1) **LAN containment + DNS policy** — firewall + DNS sidecar (`hermit-netguard`) sharing hermit's network namespace, with nftables-driven port-53 redirect for *actual* DNS-policy enforcement (not just resolver hints); (2) **read-only root filesystem** with concrete smoke test (real `npm install` + plugin add/remove + claude-owned canary write before persisting); (3) **resource bounds + kernel hygiene** (`mem_limit`, `cpus`, network sysctls — sysctl placement is conditional on whether the netguard sidecar owns the netns); (4) **boot-time plugin install audit log**. Applied as a `docker-compose.security.yml` overlay — never modifies the base compose. Hard-skips the LAN containment prompt when `docker.network_mode: "host"` (would break host-bound HA workflows). Fleet-aware: scans installed fleet plugins for `## Docker network requirements` declarations and offers their domains/LAN suggestions for per-entry confirmation. Documented limitations: public-IP egress is not blocked (v1.1 may add nftset-driven IP allowlisting); Docker default bridge falls in the LAN drop range; Compose service-name DNS and mDNS don't work through dnsmasq.
+
+- **`hermit-doctor`** gains an eighth check, `docker-security`, that flags drift between declared `docker.security.*` posture in `config.json` and the presence of `docker-compose.security.yml`. Two-state presence check; no YAML parsing.
+
+- **`hermit-docker`** wrapper: pins `SERVICE="hermit"` explicitly (was deriving from `docker compose config --services | head -1`, which becomes ambiguous once the security overlay introduces a netguard sidecar — `bash`/`login`/`attach` could land on the wrong service). Also auto-detects `docker-compose.security.yml` and chains it onto every compose command. No effect when the overlay is absent.
+
+- **Per-fleet-plugin contract**: plugins can declare network requirements in a `## Docker network requirements` section in `skills/hatch/SKILL.md` or `DOCKER.md` (mirrors the existing `## Docker apt dependencies` pattern). The `/docker-security` wizard reads these and offers per-entry confirmation. Special token `ASK_OPERATOR_FOR_<NAME>_IP` triggers an operator IP prompt for plugin-specific LAN endpoints. Backward-compatible: plugins without the section contribute nothing.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/cron-tz-shift.js` | New: shifts 5-field cron between IANA timezones |
+| `scripts/lib/time.js` | Extended `currentHHMM` to accept optional `ref` date |
+| `skills/hermit-routines/SKILL.md` | `load` now invokes `cron-tz-shift.js` per routine |
+| `skills/hatch/SKILL.md` | Added `cron-tz-shift.js` to Bash allowlist |
+| `skills/hermit-evolve/SKILL.md` | Added `cron-tz-shift.js` to required node entries list |
+| `skills/smoke-test/SKILL.md` | Added step 4b: helper availability check |
+| `skills/docker-security/SKILL.md` | New: opt-in hardening wizard (LAN, ro-fs, resource bounds, audit log) |
+| `scripts/doctor-check.js` | Eighth check: `docker-security` posture vs overlay drift |
+| `state-templates/bin/hermit-docker` | Pins `SERVICE=hermit`, chains security overlay when present |
+| `docs/config-reference.md` | Updated `routines.schedule` TZ description |
+| `tests/cron-tz-shift.test.sh` | New: 20 deterministic cron-shift tests |
+| `tests/run-hooks.sh` | Updated doctor-check test: 7 → 8 checks |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Add `cron-tz-shift.js` to the Bash allowlist.** Add `Bash(node */scripts/cron-tz-shift.js*)` to `.claude/settings.json` `permissions.allow` alongside the other `node */scripts/...` entries.
+
+2. **Re-register routines.** Run `/claude-code-hermit:hermit-routines load` to apply the timezone shift to existing CronCreate registrations.
+
+3. **Skip if no Docker scaffolding.** If `docker-compose.hermit.yml` does not exist at the project root, this entry is a no-op.
+
+4. **Ask the operator for consent.** Use `AskUserQuestion` (header: `"Container hardening"`):
+   - **Yes — apply hardening** (Recommended): proceed to step 5.
+   - **Skip**: do nothing for this entry; continue with the rest of evolve.
+
+   Hardening is opt-in because operators may have customized their compose for special workloads (privileged ports, larger PID needs).
+
+5. **Idempotency check.** Read the rendered `docker-compose.hermit.yml`. If it contains the literal string `no-new-privileges`, skip — already migrated. Tell the operator: "Container hardening already in place, skipping." (If it contains `cap_drop` or `pids_limit` but not `no-new-privileges`, a partial previous attempt may have stalled — show the operator the current file and ask them to patch it manually or re-run `/docker-setup` with backup.)
+
+6. **Locate the insertion point.** Find the `hermit:` service block. Within it, locate the `restart:` line at 4-space indent. If either is missing or the structure is ambiguous (e.g. service renamed, restart removed, indentation drift), do NOT attempt the patch — fall through to step 8.
+
+7. **Patch.** Insert the following three stanzas immediately before the `restart:` line, indented to match adjacent service keys (4 spaces in the standard template). Show the diff to the operator and ask for final confirmation before writing:
+
+   ```yaml
+   cap_drop:
+     - ALL
+   security_opt:
+     - no-new-privileges:true
+   pids_limit: 2048
+   ```
+
+   *(Shown unindented for clarity — in the file each line gets 4 leading spaces, same level as `restart:` and `stop_grace_period:`.)*
+
+   On confirm: write the file. Then jump to step 9.
+
+8. **Fallback for unrecognized structure.** Tell the operator:
+
+   > "Your `docker-compose.hermit.yml` has been customized — I can't patch it safely. Re-run `/claude-code-hermit:docker-setup` and choose **'Yes — back up'** when prompted to regenerate it cleanly with the new hardening defaults. Your customizations will be preserved in `docker-backup/` so you can re-apply them on top."
+
+   No further action.
+
+9. **Container recreation reminder (CRITICAL).** Tell the operator:
+
+   > "**`hermit-docker restart` is NOT enough** — Docker only applies `cap_drop`, `security_opt`, and `pids_limit` at container creation, not on restart. To activate the new settings, run:
+   >
+   > ```
+   > .claude-code-hermit/bin/hermit-docker down
+   > .claude-code-hermit/bin/hermit-docker up
+   > ```
+   >
+   > The named config volume preserves credentials, plugins, and onboarding state."
+
+No `config.json` changes required.
+
+10. **Inform the operator about the new advanced wizard (no automatic action).** After steps 1–9 complete (or are skipped), tell them:
+
+   > "v1.0.26 also ships an opt-in advanced wizard, `/claude-code-hermit:docker-security`, for stronger isolation than the baseline. The headline gain is blocking your container from reaching your local network — meaningful if you run hermit on a home or office machine alongside HA, NAS, printer, etc. Run `/claude-code-hermit:docker-security` when you're ready; nothing changes until you do. See [`docs/docker-security.md`](docs/docker-security.md) for the full toggle reference and documented limitations."
+
+   This step is informational only — the wizard is opt-in by design, never invoked automatically by `/hermit-evolve`.
+
 ## [1.0.25] - 2026-05-01
 
 ### Changed

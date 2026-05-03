@@ -1,0 +1,59 @@
+#!/bin/sh
+# Sidecar entrypoint: load nftables ruleset, then start dnsmasq on
+# 127.0.0.1:53. Hermit shares this network namespace via
+# `network_mode: "service:hermit-netguard"` in docker-compose.security.yml,
+# so all of hermit's egress passes through these rules.
+#
+# Fail-safe: on any rule-load or dnsmasq failure, log the error and
+# `tail -f /dev/null` instead of exiting. The alternative is a restart loop
+# that leaves hermit dark with no networking — operator can `docker exec`
+# in to inspect a held-open netns.
+
+set +e
+
+LOG=/var/log/netguard/netguard.log
+mkdir -p /var/log/netguard
+
+if ! nft -f /etc/nftables.conf 2>>"$LOG"; then
+  echo "[netguard] nftables rule load FAILED — see $LOG. Holding netns open." >&2
+  exec tail -f /dev/null
+fi
+echo "[netguard] nftables rules loaded." | tee -a "$LOG"
+
+# Start dnsmasq if an allowlist file is mounted. nftables redirects all
+# egress UDP/TCP :53 to here regardless of where hermit tries to send the
+# query, so DNS policy is enforced even if /etc/resolv.conf points elsewhere.
+#
+# CRITICAL: dnsmasq's own upstream queries (to 1.1.1.1:53) are exempted from
+# the redirect via `meta skuid != <DNSMASQ_UID>` in nftables.conf. Without
+# that exemption, dnsmasq's outbound queries loop back to itself and DNS
+# stops working entirely.
+if [ -f /etc/dnsmasq.allowlist ]; then
+  if [ "${DNS_LOG_ONLY:-0}" = "1" ]; then
+    # Log-only mode: don't enforce NXDOMAIN. Allow all queries to upstream
+    # while logging everything for the operator to review and tune the
+    # allowlist before flipping to enforce. Raw `--log-queries` text
+    # (operator greps); structured JSONL emission is deferred to v1.1.
+    dnsmasq -k --log-queries --no-hosts \
+      --server=1.1.1.1 \
+      --listen-address=127.0.0.1 \
+      2>&1 | tee -a /var/log/netguard/dns.log &
+  else
+    dnsmasq -k --conf-file=/etc/dnsmasq.allowlist \
+      --listen-address=127.0.0.1 \
+      2>&1 | tee -a "$LOG" &
+  fi
+  DNSMASQ_PID=$!
+  sleep 1
+  if ! kill -0 "$DNSMASQ_PID" 2>/dev/null; then
+    echo "[netguard] dnsmasq failed to stay up — see $LOG. Holding netns open." >&2
+    exec tail -f /dev/null
+  fi
+  echo "[netguard] dnsmasq started (DNS_LOG_ONLY=${DNS_LOG_ONLY:-0})." | tee -a "$LOG"
+fi
+
+# Trap signals for clean shutdown.
+trap 'kill -TERM $(pgrep dnsmasq) 2>/dev/null; exit 0' TERM INT
+
+# Hold the netns open for hermit.
+tail -f /dev/null

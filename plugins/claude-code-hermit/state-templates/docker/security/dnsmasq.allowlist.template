@@ -1,0 +1,43 @@
+# dnsmasq allowlist for the hermit-netguard sidecar.
+# Listens only on loopback inside the shared network namespace; nftables
+# redirects all egress port-53 traffic here.
+#
+# Syntax:
+#   server=/<domain>/<upstream>   — allow <domain> and any subdomain, forward to <upstream>
+#   address=/#/                   — return NXDOMAIN for everything else (catchall)
+#
+# To add a domain at runtime, edit this file in
+# .claude-code-hermit/docker/dnsmasq.allowlist and run
+# `hermit-docker restart hermit-netguard`.
+
+listen-address=127.0.0.1
+no-hosts
+
+# --- Core hermit operation ---
+# Anthropic API + Claude Code marketplace traffic
+server=/anthropic.com/1.1.1.1
+server=/githubusercontent.com/1.1.1.1
+server=/github.com/1.1.1.1
+server=/githubassets.com/1.1.1.1
+# npm + plugin install paths
+server=/npmjs.org/1.1.1.1
+server=/npmjs.com/1.1.1.1
+# Python ecosystem (used by some plugins)
+server=/pypi.org/1.1.1.1
+server=/pythonhosted.org/1.1.1.1
+# Channel APIs
+server=/discord.com/1.1.1.1
+server=/discordapp.com/1.1.1.1
+server=/discord.gg/1.1.1.1
+server=/telegram.org/1.1.1.1
+
+# --- Fleet-plugin contributions (rendered from each plugin's
+#     `## Docker network requirements` section, gated by per-entry
+#     operator confirmation during /docker-security) ---
+{{FLEET_DOMAINS}}
+
+# --- Operator additions (from /docker-security Prompt 1c) ---
+{{ADDITIONAL_DOMAINS}}
+
+# Catchall: NXDOMAIN for everything else.
+address=/#/

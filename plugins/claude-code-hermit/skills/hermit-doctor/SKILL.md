@@ -1,11 +1,11 @@
 ---
 name: hermit-doctor
-description: Returns a seven-check health report on the hermit installation — config validity, hook registration, state file integrity, cost budget, proposal health, sibling dependency ranges, file permissions. Use when diagnosing an install, before a release, or after suspicious behavior. Activates on messages like "/hermit-doctor", "health check", "diagnose the hermit", "what's wrong", "run diagnostic".
+description: Returns an eight-check health report on the hermit installation — config validity, hook registration, state file integrity, cost budget, proposal health, sibling dependency ranges, file permissions, docker-security overlay drift. Use when diagnosing an install, before a release, or after suspicious behavior. Activates on messages like "/hermit-doctor", "health check", "diagnose the hermit", "what's wrong", "run diagnostic".
 ---
 
 # Hermit Doctor
 
-Runs seven read-only health checks against the current hermit install and surfaces the
+Runs eight read-only health checks against the current hermit install and surfaces the
 summary. Safe to run at any time. Produces no side effects beyond writing
 `.claude-code-hermit/state/doctor-report.json` and appending a summary block to SHELL.md.
 
@@ -19,24 +19,24 @@ summary. Safe to run at any time. Produces no side effects beyond writing
    JSON to stdout. It exits 0 unconditionally — on any internal failure the failing
    check reports `status: "fail"` in its own entry rather than crashing the report.
 
-2. Parse the JSON. For each of the seven checks (`config`, `hooks`, `state`, `cost`,
-   `proposals`, `dependencies`, `permissions`), emit one line using this format:
+2. Parse the JSON. For each of the eight checks (`config`, `hooks`, `state`, `cost`,
+   `proposals`, `dependencies`, `permissions`, `docker-security`), emit one line using this format:
    - `✓ <id> — <detail>` when `status: ok`
    - `⚠ <id> — <detail>` when `status: warn`
    - `✗ <id> — <detail>` when `status: fail`
 
 3. Append a summary section to `.claude-code-hermit/sessions/SHELL.md` under a new
-   `## Doctor Report (<ts>)` heading. Use the same seven lines from step 2. Place it
+   `## Doctor Report (<ts>)` heading. Use the same eight lines from step 2. Place it
    above the `## Monitoring` section so it sits with session-level context, not
    with monitoring chatter.
 
-4. Return the seven lines to the caller. Cap total output at 15 lines.
+4. Return the eight lines to the caller. Cap total output at 16 lines.
 
 ## Silence policy
 
-- If every check is `ok`, return only: `All seven checks passed.` Do not notify via
+- If every check is `ok`, return only: `All eight checks passed.` Do not notify via
   channel (Tier 0). Still append to SHELL.md so the run is traceable.
-- If any check is `warn` or `fail`, return the full seven-line summary. Channel
+- If any check is `warn` or `fail`, return the full eight-line summary. Channel
   notification follows the usual § Operator Notification policy in CLAUDE.md —
   `fail` warrants a proactive ping; `warn` alone does not unless the operator asked.
 
@@ -51,6 +51,7 @@ summary. Safe to run at any time. Produces no side effects beyond writing
 | `proposals` | Counts `proposals/PROP-*.md` with `status: open`; ages via `created:` frontmatter. | `warn` if any open PROP > 30 days, or if more than 10 open. |
 | `dependencies` | Reads `required_core_version` from each sibling plugin's `plugin.json` and verifies the installed core version satisfies the range. Sibling plugins live next to core under `plugins/<name>/` (monorepo) or in the marketplace cache (legacy). | `warn` if any sibling declares a `required_core_version` that the running core version doesn't satisfy. Unrecognized range forms (e.g. `^`, `~`, `||`) are treated as ok. |
 | `permissions` | `fs.statSync(p).mode & 0o777` on `config.json`, `state/*.json`, and `proposals/`. | `warn` if any world-readable (`mode & 0o004 ≠ 0`). |
+| `docker-security` | Cross-references `docker.security.*` in `config.json` against the presence of `docker-compose.security.yml` at the project root. Two-state presence check; no YAML parsing. | `warn` if posture is declared but overlay missing (re-run `/docker-security`), or if overlay is present but no posture is declared (likely a manual edit). `ok` when both match or neither is configured. |
 
 No automatic fixes. Doctor reports; the operator acts.
 

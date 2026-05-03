@@ -425,8 +425,8 @@ mkdir -p "$workdir/.claude-code-hermit/proposals"
 cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
 {"agent_name":"test","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"active_hours":{"start":"08:00","end":"23:00"}},"routines":[],"idle_budget":"$0.50"}
 EOF
-run_test "doctor-check (minimal install, 7 checks)" bash -c \
-  "node '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); ids=[c['id'] for c in r['checks']]; assert ids==['config','hooks','state','cost','proposals','dependencies','permissions'], ids\""
+run_test "doctor-check (minimal install, 8 checks)" bash -c \
+  "node '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); ids=[c['id'] for c in r['checks']]; assert ids==['config','hooks','state','cost','proposals','dependencies','permissions','docker-security'], ids\""
 cleanup
 
 # -------------------------------------------------------

@@ -95,7 +95,7 @@ Modify with `/hermit-settings heartbeat`.
 |-----|------|---------|-------------|
 | `idle_behavior` | string | `"discover"` | What to do when idle: `"wait"` (check tasks/channels only) or `"discover"` (also run idle tasks, reflection, and priority alignment). |
 | `idle_budget` | string | `"$0.50"` | Maximum cost per idle task from `IDLE-TASKS.md`. |
-| `routines` | array | `[]` | Scheduled routines. Each entry: `{id, schedule, skill, run_during_waiting?, enabled}`. `schedule` is a 5-field cron expression (`minute hour dom month dow`). Managed by routine watcher. |
+| `routines` | array | `[]` | Scheduled routines. Each entry: `{id, schedule, skill, run_during_waiting?, enabled}`. `schedule` is a 5-field cron expression (`minute hour dom month dow`) interpreted in `config.timezone`. |
 | `monitors` | array | `[]` | Declared background watches. Each entry: `{id, description, command, class?, persistent?, enabled, timeout_ms?}`. Auto-registered at session start via `/watch start`. `class` is `"stream"` or `"poll"` (documentation label only). Runtime state in `state/monitors.runtime.json`. |
 
 Modify with `/hermit-settings routines`, `/hermit-settings idle`.
@@ -114,7 +114,11 @@ The `schedule` field uses standard 5-field cron syntax: `minute hour dom month d
 
 Atoms: `*` (any), exact value, comma-separated list (`1,15`), range (`9-17`), step (`*/15`, `0-30/10`). Named days/months and macros (`@daily`) are not supported. Both DOM and DOW non-`*` in the same expression is rejected (ambiguous semantics). Leading zeros are allowed (`09` = `9`). Step base `0` is invalid (`*/0`).
 
-Schedule is evaluated in the project's configured timezone. Each matching minute fires at most once (dedup key: `YYYY-MM-DDTHH:MM|routine-id`). DST: the watcher compares wall-clock time each tick — skipped hours never match; repeated hours may double-fire (acceptable).
+At session start (and on every `/claude-code-hermit:hermit-routines load`), each routine's `schedule` is shifted from `config.timezone` to the machine's local timezone before being registered as a `CronCreate` — which only knows about machine local time. The shift handles minute-granularity offsets, so half-hour and 45-minute IANA zones (Asia/Kolkata, Australia/Adelaide, Asia/Kathmandu) work correctly. DOW is shifted automatically when a day-wrap occurs.
+
+DST transitions self-correct within 24h via the daily `heartbeat-restart` reload. **On the DST transition day itself, one fire may land at the wrong wall-clock hour.** If your `config.timezone` is null, schedules pass through to CronCreate unchanged (machine-local time used as-is).
+
+Schedules that cannot be expressed as a single CronCreate after shifting are passed through unchanged with a warning: mixed day-wrap on restricted-DOW schedules, and hour step patterns (`*/7`) that lose their structure. Avoid these in routines when `config.timezone` differs from the machine TZ; split into separate fixed-time entries instead.
 
 ---
 

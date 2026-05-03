@@ -167,7 +167,7 @@ Routines live in `config.json` as a `routines` array:
 ```
 
 - `id`: unique name for dedup and display
-- `schedule`: 5-field cron expression (`minute hour dom month dow`), interpreted by CronCreate in local time
+- `schedule`: 5-field cron expression (`minute hour dom month dow`), written in `config.timezone` — converted to machine local time at load before CronCreate registration (see [Config reference — routines.schedule](../docs/config-reference.md#cron-schedule-rules))
 - `skill`: full slash-command name (e.g. `claude-code-hermit:brief --morning` for plugin skills, `ha-refresh-context` for local project skills)
 - `run_during_waiting`: optional — if `true`, fires even when session status is `waiting` (default: `false`)
 - `enabled`: toggle without removing
@@ -178,9 +178,9 @@ Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect 
 
 `hermit-start.py` auto-sends `/claude-code-hermit:hermit-routines load` after launching the always-on session. The skill:
 
-1. Resolves `$CLAUDE_PLUGIN_ROOT` (available at skill execution time, NOT in cron-delivered prompts)
+1. Resolves `$CLAUDE_PLUGIN_ROOT` and reads `config.timezone`
 2. Calls `CronList`, `CronDelete`s every `[hermit-routine:*]` entry — clears stale registrations and resets the 7-day expiry clock
-3. For each enabled routine, registers a fresh `CronCreate` with the routine's schedule and a prompt that invokes the skill plus logs to `state/routine-metrics.jsonl`
+3. For each enabled routine, shifts the `schedule` from `config.timezone` to machine local time via `scripts/cron-tz-shift.js`, then registers a fresh `CronCreate` with that shifted schedule and a prompt that invokes the skill plus logs to `state/routine-metrics.jsonl`
 
 CronCreate fires only between REPL turns — never mid-task. There is no queue: if Claude is mid-task when the cron time hits, the fire is deferred (not dropped) until idle. `run_during_waiting: false` routines additionally check `runtime.json` and self-suppress with a `skipped-waiting` event when `session_state == "waiting"`.
 

@@ -22,17 +22,18 @@ Register and manage scheduled routines as per-session CronCreate jobs. Each rout
 
 Called automatically by `hermit-start.py` on always-on launches. Can also be called manually to apply config changes mid-session.
 
-1. Resolve the plugin root path: run `echo $CLAUDE_PLUGIN_ROOT` via Bash. Store as `pluginRoot`. This env var is available at skill execution time but NOT inside cron-delivered prompts — it must be baked into each prompt at registration.
+1. Resolve the plugin root path: run `echo $CLAUDE_PLUGIN_ROOT` via Bash. Store as `pluginRoot`. Read `config.timezone` from `.claude-code-hermit/config.json`. Store as `configTz` (may be null — the shift helper treats null as a no-op). This env var is available at skill execution time but NOT inside cron-delivered prompts — it must be baked into each prompt at registration.
 2. Read `config.routines`, filter `enabled: true`. If none, log "No enabled routines in config." and stop.
 3. Call `CronList`. For each entry whose prompt contains `[hermit-routine:`: call `CronDelete` with its ID. Unconditional reset — ensures stale entries from prior sessions are cleared and the 7-day auto-expiry clock is reset.
 4. For each enabled routine, build the prompt string (see templates below), then call `CronCreate`:
-   - `cron`: the routine's `schedule` field
+   - **Compute the timezone-shifted schedule**: run `node <pluginRoot>/scripts/cron-tz-shift.js "<routine.schedule>" "<configTz>"` via Bash. Use the script's stdout (trimmed) as the `cron` value. If the script writes a `WARN:` line to stderr, record it for the Step 5 summary but proceed — the script outputs the original schedule unchanged on unsupported patterns.
+   - `cron`: the shifted schedule (script stdout)
    - `recurring`: true
    - `durable`: false
    - `prompt`: the resolved prompt string
 
    **Per-routine error isolation:** if `CronCreate` throws for one routine (bad cron expression, hit the 50-task session limit, etc.), record the failure and continue with the next routine. Do not abort the loop — one bad config entry must not prevent unrelated routines from registering.
-5. Log one line summarizing outcomes: `Routines registered: <id1>, <id2> (<N> ok, <M> failed)`. If any failed, list each failed id with the error on its own line.
+5. Log one line summarizing outcomes: `Routines registered: <id1>, <id2> (<N> ok, <M> failed[, <K> tz-shifted, <W> tz-warned])`. If any failed, list each failed id with the error on its own line. If any warned, list each warned id with the WARN reason on its own line.
 
 #### Prompt templates
 
@@ -103,6 +104,8 @@ Extract the routine ID from the `[hermit-routine:<id>]` prefix in the prompt.
 
 ## Notes
 
+- **Routine schedules are interpreted in `config.timezone`.** `load` shifts each routine's cron from `config.timezone` to the machine's local timezone before registering with `CronCreate` (which only knows about machine local time). If `config.timezone` is null, schedules pass through unchanged. The shift uses minute granularity, so half-hour and 45-minute IANA zones (Asia/Kolkata, Australia/Adelaide, Asia/Kathmandu) work correctly.
+- **DST handling.** The offset is recomputed on every `load`. The `heartbeat-restart` daily reload self-corrects across DST transitions within 24h. **On the DST transition day itself, one fire may land at the wrong wall-clock hour** — the routine fires on the previous day's offset, then `load` runs and re-registers with the corrected offset. Schedules that cannot be expressed as a single cron after shifting (mixed day-wrap on restricted-DOW, step patterns that lose their structure) pass through unchanged with a `WARN:` line.
 - **Changes take effect immediately.** `hermit-settings routines` automatically invokes `/claude-code-hermit:hermit-routines load` after writing config. If you edit `config.json` by hand, run `/claude-code-hermit:hermit-routines load` to apply — no session restart needed.
 - **Interactive mode does not auto-register routines.** `hermit-start.py` calls `/claude-code-hermit:hermit-routines load` only on always-on launches. Operators using `/session` interactively who want routines must run `/claude-code-hermit:hermit-routines load` themselves.
 - **`$CLAUDE_PLUGIN_ROOT` is NOT available in cron-delivered prompts.** Always resolve and bake the absolute path at `load` time.

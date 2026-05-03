@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="plugins/claude-code-hermit/CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.0.25-green.svg" alt="Version 1.0.25" /></a>
+  <a href="plugins/claude-code-hermit/CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.0.26-green.svg" alt="Version 1.0.26" /></a>
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/_stats_badges/.github/badges/clones.json" alt="Downloads" />
   <img src="https://img.shields.io/badge/Claude-Pro%20%7C%20Max-blueviolet.svg" alt="Claude Pro/Max Compatible" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
@@ -31,8 +31,6 @@ Three steps to a running 24/7 hermit:
 ```
 
 Hermit is the glue between Claude Code's native capabilities and a 24/7 agent that improves itself. One subscription to run multiple hermits.
-
-> The **clones** badge counts Git clones tracked since 2026-05-02, updated daily by `.github/workflows/clone-stats.yml`.
 
 ---
 

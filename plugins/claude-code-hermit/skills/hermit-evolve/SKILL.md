@@ -143,7 +143,7 @@ If `.claude-code-hermit/cortex-manifest.json` does not exist:
 
 ### 8. Ensure plugin permissions in settings.json
 
-Same logic as init step 8: check `.claude/settings.json` for the plugin's required permissions (`git diff/status/log`, per-script `node` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required node entries are: `cost-tracker.js`, `suggest-compact.js`, `run-with-profile.js`, `evaluate-session.js`, `append-metrics.js`, `generate-summary.js`. If any are missing, show the operator which ones and ask for confirmation before adding. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found:
+Same logic as init step 8: check `.claude/settings.json` for the plugin's required permissions (`git diff/status/log`, per-script `node` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required node entries are: `cost-tracker.js`, `suggest-compact.js`, `run-with-profile.js`, `evaluate-session.js`, `append-metrics.js`, `generate-summary.js`, `cron-tz-shift.js`. If any are missing, show the operator which ones and ask for confirmation before adding. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found:
 
 - `Bash(python3:*)`, `Bash(node:*)` — replaced by scoped node entries
 - `Edit(.claude/.claude-code-hermit/**)`, `Write(.claude/.claude-code-hermit/**)` — replaced by `.claude-code-hermit/**` (v0.0.6 path change)

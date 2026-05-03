@@ -105,6 +105,31 @@ except Exception:
   fi
 fi
 
+# --- 0c. Plugin install audit log helper ---
+# Gated on HERMIT_PLUGIN_INSTALL_AUDIT=1, which the security overlay
+# (/claude-code-hermit:docker-security toggle 4) sets when the audit-log
+# toggle is on. No-op when unset, so default flow is unchanged.
+#
+# Honestly named: this only catches installs performed by THIS entrypoint
+# script (boot-time installs of hermit-core, channels, and recommended
+# plugins). Post-boot installs the operator runs via tmux are NOT captured —
+# the audit-log toggle's docs in /docker-security explain this scope.
+if [ "${HERMIT_PLUGIN_INSTALL_AUDIT:-0}" = "1" ]; then
+  AUDIT_LOG="${AGENT_DIR}/state/plugin-installs.jsonl"
+  mkdir -p "$(dirname "$AUDIT_LOG")"
+  audit_install() {
+    # $1=marketplace, $2=plugin, $3=scope
+    printf '{"ts":"%s","marketplace":%s,"plugin":%s,"scope":%s}\n' \
+      "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      "$(printf '%s' "$1" | jq -Rs .)" \
+      "$(printf '%s' "$2" | jq -Rs .)" \
+      "$(printf '%s' "$3" | jq -Rs .)" \
+      >> "$AUDIT_LOG"
+  }
+else
+  audit_install() { :; }
+fi
+
 # --- 1. Bypass onboarding, pre-approve MCP servers, patch permission_mode ---
 CLAUDE_JSON="${CLAUDE_CONFIG_DIR}/.claude.json"
 CC_VERSION=$(claude --version 2>/dev/null | grep -oP '[\d.]+' | head -1 || echo "0.0.0")
@@ -199,8 +224,11 @@ if [ ! -d "${MARKETPLACE_DIR}/claude-code-hermit" ]; then
   echo "[docker-entrypoint] Adding hermit marketplace..."
   claude plugin marketplace add gtapps/claude-code-hermit || true
   echo "[docker-entrypoint] Installing hermit plugin..."
-  claude plugin install claude-code-hermit@claude-code-hermit --scope project || \
+  if claude plugin install claude-code-hermit@claude-code-hermit --scope project; then
+    audit_install "gtapps/claude-code-hermit" "claude-code-hermit" "project"
+  else
     echo "[docker-entrypoint] Warning: failed to install hermit plugin — install manually"
+  fi
 fi
 
 # Idempotent enable — runs every boot to self-heal if plugin was disabled.
@@ -242,6 +270,7 @@ if [ "$NEEDS_OFFICIAL" = true ] && [ -n "$CHANNELS" ]; then
       echo "[docker-entrypoint] ERROR: 'claude plugin install ${target}' failed — see stderr above."
       continue
     fi
+    audit_install "claude-plugins-official" "$plugin" "local"
     if ! claude plugin enable "$target" --scope local; then
       echo "[docker-entrypoint] ERROR: 'claude plugin enable ${target}' failed — see stderr above."
       continue
@@ -264,14 +293,34 @@ fi
 # Each entry may reference any marketplace — the entrypoint adds it on first boot as needed.
 # Operator confirmed these plugins during docker-setup, so no auto-install guard is needed.
 if [ -n "$RECOMMENDED_PLUGINS_JSON" ] && [ "$RECOMMENDED_PLUGINS_JSON" != "[]" ]; then
+  AUDIT_LOG_PATH=""
+  if [ "${HERMIT_PLUGIN_INSTALL_AUDIT:-0}" = "1" ]; then
+    AUDIT_LOG_PATH="${AGENT_DIR}/state/plugin-installs.jsonl"
+  fi
   python3 -c "
-import json, os, subprocess, sys
+import json, os, subprocess, sys, time
 
 plugins = json.loads(sys.argv[1])
 # 'claude plugin list' output is free-form ('  ❯ plugin@slug' plus Version/Scope lines).
 # Substring match against the whole blob is more robust than exact-line set membership.
 installed_blob = sys.argv[2]
 marketplace_dir = sys.argv[3]
+audit_log_path = sys.argv[4] if len(sys.argv) > 4 else ''
+
+def audit(marketplace, plugin, scope):
+    if not audit_log_path:
+        return
+    try:
+        os.makedirs(os.path.dirname(audit_log_path), exist_ok=True)
+        with open(audit_log_path, 'a') as f:
+            f.write(json.dumps({
+                'ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                'marketplace': marketplace,
+                'plugin': plugin,
+                'scope': scope,
+            }) + '\n')
+    except Exception as e:
+        print(f'[docker-entrypoint] Warning: audit log write failed: {e}', flush=True)
 
 for entry in plugins:
     plugin = entry['plugin']
@@ -303,6 +352,7 @@ for entry in plugins:
     if result.returncode != 0:
         print(f'[docker-entrypoint] Warning: failed to install {plugin} — install manually', flush=True)
         continue
+    audit(marketplace, plugin, scope)
     try:
         result = subprocess.run(['claude', 'plugin', 'enable', install_target, '--scope', scope])
     except FileNotFoundError:
@@ -310,7 +360,7 @@ for entry in plugins:
         continue
     if result.returncode != 0:
         print(f'[docker-entrypoint] Warning: failed to enable {plugin} — run: claude plugin enable {install_target}', flush=True)
-" "$RECOMMENDED_PLUGINS_JSON" "$INSTALLED_PLUGINS" "$MARKETPLACE_DIR" || echo "[docker-entrypoint] Warning: recommended plugin install block encountered errors, continuing"
+" "$RECOMMENDED_PLUGINS_JSON" "$INSTALLED_PLUGINS" "$MARKETPLACE_DIR" "$AUDIT_LOG_PATH" || echo "[docker-entrypoint] Warning: recommended plugin install block encountered errors, continuing"
 fi
 
 # --- Plugin updates are NOT run on boot ---
