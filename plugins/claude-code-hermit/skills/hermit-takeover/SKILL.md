@@ -8,6 +8,16 @@ Stop the autonomous hermit and take the wheel. This skill is for Docker-based al
 
 ## Plan
 
+### 0. Refuse to run inside the hermit container
+
+This skill is host-only — takeover is the operator stopping the container to drive Claude Code interactively from the host.
+
+Run: `[ -f /.dockerenv ] || [ -f /run/.containerenv ] && echo container || echo host`
+
+If the output is `container`, **stop immediately** — do not proceed to step 1. Print:
+
+> Takeover is the operator stopping the hermit container to drive Claude Code interactively from the host. You're already inside the hermit — there is nothing to take over from here. Run this from your host shell when you want to pause autonomous operation.
+
 ### 1. Read config
 
 Read `.claude-code-hermit/config.json` to get:

@@ -14,6 +14,16 @@ Templates live in `${CLAUDE_SKILL_DIR}/../../state-templates/docker/`.
 
 ## Plan
 
+### 0. Refuse to run inside the hermit container
+
+This skill is host-only — it generates Docker scaffolding on the host filesystem and drives `docker compose up`.
+
+Run: `[ -f /.dockerenv ] || [ -f /run/.containerenv ] && echo container || echo host`
+
+If the output is `container`, **stop immediately** — do not proceed to step 1. Print:
+
+> This skill generates host-side Docker scaffolding and then drives `docker compose up`. Run it from your host shell in the project root. To check what's already configured *inside* the running container, run `/claude-code-hermit:hermit-doctor`.
+
 ### 1. Prerequisites
 
 1. Run `docker --version`. If missing: "Docker isn't installed — grab it from https://docs.docker.com/get-docker/ and come back!"

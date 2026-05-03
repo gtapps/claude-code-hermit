@@ -8,6 +8,16 @@ Hand control back to the autonomous hermit after an operator takeover session. S
 
 ## Plan
 
+### 0. Refuse to run inside the hermit container
+
+This skill is host-only — hand-back restarts the hermit container after a takeover session.
+
+Run: `[ -f /.dockerenv ] || [ -f /run/.containerenv ] && echo container || echo host`
+
+If the output is `container`, **stop immediately** — do not proceed to step 1. Print:
+
+> Hand-back restarts the hermit container after a takeover session. You're already inside the hermit — there is nothing to hand back to. Run this from your host shell after a takeover session ends.
+
 ### 1. Verify takeover state
 
 Read `.claude-code-hermit/sessions/SHELL.md` and check for the `**Takeover:**` timestamp line.

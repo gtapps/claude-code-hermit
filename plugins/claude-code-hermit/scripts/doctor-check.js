@@ -5,6 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 
 const { globDir, readFrontmatter } = require('./lib/frontmatter');
 const { validate } = require('./validate-config');
@@ -260,17 +261,35 @@ function checkDependencies() {
   }
 }
 
-function checkDockerSecurity() {
-  // Two-state presence check between docker.security.* in config.json and the
-  // rendered docker-compose.security.yml overlay at the project root. No YAML
-  // parsing — Node stdlib has no parser and the plugin's no-deps rule rules
-  // out adding one. Per-key drift detection deferred (would need sentinel
-  // regex; not worth the maintenance for v1).
+// Pure helpers — no subprocess, fully testable in isolation.
+
+/** Returns true if two IPv4 CIDR strings overlap. Fails open (returns false) on any parse error. */
+function cidrOverlap(a, b) {
   try {
-    // Anchor to the project root (parent of the agent dir), not process.cwd(),
-    // so this check is consistent with the rest of doctor-check when invoked
-    // with an explicit agent-dir argv from a different CWD.
-    const overlayPath = path.join(hermitDir, '..', 'docker-compose.security.yml');
+    const parse = s => {
+      const [ip, prefix] = s.split('/');
+      const bits = parseInt(prefix, 10);
+      const parts = ip.split('.').map(Number);
+      const n = (parts[0] << 24 | parts[1] << 16 | parts[2] << 8 | parts[3]) >>> 0;
+      const mask = bits === 0 ? 0 : (~0 << (32 - bits)) >>> 0;
+      return { base: n & mask, mask };
+    };
+    const na = parse(a), nb = parse(b);
+    return (na.base & nb.mask) === nb.base || (nb.base & na.mask) === na.base;
+  } catch { return false; }
+}
+
+function checkDockerSecurity() {
+  // Presence check between docker.security.* in config.json and the rendered
+  // docker-compose.security.yml overlay. When both are present, also shells out
+  // to `docker compose config --format json` (timeout 10s) to detect:
+  //   - hermit service ports conflicting with network_mode:service:hermit-netguard (fail)
+  //   - overlay subnet colliding with another Docker network on this host (warn)
+  // All subprocess failures degrade to warn, never fail — daemon-down is transient.
+  try {
+    // Anchor to the project root (parent of the agent dir), not process.cwd().
+    const projectRoot = path.join(hermitDir, '..');
+    const overlayPath = path.join(projectRoot, 'docker-compose.security.yml');
     const overlayPresent = fs.existsSync(overlayPath);
 
     let config = {};
@@ -297,6 +316,88 @@ function checkDockerSecurity() {
         detail: 'overlay present but no posture declared in config — likely a manual edit; re-run /docker-security to reconcile',
       };
     }
+
+    // Both declared and overlay present — run deeper checks via subprocess.
+    const baseCompose = path.join(projectRoot, 'docker-compose.hermit.yml');
+    if (!fs.existsSync(baseCompose)) {
+      return { id: 'docker-security', status: 'ok', detail: 'posture declared and overlay present' };
+    }
+
+    let composeCfg;
+    try {
+      composeCfg = JSON.parse(execFileSync('docker', [
+        'compose', '-f', baseCompose, '-f', overlayPath,
+        'config', '--format', 'json',
+      ], { cwd: projectRoot, timeout: 10_000 }).toString());
+    } catch (e) {
+      return {
+        id: 'docker-security',
+        status: 'warn',
+        detail: `posture declared and overlay present (could not verify via docker compose: ${e.message.slice(0, 80)})`,
+      };
+    }
+
+    // Check 1: hermit service has ports AND network_mode is service:hermit-netguard.
+    const hermitSvc = (composeCfg.services || {}).hermit || {};
+    const hermitPorts = hermitSvc.ports || [];
+    const networkMode = hermitSvc.network_mode || '';
+    if (hermitPorts.length > 0 && networkMode.startsWith('service:')) {
+      return {
+        id: 'docker-security',
+        status: 'fail',
+        detail: 'hermit service has ports: but uses network_mode:service:hermit-netguard — Docker will reject this. Re-run /docker-security → "Move ports to netguard", then delete the ports: block from docker-compose.hermit.yml.',
+      };
+    }
+
+    // Check 2: overlay subnet collides with another Docker network on this host.
+    const lanEnabled = sec && sec.network && sec.network.enabled;
+    if (lanEnabled) {
+      const overlaySubnet = sec.network && sec.network.subnet;
+      if (overlaySubnet) {
+        try {
+          const netNames = execFileSync('docker', ['network', 'ls', '--format', '{{.Name}}'],
+            { timeout: 10_000 }).toString().trim().split('\n').filter(Boolean);
+
+          const projectName = (composeCfg.name || path.basename(projectRoot)).toLowerCase();
+
+          for (const net of netNames) {
+            let inspectOut = '';
+            try {
+              inspectOut = execFileSync('docker', ['network', 'inspect', net,
+                '--format', '{{range .IPAM.Config}}{{.Subnet}}{{end}}|||{{json .Labels}}'],
+                { timeout: 5_000 }).toString().trim();
+            } catch { continue; }
+
+            const [subnetPart, labelsPart] = inspectOut.split('|||');
+            const subnet = (subnetPart || '').trim();
+            if (!subnet || !subnet.includes('/')) continue;
+
+            // Exclude this project's own hermit-net via labels.
+            let labels = {};
+            try { labels = JSON.parse(labelsPart || '{}'); } catch {}
+            const isOwnHermitNet =
+              (labels['com.docker.compose.project'] || '').toLowerCase() === projectName &&
+              labels['com.docker.compose.network'] === 'hermit-net';
+            if (isOwnHermitNet) continue;
+
+            if (cidrOverlap(overlaySubnet, subnet)) {
+              return {
+                id: 'docker-security',
+                status: 'warn',
+                detail: `overlay subnet ${overlaySubnet} overlaps Docker network "${net}" (${subnet}). Re-run /docker-security to auto-pick a fresh subnet.`,
+              };
+            }
+          }
+        } catch (e) {
+          return {
+            id: 'docker-security',
+            status: 'warn',
+            detail: `posture declared and overlay present (subnet collision check failed: ${e.message.slice(0, 80)})`,
+          };
+        }
+      }
+    }
+
     return { id: 'docker-security', status: 'ok', detail: 'posture declared and overlay present' };
   } catch (e) {
     return { id: 'docker-security', status: 'fail', detail: `check failed: ${e.message}` };
@@ -376,7 +477,7 @@ if (require.main === module) {
     checkConfig, checkHooks, checkStateFiles,
     checkCost, checkProposals, checkDependencies, checkPermissions,
     checkDockerSecurity,
-    satisfiesRange,
+    satisfiesRange, cidrOverlap,
     runAllChecks, writeReport,
   };
 }
