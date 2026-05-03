@@ -32,8 +32,6 @@ Three steps to a running 24/7 hermit:
 
 Hermit is the glue between Claude Code's native capabilities and a 24/7 agent that improves itself. One subscription to run multiple hermits.
 
-> The **clones** badge counts Git clones tracked since 2026-05-02, updated daily by `.github/workflows/clone-stats.yml`.
-
 ---
 
 ## How It Works
