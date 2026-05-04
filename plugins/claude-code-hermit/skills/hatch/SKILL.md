@@ -13,8 +13,50 @@ Set up the autonomous agent for this project. This creates the per-project state
 
 Check if `.claude-code-hermit/` exists in the current project.
 
-- If it exists and has content: inform the operator that the agent is already initialized. Ask if they want to reinitialize (which resets templates but preserves sessions, proposals, config, and OPERATOR.md).
-- If it doesn't exist: proceed with initialization.
+- If it exists and has content: inform the operator that the agent is already initialized. Ask if they want to reinitialize (which resets templates but preserves sessions, proposals, config, and OPERATOR.md). Record the choice as `is_reinit` (true if operator opted to reinitialize).
+- If it doesn't exist: `is_reinit = false`, proceed with initialization.
+
+### 1.5. Pre-flight (silent — no operator interaction)
+
+Before the setup-mode gate or any file writes, gather context silently. Run all commands in parallel where possible:
+
+1. **Auto-detect language and timezone**:
+   - Language: `echo $LANG | cut -d_ -f1` (fallback: `en`)
+   - Timezone: `cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value 2>/dev/null || date +%Z` (fallback: `UTC`)
+
+2. **Silent hermit detection** (the silent half of Step 3 — split out so it's available before the mode gate without an operator prompt):
+   - Glob: `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json`
+   - Read each found `plugin.json` and identify entries where the `name` field contains "hermit" but is NOT "claude-code-hermit"
+   - Stash the candidate list as `detected_hermits` for use later in Step 3 (Advanced) or Quick Turn 1.
+
+3. **Print one summary line** so the operator sees what was detected:
+
+   > Initializing hermit in `<project-name>`. Detected: language=<lang>, timezone=<tz>, hermit candidates=<N> (<comma-separated names or "none">).
+
+### 1.6. Setup mode gate
+
+**If `is_reinit == true`: skip this gate entirely and run Advanced** — Quick is for first-time install. Re-init operators have existing customizations to preserve, and Advanced's merge logic is the right tool. Quick re-running on an existing config would risk destructive overwrites of operator-tuned fields.
+
+Otherwise, ask:
+
+```
+questions: [
+  {
+    header: "Setup mode",
+    question: "How would you like to configure hermit?",
+    options: [
+      { label: "Quick", description: "Sensible defaults, ~5 questions, ~3 min. Tweak via /hermit-settings later." },
+      { label: "Advanced", description: "Full wizard — every option exposed (~15 questions, ~15 min)." }
+    ]
+  }
+]
+```
+
+Branch on choice:
+- **Advanced** → continue to Step 2 file writes, then Step 3 hermit activation prompt, then Step 4 setup wizard.
+- **Quick** → continue to Step 2 file writes, then jump to Section "Quick Branch" (after Step 9).
+
+Both branches share Steps 2 (file writes) and 5-9 (config write, CLAUDE.md/.gitignore/settings, deny patterns, report). Quick replaces Steps 3-4 with the Quick Branch turns described later.
 
 ### 2. Create state directory structure
 
@@ -85,29 +127,26 @@ Initialize state files (inline — shape-insensitive or append-only):
 - Copy `bin/hermit-attach`, `bin/hermit-docker`, `bin/hermit-run`, `bin/hermit-start`, `bin/hermit-stop`, and `bin/hermit-status` from `${CLAUDE_SKILL_DIR}/../../state-templates/bin/` into `.claude-code-hermit/bin/`. Ensure they are executable (`chmod +x`).
 - Copy `knowledge-schema.md.template` → `.claude-code-hermit/knowledge-schema.md` (the operator's behavioral schema for domain outputs).
 
-### 3. Detect hermits
+### 3. Hermit activation prompt (Advanced branch only)
 
-Look for sibling plugin directories that extend Hermit:
+**Quick mode handles activation in Quick Turn 1 — skip this entire step in the Quick branch.**
 
-- Use Glob on `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json`
-- Read each found `plugin.json` and check if the `name` field contains "hermit" but is NOT "claude-code-hermit"
-  If hermits are found:
-- List them and ask: "Activate a hermit for this project?"
+Use the `detected_hermits` list cached in Step 1.5 (no re-globbing).
+
+If the list is non-empty:
+- Present the candidates and ask: "Activate a hermit for this project?"
 - If the operator selects one:
   - Read that hermit's `state-templates/CLAUDE-APPEND.md` and append it to the target project's CLAUDE.md (after the core append in step 5).
   - Read its `plugin.json`: if it declares a `hermit.boot_skill` field (e.g. `"/claude-code-homeassistant-hermit:ha-boot"`), record it for step 5 to write as `boot_skill` in `config.json`. This replaces the default `/claude-code-hermit:session` bootstrap so the domain hermit's custom boot logic fires on every always-on launch. If the field is absent, leave `boot_skill` unset (core behavior).
-- If none found or operator declines: skip
+- If the list is empty or the operator declines: skip.
 
 ### 4. Setup wizard
 
 Collect project preferences in 4–5 interactions. Use `AskUserQuestion` for all questions. Every question requires 2-4 `options` — users can always type free text via the auto-provided "Other" option.
 
-#### Phase 1 — Auto-detect (silent, parallel)
+#### Phase 1 — Auto-detect (already done in Step 1.5)
 
-Run both Bash commands in a single turn before asking anything:
-
-- Language: `echo $LANG | cut -d_ -f1` (fallback: `en`)
-- Timezone: `cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value 2>/dev/null || date +%Z` (fallback: `UTC`)
+Step 1.5 already ran the language/timezone detection silently. Reuse those values — do not re-run the commands.
 
 #### Phase 2 — Identity
 
@@ -173,28 +212,33 @@ Record: `escalation` (conservative/balanced/autonomous), `remote` (true/false), 
 
 <!-- Compatible-plugin list is mirrored in hatch Phase 4 options, Phase 4b eligibility, and session-start step 5b. Update all three when adding. -->
 
+Before calling `AskUserQuestion`, print this one-line preamble to the operator:
+
+> All are official Anthropic plugins from the `claude-plugins-official` marketplace (https://claude.com/plugins).
+
+Then ask:
+
 ```
 questions: [
   {
     header: "Plugins",
-    question: "Which recommended plugins should be installed? All are from claude-plugins-official.",
+    question: "Which recommended plugins should be installed?",
     options: [
       { label: "claude-code-setup", description: "Analyzes codebase, recommends automations (skills, hooks, MCP servers, subagents)" },
       { label: "claude-md-management", description: "Audits and improves CLAUDE.md files — grades quality, proposes fixes" },
       { label: "skill-creator", description: "Builds and refines new skills from proposals" },
-      { label: "feature-dev", description: "Designs, explores, and reviews code for accepted-PROP implementation work" },
-      { label: "None", description: "Skip all — add later via hermit-settings" }
+      { label: "feature-dev", description: "Designs, explores, and reviews code for accepted-PROP implementation work" }
     ],
     multiSelect: true
   }
 ]
 ```
 
-Note: `multiSelect: true` is intentional — all three plugins can be selected at once.
+Note: `multiSelect: true` is intentional — all four plugins can be selected at once.
 
 - All plugins are selected by default — deselect to skip
-- If "None" is selected, skip all plugin installs
-- For each selected plugin (not "None"), install it immediately:
+- If no plugins are selected, skip all plugin installs
+- For each selected plugin, install it immediately:
   `claude plugin install <plugin>@claude-plugins-official --scope project`
 
 For each accepted plugin, also add the corresponding `scheduled_checks` entries to config.json:
@@ -280,9 +324,9 @@ questions: [
     header: "Permissions",
     question: "Permission mode for Claude Code?",
     options: [
+      { label: "bypassPermissions", description: "No permission prompts. Best for true always-on use in isolated, trusted environments (Docker)" },
       { label: "acceptEdits", description: "Auto-approve file edits, prompt for shell commands. Good balance for semi-autonomous use." },
       { label: "auto", description: "Classifier-reviewed autonomy — each action reviewed before it runs. Requires Max, Team, or Enterprise plan (not Pro/Haiku)." },
-      { label: "bypassPermissions", description: "No permission prompts. Best for true always-on use in isolated, trusted environments (Docker)" },
       { label: "default", description: "Prompt for permission on first use of each tool" },
       { label: "dontAsk", description: "Deny all tools not in permissions.allow — requires curated allowlist" }
     ]
@@ -294,7 +338,7 @@ questions: [
       { label: "Yes", description: "Morning at 08:30, evening at 22:30 (default)" },
       { label: "No", description: "No scheduled routines" }
     ]
-  },
+  }
 ]
 ```
 
@@ -310,53 +354,25 @@ For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, 
 
 ### 5. Write config.json
 
-Write the collected preferences to `.claude-code-hermit/config.json`:
+**Source of truth: `${CLAUDE_SKILL_DIR}/../../state-templates/config.json.template`.** Read this file as the base — it encodes every default field shipped by the current plugin version (including `model`, `always_on`, `chrome`, `monitors`, `compact`, `knowledge`, etc.). Do NOT maintain a parallel inline default object here — anything written inline in this skill drifts the moment a field is added to the template.
 
-```json
-{
-  "_hermit_versions": {
-    "claude-code-hermit": "<read from plugin.json>"
-  },
-  "agent_name": null,
-  "language": null,
-  "timezone": null,
-  "escalation": "balanced",
-  "sign_off": null,
-  "channels": {},
-  "remote": true,
-  "permission_mode": "acceptEdits",
-  "tmux_session_name": "hermit-{project_name}",
-  "auto_session": true,
-  "boot_skill": null,
-  "ask_budget": false,
-  "idle_behavior": "discover",
-  "idle_budget": "$0.50",
-  "routines": [],
-  "env": {
-    "AGENT_HOOK_PROFILE": "standard",
-    "COMPACT_THRESHOLD": "50",
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50",
-    "MAX_THINKING_TOKENS": "10000"
-  },
-  "heartbeat": {
-    "enabled": true,
-    "every": "30m",
-    "show_ok": false,
-    "active_hours": {
-      "start": "08:00",
-      "end": "23:00"
-    },
-    "stale_threshold": "2h",
-    "_last_reflection": null
-  }
-}
-```
+**Algorithm:**
 
-Replace `{project_name}` with the actual project directory name in the template.
+1. **Read the template** at `state-templates/config.json.template`.
+2. **Substitute scaffold variables**: replace `{project_name}` in `tmux_session_name` with the actual project directory name (e.g. `hermit-my-project`).
+3. **Stamp `_hermit_versions`**: read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` for the core version and write it to `_hermit_versions["claude-code-hermit"]`. If a hermit was activated in step 3, also stamp its version under its slug.
+4. **Set `boot_skill`**: if a hermit was activated and declared `hermit.boot_skill` in its `plugin.json`, write that value here. Otherwise leave as `null`.
+5. **Overlay operator choices** from the wizard:
+   - From Phase 2: `agent_name`, `language`, `timezone`, `sign_off`.
+   - From Phase 3: `escalation`, `remote`, `ask_budget`, `idle_behavior`.
+   - From Phase 5: `channels.<name>` populated per Phase 5 rules (state_dir, allowed_users, morning_brief).
+   - From Phase 6: `permission_mode`; append routines (morning, evening) if enabled — heartbeat-restart is already in the template.
+   - From Phase 4: append `scheduled_checks` entries per the per-plugin mapping in Phase 4 (only `claude-code-setup` and `claude-md-management` contribute — 3 entries total when both selected; `skill-creator` and `feature-dev` add zero entries).
+6. **Write merged object** as `.claude-code-hermit/config.json`.
 
-Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` to get the current plugin version and write it into `_hermit_versions["claude-code-hermit"]`. If a hermit was activated in step 3, also stamp its version. If that hermit declared `hermit.boot_skill`, write it to the top-level `boot_skill` field (otherwise leave as `null`).
+**Re-initialization merge**: read the existing `.claude-code-hermit/config.json`, then overlay only the fields the wizard asked about. Never strip unknown keys (operators may have added custom fields). Don't re-default fields the operator didn't touch this run.
 
-If re-initializing: merge with existing config (preserve values not asked about, update values that were asked about).
+**Template-only fields** (the wizard never asks about these — they come straight from `config.json.template` and the operator can tune them via `/hermit-settings` later): `model`, `auto_session`, `idle_budget`, `always_on`, `chrome`, `monitors`, `compact`, `heartbeat`, `knowledge`, `env`. The Quick branch and Advanced wizard both leave these at template defaults.
 
 If channels were configured in Phase 5, populate each channel's entry in the `channels` object using a **relative path** (relative to the project root):
 
@@ -624,6 +640,175 @@ Merge selected rules into existing `permissions.deny` (never remove existing ent
 
 Do NOT include `Bash(docker *)`, `Bash(kubectl *)`, `Bash(ssh *)` in hatch — these are valid in devops contexts on the host. Docker-setup includes them because the container should not spawn child containers or SSH out.
 
+---
+
+## Quick Branch
+
+Replaces Steps 3-4 with batched turns + confirm; resumes shared Steps 5-9 after approval. Same files written, same `config.json` fields populated, same OPERATOR.md questionnaire, same security gates, same `.baseline-pending` eligibility — Quick just defaults incidental decisions and shows the resolved bundle before any config writes.
+
+**Entry condition:** Step 1.6 returned `Quick` AND `is_reinit` is `false` (re-init forces Advanced).
+
+### Quick Turn 1 — Hermit activation (conditional)
+
+Only fires if `detected_hermits` from Step 1.5 is non-empty. Same prompt shape as Step 3 of the Advanced branch — uses the cached candidate list, does not re-glob. If multiple hermits detected, list all + Skip. If none, this turn is skipped entirely.
+
+If a hermit is selected: read its `state-templates/CLAUDE-APPEND.md` and stash for Step 6's CLAUDE.md append; read its `plugin.json` for `hermit.boot_skill` and stash for Step 5's config write.
+
+### Quick Turn 2 — Identity batch (one `AskUserQuestion`, 3 questions)
+
+```
+questions: [
+  {
+    header: "Agent name",
+    question: "What should I be called?",
+    options: [
+      { label: "Atlas" },
+      { label: "Hermit" },
+      { label: "Skip" }
+    ]
+  },
+  {
+    header: "Language",
+    question: "Primary language?",
+    options: [
+      { label: "<auto-detected from Step 1.5> (auto-detected)" },
+      { label: "<one common alternative — e.g. en if auto = pt, otherwise pt>" }
+    ]
+  },
+  {
+    header: "Timezone",
+    question: "Timezone?",
+    options: [
+      { label: "<auto-detected from Step 1.5> (auto-detected)" },
+      { label: "UTC" }
+    ]
+  }
+]
+```
+
+Record `agent_name` (null if Skip), `language`, `timezone`.
+
+### Quick Turn 3 — Sign-off + Deployment + Channel batch
+
+If a name was given in Turn 2, ask 3 questions (with sign-off). Otherwise ask 2 (drop sign-off).
+
+```
+questions: [
+  // Conditional — only included if agent_name was set in Turn 2
+  {
+    header: "Sign-off",
+    question: "How should I close messages?",
+    options: [
+      { label: "{name} out." },
+      { label: "-- {initial}." },
+      { label: "Skip" }
+    ]
+  },
+  {
+    header: "Deployment",
+    question: "How will you run hermit?",
+    options: [
+      { label: "Docker always-on", description: "Recommended. Isolated, auto-restart, channel pairing handled by /docker-setup" },
+      { label: "tmux always-on", description: "Persistent on host. Boots via .claude-code-hermit/bin/hermit-start" },
+      { label: "Interactive", description: "Just trying it. /session in your terminal" }
+    ]
+  },
+  {
+    header: "Channel",
+    question: "Notification channel?",
+    options: [
+      { label: "None" },
+      { label: "Discord" },
+      { label: "Telegram" }
+    ]
+  }
+]
+```
+
+Record `sign_off`, `deployment` (one of `docker` / `tmux` / `interactive`), `channel` (one of `none` / `discord` / `telegram`).
+
+**Derived values from this turn (used in the confirm bundle and Step 5 overlay):**
+- `permission_mode`: Docker → `bypassPermissions`, else → `acceptEdits`.
+- Deny pattern profile: Docker → hardened (default + always_on), else → minimal (default only). Applied at Step 9 silently.
+- `auto-chain target`: see "Quick — auto-chain at end of Step 10" table.
+
+### Quick Turn 4 — OPERATOR.md questionnaire (run "5a. OPERATOR.md onboarding" verbatim)
+
+Run the existing "5a. OPERATOR.md onboarding" step verbatim — same scan, same draft, same Phase 3 questions (Call 1 always + Call 2 conditional per the existing skip-condition rules), same Phase 4 scrub. No changes to scan list, draft logic, or question wording. The questionnaire produces a complete OPERATOR.md before the confirm screen so the operator's answers shape the autonomous-mode context the hermit uses immediately.
+
+### Quick Turn 5 — Confirm bundle
+
+Print the resolved configuration so the operator sees what's about to be written, before any config writes happen:
+
+Print a labeled summary in this shape:
+
+```
+Quick setup will apply:
+  Identity:    {agent_name}, {language}, {timezone}, sign-off={sign_off}
+  Behavior:    escalation=balanced, idle=discover, budget=off, remote=on
+  Deployment:  {deployment}, permission={derived}, deny={derived hardened|minimal}
+  Plugins:     all 4 installed
+  Routines:    morning 08:30, evening 22:30, heartbeat 04:00
+  Channel:     {channel or None} (allow-everyone; token + pairing later)
+  Hermit ext:  {activated or none}
+  Files:       CLAUDE.md, .gitignore, .claude/settings.json
+  OPERATOR.md: drafted from scan + your answers (written below)
+
+Customize restarts the wizard from scratch; your Quick answers won't carry over.
+```
+
+Ask:
+
+```
+questions: [
+  {
+    header: "Confirm",
+    question: "Apply this configuration?",
+    options: [
+      { label: "Yes", description: "Apply and continue" },
+      { label: "Customize", description: "Restart in Advanced (your Quick answers will not carry over)" }
+    ]
+  }
+]
+```
+
+- **Customize**: jump to Step 3 of the Advanced branch (no prefill — Advanced restarts from scratch). Discard all Quick answers.
+- **Yes**: continue to the shared steps below.
+
+### Quick — silent defaults applied to shared steps
+
+Quick replaces Step 4 entirely and applies these defaults silently at the shared Steps 5-9 (no prompts):
+
+| Source | Field | Quick value |
+|---|---|---|
+| Advanced Phase 3 equivalent | escalation, remote, ask_budget, idle_behavior | template defaults (balanced, true, false, discover) — don't override |
+| Advanced Phase 4 equivalent | plugins + scheduled_checks | install all 4; write 3 scheduled_checks entries per Phase 4 mapping |
+| Advanced Phase 4b equivalent | `.baseline-pending` marker | same eligibility check as Advanced |
+| Advanced Phase 5 equivalent | channels.<name>.* | state_dir + enabled + dm_channel_id=null; omit allowed_users + morning_brief |
+| Advanced Phase 6 equivalent | permission_mode, routines | derived from deployment; routines = morning 08:30 + evening 22:30 + (template) heartbeat 04:00 |
+| Step 6 | CLAUDE.md append | apply silently (default "keep" if marker already present) |
+| Step 7 | .gitignore append | apply silently |
+| Step 8 | .claude/settings.json plugin permissions | merge silently |
+| Step 9 | deny patterns | derived profile silently (Docker → hardened, else → minimal) |
+
+### Quick — auto-chain at end of Step 10
+
+After Step 10 prints the standard report, output the next slash command on its own line so Claude Code's harness can pick it up and run it. Map from Turn 3's deployment + channel:
+
+| Deployment | Channel | Output |
+|---|---|---|
+| Docker | any | `/claude-code-hermit:docker-setup quick` |
+| tmux | configured | First print boot command `.claude-code-hermit/bin/hermit-start`, then `/claude-code-hermit:channel-setup` |
+| tmux | none | Print boot command `.claude-code-hermit/bin/hermit-start` (no skill chain) |
+| Interactive | configured | `/claude-code-hermit:channel-setup`, then `/claude-code-hermit:session` |
+| Interactive | none | `/claude-code-hermit:session` |
+
+The `quick` positional arg passed to `docker-setup` tells it to skip its setup-mode gate and run Quick directly (same `quick` arg the operator can use manually). For chained skills with no `quick` arg (channel-setup, session), they run their normal interactive flows.
+
+**Operator can interrupt** before the chained skill executes by hitting Esc — at which point they can re-run any of the printed slash commands later.
+
+---
+
 ### 10. Report results
 
 Print a summary:
@@ -682,3 +867,5 @@ Next steps:
     - Refine OPERATOR.md — just tell me what changed
 
 ```
+
+**Quick-mode report adjustment**: collapse "Pick how you'll run hermit" to one line confirming Turn 3's deployment + channel, then emit the auto-chain slash command(s) per the mapping in "Quick — auto-chain at end of Step 10". Keep the "Anytime:" block unchanged.

@@ -1,5 +1,59 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **`/hatch` Quick mode** — opt-in fast path that collapses the full ~9-question wizard + OPERATOR.md questionnaire into 5 batched turns (identity batch, sign-off+deployment+channel batch, OPERATOR.md questionnaire, confirm bundle), then auto-chains into the next deployment skill (`/docker-setup quick`, `/channel-setup`, or `/session`) based on the operator's deployment + channel choices. Advanced wizard remains available unchanged for power users — picked from a setup-mode gate at the top of hatch. Customize from the Quick confirm screen restarts Advanced from scratch (no prefill). Re-init forces Advanced (Quick is for first-time install).
+- **`/docker-setup quick` positional arg** — invoke `/claude-code-hermit:docker-setup quick` to skip the setup-mode gate and run Quick directly. Quick defaults: OAuth + bridge networking, auto-mirror SAFE plugins (`claude-plugins-official` + `gtapps/*`), auto-accept apt packages from safelisted sources, build immediately. **Security non-negotiables preserved**: third-party plugins still confirmed per-entry, public-repo pre-flight still runs, write-time assertion still fires, safelist boundary unchanged.
+- **`tests/test-template-skill-sync.sh`** — monorepo-internal contract test that asserts every top-level key in `state-templates/config.json.template` is referenced in `skills/hatch/SKILL.md`. Catches the failure mode where a new template field lands without hatch knowing about it (which would silently drop the field from operator configs at hatch time). Does NOT enforce a schema on operator-owned `.claude-code-hermit/config.json` — operators are free to add custom keys, remove fields, or hand-edit anytime. Wired into `tests/run-all.sh`.
+
+### Changed
+
+- **`/channel-setup` Step 5: collapse two-question batch into single 3-option question.** Replaces the awkward "Yes — ready to pair / Skip" + "Not yet / Already paired" pair with one question: `Already paired` / `Ready to pair` / `Skip`. Removes the "Yes + Already paired" combo (which today silently skipped pairing despite the operator answering "ready"). Saves one round trip per pairing.
+- **`/hatch` Step 5: source-of-truth refactor.** Step 5 now reads `state-templates/config.json.template` as the base config and overlays operator choices, instead of duplicating an inline default JSON object. The inline JSON had drifted (missing `model`, `always_on`, `chrome`, `monitors`, `compact`, `knowledge`, `auto_session`, `idle_budget`, `env`). Quick mode and Advanced wizard both use the same overlay-on-template algorithm. The new template-skill sync test (above) prevents future drift.
+- **`/hatch` resequenced.** Setup-mode gate moved to before Step 2 (file writes), so the operator's mode choice precedes any disk writes. Step 3 (hermit detection) split into silent detection (pre-flight, no prompt) and activation prompt (Advanced flow only — Quick handles activation in Quick Turn 1 from the cached candidate list).
+- **`/docker-setup` Step 4 template rendering deferred to new Step 7b.6.** Template rendering (Dockerfile.hermit, docker-compose.hermit.yml, docker-entrypoint.hermit.sh) now runs AFTER plugin resolution + apt-package union (Step 7b.packages), instead of at Step 4 — fixing a latent ordering concern where `{{PACKAGES_BLOCK}}` substitution today consumes `docker.packages` before it's finalized. Applies to both Quick and Advanced.
+
+### Fixed
+
+- **`tests/test-template-skill-sync.sh`: explicit `exit 1` + cached skill read.** Parse-failure branch previously relied on `print_results`'s side-effect `exit 1` rather than declaring intent — added explicit `exit 1` after the call. Also cached `SKILL_CONTENT` into a variable so the loop reads the skill file once instead of forking a `grep` subprocess per key.
+- **`hatch/SKILL.md` Phase 6 trailing comma.** The `AskUserQuestion` block had a trailing comma after the last question object before `]` — an invalid JSON payload that any strict executor would reject.
+- **`hatch/SKILL.md` Quick defaults table: corrected cross-references.** Source column used "Step 4 Phase X" labels that don't exist in the Quick branch (Quick never runs Step 4). Changed to "Advanced Phase X equivalent".
+- **`docker-setup/SKILL.md`: removed sub-step number collision.** "3. Project dependencies:" inside Step 2's body shadowed the top-level `### 3.` heading — renamed to `**Project dependencies scan:**`.
+- **`channel-setup/SKILL.md` Step 5: removed redundant parenthetical** from the question text (restart instructions already appear in the prose immediately above).
+- **`channel-setup/SKILL.md` Step 6 → 6b: added routing.** Step 6 had no "continue to step 6b" exit line — a model executing the skill could skip 6b entirely.
+- **`hatch/SKILL.md` Quick Turn 5: removed stale CHANGELOG cross-reference.** The "full mock in CHANGELOG `[Unreleased]`" pointer was inaccurate (the section contains a description, not a full mock) and would go stale after release. The inline template block is self-contained.
+
+### Verification
+
+End-to-end manual verification (run before release):
+
+- Fresh project, Quick + Docker + Discord (most common path): `/hatch` → pick Quick → answer 5 batched turns → confirm → auto-chains to `/docker-setup quick`. Verify `.claude-code-hermit/` is NOT created before the gate is answered (ls before answering). Total: ≤14 round trips end-to-end.
+- Fresh project, Advanced unchanged: `/hatch` → pick Advanced → expect every current question still asked, every file still written.
+- Re-init guard: in a project with existing `.claude-code-hermit/`, `/hatch` → pick re-initialize → verify the setup-mode gate is NOT shown; Advanced wizard runs directly. OPERATOR.md preserved unless operator chose regenerate.
+- Customize escape hatch: in Quick at the confirm screen, pick Customize → expect Advanced wizard runs from scratch with no prefill.
+- Channel-setup Step 5: `/channel-setup` after Quick hatch → expect single 3-option question (Already paired / Ready to pair / Skip).
+- Docker template render ordering: in Advanced mode, choose project apt packages that differ from defaults → verify rendered `Dockerfile.hermit` `{{PACKAGES_BLOCK}}` substitution matches the FINAL `docker.packages` array.
+- Security regression checks (Docker Quick mode): per-plugin yes/no still asked for any third-party marketplace plugin (not bulk-accepted); validator regex still rejects malformed `org/repo`; public-repo pre-flight curl still gates private GitHub repos.
+- Existing tests: `cd plugins/claude-code-hermit && bash tests/run-all.sh` → all suites pass including the new `test-template-skill-sync.sh` (28 assertions).
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/hatch/SKILL.md` | Resequence (gate before writes), split silent detection from activation prompt, replace inline default JSON with template-overlay algorithm, fix scheduled_checks accounting, add Quick Branch section (5 turns + confirm + auto-chain), add Quick-mode adjustment to Step 10 report |
+| `skills/docker-setup/SKILL.md` | Add Step 1.5 setup-mode gate (positional `quick` arg supported), apply Quick defaults silently throughout (auth, network, SAFE plugin mirror, apt auto-accept, build-now), add Step 7b.6 deferred template rendering (fixes latent `{{PACKAGES_BLOCK}}` sequencing concern; applies to both modes) |
+| `skills/channel-setup/SKILL.md` | Step 5 batched question collapsed to single 3-option `AskUserQuestion` |
+| `tests/test-template-skill-sync.sh` | New: monorepo-internal contract test for template ↔ hatch sync |
+| `tests/run-all.sh` | Wire new test into the suite |
+
+### Upgrade Instructions
+
+No operator action required. Existing `.claude-code-hermit/config.json` is untouched — Quick mode is opt-in at the next `/hatch` invocation (which only re-runs by explicit operator request). Operators using `/docker-setup` get the template-render ordering fix automatically; behavior is identical for any deployment that previously worked.
+
+If you want to try the Quick path on a new project: `mkdir new-proj && cd new-proj && claude` → `/claude-code-hermit:hatch` → pick Quick at the gate.
+
 ## [1.0.28] - 2026-05-04
 
 ### Fixed

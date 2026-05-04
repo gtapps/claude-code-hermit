@@ -122,32 +122,25 @@ If not active, display:
 >
 > After restarting, DM your bot — it will reply with a 6-character pairing code.
 
-Then ask (both questions in a single `AskUserQuestion` call):
+Then ask:
 
 ```
 questions: [
   {
-    header: "Ready?",
-    question: "Have you restarted Claude Code with the channel active?",
+    header: "Pairing",
+    question: "Channel state?",
     options: [
-      { label: "Yes — ready to pair", description: "Channel is running, I've DM'd the bot" },
+      { label: "Already paired", description: "Just verify access.json" },
+      { label: "Ready to pair", description: "Restarted, DM'd the bot, have the 6-char code" },
       { label: "Skip", description: "I'll pair later" }
-    ]
-  },
-  {
-    header: "Pairing status",
-    question: "Is this channel already paired?",
-    options: [
-      { label: "Not yet", description: "Need to pair now" },
-      { label: "Already paired", description: "Just verify setup" }
     ]
   }
 ]
 ```
 
-- **Skip** (first question): stop — "Run `/claude-code-hermit:channel-setup` again after restarting to complete pairing."
-- **Already paired** (second question): skip pairing, go to access.json verification in step 6.
-- **Yes + Not yet**: proceed with pairing flow below.
+- **Already paired**: skip pairing, go to access.json verification in step 6.
+- **Ready to pair**: proceed with pairing flow below.
+- **Skip**: stop — "Run `/claude-code-hermit:channel-setup` again after restarting to complete pairing."
 
 **Pairing flow:**
 
@@ -184,6 +177,8 @@ Check if `access.json` exists at `<state_dir>/access.json`.
   ```
   Confirm: "Moved access.json to `<state_dir>/`."
 - If found in neither location: note — "access.json not found. Pairing may not have completed. Run `/<channel>:access pair <code>` after DMing your bot."
+
+If access.json is verified, continue to step 6b.
 
 ### 6b. Default delivery settings
 

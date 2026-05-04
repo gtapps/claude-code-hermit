@@ -35,9 +35,38 @@ If the output is `container`, **stop immediately** — do not proceed to step 1.
    - "No — keep existing" → abort
    - Never overwrite `.env` — only append missing vars (step 5).
 
+### 1.5. Setup mode gate
+
+Determine whether to run in **Quick** or **Advanced** mode.
+
+**Argument-driven**: if invoked with the positional argument `quick` (e.g. `/claude-code-hermit:docker-setup quick`), skip the question below and run Quick directly. This is what `hatch` chains to at the end of a Quick hatch run. The operator can always re-invoke `/claude-code-hermit:docker-setup` without the arg later to drop into Advanced.
+
+**Otherwise, ask:**
+
+```
+questions: [
+  {
+    header: "Setup mode",
+    question: "How would you like to configure Docker?",
+    options: [
+      { label: "Quick", description: "OAuth + bridge networking, auto-mirror trusted plugins, build immediately" },
+      { label: "Advanced", description: "Full wizard — pick auth, networking, every plugin, every package" }
+    ]
+  }
+]
+```
+
+**Quick-mode contract — security non-negotiables.** Quick mode never bulk-accepts third-party plugins, never weakens the safelist, never skips the public-repo pre-flight, and never bypasses the write-time assertion. Those gates exist because that's the line where defaults stop being safe. Quick only auto-defaults the choices that have one obviously-correct answer (auth, networking, build-now) and the SAFE plugin batch (claude-plugins-official + gtapps/* — already vetted by the safelist).
+
+Branch on the choice for the rest of the skill:
+- **Advanced** → run today's flow unchanged from Step 2.
+- **Quick** → apply Quick defaults silently throughout (Step 2 auth+network, Step 7b SAFE mirror, Step 7b.packages safelisted-source auto-accept, Step 8 build-now). The Quick-specific behavior is called out inline at each downstream step.
+
 ### 2. Ask operator and analyze project
 
-Ask auth method and networking in a single `AskUserQuestion` call:
+**Quick:** silently apply `auth = oauth`, `docker.network_mode = "bridge"`. Skip the `AskUserQuestion` below. Continue at the project-dependencies scan below.
+
+**Advanced:** ask auth method and networking in a single `AskUserQuestion` call:
 
 ```
 questions: [
@@ -62,7 +91,7 @@ questions: [
 
 Record networking choice as `docker.network_mode` (`"bridge"` or `"host"`).
 
-3. **Project dependencies:** Scan for signals that suggest extra system packages:
+**Project dependencies scan:** Scan for signals that suggest extra system packages:
    - `package.json` native addons (sqlite3, sharp, canvas, bcrypt, etc.)
    - Python files (`requirements.txt`, `pyproject.toml`, `Pipfile`)
    - Build files (`Makefile`, `CMakeLists.txt`), version managers (`.tool-versions`)
@@ -81,9 +110,13 @@ Read `.claude-code-hermit/config.json` and extract:
 
 Do NOT set `AGENT_HOOK_PROFILE` in `config.json` `env` — it stays as `standard` (the host default). The strict profile is rendered into the docker-compose environment block in step 4 via `{{AGENT_HOOK_PROFILE}}`.
 
-### 4. Render templates
+### 4. Template placeholder reference (rendering deferred to Step 7b.6)
 
-Read the three templates from `${CLAUDE_SKILL_DIR}/../../state-templates/docker/` and write to project root, replacing placeholders:
+> **Execution moved.** Template rendering is now performed at Step 7b.6 — AFTER plugin resolution (Step 7b) and apt-package union (Step 7b.packages) have finalized `docker.packages`. The placeholder definitions are documented here for reference; the actual `Read` + `Write` calls happen later, with all values resolved.
+>
+> Why: `{{PACKAGES_BLOCK}}` substitution depends on `docker.packages`, which isn't finalized until Step 7b.packages. Rendering at Step 4 (the original position) consumed an empty/pre-resolution package list. Channel placeholders (`{{CHANNEL_ENV_LINES}}`, `{{CHANNEL_VOLUME_LINES}}`) similarly depend on Step 7 channel-token configuration.
+
+The three templates live in `${CLAUDE_SKILL_DIR}/../../state-templates/docker/`. Placeholder substitution rules per file (do NOT read or write here — all file I/O happens at Step 7b.6):
 
 **Dockerfile.hermit** (from `Dockerfile.hermit.template`):
 - `{{PACKAGES_BLOCK}}` — if `docker.packages` is non-empty, replace with:
@@ -218,7 +251,11 @@ Mirror host-installed plugins into the container so the container starts with th
      - superpowers @ obra/superpowers-marketplace (local)
    ```
 
-7. **If the SAFE group is non-empty**, ask once with `AskUserQuestion` (header: `"Plugins"`):
+7. **If the SAFE group is non-empty**:
+
+   **Quick:** silently treat as if `"Mirror all"` was chosen — add every SAFE plugin to `docker.recommended_plugins` with `enabled: true`. No prompt.
+
+   **Advanced:** ask once with `AskUserQuestion` (header: `"Plugins"`):
    - Options: `"Mirror all"` (Recommended) / `"Pick each"` / `"Skip all"`.
    - On `Mirror all`: add every SAFE plugin to `docker.recommended_plugins` with `enabled: true`.
    - On `Pick each`: loop through the SAFE plugins; for each, ask a 2-option yes/no (`"Include"` / `"Skip"`). Only include the ones the operator confirms.
@@ -275,6 +312,18 @@ After plugin selection is finalized, union the two sources of apt package candid
    ```
    Operator approves, removes, or adds entries. Write the approved set as the final `docker.packages` (passed to step 7c for config.json write).
 
+   **Quick mode auto-accept**: if every entry in the combined list (a) passed the validator regex and (b) came from a safelisted source — meaning project-signal entries OR entries declared by plugins where `is_safelisted(marketplace)` is true (claude-plugins-official + gtapps/*) — skip the prompt and accept the list silently. Print a one-line summary so the operator sees what landed: `Quick auto-accepted N image packages (all from safelisted sources). Configure later via /hermit-settings docker.` If ANY entry came from a third-party plugin (operator-confirmed in Step 7b), fall through to the prompt — defaults stop applying once a third-party source contributed apt deps.
+
+### 7b.6. Render templates (deferred from Step 4)
+
+Now that `docker.packages` (Step 7b.packages), `docker.recommended_plugins` (Step 7b), channel state dirs (Step 7), and the auth/network choices (Step 2) are all finalized, perform the template rendering described in Step 4 above. Write the three rendered files to project root:
+
+- `Dockerfile.hermit` — substitute `{{PACKAGES_BLOCK}}` with the finalized `docker.packages`.
+- `docker-entrypoint.hermit.sh` — substitute `{{TMUX_SESSION_NAME}}`.
+- `docker-compose.hermit.yml` — substitute `{{AUTH_ENV_LINE}}`, `{{CHANNEL_ENV_LINES}}`, `{{CHANNEL_VOLUME_LINES}}`, `{{AGENT_HOOK_PROFILE}}`, `{{TMUX_SESSION_NAME}}`, `{{NETWORK_MODE_LINE}}`, plus the git-identity bind-mount handling.
+
+Use the placeholder rules from Step 4 verbatim.
+
 ### 7c. Write Docker settings to config.json
 
 **Pre-write gate for `docker.recommended_plugins`:** Re-run the step 7b.10 assertion on every entry. If any fails, do **not** write — return to step 7b.3 to re-resolve. This gate is the final backstop; do not bypass it even "just this once."
@@ -299,7 +348,11 @@ docker-compose.hermit.yml      — orchestration config
 
 **Auth token (apikey only):** If operator chose apikey and `.env` already has a real key (not placeholder), skip. Otherwise ask with `AskUserQuestion` (header: "API key"): **Skip** (add `ANTHROPIC_API_KEY` to `.env` manually before starting) / **Enter now** (paste key via Other). If "Enter now" and a key was typed via Other: update `.env`.
 
-**Build and start:** Ask with `AskUserQuestion` (header: "Deploy"): **Yes — build now** (run hermit-docker up immediately) / **No — manual** (print commands to run later).
+**Build and start:**
+
+**Quick:** silently treat as `Yes — build now` and proceed directly to the build sub-section below. No prompt.
+
+**Advanced:** ask with `AskUserQuestion` (header: "Deploy"): **Yes — build now** (run hermit-docker up immediately) / **No — manual** (print commands to run later).
 
 **If "No — manual":** Print the full manual deployment guide below, then skip directly to Step 9 (do not attempt Login, Workspace trust, or Channel pairing — the container is not running yet):
 
