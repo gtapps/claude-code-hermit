@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.28] - 2026-05-04
 
 ### Fixed
 
@@ -26,6 +26,8 @@
 2. **Re-render the overlay.** Run `/claude-code-hermit:docker-security` and accept the same toggles already enabled — the wizard re-renders the overlay with the corrected `cap_add` list, no `state:/var/log/netguard` bind, and the new healthcheck.
 3. **Rebuild the netguard image.** Run `bin/hermit-docker down && bin/hermit-docker up`. Compose rebuilds `hermit-netguard` because the entrypoint template content changed.
 4. **Verify.** `docker compose -f docker-compose.hermit.yml -f docker-compose.security.yml ps` should show `hermit-netguard` as `healthy` within ~10s.
+
+No `config.json` changes required.
 
 ## [1.0.27] - 2026-05-04
 
