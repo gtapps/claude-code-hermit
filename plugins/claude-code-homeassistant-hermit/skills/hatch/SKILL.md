@@ -35,11 +35,8 @@ Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status` and inspect the JSON ou
 - **If either is missing**:
   1. Tell the user:
      ```
-     .env is missing or incomplete. Please create it at the project root:
+     .env is missing or incomplete. Please create `.env` at the project root with:
 
-       cp .env.example .env
-
-     Then fill in:
        HOMEASSISTANT_URL=http://homeassistant.local:8123   # or your remote URL
        HOMEASSISTANT_TOKEN=<your long-lived access token>
 
@@ -88,11 +85,7 @@ Read the HA URL from the `boot status` JSON (`active_url` field, already fetched
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status
 ```
 
-For the token value, run this Python one-liner (avoid using the word TOKEN in any Bash argument — the deny-pattern hook would block it):
-
-```bash
-${CLAUDE_PLUGIN_ROOT}/.venv/bin/python -c "from dotenv import dotenv_values; v=dotenv_values('.env'); print(v.get('HOMEASSISTANT_TOKEN',''))"
-```
+For the token value, use the **Read** tool on `.env` (not Bash — the deny-pattern hook blocks any Bash argument containing the literal string `TOKEN`, including via `python -c`). Parse the `HOMEASSISTANT_TOKEN=...` line in-memory and use the value directly when writing `.mcp.json`. Do not echo the token to the conversation or log it.
 
 Check the project root for `.mcp.json`:
 - If absent → write it with literal values substituted.
@@ -235,9 +228,11 @@ Read by `/claude-code-hermit:docker-security` when the operator enables LAN cont
 ### Domains (DNS allowlist)
 
 - nabu.casa
+- home-assistant.io
+- READ_FROM_ENV:HOMEASSISTANT_URL
 
 ### LAN allowlist suggestions
 
 - ASK_OPERATOR_FOR_HA_IP
 
-The `nabu.casa` entry covers Nabu Casa Cloud (`<id>.ui.nabu.casa`) since dnsmasq's `server=/nabu.casa/...` pattern matches subdomains. Operators on a self-hosted local HA instance should accept `ASK_OPERATOR_FOR_HA_IP` and provide the LAN IP of their HA box. mDNS / `homeassistant.local` does not work through dnsmasq — use the IP directly.
+The `nabu.casa` entry covers Nabu Casa Cloud (`<id>.ui.nabu.casa`) since dnsmasq's `server=/nabu.casa/...` pattern matches subdomains. `home-assistant.io` covers integration docs (`www.home-assistant.io`) and the developer API reference (`developers.home-assistant.io`) that skills consult when verifying REST/WebSocket endpoints. `READ_FROM_ENV:HOMEASSISTANT_URL` resolves to the hostname of the operator's configured HA instance — covers custom remote domains (e.g. `ha.mydomain.com`) that are not under `nabu.casa`. Operators on a self-hosted local HA instance should accept `ASK_OPERATOR_FOR_HA_IP` and provide the LAN IP of their HA box. mDNS / `homeassistant.local` does not work through dnsmasq — use the IP directly.

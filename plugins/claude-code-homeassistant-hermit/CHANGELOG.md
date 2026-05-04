@@ -2,6 +2,17 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Added
+
+- **`READ_FROM_ENV:HOMEASSISTANT_URL` in docker network requirements** — added to the DNS allowlist section so `/claude-code-hermit:docker-security` step 3a can resolve the operator's configured HA hostname (e.g. `ha.mydomain.com`) dynamically, covering custom remote domains not under `nabu.casa`.
+
+### Fixed
+
+- **`hatch`: read token via Read tool, not Python subprocess** — replaced the `python -c "from dotenv import dotenv_values…"` one-liner with an instruction to use the Read tool on `.env` directly. The Python approach was blocked by the deny-pattern hook (any Bash argument containing the literal string `TOKEN` is rejected, including via `python -c`). The Read tool approach is hook-safe and avoids echoing the token to conversation output.
+- **`hatch`: removed non-existent `.env.example` copy step** — the `.env` missing-credential message instructed users to run `cp .env.example .env`, but no such example file ships with this plugin. Replaced with a direct "create `.env` with these values" instruction.
+
 ## [0.0.7] - 2026-05-03
 
 ### Added
