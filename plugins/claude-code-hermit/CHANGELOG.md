@@ -1,5 +1,32 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **docker-security netguard: rootless Docker startup is finally clean.** Four interlocking bugs (the first masking the others) prevented `hermit-netguard` from coming up cleanly under rootless Docker. Operators with the v1.0.27 overlay saw cryptic "dnsmasq failed to stay up" errors even when dnsmasq was alive, plus 30-second startup latency.
+  - **Volume mount.** Removed the `state:/var/log/netguard` bind mount. Under rootless Docker the host UID does not match the container UID, and the host's `state/` directory (mode 0775) is unwritable by the container — so the entrypoint's `tee -a /var/log/netguard/netguard.log` died on first write. The sidecar now logs to stdout only, viewable via `docker compose ... logs hermit-netguard`.
+  - **PID capture.** Replaced `DNSMASQ_PID=$!; kill -0 "$DNSMASQ_PID"` with `pgrep dnsmasq`. After `dnsmasq | tee &`, `$!` returns the PID of `tee`, not `dnsmasq` — so the "stay up" check was inadvertently checking tee. Worse, when bug 1 killed tee on log-open, this check fired a false negative.
+  - **Capability set.** `cap_add: [NET_ADMIN]` was insufficient. Added `NET_BIND_SERVICE` (dnsmasq retains this cap across its post-bind drop), `SETUID`, and `SETGID` (Alpine's dnsmasq drops to UID/GID 100 — needs both). Without these, dnsmasq exited 5 with "failed to set capability vector".
+  - **Healthcheck latency.** Added `start_period: 5s` and lowered `interval` from 30s to 10s. Container now reaches `healthy` in ~10s instead of waiting a full 30s for the first probe.
+- **docker-security netguard entrypoint: dnsmasq queries now reach `docker logs`.** Added `--log-facility=-` to both dnsmasq invocations. Without it, `--log-queries` defaults to syslog, which silently drops in an Alpine container with no syslogd — making log-only mode useless for tuning the allowlist.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/docker/security/netguard-entrypoint.sh.template` | Drop tee + file logging + `$!` PID capture; add `--log-facility=-`; replace `kill -0` with `pgrep dnsmasq` |
+| `skills/docker-security/SKILL.md` | cap_add list (4 caps), drop `state:/var/log/netguard` volume, healthcheck `start_period: 5s` + `interval: 10s` |
+| `docs/docker-security.md` | DNS tuning section: stdout instead of `state/dns.log`; correct "blocked-by-policy" wording |
+| `tests/test-docker-security-templates.sh` | New: contract test for entrypoint + SKILL.md regression patterns |
+
+### Upgrade Instructions
+
+1. **Skip if no docker-security overlay.** If `docker-compose.security.yml` does not exist at the project root, this entry is a no-op.
+2. **Re-render the overlay.** Run `/claude-code-hermit:docker-security` and accept the same toggles already enabled — the wizard re-renders the overlay with the corrected `cap_add` list, no `state:/var/log/netguard` bind, and the new healthcheck.
+3. **Rebuild the netguard image.** Run `bin/hermit-docker down && bin/hermit-docker up`. Compose rebuilds `hermit-netguard` because the entrypoint template content changed.
+4. **Verify.** `docker compose -f docker-compose.hermit.yml -f docker-compose.security.yml ps` should show `hermit-netguard` as `healthy` within ~10s.
+
 ## [1.0.27] - 2026-05-04
 
 ### Fixed

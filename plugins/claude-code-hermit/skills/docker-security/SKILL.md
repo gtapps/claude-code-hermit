@@ -326,7 +326,9 @@ Render `docker-compose.security.yml` from `state-templates/docker/security/docke
       build:
         context: ./.claude-code-hermit/docker
         dockerfile: Dockerfile.hermit-netguard
-      cap_add: [NET_ADMIN]
+      # NET_BIND_SERVICE: dnsmasq retains it post-bind-drop. SETUID+SETGID:
+      # drops to UID/GID 100 (Alpine's `dnsmasq` user).
+      cap_add: [NET_ADMIN, NET_BIND_SERVICE, SETUID, SETGID]
       cap_drop: [ALL]
       security_opt:
         - no-new-privileges:true
@@ -337,7 +339,6 @@ Render `docker-compose.security.yml` from `state-templates/docker/security/docke
       volumes:
         - ./.claude-code-hermit/docker/nftables.conf:/etc/nftables.conf:ro
         - ./.claude-code-hermit/docker/dnsmasq.allowlist:/etc/dnsmasq.allowlist:ro
-        - ./.claude-code-hermit/state:/var/log/netguard
       environment:
         - DNS_LOG_ONLY=<dns_log_only>
       restart: unless-stopped
@@ -345,9 +346,10 @@ Render `docker-compose.security.yml` from `state-templates/docker/security/docke
       {{NETGUARD_PORTS_BLOCK}}
       healthcheck:
         test: ["CMD-SHELL", "nft list ruleset | grep -q 'table inet firewall' && (! [ -f /etc/dnsmasq.allowlist ] || pgrep dnsmasq)"]
-        interval: 30s
+        interval: 10s
         timeout: 5s
         retries: 3
+        start_period: 5s
   ```
   Where `<dns_log_only>` = `"1"` if `dns_mode == "log-only"` else `"0"`. `{{NETGUARD_SYSCTLS}}` is the sysctls block from below if Prompt 3 enabled AND Prompt 1 enabled (sysctls live on netguard, the netns owner).
 

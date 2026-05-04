@@ -84,7 +84,14 @@ Or use `/hermit-doctor` — the `docker-security` check flags drift between decl
 
 ## Tuning the DNS allowlist
 
-In **log-only mode**, dnsmasq writes every blocked-by-policy domain to `.claude-code-hermit/state/dns.log`. Read it, decide which domains to allow, then:
+In **log-only mode**, dnsmasq logs every queried domain (allowed or not — log-only does not block) to the container's stdout. Read it via:
+
+```
+docker compose -f docker-compose.hermit.yml \
+               -f docker-compose.security.yml logs hermit-netguard
+```
+
+In **enforce mode**, the same command surfaces NXDOMAIN denials. Decide which domains to allow, then:
 
 1. Edit `.claude-code-hermit/docker/dnsmasq.allowlist`. Add lines like:
    ```
@@ -92,8 +99,8 @@ In **log-only mode**, dnsmasq writes every blocked-by-policy domain to `.claude-
    ```
 2. Restart only the sidecar (faster than a full hermit restart):
    ```
-   .claude-code-hermit/bin/hermit-docker bash  # actually: use the underlying docker compose
-   docker compose -f docker-compose.hermit.yml -f docker-compose.security.yml restart hermit-netguard
+   docker compose -f docker-compose.hermit.yml \
+                  -f docker-compose.security.yml restart hermit-netguard
    ```
 3. When the log goes quiet, re-run `/docker-security` and switch from "Yes — recommended (log-only)" to "Yes — strict (enforce)".
 

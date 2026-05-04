@@ -4,6 +4,9 @@
 # `network_mode: "service:hermit-netguard"` in docker-compose.security.yml,
 # so all of hermit's egress passes through these rules.
 #
+# All output goes to stdout/stderr — no on-disk log (rootless Docker
+# bind-mount UID mismatch was the original failure mode in 1.0.27).
+#
 # Fail-safe: on any rule-load or dnsmasq failure, log the error and
 # `tail -f /dev/null` instead of exiting. The alternative is a restart loop
 # that leaves hermit dark with no networking — operator can `docker exec`
@@ -11,14 +14,11 @@
 
 set +e
 
-LOG=/var/log/netguard/netguard.log
-mkdir -p /var/log/netguard
-
-if ! nft -f /etc/nftables.conf 2>>"$LOG"; then
-  echo "[netguard] nftables rule load FAILED — see $LOG. Holding netns open." >&2
+if ! nft -f /etc/nftables.conf 2>&1; then
+  echo "[netguard] nftables rule load FAILED. Holding netns open." >&2
   exec tail -f /dev/null
 fi
-echo "[netguard] nftables rules loaded." | tee -a "$LOG"
+echo "[netguard] nftables rules loaded." >&2
 
 # Start dnsmasq if an allowlist file is mounted. nftables redirects all
 # egress UDP/TCP :53 to here regardless of where hermit tries to send the
@@ -28,28 +28,29 @@ echo "[netguard] nftables rules loaded." | tee -a "$LOG"
 # the redirect via `meta skuid != <DNSMASQ_UID>` in nftables.conf. Without
 # that exemption, dnsmasq's outbound queries loop back to itself and DNS
 # stops working entirely.
+#
+# `--log-facility=-` routes dnsmasq's logs to stderr (default is syslog,
+# which silently drops in an Alpine container with no syslogd).
 if [ -f /etc/dnsmasq.allowlist ]; then
   if [ "${DNS_LOG_ONLY:-0}" = "1" ]; then
     # Log-only mode: don't enforce NXDOMAIN. Allow all queries to upstream
-    # while logging everything for the operator to review and tune the
-    # allowlist before flipping to enforce. Raw `--log-queries` text
-    # (operator greps); structured JSONL emission is deferred to v1.1.
-    dnsmasq -k --log-queries --no-hosts \
+    # while logging every query (allowed or not — log-only does not block)
+    # for the operator to review and tune the allowlist before flipping to
+    # enforce. Raw `--log-queries` text (operator greps); structured JSONL
+    # emission is deferred to v1.1.
+    dnsmasq -k --log-queries --log-facility=- --no-hosts \
       --server=1.1.1.1 \
-      --listen-address=127.0.0.1 \
-      2>&1 | tee -a /var/log/netguard/dns.log &
+      --listen-address=127.0.0.1 2>&1 &
   else
-    dnsmasq -k --conf-file=/etc/dnsmasq.allowlist \
-      --listen-address=127.0.0.1 \
-      2>&1 | tee -a "$LOG" &
+    dnsmasq -k --log-facility=- --conf-file=/etc/dnsmasq.allowlist \
+      --listen-address=127.0.0.1 2>&1 &
   fi
-  DNSMASQ_PID=$!
   sleep 1
-  if ! kill -0 "$DNSMASQ_PID" 2>/dev/null; then
-    echo "[netguard] dnsmasq failed to stay up — see $LOG. Holding netns open." >&2
+  if ! pgrep dnsmasq >/dev/null; then
+    echo "[netguard] dnsmasq failed to stay up. Holding netns open." >&2
     exec tail -f /dev/null
   fi
-  echo "[netguard] dnsmasq started (DNS_LOG_ONLY=${DNS_LOG_ONLY:-0})." | tee -a "$LOG"
+  echo "[netguard] dnsmasq started (DNS_LOG_ONLY=${DNS_LOG_ONLY:-0})." >&2
 fi
 
 # Trap signals for clean shutdown.
