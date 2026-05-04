@@ -460,16 +460,8 @@ If the token is present, ask if already paired. If not:
    ```
 6. **Default delivery settings** (skip if `"Already paired"` was chosen or pairing was skipped this run):
    1. Read `<project_path>/.claude.local/channels/<plugin>/access.json` from the host. If `ackReaction` is already non-empty, skip — preserve operator customization.
-   2. Otherwise send via tmux with the state-dir hint (same two-call pattern and hint format as the pair/policy commands above):
-      ```
-      docker compose -f docker-compose.hermit.yml exec -T hermit \
-        tmux send-keys -t <session> '/<plugin>:access set ackReaction 👀 — save access.json to <project_path>/.claude.local/channels/<plugin>/ not ~/.claude'
-      sleep 0.5
-      docker compose -f docker-compose.hermit.yml exec -T hermit \
-        tmux send-keys -t <session> Enter
-      ```
-
-   The bind-mount already makes the container default path resolve to the host project-local file, but the hint matches the existing pair/policy pattern and is defense-in-depth against future bind-mount changes. Idempotent: re-running docker-setup leaves customized values alone.
+   2. Otherwise set `ackReaction` to `"👀"` and write it back to `<project_path>/.claude.local/channels/<plugin>/access.json`. The bind-mount makes this visible inside the container immediately — no tmux round-trip, no LLM turn, no race with the Step 8b shutdown.
+   3. Idempotent: re-running docker-setup leaves customized values alone (sub-step 1 short-circuits when `ackReaction` is non-empty).
 7. Confirm: "Paired and locked down. If the bot doesn't respond to your first message, give it up to 2 minutes — the hermit may still be booting or running initial checks (plugin installs, workspace trust, auto-memory seeding)."
 
 If "skip": tell them to DM the bot later and run the commands manually.
