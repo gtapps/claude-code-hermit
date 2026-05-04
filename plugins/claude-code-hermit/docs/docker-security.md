@@ -34,8 +34,8 @@ The wizard makes the container *meaningfully harder to abuse*. It does not make 
   ```
   server=/db/127.0.0.11
   ```
-  Edit `.claude-code-hermit/docker/dnsmasq.allowlist`, then `hermit-docker restart hermit-netguard`.
-- **mDNS / `.local`** (e.g. `homeassistant.local`) doesn't resolve. HA-hermit operators must use IP-based URLs (with a LAN carve-out) or remote/Nabu Casa domains.
+  Edit `.claude-code-hermit/docker/dnsmasq.allowlist`, then `hermit-docker down && hermit-docker up` (restarting only the sidecar leaves hermit with stale resolver state until hermit itself is bounced).
+- **mDNS / `.local`** doesn't resolve through dnsmasq. Services must be referenced by IP address (with a LAN carve-out) rather than `.local` hostnames.
 - **Host-bound services unreachable in bridge+containment mode** — `localhost`/`127.0.0.1` on the host is only reachable when `network_mode: host`. Operators wanting both LAN containment AND host-bound access need to refactor their host service to bind on the bridge IP and add a carve-out for that IP.
 - **Sidecar crash isolates hermit** — because hermit shares hermit-netguard's network namespace, if the sidecar dies hermit loses *all* networking until you bring it back up. The sidecar has `restart: unless-stopped` and a fail-safe entrypoint (loads-rules-or-tail-stay-up rather than crash-loop), but a misconfigured `nftables.conf` can still strand hermit. If this happens, `docker compose -f docker-compose.hermit.yml -f docker-compose.security.yml logs hermit-netguard` will tell you what went wrong.
 
@@ -97,11 +97,11 @@ In **enforce mode**, the same command surfaces NXDOMAIN denials. Decide which do
    ```
    server=/example-vendor.com/1.1.1.1
    ```
-2. Restart only the sidecar (faster than a full hermit restart):
+2. Restart hermit and the sidecar:
    ```
-   docker compose -f docker-compose.hermit.yml \
-                  -f docker-compose.security.yml restart hermit-netguard
+   hermit-docker down && hermit-docker up
    ```
+   (Restarting only `hermit-netguard` leaves `hermit` with stale resolver/conntrack state — DNS fails for all domains until hermit itself is bounced.)
 3. When the log goes quiet, re-run `/docker-security` and switch from "Yes — recommended (log-only)" to "Yes — strict (enforce)".
 
 The wizard does not auto-promote blocked domains. Manual review keeps the trust boundary at the operator.

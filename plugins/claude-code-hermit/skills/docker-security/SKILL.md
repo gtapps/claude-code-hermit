@@ -304,7 +304,7 @@ If at least one toggle is enabled, render the overlay. Otherwise (all-off): hand
 
 Render `100` directly into `nftables.conf` as the dnsmasq UID — no probe step. Rationale and recovery path if Alpine ever changes it: see [docs/docker-security.md#design-rationale](https://github.com/gtapps/claude-code-hermit/blob/main/plugins/claude-code-hermit/docs/docker-security.md#design-rationale).
 
-`docker compose build hermit-netguard` runs as part of `hermit-docker up` after the overlay is written — no separate build invocation by the wizard.
+After the netguard files are rendered (step 7c), the wizard runs an explicit `--no-cache` build of `hermit-netguard` to prevent stale Docker cache artifacts from surviving a hermit upgrade. Do not rely on `hermit-docker up` to trigger a rebuild.
 
 #### 7b. Write the overlay
 
@@ -426,6 +426,14 @@ Copy from `state-templates/docker/security/` into `.claude-code-hermit/docker/`:
   - `{{FLEET_DOMAINS}}` → for each fleet domain, render `server=/<domain>/1.1.1.1` with a comment line above grouping by source plugin. Empty string if no entries.
   - `{{ADDITIONAL_DOMAINS}}` → for each operator-added domain, render `server=/<domain>/1.1.1.1`. Empty string if no entries.
 
+After all files are copied, force a fresh netguard image build:
+
+```bash
+timeout 180s docker compose -f docker-compose.hermit.yml -f docker-compose.security.yml build --no-cache hermit-netguard
+```
+
+If the build exits non-zero, run `docker compose -f docker-compose.hermit.yml -f docker-compose.security.yml logs hermit-netguard --tail=30`, surface the output, and stop. Do not proceed to step 7d.
+
 #### 7d. Show diff + confirm
 
 Print a one-screen summary of files written (paths + line counts). Ask `AskUserQuestion` (header: `"Apply"`) — `"Yes — restart container now"` / `"No — I'll restart manually later"`.
@@ -478,10 +486,17 @@ echo "=== DNS policy ==="
 getent hosts api.anthropic.com >/dev/null \
   && echo "  DNS-allow:    OK (api.anthropic.com resolves)" \
   || echo "  DNS-allow:    FAIL (allowlisted domain does not resolve)"
-python3 -c "import socket; socket.gethostbyname('example.com')" 2>&1 \
-  | grep -qE 'Name or service not known|nodename nor servname' \
-  && echo "  DNS-block:    OK (example.com NXDOMAIN — policy applies)" \
-  || echo "  DNS-block:    NOT ENFORCED (example.com resolved — log-only mode or policy bypassed)"
+_dns_err=$(mktemp)
+trap 'rm -f "$_dns_err"' EXIT
+timeout 2s python3 -c "import socket; socket.gethostbyname('example.com')" >/dev/null 2>"$_dns_err"
+dns_rc=$?
+if [ $dns_rc -eq 124 ]; then
+  echo "  DNS-block:    FAIL — query timed out (likely DNS leak; no-resolv missing or upstream unreachable)"
+elif grep -qE 'Name or service not known|nodename nor servname' "$_dns_err"; then
+  echo "  DNS-block:    OK (example.com NXDOMAIN — policy applies)"
+else
+  echo "  DNS-block:    FAIL — example.com resolved or unexpected error"
+fi
 python3 -c "
 import socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -506,7 +521,7 @@ echo "=== Read-only root ==="
 touch /etc/canary 2>&1 | grep -q "Read-only file system" \
   && echo "  RO-root:      OK (writes to /etc fail with EROFS)" \
   || echo "  RO-root:      NOT ACTIVE (or test path is writable)"
-touch /home/claude/.hermit-canary 2>/dev/null && rm /home/claude/.hermit-canary 2>/dev/null \
+touch /home/claude/.cache/.hermit-canary 2>/dev/null && rm /home/claude/.cache/.hermit-canary 2>/dev/null \
   && echo "  RO-write:     OK (claude-owned path writable)" \
   || echo "  RO-write:     FAIL (named volume / tmpfs uid wrong)"
 touch /home/claude/.npm-global/.canary 2>/dev/null && rm /home/claude/.npm-global/.canary 2>/dev/null \
@@ -546,7 +561,8 @@ Reverse: re-run /docker-security and answer No to every prompt, OR
          delete docker-compose.security.yml and re-run hermit-docker up.
 
 Tune DNS allowlist: edit .claude-code-hermit/docker/dnsmasq.allowlist,
-         then `hermit-docker restart hermit-netguard`.
+         then `hermit-docker down && hermit-docker up`
+         (restart hermit-netguard alone leaves hermit with stale resolver state).
 
 If hermit asks you to log in (session expired or first boot after
 hardening), open a shell in the container and authenticate:

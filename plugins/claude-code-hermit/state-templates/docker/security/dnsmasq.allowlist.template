@@ -8,14 +8,23 @@
 #
 # To add a domain at runtime, edit this file in
 # .claude-code-hermit/docker/dnsmasq.allowlist and run
-# `hermit-docker restart hermit-netguard`.
+# `hermit-docker down && hermit-docker up`
+# (restart hermit-netguard alone leaves hermit with stale resolver state).
 
 listen-address=127.0.0.1
 no-hosts
+# Without no-resolv, dnsmasq falls back to /etc/resolv.conf for unmatched queries.
+# In a hermit-netguard netns, that resolv.conf points to 127.0.0.11 (Docker DNS),
+# which is unreachable from inside the sidecar, turning blocks into ~5s timeouts.
+# no-resolv ensures the address=/#/ catchall below actually returns NXDOMAIN.
+no-resolv
 
 # --- Core hermit operation ---
 # Anthropic API + Claude Code marketplace traffic
 server=/anthropic.com/1.1.1.1
+# Claude Code OAuth / login — NXDOMAIN maps to ECONNREFUSED in Node, breaking /login
+server=/claude.ai/1.1.1.1
+server=/claude.com/1.1.1.1
 server=/githubusercontent.com/1.1.1.1
 server=/github.com/1.1.1.1
 server=/githubassets.com/1.1.1.1
@@ -39,5 +48,5 @@ server=/telegram.org/1.1.1.1
 # --- Operator additions (from /docker-security Prompt 1c) ---
 {{ADDITIONAL_DOMAINS}}
 
-# Catchall: NXDOMAIN for everything else.
+# Catchall: NXDOMAIN for everything else (requires no-resolv above to work correctly).
 address=/#/
