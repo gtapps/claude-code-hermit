@@ -41,7 +41,7 @@ Hermit is the glue between Claude Code's native capabilities and a 24/7 agent th
 
 **3. It learns from experience.** Hermit spots patterns in its own memory — recurring blockers, repeated workarounds, odd spending — and proposes fixes. You decide what sticks. Under the hood, raw session notes distill into compiled artifacts that reload next session — the [raw-vs-compiled pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) Karpathy described for his wiki-LLM.
 
-**4. Routines and daily rhythm.** Morning briefs, evening summaries, background monitors. Between tasks it picks up accepted proposals and runs maintenance. Silence means everything's fine.
+**4. Routines and daily rhythm.** Morning briefs, evening summaries, background monitors, **custom routines**. Between tasks it picks up accepted proposals and runs maintenance. Silence means everything's fine.
 
 **5. See inside it.** Hermit Cortex (Obsidian-powered) turns your agent's memory — sessions, proposals, cost trends, learnings — into an Obsidian vault you can browse.
 
