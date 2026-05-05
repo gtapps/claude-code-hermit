@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import json
-import sys
-from io import StringIO
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -11,22 +9,9 @@ from ha_agent_lab.cli import main
 from ha_agent_lab.ha_api import HomeAssistantError
 
 
-def _make_config(url: str = "http://homeassistant.local:8123") -> MagicMock:
-    cfg = MagicMock()
-    cfg.root = MagicMock()
-    cfg.missing_ha_configuration_fields.return_value = []
-    cfg.ha_token = "fake-token"
-    cfg.ha_local_url = None
-    cfg.ha_remote_url = None
-    cfg.primary_url.return_value = url
-    cfg.retry_count = 0
-    cfg.timeout_seconds = 5
-    return cfg
-
-
-def test_probe_success(capsys) -> None:
+def test_probe_success(capsys, make_mock_config) -> None:
     response = {"id": "123", "alias": "Test automation", "trigger": []}
-    cfg = _make_config()
+    cfg = make_mock_config()
 
     with patch("ha_agent_lab.cli.load_config", return_value=cfg), \
          patch("ha_agent_lab.cli.HomeAssistantClient") as MockClient:
@@ -40,8 +25,8 @@ def test_probe_success(capsys) -> None:
     instance.get.assert_called_once_with("/api/config/automation/config/123")
 
 
-def test_probe_404_exits_nonzero(capsys) -> None:
-    cfg = _make_config()
+def test_probe_404_exits_nonzero(capsys, make_mock_config) -> None:
+    cfg = make_mock_config()
 
     with patch("ha_agent_lab.cli.load_config", return_value=cfg), \
          patch("ha_agent_lab.cli.HomeAssistantClient") as MockClient:

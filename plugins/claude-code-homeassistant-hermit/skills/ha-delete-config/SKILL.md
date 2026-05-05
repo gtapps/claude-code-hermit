@@ -27,8 +27,9 @@ Removes an automation or script from Home Assistant via `DELETE /api/config/{dom
    - `ok: false, message: "Resource not found"` — the ID doesn't exist in HA (note: HA returns 400, not 404).
    - `ok: false` + other message — surface the error to the operator.
 
-5. **Reload (optional)**: Offer to reload the domain so the entity disappears from the registry:
-   - `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha validate-apply <any-yaml> --reload automation` — or remind the operator to run `automation.reload` from HA Developer Tools.
+5. **Reload (optional)**: After deletion the entity stays in the registry until the next reload. Offer to trigger one:
+   - Tell the operator to go to **HA Developer Tools → Services → `automation.reload`** (or `script.reload`).
+   - Do **not** use `validate-apply` for this — it would also push the supplied YAML as a new config.
 
 ## Safety
 

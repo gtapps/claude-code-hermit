@@ -20,6 +20,9 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 ### Fixed
 
 - **Apply flow no longer silently succeeds when HA never received the config** — previous behavior called `automation.reload` with no config push, returning success despite the automation being absent. Now reports `creation_ok: false` with a clear message in the YAML-mode fallback case.
+- **`ha-delete-config` skill**: removed erroneous advice to use `validate-apply` for post-delete reload (it would also push the supplied YAML as a new config). Step 5 now correctly points to HA Developer Tools → Services.
+- **`ha-build-automation` skill**: `id:` field is now required as the first field in generated YAML — without it, `validate-apply` derives a fragile ID from the alias that breaks on rename.
+- **CLI tests**: `_make_config` helper consolidated into a shared `make_mock_config` fixture in `conftest.py`; `test_cli_probe.py` and `test_cli_delete.py` both use it. Renamed `test_delete_automation_missing_id_exits_nonzero` → `test_delete_automation_not_found_exits_nonzero` (the old name conflated a missing CLI argument with a missing HA resource).
 
 ## [0.0.8] - 2026-05-04
 

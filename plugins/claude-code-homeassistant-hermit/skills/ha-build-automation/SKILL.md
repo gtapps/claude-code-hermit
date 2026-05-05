@@ -22,7 +22,7 @@ allowed-tools:
    - Optionally call `GetLiveContext` via MCP for current state.
 
 2. **Draft the YAML**:
-   - Use stable, language-neutral IDs (e.g., `kitchen_motion_after_sunset_notification`).
+   - **Always include `id:` as the first field**, using a stable, language-neutral snake_case value (e.g., `kitchen_motion_after_sunset_notification`). The `validate-apply` command uses this as the REST config ID — omitting it causes a derived, fragile ID that breaks on alias rename.
    - Use the stored locale for `alias` and `description`.
    - Set `mode` explicitly where concurrency matters.
    - Write to `.claude-code-hermit/raw/automation-<automation_id>.yaml`.

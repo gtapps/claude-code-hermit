@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -23,4 +24,21 @@ def make_ha_root(tmp_path: Path):
         )
         return tmp_path
 
+    return _make
+
+
+@pytest.fixture
+def make_mock_config(tmp_path):
+    """Factory fixture: builds a MagicMock AppConfig for CLI tests."""
+    def _make(url: str = "http://homeassistant.local:8123") -> MagicMock:
+        cfg = MagicMock()
+        cfg.root = tmp_path
+        cfg.missing_ha_configuration_fields.return_value = []
+        cfg.ha_token = "fake-token"
+        cfg.ha_local_url = None
+        cfg.ha_remote_url = None
+        cfg.primary_url.return_value = url
+        cfg.retry_count = 0
+        cfg.timeout_seconds = 5
+        return cfg
     return _make
