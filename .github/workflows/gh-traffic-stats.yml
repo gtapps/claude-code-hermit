@@ -1,4 +1,4 @@
-name: Clone stats
+name: gh-traffic-stats
 on:
   schedule:
     - cron: "30 0 * * *"
@@ -8,28 +8,33 @@ permissions:
   contents: write
 
 concurrency:
-  group: clone-stats
+  group: gh-traffic-stats
   cancel-in-progress: false
 
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
-          ref: _stats_badges
+          ref: _gh_traffic_stats
           path: badges-data
-      - name: Update clone history + badge
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Update gh-traffic-stats
         env:
-          GH_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TRAFFIC_STATS_TOKEN }}
           REPO: ${{ github.repository }}
           BADGES_DIR: ${{ github.workspace }}/badges-data/.github/badges
-        run: node .github/scripts/update-clones.mjs
+          METRICS: clones
+          CLONES_LABEL: "downloads"
+        run: node .github/update-gh-traffic.mjs
       - name: Commit if changed
         working-directory: badges-data
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .github/badges
-          git diff --cached --quiet || (git commit -m "update clone stats" && git pull --rebase && git push)
+          git diff --cached --quiet || (git commit -m "update gh-traffic-stats" && git pull --rebase && git push)
