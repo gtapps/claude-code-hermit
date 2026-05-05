@@ -4,6 +4,14 @@
 
 ### Fixed
 
+- **`hermit-start`: pass bootstrap as `claude` argv instead of `tmux send-keys`.**
+  Eliminates a race where, on slow always-on boots (cold plugin cache, container
+  first-run), the send-keys-injected bootstrap landed before Claude Code's TUI was
+  ready and was silently swallowed — heartbeat, routines, and session-start all
+  failed to register. `claude` accepts a positional prompt that runs as the first
+  turn of an interactive REPL (per `claude --help`), so the bootstrap is now passed
+  as argv. Same long-lived process, no inter-process timing window.
+
 - **`hermit-docker restart` fails under the security overlay.** `docker compose restart` restarts services in parallel and ignores `depends_on`, so the hermit container tried to rejoin the netguard netns while netguard was briefly exited — producing "cannot join network namespace of a non running container". Fixed by replacing `compose restart` with `down && up -d`, which honors dependency order on start. Behavior is identical to `hermit-docker down && hermit-docker up`, which already worked.
 
 - **`/docker-setup` Step 8 `ackReaction` race.** The `set ackReaction` tmux command was sent immediately before the Step 8b shutdown, leaving no time for the in-container LLM turn to write the value to `access.json`. Replaced the tmux send-keys round-trip with a direct host-side edit of `.claude.local/channels/<plugin>/access.json` — the bind-mount makes it visible in the container immediately, with no race.

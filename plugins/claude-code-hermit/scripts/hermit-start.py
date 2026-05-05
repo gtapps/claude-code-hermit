@@ -432,7 +432,42 @@ def main():
     cmd = build_claude_command(config, tools)
     session_name = get_session_name(config)
 
-    # Check for stale state from a previous run
+    # Setup-mode gate: docker-setup touches this marker before first boot so channel
+    # pairing commands land on an idle REPL prompt rather than racing the bootstrap turn.
+    # Consumed (deleted) here — one-shot, so a crashed setup doesn't suppress bootstrap permanently.
+    setup_marker = STATE_DIR / '.setup-mode'
+    setup_mode = setup_marker.exists()
+    if setup_mode:
+        setup_marker.unlink(missing_ok=True)
+        print('[hermit] Setup mode — skipping bootstrap prompt (one-shot)')
+
+    # send-keys races the TUI init on slow boots — argv does not.
+    hb = config.get('heartbeat', {})
+    auto_session = config.get('auto_session', True)
+    hb_enabled = hb.get('enabled', False)
+    has_routines = bool(config.get('routines'))
+    # Domain hermits (e.g. homeassistant-hermit) declare a boot_skill that
+    # wraps /claude-code-hermit:session-start plus their own domain setup.
+    # When set, it replaces the core session skill in the bootstrap — the
+    # domain skill is responsible for calling session-start itself.
+    boot_skill = config.get('boot_skill') or '/claude-code-hermit:session'
+
+    steps = []
+    if hb_enabled:
+        steps.append('/claude-code-hermit:heartbeat start')
+    if has_routines:
+        steps.append('/claude-code-hermit:hermit-routines load')
+    if auto_session:
+        steps.append(boot_skill)
+
+    if steps and not setup_mode:
+        if len(steps) == 1:
+            bootstrap = steps[0]
+        else:
+            numbered = ', '.join(f'({i+1}) {s}' for i, s in enumerate(steps))
+            bootstrap = f'Always-on bootstrap. Invoke these skills in order: {numbered}.'
+        cmd.append(bootstrap)
+
     check_stale_runtime(config, session_name)
 
     # Print launch info
@@ -566,7 +601,7 @@ def main():
     except OSError:
         pass
 
-    # Verify the session survived the boot period before sending any keys
+    # Verify the session survived the boot period
     time.sleep(3)  # Wait for Claude to boot — increase if on slow hardware
     if not tmux_session_alive(session_name):
         print(f'[hermit] ERROR: tmux session "{session_name}" died after creation.')
@@ -580,51 +615,6 @@ def main():
         existing['last_error'] = 'session_died_on_boot'
         write_runtime_json(existing)
         os.execvp(cmd[0], cmd)
-
-    # Setup-mode gate: docker-setup touches this marker before first boot so channel
-    # pairing commands land on an idle REPL prompt rather than racing the bootstrap turn.
-    # Consumed (deleted) here — one-shot, so a crashed setup doesn't suppress bootstrap permanently.
-    setup_marker = STATE_DIR / '.setup-mode'
-    setup_mode = setup_marker.exists()
-    if setup_mode:
-        setup_marker.unlink(missing_ok=True)
-        print('[hermit] Setup mode — skipping bootstrap prompt (one-shot)')
-
-    # Bootstrap: send ONE composite prompt so all startup commands execute in a single
-    # Claude turn. Three separate `tmux send-keys` raced — the second/third landed inside
-    # the still-running /session turn and were silently swallowed (same failure mode as
-    # the old routine-watcher's send-keys). One prompt = one turn = no race.
-    hb = config.get('heartbeat', {})
-    auto_session = config.get('auto_session', True)
-    hb_enabled = hb.get('enabled', False)
-    has_routines = bool(config.get('routines'))
-    # Domain hermits (e.g. homeassistant-hermit) declare a boot_skill that
-    # wraps /claude-code-hermit:session-start plus their own domain setup.
-    # When set, it replaces the core session skill in the bootstrap — the
-    # domain skill is responsible for calling session-start itself.
-    boot_skill = config.get('boot_skill') or '/claude-code-hermit:session'
-
-    steps = []
-    if hb_enabled:
-        steps.append('/claude-code-hermit:heartbeat start')
-    if has_routines:
-        steps.append('/claude-code-hermit:hermit-routines load')
-    if auto_session:
-        steps.append(boot_skill)
-
-    if steps and not setup_mode:
-        if len(steps) == 1:
-            bootstrap = steps[0]
-        else:
-            numbered = ', '.join(f'({i+1}) {s}' for i, s in enumerate(steps))
-            bootstrap = f'Always-on bootstrap. Invoke these skills in order: {numbered}.'
-        # Send text and Enter in separate calls — Claude Code's TUI treats a
-        # fast burst of text+Enter as bracketed paste, so the trailing Enter
-        # becomes a literal newline instead of submit. A brief pause between
-        # the two lets the paste window close before Enter is registered.
-        subprocess.run(['tmux', 'send-keys', '-t', session_name, bootstrap])
-        time.sleep(0.5)
-        subprocess.run(['tmux', 'send-keys', '-t', session_name, 'Enter'])
 
     if hb_enabled:
         print(f'[hermit] Bootstrap: /claude-code-hermit:heartbeat start queued (every {hb.get("every", "30m")})')
