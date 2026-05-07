@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Removed
+
+- **`scripts/git-commit-quality-gate.js`** PreToolUse hook removed (and its registration in `hooks/hooks.json`). The strict-profile branch unconditionally blocked every `git commit` with no state check; the standard-profile nudge duplicated guidance already present in `CLAUDE-APPEND.md`. PR-time enforcement via `/dev-pr` Gate 0's `state/last-test.json` SHA check is unchanged. Resolves [#39](https://github.com/gtapps/claude-code-hermit/issues/39).
+
 ## [0.3.4] - 2026-05-07
 
 ### Added

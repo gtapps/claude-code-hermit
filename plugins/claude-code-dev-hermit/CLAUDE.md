@@ -9,8 +9,7 @@ Language-agnostic safety layer for any agent doing dev work in a hermit project.
 - `skills/dev-quality/` — pre-wrap quality gate: runs `/simplify` on the working-tree diff and re-runs `commands.test` if configured. Surfaces failures; suggests `/code-review:code-review` when installed.
 - `skills/dev-test/` — run the configured test suite and record the result to `state/last-test.json`. Useful for mid-task verification and warming the `/dev-pr` test cache.
 - `scripts/git-push-guard.js` — strict-profile-only `PreToolUse` hook for Bash. Blocks `--no-verify`, force-push (incl. `--force-with-lease`), `--mirror`/`--all`, and direct push to any branch in `claude-code-dev-hermit.protected_branches`.
-- `scripts/git-commit-quality-gate.js` — `PreToolUse` hook for Bash. Fires on `git commit`. Standard profile: injects `additionalContext` nudge to run `/dev-quality` first. Strict profile: hard-blocks (exit 2). Handles `git -C <path> commit`, env-var prefixes, and chained commands.
-- `hooks/hooks.json` — registers `git-push-guard.js` and `git-commit-quality-gate.js`.
+- `hooks/hooks.json` — registers `git-push-guard.js`.
 - `state-templates/CLAUDE-APPEND.md` — full (standard mode) template. Sections: §Git Safety, §Branch Discipline, §Implementation Flow, §Tests Before PR, §Technical Constraints, §Before Archiving a Task, §Dev Session Hygiene, §Dev Knowledge, §Dev Proposal Categories, §Dev Quick Reference. Injected by `/hatch` into the target project's `CLAUDE.md` when `hatch_mode = "standard"`.
 - `state-templates/CLAUDE-APPEND-SAFETY.md` — safety mode template. Subset: §Git Safety, §Branch Discipline, §Technical Constraints, §Before Archiving a Task, §Dev Session Hygiene, §Dev Knowledge, §Dev Proposal Categories, trimmed §Dev Quick Reference. No §Implementation Flow, §Tests Before PR, or `/dev-pr`/`/dev-quality`/`/dev-test` references. Injected by `/hatch` when `hatch_mode = "safety"` (recommended for projects that already have their own commit/PR/release skills).
 - `tests/` — `run-all.sh` central runner + `skill-structure.test.js` structural lint.
@@ -24,7 +23,7 @@ Language-agnostic safety layer for any agent doing dev work in a hermit project.
 
 ## Hook Profiles
 
-`git-push-guard` activates at **strict** profile only. `git-commit-quality-gate` activates at **all** profiles — nudge (`additionalContext`) in `standard`/unset, hard-block (exit 2) in `strict`. `/hatch` defaults to installing strict and offers an explicit opt-out; once strict, `/hatch` re-runs never silently downgrade. See `docs/GIT-SAFETY.md` for the full profile model.
+`git-push-guard` activates at **strict** profile only. `/hatch` defaults to installing strict and offers an explicit opt-out; once strict, `/hatch` re-runs never silently downgrade. See `docs/GIT-SAFETY.md` for the full profile model.
 
 ## Depends On
 
