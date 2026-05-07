@@ -40,6 +40,13 @@ If a proposal with the same problem already exists (any status, including dismis
 
 Note the nearest near-miss PROP-ID even if no exact duplicate is found — it goes into `closest_prop` metadata.
 
+## Step 1.5 — Memory cross-reference
+
+Read `MEMORY.md` (index of `- [title](file) — description` entries). Read each topic file whose title or description keyword-matches the candidate. Each topic file carries `name`, `description`, body, `Why:`, and `How to apply:` — match against all of them. If memory already records the operator's decision, preference, or pattern that this candidate would propose:
+- Return: `SUPPRESS — covered-by-memory: <one-sentence reason> ("<quoted memory line>")`
+- Emit `memory_ref: <filename>` as metadata so the operator can locate and revise the source if it has gone stale.
+- Stop. Do not evaluate further.
+
 ## Step 2 — Session cross-reference
 
 Glob `.claude-code-hermit/sessions/S-*-REPORT.md`. Sort descending by filename. Read the 3 most recent. Scan for discussion of the candidate's title or problem keywords. If a session contains a relevant decision, deferral, or counter-evidence, capture the session id and a one-line excerpt for the `prior_discussion` metadata field. If nothing relevant, omit.
@@ -70,7 +77,7 @@ Only if no duplicate found, check applicable conditions:
 Return exactly one of these on line 1:
 
 - `CREATE` — applicable conditions pass, no duplicate
-- `SUPPRESS — <code>: <one sentence reason> ("<quoted excerpt from candidate evidence that triggered the call>")` where `<code>` is one of: `weak-recurrence` (failed #1), `weak-consequence` (failed #2), `not-actionable` (failed #3)
+- `SUPPRESS — <code>: <one sentence reason> ("<quoted excerpt from candidate evidence that triggered the call>")` where `<code>` is one of: `weak-recurrence` (failed #1), `weak-consequence` (failed #2), `not-actionable` (failed #3), `covered-by-memory` (matched in Step 1.5)
 - `DUPLICATE:<PROP-ID> — <one-line reason>`
 
 Then optionally one or more metadata lines (one key:value per line, in any order, omit fields that don't apply — never emit null or empty reassurance fields):
@@ -81,6 +88,7 @@ aligned: false
 operator_excerpt: "<quoted line>"
 overlap_compiled: <filename>
 prior_discussion: <S-NNN: "<excerpt>">
+memory_ref: <filename>
 failed_condition: <repeated-pattern|meaningful-consequence|operator-actionable>
 ```
 

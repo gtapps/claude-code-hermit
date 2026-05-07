@@ -67,6 +67,10 @@ A session "confirms" the pattern if:
 - The same problem, friction, or observation is described (not just tangentially mentioned)
 - The description is independent — not just a copy of the candidate summary
 
+### 1.5 Memory cross-check
+
+Read `MEMORY.md` (index of `- [title](file) — description` entries). Read each topic file whose title or description keyword-matches the candidate. Match against the file's `name`, `description`, body, `Why:`, and `How to apply:` fields. If memory already records the operator decision, preference, or pattern this candidate would surface, suppress with code `covered-by-memory`, quote the matching memory line in the reason, and include the source filename (e.g. `[memory: feedback_simplify_no_bypass.md]`) so the operator can locate and revise it if stale.
+
 ### 2. Tier check
 
 Given confirmed evidence (or bypassed evidence for scheduled-check/operator-request), is the tier classification correct?
@@ -96,6 +100,7 @@ SUPPRESS (<source>): <title> — <code>: <reason>          # other sources
 **Canonical suppress codes** (use exactly these strings — no others):
 - `no-evidence` — cited sessions don't contain the pattern
 - `no-sessions` — `Sessions: none` with no bypass source
+- `covered-by-memory` — auto-memory already records this decision/preference/pattern
 
 ## Output Format
 

@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Memory-first for suggestions.** Suggestion-generating skills (`brief`, `reflect`, `weekly-review`, `proposal-create`, `session-start`) and the `proposal-triage` / `reflection-judge` subagents now consult auto-memory before declaring a finding novel. Convention lives in `state-templates/CLAUDE-APPEND.md` and propagates to existing installs via the standard `/hermit-evolve` Step 6 anchored-block sync. Both subagents gain an explicit Memory cross-reference / cross-check step and a new canonical suppress code, `covered-by-memory`. Acting-on-decided-intent skills (`session-close`, `proposal-act`, `hermit-routines`, `hatch`) are exempt by design.
+
+### Changed
+
+- **`agents/proposal-triage.md`** — adds Step 1.5 (Memory cross-reference) between Deduplication and Session cross-reference; SUPPRESS code list extended with `covered-by-memory`; new `memory_ref: <filename>` metadata field emitted alongside that verdict.
+- **`agents/reflection-judge.md`** — adds `### 1.5 Memory cross-check` between Evidence verification and Tier check; canonical suppress codes extended with `covered-by-memory`; reason includes `[memory: <filename>]` breadcrumb so operators can locate the source.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill executes:
+
+1. **CLAUDE-APPEND block sync (automatic).** Step 6 of `hermit-evolve` reads the current `state-templates/CLAUDE-APPEND.md` and replaces the marker→EOF block in the project's `CLAUDE.md`. The new Memory-first paragraph propagates with no version-specific step needed. Idempotent.
+
+No `config.json` changes. No `runtime.json` changes. No new permissions. Subagent prompt updates ship inside the plugin source and take effect on plugin update — no per-install migration required.
+
 ## [1.0.31] - 2026-05-07
 
 ### Fixed

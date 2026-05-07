@@ -45,6 +45,7 @@ Always launch Claude Code from this repo's root, not from inside a plugin dir. A
 
 ## Rules
 
+- Always use Context7 when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
 - Don't overengineer.---
 
 <!-- claude-code-hermit: Session Discipline -->
