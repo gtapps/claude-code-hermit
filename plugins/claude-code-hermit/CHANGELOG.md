@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.0.33] - 2026-05-07
+
+### Changed
+
+- **`/session-close` no longer invokes `reflect` inline.** Step 5 of session-close (the explicit `reflect` call) is removed; close now goes straight from "create proposals if needed" to "format Tasks table → archive via session-mgr". Reflect continues to run on its established cadence: daily cron (`0 9 * * *`), idle/task-boundary triggers in the `session` skill (4-hour debounce), and heartbeat-path idle behaviors. Closeout time drops from minutes to seconds; no coverage is lost (at worst one reflect cycle is delayed up to 4h until the next idle/cron fire).
+- **Right-sized thinking budgets across `reflect`, `reflection-judge`, and `proposal-create`.** `agents/reflection-judge.md` drops the `ultrathink` keyword — the frontmatter `effort: medium` is now the sole, coherent control surface for that agent. `skills/reflect/SKILL.md` downgrades `ultrathink` to `think hard` (~10K vs ~32K token budget), appropriate for cross-session synthesis. `skills/proposal-create/SKILL.md` drops the keyword entirely from the body-writing step (structured drafting, no escalation needed) and downgrades to `think hard` for the capability-plan branch (designing new agents/skills). Reduces routine-path cost without compromising gating or synthesis quality.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/session-close/SKILL.md` | Removes step 5 (inline reflect call); renumbers steps 6→5, 7→6 |
+| `agents/reflection-judge.md` | Replaces `ultrathink` line with plain "reason carefully" instruction |
+| `skills/reflect/SKILL.md` | Downgrades `ultrathink` to `think hard` |
+| `skills/proposal-create/SKILL.md` | Drops `ultrathink` from body-writing step; downgrades to `think hard` for capability-plan branch |
+
+### Upgrade Instructions
+
+No upgrade actions required. Skill and agent text changes propagate via plugin update — no `config.json`, `runtime.json`, `state-templates/`, or operator-editable file changes.
+
 ## [1.0.32] - 2026-05-07
 
 ### Added

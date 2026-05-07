@@ -69,7 +69,7 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js \
      - `title`: short proposal title (same text used in the H1 heading after the dash)
      - `resolved_date`: `null` (set later by reflect when pattern is confirmed gone)
    - Fill in the title in the H1 heading
-   - ultrathink while writing the body: write a clear Context, Problem, Proposed Solution, and Impact
+   - while writing the body: write a clear Context, Problem, Proposed Solution, and Impact
    - Leave "Operator Decision" blank — the operator fills that in
    - Do NOT write bullet-point metadata (`- **Created:**`, etc.) — all metadata lives in frontmatter only
 
@@ -98,7 +98,7 @@ If the proposal affects security boundaries — permissions, network access, cre
 
 When your operational scope changes (new API, new local service, new publishing channel), create a PROP recommending deny pattern additions or networking changes. Never modify `deny-patterns.json` or Docker config directly. The operator implements security changes.
 
-When the proposed solution involves creating a new agent, skill, heartbeat item, or OPERATOR.md change, ultrathink and make the Suggested Plan self-contained:
+When the proposed solution involves creating a new agent, skill, heartbeat item, or OPERATOR.md change, think hard and make the Suggested Plan self-contained:
 
 **For a new sub-agent:**
 1. Create `.claude/agents/<name>.md` with:

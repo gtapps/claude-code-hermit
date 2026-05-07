@@ -30,9 +30,8 @@ Use this when the operator wants to end everything (via `hermit-stop` or explici
 2. Ensure all native Tasks reflect their correct status (`completed`, `pending`)
 3. Confirm the "Next Start Point" is clear enough for a fresh session to resume without questions
 4. If any high-leverage improvements were discovered during work, create proposals via the `claude-code-hermit:proposal-create` skill
-5. Invoke the `claude-code-hermit:reflect` skill to reflect on accumulated experience. Reflect no longer requires archived reports — it uses memory. This runs before archiving so any findings are included in the archived report.
-6. If native Tasks exist: call `TaskList`, format as a markdown table. Then `TaskUpdate(status=deleted)` for completed tasks only — pending/in_progress tasks persist for next session.
-7. Archive the session via `claude-code-hermit:session-mgr` (full close — finalize SHELL.md and replace with fresh template in one operation). Pass the following compact structured payload in the prompt — keep it brief, no freeform prose:
+5. If native Tasks exist: call `TaskList`, format as a markdown table. Then `TaskUpdate(status=deleted)` for completed tasks only — pending/in_progress tasks persist for next session.
+6. Archive the session via `claude-code-hermit:session-mgr` (full close — finalize SHELL.md and replace with fresh template in one operation). Pass the following compact structured payload in the prompt — keep it brief, no freeform prose:
    ```
    Status: <completed|partial|blocked>
    Blockers: <one line each, or none>

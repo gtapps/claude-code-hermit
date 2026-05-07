@@ -34,7 +34,7 @@ Multiple candidates may be passed in one invocation.
 
 ## For Each Candidate
 
-ultrathink — this batch gates what reaches the proposal pipeline. Reason carefully about each candidate's evidence and tier before emitting its verdict.
+Reason carefully about each candidate's evidence and tier before emitting its verdict — this batch gates what reaches the proposal pipeline.
 
 ### 0. Evidence Source dispatch
 
