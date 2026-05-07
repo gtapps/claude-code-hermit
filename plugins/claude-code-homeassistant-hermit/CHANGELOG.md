@@ -2,6 +2,14 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Changed
+
+- **`agents/ha-safety-reviewer.md`: added `## Memory Cross-Check` section** — reviewer now consults Claude Code auto-memory (`MEMORY.md` index + matching topic files) before issuing a verdict; if memory records an operator decision that would change the verdict, the reviewer suppresses with code `covered-by-memory` and cites `[memory: <filename>]`. Sensitive-domain blocks (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`) are carved out — memory cannot override them regardless of any operator note.
+- **`agents/ha-pattern-analyst.md`: added `## Memory Cross-Reference` section** — analyst now consults Claude Code auto-memory before emitting candidates; covered candidates move to a new top-level `suppressed[]` array with fields `{code, reason, quoted_line, memory_ref}`. Omitted when empty. Mirrors the canonical `covered-by-memory` vocabulary from `claude-code-hermit` v1.0.32.
+- **`hermit-meta.json`: bumped `required_core_version` and `requires["claude-code-hermit"]` to `>=1.0.32`** — the `covered-by-memory` SUPPRESS code is the canonical fleet vocabulary first shipped in core v1.0.32; this floor declares the dependency.
+
 ## [0.0.9] - 2026-05-05
 
 ### Added
