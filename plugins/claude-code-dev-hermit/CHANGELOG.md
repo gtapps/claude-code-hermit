@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.3.4] - 2026-05-07
+
+### Added
+
+- **`scripts/git-commit-quality-gate.js`** — new `PreToolUse` Bash hook that fires on `git commit`. In `standard` profile, injects an `additionalContext` reminder to run `/dev-quality` first. In `strict` profile, hard-blocks the commit (exit 2). Tokenizer-based argv parsing handles `git -C <path> commit`, env-var prefixes, and chained commands; avoids false positives on `git log --grep="commit"` and `git config commit.template`. Resolves [#30](https://github.com/gtapps/claude-code-hermit/issues/30).
+- **`--cwd <path>` argument on `/dev-quality`, `/dev-test`, `/dev-pr`** — scopes the entire flow at a nested git working tree (submodule, path workspace, vendored dep) while letting the operator stay in the parent CWD. Git ops use `git -C "<path>"`, the test command spawns from `<path>`, `last-test.json` records the child's HEAD SHA (so `/dev-pr`'s SHA-only cache check correctly discriminates parent-scope from child-scope records), `/simplify` is scoped to files under `<path>`, and `gh`/`glab` runs from `<path>` so the PR opens against the child's remote. Hermit state still lives under the parent's `.claude-code-hermit/`. Resolves [#32](https://github.com/gtapps/claude-code-hermit/issues/32).
+- **`record-test-result.js` `--cwd <path>` flag** on `run` and `write` subcommands. Validates the path exists and is a git working tree, spawns the test command from `<path>`, captures `<path>`'s HEAD SHA. The PostToolUse hook entry-point is unchanged — it still captures `process.cwd()`'s SHA and cannot reliably parse `cd <path> && testcmd` chains; the `--cwd`-driven flow (via `run --cwd`) is the supported nested-repo entry point.
+
+### Changed
+
+- **Minimum core version bumped to `>=1.0.32`** — aligns `required_core_version`, `requires`, and `dependencies` with the upcoming core release.
+- **`/dev-quality` Gate 0 clean-tree FAIL** — adds a `hint:` line pointing operators at `--cwd <path>` for nested-repo workflows. Hint suppressed when `--cwd` was already passed.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/git-commit-quality-gate.js` | New profile-gated PreToolUse hook script |
+| `scripts/git-commit-quality-gate.test.js` | Unit tests (tokenizer, both profile branches, false-positive cases) |
+| `hooks/hooks.json` | Second `PreToolUse` Bash entry registered |
+| `scripts/record-test-result.js` | `--cwd <path>` parsing on `run` and `write` |
+| `scripts/record-test-result.test.js` | New `--cwd` cases (child-SHA capture, validation failures) |
+| `skills/dev-quality/SKILL.md` | Argument section, target-aware gates, hint in Gate 0 FAIL |
+| `skills/dev-test/SKILL.md` | Argument section + passthrough |
+| `skills/dev-pr/SKILL.md` | Argument section + child-remote warning, target-aware gates |
+| `state-templates/CLAUDE-APPEND.md` | Nested-repo reminders in §Implementation Flow, §Tests Before PR, §Dev Quick Reference |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill picks up the new hook and skill prose automatically via plugin update — no `config.json` changes and no `/hatch` re-run required.
+
 ## [0.3.3] - 2026-05-03
 
 ### Added

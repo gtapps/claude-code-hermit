@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.3.3-green.svg" alt="Version 0.3.3" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.3.4-green.svg" alt="Version 0.3.4" /></a>
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
 </p>
 
@@ -41,7 +41,7 @@ Three steps to a hermit that won't push to main:
 
 **2. A working agreement for any code-writing agent.** The CLAUDE-APPEND.md template, injected into your project's CLAUDE.md, gives every agent the same rules: clean tree before starting, branch from `protected_branches[0]`, name as `<prefix>/<slug>`, run the configured test command before declaring done, re-run after `/simplify`, revert on regression. Whether you spawn the native `Agent` tool, `feature-dev:code-architect`, or your own subagent — they all read the same rules.
 
-**3. `/dev-pr` to close the loop.** Pushes the current feature branch and opens a PR with a body assembled inline from your commits, last test result, screenshots, and an optional project PR template. Refuses on protected branches, dirty trees, or zero commits ahead. Calls `gh pr create` (or `glab pr create` if `git remote` points at GitLab).
+**3. `/dev-pr` to close the loop.** Pushes the current feature branch and opens a PR with a body assembled inline from your commits, last test result, screenshots, and an optional project PR template. Refuses on protected branches, dirty trees, or zero commits ahead. Calls `gh pr create` (GitHub), `glab mr create` (GitLab), or a custom command configured at `/hatch`. Bitbucket and other forges require a custom wrapper — `/hatch` prompts for it.
 
 That's it. Three things, ~500 lines of plugin. Whatever you don't need from the dev-server lifecycle, the watchdog, the worktree dance, the implementer agent — gone. Operators bring their own `tmux`, `npm run dev`, `tail -f`, and however they like to spawn agents.
 
@@ -49,7 +49,7 @@ That's it. Three things, ~500 lines of plugin. Whatever you don't need from the 
 
 ## Quick Start
 
-> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.110+, a Claude plan (Pro, Max, Teams, or Enterprise), Node.js 24+ (for the `git-push-guard` hook at strict profile), `gh` (or `glab`) for `/dev-pr`.
+> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.110+, a Claude plan (Pro, Max, Teams, or Enterprise), Node.js 24+ (for the `git-push-guard` hook at strict profile), `gh` (GitHub) or `glab` (GitLab) for `/dev-pr`; see `/hatch` for Bitbucket and other forge setup.
 
 ### 1. Install
 

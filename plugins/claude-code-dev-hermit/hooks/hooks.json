@@ -10,6 +10,16 @@
           }
         ],
         "description": "Block direct git push to protected branches, --no-verify, force-push (strict profile)"
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/git-commit-quality-gate.js"
+          }
+        ],
+        "description": "Nudge Claude to run /dev-quality before git commit (additionalContext in standard; hard-block in strict)"
       }
     ],
     "PostToolUse": [

@@ -8,6 +8,7 @@ rc=0
 
 node "$SCRIPT_DIR/skill-structure.test.js" || rc=$?
 node "$SCRIPT_DIR/hatch-mode.test.js" || rc=$?
+node "$SCRIPT_DIR/forge-awareness.test.js" || rc=$?
 
 while IFS= read -r f; do
   node "$f" || rc=$?

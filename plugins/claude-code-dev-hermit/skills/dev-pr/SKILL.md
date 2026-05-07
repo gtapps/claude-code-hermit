@@ -5,18 +5,54 @@ description: Open a PR from the current feature branch with a body assembled inl
 
 # /dev-pr
 
-Push the current branch and open a PR with a structured body. Reads commit history, the test results you just ran (per `state-templates/CLAUDE-APPEND.md` §Tests Before PR), any screenshots in `raw/screenshots/`, and an optional project PR template — assembles them into title + body — then calls `gh pr create` (or the configured equivalent).
+Push the current branch and open a PR with a structured body. Reads commit history, the test results you just ran (per `state-templates/CLAUDE-APPEND.md` §Tests Before PR), any screenshots in `raw/screenshots/`, and an optional project PR template — assembles them into title + body — then calls the forge-appropriate CLI.
+
+## Configuration
+
+`commands.pr_create` — the shell command used to open the PR. Set by `/claude-code-dev-hermit:hatch` from the detected forge. **If unset, Gate 0 refuses immediately** with a pointer to run `/hatch`.
+
+- **GitHub**: `gh pr create` — flags: `--body-file <path>`, `--base <branch>`.
+- **GitLab**: `glab mr create` — flags: `--description "$(cat <path>)"`, `--target-branch <branch>`.
+- **Bitbucket / custom / other**: operator-supplied. Gate 3 passes `--title "$TITLE" --body-file "$PR_BODY_TMP" --base "$BASE"` to custom commands — wrap your CLI in a script that accepts those flags if the native CLI uses different ones.
+
+The command must print the PR URL on a line matching `^https?://`.
 
 ## Prerequisites
 
 - Verify `.claude-code-hermit/sessions/` exists. If not: tell the operator to run `/claude-code-hermit:hatch` and `/claude-code-dev-hermit:hatch` first.
-- Read `.claude-code-hermit/config.json` once. Cache `claude-code-dev-hermit.protected_branches` (defaults to `["main", "master"]`), `commands.pr_create` (defaults to `gh pr create`), `pr_base_branch`, `pr_template_path`.
+- Read `.claude-code-hermit/config.json` once. Cache `claude-code-dev-hermit.protected_branches` (defaults to `["main", "master"]`), `commands.pr_create` (no default — if unset, Gate 0 fails with a pointer to run `/claude-code-dev-hermit:hatch`), `pr_base_branch`, `pr_template_path`.
+
+## Argument
+
+Optional `--cwd <path>`. When set, the entire flow targets the nested git repo at `<path>` end-to-end: Gate 0 checks (forge, branch, clean tree, tests, commits-ahead), Gate 1 push, Gate 2 title/body assembly, and Gate 3 `commands.pr_create` invocation all run against `<path>`. **The PR opens against `<path>`'s remote, not the parent's** — that's intentional (the child repo is the unit being PR'd) but the operator must understand it. Use this for nested-repo workflows (see CLAUDE-APPEND §Implementation Flow).
+
+State (`bindings.json`, `last-test.json`, `SHELL.md`) still resolves under the parent's `.claude-code-hermit/` — there's a single store. The `last-test.json` cache check stays SHA-only — `record.sha === git -C "$TARGET" rev-parse HEAD` already discriminates parent records from child records (different repos, different histories, different SHAs).
 
 ## Plan
 
+In every gate below, when `--cwd <path>` is set, prefix all `git ...` invocations with `-C "<path>"` (e.g. `git -C "<path>" status --porcelain`) and run the configured `commands.pr_create` via Bash with `cwd: "<path>"` so the forge CLI reads the child's `.git/config`. When `--cwd` is omitted, run as today (against `$PWD`). Below, `$TARGET` stands for `<path>` when set or `$PWD` otherwise; the bash blocks show the no-`--cwd` form.
+
 ### Gate 0 — preconditions
 
-Run all four checks in order. FAIL on the first failure, name it, give the exact command to fix it.
+Run all checks in order. FAIL on the first failure, name it, give the exact command to fix it.
+
+**0. Forge / tool sanity.** Two sub-checks, both cheap and run before anything else:
+
+*0a. `commands.pr_create` configured?* If the cached value is absent or empty: FAIL `"commands.pr_create not configured — run /claude-code-dev-hermit:hatch to set it"`.
+
+*0b. Forge/tool coherence.* Derive the tool discriminator: `TOOL=$(basename $(echo "$PR_CREATE" | awk '{print $1}'))`. Classify `git remote get-url origin 2>/dev/null` using the same map as hatch:
+- `github.com` or `github.` → `FORGE=github`
+- `gitlab.com` or `gitlab.` → `FORGE=gitlab`
+- `bitbucket.org` → `FORGE=bitbucket`
+- anything else → `FORGE=custom`
+
+Fail **only** when both forge and tool are in the recognized set and they form a known-bad pairing:
+- `FORGE=github` AND `TOOL != gh` → FAIL
+- `FORGE=gitlab` AND `TOOL != glab` → FAIL
+
+All other combinations (FORGE=bitbucket, FORGE=custom, TOOL not in {gh,glab}, no remote) → warn-and-proceed (custom wrappers on known hosts must not be blocked).
+
+Fail message: `"commands.pr_create ('<configured>') doesn't match origin host (<forge>) — re-run /claude-code-dev-hermit:hatch or update commands.pr_create in .claude-code-hermit/config.json"`.
 
 **1. Protected-branch check.** Materialize the cached `protected_branches` config value as a bash array, then compare the current branch against each pattern using bash glob semantics:
 
@@ -41,16 +77,16 @@ done
 
 Otherwise, read `.claude-code-hermit/state/last-test.json`:
 
-- If the file exists **and** `sha === current HEAD` **and** `status === "pass"`: cache hit — skip test run and proceed.
+- If the file exists **and** `sha === git -C "$TARGET" rev-parse HEAD` **and** `status === "pass"`: cache hit — skip test run and proceed.
 - Anything else (file missing, stale SHA, or `status !== "pass"`): run tests now:
 
   ```bash
   node "${CLAUDE_PLUGIN_ROOT}/scripts/record-test-result.js" run
   ```
 
-  Use `timeout: 600000`. If exit non-zero: read the just-written `state/last-test.json` and include `likely_cause` in the message if present (`tests failed (exit 137, likely OOM) — fix and re-run /dev-pr`); otherwise FAIL `"tests failed (exit N) — fix and re-run /dev-pr"`. If exit 0: proceed.
+  Append `--cwd "<path>"` when the operator passed `--cwd`. Use `timeout: 600000`. If exit non-zero: read the just-written `state/last-test.json` and include `likely_cause` in the message if present (`tests failed (exit 137, likely OOM) — fix and re-run /dev-pr`); otherwise FAIL `"tests failed (exit N) — fix and re-run /dev-pr"`. If exit 0: proceed.
 
-  For suites longer than 10 min: run tests in a terminal, record with `node <PLUGIN_ROOT>/scripts/record-test-result.js write <exit_code> <duration_ms>`, then re-run `/dev-pr`.
+  For suites longer than 10 min: run tests in a terminal, record with `node <PLUGIN_ROOT>/scripts/record-test-result.js write <exit_code> <duration_ms>` (append `--cwd "<path>"` when relevant), then re-run `/dev-pr`.
 
 This is the gate that enforces CLAUDE-APPEND §Tests Before PR mechanically rather than relying on the agent's self-report.
 
@@ -119,24 +155,39 @@ Build the title and body inline, no helper script.
 
 5. **Notes** — optional. Skip unless the operator passed in qualitative concerns through Gate 2 (out-of-scope follow-ups, known limitations) — there is no automatic source for this section.
 
-**Project PR template.** If `pr_template_path` is set in config, OR `.github/PULL_REQUEST_TEMPLATE.md` exists, OR `docs/pull_request_template.md` exists — load the first one found and append it after the assembled body, separated by `\n\n---\n\n`. Do not attempt to merge headings or substitute sections — the project's template appears verbatim below ours.
+**Project PR template.** Check in priority order: `pr_template_path` from config (operator override), then `.github/PULL_REQUEST_TEMPLATE.md`, then `.gitlab/merge_request_templates/Default.md`, then `.bitbucket/pull_request_template.md`, then `docs/pull_request_template.md`. Load the first one found and append it after the assembled body, separated by `\n\n---\n\n`. Do not attempt to merge headings or substitute sections — the project's template appears verbatim below ours.
 
 ### Gate 3 — create the PR
 
-Write the body to a temp file (avoids shell-quoting issues with multi-line markdown). Use the `Write` tool with `file_path: $PR_BODY_TMP` (capture the path from `mktemp` via Bash first) and `content: <assembled body>`. Then:
+Write the body to a temp file (avoids shell-quoting issues with multi-line markdown). Use the `Write` tool with `file_path: $PR_BODY_TMP` (capture the path from `mktemp` via Bash first) and `content: <assembled body>`. Then dispatch based on `$TOOL` (derived in Gate 0 step 0b):
 
 ```bash
 PR_BODY_TMP=$(mktemp)
 # (Write tool wrote the body to $PR_BODY_TMP)
-gh pr create --title "$TITLE" --body-file "$PR_BODY_TMP" --base "$BASE"
-# or the configured commands.pr_create
+
+case "$TOOL" in
+  gh)
+    $PR_CREATE --title "$TITLE" --body-file "$PR_BODY_TMP" --base "$BASE"
+    ;;
+  glab)
+    # glab mr create uses --description (string) and --target-branch, not --body-file/--base
+    $PR_CREATE --title "$TITLE" --description "$(cat "$PR_BODY_TMP")" --target-branch "$BASE"
+    ;;
+  *)
+    # Custom command: Gate 3 passes gh-style flags.
+    # Wrap your CLI in a script that accepts --title --body-file --base if it uses different flags.
+    $PR_CREATE --title "$TITLE" --body-file "$PR_BODY_TMP" --base "$BASE"
+    ;;
+esac
+
 rm -f "$PR_BODY_TMP"
 ```
 
 - Capture stdout; extract the first line matching `^https?://` as the PR URL.
-- If stdout/stderr contains `pull request already exists`: ask the operator (`AskUserQuestion`: `Update existing PR body` / `Cancel`). On Update, run `gh pr edit <number> --body-file "$PR_BODY_TMP"`.
-- On `gh auth` error in stderr: FAIL `"not authenticated — run: gh auth login"`.
-- On any non-zero exit: FAIL with stderr tail + exit code.
+- On any non-zero exit: print stderr tail and a tool-aware recovery hint:
+  - `$TOOL == gh` → `"recovery: gh auth login"`
+  - `$TOOL == glab` → `"recovery: glab auth login"`
+  - `*` → `"recovery: check authentication for your forge CLI"`
 
 ### Gate 4 — record
 
@@ -181,4 +232,4 @@ On Gate 3 FAIL: show the host-tool exit message + a one-line recovery hint.
 - **No screenshot creation.** Reads from `raw/screenshots/<binding-id>/manifest.json`. Producing screenshots is a stack-specific plugin's job.
 - **No merge.** Opening the PR is the terminal step; merging is a separate operator decision.
 - **Never force-push.** Even on divergence — surface the conflict, let the operator resolve. The `git-push-guard` hook blocks force-push at strict profile; this skill respects the same rule unconditionally.
-- **Session→PR auto-link.** Calling `gh pr create` via Bash preserves Claude Code's native session→PR linking. The operator can resume this session later with `claude --from-pr <number>`.
+- **Session→PR auto-link.** When `$TOOL == gh`, calling `gh pr create` via Bash preserves Claude Code's native session→PR linking. The operator can resume later with `claude --from-pr <number>`. This feature is GitHub-specific and does not apply for other forge tools.
