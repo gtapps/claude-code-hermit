@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.32] - 2026-05-07
 
 ### Added
 
@@ -11,13 +11,21 @@
 - **`agents/proposal-triage.md`** — adds Step 1.5 (Memory cross-reference) between Deduplication and Session cross-reference; SUPPRESS code list extended with `covered-by-memory`; new `memory_ref: <filename>` metadata field emitted alongside that verdict.
 - **`agents/reflection-judge.md`** — adds `### 1.5 Memory cross-check` between Evidence verification and Tier check; canonical suppress codes extended with `covered-by-memory`; reason includes `[memory: <filename>]` breadcrumb so operators can locate the source.
 
+### Files affected
+
+| File | Change |
+|------|--------|
+| `agents/proposal-triage.md` | Adds Step 1.5 memory cross-reference, `covered-by-memory` code, `memory_ref` metadata |
+| `agents/reflection-judge.md` | Adds §1.5 memory cross-check, `covered-by-memory` code, `[memory:]` breadcrumb |
+| `state-templates/CLAUDE-APPEND.md` | Adds Memory-first paragraph in Knowledge Discipline section |
+
 ### Upgrade Instructions
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill executes:
 
-1. **CLAUDE-APPEND block sync (automatic).** Step 6 of `hermit-evolve` reads the current `state-templates/CLAUDE-APPEND.md` and replaces the marker→EOF block in the project's `CLAUDE.md`. The new Memory-first paragraph propagates with no version-specific step needed. Idempotent.
+1. **Refresh the CLAUDE-APPEND anchored block.** Step 6 reads `state-templates/CLAUDE-APPEND.md` and replaces the marker→EOF block in the project's `CLAUDE.md`. The new Memory-first paragraph propagates idempotently.
 
-No `config.json` changes. No `runtime.json` changes. No new permissions. Subagent prompt updates ship inside the plugin source and take effect on plugin update — no per-install migration required.
+No `config.json` changes required.
 
 ## [1.0.31] - 2026-05-07
 
