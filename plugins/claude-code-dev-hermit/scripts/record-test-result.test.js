@@ -191,5 +191,37 @@ s = readState(proj);
 assert('likely_cause: absent on generic exit 1', s !== null && !('likely_cause' in s));
 cleanup(proj);
 
+// --cwd: parent repo with a nested child repo. Verify the captured SHA
+// is the child's HEAD, not the parent's.
+proj = setupProject('exit 0');
+const child = path.join(proj, 'packages', 'foo');
+fs.mkdirSync(child, { recursive: true });
+const gitEnv = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+execSync('git init -q && git commit -q --allow-empty -m child-init', { cwd: child, env: gitEnv, stdio: 'ignore' });
+const parentSha = execSync('git rev-parse HEAD', { cwd: proj, encoding: 'utf-8' }).trim();
+const childSha = execSync('git rev-parse HEAD', { cwd: child, encoding: 'utf-8' }).trim();
+assert('--cwd test setup: parent and child SHAs differ', parentSha !== childSha);
+const cwdRun = spawnSync(process.execPath, [HOOK, 'run', '--cwd', child], { cwd: proj, encoding: 'utf-8' });
+s = readState(proj);
+assert('run --cwd: exits 0 on passing test command', cwdRun.status === 0);
+assert('run --cwd: captures child HEAD sha (not parent)', s !== null && s.sha === childSha);
+cleanup(proj);
+
+// --cwd: bogus path fails fast
+proj = setupProject('exit 0');
+const cwdBogus = spawnSync(process.execPath, [HOOK, 'run', '--cwd', '/nonexistent/path/xyz'], { cwd: proj, encoding: 'utf-8' });
+assert('run --cwd: exits non-zero on missing path', cwdBogus.status !== 0);
+assert('run --cwd: does not write last-test.json on missing path', readState(proj) === null);
+cleanup(proj);
+
+// `git rev-parse --git-dir` walks up, so the dir must be outside any git repo.
+proj = setupProject('exit 0');
+const notGit = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-test-notgit-'));
+const cwdNotGit = spawnSync(process.execPath, [HOOK, 'run', '--cwd', notGit], { cwd: proj, encoding: 'utf-8' });
+assert('run --cwd: exits non-zero on non-git dir', cwdNotGit.status !== 0);
+assert('run --cwd: does not write last-test.json on non-git dir', readState(proj) === null);
+fs.rmSync(notGit, { recursive: true, force: true });
+cleanup(proj);
+
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

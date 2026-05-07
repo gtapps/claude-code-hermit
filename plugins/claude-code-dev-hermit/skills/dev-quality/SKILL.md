@@ -14,17 +14,23 @@ Run a quality pass on the working-tree diff before declaring the task done. Invo
 
 ## Plan
 
+### Argument
+
+Optional `--cwd <path>`. When set, all git operations and the test re-run target `<path>` instead of `$PWD`. `<path>` must be a git working tree. Use this for nested-repo workflows (see CLAUDE-APPEND §Implementation Flow). State (`last-test.json`, hermit dir) still resolves from `$PWD`.
+
+In the gates below, use `git -C "<path>"` for every git invocation when `--cwd` is set, otherwise omit the `-C` and run against `$PWD` as today. Below this is written as `git -C "$TARGET"` with `$TARGET` standing for either form.
+
 ### Gate 0 — preconditions
 
 ```bash
-git diff --quiet && git diff --cached --quiet
+git -C "$TARGET" diff --quiet && git -C "$TARGET" diff --cached --quiet
 ```
 
 If both are empty: working tree is clean. Before failing, check whether HEAD has commits ahead of the base:
 
 1. Resolve `BASE_NAME` using the same priority order as `/dev-pr` Gate 0 step 4 (`pr_base_branch` → first non-glob `protected_branches` → `origin/HEAD` → `main`/`master`).
-2. Resolve `BASE_REF`: try `git rev-parse --verify "$BASE_NAME" 2>/dev/null`; on failure try `git rev-parse --verify "origin/$BASE_NAME" 2>/dev/null`; if neither resolves, skip the NOTICE.
-3. If `git rev-list --count "$BASE_REF..HEAD"` > 0, emit before failing:
+2. Resolve `BASE_REF`: try `git -C "$TARGET" rev-parse --verify "$BASE_NAME" 2>/dev/null`; on failure try `git -C "$TARGET" rev-parse --verify "origin/$BASE_NAME" 2>/dev/null`; if neither resolves, skip the NOTICE.
+3. If `git -C "$TARGET" rev-list --count "$BASE_REF..HEAD"` > 0, emit before failing:
 
    ```
    NOTICE: working tree is clean but HEAD has N commits ahead of <BASE_NAME>.
@@ -33,11 +39,13 @@ If both are empty: working tree is clean. Before failing, check whether HEAD has
            To verify the committed state passes tests, run /dev-test instead.
    ```
 
-Then FAIL `"no working-tree diff — nothing to simplify"`.
+Then FAIL `"no working-tree diff — nothing to simplify"`. Append the hint `hint: if edits are in a nested git repo, re-run with --cwd <path>` unless `--cwd` was already passed.
 
 ### Gate 1 — run `/simplify`
 
 Invoke `/simplify` on the current diff. Wait for it to complete. If `/simplify` reports no changes, note `simplify: no changes` and continue to Gate 2 anyway.
+
+When `--cwd <path>` is set, scope `/simplify` to files under `<path>` — list them via `git -C "<path>" diff --name-only` and pass that file set as the focus. Don't simplify outside `<path>`.
 
 ### Gate 2 — re-run tests
 
@@ -46,6 +54,8 @@ If `commands.test` is unset: skip this gate, record `tests: skipped`, and procee
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/record-test-result.js" run
 ```
+
+When `--cwd <path>` is set, append `--cwd "<path>"` to the invocation. The script runs the test command from `<path>` and records `<path>`'s HEAD SHA into `last-test.json` (so `/dev-pr` cache checks against the right commit).
 
 Use `timeout: 600000`. Records the result to `last-test.json`.
 
@@ -73,6 +83,17 @@ dev-quality
   simplify: applied
   tests:    pass (12.3s)
   next:     suggest operator run /code-review:code-review (installed)
+  status:   ok
+```
+
+When invoked with `--cwd <path>`, prepend a `target:` line:
+
+```
+dev-quality
+  target:   packages/foo
+  diff:     3 files modified
+  simplify: applied
+  tests:    pass (4.1s)
   status:   ok
 ```
 
@@ -113,7 +134,10 @@ On Gate 0 failure (clean tree, no commits ahead or base unresolvable):
 ```
 dev-quality
   FAIL (Gate 0): no working-tree diff — nothing to simplify
+                 hint: if edits are in a nested git repo, re-run with --cwd <path>
 ```
+
+(The `hint:` line is omitted when `--cwd` was already passed.)
 
 ## Rules
 

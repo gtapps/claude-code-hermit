@@ -5,7 +5,7 @@
 - [Claude Code](https://code.claude.com) v2.1.110+
 - [claude-code-hermit](https://github.com/gtapps/claude-code-hermit) v1.0.26+ (installed and hatched)
 - Node.js 24+ (for the `git-push-guard` hook at strict profile)
-- `gh` (or `glab`) for `/dev-pr`
+- `gh` (GitHub) or `glab` (GitLab) for `/dev-pr`; Bitbucket and other forges need `commands.pr_create` set via `/hatch`
 
 ---
 

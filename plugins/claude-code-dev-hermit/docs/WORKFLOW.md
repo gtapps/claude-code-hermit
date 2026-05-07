@@ -67,13 +67,13 @@ Operator (or the agent on the operator's behalf) runs:
 
 `/dev-pr` runs five gates (Gate 0 through Gate 4):
 
-- **Gate 0 — preconditions**: protected-branch refusal, clean-tree refusal, commits-ahead refusal. No `--force` flag exists; the only escape is to fix the failing condition.
+- **Gate 0 — preconditions**: forge/tool sanity (`commands.pr_create` set and matching origin host), protected-branch refusal, clean-tree refusal, commits-ahead refusal. No `--force` flag exists; the only escape is to fix the failing condition.
 - **Gate 1 — push**: regular push if upstream missing or you're ahead. If `BEHIND > 0`, refuses with "git pull --rebase first" (no force-push).
-- **Gate 2 — assemble title and body**: title from binding (e.g. `PROJ-123:`) + first commit subject (conventional-prefix-stripped). Body sections in order: Summary (deduped commit subjects), Context (binding link), Verification (last test result), Screenshots (from `raw/screenshots/<binding-id>/manifest.json` if any), Notes (operator-supplied). Project PR template (`pr_template_path` or `.github/PULL_REQUEST_TEMPLATE.md`) appended verbatim if found.
-- **Gate 3 — create**: writes the body to a temp file, calls `gh pr create --title ... --body-file ... --base ...` (or the configured `commands.pr_create`, e.g. `glab pr create` for GitLab).
+- **Gate 2 — assemble title and body**: title from binding (e.g. `PROJ-123:`) + first commit subject (conventional-prefix-stripped). Body sections in order: Summary (deduped commit subjects), Context (binding link), Verification (last test result), Screenshots (from `raw/screenshots/<binding-id>/manifest.json` if any), Notes (operator-supplied). Project PR template (`pr_template_path` or forge-specific path) appended verbatim if found.
+- **Gate 3 — create**: writes the body to a temp file, calls `gh pr create` (GitHub), `glab mr create` (GitLab), or the configured `commands.pr_create`. Flag layout is forge-aware: glab uses `--description "$(cat ...)"` and `--target-branch`; custom commands receive gh-style flags and should wrap if needed.
 - **Gate 4 — record**: writes `state/bindings.json` with the PR URL, appends to SHELL.md.
 
-Native session→PR auto-link: calling `gh pr create` via Bash preserves Claude Code's session linking. The operator can resume this session later with `claude --from-pr <number>`.
+Native session→PR auto-link: when using `gh pr create` on GitHub, Claude Code preserves session linking. The operator can resume this session later with `claude --from-pr <number>`. This feature is GitHub-specific.
 
 ### Step 7 — Reflect
 

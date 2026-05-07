@@ -23,9 +23,13 @@ Check if `.claude-code-hermit/` exists in the current project.
 Run all detection in a single parallel turn:
 
 **Bash:**
-- Existing PR template: `ls .github/PULL_REQUEST_TEMPLATE.md docs/pull_request_template.md 2>/dev/null | head -1`.
+- Existing PR template: `ls .github/PULL_REQUEST_TEMPLATE.md .gitlab/merge_request_templates/Default.md .bitbucket/pull_request_template.md docs/pull_request_template.md 2>/dev/null | head -1`.
 - Installed plugins: `claude plugin list 2>/dev/null` or read `.claude/settings.json`.
-- Remote host (for `commands.pr_create` default): `git remote get-url origin 2>/dev/null` — if the URL contains `gitlab`, default `pr_create` to `glab pr create`; else default to `gh pr create`.
+- Remote forge (for `commands.pr_create`): `git remote get-url origin 2>/dev/null` — classify by substring:
+  - `github.com` or `github.` → `FORGE=github`, `DEFAULT_PR_CREATE="gh pr create"`
+  - `gitlab.com` or `gitlab.` → `FORGE=gitlab`, `DEFAULT_PR_CREATE="glab mr create"`
+  - `bitbucket.org` → `FORGE=bitbucket`, `DEFAULT_PR_CREATE=""` (no universal CLI — operator must supply)
+  - anything else or no remote → `FORGE=custom`, `DEFAULT_PR_CREATE=""`
 - Capability scan: `ls .claude/skills/ 2>/dev/null` — list skill directory names. Match if any of the following dir names are present: `commit`, `create-pr`, `pr`, `pull-request`, `release`, `git-commit`. Record the matched names.
 - Base-branch detection: `git branch -r --format='%(refname:short)' 2>/dev/null | sed 's|^origin/||'` — collect remote branch names. Record which of the following are present: `main`, `master`, `develop`, `development`, `dev`, `trunk`. Call this set `CANDIDATE_BASES`.
 
@@ -154,6 +158,20 @@ questions: [
     ]
   },
   {
+    header: "PR cmd",   // standard mode only (see below)
+    question: "How should /dev-pr open the PR? (Invoked with --title, a body flag, and a base flag per the detected forge.)",
+    options: [
+      { label: "Keep current (<value>)", description: "Already configured" },          // re-run only
+      { label: "gh pr create (recommended)", description: "Detected GitHub remote" },  // FORGE=github only
+      { label: "glab mr create (recommended)", description: "Detected GitLab remote — uses --description and --target-branch" }, // FORGE=gitlab only
+      // For FORGE=bitbucket:
+      { label: "Skip — I'll configure later", description: "Bitbucket detected. No universally-available CLI exists — see docs/WORKFLOW.md for custom wrapper guidance. /dev-pr will fail until commands.pr_create is set in .claude-code-hermit/config.json." },
+      // For FORGE=custom:
+      { label: "Skip — I'll configure later", description: "/dev-pr will fail until commands.pr_create is set in .claude-code-hermit/config.json." },
+      { label: "Other", description: "Type a custom command or wrapper script. Must print the PR URL on a line starting with https://. Gate 3 passes --title, --body-file, --base — wrap your CLI if it uses different flags." }
+    ]
+  },
+  {
     header: "PR template",   // standard mode only (see below)
     question: "PR template path? (auto-detected: `<detected or 'none'>`)",
     options: [
@@ -185,7 +203,7 @@ questions: [
 ]
 ```
 
-In `safety` mode, skip the `PR template` and `Base branch` questions; do not write `pr_template_path` or `pr_base_branch` to config (these feed `/dev-pr` which is not prescribed in safety mode). Keep `Hook` and `Plugins`.
+In `safety` mode, skip the `PR cmd`, `PR template`, and `Base branch` questions; do not write `commands.pr_create`, `pr_template_path`, or `pr_base_branch` to config (these feed `/dev-pr` which is not prescribed in safety mode). Keep `Hook` and `Plugins`.
 
 Filter the Plugins `options` array to only those NOT already installed (per the `claude plugin list` detection above). If the filtered list is empty, skip the Plugins question entirely.
 
@@ -207,7 +225,7 @@ In `standard` mode only, also write:
 - `claude-code-dev-hermit.commands.test` — required, from Round 1.
 - `claude-code-dev-hermit.commands.lint` — optional.
 - `claude-code-dev-hermit.commands.format` — optional.
-- `claude-code-dev-hermit.commands.pr_create` — from the remote-host detection above (`gh pr create` / `glab pr create`); preserve any existing operator override.
+- `claude-code-dev-hermit.commands.pr_create` — from the Round 2 `PR cmd` answer. If the operator chose `Skip`, leave the key absent (do not write null or empty string). Preserve any existing operator override on re-run.
 - `claude-code-dev-hermit.pr_template_path` — optional, from Round 2.
 - `claude-code-dev-hermit.pr_base_branch` — write only if the chosen branch (from the Round 2 `Base branch` question, or `AUTO_BASE` from the single-match case) differs from `FALLBACK_BASE`. If equal or not set, leave the key absent so `/dev-pr`'s fallback chain operates undisturbed.
 
@@ -232,6 +250,7 @@ Commands:  [standard mode only]
   Test:   <cmd>
   Lint:   <cmd or 'skipped'>
   Format: <cmd or 'skipped'>
+  PR cmd: <commands.pr_create or 'unset — /dev-pr will fail until configured via /hatch'>
 
 Updated:
   CLAUDE.md — dev block [appended / updated to vX.Y.Z / already current]
@@ -278,4 +297,5 @@ Read by `/claude-code-hermit:docker-security` when the operator enables LAN cont
 - **Single source of truth.** The selected template (`CLAUDE-APPEND.md` or `CLAUDE-APPEND-SAFETY.md`) is the source for the project's dev conventions. Step 3 always overwrites the marked block when versions differ or mode changes; do not preserve operator edits to that block (operators who want overrides put them elsewhere in their CLAUDE.md).
 - **Never downgrade hook profile.** If the operator chooses "No — leave at standard" but `env.AGENT_HOOK_PROFILE` is already `strict`, preserve `strict`. The opt-out only applies on first install.
 - **No stack detection magic.** Detection seeds defaults for prompts; operators always confirm. Never write `commands.test` from detection alone — it must be operator-confirmed.
-- **Safety mode skips workflow prompts.** In `safety` mode, do not prompt for `commands.test`, `commands.lint`, `commands.format`, `commands.pr_create`, or `pr_template_path`. These keys feed workflow sections that safety mode does not inject.
+- **Safety mode skips workflow prompts.** In `safety` mode, do not prompt for `commands.test`, `commands.lint`, `commands.format`, `commands.pr_create`, `pr_template_path`, or `pr_base_branch`. These keys feed workflow sections that safety mode does not inject.
+- **PR cmd question options are built dynamically.** The `PR cmd` question options array is constructed at runtime: include `Keep current` only on re-run; include the forge-recommended option only when `FORGE` is `github` or `gitlab`; include the forge-specific `Skip` message for `FORGE=bitbucket` or a generic `Skip` for `FORGE=custom`; always include `Other`. Never show more than 4 options at once — omit `Keep current` on first run.

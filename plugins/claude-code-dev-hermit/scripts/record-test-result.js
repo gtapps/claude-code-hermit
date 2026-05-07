@@ -48,8 +48,8 @@ function atomicWrite(filePath, content) {
   fs.renameSync(tmp, filePath);
 }
 
-function writeRecord(hermitDir, command, exitCode, durationMs) {
-  const sha = gitHead(process.cwd());
+function writeRecord(hermitDir, command, exitCode, durationMs, targetDir) {
+  const sha = gitHead(targetDir || process.cwd());
   if (!sha) return;
   const record = {
     command,
@@ -75,15 +75,35 @@ function writeRecord(hermitDir, command, exitCode, durationMs) {
 
 const argv = process.argv;
 
+function parseCwdFlag(args) {
+  const i = args.indexOf('--cwd');
+  if (i === -1) return null;
+  const val = args[i + 1];
+  if (!val || val.startsWith('--')) {
+    console.error('--cwd: missing path argument');
+    process.exit(1);
+  }
+  try {
+    execSync('git rev-parse --git-dir', { cwd: val, stdio: ['ignore', 'ignore', 'ignore'] });
+  } catch (_) {
+    console.error(`--cwd: not a git working tree: ${val}`);
+    process.exit(1);
+  }
+  return val;
+}
+
 // run subcommand: execute commands.test and record the result
 if (argv[2] === 'run') {
+  const targetDir = parseCwdFlag(argv.slice(3));
   const hermitDir = findHermitDir(process.cwd());
   if (!hermitDir) { console.error('No .claude-code-hermit/ found'); process.exit(1); }
   const testCmd = loadTestCommand(hermitDir);
   if (!testCmd) { console.error('commands.test not configured'); process.exit(1); }
   const start = Date.now();
-  const r = spawnSync('bash', ['-c', testCmd], { stdio: 'inherit' });
-  writeRecord(hermitDir, testCmd, r.status ?? 1, Date.now() - start);
+  const spawnOpts = { stdio: 'inherit' };
+  if (targetDir) spawnOpts.cwd = targetDir;
+  const r = spawnSync('bash', ['-c', testCmd], spawnOpts);
+  writeRecord(hermitDir, testCmd, r.status ?? 1, Date.now() - start, targetDir);
   process.exit(r.status ?? 1);
 }
 
@@ -92,10 +112,11 @@ if (argv[2] === 'write') {
   const ecArg = argv[3];
   const durArg = argv[4];
   if (!/^-?\d+$/.test(ecArg) || !/^-?\d+$/.test(durArg)) process.exit(0);
+  const targetDir = parseCwdFlag(argv.slice(5));
   const hermitDir = findHermitDir(process.cwd());
   if (!hermitDir) process.exit(0);
   const testCmd = loadTestCommand(hermitDir) || '';
-  writeRecord(hermitDir, testCmd, parseInt(ecArg, 10), parseInt(durArg, 10));
+  writeRecord(hermitDir, testCmd, parseInt(ecArg, 10), parseInt(durArg, 10), targetDir);
   process.exit(0);
 }
 

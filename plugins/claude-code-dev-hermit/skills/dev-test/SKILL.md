@@ -7,9 +7,13 @@ description: Run the configured test suite and record the result to .claude-code
 
 Run the project's configured test command and record the result.
 
+## Argument
+
+Optional `--cwd <path>`. When set, the test command runs from `<path>` and `last-test.json` records `<path>`'s HEAD SHA. Use this for nested-repo workflows (see CLAUDE-APPEND §Implementation Flow). `<path>` must be a git working tree.
+
 ## Plan
 
-Run the following Bash command. Use `timeout: 600000` (10-min ceiling).
+Run the following Bash command. Use `timeout: 600000` (10-min ceiling). Append `--cwd "<path>"` when the operator passed `--cwd`.
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/record-test-result.js" run
