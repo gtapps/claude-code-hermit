@@ -1,12 +1,38 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.34] - 2026-05-08
 
 ### Fixed
 
 - **Plugin detection scoped to project/local only across five skills.** `/hatch` Step 1.5, `/docker-setup` Step 7b.1, `/docker-security` Step 3a, `/hermit-evolve` Step 7, and `/channel-setup` Step 3 all enumerated installed plugins without pinning `projectPath` to the current project root. `claude plugin list --json` returns entries for all projects in the operator's config, so a bare `scope == "local"` predicate leaked plugins from sibling repos. All five sites now apply the canonical filter: `enabled == true AND (scope == "project" OR scope == "local") AND projectPath == cwd`. User-scope plugins are explicitly dropped. `/hatch` and `/hermit-evolve` also replace the `${CLAUDE_PLUGIN_ROOT}/../*` disk glob with the JSON list so the install root is read from `installPath` rather than inferred by path proximity. `/hatch`'s `detected_hermits` stash now carries `installPath` so downstream Steps 3, 5a, 6, and Quick Turn 1 read `CLAUDE-APPEND.md`, `plugin.json`, and `OPERATOR-QUESTIONS.md` from the resolved install path instead of re-globbing.
 
-- **`docker.recommended_plugins` now stores both marketplace identifiers.** The entrypoint was deriving the install target and on-disk cache key from `marketplace.split('/')[-1]`, which breaks when the marketplace `name` field differs from the repo basename (e.g. `openai/codex-plugin-cc` → name `openai-codex`). Each entry now carries `marketplace` (`org/repo` for `marketplace add`) and `marketplace_name` (canonical name for install targets and the `~/.claude/plugins/cache/<name>/` key). Official entries switch from the legacy `"claude-plugins-official"` shortcut to `{"marketplace": "anthropics/claude-plugins-official", "marketplace_name": "claude-plugins-official"}`. The entrypoint gains backward-compat fallback paths for legacy configs (org/repo entry → derive name from basename with warning; literal `claude-plugins-official` → normalize to real org/repo with warning; unresolvable no-slash value → skip with warning). The `installed_blob` already-installed check changes from bare substring to `❯ {target}` prefix match, preventing false positives where a short plugin name is a substring of a longer one. Affects `/docker-setup` Step 7b, `/hermit-settings` docker section, docs, and entrypoint.
+- **`docker.recommended_plugins` now stores both marketplace identifiers.** The entrypoint was deriving the install target and on-disk cache key from `marketplace.split('/')[-1]`, which breaks when the marketplace `name` field differs from the repo basename (e.g. `openai/codex-plugin-cc` → name `openai-codex`). Each entry now carries `marketplace` (`org/repo` for `marketplace add`) and `marketplace_name` (canonical name for install targets and the `~/.claude/plugins/cache/<name>/` key). Official entries switch from the legacy `"claude-plugins-official"` shortcut to `{"marketplace": "anthropics/claude-plugins-official", "marketplace_name": "claude-plugins-official"}`. The entrypoint gains backward-compat fallback paths for legacy configs (org/repo entry → derive name from basename with warning; literal `claude-plugins-official` → normalize to real org/repo with warning; unresolvable no-slash value → skip with warning). The already-installed check in the entrypoint switches from bare substring to `❯ {target}` prefix match, preventing false positives where a short plugin name is a substring of a longer entry. Affects `/docker-setup` Step 7b, `/hermit-settings` docker section, docs, and entrypoint.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/hatch/SKILL.md` | Step 1.5 uses `claude plugin list --json` + filter; stash carries `installPath`; downstream steps read from `installPath` |
+| `skills/docker-setup/SKILL.md` | Step 7b.1 filter tightened; dedupe rule added; Step 7b.3/5/10 updated for dual identifiers; backfill section added |
+| `skills/docker-security/SKILL.md` | Step 3a filter tightened; `path` field → `installPath` |
+| `skills/hermit-evolve/SKILL.md` | Step 7 replaces disk glob with `claude plugin list --json` + filter; reads from `installPath` |
+| `skills/channel-setup/SKILL.md` | Step 3 replaces unstructured grep with JSON + filter; adds `marketplace_name` gate; adds explicit `plugin enable` |
+| `skills/hermit-settings/SKILL.md` | Display renders `marketplace_name`; `add` action writes both identifiers with dedupe-by-(plugin, marketplace_name) |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Install loop uses `marketplace_name` for cache-dir check and install target; legacy fallback paths; `❯` prefix match for already-installed guard |
+| `docs/config-reference.md` | `recommended_plugins` schema adds `marketplace_name` row; example entry updated |
+| `docs/recommended-plugins.md` | Config format table adds `marketplace_name` row |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Refresh skill spec** — the updated skill text loads on the next invocation of each affected skill. No state files or templates change.
+
+To pick up the entrypoint `marketplace_name` fix in a running Docker container:
+
+2. **Rebuild your container** — run `.claude-code-hermit/bin/hermit-docker update`. This rebuilds the image with the updated entrypoint and refreshes plugin marketplaces. Required only if you use Docker and have non-`gtapps` third-party recommended plugins whose marketplace `name` differs from their repo basename (e.g. `openai-codex` / `openai/codex-plugin-cc`).
+
+**Note:** Existing `docker.recommended_plugins` entries without `marketplace_name` continue to work via the backward-compat fallback (warning printed on boot); run `/docker-setup` to backfill both identifiers cleanly.
 
 ## [1.0.33] - 2026-05-07
 
