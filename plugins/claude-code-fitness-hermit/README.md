@@ -6,44 +6,48 @@
 
 # claude-code-fitness-hermit
 
-Turn Claude Code into a 24/7 personal fitness assistant.
-
-Reads your Strava, spots load anomalies, drafts weekly plans, and flags recovery.
+Turn Claude Code into a 24/7 personal fitness assistant. **Strava-aware**, **Read-only**, **Plans + flags**, **Built on `claude-code-hermit`**.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/gtapps/claude-code-hermit/main/plugins/claude-code-hermit/assets/demo.gif" alt="claude-code-hermit demo — Obsidian dashboard, Discord control, autonomous briefings, remote access" width="720" />
 </p>
 
-This is a [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) plugin. The core hermit brings session discipline, memory, and routines to Claude Code. This plugin adds the training layer — connected through the community Strava [MCP Server](https://github.com/r-huijts/strava-mcp-server) and the Strava [REST API](https://developers.strava.com/docs/reference/).
+Reads your Strava, spots load anomalies, drafts weekly plans, and flags recovery — never modifies your account. Wires the community Strava [MCP Server](https://github.com/r-huijts/strava-mcp-server) and the [Strava REST API](https://developers.strava.com/docs/reference/) into the [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) loop, with write-class tools blocked at the settings layer.
 
-Three steps to a running 24/7 training hermit:
-> ```
-> # Install
-> /plugin marketplace add gtapps/claude-code-hermit
-> /plugin install claude-code-fitness-hermit@claude-code-hermit --scope project
->
-> # Setup Wizard
-> /claude-code-fitness-hermit:hatch
->
-> # Go always-on
-> /claude-code-hermit:docker-setup
-> ```
+```
+# Install
+claude plugin marketplace add gtapps/claude-code-hermit
+claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope project
+
+# Setup wizard
+/claude-code-fitness-hermit:hatch
+
+# Go always-on
+/claude-code-hermit:docker-setup
+```
 
 ---
 
-## How It Works
+## What you get
 
-**1. Give it your Strava.** Hatch wires the Strava MCP server, drops in routine prompt templates, and registers them with the core hermit. Your training history becomes the context it reasons from.
+**Knows your training.** Hatch wires the Strava MCP server, drops in routine prompt templates, and registers them with the core hermit. Your training history becomes the context it reasons from.
 
-**2. Talk to it on Discord & Telegram or remotely.** Ask about last week's load, request an activity deep-dive, or get tomorrow's session suggestion. `activity-deep-dive` produces a coaching artifact — zone breakdown, pace/HR efficiency, cardiac drift, recovery estimate — you can skim in seconds.
+**Drive it from anywhere.** Ask about last week's load, request an activity deep-dive, or get tomorrow's session suggestion — DM the hermit on Discord or Telegram, or jump into a live session from claude.ai/code on your phone. `activity-deep-dive` produces a coaching artifact (zone breakdown, pace/HR efficiency, cardiac drift, recovery estimate) you can skim in seconds.
 
-**3. It watches your training for you.** Daily checks for new activities and Strava connectivity; weekly load review on Sundays; Monday planning suggestions. Anomalies — skipped recovery, ramp-rate spikes, missing data — get flagged in your channel.
+**It watches your training for you.** Daily checks for new activities and Strava connectivity; weekly load review on Sundays; Monday planning suggestions. Anomalies — skipped recovery, ramp-rate spikes, missing data — get flagged in your channel.
 
-**4. Routines.** Strava sync, health check, weekly load review, Monday planning. Need a different cadence or a new routine? Just ask and hermit sets it up.
+**Routines that match a training week:**
 
-**5. Safety is the default.** Write-class Strava tools (`star-segment`, `connect-strava`, `disconnect-strava`) are blocked outright. The hermit only reads — your Strava account is never modified.
+- `strava-sync` — daily 21:30 — detect new activities, log them, flag anomalies
+- `strava-health-check` — daily 08:05 — verify Strava connectivity; alert if lost
+- `weekly-load-review` — Sunday 18:00 — week-over-week load summary with trend flag
+- `monday-planning` — Monday 09:30 — weekly training structure suggestion
 
-**6. Everything is browsable.** Activity notes, weekly summaries, and load baselines flow into your hermit Cortex — the Obsidian vault hermit maintains — so your training history is greppable, linkable, and yours.
+Need a different cadence or a new routine? Just ask — hermit sets it up.
+
+**Read-only by design.** Write-class Strava tools (`star-segment`, `connect-strava`, `disconnect-strava`) are blocked at the settings layer. The hermit only reads — your Strava account is never modified.
+
+**Everything is browsable.** Activity notes, weekly summaries, and load baselines flow into your hermit Cortex — the Obsidian vault hermit maintains — so your training history is greppable, linkable, and yours.
 
 ---
 
@@ -55,9 +59,7 @@ Three steps to a running 24/7 training hermit:
 
 ```bash
 cd /path/to/your/project   # any folder — empty is fine
-
 claude plugin marketplace add gtapps/claude-code-hermit
-
 claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope project
 ```
 
@@ -67,9 +69,9 @@ claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope proj
 /claude-code-fitness-hermit:hatch
 ```
 
-The wizard walks you through it: triggers `claude-code-hermit:hatch` if the core hermit isn't ready, prompts you to fill in `.env` with your four Strava credentials, writes `.mcp.json` with the Strava MCP server entry, drops the four routine prompt templates into `.claude-code-hermit/compiled/`, injects the Fitness Workflow block into your `CLAUDE.md`, and registers the routines in `.claude-code-hermit/config.json`.
+The wizard triggers `claude-code-hermit:hatch` if the core hermit isn't ready, prompts you to fill in `.env` with your four Strava credentials, writes `.mcp.json` with the Strava MCP server entry, drops the four routine prompt templates into `.claude-code-hermit/compiled/`, injects the Fitness Workflow block into your `CLAUDE.md`, and registers the routines.
 
-> **Just want to try it?** After `hatch`, restart Claude Code (required to pick up the new `.mcp.json`), approve the `strava` MCP server, then run `.claude-code-hermit/bin/hermit-start --no-tmux` in your terminal. You get sessions, routines, heartbeat, and the learning loop — minus the 24/7 autonomy. Ctrl+C exits cleanly. Want Discord or Telegram before going always-on? Run `/claude-code-hermit:channel-setup`. When you're ready for the full 24/7 setup, continue to step 3.
+> **Just trying it?** After `hatch`, restart Claude Code (required to pick up the new `.mcp.json`), approve the `strava` MCP server, then run `.claude-code-hermit/bin/hermit-start --no-tmux` for sessions, routines, heartbeat, and the learning loop without 24/7 autonomy. Run `/claude-code-hermit:channel-setup` first if you want Discord or Telegram.
 
 ### 3. Go Always-On
 
@@ -77,45 +79,26 @@ The wizard walks you through it: triggers `claude-code-hermit:hatch` if the core
 /claude-code-hermit:docker-setup
 ```
 
-The wizard generates the Docker files, builds the image, starts the container, and walks you through auth and channel pairing. When it's done, your hermit is running with safe permission bypass, crash recovery, and restart on reboot.
+Generates the Docker scaffolding, builds the image, starts the container, and walks through auth and channel pairing. The container ships with the hardening baseline (`cap_drop: ALL`, `no-new-privileges`, `pids_limit`). For LAN containment + DNS allowlisting + resource bounds, follow up with [`/claude-code-hermit:docker-security`](https://github.com/gtapps/claude-code-hermit/blob/main/plugins/claude-code-hermit/docs/docker-security.md).
 
-See [Always-On Setup](https://github.com/gtapps/claude-code-hermit/blob/main/docs/always-on.md) for the full guide — including how to attach, detach, and manage the running container.
-
-> **Want always-on without Docker?** See [Always-On Operations](https://github.com/gtapps/claude-code-hermit/blob/main/docs/always-on-ops.md) for bare tmux — lighter, no container isolation.
+See [Always-On Setup](https://github.com/gtapps/claude-code-hermit/blob/main/plugins/claude-code-hermit/docs/always-on.md) for the full guide. Want always-on without Docker? See [Always-On Operations](https://github.com/gtapps/claude-code-hermit/blob/main/plugins/claude-code-hermit/docs/always-on-ops.md) for bare tmux.
 
 ### Upgrading
 
-> ```
-> claude plugin update claude-code-hermit@claude-code-hermit --scope project
-> claude plugin update claude-code-fitness-hermit@claude-code-hermit --scope project
-> /claude-code-hermit:hermit-evolve
-> ```
-
----
-
-## The Daily Beat
-
-Four routines run on their own — anomalies and summaries surface in your Discord/Telegram channel, never as silent edits to your training plan.
-
-| Routine | Schedule | What it does |
-|---|---|---|
-| `strava-sync` | Daily 21:30 | Detect new activities, log them, flag anomalies |
-| `strava-health-check` | Daily 08:05 | Check Strava connectivity; alert if lost |
-| `weekly-load-review` | Sunday 18:00 | Week-over-week load summary with trend flag |
-| `monday-planning` | Monday 09:30 | Weekly training structure suggestion |
-
-You discuss findings in your channel; the hermit drafts compiled artifacts (weekly plans, activity notes, load baselines) into `.claude-code-hermit/compiled/` for you to review.
-
-Activate per session with `/claude-code-hermit:hermit-routines load`. In always-on deployments they load automatically.
+```
+claude plugin update claude-code-hermit@claude-code-hermit --scope project
+claude plugin update claude-code-fitness-hermit@claude-code-hermit --scope project
+/claude-code-hermit:hermit-evolve
+```
 
 ---
 
 ## Safety
 
-- **Blocked outright:** `mcp__strava__star-segment`, `mcp__strava__connect-strava`, `mcp__strava__disconnect-strava` (denied via `settings.json`). The hermit reads your Strava account and never modifies it.
-- **Credentials stay local:** `.env` and `.mcp.json` are gitignored — verify before any `git push`. The four Strava credentials in `.env` are written as literal values into `.mcp.json` (required for the MCP server's child process) and never committed.
-- **No token leakage:** Never log, print, or write token values to session files, proposals, or memory.
-- **TOKEN-pattern guard:** The base hermit's deny-patterns hook blocks any Bash command whose argument string contains the literal `TOKEN`. Hatch reads `.env` via the `Read` tool, not shell commands.
+- **Blocked outright** — `mcp__strava__star-segment`, `mcp__strava__connect-strava`, `mcp__strava__disconnect-strava` (denied via `settings.json`). The hermit reads your Strava account and never modifies it.
+- **Credentials stay local** — `.env` and `.mcp.json` are gitignored. The four Strava credentials in `.env` are written as literal values into `.mcp.json` (required for the MCP server's child process) and never committed.
+- **No token leakage** — never logs, prints, or writes token values to session files, proposals, or memory.
+- **TOKEN-pattern guard** — the base hermit's deny-patterns hook blocks any Bash command whose argument string contains the literal `TOKEN`. Hatch reads `.env` via the `Read` tool, not shell commands.
 
 ---
 
@@ -141,8 +124,8 @@ Extension points: Garmin, Apple Health, Polar, and other fitness integrations ar
 
 ## Credits
 
-- Built on [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) — session discipline, routines, channels, memory, cost tracking.
-- Uses the community [Strava MCP Server](https://github.com/r-huijts/strava-mcp) (`@r-huijts/strava-mcp-server`) and the official Strava [REST API](https://developers.strava.com/docs/reference/).
+- Built on [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) — session discipline, routines, channels, memory, cost tracking
+- Uses the community [Strava MCP Server](https://github.com/r-huijts/strava-mcp-server) and the official Strava [REST API](https://developers.strava.com/docs/reference/)
 
 ## License
 
