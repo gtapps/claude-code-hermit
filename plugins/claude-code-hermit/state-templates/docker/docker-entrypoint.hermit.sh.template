@@ -289,7 +289,8 @@ if [ "$NEEDS_OFFICIAL" = true ] && [ -n "$CHANNELS" ]; then
 fi
 
 # Recommended plugins (enabled entries extracted from config.json above)
-# Mirrors the host-installed plugin set confirmed during docker-setup (project + user scope).
+# Mirrors the host-installed plugin set confirmed during docker-setup
+# (project + local scope, both pinned to the host project's projectPath; user-scope is intentionally not mirrored).
 # Each entry may reference any marketplace — the entrypoint adds it on first boot as needed.
 # Operator confirmed these plugins during docker-setup, so no auto-install guard is needed.
 if [ -n "$RECOMMENDED_PLUGINS_JSON" ] && [ "$RECOMMENDED_PLUGINS_JSON" != "[]" ]; then
@@ -301,8 +302,9 @@ if [ -n "$RECOMMENDED_PLUGINS_JSON" ] && [ "$RECOMMENDED_PLUGINS_JSON" != "[]" ]
 import json, os, subprocess, sys, time
 
 plugins = json.loads(sys.argv[1])
-# 'claude plugin list' output is free-form ('  ❯ plugin@slug' plus Version/Scope lines).
-# Substring match against the whole blob is more robust than exact-line set membership.
+# 'claude plugin list' output is free-form: each plugin appears as '  ❯ plugin@slug'.
+# Matching on '❯ {target}' pins the check to the entry line, preventing false positives
+# where a short target (e.g. 'hermit@foo') is a substring of a longer entry.
 installed_blob = sys.argv[2]
 marketplace_dir = sys.argv[3]
 audit_log_path = sys.argv[4] if len(sys.argv) > 4 else ''
@@ -324,12 +326,30 @@ def audit(marketplace, plugin, scope):
 
 for entry in plugins:
     plugin = entry['plugin']
-    marketplace = entry.get('marketplace', 'claude-plugins-official')
+    marketplace = entry.get('marketplace', 'anthropics/claude-plugins-official')
+    marketplace_name = entry.get('marketplace_name')
     scope = entry.get('scope', 'project')
 
-    slug = marketplace.split('/')[-1] if '/' in marketplace else marketplace
+    if not marketplace_name:
+        # Backward-compat for configs written before marketplace_name was tracked.
+        if '/' in marketplace:
+            # Legacy org/repo entry: name happens to equal repo basename for gtapps/*.
+            marketplace_name = marketplace.split('/')[-1]
+            print(f'[docker-entrypoint] Warning: {plugin} entry missing marketplace_name, derived "{marketplace_name}" from repo basename — re-run /docker-setup to backfill', flush=True)
+        elif marketplace == 'claude-plugins-official':
+            # Pre-schema configs stored the bare marketplace name here instead of org/repo.
+            # Normalize marketplace to the real org/repo so the `marketplace add` call succeeds.
+            marketplace_name = 'claude-plugins-official'
+            marketplace = 'anthropics/claude-plugins-official'
+            print(f'[docker-entrypoint] Warning: {plugin} entry uses legacy official literal — normalized to "anthropics/claude-plugins-official"; re-run /docker-setup to backfill', flush=True)
+        else:
+            # Unresolvable: cannot safely guess which GitHub repo this name maps to.
+            # Attempting marketplace add with an unknown value risks cloning the wrong
+            # repo under bypassPermissions. Skip; operator must re-run /docker-setup.
+            print(f'[docker-entrypoint] Warning: {plugin} entry has unresolvable legacy marketplace "{marketplace}" — skipping. Re-run /docker-setup to backfill marketplace_name + marketplace.', flush=True)
+            continue
 
-    if not os.path.isdir(os.path.join(marketplace_dir, slug)):
+    if not os.path.isdir(os.path.join(marketplace_dir, marketplace_name)):
         print(f'[docker-entrypoint] Adding marketplace: {marketplace}', flush=True)
         try:
             result = subprocess.run(['claude', 'plugin', 'marketplace', 'add', marketplace], check=False)
@@ -340,8 +360,8 @@ for entry in plugins:
             print(f'[docker-entrypoint] Warning: failed to add marketplace {marketplace} — skipping {plugin}', flush=True)
             continue
 
-    install_target = f'{plugin}@{slug}'
-    if install_target in installed_blob:
+    install_target = f'{plugin}@{marketplace_name}'
+    if f'❯ {install_target}' in installed_blob:
         continue
     print(f'[docker-entrypoint] Installing recommended plugin: {plugin}', flush=True)
     try:

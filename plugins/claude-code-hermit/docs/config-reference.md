@@ -198,8 +198,9 @@ Modify with `/hermit-settings scheduled-checks`.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `marketplace` | string | `"claude-plugins-official"` | Marketplace name. Use `"claude-plugins-official"` for official plugins, or `"org/repo"` for third-party (e.g. `"obra/superpowers-marketplace"`). |
-| `plugin` | string | _(required)_ | Plugin name to install. |
+| `plugin` | string | _(required)_ | Plugin name to install (substring of `claude plugin list --json` `id` left of `@`). |
+| `marketplace` | string | `"anthropics/claude-plugins-official"` | Marketplace `org/repo`, passed to `claude plugin marketplace add`. |
+| `marketplace_name` | string | `"claude-plugins-official"` | Canonical marketplace name (`name` field from `claude plugin marketplace list --json`; right side of `@` in plugin `id`). Used to build `<plugin>@<marketplace_name>` install targets and key into the `~/.claude/plugins/cache/<marketplace_name>/` directory. |
 | `scope` | string | `"project"` | Install scope: `"project"` or `"local"`. |
 | `enabled` | boolean | `false` | Whether to install on container boot. |
 
@@ -281,7 +282,7 @@ A realistic `config.json` for an always-on Docker hermit with Discord:
   "docker": {
     "packages": ["python3", "python3-pip"],
     "recommended_plugins": [
-      {"marketplace": "claude-plugins-official", "plugin": "claude-code-setup", "scope": "project", "enabled": true}
+      {"plugin": "claude-code-setup", "marketplace": "anthropics/claude-plugins-official", "marketplace_name": "claude-plugins-official", "scope": "project", "enabled": true}
     ]
   },
   "compact": {

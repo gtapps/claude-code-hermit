@@ -103,9 +103,14 @@ Scan installed fleet plugins. From the host:
 claude plugin list --json 2>/dev/null
 ```
 
-For each entry where `id` matches `*-hermit*` (excluding `claude-code-hermit` itself):
+Apply the **project-or-local + enabled filter**:
 
-1. Locate the plugin's installed root (use `path` field from the JSON).
+- Keep `enabled == true` AND (`scope == "project"` OR `scope == "local"`) AND `projectPath` equals the current project root.
+- Drop user-scope, managed-scope, disabled, and cross-project entries.
+
+For each surviving entry whose plugin name (substring of `id` left of `@`) matches `*-hermit*` and is NOT `claude-code-hermit`:
+
+1. Locate the plugin's installed root using the `installPath` field from the JSON.
 2. Read `<plugin>/skills/hatch/SKILL.md` and look for a `## Docker network requirements` heading. Also check `<plugin>/DOCKER.md`. Stop at the next `##` heading.
 3. Within that section, parse:
    - `### Domains (DNS allowlist)` — bullet entries are domain names. Validate against `^[a-z0-9][a-z0-9.-]+$`. Reject failing entries with a warning.

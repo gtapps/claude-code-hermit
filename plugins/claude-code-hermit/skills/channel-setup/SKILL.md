@@ -46,16 +46,27 @@ bun --version 2>/dev/null; uname -s
 
 ### 3. Install plugin
 
-Check if the plugin is already installed:
+Run `claude plugin list --json` and apply the **project-or-local + enabled filter**:
 
-```bash
-claude plugin list 2>/dev/null | grep -i "<channel>@claude-plugins-official"
-```
+- Keep `enabled == true` AND (`scope == "project"` OR `scope == "local"`) AND `projectPath` equals the current project root.
+- Drop user-scope, managed-scope, disabled, and cross-project entries.
 
-- Not installed → `claude plugin install <channel>@claude-plugins-official --scope local`
-- Already installed → skip silently.
+Then check whether the surviving set contains an entry where:
 
-After any install (or if just installed): tell the operator to run `/reload-plugins` in this session to activate the plugin's configure and access commands before pairing.
+- the plugin name (substring of `id` left of `@`) equals `<channel>`, AND
+- the marketplace name (substring of `id` right of `@`) equals `claude-plugins-official`.
+
+(Both clauses matter — `discord@some-other-marketplace` is a different plugin from a different source and must not satisfy this gate.)
+
+- **Found**: skip silently. The official channel plugin is already installed and enabled at project or local scope for this project — the canonical filter guarantees `enabled == true`, and `*_STATE_DIR` (set by `hermit-start` at boot) points at `.claude.local/channels/<channel>/`.
+- **Not found**: run, in order:
+  ```bash
+  claude plugin install <channel>@claude-plugins-official --scope local
+  claude plugin enable  <channel>@claude-plugins-official --scope local
+  ```
+  The explicit `enable` step covers the case where a project- or local-scope copy already exists but is disabled — the canonical filter excluded it (enabled-only), so `install` may no-op as already-installed without re-enabling. A user-scope install elsewhere does not satisfy this gate; channel tokens and access policy are project-local, so the plugin must be installed at project or local scope here too.
+
+After any install (or if already present): tell the operator to run `/reload-plugins` in this session to activate the plugin's configure and access commands before pairing.
 
 ### 4. Token configuration (AskUserQuestion)
 

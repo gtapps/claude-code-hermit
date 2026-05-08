@@ -125,17 +125,21 @@ If `.claude-code-hermit/cortex-manifest.json` does not exist:
 
 ### 7. Hermit upgrades
 
-- Detect installed hermits: scan `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json` for names containing "hermit" that aren't "claude-code-hermit"
-- **Gate on `_hermit_versions` key existence** — only consider a hermit for upgrade when its name is *already* a key in `_hermit_versions`. The monorepo marketplace cache surfaces every sibling plugin under `${CLAUDE_PLUGIN_ROOT}/../*` regardless of what the operator actually installed; without this gate the skill would execute uninstalled siblings' Upgrade Instructions and append their CLAUDE-APPEND blocks. Initial activation is owned by the hermit's own `hatch` skill, which is what writes the key.
+- Detect installed hermits: run `claude plugin list --json`, then apply the **project-or-local + enabled filter**:
+  - Keep `enabled == true` AND (`scope == "project"` OR `scope == "local"`) AND `projectPath` equals the current project root.
+  - Drop user-scope, managed-scope, disabled, and cross-project entries.
+
+  Then keep entries whose plugin name (substring of `id` left of `@`) contains "hermit" but is NOT "claude-code-hermit". Use `installPath` for each entry as the source of `plugin.json`, `CHANGELOG.md`, and `state-templates/CLAUDE-APPEND.md`.
+- **Gate on `_hermit_versions` key existence** — only consider a hermit for upgrade when its name is *already* a key in `_hermit_versions`. Without this gate the skill would execute uninstalled hermits' Upgrade Instructions and append their CLAUDE-APPEND blocks. Initial activation is owned by the hermit's own `hatch` skill, which is what writes the key.
 - For each gated hermit:
-  - Read the hermit's `plugin.json` version
+  - Read `<installPath>/.claude-plugin/plugin.json` for the current version
   - Compare against `_hermit_versions[hermit_name]`
   - If version gap exists:
-    - Read the hermit's `CHANGELOG.md` if it exists and extract version entries between the config version (exclusive) and the current version (inclusive)
+    - Read `<installPath>/CHANGELOG.md` if it exists and extract version entries between the config version (exclusive) and the current version (inclusive)
     - Present a summary: "{hermit_name}: upgrading from vOLD to vNEW. Here's what changed:" followed by only the relevant changelog sections
     - **Execute migrations in version order** — For each extracted version entry (oldest first), look for a `### Upgrade Instructions` section. If found, execute every instruction in that section — do not skip or merely display them.
     - **Sync hermit's CLAUDE-APPEND block** — Same procedure as step 6, using:
-      - Source template: the hermit's `state-templates/CLAUDE-APPEND.md`. If it doesn't exist, skip.
+      - Source template: `<installPath>/state-templates/CLAUDE-APPEND.md`. If it doesn't exist, skip.
       - Marker: the first HTML comment line in that template (e.g. `<!-- hermit-name: Section Title -->`)
     - Update `_hermit_versions[hermit_name]` to the current hermit version
   - If no gap: skip silently

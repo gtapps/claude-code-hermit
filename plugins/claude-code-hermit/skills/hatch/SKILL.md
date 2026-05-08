@@ -25,9 +25,13 @@ Before the setup-mode gate or any file writes, gather context silently. Run all 
    - Timezone: `cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value 2>/dev/null || date +%Z` (fallback: `UTC`)
 
 2. **Silent hermit detection** (the silent half of Step 3 — split out so it's available before the mode gate without an operator prompt):
-   - Glob: `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json`
-   - Read each found `plugin.json` and identify entries where the `name` field contains "hermit" but is NOT "claude-code-hermit"
-   - Stash the candidate list as `detected_hermits` for use later in Step 3 (Advanced) or Quick Turn 1.
+   - Run: `claude plugin list --json`
+   - Apply the **project-or-local + enabled filter**:
+     - Keep `enabled == true` AND (`scope == "project"` OR `scope == "local"`) AND `projectPath` equals the current project root.
+     - Drop user-scope, managed-scope, disabled, and cross-project entries.
+   - For each surviving entry, parse the plugin name from `id` (substring left of `@`). Keep entries whose plugin name contains "hermit" but is NOT "claude-code-hermit".
+   - Stash the resulting list as `detected_hermits`. Each entry must carry: `plugin` (id left of `@`), `id` (full JSON field), `marketplace_name` (id right of `@`), `installPath` (JSON `installPath` field — Step 3 reads `state-templates/CLAUDE-APPEND.md` and `plugin.json` from this path directly).
+   - Note: this is intentionally restrictive. A hermit installed at user scope (a personal default across projects) does NOT auto-detect — operator can install it at project scope and re-run, or activate via `/hermit-settings`.
 
 3. **Print one summary line** so the operator sees what was detected:
 
@@ -135,9 +139,9 @@ Use the `detected_hermits` list cached in Step 1.5 (no re-globbing).
 
 If the list is non-empty:
 - Present the candidates and ask: "Activate a hermit for this project?"
-- If the operator selects one:
-  - Read that hermit's `state-templates/CLAUDE-APPEND.md` and append it to the target project's CLAUDE.md (after the core append in step 5).
-  - Read its `plugin.json`: if it declares a `hermit.boot_skill` field (e.g. `"/claude-code-homeassistant-hermit:ha-boot"`), record it for step 5 to write as `boot_skill` in `config.json`. This replaces the default `/claude-code-hermit:session` bootstrap so the domain hermit's custom boot logic fires on every always-on launch. If the field is absent, leave `boot_skill` unset (core behavior).
+- If the operator selects one: record the full entry from `detected_hermits` as `activated_hermit` (carries `plugin`, `id`, `marketplace_name`, `installPath`).
+  - Read `<activated_hermit.installPath>/state-templates/CLAUDE-APPEND.md` and append it to the target project's CLAUDE.md (after the core append in step 5).
+  - Read `<activated_hermit.installPath>/.claude-plugin/plugin.json`: if it declares a `hermit.boot_skill` field (e.g. `"/claude-code-homeassistant-hermit:ha-boot"`), record it for step 5 to write as `boot_skill` in `config.json`. This replaces the default `/claude-code-hermit:session` bootstrap so the domain hermit's custom boot logic fires on every always-on launch. If the field is absent, leave `boot_skill` unset (core behavior).
 - If the list is empty or the operator declines: skip.
 
 ### 4. Setup wizard
@@ -483,7 +487,7 @@ Tell the operator before Call 1: "I've scanned your project and drafted OPERATOR
 
 All questions use the `AskUserQuestion` structures defined above. Accept short answers or free-text via Other; expand into prose in Phase 4. If the operator selects "Skip", leaves Other blank, or gives a minimal answer, don't include that topic in OPERATOR.md.
 
-**Hermit extension:** If a hermit was activated in step 3 and provides a file at `state-templates/OPERATOR-QUESTIONS.md`, read it and append those questions to Call 2 (or start a Call 3 if Call 2 is already at 4).
+**Hermit extension:** If a hermit was activated in step 3 and provides a file at `<activated_hermit.installPath>/state-templates/OPERATOR-QUESTIONS.md`, read it and append those questions to Call 2 (or start a Call 3 if Call 2 is already at 4).
 
 #### Phase 4 — Write final OPERATOR.md
 
@@ -513,7 +517,7 @@ Tell the operator: "OPERATOR.md is ready. You can review it at `.claude-code-her
   - If no: read `${CLAUDE_SKILL_DIR}/../../state-templates/CLAUDE-APPEND.md` and append its contents to the end of CLAUDE.md
 - If CLAUDE.md doesn't exist: create it with the append block as the initial content
 
-If a hermit was activated in step 3, also append its CLAUDE-APPEND.md here (using the same skip/overwrite logic if its marker already exists).
+If a hermit was activated in step 3, also append `<activated_hermit.installPath>/state-templates/CLAUDE-APPEND.md` here (using the same skip/overwrite logic if its marker already exists).
 
 ### 7. Update .gitignore
 
@@ -653,7 +657,7 @@ Replaces Steps 3-4 with batched turns + confirm; resumes shared Steps 5-9 after 
 
 Only fires if `detected_hermits` from Step 1.5 is non-empty. Same prompt shape as Step 3 of the Advanced branch — uses the cached candidate list, does not re-glob. If multiple hermits detected, list all + Skip. If none, this turn is skipped entirely.
 
-If a hermit is selected: read its `state-templates/CLAUDE-APPEND.md` and stash for Step 6's CLAUDE.md append; read its `plugin.json` for `hermit.boot_skill` and stash for Step 5's config write.
+If a hermit is selected: record the full entry from `detected_hermits` as `activated_hermit` (carries `plugin`, `id`, `marketplace_name`, `installPath`). Read `<activated_hermit.installPath>/state-templates/CLAUDE-APPEND.md` and stash for Step 6's CLAUDE.md append. Read `<activated_hermit.installPath>/.claude-plugin/plugin.json` for the `hermit.boot_skill` field and stash for Step 5's config write.
 
 ### Quick Turn 2 — Identity batch (one `AskUserQuestion`, 3 questions)
 

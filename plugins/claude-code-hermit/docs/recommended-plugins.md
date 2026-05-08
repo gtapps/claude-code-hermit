@@ -96,8 +96,9 @@ Each entry in `docker.recommended_plugins`:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `marketplace` | string | `"claude-plugins-official"` for official, or `"org/repo"` for third-party |
-| `plugin` | string | Plugin name |
+| `plugin` | string | Plugin name (left side of `@` in `claude plugin list` output) |
+| `marketplace` | string | Marketplace `org/repo`, passed to `claude plugin marketplace add` (e.g. `"anthropics/claude-plugins-official"`, `"obra/superpowers-marketplace"`) |
+| `marketplace_name` | string | Canonical marketplace name — right side of `@` in plugin id, used to build `<plugin>@<marketplace_name>` install targets and key the on-disk cache directory |
 | `scope` | string | `"project"` or `"local"` |
 | `enabled` | boolean | Install on boot when `true` |
 

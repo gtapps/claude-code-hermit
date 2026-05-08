@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Plugin detection scoped to project/local only across five skills.** `/hatch` Step 1.5, `/docker-setup` Step 7b.1, `/docker-security` Step 3a, `/hermit-evolve` Step 7, and `/channel-setup` Step 3 all enumerated installed plugins without pinning `projectPath` to the current project root. `claude plugin list --json` returns entries for all projects in the operator's config, so a bare `scope == "local"` predicate leaked plugins from sibling repos. All five sites now apply the canonical filter: `enabled == true AND (scope == "project" OR scope == "local") AND projectPath == cwd`. User-scope plugins are explicitly dropped. `/hatch` and `/hermit-evolve` also replace the `${CLAUDE_PLUGIN_ROOT}/../*` disk glob with the JSON list so the install root is read from `installPath` rather than inferred by path proximity. `/hatch`'s `detected_hermits` stash now carries `installPath` so downstream Steps 3, 5a, 6, and Quick Turn 1 read `CLAUDE-APPEND.md`, `plugin.json`, and `OPERATOR-QUESTIONS.md` from the resolved install path instead of re-globbing.
+
+- **`docker.recommended_plugins` now stores both marketplace identifiers.** The entrypoint was deriving the install target and on-disk cache key from `marketplace.split('/')[-1]`, which breaks when the marketplace `name` field differs from the repo basename (e.g. `openai/codex-plugin-cc` → name `openai-codex`). Each entry now carries `marketplace` (`org/repo` for `marketplace add`) and `marketplace_name` (canonical name for install targets and the `~/.claude/plugins/cache/<name>/` key). Official entries switch from the legacy `"claude-plugins-official"` shortcut to `{"marketplace": "anthropics/claude-plugins-official", "marketplace_name": "claude-plugins-official"}`. The entrypoint gains backward-compat fallback paths for legacy configs (org/repo entry → derive name from basename with warning; literal `claude-plugins-official` → normalize to real org/repo with warning; unresolvable no-slash value → skip with warning). The `installed_blob` already-installed check changes from bare substring to `❯ {target}` prefix match, preventing false positives where a short plugin name is a substring of a longer one. Affects `/docker-setup` Step 7b, `/hermit-settings` docker section, docs, and entrypoint.
+
 ## [1.0.33] - 2026-05-07
 
 ### Changed
