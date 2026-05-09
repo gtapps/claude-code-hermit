@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Docker entrypoint: post-recovery sanity check + npm reinstall for corrupted claude binary ([#44](https://github.com/gtapps/claude-code-hermit/issues/44)).** The existing orphan-recovery block renames `.claude-<rand>` back to `claude` but never verifies the result is functional. When the orphan is the half-uninstalled pre-update binary, `claude --version` returns `0.0.0` and every downstream invocation fails. With `restart: unless-stopped`, Docker retries the same broken container layer indefinitely and no log line tells the operator what to do. The fix adds a sanity check immediately after recovery: if `claude --version` reports `0.0.0`, the entrypoint runs `npm install -g @anthropic-ai/claude-code` to reinstall from npm, which writes to the container layer and persists across subsequent `restart` calls — unwedging the loop without requiring `docker compose down && up`. If npm itself fails, the entrypoint exits 1 with an explicit `Recreate the container: hermit-docker down && hermit-docker up` message so each restart cycle logs an actionable next step instead of silent failure.
+
 ## [1.0.34] - 2026-05-08
 
 ### Fixed
