@@ -6,6 +6,72 @@
 
 - **Docker entrypoint: post-recovery sanity check + npm reinstall for corrupted claude binary ([#44](https://github.com/gtapps/claude-code-hermit/issues/44)).** The existing orphan-recovery block renames `.claude-<rand>` back to `claude` but never verifies the result is functional. When the orphan is the half-uninstalled pre-update binary, `claude --version` returns `0.0.0` and every downstream invocation fails. With `restart: unless-stopped`, Docker retries the same broken container layer indefinitely and no log line tells the operator what to do. The fix adds a sanity check immediately after recovery: if `claude --version` reports `0.0.0`, the entrypoint runs `npm install -g @anthropic-ai/claude-code` to reinstall from npm, which writes to the container layer and persists across subsequent `restart` calls — unwedging the loop without requiring `docker compose down && up`. If npm itself fails, the entrypoint exits 1 with an explicit `Recreate the container: hermit-docker down && hermit-docker up` message so each restart cycle logs an actionable next step instead of silent failure.
 
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | Added post-recovery sanity-check block; reinstalls `claude` from npm when `claude --version` reports `0.0.0`; exits 1 with actionable message if npm itself fails |
+
+### Upgrade Instructions
+
+Docker users only — this patch updates the rendered `docker-entrypoint.hermit.sh`, which is baked into the container image at build time. Non-Docker (tmux/local) hermits are unaffected.
+
+1. **File check.** If `docker-entrypoint.hermit.sh` does not exist at the project root, skip all steps — `/docker-setup` has not been run for this project yet, and the new template already contains the fix for first-time setups.
+
+2. **Idempotency check.** Read `docker-entrypoint.hermit.sh` at the project root. If it already contains the string `claude binary is non-functional`, skip all steps — the patch is already applied.
+
+3. **Propose the patch.** Tell the operator what will be inserted and ask for confirmation:
+
+   > "Patching `docker-entrypoint.hermit.sh` to add a self-heal block after the orphan-recovery code (fixes #44 — corrupted `claude` binary after mid-install self-update). The block is inserted immediately after the orphan-recovery `fi`, before `--- 0. Wait for auth credentials ---`. Apply? [Yes / Skip]"
+
+4. **On Yes — apply.** Use the Edit tool on `docker-entrypoint.hermit.sh` with:
+
+   `old_string` (closing lines of the orphan-recovery block + blank line + next section header — unique since v1.0.20):
+   ```
+     fi
+   fi
+   
+   # --- 0. Wait for auth credentials ---
+   ```
+
+   `new_string`:
+   ```
+     fi
+   fi
+   
+   # Sanity-check: if the recovered (or pre-existing) binary reports 0.0.0, the
+   # orphan was non-functional. Reinstall from npm to self-heal so a `restart`
+   # unwedges the container without needing `docker compose down && up -d`.
+   # Two-step form (capture then default) avoids the empty-vs-"0.0.0" pitfall
+   # under set -euo pipefail when head -1 exits 0 on empty input.
+   _CLAUDE_VER="$(claude --version 2>/dev/null | grep -oP '[0-9.]+' | head -1 || true)"
+   _CLAUDE_VER="${_CLAUDE_VER:-0.0.0}"
+   if [ "$_CLAUDE_VER" = "0.0.0" ]; then
+     echo "[docker-entrypoint] claude binary is non-functional (version: 0.0.0) — reinstalling from npm..."
+     if npm install -g @anthropic-ai/claude-code; then
+       _CLAUDE_VER="$(claude --version 2>/dev/null | grep -oP '[0-9.]+' | head -1 || true)"
+       _CLAUDE_VER="${_CLAUDE_VER:-0.0.0}"
+       if [ "$_CLAUDE_VER" = "0.0.0" ]; then
+         echo "[docker-entrypoint] ERROR: claude still reports 0.0.0 after reinstall."
+         echo "[docker-entrypoint] Recreate the container: .claude-code-hermit/bin/hermit-docker down && .claude-code-hermit/bin/hermit-docker up"
+         exit 1
+       fi
+       echo "[docker-entrypoint] Reinstall succeeded (v${_CLAUDE_VER})."
+     else
+       echo "[docker-entrypoint] ERROR: npm install failed — cannot recover the claude binary."
+       echo "[docker-entrypoint] Recreate the container: .claude-code-hermit/bin/hermit-docker down && .claude-code-hermit/bin/hermit-docker up"
+       exit 1
+     fi
+   fi
+   unset _CLAUDE_VER
+   
+   # --- 0. Wait for auth credentials ---
+   ```
+
+   If the anchor does not match (operator has customized this file), tell them: "Auto-patch failed — anchor not found. Re-run `/claude-code-hermit:docker-setup` and choose 'Yes — back up' when prompted, or apply the block manually between the orphan-recovery `fi` and the `--- 0. Wait for auth credentials ---` comment."
+
+5. **Rebuild the container.** Run `.claude-code-hermit/bin/hermit-docker update`. The patched entrypoint is baked into the image on rebuild.
+
 ## [1.0.34] - 2026-05-08
 
 ### Fixed
