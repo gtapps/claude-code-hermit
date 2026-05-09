@@ -238,7 +238,7 @@ Mirror host-installed plugins into the container so the container starts with th
    The `marketplace_name` value passed to `is_safelisted` is the canonical name from the marketplace JSON; the `marketplace` value is the `org/repo`. Both come from step 7b.3. If you're about to pass `claude-code-homeassistant-hermit` to `is_safelisted` as the marketplace arg, you skipped the lookup — go back to step 3.
 
    Split into two groups:
-   - **SAFE** — `is_safelisted(marketplace)` is `True`. Examples: marketplace `claude-plugins-official`, marketplace `gtapps/claude-code-homeassistant-hermit`.
+   - **SAFE** — `is_safelisted(marketplace, marketplace_name)` is `True`. Examples: `marketplace_name == "claude-plugins-official"` (regardless of `marketplace`), or `marketplace == "gtapps/claude-code-homeassistant-hermit"`.
    - **THIRD-PARTY** — everything else. Examples: `obra/superpowers-marketplace`, any non-`gtapps` `org/repo`, any locally-added marketplace without a GitHub source.
 
    The SAFE group can be accepted as a batch. The THIRD-PARTY group **must be confirmed one-by-one**. Do not bulk-accept third-party plugins for the operator's convenience — the host list is the **candidate** set, not the trusted set.
@@ -280,7 +280,7 @@ Mirror host-installed plugins into the container so the container starts with th
     - Assert `marketplace_name` is non-empty and matches `^[A-Za-z0-9][\w.-]*$`.
     - Assert `marketplace` matches `^[A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*$` (has a slash; is `org/repo`). This is now uniform — official entries store `anthropics/claude-plugins-official`, no more literal-name shortcut.
     - If any entry fails: **stop, do not write config.** Re-derive both identifiers from the `claude plugin marketplace list --json` output (look up `marketplace_name → repo`). If the lookup cannot produce both valid values, prompt the operator (same prompt as step 3). Re-run the assertion. Only proceed to step 7c once every entry passes.
-    - The assertion is uniform across official and third-party entries — every `marketplace` is an `org/repo` after this change, so there is no special case to remember.
+    - The assertion is uniform across official and third-party entries — every `marketplace` written from this skill is an `org/repo`, so there is no special case to remember at write time. Legacy configs at boot are still normalized by the entrypoint backfill paths (see the "Re-run backfill" section below and the entrypoint's per-entry fallback).
 
 11. If the filtered list is **empty** (no extras installed on the host), skip silently — no prompt, no entries written.
 
