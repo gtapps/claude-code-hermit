@@ -25,6 +25,32 @@ if [ ! -e "$CLAUDE_BIN" ] && [ ! -L "$CLAUDE_BIN" ]; then
   fi
 fi
 
+# Sanity-check: if the recovered (or pre-existing) binary reports 0.0.0, the
+# orphan was non-functional. Reinstall from npm to self-heal so a `restart`
+# unwedges the container without needing `docker compose down && up -d`.
+# Two-step form (capture then default) avoids the empty-vs-"0.0.0" pitfall
+# under set -euo pipefail when head -1 exits 0 on empty input.
+_CLAUDE_VER="$(claude --version 2>/dev/null | grep -oP '[0-9.]+' | head -1 || true)"
+_CLAUDE_VER="${_CLAUDE_VER:-0.0.0}"
+if [ "$_CLAUDE_VER" = "0.0.0" ]; then
+  echo "[docker-entrypoint] claude binary is non-functional (version: 0.0.0) — reinstalling from npm..."
+  if npm install -g @anthropic-ai/claude-code; then
+    _CLAUDE_VER="$(claude --version 2>/dev/null | grep -oP '[0-9.]+' | head -1 || true)"
+    _CLAUDE_VER="${_CLAUDE_VER:-0.0.0}"
+    if [ "$_CLAUDE_VER" = "0.0.0" ]; then
+      echo "[docker-entrypoint] ERROR: claude still reports 0.0.0 after reinstall."
+      echo "[docker-entrypoint] Recreate the container: .claude-code-hermit/bin/hermit-docker down && .claude-code-hermit/bin/hermit-docker up"
+      exit 1
+    fi
+    echo "[docker-entrypoint] Reinstall succeeded (v${_CLAUDE_VER})."
+  else
+    echo "[docker-entrypoint] ERROR: npm install failed — cannot recover the claude binary."
+    echo "[docker-entrypoint] Recreate the container: .claude-code-hermit/bin/hermit-docker down && .claude-code-hermit/bin/hermit-docker up"
+    exit 1
+  fi
+fi
+unset _CLAUDE_VER
+
 # --- 0. Wait for auth credentials ---
 # OAuth users must run `claude /login` inside the container on first boot.
 # The login writes .credentials.json to the named volume, which persists
