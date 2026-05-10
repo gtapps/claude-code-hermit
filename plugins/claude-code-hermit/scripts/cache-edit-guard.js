@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { safe } = require('./lib/sanitize');
 
 /**
  * PreToolUse hook — warn (or block) when Edit/Write targets a marketplace cache copy.
@@ -93,8 +94,8 @@ function main() {
 
     process.stderr.write(
       `[hermit] ${verb}: ${name} target is a marketplace cache copy.\n` +
-      `[hermit]   path:   ${filePath}\n` +
-      `[hermit]   source: ${canonical}\n` +
+      `[hermit]   path:   ${safe(filePath)}\n` +
+      `[hermit]   source: ${safe(canonical)}\n` +
       `[hermit]   Runtime loads from the source path; cache edits are lost on next plugin install.\n` +
       `[hermit]   ${blockMode ? 'Unset HERMIT_CACHE_GUARD or set it to "warn" to allow.' : 'Set HERMIT_CACHE_GUARD=block to make this a hard error.'}\n`
     );
