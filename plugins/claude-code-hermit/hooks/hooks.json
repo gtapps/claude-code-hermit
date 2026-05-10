@@ -11,6 +11,17 @@
           }
         ],
         "description": "Enforce deny-patterns (always_on incl. OPERATOR.md only when AGENT_HOOK_PROFILE=strict), warn on template edits"
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/cache-edit-guard.js",
+            "timeout": 3
+          }
+        ],
+        "description": "Warn (or block, with HERMIT_CACHE_GUARD=block) when editing a marketplace cache copy whose runtime source is canonical"
       }
     ],
     "PostToolUse": [

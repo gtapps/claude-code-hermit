@@ -378,6 +378,123 @@ class TestHookOutputs(_TempDirTest):
 
 
 # ============================================================
+# cache-edit-guard hook
+# ============================================================
+
+class TestCacheEditGuard(_TempDirTest):
+    """cache-edit-guard.js — silent-breakage zone.
+
+    Project-local marketplaces load from `source` at runtime; cache copies are
+    stale. Editing a cache file works *until* the bridge restarts and the source
+    is read instead. The guard must catch this.
+    """
+
+    SCRIPT = REPO / 'scripts' / 'cache-edit-guard.js'
+
+    def _run_guard(self, event, env_extra=None):
+        env = os.environ.copy()
+        env['CLAUDE_PLUGIN_ROOT'] = str(REPO)
+        if env_extra:
+            env.update(env_extra)
+        result = subprocess.run(
+            ['node', str(self.SCRIPT)],
+            input=json.dumps(event), capture_output=True, text=True,
+            cwd=self._tmpdir, env=env, timeout=10,
+        )
+        return result.stdout, result.stderr, result.returncode
+
+    def _seed_marketplace(self, plugin_source):
+        """Write .claude-plugin/marketplace.json + create the plugin source dir."""
+        os.makedirs('.claude-plugin', exist_ok=True)
+        manifest = {
+            'name': 'example-marketplace',
+            'plugins': [{'name': 'sample-plugin', 'source': plugin_source}],
+        }
+        with open('.claude-plugin/marketplace.json', 'w') as f:
+            json.dump(manifest, f)
+        if isinstance(plugin_source, str):
+            os.makedirs(plugin_source.lstrip('./'), exist_ok=True)
+
+    def _cache_path(self, *parts):
+        rel = os.path.join('.claude/plugins/cache/example-marketplace/sample-plugin/0.1.0', *parts)
+        return os.path.join(self._tmpdir, rel)
+
+    def test_cache_edit_warns_with_source_path(self):
+        self._seed_marketplace('./services/sample-plugin')
+        stdout, stderr, code = self._run_guard({
+            'tool_name': 'Edit',
+            'tool_input': {'file_path': self._cache_path('server.ts')},
+        })
+        self.assertEqual(code, 0)
+        self.assertIn('WARNING', stderr)
+        self.assertIn('marketplace cache copy', stderr)
+        self.assertIn('services/sample-plugin/server.ts', stderr)
+
+    def test_block_mode_exits_2(self):
+        self._seed_marketplace('./services/sample-plugin')
+        stdout, stderr, code = self._run_guard(
+            {
+                'tool_name': 'Write',
+                'tool_input': {'file_path': self._cache_path('server.ts')},
+            },
+            env_extra={'HERMIT_CACHE_GUARD': 'block'},
+        )
+        self.assertEqual(code, 2)
+        self.assertIn('BLOCKED', stderr)
+
+    def test_remote_source_skipped(self):
+        # Remote git refs are objects — guard must skip silently.
+        self._seed_marketplace({'source': 'github', 'repo': 'someone/sample-plugin'})
+        stdout, stderr, code = self._run_guard({
+            'tool_name': 'Edit',
+            'tool_input': {'file_path': self._cache_path('server.ts')},
+        })
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr, '')
+
+    def test_non_cache_path_passes_through(self):
+        self._seed_marketplace('./services/sample-plugin')
+        stdout, stderr, code = self._run_guard({
+            'tool_name': 'Edit',
+            'tool_input': {'file_path': os.path.join(self._tmpdir, 'README.md')},
+        })
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr, '')
+
+    def test_non_edit_tool_passes_through(self):
+        self._seed_marketplace('./services/sample-plugin')
+        stdout, stderr, code = self._run_guard({
+            'tool_name': 'Read',
+            'tool_input': {'file_path': self._cache_path('server.ts')},
+        })
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr, '')
+
+    def test_no_marketplace_passes_through(self):
+        # No .claude-plugin/marketplace.json → silent passthrough (foreign repo).
+        stdout, stderr, code = self._run_guard({
+            'tool_name': 'Edit',
+            'tool_input': {'file_path': self._cache_path('server.ts')},
+        })
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr, '')
+
+    def test_unknown_marketplace_passes_through(self):
+        # Cache path names a marketplace not declared in this project's manifest.
+        self._seed_marketplace('./services/sample-plugin')
+        unknown_cache = os.path.join(
+            self._tmpdir,
+            '.claude/plugins/cache/some-other-marketplace/foo/0.1.0/index.js',
+        )
+        stdout, stderr, code = self._run_guard({
+            'tool_name': 'Edit',
+            'tool_input': {'file_path': unknown_cache},
+        })
+        self.assertEqual(code, 0)
+        self.assertEqual(stderr, '')
+
+
+# ============================================================
 # Negative path tests
 # ============================================================
 
