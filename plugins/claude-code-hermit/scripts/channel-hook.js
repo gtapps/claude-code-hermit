@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { safe } = require('./lib/sanitize');
 
 /**
  * PostToolUse hook for channel reply tools (Discord, Telegram, etc.).
@@ -53,7 +54,7 @@ function persistDmChannelId(config, channelKey, chatId) {
 
   channel.dm_channel_id = chatId;
   process.stderr.write(
-    `[channel-hook] saved ${channelKey}.dm_channel_id = ${chatId}\n`
+    `[channel-hook] saved ${channelKey}.dm_channel_id = ${safe(chatId)}\n`
   );
   return true;
 }

@@ -553,6 +553,100 @@ class TestCacheEditGuard(_TempDirTest):
 
 
 # ============================================================
+# Stderr sanitization tests
+# ============================================================
+
+class TestStderrSanitization(_TempDirTest):
+    """Adversarial tool_input values must not produce raw control chars in hook stderr.
+
+    Note: _seed_marketplace duplicates TestCacheEditGuard's helper with a
+    simpler signature (fixed source). Kept duplicated rather than extracted
+    to a mixin so each test class stays self-contained and failures are
+    easier to read.
+    """
+
+    GUARD = REPO / 'scripts' / 'cache-edit-guard.js'
+    CHANNEL = REPO / 'scripts' / 'channel-hook.js'
+
+    def _run(self, script, event, env_extra=None):
+        env = os.environ.copy()
+        env['CLAUDE_PLUGIN_ROOT'] = str(REPO)
+        if env_extra:
+            env.update(env_extra)
+        result = subprocess.run(
+            ['node', str(script)],
+            input=json.dumps(event), capture_output=True, text=True,
+            cwd=self._tmpdir, env=env, timeout=10,
+        )
+        return result.stdout, result.stderr, result.returncode
+
+    def _seed_marketplace(self):
+        os.makedirs('.claude-plugin', exist_ok=True)
+        manifest = {
+            'name': 'example-marketplace',
+            'plugins': [{'name': 'sample-plugin', 'source': './services/sample-plugin'}],
+        }
+        with open('.claude-plugin/marketplace.json', 'w') as f:
+            json.dump(manifest, f)
+        os.makedirs('services/sample-plugin', exist_ok=True)
+
+    def _evil_cache_path(self, version, leaf='server.ts'):
+        # Inject adversarial chars into the version segment ([^/]+ matches \n
+        # and ESC), not the leaf ((.*)$ stops at \n and the regex fails).
+        return os.path.join(
+            self._tmpdir,
+            '.claude/plugins/cache/example-marketplace/sample-plugin',
+            version,
+            leaf,
+        )
+
+    def test_cache_guard_strips_newline_in_path(self):
+        self._seed_marketplace()
+        _, stderr, _ = self._run(self.GUARD, {
+            'tool_name': 'Edit',
+            'tool_input': {'file_path': self._evil_cache_path('0.1.0\nBAD')},
+        })
+        self.assertIn('WARNING', stderr)
+        self.assertNotIn('\nBAD', stderr)
+        self.assertIn('0.1.0?BAD', stderr)
+
+    def test_cache_guard_strips_ansi_in_path(self):
+        # ANSI in the leaf exercises BOTH safe(filePath) and safe(canonical):
+        # canonical = path.join(sourceRoot, leaf), so a poisoned leaf taints
+        # canonical too. The leaf regex `(.*)$` accepts \x1b (not a line
+        # terminator), so the warning path still runs.
+        self._seed_marketplace()
+        _, stderr, _ = self._run(self.GUARD, {
+            'tool_name': 'Edit',
+            'tool_input': {'file_path': self._evil_cache_path('0.1.0', 'srv\x1b[32mOK\x1b[0m.ts')},
+        })
+        self.assertIn('WARNING', stderr)
+        self.assertNotIn('\x1b', stderr)
+        self.assertIn('OK', stderr)
+
+    def test_cache_guard_strips_c1_csi(self):
+        self._seed_marketplace()
+        _, stderr, _ = self._run(self.GUARD, {
+            'tool_name': 'Edit',
+            'tool_input': {'file_path': self._evil_cache_path('0.1.0\x9b32mFAKE\x9b0m')},
+        })
+        self.assertIn('WARNING', stderr)
+        self.assertNotIn('\x9b', stderr)
+
+    def test_channel_hook_strips_chat_id_controls(self):
+        self._write_config({
+            'channels': {'discord': {'enabled': True, 'dm_channel_id': None}},
+        })
+        _, stderr, _ = self._run(self.CHANNEL, {
+            'tool_name': 'mcp__discord__reply',
+            'tool_input': {'chat_id': 'abc\n\x1b[31mFAKE\x1b[0m'},
+        })
+        self.assertIn('saved discord.dm_channel_id', stderr)
+        self.assertNotIn('\x1b', stderr)
+        self.assertNotIn('\nFAKE', stderr)
+
+
+# ============================================================
 # Negative path tests
 # ============================================================
 
