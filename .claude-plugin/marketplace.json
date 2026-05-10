@@ -86,6 +86,30 @@
         "mcp",
         "gtapps"
       ]
+    },
+    {
+      "name": "matrix",
+      "source": {
+        "source": "github",
+        "repo": "fyrstyk/claude-channel-matrix"
+      },
+      "description": "Matrix channel for Claude Code — bidirectional MCP bridge with media (images, audio, video, files), reactions, edits, typing/presence, optional STT/TTS voice round-trip, and built-in access control. Manage pairing, allowlists, and rooms via /matrix:access.",
+      "version": "0.1.0",
+      "category": "productivity",
+      "author": {
+        "name": "fyrstyk",
+        "url": "https://github.com/fyrstyk"
+      },
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/fyrstyk/claude-channel-matrix",
+      "repository": "https://github.com/fyrstyk/claude-channel-matrix",
+      "keywords": [
+        "matrix",
+        "messaging",
+        "channel",
+        "mcp",
+        "voice"
+      ]
     }
   ]
 }
