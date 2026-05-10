@@ -44,7 +44,7 @@ Modify with `/hermit-settings env`.
 
 ## `channels`
 
-Object keyed by channel name (`"discord"`, `"telegram"`, `"imessage"`). All channel configuration lives here — no top-level `allowed_users` or `morning_brief` keys.
+Object keyed by channel name. Built-in channels (`"discord"`, `"telegram"`, `"imessage"`) resolve their plugin from `claude-plugins-official` automatically; third-party channel plugins set the `marketplace` field below. All channel configuration lives here — no top-level `allowed_users` or `morning_brief` keys.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -52,6 +52,7 @@ Object keyed by channel name (`"discord"`, `"telegram"`, `"imessage"`). All chan
 | `allowed_users` | array | _(absent)_ | User ID allowlist. Absent = accept all. `[]` = accept none. |
 | `dm_channel_id` | string | `null` | DM channel ID learned from the first inbound message. Used for proactive outbound notifications. Never set manually. |
 | `state_dir` | string | _(absent)_ | Path to channel plugin state dir — relative to project root or absolute. `hermit-start` resolves relative paths against `cwd` and derives `<NAME>_STATE_DIR` at boot. |
+| `marketplace` | string | _(absent)_ | Marketplace name for third-party channel plugins. When set, `hermit-start` builds `--channels plugin:<name>@<marketplace>` instead of using the built-in `claude-plugins-official` mapping. Required for any channel other than `discord`/`telegram`/`imessage`. |
 | `morning_brief` | object | `null` | `{ "enabled": true, "time": "07:00" }` to deliver morning brief via this channel. |
 
 Example:

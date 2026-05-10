@@ -209,6 +209,64 @@ class TestChannelFiltering(unittest.TestCase):
         self.assertEqual(hermit_start.get_enabled_channels({'channels': ['list']}), [])
 
 
+class TestBuildClaudeCommandChannels(_TempDirTest):
+    """build_claude_command: channel resolution for --channels arg.
+
+    Silent-breakage zone — if this resolves wrong, claude exits at boot
+    and the tmux session dies before the operator sees a useful error.
+    """
+
+    def _tools(self):
+        return {'bun': '/usr/local/bin/bun'}
+
+    def _state_dir_with_env(self, channel):
+        # build_claude_command checks <state_dir>/.env existence and warns if missing.
+        # We don't assert on the warning — we only care about the --channels payload.
+        d = Path(f'.claude.local/channels/{channel}')
+        d.mkdir(parents=True, exist_ok=True)
+        (d / '.env').write_text('TOKEN=stub\n')
+        return str(d)
+
+    def test_builtin_channel_resolves_via_hardcoded_dict(self):
+        state_dir = self._state_dir_with_env('discord')
+        config = {'channels': {'discord': {'enabled': True, 'state_dir': state_dir}}}
+        cmd = hermit_start.build_claude_command(config, self._tools())
+        self.assertIn('--channels', cmd)
+        self.assertIn('plugin:discord@claude-plugins-official', cmd)
+
+    def test_third_party_channel_uses_config_marketplace(self):
+        state_dir = self._state_dir_with_env('matrix')
+        config = {
+            'channels': {
+                'matrix': {
+                    'enabled': True,
+                    'state_dir': state_dir,
+                    'marketplace': 'someone/matrix-plugin',
+                }
+            }
+        }
+        cmd = hermit_start.build_claude_command(config, self._tools())
+        self.assertIn('--channels', cmd)
+        self.assertIn('plugin:matrix@someone/matrix-plugin', cmd)
+        # Hardcoded official ID must NOT appear for non-built-in channels.
+        for tok in cmd:
+            self.assertFalse(
+                tok.endswith('@claude-plugins-official') and tok.startswith('plugin:matrix@'),
+                f'unexpected built-in resolution for third-party channel: {tok}',
+            )
+
+    def test_unknown_channel_without_marketplace_falls_through(self):
+        # No CHANNEL_PLUGINS entry, no channels.<name>.marketplace → bare name appended.
+        # This preserves prior behaviour (claude will reject it) but is now accompanied
+        # by a clearer warning pointing at the marketplace fix.
+        state_dir = self._state_dir_with_env('signal')
+        config = {'channels': {'signal': {'enabled': True, 'state_dir': state_dir}}}
+        cmd = hermit_start.build_claude_command(config, self._tools())
+        self.assertIn('--channels', cmd)
+        self.assertIn('signal', cmd)
+        self.assertNotIn('plugin:signal@claude-plugins-official', cmd)
+
+
 class TestWriteSettingsEnv(_TempDirTest):
 
     def test_stale_bot_token_removed(self):

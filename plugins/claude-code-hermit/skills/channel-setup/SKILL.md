@@ -51,18 +51,23 @@ Run `claude plugin list --json` and apply the **project-or-local + enabled filte
 - Keep `enabled == true` AND (`scope == "project"` OR `scope == "local"`) AND `projectPath` equals the current project root.
 - Drop user-scope, managed-scope, disabled, and cross-project entries.
 
+Resolve the expected marketplace for this channel:
+
+- If `channels.<channel>.marketplace` is set in `config.json`, use that value (third-party channel plugin path).
+- Otherwise, use `claude-plugins-official` (built-in channels: discord, telegram, imessage).
+
 Then check whether the surviving set contains an entry where:
 
 - the plugin name (substring of `id` left of `@`) equals `<channel>`, AND
-- the marketplace name (substring of `id` right of `@`) equals `claude-plugins-official`.
+- the marketplace name (substring of `id` right of `@`) equals the resolved marketplace.
 
 (Both clauses matter — `discord@some-other-marketplace` is a different plugin from a different source and must not satisfy this gate.)
 
-- **Found**: skip silently. The official channel plugin is already installed and enabled at project or local scope for this project — the canonical filter guarantees `enabled == true`, and `*_STATE_DIR` (set by `hermit-start` at boot) points at `.claude.local/channels/<channel>/`.
+- **Found**: skip silently. The channel plugin is already installed and enabled at project or local scope for this project — the canonical filter guarantees `enabled == true`, and `*_STATE_DIR` (set by `hermit-start` at boot) points at `.claude.local/channels/<channel>/`.
 - **Not found**: run, in order:
   ```bash
-  claude plugin install <channel>@claude-plugins-official --scope local
-  claude plugin enable  <channel>@claude-plugins-official --scope local
+  claude plugin install <channel>@<marketplace> --scope local
+  claude plugin enable  <channel>@<marketplace> --scope local
   ```
   Explicit `enable` covers the disabled-but-installed-at-project/local case — the filter excluded such entries (enabled-only), and `install` is a separate command from `enable` per the CLI surface, so it may no-op without re-enabling. A user-scope install elsewhere does not satisfy this gate; channel tokens and access policy are project-local.
 
@@ -122,14 +127,16 @@ Then proceed to step 5 without a token (pairing will be skipped in step 5).
 **If no token is configured** (skipped in step 4): print restart instructions and stop:
 > Restart Claude Code with channels active once you've added your token:
 > - With hermit: `hermit-start` (passes `--channels` automatically)
-> - Manual: `claude --channels plugin:<channel>@claude-plugins-official`
+> - Manual: `claude --channels plugin:<channel>@<marketplace>`
+>   (use the same `<marketplace>` resolved in step 3 — `claude-plugins-official` for built-in channels, or `channels.<channel>.marketplace` for third-party plugins.)
 
 **If token is configured:** check whether the channel is already active in the current session by checking if the channel's reply tool is available. If active, skip the restart prompt and go straight to the pairing question batch.
 
 If not active, display:
 > Token saved. Restart Claude Code to activate the channel:
 > - With hermit: `hermit-start` (passes `--channels` automatically)
-> - Manual: `claude --channels plugin:<channel>@claude-plugins-official`
+> - Manual: `claude --channels plugin:<channel>@<marketplace>`
+>   (use the same `<marketplace>` resolved in step 3.)
 >
 > After restarting, DM your bot — it will reply with a 6-character pairing code.
 

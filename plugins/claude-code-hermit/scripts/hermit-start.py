@@ -294,12 +294,21 @@ def build_claude_command(config, tools):
 
         if active_channels:
             cmd.append('--channels')
+            channel_cfgs = {name: cfg for name, cfg in iter_channel_configs(config)}
             for channel in active_channels:
                 plugin_id = CHANNEL_PLUGINS.get(channel)
+                if not plugin_id:
+                    # Fall back to channels.<name>.marketplace for third-party channel
+                    # plugins (custom marketplaces, forks, operator-built channels).
+                    marketplace = channel_cfgs.get(channel, {}).get('marketplace')
+                    if marketplace:
+                        plugin_id = f'plugin:{channel}@{marketplace}'
                 if plugin_id:
                     cmd.append(plugin_id)
                 else:
-                    print(f'[hermit] WARNING: unrecognized channel "{channel}" — expected discord, telegram, or imessage')
+                    print(f'[hermit] WARNING: unrecognized channel "{channel}" — '
+                          f'expected discord, telegram, or imessage '
+                          f'(or set channels.{channel}.marketplace in config.json)')
                     cmd.append(channel)
 
     # Add remote control for web/mobile access (with session name)
