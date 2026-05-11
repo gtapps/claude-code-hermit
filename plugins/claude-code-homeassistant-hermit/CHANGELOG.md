@@ -4,6 +4,10 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ## [Unreleased]
 
+### Changed
+
+- **Operator-facing docs surface the acknowledged-violations mechanism.** `state-templates/CLAUDE-APPEND.md` Core Rules gains a paragraph telling operators how to create `.claude-code-hermit/compiled/acknowledged-violations.md` (with the per-id `refs=[...]` format and the subset-drift semantic). `skills/ha-safety-audit/SKILL.md` Output Contract is updated to mention the post-filter count and the `acknowledged[]` JSON sidecar. Closes a discoverability gap — without these docs, operators have no path from "the audit keeps flagging the same automation" to "the mechanism to silence it".
+
 ### Added
 
 - **`ha-import-config` skill** — minimal wrapper around `export-<domain>` + `simulate` that distinguishes import outcomes the raw CLI conflates. `simulate.py` returns `valid = not blocked_reasons and not missing_entities`, so a policy-sensitive import (e.g. alarm-bypass automation under `strict`) looks identical to a broken one with missing entities. The skill splits these: `valid: true` → "clean"; `valid: false` with missing entities → "refresh context and retry"; `valid: false` with only policy reasons → "imported successfully; policy-sensitive — add to `acknowledged-violations.md` if you want to silence audits". Takes `<domain> <id>` directly; no candidate listing/picking. Operators call `list-automations` themselves if they need to browse.

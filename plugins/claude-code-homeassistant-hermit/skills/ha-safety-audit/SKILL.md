@@ -15,7 +15,7 @@ The plugin's safety gate only runs when automations are built through `ha-build-
 ## Steps
 
 1. Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-automations`.
-2. The CLI writes JSON + markdown artifacts under `.claude-code-hermit/raw/audit-ha-safety-*` and prints a stdout findings block.
+2. The CLI writes JSON + markdown artifacts under `.claude-code-hermit/raw/audit-ha-safety-*` and prints a stdout findings block. The stdout block is already filtered against `.claude-code-hermit/compiled/acknowledged-violations.md` (if present); acknowledged automations are silent in stdout but recorded in the JSON sidecar's `acknowledged[]` array for audit-trail purposes.
 3. Pass the stdout block through unchanged — reflect-scheduled-checks consumes it as the scheduled check output.
 
 ## Output contract
@@ -30,6 +30,8 @@ No action needed: M automations passed
 ```
 
 Or, if no violations: `No actionable findings. (N automations scanned)`.
+
+**Acknowledged suppression**: items listed in `.claude-code-hermit/compiled/acknowledged-violations.md` (operator-curated, see `state-templates/compiled/acknowledged-violations.md` for the format) are filtered from stdout before the count is computed. `Policy violations: N` is the post-filter count. The full unfiltered audit trail lives in `raw/audit-ha-safety-latest.json` under `acknowledged[]`. The suppression uses a subset check on per-id `refs=[...]` declared in the file — if an acknowledged automation later touches a NEW sensitive ref, it re-surfaces.
 
 ## Failure modes
 

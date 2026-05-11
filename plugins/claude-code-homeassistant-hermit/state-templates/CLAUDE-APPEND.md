@@ -14,6 +14,7 @@ This project has the `claude-code-homeassistant-hermit` plugin installed. The ru
 - Uncertain entities default to sensitive. Blocked work becomes a proposal.
 - Use the stored language from `MEMORY.md` for all user-facing output.
 - Keep known-broken entity IDs at the top level of your auto memory (`MEMORY.md`, under a `## Known Issues` or `## Known Broken` section). `ha-morning-brief` and `ha-integration-health` consult MEMORY.md and suppress entity-level bullets for IDs listed there. MEMORY.md is auto-loaded (first 200 lines / 25KB); topic files are not, so they can't be relied on for this filter.
+- **Acknowledge audit-flagged automations** by creating `.claude-code-hermit/compiled/acknowledged-violations.md` (copy `${CLAUDE_PLUGIN_ROOT}/state-templates/compiled/acknowledged-violations.md` as a starting point). List each acknowledged automation's id in `automation_ids:` frontmatter and add a `## Rationale` bullet of the form `` - `<id>`: refs=[<entity_or_service>, ...]; <reason> ``. The weekly `ha-safety-audit` reads this file and silently suppresses listed automations only when their current sensitive refs are a **subset** of the declared `refs=[...]` — drift outside that set re-surfaces as a normal finding. This does NOT bypass runtime gates; apply and the MCP safety hook still enforce `ha_safety_mode`.
 
 ### Entry Flow
 
