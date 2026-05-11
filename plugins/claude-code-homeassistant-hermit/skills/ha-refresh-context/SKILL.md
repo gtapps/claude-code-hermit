@@ -15,9 +15,9 @@ allowed-tools:
 1. Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha refresh-context`.
 2. Read the output JSON — note entity count and base_url_source.
 3. Read `.claude-code-hermit/raw/snapshot-ha-normalized-latest.json` to understand what's in the house.
-4. Compare with the previous entity count (check `MEMORY.md` House Profile section).
-5. If new entities, areas, or domains appeared, update `MEMORY.md` House Profile.
-6. If entities disappeared or became unavailable, note it in `MEMORY.md` Known Issues.
+4. Compare with the previous entity count (check your auto memory for a stored house profile).
+5. If new entities, areas, or domains appeared, update your auto memory with the house profile changes.
+6. If entities disappeared or became unavailable, note it in your auto memory.
 
 ## Output
 

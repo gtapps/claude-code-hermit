@@ -18,7 +18,7 @@ allowed-tools:
 
 1. **Gather context**:
    - Read `.claude-code-hermit/raw/snapshot-ha-normalized-latest.json` for available entities and services.
-   - Read `MEMORY.md` for stored language — use it for `alias` and `description` fields.
+   - Use the stored language from your auto memory for `alias` and `description` fields.
    - Optionally call `GetLiveContext` via MCP for current state.
 
 2. **Draft the YAML**:

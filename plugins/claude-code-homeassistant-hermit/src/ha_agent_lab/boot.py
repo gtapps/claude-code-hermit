@@ -39,12 +39,8 @@ class BootStatus:
         return asdict(self)
 
 
-def memory_path(root: Path) -> Path:
-    return root / "MEMORY.md"
-
-
 def read_language(root: Path) -> str | None:
-    path = memory_path(root)
+    path = root / "MEMORY.md"
     if not path.exists():
         return None
     match = LANGUAGE_PATTERN.search(path.read_text(encoding="utf-8"))
@@ -52,7 +48,7 @@ def read_language(root: Path) -> str | None:
 
 
 def write_language(root: Path, language: str) -> Path:
-    path = memory_path(root)
+    path = root / "MEMORY.md"
     if path.exists():
         text = path.read_text(encoding="utf-8")
         if LANGUAGE_PATTERN.search(text):
@@ -172,7 +168,7 @@ def _setup_checklist(
             "required": True,
             "configured": language is not None,
             "status": "ok" if language is not None else "missing",
-            "location": "MEMORY.md",
+            "location": "auto-memory",
             "next_step": f"{command_prefix} boot store --language <locale>",
         },
         {

@@ -30,7 +30,7 @@ Build YAML automations and scripts that are safe, well-structured, and follow pr
 ## Conventions
 
 - **IDs**: `snake_case`, language-neutral, descriptive (e.g., `kitchen_motion_after_sunset_notification`)
-- **Aliases**: use the stored locale from `MEMORY.md` (read it first)
+- **Aliases**: use the stored locale from your auto memory
 - **Descriptions**: stored locale, explain the purpose
 - **Mode**: always set explicitly (`single`, `restart`, `queued`, `parallel`)
 - **Triggers**: use `platform:` explicitly, prefer specific entity triggers
@@ -39,7 +39,7 @@ Build YAML automations and scripts that are safe, well-structured, and follow pr
 
 ## Workflow
 
-1. Read `MEMORY.md` for the stored locale
+1. Use the stored locale from your auto memory
 2. Read `.claude-code-hermit/raw/snapshot-ha-normalized-latest.json` for available entities and services
 3. Optionally call `GetLiveContext` for current device states
 4. Draft the YAML in `.claude-code-hermit/raw/automation-<id>.yaml`

@@ -12,7 +12,7 @@ This project has the `claude-code-homeassistant-hermit` plugin installed. The ru
 - Never commit real HA URLs, tokens, or device inventories.
 - Never autonomously actuate: `lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`.
 - Uncertain entities default to sensitive. Blocked work becomes a proposal.
-- Use the stored language from `MEMORY.md` for all user-facing output.
+- Use the stored language from your auto memory for all user-facing output.
 
 ### Entry Flow
 

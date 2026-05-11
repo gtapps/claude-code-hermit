@@ -37,7 +37,7 @@ Review YAML files in `.claude-code-hermit/raw/` (named `automation-*.yaml` or `s
 
 ## Memory Cross-Check
 
-Read `MEMORY.md` (index of `- [title](file) — description` entries). Read each topic file whose title or description keyword-matches the change under review. Match against the file's `name`, `description`, body, `Why:`, and `How to apply:` fields.
+Auto memory is loaded in your context. Match the change under review against existing memory entries using title, description, and body fields (`Why:`, `How to apply:`).
 
 If memory already records the operator's preference or decision that would change your verdict:
 - Set verdict to `approve` (memory has already adjudicated the concern).

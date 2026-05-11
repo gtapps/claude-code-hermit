@@ -27,7 +27,7 @@ allowed-tools:
    - `creation_ok: true` — config was pushed and verified via REST. Reload picks it up immediately.
    - `creation_ok: false` + message contains "YAML mode" — HA is in YAML config mode (403). Tell the operator to place the generated YAML in their HA config directory and reload manually.
    - `creation_ok: false` + other message — push failed with a validation error from HA. Show the error message and suggest fixing the YAML.
-   - If overall successful: update `MEMORY.md` Automation Insights if this is a new pattern.
+   - If overall successful: update your auto memory if this automation introduces a new pattern.
 
 ## Safety
 

@@ -49,8 +49,8 @@ Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status` and inspect the JSON ou
 
 Also check locale:
 
-- Read `MEMORY.md`. If a `Language` / locale entry already exists in the House Profile section, use it silently — do not re-ask.
-- If absent, ask: **Language / locale**: What language should the agent use for HA-facing output? (e.g. `en`, `pt`, `es`) Store it in `MEMORY.md` House Profile (create the section if missing).
+- Check your auto memory. If a stored language entry already exists, use it silently — do not re-ask.
+- If absent, ask: **Language / locale**: What language should the agent use for HA-facing output? (e.g. `en`, `pt`, `es`) Save it to your auto memory.
 
 Do not collect or store the token — it stays in `.env` only.
 
