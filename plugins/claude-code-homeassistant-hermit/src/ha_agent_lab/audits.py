@@ -10,6 +10,7 @@ import yaml
 
 from .artifacts import current_session_id, standard_metadata, write_json_artifact, write_markdown_artifact
 from .ha_api import HomeAssistantClient, HomeAssistantError
+from .markdown import load_frontmatter
 from .policy import Severity, classify_entity, evaluate_references
 from .simulate import collect_references
 
@@ -33,37 +34,31 @@ def _load_acknowledged(root: Path) -> dict[str, dict[str, Any]]:
     """
     path = root / ".claude-code-hermit" / "compiled" / "acknowledged-violations.md"
     try:
-        text = path.read_text(encoding="utf-8")
+        fm, body = load_frontmatter(path)
     except FileNotFoundError:
         return {}
-    except OSError as exc:
-        print(f"ha-safety-audit: cannot read acknowledged-violations file: {exc}", file=sys.stderr)
-        return {}
-
-    try:
-        if not text.startswith("---\n"):
-            return {}
-        end = text.find("\n---\n", 4)
-        if end == -1:
-            return {}
-        fm = yaml.safe_load(text[4:end]) or {}
-        body = text[end + 5:]
-    except yaml.YAMLError as exc:
-        print(f"ha-safety-audit: malformed frontmatter in acknowledged-violations: {exc}", file=sys.stderr)
+    except (OSError, yaml.YAMLError, ValueError) as exc:
+        print(f"ha-safety-audit: cannot parse acknowledged-violations file: {exc}", file=sys.stderr)
         return {}
 
     ids = [str(i) for i in (fm.get("automation_ids") or []) if i]
     result: dict[str, dict[str, Any]] = {i: {"refs": frozenset(), "quoted_line": None} for i in ids}
 
     for line in body.splitlines():
-        match = _RATIONALE_BULLET_RE.match(line.strip())
+        stripped = line.strip()
+        match = _RATIONALE_BULLET_RE.match(stripped)
         if not match:
+            if stripped.startswith("- `") and "refs=" in stripped:
+                print(
+                    f"ha-safety-audit: unparseable rationale bullet (expected format: - `<id>`: refs=[...]; <text>): {stripped!r}",
+                    file=sys.stderr,
+                )
             continue
         bullet_id = match.group("id")
         if bullet_id not in result:
             continue
         refs = frozenset(r.strip() for r in match.group("refs").split(",") if r.strip())
-        result[bullet_id] = {"refs": refs, "quoted_line": line.strip()}
+        result[bullet_id] = {"refs": refs, "quoted_line": stripped}
 
     return result
 
@@ -132,7 +127,8 @@ def audit_automations(root: Path, client: HomeAssistantClient) -> dict[str, Any]
     for v in raw_violations:
         sensitive_refs = v.pop("_sensitive_refs")
         info = acknowledged_map.get(v["id"])
-        if info and sensitive_refs.issubset(info["refs"]):
+        # Empty `sensitive_refs` is a subset of any declared `refs=[...]`; refuse to suppress.
+        if info and sensitive_refs and sensitive_refs.issubset(info["refs"]):
             acknowledged.append({
                 **v,
                 "quoted_line": info["quoted_line"],

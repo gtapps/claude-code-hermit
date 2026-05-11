@@ -233,6 +233,41 @@ def test_audit_acknowledged_drift_re_surfaces(tmp_path: Path, make_ha_config) ->
     assert summary["violations"][0]["id"] == "realiza_apos_armar_alarme"
 
 
+def test_audit_acknowledged_unparseable_bullet_emits_stderr(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], make_ha_config
+) -> None:
+    """Bullets that look like rationale lines but don't match the format hit stderr."""
+    make_ha_config("strict")
+    (tmp_path / ".claude-code-hermit" / "raw").mkdir(parents=True)
+    _write_acknowledged(
+        tmp_path,
+        "---\n"
+        "title: Acknowledged\n"
+        "type: acknowledged-violations\n"
+        "automation_ids: [realiza_apos_armar_alarme]\n"
+        "---\n\n"
+        "## Rationale\n\n"
+        # Missing trailing rationale text after `;`
+        "- `realiza_apos_armar_alarme`: refs=[alarm_control_panel.casa]; \n",
+    )
+    config, states = _alarm_arm_fixture()
+    responses: dict[str, object] = {
+        "/api/states": states,
+        "/api/config/automation/config/realiza_apos_armar_alarme": config,
+    }
+    client = FakeClient(responses)
+
+    summary = audit_automations(tmp_path, client)
+    captured = capsys.readouterr()
+
+    # Bullet did not parse → no suppression
+    assert summary["acknowledged"] == []
+    assert len(summary["violations"]) == 1
+    # Stderr breadcrumb fired
+    assert "unparseable rationale bullet" in captured.err
+    assert "realiza_apos_armar_alarme" in captured.err
+
+
 def test_audit_acknowledged_frontmatter_only_does_not_suppress(tmp_path: Path) -> None:
     (tmp_path / ".claude-code-hermit" / "raw").mkdir(parents=True)
     _write_acknowledged(

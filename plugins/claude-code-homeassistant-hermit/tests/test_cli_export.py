@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
+import pytest
 import yaml
 
 from ha_agent_lab.cli import main
@@ -56,15 +57,19 @@ def test_export_script_ok(capsys, make_mock_config) -> None:
     instance.get.assert_called_once_with("/api/config/script/config/welcome")
 
 
-def test_export_rejects_entity_id_shape(capsys, make_mock_config) -> None:
+@pytest.mark.parametrize(
+    "bad_id",
+    ["automation.kitchen_lights", "sensor.kitchen_temp", "light.foo"],
+)
+def test_export_rejects_entity_id_shape(capsys, make_mock_config, bad_id) -> None:
+    """Any `.` is treated as entity-id-shaped, regardless of domain prefix."""
     cfg = make_mock_config()
     with patch("ha_agent_lab.cli.load_config", return_value=cfg), \
-         patch("ha_agent_lab.cli.HomeAssistantClient") as MockClient:
-        result = main(["ha", "export-automation", "automation.kitchen_lights"])
+         patch("ha_agent_lab.cli.HomeAssistantClient"):
+        result = main(["ha", "export-automation", bad_id])
 
     assert result == 1
-    err = capsys.readouterr().err
-    assert "looks like an entity_id" in err
+    assert "looks like an entity_id" in capsys.readouterr().err
 
 
 def test_export_not_found_returns_nonzero(capsys, make_mock_config) -> None:

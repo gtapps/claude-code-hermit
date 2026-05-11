@@ -6,6 +6,7 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ### Changed
 
+- **Hardening pass on the noise-reduction features.** `ha export-automation` / `export-script` now rejects any config id containing `.` (was: 7-prefix whitelist), so `sensor.foo`, `vacuum.bar`, etc. surface the "looks like an entity_id" hint instead of HA's opaque 400. `audits.py:_load_acknowledged` reuses `markdown.load_frontmatter` instead of hand-rolling the `---\n` split. A stderr breadcrumb (`unparseable rationale bullet`) fires when a body line looks like a rationale bullet but doesn't match the regex, so operators can debug malformed entries without silent suppression failures. Suppression also guards against empty `sensitive_refs` (defensive: empty set is a subset of everything, would silently quiet a violation if the invariant ever weakens). New parametrized tests cover the widened validation and stderr breadcrumb.
 - **Operator-facing docs surface the acknowledged-violations mechanism.** `state-templates/CLAUDE-APPEND.md` Core Rules gains a paragraph telling operators how to create `.claude-code-hermit/compiled/acknowledged-violations.md` (with the per-id `refs=[...]` format and the subset-drift semantic). `skills/ha-safety-audit/SKILL.md` Output Contract is updated to mention the post-filter count and the `acknowledged[]` JSON sidecar. Closes a discoverability gap — without these docs, operators have no path from "the audit keeps flagging the same automation" to "the mechanism to silence it".
 
 ### Added

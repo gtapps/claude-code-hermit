@@ -25,15 +25,8 @@ class InvalidConfigId(ValueError):
 def _validate_id(config_id: str) -> None:
     if not config_id:
         raise InvalidConfigId("config id is empty")
-    if "." in config_id and config_id.split(".", 1)[0] in {
-        "automation",
-        "script",
-        "light",
-        "switch",
-        "cover",
-        "lock",
-        "alarm_control_panel",
-    }:
+    # `.` is reserved for entity_ids; reject all dotted ids — HA otherwise returns an opaque 400.
+    if "." in config_id:
         raise InvalidConfigId(
             f"'{config_id}' looks like an entity_id; pass the config id (e.g. 'kitchen_lights' not 'automation.kitchen_lights')"
         )
