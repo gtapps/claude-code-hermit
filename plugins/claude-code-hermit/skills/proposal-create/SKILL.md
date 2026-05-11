@@ -59,8 +59,9 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js \
      c. Split into tokens; drop stopwords: `a an the and or of for to in on with by from as is are`.
      d. If filter leaves zero tokens, fall back to the pre-filter token list.
      e. Take the first 5 tokens; join with `-`; truncate to 40 chars at a word boundary (drop trailing tokens until ≤40 chars; if a single token exceeds 40, hard-cut it).
+     f. If after all steps the slug is empty (title was all punctuation, all non-ASCII, or itself empty), use the literal `proposal` as the slug. The filename and id must never contain a double-dash like `PROP-009--HHMMSS`.
    - Target filename: `PROP-NNN-<slug>-HHMMSS.md` (e.g. `PROP-009-capability-brainstorm-103612.md`).
-   - If the target filename already exists (same-second collision), append `a` to both the filename (`...-HHMMSSa.md`) and the `id` field (`PROP-NNN-slug-HHMMSSa`).
+   - If the target filename already exists (same-second collision), append `a` to both the filename (`...-HHMMSSa.md`) and the `id` field (`PROP-NNN-slug-HHMMSSa`). On further collisions, continue through `b`, `c`, … in order.
    - Create `.claude-code-hermit/proposals/PROP-NNN-<slug>-HHMMSS.md` using `.claude-code-hermit/templates/PROPOSAL.md.template`:
    - Write YAML frontmatter with:
      - `id`: the canonical ID `PROP-NNN-<slug>-HHMMSS` (or `PROP-NNN-<slug>-HHMMSSa` if the collision guard fired) — equals the filename stem without `.md`

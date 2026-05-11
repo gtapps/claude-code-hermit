@@ -34,7 +34,7 @@ When installed in a target project, state lives in `.claude-code-hermit/`:
 
 - `sessions/SHELL.md` — current session (with tags, budget, monitoring)
 - `sessions/S-NNN-REPORT.md` — archived reports
-- `proposals/PROP-NNN.md` — improvement proposals
+- `proposals/PROP-NNN-<slug>-HHMMSS.md` — improvement proposals
 - `templates/` — session and proposal templates
 - `state/` — runtime observations (alert-state.json, reflection-state.json, routine-metrics.jsonl, proposal-metrics.jsonl, micro-proposals.json, state-summary.md, monitors.runtime.json)
 - `raw/` — domain inputs (fetched content, snapshots, logs); flat layout only (no subdirectories). `raw/.archive/` holds expired artifacts. See [plugin-hermit-storage](docs/plugin-hermit-storage.md).

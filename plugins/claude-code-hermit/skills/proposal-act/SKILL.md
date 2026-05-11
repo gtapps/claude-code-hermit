@@ -24,10 +24,10 @@ Before reading any proposal file, resolve the operator's input to a filename usi
 1. Trim whitespace and uppercase the input.
 2. Match against `/^PROP-(\d+)(?:-(.+))?$/`. If no match: error "Not a PROP id."
 3. Zero-pad the integer to 3 digits (e.g. `PROP-6` → `PROP-006`).
-4. Build the glob pattern:
-   - If no suffix (e.g. `PROP-006`): `PROP-006*.md` — matches legacy `PROP-006.md` and all new-format files with that integer.
-   - If suffix present (e.g. `PROP-006-103612`): `PROP-006-*103612*.md` — the slug sits between the integer and the timestamp, so bracket the suffix with wildcards.
-5. Glob `.claude-code-hermit/proposals/<pattern>`.
+4. Build the glob pattern. Always anchor: never use bare `PROP-NNN*.md` (collides with 4-digit NNN files like `PROP-0061.md` once proposal counts cross 1000).
+   - If no suffix (e.g. `PROP-006`): glob two anchored patterns and union the results: `PROP-006.md` (legacy exact match) plus `PROP-006-*.md` (new-format files with that integer).
+   - If suffix present (e.g. `PROP-006-103612` or `PROP-006-capability-brainstorm-103612`): glob `PROP-006-*<suffix>*.md`. The leading `-*` brackets the slug for timestamp-only inputs; the trailing wildcard catches the `a`/`b`/… collision-suffix variant. The disambiguation prompt resolves any over-matches.
+5. Glob `.claude-code-hermit/proposals/<pattern>` (or each pattern in turn for the two-pattern no-suffix case, then union).
 6. Count the matches:
    - **0 matches**: error "No proposal matches [input]. Use /proposal-list to see available proposals."
    - **1 match**: proceed with that file.

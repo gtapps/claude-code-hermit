@@ -16,7 +16,7 @@
 | -------------------------- | --------------------------------------------------------------- |
 | `sessions/SHELL.md`        | Live working document                                           |
 | `sessions/S-NNN-REPORT.md` | Archived reports                                                |
-| `proposals/PROP-NNN.md`    | Improvement proposals                                           |
+| `proposals/PROP-NNN-<slug>-HHMMSS.md` | Improvement proposals                                           |
 | `state/`                   | Runtime state (alert dedup, reflection, routine queue, metrics) |
 | `state/monitors.runtime.json` | Active watch registry — cleared on each session start       |
 | `OPERATOR.md`              | Human-curated context — draft changes, confirm before writing |

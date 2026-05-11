@@ -69,7 +69,7 @@ skills use this bucket to coordinate across invocations.
 
 ## proposals/ — improvement suggestions
 
-- **Naming:** `PROP-NNN.md`, sequential zero-padded integer, never renumbered.
+- **Naming:** `PROP-NNN.md` (legacy) or `PROP-NNN-<slug>-HHMMSS.md` (current: kebab-cased slug + creation-time `HHMMSS`, optional `a`/`b`/… collision suffix). NNN is a sequential zero-padded 3-digit integer, never renumbered. The full filename stem equals the proposal's `id` in frontmatter.
 - **Lifecycle:** driven by frontmatter `status:` (one of `open`, `resolved`,
   `dismissed`, `deferred`, `reverted`).
 - **Required frontmatter:** `title:`, `status:`, `tier:`, `category:`, `source:`,

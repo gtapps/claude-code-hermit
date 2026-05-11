@@ -76,7 +76,7 @@ operator_turns: 0
 
 ## C. Proposal
 
-**File pattern:** `proposals/PROP-NNN.md`
+**File pattern:** `proposals/PROP-NNN.md` (legacy) or `proposals/PROP-NNN-<slug>-HHMMSS.md` (current: kebab-cased slug + creation-time `HHMMSS`, optional `a`/`b`/… collision suffix). Both forms are recognized by all proposal-scanning scripts; legacy files do not need rename.
 
 ```yaml
 ---
@@ -100,7 +100,7 @@ accepted_in_session: S-052
 
 | Field      | Type     | Enum values                                                 | Description                                                                   |
 | ---------- | -------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `id`       | string   | `PROP-NNN` (zero-padded)                                    | Proposal identifier                                                           |
+| `id`       | string   | `PROP-NNN` (legacy) or `PROP-NNN-<slug>-HHMMSS[a-z]?` (current; equals filename stem) | Proposal identifier                                                           |
 | `title`    | string   | —                                                           | Must match H1 heading title                                                   |
 | `status`   | enum     | `proposed`, `accepted`, `resolved`, `dismissed`             | Current lifecycle state                                                       |
 | `source`   | enum     | `manual`, `auto-detected`, `operator-request`               | **Origin only** — how the proposal was initiated. Does not control gate behavior; gate bypass is governed by the candidate-level `Evidence Source:` documented in `skills/reflect/SKILL.md` § Evidence Validation. Values: `manual` = operator invoked `/proposal-create` directly; `auto-detected` = pipeline-initiated (reflect, heartbeat, cadence-driven callers); `operator-request` = operator consent flow (baseline audit accepted at hatch, or direct "propose X" ask). |
@@ -213,7 +213,7 @@ tags: [calendar, content]
 | ---------- | ------ | --------------------------------------------- | ---------------------------------------------------- |
 | `source`   | enum   | `session`, `interactive`, `routine`, `manual` | How the artifact was created. Default: `interactive` |
 | `session`  | string | `S-NNN`                                       | Links artifact to a session in the graph             |
-| `proposal` | string | `PROP-NNN`                                    | Links artifact to a proposal in the graph            |
+| `proposal` | string | `PROP-NNN` or `PROP-NNN-<slug>-HHMMSS`        | Links artifact to a proposal in the graph            |
 | `tags`     | array  | —                                             | Enables Dataview grouping                            |
 
 Custom hermits may add any additional domain fields (e.g., `platform`, `week_start`, `pillar`). Core tools ignore them.
