@@ -53,6 +53,8 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-automations
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-scripts
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-automation <id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-script <id>
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha export-automation <id>
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha export-script <id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha probe <path>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status [--probe]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url> [--token <token>]
@@ -73,6 +75,7 @@ Before changing HA endpoint usage, verify against upstream (WebFetch or the `fin
 - `DELETE /api/config/{automation|script}/config/{id}` — remove config. **A missing id returns 400** (not 404) with `{"message":"Resource not found"}` — do not special-case 404. All HA error responses carry `{"message":"..."}` — surface it verbatim.
 - After `POST`, `GET` reflects the change synchronously (verified against HA 2026.x). No retry or delay needed for verify calls.
 - `--reload {automation|script}` in `ha validate-apply` is overloaded: it controls both the REST push endpoint and the reload service call. There is no push-only mode; add `--no-reload` if that use case arises.
+- `ha export-automation` / `ha export-script` use `yaml.safe_dump(config, sort_keys=False)` so key order is preserved, but comments and authoring whitespace are stripped — exports are structurally equivalent to the live config, not byte-identical to a human-formatted YAML file.
 
 ## Development constraints
 

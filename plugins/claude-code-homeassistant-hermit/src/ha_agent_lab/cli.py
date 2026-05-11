@@ -69,6 +69,18 @@ def build_parser() -> argparse.ArgumentParser:
     delete_script_parser = ha_subparsers.add_parser("delete-script", help="Delete a script config by ID.")
     delete_script_parser.add_argument("id", help="Script config ID (not entity_id).")
 
+    export_automation_parser = ha_subparsers.add_parser(
+        "export-automation",
+        help="Fetch a live automation config from HA and write it to raw/ as YAML.",
+    )
+    export_automation_parser.add_argument("id", help="Automation config ID (not entity_id).")
+
+    export_script_parser = ha_subparsers.add_parser(
+        "export-script",
+        help="Fetch a live script config from HA and write it to raw/ as YAML.",
+    )
+    export_script_parser.add_argument("id", help="Script config ID (not entity_id).")
+
     return parser
 
 
@@ -221,6 +233,33 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
             return 0 if result.ok else 1
+        except HomeAssistantError as exc:
+            print(str(exc))
+            return 1
+
+    if args.command == "ha" and args.ha_command in ("export-automation", "export-script"):
+        try:
+            from .export import InvalidConfigId, export_config
+
+            client = HomeAssistantClient(config)
+            domain = "automation" if args.ha_command == "export-automation" else "script"
+            result = export_config(root, client, domain, args.id)
+            print(
+                json.dumps(
+                    {
+                        "ok": result.ok,
+                        "domain": result.domain,
+                        "config_id": result.config_id,
+                        "path": str(result.path.relative_to(root)),
+                        "message": result.message,
+                    },
+                    indent=2,
+                )
+            )
+            return 0 if result.ok else 1
+        except InvalidConfigId as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
         except HomeAssistantError as exc:
             print(str(exc))
             return 1
