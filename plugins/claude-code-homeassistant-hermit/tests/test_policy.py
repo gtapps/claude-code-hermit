@@ -3,7 +3,15 @@ from pathlib import Path
 import pytest
 
 from ha_agent_lab.cli import main
-from ha_agent_lab.policy import can_reload_domain, check_entity, evaluate_references, is_sensitive_entity
+from ha_agent_lab.policy import (
+    Severity,
+    can_reload_domain,
+    check_entity,
+    classify_entity,
+    evaluate_references,
+    is_sensitive_entity,
+    safety_mode,
+)
 
 
 def test_sensitive_entity_detection() -> None:
@@ -79,6 +87,67 @@ def test_extra_sensitive_keyword(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.chdir(tmp_path)
     assert is_sensitive_entity("switch.pool_pump")
     assert not is_sensitive_entity("switch.living_room")  # no regression
+
+
+def test_safety_mode_defaults_to_strict(tmp_path: Path) -> None:
+    assert safety_mode(tmp_path) == "strict"
+
+
+def test_safety_mode_reads_ask_from_config(make_ha_config) -> None:
+    root = make_ha_config("ask")
+    assert safety_mode(root) == "ask"
+
+
+def test_safety_mode_invalid_value_defaults_to_strict(make_ha_config) -> None:
+    root = make_ha_config("bogus")
+    assert safety_mode(root) == "strict"
+
+
+def test_safety_mode_permissive_no_longer_valid(make_ha_config) -> None:
+    """`permissive` was removed in favour of two-tier strict/ask. Falls back to strict."""
+    root = make_ha_config("permissive")
+    assert safety_mode(root) == "strict"
+
+
+def test_classify_strict_blocks_sensitive(make_ha_config) -> None:
+    root = make_ha_config("strict")
+    sev, reasons = classify_entity("alarm_control_panel.home", root=root)
+    assert sev == Severity.BLOCK
+    assert reasons
+
+
+def test_classify_ask_returns_ask_severity(make_ha_config) -> None:
+    root = make_ha_config("ask")
+    sev, reasons = classify_entity("alarm_control_panel.home", root=root)
+    assert sev == Severity.ASK
+    assert reasons
+
+
+def test_classify_ask_on_conditional_sensitive(make_ha_config) -> None:
+    root = make_ha_config("ask")
+    sev, _ = classify_entity("cover.garage_door", root=root)
+    assert sev == Severity.ASK
+
+
+def test_safe_entity_allowlist_wins_over_strict(make_ha_config, monkeypatch: pytest.MonkeyPatch) -> None:
+    root = make_ha_config("strict")
+    (root / ".env").write_text("HA_SAFE_ENTITIES=alarm_control_panel.home\n")
+    monkeypatch.chdir(root)
+    sev, _ = classify_entity("alarm_control_panel.home", root=root)
+    assert sev == Severity.ALLOW
+
+
+def test_evaluate_references_severity_field(make_ha_config) -> None:
+    root = make_ha_config("ask")
+    decision = evaluate_references(["alarm_control_panel.home"], [], root=root)
+    assert decision.severity == Severity.ASK
+    assert not decision.blocked
+
+
+def test_check_entity_includes_severity() -> None:
+    result = check_entity("light.kitchen")
+    assert "severity" in result
+    assert result["severity"] == "allow"
 
 
 def test_policy_check_cli_yaml_file(tmp_path: Path, capsys) -> None:

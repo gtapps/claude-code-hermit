@@ -11,8 +11,10 @@ allowed-tools:
 
 ## Steps
 
-1. **Pre-check**: Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <artifact_path>` to verify safety.
-   - If blocked: stop and explain why. Create a proposal via `/claude-code-hermit:proposal-create`.
+1. **Pre-check**: Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <artifact_path>` to verify safety. Read the `severity` field in the JSON output:
+   - `"block"` (strict mode): stop and explain why. Create a proposal via `/claude-code-hermit:proposal-create`.
+   - `"ask"` (ask mode): use `AskUserQuestion` to confirm with the operator before proceeding. Show which sensitive entities triggered the prompt and what will be applied.
+   - `"allow"`: proceed to step 2.
 
 2. **Validate and apply**: Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha validate-apply <artifact_path> --reload automation` (or `script`).
    - This runs HA config check, **pushes the config to HA via REST**, then reloads the domain.

@@ -138,6 +138,17 @@ Check CLAUDE.md for the marker comment `<!-- claude-code-homeassistant-hermit: H
 - Present and version matches current plugin version → skip.
 - Present and version is stale → replace the block between the opening and closing markers with the updated content.
 
+### 7.5 Safety mode
+
+Read `ha_safety_mode` from `.claude-code-hermit/config.json`.
+
+- **If the key is already set**: `AskUserQuestion`: "Current safety mode is `<value>`. Change it?" Yes → re-prompt. No → skip this step.
+- **If absent**: ask the operator which safety mode to use for sensitive domains (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`):
+  - `strict` (recommended) — always block autonomous actuation; work goes through a proposal instead.
+  - `ask` — operator is prompted before any actuation of a sensitive entity. Build/validate normally; both YAML apply and direct MCP calls require an explicit operator confirmation before execution.
+
+Write the chosen value to `config.json` as `ha_safety_mode`. Default to `strict` if the operator skips or is unsure.
+
 ### 8. Stamp version and register routines
 
 Write `_hermit_versions["claude-code-homeassistant-hermit"]` into `.claude-code-hermit/config.json` with the current plugin version.

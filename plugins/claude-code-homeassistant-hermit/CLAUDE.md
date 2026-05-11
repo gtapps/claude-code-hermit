@@ -17,7 +17,7 @@ A Home Assistant domain layer for `claude-code-hermit`: skills, subagents, a saf
 
 - `/claude-code-homeassistant-hermit:ha-boot` is the single entry point — starts the hermit session and checks HA connectivity.
 - Never commit real HA URLs, tokens, or device inventories.
-- Never autonomously actuate sensitive domains: `lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`. These control real-world physical access; an autonomous mistake has no software undo. When in doubt about a new domain (e.g. `garage_door`, `gate`), default to sensitive and require operator approval. See `SAFETY.md` for the full safety model.
+- Actuation of sensitive domains (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`) is gated by `ha_safety_mode` in `.claude-code-hermit/config.json` (absent = `strict`). Under `strict` (default): never autonomously actuate — blocked work becomes a proposal. Under `ask`: the operator is prompted before any sensitive actuation (both YAML apply and direct MCP calls). When in doubt about a new domain, default to sensitive. See `SAFETY.md` for the full safety model.
 - Uncertain entities default to sensitive. Blocked work becomes a proposal.
 - Use the stored language from OPERATOR.md (`## HA hermit` section) for all user-facing output.
 - Prefer the Python CLI over ad-hoc reasoning when a helper exists.

@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: block mcp__homeassistant__* calls targeting sensitive entities.
+"""PreToolUse hook: gate mcp__homeassistant__* calls targeting sensitive entities.
 
-Reads tool call JSON from stdin. Extracts entity references from the
-tool input parameters. Checks each against ha_agent_lab.policy.
+Reads tool call JSON from stdin. Extracts entity references from the tool input
+parameters and checks each against ha_agent_lab.policy.
 
-Exit codes:
-  0 — allow
-  2 — block (reason on stderr)
+Behavior depends on `ha_safety_mode` in .claude-code-hermit/config.json:
+  - "strict" (default): sensitive entities → exit 2 (block, reason on stderr)
+  - "ask": sensitive entities → emit `permissionDecision: "ask"` JSON so Claude Code
+    prompts the operator before allowing the call
 
-Fail-safe: blocks on any parse error to avoid accidental actuation.
+Fail-safe: blocks (exit 2) on any parse error or unresolvable target. The dial
+does NOT relax this — it only changes how concrete sensitive entity IDs are handled.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ from __future__ import annotations
 import json
 import sys
 
-from ha_agent_lab.policy import is_sensitive_entity
+from ha_agent_lab.policy import Severity, classify_entity
 
 
 def extract_entity_ids(tool_input: dict) -> list[str]:
@@ -59,16 +61,35 @@ def main() -> None:
         )
         sys.exit(2)
 
-    blocked = []
+    hits: list[tuple[str, Severity]] = []
     for eid in entity_ids:
-        if is_sensitive_entity(eid):
-            blocked.append(eid)
+        sev, _ = classify_entity(eid)
+        if sev != Severity.ALLOW:
+            hits.append((eid, sev))
 
-    if blocked:
-        reason = f"Blocked sensitive entities: {', '.join(blocked)}. Use a proposal instead."
-        print(reason, file=sys.stderr)
+    if not hits:
+        sys.exit(0)
+
+    # All hits share the same severity under the two-tier model — the current
+    # mode applies uniformly to every sensitive entity in this call.
+    current_sev = hits[0][1]
+    names = ", ".join(e for e, _ in hits)
+
+    if current_sev == Severity.BLOCK:
+        print(f"Blocked sensitive entities: {names}. Use a proposal instead.", file=sys.stderr)
         sys.exit(2)
 
+    print(
+        json.dumps(
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "ask",
+                    "permissionDecisionReason": f"Sensitive entities: {names}",
+                }
+            }
+        )
+    )
     sys.exit(0)
 
 

@@ -302,6 +302,7 @@ def _handle_policy_check(target: str) -> int:
                 {
                     "file": str(target_path),
                     "blocked": decision.blocked,
+                    "severity": decision.severity.value,
                     "entities": entities,
                     "services": services,
                     "reasons": decision.reasons,

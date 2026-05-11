@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from ha_agent_lab.config import load_config, save_env_file
-from ha_agent_lab.policy import _load_policy_overrides, classify_entity
+from ha_agent_lab.policy import Severity, _load_policy_overrides, classify_entity
 
 
 def _write_env(root: Path, **kwargs: str) -> None:
@@ -25,22 +25,22 @@ def test_env_file_fallback_when_env_var_absent(tmp_path: Path, monkeypatch) -> N
 def test_safe_entities_override_bypasses_sensitive_domain(tmp_path: Path) -> None:
     _write_env(tmp_path, HA_SAFE_ENTITIES="cover.garage_door")
     _load_policy_overrides.cache_clear()
-    sensitive, _ = classify_entity("cover.garage_door", tmp_path)
-    assert not sensitive
+    sev, _ = classify_entity("cover.garage_door", tmp_path)
+    assert sev == Severity.ALLOW
     _load_policy_overrides.cache_clear()
 
 
 def test_extra_sensitive_domains_blocks_new_domain(tmp_path: Path) -> None:
     _write_env(tmp_path, HA_EXTRA_SENSITIVE_DOMAINS="vacuum")
     _load_policy_overrides.cache_clear()
-    sensitive, _ = classify_entity("vacuum.roomba", tmp_path)
-    assert sensitive
+    sev, _ = classify_entity("vacuum.roomba", tmp_path)
+    assert sev != Severity.ALLOW
     _load_policy_overrides.cache_clear()
 
 
 def test_extra_sensitive_keywords_blocks_matching_entity(tmp_path: Path) -> None:
     _write_env(tmp_path, HA_EXTRA_SENSITIVE_KEYWORDS="pool")
     _load_policy_overrides.cache_clear()
-    sensitive, _ = classify_entity("switch.pool_pump", tmp_path)
-    assert sensitive
+    sev, _ = classify_entity("switch.pool_pump", tmp_path)
+    assert sev != Severity.ALLOW
     _load_policy_overrides.cache_clear()

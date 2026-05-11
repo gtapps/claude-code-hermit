@@ -10,7 +10,7 @@ This project has the `claude-code-homeassistant-hermit` plugin installed. The ru
 
 - `/claude-code-homeassistant-hermit:ha-boot` is the single entry point — starts the hermit session and checks HA connectivity.
 - Never commit real HA URLs, tokens, or device inventories.
-- Never autonomously actuate: `lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`.
+- Actuation of sensitive domains (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`) is gated by `ha_safety_mode` in `.claude-code-hermit/config.json`. Default `strict` = always blocked. `ask` = operator is prompted before actuation (both YAML apply and direct MCP calls). Read the config before deciding whether to draft or block.
 - Uncertain entities default to sensitive. Blocked work becomes a proposal.
 - Use the stored language from `.claude-code-hermit/OPERATOR.md` (`## HA hermit` section) for all user-facing output.
 

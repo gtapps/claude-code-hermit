@@ -28,6 +28,17 @@ def make_ha_root(tmp_path: Path):
 
 
 @pytest.fixture
+def make_ha_config(tmp_path: Path):
+    """Factory fixture: writes ha_safety_mode to .claude-code-hermit/config.json."""
+    def _make(mode: str) -> Path:
+        cfg_dir = tmp_path / ".claude-code-hermit"
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        (cfg_dir / "config.json").write_text(f'{{"ha_safety_mode": "{mode}"}}')
+        return tmp_path
+    return _make
+
+
+@pytest.fixture
 def make_mock_config(tmp_path):
     """Factory fixture: builds a MagicMock AppConfig for CLI tests."""
     def _make(url: str = "http://homeassistant.local:8123") -> MagicMock:

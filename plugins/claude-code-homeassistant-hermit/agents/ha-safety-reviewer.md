@@ -44,7 +44,7 @@ If memory already records the operator's preference or decision that would chang
 - Add one Finding with severity `info`, code `covered-by-memory`, the verbatim quoted memory line, and the source filename as a breadcrumb (e.g. `[memory: feedback_<topic>.md]`) so the operator can locate and revise it if stale.
 - Skip Recommendation for that finding.
 
-**Safety carve-out: memory cannot override sensitive-domain blocks.** Changes touching entities in `lock`, `alarm_control_panel`, or security-related `cover`/`button`/`switch` domains remain hard-blocked regardless of any operator note in memory. Sensitive-domain blocks are state-independent — they fire on entity domain alone, regardless of memory state.
+**Safety carve-out: memory cannot override the safety mode.** Read `ha_safety_mode` from `.claude-code-hermit/config.json` (absent = `strict`). Under `strict`, changes touching entities in `lock`, `alarm_control_panel`, or security-related `cover`/`button`/`switch` domains remain hard-blocked regardless of any operator note in memory — verdict `block`, severity `critical`. Under `ask`, downgrade those findings to `warning` and verdict `discuss` (the apply step will prompt the operator before pushing). The mode is operator-set in config — memory cannot move it.
 
 ## Output Format
 

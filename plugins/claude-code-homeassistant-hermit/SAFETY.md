@@ -15,6 +15,21 @@ Every MCP call matching `mcp__homeassistant__Hass*` is pre-screened by `hooks/mc
 
 Blocked operations do not silently fail — they become proposals for human review.
 
+## Safety Mode
+
+The safety gate has a two-tier configurable mode stored in `.claude-code-hermit/config.json` under `ha_safety_mode`. Set during `/claude-code-homeassistant-hermit:hatch` and adjustable afterwards.
+
+| Mode | Behaviour |
+|------|-----------|
+| `strict` (default) | Always blocked — no agent-drafted automation or MCP call can actuate sensitive domains. Blocked work becomes a proposal. |
+| `ask` | Operator is prompted before any actuation of a sensitive entity. The `ha-apply-change` skill requires `AskUserQuestion` confirmation before pushing. Direct MCP calls emit `permissionDecision: "ask"` so Claude Code itself prompts the operator before allowing the call — enforced by the harness, not by agent convention. |
+
+Both tiers enforce confirmation through the runtime; there is no "operator-owns-the-risk" mode by design — actuation of locks and alarms has no software undo.
+
+The mode dial does **not** relax the fail-closed branch: if the hook cannot resolve the target to a concrete `entity_id`, it still blocks regardless of mode. The `HA_SAFE_ENTITIES` per-entity allowlist still takes precedence over both modes — a listed entity is always allowed.
+
+Change the mode by editing `ha_safety_mode` in `.claude-code-hermit/config.json` or re-running `/claude-code-homeassistant-hermit:hatch`.
+
 ## Policy Overrides
 
 Configured via environment variables in `.env` (see `.env.example`):

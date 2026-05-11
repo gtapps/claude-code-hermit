@@ -32,8 +32,9 @@ allowed-tools:
    - Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <path>` for a safety assessment.
 
 4. **Handle results**:
-   - If valid and safe: offer to apply via `/claude-code-homeassistant-hermit:ha-apply-change`.
-   - If blocked by policy: explain why and create a proposal using `/claude-code-hermit:proposal-create`.
+   - `severity: "allow"` — valid and safe: offer to apply via `/claude-code-homeassistant-hermit:ha-apply-change`.
+   - `severity: "ask"` (ask mode) — explain which sensitive entities are involved, then offer to apply. The apply step will require explicit operator confirmation.
+   - `severity: "block"` (strict mode) — explain why and create a proposal using `/claude-code-hermit:proposal-create`.
    - If entities are missing: suggest refreshing context first.
 
 ## YAML Conventions
@@ -47,4 +48,4 @@ allowed-tools:
 
 ## Safety
 
-Never draft automations that actuate: `lock`, `alarm_control_panel`, or security-related `cover`/`button`/`switch`. If the user requests this, explain the safety boundary and create a proposal for manual review.
+Under `ha_safety_mode: strict` (the default): never draft automations that actuate `lock`, `alarm_control_panel`, or security-related `cover`/`button`/`switch`. If the user requests this, explain the safety boundary and create a proposal for manual review. Under `ask`: draft and run `ha policy-check` — the severity field in the result drives step 4.
