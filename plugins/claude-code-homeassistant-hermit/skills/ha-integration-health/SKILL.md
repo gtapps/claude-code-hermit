@@ -23,6 +23,12 @@ When an HA integration loses its connection (lost WiFi, API change, expired toke
 
 2. Load the snapshot JSON. The `entity_index` field maps `entity_id → state object`. The `unavailable_entities` field lists entity IDs whose state is `unavailable` or `unknown`.
 
+2.5. **Memory Cross-Check (known-broken entities)** — Use your loaded auto memory. `MEMORY.md` is auto-loaded at session start (first 200 lines / 25KB). Look for known-broken entity IDs — operators record them as `<domain>.<entity_id>` strings, typically under a `## Known Issues` or `## Known Broken` section. Collect those IDs.
+
+   **Filter from `unavailable_entities` before computing ratios in step 3.** A known-broken vacuum must not push the `vacuum` domain over the 50% threshold. If anything was suppressed, append a single `(N suppressed by auto memory)` line after the findings block. Do not list each suppressed entity by name.
+
+   Do not invent paths to topic files; rely on what MEMORY.md already loaded into context.
+
 3. Group by domain (the prefix before the first `.`). For each domain compute:
    - `total` = count of entity IDs in `entity_index` with that domain prefix
    - `unavailable` = count of those same IDs present in `unavailable_entities`

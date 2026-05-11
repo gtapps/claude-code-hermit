@@ -48,6 +48,12 @@ Before doing any work, read `.claude-code-hermit/state/runtime.json` if it exist
    - Check if `.claude-code-hermit/sessions/NEXT-TASK.md` exists (queued task)
    - Read `.claude-code-hermit/cost-summary.md` if it exists — include yesterday's cost
 
+7.5. **Memory Cross-Check (known-broken entities)** — Use your loaded auto memory. `MEMORY.md` is auto-loaded at session start (first 200 lines / 25KB). Look for known-broken entity IDs — operators record them as `<domain>.<entity_id>` strings, typically under a `## Known Issues` or `## Known Broken` section. Collect those IDs.
+
+   If MEMORY.md mentions a topic file path that's clearly readable from the current working context, you may read it; otherwise rely on what's already loaded. Do not invent paths.
+
+   **Apply the filter to every entity-level bullet you collected in steps 2-7**: unavailable devices, error states, anomalous readings (e.g. `sensor.pm25 == -1`), "stuck unavailable", anything keyed by a specific `<domain>.<id>`. Skip the bullet entirely when its primary entity is in the suppressed set. If anything was suppressed, append a single `(N suppressed by auto memory)` line at the bottom of the composed brief. Do not list each suppressed entity by name.
+
 8. **Compose brief** — Write a concise morning brief in the operator's language (from OPERATOR.md preferences). Use the format below.
 
 9. **Write to `compiled/`** — Write the composed brief to `.claude-code-hermit/compiled/brief-morning-<YYYY-MM-DD>.md` with frontmatter:

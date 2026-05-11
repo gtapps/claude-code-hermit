@@ -13,6 +13,7 @@ This project has the `claude-code-homeassistant-hermit` plugin installed. The ru
 - Actuation of sensitive domains (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`) is gated by `ha_safety_mode` in `.claude-code-hermit/config.json`. Default `strict` = always blocked. `ask` = operator is prompted before actuation (both YAML apply and direct MCP calls). Read the config before deciding whether to draft or block.
 - Uncertain entities default to sensitive. Blocked work becomes a proposal.
 - Use the stored language from `MEMORY.md` for all user-facing output.
+- Keep known-broken entity IDs at the top level of your auto memory (`MEMORY.md`, under a `## Known Issues` or `## Known Broken` section). `ha-morning-brief` and `ha-integration-health` consult MEMORY.md and suppress entity-level bullets for IDs listed there. MEMORY.md is auto-loaded (first 200 lines / 25KB); topic files are not, so they can't be relied on for this filter.
 
 ### Entry Flow
 
