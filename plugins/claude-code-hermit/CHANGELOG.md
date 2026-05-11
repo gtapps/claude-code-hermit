@@ -6,6 +6,50 @@
 
 - **`capability-brainstorm` skill (PROP-007).** On-demand hermit-voice brainstorm that synthesizes memory, available capabilities (MCPs, channels, fleet plugins), recent compiled artifacts, and codebase shape into at most 2 capability ideas. Each idea routes through the standard `proposal-triage` gate via a single `/proposal-create` call (`Evidence Source: capability-brainstorm`) before becoming a PROP — no double-triage. Emit-zero is a valid outcome. Zero-emit runs log a one-line note to SHELL.md Findings and skip the compiled artifact; non-empty runs write `compiled/capability-brainstorm-YYYY-MM-DD-HHMM.md`. Routing relies on Claude Code's skill-description auto-trigger (no explicit `channel-responder` block), with the description narrowed to capability-anchored phrases ("brainstorm capabilities", "what could you be doing for me?", "any capability ideas?") to avoid firing on bare "any ideas?" mid-task. Kill criteria documented in the skill: after ≥8 invocations, if triage-survival < 25% or PROP-acceptance < 30%, cut rather than tune.
 
+### Fixed
+
+- **`knowledge-schema.md.template`: declare `review` as a Work Product type (PROP-011).** The `weekly-review` routine writes compiled artifacts with `type: review`, but the template only declared `note` — so every freshly-hatched hermit running the weekly-review routine reported a permanent `Type \`review\` not declared in knowledge-schema.md ## Work Products` finding from the Knowledge Health checker. Adds a single bullet to the template's `## Work Products` section and provides upgrade instructions for `hermit-evolve` to surgical-patch existing hermits' on-disk schemas.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/knowledge-schema.md.template` | Added `- review:` bullet under `## Work Products` |
+| `tests/run-scripts.sh` | Extended schema-empty fixture sed to also strip `- review:` starter bullet |
+
+### Upgrade Instructions
+
+The on-disk `knowledge-schema.md` is operator-editable, so apply this as a surgical, idempotent patch.
+
+1. **File check.** If `.claude-code-hermit/knowledge-schema.md` does not exist, skip — `/hatch` has not been run for this project yet, and the new template already contains the entry for first-time setups.
+
+2. **Idempotency check.** Read `.claude-code-hermit/knowledge-schema.md`. If the `## Work Products` section already contains a bullet starting with `- review:`, skip — patch already applied (or the operator already declared it themselves).
+
+3. **Anchor check.** Confirm the file contains the unmodified `- note:` anchor line:
+
+   ```
+   - note: general-purpose compiled note. location: compiled/note-<slug>-<date>.md
+   ```
+
+   If this line is missing or customized, tell the operator: "Auto-patch failed — anchor not found. The `- note:` bullet in `knowledge-schema.md` has been customized. Add the following bullet manually under `## Work Products`: `- review: weekly review report from the weekly-review routine. location: compiled/review-weekly-<YYYY>-W<NN>.md`"
+
+4. **Propose the patch.** Tell the operator what will be inserted and ask for confirmation:
+
+   > "Patching `.claude-code-hermit/knowledge-schema.md` to declare the `review` type under `## Work Products` (fixes PROP-011 — Knowledge Health false positive after every weekly-review). Apply? [Yes / Skip]"
+
+5. **On Yes — apply.** Use the Edit tool on `.claude-code-hermit/knowledge-schema.md` with:
+
+   `old_string`:
+   ```
+   - note: general-purpose compiled note. location: compiled/note-<slug>-<date>.md
+   ```
+
+   `new_string`:
+   ```
+   - note: general-purpose compiled note. location: compiled/note-<slug>-<date>.md
+   - review: weekly review report from the weekly-review routine. location: compiled/review-weekly-<YYYY>-W<NN>.md
+   ```
+
 ## [1.0.36] - 2026-05-10
 
 ### Added

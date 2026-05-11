@@ -18,6 +18,7 @@
          location: compiled/briefing-<slug>-<date>.md
 -->
 - note: general-purpose compiled note. location: compiled/note-<slug>-<date>.md
+- review: weekly review report from the weekly-review routine. location: compiled/review-weekly-<YYYY>-W<NN>.md
 
 ## Raw Captures
 <!-- What operational inputs does this hermit collect into raw/?
