@@ -120,6 +120,144 @@ def test_audit_automations_handles_unmanaged_and_fetch_failures(tmp_path: Path) 
     assert summary["passed"] + len(summary["violations"]) + len(summary["unmanaged"]) + len(summary["fetch_failures"]) == summary["total_automations"]
 
 
+def _write_acknowledged(root: Path, content: str) -> None:
+    compiled = root / ".claude-code-hermit" / "compiled"
+    compiled.mkdir(parents=True, exist_ok=True)
+    (compiled / "acknowledged-violations.md").write_text(content, encoding="utf-8")
+
+
+def _alarm_arm_fixture() -> tuple[dict, list[dict]]:
+    config = {
+        "id": "realiza_apos_armar_alarme",
+        "alias": "After-arm follow-up",
+        "trigger": [{"platform": "state", "entity_id": "alarm_control_panel.casa"}],
+        "action": [{"service": "scene.turn_on", "target": {"entity_id": "scene.away"}}],
+    }
+    states = [_make_state("automation.realiza_apos_armar_alarme", "realiza_apos_armar_alarme")]
+    return config, states
+
+
+def test_audit_acknowledged_missing_file_no_suppression(tmp_path: Path) -> None:
+    (tmp_path / ".claude-code-hermit" / "raw").mkdir(parents=True)
+    config, states = _alarm_arm_fixture()
+    responses: dict[str, object] = {
+        "/api/states": states,
+        "/api/config/automation/config/realiza_apos_armar_alarme": config,
+    }
+    client = FakeClient(responses)
+
+    summary = audit_automations(tmp_path, client)
+
+    assert len(summary["violations"]) == 1
+    assert summary["acknowledged"] == []
+
+
+def test_audit_acknowledged_malformed_file_no_suppression(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    (tmp_path / ".claude-code-hermit" / "raw").mkdir(parents=True)
+    _write_acknowledged(tmp_path, "no frontmatter at all, just text")
+    config, states = _alarm_arm_fixture()
+    responses: dict[str, object] = {
+        "/api/states": states,
+        "/api/config/automation/config/realiza_apos_armar_alarme": config,
+    }
+    client = FakeClient(responses)
+
+    summary = audit_automations(tmp_path, client)
+
+    assert len(summary["violations"]) == 1
+    assert summary["acknowledged"] == []
+
+
+def test_audit_acknowledged_subset_suppresses_alarm_bypass(tmp_path: Path, make_ha_config) -> None:
+    make_ha_config("strict")
+    (tmp_path / ".claude-code-hermit" / "raw").mkdir(parents=True)
+    _write_acknowledged(
+        tmp_path,
+        "---\n"
+        "title: Acknowledged\n"
+        "type: acknowledged-violations\n"
+        "automation_ids: [realiza_apos_armar_alarme]\n"
+        "---\n\n"
+        "## Rationale\n\n"
+        "- `realiza_apos_armar_alarme`: refs=[alarm_control_panel.casa]; runs after arming\n",
+    )
+    config, states = _alarm_arm_fixture()
+    responses: dict[str, object] = {
+        "/api/states": states,
+        "/api/config/automation/config/realiza_apos_armar_alarme": config,
+    }
+    client = FakeClient(responses)
+
+    summary = audit_automations(tmp_path, client)
+
+    assert summary["violations"] == []
+    assert len(summary["acknowledged"]) == 1
+    entry = summary["acknowledged"][0]
+    assert entry["id"] == "realiza_apos_armar_alarme"
+    assert "runs after arming" in entry["quoted_line"]
+    assert entry["source"] == "compiled/acknowledged-violations.md"
+    assert summary["passed"] == 0  # the only automation moved to acknowledged
+
+
+def test_audit_acknowledged_drift_re_surfaces(tmp_path: Path, make_ha_config) -> None:
+    make_ha_config("strict")
+    (tmp_path / ".claude-code-hermit" / "raw").mkdir(parents=True)
+    _write_acknowledged(
+        tmp_path,
+        "---\n"
+        "title: Acknowledged\n"
+        "type: acknowledged-violations\n"
+        "automation_ids: [realiza_apos_armar_alarme]\n"
+        "---\n\n"
+        "## Rationale\n\n"
+        "- `realiza_apos_armar_alarme`: refs=[alarm_control_panel.casa]; runs after arming\n",
+    )
+    # Drift: automation now also references lock.front_door, outside the acknowledged refs.
+    config = {
+        "id": "realiza_apos_armar_alarme",
+        "alias": "After-arm follow-up",
+        "trigger": [{"platform": "state", "entity_id": "alarm_control_panel.casa"}],
+        "action": [{"service": "lock.unlock", "target": {"entity_id": "lock.front_door"}}],
+    }
+    states = [_make_state("automation.realiza_apos_armar_alarme", "realiza_apos_armar_alarme")]
+    responses: dict[str, object] = {
+        "/api/states": states,
+        "/api/config/automation/config/realiza_apos_armar_alarme": config,
+    }
+    client = FakeClient(responses)
+
+    summary = audit_automations(tmp_path, client)
+
+    assert summary["acknowledged"] == []
+    assert len(summary["violations"]) == 1
+    assert summary["violations"][0]["id"] == "realiza_apos_armar_alarme"
+
+
+def test_audit_acknowledged_frontmatter_only_does_not_suppress(tmp_path: Path) -> None:
+    (tmp_path / ".claude-code-hermit" / "raw").mkdir(parents=True)
+    _write_acknowledged(
+        tmp_path,
+        "---\n"
+        "title: Acknowledged\n"
+        "type: acknowledged-violations\n"
+        "automation_ids: [realiza_apos_armar_alarme]\n"
+        "---\n\n"
+        "## Rationale\n\n(no bullets)\n",
+    )
+    config, states = _alarm_arm_fixture()
+    responses: dict[str, object] = {
+        "/api/states": states,
+        "/api/config/automation/config/realiza_apos_armar_alarme": config,
+    }
+    client = FakeClient(responses)
+
+    summary = audit_automations(tmp_path, client)
+
+    # frontmatter-only id has empty refs → subset check against {alarm_control_panel.casa} fails → no suppression.
+    assert len(summary["violations"]) == 1
+    assert summary["acknowledged"] == []
+
+
 def test_audit_automations_propagates_unexpected_errors(tmp_path: Path) -> None:
     (tmp_path / ".claude-code-hermit" / "raw").mkdir(parents=True)
     states = [_make_state("automation.broken", "broken_id")]

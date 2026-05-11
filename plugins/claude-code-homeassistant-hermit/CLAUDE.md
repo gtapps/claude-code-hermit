@@ -25,10 +25,11 @@ A Home Assistant domain layer for `claude-code-hermit`: skills, subagents, a saf
 
 ## Memory Conventions
 
-- `MEMORY.md` (auto-loaded, max 200 lines): language, house profile, learned patterns, known issues.
+- `MEMORY.md` (auto-loaded, max 200 lines): language, house profile, learned patterns, known issues. Keep known-broken entity IDs at the top level here under a `## Known Issues` or `## Known Broken` section — `ha-morning-brief` and `ha-integration-health` consult MEMORY.md and suppress entity-level bullets for those IDs.
 - `memory/*.md`: detailed topic files (entities, automation history).
 - `.claude-code-hermit/raw/` — HA context snapshots, normalized data, audits, staged automation YAML (ephemeral; aged out by retention).
 - `.claude-code-hermit/compiled/` — durable domain outputs (morning briefs, house profile) injected at session start.
+- `.claude-code-hermit/compiled/acknowledged-violations.md` (optional, `foundational`-tagged): per-automation safety-audit carve-outs. Copy `state-templates/compiled/acknowledged-violations.md` here and add bullets under `## Rationale` in the form `` - `<automation_id>`: refs=[<entity_or_service>, ...]; <rationale> ``. The audit reads this file and suppresses listed automations only when their current sensitive refs are a subset of the declared `refs=[...]` — so drift outside that set re-surfaces in the next audit. The file does NOT bypass runtime gates (`ha-apply-change`, MCP safety hook still enforce `ha_safety_mode`); it only quiets the weekly audit ledger.
 - `.claude-code-hermit/state/` — machine state (runtime, reflection, micro-proposals, alert state).
 - `.claude-code-hermit/proposals/` — PROP-NNN improvement proposals.
 - `.claude-code-hermit/sessions/S-*-REPORT.md` — archived session reports.

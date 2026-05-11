@@ -44,6 +44,7 @@ Durable outputs. Injected into session context at startup within `compiled_budge
 |---|---|---|---|---|
 | `brief-morning-<date>.md` | `brief` | no | `ha-morning-brief` | Daily routine |
 | `context-house-profile-<date>.md` | `context` | yes | First `ha-refresh-context` + operator input | Once; updated when house profile changes |
+| `acknowledged-violations.md` | `acknowledged-violations` | yes | operator (manual) | When operator adds a safety audit exception |
 
 ## Notes
 
