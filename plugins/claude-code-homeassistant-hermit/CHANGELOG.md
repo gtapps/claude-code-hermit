@@ -6,6 +6,7 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ### Added
 
+- **Per-domain diagnostic hints in `ha-integration-health`** — every flagged domain now carries a `hint:` line pointing at the most likely cause (Zigbee/Z-Wave coordinator drop for button/switch/sensor; integration hub for light; network/credentials for camera/media_player; presence integration for device_tracker; BLE proxy or upstream for binary_sensor). The hint is part of the output contract — `reflect-scheduled-checks` passes it through. Eliminates the operator's "ratio is high, but where do I look?" guesswork.
 - **`ha_safety_mode` two-tier dial** — configurable behaviour for sensitive-domain actuation (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`). Two values:
   - `strict` (default, existing behaviour) — always block; work goes through a proposal.
   - `ask` — operator is prompted before any sensitive actuation. `ha-apply-change` uses `AskUserQuestion` before pushing; direct MCP calls emit `permissionDecision: "ask"` so Claude Code's permission system prompts the operator natively (matches the convention already used by `hooks/curl-host-gate.py`). Both paths are harness-enforced, not convention-driven.

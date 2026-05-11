@@ -32,18 +32,30 @@ When an HA integration loses its connection (lost WiFi, API change, expired toke
    - `total >= 3` (avoids single-device false positives)
    - `ratio >= 0.5` (half or more unavailable)
 
-5. Emit the findings block:
+5. Emit the findings block. Each flagged domain bullet is followed by a `hint:` line pointing at the most likely cause for that domain (table below). The hint is one line, prefixed `hint:`, no prose around it:
    ```
    ha-integration-health findings — <date>
    Degraded domains: N
    - <domain>: <unavailable>/<total> entities unavailable (<percent>%)
+     hint: <domain-specific cause>
    ```
+
+   Domain → hint lookup:
+
+   | Domain(s)                        | Hint                                                                  |
+   | -------------------------------- | --------------------------------------------------------------------- |
+   | `button`, `switch`, `sensor`     | usually a Zigbee/Z-Wave coordinator drop — check coordinator radio    |
+   | `light`                          | check the integration hub (Hue, deCONZ, etc.) and its network         |
+   | `camera`, `media_player`         | network or expired credentials                                        |
+   | `device_tracker`                 | presence integration (router, GPS app) dropped                        |
+   | `binary_sensor`                  | split: BLE proxy or upstream integration                              |
+   | _other_                          | check integration page in HA settings                                 |
 
    If nothing is flagged: `No actionable findings. (D domains scanned)`.
 
 ## Output contract
 
-reflect-scheduled-checks routes the findings block through the proposal pipeline. Keep output to the exact shape above — no prose, no extra sections.
+reflect-scheduled-checks routes the findings block through the proposal pipeline. Keep output to the exact shape above — no prose, no extra sections. The `hint:` line per finding is part of the contract.
 
 ## No Python helper
 
