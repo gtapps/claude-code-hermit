@@ -35,6 +35,7 @@ This project has the `claude-code-homeassistant-hermit` plugin installed. The ru
 | `/claude-code-homeassistant-hermit:ha-safety-audit` | Re-audit live automations against the safety policy (weekly scheduled_check) |
 | `/claude-code-homeassistant-hermit:ha-integration-health` | Detect dropped integrations via per-domain unavailable ratios (daily scheduled_check) |
 | `/claude-code-homeassistant-hermit:ha-delete-config` | Discover and delete an automation/script config from HA |
+| `/claude-code-homeassistant-hermit:ha-import-config` | Pull a live automation/script out of HA into raw/ as a tracked YAML; interprets simulate result so policy-sensitive imports aren't mistaken for failures |
 
 ### Subagents
 
@@ -60,6 +61,8 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha simulate <artifact>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha validate-apply <artifact> [--reload automation|script]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <entity_id_or_yaml>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-automations
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha export-automation <id>
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha export-script <id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status [--probe]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url> [--token <token>]
 ```
