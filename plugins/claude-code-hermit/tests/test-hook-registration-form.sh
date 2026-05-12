@@ -19,11 +19,13 @@ cat > "$_form_check" <<'PYEOF'
 import json, sys, glob, os
 monorepo = os.environ["MONOREPO_ROOT"]
 ok = True
+count = 0
 for path in sorted(glob.glob(os.path.join(monorepo, "plugins/*/hooks/hooks.json"))):
     doc = json.load(open(path, encoding="utf-8"))
     for event, entries in doc.get("hooks", {}).items():
         for entry in entries:
             for h in entry.get("hooks", []):
+                count += 1
                 cmd = h.get("command", "")
                 if "args" in h:
                     if " " in cmd or "$" in cmd:
@@ -34,6 +36,9 @@ for path in sorted(glob.glob(os.path.join(monorepo, "plugins/*/hooks/hooks.json"
                 else:
                     print(f"FAIL {path} {event}: naked shell form: {cmd!r}")
                     ok = False
+if count == 0:
+    print(f"FAIL: no hook entries found under {monorepo}/plugins/*/hooks/hooks.json — path resolution likely broken")
+    ok = False
 sys.exit(0 if ok else 1)
 PYEOF
 
