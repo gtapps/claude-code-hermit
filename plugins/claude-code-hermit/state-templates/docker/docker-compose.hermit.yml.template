@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile.hermit
       args:
         HOST_UID: ${UID:-1000}
+        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-latest}
     volumes:
       - ${PWD}:${PWD}
       # Isolated config volume — container gets its own Claude Code config

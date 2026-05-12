@@ -71,6 +71,9 @@ run_test "safeForLLM: preserves unknown tags (<foo>)" bash -c \
 run_test "safeForLLM: inherits control-char stripping from safe()" bash -c \
   "node -e \"const {safeForLLM}=require('$SANITIZE_LIB'); const r=safeForLLM('\x1b[31mred\x1b[0m'); process.exit(r.includes('\x1b') ? 1 : 0)\""
 
+run_test "safeForLLM: case-insensitive (<System-Reminder>)" bash -c \
+  "node -e \"const {safeForLLM}=require('$SANITIZE_LIB'); const r=safeForLLM('<System-Reminder>x</System-Reminder>'); process.exit(r.includes('<System-Reminder>') || r.includes('</System-Reminder>') ? 1 : 0)\""
+
 # -------------------------------------------------------
 # knowledge-lint.js
 # -------------------------------------------------------

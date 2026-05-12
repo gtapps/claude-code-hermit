@@ -2,6 +2,16 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Changed
+
+- **Hooks: converted `mcp-safety-gate` and `curl-host-gate` to exec form.** Aligns with core's exec-form sweep. Fixes path-with-spaces fragility on installs whose plugin dir contains a space.
+
+### Upgrade Instructions
+
+- **Requires Claude Code 2.1.139 or newer.** The `args: []` exec form was introduced in CC 2.1.139. Update Claude Code before pulling this release, or hooks will fail to register.
+
 ## [0.1.1] - 2026-05-11
 
 ### Added

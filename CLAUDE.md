@@ -40,12 +40,13 @@ Always launch Claude Code from this repo's root, not from inside a plugin dir. A
 - **`rm -rf` is blocked** by the `enforce-deny-patterns` hook. Use `rm -r` (no `-f`) for scratch cleanup.
 - **Subtree imports are unsquashed**: `git log --first-parent` for the monorepo-only view; full upstream commits live under each subtree merge.
 - **CI is not path-filtered yet**: every plugin's tests run on every PR. Don't assume a HA-test failure on a core-only PR is your fault.
-- **Plugin tests change CWD.** `bash plugins/<slug>/tests/run-all.sh` ends with CWD inside `plugins/<slug>/`; subsequent shell calls (especially `git add`) need absolute paths or an explicit `cd` back to repo root.
+- **Shell `cd` persists across Bash calls.** Any `cd` in a Bash call leaves CWD pinned for subsequent Bash calls in the session — affects CWD-relative scripts like `heartbeat-precheck.js .claude-code-hermit` (silently `SKIP|HEARTBEAT.md missing`) and commands like `git add`. Plugin test runners (`bash plugins/<slug>/tests/run-all.sh`) end inside `plugins/<slug>/`. Use absolute paths or prefix `cd /home/d0m/Projects/gtapps/claude-code-hermit && …`.
 
 ## Rules
 
 - Always use Context7 for library/API documentation, code generation, and setup/configuration steps — don't wait for an explicit request.
-- Don't overengineer.---
+- Don't overengineer.
+- **This hermit is the plugin-dev special case.** When reasoning about utility of features in `plugins/claude-code-hermit/` (the shipped hermit), don't use this hermit's session history as evidence — the operator here maintains the plugin source. Target users are downstream operators who interact via Discord/Telegram and don't open `feat/PROP-NNN-*` branches.---
 
 <!-- claude-code-hermit: Session Discipline -->
 
@@ -63,7 +64,7 @@ Always launch Claude Code from this repo's root, not from inside a plugin dir. A
 | -------------------------- | --------------------------------------------------------------- |
 | `sessions/SHELL.md`        | Live working document                                           |
 | `sessions/S-NNN-REPORT.md` | Archived reports                                                |
-| `proposals/PROP-NNN.md`    | Improvement proposals                                           |
+| `proposals/PROP-NNN-<slug>-HHMMSS.md` | Improvement proposals                                           |
 | `state/`                   | Runtime state (alert dedup, reflection, routine queue, metrics) |
 | `state/monitors.runtime.json` | Active watch registry — cleared on each session start       |
 | `OPERATOR.md`              | Human-curated context — draft changes, confirm before writing |
@@ -94,7 +95,7 @@ Rules:
 
 ## Quick Reference
 
-`/session-start` `/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/watch` `/reflect` `/reflect-scheduled-checks` `/hermit-routines` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/hermit-evolve` `/channel-setup` `/channel-responder` `/docker-setup` `/docker-security` `/hermit-takeover` `/hermit-hand-back` `/hatch` `/smoke-test` `/obsidian-setup` `/cortex-refresh` `/cortex-sync` `/weekly-review` `/migrate` `/knowledge` `/hermit-doctor`
+`/session-start` `/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/watch` `/reflect` `/reflect-scheduled-checks` `/hermit-routines` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/capability-brainstorm` `/hermit-evolve` `/channel-setup` `/channel-responder` `/docker-setup` `/docker-security` `/hermit-takeover` `/hermit-hand-back` `/hatch` `/smoke-test` `/obsidian-setup` `/cortex-refresh` `/cortex-sync` `/weekly-review` `/migrate` `/knowledge` `/hermit-doctor`
 (All prefixed with `/claude-code-hermit:`)
 
 ## Operator Notification

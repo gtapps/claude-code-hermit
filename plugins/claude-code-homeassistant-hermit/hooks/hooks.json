@@ -6,7 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/mcp-safety-gate.py"
+            "command": "python3",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/mcp-safety-gate.py"]
           }
         ],
         "description": "Block MCP actuation calls targeting sensitive HA entities. Tool IDs assume the HA MCP Server is registered in Claude Code as 'homeassistant'."
@@ -17,7 +18,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/curl-host-gate.py",
+            "command": "python3",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/curl-host-gate.py"],
             "timeout": 5
           }
         ],

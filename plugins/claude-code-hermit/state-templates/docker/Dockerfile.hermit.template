@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Match host UID for volume permissions. Ubuntu 24.04 ships a default
 # 'ubuntu' user at UID 1000 — remove it first.
 ARG HOST_UID=1000
+ARG CLAUDE_CODE_VERSION=latest
 RUN userdel -r ubuntu 2>/dev/null; \
     useradd -m -s /bin/bash -u ${HOST_UID} claude
 
@@ -24,7 +25,7 @@ RUN mkdir -p /home/claude/.claude
 # Install npm globals as claude user so Claude Code can self-update without sudo
 ENV NPM_CONFIG_PREFIX=/home/claude/.npm-global
 ENV PATH=/home/claude/.npm-global/bin:$PATH
-RUN npm install -g bun @anthropic-ai/claude-code
+RUN npm install -g bun @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
 COPY --chmod=755 --chown=claude:claude docker-entrypoint.hermit.sh /home/claude/docker-entrypoint.sh
 
