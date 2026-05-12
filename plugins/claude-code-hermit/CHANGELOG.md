@@ -1,5 +1,83 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **`hermit-docker update` now actually updates the Claude Code binary (cache-bust fix).** `docker compose build --pull` only re-pulls the `FROM ubuntu:24.04` base layer; subsequent `RUN` layers — including `RUN npm install -g @anthropic-ai/claude-code` — were content-addressed by command string and silently reused. A running hermit self-updates its binary on the writable container layer; after `hermit-docker update` rebuilt with a cached layer and bounced the container, the new container reverted to the older baked version. Live measurement: `2.1.132 → 2.1.114` (an 18-patch rollback) on a hermit claiming it upgraded to `2.1.139`. Fixed by adding a `CLAUDE_CODE_VERSION` build arg to `Dockerfile.hermit.template` that pins the npm install to a specific version. `hermit-docker update` resolves the desired version via `npm view @anthropic-ai/claude-code version` (already fetched before the build for the plan output) and passes it as `--build-arg CLAUDE_CODE_VERSION=<resolved>`. BuildKit includes the arg value in the `RUN` layer's cache key, so the layer is invalidated exactly when the version changes — fast rebuilds when nothing changed, correct rebuilds when it did. Falls back to `latest` if the registry lookup fails, preserving today's behavior on registry hiccups.
+
+- **`hermit-docker update` no longer reports a false downgrade.** `CC_BEFORE` captured the running container's `claude --version` (the self-updated binary on the writable layer); `CC_AFTER` captured the new container's `claude --version` (the baked image version, before any self-update). The fix sources `CC_AFTER` directly from the resolved build-arg version when known, which is the ground truth — no container query needed.
+
+- **`/reload-plugins` is now gated on the Claude Code prompt being ready.** The previous wait loop only confirmed `tmux has-session` succeeded. In the full update path (container bounced), `tmux has-session` returns true as soon as the session is created by the entrypoint, but `claude` inside the pane needs additional boot time before it reaches its interactive REPL. Keys sent before then went to the bash shell launching claude, not to the Claude Code skill queue. Fixed by polling `tmux capture-pane -p` for the Claude Code input box (detected by the `╭─` / `╰─` box-drawing characters that frame the prompt). Polls up to 60 seconds; if not detected, logs a warning with the manual fallback command and skips the send rather than silently misfiring. The `update-history.jsonl` log field is renamed from `reload_plugins_queued` to `reload_plugins_sent` to reflect the actual outcome.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/docker/Dockerfile.hermit.template` | `ARG CLAUDE_CODE_VERSION=latest`; npm install pinned to `@${CLAUDE_CODE_VERSION}` |
+| `state-templates/docker/docker-compose.hermit.yml.template` | `CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-latest}` under `build.args` |
+| `state-templates/bin/hermit-docker` | `update` arm: `--build-arg` pass-through; `CC_AFTER` from pinned value; `_wait_for_claude_prompt` readiness gate; log field renamed |
+
+### Upgrade Instructions
+
+Docker users only. Non-Docker (tmux/local) hermits are unaffected.
+
+The `hermit-docker update` wrapper (`bin/hermit-docker`) is refreshed wholesale by `hermit-evolve` step 5b — no manual wrapper edit needed.
+
+The on-disk `Dockerfile.hermit` and `docker-compose.hermit.yml` in the project root need two surgical patches to pass the build arg through. Apply them idempotently:
+
+1. **Idempotency check for `Dockerfile.hermit`.** If the file does not exist in the project root, skip (Docker not set up). If the file already contains `ARG CLAUDE_CODE_VERSION`, skip this file — already patched.
+
+2. **Patch `Dockerfile.hermit`.** Anchor on the exact line `ARG HOST_UID=1000`. If this line is not found (operator-customized Dockerfile), tell the operator: "Auto-patch skipped for Dockerfile.hermit — anchor `ARG HOST_UID=1000` not found. Add these two lines manually after the HOST_UID ARG: `ARG CLAUDE_CODE_VERSION=latest` and change the npm install line to `RUN npm install -g bun @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}`." Then skip to step 4.
+
+   Use the Edit tool with:
+
+   `old_string`:
+   ```
+   ARG HOST_UID=1000
+   ```
+
+   `new_string`:
+   ```
+   ARG HOST_UID=1000
+   ARG CLAUDE_CODE_VERSION=latest
+   ```
+
+3. **Pin the npm install in `Dockerfile.hermit`.** Anchor on `@anthropic-ai/claude-code` NOT already followed by `@` (i.e. the line doesn't yet have `@${CLAUDE_CODE_VERSION}`). If the npm install line has already been version-pinned, skip.
+
+   Use the Edit tool with:
+
+   `old_string`:
+   ```
+   RUN npm install -g bun @anthropic-ai/claude-code
+   ```
+
+   `new_string`:
+   ```
+   RUN npm install -g bun @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
+   ```
+
+   If the old_string is not found (operator added extra packages to the line), tell the operator: "Auto-patch skipped for the npm install line — it has been customized. Update it manually to include `@${CLAUDE_CODE_VERSION}` after `@anthropic-ai/claude-code`."
+
+4. **Idempotency check for `docker-compose.hermit.yml`.** If the file does not exist, skip. If it already contains `CLAUDE_CODE_VERSION:`, skip — already patched.
+
+5. **Patch `docker-compose.hermit.yml`.** Anchor on `HOST_UID: ${UID:-1000}`. If not found, tell the operator: "Auto-patch skipped for docker-compose.hermit.yml — anchor `HOST_UID: ${UID:-1000}` not found. Add `CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-latest}` manually under the `build.args:` block."
+
+   Use the Edit tool with:
+
+   `old_string`:
+   ```
+         HOST_UID: ${UID:-1000}
+   ```
+
+   `new_string`:
+   ```
+         HOST_UID: ${UID:-1000}
+         CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-latest}
+   ```
+
+6. **Rebuild.** Tell the operator: "Run `.claude-code-hermit/bin/hermit-docker update` once to bake the version-pinned image. The first rebuild after this patch will reinstall claude-code (cache is invalidated by the new `RUN` command string); subsequent same-version runs reuse the cache as expected."
+
 ## [1.0.37] - 2026-05-11
 
 ### Added

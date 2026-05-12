@@ -63,6 +63,19 @@ _require_running() {
   fi
 }
 
+# Poll tmux pane for the Claude Code input box (╭─ / ╰─ box-drawing chars).
+# Returns 0 when ready, 1 after 60s timeout.
+_wait_for_claude_prompt() {
+  local i pane
+  for i in $(seq 1 30); do
+    pane=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+      tmux capture-pane -p -t "$TMUX_SESSION:0.0" 2>/dev/null || true)
+    printf '%s\n' "$pane" | tail -10 | grep -qE '╭─|╰─' && return 0
+    sleep 2
+  done
+  return 1
+}
+
 case "$CMD" in
   up)
     echo "[hermit] Starting Docker container..."
@@ -171,7 +184,7 @@ case "$CMD" in
     ;;
 
   update)
-    DRY_RUN=false; CC_ONLY=false; PLUGINS_ONLY=false; ASSUME_YES=false
+    DRY_RUN=false; CC_ONLY=false; PLUGINS_ONLY=false; ASSUME_YES=false; CC_BUILD_VERSION=""; RELOAD_PLUGINS_SENT=false
     while [ $# -gt 0 ]; do
       case "$1" in
         --dry-run) DRY_RUN=true ;;
@@ -208,7 +221,7 @@ case "$CMD" in
       echo "  Marketplaces to refresh:"
       [ -z "$MARKETPLACES" ] && echo "    (none)" || echo "$MARKETPLACES" | sed 's/^/    - /'
       [ "$PLUGINS_ONLY" = true ] && \
-        echo "  Apply method: /reload-plugins sent into tmux (queues if hermit is mid-turn)" || true
+        echo "  Apply method: /reload-plugins sent into tmux once claude prompt is detected" || true
     fi
 
     if [ "$DRY_RUN" = true ]; then
@@ -225,8 +238,12 @@ case "$CMD" in
     # in docker-entrypoint.hermit.sh) — stop_grace_period: 60s in the compose template
     # gives it enough headroom. No need to duplicate that logic here.
     if [ "$PLUGINS_ONLY" = false ]; then
-      echo "[hermit] Rebuilding image with latest Claude Code..."
-      if ! (cd "$PROJECT_DIR" && "${DC[@]}" build --pull); then
+      CC_BUILD_VERSION="${CC_LATEST}"
+      if [ -z "$CC_BUILD_VERSION" ] || [ "$CC_BUILD_VERSION" = "unknown" ] || [ "$CC_BUILD_VERSION" = "(skipped)" ]; then
+        CC_BUILD_VERSION="latest"
+      fi
+      echo "[hermit] Rebuilding image with latest Claude Code (${CC_BUILD_VERSION})..."
+      if ! (cd "$PROJECT_DIR" && "${DC[@]}" build --pull --build-arg "CLAUDE_CODE_VERSION=${CC_BUILD_VERSION}"); then
         echo "[hermit] Image build failed — old container still running, no changes applied." >&2
         exit 1
       fi
@@ -269,21 +286,30 @@ case "$CMD" in
         fi
       done <<< "$MARKETPLACES"
 
-      # Split text + Enter into two send-keys calls with sleep 0.5 between them —
-      # Claude Code's TUI treats text+Enter in one burst as bracketed paste and Enter
-      # becomes a literal newline instead of submit. Commands queue in the tmux buffer
-      # if the hermit is mid-turn and apply when idle.
-      echo "[hermit] Sending /reload-plugins to tmux session (queues if hermit is mid-turn)..."
-      cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
-        tmux send-keys -t "$TMUX_SESSION:0.0" "/reload-plugins" 2>/dev/null || \
-        echo "[hermit] Warning: could not reach tmux session — /reload-plugins not sent" >&2
-      sleep 0.5
-      cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
-        tmux send-keys -t "$TMUX_SESSION:0.0" Enter 2>/dev/null || true
+      # Wait for the Claude Code interactive prompt before sending — tmux send-keys
+      # on a pane that hasn't reached the REPL yet goes to bash, not to the skill queue.
+      echo "[hermit] Waiting for Claude Code prompt (up to 60s)..."
+      if _wait_for_claude_prompt; then
+        echo "[hermit] Sending /reload-plugins..."
+        cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+          tmux send-keys -t "$TMUX_SESSION:0.0" "/reload-plugins" 2>/dev/null || \
+          echo "[hermit] Warning: could not reach tmux session — /reload-plugins not sent" >&2
+        sleep 0.5
+        cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+          tmux send-keys -t "$TMUX_SESSION:0.0" Enter 2>/dev/null || true
+        RELOAD_PLUGINS_SENT=true
+      else
+        echo "[hermit] Warning: claude prompt not detected after 60s — /reload-plugins was not sent." >&2
+        echo "[hermit]          Run it manually: hermit-docker attach, then type /reload-plugins" >&2
+      fi
     fi
 
-    CC_AFTER=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" claude --version 2>/dev/null \
-      | grep -oP '[\d.]+' | head -1 || echo "unknown")
+    if [ -n "$CC_BUILD_VERSION" ] && [ "$CC_BUILD_VERSION" != "latest" ]; then
+      CC_AFTER="$CC_BUILD_VERSION"
+    else
+      CC_AFTER=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" claude --version 2>/dev/null \
+        | grep -oP '[\d.]+' | head -1 || echo "unknown")
+    fi
     PLUGINS_COUNT_AFTER=0
     [ "$CC_ONLY" = false ] && PLUGINS_COUNT_AFTER=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
       claude plugin list --json 2>/dev/null \
@@ -305,10 +331,10 @@ case "$CMD" in
     fi
     python3 - "$UPDATE_MODE" "$CC_BEFORE" "$CC_AFTER" \
               "$OK_JSON" "$FAIL_JSON" \
-              "$PLUGINS_COUNT_BEFORE" "$PLUGINS_COUNT_AFTER" "$LOG_FILE" <<'PYEOF' || \
+              "$PLUGINS_COUNT_BEFORE" "$PLUGINS_COUNT_AFTER" "$LOG_FILE" "$RELOAD_PLUGINS_SENT" <<'PYEOF' || \
       echo "[hermit] Warning: could not write update log" >&2
 import json, sys, time
-mode, cc_before, cc_after, ok_json, fail_json, pb_count, pa_count, log_file = sys.argv[1:]
+mode, cc_before, cc_after, ok_json, fail_json, pb_count, pa_count, log_file, reload_sent = sys.argv[1:]
 entry = {
     'ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
     'trigger': 'hermit-docker update',
@@ -318,7 +344,7 @@ entry = {
     'marketplaces_failed': json.loads(fail_json),
     'plugins_before_count': int(pb_count),
     'plugins_after_count': int(pa_count),
-    'reload_plugins_queued': mode in ('full', 'plugins-only'),
+    'reload_plugins_sent': reload_sent == 'true',
 }
 with open(log_file, 'a') as f:
     f.write(json.dumps(entry) + '\n')
@@ -330,7 +356,11 @@ PYEOF
     [ ${#MARKETPLACES_OK[@]} -gt 0 ] && echo "  Marketplaces refreshed: ${MARKETPLACES_OK[*]}" || true
     [ ${#MARKETPLACES_FAIL[@]} -gt 0 ] && echo "  Marketplaces failed:    ${MARKETPLACES_FAIL[*]}" || true
     if [ "$CC_ONLY" = false ]; then
-      echo "  /reload-plugins queued in tmux session — applies when hermit next idles."
+      if [ "$RELOAD_PLUGINS_SENT" = true ]; then
+        echo "  /reload-plugins sent — plugin updates active."
+      else
+        echo "  /reload-plugins not sent — attach and run it manually: hermit-docker attach"
+      fi
     fi
     echo ""
     echo "Verify with:  .claude-code-hermit/bin/hermit-status"
