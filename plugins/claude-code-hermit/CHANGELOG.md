@@ -6,6 +6,11 @@
 
 - **`min_claude_code_version` gate in `hermit-evolve`.** A new Step 0 reads `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/hermit-meta.json` and checks the running `claude --version` against a `min_claude_code_version` semver range (supports `>=X.Y.Z`). If the CLI is below the declared minimum, the skill aborts with an upgrade message before any config or template writes occur. If the field is absent the gate skips silently (forward-compat). Also adds `.claude-plugin/hermit-meta.json` to the core plugin with `min_claude_code_version: ">=2.1.139"` — the first core-side hermit-meta.json, mirroring the pattern sibling plugins use for `required_core_version`.
 
+### Changed
+
+- **Hooks: converted shell-form commands to exec form (`args: []`).** All 8 convertible hook entries (PreToolUse, PostToolUse, UserPromptSubmit, SessionStart, Stop) now use exec form. The dev-mode contract runner stays in shell form (uses stdin/jq/pipes); its `description` explains why. Fixes path-with-spaces fragility: installs at paths containing a space previously broke because `${CLAUDE_PLUGIN_ROOT}` expanded unquoted in shell form.
+- Added `tests/test-hook-registration-form.sh` contract test — guards against future regressions to naked shell-form interpolation across the plugin fleet. Also fails loudly when the path-resolution glob returns zero hook entries, so a future refactor that breaks `MONOREPO_ROOT` resolution cannot silently pass the test vacuously.
+
 ### Fixed
 
 - **`hermit-docker update` now actually updates the Claude Code binary (cache-bust fix).** `docker compose build --pull` only re-pulls the `FROM ubuntu:24.04` base layer; subsequent `RUN` layers — including `RUN npm install -g @anthropic-ai/claude-code` — were content-addressed by command string and silently reused. A running hermit self-updates its binary on the writable container layer; after `hermit-docker update` rebuilt with a cached layer and bounced the container, the new container reverted to the older baked version. Live measurement: `2.1.132 → 2.1.114` (an 18-patch rollback) on a hermit claiming it upgraded to `2.1.139`. Fixed by adding a `CLAUDE_CODE_VERSION` build arg to `Dockerfile.hermit.template` that pins the npm install to a specific version. `hermit-docker update` resolves the desired version via `npm view @anthropic-ai/claude-code version` (already fetched before the build for the plan output) and passes it as `--build-arg CLAUDE_CODE_VERSION=<resolved>`. BuildKit includes the arg value in the `RUN` layer's cache key, so the layer is invalidated exactly when the version changes — fast rebuilds when nothing changed, correct rebuilds when it did. Falls back to `latest` if the registry lookup fails, preserving today's behavior on registry hiccups.
@@ -23,6 +28,8 @@
 | `state-templates/bin/hermit-docker` | `update` arm: `--build-arg` pass-through; `CC_AFTER` from pinned value; `_wait_for_claude_prompt` readiness gate; log field renamed |
 
 ### Upgrade Instructions
+
+- **Requires Claude Code 2.1.139 or newer.** The `args: []` exec form was introduced in CC 2.1.139. Update Claude Code before pulling this release, or hooks will fail to register.
 
 Docker users only. Non-Docker (tmux/local) hermits are unaffected.
 

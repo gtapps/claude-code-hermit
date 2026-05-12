@@ -14,4 +14,5 @@ bash "$SCRIPT_DIR/cron-tz-shift.test.sh"      || rc=$?
 bash "$SCRIPT_DIR/test-docker-security-templates.sh" || rc=$?
 bash "$SCRIPT_DIR/test-template-skill-sync.sh"       || rc=$?
 bash "$SCRIPT_DIR/test-archive-shell.sh"             || rc=$?
+bash "$SCRIPT_DIR/test-hook-registration-form.sh"   || rc=$?
 exit $rc
