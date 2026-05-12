@@ -9,6 +9,28 @@ Upgrade the project's hermit configuration after a plugin update.
 
 ## Plan
 
+### 0. Verify Claude Code CLI version
+
+- Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/hermit-meta.json`. If the file
+  doesn't exist or `min_claude_code_version` is not set, skip this step.
+- Run `claude --version` and parse the leading semver (format:
+  `X.Y.Z (Claude Code)`). If the command fails or the version cannot be parsed,
+  report: "Could not detect Claude Code CLI version — proceeding anyway." and
+  skip the comparison.
+- Compare the detected version against `min_claude_code_version` (supports
+  `>=X.Y.Z` or bare `X.Y.Z`, treated as `>=`). If the CLI version is below the
+  minimum, report:
+
+  ```
+  This hermit version requires Claude Code >=<min> (you have <detected>).
+
+  Upgrade Claude Code (`claude update` or your package manager) and re-run
+  /claude-code-hermit:hermit-evolve.
+  ```
+
+  Substitute `<min>` with the value from `min_claude_code_version` and
+  `<detected>` with the parsed CLI version. Then stop. Do not prompt to bypass.
+
 ### 1. Read versions
 
 - Read `.claude-code-hermit/config.json`

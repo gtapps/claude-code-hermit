@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **`min_claude_code_version` gate in `hermit-evolve`.** A new Step 0 reads `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/hermit-meta.json` and checks the running `claude --version` against a `min_claude_code_version` semver range (supports `>=X.Y.Z`). If the CLI is below the declared minimum, the skill aborts with an upgrade message before any config or template writes occur. If the field is absent the gate skips silently (forward-compat). Also adds `.claude-plugin/hermit-meta.json` to the core plugin with `min_claude_code_version: ">=2.1.139"` — the first core-side hermit-meta.json, mirroring the pattern sibling plugins use for `required_core_version`.
+
 ## [1.0.37] - 2026-05-11
 
 ### Added
