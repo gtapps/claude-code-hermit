@@ -8,6 +8,7 @@
 - **"Create a session task" branch preserves an existing `NEXT-TASK.md` rather than overwriting it.** If one is already pending, the branch skips the write, marks the proposal `accepted`, and tells the operator to consume the existing task first via `/session-start`.
 - **Resolve Flow drops the hardcoded "Pattern confirmed absent" suffix.** `Resolved on <date>.` is now the default append. Reflect's auto-resolve path may still add the pattern-absence note in SHELL.md Findings (unchanged); the proposal file itself stays generic.
 - **`HEARTBEAT.md.template`: scope proposal review to `status: proposed`.** Accepted proposals were re-surfaced as actionable by the LLM-evaluated checklist item. New wording explicitly skips accepted, resolved, deferred, and dismissed.
+- **Accept-flow wording tightened (review pass).** Step 3a now explicitly reads both `session_id` and `session_state` so step 4(a)'s back-reference is real. Step 4(a) clarifies the read is used "to branch". Waiting branch reads "without asking, then notify" instead of the contradictory "silently; notify". The NEXT-TASK collision notify now points at a concrete recovery path (`/session-start` to consume, then re-run `/proposal-act accept PROP-NNN`) instead of the impossible "re-accept".
 
 ### Files affected
 

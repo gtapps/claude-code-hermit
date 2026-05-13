@@ -60,7 +60,7 @@ When the operator accepts a proposal:
    Accepted on 2026-04-06T14:30:00+01:00.
    ```
 
-3a. **Session tracking:** Read `state/runtime.json`. If `session_id` is non-null, set `accepted_in_session` to that session ID in the proposal's YAML frontmatter. If no session is active (`session_id` is null), leave `accepted_in_session: null`.
+3a. **Session tracking:** Read `state/runtime.json` for `session_id` and `session_state` (both are used below). If `session_id` is non-null, set `accepted_in_session` to that session ID in the proposal's YAML frontmatter. If no session is active (`session_id` is null), leave `accepted_in_session: null`.
 
 3b. **Routine proposals.** If the proposal metadata contains `Type: routine` and a `## Config` section with a JSON block:
     - Parse the JSON block. Validate: must have `id`, `schedule`, `skill`, `enabled` fields.
@@ -73,12 +73,12 @@ When the operator accepts a proposal:
 4. Ask: **"How should this be implemented?"**
 
    - **"Start implementing now"** (default, typical answer): handle session lifecycle, then execute in this turn.
-     a. Use the `session_state` already read from `state/runtime.json` in step 3a.
+     a. Use the `session_state` already read from `state/runtime.json` in step 3a to branch.
      b. **Idle:** delegate to `claude-code-hermit:session-mgr` to transition to `in_progress` and fill SHELL.md Task as "Implement PROP-NNN: <title>". Proceed to (e).
      c. **In progress:** confirm before switching: "Currently working on: <current task>. Switch to PROP-NNN? Y/N".
         - Yes: append `[HH:MM] switched to PROP-NNN: <title> (prior task: <prior task>)` to SHELL.md `## Progress Log`; overwrite SHELL.md `Task:` field with "Implement PROP-NNN: <title>"; `runtime.json session_state` stays `in_progress`. Proceed to (e).
         - No: fall back to "Create a session task" below.
-     d. **Waiting:** fall back to "Create a session task" silently; notify: "PROP-NNN queued. Session is currently waiting."
+     d. **Waiting:** fall back to "Create a session task" without asking, then notify: "PROP-NNN queued. Session is currently waiting."
      e. Read the proposal body and execute the Proposed Solution as the active task. If the body contains `## Skill Improvement`, use `/skill-creator` for the implementation. If the body is vague, ask the operator for clarification before proceeding.
      f. When verifiably done: run `/proposal-act resolve PROP-NNN`, then notify the operator (or channel in autonomous mode): "PROP-NNN implemented and resolved. Summary: <one-line of what was done>."
 
@@ -97,7 +97,7 @@ When the operator accepts a proposal:
      2. [Step derived from Proposed Solution]
      3. Verify the fix resolves the pattern
      ```
-     If `NEXT-TASK.md` already exists: do **not** write. Status still flips to `accepted`. Notify: "PROP-NNN accepted. NEXT-TASK already pending another proposal. Run /session-start to consume it first, or re-accept and pick 'Start implementing now' or manual."
+     If `NEXT-TASK.md` already exists: do **not** write. Status still flips to `accepted` (operator intent is recorded). Notify: "PROP-NNN accepted. NEXT-TASK is already pending another proposal. Run `/session-start` to consume it first, then re-run `/proposal-act accept PROP-NNN` and pick 'Start implementing now' or manual."
      Otherwise write the file. If the proposal contains `## Skill Improvement` and `/skill-creator` is available, append to the Suggested Plan: "Use `/skill-creator` to build and validate the skill. Run `/skill-creator eval` after creation to verify quality." Confirm: "Task prepared. The next `/session-start` will offer this as the default task."
 
    - **"I'll handle it manually"** → Just mark accepted. Respond: "Marked as accepted. No further action taken."
