@@ -37,7 +37,22 @@ function branchRegex(pattern) {
     .replace(/\*\*/g, '§§')
     .replace(/\*/g, '[^/\\s]*')
     .replace(/§§/g, '.*');
-  return new RegExp(`(?<![a-z0-9-])${escaped}(?![a-z0-9-])`, 'i');
+  // Non-glob patterns use exact match against the extracted destination ref so that
+  // `feature/main` (a legitimate branch) is not blocked by the `main` rule.
+  return pattern.includes('*')
+    ? new RegExp(`(?<![a-z0-9-])${escaped}(?![a-z0-9-])`, 'i')
+    : new RegExp(`^${escaped}$`, 'i');
+}
+
+function extractDests(subcmd) {
+  const afterPush = subcmd.replace(/^[\s\S]*?\bpush\b/, '');
+  const positionals = afterPush.trim().split(/\s+/).filter(t => t && !t.startsWith('-'));
+  if (positionals.length < 2) return null;
+  return positionals.slice(1).map(rs => {
+    const stripped = rs.replace(/^\+/, '');
+    const dest = stripped.includes(':') ? stripped.split(':')[1] : stripped;
+    return dest.replace(/^refs\/heads\//, '');
+  });
 }
 
 function block(msg) {
@@ -86,17 +101,14 @@ async function main() {
     if (/(?:^|\s)(?:--mirror\b|--all\b|-a\b)/.test(subcmd)) {
       block('--mirror, --all, and -a are not allowed (would push everything, including protected branches).');
     }
+    const dests = extractDests(subcmd);
     for (const { pattern, rx } of branchRegexes) {
-      if (rx.test(subcmd)) {
+      if ((dests ?? [subcmd]).some(t => rx.test(t))) {
         block(`Direct push to protected branch '${pattern}' is not allowed. Push to a feature branch and open a PR.`);
       }
     }
-    if (hasForceWithLease) {
-      const afterPush = subcmd.replace(/^[\s\S]*?\bpush\b/, '');
-      const positionals = afterPush.trim().split(/\s+/).filter(t => t && !t.startsWith('-'));
-      if (positionals.length < 2) {
-        block('--force-with-lease without an explicit refspec is not allowed (ambiguous target).');
-      }
+    if (hasForceWithLease && dests === null) {
+      block('--force-with-lease without an explicit refspec is not allowed (ambiguous target).');
     }
   }
 

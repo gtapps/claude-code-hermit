@@ -100,7 +100,7 @@ The `git-push-guard` hook (strict only) blocks:
 
 - Direct push to any branch in `claude-code-dev-hermit.protected_branches` (defaults to `main`/`master`)
 - `--no-verify` on any git command
-- Force push: `--force`, `-f`, or `--force-with-lease` (all blocked)
+- Force push: `--force` and `-f` blocked unconditionally; `--force-with-lease` blocked on protected branches or without an explicit refspec (allowed on non-protected branches with an explicit refspec — see [docs/GIT-SAFETY.md](docs/GIT-SAFETY.md))
 - `--mirror`, `--all`, `-a` (would push everything, including protected)
 
 Protected branches are configurable in `.claude-code-hermit/config.json`:
