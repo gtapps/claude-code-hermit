@@ -23,6 +23,7 @@ Always launch Claude Code from this repo's root, not from inside a plugin dir. A
 - Root-scope edits (CI, root README, `.claude/`, `.claude-plugin/marketplace.json`) skip the CHANGELOG step entirely — they don't ship to operators. `/commit` handles that automatically.
 - Releases still go through `/release <slug>`, which promotes a plugin's `[Unreleased]` section to a real version. `/commit` accumulates those entries during day-to-day work.
 - **Where these skills live**: `/commit`, `/release`, `/create-pr`, `/release-status`, `/fleet-release`, `/test-run` are repo-internal skills under `.claude/skills/` — they're not shipped to operators, only used during monorepo dev. Use `/release-status` for a read-only pipeline snapshot before any release session; use `/fleet-release` when multiple plugins change together on one branch (handles dep ordering and `required_core_version` sync automatically).
+- **`/release` is operator-initiated — don't auto-suggest it.** Don't propose `/release <slug>` or `/fleet-release` in plans, summaries, or "next steps." Wait for an explicit ship/release/version request. `/create-pr` is the normal end of feature/fix flow and is welcome to suggest. `/release-status` is read-only and fine to suggest when checking pipeline state.
 
 ## Branching
 
