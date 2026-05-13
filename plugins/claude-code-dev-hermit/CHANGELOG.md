@@ -7,6 +7,11 @@
 - **README and marketplace reframe: git-safety leads, workflow skills demoted to optional.** `git-push-guard` + CLAUDE-APPEND template are now the headline product. The three workflow skills (`/dev-pr`, `/dev-quality`, `/dev-test`) are consolidated into an "Optional workflow scaffolding" block in the README and grouped under "Optional workflow skills" in What's Included. Marketplace description updated to match. `/hatch`'s no-match default flipped from `standard` first to `safety` first — new installs on greenfield projects with no existing commit/PR/release skills detected now land in safety mode by default.
 - **Hooks: converted `git-push-guard` and `record-test-result` to exec form.** Aligns with core's exec-form sweep. Fixes path-with-spaces fragility on installs whose plugin dir contains a space.
 
+### Fixed
+
+- **`git-push-guard`: branches with a protected name as a path segment no longer false-positive blocked.** `git push origin feature/main` (and refspec forms like `HEAD:feature/main`) were blocked by the protected-branch regex because `/` was not treated as a word boundary. Guard now extracts the destination ref from each refspec before matching, and uses exact-match regexes for non-glob patterns. Glob patterns (e.g. `release/*`) retain the previous lookaround regex. Resolves PROP-015 item 1.
+- **`README.md` and `CLAUDE.md` now match the actual `--force-with-lease` policy.** Both previously stated `--force-with-lease` was blocked unconditionally. The code (and `docs/GIT-SAFETY.md`) have allowed it on non-protected branches with an explicit refspec since v0.3.0. Docs updated to reflect the real contract. Resolves PROP-015 item 2.
+
 ### Upgrade Instructions
 
 - **Requires Claude Code 2.1.139 or newer.** The `args: []` exec form was introduced in CC 2.1.139. Update Claude Code before pulling this release, or hooks will fail to register.

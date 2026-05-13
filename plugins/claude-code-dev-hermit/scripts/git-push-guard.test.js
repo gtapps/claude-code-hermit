@@ -129,6 +129,9 @@ assert(':main delete-by-empty-source is blocked', run('git push origin :main', {
 assert(':feature delete-by-empty-source is allowed', run('git push origin :feature/x', { AGENT_HOOK_PROFILE: 'strict' }), 0);
 assert('refs/heads/main is blocked', run('git push origin refs/heads/main', { AGENT_HOOK_PROFILE: 'strict' }), 2);
 assert('refs/heads/feature/x is allowed', run('git push origin refs/heads/feature/x', { AGENT_HOOK_PROFILE: 'strict' }), 0);
+// Branches with "main" as a path segment (not the destination) must not be blocked.
+assert('feature/main branch is allowed', run('git push origin feature/main', { AGENT_HOOK_PROFILE: 'strict' }), 0);
+assert('HEAD:feature/main refspec is allowed', run('git push origin HEAD:feature/main', { AGENT_HOOK_PROFILE: 'strict' }), 0);
 
 // --- Delete and dangerous flags ---
 console.log('\nDelete and dangerous flags:');

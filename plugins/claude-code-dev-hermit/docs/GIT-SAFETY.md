@@ -11,7 +11,7 @@ Injected into the project's `CLAUDE.md` by `/hatch`. The §Git Safety section re
 - Never `git push` from agent context. The operator pushes.
 - Never use `--no-verify` on any git command (commit, push, merge, rebase).
 - Never commit to a branch in `claude-code-dev-hermit.protected_branches`. Always work on a feature branch.
-- Never force-push: no `--force`, `-f`, `--force-with-lease`. The operator handles divergence.
+- Never force-push from agent context. No bare `--force` or `-f`. `--force-with-lease` is allowed only to a non-protected branch with an explicit refspec (the safe rebase-recovery case); ambiguous-target leases and leases to protected branches are blocked. When in doubt, surface the divergence and let the operator resolve.
 
 These apply to whatever agent the operator uses — native `Agent` tool, `feature-dev`'s research/architect agents, custom subagents, the main session. They depend on the agent reading and following the rules; LLMs sometimes ignore prose. That's what the hook is for.
 
