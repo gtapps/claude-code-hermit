@@ -25,7 +25,7 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 | Skill       | What it does                                                                                                                                                                                                                     | Auto-triggers |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | `watch`     | Background event watchers via the CC Monitor tool. Each stdout line becomes a conversation notification — zero token cost when quiet. Supports config-defined watches (auto-registered at session start) and ad-hoc operator watches. Subcommands: `watch <instruction>`, `start`, `stop [id]`, `stop --all`, `status`. | --            |
-| `heartbeat` | Background health checker with idle agency and daily routines. Evaluates HEARTBEAT.md checklist, picks up autonomous work during idle, runs morning and evening routines. Subcommands: `run`, `start`, `stop`, `status`, `edit`. | --            |
+| `heartbeat` | Background health checker with idle agency. Evaluates HEARTBEAT.md checklist and picks up autonomous work during idle. Subcommands: `run`, `start`, `stop`, `status`, `edit`. | --            |
 
 **Heartbeat vs Watch:**
 
@@ -41,7 +41,11 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 
 ## Routines
 
-Routines are scheduled skills fired by cron schedule instead of relying on heartbeat ticks. The `/claude-code-hermit:hermit-routines` skill registers each enabled `config.json` routine as a per-session `CronCreate` job — idle-gated (never interrupts mid-task) and zero token cost until fire. `hermit-start.py` auto-registers them on always-on launch.
+| Skill             | What it does                                                                                                                                                  | Auto-triggers |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `hermit-routines` | Registers each enabled `config.json` routine as a per-session `CronCreate` job. Subcommands: `load`, `list`, `status`, `stop`. Auto-registered on always-on launch. | --            |
+
+Routines are scheduled skills fired by cron schedule instead of relying on heartbeat ticks. Each routine is idle-gated (never interrupts mid-task) and zero token cost until fire.
 
 Each routine has an `id`, a `schedule` (5-field cron: `minute hour dom month dow`), and a `skill` to invoke. Default routines are `morning` (brief with forward-looking framing) and `evening` (brief with backward-looking framing).
 
@@ -65,6 +69,7 @@ Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routin
 | `proposal-list`   | All proposals with status, source, and age. Auto-detected proposals listed first. Stale proposals (10+ sessions) get flagged.                                                            | "what have you noticed", "any improvements", "any proposals" |
 | `proposal-act`    | Accept, defer, or dismiss. Accepting creates a NEXT-TASK.md for the next idle pickup.                                                                                                    | "accept PROP-", "dismiss PROP-", "defer PROP-"               |
 | `reflect`         | Reflects on accumulated experience to surface recurring patterns. Uses memory as primary input — no report prerequisite. Runs at task boundaries, heartbeat idle checks, and end of day. | --                                                           |
+| `reflect-scheduled-checks` | Standalone routine skill. Runs one due interval-triggered scheduled check, gates findings through reflection-judge + proposal-triage, applies state, and logs. Runs as a daily routine, not called by `reflect`. | -- |
 | `capability-brainstorm` | On-demand hermit-voice brainstorm: synthesizes memory, available capabilities, recent compiled artifacts, and codebase shape into at most 2 capability ideas, each gated by proposal-triage. | "brainstorm capabilities", "what could you be doing for me?", "any capability ideas?" |
 
 ## Configuration
@@ -80,6 +85,7 @@ Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routin
 | Skill              | What it does                                                                                                                                                                                                                                    | Auto-triggers |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | `docker-setup`     | Generates hermit-namespaced Docker files (`Dockerfile.hermit`, `docker-compose.hermit.yml`, etc.) and walks through the full deployment — token, build, start, MCP plugins, workspace trust, verify. Won't conflict with your own Docker setup. | --            |
+| `docker-security`  | Opt-in advanced hardening wizard beyond the v1.0.26 baseline. Adds LAN containment, resource bounds, and a plugin install audit log via a reversible `docker-compose.security.yml` overlay. Run after `docker-setup`. | --            |
 | `hermit-takeover`  | Stops the Docker container, marks session as `operator_takeover`, loads full hermit context (OPERATOR.md, SHELL.md, latest report), presents a summary. Run locally to drive interactively.                                                     | --            |
 | `hermit-hand-back` | Summarizes operator activity via `git log`, optionally queues instructions in NEXT-TASK.md, updates SHELL.md, restarts the Docker container.                                                                                                    | --            |
 
@@ -110,5 +116,5 @@ Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routin
 | Skill        | What it does                                                                                                                                                | Auto-triggers |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | `smoke-test`    | Post-hatch validation — checks config structure, OPERATOR.md, routine schema, plugin references, and optionally sends a channel test message. Run after hatch to verify setup. | --            |
-| `hermit-doctor` | Seven-check installation health report — config validity, hook registration, state file integrity, cost budget, proposal health, sibling dependency ranges, file permissions. Use when diagnosing an install, before a release, or after suspicious behavior. | --            |
+| `hermit-doctor` | Eight-check installation health report — config validity, hook registration, state file integrity, cost budget, proposal health, sibling dependency ranges, file permissions, docker-security posture. Use when diagnosing an install, before a release, or after suspicious behavior. | --            |
 | `test-run`      | Runs the full hermit test suite (`run-contracts.py`, `run-hooks.sh`, `validate-frontmatter.js`) and reports pass/fail. Use before releasing changes.       | --            |
