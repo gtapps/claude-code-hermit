@@ -2,7 +2,7 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
-## [Unreleased]
+## [0.1.3] - 2026-05-14
 
 ### Added
 
@@ -23,6 +23,31 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 ### Removed
 
 - **`stuck_for_days` field from `entity_aggregates` rows** — the field was always `None` for both synthesized and returned entries and had no consumer. Removed from the schema to avoid downstream code relying on a value that never materialized.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `src/ha_agent_lab/integration_health.py` | New module: `compute_degraded_domains()`, `run_integration_health()`, stdout formatter |
+| `src/ha_agent_lab/silence.py` | New module: `compute_silence_summary()` and four finding-category classifiers |
+| `src/ha_agent_lab/history.py` | New module: `aggregate_history()`, `detect_time_patterns()`, `fetch_history_snapshot()` |
+| `src/ha_agent_lab/time_utils.py` | New module: shared `parse_iso()` and `days_since()` helpers |
+| `src/ha_agent_lab/ha_api.py` | Add `get_history()` method to REST client |
+| `src/ha_agent_lab/cli.py` | Add `integration-health` and `fetch-history` subcommands; top-level history import |
+| `skills/ha-integration-health/SKILL.md` | Replaced arithmetic steps with single CLI delegate |
+| `skills/ha-analyze-patterns/SKILL.md` | Step 3 fetches 7d history; step 4 maps silence findings to stdout buckets |
+| `skills/ha-morning-brief/SKILL.md` | Fetches 1d history; adds `Durante a noite:` section |
+| `agents/ha-pattern-analyst.md` | Data Sources updated: `silence_summary` and history snapshot |
+| `docs/knowledge-schema.md` | Documents `silence_summary` block and two new history artifact rows |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Run `ha refresh-context`** — regenerates the normalized snapshot with the new `silence_summary` block. Required for `ha-analyze-patterns` and `ha-integration-health` to read silence data.
+2. **Run `ha integration-health`** — seeds the `integration-health-degraded-domains.json` state file consumed by `silence.py`. Required before the first `ha-analyze-patterns` run that cross-references degraded domains.
+
+No `config.json` changes required.
 
 ## [0.1.2] - 2026-05-12
 
