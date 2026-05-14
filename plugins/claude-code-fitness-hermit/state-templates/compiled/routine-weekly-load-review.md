@@ -23,18 +23,21 @@ Pull the last 14 days of Strava activities and compute weekly training load summ
    - Bike: total distance (km), session count
    - Strength: session count
    - Total active days
-5. Read `state/strava-weekly-baselines.json`. If it doesn't exist, create it with this week's data as the baseline and note "Baseline initialized — review again next week."
+5. Read `state/strava-weekly-baselines.json` and `state/activity-notes.json` (or `{}` if absent) in the same turn. The baselines file is used in step 6; the activity notes will be used in step 8.
 6. Compare this week's run distance to the 4-week rolling average from the baseline file:
    - >25% above average → 🔴 "Load spike: [X]km vs [avg]km average"
    - >25% below average → 🟡 "Load dip: [X]km vs [avg]km average"
    - Within range → 🟢 "Consistent load"
 7. Update `state/strava-weekly-baselines.json`: append this week's totals. Keep only the last 8 weeks.
-8. Send a message via the configured channel (max 5 lines). If no channel is configured, log the summary to SHELL.md Progress Log instead and skip the notification.
+8. From the activity list fetched in step 2, collect the IDs of this week's activities. Filter the `activity-notes.json` read in step 5 to those IDs. If 2 or more RPE entries exist, compute the average (one decimal place) and prepare the line: `💬 Avg RPE: X.X/10 (N=<count>)`. Otherwise prepare no RPE line.
+
+   Send a message via the configured channel. If no channel is configured, log the summary to SHELL.md Progress Log instead and skip the notification.
    ```
    📅 Weekly review — w/e [date]
    🏃 Run: [X]km ([N] sessions, [E]m elev) [flag]
    🚴 Bike: [X]km ([N] sessions)
    💪 Strength: [N] sessions
+   💬 Avg RPE: X.X/10 (N=3)           ← omit this line if fewer than 2 rated
    Next week: [one-sentence recommendation based on load]
    ```
 9. Write the load summary to `.claude-code-hermit/compiled/weekly-summary-<YYYY-MM-DD>.md` (today's date) with frontmatter:

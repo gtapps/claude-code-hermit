@@ -17,6 +17,8 @@ After install, run `/claude-code-fitness-hermit:hatch` in the target project. Th
 
 - `skills/hatch/` — one-time setup wizard namespaced as `/claude-code-fitness-hermit:hatch`
 - `skills/activity-deep-dive/` — per-activity coaching analysis (`/claude-code-fitness-hermit:activity-deep-dive`)
+- `skills/capture-activity-rpe/` — auto-triggered RPE capture from channel replies (`/claude-code-fitness-hermit:capture-activity-rpe`)
+- `skills/set-rpe/` — manual RPE entry for any activity (`/claude-code-fitness-hermit:set-rpe`)
 - `agents/strava-data-cruncher.md` — Haiku bulk-aggregation subagent (`@claude-code-fitness-hermit:strava-data-cruncher`)
 - `state-templates/compiled/routine-*.md` — four routine prompt files dropped into the consumer's `.claude-code-hermit/compiled/` by `hatch`
 - `state-templates/CLAUDE-APPEND.md` — Fitness Workflow block injected into the consumer's `CLAUDE.md` by `hatch`
@@ -52,6 +54,8 @@ If you add or modify routine prompts, the corresponding `config.json.routines` e
 - `.claude-code-hermit/compiled/` — durable outputs (weekly plans, weekly summaries, activity notes). Injected at session start within `compiled_budget_chars`.
 - `.claude-code-hermit/state/strava-last-activity-id.txt` — rolling cursor written by `strava-sync` routine.
 - `.claude-code-hermit/state/strava-weekly-baselines.json` — rolling load baselines written by `weekly-load-review` and read by `monday-planning`.
+- `.claude-code-hermit/state/activity-notes.json` — subjective RPE and notes keyed by Strava activity ID. Written by `capture-activity-rpe` and `set-rpe`; read by `activity-deep-dive` and `weekly-load-review`. Retained indefinitely (covers multi-year lookback).
+- `.claude-code-hermit/state/strava-pending-rpe.json` — single-record file written by `strava-sync` after a successful channel send. Holds the latest synced activity for RPE binding. Deleted by `capture-activity-rpe` on capture; freshness-gated (24h) not pruned.
 
 Do NOT create subdirectories inside `.claude-code-hermit/raw/` or `.claude-code-hermit/compiled/`. All artifacts are flat per the base hermit's storage contract (`docs/plugin-hermit-storage.md`).
 

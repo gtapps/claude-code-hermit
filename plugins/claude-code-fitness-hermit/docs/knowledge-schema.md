@@ -43,10 +43,39 @@ Durable outputs. Injected into session context at startup within `compiled_budge
 
 Machine-written state files produced by routines. Not compiled artifacts — not loaded into session context.
 
-| File | Written by | Read by |
-|---|---|---|
-| `strava-last-activity-id.txt` | strava-sync routine | strava-sync routine (dedup cursor) |
-| `strava-weekly-baselines.json` | weekly-load-review routine | monday-planning routine |
+| File | Written by | Read by | Retention |
+|---|---|---|---|
+| `strava-last-activity-id.txt` | strava-sync routine | strava-sync routine (dedup cursor) | permanent |
+| `strava-weekly-baselines.json` | weekly-load-review routine | monday-planning routine | rolling 8 weeks |
+| `activity-notes.json` | capture-activity-rpe skill, set-rpe skill | activity-deep-dive skill, weekly-load-review routine | permanent |
+| `strava-pending-rpe.json` | strava-sync routine (after successful send) | capture-activity-rpe skill (deleted on success) | 24h TTL (freshness-gated, not pruned) |
+
+### activity-notes.json shape
+
+Keyed by Strava activity ID. The `notes` field is always present: `null` when no notes were captured, never a missing key. Readers (`activity-deep-dive`, `weekly-load-review`) can rely on this invariant.
+
+```json
+{
+  "<activity_id>": {
+    "rpe": <int 1-10>,
+    "notes": <string|null>,
+    "recorded_at": "<ISO 8601 with offset>"
+  }
+}
+```
+
+### strava-pending-rpe.json shape
+
+Single record overwritten on each successful `strava-sync` channel send.
+
+```json
+{
+  "activity_id": <int>,
+  "name": "<string>",
+  "sport": "<Run|Ride|WeightTraining|…>",
+  "synced_at": "<ISO 8601 with offset>"
+}
+```
 
 ## Retention
 

@@ -26,7 +26,17 @@ Check for new Strava activities uploaded today. Compare against the last known a
    - If it's a **run on a day after a hard session (Z4+ flagged)**: note "recovery day recommended tomorrow".
    - If **no activity today** (0 new): check if yesterday also had 0 new. If 2+ consecutive rest days after a non-rest day, log: "2 consecutive rest days — intentional recovery or missed session?"
 7. Write the highest new activity ID to `state/strava-last-activity-id.txt`.
-8. Send a 2-3 line summary via the configured channel: new activity count, types, any flags. Format: "Daily sync: [X run Xkm, Y ride, Z weights]. [Flag if any]." If no channel is configured, log the summary to SHELL.md Progress Log instead and skip the notification.
+8. Send a summary via the configured channel. Format:
+   ```
+   Daily sync: [X run Xkm, Y ride, Z weights]. [Flag if any]
+   Reply 'RPE 1-10 [notes]' to log perceived effort (e.g. '7, heavy legs').
+   ```
+   If no channel is configured, log the summary (without the RPE prompt) to SHELL.md Progress Log and proceed to step 9.
+   - After a successful send, write `.claude-code-hermit/state/strava-pending-rpe.json` with the activity whose ID matches the cursor from step 7:
+     ```json
+     {"activity_id": <id>, "name": "<name>", "sport": "<Run|Ride|WeightTraining|…>", "synced_at": "<ISO 8601>"}
+     ```
+   - If the send failed or was skipped, do not write this file — a stale pending entry could bind a future RPE reply to unseen activities.
 9. Close session idle.
 
 ## Anomaly Flags
