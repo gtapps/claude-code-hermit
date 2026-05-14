@@ -1,0 +1,4 @@
+{
+  "required_core_version": ">=1.0.38",
+  "requires": { "claude-code-hermit": ">=1.0.38" }
+}

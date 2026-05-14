@@ -1,6 +1,6 @@
 {
   "name": "hermit-scribe",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Maintainer tool: file GitHub issues via a configured GitHub App bot identity. Pure Node stdlib, no dependencies.",
   "author": {
     "name": "gtapps",
@@ -15,5 +15,11 @@
     "bot",
     "maintainer",
     "gtapps"
+  ],
+  "dependencies": [
+    {
+      "name": "claude-code-hermit",
+      "version": "^1.0.38"
+    }
   ]
 }
