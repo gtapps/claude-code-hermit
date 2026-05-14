@@ -2,10 +2,11 @@
 name: ha-morning-brief
 description: Morning house brief — live status, overnight anomalies, energy snapshot, pending proposals, and today's priorities. Runs as a daily routine or on demand.
 allowed-tools:
+  - Bash
   - Read
   - Glob
   - Grep
-  - Bash
+  - Write
   - mcp__homeassistant__GetLiveContext
   - mcp__homeassistant__GetDateTime
 ---
@@ -27,7 +28,9 @@ Before doing any work, read `.claude-code-hermit/state/runtime.json` if it exist
 
 1. **Time & context** — Call `GetDateTime` for current time. Read `.claude-code-hermit/OPERATOR.md` for priorities and language preferences.
 
-2. **Live house snapshot** — Call `GetLiveContext`. Extract and organize:
+2. **Fetch overnight history**: Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha fetch-history --window-days 1`. On non-zero exit, log a single line to SHELL.md `## Monitoring` (`history fetch failed: <stderr first line>`) and skip the `Durante a noite:` section entirely — no fallback wording in the brief. On success, read `.claude-code-hermit/raw/snapshot-ha-history-1d-latest.json`.
+
+3. **Live house snapshot** — Call `GetLiveContext`. Extract and organize:
    - Presence (who is home/away)
    - Lights still on (unexpected at morning time?)
    - Cover/blind positions
@@ -35,22 +38,27 @@ Before doing any work, read `.claude-code-hermit/state/runtime.json` if it exist
    - Any devices unavailable or in error state
    - Security: alarm state (read-only)
 
-3. **Energy snapshot** — From the live context, pull current power draw and any energy sensors. Compare with known baselines from memory if available. Flag anything unusual (e.g., high overnight consumption).
+4. **Overnight highlights** (only when 1d history artifact is present): read `.claude-code-hermit/raw/snapshot-ha-normalized-latest.json` for `silence_summary.silent_event_sensors`, then surface 1–3 highlights for the `Durante a noite:` section using only honest signals:
+   - **Top-active entity between 00:00–06:00**: scan `entity_aggregates[*].hour_histogram[0:7]` for the highest sum across all entities. If any non-trivial activity (sum > 0), emit one line — e.g., "`light.kitchen` — 12 mudanças entre 00:00 e 06:00".
+   - **Stuck event sensors**: from `silence_summary.silent_event_sensors`, emit sensors still silent — e.g., "`binary_sensor.motion_corridor` sem eventos há 14 dias".
+   - **HVAC duration**: for each `climate.*` entity, read `state_durations` from the history artifact. If `state_durations["heat"]` or `state_durations["cool"]` ≥ 1800 seconds (30 min), emit one line — e.g., "`climate.heat_pump` aqueceu ~Xh durante a noite" where X is derived directly from `state_durations`. Never substitute event count for active hours.
 
-4. **Context freshness** — Check `.claude-code-hermit/raw/snapshot-ha-context-latest.json` modification time. If older than 24h, note it as stale.
+5. **Energy snapshot** — From the live context, pull current power draw and any energy sensors. Compare with known baselines from memory if available. Flag anything unusual (e.g., high overnight consumption).
 
-5. **Overnight activity** — Read `.claude-code-hermit/sessions/SHELL.md`. Scan both the **Monitoring** section and the **Findings** section (last 20 lines combined). In newborn-phase hermits (< 3 days old), pattern observations land in Findings as `Noticed: <pattern>` entries — include those. Surface any alerts or notable patterns found overnight.
+6. **Context freshness** — Check `.claude-code-hermit/raw/snapshot-ha-context-latest.json` modification time. If older than 24h, note it as stale.
 
-6. **Cost-spike check** — Read `.claude-code-hermit/state/reflection-state.json` if it exists. Look for any `cost_spike` entry with a timestamp within the last 24 hours. If found, include a "Cost alert" bullet in the brief with the flagged amount.
+7. **Overnight activity** — Read `.claude-code-hermit/sessions/SHELL.md`. Scan both the **Monitoring** section and the **Findings** section (last 20 lines combined). In newborn-phase hermits (< 3 days old), pattern observations land in Findings as `Noticed: <pattern>` entries — include those. Surface any alerts or notable patterns found overnight.
 
-7. **Pending work** — Scan for:
+8. **Cost-spike check** — Read `.claude-code-hermit/state/reflection-state.json` if it exists. Look for any `cost_spike` entry with a timestamp within the last 24 hours. If found, include a "Cost alert" bullet in the brief with the flagged amount.
+
+9. **Pending work** — Scan for:
    - `Glob` for `.claude-code-hermit/proposals/PROP-*.md` — read status from each, list any `pending` proposals
    - Check if `.claude-code-hermit/sessions/NEXT-TASK.md` exists (queued task)
    - Read `.claude-code-hermit/cost-summary.md` if it exists — include yesterday's cost
 
-8. **Compose brief** — Write a concise morning brief in the operator's language (from OPERATOR.md preferences). Use the format below.
+10. **Compose brief** — Write a concise morning brief in the operator's language (from OPERATOR.md preferences). Use the format below.
 
-9. **Write to `compiled/`** — Write the composed brief to `.claude-code-hermit/compiled/brief-morning-<YYYY-MM-DD>.md` with frontmatter:
+11. **Write to `compiled/`** — Write the composed brief to `.claude-code-hermit/compiled/brief-morning-<YYYY-MM-DD>.md` with frontmatter:
    ```yaml
    title: "Morning Brief — <YYYY-MM-DD>"
    type: brief
@@ -72,8 +80,11 @@ Bom dia! Casa - [date]
 Estado actual:
 - [presence, lights, climate, covers - concise bullets]
 
+Durante a noite:
+- [overnight highlights: top-active entity, stuck sensors, HVAC duration — omit section when history unavailable]
+
 Energia:
-- [current draw, overnight highlights]
+- [current draw, notable consumption]
 
 Alertas:
 - [devices offline, unusual states, or "Tudo normal"]
@@ -88,7 +99,7 @@ Prioridades hoje:
 - [from OPERATOR.md Current Priority, filtered to actionable items]
 ```
 
-Adapt the greeting and section headers to the operator's configured language. Keep the entire brief under 25 lines.
+Adapt the greeting and section headers to the operator's configured language. Keep the entire brief under 25 lines — strip lower-priority lines (e.g., Custo when no spike) if the Overnight section pushes over the cap.
 
 ## Delivery
 

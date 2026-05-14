@@ -31,6 +31,7 @@ Analyze artifacts to find:
 ## Data Sources
 
 - `.claude-code-hermit/raw/snapshot-ha-normalized-latest.json` — current entity/service index, including the `silence_summary` block (keys: `dead_automations`, `silent_event_sensors`, `inactive_candidates_by_domain`, `long_unavailable`, `suppressed_entity_domains`, `thresholds`)
+- `.claude-code-hermit/raw/snapshot-ha-history-7d-latest.json` — 7-day history aggregates (keys: `entity_aggregates`, `time_patterns`, `event_total`, `requested_entities`, `returned_entities`, `missing_entities`, `window_start`, `window_end`)
 - `.claude-code-hermit/raw/snapshot-ha-pattern-analysis-latest.json` — previous analysis
 - `.claude-code-hermit/raw/snapshot-ha-pattern-analysis-*.json` — historical analysis files
 - `.claude-code-hermit/raw/audit-ha-context-refresh-latest.md` — last context refresh stats
@@ -48,10 +49,11 @@ Return structured findings as JSON:
   "anomalies": [{"type": "always_off", "entities": [...], "description": "..."}],
   "automation_opportunities": [{"trigger": "...", "action": "...", "rationale": "..."}],
   "reliability_issues": [{"entity": "...", "issue": "...", "since": "..."}],
+  "time_patterns": [{"entity_id": "...", "peak_hour": 7, "peak_count": 8, "total": 12, "description": "..."}],
   "suppressed": [{"code": "covered-by-memory", "reason": "...", "quoted_line": "...", "memory_ref": "..."}]
 }
 ```
 
-Omit `suppressed` when empty. `dead_automations` and `silent_event_sensors` from `silence_summary` are handled by the calling skill directly — do not duplicate them in this output.
+`time_patterns` is populated from `snapshot-ha-history-7d-latest.json` when present; omit the key entirely when the artifact is absent. `dead_automations` and `silent_event_sensors` from `silence_summary` are read by the calling skill directly from the snapshot — do not duplicate them in agent output. Omit `suppressed` when empty.
 
 Never modify files. Never actuate devices.

@@ -35,6 +35,8 @@ Ephemeral inputs and rolling snapshots. Archived after `knowledge.raw_retention_
 | `audit-ha-apply-<slug>-<date>.md` | `apply` | `ha-apply-change` | Each apply run |
 | `patterns-<date>.md` | `analysis` | `ha-analyze-patterns` | Weekly scheduled check |
 | `snapshot-ha-pattern-analysis-<date>.json` | `snapshot` | `ha-analyze-patterns` | Weekly scheduled check |
+| `snapshot-ha-history-7d-<date>.json` | `snapshot` | `ha-fetch-history` (via `ha-analyze-patterns`) | Weekly scheduled check |
+| `snapshot-ha-history-1d-<date>.json` | `snapshot` | `ha-fetch-history` (via `ha-morning-brief`) | Daily routine |
 
 ## compiled/
 

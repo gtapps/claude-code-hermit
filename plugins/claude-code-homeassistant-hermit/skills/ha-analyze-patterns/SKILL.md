@@ -17,8 +17,9 @@ allowed-tools:
 
 1. **Load existing analysis**: Read `.claude-code-hermit/raw/snapshot-ha-pattern-analysis-latest.json` if it exists.
 2. **Get live context**: Call `GetLiveContext` and `GetDateTime` via MCP for current state.
-3. **Read normalized inventory**: Read `.claude-code-hermit/raw/snapshot-ha-normalized-latest.json`. Extract both `entity_index` and `silence_summary` (the new block added by every context refresh).
-4. **Analyze patterns from silence_summary**:
+3. **Fetch history**: Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha fetch-history --window-days 7`. On non-zero exit, log a single line to SHELL.md `## Monitoring` (`history fetch failed: <stderr first line>`) and continue — the skill proceeds using Phase 1 silence findings only. Do not surface the fetch failure to scheduled-check stdout.
+4. **Read normalized inventory**: Read `.claude-code-hermit/raw/snapshot-ha-normalized-latest.json`. Extract both `entity_index` and `silence_summary` (added by every context refresh). Also read `.claude-code-hermit/raw/snapshot-ha-history-7d-latest.json` if present.
+5. **Analyze patterns from silence_summary and history**:
 
    From `silence_summary.dead_automations` (enabled automations not fired in 30+ days):
    - Each entry is an actionable Reliability issue: `"automation.X has not fired in N days (enabled)"`.
@@ -36,9 +37,14 @@ allowed-tools:
    From `silence_summary.suppressed_entity_domains`:
    - Note in Markdown artifact that these domains are already covered by ha-integration-health.
 
-5. **Write findings**: Save pattern data to `.claude-code-hermit/raw/snapshot-ha-pattern-analysis-<YYYY-MM-DD>.json` and update `snapshot-ha-pattern-analysis-latest.json`. Write the curated Markdown summary (when non-trivial findings exist) to `.claude-code-hermit/raw/patterns-<YYYY-MM-DD>.md` with frontmatter `type: analysis`, `title: "HA Pattern Analysis — <YYYY-MM-DD>"`, `created: <ISO8601>`, `session: <session_id or null>`, `tags: [ha-patterns, analysis]`. Also write `patterns-latest.md` pointing to the same content. The Markdown body should include the richer breakdown: `inactive_candidates_by_domain` summary table and `suppressed_entity_domains` note.
-6. **Update memory**: Update your auto memory with key findings from this analysis.
-7. **Emit summary for reflect-scheduled-checks**: Always output a plain-text findings block to stdout. reflect-scheduled-checks routes actionable items through the proposal pipeline. The stdout shape is fixed — do not add new top-level sections:
+   From `snapshot-ha-history-7d-latest.json` (when present):
+   - For each entry in `time_patterns`: surface under `Automation opportunities:` as a schedule-based candidate. Example: `"light.kitchen — 8/12 events at 07:00 UTC, consider time-based automation"`.
+   - For each `entity_aggregates` entry where `event_count == 0` AND the entity also appears in `silence_summary.inactive_candidates_by_domain`: promote to actionable `Reliability issues:` **only** when the entity's `last_changed` timestamp (from entity_index) is older than 30 days. The 7-day Phase 1 informational threshold gets a much higher bar here because history corroborates it.
+   - Do not derive automation execution from history entries for `automation.*` entities — `silence_summary.dead_automations` is authoritative for that.
+
+6. **Write findings**: Save pattern data to `.claude-code-hermit/raw/snapshot-ha-pattern-analysis-<YYYY-MM-DD>.json` and update `snapshot-ha-pattern-analysis-latest.json`. Write the curated Markdown summary (when non-trivial findings exist) to `.claude-code-hermit/raw/patterns-<YYYY-MM-DD>.md` with frontmatter `type: analysis`, `title: "HA Pattern Analysis — <YYYY-MM-DD>"`, `created: <ISO8601>`, `session: <session_id or null>`, `tags: [ha-patterns, analysis]`. Also write `patterns-latest.md` pointing to the same content. The Markdown body should include the richer breakdown: `inactive_candidates_by_domain` summary table, `suppressed_entity_domains` note, time-pattern table from history, and `state_durations` summary for `climate.*` entities (showing heating/cooling hours over the 7d window).
+7. **Update memory**: Update your auto memory with key findings from this analysis.
+8. **Emit summary for reflect-scheduled-checks**: Always output a plain-text findings block to stdout. reflect-scheduled-checks routes actionable items through the proposal pipeline. The stdout shape is fixed — do not add new top-level sections:
 
    ```
    ha-analyze-patterns findings — <date>
@@ -53,7 +59,7 @@ allowed-tools:
 
    Dead automations and silent event sensors fold under `Reliability issues:`. If there are zero findings across all categories, output: `ha-analyze-patterns findings — <date>\nNo actionable findings.`
 
-8. **Propose automations**: If clear patterns emerge, suggest them. For complex ones, delegate to `@claude-code-homeassistant-hermit:ha-automation-builder`.
+9. **Propose automations**: If clear patterns emerge, suggest them. For complex ones, delegate to `@claude-code-homeassistant-hermit:ha-automation-builder`.
 
 ## What to Look For
 
