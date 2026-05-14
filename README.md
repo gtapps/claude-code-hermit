@@ -87,7 +87,7 @@ Voyager-style auto-curriculum, you're editor-in-chief. Under the hood, raw sessi
 
 ## Quick Start
 
-> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.110+, a Claude plan (Pro, Max, Teams, or Enterprise), and Node.js 22+. Linux, macOS, and Windows via WSL2 — see [FAQ](plugins/claude-code-hermit/docs/faq.md).
+> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.140+, a Claude plan (Pro, Max, Teams, or Enterprise), and Node.js 22+. Linux, macOS, and Windows via WSL2 — see [FAQ](plugins/claude-code-hermit/docs/faq.md).
 
 ### 1. Install
 

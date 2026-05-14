@@ -45,7 +45,7 @@ That's it. One hook + one template, with optional workflow skills on top. Whatev
 
 ## Quick Start
 
-> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.110+, a Claude plan (Pro, Max, Teams, or Enterprise), Node.js 24+ (for the `git-push-guard` hook at strict profile), and `gh` (GitHub) or `glab` (GitLab) for `/dev-pr`. Bitbucket and other forges accept a custom command at `/hatch`.
+> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.140+, a Claude plan (Pro, Max, Teams, or Enterprise), Node.js 24+ (for the `git-push-guard` hook at strict profile), and `gh` (GitHub) or `glab` (GitLab) for `/dev-pr`. Bitbucket and other forges accept a custom command at `/hatch`.
 
 ### 1. Install
 
