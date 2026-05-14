@@ -80,6 +80,15 @@ When the operator accepts a proposal:
         - No: fall back to "Create a session task" below.
      d. **Waiting:** fall back to "Create a session task" without asking, then notify: "PROP-NNN queued. Session is currently waiting."
      e. Read the proposal body and execute the Proposed Solution as the active task. If the body contains `## Skill Improvement`, use `/skill-creator` for the implementation. If the body is vague, ask the operator for clarification before proceeding.
+     e.5. **Quality review (conditional).** Read `.claude-code-hermit/config.json` → `quality_gate.enabled`. If the value is explicitly `false`, skip to (f). Otherwise (key absent, `true`, or malformed), run `/simplify`:
+
+         If you can enumerate the files you wrote/edited during step (e), pass them as the focus argument so the review doesn't pick up unrelated session writes (heartbeat state, SHELL.md updates, other proposal work):
+
+             /simplify focus on PROP-NNN implementation: path/a, path/b
+
+         If you can't reliably recall the list (long multi-turn work, sub-agent delegation), invoke `/simplify` with no focus; it falls back to git diff (or recently-modified files in non-git projects). Apply any fixes it produces, then proceed to (f).
+
+         Best-effort: if `/simplify` reports no changes or errors out, proceed to (f) without halting. The quality gate never blocks resolution.
      f. When verifiably done: run `/proposal-act resolve PROP-NNN`, then notify the operator (or channel in autonomous mode): "PROP-NNN implemented and resolved. Summary: <one-line of what was done>."
 
    - **"Create a session task"** → Write `.claude-code-hermit/sessions/NEXT-TASK.md`:
@@ -98,7 +107,10 @@ When the operator accepts a proposal:
      3. Verify the fix resolves the pattern
      ```
      If `NEXT-TASK.md` already exists: do **not** write. Status still flips to `accepted` (operator intent is recorded). Notify: "PROP-NNN accepted. NEXT-TASK is already pending another proposal. Run `/session-start` to consume it first, then re-run `/proposal-act accept PROP-NNN` and pick 'Start implementing now' or manual."
-     Otherwise write the file. If the proposal contains `## Skill Improvement` and `/skill-creator` is available, append to the Suggested Plan: "Use `/skill-creator` to build and validate the skill. Run `/skill-creator eval` after creation to verify quality." Confirm: "Task prepared. The next `/session-start` will offer this as the default task."
+     Otherwise write the file. After writing, conditionally append numbered bullets to the Suggested Plan in this order (quality-gate is always last when present, so `/simplify` reviews any skill-creator output):
+       - If the proposal contains `## Skill Improvement` AND `/skill-creator` is available, append: `4. Use /skill-creator to build and validate the skill.`
+       - If `quality_gate.enabled` is not explicitly `false` in `.claude-code-hermit/config.json` (absent, `true`, or malformed all count as enabled), append the quality-gate bullet with the next available number (`4.` if no skill-creator bullet was appended, `5.` if one was): `Run /simplify on the touched files for a quality review, then commit.`
+     Confirm: "Task prepared. The next `/session-start` will offer this as the default task."
 
    - **"I'll handle it manually"** → Just mark accepted. Respond: "Marked as accepted. No further action taken."
 

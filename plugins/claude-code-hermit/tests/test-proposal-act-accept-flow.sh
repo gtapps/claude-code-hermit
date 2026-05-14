@@ -29,6 +29,17 @@ run_test "'Create a session task' option present" \
 run_test "'I'll handle it manually' option present" \
   grep -qF "I'll handle it manually" "$SKILL"
 
+# Quality-gate (e.5) + NEXT-TASK template assertions: guards against losing the
+# /simplify post-implementation review step or the config-gated condition.
+run_test "'/simplify' quality-review step present in Start-implementing-now branch" \
+  grep -qF "/simplify focus on PROP-NNN implementation" "$SKILL"
+
+run_test "Quality gate config gating mentioned in step (e.5)" \
+  grep -qF "quality_gate.enabled" "$SKILL"
+
+run_test "NEXT-TASK.md template references /simplify final step under gate" \
+  grep -qF "Run /simplify on the touched files" "$SKILL"
+
 # Frontmatter description specifically (between the opening --- and the second ---).
 FRONTMATTER="$(awk '/^---$/{c++; next} c==1' "$SKILL")"
 run_test "frontmatter description mentions 'start implementing now'" \

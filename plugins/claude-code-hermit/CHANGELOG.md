@@ -9,14 +9,21 @@
 - **Resolve Flow drops the hardcoded "Pattern confirmed absent" suffix.** `Resolved on <date>.` is now the default append. Reflect's auto-resolve path may still add the pattern-absence note in SHELL.md Findings (unchanged); the proposal file itself stays generic.
 - **`HEARTBEAT.md.template`: scope proposal review to `status: proposed`.** Accepted proposals were re-surfaced as actionable by the LLM-evaluated checklist item. New wording explicitly skips accepted, resolved, deferred, and dismissed.
 - **Accept-flow wording tightened (review pass).** Step 3a now explicitly reads both `session_id` and `session_state` so step 4(a)'s back-reference is real. Step 4(a) clarifies the read is used "to branch". Waiting branch reads "without asking, then notify" instead of the contradictory "silently; notify". The NEXT-TASK collision notify now points at a concrete recovery path (`/session-start` to consume, then re-run `/proposal-act accept PROP-NNN`) instead of the impossible "re-accept".
+- **Accept flow runs `/simplify` before resolve when `quality_gate.enabled` is not explicitly `false` (default).** New step (e.5) in the "Start implementing now" branch of `/proposal-act` invokes `/simplify` on the implementation, with an explicit file list as the focus argument when the model can enumerate it, falling back to git diff otherwise. Best-effort: never halts on no-op or error. The "Create a session task" branch appends a matching final bullet to the auto-generated `NEXT-TASK.md` plan under the same condition, and the existing skill-creator append (for `## Skill Improvement` proposals) is now also numbered for clean ordering. New top-level config key `quality_gate: { enabled: true }` surfaced in `hermit-settings` as "Quality gate". Closes the quality-review gap downstream hermits hit because they have no equivalent of this monorepo's `/commit → /simplify` chain (closes #66, resolves PROP-019).
 
 ### Files affected
 
 | File | Change |
 |------|--------|
-| `skills/proposal-act/SKILL.md` | Three-option accept step 4; resolve wording; description string |
+| `skills/proposal-act/SKILL.md` | Three-option accept step 4; resolve wording; description string; step (e.5) quality-gate; NEXT-TASK numbered-bullet ordering |
 | `state-templates/HEARTBEAT.md.template` | Scope proposal review to `status: proposed` |
-| `tests/test-proposal-act-accept-flow.sh` | New regression test |
+| `state-templates/config.json.template` | New `quality_gate` key (object form, default-on) |
+| `skills/hermit-settings/SKILL.md` | `quality-gate` subcommand: display row + sub-menu |
+| `skills/hatch/SKILL.md` | `quality_gate` added to Template-only fields list |
+| `skills/hermit-evolve/SKILL.md` | `quality_gate` silent-keys entry for existing-config migration |
+| `docs/config-reference.md` | Top-Level Keys row + Complete Example entry for `quality_gate` |
+| `docs/skills.md` | `quality-gate` appended to hermit-settings subcommand list |
+| `tests/test-proposal-act-accept-flow.sh` | New regression test + 3 quality-gate asserts |
 | `tests/run-all.sh` | Register new test |
 
 ### Upgrade Instructions
@@ -34,6 +41,8 @@ replace it with:
 ```
 
 If you have customised this line, skip and update manually.
+
+**config.json — `quality_gate`**: `/hermit-evolve` adds `quality_gate: { enabled: true }` silently to existing configs (now in the silent-keys table in `hermit-evolve/SKILL.md`). Operators who want to opt out can run `/claude-code-hermit:hermit-settings quality-gate` and answer "no", or manually set `"quality_gate": { "enabled": false }`. The `proposal-act` skill treats absence (and any non-`false` value) as enabled, so even hermits that never run `/hermit-evolve` get the default-on behavior; `hermit-start.py`'s `DEFAULT_CONFIG` merge supplies the runtime fallback.
 
 ### Known Limitations
 

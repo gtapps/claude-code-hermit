@@ -80,6 +80,9 @@ DEFAULT_CONFIG = {
         'stale_threshold': '2h',
         'waiting_timeout': None,
     },
+    'quality_gate': {
+        'enabled': True,
+    },
     'knowledge': {
         'raw_retention_days': 14,
         'compiled_budget_chars': 1000,

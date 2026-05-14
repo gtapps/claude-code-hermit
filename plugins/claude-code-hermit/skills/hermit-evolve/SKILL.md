@@ -87,6 +87,7 @@ For each new key, check the table below. If the key is interactive, ask the oper
 - `docker` (0.0.7): `{"packages":[],"recommended_plugins":[]}`
 - `compact` (0.0.7): `{"monitoring_threshold":30,"monitoring_keep":20,"summary_threshold":30,"summary_keep":15}`
 - `knowledge` (0.4.0): `{"raw_retention_days":14,"compiled_budget_chars":1000,"working_set_warn":20}`
+- `quality_gate` (1.0.39): `{"enabled":true}`
 
 **Prompts** — use the exact same `AskUserQuestion` structures as hatch Phase 2 (see `skills/hatch/SKILL.md`):
 - `agent_name`: AskUserQuestion with options (Atlas / Hermit / Skip) + Other for custom input

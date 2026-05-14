@@ -30,6 +30,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings docker           — view/edit Docker packages
 /claude-code-hermit:hermit-settings scheduled-checks    — manage scheduled plugin skill checks
 /claude-code-hermit:hermit-settings boot-skill       — view/clear/change the always-on boot skill
+/claude-code-hermit:hermit-settings quality-gate     — toggle post-implementation /simplify review
 ```
 
 ## Plan
@@ -63,6 +64,7 @@ Operational:
   Idle budget:     $0.50          → any dollar amount (e.g. $0.25, $1.00)
   Heartbeat:       disabled       → yes | no  (interval, show_ok, active hours, stale threshold)
   Routines:        2 configured   → run: /claude-code-hermit:hermit-settings routines
+  Quality gate:    enabled        → yes | no
   Permission mode: acceptEdits    → default | acceptEdits | auto | plan | dontAsk | bypassPermissions
   Auto session:    enabled        → read-only
   Boot skill:      /claude-code-hermit:session  → any namespaced skill | 'none' to reset to default
@@ -338,6 +340,10 @@ Update `permission_mode` in config.json.
   - `add <id> <plugin> <skill> session`: add session-triggered entry with `enabled: true`. Deduplicate by id.
   - `remove <id>`: delete the entry from config and its state from `state/reflection-state.json`
 - Note: "Interval checks run during idle reflection. Session checks run at task completion. Changes take effect on the next cycle."
+
+**If argument is "quality-gate":**
+Ask: "Run a `/simplify` quality review automatically at the end of accepted-proposal implementations? Catches clarity issues, nested ternaries, and redundant complexity before resolve. Adds a few seconds and some token cost per implementation. (yes/no) [current]"
+Update `quality_gate.enabled` in config.json. If the `quality_gate` object is missing, create it as `{ "enabled": <value> }`.
 
 ### 3. Write config
 
