@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **Issue title format** — uses Conventional Commits (`feat(scope): ...` / `fix(scope): ...` / `chore(scope): ...`) instead of `[hermit/{category}] ...` for proposal-backed issues. Type maps from `category`: `bug` → `fix`, `infrastructure`/`investigation` → `chore`, everything else → `feat`. Scope is inferred from explicit target mentions in the proposal text (`plugins/<slug>/` paths or recognized plugin slugs) first; the recognized slug vocabulary is derived at runtime from the keys of `_hermit_versions` in `.claude-code-hermit/config.json`, falling back to the lone activated fleet hermit when no explicit target appears. Omitted when signals are absent or ambiguous. Ad-hoc issues pass the operator's title through unchanged.
+- **Operator preview is single-message, body-inlined** — the confirmation prompt is now the last line the operator sees, and the body is shown in full (not "see below"). If the content exceeds the channel size limit, the prompt appears only in the final split message.
+- **`edit` confirmation now defined** — replies with `edit` enter a loop: skill asks what to change, applies it, re-renders the preview, and re-asks. Previously this branch was undefined.
+
+### Added
+
+- **English-only at the GitHub boundary** — title/body are translated to English before filing if not already English. Technical identifiers, code, frontmatter, and proper nouns are preserved verbatim. The local proposal file is untouched; the `gh_issue:` back-write into the proposal frontmatter still runs after filing.
+
+---
+
 ## [0.0.2] - 2026-05-14
 
 ### Fixed

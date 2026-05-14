@@ -53,9 +53,9 @@ Trigger phrases:
 - `report this to the tracker`
 - `file a GH issue for [description]`
 
-For proposal-backed issues: the skill globs `.claude-code-hermit/proposals/PROP-NNN-*.md`, reads frontmatter (`id`, `title`, `category`, `session`) and the `## Context` / `## Problem` / `## Proposed Solution` / `## Impact` body sections, then formats title as `[hermit/{category}] {title}` and appends a `Filed via hermit-scribe · proposal={id} · session={session}` footer.
+For proposal-backed issues: the skill globs `.claude-code-hermit/proposals/PROP-NNN-*.md`, reads frontmatter (`id`, `title`, `category`, `session`) and the `## Context` / `## Problem` / `## Proposed Solution` / `## Impact` body sections, then builds a Conventional Commits title (`<type>(<scope>): <title>`, e.g. `feat(homeassistant-hermit): integrate HA History API`). Type is derived from `category` (`bug` → `fix`, `infrastructure`/`investigation` → `chore`, otherwise → `feat`); the recognized scope vocabulary is derived from the keys of `_hermit_versions` in `.claude-code-hermit/config.json`, scanned against explicit mentions in the proposal text first (`plugins/<slug>/` paths or whole-word slug occurrences), falling back to the lone activated fleet hermit when no explicit target appears, with the `claude-code-` prefix stripped. Scope is omitted when signals are absent or ambiguous. The body is translated to English at the GitHub boundary (technical identifiers, code, and frontmatter are preserved verbatim) and a `Filed via hermit-scribe · proposal={id} · session={session}` footer is appended.
 
-For ad-hoc: supply title and body directly.
+For ad-hoc issues: supply title and body directly. The operator's title is passed through verbatim (no CC enforcement); translation and sanitization still apply.
 
 All issues get the `hermit-filed` label.
 
@@ -71,7 +71,7 @@ The operator can un-redact specific items during the preview step if a particula
 
 ### Operator preview
 
-The cleaned title and body are shown to the operator before filing. The operator can confirm, edit, or cancel.
+The cleaned title and body are shown to the operator before filing as a single message (body fully inlined, confirmation prompt last). The operator can confirm, edit (iterative — re-previews until satisfied), or cancel.
 
 ## Errors
 

@@ -23,14 +23,47 @@ If the operator named a proposal (`PROP-NNN`):
 1. Glob `.claude-code-hermit/proposals/PROP-NNN-*.md` to find the file.
 2. Read frontmatter: `id`, `title`, `category`, `session`.
 3. Read body sections: `## Context`, `## Problem`, `## Proposed Solution`, `## Impact`.
-4. Construct draft title: `[hermit/{category}] {title}`.
+4. Construct draft title using Conventional Commits format:
+
+   **Pick type** from `category`:
+   - `bug` → `fix`
+   - `infrastructure`, `investigation` → `chore`
+   - `improvement`, `capability`, `routine`, `constraint` → `feat`
+   - any other / unknown category → `feat`
+
+   **Pick scope** with this priority:
+   1. Read `.claude-code-hermit/config.json` and take the keys of `_hermit_versions` as the recognized slug set. (If config is missing or unreadable, omit scope.)
+   2. Scan the raw `title` field from frontmatter and the proposal body (pre-translation) for whole-word occurrences of any slug in the set, or for `plugins/<slug>/` path references where `<slug>` is in the set — not substrings of a path component, URL, or longer identifier. Collect the distinct matched slugs.
+      - Exactly one slug → use it.
+      - More than one slug → omit scope and stop (do NOT fall through; the signal is present but ambiguous).
+   3. If step 2 found **zero** matches, filter the slug set for keys matching `^claude-code-.+-hermit$` excluding `claude-code-hermit`. If exactly one fleet hermit remains → use it.
+   4. Otherwise omit scope.
+
+   Strip a leading `claude-code-` from the chosen scope (e.g. `claude-code-homeassistant-hermit` → `homeassistant-hermit`).
+
+   Build: `<type>(<scope>): <title>` if scope present, else `<type>: <title>`.
+
 5. Construct draft body with the four body sections, then append:
    ```
    ---
    *Filed via hermit-scribe · proposal={id} · session={session}*
    ```
 
-For ad-hoc issues (no proposal): use the title and body the operator provides.
+For ad-hoc issues (no proposal): use the title and body the operator provides verbatim — no CC type/scope construction.
+
+Then, for both proposal-backed and ad-hoc issues:
+
+**Step 1b: language normalization.**
+
+If the title or body is not already in English, translate to English. Preserve verbatim:
+- Technical identifiers (entity IDs, API names, file paths, function names, package names, plugin slugs, repo names)
+- Code blocks and command lines
+- Frontmatter field names and values
+- Proper nouns
+
+Translate prose, headings, and bullet text. Keep the structure (Context / Problem / Proposed Solution / Impact) and section ordering identical to the source.
+
+The proposal file under `.claude-code-hermit/proposals/` is NOT modified — translation applies only to what is sent to GitHub.
 
 **Step 2: dedup check.** (proposal-backed only — skip for ad-hoc issues)
 
@@ -56,19 +89,17 @@ Parse the response: split on the `<<<HERMIT_SCRIBE_BODY>>>` line. Everything bef
 
 **Step 4: operator preview.**
 
-Print the cleaned title and body to the operator:
+Present the post-translation, post-sanitization content to the operator as a **single message** containing, in order:
+1. Proposed title
+2. Complete issue body — everything that will be written to the issue, including the `---\n*Filed via hermit-scribe...*` footer
+3. Confirmation prompt: `File this issue? (yes / edit / cancel)`
 
-```
---- PREVIEW ---
-Title: {cleaned title}
+If the content exceeds the channel's message-size limit (Discord: 2000 chars), split into multiple messages. The confirmation prompt MUST appear in the FINAL message only — never in the first. Do NOT replace the body with placeholders like "(see below)" — inline the full body.
 
-{cleaned body}
---- END PREVIEW ---
-
-File this issue? (yes / edit / cancel)
-```
-
-Wait for the operator's response. On "edit": apply any requested changes to title or body. On "cancel": abort. Proceed only on "yes" or after applying edits.
+Wait for the operator's response.
+- On `cancel`: abort.
+- On `yes`: proceed to Step 5.
+- On `edit`: ask the operator what to change (e.g. "title", a specific body section, or a free-text correction). Apply the requested edit, re-render the preview from the start of Step 4, and ask again. Loop until `yes` or `cancel`.
 
 **Step 5: write title and body to temp files.**
 
