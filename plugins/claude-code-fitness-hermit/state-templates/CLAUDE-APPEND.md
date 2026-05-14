@@ -21,6 +21,8 @@ This project has the `claude-code-fitness-hermit` plugin installed. The rules be
 |-------|---------|
 | `/claude-code-fitness-hermit:hatch` | One-time setup — Strava MCP, routines, CLAUDE.md injection |
 | `/claude-code-fitness-hermit:activity-deep-dive` | Per-activity coaching analysis (zone breakdown, cardiac drift, recovery estimate) |
+| `/claude-code-fitness-hermit:capture-activity-rpe` | Auto-captures RPE from channel replies to strava-sync notifications |
+| `/claude-code-fitness-hermit:set-rpe` | Manually record RPE for any activity (backfill, correction, non-latest activities) |
 
 ### Subagents
 
@@ -65,5 +67,7 @@ Routine prompts are at `.claude-code-hermit/compiled/routine-*.md`.
 - Activity notes: `compiled/activity-<id>-<YYYY-MM-DD>.md` (written by activity-deep-dive)
 - Strava state cursor: `state/strava-last-activity-id.txt` (written by strava-sync)
 - Weekly load baselines: `state/strava-weekly-baselines.json` (written by weekly-load-review, read by monday-planning)
+- Subjective notes: `state/activity-notes.json` (written by capture-activity-rpe + set-rpe, read by activity-deep-dive + weekly-load-review)
+- Pending RPE: `state/strava-pending-rpe.json` (written by strava-sync after a successful channel send, read and deleted by capture-activity-rpe)
 
 <!-- /claude-code-fitness-hermit: Fitness Workflow -->

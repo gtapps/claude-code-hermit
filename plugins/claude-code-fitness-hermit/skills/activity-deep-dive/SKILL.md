@@ -30,6 +30,9 @@ Produces a standardised per-activity coaching note: zone breakdown, pace/HR effi
 3. Resolve activity:
    - If `"latest"`: call `mcp__strava__get-recent-activities` with limit 1, extract the activity ID.
    - Otherwise: use the provided activity ID directly.
+
+3b. Read `.claude-code-hermit/state/activity-notes.json`. If the file exists and contains an entry for the resolved activity ID, hold `rpe` and `notes` in context for steps 6 and 7.
+
 4. Issue all four calls in a single turn so they execute concurrently:
    - `mcp__strava__get-activity-details` — name, type, date, distance, duration, avg/max HR, avg pace, elevation
    - `mcp__strava__get-activity-laps` — lap splits
@@ -60,6 +63,7 @@ Zones: Z1 N% / Z2 N% / Z3 N% / Z4 N% / Z5 N%
 Pace/HR efficiency: X.XX min·km⁻¹·bpm⁻¹ (vs prior 4: ±X%)
 Cardiac drift: +N bpm (flag if > 10 bpm)
 Recovery: N/5 — recommended rest: Xh
+Subjective: RPE N/10 — <notes>          ← include only when RPE data exists from step 3b
 Coaching: <2–3 sentences>
 ```
 
@@ -74,8 +78,10 @@ source: manual
 tags: [activity-analysis]
 activity_id: <id>
 sport_type: <Run|Ride|WeightTraining|…>
+rpe: <int>                               # include only when RPE data exists from step 3b
+subjective_notes: "<string>"             # include only when notes exist from step 3b
 ---
 ```
-Body: the full 8–10 line output above.
+Body: the full output above.
 
 8. Return the formatted output to the caller.
