@@ -5,8 +5,9 @@ import json
 import os
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
-from urllib import error, request
+from urllib import error, parse, request
 
 from . import __version__
 from .config import AppConfig, load_config
@@ -52,6 +53,44 @@ class HomeAssistantClient:
 
     def get_state(self, entity_id: str) -> dict[str, Any]:
         return self.get(f"/api/states/{entity_id}")
+
+    def get_history(
+        self,
+        entity_ids: list[str],
+        start_time: datetime,
+        end_time: datetime,
+        *,
+        minimal_response: bool = True,
+        significant_changes_only: bool = True,
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Fetch state-change history for the given entities over [start_time, end_time].
+
+        Returns {entity_id: [state_change, ...]}. Entities with no events in the window
+        are absent from the result — callers that need zero-count rows synthesize them.
+
+        Raises HomeAssistantError if entity_ids is empty (avoids an unbounded all-entity fetch).
+        Flags are sent as bare query params (minimal_response, not minimal_response=true)
+        matching the HA REST API docs.
+        """
+        if not entity_ids:
+            raise HomeAssistantError("get_history requires entity_ids — pass at least one entity ID")
+
+        start_iso = parse.quote(start_time.isoformat(), safe="")
+        params = f"filter_entity_id={','.join(parse.quote(e, safe='') for e in entity_ids)}"
+        params += f"&end_time={parse.quote(end_time.isoformat(), safe='')}"
+        if minimal_response:
+            params += "&minimal_response"
+        if significant_changes_only:
+            params += "&significant_changes_only"
+
+        response: list[list[dict[str, Any]]] = self.get(f"/api/history/period/{start_iso}?{params}")
+        if not isinstance(response, list):
+            return {}
+        result: dict[str, list[dict[str, Any]]] = {}
+        for inner in response:
+            if inner and isinstance(inner[0], dict) and "entity_id" in inner[0]:
+                result[inner[0]["entity_id"]] = inner
+        return result
 
     def _request(self, method: str, path: str, payload: dict[str, Any] | None) -> Any:
         if not self.config.ha_token:
