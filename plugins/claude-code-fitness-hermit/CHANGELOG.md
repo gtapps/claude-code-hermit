@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [0.0.3] - 2026-05-14
 
 ### Added
 
@@ -15,13 +15,30 @@ All notable changes to this project will be documented in this file.
 - **weekly-load-review**: reads `state/activity-notes.json` for this week's activities and appends `💬 Avg RPE: X.X/10 (N=<count>)` to the channel summary when 2 or more entries exist.
 - **knowledge-schema.md**: documents the JSON shape of `activity-notes.json` and `strava-pending-rpe.json`, including the invariant that `notes` is always present (`null` when empty, never missing). Cross-skill consumers (`activity-deep-dive`, `weekly-load-review`) can rely on this.
 
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/capture-activity-rpe/SKILL.md` | New skill: channel-reply RPE capture |
+| `skills/set-rpe/SKILL.md` | New skill: manual and retroactive RPE entry |
+| `skills/activity-deep-dive/SKILL.md` | Surface RPE and notes from `activity-notes.json` |
+| `state-templates/compiled/routine-strava-sync.md` | Append RPE prompt after successful channel send |
+| `state-templates/compiled/routine-weekly-load-review.md` | Append avg RPE summary when ≥2 entries present |
+| `docs/knowledge-schema.md` | Document `activity-notes.json` and `strava-pending-rpe.json` shapes |
+| `CLAUDE.md` | Memory conventions for new state files |
+| `state-templates/CLAUDE-APPEND.md` | Fitness Workflow block updated with new state refs |
+
 ### Upgrade Instructions
 
-1. Overwrite `.claude-code-hermit/compiled/routine-strava-sync.md` and `.claude-code-hermit/compiled/routine-weekly-load-review.md` from this plugin's `state-templates/compiled/`. These are bot-owned routine prompts; it is safe to overwrite them.
-2. Create `.claude-code-hermit/state/activity-notes.json` as `{}` if the file does not exist. (`strava-pending-rpe.json` is created on the next routine run — no manual seeding needed.)
-3. In the `Fitness Workflow` block of the project's `CLAUDE.md` (between the `<!-- claude-code-fitness-hermit: Fitness Workflow -->` markers), append these two lines to the Conventions section:
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Overwrite routine templates** — copy `state-templates/compiled/routine-strava-sync.md` and `state-templates/compiled/routine-weekly-load-review.md` from the plugin into `.claude-code-hermit/compiled/`. These are bot-owned prompts; overwriting is safe.
+2. **Seed activity notes store** — create `.claude-code-hermit/state/activity-notes.json` as `{}` if the file does not exist.
+3. **Update Fitness Workflow block** — in the project `CLAUDE.md`, between the `<!-- claude-code-fitness-hermit: Fitness Workflow -->` markers, append to the Conventions section:
    - `Subjective notes: state/activity-notes.json (written by capture-activity-rpe + set-rpe, read by activity-deep-dive + weekly-load-review)`
    - `Pending RPE: state/strava-pending-rpe.json (written by strava-sync after a successful channel send, read and deleted by capture-activity-rpe)`
+
+No `config.json` changes required.
 
 ---
 
