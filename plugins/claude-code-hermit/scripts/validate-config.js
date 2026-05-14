@@ -22,9 +22,11 @@ const REQUIRED_KEYS = {
   'env': ['object'],
   'heartbeat': ['object'],
   'routines': ['array'],
+  'quality_gate': ['object'],
 };
 
 const VALID_ESCALATION = ['conservative', 'balanced', 'autonomous'];
+const VALID_QUALITY_GATE_TIER = ['budget', 'balanced', 'quality'];
 const TIME_RE = /^\d{2}:\d{2}$/;
 
 // --- Cron validation (5-field: minute hour dom month dow) ---
@@ -99,6 +101,12 @@ function validate(config) {
 
   if (config.escalation && !VALID_ESCALATION.includes(config.escalation)) {
     errors.push(`escalation: "${config.escalation}" not in [${VALID_ESCALATION.join(', ')}]`);
+  }
+
+  if (config.quality_gate && typeof config.quality_gate === 'object' && config.quality_gate.tier !== undefined) {
+    if (!VALID_QUALITY_GATE_TIER.includes(config.quality_gate.tier)) {
+      errors.push(`quality_gate.tier: "${config.quality_gate.tier}" not in [${VALID_QUALITY_GATE_TIER.join(', ')}]`);
+    }
   }
 
   if (Array.isArray(config.routines)) {

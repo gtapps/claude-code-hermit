@@ -52,6 +52,9 @@
     "stale_threshold": "2h",
     "waiting_timeout": null
   },
+  "quality_gate": {
+    "tier": "budget"
+  },
   "knowledge": {
     "raw_retention_days": 14,
     "compiled_budget_chars": 1000,

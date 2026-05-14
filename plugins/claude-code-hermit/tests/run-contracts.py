@@ -145,6 +145,19 @@ class TestConfigContract(unittest.TestCase):
             if isinstance(v, dict):
                 TestConfigContract._flatten_typed(v, path, out)
 
+    def test_quality_gate_tier_enum(self):
+        """quality_gate.tier in template + DEFAULT_CONFIG must be in the
+        budget/balanced/quality enum. Catches typos in either source."""
+        valid_tiers = {'budget', 'balanced', 'quality'}
+
+        template_tier = self.template.get('quality_gate', {}).get('tier')
+        self.assertIn(template_tier, valid_tiers,
+                      f'template quality_gate.tier={template_tier!r} not in {valid_tiers}')
+
+        default_tier = self.defaults.get('quality_gate', {}).get('tier')
+        self.assertIn(default_tier, valid_tiers,
+                      f'DEFAULT_CONFIG quality_gate.tier={default_tier!r} not in {valid_tiers}')
+
 
 class TestConfigMerge(_TempDirTest):
 
@@ -802,6 +815,7 @@ class TestMonitorsValidation(unittest.TestCase):
         "escalation": "balanced", "channels": {}, "env": {},
         "heartbeat": {"enabled": True, "active_hours": {"start": "08:00", "end": "23:00"}},
         "routines": [],
+        "quality_gate": {"tier": "budget"},
     }
 
     def _run_validate(self, config_dict):

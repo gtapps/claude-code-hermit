@@ -9,14 +9,26 @@
 - **Resolve Flow drops the hardcoded "Pattern confirmed absent" suffix.** `Resolved on <date>.` is now the default append. Reflect's auto-resolve path may still add the pattern-absence note in SHELL.md Findings (unchanged); the proposal file itself stays generic.
 - **`HEARTBEAT.md.template`: scope proposal review to `status: proposed`.** Accepted proposals were re-surfaced as actionable by the LLM-evaluated checklist item. New wording explicitly skips accepted, resolved, deferred, and dismissed.
 - **Accept-flow wording tightened (review pass).** Step 3a now explicitly reads both `session_id` and `session_state` so step 4(a)'s back-reference is real. Step 4(a) clarifies the read is used "to branch". Waiting branch reads "without asking, then notify" instead of the contradictory "silently; notify". The NEXT-TASK collision notify now points at a concrete recovery path (`/session-start` to consume, then re-run `/proposal-act accept PROP-NNN`) instead of the impossible "re-accept".
+- **3-tier `quality_gate` at step (e.5) of `/proposal-act` accept flow with new `quality-gate-judge` haiku subagent.** New top-level config key `quality_gate.tier` with three values: `budget` (default; `/simplify` never runs), `balanced` (the new `quality-gate-judge` subagent reads the proposal body + touched files and returns `RUN` or `SKIP` per implementation; only the RUN path invokes `/simplify`), `quality` (`/simplify` always runs). Default-safe fallback: any missing key or value outside the enum resolves to `budget` at runtime with a one-line SHELL.md Findings warning. Closes the quality-review gap downstream hermits hit (they have no equivalent of this monorepo's `/commit → /simplify` chain), while keeping default spend at zero until the operator opts in to `balanced` or `quality` via `/hermit-settings quality-gate`. Closes #66, resolves PROP-019.
+- **NEXT-TASK numbered-bullet append simplified (review pass).** Replaced the brittle "pick `4.` or `5.` depending on whether the prior bullet was appended" instruction with "append in order, numbered sequentially from `4.`" plus `(if ...)` prefixes on each conditional bullet.
 
 ### Files affected
 
 | File | Change |
 |------|--------|
-| `skills/proposal-act/SKILL.md` | Three-option accept step 4; resolve wording; description string |
+| `skills/proposal-act/SKILL.md` | Three-option accept step 4; resolve wording; description string; tier-branched step (e.5); NEXT-TASK numbered-bullet ordering |
+| `agents/quality-gate-judge.md` | **New** haiku subagent: reads proposal body + touched files, returns RUN/SKIP verdict for step (e.5) balanced tier |
+| `agents/hermit-config-validator.md` | Mirror enum check for `quality_gate.tier` in the validator's prose checklist |
+| `scripts/validate-config.js` | Add `quality_gate` to `REQUIRED_KEYS`; add enum validator for `quality_gate.tier` (matches existing `escalation` pattern) |
 | `state-templates/HEARTBEAT.md.template` | Scope proposal review to `status: proposed` |
-| `tests/test-proposal-act-accept-flow.sh` | New regression test |
+| `state-templates/config.json.template` | New `quality_gate.tier` key (default `"budget"`) |
+| `state-templates/CLAUDE-APPEND.md` | Subagents section: add `quality-gate-judge` entry |
+| `skills/hermit-settings/SKILL.md` | `quality-gate` subcommand: 3-option tier picker (Budget/Balanced/Quality), display row |
+| `skills/hatch/SKILL.md` | `quality_gate` added to Template-only fields list |
+| `docs/config-reference.md` | Top-Level Keys row + Complete Example for `quality_gate.tier`; dev-quality overlap note |
+| `docs/skills.md` | `quality-gate` appended to hermit-settings subcommand list |
+| `tests/test-proposal-act-accept-flow.sh` | New regression test + tier-branched asserts; subagent-file existence/frontmatter asserts |
+| `tests/run-contracts.py` | `TestConfigContract`: assert `quality_gate.tier` enum in template |
 | `tests/run-all.sh` | Register new test |
 
 ### Upgrade Instructions
@@ -34,6 +46,27 @@ replace it with:
 ```
 
 If you have customised this line, skip and update manually.
+
+**config.json (`quality_gate.tier`)**: if `quality_gate.tier` is already present in `.claude-code-hermit/config.json`, skip. Otherwise ask the operator via `AskUserQuestion`:
+
+> *"Pick the quality-gate tier for autonomous proposal implementations. The hermit runs `/simplify` at step (e.5) of `/proposal-act` based on this setting."*
+
+Options:
+- **Budget** (default; recommended): write `"quality_gate": { "tier": "budget" }`. `/simplify` never runs at step (e.5). Cheapest. No post-implementation review.
+- **Balanced**: write `"quality_gate": { "tier": "balanced" }`. The new `quality-gate-judge` haiku subagent decides per implementation (reads proposal body + touched files, returns `RUN` or `SKIP`). Costs ~$0.005 per judge call plus an occasional ~$0.25 `/simplify` run on RUN verdicts.
+- **Quality**: write `"quality_gate": { "tier": "quality" }`. `/simplify` runs on every implementation. ~$0.25-$0.35 per implementation in Sonnet pricing.
+
+If the operator has `claude-code-dev-hermit:dev-quality` installed and uses it to gate commits, recommend **Budget**: `/dev-quality` already runs `/simplify` pre-commit, and any non-Budget tier here would double-fire `/simplify` (~$0.40-$0.70 of duplicated spend per committed implementation).
+
+Operators can flip later via `/claude-code-hermit:hermit-settings quality-gate`.
+
+**CLAUDE.md — Subagents section**: open `.claude-code-hermit/CLAUDE.md` (created during `/hatch` from the CLAUDE-APPEND template). Locate the `## Subagents` section. If `quality-gate-judge` is already listed, skip. Otherwise, after the line that starts with `` - `hermit-config-validator` (Haiku) — ``, insert exactly:
+
+```
+- `quality-gate-judge` (Haiku) — decides whether `/simplify` should run at step (e.5) of `/proposal-act` accept flow; reads proposal body + touched files, returns RUN/SKIP verdict. Only invoked when `quality_gate.tier: "balanced"`.
+```
+
+If the Subagents section has been customised or reordered such that the anchor line isn't found, surface a manual note: "Add `quality-gate-judge` to your Subagents section in CLAUDE.md."
 
 ### Known Limitations
 

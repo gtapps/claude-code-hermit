@@ -34,6 +34,7 @@ Verify these top-level keys exist:
 - `env` (object)
 - `heartbeat` (object)
 - `routines` (array)
+- `quality_gate` (object)
 
 ### 3. Routine validation
 
@@ -61,7 +62,11 @@ For each channel in `channels`:
 
 All values in `env` should be strings.
 
-### 7. Monitor validation
+### 7. Quality gate
+
+- `quality_gate.tier` (string, one of: budget, balanced, quality) if present
+
+### 8. Monitor validation
 
 For each monitor in `monitors[]` (if present — skip if key is absent):
 
