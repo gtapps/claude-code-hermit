@@ -8,11 +8,12 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- **capture-activity-rpe**: new fleet-owned skill that auto-triggers when the operator replies to a `strava-sync` channel notification with an RPE rating. Binds the RPE to the most-recently synced activity and persists to `state/activity-notes.json`. Channel-agnostic (Discord, Telegram, iMessage). Duplicates `channel-responder`'s `allowed_users` auth check since it auto-triggers outside that gate.
+- **capture-activity-rpe**: new fleet-owned skill that captures RPE when the operator replies to a `strava-sync` channel notification. Self-triggers via skill description match (intentionally more specific than `claude-code-hermit:channel-responder`) while `state/strava-pending-rpe.json` is fresh. Re-checks `allowed_users` itself rather than relying on `channel-responder`'s gate. Binds the RPE to the most-recently synced activity and persists to `state/activity-notes.json`. Channel-agnostic (Discord, Telegram, iMessage).
 - **set-rpe**: new slash command for manual and retroactive RPE entry (`/claude-code-fitness-hermit:set-rpe <id|latest> <rpe> [notes]`). Primary escape hatch for non-latest activities, backfilling, and corrections.
 - **strava-sync**: appends an RPE prompt to the daily channel summary. After a successful send, writes `state/strava-pending-rpe.json` with the latest synced activity for `capture-activity-rpe` to consume.
 - **activity-deep-dive**: reads `state/activity-notes.json` for the analyzed activity (after ID resolution) and surfaces `Subjective: RPE N/10 — <notes>` in the output and compiled-artifact frontmatter when present.
 - **weekly-load-review**: reads `state/activity-notes.json` for this week's activities and appends `💬 Avg RPE: X.X/10 (N=<count>)` to the channel summary when 2 or more entries exist.
+- **knowledge-schema.md**: documents the JSON shape of `activity-notes.json` and `strava-pending-rpe.json`, including the invariant that `notes` is always present (`null` when empty, never missing). Cross-skill consumers (`activity-deep-dive`, `weekly-load-review`) can rely on this.
 
 ### Upgrade Instructions
 

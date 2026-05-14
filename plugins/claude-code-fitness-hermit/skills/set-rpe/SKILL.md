@@ -23,18 +23,18 @@ Records perceived effort and subjective notes for any Strava activity.
 1. Parse arguments:
    - First arg: activity ID (integer) or the literal string `latest`.
    - Second arg: RPE (must be an integer 1–10).
-   - Remaining args: optional free-text notes.
+   - Remaining args: optional free-text notes. If absent or whitespace-only after join, set `notes` to `null`.
    - If `latest`: call `mcp__strava__get-recent-activities` with `perPage: 1` and use the returned activity's `id`.
    - If any required arg is missing or `rpe` is outside 1–10, respond with usage and stop.
 
 2. Read `.claude-code-hermit/state/activity-notes.json`, or use `{}` if absent. Record the previous value for this activity_id if one exists.
 
-3. Write the entry (create or overwrite):
+3. Write the entry (create or overwrite). The `notes` field is always present: `null` when no notes were provided, never missing.
    ```json
    {
      "<activity_id>": {
        "rpe": <int>,
-       "notes": <string or null>,
+       "notes": <string|null>,
        "recorded_at": "<ISO 8601 with offset>"
      }
    }
