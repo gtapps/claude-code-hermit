@@ -35,7 +35,7 @@ Per `§Branch Discipline`:
 
 Agent writes code on the feature branch. The `§Git Safety` rules apply throughout:
 
-- No `git push` from agent context. The operator pushes (`/dev-pr`).
+- No `git push` from agent context. Stop and ask the operator. The sanctioned answer is `/dev-pr`.
 - No `--no-verify` on any git command.
 - No commits to a branch in `protected_branches`.
 - No force-push (any flavor).
