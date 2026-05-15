@@ -144,7 +144,6 @@ When idle and `idle_behavior` is `"discover"` (set via `/hermit-settings idle`),
 - **Crash during idle:** SHELL.md persists as `idle`. Asks what to work on next.
 - **Crash during waiting:** SHELL.md persists as `waiting`. On restart, re-enters waiting state and checks for operator response.
 - **hermit-start when already running:** Prints guidance, exits.
-- **Operator takeover:** If SHELL.md status is `operator_takeover`, the hermit asks what happened during takeover and checks for NEXT-TASK.md instructions.
 - **Docker SIGTERM:** The entrypoint traps SIGTERM and attempts a graceful session close (30s timeout) before the container exits. Sessions are archived even on raw `docker compose down`.
 
 ---

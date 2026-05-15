@@ -80,14 +80,12 @@ Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routin
 | `hatch`           | One-time project setup. Creates state directory, runs the wizard, scans your project, writes OPERATOR.md, and configures scheduled checks for accepted plugins.                                                                                                | --            |
 | `hermit-evolve`   | Run after updating the plugin. Detects version gaps, refreshes templates, prompts for new settings.                                                                                                                                                         | --            |
 
-## Docker & Takeover
+## Docker
 
 | Skill              | What it does                                                                                                                                                                                                                                    | Auto-triggers |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | `docker-setup`     | Generates hermit-namespaced Docker files (`Dockerfile.hermit`, `docker-compose.hermit.yml`, etc.) and walks through the full deployment — token, build, start, MCP plugins, workspace trust, verify. Won't conflict with your own Docker setup. | --            |
 | `docker-security`  | Opt-in advanced hardening wizard beyond the v1.0.26 baseline. Adds LAN containment, resource bounds, and a plugin install audit log via a reversible `docker-compose.security.yml` overlay. Run after `docker-setup`. | --            |
-| `hermit-takeover`  | Stops the Docker container, marks session as `operator_takeover`, loads full hermit context (OPERATOR.md, SHELL.md, latest report), presents a summary. Run locally to drive interactively.                                                     | --            |
-| `hermit-hand-back` | Summarizes operator activity via `git log`, optionally queues instructions in NEXT-TASK.md, updates SHELL.md, restarts the Docker container.                                                                                                    | --            |
 
 ## Migration
 

@@ -41,7 +41,7 @@ Scheduled checks run during idle reflection via `reflect`. If configured checks 
 
 **Fixed in hermit-start.py** (v1.0.16+): the env file written before launching the tmux session now derives and exports `CLAUDE_PLUGIN_ROOT` from hermit-start.py's own location. Upgrade hermit to get the fix; no operator action needed.
 
-**If still occurring after upgrade:** verify the always-on session was restarted (`/claude-code-hermit:hermit-takeover` then re-hatch or restart the session). The env file is only written at launch.
+**If still occurring after upgrade:** verify the always-on session was restarted (Docker: `.claude-code-hermit/bin/hermit-docker down && .claude-code-hermit/bin/hermit-docker up`; tmux: stop the running `bin/hermit-start` session and relaunch). The env file is only written at launch.
 
 ---
 

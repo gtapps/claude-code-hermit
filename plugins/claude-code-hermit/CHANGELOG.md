@@ -10,6 +10,14 @@
 
 - **`Proposals mandatory` rule in CLAUDE-APPEND.md tightened.** Added explicit "Never hand-write `proposals/PROP-*.md` files" clause with rationale (NNN-assignment, slug, timestamp, collision-guard logic only runs through the skill; manual ids reuse NNNs across parallel sessions and produce short-form ids violating the canonical `PROP-NNN-<slug>-HHMMSS` schema).
 
+### Removed
+
+- **`hermit-takeover` and `hermit-hand-back` skills removed.** Both duplicated the `bin/hermit-docker down` / `up` flow already documented in `docs/always-on.md`, but skipped the SIGTERM-triggered `/session-close --shutdown` that `down` provides. Follow-up work queuing is already covered by `/proposal-act accept` writing `NEXT-TASK.md`. The `operator_takeover` SHELL.md status disappears with them (closed loop: only takeover wrote it, only hand-back read it). Doc references in `docs/always-on.md`, `docs/always-on-ops.md`, `docs/skills.md`, `docs/how-to-use.md`, and `docs/troubleshooting.md` were repointed at `bin/hermit-docker` / `bin/hermit-start` directly.
+
+### Upgrade Instructions
+
+- No operator action needed. The canonical Quick Reference line now lives in `state-templates/CLAUDE-APPEND.md`, and `hermit-evolve` step 6 (atomic block sync) refreshes the operator's project `CLAUDE.md` on the next evolve run.
+
 ## [1.0.39] - 2026-05-14
 
 ### Fixed
