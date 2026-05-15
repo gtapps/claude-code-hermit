@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Calibration rule in `state-templates/CLAUDE-APPEND.md`.** New `Rules` bullet that flips the default posture from "answer confidently, get corrected" to "verify or label." Fires on specificity of the claim (version-pinned behavior, external system state, recalled API/function signatures, menu paths, prices/dates/counts), not on topic. Carve-out keeps general domain knowledge (principles, patterns, semantics) answerable directly. Resolves PROP-025 (downstream operator surfaced confident-but-wrong UI navigation steps; cause is training-data sparsity + menu drift on named devices, addressable in prose by changing default response posture). Propagates to existing installs via `hermit-evolve` step 6 (atomic block sync); no `### Upgrade Instructions` needed.
+
+### Changed
+
+- **`Proposals mandatory` rule in CLAUDE-APPEND.md tightened.** Added explicit "Never hand-write `proposals/PROP-*.md` files" clause with rationale (NNN-assignment, slug, timestamp, collision-guard logic only runs through the skill; manual ids reuse NNNs across parallel sessions and produce short-form ids violating the canonical `PROP-NNN-<slug>-HHMMSS` schema).
+
 ## [1.0.39] - 2026-05-14
 
 ### Fixed
