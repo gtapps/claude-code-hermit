@@ -22,6 +22,7 @@ services:
       - CLAUDE_CONFIG_DIR=/home/claude/.claude
       - NODE_OPTIONS=--max-old-space-size=4096
       - AGENT_HOOK_PROFILE={{AGENT_HOOK_PROFILE}}
+      - GH_TOKEN=${HERMIT_GH_TOKEN:-}
 {{AUTH_ENV_LINE}}{{CHANNEL_ENV_LINES}}
 {{NETWORK_MODE_LINE}}
     # Defense in depth — see docs/security.md#container-hardening for rationale and override path.

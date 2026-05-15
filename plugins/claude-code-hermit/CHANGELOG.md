@@ -4,11 +4,49 @@
 
 ### Added
 
+- **GitHub CLI (`gh`) installed in hermit Docker baseline image (PROP-028, GH #82).** `gh` is now installed in every freshly built hermit container via the official `cli.github.com` apt source. No authentication is wired by default — the container runs `gh` anonymously (subject to GitHub's 60 req/hr unauth rate limit). Operators who need authenticated calls set `HERMIT_GH_TOKEN` in their `.env`; the Compose template maps it to `GH_TOKEN` inside the container so `gh` and git read it natively. The `HERMIT_*` namespace is intentional: future runtime shims (e.g. auto-minting an install token from `HERMIT_GH_APP_*` credentials, mirroring `hermit-scribe`'s pattern) can swap the token source without operators changing their env var names. See `docs/docker-security.md#gh-cli-authentication` for details.
+
 - **Calibration rule in `state-templates/CLAUDE-APPEND.md`.** New `Rules` bullet that flips the default posture from "answer confidently, get corrected" to "verify or label." Fires on specificity of the claim (version-pinned behavior, external system state, recalled API/function signatures, menu paths, prices/dates/counts), not on topic. Carve-out keeps general domain knowledge (principles, patterns, semantics) answerable directly. Resolves PROP-025 (downstream operator surfaced confident-but-wrong UI navigation steps; cause is training-data sparsity + menu drift on named devices, addressable in prose by changing default response posture). Propagates to existing installs via `hermit-evolve` step 6 (atomic block sync); no `### Upgrade Instructions` needed.
 
 ### Changed
 
 - **`Proposals mandatory` rule in CLAUDE-APPEND.md tightened.** Added explicit "Never hand-write `proposals/PROP-*.md` files" clause with rationale (NNN-assignment, slug, timestamp, collision-guard logic only runs through the skill; manual ids reuse NNNs across parallel sessions and produce short-form ids violating the canonical `PROP-NNN-<slug>-HHMMSS` schema).
+
+### Upgrade Instructions
+
+**`gh` baseline install (Dockerfile + Compose).** Existing hermits have on-disk `docker/Dockerfile.hermit` and `docker/docker-compose.hermit.yml` files that plugin updates won't touch. Two surgical patches are needed before rebuilding:
+
+**Step 1 — Dockerfile.** Open `.claude-code-hermit/docker/Dockerfile.hermit`. Check whether it already contains `apt-get install -y --no-install-recommends gh`. If it does, skip to Step 2. If not, locate the line:
+
+```
+    apt-get install -y --no-install-recommends nodejs && \
+```
+
+Replace the continuation (the `rm -rf` line that follows it) with:
+
+```
+    apt-get install -y --no-install-recommends nodejs && \
+    mkdir -p -m 755 /etc/apt/keyrings && \
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+      -o /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
+    chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+      > /etc/apt/sources.list.d/github-cli.list && \
+    apt-get update && apt-get install -y --no-install-recommends gh && \
+    rm -rf /var/lib/apt/lists/*
+```
+
+**Step 2 — docker-compose.hermit.yml.** Open `.claude-code-hermit/docker/docker-compose.hermit.yml`. Check whether it already contains `GH_TOKEN=`. If it does, skip to Step 3. If not, find the line starting with `      - AGENT_HOOK_PROFILE=` and add immediately after it:
+
+```
+      - GH_TOKEN=${HERMIT_GH_TOKEN:-}
+```
+
+**Step 3 — Rebuild.** Run `hermit-docker update` to rebuild the image with the patched Dockerfile. On next start, `gh --version` should succeed inside the container.
+
+**Netguard note:** No dnsmasq allowlist change is required. The existing `server=/github.com/` rule already covers `api.github.com` and `cli.github.com` as subdomains — do not add redundant entries.
+
+**Authenticated calls (optional):** To use `gh` with a GitHub PAT, add `HERMIT_GH_TOKEN=<your-pat>` to `.claude-code-hermit/.env`, then `hermit-docker down && hermit-docker up`. The Compose template maps it to `GH_TOKEN` inside the container. Without a token, `gh` runs anonymously (60 req/hr rate limit).
 
 ## [1.0.39] - 2026-05-14
 
