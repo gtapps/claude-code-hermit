@@ -9,26 +9,26 @@ When a message arrives via a channel:
 
 ## 1. Load Context
 
-Read `.claude-code-hermit/sessions/SHELL.md` for current task context.
-Read `state/runtime.json` for lifecycle state (`session_state` is the source of truth — never parse SHELL.md `Status:` for decisions).
+Read `.claude-code-hermit/sessions/SHELL.md` for current focus context (read `## Focus`, `## Progress Log`, `## Findings`).
+Read `state/runtime.json` for lifecycle state (`session_state` is the source of truth).
 
 ## 1b. Check Session State
 
-If runtime.json `session_state` is `idle` (no active task):
-
-- The agent is between tasks, waiting for work
-- Adjust classification: "New instruction" messages become **task assignment** (see below)
-- Status requests should report idle state with session summary
+If runtime.json `session_state` is `idle` (no active focus):
+- The agent is between focuses, waiting for work.
+- Adjust classification: "New instruction" messages become **task assignment** (see below).
+- Status requests should report idle state with the last Recent Activity entry.
 
 If runtime.json `session_state` is `waiting` (alive but blocked on input):
 
-Read `waiting_reason` from runtime.json to understand why:
-- `"unclean_shutdown"` or `"dead_process"` → operator reply is an archive/resume choice: `(1)` = archive as partial and start fresh, `(2)` = resume as-is. Handle accordingly via `claude-code-hermit:session-mgr` — session-mgr owns the full state transition including clearing `waiting_reason`.
-- `"operator_input"`, `"conservative_pickup"`, or null → treat as normal task resumption.
+Check SHELL.md `## Findings` for a `<!-- pending-recovery: ... -->` marker:
+- If present AND the inbound message matches `^[12]$`: this is a recovery reply. (1) = drop the in-flight focus and start fresh; (2) = resume as-is. Use `claude-code-hermit:focus-mgr` to apply the decision and clear the marker. focus-mgr also clears `runtime.shutdown_requested_at` and sets `session_state` to `idle` or `in_progress` accordingly.
+- Otherwise:
+  - **Status request** → respond with current context, stay `waiting`.
+  - **New instruction or answer to a question** → update `session_state` to `in_progress`, resume work.
+  - **Anything else** → respond, stay `waiting`.
 
-- **Status request** → respond with current context, stay `waiting`
-- **New instruction or answer to a question** → update runtime.json `session_state` to `in_progress`, clear `waiting_reason` to `null`, update SHELL.md Status to `in_progress` (cosmetic), resume work
-- **Anything else** → respond, stay `waiting`
+Tolerate retired enum values silently: if `session_state == "dead_process"` is seen (old runtime.json from a pre-v1.1.0 hermit), treat it the same as `waiting` and the next runtime write narrows it.
 
 ## 1c. Check Authorization
 
@@ -63,13 +63,13 @@ This is how the agent learns the DM channel ID for proactive outbound notificati
   - If nothing matches, say so briefly.
 
 - **Status request** ("what are you working on?", "status", "progress")
-  - If Status is `idle`: respond with session summary — tasks completed, cumulative cost, "ready for what's next"
-  - If Status is `in_progress`: respond with a concise summary of SHELL.md: task, current step, blockers
-  - Keep it short — channel messages should be brief
+  - If state is `idle`: respond with the latest Recent Activity entry + cumulative cost + "ready for what's next."
+  - If state is `in_progress`: respond with a concise summary of SHELL.md — current focus, current step, blockers.
+  - Keep it short — channel messages should be brief.
 
-- **Task assignment** (only when Status is `idle`: "work on X", "next task: Z", "start Y", or any message describing work to be done)
-  - Invoke `/claude-code-hermit:session-start` to begin the new task (idle → in_progress)
-  - The session-start skill handles filling Task and setting Status; plan items are created as native Tasks
+- **Task assignment** (only when state is `idle`: "work on X", "next task: Z", "start Y", or any message describing work to be done)
+  - Invoke `/claude-code-hermit:steer '<text>'` to set the new focus (idle → in_progress).
+  - Plan items are created as native Tasks via `TaskCreate`.
   - Confirm via channel: "On it: [summary]."
 
 - **Micro-approval response** ("yes", "no", "MP-… yes/no", or similar while any pending micro-proposal exists)
@@ -92,19 +92,19 @@ This is how the agent learns the DM channel ID for proactive outbound notificati
   - If the operator uses informal numbers (#1, #2): run `/claude-code-hermit:proposal-list` to resolve to PROP-NNN IDs. If no match, tell the operator.
 
 - **New instruction** ("work on X", "switch to Y", "prioritize Z")
-  - If Status is `idle`: treat as **Task assignment** (above)
-  - If compatible with current task: update SHELL.md and confirm
-  - If it would replace the current task: confirm with the operator before switching
-  - Never silently abandon work in progress
+  - If state is `idle`: treat as **Task assignment** (above).
+  - If compatible with current focus: update SHELL.md and confirm.
+  - If it would replace the current focus: confirm with the operator before switching (the in-flight focus content disappears on `/done`).
+  - Never silently abandon work in progress.
 
 - **Question** ("why did you...", "what about...", "how does X work?")
-  - Answer in the context of the current session
-  - Reference specific files or decisions from SHELL.md when relevant
+  - Answer in the context of the current focus.
+  - Reference specific files or decisions from SHELL.md when relevant.
 
 - **Emergency** ("stop", "abort", "revert", "rollback")
-  - Halt current work immediately
-  - Update SHELL.md with status `blocked` and reason
-  - Confirm the halt and ask for next steps
+  - Halt current work immediately.
+  - Append a `Blocked: <reason>` line to SHELL.md `## Blockers` (or `## Findings` if Blockers section is absent).
+  - Confirm the halt and ask for next steps.
 
 ## 3. Response Guidelines
 

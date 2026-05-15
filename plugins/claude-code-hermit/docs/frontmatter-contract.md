@@ -61,16 +61,16 @@ operator_turns: 0
 
 | Field               | Writer              | When                                               |
 | ------------------- | ------------------- | -------------------------------------------------- |
-| `id`                | `session-mgr` agent | Session start (pre-computed), confirmed at archive |
-| `status`            | `session-mgr` agent | Session close — extracted from SHELL.md            |
-| `date`              | `session-mgr` agent | Session close — session start timestamp            |
-| `duration`          | `session-mgr` agent | Session close — computed from timestamps           |
-| `cost_usd`          | `session-mgr` agent | Session close — parsed from Cost section           |
-| `tags`              | `session-mgr` agent | Session close — split from SHELL.md Tags           |
-| `proposals_created` | `session-mgr` agent | Session close — scanned from Proposals section     |
-| `task`              | `session-mgr` agent | Session close — first line of Task section         |
-| `escalation`        | `session-mgr` agent | Session close — read from config.json              |
-| `operator_turns`    | `session-mgr` agent | Session close — counted from transcript            |
+| `id`                | (retired — historical reports only) | Session start (pre-computed), confirmed at archive |
+| `status`            | (retired — historical reports only) | Session close — extracted from SHELL.md            |
+| `date`              | (retired — historical reports only) | Session close — session start timestamp            |
+| `duration`          | (retired — historical reports only) | Session close — computed from timestamps           |
+| `cost_usd`          | (retired — historical reports only) | Session close — parsed from Cost section           |
+| `tags`              | (retired — historical reports only) | Session close — split from SHELL.md Tags           |
+| `proposals_created` | (retired — historical reports only) | Session close — scanned from Proposals section     |
+| `task`              | (retired — historical reports only) | Session close — first line of Task section         |
+| `escalation`        | (retired — historical reports only) | Session close — read from config.json              |
+| `operator_turns`    | (retired — historical reports only) | Session close — counted from transcript            |
 
 ---
 
@@ -104,7 +104,7 @@ accepted_in_session: S-052
 | `title`    | string   | —                                                           | Must match H1 heading title                                                   |
 | `status`   | enum     | `proposed`, `accepted`, `resolved`, `dismissed`             | Current lifecycle state                                                       |
 | `source`   | enum     | `manual`, `auto-detected`, `operator-request`               | **Origin only** — how the proposal was initiated. Does not control gate behavior; gate bypass is governed by the candidate-level `Evidence Source:` documented in `skills/reflect/SKILL.md` § Evidence Validation. Values: `manual` = operator invoked `/proposal-create` directly; `auto-detected` = pipeline-initiated (reflect, heartbeat, cadence-driven callers); `operator-request` = operator consent flow (baseline audit accepted at hatch, or direct "propose X" ask). |
-| `session`  | string   | `S-NNN`                                                     | Session where proposal was created. Optional for `operator-request` proposals (structural legacy: `scripts/validate-frontmatter.js:112` exempts this field when `source === 'operator-request'` because baseline-audit proposals can be created outside a session — this is a structural rule, not a semantic claim about origin types) |
+| `session`  | string   | `S-NNN`                                                     | **Optional** as of v1.1.0 (PROP-031). Historical proposals retain this field. New proposals omit it — the live-focus model has no S-NNN counter. Validator accepts either presence or absence. |
 | `created`  | ISO 8601 | —                                                           | When the proposal was created                                                 |
 | `category` | enum     | `improvement`, `routine`, `capability`, `constraint`, `bug` | Guides operator review. Custom hermits may extend with domain-specific values |
 
@@ -121,15 +121,16 @@ accepted_in_session: S-052
 
 ### Field lifecycle
 
-| Field                                                               | Writer                              | When                                      |
-| ------------------------------------------------------------------- | ----------------------------------- | ----------------------------------------- |
-| `id`, `title`, `status`, `source`, `session`, `created`, `category` | `session-mgr` via `proposal-create` | Proposal creation                         |
-| `accepted_date`                                                     | `proposal-act` skill                | Operator accepts proposal                 |
-| `accepted_in_session`                                               | `proposal-act` skill                | Operator accepts during an active session |
-| `resolved_date`                                                     | `reflect` skill                     | Pattern absent from last 3 sessions       |
-| `responded`                                                         | `proposal-act` skill                | Operator gives feedback                   |
-| `related_sessions`                                                  | `reflect` skill                     | Auto-detection links evidence sessions    |
-| `self_eval_key`                                                     | `session-mgr` via `proposal-create` | Creation (if metric hint applicable)      |
+| Field                                                    | Writer                              | When                                                                              |
+| -------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------- |
+| `id`, `title`, `status`, `source`, `created`, `category` | `proposal-create` skill             | Proposal creation                                                                 |
+| `session` (optional, historical only)                    | `proposal-create` skill (pre-v1.1.0) | Pre-v1.1.0 — retired with live-focus pivot                                       |
+| `accepted_date`                                          | `proposal-act` skill                | Operator accepts proposal                                                         |
+| `accepted_in_session` (historical only)                  | `proposal-act` skill (pre-v1.1.0)   | Pre-v1.1.0 — retired                                                              |
+| `resolved_date`                                          | `reflect` skill                     | Pattern absent from Recent Activity window (or 3 sessions for legacy proposals)   |
+| `responded`                                              | `proposal-act` skill                | Operator gives feedback                                                           |
+| `related_sessions`                                       | `reflect` skill                     | Auto-detection links evidence sessions (legacy proposals only; optional for new) |
+| `self_eval_key`                                          | `proposal-create` skill             | Creation (if metric hint applicable)                                              |
 
 ---
 
@@ -137,7 +138,7 @@ accepted_in_session: S-052
 
 **File pattern:** `compiled/review-weekly-YYYY-Www.md`
 
-Weekly reviews are a `type: review` compiled artifact — session-start injection surfaces the newest one via `newestByType`, `knowledge-lint` stale-flags them after 60 days, no special-case directory.
+Weekly reviews are a `type: review` compiled artifact — startup-context injection surfaces the newest one via `newestByType`, `knowledge-lint` stale-flags them after 60 days, no special-case directory.
 
 ```yaml
 ---

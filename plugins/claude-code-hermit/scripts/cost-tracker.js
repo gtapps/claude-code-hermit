@@ -1,6 +1,6 @@
 // Adapted from Everything Claude Code (https://github.com/affaan-m/everything-claude-code)
 // Original: scripts/hooks/cost-tracker.js — MIT License
-// Changes: Added SHELL.md cost injection for session tracking,
+// Changes: Added SHELL.md cost injection for the focus dashboard,
 //          simplified pricing model, removed ECC-specific metric paths,
 //          added cumulative cost tracking and budget enforcement,
 //          plan progress sourced from native Claude Code Tasks (via lib/tasks.js).
@@ -27,14 +27,13 @@ const STATUS_JSON_TMP = path.resolve('.claude-code-hermit/sessions/.status.json.
 const RUNTIME_JSON = path.resolve('.claude-code-hermit/state/runtime.json');
 const HEARTBEAT_FILE = path.resolve('.claude-code-hermit/state/.heartbeat');
 const COST_SUMMARY = path.resolve('.claude-code-hermit/cost-summary.md');
-const TASK_SNAPSHOT = path.resolve('.claude-code-hermit/tasks-snapshot.md');
 
-function readRuntimeSessionId() {
+function readRuntimeSessionState() {
   try {
     const data = JSON.parse(fs.readFileSync(RUNTIME_JSON, 'utf-8'));
-    return data.session_id || '';
+    return data.session_state || 'idle';
   } catch {
-    return '';
+    return 'idle';
   }
 }
 
@@ -127,6 +126,7 @@ function getCumulativeCost(newCost, newTokens, hadHumanTurn) {
       cost: (status.cost_usd || 0) + newCost,
       tokens: (status.tokens || 0) + newTokens,
       operatorTurns: (status.operator_turns || 0) + (hadHumanTurn ? 1 : 0),
+      lastCounterReset: status.last_counter_reset || null,
     };
   } catch {
     // First run or missing file — fall back to full scan
@@ -143,6 +143,7 @@ function getCumulativeCost(newCost, newTokens, hadHumanTurn) {
     cost: totalCost > 0 ? totalCost : newCost,
     tokens: totalTokens > 0 ? totalTokens : newTokens,
     operatorTurns: hadHumanTurn ? 1 : 0,
+    lastCounterReset: null,
   };
 }
 
@@ -152,7 +153,7 @@ function checkBudget(budget, cumulativeCost) {
   const pct = (cumulativeCost / budget) * 100;
 
   if (pct >= 100) {
-    console.error(`[cost-tracker] Budget exceeded: $${cumulativeCost.toFixed(2)} spent of $${budget.toFixed(2)} budget. Consider /claude-code-hermit:session-close.`);
+    console.error(`[cost-tracker] Budget exceeded: $${cumulativeCost.toFixed(2)} spent of $${budget.toFixed(2)} budget. Consider /claude-code-hermit:done.`);
   } else if (pct >= 80) {
     console.error(`[cost-tracker] Budget warning: ${Math.round(pct)}% of $${budget.toFixed(2)} budget spent ($${cumulativeCost.toFixed(2)}).`);
   }
@@ -160,38 +161,38 @@ function checkBudget(budget, cumulativeCost) {
 
 const MAX_SUMMARY_LEN = 120;
 
-function writeStatusJson(shellContent, cumulative, budget, sessionId) {
-  const { cost: cumulativeCost, tokens: cumulativeTokens, operatorTurns: cumulativeOperatorTurns } = cumulative;
-  const statusMatch = shellContent.match(/\*\*Status:\*\*\s*(\S+)/);
-  const taskMatch = shellContent.match(/## Task\n([\s\S]*?)(?=\n## |$)/);
+function writeStatusJson(shellContent, cumulative, budget, sessionState) {
+  const {
+    cost: cumulativeCost,
+    tokens: cumulativeTokens,
+    operatorTurns: cumulativeOperatorTurns,
+    lastCounterReset,
+  } = cumulative;
+  const focusMatch = shellContent.match(/## Focus\n([\s\S]*?)(?=\n## |$)/);
   const blockersMatch = shellContent.match(/## Blockers\n([\s\S]*?)(?=\n## |$)/);
-  const tasksMatch = shellContent.match(/\*\*Tasks Completed:\*\*\s*(\d+)/);
 
-  const task = taskMatch ? taskMatch[1].trim().replace(/<!--.*?-->/g, '').trim() : '';
+  const focus = focusMatch ? focusMatch[1].trim().replace(/<!--.*?-->/g, '').trim() : '';
 
   // Plan progress from native Claude Code Tasks
   const tasks = readTasks();
   const progress = taskProgress(tasks);
-
-  // Write tasks-snapshot.md for Obsidian visibility
-  writeTaskSnapshot(tasks, progress);
 
   const blockersText = blockersMatch ? blockersMatch[1].trim().replace(/<!--.*?-->/g, '').trim() : '';
   const hasBlockers = blockersText.length > 0 && !/^none$/i.test(blockersText);
 
   const statusData = {
     updated: new Date().toISOString(),
-    session_id: sessionId,
-    status: statusMatch ? statusMatch[1] : 'unknown',
-    task: task.split('\n')[0].substring(0, MAX_SUMMARY_LEN),
+    session_state: sessionState,
+    focus: focus.split('\n')[0].substring(0, MAX_SUMMARY_LEN),
     plan_done: progress.done,
     plan_total: progress.total,
-    tasks_completed: tasksMatch ? parseInt(tasksMatch[1], 10) : 0,
     cost_usd: Math.round(cumulativeCost * 10000) / 10000,
     budget_usd: budget,
     tokens: cumulativeTokens,
     operator_turns: cumulativeOperatorTurns,
     blockers: hasBlockers ? blockersText.split('\n')[0].substring(0, MAX_SUMMARY_LEN) : null,
+    // /steer gates the daily counter reset on this value.
+    last_counter_reset: lastCounterReset,
   };
 
   // Atomic write: write to tmp, then rename
@@ -202,36 +203,6 @@ function writeStatusJson(shellContent, cumulative, budget, sessionId) {
 function parseBudget(shellContent) {
   const match = shellContent.match(/\*\*Budget:\*\*\s*\$(\d+\.?\d*)/);
   return match ? parseFloat(match[1]) : null;
-}
-
-function writeTaskSnapshot(tasks, progress) {
-  const { done, total } = progress;
-
-  let content = `---\nupdated: ${new Date().toISOString()}\nprogress: ${done}/${total}\n---\n# Active Tasks\n\n`;
-  if (tasks.length === 0) {
-    content += 'No active tasks.\n';
-  } else {
-    content += '| # | Task | Status |\n|---|------|--------|\n';
-    for (const t of tasks) {
-      let status = t.status;
-      if (t.blockedBy && t.blockedBy.length > 0) {
-        status += ` (blocked by ${t.blockedBy.join(', ')})`;
-      }
-      const subject = (t.subject || '').replace(/\|/g, '\\|');
-      status = status.replace(/\|/g, '\\|');
-      content += `| ${t.id} | ${subject} | ${status} |\n`;
-    }
-  }
-
-  // Skip write if content unchanged (avoids unnecessary Obsidian file-change events)
-  try {
-    const existing = fs.readFileSync(TASK_SNAPSHOT, 'utf-8');
-    // Compare everything after the frontmatter (updated timestamp always differs)
-    const body = content.indexOf('\n---\n');
-    const existingBody = existing.indexOf('\n---\n');
-    if (body >= 0 && existingBody >= 0 && content.slice(body) === existing.slice(existingBody)) return;
-  } catch {}
-  try { fs.writeFileSync(TASK_SNAPSHOT, content, 'utf-8'); } catch {}
 }
 
 function writeCostSummary() {
@@ -372,13 +343,13 @@ async function run(data) {
     const cost = calculateCost(model, inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens);
     const roundedCost = Math.round(cost * 10000) / 10000;
 
-    // Read session_id from runtime.json once per turn (used for log entry + writeStatusJson)
-    const runtimeSessionId = readRuntimeSessionId();
+    // Read session_state from runtime.json once per turn (used for writeStatusJson)
+    const runtimeSessionState = readRuntimeSessionState();
 
-    // Log to JSONL
+    // Log to JSONL — session_id is Claude Code's internal hook session id (stable per invocation).
     const logEntry = {
       timestamp: new Date().toISOString(),
-      session_id: runtimeSessionId || sessionId,
+      session_id: sessionId,
       model,
       input_tokens: inputTokens,
       cache_write_tokens: cacheWriteTokens,
@@ -394,11 +365,11 @@ async function run(data) {
     const cumulative = getCumulativeCost(roundedCost, totalTokens, hadHumanTurn);
     const costStr = `$${cumulative.cost.toFixed(4)}`;
 
-    // Read SHELL.md for status/budget — do NOT write back (avoids race condition with Claude's edits)
+    // Read SHELL.md for focus/budget — do NOT write back (avoids race condition with Claude's edits)
     try {
       const shellContent = fs.readFileSync(SHELL_SESSION, 'utf-8');
       const budget = parseBudget(shellContent);
-      writeStatusJson(shellContent, cumulative, budget, runtimeSessionId || sessionId);
+      writeStatusJson(shellContent, cumulative, budget, runtimeSessionState);
       checkBudget(budget, cumulative.cost);
     } catch {
       // Non-fatal — session file may not exist yet

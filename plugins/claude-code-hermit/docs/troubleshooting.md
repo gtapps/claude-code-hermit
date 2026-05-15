@@ -117,8 +117,8 @@ A bloated SHELL.md costs tokens on every read. Keep it lean:
 
 - Use `/compact` between steps to free context.
 - The progress log should stay under ~30 entries. If it's growing beyond that, close the session and start a new one.
-- The `session-diff` hook auto-populates `## Changed` — don't manually list files.
-- If SHELL.md is already bloated, run `/claude-code-hermit:session-close` to archive it and start fresh.
+- Use `git status` / `git log` for file-change context — the `## Changed` section retired in v1.1.0.
+- If SHELL.md is bloated, run `/claude-code-hermit:done` to compact Recent Activity and Monitoring per config thresholds. For deep bloat, the daily `reflect` routine triggers `archive-shell.js` when SHELL.md > 400 lines.
 
 ## Docker Build Fails
 

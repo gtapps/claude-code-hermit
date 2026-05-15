@@ -458,23 +458,33 @@ SESSION_NAME="{{TMUX_SESSION_NAME}}"
 cleanup() {
   echo "[docker-entrypoint] SIGTERM received..."
   RUNTIME_FILE="${AGENT_DIR}/state/runtime.json"
-  # Skip if already closed (e.g., hermit-docker down already handled it)
+  # Skip if shutdown already completed. Compare shutdown_completed_at against
+  # shutdown_requested_at (UTC-Z lexical compare). Fallback to session_state == idle
+  # for pre-v1.1.0 runtime.json schemas.
+  REQ=$(jq -r '.shutdown_requested_at // empty' "$RUNTIME_FILE" 2>/dev/null || echo "")
+  DONE=$(jq -r '.shutdown_completed_at // empty' "$RUNTIME_FILE" 2>/dev/null || echo "")
   CUR_STATE=$(jq -r '.session_state // "unknown"' "$RUNTIME_FILE" 2>/dev/null || echo "unknown")
-  if [ "$CUR_STATE" = "idle" ] || [ "$(jq -r '.shutdown_completed_at // empty' "$RUNTIME_FILE" 2>/dev/null)" != "" ]; then
-    echo "[docker-entrypoint] Session already closed. Shutting down."
+  if [ -n "$DONE" ] && { [ -z "$REQ" ] || [ "$DONE" \> "$REQ" ] || [ "$DONE" = "$REQ" ]; }; then
+    echo "[docker-entrypoint] Shutdown already completed. Exiting."
+    exit 0
+  fi
+  if [ "$CUR_STATE" = "idle" ] && [ -n "$DONE" ]; then
+    echo "[docker-entrypoint] Session idle with completion timestamp. Exiting."
     exit 0
   fi
   echo "[docker-entrypoint] Requesting graceful session close..."
   # Split text and Enter into two send-keys calls with a pause — Claude Code's
   # TUI treats text+Enter in one burst as bracketed paste and Enter becomes a
   # literal newline instead of submit. Same fix as scripts/hermit-start.py.
-  tmux send-keys -t "$SESSION_NAME:0.0" "/claude-code-hermit:session-close --shutdown" 2>/dev/null || true
+  tmux send-keys -t "$SESSION_NAME:0.0" "/claude-code-hermit:done --shutdown" 2>/dev/null || true
   sleep 0.5
   tmux send-keys -t "$SESSION_NAME:0.0" Enter 2>/dev/null || true
   for i in $(seq 1 30); do
-    CUR_STATE=$(jq -r '.session_state // "unknown"' "$RUNTIME_FILE" 2>/dev/null || echo "unknown")
-    SHUTDOWN_DONE=$(jq -r '.shutdown_completed_at // empty' "$RUNTIME_FILE" 2>/dev/null)
-    [ "$CUR_STATE" = "idle" ] || [ -n "$SHUTDOWN_DONE" ] && break
+    REQ=$(jq -r '.shutdown_requested_at // empty' "$RUNTIME_FILE" 2>/dev/null || echo "")
+    DONE=$(jq -r '.shutdown_completed_at // empty' "$RUNTIME_FILE" 2>/dev/null || echo "")
+    if [ -n "$DONE" ] && { [ -z "$REQ" ] || [ "$DONE" \> "$REQ" ] || [ "$DONE" = "$REQ" ]; }; then
+      break
+    fi
     sleep 1
   done
   echo "[docker-entrypoint] Shutting down."

@@ -67,9 +67,8 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js \
      - `id`: the canonical ID `PROP-NNN-<slug>-HHMMSS` (or `PROP-NNN-<slug>-HHMMSSa` if the collision guard fired) — equals the filename stem without `.md`
      - `status`: `proposed`
      - `source`: `manual` (default), `auto-detected` (when invoked by `reflect`), or `operator-request` (when triggered by a direct operator request). This field records **proposal origin only** — gate bypass is controlled by the caller-supplied `Evidence Source:` above, not by `source:`.
-     - `session`: the current session ID (S-NNN)
      - `created`: current ISO 8601 timestamp with timezone offset (e.g., `2026-04-06T14:30:00+01:00`). Use the timezone from `config.json` if set, otherwise UTC.
-     - `related_sessions`: relevant session IDs as YAML array (optional — used by auto-detected proposals to link evidence across multiple sessions). Use `[]` if none.
+     - `related_sessions`: optional. Historically used to link evidence across S-NNN reports. In v1.1.0+, omit for new proposals — reflect reads SHELL.md `## Recent Activity` as the evidence window instead. Set only when explicitly linking historical S-NNN reports.
      - `category`: classify as one of:
        - `improvement` — workflow or tooling fix
        - `routine` — repeating scheduled task

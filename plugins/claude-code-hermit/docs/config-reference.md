@@ -77,13 +77,12 @@ Manage with `/hermit-settings channels` and `/hermit-settings brief`.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `enabled` | boolean | `true` | Enable heartbeat on idle transitions. |
+| `enabled` | boolean | `true` | Enable heartbeat ticks. |
 | `every` | string | `"2h"` | Heartbeat interval (e.g., `"15m"`, `"1h"`, `"2h"`). |
 | `show_ok` | boolean | `false` | Log OK results (false = silence means healthy). |
 | `active_hours.start` | string | `"08:00"` | Start of active window (heartbeat pauses outside). |
 | `active_hours.end` | string | `"23:00"` | End of active window. |
-| `stale_threshold` | string | `"2h"` | Alert if active session has no progress for this duration. |
-| `waiting_timeout` | string/null | `null` | Auto-transition from `waiting` to `idle` after this duration (e.g., `"4h"`). `null` = no timeout. |
+| `stale_threshold` | string | `"2h"` | Alert if the active focus has no progress for this duration (`stale-focus` alert). |
 
 > **Note:** The tick counter (`total_ticks`) lives in `state/alert-state.json`, not here. It is runtime state, not operator configuration.
 
@@ -300,8 +299,7 @@ A realistic `config.json` for an always-on Docker hermit with Discord:
       "start": "08:00",
       "end": "23:00"
     },
-    "stale_threshold": "2h",
-    "waiting_timeout": "4h"
+    "stale_threshold": "2h"
   },
   "quality_gate": {
     "tier": "budget"

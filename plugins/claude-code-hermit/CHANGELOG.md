@@ -1,5 +1,83 @@
 # Changelog
 
+## [Unreleased]
+
+Retires the bounded-session model in favor of a live-focus dashboard. Implements PROP-031 (#84). The misleading "session" framing — `/session-close` reading as "end the process" but not actually doing so, `session_state: waiting` displayed in `/pulse` and `/brief` as if the hermit were paused — is replaced by `/steer` and `/done` skills that match the always-on reality. Backwards-compat aliases preserve old skill names for one minor version (retiring in v1.2.0).
+
+### Changed
+
+- **SHELL.md is now a live focus dashboard.** Renamed `## Task` → `## Focus`, `## Session Summary` → `## Recent Activity`. Removed `**Status:**`, `**ID:**`, `Next Start Point`, `## Changed`. Persistent across `/done` (no archive event clears it). `## Recent Activity` accumulates one-line entries from each `/done`.
+- **`/steer` and `/done` replace `/session-start`, `/session-close`, `/session`.** `/steer` loads context, runs dirty-shutdown recovery if needed, takes a positional `<focus text>` argument (e.g. `/steer dependency audit`) or asks what to work on. `/done` clears `## Focus`, appends to `## Recent Activity`, compacts persistent sections. `/done --shutdown` signals graceful exit. Old skills work for one minor version via shim aliases. The `--task` flag retired with the session model — focus text is now positional.
+- **`session-mgr` agent renamed to `focus-mgr`** and narrowed substantially. Custody: SHELL.md compaction, Recent Activity writes, recovery prompt orchestration, v1.1.0 migration helper. Lifecycle field-ownership table and S-NNN archive generation retire.
+- **`reflect` runs as a daily routine** (`reflect-digest` at 23:00 local by default) plus manual `/reflect`. No more focus-boundary trigger. Output: rolling digest at `compiled/reflect-digest-<YYYY-MM-DD>.md` with frontmatter, plus a one-line summary appended to SHELL.md `## Recent Activity`.
+- **Reflect evidence source migrates** from `S-*-REPORT.md` scanning to SHELL.md `## Recent Activity` (primary) + historical S-NNN as fallback for legacy proposals.
+- **`heartbeat` alert key `stale-session` renamed `stale-focus`**. `waiting_timeout` check retired (the value was misleading: hermit blocked on operator answer ≠ paused indefinitely).
+- **`runtime.json` schema narrowed.** Stops writing `transition`, `transition_target`, `transition_started_at`, `waiting_reason`, `last_error`, `session_id`. `session_state` enum narrows to `{idle, in_progress, waiting}` — `dead_process` retires (detection moves to timestamp + tmux-alive check at boot). `last_shell_snapshot_at` survives (gates SHELL compaction).
+- **All timestamp writers standardize on UTC ISO with `Z` suffix** (`new Date().toISOString()` in JS, `time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())` in Python). Makes shell `[ "$DONE" \> "$REQ" ]` lexical compare correct across writers.
+- **Docker entrypoint, `bin/hermit-docker`, `scripts/hermit-stop.py` migrate** from `session_state == idle` checks to `shutdown_completed_at >= shutdown_requested_at` lexical compare. `hermit-stop.py` wait loop now polls runtime.json timestamps instead of `S-*-REPORT.md` file creation (which no longer happens).
+- **`.status.json` schema:** renamed `task` → `focus`, dropped `status` (always 'unknown' once `**Status:**` retired) and `tasks_completed`. Added `last_counter_reset` to gate daily reset in `/steer`. Reads `session_state` from runtime.json instead of parsing SHELL.md.
+- **`config.json` `compact` keys renamed:** `summary_threshold` → `recent_activity_threshold`, `summary_keep` → `recent_activity_keep`. Added `progress_log_threshold` and `progress_log_keep` (Progress Log is now persistent within a focus; needs trim cadence). hermit-evolve migrates live configs on upgrade.
+- **`channel-responder`** drops `waiting_reason` sub-branch and `dead_process` enum read. Recovery prompt orchestration uses a SHELL.md Findings marker (`<!-- pending-recovery: ... -->`) to route `(1)`/`(2)` replies.
+- **`proposal-act`** drops the 3-branch on `session_state`; always sets Focus, appends Progress Log entry, flips to `in_progress`. Stops writing `accepted_in_session` (`session_id` retires).
+- **`proposal-create`** drops the `session: S-NNN` frontmatter write. `related_sessions` becomes optional (only set when explicitly linking historical S-NNN).
+- **`validate-frontmatter.js`** makes `session` optional in `PROPOSAL_REQUIRED`. Legacy proposals with the field validate; new proposals without it also validate.
+
+### Added
+
+- **`/done --shutdown`** flag: graceful stop signal via `shutdown_requested_at` timestamp. The hermit-stop.py wait loop and docker entrypoint detect it.
+- **Daily `.status.json` counter reset (interim).** `/steer` resets `cost_usd`, `tokens`, `operator_turns` to 0 once per day (operator timezone), gated by `last_counter_reset`. Replaces the per-session reset that retired with the session model. PROP-036 will redesign properly.
+- **New tests:** `test-backwards-compat.sh` (retired-field tolerance, optional `session` field), `test-done-orient-skills.sh` (skill contract for `/steer`, `/done`, alias shims, `focus-mgr`), `test-timestamp-compat.sh` (UTC-Z lexical compare).
+
+### Removed
+
+- **New `S-NNN-REPORT.md` generation.** Existing reports remain in place as read-only historical artifacts (Cortex/Obsidian continues rendering them). The `state-templates/SESSION-REPORT.md.template` retires from new hatches.
+- **Scripts:** `session-diff.js`, `evaluate-session.js`, `suggest-compact.js`. Their hook registrations in `stop-pipeline.js` retire. `state/session-diff.json` sidecar stops being written.
+- **`tasks-snapshot.md`** generation. `cost-tracker.js` no longer calls `writeTaskSnapshot`. The `## Changed` section retires from SHELL.md template — `git status` / `git log` are authoritative for file-change context.
+- **`heartbeat.waiting_timeout`** config field. The `waiting` value remains real (blocked on operator answer) but doesn't auto-time-out; stale-focus catches the same case.
+
+### Upgrade Instructions
+
+**SHELL.md migration.** Run `/claude-code-hermit:hermit-evolve` after `/plugin update`. focus-mgr (via hermit-evolve) rewrites live SHELL.md in-place:
+1. Rename `## Task` → `## Focus`.
+2. Rename `## Session Summary` → `## Recent Activity`.
+3. Remove `## Changed` section (heading + body).
+4. Remove `**Status:** ...` and `**ID:** ...` lines from the header block.
+5. Remove `Next Start Point` section if present.
+6. Remove `**Tasks Completed:** N` line if present.
+
+No backup file. If you want one, take it via git before running hermit-evolve.
+
+**config.json migration.** hermit-evolve renames `compact.summary_threshold` → `compact.recent_activity_threshold` and `compact.summary_keep` → `compact.recent_activity_keep`. Adds `compact.progress_log_threshold: 50` and `compact.progress_log_keep: 25` defaults if absent. Drops `heartbeat.waiting_timeout` if present.
+
+**Routines.** hermit-evolve must do these two operations in order:
+
+1. **Remove** any entry in `config.routines` with `id: "reflect"` (the pre-v1.1.0 9 AM routine). Skip the removal if the operator has customized the schedule, skill string, or `enabled` flag away from the v1.0.x defaults (`schedule: "0 9 * * *"`, `skill: "claude-code-hermit:reflect"`, `enabled: true`) — surface a one-line note to the operator and let them decide.
+2. **Add** `{"id": "reflect-digest", "schedule": "0 23 * * *", "skill": "claude-code-hermit:reflect", "enabled": true}` to `config.routines` if absent.
+
+Doing only step 2 results in two reflect runs per day (9 AM + 23:00) — don't skip step 1.
+
+**`.claude/settings.json` permission cleanup.** hermit-evolve removes stale permission entries from `permissions.allow`:
+- `Bash(node */scripts/suggest-compact.js*)`
+- `Bash(node */scripts/session-diff.js*)`
+- `Bash(node */scripts/evaluate-session.js*)`
+
+These scripts are deleted in v1.1.0.
+
+**Operator muscle memory.** Old commands continue to work via shims for one minor version:
+- `/session-start [--task '<text>']` → `/steer ['<focus text>']` (the `--task` flag retires; focus text is positional)
+- `/session-close` → `/done --shutdown`
+- `/session` → `/done`
+
+Each prints a one-line deprecation note on first use. Aliases retire in v1.2.0.
+
+**Existing S-NNN reports stay in place.** Cortex/Obsidian queries continue to work — they retain their frontmatter contract. Proposals created before v1.1.0 retain their `session:` and `related_sessions:` fields. Reflect's resolution check reads them for legacy proposals; new proposals use SHELL.md `## Recent Activity` as the evidence window.
+
+**Timestamp format migration.** All new writes use UTC-Z. Old runtime.json entries with `+0100`-style timestamps continue to work — the shutdown-complete check tolerates either format until the next write replaces them. Mixed formats can produce one-time lexical-compare quirks during a short transition window; `hermit-stop.py` and docker-entrypoint handle this conservatively.
+
+**Edge case at upgrade — mid-recovery hermits.** If at the moment of `/plugin update` your hermit is already in `session_state: waiting` with `waiting_reason: "unclean_shutdown"` (a prior crash recovery prompt was pending), the recovery routing changes shape: pre-v1.1.0 channel-responder routed `1`/`2` replies via `waiting_reason`; the new code routes them via a SHELL.md `<!-- pending-recovery: ... -->` marker that pre-v1.1.0 hermits didn't write. After upgrade, run `/claude-code-hermit:steer` once to re-trigger the recovery prompt (it re-detects the dirty exit from `shutdown_requested_at`/`shutdown_completed_at` and writes the marker). Then your `1`/`2` reply routes correctly.
+
+Part of KAIROS prep. Pre-positions hermit for the perpetual-daemon runtime model.
+
 ## [1.0.39] - 2026-05-14
 
 ### Fixed

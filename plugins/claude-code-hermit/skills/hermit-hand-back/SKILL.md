@@ -39,7 +39,7 @@ Build a summary of what happened during the takeover using git:
 
 Ask the operator: "Any instructions for the hermit to work on next?"
 
-- If yes: write the instructions to `.claude-code-hermit/sessions/NEXT-TASK.md`. This file is automatically picked up at the next session-start.
+- If yes: write the instructions to `.claude-code-hermit/sessions/NEXT-TASK.md`. This file is automatically picked up at the next `/steer`.
 - If no / skip: don't create or modify NEXT-TASK.md
 
 ### 4. Update SHELL.md

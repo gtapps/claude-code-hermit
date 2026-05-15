@@ -60,7 +60,7 @@ When the operator accepts a proposal:
    Accepted on 2026-04-06T14:30:00+01:00.
    ```
 
-3a. **Session tracking:** Read `state/runtime.json` for `session_id` and `session_state` (both are used below). If `session_id` is non-null, set `accepted_in_session` to that session ID in the proposal's YAML frontmatter. If no session is active (`session_id` is null), leave `accepted_in_session: null`.
+3a. **Focus tracking:** Read `state/runtime.json` for `session_state`. (The `session_id` field retired in v1.1.0; the `accepted_in_session` frontmatter field is no longer set on new accepts. Historical proposals retain whatever they had.)
 
 3b. **Routine proposals.** If the proposal metadata contains `Type: routine` and a `## Config` section with a JSON block:
     - Parse the JSON block. Validate: must have `id`, `schedule`, `skill`, `enabled` fields.
@@ -72,14 +72,13 @@ When the operator accepts a proposal:
 
 4. Ask: **"How should this be implemented?"**
 
-   - **"Start implementing now"** (default, typical answer): handle session lifecycle, then execute in this turn.
-     a. Use the `session_state` already read from `state/runtime.json` in step 3a to branch.
-     b. **Idle:** delegate to `claude-code-hermit:session-mgr` to transition to `in_progress` and fill SHELL.md Task as "Implement PROP-NNN: <title>". Proceed to (e).
-     c. **In progress:** confirm before switching: "Currently working on: <current task>. Switch to PROP-NNN? Y/N".
-        - Yes: append `[HH:MM] switched to PROP-NNN: <title> (prior task: <prior task>)` to SHELL.md `## Progress Log`; overwrite SHELL.md `Task:` field with "Implement PROP-NNN: <title>"; `runtime.json session_state` stays `in_progress`. Proceed to (e).
+   - **"Start implementing now"** (default, typical answer): set the focus and execute in this turn.
+     a. **If `session_state == idle` AND SHELL.md `## Focus` is empty/placeholder:** delegate to `claude-code-hermit:focus-mgr` to set `## Focus` to "Implement PROP-NNN: <title>", append `[HH:MM] Started: Implement PROP-NNN: <title>` to `## Progress Log`, set `session_state` to `in_progress`. Proceed to (e).
+     b. **If `## Focus` has content (`in_progress`):** confirm before switching: "Currently focused on: <current focus>. Switch to PROP-NNN? Y/N".
+        - Yes: append `[HH:MM] switched to PROP-NNN: <title> (prior focus: <prior focus>)` to SHELL.md `## Progress Log`; overwrite `## Focus` with "Implement PROP-NNN: <title>"; `session_state` stays `in_progress`. Proceed to (e).
         - No: fall back to "Create a session task" below.
-     d. **Waiting:** fall back to "Create a session task" without asking, then notify: "PROP-NNN queued. Session is currently waiting."
-     e. Read the proposal body and execute the Proposed Solution as the active task. If the body contains `## Skill Improvement`, use `/skill-creator` for the implementation. If the body is vague, ask the operator for clarification before proceeding.
+     c. **If `session_state == waiting`:** fall back to "Create a session task" without asking, then notify: "PROP-NNN queued. Awaiting current answer."
+     e. Read the proposal body and execute the Proposed Solution as the active focus. If the body contains `## Skill Improvement`, use `/skill-creator` for the implementation. If the body is vague, ask the operator for clarification before proceeding.
      e.5. **Quality gate (tier-branched).** Read `.claude-code-hermit/config.json` → `quality_gate.tier`. Resolve per this table:
 
          | Config state | Resolved tier |
@@ -124,11 +123,11 @@ When the operator accepts a proposal:
      2. [Step derived from Proposed Solution]
      3. Verify the fix resolves the pattern
      ```
-     If `NEXT-TASK.md` already exists: do **not** write. Status still flips to `accepted` (operator intent is recorded). Notify: "PROP-NNN accepted. NEXT-TASK is already pending another proposal. Run `/session-start` to consume it first, then re-run `/proposal-act accept PROP-NNN` and pick 'Start implementing now' or manual."
+     If `NEXT-TASK.md` already exists: do **not** write. Status still flips to `accepted` (operator intent is recorded). Notify: "PROP-NNN accepted. NEXT-TASK is already pending another proposal. Run `/steer` to consume it first, then re-run `/proposal-act accept PROP-NNN` and pick 'Start implementing now' or manual."
      Otherwise write the file. Then append any of the following bullets to the end of the Suggested Plan, in order, numbered sequentially from `4.` (quality-gate bullet is last so `/simplify` reviews any skill-creator output):
        - **(if the proposal contains `## Skill Improvement` AND `/skill-creator` is available)** `Use /skill-creator to build and validate the skill.`
        - **(if `quality_gate.tier` in `.claude-code-hermit/config.json` is not `"budget"` — i.e. `"balanced"` or `"quality"`)** `Run /simplify on the touched files for a quality review, then commit.`
-     Confirm: "Task prepared. The next `/session-start` will offer this as the default task."
+     Confirm: "Task prepared. The next `/steer` will offer this as the default focus."
 
    - **"I'll handle it manually"** → Just mark accepted. Respond: "Marked as accepted. No further action taken."
 

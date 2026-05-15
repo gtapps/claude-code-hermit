@@ -52,28 +52,6 @@ def session_exists(name):
     return result.returncode == 0
 
 
-def find_latest_report():
-    """Find the most recent session report."""
-    reports = sorted(SESSIONS_DIR.glob('S-*-REPORT.md'))
-    return reports[-1] if reports else None
-
-
-def read_active_session():
-    """Read SHELL.md for session stats."""
-    if not SHELL_PATH.exists():
-        return None
-    content = SHELL_PATH.read_text()
-    stats = {}
-    for line in content.split('\n'):
-        if '**Status:**' in line:
-            stats['status'] = line.split('**Status:**')[1].strip()
-        elif '**Tasks Completed:**' in line:
-            stats['tasks_completed'] = line.split('**Tasks Completed:**')[1].strip()
-        elif '**Started:**' in line:
-            stats['started'] = line.split('**Started:**')[1].strip()
-    return stats
-
-
 def save_config(config):
     """Write config back to disk."""
     try:
@@ -87,7 +65,7 @@ def save_config(config):
 def write_runtime_json(data):
     """Atomic write to state/runtime.json."""
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    data['updated_at'] = time.strftime('%Y-%m-%dT%H:%M:%S%z')
+    data['updated_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
     RUNTIME_TMP.write_text(json.dumps(data, indent=2) + '\n')
     RUNTIME_TMP.rename(RUNTIME_JSON)
 
@@ -154,42 +132,21 @@ def main():
         save_config(config)
         update_runtime_field({
             'session_state': 'idle',
-            'shutdown_completed_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
-            'transition': None,
-            'transition_target': None,
-            'transition_started_at': None,
+            'shutdown_completed_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
         })
-        report = find_latest_report()
-        if report:
-            print(f'[hermit] Last report: {report}')
         sys.exit(0)
-
-    # Show session stats
-    stats = read_active_session()
-    tasks = '0'
-    if stats:
-        tasks = stats.get('tasks_completed', '0')
-        started = stats.get('started', 'unknown')
-        status = stats.get('status', 'unknown')
-        print(f'[hermit] Session started: {started} | Status: {status} | Tasks: {tasks}')
 
     if force:
         print(f'[hermit] Force-killing session: {session_name}')
         config['always_on'] = False
         save_config(config)
         subprocess.run(['tmux', 'kill-session', '-t', session_name])
+        now = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
         update_runtime_field({
             'session_state': 'idle',
-            'shutdown_requested_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
-            'shutdown_completed_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
-            'last_error': 'unclean_shutdown',
-            'transition': None,
-            'transition_target': None,
-            'transition_started_at': None,
+            'shutdown_requested_at': now,
+            'shutdown_completed_at': now,
         })
-        report = find_latest_report()
-        if report:
-            print(f'[hermit] Last report: {report}')
         print('[hermit] Warning: session was not closed gracefully. SHELL.md may be stale.')
         return
 
@@ -204,39 +161,42 @@ def main():
 
     # Mark shutdown requested in runtime.json
     update_runtime_field({
-        'shutdown_requested_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
+        'shutdown_requested_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
     })
 
-    # Release the lifecycle lock before delegating to /session-close.
-    # The close/archive path inside Claude needs to acquire this lock
+    # Release the lifecycle lock before delegating to /done.
+    # The done path inside Claude needs to acquire this lock
     # for its own runtime.json writes. Holding it here would cause the
     # agent to see it as contention and skip the close.
     release_lifecycle_lock(lock_fd)
     lock_fd = None
 
-    # Graceful shutdown: send /session-close --shutdown for full close
-    print(f'[hermit] Sending /claude-code-hermit:session-close --shutdown to {session_name}...')
+    # Graceful shutdown: send /done --shutdown for full close
+    print(f'[hermit] Sending /claude-code-hermit:done --shutdown to {session_name}...')
     subprocess.run([
         'tmux', 'send-keys', '-t', session_name,
-        '/claude-code-hermit:session-close --shutdown', 'Enter',
+        '/claude-code-hermit:done --shutdown', 'Enter',
     ])
 
-    # Wait for the session to close (check for new report file)
-    reports_before = set(SESSIONS_DIR.glob('S-*-REPORT.md'))
-    print(f'[hermit] Waiting up to {DEFAULT_TIMEOUT}s for session close...')
-
-    new_report = None
+    # Wait for /done to mark shutdown complete in runtime.json. Poll
+    # shutdown_completed_at >= shutdown_requested_at (UTC-Z lexical compare
+    # is safe since Step 3 standardized all writers).
+    print(f'[hermit] Waiting up to {DEFAULT_TIMEOUT}s for /done to complete shutdown...')
+    closed = False
     for i in range(DEFAULT_TIMEOUT):
         time.sleep(1)
         if not session_exists(session_name):
-            print('[hermit] Session exited without generating a report.')
+            print('[hermit] Session exited.')
+            closed = True
             break
-        reports_now = set(SESSIONS_DIR.glob('S-*-REPORT.md'))
-        if reports_now - reports_before:
-            new_report = (reports_now - reports_before).pop()
-            print(f'[hermit] Session closed. Report: {new_report}')
+        runtime = read_runtime_json() or {}
+        done_at = runtime.get('shutdown_completed_at')
+        req_at = runtime.get('shutdown_requested_at')
+        if done_at and (not req_at or done_at >= req_at):
+            print(f'[hermit] /done completed after {i}s.')
+            closed = True
             break
-    else:
+    if not closed:
         print(f'[hermit] Timeout after {DEFAULT_TIMEOUT}s. Killing session.')
 
     # Re-acquire lock for final state writes and cleanup
@@ -251,25 +211,12 @@ def main():
         subprocess.run(['tmux', 'kill-session', '-t', session_name])
         print(f'[hermit] tmux session "{session_name}" terminated.')
 
-    # Mark shutdown completed in runtime.json
-    shutdown_updates = {
+    # Mark shutdown completed in runtime.json. The /done path normally does this;
+    # we set it defensively in case /done didn't fire (e.g., timeout).
+    update_runtime_field({
         'session_state': 'idle',
-        'shutdown_completed_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
-        'transition': None,
-        'transition_target': None,
-        'transition_started_at': None,
-    }
-    if not new_report:
-        shutdown_updates['last_error'] = 'unclean_shutdown'
-    update_runtime_field(shutdown_updates)
-
-    # Show summary
-    if not new_report:
-        report = find_latest_report()
-        if report:
-            print(f'[hermit] Latest report: {report}')
-    if stats:
-        print(f'[hermit] Total tasks this session: {tasks}')
+        'shutdown_completed_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+    })
 
 
 if __name__ == '__main__':

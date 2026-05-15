@@ -16,7 +16,7 @@ Yes. Each project gets its own `.claude-code-hermit/` state directory. Install t
 
 ## What Claude model does it use?
 
-Whatever model your Claude Code instance uses by default. Override with `/hermit-settings model` (e.g., `sonnet`, `opus`). The `session-mgr` sub-agent always runs on Sonnet for cost efficiency.
+Whatever model your Claude Code instance uses by default. Override with `/hermit-settings model` (e.g., `sonnet`, `opus`). The `focus-mgr` sub-agent always runs on Sonnet for cost efficiency.
 
 ---
 
@@ -134,14 +134,14 @@ Automatic invocations of skills on a cadence — either from installed plugins (
 
 ---
 
-## When should I run `/session-start`? *(interactive mode)*
+## When should I run `/steer`? *(interactive mode)*
 
-`/session-start` front-loads context: it reads OPERATOR.md, scans recent `compiled/` artifacts, loads SHELL.md state, and registers config-declared watches. It's worth running when:
+`/steer` front-loads context: it reads OPERATOR.md, scans recent `compiled/` artifacts, loads SHELL.md state, and registers config-declared watches. It's worth running when:
 
 - Starting a focused work block on a project with active hermit state (recent compiled/ outputs, updated OPERATOR.md, open proposals).
-- Returning after a gap — OPERATOR.md context fades across conversations; session-start reloads it explicitly.
-- Working on a fresh hatch — baseline audits only fire on the first session-start after hatch.
+- Returning after a gap — OPERATOR.md context fades across conversations; `/steer` reloads it explicitly.
+- Working on a fresh hatch — baseline audits only fire on the first `/steer` run after hatch.
 
 Skip it for quick one-off tasks, sessions under ~5 minutes, or any time the upfront context load isn't justified by the length of the work.
 
-**Always-on / Docker mode:** `hermit-start.py` handles initialization automatically at container start. You don't run `/session-start` manually in always-on mode.
+**Always-on / Docker mode:** `hermit-start.py` handles initialization automatically at container start. You don't run `/steer` manually in always-on mode.

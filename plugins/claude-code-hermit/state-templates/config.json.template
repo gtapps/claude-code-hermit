@@ -18,7 +18,7 @@
   "idle_budget": "$0.50",
   "routines": [
     {"id": "heartbeat-restart",   "schedule": "0 4 * * *",  "skill": "claude-code-hermit:heartbeat start",             "run_during_waiting": true, "enabled": true},
-    {"id": "reflect",             "schedule": "0 9 * * *",  "skill": "claude-code-hermit:reflect",                     "enabled": true},
+    {"id": "reflect-digest",      "schedule": "0 23 * * *", "skill": "claude-code-hermit:reflect",                     "enabled": true},
     {"id": "scheduled-checks",    "schedule": "5 9 * * *",  "skill": "claude-code-hermit:reflect-scheduled-checks",    "run_during_waiting": true, "enabled": true},
     {"id": "weekly-review",       "schedule": "0 23 * * 0", "skill": "claude-code-hermit:weekly-review",                "enabled": false}
   ],
@@ -38,8 +38,10 @@
   "compact": {
     "monitoring_threshold": 30,
     "monitoring_keep": 20,
-    "summary_threshold": 30,
-    "summary_keep": 15
+    "recent_activity_threshold": 30,
+    "recent_activity_keep": 15,
+    "progress_log_threshold": 50,
+    "progress_log_keep": 25
   },
   "heartbeat": {
     "enabled": true,
@@ -49,8 +51,7 @@
       "start": "08:00",
       "end": "23:00"
     },
-    "stale_threshold": "2h",
-    "waiting_timeout": null
+    "stale_threshold": "2h"
   },
   "quality_gate": {
     "tier": "budget"

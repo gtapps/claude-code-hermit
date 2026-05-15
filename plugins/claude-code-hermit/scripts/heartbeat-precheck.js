@@ -83,11 +83,8 @@ if (hasPendingMicro) emit('EVALUATE');
 const runtime = readJSON(path.join(stateDir, 'state', 'runtime.json')) ?? {};
 const sessionState = runtime.session_state ?? 'idle';
 
-// stale-session check needs SHELL.md parsing — delegate to LLM
+// stale-focus check needs SHELL.md parsing — delegate to LLM
 if (sessionState === 'in_progress') emit('EVALUATE');
-
-// waiting-timeout check requires elapsed computation — delegate to LLM
-if (sessionState === 'waiting' && hbConfig.waiting_timeout) emit('EVALUATE');
 
 const alerts = alertState.alerts ?? {};
 const hasSuppressed = Object.values(alerts).some(e => e?.suppressed === true);

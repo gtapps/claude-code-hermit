@@ -100,18 +100,18 @@ case "$CMD" in
       # TUI treats text+Enter in one burst as bracketed paste and Enter becomes a
       # literal newline instead of submit. Same fix as scripts/hermit-start.py.
       cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
-        tmux send-keys -t "$TMUX_SESSION:0.0" "/claude-code-hermit:session-close --shutdown" 2>/dev/null || true
+        tmux send-keys -t "$TMUX_SESSION:0.0" "/claude-code-hermit:done --shutdown" 2>/dev/null || true
       sleep 0.5
       cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
         tmux send-keys -t "$TMUX_SESSION:0.0" Enter 2>/dev/null || true
 
-      echo "[hermit] Waiting for session to close (up to 60s)..."
+      echo "[hermit] Waiting for /done to complete shutdown (up to 60s)..."
       CLOSED=false
       for i in $(seq 1 60); do
-        CUR_STATE=$(jq -r '.session_state // "unknown"' "$RUNTIME_FILE" 2>/dev/null || echo "unknown")
-        SHUTDOWN_DONE=$(jq -r '.shutdown_completed_at // empty' "$RUNTIME_FILE" 2>/dev/null)
-        if [ "$CUR_STATE" = "idle" ] || [ -n "$SHUTDOWN_DONE" ]; then
-          echo "[hermit] Session closed after ${i}s."
+        REQ=$(jq -r '.shutdown_requested_at // empty' "$RUNTIME_FILE" 2>/dev/null || echo "")
+        DONE=$(jq -r '.shutdown_completed_at // empty' "$RUNTIME_FILE" 2>/dev/null || echo "")
+        if [ -n "$DONE" ] && { [ -z "$REQ" ] || [ "$DONE" \> "$REQ" ] || [ "$DONE" = "$REQ" ]; }; then
+          echo "[hermit] Shutdown complete after ${i}s."
           CLOSED=true
           break
         fi

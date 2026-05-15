@@ -17,5 +17,4 @@
 .claude-code-hermit/IDLE-TASKS.md
 .claude-code-hermit/knowledge-schema.md
 .claude-code-hermit/cost-summary.md
-.claude-code-hermit/tasks-snapshot.md
 .claude.local/

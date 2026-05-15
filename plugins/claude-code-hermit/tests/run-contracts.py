@@ -493,28 +493,8 @@ class TestHookOutputs(_TempDirTest):
         self.assertIsInstance(entry['timestamp'], str)
         self.assertGreater(entry['estimated_cost_usd'], 0)
 
-    def test_evaluate_session_standard(self):
-        """Standard profile produces structured JSON with criteria."""
-        stdout, stderr, code = self._run_hook(
-            'evaluate-session.js', '{}',
-            env_extra={'AGENT_HOOK_PROFILE': 'standard'},
-        )
-        self.assertEqual(code, 0)
-        self.assertTrue(stdout.strip(), 'Expected JSON output from evaluate-session')
-        data = json.loads(stdout)
-        self.assertIn('criteria', data)
-        self.assertIsInstance(data['criteria'], list)
-        self.assertGreater(len(data['criteria']), 0)
-        self.assertIn('overall', data)
-
-    def test_evaluate_session_minimal(self):
-        """Minimal profile produces no stdout (silence is the contract)."""
-        stdout, stderr, code = self._run_hook(
-            'evaluate-session.js', '{}',
-            env_extra={'AGENT_HOOK_PROFILE': 'minimal'},
-        )
-        self.assertEqual(code, 0)
-        self.assertEqual(stdout.strip(), '')
+    # evaluate-session.js was retired in v1.1.0 (PROP-031 archive-pipeline retirement).
+    # Tests removed.
 
 
 # ============================================================
@@ -931,17 +911,9 @@ class TestProposalIdScheme(unittest.TestCase):
                 f'new-format PROP-NNN-slug-HHMMSS.md files would be silently dropped',
             )
 
-    def test_session_mgr_captures_full_proposal_id(self):
-        """session-mgr must use a regex that captures the full PROP-NNN-slug-HHMMSS form."""
-        path = REPO / 'agents' / 'session-mgr.md'
-        self.assertTrue(path.exists(), 'agents/session-mgr.md not found')
-        content = path.read_text()
-        self.assertIn(
-            self.SESSION_MGR_REGEX,
-            content,
-            'session-mgr.md is missing the full-ID capture regex — '
-            'new-format IDs would be truncated to PROP-NNN in session reports',
-        )
+    # session-mgr.md was renamed to focus-mgr.md in v1.1.0 (PROP-031); the agent
+    # no longer generates S-NNN reports, so the proposal-id capture regex retires.
+    # Test removed.
 
 
 if __name__ == '__main__':

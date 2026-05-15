@@ -17,12 +17,12 @@ A Claude Code plugin that turns any Claude Code instance into a self-improving p
  |                    LAYER 2: SESSION LAYER                        |
  |   sessions/SHELL.md <-- live state                               |
  |   sessions/S-NNN-REPORT.md <-- archived handoff artifacts        |
- |   Lifecycle:  start --> work --> close --> archive                |
+ |   Lifecycle:  orient --> work --> done --> ready for next        |
  +-------------------------------|----------------------------------+
                                  |
  +-------------------------------v----------------------------------+
  |                    LAYER 3: AGENT LAYER                          |
- |   session-mgr (Sonnet) -- session lifecycle management           |
+ |   focus-mgr (Sonnet) -- SHELL.md custody, compaction, recovery   |
  |   (Hermits add specialized agents here)                          |
  +-------------------------------|----------------------------------+
                                  |
@@ -67,21 +67,23 @@ SHELL.md tasks,  status,   S-NNN-REPORT.md,
          log     lessons   reset SHELL.md
 ```
 
-**Start:** Checks for existing SHELL.md. Resumes if `in_progress` or `waiting`, creates fresh if not. Loads OPERATOR.md. Calls `TaskList` to see plan steps. Runs morning routine if it hasn't fired today.
+**Start:** `/steer` (or its `session-start` alias) loads OPERATOR.md + SHELL.md + runtime.json. Resumes if a focus is in flight; runs the dirty-shutdown recovery prompt if timestamps indicate an unclean exit. Calls `TaskList` to see plan steps.
 
-**Work:** Plan items tracked as native Claude Code Tasks (`pending` -> `in_progress` -> `completed`). Timestamped progress log in SHELL.md. Blockers recorded with cold-start context. `tasks-snapshot.md` auto-updated by cost-tracker hook for Obsidian.
+**Work:** Plan items tracked as native Claude Code Tasks (`pending` -> `in_progress` -> `completed`). Timestamped progress log in SHELL.md `## Progress Log`. Blockers recorded in `## Blockers` with cold-start context.
 
-**Close:** Defaults to idle transition at every task boundary — your hermit says "What's next?" and waits. Reflection fires. Full shutdown only via `/session-close`. See [Always-On Lifecycle](always-on-ops.md#2-always-on-lifecycle).
+**Done:** `/done` clears `## Focus`, appends a one-line entry to `## Recent Activity`, compacts persistent sections per config. The hermit stays running and waits for the next focus. No S-NNN report is generated. Reflect runs separately as a daily routine (`reflect-digest`). See [Always-On Lifecycle](always-on-ops.md#2-always-on-lifecycle).
 
-**Archive:** SHELL.md + task table -> `S-NNN-REPORT.md`. Fresh template with carry-forward. Monitoring and Session Summary sections are compacted if over threshold (configurable via `compact` in config.json). On full close, unfinished tasks persist in the task list for the next session.
+**Shutdown:** `/done --shutdown` (or `hermit-stop`) signals graceful exit via the `shutdown_requested_at` / `shutdown_completed_at` timestamp pair. The Docker entrypoint, `hermit-docker`, and `hermit-stop.py` poll those timestamps to confirm clean exit.
+
+**Historical:** Old `S-*-REPORT.md` files in `sessions/` remain in place as read-only artifacts. They render in Cortex/Obsidian unchanged.
 
 ---
 
 ## Layer 3: Agent Layer
 
-| Agent         | Model  | Max Turns | Role                                 |
-| ------------- | ------ | --------- | ------------------------------------ |
-| `session-mgr` | Sonnet | 15        | Session lifecycle, progress tracking |
+| Agent       | Model  | Max Turns | Role                                                              |
+| ----------- | ------ | --------- | ----------------------------------------------------------------- |
+| `focus-mgr` | Sonnet | 8         | SHELL.md custody, compaction, recovery prompt, migration helper   |
 
 Tools: Read, Write, Edit, Bash, Glob, Grep. No web access. Uses `memory: project` for accumulated knowledge across sessions.
 
@@ -123,7 +125,7 @@ All state lives in git-tracked files. No database, no external service.
 
 ```
 claude-code-hermit/
-├── agents/session-mgr.md
+├── agents/focus-mgr.md
 ├── hooks/hooks.json
 ├── scripts/               # Hook implementations + boot scripts
 ├── skills/                 # 26 skill directories
@@ -141,11 +143,10 @@ your-project/
 │   ├── compiled/review-weekly-YYYY-Www.md  # Weekly review reports (weekly-review.js; type: review)
 │   ├── templates/
 │   ├── state/                        # Runtime observations (agent-owned, not operator-configured)
-│   │   ├── runtime.json              # Session state: in_progress/waiting/idle (authoritative since v0.3.2)
+│   │   ├── runtime.json              # Session state: in_progress/waiting/idle (authoritative since v0.3.2; narrowed in v1.1.0)
 │   │   ├── alert-state.json          # Alert dedup state + self-eval evidence (heartbeat-owned)
 │   │   ├── reflection-state.json     # Last reflection timestamp (reflect-owned)
 │   │   ├── channel-activity.json     # Last channel interaction timestamp (channel-hook-owned)
-│   │   ├── session-diff.json         # Uncommitted file tracking (session-diff-owned)
 │   │   ├── proposal-metrics.jsonl    # Append-only event log (proposal-create + proposal-act)
 │   │   ├── micro-proposals.json      # Pending micro-approvals list (reflect + channel-responder)
 │   │   ├── state-summary.md          # Auto-generated health snapshot (generate-summary.js)
@@ -168,11 +169,10 @@ One writer per state file. No shared mutation bus.
 
 | File                           | Owner (sole writer)                                 | Readers                                                       |
 | ------------------------------ | --------------------------------------------------- | ------------------------------------------------------------- |
-| `state/runtime.json`           | session-mgr + cost-tracker                          | heartbeat, session-start, /hermit-routines (rdw=false suppression)   |
-| `state/alert-state.json`       | heartbeat only                                      | heartbeat; evaluate-session (read-only nudge computation)     |
-| `state/reflection-state.json`  | reflect + session (non-overlapping phases)          | heartbeat (debounce), hermit-settings (scheduled-checks display) |
+| `state/runtime.json`           | focus-mgr + cost-tracker                            | heartbeat, /steer, /hermit-routines (rdw=false suppression)   |
+| `state/alert-state.json`       | heartbeat only                                      | heartbeat                                                      |
+| `state/reflection-state.json`  | reflect                                             | heartbeat (debounce), hermit-settings (scheduled-checks display) |
 | `state/channel-activity.json`  | channel-hook.js only                                | channel-responder, heartbeat                                  |
-| `state/session-diff.json`      | session-diff.js only                                | session-close (display)                                       |
 | `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only)        | generate-summary.js                                           |
 | `state/micro-proposals.json`   | reflect (queue) + channel-responder/brief (resolve) | brief, generate-summary.js                                    |
 | `state/state-summary.md`       | generate-summary.js only                            | Obsidian, humans                                              |

@@ -1,32 +1,28 @@
-# Active Session
+# Live Focus Dashboard
 
 ## Session Info
-- **ID:** S-NNN (assigned on close)
 - **Started:** YYYY-MM-DD HH:MM
-- **Status:** in_progress <!-- valid: in_progress, waiting, idle -->
 - **Tags:** <!-- e.g., refactor, frontend, urgent -->
-- **Budget:** <!-- Set during session-start, or leave blank -->
-- **Tasks Completed:** 0
+- **Budget:** <!-- Set during /steer, or leave blank -->
 - **Session Mode:** <!-- interactive | always_on — infrastructure tier, not behavioral mode -->
 
-## Task
-<!-- What is this session trying to accomplish? -->
+## Focus
+<!-- Awaiting next focus -->
 
 ## Progress Log
-<!-- Primary record of work -->
+<!-- Primary record of work for the current focus -->
 <!-- Format: [HH:MM] Did X — result/outcome -->
+<!-- Cleared on /done; compacted in-focus per config.compact.progress_log_threshold/keep -->
 
 ## Blockers
-<!-- What's preventing progress? Include enough context for the next session. -->
+<!-- What's preventing progress? Include enough context to resume. Cleared on /done. -->
 
 ## Findings
-<!-- Anything unexpected found during work. Proposal-worthy items get their own file. -->
-
-## Changed
-<!-- Populated by session-diff hook, or list files manually -->
+<!-- Anything unexpected found during work. Proposal-worthy items get their own file. Cleared on /done. -->
 
 ## Monitoring
-<!-- Active monitors (/claude-code-hermit:watch) and heartbeat ticks (/claude-code-hermit:heartbeat) append here -->
+<!-- Active monitors (/claude-code-hermit:watch) and heartbeat ticks (/claude-code-hermit:heartbeat) append here. Persistent. Compacted per config.compact.monitoring_threshold/keep. -->
 
-## Session Summary
-<!-- One-line entries per completed task. Added on idle transition. -->
+## Recent Activity
+<!-- One-line entries appended on /done. Persistent. Compacted per config.compact.recent_activity_threshold/keep. -->
+<!-- Format: [HH:MM] Done: <focus text> (<success|partial|blocked>) -->

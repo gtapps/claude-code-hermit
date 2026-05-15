@@ -46,7 +46,7 @@ DEFAULT_CONFIG = {
     'idle_budget': '$0.50',
     'routines': [
         {'id': 'heartbeat-restart', 'schedule': '0 4 * * *', 'skill': 'claude-code-hermit:heartbeat start', 'run_during_waiting': True, 'enabled': True},
-        {'id': 'reflect', 'schedule': '0 9 * * *', 'skill': 'claude-code-hermit:reflect', 'enabled': True},
+        {'id': 'reflect-digest', 'schedule': '0 23 * * *', 'skill': 'claude-code-hermit:reflect', 'enabled': True},
         {'id': 'scheduled-checks', 'schedule': '5 9 * * *', 'skill': 'claude-code-hermit:reflect-scheduled-checks', 'run_during_waiting': True, 'enabled': True},
         {'id': 'weekly-review', 'schedule': '0 23 * * 0', 'skill': 'claude-code-hermit:weekly-review', 'enabled': False},
     ],
@@ -66,8 +66,10 @@ DEFAULT_CONFIG = {
     'compact': {
         'monitoring_threshold': 30,
         'monitoring_keep': 20,
-        'summary_threshold': 30,
-        'summary_keep': 15,
+        'recent_activity_threshold': 30,
+        'recent_activity_keep': 15,
+        'progress_log_threshold': 50,
+        'progress_log_keep': 25,
     },
     'heartbeat': {
         'enabled': True,
@@ -78,7 +80,6 @@ DEFAULT_CONFIG = {
             'end': '23:00',
         },
         'stale_threshold': '2h',
-        'waiting_timeout': None,
     },
     'quality_gate': {
         'tier': 'budget',
@@ -166,7 +167,7 @@ def is_container():
 def write_runtime_json(data):
     """Atomic write to state/runtime.json."""
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    data['updated_at'] = time.strftime('%Y-%m-%dT%H:%M:%S%z')
+    data['updated_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
     RUNTIME_TMP.write_text(json.dumps(data, indent=2) + '\n')
     RUNTIME_TMP.rename(RUNTIME_JSON)
 
@@ -188,40 +189,36 @@ def tmux_session_alive(session_name):
 
 
 def check_stale_runtime(config, session_name):
-    """Check for stale runtime state from a previous run and warn."""
+    """Print a boot warning if the previous run left an unclean shutdown signature.
+
+    Detection: shutdown_requested_at present but shutdown_completed_at missing,
+    OR a previously-recorded tmux session that is no longer alive. /steer handles
+    the actual recovery prompt; this function only surfaces the boot-time hint.
+    """
     runtime = read_runtime_json()
     if runtime is None:
         return
 
-    state = runtime.get('session_state')
+    req = runtime.get('shutdown_requested_at')
+    done = runtime.get('shutdown_completed_at')
     mode = runtime.get('runtime_mode')
-    shutdown_completed = runtime.get('shutdown_completed_at')
+    prev_tmux = runtime.get('tmux_session', '')
 
-    if state in ('in_progress', 'waiting', 'suspect_process'):
-        if mode in ('tmux', 'docker'):
-            # Check if the tmux session from the previous run still exists
-            prev_tmux = runtime.get('tmux_session', '')
-            if not tmux_session_alive(prev_tmux):
-                print(f'[hermit] Warning: Previous session crashed (runtime.json says '
-                      f'{state}, tmux session "{prev_tmux}" is gone).')
-                print('[hermit] /session-start will offer recovery.')
-                runtime['last_error'] = 'unclean_shutdown'
-                write_runtime_json(runtime)
-        elif mode == 'interactive' and not shutdown_completed:
-            print('[hermit] Warning: Previous interactive session did not close cleanly.')
-            print('[hermit] /session-start will offer recovery.')
-            runtime['last_error'] = 'unclean_shutdown'
-            write_runtime_json(runtime)
+    unclean = req and (not done or done < req)
+    crashed = (
+        mode in ('tmux', 'docker')
+        and runtime.get('session_state') in ('in_progress', 'waiting')
+        and prev_tmux
+        and not tmux_session_alive(prev_tmux)
+    )
 
-    if runtime.get('last_error') == 'session_died_on_boot':
-        print('[hermit] Note: previous start failed (tmux session died on boot).')
-
-    # Check for interrupted transitions
-    transition = runtime.get('transition')
-    if transition:
-        print(f'[hermit] Warning: Interrupted transition detected: {transition} '
-              f'(target: {runtime.get("transition_target", "unknown")})')
-        print('[hermit] /session-start will resume or clean up.')
+    if unclean:
+        print('[hermit] Warning: previous shutdown did not complete cleanly.')
+        print('[hermit] /steer will offer recovery.')
+    if crashed:
+        print(f'[hermit] Warning: previous session crashed (tmux session '
+              f'"{prev_tmux}" is gone while runtime state was active).')
+        print('[hermit] /steer will offer recovery.')
 
 
 def acquire_lifecycle_lock():
@@ -582,20 +579,16 @@ def main():
             write_runtime_json({
                 'version': 1,
                 'session_state': 'idle',
-                'session_id': None,
-                'created_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
+                'created_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
                 'runtime_mode': 'interactive',
                 'tmux_session': None,
-                'transition': None,
-                'transition_target': None,
-                'transition_started_at': None,
                 'shutdown_requested_at': None,
                 'shutdown_completed_at': None,
-                'last_error': None,
+                'idle_task': None,
                 'last_shell_snapshot_at': None,
             })
         else:
-            # Preserve lifecycle fields for session-start recovery
+            # Preserve fields for /steer recovery; ignore retired fields silently.
             existing['version'] = 1
             existing['runtime_mode'] = 'interactive'
             existing['tmux_session'] = None
@@ -655,20 +648,16 @@ def main():
         write_runtime_json({
             'version': 1,
             'session_state': 'idle',
-            'session_id': None,
-            'created_at': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
+            'created_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
             'runtime_mode': runtime_mode,
             'tmux_session': session_name,
-            'transition': None,
-            'transition_target': None,
-            'transition_started_at': None,
             'shutdown_requested_at': None,
             'shutdown_completed_at': None,
-            'last_error': None,
+            'idle_task': None,
             'last_shell_snapshot_at': None,
         })
     else:
-        # Preserve lifecycle fields for session-start recovery
+        # Preserve fields for /steer recovery; ignore retired fields silently.
         existing['version'] = 1
         existing['runtime_mode'] = runtime_mode
         existing['tmux_session'] = session_name
@@ -694,7 +683,6 @@ def main():
         existing = read_runtime_json()
         existing['runtime_mode'] = 'interactive'
         existing['tmux_session'] = None
-        existing['last_error'] = 'session_died_on_boot'
         write_runtime_json(existing)
         os.execvp(cmd[0], cmd)
 

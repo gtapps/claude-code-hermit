@@ -1,12 +1,19 @@
 ---
 name: reflect
-description: Reflect on recent work and propose improvements if patterns are noticed.
+description: Reflect on recent work and propose improvements if patterns are noticed. Runs as a daily routine (reflect-digest) or via manual /reflect.
 ---
 # Reflect
 
 Pause and think about your recent work.
 
+**Triggers:** daily routine (`reflect-digest` at 23:00 local by default) OR manual `/claude-code-hermit:reflect`. Reflect no longer fires on focus/task boundaries — the live-focus dashboard replaces that cadence.
+
 This skill is **silent by default**. Only notify the operator (per the channel policy in CLAUDE.md § Operator Notification) if reflect produces an outcome: a proposal candidate, a micro-approval, a resolved proposal, a graduated sub-threshold observation, or a cost spike.
+
+**Evidence sources** (in priority order):
+1. SHELL.md `## Recent Activity` — primary window for the live-focus model. Timestamped one-line entries appended by `/done`. Default window: 14 days.
+2. `compiled/reflect-digest-*.md` — previous reflect outputs (the rolling digest produced by this skill).
+3. Historical `sessions/S-*-REPORT.md` — pre-v1.1.0 artifacts. Read when an old proposal cites them via `related_sessions`; never required for new evaluations.
 
 1. Run the precheck to determine whether a full reflect run is warranted:
    ```
@@ -34,14 +41,15 @@ This skill is **silent by default**. Only notify the operator (per the channel p
    b. Read all proposals with `status: accepted`. Sort by `accepted_date` ascending. Resume from the proposal after `last_resolution_check`, wrapping around. Take up to 5.
    c. If the accepted list from step b is empty, skip to step f.
    d. For each proposal: read its `title` and Evidence section to understand the original pattern.
-      Delegate the session fetch to the built-in `Explore` subagent. Prompt: `Glob .claude-code-hermit/sessions/S-*-REPORT.md. Sort descending by filename. Read the 3 most recent and return: filename, date from frontmatter, and the full body verbatim — do not truncate, summarize, or excerpt (full body is required for pattern presence/absence detection). If a body exceeds your read window, say so explicitly per file rather than silently trimming.` If Explore returns truncated bodies for any of the 3 files, fall back to reading those files inline with the Read tool before evaluating step e.
-   e. If the pattern is **absent** from all 3 checked sessions — apply the cadence-aware resolution rule:
+      **Evidence window:**
+      - **Primary:** read SHELL.md `## Recent Activity` entries since `accepted_date`. Each entry is one timestamped line; pattern presence is detected by keyword/concept match against the proposal's pattern description.
+      - **Fallback for old proposals with `related_sessions` populated:** delegate to the built-in `Explore` subagent. Prompt: `Glob .claude-code-hermit/sessions/S-*-REPORT.md. Sort descending by filename. Read the 3 most recent and return filename, date from frontmatter, and the full body verbatim. Don't truncate.` Use this only when the proposal predates v1.1.0 (no Recent Activity coverage of its acceptance window).
+   e. If the pattern is **absent** from all checked evidence sources — apply the cadence-aware resolution rule:
 
       **Compute original cadence:**
-      - Read the proposal's `related_sessions` list from frontmatter.
-      - For each `S-NNN`, read `date:` from `sessions/S-NNN-REPORT.md` frontmatter.
-      - `original_cadence_days = max(date) - min(date)` in whole days. Single session → 0.
-      - If any session report is unreadable or `related_sessions` is empty → treat as **sparse** (conservative fallback).
+      - For historical proposals: read `related_sessions` list; for each `S-NNN`, read `date:` from `sessions/S-NNN-REPORT.md` frontmatter. `original_cadence_days = max(date) - min(date)` in whole days.
+      - For v1.1.0+ proposals (no `related_sessions`): compute cadence from Recent Activity entries that match the pattern — earliest and latest matching entries since `accepted_date - 14d`.
+      - If neither source yields a cadence → treat as **sparse** (conservative fallback).
 
       **Frequent pattern** (`original_cadence_days ≤ 14`) — auto-resolve if ≥ 14 days have elapsed since `accepted_date`:
       - Update frontmatter: `status: resolved`, `resolved_date: <now ISO>`.
@@ -49,7 +57,7 @@ This skill is **silent by default**. Only notify the operator (per the channel p
         ```
         node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"resolved","proposal_id":"PROP-NNN"}'
         ```
-      - Note in SHELL.md Findings: "PROP-NNN resolved — pattern absent from last 3 sessions."
+      - Note in SHELL.md Findings: "PROP-NNN resolved — pattern absent from recent activity window."
 
       **Sparse pattern** (`original_cadence_days > 14`) — never auto-resolve. Surface for operator confirmation if elapsed ≥ `2 × original_cadence_days` since `accepted_date`:
       - Check `state/reflection-state.json → last_sparse_nudge.<PROP-NNN>`. If present and fewer than 7 days have elapsed since that date, skip (prevents daily re-nudge noise).
@@ -93,18 +101,18 @@ If SHELL.md status is `idle` — think broader:
   If so: create a proposal with `Type: routine` and a `## Config` block containing the routine JSON:
   ```markdown
   ## Config
-  {"id":"weekly-deps","schedule":"0 9 * * 1","skill":"claude-code-hermit:session-start --task 'dependency audit'","enabled":true}
+  {"id":"weekly-deps","schedule":"0 9 * * 1","skill":"claude-code-hermit:steer 'dependency audit'","enabled":true}
   ```
   When accepted via `proposal-act`, this JSON is parsed and added to `config.json` routines automatically.
 
-- Is a routine firing repeatedly with no visible downstream effect? Read the last 200 lines of `state/routine-metrics.jsonl` inline — count `fired` events per `routine_id` where `ts` falls within the last 14 days. Then delegate the session citation check to the built-in `Explore` subagent. Prompt: `Glob .claude-code-hermit/sessions/S-*-REPORT.md. Read the 3 most recent. Return which routine_ids appear in any session body.` If a routine has ≥5 fires in the last 14 days and no session report cites its `routine_id` or skill output as producing findings, decisions, or follow-ups — apply the Three-Condition Rule. If all three conditions hold:
+- Is a routine firing repeatedly with no visible downstream effect? Read the last 200 lines of `state/routine-metrics.jsonl` inline — count `fired` events per `routine_id` where `ts` falls within the last 14 days. Then check SHELL.md `## Recent Activity` (and recent `compiled/reflect-digest-*.md` if present) for any entry citing the routine's `routine_id` or skill output as producing findings, decisions, or follow-ups. (Pre-v1.1.0 fallback: also read the 3 most recent `sessions/S-*-REPORT.md` if Recent Activity is sparse.) If a routine has ≥5 fires in the last 14 days and nothing cites it — apply the Three-Condition Rule. If all three conditions hold:
   - Propose `enabled: false` (disable) via a `Type: routine` proposal reusing the existing `id`. `proposal-act` upserts by `id`, so no delete path is needed.
   - Or propose a changed `schedule` if the routine is valuable but mis-timed.
   - Include the fire count + window in the proposal's Evidence section.
   - Tier: `disable` → Tier 1 (micro-approval). Re-time → Tier 1. Both are fully reversible. Operators can clean up disabled entries any time via `/hermit-settings routines`.
   ```markdown
   ## Config
-  {"id":"weekly-deps","schedule":"0 9 * * 1","skill":"claude-code-hermit:session-start --task 'dependency audit'","enabled":false}
+  {"id":"weekly-deps","schedule":"0 9 * * 1","skill":"claude-code-hermit:steer 'dependency audit'","enabled":false}
   ```
 
 ## Component Health
@@ -247,6 +255,37 @@ Include `"last_digest_at":"<now ISO>"` in the payload only when a juvenile diges
 Include `"last_sparse_nudge":{"<PROP-NNN>":"<now ISO>"}` when a sparse-pattern nudge was emitted this run (step 4e). The script merges the provided map into the existing `last_sparse_nudge` top-level key. Omit if no sparse nudge was emitted — the script preserves the prior map.
 
 The script handles: counter increments, `last_reflection`/`last_run_at` timestamps, missing-counters fallback, `since` preservation, `last_digest_at` passthrough, `last_sparse_nudge` merge, and atomic write. It always exits 0 — if the write fails it logs one line to stderr and continues. Counters are diagnostic, not audit-grade — a missed increment is acceptable.
+
+## Digest Output (daily routine runs)
+
+When reflect runs via the `reflect-digest` routine (or any non-EMPTY manual `/reflect`), write a rolling digest at `.claude-code-hermit/compiled/reflect-digest-<YYYY-MM-DD>.md`. The file is overwritten on each same-day run.
+
+**Frontmatter:**
+```yaml
+---
+title: "Reflect digest — <YYYY-MM-DD>"
+type: reflect-digest
+created: <now ISO with timezone>
+tags: [reflect-digest]
+proposals_created: <N>
+proposals_resolved: <N>
+micro_proposals_queued: <N>
+recurrence_window_days: 14
+---
+```
+
+**Body sections:**
+- `## Summary` — one paragraph: how many candidates evaluated, what changed (proposals, resolutions, micro-proposals queued), notable sub-threshold observations.
+- `## Outcomes` — bulleted list of every outcome this run with PROP-NNN / MP-YYYYMMDD-N references.
+- `## Resolution Check` — what was checked, what auto-resolved or got nudged.
+- `## Watching` — sub-threshold observations recorded to memory, with pattern labels.
+
+Then append a one-line summary to SHELL.md `## Recent Activity`:
+```
+[HH:MM] Reflect digest: <N> outcomes (<P> proposals, <R> resolved, <M> micro)
+```
+
+Cortex queries continue to work: the `type: reflect-digest` frontmatter mirrors the shape of S-NNN reports where applicable (date, tags, proposals_created). Historical S-NNN frontmatter contract is unchanged.
 
 ## Progress Log Entry (non-empty runs)
 

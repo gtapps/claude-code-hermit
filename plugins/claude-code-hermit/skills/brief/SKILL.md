@@ -1,10 +1,10 @@
 ---
 name: brief
-description: Returns a 5-line executive summary of recent work. Checks active session first, falls back to latest report. Activates on messages like "brief", "what happened", "morning update", "overnight summary".
+description: Returns a 5-line executive summary of recent work. Reads SHELL.md and the most recent reflect-digest. Activates on messages like "brief", "what happened", "morning update", "overnight summary".
 ---
-# Session Brief
+# Brief
 
-Provide a concise executive summary of recent session activity. Designed for morning check-ins, phone/channel consumption, and quick status updates.
+Provide a concise executive summary of recent activity. Designed for morning check-ins, phone/channel consumption, and quick status updates.
 
 ## Always-On Delivery Rule
 
@@ -17,13 +17,13 @@ If `config.always_on` is `true` and channels are configured, send all operator-f
 **Delivery:** After composing the brief, deliver it to the operator (see Always-On Delivery Rule above).
 
 Emphasize forward-looking content:
-- Read `.claude-code-hermit/cost-summary.md` for cost context. Include: "Yesterday: $X.XX across N sessions" from the trend table.
+- Read `.claude-code-hermit/cost-summary.md` for cost context. Include: "Yesterday: $X.XX" from the trend table.
 - Pending proposals needing review
 - OPERATOR.md priorities
-- If `config.always_on` is `true`: what happened overnight (activity since evening routine)
+- If `config.always_on` is `true`: what happened overnight (activity since the evening reflect-digest)
 - If `config.always_on` is `false`: frame as "here's where things stand" rather than "what happened overnight"
 - What's queued (NEXT-TASK.md, open proposals)
-- If auto-memory seems sparse (new instance, fresh machine), read the latest S-NNN-REPORT.md for context recovery
+- If auto-memory seems sparse (new instance, fresh machine), read the most recent `compiled/reflect-digest-*.md` for context recovery; fall back to the latest historical `S-*-REPORT.md` if no digest exists yet.
 
 After composing the morning brief, check `state/micro-proposals.json → pending` for entries with `status: "pending"`:
 - If **one or more** pending entries with `follow_up_count` of 0: append each as a final line: `MP-YYYYMMDD-N (tier N): [question]` — Reply `"MP-YYYYMMDD-N yes"` or `"MP-YYYYMMDD-N no"`. (Bare `yes`/`no` accepted when only one pending.)
@@ -36,11 +36,11 @@ After composing the morning brief, check `state/micro-proposals.json → pending
 **Delivery:** After composing the brief, deliver it to the operator (see Always-On Delivery Rule above).
 
 Emphasize backward-looking content:
-- Sessions completed today (scan S-NNN reports with today's date in frontmatter `date` field, or `## Summary` for pre-Observatory reports, plus current SHELL.md progress log)
-- Read `.claude-code-hermit/cost-summary.md` for today's cost. If the summary is stale (its frontmatter `updated` date is not today), the cost-tracker will regenerate it on the next interaction — use the trend table's today entry or fall back to scanning reports.
+- Work done today: scan SHELL.md `## Recent Activity` entries with today's HH:MM stamps, plus the current `## Progress Log` if a focus is active.
+- Read `.claude-code-hermit/cost-summary.md` for today's cost. If the summary is stale (its frontmatter `updated` date is not today), the cost-tracker will regenerate it on the next interaction — use the trend table's today entry as authority.
 - Key findings or patterns noticed
 - What to look at tomorrow
-- After generating summary: if SHELL.md Status is `in_progress` or has progress entries since last report, note it in the brief (e.g., "Session still open — run /session-close to archive.") and let the operator close explicitly. Idle transitions are owned by the `session` skill and `session-mgr`; brief does not trigger them.
+- If SHELL.md `## Focus` has non-placeholder content, note it in the brief (e.g., "Focus still active: <text> — run /done when ready"). The brief does not clear focus; that's `/done`'s job.
 
 ### No flag (default)
 
@@ -48,45 +48,44 @@ Current behavior — general purpose summary as described below.
 
 ## Plan
 
-1. Check if `.claude-code-hermit/sessions/SHELL.md` exists:
-   - If Status is `in_progress`: summarize the active task (existing behavior below)
-   - If Status is `idle` (session between tasks): format as:
-     ```
-     [Brief] YYYY-MM-DD | idle | N tasks completed
-     Session: since [start date]
-     Last: [latest Session Summary entry] — [status]
-     Cumulative: $X.XX across N tasks
-     Status: Idle — ready for what's next
-     ```
-     Then check for auto-detected proposals (step after Output Format) and return.
-2. If no active session: find the most recent `.claude-code-hermit/sessions/S-*-REPORT.md` (sort by filename, take the highest number):
-   - If found: summarize that report
-3. If neither exists: respond "No session history yet. Run `/claude-code-hermit:session` to start."
+1. Read `.claude-code-hermit/sessions/SHELL.md` and `.claude-code-hermit/state/runtime.json`.
+2. If neither exists: respond "No hermit state yet. Run `/claude-code-hermit:hatch` to set up."
+3. If `runtime.session_state == idle` and SHELL.md `## Focus` is placeholder:
+   ```
+   [Brief] YYYY-MM-DD | idle
+   Last activity: [latest Recent Activity entry]
+   Cost: $X.XX (cumulative)
+   Status: Idle — ready for what's next
+   ```
+   Then check for auto-detected proposals (see Rules) and return.
+4. If `## Focus` has content: summarize the active focus.
+5. If a `compiled/reflect-digest-*.md` is more recent than the latest Recent Activity entry, include its top-line summary as additional context.
 
 ## Output Format
 
-Keep the output to 5 lines, plus an optional 6th line for pending proposals (see Rules below):
+Keep the output to 5 lines, plus an optional 6th line for pending proposals:
 
 ```
 [Brief] YYYY-MM-DD | [tags if present]
-Working on: one-line description
-Status: completed/partial/blocked (X/Y tasks) | $cost spent
-Done: step1, step2, step3
-Next: description of next action (or "Session complete" if all done)
+Focus: one-line description
+Status: <session_state> (X/Y tasks) | $cost spent
+Done: recent activity entries (latest 3)
+Next: description of next action (or "Awaiting next focus" if cleared)
 ```
 
 ## Rules
 
 - Never exceed 6 lines total (5 content lines + optional proposal line) — this is designed for phone/channel consumption
-- Use the session's date, not today's date
-- Include tags in the header only if they exist
-- For the "Done" line: list completed task subjects from `TaskList`, comma-separated. If too many, show first 3 and "+ N more"
-- For the "Next" line: show the first pending or in_progress task from `TaskList`. If blocked, show "Blocked: reason"
-- If summarizing a completed report: "Next" becomes the report's "Next Start Point" content
-- After composing the 5-line output: scan `.claude-code-hermit/proposals/` for files with `source: auto-detected` and `status: proposed` (read from YAML frontmatter if present, fall back to bullet metadata). If any exist, append a 6th line: `Proposals: N auto-detected proposal(s) pending review`
+- Use today's date in the header
+- Include tags only if SHELL.md `**Tags:**` is non-empty
+- For "Done": pull the latest 3 entries from `## Recent Activity`, comma-separated
+- For "Next": show the first pending or in_progress task from `TaskList`. If blocked, show "Blocked: reason"
+- After composing the 5-line output: scan `.claude-code-hermit/proposals/` for files with `source: auto-detected` and `status: proposed`. If any exist, append a 6th line: `Proposals: N auto-detected proposal(s) pending review`
 
 ## Daily Summary Format
 
 When invoked with "brief today", "daily summary", or "what happened today":
 
-Scan all session reports archived today (match `date` in YAML frontmatter, or `Date` in `## Summary` for pre-Observatory reports) plus the current SHELL.md progress log. Read `.claude-code-hermit/cost-summary.md` for aggregated cost data. Format as a day-level summary covering: work done, cost, and proposals created/resolved.
+Scan SHELL.md `## Recent Activity` for entries with today's HH:MM stamps. Include any `compiled/reflect-digest-<today>.md` content if present. Read `.claude-code-hermit/cost-summary.md` for aggregated cost data. Format as a day-level summary covering: focuses completed, cost, and proposals created/resolved.
+
+Historical reports (`sessions/S-*-REPORT.md`) remain valid as deeper-context evidence for older work — read on demand if the operator asks about a date before the live-focus model was adopted.

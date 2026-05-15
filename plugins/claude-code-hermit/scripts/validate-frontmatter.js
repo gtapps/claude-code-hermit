@@ -25,7 +25,9 @@ const SESSION_ENUMS = {
   escalation: ['conservative', 'balanced', 'autonomous'],
 };
 
-const PROPOSAL_REQUIRED = ['id', 'title', 'status', 'source', 'session', 'created', 'category'];
+// `session` was required pre-v1.1.0; now optional (live-focus model has no S-NNN counter).
+// Historical proposals retain `session`; new proposals omit it. Validator accepts either.
+const PROPOSAL_REQUIRED = ['id', 'title', 'status', 'source', 'created', 'category'];
 const PROPOSAL_ENUMS = {
   status: ['proposed', 'accepted', 'resolved', 'dismissed'],
   source: ['manual', 'auto-detected', 'operator-request'],

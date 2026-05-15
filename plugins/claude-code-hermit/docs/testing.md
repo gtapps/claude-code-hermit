@@ -19,10 +19,10 @@ Tests live in `tests/`:
 
 ### Fixture Files
 
-| File                   | Used by                                     | Format                                                                            |
-| ---------------------- | ------------------------------------------- | --------------------------------------------------------------------------------- |
-| `stop-hook-input.json` | cost-tracker, suggest-compact, session-diff | JSON with `session_id`, `model`, `input_tokens`, `output_tokens`, `context_usage` |
-| `shell-session.md`     | evaluate-session                            | SHELL.md format (copy of a live session)                                          |
+| File                   | Used by      | Format                                                                            |
+| ---------------------- | ------------ | --------------------------------------------------------------------------------- |
+| `stop-hook-input.json` | cost-tracker | JSON with `session_id`, `model`, `input_tokens`, `output_tokens`, `context_usage` |
+| `shell-session.md`     | startup-context, archive-shell | SHELL.md format (copy of a live focus dashboard)                                  |
 
 ---
 
@@ -31,19 +31,13 @@ Tests live in `tests/`:
 Each hook can be tested in isolation. Stop hooks expect JSON on stdin:
 
 ```bash
-# cost-tracker (Stop hook — always runs)
+# cost-tracker (Stop pipeline stage — always runs)
 cat tests/fixtures/stop-hook-input.json | node scripts/cost-tracker.js
 
-# suggest-compact (Stop hook — always runs)
-cat tests/fixtures/stop-hook-input.json | node scripts/suggest-compact.js
-
-# session-diff (Stop hook — standard/strict profile)
+# stop-pipeline (orchestrator — cost-tracker + cortex-refresh)
 cat tests/fixtures/stop-hook-input.json | \
   AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT=. \
-  node scripts/run-with-profile.js standard,strict scripts/session-diff.js
-
-# evaluate-session (Stop hook — standard/strict profile)
-echo '{}' | AGENT_HOOK_PROFILE=standard node scripts/evaluate-session.js
+  node scripts/stop-pipeline.js
 
 # check-upgrade (SessionStart hook)
 bash scripts/check-upgrade.sh .

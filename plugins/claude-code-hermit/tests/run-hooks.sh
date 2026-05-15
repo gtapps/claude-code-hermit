@@ -20,39 +20,17 @@ run_test "cost-tracker (empty stdin)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 2. suggest-compact — happy path
+# (Retired in v1.1.0: suggest-compact, evaluate-session, session-diff
+# scripts removed per PROP-031 archive-pipeline retirement.)
 # -------------------------------------------------------
-workdir="$(setup_workdir)"
-cd "$workdir"
-run_test "suggest-compact" bash -c \
-  "cat '$FIXTURES/stop-hook-input.json' | node '$REPO_ROOT/scripts/suggest-compact.js'"
-cleanup
 
 # -------------------------------------------------------
-# 3. suggest-compact — empty stdin
-# -------------------------------------------------------
-workdir="$(setup_workdir)"
-cd "$workdir"
-run_test "suggest-compact (empty stdin)" bash -c \
-  "echo '' | node '$REPO_ROOT/scripts/suggest-compact.js'"
-cleanup
-
-# -------------------------------------------------------
-# 4. evaluate-session — empty stdin (fail-open)
-# -------------------------------------------------------
-workdir="$(setup_workdir)"
-cd "$workdir"
-run_test "evaluate-session (empty stdin)" bash -c \
-  "echo '' | AGENT_HOOK_PROFILE=standard node '$REPO_ROOT/scripts/evaluate-session.js'"
-cleanup
-
-# -------------------------------------------------------
-# 5. run-with-profile — profile matches
+# 5. run-with-profile — profile matches (uses surviving script)
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
 run_test "run-with-profile (match)" bash -c \
-  "echo '{}' | AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/run-with-profile.js' standard,strict scripts/evaluate-session.js"
+  "echo '{}' | AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/run-with-profile.js' standard,strict scripts/archive-shell.js"
 cleanup
 
 # -------------------------------------------------------
@@ -61,28 +39,7 @@ cleanup
 workdir="$(setup_workdir)"
 cd "$workdir"
 run_test "run-with-profile (no match)" bash -c \
-  "echo '{}' | AGENT_HOOK_PROFILE=minimal CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/run-with-profile.js' standard,strict scripts/evaluate-session.js"
-cleanup
-
-# -------------------------------------------------------
-# 7. session-diff — happy path (needs git repo)
-# -------------------------------------------------------
-workdir="$(setup_git_workdir)"
-cd "$workdir"
-run_test "session-diff" bash -c \
-  "echo '{}' | AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/run-with-profile.js' standard,strict scripts/session-diff.js"
-# Post-test: verify sidecar JSON was written with changed_files
-run_test "session-diff sidecar" bash -c \
-  "[ -f '$workdir/.claude-code-hermit/state/session-diff.json' ] && python3 -m json.tool '$workdir/.claude-code-hermit/state/session-diff.json' >/dev/null"
-cleanup
-
-# -------------------------------------------------------
-# 8. session-diff — empty stdin (needs git repo)
-# -------------------------------------------------------
-workdir="$(setup_git_workdir)"
-cd "$workdir"
-run_test "session-diff (empty stdin)" bash -c \
-  "echo '' | AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/run-with-profile.js' standard,strict scripts/session-diff.js"
+  "echo '{}' | AGENT_HOOK_PROFILE=minimal CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/run-with-profile.js' standard,strict scripts/archive-shell.js"
 cleanup
 
 # -------------------------------------------------------
@@ -226,7 +183,7 @@ cleanup
 # stop-pipeline tests
 # -------------------------------------------------------
 
-# 27. stop-pipeline — happy path: verifies all stages ran and heartbeat written
+# 27. stop-pipeline — happy path: verifies cost-tracker ran and heartbeat written
 workdir="$(setup_git_workdir)"
 cd "$workdir"
 transcript="$workdir/.claude/transcript.jsonl"
@@ -235,26 +192,18 @@ hook_input="$(sed "s|__TRANSCRIPT_PATH__|$transcript|" "$FIXTURES/stop-hook-inpu
 run_test "stop-pipeline" bash -c "
   out=\$(echo '$hook_input' | AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/stop-pipeline.js' 2>&1)
   echo \"\$out\" | grep -q 'cost-tracker' || exit 1
-  echo \"\$out\" | grep -q 'session-eval' || exit 1
   [ -f '$workdir/.claude-code-hermit/state/.heartbeat' ] || exit 1
 "
 cleanup
 
-# 28. stop-pipeline — stdout contract: suggest-compact is sole stdout
+# 28. stop-pipeline — runs cleanly with empty payload (post-PROP-031)
 workdir="$(setup_workdir)"
 cd "$workdir"
 transcript="$workdir/.claude/transcript.jsonl"
 cp "$FIXTURES/transcript.jsonl" "$transcript"
 hook_input="$(sed "s|__TRANSCRIPT_PATH__|$transcript|" "$FIXTURES/stop-hook-input.json")"
-run_test "stop-pipeline (stdout contract)" bash -c "
-  stdout=\$(echo '$hook_input' | COMPACT_THRESHOLD=1 AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/stop-pipeline.js' 2>/dev/null)
-  stderr=\$(echo '$hook_input' | COMPACT_THRESHOLD=1 AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/stop-pipeline.js' 2>&1 >/dev/null)
-  if [ -n \"\$stdout\" ]; then
-    echo \"\$stdout\" | python3 -m json.tool >/dev/null 2>&1 || exit 1
-    echo \"\$stdout\" | python3 -c \"import json,sys; d=json.load(sys.stdin); assert 'additionalContext' in d\" || exit 1
-  fi
-  echo \"\$stdout\" | grep -q 'cost-tracker' && exit 1
-  echo \"\$stdout\" | grep -q 'session-eval' && exit 1
+run_test "stop-pipeline (cost-tracker stage runs)" bash -c "
+  stderr=\$(echo '$hook_input' | AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/stop-pipeline.js' 2>&1 >/dev/null)
   echo \"\$stderr\" | grep -q 'cost-tracker' || exit 1
 "
 cleanup
@@ -269,44 +218,9 @@ run_test "stop-pipeline (malformed stdin)" bash -c "
 cleanup
 
 # -------------------------------------------------------
-# session-diff debounce tests (via stop-pipeline)
+# (Retired in v1.1.0: session-diff debounce tests removed —
+# the session-diff script and its sidecar were deleted per PROP-031.)
 # -------------------------------------------------------
-
-# 30. session-diff (debounce skip) — fresh sidecar + in_progress → skip
-workdir="$(setup_git_workdir)"
-cd "$workdir"
-echo '{"session_state":"in_progress"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-echo '{"changed_files":[],"captured_at":"2026-01-01T00:00:00Z"}' > "$workdir/.claude-code-hermit/state/session-diff.json"
-before_mtime="$(stat -c '%Y' "$workdir/.claude-code-hermit/state/session-diff.json" 2>/dev/null || stat -f '%m' "$workdir/.claude-code-hermit/state/session-diff.json")"
-sleep 1
-echo '{}' | AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT="$REPO_ROOT" node "$REPO_ROOT/scripts/stop-pipeline.js" >/dev/null 2>&1 || true
-after_mtime="$(stat -c '%Y' "$workdir/.claude-code-hermit/state/session-diff.json" 2>/dev/null || stat -f '%m' "$workdir/.claude-code-hermit/state/session-diff.json")"
-run_test "session-diff (debounce skip)" bash -c "[ '$before_mtime' = '$after_mtime' ]"
-cleanup
-
-# 31. session-diff (debounce force on idle) — fresh sidecar + idle → force refresh
-workdir="$(setup_git_workdir)"
-cd "$workdir"
-echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-echo '{"changed_files":[],"captured_at":"2026-01-01T00:00:00Z"}' > "$workdir/.claude-code-hermit/state/session-diff.json"
-before_mtime="$(stat -c '%Y' "$workdir/.claude-code-hermit/state/session-diff.json" 2>/dev/null || stat -f '%m' "$workdir/.claude-code-hermit/state/session-diff.json")"
-sleep 1
-echo '{}' | AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT="$REPO_ROOT" node "$REPO_ROOT/scripts/stop-pipeline.js" >/dev/null 2>&1 || true
-after_mtime="$(stat -c '%Y' "$workdir/.claude-code-hermit/state/session-diff.json" 2>/dev/null || stat -f '%m' "$workdir/.claude-code-hermit/state/session-diff.json")"
-run_test "session-diff (debounce force on idle)" bash -c "[ '$before_mtime' != '$after_mtime' ]"
-cleanup
-
-# 32. session-diff (debounce expired) — stale sidecar + in_progress → run
-workdir="$(setup_git_workdir)"
-cd "$workdir"
-echo '{"session_state":"in_progress"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-echo '{"changed_files":[],"captured_at":"2020-01-01T00:00:00Z"}' > "$workdir/.claude-code-hermit/state/session-diff.json"
-touch -t 202001010000 "$workdir/.claude-code-hermit/state/session-diff.json"
-before_mtime="$(stat -c '%Y' "$workdir/.claude-code-hermit/state/session-diff.json" 2>/dev/null || stat -f '%m' "$workdir/.claude-code-hermit/state/session-diff.json")"
-echo '{}' | AGENT_HOOK_PROFILE=standard CLAUDE_PLUGIN_ROOT="$REPO_ROOT" node "$REPO_ROOT/scripts/stop-pipeline.js" >/dev/null 2>&1 || true
-after_mtime="$(stat -c '%Y' "$workdir/.claude-code-hermit/state/session-diff.json" 2>/dev/null || stat -f '%m' "$workdir/.claude-code-hermit/state/session-diff.json")"
-run_test "session-diff (debounce expired)" bash -c "[ '$before_mtime' != '$after_mtime' ]"
-cleanup
 
 # -------------------------------------------------------
 # startup-context tests

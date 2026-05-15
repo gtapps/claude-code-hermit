@@ -149,9 +149,9 @@ function main() {
   } else {
     const parts = [];
 
-    const task = extractSection(shellContent, 'Task');
-    if (task && task.trim() && !task.trim().startsWith('<!--')) {
-      parts.push(`## Task\n${task.trimEnd()}`);
+    const focus = extractSection(shellContent, 'Focus');
+    if (focus && focus.trim() && !focus.trim().startsWith('<!--')) {
+      parts.push(`## Focus\n${focus.trimEnd()}`);
     }
 
     const progressRaw = extractSection(shellContent, 'Progress Log');

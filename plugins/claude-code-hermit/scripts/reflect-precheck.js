@@ -100,13 +100,21 @@ function hasAcceptedProposals(stateDir) {
   }
 }
 
-// Short-circuits cheaply: in_progress or missing lastRunAt require no I/O.
-function hasComputeActivity(stateDir, lastRunAt, sessionState) {
-  if (sessionState === 'in_progress') return true;
+// Detects activity since the last reflect run. Live-focus signal:
+// SHELL.md mtime > lastRunAt (any /done append, Progress Log update, focus
+// rename, monitoring tick will move it). Historical S-*-REPORT.md mtimes are
+// also checked for hermits that retain pre-v1.1.0 reports — a backstop, not
+// the primary signal.
+function hasComputeActivity(stateDir, lastRunAt) {
   if (!lastRunAt) return true;
 
   const lastRun = new Date(lastRunAt);
   if (isNaN(lastRun.getTime())) return true;
+
+  try {
+    const shellPath = path.join(stateDir, 'sessions', 'SHELL.md');
+    if (fs.statSync(shellPath).mtime > lastRun) return true;
+  } catch { /* SHELL.md missing — fall through to historical check */ }
 
   try {
     const sessionsDir = path.join(stateDir, 'sessions');
@@ -164,16 +172,15 @@ const since = counters.since ?? null;
 const phase = computePhase(since);
 
 const runtime = readJSON(path.join(stateDir, 'state', 'runtime.json')) ?? {};
-const sessionState = runtime.session_state ?? 'idle';
 
 const config = readJSON(path.join(stateDir, 'config.json')) ?? {};
 const timezone = config.timezone ?? 'UTC';
 
 const phases = {};
 
-// Cheaper checks first: compute (short-circuits on in_progress/null lastRunAt),
+// Cheaper checks first: compute (short-circuits on null lastRunAt or SHELL.md mtime),
 // then resolution_check (reads proposal files), then cost spike (reads cost log).
-if (hasComputeActivity(stateDir, lastRunAt, sessionState)) phases.compute = true;
+if (hasComputeActivity(stateDir, lastRunAt)) phases.compute = true;
 
 const lastResolutionCheck = reflectionState.last_resolution_check ?? null;
 if (hasAcceptedProposals(stateDir) && daysSince(lastResolutionCheck) > 7) {

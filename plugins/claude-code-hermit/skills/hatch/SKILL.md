@@ -124,7 +124,7 @@ Initialize state files (inline — shape-insensitive or append-only):
 - Read the template files from `${CLAUDE_SKILL_DIR}/../../state-templates/`
 - Copy `alert-state.json.template` → `.claude-code-hermit/state/alert-state.json`
 - Copy `micro-proposals.json.template` → `.claude-code-hermit/state/micro-proposals.json`
-- Copy `SHELL.md.template`, `SESSION-REPORT.md.template`, `PROPOSAL.md.template` into `templates/`
+- Copy `SHELL.md.template` and `PROPOSAL.md.template` into `templates/` (SESSION-REPORT.md.template retired in v1.1.0 — historical S-NNN reports remain in place for old hermits, but new hatches don't seed it)
 - **OPERATOR.md guard:** If `.claude-code-hermit/OPERATOR.md` already exists, do NOT copy the template over it. Remember this fact as `operator_existed = true` for use in step 5a. If it does not exist, copy `OPERATOR.md` from the templates into the state directory root.
 - Copy `HEARTBEAT.md.template` → `.claude-code-hermit/HEARTBEAT.md` (the operator's editable checklist)
 - Copy `IDLE-TASKS.md.template` → `.claude-code-hermit/IDLE-TASKS.md` (the operator's idle task list)
@@ -542,12 +542,10 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
       "Bash(git status:*)",
       "Bash(git log:*)",
       "Bash(node */scripts/cost-tracker.js*)",
-      "Bash(node */scripts/suggest-compact.js*)",
       "Bash(node */scripts/heartbeat-precheck.js*)",
       "Bash(node */scripts/reflect-precheck.js*)",
       "Bash(node */scripts/archive-shell.js*)",
       "Bash(node */scripts/run-with-profile.js*)",
-      "Bash(node */scripts/evaluate-session.js*)",
       "Bash(node */scripts/append-metrics.js*)",
       "Bash(node */scripts/generate-summary.js*)",
       "Bash(node */scripts/update-reflection-state.js*)",
@@ -562,8 +560,8 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
 
 **Why each one:**
 
-- `git diff`, `git status`, `git log` — session-diff.js hook auto-populates `## Changed` in SHELL.md
-- `node */scripts/<name>.js` — Stop hooks (cost-tracker, suggest-compact, session-diff, evaluate-session) and precheck scripts (heartbeat-precheck, reflect-precheck), scoped to plugin scripts only
+- `git diff`, `git status`, `git log` — the operator (and skills like `/done` and reflect) use these for change context; the dedicated `## Changed` SHELL.md section retired in v1.1.0
+- `node */scripts/<name>.js` — Stop pipeline stage (cost-tracker), precheck scripts (heartbeat-precheck, reflect-precheck), SHELL compaction (archive-shell), profile gate (run-with-profile), and metrics writers (append-metrics, generate-summary, update-reflection-state). Scoped to plugin scripts only.
 - `bash -c 'AGENT_DIR=...` — SessionStart hook that loads session context on every startup
 - `Edit`, `Write` on `.claude-code-hermit/**` — heartbeat appends to SHELL.md, increments config.json tick counter, and skills update session state without prompting
 

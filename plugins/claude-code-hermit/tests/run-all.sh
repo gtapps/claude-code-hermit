@@ -16,4 +16,7 @@ bash "$SCRIPT_DIR/test-template-skill-sync.sh"       || rc=$?
 bash "$SCRIPT_DIR/test-archive-shell.sh"             || rc=$?
 bash "$SCRIPT_DIR/test-hook-registration-form.sh"   || rc=$?
 bash "$SCRIPT_DIR/test-proposal-act-accept-flow.sh"  || rc=$?
+bash "$SCRIPT_DIR/test-backwards-compat.sh"          || rc=$?
+bash "$SCRIPT_DIR/test-done-steer-skills.sh"         || rc=$?
+bash "$SCRIPT_DIR/test-timestamp-compat.sh"          || rc=$?
 exit $rc

@@ -8,10 +8,9 @@ Produce one semantic key per alert:
 
 | Situation | Key format |
 |-----------|-----------|
-| Stale session | `stale-session` |
+| Stale focus | `stale-focus` |
 | Checklist item | `checklist:<first-8-chars-of-item-normalized>` |
 | Proposal pending | `proposal-pending:<PROP-NNN>` |
-| Waiting timeout | `waiting-timeout` |
 | Micro-proposal pending | `micro-proposal-pending:<id>` |
 | Custom / freeform | `custom:<first-100-chars-normalized>` — fallback only |
 

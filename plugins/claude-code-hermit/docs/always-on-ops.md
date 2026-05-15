@@ -62,35 +62,32 @@ In always-on mode, the session stays open between tasks. Heartbeat, monitors, an
 ### State flow
 
 ```
-hermit-start -> [in_progress] -> task done -> [idle] -> new task -> [in_progress] -> ...
-                      |                                                               |
-                      +---> blocked on input -> [waiting] --+                         |
-                      |                                     |                         |
-                      |     timeout or operator reply ------+-> [idle] or [in_progress]
-                      |                                                               |
-                      +-------------------------------hermit-stop -> [archived]
+hermit-start -> [in_progress] -> /done -> [idle] -> new focus -> [in_progress] -> ...
+                      |                                                            |
+                      +---> blocked on input -> [waiting] -> operator reply -> [in_progress]
+                      |                                                            |
+                      +-------------------------------hermit-stop -> tmux exits
 ```
 
-1. `hermit-start` sets `always_on: true`, launches Claude Code in tmux
-2. Work finishes — **idle transition**: report archived, SHELL.md reset, heartbeat keeps running
-3. New request comes in (channel, NEXT-TASK.md, terminal) — back to `in_progress`
-4. Blocked on operator input — **waiting transition**: session stays open, heartbeat skips stale checks, configurable `waiting_timeout` auto-transitions to idle
-5. `hermit-stop` — **full shutdown**: close task, stop heartbeat, archive, kill tmux
+1. `hermit-start` sets `always_on: true`, launches Claude Code in tmux.
+2. Operator picks (or `/steer '<focus text>'` sets) a focus → `in_progress`.
+3. `/done` clears the focus, appends a Recent Activity entry, sets `idle`. The daemon keeps running.
+4. Blocked on operator input → `waiting`. Heartbeat skips the stale-focus alert. Inbound reply flips back to `in_progress`.
+5. `/done --shutdown` (or `hermit-stop`) — full shutdown: stop monitors/heartbeat, signal graceful exit, tmux session ends.
 
-### Close modes
+### Behavior modes
 
-|                     | Idle Transition (task boundary)                                            | Waiting (blocked on input)     | Full Shutdown (`/session-close`) |
-| ------------------- | -------------------------------------------------------------------------- | ------------------------------ | -------------------------------- |
-| **When**            | Work done — automatic                                                      | Blocked on operator input      | You explicitly close             |
-| **Report archived** | Yes                                                                        | No (session stays open)        | Yes                              |
-| **Reflection runs** | Yes                                                                        | No                             | Yes                              |
-| **Heartbeat**       | Keeps running (or starts)                                                  | Runs (skips stale checks)      | Stopped                          |
-| **Monitors**        | Keep running                                                               | Keep running                   | Stopped (TaskStop + registry cleared) |
-| **Channels**        | Keep running (always-on only)                                              | Keep running                   | Stopped                          |
-| **SHELL.md**        | Reset in-place to `idle`, Monitoring & Summary compacted if over threshold | Status set to `waiting`        | Replaced with fresh template     |
-| **Applies to**      | Both interactive and always-on                                             | Both interactive and always-on | Both interactive and always-on   |
+|                     | Focus done (`/done`)                                                          | Waiting (blocked on input)     | Full shutdown (`/done --shutdown`)        |
+| ------------------- | ----------------------------------------------------------------------------- | ------------------------------ | ----------------------------------------- |
+| **When**            | Operator runs `/done` (or auto on focus completion in autonomous mode) | Blocked on operator input      | Operator runs `/done --shutdown` or `hermit-stop` |
+| **S-NNN report**    | No (live-focus model — Recent Activity entry instead)                         | No                             | No (historical reports unchanged)         |
+| **Reflect runs**    | No (reflect-digest is a daily routine)                                        | No                             | No                                        |
+| **Heartbeat**       | Keeps running                                                                 | Runs (skips stale-focus)       | Stopped                                   |
+| **Monitors**        | Keep running                                                                  | Keep running                   | Stopped (TaskStop + registry cleared)     |
+| **Channels**        | Keep running (always-on only)                                                 | Keep running                   | Stopped                                   |
+| **SHELL.md**        | Focus cleared, Recent Activity appended, compacted per config                 | Focus + Findings reflect the pending question | No change beyond `/done`'s effects |
 
-Default: idle transition when work finishes. Waiting when blocked on operator input (configurable `waiting_timeout` auto-transitions to idle). Full shutdown only via explicit `/session-close` or `hermit-stop`.
+Default: live-focus dashboard. `/done` clears the current focus and waits for the next. Waiting state surfaces when the agent is blocked on an answer. Full shutdown only via explicit `/done --shutdown` or `hermit-stop`.
 
 ### How sessions compound
 
@@ -105,7 +102,7 @@ Default: idle transition when work finishes. Waiting when blocked on operator in
   Morning: brief + priority check. Evening: daily journal.
 ```
 
-**Hooks fire throughout the session:** `cost-tracker.js` (costs), `suggest-compact.js` (context warnings), `session-diff.js` (changed files), and `evaluate-session.js` (quality nudges) run on every assistant turn (Stop). At the strict profile, `enforce-deny-patterns.js` blocks banned commands before execution (PreToolUse), and `channel-hook.js` + `heartbeat-touch.js` run on tool use (PostToolUse).
+**Hooks fire throughout the session:** `cost-tracker.js` (costs, via `stop-pipeline.js`) and `cortex-refresh-stage.js` (mtime-gated cortex rebuild) run on every assistant turn (Stop). At the strict profile, `enforce-deny-patterns.js` blocks banned commands before execution (PreToolUse), and `channel-hook.js` runs on tool use (PostToolUse).
 
 ### When learning fires
 
@@ -162,7 +159,7 @@ Routines live in `config.json` as a `routines` array:
   {"id": "morning", "schedule": "30 8 * * *", "skill": "claude-code-hermit:brief --morning", "run_during_waiting": true, "enabled": true},
   {"id": "evening", "schedule": "30 22 * * *", "skill": "claude-code-hermit:brief --evening", "run_during_waiting": true, "enabled": true},
   {"id": "heartbeat-restart", "schedule": "0 4 * * *", "skill": "claude-code-hermit:heartbeat start", "run_during_waiting": true, "enabled": true},
-  {"id": "weekly-deps", "schedule": "0 9 * * 1", "skill": "claude-code-hermit:session-start --task 'dependency audit'", "enabled": false}
+  {"id": "weekly-deps", "schedule": "0 9 * * 1", "skill": "claude-code-hermit:steer 'dependency audit'", "enabled": false}
 ]
 ```
 
@@ -182,7 +179,7 @@ Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect 
 2. Calls `CronList`, `CronDelete`s every `[hermit-routine:*]` entry — clears stale registrations and resets the 7-day expiry clock
 3. For each enabled routine, shifts the `schedule` from `config.timezone` to machine local time via `scripts/cron-tz-shift.js`, then registers a fresh `CronCreate` with that shifted schedule and a prompt that invokes the skill plus logs to `state/routine-metrics.jsonl`
 
-CronCreate fires only between REPL turns — never mid-task. There is no queue: if Claude is mid-task when the cron time hits, the fire is deferred (not dropped) until idle. `run_during_waiting: false` routines additionally check `runtime.json` and self-suppress with a `skipped-waiting` event when `session_state == "waiting"`.
+CronCreate fires only between REPL turns — never mid-focus. There is no queue: if Claude is mid-focus when the cron time hits, the fire is deferred (not dropped) until idle. `run_during_waiting: false` routines additionally check `runtime.json` and self-suppress with a `skipped-waiting` event when `session_state == "waiting"`.
 
 **`heartbeat-restart`** fires at 4am daily and restarts both the heartbeat `/loop` and the routine registrations (CronCreate auto-expires after 7 days; daily re-arm keeps everything fresh).
 
