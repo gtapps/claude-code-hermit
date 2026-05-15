@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **CLAUDE-APPEND templates align with core's live-focus dashboard.** Both `CLAUDE-APPEND.md` and `CLAUDE-APPEND-SAFETY.md` had a one-line Session State paragraph listing the old 4-value enum (`in_progress`/`waiting`/`idle`/`dead_process`) and a note that SHELL.md `Status:` is cosmetic. Core retired `dead_process` and the `Status:` field in claude-code-hermit v1.1.0 (PROP-031) — SHELL.md is now a live focus dashboard with `## Focus` + `## Recent Activity` sections, no `Status:` line to parse. Templates updated to match the 3-value enum and describe the new structure.
+
 ## [0.3.6] - 2026-05-13
 
 ### Changed

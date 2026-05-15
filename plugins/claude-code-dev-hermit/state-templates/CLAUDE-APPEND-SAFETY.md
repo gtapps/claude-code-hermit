@@ -39,7 +39,7 @@ Examples: `PROJ-123 add auth flow` → `feature/proj-123-add-auth-flow`. `Fix lo
 
 Subagents cannot invoke skills (`/simplify`, `/batch`, etc.) — those must run in the main session only.
 
-Session state (`in_progress`/`waiting`/`idle`/`dead_process`) lives in `.claude-code-hermit/state/runtime.json` (`.session_state`). SHELL.md `Status:` is cosmetic — never parse it for programmatic checks.
+Session state (`in_progress`/`waiting`/`idle`) lives in `.claude-code-hermit/state/runtime.json` (`.session_state`). SHELL.md is a live focus dashboard — `## Focus` describes the current work, `## Recent Activity` is the rolling log. There is no `Status:` field to parse.
 
 Core rules (artifact frontmatter, tag discipline, proposals) apply to all dev work — see the `## Session Discipline (claude-code-hermit)` block above.
 
