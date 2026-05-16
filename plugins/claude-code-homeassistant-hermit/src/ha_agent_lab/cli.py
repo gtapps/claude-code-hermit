@@ -7,7 +7,7 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from .apply import remove_config, validate_and_apply
+from .apply import read_config, remove_config, validate_and_apply
 from .artifacts import current_session_id, standard_metadata, utc_timestamp, write_json_artifact, write_markdown_artifact
 from .boot import boot_status, save_boot_preferences
 from .config import load_config, normalized_context_path
@@ -91,6 +91,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     delete_script_parser = ha_subparsers.add_parser("delete-script", help="Delete a script config by ID.")
     delete_script_parser.add_argument("id", help="Script config ID (not entity_id).")
+
+    get_automation_config_parser = ha_subparsers.add_parser("get-automation-config", help="Read an automation's stored config from HA.")
+    get_automation_config_parser.add_argument("id", help="Automation config ID.")
+
+    get_script_config_parser = ha_subparsers.add_parser("get-script-config", help="Read a script's stored config from HA.")
+    get_script_config_parser.add_argument("id", help="Script config ID.")
 
     return parser
 
@@ -258,6 +264,29 @@ def main(argv: list[str] | None = None) -> int:
                         "report_path": str(result.report_path.relative_to(root)),
                     },
                     indent=2,
+                )
+            )
+            return 0 if result.ok else 1
+        except HomeAssistantError as exc:
+            print(str(exc))
+            return 1
+
+    if args.command == "ha" and args.ha_command in ("get-automation-config", "get-script-config"):
+        try:
+            client = HomeAssistantClient(config)
+            domain = "automation" if args.ha_command == "get-automation-config" else "script"
+            result = read_config(client, domain, args.id)
+            print(
+                json.dumps(
+                    {
+                        "ok": result.ok,
+                        "domain": result.domain,
+                        "config_id": result.config_id,
+                        "config": result.config,
+                        "message": result.message,
+                    },
+                    indent=2,
+                    ensure_ascii=False,
                 )
             )
             return 0 if result.ok else 1

@@ -102,6 +102,9 @@ function validateSession(file) {
   checkTimestamp(file, fm, 'date');
   checkArray(file, fm, 'tags');
   checkArray(file, fm, 'proposals_created');
+  if ('tokens' in fm && (typeof fm.tokens !== 'number' || fm.tokens < 0 || !Number.isFinite(fm.tokens))) {
+    error(file, 'tokens must be a non-negative number when present');
+  }
 }
 
 function validateProposal(file) {

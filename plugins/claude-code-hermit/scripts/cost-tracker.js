@@ -18,6 +18,7 @@ const PRICING = {
 };
 
 const { readTasks, taskProgress } = require('./lib/tasks');
+const { kStr, formatTokens } = require('./lib/format');
 
 const MAX_STDIN = 1024 * 1024; // 1MB safety limit
 const COST_LOG = path.resolve('.claude/cost-log.jsonl');
@@ -235,10 +236,13 @@ function writeTaskSnapshot(tasks, progress) {
 }
 
 function writeCostSummary() {
-  // Skip if already generated today (cheap statSync instead of reading config.json)
+  const today = new Date().toISOString().slice(0, 10);
   try {
     const stat = fs.statSync(COST_SUMMARY);
-    if (stat.mtime.toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10)) return;
+    if (stat.mtime.toISOString().slice(0, 10) === today) {
+      const existing = fs.readFileSync(COST_SUMMARY, 'utf-8');
+      if (/^total_tokens:/m.test(existing)) return;
+    }
   } catch {
     // File missing — regenerate
   }
@@ -246,12 +250,13 @@ function writeCostSummary() {
   const entries = parseLogEntries();
   if (entries.length === 0) return;
 
-  const today = new Date().toISOString().slice(0, 10);
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
 
   const byDate = {};
+  const tokensByDate = {};
   const sessionsByDate = {};
   let totalCost = 0;
+  let totalTokens = 0;
   const allSessions = new Set();
 
   for (const e of entries) {
@@ -259,8 +264,11 @@ function writeCostSummary() {
     if (!date) continue;
 
     const cost = e.estimated_cost_usd || 0;
+    const tok = e.total_tokens || 0;
     totalCost += cost;
+    totalTokens += tok;
     byDate[date] = (byDate[date] || 0) + cost;
+    tokensByDate[date] = (tokensByDate[date] || 0) + tok;
 
     if (e.session_id) {
       allSessions.add(e.session_id);
@@ -271,14 +279,18 @@ function writeCostSummary() {
 
   const totalSessions = allSessions.size;
   const avgCost = totalSessions > 0 ? totalCost / totalSessions : 0;
+  const avgSessionTokens = totalSessions > 0 ? totalTokens / totalSessions : 0;
   const todayCost = byDate[today] || 0;
+  const todayTokens = tokensByDate[today] || 0;
   const todaySessions = sessionsByDate[today] ? sessionsByDate[today].size : 0;
 
   let weekCost = 0;
+  let weekTokens = 0;
   const weekSessions = new Set();
   for (const [date, cost] of Object.entries(byDate)) {
     if (date >= weekAgo) {
       weekCost += cost;
+      weekTokens += tokensByDate[date] || 0;
       if (sessionsByDate[date]) {
         for (const s of sessionsByDate[date]) weekSessions.add(s);
       }
@@ -287,36 +299,42 @@ function writeCostSummary() {
   const weekSessionCount = weekSessions.size;
   const weekAvg = weekSessionCount > 0 ? weekCost / weekSessionCount : 0;
 
-  let trendTable = '| Date | Sessions | Cost |\n|------|----------|------|\n';
+  let trendTable = '| Date | Sessions | Cost | Tokens |\n|------|----------|------|--------|\n';
   for (let i = 0; i < 7; i++) {
     const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
     const dCost = byDate[d] || 0;
+    const dTok = tokensByDate[d] || 0;
     const dSessions = sessionsByDate[d] ? sessionsByDate[d].size : 0;
     if (dCost > 0 || dSessions > 0) {
-      trendTable += `| ${d} | ${dSessions} | $${dCost.toFixed(2)} |\n`;
+      trendTable += `| ${d} | ${dSessions} | $${dCost.toFixed(2)} | ${formatTokens(dTok)} |\n`;
     }
   }
 
   const content = `---
 updated: ${new Date().toISOString()}
 total_cost_usd: ${Math.round(totalCost * 10000) / 10000}
+total_tokens: ${totalTokens}
 total_sessions: ${totalSessions}
 avg_session_cost_usd: ${Math.round(avgCost * 10000) / 10000}
+avg_session_tokens: ${Math.round(avgSessionTokens)}
 ---
 # Cost Summary
 
 ## Today
 - Sessions: ${todaySessions}
 - Cost: $${todayCost.toFixed(2)}
+- Tokens: ${kStr(todayTokens)}K
 
 ## This Week
 - Sessions: ${weekSessionCount}
 - Cost: $${weekCost.toFixed(2)}
+- Tokens: ${kStr(weekTokens)}K
 - Avg per session: $${weekAvg.toFixed(2)}
 
 ## All Time
 - Sessions: ${totalSessions}
 - Cost: $${totalCost.toFixed(2)}
+- Tokens: ${kStr(totalTokens)}K
 - Avg per session: $${avgCost.toFixed(2)}
 
 ## Cost Trend (Last 7 Days)
@@ -408,7 +426,7 @@ async function run(data) {
     writeCostSummary();
 
     // Return brief summary (pipeline writes this to stderr)
-    return `[cost-tracker] ${model}: ${Math.round(totalTokens / 1000)}K tokens (${Math.round(cacheReadTokens / 1000)}K cached), $${cost.toFixed(4)} (cumulative: ${costStr})`;
+    return `[cost-tracker] ${model}: ${kStr(totalTokens)}K tokens (${kStr(cacheReadTokens)}K cached), $${cost.toFixed(4)} (cumulative: ${costStr})`;
   } catch (err) {
     // Non-fatal — never block on cost tracking failure
     console.error(`[cost-tracker] Error: ${err.message}`);

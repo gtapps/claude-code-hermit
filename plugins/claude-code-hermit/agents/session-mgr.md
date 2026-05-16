@@ -81,6 +81,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
      - `status`: must be one of `completed`, `partial`, `blocked`. Extract from the `**Status:**` field in SHELL.md. If the value is anything else, normalize to `partial` and add a line to `## Blockers` in the report: `Status normalized: original value \`<value>\` coerced to \`partial\`.`
      - `escalation`: read `escalation` from `.claude-code-hermit/config.json`. If the field is missing or empty, default to `"balanced"`. Allowed values: `conservative`, `balanced`, `autonomous`.
      - `operator_turns`: read `operator_turns` from `.claude-code-hermit/sessions/.status.json`. Use `0` if the field is missing or the file doesn't exist. This is the count of human-type transcript entries for this session, maintained by the cost-tracker hook.
+     - `tokens`: read `tokens` from `.claude-code-hermit/sessions/.status.json`. Use `0` if the field is missing or the file doesn't exist.
    - **Write `## Overview`** with the one-line task description from `## Task`
    - **If a task table was provided in the invocation prompt**, include it as `## Plan` in the report
    - **Write `## Artifacts`** listing any durable outputs this session wrote to `compiled/`. Format each as a bulleted wikilink: `- [[compiled/<type>-<slug>-<date>]] — one-line annotation`. Leave the section present with no bullets if none were produced (mirrors `## Proposals Created`).
@@ -94,6 +95,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
      date: 2026-03-29T15:10:00+00:00
      duration: 1h 20m
      cost_usd: 0.4231
+     tokens: 152689
      tags: [bugfix, auth]
      proposals_created: [PROP-002-capability-brainstorm-103612]
      task: "Fix authentication token refresh bug in middleware"

@@ -12,6 +12,10 @@ from .simulate import SimulationResult, simulate_artifact
 _CONFIG_DOMAINS = {"automation", "script"}
 
 
+def _unsupported_domain_msg(domain: str) -> str:
+    return f"Domain '{domain}' is not a configurable domain. Choose from: {', '.join(sorted(_CONFIG_DOMAINS))}."
+
+
 @dataclass(slots=True)
 class ApplyResult:
     ok: bool
@@ -24,6 +28,15 @@ class ApplyResult:
     reload_domain: str | None
     message: str
     report_path: Path
+
+
+@dataclass(slots=True)
+class ReadResult:
+    ok: bool
+    domain: str
+    config_id: str
+    config: dict
+    message: str
 
 
 @dataclass(slots=True)
@@ -165,6 +178,21 @@ def validate_and_apply(
     )
 
 
+def read_config(
+    client: HomeAssistantClient,
+    domain: str,
+    config_id: str,
+) -> ReadResult:
+    if domain not in _CONFIG_DOMAINS:
+        return ReadResult(ok=False, domain=domain, config_id=config_id, config={}, message=_unsupported_domain_msg(domain))
+
+    try:
+        config = client.get(f"/api/config/{domain}/config/{config_id}")
+        return ReadResult(ok=True, domain=domain, config_id=config_id, config=config, message="ok")
+    except HomeAssistantError as exc:
+        return ReadResult(ok=False, domain=domain, config_id=config_id, config={}, message=extract_ha_error_message(exc))
+
+
 def remove_config(
     root: Path,
     client: HomeAssistantClient,
@@ -172,7 +200,7 @@ def remove_config(
     config_id: str,
 ) -> RemoveResult:
     if domain not in _CONFIG_DOMAINS:
-        msg = f"Domain '{domain}' is not a configurable domain. Choose from: {', '.join(sorted(_CONFIG_DOMAINS))}."
+        msg = _unsupported_domain_msg(domain)
         report_path = _write_remove_report(root, domain, config_id, ok=False, message=msg)
         return RemoveResult(ok=False, domain=domain, config_id=config_id, message=msg, report_path=report_path)
 

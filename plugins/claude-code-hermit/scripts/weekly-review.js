@@ -105,6 +105,32 @@ const sessionsCount = weekSessions.length;
 const totalCost = weekSessions.reduce((sum, s) => sum + parseFloat(s.fm.cost_usd || 0), 0);
 const avgCost = sessionsCount > 0 ? totalCost / sessionsCount : 0;
 
+const { formatTokens } = require('./lib/format');
+
+// Token aggregation: prefer session frontmatter; fall back to cost-log.jsonl date-range scan
+const allHaveTokens = sessionsCount > 0 &&
+  weekSessions.every(s => Number.isFinite(s.fm.tokens) && s.fm.tokens >= 0);
+let totalTokens = 0;
+if (allHaveTokens) {
+  totalTokens = weekSessions.reduce((sum, s) => sum + s.fm.tokens, 0);
+} else {
+  const costLogPath = path.resolve(process.cwd(), '.claude/cost-log.jsonl');
+  const weekStartStr = weekStart.toISOString().slice(0, 10);
+  const weekEndStr = weekEnd.toISOString().slice(0, 10);
+  try {
+    const lines = fs.readFileSync(costLogPath, 'utf-8').trim().split('\n');
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const e = JSON.parse(line);
+        const d = (e.timestamp || '').slice(0, 10);
+        if (d >= weekStartStr && d < weekEndStr) totalTokens += e.total_tokens || 0;
+      } catch {}
+    }
+  } catch {}
+}
+const avgTokens = sessionsCount > 0 ? Math.round(totalTokens / sessionsCount) : 0;
+
 // Self-directed: operator_turns = 0 (actual measurement). Fall back to escalation = 'autonomous'
 // for older reports that predate the operator_turns field.
 const selfDirectedCount = weekSessions.filter(isSelfDirected).length;
@@ -182,7 +208,9 @@ const frontmatter = [
   `proposals_accepted: ${weekAccepted.length}`,
   `proposals_resolved: ${weekResolved.length}`,
   `total_cost_usd: ${totalCost.toFixed(2)}`,
+  `total_tokens: ${totalTokens}`,
   `avg_session_cost_usd: ${avgCost.toFixed(2)}`,
+  `avg_session_tokens: ${avgTokens}`,
   `self_directed_rate: ${autonomousRate.toFixed(2)}`,
   '---',
 ].join('\n');
@@ -194,7 +222,7 @@ let body = `## Week of ${dateRange}\n\n`;
 // Sessions
 if (sessionsCount > 0) {
   body += `### Sessions\n`;
-  body += `${sessionsCount} session${sessionsCount !== 1 ? 's' : ''}, $${totalCost.toFixed(2)} total ($${avgCost.toFixed(2)} avg).\n`;
+  body += `${sessionsCount} session${sessionsCount !== 1 ? 's' : ''}, $${totalCost.toFixed(2)} (${formatTokens(totalTokens)}) total ($${avgCost.toFixed(2)} avg).\n`;
   body += `${selfDirectedCount} self-directed (operator_turns = 0), ${assistedSessions.length} operator-assisted.\n\n`;
 } else {
   body += `### Sessions\nNo sessions this week.\n\n`;

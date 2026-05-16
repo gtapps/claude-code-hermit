@@ -47,7 +47,7 @@ summary. Safe to run at any time. Produces no side effects beyond writing
 | `config` | Runs `validate-config.js` against `.claude-code-hermit/config.json`. | `fail` on any error; `warn` on any warning. |
 | `hooks` | Parses `hooks/hooks.json`; verifies each referenced script file exists on disk. | `fail` if any script is missing. |
 | `state` | `JSON.parse` every `.claude-code-hermit/state/*.json`; warns if expected files missing. | `fail` on unparseable file; `warn` if any expected file (`alert-state.json`, `reflection-state.json`, `runtime.json`, `monitors.runtime.json`) is absent. |
-| `cost` | Sums today's `estimated_cost_usd` from `.claude/cost-log.jsonl` against `config.idle_budget`. | `fail` ≥ 100%; `warn` ≥ 80%; `ok` below. |
+| `cost` | Sums today's `estimated_cost_usd` and `total_tokens` from `.claude/cost-log.jsonl`; compares cost against `config.idle_budget`. Co-displays token count and cache-read tokens for efficiency diagnosis. | `fail` ≥ 100%; `warn` ≥ 80%; `ok` below. |
 | `proposals` | Counts `proposals/PROP-*.md` with `status: open`; ages via `created:` frontmatter. | `warn` if any open PROP > 30 days, or if more than 10 open. |
 | `dependencies` | Reads `required_core_version` from each sibling plugin's `plugin.json` and verifies the installed core version satisfies the range. Sibling plugins live next to core under `plugins/<name>/` (monorepo) or in the marketplace cache (legacy). | `warn` if any sibling declares a `required_core_version` that the running core version doesn't satisfy. Unrecognized range forms (e.g. `^`, `~`, `||`) are treated as ok. |
 | `permissions` | `fs.statSync(p).mode & 0o777` on `config.json`, `state/*.json`, and `proposals/`. | `warn` if any world-readable (`mode & 0o004 ≠ 0`). |

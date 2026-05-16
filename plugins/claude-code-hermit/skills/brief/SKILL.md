@@ -17,7 +17,7 @@ If `config.always_on` is `true` and channels are configured, send all operator-f
 **Delivery:** After composing the brief, deliver it to the operator (see Always-On Delivery Rule above).
 
 Emphasize forward-looking content:
-- Read `.claude-code-hermit/cost-summary.md` for cost context. Include: "Yesterday: $X.XX across N sessions" from the trend table.
+- Read `.claude-code-hermit/cost-summary.md` for cost context. Include: "Yesterday: $X.XX (12.3K tokens) across N sessions" — read the Date, Cost, and Tokens columns from the trend table for yesterday's row.
 - Pending proposals needing review
 - OPERATOR.md priorities
 - If `config.always_on` is `true`: what happened overnight (activity since evening routine)
@@ -38,7 +38,7 @@ After composing the morning brief, check `state/micro-proposals.json → pending
 
 Emphasize backward-looking content:
 - Sessions completed today (scan S-NNN reports with today's date in frontmatter `date` field, or `## Summary` for pre-Observatory reports, plus current SHELL.md progress log)
-- Read `.claude-code-hermit/cost-summary.md` for today's cost. If the summary is stale (its frontmatter `updated` date is not today), the cost-tracker will regenerate it on the next interaction — use the trend table's today entry or fall back to scanning reports.
+- Read `.claude-code-hermit/cost-summary.md` for today's cost and token total. If the summary is stale (its frontmatter `updated` date is not today), the cost-tracker will regenerate it on the next interaction — use the trend table's today row (Cost and Tokens columns) or fall back to scanning reports.
 - Key findings or patterns noticed
 - What to look at tomorrow
 - After generating summary: if SHELL.md Status is `in_progress` or has progress entries since last report, note it in the brief (e.g., "Session still open — run /session-close to archive.") and let the operator close explicitly. Idle transitions are owned by the `session` skill and `session-mgr`; brief does not trigger them.
@@ -56,7 +56,7 @@ Current behavior — general purpose summary as described below.
      [Brief] YYYY-MM-DD | idle | N tasks completed
      Session: since [start date]
      Last: [latest Session Summary entry] — [status]
-     Cumulative: $X.XX across N tasks
+     Cumulative: $X.XX (12.3K tokens) across N tasks
      Status: Idle — ready for what's next
      ```
      Then check for auto-detected proposals (step after Output Format) and return.
@@ -71,7 +71,7 @@ Keep the output to 5 lines, plus an optional 6th line for pending proposals (see
 ```
 [Brief] YYYY-MM-DD | [tags if present]
 Working on: one-line description
-Status: completed/partial/blocked (X/Y tasks) | $cost spent
+Status: completed/partial/blocked (X/Y tasks) | $cost spent (12.3K tokens)
 Done: step1, step2, step3
 Next: description of next action (or "Session complete" if all done)
 ```

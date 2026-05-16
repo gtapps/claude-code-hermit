@@ -4,6 +4,7 @@ status: completed  # completed | partial | blocked
 date: YYYY-MM-DDTHH:MM:SS±HH:MM
 duration: ~Xh
 cost_usd: 0.00
+tokens: 0
 tags: []
 proposals_created: []
 task: "" # first non-comment line from ## Task, max 120 chars

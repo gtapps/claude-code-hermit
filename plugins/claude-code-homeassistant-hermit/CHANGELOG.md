@@ -4,11 +4,19 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ## [Unreleased]
 
+### Added
+
+- **`ha get-automation-config <id>` and `ha get-script-config <id>` CLI commands** — read a single automation or script config directly from HA's REST API (`GET /api/config/{domain}/config/{id}`) and print it as JSON. Useful for inspecting what HA holds before deciding whether to patch or delete. Returns exit code 1 with a structured JSON error on failure (including 400 "not found" and 403 YAML-mode responses). New `ReadResult` dataclass and `read_config()` function in `apply.py` back the command; the unsupported-domain error string is now shared via `_unsupported_domain_msg()`. New `tests/test_cli_get_config.py` covers the happy path, not-found, and YAML-mode 403 cases.
+
 ### Changed
 
 - **`ha-morning-brief` subsumes `brief --morning` for HA operators** — closes the duplicate-notification UX issue (#78) where operators with both plugins received two morning channel messages 30 min apart. `ha-morning-brief` now includes the micro-proposals lifecycle (read `state/micro-proposals.json`, follow-up at count 1, expire at count ≥ 2 with a `micro-resolved` event appended to `proposal-metrics.jsonl` in the same schema core's `append-metrics.js` writes — `ts`, `type`, `micro_id`, `action`, `question` — so `reflect` and `generate-summary.js` pick it up). Output format translated to English with an `Awaiting decision:` section (non-droppable, rendered above the 25-line cap). Routine id reference fixed (`morning` → `morning-brief`).
 - **`hatch` morning-brief routine now offers unified mode** — fresh installs are prompted to choose unified (08:30, enabled, fires in waiting state, disables core `morning` routine) or legacy (09:00, disabled). Re-hatch detects operators on the old schedule and offers an in-place upgrade. Custom configs are silently skipped.
 - **Skill output format translated to English** — all section headers and example strings in `ha-morning-brief` changed from Portuguese to English to match the rest of the plugin. The runtime language adapts to the operator's configured locale as before.
+
+### Fixed
+
+- **Backfilled `state-templates/CLAUDE-APPEND.md` with previously shipped CLI commands** (`list-automations`, `list-scripts`, `delete-automation`, `delete-script`, `integration-health`, `fetch-history`, `probe`) plus the two new `get-*-config` commands. Earlier releases added these CLI subcommands but never updated the template injected into target projects by `hatch`. Operators running `hermit-evolve` or fresh `hatch` will see CLAUDE.md grow by these listings on next sync.
 
 ### Upgrade Instructions
 

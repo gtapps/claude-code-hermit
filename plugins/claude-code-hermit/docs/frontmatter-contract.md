@@ -34,6 +34,7 @@ status: completed # completed | partial | blocked
 date: 2026-04-08T14:20:00+01:00
 duration: 1h 12m
 cost_usd: 0.42
+tokens: 152689
 tags: [cortex, obsidian]
 proposals_created: [PROP-011]
 task: "Add weekly review generation"
@@ -57,6 +58,12 @@ operator_turns: 0
 | `escalation`        | enum     | `conservative`, `balanced`, `autonomous` | From config.json                                                 |
 | `operator_turns`    | int      | —                                        | Count of human turns in session transcript                       |
 
+### Optional fields
+
+| Field    | Type | Description                                                                                                     |
+| -------- | ---- | --------------------------------------------------------------------------------------------------------------- |
+| `tokens` | int  | Cumulative token total for the session (input + cache_write + cache_read + output). Absent in legacy reports. When present, must be a non-negative number. |
+
 ### Field lifecycle
 
 | Field               | Writer              | When                                               |
@@ -66,6 +73,7 @@ operator_turns: 0
 | `date`              | `session-mgr` agent | Session close — session start timestamp            |
 | `duration`          | `session-mgr` agent | Session close — computed from timestamps           |
 | `cost_usd`          | `session-mgr` agent | Session close — parsed from Cost section           |
+| `tokens`            | `session-mgr` agent | Session close — read from `.status.json` `tokens`  |
 | `tags`              | `session-mgr` agent | Session close — split from SHELL.md Tags           |
 | `proposals_created` | `session-mgr` agent | Session close — scanned from Proposals section     |
 | `task`              | `session-mgr` agent | Session close — first line of Task section         |
@@ -152,7 +160,9 @@ proposals_created: 3
 proposals_accepted: 1
 proposals_resolved: 2
 total_cost_usd: 4.82
+total_tokens: 8234567
 avg_session_cost_usd: 0.40
+avg_session_tokens: 686214
 self_directed_rate: 0.75
 ---
 ```
@@ -172,7 +182,9 @@ self_directed_rate: 0.75
 | `proposals_accepted`   | int      | Proposals accepted this week                                            |
 | `proposals_resolved`   | int      | Proposals resolved this week                                            |
 | `total_cost_usd`       | float    | Sum of all session costs                                                |
+| `total_tokens`         | int      | Sum of all session token counts. Sourced from session `tokens` frontmatter when all sessions have it; falls back to `.claude/cost-log.jsonl` date-range scan otherwise. |
 | `avg_session_cost_usd` | float    | Mean cost per session                                                   |
+| `avg_session_tokens`   | int      | Mean token count per session                                            |
 | `self_directed_rate`   | float    | Fraction of sessions with `operator_turns=0`                            |
 
 All fields are required. All fields are written by a single script.

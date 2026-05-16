@@ -9,6 +9,7 @@ const { execFileSync } = require('child_process');
 
 const { globDir, readFrontmatter } = require('./lib/frontmatter');
 const { validate } = require('./validate-config');
+const { kStr } = require('./lib/format');
 
 const hermitDir = path.resolve(process.argv[2] || '.claude-code-hermit');
 const configPath = path.join(hermitDir, 'config.json');
@@ -129,6 +130,8 @@ function checkCost() {
 
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
     let todayTotal = 0;
+    let todayTokens = 0;
+    let todayCacheRead = 0;
     const lines = fs.readFileSync(costLog, 'utf8').split('\n');
     for (const line of lines) {
       if (!line.trim()) continue;
@@ -136,11 +139,13 @@ function checkCost() {
         const entry = JSON.parse(line);
         if (entry.timestamp && entry.timestamp.startsWith(today)) {
           todayTotal += entry.estimated_cost_usd || 0;
+          todayTokens += entry.total_tokens || 0;
+          todayCacheRead += entry.cache_read_tokens || 0;
         }
       } catch {}
     }
     const pct = Math.round((todayTotal / budget) * 100);
-    const detail = `today $${todayTotal.toFixed(4)} / $${budget.toFixed(2)} (${pct}% of idle_budget)`;
+    const detail = `today $${todayTotal.toFixed(4)} / $${budget.toFixed(2)} (${pct}% of idle_budget) · ${kStr(todayTokens)}K tokens, ${kStr(todayCacheRead)}K cached`;
     if (pct >= 100) return { id: 'cost', status: 'fail', detail };
     if (pct >= 80) return { id: 'cost', status: 'warn', detail };
     return { id: 'cost', status: 'ok', detail };

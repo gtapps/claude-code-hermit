@@ -15,8 +15,9 @@ Provide a compact summary of the current session state. Designed for channel res
    Session (idle) | started YYYY-MM-DD | N tasks completed
    Last: [latest Session Summary entry]
    Ready for work. Tell me what's next, or run /claude-code-hermit:session-start
-   Cost: $X.XX (cumulative)
+   Cost: $X.XX (12.3K tokens, cumulative)
    ```
+   Read `total_cost_usd` and `total_tokens` from `.claude-code-hermit/cost-summary.md` frontmatter for the cumulative figures.
    Return this output and stop — do not proceed to step 3.
 3. Parse the following fields from SHELL.md:
    - **ID** from `**ID:**` line
@@ -27,16 +28,16 @@ Provide a compact summary of the current session state. Designed for channel res
    - **Task progress** — call `TaskList` and count by status. Total = all tasks, completed = `completed` tasks.
    - **Current step** — first task with status `in_progress`
    - **Blockers** — content under `## Blockers` (if any non-comment content)
-   - **Cost** — content under `## Cost` (if any non-comment content)
+   - **Cost and tokens** — read `cost_usd` and `tokens` from `.claude-code-hermit/sessions/.status.json` (live per-session totals). Fall back to `0`/`0` if the file is missing.
 4. Format as a compact output (under 10 lines):
 
 ```
 Session S-NNN | in_progress | [tags if present]
 Working on: one-line summary
 Progress: X/Y tasks | Current: Step N - description
-Budget: $spent / $total (percentage%)
+Budget: $spent / $total (percentage%) · 12.3K tokens
 Blockers: none (or brief description)
-Cost: $X.XX (NNK tokens)
+Cost: $X.XX (12.3K tokens)
 ```
 
 - Omit the Budget line if no budget is set
