@@ -141,6 +141,7 @@ The CLAUDE-APPEND.md `§Implementation Flow` points to `/dev-quality` as the pre
 - [How to Use](docs/HOW-TO-USE.md)
 - [Recommended Plugins](docs/RECOMMENDED-PLUGINS.md)
 - [Task Workflow](docs/WORKFLOW.md)
+- [Gate 0 Override Protocol](docs/GATE-0-OVERRIDE.md)
 
 ---
 

@@ -55,6 +55,7 @@ If the project defines its own pre-PR validation (e.g. a custom test runner, CI 
 2. Commit.
 3. If you committed after `/dev-quality` ran and `commands.test` is configured, re-run it once — `/dev-pr` Gate 0 checks `last-test.json` against the current HEAD sha.
 4. Run `/claude-code-dev-hermit:dev-pr`. Gate 0 reads `last-test.json` and refuses if missing, on a stale sha, or with a non-pass status. Pass `--cwd <path>` if you used it for `/dev-quality` — the PR opens against the child repo's remote.
+5. If Gate 0 fails because `commands.test` has pre-existing failures on base (not introduced by your branch), use the audited override protocol — do not silently patch `last-test.json`. See `docs/GATE-0-OVERRIDE.md` in the dev-hermit plugin for the full protocol; every bypass must appear in the PR body so reviewers can see it.
 
 ## Technical Constraints
 

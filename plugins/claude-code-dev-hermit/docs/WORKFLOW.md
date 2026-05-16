@@ -75,6 +75,8 @@ Operator (or the agent on the operator's behalf) runs:
 
 Native session→PR auto-link: when using `gh pr create` on GitHub, Claude Code preserves session linking. The operator can resume this session later with `claude --from-pr <number>`. This feature is GitHub-specific.
 
+_Pre-existing test failures on base: see [Gate 0 Override Protocol](GATE-0-OVERRIDE.md)._
+
 ### Step 7 — Reflect
 
 At the task boundary, `reflect` (core hermit) runs to surface patterns — recurring blockers, cost trends, improvement ideas. These become proposals you can accept, defer, or dismiss. See CLAUDE-APPEND `§Dev Proposal Categories` for the prefix conventions.
