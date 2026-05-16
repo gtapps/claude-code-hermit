@@ -25,6 +25,7 @@ Emphasize forward-looking content:
 - What's queued (NEXT-TASK.md, open proposals)
 - If auto-memory seems sparse (new instance, fresh machine), read the latest S-NNN-REPORT.md for context recovery
 
+<!-- keep in sync with plugins/claude-code-homeassistant-hermit/skills/ha-morning-brief/SKILL.md step 9a — same MP lifecycle protocol -->
 After composing the morning brief, check `state/micro-proposals.json → pending` for entries with `status: "pending"`:
 - If **one or more** pending entries with `follow_up_count` of 0: append each as a final line: `MP-YYYYMMDD-N (tier N): [question]` — Reply `"MP-YYYYMMDD-N yes"` or `"MP-YYYYMMDD-N no"`. (Bare `yes`/`no` accepted when only one pending.)
 - For any entry with `follow_up_count` of 1: append with softer framing: "Still waiting on MP-YYYYMMDD-N: [question] — ignore again to drop it". Increment `follow_up_count` to 2.
