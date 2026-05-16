@@ -4,7 +4,7 @@
 
 ### Added
 
-- **`claude-code-dev-hermit.branch_managed_paths` — auto-stash for harness-managed dirty paths before branch creation.** `§Branch Discipline` step 1 now partitions `git status --porcelain` output: paths in the allowlist that appear as unstaged modifications (` M`) are stashed before checkout and restored after using `git restore --worktree --source=stash@{0}` (worktree-only — no staging, no three-way merge). Default allowlist: `[".claude/settings.json"]`. Set to `[]` to restore the original strict fail-closed behaviour. All other porcelain codes and paths outside the allowlist continue to fail closed. Resolves [#92](https://github.com/gtapps/claude-code-hermit/issues/92).
+- **`claude-code-dev-hermit.branch_managed_paths` — auto-stash for harness-managed dirty paths before branch creation.** `§Branch Discipline` step 1 now partitions `git status --porcelain` output: paths in the allowlist that appear as unstaged modifications (` M`) are stashed before checkout (under marker `branch-auto-pre-checkout`) and restored after using `git restore --worktree --source=stash@{0}` (worktree-only — no staging, no three-way merge). Default allowlist: `[".claude/settings.json"]`. Set to `[]` to restore the original strict fail-closed behaviour. All other porcelain codes and paths outside the allowlist continue to fail closed. If `git checkout -b` fails after a successful stash, the agent surfaces the stash ref instead of retrying, so the operator can restore manually. Resolves [#92](https://github.com/gtapps/claude-code-hermit/issues/92).
 
 ### Files affected
 

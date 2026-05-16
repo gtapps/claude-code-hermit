@@ -23,7 +23,7 @@ Before starting code changes:
    `claude-code-dev-hermit.branch_managed_paths` (array of path strings; default
    `[".claude/settings.json"]`; set to `[]` to restore strict fail-closed behavior):
    - Porcelain code ` M` and path in the allowlist → **managed dirt**. Stash it:
-     `git stash push -m "branch-auto-<slug>" -- <managed paths>`
+     `git stash push -m "branch-auto-pre-checkout" -- <managed paths>`
      If stash fails, stop and surface the error.
    - Everything else (untracked `??`, deleted, renamed, staged-add `A `, mixed-staged
      `MM`/`AM`, or path not in allowlist) → **unmanaged dirt**: stop, surface the diff,
@@ -32,6 +32,9 @@ Before starting code changes:
 2. Branch from the first entry of `claude-code-dev-hermit.protected_branches` (defaults
    to `main`). Use `git checkout -b <prefix>/<slug> origin/<base>` so the new branch
    tracks the latest remote.
+   If checkout fails after a successful stash in step 1, do not retry blindly: surface
+   the stash ref (`stash@{0}`, message `branch-auto-pre-checkout`) so the operator can
+   restore manually, then stop.
    If you stashed managed paths in step 1, restore them now — worktree only, no staging
    (do NOT use `git checkout stash@{0} -- ...`, which stages the file):
      `git restore --worktree --source=stash@{0} -- <managed paths>`
