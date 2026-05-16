@@ -141,7 +141,9 @@ Build the title and body inline, no helper script.
 
 2. **Context** — if `state/bindings.json` has `bindings[branch].external = { source, id, url, title }`, emit a `## Context` heading followed by a single line containing a markdown link. The link text is the bold-wrapped string `<source> <id>` (e.g. `**Linear PROJ-123**`), the link target is `url`, and the line ends with ` — <title>`. Concrete example for `{source: "Linear", id: "PROJ-123", url: "https://linear.app/...", title: "fix login redirect"}` produces a single line beginning with `**` then the bold-bracketed link then ` — fix login redirect`. If `external.title` is missing, drop the ` — <title>` suffix. If `external.url` is missing, skip the section entirely.
 
-3. **Verification** — read `state/last-test.json` (written by the `record-test-result` hook; Gate 0 step 3 already verified it exists, matches HEAD, and passed). Format:
+3. **Verification** — read `state/last-test.json` (written by the `record-test-result` hook; Gate 0 step 3 already verified it exists, matches HEAD, and passed).
+
+   **If `last-test.json.bypass` is absent**, render as:
 
    ```
    ## Verification
@@ -150,6 +152,21 @@ Build the title and body inline, no helper script.
    ```
 
    The duration is `last-test.json.duration_ms / 1000` rounded to one decimal (or `(unrecorded)` if `duration_ms` is null). Lint / typecheck / format runs may be added if `state/last-test.json` is later extended to record those (current implementation tracks only the test command). Never invent results.
+
+   **If `last-test.json.bypass` is present** (a future automated baseline writer populates this), render instead:
+
+   ```
+   ## Verification
+
+   - Tests: **audited override** (reason: <bypass.reason>)
+
+   ### Gate 0 Override
+
+   - base_sha: <bypass.base_sha>
+   - summary: <bypass.summary>
+   ```
+
+   Reproduce `bypass.reason`, `bypass.base_sha`, and `bypass.summary` verbatim from the JSON field.
 
 4. **Screenshots** — if `.claude-code-hermit/raw/screenshots/<binding-id>/manifest.json` exists, emit a `## Screenshots` heading followed by one bullet per manifest entry. Each bullet is a markdown image: a leading `- ` then `!`, then the alt text in square brackets (the `criterion` field), then the source in parentheses (the `path` field). The `binding-id` is `bindings[branch].external.id` if present, else `branch.replace(/\//g, '-')`. If `config.scope === 'local'` and any path isn't a `https://` URL, add a note line below the bullets: `_Note: screenshots in raw/ are gitignored under local scope — they will appear as broken images in the PR._`
 

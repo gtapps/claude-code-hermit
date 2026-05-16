@@ -4,6 +4,8 @@
 
 ### Changed
 
+- **`/dev-pr` Gate 2 renders a `### Gate 0 Override` audit section in the PR body when `state/last-test.json.bypass` is present.** No current writer; reserved for the planned `/dev-test --capture-baseline`. When the bypass field is absent, the Verification section renders as today (`Tests: **pass**`); when present, Gate 2 renders `Tests: **audited override** (reason: <bypass.reason>)` followed by a `### Gate 0 Override` block with `base_sha` and `summary` from the bypass field. Refs #91.
+
 - **Surface `/dev-pr` as the sanctioned push path in §Git Safety.** Both CLAUDE-APPEND templates and `docs/GIT-SAFETY.md` now end the "Never `git push`" rule with a pointer to `/claude-code-dev-hermit:dev-pr` as the operator-sanctioned alternative, and soften "The operator pushes" to "Stop and ask the operator." Resolves the discoverability gap where downstream LLMs offered manual-push workarounds instead of invoking the skill. `skills/dev-pr/SKILL.md` description updated with the inverse note. `tests/hatch-mode.test.js` drops the "no /dev-pr in safety template" assertion (no longer correct) and adds named positive assertions for both templates. `docs/WORKFLOW.md` updated to match the new voice. Closes PROP-027.
 
 ## [0.3.6] - 2026-05-13
