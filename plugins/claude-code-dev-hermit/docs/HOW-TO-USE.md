@@ -40,10 +40,26 @@ If `/feature-dev:feature-dev` is installed and the code path is unfamiliar (fram
 
 Per `§Branch Discipline` in the injected CLAUDE.md:
 
-1. Verify clean working tree (`git status --porcelain` empty).
+1. Verify clean working tree (`git status --porcelain`). Paths listed in
+   `claude-code-dev-hermit.branch_managed_paths` (default: `[".claude/settings.json"]`)
+   that show only as unstaged modifications (porcelain ` M`) are auto-stashed before
+   checkout and restored afterwards — worktree only, no staging. Everything else stops
+   the flow and asks the operator to commit or stash first.
 2. Branch from the first entry of `protected_branches` (defaults to `main`): `git checkout -b <prefix>/<slug> origin/<base>`.
 3. Name the branch `<prefix>/<slug>` where `prefix ∈ {feature, fix, chore, hotfix}`.
 4. Log the creation to `.claude-code-hermit/sessions/SHELL.md`.
+
+**Customising the managed-paths allowlist.** Add to `.claude-code-hermit/config.json`:
+
+```json
+"claude-code-dev-hermit": {
+  "branch_managed_paths": [".claude/settings.json", ".claude/settings.local.json"]
+}
+```
+
+Set `branch_managed_paths: []` to disable auto-stash entirely and restore the strict fail-closed behaviour.
+
+**Prefer gitignore?** If you never want `.claude/settings.json` tracked, add it to `.gitignore`. Claude Code reads it either way, and it will never appear in `git status --porcelain` again — no allowlist needed.
 
 Then write the code. The CLAUDE.md `§Git Safety` rules apply throughout: no push, no `--no-verify`, no commits to protected, no force-push. At strict hook profile, `git-push-guard` blocks the dangerous commands at `bash` time.
 

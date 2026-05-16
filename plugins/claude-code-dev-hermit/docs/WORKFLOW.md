@@ -25,7 +25,11 @@ If the code path is unfamiliar AND `/feature-dev:feature-dev` is installed, the 
 
 Per `§Branch Discipline`:
 
-1. `git status --porcelain` must be empty. If dirty: stop, surface the diff, let the operator commit/stash.
+1. `git status --porcelain` is checked for unmanaged dirt. Paths in `branch_managed_paths`
+   (default `[".claude/settings.json"]`) that are unstaged modifications (` M`) are
+   auto-stashed before checkout and restored after. Anything else — untracked, deleted,
+   renamed, staged, or not in the allowlist — stops the flow: surface the diff, let the
+   operator commit or stash first.
 2. Resolve base: first entry of `claude-code-dev-hermit.protected_branches` (defaults to `main`).
 3. `git checkout -b <prefix>/<slug> origin/<base>`.
 4. Slugify the description per the 5-step rules in CLAUDE-APPEND. Prefix detection: longest case-insensitive match of `hotfix|feature|fix|chore` at input start, else `feature`.

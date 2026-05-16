@@ -19,8 +19,25 @@ If the project's own CLAUDE.md or skills define a branch-naming convention (e.g.
 
 Before starting code changes:
 
-1. Verify clean working tree (`git status --porcelain` returns empty). If dirty, stop and surface the diff — let the operator commit or stash before proceeding.
-2. Branch from the first entry of `claude-code-dev-hermit.protected_branches` (defaults to `main`). Use `git checkout -b <prefix>/<slug> origin/<base>` so the new branch tracks the latest remote.
+1. Verify clean working tree (`git status --porcelain`). Partition lines against
+   `claude-code-dev-hermit.branch_managed_paths` (array of path strings; default
+   `[".claude/settings.json"]`; set to `[]` to restore strict fail-closed behavior):
+   - Porcelain code ` M` and path in the allowlist → **managed dirt**. Stash it:
+     `git stash push -m "branch-auto-<slug>" -- <managed paths>`
+     If stash fails, stop and surface the error.
+   - Everything else (untracked `??`, deleted, renamed, staged-add `A `, mixed-staged
+     `MM`/`AM`, or path not in allowlist) → **unmanaged dirt**: stop, surface the diff,
+     let the operator commit or stash before proceeding.
+
+2. Branch from the first entry of `claude-code-dev-hermit.protected_branches` (defaults
+   to `main`). Use `git checkout -b <prefix>/<slug> origin/<base>` so the new branch
+   tracks the latest remote.
+   If you stashed managed paths in step 1, restore them now — worktree only, no staging
+   (do NOT use `git checkout stash@{0} -- ...`, which stages the file):
+     `git restore --worktree --source=stash@{0} -- <managed paths>`
+     `git stash drop`
+   If restore fails, stop and surface the error. Append to SHELL.md Progress Log:
+     `[HH:MM] branch auto-restored N managed file(s): <list>`
 3. Name the branch `<prefix>/<slug>` where `prefix ∈ {feature, fix, chore, hotfix}`. Detect the prefix as the longest match of `hotfix|feature|fix|chore` at the start of the input (case-insensitive, treated as a word). Otherwise default to `feature`.
 4. Append a one-line entry to `.claude-code-hermit/sessions/SHELL.md` Progress Log: `[HH:MM] created branch <name> from <base>`.
 

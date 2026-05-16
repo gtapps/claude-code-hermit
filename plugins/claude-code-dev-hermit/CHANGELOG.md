@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`claude-code-dev-hermit.branch_managed_paths` — auto-stash for harness-managed dirty paths before branch creation.** `§Branch Discipline` step 1 now partitions `git status --porcelain` output: paths in the allowlist that appear as unstaged modifications (` M`) are stashed before checkout and restored after using `git restore --worktree --source=stash@{0}` (worktree-only — no staging, no three-way merge). Default allowlist: `[".claude/settings.json"]`. Set to `[]` to restore the original strict fail-closed behaviour. All other porcelain codes and paths outside the allowlist continue to fail closed. Resolves [#92](https://github.com/gtapps/claude-code-hermit/issues/92).
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/CLAUDE-APPEND.md` | §Branch Discipline steps 1–2 rewritten |
+| `state-templates/CLAUDE-APPEND-SAFETY.md` | Same rewrite (identical to standard template §Branch Discipline) |
+| `docs/HOW-TO-USE.md` | §2. Branch and implement updated; config key and gitignore alternative documented |
+| `docs/WORKFLOW.md` | Step 2 §Branch step 1 updated to reflect partition semantics |
+| `tests/hatch-mode.test.js` | Marker-presence asserts for `branch_managed_paths` and `git restore --worktree` in both templates |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill detects the version gap and re-injects the updated CLAUDE-APPEND block into the project's `CLAUDE.md`.
+
+No `config.json` changes required — the default allowlist is documented in the template prose and takes effect without an explicit key.
+
 ### Changed
 
 - **Surface `/dev-pr` as the sanctioned push path in §Git Safety.** Both CLAUDE-APPEND templates and `docs/GIT-SAFETY.md` now end the "Never `git push`" rule with a pointer to `/claude-code-dev-hermit:dev-pr` as the operator-sanctioned alternative, and soften "The operator pushes" to "Stop and ask the operator." Resolves the discoverability gap where downstream LLMs offered manual-push workarounds instead of invoking the skill. `skills/dev-pr/SKILL.md` description updated with the inverse note. `tests/hatch-mode.test.js` drops the "no /dev-pr in safety template" assertion (no longer correct) and adds named positive assertions for both templates. `docs/WORKFLOW.md` updated to match the new voice. Closes PROP-027.

@@ -45,6 +45,10 @@ if (fs.existsSync(SAFETY)) {
   ok('§Branch Discipline present', text.includes('## Branch Discipline'));
   ok('§Technical Constraints present', text.includes('## Technical Constraints'));
   ok('§Dev Proposal Categories present', text.includes('## Dev Proposal Categories'));
+
+  ok('safety: branch_managed_paths key mentioned', text.includes('branch_managed_paths'));
+  ok('safety: git restore --worktree restore primitive mentioned',
+    text.includes('git restore --worktree --source=stash@{0}'));
 }
 
 // ── Standard template preambles + required sections ─────────────────────────
@@ -63,6 +67,10 @@ if (fs.existsSync(STANDARD)) {
   ok('§Dev Proposal Categories present', text.includes('## Dev Proposal Categories'));
   ok('standard: §Git Safety push rule names /dev-pr',
     /Never `git push`[\s\S]{0,200}\/claude-code-dev-hermit:dev-pr/.test(text));
+
+  ok('standard: branch_managed_paths key mentioned', text.includes('branch_managed_paths'));
+  ok('standard: git restore --worktree restore primitive mentioned',
+    text.includes('git restore --worktree --source=stash@{0}'));
 
   // Each preamble ends with "fallback for projects without one" or "fallback."
   const branchSection = text.match(/## Branch Discipline[\s\S]*?## Implementation Flow/);
