@@ -52,11 +52,11 @@ Before appending any alert to SHELL.md Monitoring:
 Triggered when `total_ticks % 20 === 0` (read from `state/alert-state.json` after the precheck has already incremented the counter).
 
 1. Read `state/alert-state.json`.
-2. For each HEARTBEAT.md item: count alert lines for that item in the last 20 ticks. If zero → increment `clean_ticks` and update `sessions_seen` / `last_session_id`. If alert fired → reset `clean_ticks` to 0.
+2. For each HEARTBEAT.md item: count alert lines for that item in the last 20 ticks. If zero → increment `clean_ticks` and update `days_seen` / `last_day`. If alert fired → reset `clean_ticks` to 0.
 
-   **`sessions_seen`:** number of distinct session IDs (from SHELL.md `**ID:**`) during which this item was evaluated. Incremented only when the current session ID differs from `last_session_id`.
+   **`days_seen`:** number of distinct working days (UTC date stamps) during which this item was evaluated. Incremented only when today's date differs from `last_day`.
 
-   **Self-eval entry fields:** `text`, `clean_ticks`, `noise_ticks`, `sessions_seen`, `last_session_id`, `first_observed`, `proposed`.
+   **Self-eval entry fields:** `text`, `clean_ticks`, `noise_ticks`, `days_seen`, `last_day`, `first_observed`, `proposed`.
 
 2b. **Proposals scan (dismissal cleanup + noise tracking):** Scan `proposals/` for PROP-NNN files with `self_eval_key` in frontmatter. Apply in a single pass:
    - **Dismissal cleanup** (all items, every pass): if `source: auto-detected`, `status: dismissed`, and `proposed: true` → reset `proposed: false` and `clean_ticks` to 0.
@@ -65,8 +65,8 @@ Triggered when `total_ticks % 20 === 0` (read from `state/alert-state.json` afte
 3. **Checklist weight:** If HEARTBEAT.md has > 10 items: track in `self_eval` with text `"Checklist weight: {N} items"`.
 
 4. **Proposal threshold check:** For each `self_eval` entry where `proposed: false`:
-   - `clean_ticks >= 20` AND `sessions_seen >= 3` → propose via `/claude-code-hermit:proposal-create` (category: `capability`, `source: auto-detected`, `self_eval_key: <key>`, evidence: clean-for-N-ticks pattern).
-   - `noise_ticks >= 20` AND `sessions_seen >= 3` → propose (same path, noisy-alert pattern).
+   - `clean_ticks >= 20` AND `days_seen >= 3` → propose via `/claude-code-hermit:proposal-create` (category: `capability`, `source: auto-detected`, `self_eval_key: <key>`, evidence: clean-for-N-ticks pattern).
+   - `noise_ticks >= 20` AND `days_seen >= 3` → propose (same path, noisy-alert pattern).
    - Checklist weight violation: same threshold.
    - Set `proposed: true` after creating either proposal type.
 

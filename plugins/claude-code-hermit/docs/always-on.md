@@ -192,12 +192,12 @@ When Docker is running, the attach command is printed automatically.
 
 The entrypoint traps SIGTERM (sent by `docker compose down`, `docker stop`, or system shutdown). On signal:
 
-1. Checks if the session is already closed (skips if `hermit-docker down` already handled it)
-2. Sends `/session-close --shutdown` via tmux
-3. Waits up to 30s for the session to archive
-4. Exits cleanly
+1. Checks if shutdown already completed (`shutdown_completed_at >= shutdown_requested_at` in `runtime.json`) — skips if `hermit-docker down` already handled it.
+2. Sends `/done --shutdown` via tmux.
+3. Polls `runtime.json` up to 30s for `shutdown_completed_at` to advance past `shutdown_requested_at`.
+4. Exits cleanly.
 
-This means even a raw `docker compose down` (without `hermit-docker down`) will attempt to archive the session. Use `hermit-docker down` for the full 60s timeout and explicit feedback.
+This means even a raw `docker compose down` (without `hermit-docker down`) will attempt a graceful close. Use `hermit-docker down` for the full 60s timeout and explicit feedback.
 
 ## Crash Recovery
 

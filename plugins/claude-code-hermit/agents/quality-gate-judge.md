@@ -55,7 +55,6 @@ Filter out session-bookkeeping paths that the implementing LLM did not author as
 - `.claude-code-hermit/state/state-summary.md`
 - `.claude-code-hermit/state/*.jsonl` (metrics streams)
 - `.claude-code-hermit/HEARTBEAT.md` (operator-edited; not implementation)
-- `.claude-code-hermit/tasks-snapshot.md` (auto-generated)
 - `.claude-code-hermit/obsidian/Connections.md`, `.claude-code-hermit/obsidian/Latest Review.md`
 
 Any remaining paths are candidates for `/simplify` review.

@@ -14,10 +14,10 @@ A Claude Code plugin that turns any Claude Code instance into a self-improving p
  +-------------------------------|----------------------------------+
                                  |
  +-------------------------------v----------------------------------+
- |                    LAYER 2: SESSION LAYER                        |
- |   sessions/SHELL.md <-- live state                               |
- |   sessions/S-NNN-REPORT.md <-- archived handoff artifacts        |
- |   Lifecycle:  orient --> work --> done --> ready for next        |
+ |                    LAYER 2: FOCUS LAYER                          |
+ |   sessions/SHELL.md <-- live focus dashboard                     |
+ |   sessions/S-*-REPORT.md <-- pre-v1.1.0 archived artifacts (RO)  |
+ |   Lifecycle:  steer --> work --> done --> ready for next         |
  +-------------------------------|----------------------------------+
                                  |
  +-------------------------------v----------------------------------+
@@ -54,17 +54,17 @@ All channels converge on the same `sessions/SHELL.md`.
 
 ---
 
-## Layer 2: Session Layer
+## Layer 2: Focus Layer
 
-Sessions provide bounded, task-scoped work with durable handoff artifacts.
+Focus work runs against a persistent dashboard (`SHELL.md`). The hermit stays running between focus tasks — there is no "session" to start or end.
 
 ```
-START -> WORK -> CLOSE -> ARCHIVE
-  |       |       |        |
-  v       v       v        v
-Create   Update  Finalize  Copy to
-SHELL.md tasks,  status,   S-NNN-REPORT.md,
-         log     lessons   reset SHELL.md
+STEER -> WORK -> DONE -> READY FOR NEXT
+  |       |       |
+  v       v       v
+Set      Update   Append to Recent Activity,
+Focus    Progress clear Focus + Progress Log,
+         Log      compact persistent sections
 ```
 
 **Start:** `/steer` (or its `session-start` alias) loads OPERATOR.md + SHELL.md + runtime.json. Resumes if a focus is in flight; runs the dirty-shutdown recovery prompt if timestamps indicate an unclean exit. Calls `TaskList` to see plan steps.
@@ -138,7 +138,7 @@ claude-code-hermit/
 ```
 your-project/
 ├── .claude-code-hermit/
-│   ├── sessions/SHELL.md, S-NNN-REPORT.md
+│   ├── sessions/SHELL.md (live focus dashboard), S-*-REPORT.md (pre-v1.1.0 archives)
 │   ├── proposals/PROP-NNN.md
 │   ├── compiled/review-weekly-YYYY-Www.md  # Weekly review reports (weekly-review.js; type: review)
 │   ├── templates/
@@ -150,7 +150,7 @@ your-project/
 │   │   ├── proposal-metrics.jsonl    # Append-only event log (proposal-create + proposal-act)
 │   │   ├── micro-proposals.json      # Pending micro-approvals list (reflect + channel-responder)
 │   │   ├── state-summary.md          # Auto-generated health snapshot (generate-summary.js)
-│   │   ├── monitors.runtime.json     # Active watch registry, cleared on session start (watch-owned)
+│   │   ├── monitors.runtime.json     # Active watch registry, cleared on /steer or boot (watch-owned)
 │   │   ├── .heartbeat                # Activity marker (heartbeat-touch-owned)
 │   │   └── .lifecycle.lock           # Always-on lifecycle lock (hermit-start-owned)
 │   ├── bin/hermit-start, hermit-stop
@@ -176,7 +176,7 @@ One writer per state file. No shared mutation bus.
 | `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only)        | generate-summary.js                                           |
 | `state/micro-proposals.json`   | reflect (queue) + channel-responder/brief (resolve) | brief, generate-summary.js                                    |
 | `state/state-summary.md`       | generate-summary.js only                            | Obsidian, humans                                              |
-| `state/monitors.runtime.json`  | watch skill only                                    | session-start (clear on start), session-close (stop all)      |
+| `state/monitors.runtime.json`  | watch skill only                                    | /steer (clear on start), /done --shutdown (stop all)          |
 | `state/.heartbeat`             | heartbeat-touch.js only                             | heartbeat (detect activity gaps)                              |
 | `state/.lifecycle.lock`        | hermit-start.py only                                | hermit-stop.py (cleanup)                                      |
 
@@ -203,16 +203,18 @@ One writer per state file. No shared mutation bus.
 |  Visible in Cortex. Injected on startup.     |
 +----------------------------------------------+
 |  sessions/SHELL.md                           |
-|  Owner: Agent. Lifetime: one session.        |
-|  Task, plan, progress, blockers, findings.   |
+|  Owner: focus-mgr. Lifetime: persistent.     |
+|  Live focus dashboard: ## Focus,             |
+|  ## Progress Log, ## Recent Activity,        |
+|  ## Findings, ## Blockers, ## Monitoring.    |
 +----------------------------------------------+
-|  sessions/S-NNN-REPORT.md                    |
+|  sessions/S-*-REPORT.md (pre-v1.1.0)         |
 |  Owner: Agent. Lifetime: permanent.          |
-|  Archived journals. Cold-start safety net.   |
+|  Read-only archives. No new ones written.    |
 +----------------------------------------------+
 ```
 
-OPERATOR.md is human-curated — your hermit reads it but never modifies it. Auto-memory is Claude Code's built-in [persistent memory](https://code.claude.com/docs/en/sub-agents) and the primary input to learning. `compiled/` is for durable domain outputs the operator wants surfaced across sessions and in Cortex — distinct from auto-memory, which handles operational lessons. SHELL.md is the live working document. Reports are the journal and cold-start safety net — not the input to learning.
+OPERATOR.md is human-curated — your hermit reads it but never modifies it. Auto-memory is Claude Code's built-in [persistent memory](https://code.claude.com/docs/en/sub-agents) and the primary input to learning. `compiled/` is for durable domain outputs the operator wants surfaced across sessions and in Cortex — distinct from auto-memory, which handles operational lessons. SHELL.md is the live focus dashboard. Pre-v1.1.0 S-*-REPORT.md files remain in place as read-only archives.
 
 ### Knowledge directories
 

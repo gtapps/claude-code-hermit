@@ -3,8 +3,8 @@
 > Computed mindstate. What the hermit is uncertain about, what was recently resolved, what regressed, and how much it still leans on the operator.
 
 ## Current Focus
-<!-- Compact view of active task progress — not the full SHELL narrative -->
-![[.claude-code-hermit/tasks-snapshot]]
+<!-- Live focus dashboard — `## Focus` + `## Recent Activity` from SHELL.md -->
+![[.claude-code-hermit/sessions/SHELL]]
 
 ## Active Uncertainty
 <!-- Problems the hermit knows about but hasn't resolved yet -->

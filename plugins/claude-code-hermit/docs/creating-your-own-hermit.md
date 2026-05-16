@@ -106,10 +106,10 @@ When you're copying the same agents between projects, package them as a [Claude 
 
 ### How it layers on core
 
-Your hermit handles domain-specific work. Core handles session lifecycle.
+Your hermit handles domain-specific work. Core owns focus lifecycle and SHELL.md custody.
 
 ```
-/claude-code-hermit:session-start -> your domain workflow -> /claude-code-hermit:session-close
+/claude-code-hermit:steer -> your domain workflow -> /claude-code-hermit:done
 ```
 
 ### Required files
@@ -118,7 +118,7 @@ Your hermit handles domain-specific work. Core handles session lifecycle.
 | ------------------------------------- | ------------------------------------------------------------------ |
 | `skills/hatch/SKILL.md`               | Optional — setup/init skill. Checks core prerequisite, appends CLAUDE-APPEND.md, is idempotent |
 | `state-templates/CLAUDE-APPEND.md`    | Agent table, safety rules, quick reference — appended to CLAUDE.md |
-| `skills/domain-session/SKILL.md`      | Your main workflow, bookended with core's session lifecycle        |
+| `skills/<domain>-boot/SKILL.md`       | Optional — wraps `/claude-code-hermit:steer` plus domain setup if your hermit needs launch-time work |
 
 ### Hatch pattern (optional)
 
@@ -139,12 +139,12 @@ Otherwise: read and append CLAUDE-APPEND.md.
 
 ### Custom boot skill
 
-If your hermit needs to run domain-specific setup on every always-on launch (e.g. connectivity probe, context refresh, pulling a live snapshot), declare a boot skill and wire it via your plugin manifest. Core's `hermit-start.py` will fire it into the tmux REPL at boot instead of the default `/claude-code-hermit:session`.
+If your hermit needs to run domain-specific setup on every always-on launch (e.g. connectivity probe, context refresh, pulling a live snapshot), declare a boot skill and wire it via your plugin manifest. Core's `hermit-start.py` will fire it into the tmux REPL at boot instead of the default `/claude-code-hermit:steer`.
 
-1. **Write the boot skill** — a normal skill at `skills/<your>-boot/SKILL.md`. First line of the skill's plan must invoke core session init: `/claude-code-hermit:session-start`. After that, run your domain setup. Example from `claude-code-homeassistant-hermit`:
+1. **Write the boot skill** — a normal skill at `skills/<your>-boot/SKILL.md`. First line of the skill's plan must invoke core orientation: `/claude-code-hermit:steer`. After that, run your domain setup. Example from `claude-code-homeassistant-hermit`:
 
    ```markdown
-   1. Invoke /claude-code-hermit:session-start
+   1. Invoke /claude-code-hermit:steer
    2. Run ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status --probe
    3. If stale, refresh HA context
    ```
@@ -161,9 +161,9 @@ If your hermit needs to run domain-specific setup on every always-on launch (e.g
 
    Core's `hatch` reads `hermit.boot_skill` when the operator activates your hermit and writes it to the project's `config.json` as a top-level `boot_skill` field. `hermit-start.py` then substitutes it for the default bootstrap on every launch — local tmux and Docker alike.
 
-**Contract:** your boot skill owns the full bootstrap turn. Core does not call `session-start` before invoking it; your skill must. This keeps composition in the skill layer so core's boot script stays domain-agnostic.
+**Contract:** your boot skill owns the full bootstrap turn. Core does not call `steer` before invoking it; your skill must. This keeps composition in the skill layer so core's boot script stays domain-agnostic.
 
-**Opt-out:** omit `hermit.boot_skill` entirely if your hermit has no launch-time setup. Core's default bootstrap (`/claude-code-hermit:session`) runs instead.
+**Opt-out:** omit `hermit.boot_skill` entirely if your hermit has no launch-time setup. Core's default bootstrap (`/claude-code-hermit:steer`) runs instead.
 
 **Operator override:** operators can change or clear the boot skill via `/claude-code-hermit:hermit-settings boot-skill` — useful if they install multiple domain hermits and need to pick one, or want to temporarily disable domain bootstrap.
 

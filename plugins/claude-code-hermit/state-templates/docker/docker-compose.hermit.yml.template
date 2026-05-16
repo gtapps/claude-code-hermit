@@ -33,9 +33,9 @@ services:
     # Caps fork-bombs; 2048 covers npm install bursts (cgroup v2 counts threads as PIDs).
     pids_limit: 2048
     restart: unless-stopped
-    # Give the entrypoint's SIGTERM trap (30-iteration graceful session-close poll)
+    # Give the entrypoint's SIGTERM trap (30-iteration `/done --shutdown` poll)
     # time to finish before Docker escalates to SIGKILL. Default is 10s which is
-    # not enough for session-close to complete cleanly.
+    # not enough for the graceful close to complete.
     stop_grace_period: 60s
     healthcheck:
       test: ["CMD", "tmux", "has-session", "-t", "{{TMUX_SESSION_NAME}}"]

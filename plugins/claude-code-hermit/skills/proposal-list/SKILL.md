@@ -29,7 +29,7 @@ If the file does not start with `---` (pre-Observatory format), fall back to par
 
 ### 3. Calculate age
 
-Determine the current session number from the highest S-NNN-REPORT.md in `sessions/`. Calculate age as the difference between current session number and the session number in the proposal's `Session` field. Display as "N sessions ago".
+Compute age in days from the proposal's `Created:` (or frontmatter `created`) ISO timestamp to today (UTC). Display as "N days ago" (use "today" for 0, "yesterday" for 1). Pre-v1.1.0 proposals carry a legacy `Session:` field — keep it in the display column for context but do not use it for age.
 
 ### 4. Display as table
 

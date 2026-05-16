@@ -23,7 +23,7 @@ This skill is **silent by default**. Only notify the operator (per the channel p
    - `EMPTY` → the precheck found no due phases and no compute activity. It has already updated `reflection-state.json` and appended the mandatory Progress Log line to SHELL.md. Emit `reflect: no candidates` and stop.
    - `RUN|<phases-json>` → continue to step 2. The JSON object lists which phases are due (`cost_spike`, `resolution_check`, `compute`, `digest`, `newborn`). Skip evaluation sections for phases not listed — they are not due this run.
 2. Read SHELL.md for current context.
-3. Read last 20 lines of cost-log.jsonl. If `cost_spike` is listed in the phases JSON: compute today's total and the 7-day median. If today's total > 2× the 7-day median (and both are non-zero), record the spike to project memory as a sub-threshold observation with pattern `cost_spike: $X.XX vs 7d median $Y.YY` and today's session_id — it becomes input to later reflects and may graduate via the recurrence rule. If `cost_spike` is not listed, skip this read.
+3. Read last 20 lines of cost-log.jsonl. If `cost_spike` is listed in the phases JSON: compute today's total and the 7-day median. If today's total > 2× the 7-day median (and both are non-zero), record the spike to project memory as a sub-threshold observation with pattern `cost_spike: $X.XX vs 7d median $Y.YY` and today's date — it becomes input to later reflects and may graduate via the recurrence rule. If `cost_spike` is not listed, skip this read.
 4. **Compute phase** — gates adapt to hermit age so cold-start installs produce visible output without eroding mature-hermit rigor.
    - Read `counters.since` from `state/reflection-state.json` (set once at hatch, never rewritten). If missing or unparseable → default `$PHASE = adult` and continue. Never block.
    - `age_days` = whole days between `counters.since` and now.
@@ -92,7 +92,7 @@ Only create a proposal if all three are true:
 If any of the three cannot be stated concretely, do not create the proposal.
 Sub-threshold observations (interesting but failing the rule) are recorded to project memory so they can graduate on later recurrence — see the Outcomes section.
 
-If SHELL.md status is `idle` — think broader:
+If `runtime.session_state` is `idle` (no focus in flight) — think broader:
 - Should any recurring check be added to HEARTBEAT.md?
 - Is there a preference or constraint missing from OPERATOR.md?
 - Would a sub-agent improve a type of work that keeps coming up?
@@ -176,7 +176,7 @@ After reflecting and validating with `claude-code-hermit:reflection-judge`, choo
    - Tier 1/2: gate with `claude-code-hermit:proposal-triage` first (see below), then queue micro-approval in `state/micro-proposals.json`
    - Tier 3: gate with `claude-code-hermit:proposal-triage` first (see below), then call `/claude-code-hermit:proposal-create`
 
-Sub-threshold observations (interesting but failing the Three-Condition Rule — typically single-occurrence) do not surface to the operator in steady state. Record them to project memory with a short pattern label and today's session_id so they can graduate via recurrence on a later reflect. Do not generate observations for their own sake, and do not surface them before they graduate.
+Sub-threshold observations (interesting but failing the Three-Condition Rule — typically single-occurrence) do not surface to the operator in steady state. Record them to project memory with a short pattern label and today's date so they can graduate via recurrence on a later reflect. Do not generate observations for their own sake, and do not surface them before they graduate.
 
 Reflect-generated inferences (cost spikes, token-count shapes, timing patterns) **never** use bypass Evidence Sources (`scheduled-check/*` or `operator-request`). They remain sub-threshold observations recorded to project memory and graduate only by genuine recurrence across sessions, at which point they can be cited as `Evidence Source: archived-session` or `current-session` like any other session-grounded observation.
 

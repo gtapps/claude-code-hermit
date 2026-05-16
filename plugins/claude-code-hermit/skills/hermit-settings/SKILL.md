@@ -67,12 +67,13 @@ Operational:
   Quality gate:    budget         → budget | balanced | quality
   Permission mode: acceptEdits    → default | acceptEdits | auto | plan | dontAsk | bypassPermissions
   Auto session:    enabled        → read-only
-  Boot skill:      /claude-code-hermit:session  → any namespaced skill | 'none' to reset to default
+  Boot skill:      /claude-code-hermit:steer  → any namespaced skill | 'none' to reset to default
   tmux name:       hermit-myproject → read-only
 
 Compaction:
-  Monitoring:      compact at 30 lines, keep 20
-  Session Summary: compact at 30 lines, keep 15
+  Monitoring:       compact at 30 lines, keep 20
+  Recent Activity:  compact at 30 lines, keep 15
+  Progress Log:     compact at 50 lines, keep 25
   → run: /claude-code-hermit:hermit-settings compact
 
 Environment (env):
@@ -170,11 +171,11 @@ Update `ask_budget` in config.json.
   - Update `channels.<selected-channel>.morning_brief: { "enabled": true, "time": "<HH:MM>" }` in config.json. If no, set to `null`.
 
 **If argument is "boot-skill":**
-Ask: "Boot skill to invoke on always-on launch? This runs after heartbeat/routines when the tmux session starts. Domain hermits (e.g. `claude-code-homeassistant-hermit`) declare their own — `/claude-code-homeassistant-hermit:ha-boot`. Leave as `none` to use the default (`/claude-code-hermit:session`).
+Ask: "Boot skill to invoke on always-on launch? This runs after heartbeat/routines when the tmux session starts. Domain hermits (e.g. `claude-code-homeassistant-hermit`) declare their own — `/claude-code-homeassistant-hermit:ha-boot`. Leave as `none` to use the default (`/claude-code-hermit:steer`).
   <skill>  — any namespaced skill (e.g. `/claude-code-foo-hermit:foo-boot`)
-  none     — clear (falls back to `/claude-code-hermit:session`)
+  none     — clear (falls back to `/claude-code-hermit:steer`)
 [current: <value or 'default'>]"
-Update `boot_skill` in config.json. Set to `null` if operator says "none", "default", or "clear". The domain boot skill is responsible for calling `/claude-code-hermit:session-start` itself — this setting just controls the single bootstrap command `hermit-start.py` fires into the REPL.
+Update `boot_skill` in config.json. Set to `null` if operator says "none", "default", or "clear". The domain boot skill is responsible for calling `/claude-code-hermit:steer` itself — this setting just controls the single bootstrap command `hermit-start.py` fires into the REPL.
 Note: "Boot skill changes take effect on next `hermit-start` run."
 
 **If argument is "permissions":**
@@ -211,7 +212,7 @@ Update `permission_mode` in config.json.
     #  ID           Schedule       Skill                                Status
     1. morning      30 8 * * *     claude-code-hermit:brief --morning    enabled
     2. evening      30 22 * * *    claude-code-hermit:brief --evening    enabled
-    3. weekly-deps  0 9 * * 1      claude-code-hermit:session-start ...  disabled
+    3. weekly-deps  0 9 * * 1      claude-code-hermit:steer 'deps audit' disabled
 
   (or "No routines configured" if empty)
   ```

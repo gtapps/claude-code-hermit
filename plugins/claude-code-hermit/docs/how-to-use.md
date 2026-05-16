@@ -52,25 +52,25 @@ The whole file is loaded on session start — write what matters, keep it short.
 
 ---
 
-## Your First Session
+## Your First Focus
 
 ```
-/claude-code-hermit:session
+/claude-code-hermit:steer
 ```
 
-Tell it what you need, add optional tags (e.g., `feature, api`), and an optional budget. Hermit proposes a plan, creates native Tasks for each step, and waits for your go-ahead. As it works, `SHELL.md` tracks the narrative — progress log, blockers, findings — while Tasks tracks the plan steps. Cost is tracked separately in `.status.json` and injected into context at session start.
+Tell it what to work on (or pass a positional focus text like `/steer add input validation`), add optional tags (e.g., `feature, api`), and an optional budget. Hermit proposes a plan, creates native Tasks for each step, and waits for your go-ahead. As it works, `SHELL.md` tracks the narrative — `## Focus`, `## Progress Log`, `## Findings` — while Tasks tracks the plan steps. Cost is tracked separately in `.status.json` and injected at boot.
 
 Check status anytime — just type "status":
 
 ```
-Session S-001 | in_progress | feature, api
-Working on: Add input validation to the API endpoints
+in_progress | feature, api
+Focus: Add input validation to the API endpoints
 Progress: 2/4 tasks | Current: Step 3 - Add request body validation
 Budget: $1.80 / $5.00 (36%)
 Blockers: none
 ```
 
-When it finishes, it archives the report and says "What's next?" — tell it what's next and keep going. Cumulative cost and session history carry forward. Run `/session-close` when you're actually done.
+When it finishes, it appends a line to `## Recent Activity`, clears `## Focus`, and waits for the next focus. Tell it what's next and keep going. Run `/done --shutdown` when you want to stop the daemon entirely.
 
 ---
 
@@ -251,7 +251,7 @@ Most common actions auto-trigger from natural language — just say what you mea
 
 | Category       | Skills                                                             |
 | -------------- | ------------------------------------------------------------------ |
-| **Session**    | `session`, `session-start`, `session-close`                        |
+| **Focus**      | `steer`, `done`                                                    |
 | **Status**     | `pulse`, `brief`                                                   |
 | **Monitoring** | `watch`, `heartbeat`                                               |
 | **Learning**   | `proposal-create`, `proposal-list`, `proposal-act`, `reflect`      |

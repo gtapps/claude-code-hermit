@@ -141,7 +141,7 @@ If the list is non-empty:
 - Present the candidates and ask: "Activate a hermit for this project?"
 - If the operator selects one: record the full entry from `detected_hermits` as `activated_hermit` (carries `plugin`, `id`, `marketplace_name`, `installPath`).
   - Read `<activated_hermit.installPath>/state-templates/CLAUDE-APPEND.md` and append it to the target project's CLAUDE.md (after the core append in step 5).
-  - Read `<activated_hermit.installPath>/.claude-plugin/plugin.json`: if it declares a `hermit.boot_skill` field (e.g. `"/claude-code-homeassistant-hermit:ha-boot"`), record it for step 5 to write as `boot_skill` in `config.json`. This replaces the default `/claude-code-hermit:session` bootstrap so the domain hermit's custom boot logic fires on every always-on launch. If the field is absent, leave `boot_skill` unset (core behavior).
+  - Read `<activated_hermit.installPath>/.claude-plugin/plugin.json`: if it declares a `hermit.boot_skill` field (e.g. `"/claude-code-homeassistant-hermit:ha-boot"`), record it for step 5 to write as `boot_skill` in `config.json`. This replaces the default `/claude-code-hermit:steer` bootstrap so the domain hermit's custom boot logic fires on every always-on launch. If the field is absent, leave `boot_skill` unset (core behavior).
 - If the list is empty or the operator declines: skip.
 
 ### 4. Setup wizard
@@ -405,7 +405,7 @@ Set `CLAUDE_CODE_TASK_LIST_ID` in `.claude/settings.local.json` so native Claude
 3. Merge `CLAUDE_CODE_TASK_LIST_ID` into the `env` block (preserve all existing keys)
 4. Write back to `.claude/settings.local.json`
 
-This enables native Tasks for plan tracking. The cost-tracker hook reads task files from `~/.claude/tasks/{task_list_id}/` to generate `tasks-snapshot.md`.
+This enables native Tasks for plan tracking. The cost-tracker hook reads task files from `~/.claude/tasks/{task_list_id}/`.
 
 ### 5a. OPERATOR.md onboarding
 
@@ -803,10 +803,10 @@ After Step 10 prints the standard report, output the next slash command on its o
 | Docker | any | `/claude-code-hermit:docker-setup quick` |
 | tmux | configured | First print boot command `.claude-code-hermit/bin/hermit-start`, then `/claude-code-hermit:channel-setup` |
 | tmux | none | Print boot command `.claude-code-hermit/bin/hermit-start` (no skill chain) |
-| Interactive | configured | `/claude-code-hermit:channel-setup`, then `/claude-code-hermit:session` |
-| Interactive | none | `/claude-code-hermit:session` |
+| Interactive | configured | `/claude-code-hermit:channel-setup`, then `/claude-code-hermit:steer` |
+| Interactive | none | `/claude-code-hermit:steer` |
 
-The `quick` positional arg passed to `docker-setup` tells it to skip its setup-mode gate and run Quick directly (same `quick` arg the operator can use manually). For chained skills with no `quick` arg (channel-setup, session), they run their normal interactive flows.
+The `quick` positional arg passed to `docker-setup` tells it to skip its setup-mode gate and run Quick directly (same `quick` arg the operator can use manually). For chained skills with no `quick` arg (channel-setup, steer), they run their normal interactive flows.
 
 **Operator can interrupt** before the chained skill executes by hitting Esc — at which point they can re-run any of the printed slash commands later.
 
@@ -855,7 +855,7 @@ Next steps:
   Pick how you'll run hermit:
     A. Docker always-on (recommended)   /claude-code-hermit:docker-setup
     B. tmux always-on (host)            .claude-code-hermit/bin/hermit-start
-    C. Interactive — try it now         /claude-code-hermit:session
+    C. Interactive — try it now         /claude-code-hermit:steer
 
   After picking:
     - /reload-plugins                       load newly installed plugins in this session

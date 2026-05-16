@@ -2,30 +2,31 @@
 
 <!-- claude-code-hermit: Session Discipline -->
 
-## Session Discipline (claude-code-hermit)
+## Focus Discipline (claude-code-hermit)
 
-- On startup, check `.claude-code-hermit/sessions/SHELL.md`
-- If active (`in_progress`/`waiting`): resume — read task, check plan via `TaskList`, check blockers
-- If `idle`: ask what to help with
-- If none: ask what to help with
-- Use `/claude-code-hermit:session-start` and `/claude-code-hermit:session-close`
+- On startup, read `.claude-code-hermit/sessions/SHELL.md` (live focus dashboard) and `.claude-code-hermit/state/runtime.json` (lifecycle state).
+- Lifecycle is tracked in `runtime.session_state` ∈ {`idle`, `in_progress`, `waiting`}. SHELL.md has no `Status:` field: `## Focus` describes the current work, `## Recent Activity` is the rolling log.
+- If `## Focus` has non-placeholder content: resume — check `## Progress Log`, check `## Findings` for blockers, call `TaskList` for in-flight work.
+- Otherwise: ask what to work on.
+- Use `/claude-code-hermit:steer` to set or pivot focus, `/claude-code-hermit:done` to clear it (`/done --shutdown` for graceful daemon stop).
 
 ## Agent State
 
 | Path                       | Contents                                                        |
 | -------------------------- | --------------------------------------------------------------- |
-| `sessions/SHELL.md`        | Live working document                                           |
-| `sessions/S-NNN-REPORT.md` | Archived reports                                                |
-| `proposals/PROP-NNN-<slug>-HHMMSS.md` | Improvement proposals                                           |
+| `sessions/SHELL.md`        | Live focus dashboard (`## Focus` + `## Recent Activity`)        |
+| `sessions/S-NNN-REPORT.md` | Pre-v1.1.0 archived reports (read-only historical artifacts)    |
+| `proposals/PROP-NNN-<slug>-HHMMSS.md` | Improvement proposals                                |
+| `state/runtime.json`       | Lifecycle truth (`session_state`, shutdown timestamps, idle_task) |
 | `state/`                   | Runtime state (alert dedup, reflection, routine queue, metrics) |
-| `state/monitors.runtime.json` | Active watch registry — cleared on each session start       |
+| `state/monitors.runtime.json` | Active watch registry — cleared on `/steer` or boot          |
 | `OPERATOR.md`              | Human-curated context — draft changes, confirm before writing |
 
 ## Subagents
 
-- `focus-mgr` (Sonnet) — session lifecycle (open, archive, idle transitions)
+- `focus-mgr` (Sonnet) — SHELL.md custody: compaction, Recent Activity writes, recovery prompt orchestration, v1.1.0 migration helper
 - `proposal-triage` (Haiku) — pre-creation gate: deduplicates proposals and applies the three-condition rule before queuing
-- `reflection-judge` (Sonnet) — post-reflect validator: verifies cross-session evidence citations exist before proposals are queued
+- `reflection-judge` (Sonnet) — post-reflect validator: verifies evidence citations (SHELL.md `## Recent Activity` or pre-v1.1.0 S-NNN-REPORT.md content) actually exist before proposals are queued
 - `hermit-config-validator` (Haiku) — lightweight config.json validator: checks required keys, types, routine times, channel structure, env naming. Use after hermit-settings, hermit-evolve, or any config mutation.
 - `quality-gate-judge` (Haiku) — decides whether `/simplify` should run at step (e.5) of `/proposal-act` accept flow; reads proposal body + touched files, returns RUN/SKIP verdict. Only invoked when `quality_gate.tier: "balanced"`.
 
@@ -48,7 +49,7 @@ Rules:
 
 ## Quick Reference
 
-`/session-start` `/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/watch` `/reflect` `/reflect-scheduled-checks` `/hermit-routines` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/capability-brainstorm` `/hermit-evolve` `/channel-setup` `/channel-responder` `/docker-setup` `/docker-security` `/hermit-takeover` `/hermit-hand-back` `/hatch` `/smoke-test` `/obsidian-setup` `/cortex-refresh` `/cortex-sync` `/weekly-review` `/migrate` `/knowledge` `/hermit-doctor`
+`/steer` `/done` `/pulse` `/brief` `/heartbeat` `/watch` `/reflect` `/reflect-scheduled-checks` `/hermit-routines` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/capability-brainstorm` `/hermit-evolve` `/channel-setup` `/channel-responder` `/docker-setup` `/docker-security` `/hermit-takeover` `/hermit-hand-back` `/hatch` `/smoke-test` `/obsidian-setup` `/cortex-refresh` `/cortex-sync` `/weekly-review` `/migrate` `/knowledge` `/hermit-doctor`
 (All prefixed with `/claude-code-hermit:`)
 
 ## Operator Notification
@@ -69,10 +70,10 @@ When you need to notify the operator proactively:
 
 Auto-memory handles all learning. `compiled/` is for durable domain outputs and records the operator may want surfaced across sessions and in Cortex. Don't duplicate lessons into `compiled/`.
 
-**Memory-first for suggestions.** Before any skill or subagent declares a finding novel — `brief`, `reflect`, `weekly-review`, `proposal-create`, `session-start`, and the `proposal-triage` / `reflection-judge` subagents — consult auto-memory first and suppress the suggestion if memory already covers the same operator decision, preference, or pattern. This applies only to suggestion-generating paths; skills acting on a decided intent (`session-close`, `proposal-act`, `hermit-routines`, `hatch`) are exempt — they execute, not suggest. When memory covers the candidate, suppress with the canonical code `covered-by-memory` and quote the matching memory line.
+**Memory-first for suggestions.** Before any skill or subagent declares a finding novel — `brief`, `reflect`, `weekly-review`, `proposal-create`, `steer`, and the `proposal-triage` / `reflection-judge` subagents — consult auto-memory first and suppress the suggestion if memory already covers the same operator decision, preference, or pattern. This applies only to suggestion-generating paths; skills acting on a decided intent (`done`, `proposal-act`, `hermit-routines`, `hatch`) are exempt — they execute, not suggest. When memory covers the candidate, suppress with the canonical code `covered-by-memory` and quote the matching memory line.
 
 - Domain inputs go to `raw/<type>-<slug>-<date>.md` with frontmatter (`title`, `type`, `created`, `tags` required).
-- Domain outputs go to `compiled/<type>-<slug>-<date>.md` with frontmatter. Max 150 lines, self-contained. Add `session: S-NNN` when inside a session. Cite source in frontmatter (`source: raw/<type>-<slug>-<date>.md`).
+- Domain outputs go to `compiled/<type>-<slug>-<date>.md` with frontmatter. Max 150 lines, self-contained. Cite source in frontmatter (`source: raw/<type>-<slug>-<date>.md`).
 - **`type` in frontmatter is the discriminator — never a folder.** Do not create subdirectories inside `raw/` or `compiled/`, and do not create new top-level directories inside `.claude-code-hermit/` (e.g. `audits/`, `reports/`, `reviews/`, `memory/`, `tmp/`). Artifacts outside `raw/` and `compiled/` are invisible to session injection and retention.
 - On session start: scan `compiled/` for recent and foundational artifacts likely to be useful. If two compiled artifacts share a `type`, the newest wins.
 - On recurring routines that produce domain output: write to `compiled/` instead of ad-hoc paths. Consult `knowledge-schema.md` for what this hermit produces and in what format.
@@ -83,9 +84,9 @@ Auto-memory handles all learning. `compiled/` is for durable domain outputs and 
 
 - **Rate limits:** Log pause/resume in Progress Log. Never silently stall.
 - **Self-awareness:** If stuck — say so, log it, alert via channel. Don't push through silently.
-- **Secrets:** Never log API keys, tokens, passwords, or credentials to SHELL.md, reports, or proposals. Session files may be committed to git.
+- **Secrets:** Never log API keys, tokens, passwords, or credentials to SHELL.md, proposals, or compiled artifacts. These files may be committed to git.
 - **OPERATOR.md:** Never edit autonomously. If you notice stale or contradictory context, draft the minimal change, show a diff, and apply only after the operator confirms. In always-on mode, flag it via channel instead — the operator edits directly.
 - **Proposals mandatory:** Every improvement goes through `/proposal-create` → operator accepts → implement. Trivial fixes (typos, one-liners) exempt.
-- **Tasks:** Use `TaskCreate`/`TaskUpdate` for multi-step work. `tasks-snapshot.md` is auto-generated — don't edit.
-- **Artifact frontmatter:** Any `.md` file you create outside `.claude-code-hermit/` must include YAML frontmatter with at least `title` (string) and `created` (ISO 8601 with timezone). If inside a hermit session, add `session: S-NNN`. Optionally add `proposal`, `source` (`session` | `interactive` | `routine` | `manual`), and `tags` (array of strings). Files without frontmatter appear as "Unlinked" in the Cortex. Full contract: `docs/frontmatter-contract.md`.
-- **Tag discipline:** Add `tags` to every session report, proposal, and artifact you create. Before tagging, scan the last 5 session reports and proposals for the existing vocabulary and reuse — introduce new tags only when nothing fits. Keep tags lowercase and hyphenated (1–2 per document).
+- **Tasks:** Use `TaskCreate`/`TaskUpdate` for multi-step work.
+- **Artifact frontmatter:** Any `.md` file you create outside `.claude-code-hermit/` must include YAML frontmatter with at least `title` (string) and `created` (ISO 8601 with timezone). Optionally add `proposal`, `source` (`interactive` | `routine` | `manual`), and `tags` (array of strings). Files without frontmatter appear as "Unlinked" in the Cortex. Full contract: `docs/frontmatter-contract.md`.
+- **Tag discipline:** Add `tags` to every proposal and artifact you create. Before tagging, scan recent proposals and `compiled/` artifacts for the existing vocabulary and reuse — introduce new tags only when nothing fits. Keep tags lowercase and hyphenated (1–2 per document).

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Contract tests for /steer and /done skills (PROP-031, v1.1.0).
 # Verifies SKILL.md content invariants — no LLM execution needed.
-# Usage: bash tests/test-done-orient-skills.sh
+# Usage: bash tests/test-done-steer-skills.sh
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -63,5 +63,13 @@ run_test "focus-mgr describes Recent Activity write" grep -qi "Recent Activity" 
 run_test "focus-mgr describes compaction" grep -qi "compact" "$FOCUS_MGR"
 run_test "focus-mgr describes migration helper" grep -qi "migration\|v1.1.0" "$FOCUS_MGR"
 run_test "session-mgr agent removed" bash -c "[ ! -f '$REPO_ROOT/agents/session-mgr.md' ]"
+
+# -------------------------------------------------------
+# hermit-start.py bootstrap defaults
+# -------------------------------------------------------
+HERMIT_START="$REPO_ROOT/scripts/hermit-start.py"
+run_test "hermit-start.py default boot_skill is /steer (not the retired /session alias)" bash -c \
+  "grep -q \"or '/claude-code-hermit:steer'\" '$HERMIT_START' && \
+   ! grep -q \"or '/claude-code-hermit:session'\" '$HERMIT_START'"
 
 print_results

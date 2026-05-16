@@ -4,13 +4,14 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 
 ---
 
-## Session Lifecycle
+## Focus Lifecycle
 
-| Skill           | What it does                                                                                                                                             | Auto-triggers                                                   |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `session`       | Full workflow: start, work, close. The main entry point.                                                                                                 | --                                                              |
-| `session-start` | Picks up where you left off, or starts fresh. Loads context and checks for queued work from accepted proposals.                                          | --                                                              |
-| `session-close` | Finalizes the session, runs a quality checklist, archives the report. Always a full shutdown — idle transitions happen automatically when work finishes. | "I'm done", "wrap it up", "that's it for now", "done for today" |
+| Skill   | What it does                                                                                                                                                          | Auto-triggers                                                                              |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `steer` | Loads operator context, runs dirty-shutdown recovery if needed, sets `## Focus` from a positional `<focus text>` argument, or asks what to work on.                   | "let's start", "good morning", "what's on deck", "let's tackle X", "I'm starting on X"     |
+| `done`  | Clears the current focus, appends a one-line entry to `## Recent Activity`, compacts persistent SHELL.md sections. `/done --shutdown` signals a graceful daemon stop. | "I'm done", "wrap it up", "that's it for now", "ready for next", "close the session"      |
+
+`/session-start`, `/session`, `/session-close` are v1.1.0 backwards-compat alias shims that forward to `/steer` / `/done` with a one-line deprecation note. They retire in v1.2.0.
 
 ## Status & Reporting
 

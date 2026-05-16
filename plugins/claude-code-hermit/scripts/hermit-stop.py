@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Graceful shutdown for hermit autonomous sessions.
 
-Sends /session-close --shutdown to the running Claude instance before
-killing the tmux session, ensuring a clean session report is generated.
+Sends /done --shutdown to the running Claude instance and polls runtime.json
+for shutdown_completed_at >= shutdown_requested_at before killing the tmux
+session.
 
 Usage:
     python scripts/hermit-stop.py              # graceful shutdown

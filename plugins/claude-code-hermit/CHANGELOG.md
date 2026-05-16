@@ -26,7 +26,14 @@ Retires the bounded-session model in favor of a live-focus dashboard. Implements
 
 - **`/done --shutdown`** flag: graceful stop signal via `shutdown_requested_at` timestamp. The hermit-stop.py wait loop and docker entrypoint detect it.
 - **Daily `.status.json` counter reset (interim).** `/steer` resets `cost_usd`, `tokens`, `operator_turns` to 0 once per day (operator timezone), gated by `last_counter_reset`. Replaces the per-session reset that retired with the session model. PROP-036 will redesign properly.
-- **New tests:** `test-backwards-compat.sh` (retired-field tolerance, optional `session` field), `test-done-orient-skills.sh` (skill contract for `/steer`, `/done`, alias shims, `focus-mgr`), `test-timestamp-compat.sh` (UTC-Z lexical compare).
+- **New tests:** `test-backwards-compat.sh` (retired-field tolerance, optional `session` field), `test-done-steer-skills.sh` (skill contract for `/steer`, `/done`, alias shims, `focus-mgr`, plus `hermit-start.py` boot_skill default), `test-timestamp-compat.sh` (UTC-Z lexical compare).
+
+### Fixed
+
+- **`hermit-start.py` default `boot_skill` was the retired `/session` alias.** The bootstrap path in always-on mode therefore ran `/done` (the alias's target) on every boot, clearing `## Focus` and bypassing `/steer`'s dirty-shutdown recovery prompt. Default now resolves to `/claude-code-hermit:steer`. Operators with `boot_skill: null` in `config.json` get the correct boot on next `hermit-start` run.
+- **`state-templates/CLAUDE-APPEND.md` rewritten** to describe the live-focus dashboard model, the 3-value `session_state` enum, and `/steer` / `/done` as the canonical commands. The block ships into operator projects via `/hatch` and is re-synced by `/hermit-evolve` step 6 — pre-fix operators upgrading would have received a `CLAUDE.md` that contradicted the new model.
+- **Doc / script sweep for retired terminology.** `hermit-stop.py` docstring, `reflect/SKILL.md` (`SHELL.md status` → `runtime.session_state`), `watch/SKILL.md`, `hermit-settings/SKILL.md` (boot-skill default + compaction display), `hatch/SKILL.md` (boot wiring + Next Steps), `proposal-list/SKILL.md` (age computed from `created` instead of S-NNN counter), `quality-gate-judge.md` (drop `tasks-snapshot.md` filter), `reflection-judge.md` (description now mentions Recent Activity as primary evidence), `docker-setup/SKILL.md`, `skills.md`, `architecture.md`, `config-reference.md`, `troubleshooting.md`, `faq.md`, `creating-your-own-hermit.md`, `always-on.md`, `always-on-ops.md`, `how-to-use.md`, `Cortex.md.template`, `docker-compose.hermit.yml.template`.
+- **`heartbeat/reference.md` self-eval recurrence threshold** moved from `sessions_seen` (counted distinct SHELL.md `**ID:**` values, retired) to `days_seen` (distinct UTC dates). Same intent (pattern observed across N working units) without depending on the retired session counter.
 
 ### Removed
 

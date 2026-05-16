@@ -522,10 +522,10 @@ def main():
     hb_enabled = hb.get('enabled', False)
     has_routines = bool(config.get('routines'))
     # Domain hermits (e.g. homeassistant-hermit) declare a boot_skill that
-    # wraps /claude-code-hermit:session-start plus their own domain setup.
-    # When set, it replaces the core session skill in the bootstrap — the
-    # domain skill is responsible for calling session-start itself.
-    boot_skill = config.get('boot_skill') or '/claude-code-hermit:session'
+    # wraps /claude-code-hermit:steer plus their own domain setup.
+    # When set, it replaces the core boot skill in the bootstrap — the
+    # domain skill is responsible for calling steer itself.
+    boot_skill = config.get('boot_skill') or '/claude-code-hermit:steer'
 
     steps = []
     if hb_enabled:

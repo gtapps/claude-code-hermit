@@ -25,10 +25,10 @@ cd /path/to/your/project
 .claude-code-hermit/bin/hermit-start
 ```
 
-This reads `config.json`, starts a tmux session with your configured channels and permissions, and auto-runs `/claude-code-hermit:session`. To stop:
+This reads `config.json`, starts a tmux session with your configured channels and permissions, and auto-runs `/claude-code-hermit:steer` (or the `boot_skill` override). To stop:
 
 ```bash
-.claude-code-hermit/bin/hermit-stop        # graceful (sends /session-close first)
+.claude-code-hermit/bin/hermit-stop        # graceful (sends /done --shutdown first)
 .claude-code-hermit/bin/hermit-stop --force # immediate kill
 ```
 
@@ -122,7 +122,7 @@ Your hermit reflects on its own memory — not archived reports. Reflection trig
 If routines are configured (default after init or upgrade):
 
 - **Morning routine** — `brief --morning` at configured time (default: active hours start + 30m): generates a brief, reviews pending proposals, checks priorities. Framing adapts to `always_on` setting.
-- **Evening routine** — `brief --evening` at configured time (default: active hours end - 30m): summarizes the day's work, archives via session-close, flags tomorrow's priorities.
+- **Evening routine** — `brief --evening` at configured time (default: active hours end - 30m): summarizes the day's work and flags tomorrow's priorities.
 
 Both fire via per-session CronCreate jobs registered by `/claude-code-hermit:hermit-routines`. Configure with `/claude-code-hermit:hermit-settings routines`.
 
@@ -137,12 +137,12 @@ When idle and `idle_behavior` is `"discover"` (set via `/hermit-settings idle`),
 
 ### Edge cases
 
-- **Crash during work:** SHELL.md persists. On restart, offers to resume.
-- **Crash during idle:** SHELL.md persists as `idle`. Asks what to work on next.
-- **Crash during waiting:** SHELL.md persists as `waiting`. On restart, re-enters waiting state and checks for operator response.
+- **Crash during work:** SHELL.md persists with `## Focus` populated. `/steer` detects the unclean exit (via `shutdown_requested_at` without matching `shutdown_completed_at`, or a dead tmux session) and prompts (1) drop and start fresh or (2) resume.
+- **Crash during idle:** SHELL.md persists with `## Focus` empty. `/steer` asks what to work on next.
+- **Crash during waiting:** `runtime.session_state` stays `waiting`. On restart, the recovery prompt re-fires and channel-responder routes the next `1`/`2` reply via the SHELL.md `<!-- pending-recovery: ... -->` marker.
 - **hermit-start when already running:** Prints guidance, exits.
-- **Operator takeover:** If SHELL.md status is `operator_takeover`, the hermit asks what happened during takeover and checks for NEXT-TASK.md instructions.
-- **Docker SIGTERM:** The entrypoint traps SIGTERM and attempts a graceful session close (30s timeout) before the container exits. Sessions are archived even on raw `docker compose down`.
+- **Operator takeover:** When triggered via `/hermit-takeover`, focus context loads into the operator's local Claude Code; on `/hermit-hand-back`, control returns to the daemon.
+- **Docker SIGTERM:** The entrypoint traps SIGTERM and sends `/done --shutdown`, then polls `runtime.json` timestamps up to 30s before the container exits.
 
 ---
 
@@ -224,8 +224,8 @@ All state is in `sessions/SHELL.md` on disk. A disconnect loses conversation con
 
 1. Run `hermit-status` to check current state (includes the tmux attach command for Docker)
 2. Reattach to tmux, start Claude Code
-3. SessionStart hook loads OPERATOR.md, SHELL.md, latest report
-4. `session-start` presents current work, progress, blockers. On the very first session after hatch, it may offer a one-time baseline audit — the prompt and audit summary are routed via channel in always-on mode.
+3. SessionStart hook loads OPERATOR.md and SHELL.md
+4. `/steer` presents the current `## Focus`, recent activity, and any blockers. If the previous run didn't shut down cleanly, it prompts (1) drop and start fresh or (2) resume. On the very first run after hatch, it may offer a one-time baseline audit — routed via channel in always-on mode.
 5. Confirm resume or start fresh
 
 ---

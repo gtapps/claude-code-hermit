@@ -504,7 +504,7 @@ Tell the operator (set expectations — this step takes ~30-60s and otherwise lo
 
 Then run, in sequence:
 
-1. `.claude-code-hermit/bin/hermit-docker down` — sends `/session-close --shutdown` via tmux and polls for graceful close up to 60s before removing the container. If it prints "Timed out waiting for graceful close; forcing stop", flag it in the final summary (session that witnessed setup didn't close cleanly — not blocking but worth noting).
+1. `.claude-code-hermit/bin/hermit-docker down` — sends `/done --shutdown` via tmux and polls for graceful close up to 60s before removing the container. If it prints "Timed out waiting for graceful close; forcing stop", flag it in the final summary (the daemon that witnessed setup didn't close cleanly — not blocking but worth noting).
 
 2. `docker compose -f docker-compose.hermit.yml up -d` — recreates the container. Do **not** use `hermit-docker up` here for the same LLM-misleading-echo reason as step 8. Docker's named volume preserves credentials, plugins, workspace trust. Bind-mounts preserve `.claude.local/channels/<plugin>/access.json` and `.claude-code-hermit/`.
 
@@ -512,7 +512,7 @@ Then run, in sequence:
 
 Why this step exists: mid-setup, claude REPL starts before plugins are fully enabled and channel pairing completes. The session it was running is a "bootstrap session" full of setup chatter. A clean restart gives the operator a first *real* session with correctly-loaded plugins, fresh tmux state, and no config-time noise.
 
-Why not `hermit-docker restart`: Docker's default stop_grace_period is 10s, which is shorter than the entrypoint's 30-iteration session-close poll — SIGKILL can land mid-close. (We raised `stop_grace_period` to 60s in the compose template, so `restart` is now also safe in principle, but `down+up` gives a recreated container which is stronger: clears ephemeral container-layer state and re-runs the entrypoint from a clean slate.)
+Why not `hermit-docker restart`: Docker's default stop_grace_period is 10s, which is shorter than the entrypoint's 30-iteration `/done --shutdown` poll — SIGKILL can land mid-close. (We raised `stop_grace_period` to 60s in the compose template, so `restart` is now also safe in principle, but `down+up` gives a recreated container which is stronger: clears ephemeral container-layer state and re-runs the entrypoint from a clean slate.)
 
 ### 9. Verify
 

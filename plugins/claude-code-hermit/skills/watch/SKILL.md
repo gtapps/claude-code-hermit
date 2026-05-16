@@ -51,8 +51,8 @@ them for decisions. Start/stop decisions read from the runtime registry.
 ### Starting an ad-hoc watch
 
 1. Parse instruction + optional interval from operator message. Default interval: 5m.
-2. Verify active session exists (`.claude-code-hermit/sessions/SHELL.md` must exist).
-   If none: "No active session. Run `/claude-code-hermit:session` first."
+2. Verify SHELL.md exists (`.claude-code-hermit/sessions/SHELL.md`).
+   If none: "No SHELL.md found. Run `/claude-code-hermit:hatch` first, then `/claude-code-hermit:steer`."
 3. Generate id: `adhoc-<epoch>-<4char-random>` (e.g., `adhoc-1744460400-a3f2`).
    Timestamp + random suffix avoids collisions across sessions.
 4. Determine command shape:
@@ -146,7 +146,7 @@ harmless. The next session start clears the registry unconditionally.
 - **Config hot-reload:** Config watches do NOT hot-reload during a session.
   Changes to `config.json` monitors only apply at the next session start
   or after a manual `/watch stop <id>` + `/watch start`.
-- On `/session-close`: session-close stops all watches before archiving. The
+- On `/done --shutdown`: stop all watches before signaling shutdown. The
   registry is cleared.
-- On session start: the registry is cleared unconditionally before registering
-  config watches. Monitors are session-scoped.
+- On `/steer` (and boot): the registry is cleared unconditionally before
+  registering config watches. Monitors are scoped to the running daemon.
