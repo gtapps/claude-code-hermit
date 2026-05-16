@@ -58,13 +58,13 @@ Before doing any work, read `.claude-code-hermit/state/runtime.json` if it exist
    - Check if `.claude-code-hermit/sessions/NEXT-TASK.md` exists (queued task)
    - Read `.claude-code-hermit/cost-summary.md` if it exists — include yesterday's cost
 
-<!-- keep in sync with plugins/claude-code-hermit/skills/brief/SKILL.md:28-32 — same MP lifecycle protocol -->
+<!-- keep in sync with plugins/claude-code-hermit/skills/brief/SKILL.md — same MP lifecycle protocol -->
 9a. **Micro-proposals lifecycle** — Read `.claude-code-hermit/state/micro-proposals.json`. If the `pending` array is non-empty:
-   - Each entry with `follow_up_count` of 0: include in `Pending decisions:` output (see Output Format). Do not mutate.
-   - Each entry with `follow_up_count` of 1: include in `Pending decisions:` with softer framing: "Still waiting on MP-YYYYMMDD-N: [question] — ignore again to drop it". Increment `follow_up_count` to 2.
-   - Each entry with `follow_up_count` >= 2: read `question` first, set `status: "expired"`, remove from `pending`. Append to `.claude-code-hermit/state/proposal-metrics.jsonl` using Python (avoids JSON injection from question text):
+   - Each entry with `follow_up_count` of 0: include in `Awaiting decision:` output (see Output Format). Do not mutate.
+   - Each entry with `follow_up_count` of 1: include in `Awaiting decision:` with softer framing: "Still waiting on MP-YYYYMMDD-N: [question] (ignore again to drop it)". Increment `follow_up_count` to 2.
+   - Each entry with `follow_up_count` >= 2: capture `id` and `question` first, set `status: "expired"`, remove from `pending`. Append to `.claude-code-hermit/state/proposal-metrics.jsonl` using Python (avoids JSON injection from question text). Schema matches core's `append-metrics.js`: `ts`, `type`, `micro_id`, `action`, `question`:
      ```bash
-     python3 -c "import json,sys; print(json.dumps({'event':'micro-resolved','action':'expired','question':sys.argv[1],'timestamp':sys.argv[2]}))" -- "<question>" "<ISO8601>" >> .claude-code-hermit/state/proposal-metrics.jsonl
+     python3 -c "import json,sys; print(json.dumps({'ts':sys.argv[1],'type':'micro-resolved','micro_id':sys.argv[2],'action':'expired','question':sys.argv[3]}))" "<ISO8601>" "<id>" "<question>" >> .claude-code-hermit/state/proposal-metrics.jsonl
      ```
      (Core's `append-metrics.js` is unreachable from HA's `${CLAUDE_PLUGIN_ROOT}` — write directly.)
    - If `pending` is empty: skip this step entirely.
@@ -105,9 +105,9 @@ Alerts:
 Pending:
 - [proposals, queued tasks, or "Nothing pending"]
 
-Pending decisions:
+Awaiting decision:
 - [follow_up_count 0: "MP-YYYYMMDD-N (tier N): [question] — Reply `MP-YYYYMMDD-N yes` or `MP-YYYYMMDD-N no`"]
-- [follow_up_count 1: "Still waiting on MP-YYYYMMDD-N: [question] — ignore again to drop it"]
+- [follow_up_count 1: "Still waiting on MP-YYYYMMDD-N: [question] (ignore again to drop it)"]
 - [Omit section entirely when no pending entries (count 0 or 1).]
 
 Cost:
@@ -117,7 +117,7 @@ Today's priorities:
 - [from OPERATOR.md Current Priority, filtered to actionable items]
 ```
 
-Adapt the greeting and section headers to the operator's configured language. Keep the entire brief under 25 lines — strip lower-priority lines (e.g., Cost when no spike) if the Overnight section pushes over the cap. **`Pending decisions:` lines are final and non-droppable** — strip from `Energy`, `Cost`, and `Today's priorities` before touching MP lines.
+Adapt the greeting and section headers to the operator's configured language. Keep the entire brief under 25 lines — strip lower-priority lines (e.g., Cost when no spike) if the Overnight section pushes over the cap. **`Awaiting decision:` lines are final and non-droppable** — strip from `Energy`, `Cost`, and `Today's priorities` before touching MP lines.
 
 ## Delivery
 
