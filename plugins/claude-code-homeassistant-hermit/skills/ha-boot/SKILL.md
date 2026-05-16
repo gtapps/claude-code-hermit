@@ -16,7 +16,7 @@ This skill is the single entry point for this project — it also initializes th
 
 ## Steps
 
-0. **Hermit session**: Invoke the `/claude-code-hermit:session-start` skill first to start or resume a hermit session. This ensures session discipline is active before any HA work begins. If it errors (e.g. core hermit not initialized), stop and tell the operator to run `/claude-code-homeassistant-hermit:hatch`.
+0. **Steer the hermit**: Invoke `/claude-code-hermit:steer` first to load operator context, run dirty-shutdown recovery if needed, and orient the hermit. If it errors (e.g. core hermit not initialized), stop and tell the operator to run `/claude-code-homeassistant-hermit:hatch`.
 
 1. Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status --probe` and present the result.
 2. Read `.claude-code-hermit/OPERATOR.md` for the stored language (in the `## HA hermit` section). All user-facing output should use this locale.

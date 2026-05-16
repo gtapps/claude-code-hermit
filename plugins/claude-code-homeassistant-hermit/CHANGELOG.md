@@ -2,6 +2,12 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Fixed
+
+- **Migrate to core's live-focus skills (`/steer`, `/done`).** `ha-boot/SKILL.md` step 0 now invokes `/claude-code-hermit:steer` directly instead of the v1.1.0 alias `/claude-code-hermit:session-start`. `ha-morning-brief/SKILL.md` drops the retired `session: <session_id from runtime.json>` line from the brief's frontmatter (PROP-031 removed `session_id` from `runtime.json` in core v1.1.0; the field was about to start emitting `null`) and shortens the SHELL.md `## Monitoring` subsection name from `### Artifacts produced this session` to `### Artifacts` since there is no longer a session boundary that "produces" anything. The `state-templates/CLAUDE-APPEND.md` Entry Flow points operators at `/steer` and `/done` instead of the alias names. The aliases still work today via core's shim layer but retire in core v1.2.0; migrating now decouples this hermit from the deprecation window.
+
 ## [0.1.3] - 2026-05-14
 
 ### Added

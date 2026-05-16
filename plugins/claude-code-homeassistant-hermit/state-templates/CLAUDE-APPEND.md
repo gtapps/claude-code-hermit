@@ -16,9 +16,9 @@ This project has the `claude-code-homeassistant-hermit` plugin installed. The ru
 
 ### Entry Flow
 
-1. `/claude-code-homeassistant-hermit:ha-boot` — starts hermit session + checks HA connectivity, context freshness, locale
+1. `/claude-code-homeassistant-hermit:ha-boot` — orients the hermit (via `/claude-code-hermit:steer`) and checks HA connectivity, context freshness, locale
 2. Work using skills and subagents (below)
-3. `/claude-code-hermit:session-close` — archive session with structured report
+3. `/claude-code-hermit:done` — clear the focus (or `/done --shutdown` to stop the daemon)
 
 ### Skills
 
