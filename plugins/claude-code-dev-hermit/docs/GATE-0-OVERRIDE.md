@@ -24,6 +24,16 @@ The `bypass` block you write into `last-test.json` is erased by the next test ru
 
 ---
 
+## Nested-repo flow (`--cwd`)
+
+If you invoke `/dev-pr --cwd <path>` (parent has a nested git repo at `<path>`: true submodule, Composer path package, npm/pnpm workspace, vendored dep edited in place), every git command in the steps below must target the child repo. Prefix `git` with `-C "<path>"` (e.g. `git -C "<path>" checkout <base>`, `git -C "<path>" rev-parse <base>`) and run `commands.test` inside `<path>`. See `skills/dev-pr/SKILL.md:27-33` for the full `--cwd` contract.
+
+The `.claude-code-hermit/state/last-test.json` path stays parent-scoped (single state store across parent and any nested children). Only the SHA captured into `bypass.base_sha` (Step 3) must come from the child repo.
+
+The bash blocks in the steps below show the no-`--cwd` form. Substitute `git -C "<path>"` for `git` when `--cwd` is set.
+
+---
+
 ## Protocol
 
 **Step 1 — Confirm failures are pre-existing on base.**
@@ -38,8 +48,6 @@ git checkout -              # return to your feature branch
 ```
 
 If `<base>` isn't a local branch (common on fresh worktrees that only have the feature branch checked out), create a tracking branch first: `git checkout -t origin/<base>`.
-
-If using `/dev-pr --cwd <path>` (nested-repo flow): use `git -C "<path>" checkout <base>` and run `commands.test` inside the nested repo. See `SKILL.md:27-29` for the full `--cwd` contract.
 
 **Step 2 — Diff the summaries.**
 
@@ -71,8 +79,6 @@ jq \
 ```
 
 `<base>` is the same base branch resolution as Step 1. `<summary>` is a one-line description operators and reviewers will read — e.g. `"3 TS2304 errors in DiscoverAiSearch*.test.tsx (missing @testing-library/react types)"`.
-
-If using `/dev-pr --cwd <path>` (nested-repo flow): the `last-test.json` path stays parent-scoped (single state store per SKILL.md:29), but the SHA must come from the child repo. Use `BASE_SHA=$(git -C "<path>" rev-parse <base>)` instead.
 
 **Step 4 — Run `/dev-pr` immediately.**
 
