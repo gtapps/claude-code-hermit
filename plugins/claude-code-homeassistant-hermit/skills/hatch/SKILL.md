@@ -170,12 +170,23 @@ The skill name format is `/<plugin-id>:<skill-id>`. Parse the plugin-id as the t
    {"id": "daily-ha-context", "schedule": "30 8 * * *", "skill": "claude-code-homeassistant-hermit:ha-refresh-context", "enabled": true, "run_during_waiting": false}
    ```
 
-2. **Morning brief** — "Add morning house brief routine (09:00 every day)? Delivers a live house summary at start of day. Disabled by default — enable after setup is complete."
-   ```json
-   {"id": "morning-brief", "schedule": "0 9 * * *", "skill": "claude-code-homeassistant-hermit:ha-morning-brief", "enabled": false, "run_during_waiting": false}
-   ```
+2. **Morning brief** — three paths based on the current `config.routines` state:
 
-After adding any new entries, remind the operator: "Run `/claude-code-hermit:hermit-routines load` to activate routines in the current session."
+   **Fresh install** (no entry with `id: "morning-brief"` exists): prompt — "Add morning house brief routine? Delivers a unified morning summary combining house state and hermit context."
+   - If yes: follow-up — "Use unified mode (08:30, fires in waiting state, replaces core `morning` routine)? Recommended for always-on setups."
+     - Unified yes: merge `{"id": "morning-brief", "schedule": "30 8 * * *", "skill": "claude-code-homeassistant-hermit:ha-morning-brief", "enabled": true, "run_during_waiting": true}`. If `config.routines` contains an entry with `id: "morning"` and `enabled: true`, set its `enabled` to `false` and emit: "Disabled core `morning` routine — `morning-brief` subsumes it."
+     - Unified no (legacy): merge `{"id": "morning-brief", "schedule": "0 9 * * *", "skill": "claude-code-homeassistant-hermit:ha-morning-brief", "enabled": false, "run_during_waiting": false}`.
+   - If no: skip.
+
+   **Re-hatch upgrade** (entry with `id: "morning-brief"` exists but has `schedule: "0 9 * * *"` OR `run_during_waiting: false`): prompt — "Your `morning-brief` routine uses the old schedule (09:00, not firing during waiting). Upgrade to unified mode (08:30, always-on)?"
+   - If yes: update in-place to `schedule: "30 8 * * *"`, `enabled: true`, `run_during_waiting: true`. Then disable core `morning` if present and enabled (same logic as fresh install unified path).
+   - If no: leave unchanged.
+
+   **Already current** (entry exists with `schedule: "30 8 * * *"` and `run_during_waiting: true`): skip (no-op, report "config is current — check `enabled` flag if the routine isn't firing").
+
+   **Non-standard config** (entry exists but matches none of the above conditions — e.g. custom schedule): skip (no-op, report "non-standard `morning-brief` config detected — skipping upgrade prompt").
+
+After adding or updating any entries, remind the operator: "Run `/claude-code-hermit:hermit-routines load` to activate routines in the current session."
 
 **Scheduled checks registration**: `config.scheduled_checks` is an array of periodic skill entries that the `scheduled-checks` routine (via `reflect-scheduled-checks`) invokes on a cadence and funnels through the proposal pipeline. For each entry below, check whether an existing record has the same `id`. If not, append it — no prompt needed, all three are safe read-only analyses.
 

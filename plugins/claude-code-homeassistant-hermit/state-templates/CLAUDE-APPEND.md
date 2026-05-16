@@ -90,6 +90,6 @@ Requires `.env` at the project root (gitignored):
 
 ### Routines
 
-HA routines (`daily-ha-context`, `morning-brief`) are registered by `hatch`. Run `/claude-code-hermit:hermit-routines load` once per interactive session to activate them. `morning-brief` is disabled by default — flip `enabled: true` in `config.json` once the house profile is confirmed.
+HA routines (`daily-ha-context`, `morning-brief`) are registered by `hatch`. Run `/claude-code-hermit:hermit-routines load` once per interactive session to activate them. In unified mode (chosen at hatch), `morning-brief` subsumes the core `morning` routine, which is disabled automatically. In legacy mode, `morning-brief` is disabled — flip `enabled: true` in `config.json` once the house profile is confirmed.
 
 <!-- /claude-code-homeassistant-hermit: Home Assistant Workflow -->
