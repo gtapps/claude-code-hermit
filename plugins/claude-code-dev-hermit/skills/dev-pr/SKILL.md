@@ -171,6 +171,8 @@ Build the title and body inline, no helper script.
 
    Reproduce `bypass.reason`, `bypass.base_sha`, and `bypass.summary` verbatim from the JSON field. This section is the audit record visible to reviewers; never omit it when the bypass field is present.
 
+   The `"pre-existing base failures"` suffix on the `Tests:` line mirrors the only allowed `bypass.reason` value (`"pre-existing-base-failures"`) from the closed enum in `docs/GATE-0-OVERRIDE.md`. If that enum changes, update this suffix in lockstep or the verification line will lie.
+
 4. **Screenshots** — if `.claude-code-hermit/raw/screenshots/<binding-id>/manifest.json` exists, emit a `## Screenshots` heading followed by one bullet per manifest entry. Each bullet is a markdown image: a leading `- ` then `!`, then the alt text in square brackets (the `criterion` field), then the source in parentheses (the `path` field). The `binding-id` is `bindings[branch].external.id` if present, else `branch.replace(/\//g, '-')`. If `config.scope === 'local'` and any path isn't a `https://` URL, add a note line below the bullets: `_Note: screenshots in raw/ are gitignored under local scope — they will appear as broken images in the PR._`
 
 5. **Notes** — optional. Skip unless the operator passed in qualitative concerns through Gate 2 (out-of-scope follow-ups, known limitations) — there is no automatic source for this section.

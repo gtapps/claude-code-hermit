@@ -37,6 +37,8 @@ git checkout <base>         # use the same base as /dev-pr's resolution (pr_base
 git checkout -              # return to your feature branch
 ```
 
+If `<base>` isn't a local branch (common on fresh worktrees that only have the feature branch checked out), create a tracking branch first: `git checkout -t origin/<base>`.
+
 If using `/dev-pr --cwd <path>` (nested-repo flow): use `git -C "<path>" checkout <base>` and run `commands.test` inside the nested repo. See `SKILL.md:27-29` for the full `--cwd` contract.
 
 **Step 2 — Diff the summaries.**
@@ -69,6 +71,8 @@ jq \
 ```
 
 `<base>` is the same base branch resolution as Step 1. `<summary>` is a one-line description operators and reviewers will read — e.g. `"3 TS2304 errors in DiscoverAiSearch*.test.tsx (missing @testing-library/react types)"`.
+
+If using `/dev-pr --cwd <path>` (nested-repo flow): the `last-test.json` path stays parent-scoped (single state store per SKILL.md:29), but the SHA must come from the child repo. Use `BASE_SHA=$(git -C "<path>" rev-parse <base>)` instead.
 
 **Step 4 — Run `/dev-pr` immediately.**
 
@@ -104,7 +108,7 @@ When the bypass is in place, the `## Verification` section in the PR body reads:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `reason` | string | Always `"pre-existing-base-failures"` for this protocol. |
+| `reason` | string | Closed enum. Only allowed value: `"pre-existing-base-failures"`. Extending it requires a lockstep update to Gate 2's verification suffix in `skills/dev-pr/SKILL.md`. |
 | `base_sha` | string | Full SHA of the base branch HEAD when you confirmed the failures. |
 | `summary` | string | One-line human-readable description of what the pre-existing failures are. |
 
@@ -122,5 +126,3 @@ When the bypass is in place, the `## Verification` section in the PR body reads:
 ## Next iteration
 
 A future version of this plugin will ship a count-based baseline (`/dev-test --capture-baseline`) that automates Step 1-2: run once on base, store the failure count, and let Gate 0 compare branch-count vs baseline-count instead of requiring absolute pass. When that ships, this manual override becomes the fallback for edge cases the baseline can't cover.
-
-Operator preference on record: the `--capture-baseline` flow should automate base checkout via `git stash` + `git checkout <base>` + run + restore (not require the operator to manage the checkout manually).
