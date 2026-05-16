@@ -42,16 +42,11 @@ run_test "/done references focus-mgr (not session-mgr)" bash -c \
   "grep -q 'claude-code-hermit:focus-mgr' '$DONE_SKILL' && ! grep -q 'claude-code-hermit:session-mgr' '$DONE_SKILL'"
 
 # -------------------------------------------------------
-# Alias shims
+# Shim skills must NOT exist (removed pre-v1.1.0 release)
 # -------------------------------------------------------
-SESSION_START="$REPO_ROOT/skills/session-start/SKILL.md"
-SESSION_CLOSE="$REPO_ROOT/skills/session-close/SKILL.md"
-SESSION="$REPO_ROOT/skills/session/SKILL.md"
-
-run_test "session-start shim invokes /steer" grep -q "claude-code-hermit:steer" "$SESSION_START"
-run_test "session-start shim mentions deprecation" grep -qi "renamed\|alias\|backwards-compat" "$SESSION_START"
-run_test "session-close shim invokes /done --shutdown" grep -q "claude-code-hermit:done --shutdown" "$SESSION_CLOSE"
-run_test "session shim invokes /done" grep -q "claude-code-hermit:done" "$SESSION"
+run_test "session-start skill removed" bash -c "[ ! -e '$REPO_ROOT/skills/session-start' ]"
+run_test "session-close skill removed" bash -c "[ ! -e '$REPO_ROOT/skills/session-close' ]"
+run_test "session skill removed" bash -c "[ ! -e '$REPO_ROOT/skills/session' ]"
 
 # -------------------------------------------------------
 # focus-mgr agent

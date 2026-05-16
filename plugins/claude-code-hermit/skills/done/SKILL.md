@@ -1,6 +1,6 @@
 ---
 name: done
-description: Clears the current focus and prepares the hermit for the next one. Appends a one-line entry to Recent Activity, clears Focus + Progress Log + Findings, compacts SHELL.md per config, marks idle-task complete if applicable. With `--shutdown`, signals the graceful-stop path. Replaces /session-close and /session. Activates on messages like "I'm done", "wrap it up", "that's it for now", "ready for next".
+description: Clears the current focus and prepares the hermit for the next one. Appends a one-line entry to Recent Activity, clears Focus + Progress Log + Findings, compacts SHELL.md per config, marks idle-task complete if applicable. With `--shutdown`, signals the graceful-stop path. Activates on messages like "I'm done", "wrap it up", "that's it for now", "ready for next".
 ---
 # Done
 

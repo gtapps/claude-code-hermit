@@ -157,7 +157,7 @@ Sessions: <S-001, S-002, ...> (or "none")
 
 `Evidence Source:` defaults to `archived-session` if omitted. Plugin-check candidates use `Evidence Source: scheduled-check/<id>` with `Sessions: none`. Newborn Tier-1 candidates from live SHELL.md evidence use `Evidence Source: current-session` with `Sessions: current`.
 
-`scheduled-check/<id>` and `operator-request` share the same bypass policy at every gate (skip recurrence, enforce consequence + actionability). They are **kept distinct on purpose**: `scheduled-check/<id>` carries the check identifier for telemetry and debugging; `operator-request` marks human-initiated flows (e.g. baseline audits in `session-start`). Future routing (e.g. KAIROS) will read them as different provenance classes. Do not collapse them into one value.
+`scheduled-check/<id>` and `operator-request` share the same bypass policy at every gate (skip recurrence, enforce consequence + actionability). They are **kept distinct on purpose**: `scheduled-check/<id>` carries the check identifier for telemetry and debugging; `operator-request` marks human-initiated flows (e.g. baseline audits in `/steer`). Future routing (e.g. KAIROS) will read them as different provenance classes. Do not collapse them into one value.
 
 - **ACCEPT** or **ACCEPT (<source>)** — proceed with the candidate at its original tier
 - **DOWNGRADE:<new-tier>** or **DOWNGRADE:<new-tier> (<source>)** — proceed at the revised tier

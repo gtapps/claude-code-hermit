@@ -1,6 +1,6 @@
 ---
 name: steer
-description: Steers the always-on hermit toward the next focus. Loads operator context, runs dirty-shutdown recovery if needed, and either takes a positional `<focus text>` argument or asks the operator what to work on. Replaces /session-start. Activates on messages like "let's start", "good morning", "what's on deck", "let's tackle X", "I'm starting on X".
+description: Steers the always-on hermit toward the next focus. Loads operator context, runs dirty-shutdown recovery if needed, and either takes a positional `<focus text>` argument or asks the operator what to work on. Activates on messages like "let's start", "good morning", "what's on deck", "let's tackle X", "I'm starting on X".
 ---
 # Steer
 

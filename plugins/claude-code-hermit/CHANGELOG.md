@@ -2,12 +2,12 @@
 
 ## [Unreleased]
 
-Retires the bounded-session model in favor of a live-focus dashboard. Implements PROP-031 (#84). The misleading "session" framing — `/session-close` reading as "end the process" but not actually doing so, `session_state: waiting` displayed in `/pulse` and `/brief` as if the hermit were paused — is replaced by `/steer` and `/done` skills that match the always-on reality. Backwards-compat aliases preserve old skill names for one minor version (retiring in v1.2.0).
+Retires the bounded-session model in favor of a live-focus dashboard. Implements PROP-031 (#84). The misleading "session" framing — `/session-close` reading as "end the process" but not actually doing so, `session_state: waiting` displayed in `/pulse` and `/brief` as if the hermit were paused — is replaced by `/steer` and `/done` skills that match the always-on reality. The originally-planned v1.1.0→v1.2.0 alias shims for the old skill names were dropped pre-release; v1.0.x operators must use `/steer` and `/done` directly after running `/claude-code-hermit:hermit-evolve`.
 
 ### Changed
 
 - **SHELL.md is now a live focus dashboard.** Renamed `## Task` → `## Focus`, `## Session Summary` → `## Recent Activity`. Removed `**Status:**`, `**ID:**`, `Next Start Point`, `## Changed`. Persistent across `/done` (no archive event clears it). `## Recent Activity` accumulates one-line entries from each `/done`.
-- **`/steer` and `/done` replace `/session-start`, `/session-close`, `/session`.** `/steer` loads context, runs dirty-shutdown recovery if needed, takes a positional `<focus text>` argument (e.g. `/steer dependency audit`) or asks what to work on. `/done` clears `## Focus`, appends to `## Recent Activity`, compacts persistent sections. `/done --shutdown` signals graceful exit. Old skills work for one minor version via shim aliases. The `--task` flag retired with the session model — focus text is now positional.
+- **`/steer` and `/done` replace `/session-start`, `/session-close`, `/session`.** `/steer` loads context, runs dirty-shutdown recovery if needed, takes a positional `<focus text>` argument (e.g. `/steer dependency audit`) or asks what to work on. `/done` clears `## Focus`, appends to `## Recent Activity`, compacts persistent sections. `/done --shutdown` signals graceful exit. The old skill names are removed (no shim layer); the `--task` flag retired with the session model — focus text is now positional.
 - **`session-mgr` agent renamed to `focus-mgr`** and narrowed substantially. Custody: SHELL.md compaction, Recent Activity writes, recovery prompt orchestration, v1.1.0 migration helper. Lifecycle field-ownership table and S-NNN archive generation retire.
 - **`reflect` runs as a daily routine** (`reflect-digest` at 23:00 local by default) plus manual `/reflect`. No more focus-boundary trigger. Output: rolling digest at `compiled/reflect-digest-<YYYY-MM-DD>.md` with frontmatter, plus a one-line summary appended to SHELL.md `## Recent Activity`.
 - **Reflect evidence source migrates** from `S-*-REPORT.md` scanning to SHELL.md `## Recent Activity` (primary) + historical S-NNN as fallback for legacy proposals.
@@ -26,7 +26,7 @@ Retires the bounded-session model in favor of a live-focus dashboard. Implements
 
 - **`/done --shutdown`** flag: graceful stop signal via `shutdown_requested_at` timestamp. The hermit-stop.py wait loop and docker entrypoint detect it.
 - **Daily `.status.json` counter reset (interim).** `/steer` resets `cost_usd`, `tokens`, `operator_turns` to 0 once per day (operator timezone), gated by `last_counter_reset`. Replaces the per-session reset that retired with the session model. PROP-036 will redesign properly.
-- **New tests:** `test-backwards-compat.sh` (retired-field tolerance, optional `session` field), `test-done-steer-skills.sh` (skill contract for `/steer`, `/done`, alias shims, `focus-mgr`, plus `hermit-start.py` boot_skill default), `test-timestamp-compat.sh` (UTC-Z lexical compare).
+- **New tests:** `test-backwards-compat.sh` (retired-field tolerance, optional `session` field), `test-done-steer-skills.sh` (skill contract for `/steer`, `/done`, `focus-mgr`, asserts shim skills are absent, plus `hermit-start.py` boot_skill default), `test-timestamp-compat.sh` (UTC-Z lexical compare).
 
 ### Fixed
 
@@ -41,6 +41,7 @@ Retires the bounded-session model in favor of a live-focus dashboard. Implements
 - **Scripts:** `session-diff.js`, `evaluate-session.js`, `suggest-compact.js`. Their hook registrations in `stop-pipeline.js` retire. `state/session-diff.json` sidecar stops being written.
 - **`tasks-snapshot.md`** generation. `cost-tracker.js` no longer calls `writeTaskSnapshot`. The `## Changed` section retires from SHELL.md template — `git status` / `git log` are authoritative for file-change context.
 - **`heartbeat.waiting_timeout`** config field. The `waiting` value remains real (blocked on operator answer) but doesn't auto-time-out; stale-focus catches the same case.
+- **Skill aliases `/session-start`, `/session-close`, `/session`** were drafted as v1.1.0→v1.2.0 transitional shims but removed pre-release. There is no grace window; v1.0.x operators must use `/steer` and `/done` directly after upgrading.
 
 ### Upgrade Instructions
 
@@ -70,12 +71,12 @@ Doing only step 2 results in two reflect runs per day (9 AM + 23:00) — don't s
 
 These scripts are deleted in v1.1.0.
 
-**Operator muscle memory.** Old commands continue to work via shims for one minor version:
-- `/session-start [--task '<text>']` → `/steer ['<focus text>']` (the `--task` flag retires; focus text is positional)
+**Skill rename — no shim layer.** Old skill names are gone in v1.1.0 with no transitional aliases. Update muscle memory and any scripts:
+- `/session-start [--task '<text>']` → `/steer ['<focus text>']` (the `--task` flag retired; focus text is positional)
 - `/session-close` → `/done --shutdown`
 - `/session` → `/done`
 
-Each prints a one-line deprecation note on first use. Aliases retire in v1.2.0.
+Typing the old names will fail with "skill not found".
 
 **Existing S-NNN reports stay in place.** Cortex/Obsidian queries continue to work — they retain their frontmatter contract. Proposals created before v1.1.0 retain their `session:` and `related_sessions:` fields. Reflect's resolution check reads them for legacy proposals; new proposals use SHELL.md `## Recent Activity` as the evidence window.
 

@@ -73,7 +73,7 @@ them for decisions. Start/stop decisions read from the runtime registry.
 
 ### Starting config watches (`/watch start`)
 
-Called automatically by session-start (step 11b). Can also be called manually.
+Called automatically by `/steer` (step 13: Watch registration). Can also be called manually.
 
 1. Read `config.json` → `monitors[]`, filter `enabled: true`
 2. Read `state/monitors.runtime.json`

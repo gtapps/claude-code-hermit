@@ -11,8 +11,6 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 | `steer` | Loads operator context, runs dirty-shutdown recovery if needed, sets `## Focus` from a positional `<focus text>` argument, or asks what to work on.                   | "let's start", "good morning", "what's on deck", "let's tackle X", "I'm starting on X"     |
 | `done`  | Clears the current focus, appends a one-line entry to `## Recent Activity`, compacts persistent SHELL.md sections. `/done --shutdown` signals a graceful daemon stop. | "I'm done", "wrap it up", "that's it for now", "ready for next", "close the session"      |
 
-`/session-start`, `/session`, `/session-close` are v1.1.0 backwards-compat alias shims that forward to `/steer` / `/done` with a one-line deprecation note. They retire in v1.2.0.
-
 ## Status & Reporting
 
 | Skill   | What it does                                                                                                 | Auto-triggers                                                     |

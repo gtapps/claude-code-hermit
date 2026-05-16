@@ -214,7 +214,7 @@ Record: `escalation` (conservative/balanced/autonomous), `remote` (true/false), 
 
 #### Phase 4 — Recommended plugins (AskUserQuestion, single multiSelect question)
 
-<!-- Compatible-plugin list is mirrored in hatch Phase 4 options, Phase 4b eligibility, and session-start step 5b. Update all three when adding. -->
+<!-- Compatible-plugin list is mirrored in hatch Phase 4 options, Phase 4b eligibility, and steer step 8. Update all three when adding. -->
 
 Before calling `AskUserQuestion`, print this one-line preamble to the operator:
 
@@ -258,7 +258,7 @@ For each plugin the operator declines, skip silently. Note: "You can add it late
 
 #### Phase 4b — Baseline audit marker (conditional)
 
-<!-- Compatible-plugin list is mirrored in hatch Phase 4 options, Phase 4b eligibility, and session-start step 5b. Update all three when adding. -->
+<!-- Compatible-plugin list is mirrored in hatch Phase 4 options, Phase 4b eligibility, and steer step 8. Update all three when adding. -->
 
 Create `.claude-code-hermit/.baseline-pending` (empty file) ONLY if **all three** are true:
 
@@ -453,7 +453,7 @@ Using the scan results, write a concise context document. Follow these rules:
 1. **Never duplicate CLAUDE.md content.** If CLAUDE.md already covers a topic (testing, conventions, build commands), don't repeat it.
 2. **Never duplicate `config.json` fields.** `routines`, `channels` (including Discord/Telegram user IDs and `morning_brief`), `permission_mode`, `agent_name`, `sign_off`, `escalation`, `idle_behavior`, `boot_skill`, and `_hermit_versions` are already loaded structurally — do not restate them as prose. OPERATOR.md is for context the model can't infer from config (project focus, constraints, approval gates, comms style, project rationale).
 3. **Only include high-confidence inferences.** If the scan clearly reveals something (e.g., package.json shows Node.js, README describes the project), include it. If uncertain, leave it for Phase 3 questions.
-4. **Keep it under 50 lines.** OPERATOR.md is loaded every session-start — bloat costs tokens. Write concise prose, not documentation.
+4. **Keep it under 50 lines.** OPERATOR.md is loaded at every boot — bloat costs tokens. Write concise prose, not documentation.
 5. **No rigid sections required.** Use headers if they help organize, but don't create empty sections. The goal is a useful context document, not a filled-in form.
 
 Write the draft to `.claude-code-hermit/OPERATOR.md`.
@@ -499,7 +499,7 @@ Incorporate the operator's answers into the draft:
 - Keep the document under 50 lines total
 - For hermit-specific context, append after the core content
 
-**Before writing, scrub the draft for `config.json` mirroring.** Re-scan and remove any sentence that restates a `config.json` field (routine schedules, Discord/Telegram user IDs, `morning_brief` time, `permission_mode`, `agent_name`, `sign_off`, `escalation`, `idle_behavior`, `boot_skill`). If removing a sentence leaves a paragraph hollow, drop the paragraph. Those facts are already loaded from config.json on every session-start — duplicating them in OPERATOR.md is pure token tax and drifts when config changes.
+**Before writing, scrub the draft for `config.json` mirroring.** Re-scan and remove any sentence that restates a `config.json` field (routine schedules, Discord/Telegram user IDs, `morning_brief` time, `permission_mode`, `agent_name`, `sign_off`, `escalation`, `idle_behavior`, `boot_skill`). If removing a sentence leaves a paragraph hollow, drop the paragraph. Those facts are already loaded from config.json at every boot — duplicating them in OPERATOR.md is pure token tax and drifts when config changes.
 
 Write the final version to `.claude-code-hermit/OPERATOR.md`.
 
