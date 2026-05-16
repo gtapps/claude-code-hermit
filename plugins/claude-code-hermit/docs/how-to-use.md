@@ -115,7 +115,7 @@ Docker is the recommended way to run your hermit autonomously. It provides conta
 /claude-code-hermit:docker-setup    # generates hermit Docker files, walks you through deployment
 ```
 
-See [Always-On Setup](always-on.md) for the full guide — auth, channels, takeover, cost management.
+See [Always-On Setup](always-on.md) for the full guide — auth, channels, pausing the hermit, cost management.
 
 **Without Docker?** You can run directly in tmux:
 
@@ -245,7 +245,7 @@ Or just ask Hermit: "What permissions do you need?" — it'll tell you exactly w
 
 ---
 
-## All 24 Skills
+## All 22 Skills
 
 Most common actions auto-trigger from natural language — just say what you mean. Slash commands (`/claude-code-hermit:*`) are the precision fallback for when auto-triggers don't fire.
 
@@ -256,7 +256,7 @@ Most common actions auto-trigger from natural language — just say what you mea
 | **Monitoring** | `watch`, `heartbeat`                                               |
 | **Learning**   | `proposal-create`, `proposal-list`, `proposal-act`, `reflect`      |
 | **Config**     | `hermit-settings`, `hatch`, `hermit-evolve`                        |
-| **Docker**     | `docker-setup`, `hermit-takeover`, `hermit-hand-back`              |
+| **Docker**     | `docker-setup`                                                     |
 | **Channels**   | `channel-responder`                                                |
 | **Cortex**     | `obsidian-setup`, `cortex-refresh`, `cortex-sync`, `weekly-review` |
 | **Testing**    | `smoke-test`, `test-run`                                           |

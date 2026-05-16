@@ -16,7 +16,7 @@ After install, run `/claude-code-hermit:hatch` in the target project to create t
 ## Plugin Structure
 
 - `agents/` — subagent definitions (focus-mgr, hermit-config-validator, proposal-triage, reflection-judge; hermit plugins add more subagents)
-- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): orient, done, session, session-start, session-close (last three are v1.1.0 backwards-compat alias shims, retire v1.2.0), pulse, brief, watch, heartbeat, hermit-routines, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, reflect-scheduled-checks, capability-brainstorm, channel-responder, channel-setup, hatch, hermit-evolve, docker-setup, docker-security, hermit-takeover, hermit-hand-back, smoke-test, test-run, obsidian-setup, cortex-refresh, cortex-sync, weekly-review, migrate, knowledge, hermit-doctor
+- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): steer, done, session, session-start, session-close (last three are v1.1.0 backwards-compat alias shims, retire v1.2.0), pulse, brief, watch, heartbeat, hermit-routines, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, reflect-scheduled-checks, capability-brainstorm, channel-responder, channel-setup, hatch, hermit-evolve, docker-setup, docker-security, smoke-test, test-run, obsidian-setup, cortex-refresh, cortex-sync, weekly-review, migrate, knowledge, hermit-doctor
 - `hooks/hooks.json` — hook registrations
 - `scripts/` — hook implementation scripts + boot scripts (hermit-start.py, hermit-stop.py)
 - `state-templates/` — templates copied into target projects by the `hatch` skill

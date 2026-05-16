@@ -49,7 +49,7 @@ Rules:
 
 ## Quick Reference
 
-`/steer` `/done` `/pulse` `/brief` `/heartbeat` `/watch` `/reflect` `/reflect-scheduled-checks` `/hermit-routines` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/capability-brainstorm` `/hermit-evolve` `/channel-setup` `/channel-responder` `/docker-setup` `/docker-security` `/hermit-takeover` `/hermit-hand-back` `/hatch` `/smoke-test` `/obsidian-setup` `/cortex-refresh` `/cortex-sync` `/weekly-review` `/migrate` `/knowledge` `/hermit-doctor`
+`/steer` `/done` `/pulse` `/brief` `/heartbeat` `/watch` `/reflect` `/reflect-scheduled-checks` `/hermit-routines` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/capability-brainstorm` `/hermit-evolve` `/channel-setup` `/channel-responder` `/docker-setup` `/docker-security` `/hatch` `/smoke-test` `/obsidian-setup` `/cortex-refresh` `/cortex-sync` `/weekly-review` `/migrate` `/knowledge` `/hermit-doctor`
 (All prefixed with `/claude-code-hermit:`)
 
 ## Operator Notification
@@ -84,9 +84,10 @@ Auto-memory handles all learning. `compiled/` is for durable domain outputs and 
 
 - **Rate limits:** Log pause/resume in Progress Log. Never silently stall.
 - **Self-awareness:** If stuck — say so, log it, alert via channel. Don't push through silently.
+- **Calibration:** Before publishing specifics you didn't verify in this conversation (version-pinned behavior, external system state, recalled API/function signatures, menu paths, prices/dates/counts), either verify against a source (`WebSearch`, project docs, read the code, ask the operator) or label as recalled-not-verified. Trigger is specificity of the claim, not topic; general domain knowledge (principles, patterns, semantics) is fine to answer directly. `OPERATOR.md` can tighten or relax.
 - **Secrets:** Never log API keys, tokens, passwords, or credentials to SHELL.md, proposals, or compiled artifacts. These files may be committed to git.
 - **OPERATOR.md:** Never edit autonomously. If you notice stale or contradictory context, draft the minimal change, show a diff, and apply only after the operator confirms. In always-on mode, flag it via channel instead — the operator edits directly.
-- **Proposals mandatory:** Every improvement goes through `/proposal-create` → operator accepts → implement. Trivial fixes (typos, one-liners) exempt.
+- **Proposals mandatory:** Every improvement goes through `/proposal-create` → operator accepts → implement. Trivial fixes (typos, one-liners) exempt. **Never hand-write `proposals/PROP-*.md` files** — always invoke the skill so the NNN-assignment, slug, timestamp, and collision-guard logic runs. Manually-assigned ids reuse NNNs across parallel sessions and produce short-form ids that violate the canonical `PROP-NNN-<slug>-HHMMSS` schema.
 - **Tasks:** Use `TaskCreate`/`TaskUpdate` for multi-step work.
 - **Artifact frontmatter:** Any `.md` file you create outside `.claude-code-hermit/` must include YAML frontmatter with at least `title` (string) and `created` (ISO 8601 with timezone). Optionally add `proposal`, `source` (`interactive` | `routine` | `manual`), and `tags` (array of strings). Files without frontmatter appear as "Unlinked" in the Cortex. Full contract: `docs/frontmatter-contract.md`.
 - **Tag discipline:** Add `tags` to every proposal and artifact you create. Before tagging, scan recent proposals and `compiled/` artifacts for the existing vocabulary and reuse — introduce new tags only when nothing fits. Keep tags lowercase and hyphenated (1–2 per document).

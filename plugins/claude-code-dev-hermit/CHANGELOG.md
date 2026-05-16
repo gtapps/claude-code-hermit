@@ -5,6 +5,7 @@
 ### Changed
 
 - **CLAUDE-APPEND templates align with core's live-focus dashboard.** Both `CLAUDE-APPEND.md` and `CLAUDE-APPEND-SAFETY.md` had a one-line Session State paragraph listing the old 4-value enum (`in_progress`/`waiting`/`idle`/`dead_process`) and a note that SHELL.md `Status:` is cosmetic. Core retired `dead_process` and the `Status:` field in claude-code-hermit v1.1.0 (PROP-031) — SHELL.md is now a live focus dashboard with `## Focus` + `## Recent Activity` sections, no `Status:` line to parse. Templates updated to match the 3-value enum and describe the new structure.
+- **Surface `/dev-pr` as the sanctioned push path in §Git Safety.** Both CLAUDE-APPEND templates and `docs/GIT-SAFETY.md` now end the "Never `git push`" rule with a pointer to `/claude-code-dev-hermit:dev-pr` as the operator-sanctioned alternative, and soften "The operator pushes" to "Stop and ask the operator." Resolves the discoverability gap where downstream LLMs offered manual-push workarounds instead of invoking the skill. `skills/dev-pr/SKILL.md` description updated with the inverse note. `tests/hatch-mode.test.js` drops the "no /dev-pr in safety template" assertion (no longer correct) and adds named positive assertions for both templates. `docs/WORKFLOW.md` updated to match the new voice. Closes PROP-027.
 
 ## [0.3.6] - 2026-05-13
 

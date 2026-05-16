@@ -99,7 +99,7 @@ Rules:
 
 ## Quick Reference
 
-`/steer` `/done` `/pulse` `/brief` `/heartbeat` `/watch` `/reflect` `/reflect-scheduled-checks` `/hermit-routines` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/capability-brainstorm` `/hermit-evolve` `/channel-setup` `/channel-responder` `/docker-setup` `/docker-security` `/hermit-takeover` `/hermit-hand-back` `/hatch` `/smoke-test` `/obsidian-setup` `/cortex-refresh` `/cortex-sync` `/weekly-review` `/migrate` `/knowledge` `/hermit-doctor`
+`/steer` `/done` `/pulse` `/brief` `/heartbeat` `/watch` `/reflect` `/reflect-scheduled-checks` `/hermit-routines` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/capability-brainstorm` `/hermit-evolve` `/channel-setup` `/channel-responder` `/docker-setup` `/docker-security` `/hatch` `/smoke-test` `/obsidian-setup` `/cortex-refresh` `/cortex-sync` `/weekly-review` `/migrate` `/knowledge` `/hermit-doctor`
 (All prefixed with `/claude-code-hermit:`)
 
 ## Operator Notification

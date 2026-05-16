@@ -30,10 +30,12 @@ if (fs.existsSync(SAFETY)) {
   ok('marker is near top (within first 10 lines)',
     text.split('\n').slice(0, 10).some(l => l.includes(marker)));
 
-  // Workflow-specific content must NOT appear in the safety template.
-  ok('no /dev-pr reference', !text.includes('/dev-pr'));
+  // /dev-pr is the universal sanctioned push primitive — allowed in safety template.
+  // Workflow-chain skills (/dev-quality, /dev-test) and workflow sections stay out.
   ok('no /dev-quality reference', !text.includes('/dev-quality'));
   ok('no /dev-test reference', !text.includes('/dev-test'));
+  ok('safety: §Git Safety push rule names /dev-pr',
+    /Never `git push`[\s\S]{0,200}\/claude-code-dev-hermit:dev-pr/.test(text));
   ok('no commands.test reference', !text.includes('commands.test'));
   ok('no §Implementation Flow section', !text.includes('## Implementation Flow'));
   ok('no §Tests Before PR section', !text.includes('## Tests Before PR'));
@@ -59,6 +61,8 @@ if (fs.existsSync(STANDARD)) {
   ok('§Branch Discipline present', text.includes('## Branch Discipline'));
   ok('§Technical Constraints present', text.includes('## Technical Constraints'));
   ok('§Dev Proposal Categories present', text.includes('## Dev Proposal Categories'));
+  ok('standard: §Git Safety push rule names /dev-pr',
+    /Never `git push`[\s\S]{0,200}\/claude-code-dev-hermit:dev-pr/.test(text));
 
   // Each preamble ends with "fallback for projects without one" or "fallback."
   const branchSection = text.match(/## Branch Discipline[\s\S]*?## Implementation Flow/);

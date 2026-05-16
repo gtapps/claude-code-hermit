@@ -101,6 +101,28 @@ In **enforce mode**, the same command surfaces NXDOMAIN denials. Decide which do
 
 The wizard does not auto-promote blocked domains. Manual review keeps the trust boundary at the operator.
 
+## GitHub CLI authentication {#gh-cli-authentication}
+
+`gh` is pre-installed in the hermit Docker baseline image. By default it runs anonymously — fine for read-only public-repo operations, but subject to GitHub's unauthenticated rate limit (60 req/hr per IP).
+
+To authenticate, add a GitHub PAT to your `.env` file:
+
+```
+HERMIT_GH_TOKEN=ghp_yourpersonalaccesstoken
+```
+
+The Compose template maps `HERMIT_GH_TOKEN` to `GH_TOKEN` inside the container, which `gh` reads natively. Restart the container to pick up the change:
+
+```
+hermit-docker down && hermit-docker up
+```
+
+Verify with `hermit-docker bash -c 'gh auth status'`.
+
+**Why `HERMIT_GH_TOKEN` instead of `GH_TOKEN` directly?** Hermit uses `HERMIT_*` as the namespace for operator-facing credentials so that future runtime shims — for example, auto-minting a short-lived install token from `HERMIT_GH_APP_*` credentials (mirroring how `hermit-scribe` works) — can swap the token source transparently. The operator-facing var name stays stable; only the internal wiring changes.
+
+**Netguard note:** No allowlist entry is needed for GitHub API calls. The existing `server=/github.com/` rule in `dnsmasq.allowlist` already covers `api.github.com` and all other `*.github.com` subdomains — dnsmasq's `server=/<domain>/` syntax matches a domain and all its subdomains.
+
 ## Reversal
 
 Two ways:

@@ -1,6 +1,6 @@
 ---
 name: dev-pr
-description: Open a PR from the current feature branch with a body assembled inline from commit history, the test command's last output, screenshots, and an optional project PR template. Refuses on protected branches, dirty trees, or zero commits ahead. Run as the final step of a ticket.
+description: "Operator-sanctioned alternative to bare `git push` from agent context. Open a PR from the current feature branch with a body assembled inline from commit history, the test command's last output, screenshots, and an optional project PR template. Refuses on protected branches, dirty trees, or zero commits ahead. Run as the final step of a ticket."
 ---
 
 # /dev-pr

@@ -141,7 +141,6 @@ When idle and `idle_behavior` is `"discover"` (set via `/hermit-settings idle`),
 - **Crash during idle:** SHELL.md persists with `## Focus` empty. `/steer` asks what to work on next.
 - **Crash during waiting:** `runtime.session_state` stays `waiting`. On restart, the recovery prompt re-fires and channel-responder routes the next `1`/`2` reply via the SHELL.md `<!-- pending-recovery: ... -->` marker.
 - **hermit-start when already running:** Prints guidance, exits.
-- **Operator takeover:** When triggered via `/hermit-takeover`, focus context loads into the operator's local Claude Code; on `/hermit-hand-back`, control returns to the daemon.
 - **Docker SIGTERM:** The entrypoint traps SIGTERM and sends `/done --shutdown`, then polls `runtime.json` timestamps up to 30s before the container exits.
 
 ---

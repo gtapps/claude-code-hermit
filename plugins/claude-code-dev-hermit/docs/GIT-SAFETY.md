@@ -8,7 +8,7 @@ Two layers of protection: prose rules in `state-templates/CLAUDE-APPEND.md` (alw
 
 Injected into the project's `CLAUDE.md` by `/hatch`. The §Git Safety section reads:
 
-- Never `git push` from agent context. The operator pushes.
+- Never `git push` from agent context. Stop and ask the operator. The sanctioned answer is `/claude-code-dev-hermit:dev-pr`, which runs Gate 0 checks then pushes + opens a PR.
 - Never use `--no-verify` on any git command (commit, push, merge, rebase).
 - Never commit to a branch in `claude-code-dev-hermit.protected_branches`. Always work on a feature branch.
 - Never force-push from agent context. No bare `--force` or `-f`. `--force-with-lease` is allowed only to a non-protected branch with an explicit refspec (the safe rebase-recovery case); ambiguous-target leases and leases to protected branches are blocked. When in doubt, surface the divergence and let the operator resolve.
