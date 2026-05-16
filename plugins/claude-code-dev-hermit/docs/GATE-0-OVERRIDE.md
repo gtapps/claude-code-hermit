@@ -99,11 +99,10 @@ When the bypass is in place, the `## Verification` section in the PR body reads:
 ```
 ## Verification
 
-- Tests: **audited override** (status: pass via Gate 0 override; pre-existing base failures)
+- Tests: **audited override** (reason: pre-existing-base-failures)
 
 ### Gate 0 Override
 
-- reason: pre-existing-base-failures
 - base_sha: <sha>
 - summary: <your one-line summary>
 ```
@@ -114,7 +113,7 @@ When the bypass is in place, the `## Verification` section in the PR body reads:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `reason` | string | Closed enum. Only allowed value: `"pre-existing-base-failures"`. Extending it requires a lockstep update to Gate 2's verification suffix in `skills/dev-pr/SKILL.md`. |
+| `reason` | string | Closed enum. Only allowed value: `"pre-existing-base-failures"`. Gate 2 emits this value directly in the `Tests:` line — no lockstep coupling. |
 | `base_sha` | string | Full SHA of the base branch HEAD when you confirmed the failures. |
 | `summary` | string | One-line human-readable description of what the pre-existing failures are. |
 
