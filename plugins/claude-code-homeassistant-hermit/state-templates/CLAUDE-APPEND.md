@@ -60,6 +60,15 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha validate-apply <artifact> [--reload au
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <entity_id_or_yaml>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-automations
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-scripts
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-automations
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-scripts
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-automation <id>
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-script <id>
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-automation-config <id>
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-script-config <id>
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha integration-health
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha fetch-history [--window-days N] [--entities <glob> …]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha probe <path>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status [--probe]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url> [--token <token>]
 ```

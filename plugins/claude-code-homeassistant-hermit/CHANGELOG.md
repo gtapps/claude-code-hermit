@@ -2,6 +2,12 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Added
+
+- **`ha get-automation-config <id>` and `ha get-script-config <id>` CLI commands** — read a single automation or script config directly from HA's REST API (`GET /api/config/{domain}/config/{id}`) and print it as JSON. Useful for inspecting what HA holds before deciding whether to patch or delete. Returns exit code 1 with a structured JSON error on failure (including 400 "not found" and 403 YAML-mode responses). New `ReadResult` dataclass and `read_config()` function in `apply.py` back the command; the unsupported-domain error string is now shared via `_unsupported_domain_msg()`. New `tests/test_cli_get_config.py` covers the happy path, not-found, and YAML-mode 403 cases.
+
 ## [0.1.3] - 2026-05-14
 
 ### Added
