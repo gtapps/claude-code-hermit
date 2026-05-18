@@ -4,7 +4,12 @@
 
 ### Added
 
+- **Automatic session close (PROP-040).** Heartbeat archives sessions whose SHELL.md has been idle for more than 12h, silently and without configuration. Auto-closed session reports carry `closed_via: auto` frontmatter; reflect skips them when scanning archive evidence (preventing mtime-triggered false compute-phase runs); weekly-review includes them in cost/session totals but excludes them from the autonomy rate denominator with an inline "(N auto-archived excluded)" note. The trigger fires via a new `AUTO_CLOSE` verdict from `heartbeat-precheck.js` (SHELL.md mtime check, testable with `HERMIT_NOW` env var); the `--auto` flag on `/session-close` bypasses the operator-summary prompt, skips reflect, and preserves the heartbeat loop.
 - **Reactive channel-reply reminder (PROP-037).** Inbound `<channel source="..." chat_id="..." ...>` messages now get a per-prompt hook-injected reminder naming the exact reply tool and `chat_id`, plus a documented contract in the channel-responder skill. Two reinforcement surfaces: (1) `skills/channel-responder/SKILL.md` §0 promotes the reply-via-channel rule to step 0 of the canonical handler — using the generic tool-name pattern `mcp__plugin_<source>_<source>__reply` so it stays accurate for all channel plugins; (2) new `scripts/channel-reply-reminder.js` UserPromptSubmit hook parses the channel envelope at the start of the prompt (order-independent attribute extraction, `>` inside quoted values handled correctly, `safeForLLM` sanitization, length caps) and emits an `additionalContext` reminder. Hook is a no-op when no channel envelope is present, so non-channel installs pay zero cost. Addresses the downstream silent-stranding bug observed when MCP-level guidance alone proved insufficient. No operator `CLAUDE.md` changes.
+
+### Fixed
+
+- **PROP-040 auto-close: SHELL.md Monitoring append now runs before `/session-close --auto`.** Previously the heartbeat skill appended the `[HH:MM] Heartbeat: auto-closed after 12h quiet.` line to `## Monitoring` after invoking session-close, but session-close replaces SHELL.md with a fresh template — the trace landed in the new (empty) session's Monitoring section instead of the archived report, where it belonged as evidence the auto-close fired. Step ordering in `skills/heartbeat/SKILL.md` AUTO_CLOSE branch reversed so the append happens first.
 
 ### Changed
 

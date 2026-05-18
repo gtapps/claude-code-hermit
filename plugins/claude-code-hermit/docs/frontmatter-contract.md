@@ -60,9 +60,10 @@ operator_turns: 0
 
 ### Optional fields
 
-| Field    | Type | Description                                                                                                     |
-| -------- | ---- | --------------------------------------------------------------------------------------------------------------- |
-| `tokens` | int  | Cumulative token total for the session (input + cache_write + cache_read + output). Absent in legacy reports. When present, must be a non-negative number. |
+| Field        | Type | Enum values           | Description                                                                                                     |
+| ------------ | ---- | --------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `tokens`     | int  | —                     | Cumulative token total for the session (input + cache_write + cache_read + output). Absent in legacy reports. When present, must be a non-negative number. |
+| `closed_via` | enum | `operator`, `auto`    | How the session was closed. Absent in legacy reports — treat as `operator`. `auto` means heartbeat closed it after 12h SHELL.md inactivity; downstream readers (reflect-precheck, weekly-review) use this to filter or partition accordingly. |
 
 ### Field lifecycle
 
@@ -79,6 +80,7 @@ operator_turns: 0
 | `task`              | `session-mgr` agent | Session close — first line of Task section         |
 | `escalation`        | `session-mgr` agent | Session close — read from config.json              |
 | `operator_turns`    | `session-mgr` agent | Session close — counted from transcript            |
+| `closed_via`        | `session-mgr` agent | Session close — from `Closed Via:` in session-close payload (`auto` if `--auto`, otherwise `operator`) |
 
 ---
 
@@ -185,7 +187,7 @@ self_directed_rate: 0.75
 | `total_tokens`         | int      | Sum of all session token counts. Sourced from session `tokens` frontmatter when all sessions have it; falls back to `.claude/cost-log.jsonl` date-range scan otherwise. |
 | `avg_session_cost_usd` | float    | Mean cost per session                                                   |
 | `avg_session_tokens`   | int      | Mean token count per session                                            |
-| `self_directed_rate`   | float    | Fraction of sessions with `operator_turns=0`                            |
+| `self_directed_rate`   | float    | Fraction of operator-initiated sessions with `operator_turns=0`. Auto-archived sessions (`closed_via: auto`) are excluded from the denominator. |
 
 All fields are required. All fields are written by a single script.
 

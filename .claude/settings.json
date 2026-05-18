@@ -4,6 +4,7 @@
       "Bash(git diff:*)",
       "Bash(git status:*)",
       "Bash(git log:*)",
+      "Bash(gh issue:*)",
       "Bash(node */scripts/cost-tracker.js*)",
       "Bash(node */scripts/suggest-compact.js*)",
       "Bash(node */scripts/run-with-profile.js*)",

@@ -2,7 +2,7 @@
 
 // heartbeat-precheck.js — fast-path verdict before the LLM evaluates HEARTBEAT.md.
 // Usage: node heartbeat-precheck.js <hermit-state-dir>
-// Output (stdout, one line): SKIP|<reason>  |  OK  |  EVALUATE
+// Output (stdout, one line): SKIP|<reason>  |  OK  |  AUTO_CLOSE  |  EVALUATE
 // Exit 0 always. Writes updated alert-state.json (increments total_ticks only).
 //
 // Owner contract (write-field split with SKILL.md):
@@ -83,8 +83,22 @@ if (hasPendingMicro) emit('EVALUATE');
 const runtime = readJSON(path.join(stateDir, 'state', 'runtime.json')) ?? {};
 const sessionState = runtime.session_state ?? 'idle';
 
-// stale-session check needs SHELL.md parsing — delegate to LLM
-if (sessionState === 'in_progress') emit('EVALUATE');
+if (sessionState === 'in_progress') {
+  // SHELL.md mtime is a reliable cross-day signal; Progress Log [HH:MM] entries are not.
+  // Fail-open: any stat error → fall through to EVALUATE (LLM does the stale check).
+  try {
+    const shellPath = path.join(stateDir, 'sessions', 'SHELL.md');
+    const mtime = fs.statSync(shellPath).mtime.getTime();
+    let now = Date.now();
+    if (process.env.HERMIT_NOW) {
+      const d = new Date(process.env.HERMIT_NOW).getTime();
+      if (!isNaN(d)) now = d;
+    }
+    if ((now - mtime) / (1000 * 60 * 60) > 12) emit('AUTO_CLOSE');
+  } catch { /* fail-open */ }
+  // stale-session check needs SHELL.md parsing — delegate to LLM
+  emit('EVALUATE');
+}
 
 // waiting-timeout check requires elapsed computation — delegate to LLM
 if (sessionState === 'waiting' && hbConfig.waiting_timeout) emit('EVALUATE');

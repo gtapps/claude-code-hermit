@@ -23,6 +23,7 @@ const SESSION_REQUIRED = ['id', 'status', 'date', 'duration', 'cost_usd', 'tags'
 const SESSION_ENUMS = {
   status: ['completed', 'partial', 'blocked'],
   escalation: ['conservative', 'balanced', 'autonomous'],
+  closed_via: ['operator', 'auto'],
 };
 
 const PROPOSAL_REQUIRED = ['id', 'title', 'status', 'source', 'session', 'created', 'category'];

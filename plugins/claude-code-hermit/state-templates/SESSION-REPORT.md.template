@@ -10,6 +10,7 @@ proposals_created: []
 task: "" # first non-comment line from ## Task, max 120 chars
 escalation: "" # conservative | balanced | autonomous
 operator_turns: 0
+closed_via: operator  # operator | auto
 ---
 # Session Report: S-NNN
 

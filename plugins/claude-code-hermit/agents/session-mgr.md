@@ -82,6 +82,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
      - `escalation`: read `escalation` from `.claude-code-hermit/config.json`. If the field is missing or empty, default to `"balanced"`. Allowed values: `conservative`, `balanced`, `autonomous`.
      - `operator_turns`: read `operator_turns` from `.claude-code-hermit/sessions/.status.json`. Use `0` if the field is missing or the file doesn't exist. This is the count of human-type transcript entries for this session, maintained by the cost-tracker hook.
      - `tokens`: read `tokens` from `.claude-code-hermit/sessions/.status.json`. Use `0` if the field is missing or the file doesn't exist.
+     - `closed_via`: from the `Closed Via:` line in the invocation prompt payload. Default to `operator` if not provided.
    - **Write `## Overview`** with the one-line task description from `## Task`
    - **If a task table was provided in the invocation prompt**, include it as `## Plan` in the report
    - **Write `## Artifacts`** listing any durable outputs this session wrote to `compiled/`. Format each as a bulleted wikilink: `- [[compiled/<type>-<slug>-<date>]] — one-line annotation`. Leave the section present with no bullets if none were produced (mirrors `## Proposals Created`).
@@ -99,6 +100,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
      tags: [bugfix, auth]
      proposals_created: [PROP-002-capability-brainstorm-103612]
      task: "Fix authentication token refresh bug in middleware"
+     closed_via: operator
      ---
      # Session Report: S-003
 
