@@ -87,6 +87,18 @@
           }
         ],
         "description": "Inject current local time before every prompt so the model never anchors to a stale 'now'"
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/channel-reply-reminder.js"],
+            "timeout": 3
+          }
+        ],
+        "description": "Inject reply-tool reminder when inbound prompt starts with a <channel source=...> envelope"
       }
     ],
     "SessionStart": [

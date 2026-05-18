@@ -7,6 +7,23 @@ description: Handles inbound messages from Claude Code Channels (Telegram, Disco
 
 When a message arrives via a channel:
 
+## 0. Reply via the channel
+
+ALL responses to messages wrapped in `<channel source="..." chat_id="..." ...>`
+MUST be delivered via the channel's reply tool, not the terminal/transcript.
+Terminal output is invisible to the operator: they read Discord, Telegram, or
+the configured channel, never the raw transcript.
+
+For each channel plugin, the reply tool is the `reply` action exposed by the
+channel's MCP server, named `mcp__plugin_<source>_<source>__reply` where
+`<source>` is the value of the `source` attribute on the inbound `<channel>`
+tag. Pass the inbound `chat_id` back. Optionally pass `reply_to` (the inbound
+`message_id`) to thread under the operator's message.
+
+Terminal output is acceptable as a SECONDARY surface (tool-call narration,
+status visible only to a maintainer at the box). The substantive response,
+the one the operator needs to see, must go through the channel.
+
 ## 1. Load Context
 
 Read `.claude-code-hermit/sessions/SHELL.md` for current task context.
