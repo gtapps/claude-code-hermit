@@ -24,7 +24,7 @@ This skill is **silent by default**. Only notify the operator (per the channel p
      - `newborn` — `age_days < 3`
      - `juvenile` — `3 ≤ age_days < 14`
      - `adult` — `age_days ≥ 14`
-   - Bind `$PHASE` for the rest of this run; it gates recurrence (Three-Condition Rule #1), sub-threshold surfacing (Outcomes), and the Progress Log annotation.
+   - Bind `$PHASE` for the rest of this run; it gates sub-threshold surfacing (Outcomes) and the Progress Log annotation. Tier 1 recurrence is no longer phase-gated (see § Three-Condition Rule, condition 1).
 
 5. Delegate the proposal scan to the built-in `Explore` subagent. Prompt: `List all .claude-code-hermit/proposals/PROP-*.md files. For each, extract id, status, title, source, created, accepted_date, related_sessions from YAML frontmatter (or **Status:**/**Title:** bullet fallback for pre-Observatory proposals). Return a compact JSON array — metadata only, no file bodies.` Also tail the last 100 lines of `state/proposal-metrics.jsonl` (inline, single read): count `responded` events by `action` (accept / defer / dismiss) and `micro-resolved` events by `action` (approved / rejected / expired) — both feed the operator-value self-check below. Also count `triage-verdict` events by `verdict` (CREATE / SUPPRESS / DUPLICATE) — feeds the Component Health triage check below.
 
@@ -75,9 +75,10 @@ Now reflect — think hard — using your memory and the context above:
 ## Three-Condition Rule
 
 Only create a proposal if all three are true:
-1. **Repeated pattern** — phase-aware recurrence:
-   - `newborn`: 1+ session acceptable for **Tier 1 only** — use `Evidence Source: current-session` and cite `Sessions: current` when the pattern is present only in the live SHELL.md (judge returns `ACCEPT (current-session)`). Tier 2/3 still require 2+ sessions.
-   - `juvenile` / `adult`: 2+ sessions (baseline — observed more than once, across sessions).
+1. **Repeated pattern** — tier-aware recurrence:
+   - **Tier 1 + `Evidence Source: current-session`**: 1+ session acceptable. Cite `Sessions: current` when the pattern is present in the live SHELL.md `## Findings` / `## Blockers` (judge returns `ACCEPT (current-session)`). Phase is irrelevant for this path.
+   - **Tier 1 + `Evidence Source: archived-session`**: requires 2+ archived sessions, identical to Tier 2/3. The loosening above is specific to the `current-session` path, not to Tier 1 generally.
+   - **Tier 2 / Tier 3**: 2+ archived sessions required at every phase (baseline: observed more than once, across archived sessions).
 2. **Meaningful consequence** — something goes wrong without fixing it
 3. **Operator-actionable change** — something the operator can concretely approve
 
@@ -147,7 +148,7 @@ Evidence: <summary>
 Sessions: <S-001, S-002, ...> (or "none")
 ```
 
-`Evidence Source:` defaults to `archived-session` if omitted. Plugin-check candidates use `Evidence Source: scheduled-check/<id>` with `Sessions: none`. Newborn Tier-1 candidates from live SHELL.md evidence use `Evidence Source: current-session` with `Sessions: current`.
+`Evidence Source:` defaults to `archived-session` if omitted. Plugin-check candidates use `Evidence Source: scheduled-check/<id>` with `Sessions: none`. Tier-1 candidates with live SHELL.md evidence use `Evidence Source: current-session` with `Sessions: current` (see § Three-Condition Rule, condition 1).
 
 `scheduled-check/<id>` and `operator-request` share the same bypass policy at every gate (skip recurrence, enforce consequence + actionability). They are **kept distinct on purpose**: `scheduled-check/<id>` carries the check identifier for telemetry and debugging; `operator-request` marks human-initiated flows (e.g. baseline audits in `session-start`). Future routing (e.g. KAIROS) will read them as different provenance classes. Do not collapse them into one value.
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **`/reflect`: Tier 1 + `Evidence Source: current-session` is now accepted at any hermit phase (PROP-036 Stage 1).** Previously only `newborn` (age < 3d) allowed it; juvenile and adult required 2+ archived sessions for every tier, leaving reflect silent on long-running daemons whose operators rarely close sessions and never accumulate `S-NNN-REPORT.md` archives. Tier 1 + `archived-session` still requires 2+ archived sessions, and Tier 2 / Tier 3 are unchanged. The Evidence Integrity Rule (reflect must not inject pattern text into Findings/Blockers pre-judge) is unchanged and remains the guardrail against self-certification. Stage 2 (candidate_history ledger for the empty-Findings subcase) is deferred pending empirical signal.
+
 ## [1.0.40] - 2026-05-16
 
 ### Added
