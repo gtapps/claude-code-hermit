@@ -48,6 +48,8 @@ Before appending any alert to SHELL.md Monitoring:
 
 **Do NOT implement fixes — only report.**
 
+**Exception:** Auto-close (`AUTO_CLOSE` precheck verdict, SKILL.md step 2) is the one fix heartbeat is authorized to apply. It runs as a terminal branch before the report-only evaluation path: the session has gone idle past the actionable threshold and archiving it is the correct response, not an alert.
+
 ## Self-Evaluation (every 20 ticks)
 
 Triggered when `total_ticks % 20 === 0` (read from `state/alert-state.json` after the precheck has already incremented the counter).

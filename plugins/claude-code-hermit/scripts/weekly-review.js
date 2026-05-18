@@ -50,6 +50,10 @@ function isSelfDirected(s) {
   return s.fm.escalation === 'autonomous';
 }
 
+function isAutoArchived(s) {
+  return s.fm.closed_via === 'auto';
+}
+
 // --- Determine current week ---
 const now = new Date();
 const { year: currentYear, week: currentWeek } = getISOWeek(now);
@@ -129,11 +133,13 @@ if (allHaveTokens) {
 }
 const avgTokens = sessionsCount > 0 ? Math.round(totalTokens / sessionsCount) : 0;
 
-// Self-directed: operator_turns = 0 (actual measurement). Fall back to escalation = 'autonomous'
-// for older reports that predate the operator_turns field.
-const selfDirectedCount = weekSessions.filter(isSelfDirected).length;
-const assistedSessions = weekSessions.filter(s => !isSelfDirected(s));
-const autonomousRate = sessionsCount > 0 ? selfDirectedCount / sessionsCount : 0;
+// Self-directed rate excludes auto-archived sessions from the denominator —
+// closed_via: auto + status: completed would otherwise inflate the apparent completion/autonomy rate.
+const autoArchivedSessions = weekSessions.filter(isAutoArchived);
+const operatorSessions = weekSessions.filter(s => !isAutoArchived(s));
+const selfDirectedCount = operatorSessions.filter(isSelfDirected).length;
+const assistedSessions = operatorSessions.filter(s => !isSelfDirected(s));
+const autonomousRate = operatorSessions.length > 0 ? selfDirectedCount / operatorSessions.length : 0;
 
 // --- Operator dependence ---
 const assistedTags = {};
@@ -221,7 +227,8 @@ let body = `## Week of ${dateRange}\n\n`;
 if (sessionsCount > 0) {
   body += `### Sessions\n`;
   body += `${sessionsCount} session${sessionsCount !== 1 ? 's' : ''}, $${totalCost.toFixed(2)} (${formatTokens(totalTokens)}) total ($${avgCost.toFixed(2)} avg).\n`;
-  body += `${selfDirectedCount} self-directed (operator_turns = 0), ${assistedSessions.length} operator-assisted.\n\n`;
+  const autoArchivedNote = autoArchivedSessions.length > 0 ? `, ${autoArchivedSessions.length} auto-archived excluded` : '';
+  body += `${selfDirectedCount} self-directed (operator_turns = 0), ${assistedSessions.length} operator-assisted${autoArchivedNote}.\n\n`;
 } else {
   body += `### Sessions\nNo sessions this week.\n\n`;
 }

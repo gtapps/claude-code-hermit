@@ -8,9 +8,11 @@ description: Closes the current work session with a structured handoff. Archives
 
 `/session-close` is always a **Full Shutdown**. The operator explicitly invoked it — that's the confirmation. No close mode decision, no prompting.
 
+When invoked with `--auto` by heartbeat (after 12h SHELL.md inactivity), the operator did not invoke it. The auto-close path bypasses summary-gathering, skips reflect (step 5), skips the heartbeat-stop step (step below), and stamps `closed_via: auto` in the archive frontmatter via the session-mgr payload.
+
 Idle transitions happen automatically at task boundaries (handled by the `session` skill). By the time the operator runs `/session-close`, they want out.
 
-If heartbeat is running, stop it before archiving.
+If heartbeat is running, stop it before archiving. **Skip on `--auto`** — heartbeat is the caller; stopping its `/loop` would prevent all future ticks.
 If watches are registered (`state/monitors.runtime.json` has entries), stop all watches before archiving — invoke `/claude-code-hermit:watch stop --all`.
 
 session-mgr handles updating both SHELL.md (cosmetic) and `state/runtime.json` (lifecycle truth) during archiving. For full shutdown, session-mgr sets `shutdown_completed_at` in runtime.json.
@@ -21,6 +23,24 @@ session-mgr handles updating both SHELL.md (cosmetic) and `state/runtime.json` (
 
 Use this when the operator wants to end everything (via `hermit-stop` or explicit `--shutdown`).
 
+### Auto-close path (`--auto`)
+
+When invoked with `--auto` by heartbeat, skip steps 1–5 and jump directly to step 6 (Tasks cleanup) then step 7 (session-mgr archive). Pass this templated payload to session-mgr:
+
+```
+Status: completed
+Blockers: none
+Lessons: none
+Changed: <from session-diff.json if available, else none>
+Artifacts: none
+Closed Via: auto
+Next Start Point: Fresh start.
+```
+
+Write `Auto-closed after 12h quiet.` as the first line of `## Overview` in the session report.
+
+---
+
 1. Compile final session data **in context** — do NOT write to SHELL.md yet. session-mgr owns the final write. Gather:
    - `Status:` one of `completed` | `partial` | `blocked`
    - `Blockers:` one line each, enough context for a cold start
@@ -30,7 +50,7 @@ Use this when the operator wants to end everything (via `hermit-stop` or explici
 2. Ensure all native Tasks reflect their correct status (`completed`, `pending`)
 3. Confirm the "Next Start Point" is clear enough for a fresh session to resume without questions
 4. If any high-leverage improvements were discovered during work, create proposals via the `claude-code-hermit:proposal-create` skill
-5. Invoke the `claude-code-hermit:reflect` skill to reflect on accumulated experience. Reflect no longer requires archived reports — it uses memory. This runs before archiving so any findings are included in the archived report.
+5. Invoke the `claude-code-hermit:reflect` skill to reflect on accumulated experience. Reflect no longer requires archived reports — it uses memory. This runs before archiving so any findings are included in the archived report. **Skip on `--auto`** — during auto-close, `session_state` is still `in_progress`, which forces reflect-precheck into compute phase before the `closed_via: auto` filter can run; there is no operator-curated session content to reflect on anyway.
 6. If native Tasks exist: call `TaskList`, format as a markdown table. Then `TaskUpdate(status=deleted)` for completed tasks only — pending/in_progress tasks persist for next session.
 7. Archive the session via `claude-code-hermit:session-mgr` (full close — finalize SHELL.md and replace with fresh template in one operation). Pass the following compact structured payload in the prompt — keep it brief, no freeform prose:
    ```
@@ -39,6 +59,7 @@ Use this when the operator wants to end everything (via `hermit-stop` or explici
    Lessons: <one line each, or none>
    Changed: <file list, or none>
    Artifacts: <wikilinks to compiled/ outputs produced this session, or none>
+   Closed Via: <operator|auto>
    Next Start Point: <one line>
    ```
    Also include the task table (if native Tasks were created).

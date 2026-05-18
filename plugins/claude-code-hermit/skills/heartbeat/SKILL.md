@@ -29,6 +29,11 @@ Execute one heartbeat tick.
 2. Read the verdict (first line of output):
    - Starts with `SKIP|` → emit `HEARTBEAT_SKIP (<reason>)`. No channel notification. No SHELL.md write. Stop.
    - `OK` → emit `HEARTBEAT_OK`. If `heartbeat.show_ok` is `true` in config, notify the operator. Stop.
+   - `AUTO_CLOSE` → SHELL.md mtime exceeded 12h. Run the auto-close sequence, then stop:
+     1. Append to SHELL.md `## Monitoring`: `[HH:MM] Heartbeat: auto-closed after 12h quiet.` (Step 2 replaces SHELL.md with a fresh template, so a later append would miss the archived report.)
+     2. Invoke `/claude-code-hermit:session-close --auto` (skips summary-gathering, reflect, heartbeat-stop; passes `Closed Via: auto` to session-mgr).
+     3. Notify the operator per CLAUDE-APPEND.md § Operator Notification: "Auto-closed S-NNN after 12h quiet."
+     4. Emit `HEARTBEAT_AUTO_CLOSED`. Stop. Do NOT run the EVALUATE flow — the session is being archived; generating stale-session alerts for a closing session would create phantom dedup entries.
    - `EVALUATE` → continue to step 3.
 3. Read `${CLAUDE_PLUGIN_ROOT}/skills/heartbeat/reference.md` for the semantic key taxonomy, alert deduplication procedure, self-evaluation steps, and output format.
 4. Read `.claude-code-hermit/HEARTBEAT.md`, `config.json`, `state/runtime.json`, `.claude-code-hermit/sessions/SHELL.md`.

@@ -18,7 +18,7 @@ Field names: lowercase with underscores. Flat only — no nested objects. Use `n
 
 ## Per-type required fields
 
-**Session report** (`sessions/S-NNN-REPORT.md`): `id`, `status`, `date`, `duration`, `cost_usd`, `tags`, `proposals_created`, `task`, `escalation`, `operator_turns`
+**Session report** (`sessions/S-NNN-REPORT.md`): `id`, `status`, `date`, `duration`, `cost_usd`, `tags`, `proposals_created`, `task`, `escalation`, `operator_turns`. Optional: `closed_via` (`operator` | `auto`; absent in legacy reports — treat as `operator`).
 
 **Proposal** (`proposals/PROP-NNN-<slug>-HHMMSS.md`): `id`, `title`, `status`, `source`, `created`, `category`
 
