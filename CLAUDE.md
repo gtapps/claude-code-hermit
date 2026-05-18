@@ -107,10 +107,13 @@ Rules:
 When you need to notify the operator proactively:
 
 - If no channels are configured, respond in conversation.
-- If a channel is configured and there is exactly one allowed user for that channel:
-  - Read `config.json` → `channels.<channel>.dm_channel_id` (e.g. `channels.discord.dm_channel_id`).
-  - **If found:** call the channel plugin's `reply` tool with `chat_id` set to that value and `text` set to the message content (i.e. `<plugin>:reply` with `{ chat_id, text }`).
-  - **If not found:** the DM channel ID is unknown (no inbound message received yet). Log the unsent content to SHELL.md Findings and record a deduped `channel-send-unavailable` issue — do not use the user ID as a substitute (it will fail for Discord DMs).
+- If channels are configured, resolve the outbound target by running:
+  ```
+  node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.js .claude-code-hermit
+  ```
+  Parse stdout as JSON. A channel is eligible if `enabled !== false`, `allowed_users` is not `[]`, and `dm_channel_id` is set. Resolution order: `channels.primary` (if set and eligible), then `discord` → `telegram` → `imessage`.
+  - **On success** (`"id"` and `"chat_id"` in result): call `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text: <message> }`.
+  - **On miss** (non-zero exit or `{"error":"no_reachable_channel"}`): the DM channel ID is unknown. Log the unsent content to SHELL.md Findings and record a deduped `channel-send-unavailable` issue — do not use the user ID as a substitute (it will fail for Discord DMs).
 - If outbound send fails, or if there is no unambiguous outbound target:
   - Log the unsent content to SHELL.md Findings
   - Record a deduped `channel-send-unavailable` issue if appropriate

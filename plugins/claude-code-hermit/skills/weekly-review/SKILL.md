@@ -31,8 +31,13 @@ Generates the weekly review for the current ISO week.
 
 4. Channel-send the combined weekly summary:
    - Compose the message: one-line review headline (session count, cost, self-directed rate from frontmatter) followed by the evolution block from step 3.
-   - Pick the destination channel using this fixed priority order: `discord`, `telegram`. For each in turn, if `config.json.channels.<id>.dm_channel_id` is set, send via that channel's reply tool (`mcp__plugin_<id>_<id>__reply` with `{ chat_id: dm_channel_id, text: <message> }`) and stop. Operator override via a `channels.primary` field is on the roadmap (tracked separately).
-   - If no listed channel has `dm_channel_id` configured: append a single Findings line to `.claude-code-hermit/sessions/SHELL.md`: `"weekly-review: no dm_channel_id configured, channel-send skipped"`. Only log this once per session to avoid noise. Do **not** emit a `channel-send-unavailable` alert issue.
+   - Resolve the outbound channel:
+     ```
+     node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.js .claude-code-hermit
+     ```
+     Parse stdout as JSON. On success (`"id"` and `"chat_id"` present), send via `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text: <message> }` where `<id>` is the resolved channel name.
+   - If the script exits non-zero or returns `{"error":"no_reachable_channel"}`: append a single Findings line to `.claude-code-hermit/sessions/SHELL.md`: `"weekly-review: no reachable channel configured, channel-send skipped"`. Only log this once per session to avoid noise. Do **not** emit a `channel-send-unavailable` alert issue.
+   - To set a preferred channel, add `"primary": "<channel-name>"` inside `channels` in `config.json`.
 
 5. Archive expired raw artifacts:
    ```

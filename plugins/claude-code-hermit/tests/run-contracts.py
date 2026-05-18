@@ -979,5 +979,97 @@ class TestAnalyticsSkillsContract(unittest.TestCase):
             self.assertIn('1500 chars', content, f'{slug}: 1500-char output budget no longer declared')
 
 
+class TestChannelResolverContract(unittest.TestCase):
+    """Contract tests for scripts/resolve-outbound-channel.js.
+
+    Verifies resolution order, primary override, eligibility gates, and the
+    validate-config.js special-case for channels.primary.
+    """
+
+    RESOLVER = SCRIPTS / 'resolve-outbound-channel.js'
+    VALIDATOR = SCRIPTS / 'validate-config.js'
+
+    def _run_resolver(self, config_obj):
+        with tempfile.TemporaryDirectory() as d:
+            hermit_dir = Path(d) / '.claude-code-hermit'
+            hermit_dir.mkdir()
+            (hermit_dir / 'config.json').write_text(json.dumps(config_obj))
+            r = subprocess.run(
+                ['node', str(self.RESOLVER), str(hermit_dir)],
+                capture_output=True, text=True
+            )
+            return r.returncode, json.loads(r.stdout.strip())
+
+    def _run_validator(self, config_obj):
+        js = f"""
+        const v = require('{SCRIPTS}/validate-config.js');
+        const result = v.validate({json.dumps(config_obj)});
+        process.stdout.write(JSON.stringify(result));
+        """
+        r = subprocess.run(['node', '-e', js], capture_output=True, text=True, timeout=5)
+        self.assertEqual(r.returncode, 0, f'node exited non-zero: {r.stderr}')
+        return json.loads(r.stdout)
+
+    def test_primary_set_and_reachable(self):
+        """channels.primary picks the named channel when eligible."""
+        config = {'channels': {
+            'primary': 'telegram',
+            'discord': {'enabled': True, 'dm_channel_id': 'D1'},
+            'telegram': {'enabled': True, 'dm_channel_id': 'T1'},
+        }}
+        code, result = self._run_resolver(config)
+        self.assertEqual(code, 0)
+        self.assertEqual(result.get('id'), 'telegram')
+        self.assertEqual(result.get('chat_id'), 'T1')
+
+    def test_primary_set_but_no_dm_channel_id_falls_through(self):
+        """primary channel missing dm_channel_id falls through to fixed priority."""
+        config = {'channels': {
+            'primary': 'telegram',
+            'discord': {'enabled': True, 'dm_channel_id': 'D1'},
+            'telegram': {'enabled': True, 'dm_channel_id': None},
+        }}
+        code, result = self._run_resolver(config)
+        self.assertEqual(code, 0)
+        self.assertEqual(result.get('id'), 'discord')
+
+    def test_primary_unset_uses_fixed_priority(self):
+        """No primary — fixed order discord → telegram → imessage."""
+        config = {'channels': {
+            'discord': {'enabled': True, 'dm_channel_id': 'D1'},
+            'telegram': {'enabled': True, 'dm_channel_id': 'T1'},
+        }}
+        code, result = self._run_resolver(config)
+        self.assertEqual(code, 0)
+        self.assertEqual(result.get('id'), 'discord')
+
+    def test_primary_disabled_falls_through(self):
+        """primary channel with enabled:false is skipped (policy gate)."""
+        config = {'channels': {
+            'primary': 'telegram',
+            'discord': {'enabled': True, 'dm_channel_id': 'D1'},
+            'telegram': {'enabled': False, 'dm_channel_id': 'T1'},
+        }}
+        code, result = self._run_resolver(config)
+        self.assertEqual(code, 0)
+        self.assertEqual(result.get('id'), 'discord')
+
+    def test_validator_rejects_primary_referencing_missing_channel(self):
+        """channels.primary pointing to a non-existent channel is an error."""
+        config = {'channels': {'primary': 'ghost', 'discord': {'dm_channel_id': 'D1'}}}
+        result = self._run_validator(config)
+        self.assertTrue(
+            any('primary' in e and 'ghost' in e for e in result.get('errors', [])),
+            f'expected primary/ghost error, got {result}',
+        )
+
+    def test_validator_accepts_valid_primary(self):
+        """channels.primary pointing to an existing channel passes validation."""
+        config = {'channels': {'primary': 'discord', 'discord': {'dm_channel_id': 'D1'}}}
+        result = self._run_validator(config)
+        primary_errors = [e for e in result.get('errors', []) if 'primary' in e]
+        self.assertEqual(primary_errors, [], f'unexpected primary errors: {primary_errors}')
+
+
 if __name__ == '__main__':
     unittest.main()

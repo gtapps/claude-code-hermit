@@ -140,6 +140,7 @@ function validate(config) {
 
   if (config.channels && typeof config.channels === 'object') {
     for (const [name, ch] of Object.entries(config.channels)) {
+      if (name === 'primary') continue;
       if (typeof ch !== 'object' || ch === null) {
         errors.push(`channels.${name}: must be an object`);
         continue;
@@ -149,6 +150,13 @@ function validate(config) {
       }
       if (ch.dm_channel_id !== undefined && ch.dm_channel_id !== null && typeof ch.dm_channel_id !== 'string') {
         errors.push(`channels.${name}.dm_channel_id: must be string or null`);
+      }
+    }
+    if (config.channels.primary !== undefined) {
+      if (typeof config.channels.primary !== 'string') {
+        errors.push('channels.primary: must be a string channel name');
+      } else if (!config.channels[config.channels.primary]) {
+        errors.push(`channels.primary: references unknown channel "${config.channels.primary}"`);
       }
     }
   }
