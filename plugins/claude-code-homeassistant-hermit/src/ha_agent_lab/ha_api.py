@@ -14,6 +14,10 @@ from .config import AppConfig, load_config
 
 _USER_AGENT = os.environ.get("HOMEASSISTANT_USER_AGENT") or f"ha-agent-lab/{__version__} (+https://github.com/gtapps/claude-code-hermit)"
 
+# Cloudflare/Nabu Casa rejects oversize filter_entity_id query strings with HTTP 520.
+# Empirically 24 IDs pass and 306 fail; 50 keeps URLs well under the proxy limit.
+_HISTORY_CHUNK_SIZE = 50
+
 
 @dataclass(slots=True)
 class HomeAssistantError(Exception):
@@ -68,6 +72,10 @@ class HomeAssistantClient:
         Returns {entity_id: [state_change, ...]}. Entities with no events in the window
         are absent from the result — callers that need zero-count rows synthesize them.
 
+        Large entity lists are split into chunks of _HISTORY_CHUNK_SIZE and fetched
+        sequentially to keep the filter_entity_id query string under the Cloudflare
+        proxy's URL-length limit (which otherwise rejects with HTTP 520).
+
         Raises HomeAssistantError if entity_ids is empty (avoids an unbounded all-entity fetch).
         Flags are sent as bare query params (minimal_response, not minimal_response=true)
         matching the HA REST API docs.
@@ -75,6 +83,27 @@ class HomeAssistantClient:
         if not entity_ids:
             raise HomeAssistantError("get_history requires entity_ids — pass at least one entity ID")
 
+        result: dict[str, list[dict[str, Any]]] = {}
+        for i in range(0, len(entity_ids), _HISTORY_CHUNK_SIZE):
+            chunk = entity_ids[i:i + _HISTORY_CHUNK_SIZE]
+            result.update(self._fetch_history_chunk(
+                chunk,
+                start_time,
+                end_time,
+                minimal_response=minimal_response,
+                significant_changes_only=significant_changes_only,
+            ))
+        return result
+
+    def _fetch_history_chunk(
+        self,
+        entity_ids: list[str],
+        start_time: datetime,
+        end_time: datetime,
+        *,
+        minimal_response: bool,
+        significant_changes_only: bool,
+    ) -> dict[str, list[dict[str, Any]]]:
         start_iso = parse.quote(start_time.isoformat(), safe="")
         params = f"filter_entity_id={','.join(parse.quote(e, safe='') for e in entity_ids)}"
         params += f"&end_time={parse.quote(end_time.isoformat(), safe='')}"

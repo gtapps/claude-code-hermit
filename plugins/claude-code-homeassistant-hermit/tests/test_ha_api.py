@@ -122,6 +122,50 @@ def test_get_history_requires_explicit_end_time(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# get_history — chunking for large entity lists
+# ---------------------------------------------------------------------------
+
+def _parse_filter_entity_ids(path: str) -> list[str]:
+    from urllib.parse import parse_qs, unquote, urlparse
+    query = parse_qs(urlparse(path).query)
+    return unquote(query["filter_entity_id"][0]).split(",")
+
+
+def test_get_history_single_chunk_when_under_limit(tmp_path: Path) -> None:
+    client = _make_client(tmp_path)
+    captured: list[str] = []
+
+    with patch.object(client, "get", side_effect=lambda p: captured.append(p) or []):
+        client.get_history([f"light.x{i:03d}" for i in range(50)], _T0, _T1)
+
+    # Exactly at the chunk size — still one request, no chunking overhead
+    assert len(captured) == 1
+    assert len(_parse_filter_entity_ids(captured[0])) == 50
+
+
+def test_get_history_chunks_large_entity_lists_and_merges_results(tmp_path: Path) -> None:
+    client = _make_client(tmp_path)
+    entity_ids = [f"light.x{i:03d}" for i in range(120)]
+    captured: list[str] = []
+
+    def _fake_get(path: str) -> list:
+        captured.append(path)
+        ids = _parse_filter_entity_ids(path)
+        # HA returns one inner list per entity that had events
+        return [[{"entity_id": eid, "state": "on"}] for eid in ids]
+
+    with patch.object(client, "get", side_effect=_fake_get):
+        result = client.get_history(entity_ids, _T0, _T1)
+
+    # 120 entities at chunk size 50 → ceil(120/50) == 3 chunks
+    assert len(captured) == 3
+    chunk_sizes = [len(_parse_filter_entity_ids(p)) for p in captured]
+    assert chunk_sizes == [50, 50, 20]
+    # Merged result covers every requested entity
+    assert set(result.keys()) == set(entity_ids)
+
+
+# ---------------------------------------------------------------------------
 # select_home_assistant_url (pre-existing tests)
 # ---------------------------------------------------------------------------
 
