@@ -21,7 +21,7 @@ Orchestrate a multi-plugin release: determines order, runs each plugin's `/relea
 
 ### 1. Validate branch
 
-Run `git branch --show-current`. If on `main` or the repo's default branch: stop — "Fleet release is for branch prep. Switch to a plugin branch (e.g. `dev-hermit/vX.Y.Z`) and re-run."
+Run `git branch --show-current`. If on `main` or the repo's default branch: stop — "Fleet release is for branch prep. Switch to a non-default branch and re-run."
 
 ### 2. Determine target plugins
 
@@ -101,4 +101,4 @@ Fleet release complete:
   claude-code-dev-hermit  v0.2.3   (commit def5678)
 ```
 
-Use AskUserQuestion: "Open a PR for this fleet release?" with Yes / No. If yes, invoke `/create-pr`.
+Use AskUserQuestion: "Open a PR for this fleet release?" with Yes / No. If yes, invoke `/dev-pr`.
