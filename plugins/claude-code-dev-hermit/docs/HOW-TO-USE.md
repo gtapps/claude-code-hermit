@@ -60,7 +60,7 @@ Per `§Tests Before PR`:
 3. If tests pass post-`/code-review`, proceed.
 4. If tests fail post-`/code-review`, `git checkout -- <changed-files>` and stop. Surface the regression.
 
-For PR review, security-sensitive changes, or large refactors, invoke `/code-review:code-review` (from the optional `code-review` plugin) after the code-review pass.
+For PR review, security-sensitive changes, or large refactors, invoke `/code-review:code-review` (from the optional `code-review` plugin) after the built-in `/code-review` pass.
 
 ### 5. Open the PR
 

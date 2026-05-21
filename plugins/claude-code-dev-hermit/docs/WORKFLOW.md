@@ -9,7 +9,7 @@ The plugin's contribution to the workflow is two-part:
    - **`safety`** (`state-templates/CLAUDE-APPEND-SAFETY.md`): git safety and branch discipline only. No §Implementation Flow or §Tests Before PR. For projects that already have their own `/commit`, `/create-pr`, or `/release` skills — dev-hermit's safety layer without the prescriptive workflow.
 2. **`/dev-pr`** is the operator-invoked terminal step that pushes the branch and opens the PR.
 
-Everything between (planning, branch creation, code, tests, simplify) is the agent following the injected rules. There's no "dev-hermit pipeline" — the rules ARE the pipeline.
+Everything between (planning, branch creation, code, tests, code-review) is the agent following the injected rules. There's no "dev-hermit pipeline" — the rules ARE the pipeline.
 
 ---
 
@@ -53,9 +53,9 @@ Per `§Tests Before PR`:
 1. Run `/code-review` on changed files (built-in, ships parallel reuse/quality/efficiency reviewers).
 2. Re-run the test command.
 3. If tests pass → proceed.
-4. If tests fail → `git checkout -- <changed-files>` to revert the code-review pass, surface the regression, stop.
+4. If tests fail → `git checkout -- <changed-files>` to revert the `/code-review` pass, surface the regression, stop.
 
-For high-stakes changes, optionally invoke `/code-review:code-review` (from the optional `code-review` companion plugin) after the code-review pass.
+For high-stakes changes, optionally invoke `/code-review:code-review` (from the optional `code-review` companion plugin) after the built-in `/code-review` pass.
 
 ### Step 6 — PR
 

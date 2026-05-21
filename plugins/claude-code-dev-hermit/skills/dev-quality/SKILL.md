@@ -45,7 +45,7 @@ Then FAIL `"no working-tree diff — nothing to code-review"`. Append the hint `
 
 Invoke `/code-review` on the current diff. Wait for it to complete. If `/code-review` reports no changes, note `code-review: no changes` and continue to Gate 2 anyway.
 
-When `--cwd <path>` is set, scope `/code-review` to files under `<path>` — list them via `git -C "<path>" diff --name-only` and pass that file set as the focus. Don't run /code-review outside `<path>`.
+When `--cwd <path>` is set, scope `/code-review` to files under `<path>` — list them via `git -C "<path>" diff --name-only` and pass that file set as the focus. Don't review files outside `<path>`.
 
 ### Gate 2 — re-run tests
 
@@ -73,49 +73,49 @@ Do **not** invoke `/code-review:code-review` autonomously — operator decision 
 
 **Tests fail:**
 
-Read `state/last-test.json` and include `likely_cause` in the failure message if present. FAIL with `"tests regressed after /code-review (exit <N>[, likely OOM|timeout|user-interrupt]) — investigate before committing"` and the last 20 lines of stderr. Leave the working tree as-is (post-code-review state) — the agent or operator decides whether to fix forward or revert the code-review pass manually (`git checkout -- <files>`).
+Read `state/last-test.json` and include `likely_cause` in the failure message if present. FAIL with `"tests regressed after /code-review (exit <N>[, likely OOM|timeout|user-interrupt]) — investigate before committing"` and the last 20 lines of stderr. Leave the working tree as-is (post-`/code-review` state) — the agent or operator decides whether to fix forward or revert the `/code-review` pass manually (`git checkout -- <files>`).
 
 ## Output
 
 ```
 dev-quality
-  diff:     12 files modified
+  diff:        12 files modified
   code-review: applied
-  tests:    pass (12.3s)
-  next:     suggest operator run /code-review:code-review (installed)
-  status:   ok
+  tests:       pass (12.3s)
+  next:        suggest operator run /code-review:code-review (installed)
+  status:      ok
 ```
 
 When invoked with `--cwd <path>`, prepend a `target:` line:
 
 ```
 dev-quality
-  target:   packages/foo
-  diff:     3 files modified
+  target:      packages/foo
+  diff:        3 files modified
   code-review: applied
-  tests:    pass (4.1s)
-  status:   ok
+  tests:       pass (4.1s)
+  status:      ok
 ```
 
 On Gate 3 failure:
 
 ```
 dev-quality
-  diff:     12 files modified
+  diff:        12 files modified
   code-review: applied
-  tests:    FAIL (exit 137, likely OOM, 8.7s)
-  recovery: investigate the regression; fix forward or `git checkout -- <files>` to revert the code-review pass
-  status:   tests-regressed
+  tests:       FAIL (exit 137, likely OOM, 8.7s)
+  recovery:    investigate the regression; fix forward or `git checkout -- <files>` to revert the `/code-review` pass
+  status:      tests-regressed
 ```
 
 When `commands.test` is unset:
 
 ```
 dev-quality
-  diff:     12 files modified
+  diff:        12 files modified
   code-review: applied
-  tests:    skipped (commands.test not configured)
-  status:   ok
+  tests:       skipped (commands.test not configured)
+  status:      ok
 ```
 
 On Gate 0 failure (clean tree, commits ahead):

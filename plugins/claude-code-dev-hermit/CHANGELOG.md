@@ -5,6 +5,7 @@
 ### Changed
 
 - **Adapted to CC 2.1.146 `/simplify` → `/code-review` rename.** All runtime invocations (`dev-quality` Gate 1, Gate 0 NOTICE text, output format labels), state templates (`CLAUDE-APPEND.md`, `CLAUDE-APPEND-SAFETY.md`), and descriptive references updated. `min_claude_code_version: ">=2.1.146"` added to `hermit-meta.json` so `/hermit-evolve` Step 0 blocks upgrades on stale CC versions. The marketplace `/code-review:code-review` plugin (`code-review@claude-plugins-official`) is now consistently prefixed throughout to disambiguate it from the built-in. **Requires Claude Code 2.1.146+.** After upgrading, run `/claude-code-dev-hermit:hatch` to refresh your project's CLAUDE-APPEND content.
+- **Post-rename polish.** Fixes one missed `simplify` reference in `docs/WORKFLOW.md`. Re-pads `dev-quality` output blocks (`skills/dev-quality/SKILL.md`) to a 13-col label width so the longer `code-review:` label aligns with the other rows. Reword "code-review pass" → "built-in `/code-review` pass" in `docs/HOW-TO-USE.md` and `docs/WORKFLOW.md` only where the marketplace `/code-review:code-review` plugin is referenced in the same paragraph, to disambiguate; elsewhere the term stays "`/code-review` pass" so it matches the Gate 1 name used in the same skill.
 
 ## [0.3.7] - 2026-05-16
 
