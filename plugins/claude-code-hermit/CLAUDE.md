@@ -45,6 +45,10 @@ When installed in a target project, state lives in `.claude-code-hermit/`:
 
 `hatch` also seeds `bin/` (lifecycle scripts), `docker/` (container scaffolding), `HEARTBEAT.md`, `IDLE-TASKS.md`, and `SESSION-REPORT.md` — see `state-templates/` for the full set.
 
+## Hatch target routing
+
+`hatch` routes operator-personal outputs based on the plugin's install scope (read from `claude plugin list --json`): `scope=local` → `CLAUDE.local.md` + `.claude/settings.local.json`; `scope=project` → `CLAUDE.md` + `.claude/settings.json`. The chosen target is persisted to `.claude-code-hermit/state/hatch-options.json` and read by `hermit-evolve`, `docker-setup`, and `claude-code-dev-hermit:hatch`. `hermit-evolve` Steps 6, 7, 8 are target-aware and will not re-add committed files after a `.local` migration.
+
 ## Migrations
 
 When a change needs to be applied to existing hermits (not just the template for new ones), document it in `CHANGELOG.md` under the relevant version's `### Upgrade Instructions` section. The `hermit-evolve` skill reads and **executes** those instructions — write them as imperative steps the skill will follow, not passive notes.
