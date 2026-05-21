@@ -74,7 +74,9 @@ class HomeAssistantClient:
 
         Large entity lists are split into chunks of _HISTORY_CHUNK_SIZE and fetched
         sequentially to keep the filter_entity_id query string under the Cloudflare
-        proxy's URL-length limit (which otherwise rejects with HTTP 520).
+        proxy's URL-length limit (which otherwise rejects with HTTP 520). Duplicate
+        entity IDs are collapsed (first occurrence wins) so chunks never re-fetch the
+        same entity and merge order can't silently drop one chunk's rows.
 
         Raises HomeAssistantError if entity_ids is empty (avoids an unbounded all-entity fetch).
         Flags are sent as bare query params (minimal_response, not minimal_response=true)
@@ -83,6 +85,7 @@ class HomeAssistantClient:
         if not entity_ids:
             raise HomeAssistantError("get_history requires entity_ids — pass at least one entity ID")
 
+        entity_ids = list(dict.fromkeys(entity_ids))
         result: dict[str, list[dict[str, Any]]] = {}
         for i in range(0, len(entity_ids), _HISTORY_CHUNK_SIZE):
             chunk = entity_ids[i:i + _HISTORY_CHUNK_SIZE]

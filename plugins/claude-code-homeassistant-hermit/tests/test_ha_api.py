@@ -165,6 +165,21 @@ def test_get_history_chunks_large_entity_lists_and_merges_results(tmp_path: Path
     assert set(result.keys()) == set(entity_ids)
 
 
+def test_get_history_dedupes_entity_ids_before_chunking(tmp_path: Path) -> None:
+    client = _make_client(tmp_path)
+    # 60 unique entities, each repeated twice → 120 entries
+    entity_ids = [f"light.x{i:03d}" for i in range(60)] * 2
+    captured: list[str] = []
+
+    with patch.object(client, "get", side_effect=lambda p: captured.append(p) or []):
+        client.get_history(entity_ids, _T0, _T1)
+
+    # After de-dup: 60 entities → 2 chunks of 50 and 10, not 3 chunks of 50/50/20
+    assert len(captured) == 2
+    chunk_sizes = [len(_parse_filter_entity_ids(p)) for p in captured]
+    assert chunk_sizes == [50, 10]
+
+
 # ---------------------------------------------------------------------------
 # select_home_assistant_url (pre-existing tests)
 # ---------------------------------------------------------------------------
