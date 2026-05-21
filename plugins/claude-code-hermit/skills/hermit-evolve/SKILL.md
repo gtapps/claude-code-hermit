@@ -49,6 +49,16 @@ If config.json doesn't exist: report "No config found. Run `/claude-code-hermit:
 - Present a summary to the operator: "Upgrading from vX.Y.Z to vA.B.C. Here's what changed:"
 - Show only the relevant changelog sections (not the entire file)
 
+### 2a. Resolve hatch target
+
+Before running version migrations, determine `hatch_target` so Steps 6, 7, and 8 write to the correct file:
+
+1. Read `.claude-code-hermit/state/hatch-options.json` if it exists. Use the `"target"` field as `hatch_target`.
+2. If the file is absent or has no `"target"` field:
+   - Check if `CLAUDE.local.md` contains the marker `claude-code-hermit: Session Discipline` → `hatch_target = "local"`.
+   - Else if `CLAUDE.md` contains the marker → `hatch_target = "committed"`.
+   - Else → re-run scope detection: read `claude plugin list --json`. From the output, find all entries where plugin name (substring of `id` left of `@`) is `claude-code-hermit` and `enabled == true`. Apply precedence: if any has `scope == "local"` and `projectPath` equals current project root → `local`; else if any has `scope == "project"` and `projectPath` equals current project root → `project`; else if any has `scope == "user"` (any `projectPath`) → `user`; else → `null`. Map: `project` → `committed`; `local`/`user`/`null` → `local`.
+
 ### 2b. Execute version migrations
 
 For each CHANGELOG.md version entry between `config_version` (exclusive) and `plugin_version` (inclusive), processed in **oldest-first order**:
@@ -137,12 +147,16 @@ If `<project-root>/obsidian/` exists in the target project:
 
 ### 6. Update CLAUDE-APPEND block
 
-- Read the project's `CLAUDE.md`
+The target file is determined by `hatch_target` (resolved in step 2a):
+- `hatch_target == "local"` → `CLAUDE.local.md`
+- `hatch_target == "committed"` → `CLAUDE.md`
+
+- Read the target file
 - Find the `<!-- claude-code-hermit: Session Discipline -->` marker
 - Read `${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND.md` for the current version
-- Compare the block in CLAUDE.md (from the marker to the end of file or next `---` separator) with the template
+- Compare the block in the target file (from the marker to the end of file or next `---` separator) with the template
 - If different: replace the block with the updated content
-- If the marker is not found: append the full CLAUDE-APPEND.md (same as init)
+- If the marker is not found: append the full CLAUDE-APPEND.md to the target file (same as init)
 - Report what changed
 
 ### 7. Hermit upgrades
@@ -160,16 +174,20 @@ If `<project-root>/obsidian/` exists in the target project:
     - Read `<installPath>/CHANGELOG.md` if it exists and extract version entries between the config version (exclusive) and the current version (inclusive)
     - Present a summary: "{hermit_name}: upgrading from vOLD to vNEW. Here's what changed:" followed by only the relevant changelog sections
     - **Execute migrations in version order** — For each extracted version entry (oldest first), look for a `### Upgrade Instructions` section. If found, execute every instruction in that section — do not skip or merely display them.
-    - **Sync hermit's CLAUDE-APPEND block** — Same procedure as step 6, using:
+    - **Sync hermit's CLAUDE-APPEND block** — Same procedure as step 6 (write to the `hatch_target` file), using:
       - Source template: `<installPath>/state-templates/CLAUDE-APPEND.md`. If it doesn't exist, skip.
       - Marker: the first HTML comment line in that template (e.g. `<!-- hermit-name: Section Title -->`)
     - Update `_hermit_versions[hermit_name]` to the current hermit version
   - If no gap: skip silently
 - For hermits detected on disk but **not** present in `_hermit_versions`: skip silently. The operator opted in to core only; sibling activation belongs to that sibling's own `hatch`.
 
-### 8. Ensure plugin permissions in settings.json
+### 8. Ensure plugin permissions in settings file
 
-Same logic as init step 8: check `.claude/settings.json` for the plugin's required permissions (`git diff/status/log`, per-script `node` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required node entries are: `cost-tracker.js`, `suggest-compact.js`, `run-with-profile.js`, `evaluate-session.js`, `append-metrics.js`, `generate-summary.js`, `cron-tz-shift.js`, `archive-shell.js`. If any are missing, show the operator which ones and ask for confirmation before adding. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found:
+Same logic as init step 8, but target the file determined by `hatch_target` (resolved in step 2a):
+- `hatch_target == "local"` → `.claude/settings.local.json`
+- `hatch_target == "committed"` → `.claude/settings.json`
+
+Check the target settings file for the plugin's required permissions (`git diff/status/log`, per-script `node` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required node entries are: `cost-tracker.js`, `suggest-compact.js`, `run-with-profile.js`, `evaluate-session.js`, `append-metrics.js`, `generate-summary.js`, `cron-tz-shift.js`, `archive-shell.js`. If any are missing, show the operator which ones and ask for confirmation before adding. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found in the target file:
 
 - `Bash(python3:*)`, `Bash(node:*)` — replaced by scoped node entries
 - `Edit(.claude/.claude-code-hermit/**)`, `Write(.claude/.claude-code-hermit/**)` — replaced by `.claude-code-hermit/**` (v0.0.6 path change)

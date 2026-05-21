@@ -5,6 +5,53 @@
 ### Changed
 
 - **Adapted to CC 2.1.146 `/simplify` → `/code-review` rename.** All runtime invocations (`proposal-act` step e.5 quality-gate tiers, `quality-gate-judge` agent), injected templates (`state-templates/CLAUDE-APPEND.md`), and descriptive references updated. `min_claude_code_version` bumped to `>=2.1.146` in `hermit-meta.json` so `/hermit-evolve` Step 0 blocks upgrades on stale CC versions. **Requires Claude Code 2.1.146+.** After upgrading, run `/claude-code-hermit:hermit-evolve` to refresh existing project CLAUDE-APPEND content (state-templates only seed new installs via `/hatch`).
+### Added
+
+- **Scope-aware hatch output routing (GH #111).** `hatch` now detects the core plugin's install scope (`claude plugin list --json`) and routes operator-personal outputs accordingly: `scope=local` → `CLAUDE.local.md` + `.claude/settings.local.json`; `scope=project` → `CLAUDE.md` + `.claude/settings.json` (current behavior); `scope=user` → `.local` (safer default). The choice is shown in Quick Turn 5's confirm bundle and Step 10 report. Advanced users get a Visibility question in Phase 6 to override the scope-derived default. The chosen target is persisted to `.claude-code-hermit/state/hatch-options.json` for downstream skills (`hermit-evolve`, `docker-setup`, `claude-code-dev-hermit:hatch`). `hermit-evolve` Steps 6, 7, and 8 are now target-aware — they no longer re-add committed files on every evolve run after a `.local` migration. `docker-setup` Step 6.4 is likewise target-aware. Step 7 (.gitignore) now checks missing entries per-line rather than skipping the whole append if any marker is already present.
+
+### Changed
+
+- **Hatch routing review-pass refinements (GH #111).** `docker-setup` Step 6.4 now uses the same fallback chain as `hermit-evolve` step 2a (state file → marker scan → scope detection) instead of silently defaulting to committed when `hatch-options.json` is absent — prevents leaking operator-personal hardening into the repo. `hatch` Step 9b preserves the original `stamped_by` and `stamped_at` when re-stamping an existing `hatch-options.json` (e.g. one written by `claude-code-dev-hermit:hatch` first), recording the new writer under `last_updated_by`/`last_updated_at` instead. Upgrade Instructions step 2 collapses three sequential per-step migration prompts into a single Visibility prompt with a "Stay on committed (skip migration)" shortcut option. New contract test `tests/test-hatch-options-contract.sh` asserts the canonical state-file path and `"target"` field name are referenced consistently across all five consumers — guards against rename drift.
+
+### Fixed
+
+- **AUTO_CLOSE defeated by routine SHELL.md writes (#109).** The `AUTO_CLOSE` signal in `heartbeat-precheck.js` read SHELL.md mtime, which routine writes (reflect, scheduled-checks, heartbeat alerts) bump on a sub-12h cadence — causing auto-close to never fire on always-on hermits with default routines. Fix: new `scripts/record-operator-action.js` hook writes `state/last-operator-action.json` on UserPromptSubmit and SessionStart, filtering out cron-delivered routine prompts (`[hermit-routine:` prefix), any bare slash-command with no `<command-message>` wrapper (covers all `/loop` re-fires, cron injections, and programmatic slash calls), and inbound channel messages. SessionStart only seeds the file on cold start (existing timestamps are preserved across container restarts, so unattended boots can't mask a vanished operator). Channel-responder runs the script with `--force` after authorization passes (the hook deliberately skips `<channel` prompts because it can't see the allowlist). Heartbeat-precheck now gates AUTO_CLOSE on this file when present, falling back to SHELL.md mtime for pre-upgrade installs.
+
+### Upgrade Instructions
+
+0. **Append local-file entries to `.gitignore`** (always, regardless of target).
+   - Read `.gitignore` at the project root.
+   - If it does not contain the line `CLAUDE.local.md`, append it.
+   - If it does not contain the line `.claude/settings.local.json`, append it.
+
+1. **Migration preflight — detect deny patterns that block this migration.**
+   - Read `permissions.deny` from both `.claude/settings.json` and `.claude/settings.local.json` (if they exist).
+   - If any of the following appear: `Edit(.claude/settings.json)`, `Write(.claude/settings.json)`, `Edit(.claude/settings.local.json)`, `Write(.claude/settings.local.json)`, `Bash(*> .claude/settings.json*)`, `Bash(*> .claude/settings.local.json*)` — surface them to the operator with this message: "These deny patterns (from the hardened always_on set) will block the migration writes. Temporarily removing them is required to proceed."
+   - Ask operator: **Temporarily remove for this migration** (stash, migrate, restore at end) / **Skip migration** (keep current layout, no file moves) / **Abort** (stop hermit-evolve entirely).
+   - If "Skip migration": record `hatch_target = "committed"` and stamp `.claude-code-hermit/state/hatch-options.json`, then skip steps 3–5. Continue to step 6 (hermit-evolve will correctly write to committed files going forward).
+   - If "Temporarily remove": remove the listed deny entries from the settings file(s) now. Note them for restoration in step 7.
+
+2. **Decide hermit visibility for this project.**
+   - Read `claude plugin list --json`. Apply precedence `local > project > user` for entries where plugin name is `claude-code-hermit` and `projectPath` matches the current project root. Map: project → committed; local/user/null → local.
+   - Ask operator a single Visibility prompt with three options (scope-derived target at position 0 as recommended): **`.local` files** (gitignored — operator-personal) / **Committed files** (shared with teammates) / **Stay on committed (skip migration)** (no file moves; hermit-evolve writes to committed files going forward).
+   - If "Stay on committed (skip migration)": record `hatch_target = "committed"`, stamp `.claude-code-hermit/state/hatch-options.json`, skip steps 3–5 entirely (do not prompt per-step). Continue to step 6.
+   - Otherwise record the choice into `.claude-code-hermit/state/hatch-options.json`.
+
+3. **Migrate hermit CLAUDE-APPEND block if target = .local.**
+   - If `CLAUDE.md` contains the marker `<!-- claude-code-hermit: Session Discipline -->`: show diff (CLAUDE.md → CLAUDE.local.md). Ask operator: **Move** (diff-and-confirm) / **Keep in CLAUDE.md** / **Skip**.
+   - If moving: check whether the block content differs from the canonical template at this plugin version. If hand-edits exist inside the marker, surface them — ask whether to carry them across or drop them.
+
+4. **Migrate hermit-scoped hook allow entries if target = .local.**
+   - Identify hermit-scoped entries in `.claude/settings.json` `permissions.allow` by matching: `Bash(git diff:*)`, `Bash(git status:*)`, `Bash(git log:*)`, `Bash(node */scripts/cost-tracker.js*)`, `Bash(node */scripts/suggest-compact.js*)`, `Bash(node */scripts/heartbeat-precheck.js*)`, `Bash(node */scripts/reflect-precheck.js*)`, `Bash(node */scripts/archive-shell.js*)`, `Bash(node */scripts/run-with-profile.js*)`, `Bash(node */scripts/evaluate-session.js*)`, `Bash(node */scripts/append-metrics.js*)`, `Bash(node */scripts/generate-summary.js*)`, `Bash(node */scripts/update-reflection-state.js*)`, `Bash(node */scripts/cron-tz-shift.js*)`, `Bash(bash -c 'AGENT_DIR=\".claude-code-hermit\"*)`, `Edit(.claude-code-hermit/**)`, `Write(.claude-code-hermit/**)`.
+   - Show diff (`.claude/settings.json` → `.claude/settings.local.json`). Ask operator: **Move** / **Keep in settings.json** / **Skip**.
+
+5. **Migrate hermit deny patterns if target = .local.**
+   - Identify by matching entries against `state-templates/deny-patterns.json` (both `default` and `always_on` sets).
+   - Show diff (`.claude/settings.json` → `.claude/settings.local.json`). Ask operator: **Move** / **Keep in settings.json** / **Skip**.
+
+6. **If target = committed:** no marker or permission migration needed. hermit-evolve continues writing to committed files (current behavior) — steps 3–5 are skipped.
+
+7. **Restore preflight denies** (only if step 1 stashed entries). Re-add the stashed deny entries to the operator's chosen target settings file.
 
 ## [1.1.0] - 2026-05-18
 

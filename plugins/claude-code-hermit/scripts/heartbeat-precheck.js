@@ -84,18 +84,36 @@ const runtime = readJSON(path.join(stateDir, 'state', 'runtime.json')) ?? {};
 const sessionState = runtime.session_state ?? 'idle';
 
 if (sessionState === 'in_progress') {
-  // SHELL.md mtime is a reliable cross-day signal; Progress Log [HH:MM] entries are not.
-  // Fail-open: any stat error → fall through to EVALUATE (LLM does the stale check).
+  let now = Date.now();
+  if (process.env.HERMIT_NOW) {
+    const d = new Date(process.env.HERMIT_NOW).getTime();
+    if (!isNaN(d)) now = d;
+  }
+
+  // Prefer last-operator-action.json: records genuine operator prompts only, unaffected
+  // by routine writes (reflect, scheduled-checks, heartbeat alerts) that bump SHELL.md mtime.
+  // Falls back to SHELL.md mtime for pre-upgrade installs that don't have the file yet.
+  let usedActionFile = false;
   try {
-    const shellPath = path.join(stateDir, 'sessions', 'SHELL.md');
-    const mtime = fs.statSync(shellPath).mtime.getTime();
-    let now = Date.now();
-    if (process.env.HERMIT_NOW) {
-      const d = new Date(process.env.HERMIT_NOW).getTime();
-      if (!isNaN(d)) now = d;
+    const lastAction = readJSON(path.join(stateDir, 'state', 'last-operator-action.json'));
+    if (lastAction && typeof lastAction.at === 'string') {
+      const t = new Date(lastAction.at).getTime();
+      if (!isNaN(t)) {
+        if ((now - t) / (1000 * 60 * 60) > 12) emit('AUTO_CLOSE');
+        usedActionFile = true; // valid timestamp — skip mtime fallback
+      }
     }
-    if ((now - mtime) / (1000 * 60 * 60) > 12) emit('AUTO_CLOSE');
-  } catch { /* fail-open */ }
+  } catch { /* fail-open: fall through to mtime */ }
+
+  if (!usedActionFile) {
+    // SHELL.md mtime fallback (absent or malformed last-operator-action.json).
+    // Fail-open: any stat error → fall through to EVALUATE (LLM does the stale check).
+    try {
+      const shellPath = path.join(stateDir, 'sessions', 'SHELL.md');
+      const mtime = fs.statSync(shellPath).mtime.getTime();
+      if ((now - mtime) / (1000 * 60 * 60) > 12) emit('AUTO_CLOSE');
+    } catch { /* fail-open */ }
+  }
   // stale-session check needs SHELL.md parsing — delegate to LLM
   emit('EVALUATE');
 }

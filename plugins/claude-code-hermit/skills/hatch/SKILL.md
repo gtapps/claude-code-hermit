@@ -24,18 +24,22 @@ Before the setup-mode gate or any file writes, gather context silently. Run all 
    - Language: `echo $LANG | cut -d_ -f1` (fallback: `en`)
    - Timezone: `cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value 2>/dev/null || date +%Z` (fallback: `UTC`)
 
-2. **Silent hermit detection** (the silent half of Step 3 — split out so it's available before the mode gate without an operator prompt):
+2. **Silent hermit detection + core scope detection** (split out so it's available before the mode gate without an operator prompt):
    - Run: `claude plugin list --json`
-   - Apply the **project-or-local + enabled filter**:
+   - **Core scope detection:** From the full output, find all entries where the plugin name (substring of `id` left of `@`) is exactly `claude-code-hermit`, `enabled == true`, and `projectPath` equals the current project root. Apply precedence: if any has `scope == "local"` → `core_install_scope = "local"`; else if any has `scope == "project"` → `core_install_scope = "project"`; else if a user-scope entry exists for this plugin (any `projectPath`) → `core_install_scope = "user"`; else → `core_install_scope = null`. Map to `hatch_target`:
+     - `core_install_scope == "project"` → `hatch_target = "committed"`
+     - `core_install_scope == "local"` → `hatch_target = "local"`
+     - `core_install_scope == "user"` or `null` → `hatch_target = "local"` (safer default; operator can override in Advanced)
+   - **Sibling hermit detection:** Apply the **project-or-local + enabled filter**:
      - Keep `enabled == true` AND (`scope == "project"` OR `scope == "local"`) AND `projectPath` equals the current project root.
      - Drop user-scope, managed-scope, disabled, and cross-project entries.
-   - For each surviving entry, parse the plugin name from `id` (substring left of `@`). Keep entries whose plugin name contains "hermit" but is NOT "claude-code-hermit".
+   - For each surviving sibling entry, parse the plugin name from `id` (substring left of `@`). Keep entries whose plugin name contains "hermit" but is NOT "claude-code-hermit".
    - Stash the resulting list as `detected_hermits`. Each entry must carry: `plugin` (id left of `@`), `id` (full JSON field), `marketplace_name` (id right of `@`), `installPath` (JSON `installPath` field — Step 3 reads `state-templates/CLAUDE-APPEND.md` and `plugin.json` from this path directly).
-   - Note: this is intentionally restrictive. A hermit installed at user scope (a personal default across projects) does NOT auto-detect — operator can install it at project scope and re-run, or activate via `/hermit-settings`.
+   - Note: sibling detection is intentionally restrictive. A hermit installed at user scope does NOT auto-detect — operator can install it at project scope and re-run, or activate via `/hermit-settings`.
 
 3. **Print one summary line** so the operator sees what was detected:
 
-   > Initializing hermit in `<project-name>`. Detected: language=<lang>, timezone=<tz>, hermit candidates=<N> (<comma-separated names or "none">).
+   > Initializing hermit in `<project-name>`. Detected: language=<lang>, timezone=<tz>, scope=<project|local|user>, target=<committed|local>, hermit candidates=<N> (<comma-separated names or "none">).
 
 ### 1.6. Setup mode gate
 
@@ -322,6 +326,11 @@ questions: [
 
 #### Phase 6 — Deployment (AskUserQuestion batch, 3 questions)
 
+The Visibility question uses the scope-derived `hatch_target` to recommend an option. Place the recommended option at index 0 with `(recommended)` in the label so the recommendation is clear:
+
+- If `hatch_target == "local"` (scope=local or scope=user): `.local files` is position 0 with `(recommended)`.
+- If `hatch_target == "committed"` (scope=project): `Committed files` is position 0 with `(recommended)`.
+
 ```
 questions: [
   {
@@ -342,9 +351,28 @@ questions: [
       { label: "Yes", description: "Morning at 08:30, evening at 22:30 (default)" },
       { label: "No", description: "No scheduled routines" }
     ]
+  },
+  {
+    header: "Visibility",
+    question: "Where should hermit-personal hatch outputs live? (CLAUDE.md block, hook permissions, deny patterns)",
+    // Build options with recommended at index 0 based on hatch_target:
+    // When hatch_target == "local":
+    //   options: [
+    //     { label: ".local files (recommended)", description: "Gitignored — operator-personal. Plugin installed at <scope> scope." },
+    //     { label: "Committed files", description: "Shared with teammates. Override scope-derived default." }
+    //   ]
+    // When hatch_target == "committed":
+    //   options: [
+    //     { label: "Committed files (recommended)", description: "Shared with teammates. Plugin installed at project scope." },
+    //     { label: ".local files", description: "Gitignored — operator-personal. Override scope-derived default." }
+    //   ]
   }
 ]
 ```
+
+The recommended option is always at index 0 with `(recommended)` in the label. When `hatch_target == "local"`, `.local files` is index 0; when `hatch_target == "committed"`, `Committed files` is index 0. Substitute `<scope>` with the actual `core_install_scope` value.
+
+Record the operator's Visibility choice as `hatch_target` (overrides scope-derived default if different).
 
 Record: `permission_mode` (default/acceptEdits/auto/plan/dontAsk/bypassPermissions). `plan` mode can be typed via Other if needed.
 
@@ -507,30 +535,41 @@ Write the final version to `.claude-code-hermit/OPERATOR.md`.
 
 Tell the operator: "OPERATOR.md is ready. You can review it at `.claude-code-hermit/OPERATOR.md`. Refine anytime — just tell me what changed."
 
-### 6. Append session discipline to CLAUDE.md
+### 6. Append session discipline to CLAUDE.md or CLAUDE.local.md
 
-- Check if `CLAUDE.md` exists at the project root
+The target file is determined by `hatch_target` (computed in Step 1.5):
+- `hatch_target == "local"` → write to `CLAUDE.local.md` (gitignored, operator-personal)
+- `hatch_target == "committed"` → write to `CLAUDE.md` (committed, current behavior)
+
+Perform the idempotency check across both files first: if the marker `claude-code-hermit: Session Discipline` exists in the non-target file, surface a conflict — ask operator: **Move to target file** (diff-and-confirm) / **Keep both** (warn that both load) / **Skip conflict**. Never silently leave duplicate markers.
+
+For the target file:
 - If it exists: check if it already contains `claude-code-hermit: Session Discipline`
-  - If yes: ask with `AskUserQuestion` (header: "CLAUDE.md") — options: **Yes — replace** (update to latest) / **No — keep** (preserve current, default)
+  - If yes: ask with `AskUserQuestion` (header: "CLAUDE block") — options: **Yes — replace** (update to latest) / **No — keep** (preserve current, default)
     - If "Yes — replace": remove everything between `<!-- claude-code-hermit: Session Discipline -->` and `<!-- /claude-code-hermit: Session Discipline -->` (inclusive), then append the fresh contents of `${CLAUDE_SKILL_DIR}/../../state-templates/CLAUDE-APPEND.md`
     - If "No — keep": skip
-  - If no: read `${CLAUDE_SKILL_DIR}/../../state-templates/CLAUDE-APPEND.md` and append its contents to the end of CLAUDE.md
-- If CLAUDE.md doesn't exist: create it with the append block as the initial content
+  - If no: read `${CLAUDE_SKILL_DIR}/../../state-templates/CLAUDE-APPEND.md` and append its contents to the end of the target file
+- If the target file doesn't exist: create it with the append block as the initial content
 
-If a hermit was activated in step 3, also append `<activated_hermit.installPath>/state-templates/CLAUDE-APPEND.md` here (using the same skip/overwrite logic if its marker already exists).
+If a hermit was activated in step 3, also append `<activated_hermit.installPath>/state-templates/CLAUDE-APPEND.md` to the same target file (using the same skip/overwrite logic if its marker already exists).
 
 ### 7. Update .gitignore
 
 Use `${CLAUDE_SKILL_DIR}/../../state-templates/GITIGNORE-APPEND.txt`.
 
-- If `.gitignore` exists: check if it already contains `.claude/cost-log.jsonl` or `.claude-code-hermit/HEARTBEAT.md`
-  - If either marker is already present: skip
-  - If not: read the template, show the operator the lines that will be appended, and ask with `AskUserQuestion` (header: "Update .gitignore") — options: **Yes — append** (add hermit entries, default) / **No — skip** (you'll manage .gitignore manually). Append only if confirmed.
-- If `.gitignore` doesn't exist: read the template, show the operator the lines that will be written, and ask with `AskUserQuestion` (header: "Create .gitignore") — options: **Yes — create** (default) / **No — skip**. Create only if confirmed.
+Read the template. Determine which lines are missing from the project's `.gitignore` (per-line idempotent check — do not re-add lines already present). Only the missing lines are candidates to append.
 
-### 8. Ensure plugin permissions in settings.json
+- If `.gitignore` exists and candidate lines are non-empty: show the operator only the missing lines that will be appended, and ask with `AskUserQuestion` (header: "Update .gitignore") — options: **Yes — append** (add missing entries, default) / **No — skip** (you'll manage .gitignore manually). Append only if confirmed.
+- If `.gitignore` exists and no lines are missing: skip silently.
+- If `.gitignore` doesn't exist: show the operator the full template that will be written, and ask with `AskUserQuestion` (header: "Create .gitignore") — options: **Yes — create** (default) / **No — skip**. Create only if confirmed.
 
-The plugin's hooks and boot scripts require specific Bash permissions to run without prompting. Merge these into `.claude/settings.json` (the project-level, committed settings file):
+### 8. Ensure plugin permissions in settings file
+
+The plugin's hooks and boot scripts require specific Bash permissions to run without prompting. The target settings file is determined by `hatch_target`:
+- `hatch_target == "local"` → merge into `.claude/settings.local.json` (gitignored)
+- `hatch_target == "committed"` → merge into `.claude/settings.json` (committed, current behavior)
+
+Merge these into the target file:
 
 **Required permissions:**
 
@@ -569,16 +608,16 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
 
 **Steps:**
 
-1. If `.claude/settings.json` exists: read it and identify which required permissions are missing from `permissions.allow`
-2. If `.claude/settings.json` does not exist: all permissions are missing
+1. If the target settings file exists: read it and identify which required permissions are missing from `permissions.allow`
+2. If the target settings file does not exist: all permissions are missing
 3. If no permissions are missing: skip silently
 4. If permissions need to be added: show the operator the list of permissions to add and ask with `AskUserQuestion` (header: "Hook perms") — options: **Yes — add** (merge so hooks run without prompting, default) / **No — skip** (you'll be prompted during sessions).
-5. If the operator confirms: merge into the existing `permissions.allow` array (never remove existing entries), write back
+5. If the operator confirms: merge into the existing `permissions.allow` array (never remove existing entries), write back to the target settings file
 6. If the operator declines: skip, and note: "You may be prompted to approve hook commands during sessions. Run `/claude-code-hermit:hermit-settings permissions` to add them later."
 
 ### 9. Generate deny patterns (AskUserQuestion, single question)
 
-Add safety deny rules to `.claude/settings.json` `permissions.deny` to prevent destructive operations.
+Add safety deny rules to the target settings file's `permissions.deny` to prevent destructive operations. The target file is the same as Step 8 (`hatch_target == "local"` → `.claude/settings.local.json`; else → `.claude/settings.json`).
 
 ```
 questions: [
@@ -641,9 +680,41 @@ questions: [
   ```
 - If **skip**: note: "You can add deny rules later in .claude/settings.json under permissions.deny."
 
-Merge selected rules into existing `permissions.deny` (never remove existing entries), write back.
+Merge selected rules into existing `permissions.deny` in the target settings file (never remove existing entries), write back.
 
 Do NOT include `Bash(docker *)`, `Bash(kubectl *)`, `Bash(ssh *)` in hatch — these are valid in devops contexts on the host. Docker-setup includes them because the container should not spawn child containers or SSH out.
+
+### 9b. Persist hatch options
+
+After Steps 6–9 complete, write `.claude-code-hermit/state/hatch-options.json`.
+
+**If the file does not exist**, write:
+
+```json
+{
+  "target": "<local|committed>",
+  "core_install_scope": "<project|local|user|null>",
+  "stamped_at": "<current ISO 8601 timestamp with timezone offset>",
+  "stamped_by": "claude-code-hermit:hatch",
+  "version": "<current plugin version from ${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json>"
+}
+```
+
+**If the file already exists** (e.g. `claude-code-dev-hermit:hatch` stamped it first), preserve the original `stamped_by` and `stamped_at` and update the rest:
+
+```json
+{
+  "target": "<local|committed>",
+  "core_install_scope": "<project|local|user|null>",
+  "stamped_at": "<original value — do not overwrite>",
+  "stamped_by": "<original value — do not overwrite>",
+  "last_updated_at": "<current ISO 8601 timestamp with timezone offset>",
+  "last_updated_by": "claude-code-hermit:hatch",
+  "version": "<current plugin version from ${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json>"
+}
+```
+
+This file is read by `hermit-evolve`, `docker-setup`, and `claude-code-dev-hermit:hatch` to inherit the operator's target choice without re-running scope detection.
 
 ---
 
@@ -756,11 +827,14 @@ Quick setup will apply:
   Routines:    morning 08:30, evening 22:30, heartbeat 04:00
   Channel:     {channel or None} (allow-everyone; token + pairing later)
   Hermit ext:  {activated or none}
-  Files:       CLAUDE.md, .gitignore, .claude/settings.json
+  Visibility:  {.local — plugin installed at <scope> scope | committed — plugin installed at project scope}
+  Files:       {CLAUDE.local.md | CLAUDE.md}, .gitignore, {.claude/settings.local.json | .claude/settings.json}
   OPERATOR.md: drafted from scan + your answers (written below)
 
 Customize restarts the wizard from scratch; your Quick answers won't carry over.
 ```
+
+The `Visibility:` and `Files:` lines are dynamic based on `hatch_target`.
 
 Ask:
 
@@ -791,10 +865,10 @@ Quick replaces Step 4 entirely and applies these defaults silently at the shared
 | Advanced Phase 4b equivalent | `.baseline-pending` marker | same eligibility check as Advanced |
 | Advanced Phase 5 equivalent | channels.<name>.* | state_dir + enabled + dm_channel_id=null; omit allowed_users + morning_brief |
 | Advanced Phase 6 equivalent | permission_mode, routines | derived from deployment; routines = morning 08:30 + evening 22:30 + (template) heartbeat 04:00 |
-| Step 6 | CLAUDE.md append | apply silently (default "keep" if marker already present) |
-| Step 7 | .gitignore append | apply silently |
-| Step 8 | .claude/settings.json plugin permissions | merge silently |
-| Step 9 | deny patterns | derived profile silently (Docker → hardened, else → minimal) |
+| Step 6 | CLAUDE.md / CLAUDE.local.md append | apply silently to `hatch_target` file (default "keep" if marker already present) |
+| Step 7 | .gitignore append | apply silently (per-line idempotent) |
+| Step 8 | plugin permissions (target settings file) | merge silently into `hatch_target` settings file |
+| Step 9 | deny patterns (target settings file) | derived profile silently (Docker → hardened, else → minimal); write to `hatch_target` settings file |
 
 ### Quick — auto-chain at end of Step 10
 
@@ -847,10 +921,16 @@ Config:
 
 Hermits: (none activated)
 
+Visibility:
+  Target: {.local (plugin installed at <scope> scope) | committed (plugin installed at project scope)}
+
 Updated:
-  CLAUDE.md — session discipline block appended
-  .gitignore — cost-log entry added
-  .claude/settings.json — plugin permissions added
+  {CLAUDE.local.md | CLAUDE.md} — session discipline block appended
+  .gitignore — hermit entries added
+  {.claude/settings.local.json | .claude/settings.json} — plugin permissions added
+  .claude-code-hermit/state/hatch-options.json — target stamped
+
+  Flip target by re-running /hatch (Advanced) and choosing the other Visibility option.
 
 Next steps:
 

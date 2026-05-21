@@ -25,6 +25,10 @@ Language-agnostic safety layer for any agent doing dev work in a hermit project.
 
 `git-push-guard` activates at **strict** profile only. `/hatch` defaults to installing strict and offers an explicit opt-out; once strict, `/hatch` re-runs never silently downgrade. See `docs/GIT-SAFETY.md` for the full profile model.
 
+## Hatch target routing
+
+`/hatch` Step 3 reads `.claude-code-hermit/state/hatch-options.json` (written by core hatch) to determine where to write the CLAUDE-APPEND block: `target = "local"` → `CLAUDE.local.md`; `target = "committed"` → `CLAUDE.md`. If core hatch hasn't run yet, the skill prompts the operator and stamps the file itself. Applies to both `CLAUDE-APPEND.md` (standard) and `CLAUDE-APPEND-SAFETY.md` (safety) templates.
+
 ## Depends On
 
 - `claude-code-hermit` v1.0.26+ (core). Authoritative source: `.claude-plugin/hermit-meta.json` (`required_core_version` field).

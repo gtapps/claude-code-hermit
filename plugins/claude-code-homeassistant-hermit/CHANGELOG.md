@@ -2,6 +2,12 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Fixed
+
+- **`ha fetch-history` no longer fails with Cloudflare HTTP 520 on default-scope fetches** (gh #107). `HomeAssistantClient.get_history()` now splits the requested entity IDs into chunks of 50 and merges the per-chunk responses, keeping the `filter_entity_id` query string short enough to pass through the Nabu Casa Cloudflare proxy. Restores the `Overnight:` section in `ha-morning-brief` and unblocks `ha-analyze-patterns` for deployments with large entity inventories. No CLI or skill changes; explicit `--entities` calls keep their original single-request shape when they fit under the chunk size. Duplicate entity IDs are now collapsed (first occurrence wins) before chunking so the chunk merge can't silently drop one chunk's rows.
+
 ## [0.1.4] - 2026-05-16
 
 ### Added

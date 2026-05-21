@@ -19,3 +19,5 @@
 .claude-code-hermit/cost-summary.md
 .claude-code-hermit/tasks-snapshot.md
 .claude.local/
+CLAUDE.local.md
+.claude/settings.local.json

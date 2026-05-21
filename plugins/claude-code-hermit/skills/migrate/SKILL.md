@@ -10,14 +10,16 @@ Git is the source of truth. Migration should be minimal. This skill is read-only
 
 ## Scoping
 
-- `.claude/` — **project-scoped** (settings.json, permissions). Tracked in git. Migrates with git clone. Never treat as machine-local.
+- `.claude/settings.json` — **project-scoped** (committed). Tracked in git. Migrates with git clone.
+- `.claude/settings.local.json` — **machine/user-scoped** (gitignored). Contains task list ID (always) and hook permissions + deny patterns (when plugin was installed at local or user scope). Must be recreated on destination — never migrated by git clone. Check `.claude-code-hermit/state/hatch-options.json` `"target"` field: if `"local"`, this file contains hermit's hook permissions and deny patterns; the operator must re-run `/hatch` or `/hermit-evolve` on the destination to restore them.
 - `.claude.local/` — **machine/user-scoped** (channel state dirs, local overrides). Needs recreation on destination. Never migrated.
 
 ## Rules
 
 - Do not write or modify any files unless the operator explicitly requests it
 - Classify conservatively: when in doubt, put a file in DO_NOT_MIGRATE or REVIEW_MANUALLY
-- `.claude/` migrates with git clone — never flag it for manual migration or recreation
+- `.claude/settings.json` migrates with git clone — never flag it for manual migration or recreation
+- `.claude/settings.local.json` does NOT migrate with git clone — flag for recreation on destination
 - `.claude.local/` must be recreated on destination — never migrated
 - Never suggest migrating runtime state, caches, or ephemeral files
 - config.json requires field-level analysis, not just a "review manually" label

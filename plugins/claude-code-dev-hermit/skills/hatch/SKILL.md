@@ -63,20 +63,27 @@ When building the options array at runtime:
 - If the capability scan matched one or more skill dirs, surface `safety (recommended)` with the detected names; present `standard` as the alternative.
 - If no scan match, present `safety` first and `standard` as the alternative.
 
-### 3. Update CLAUDE.md dev block
+### 3. Update CLAUDE.md / CLAUDE.local.md dev block
 
 Read the plugin version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`.
+
+**Resolve target file:** Read `.claude-code-hermit/state/hatch-options.json`. Use the `"target"` field:
+- `"local"` → write to `CLAUDE.local.md`
+- `"committed"` or absent → write to `CLAUDE.md`
+- If the file doesn't exist (operator ran dev-hermit hatch before core hatch): ask with `AskUserQuestion` (header: "Visibility") — options: **`.local` files** (gitignored) / **Committed files** (shared). Record choice and write `.claude-code-hermit/state/hatch-options.json` with `{"target": "<choice>", "stamped_by": "claude-code-dev-hermit:hatch", "stamped_at": "<iso>"}`.
 
 Based on the mode chosen in step 2:
 - `safety` → read `${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND-SAFETY.md`
 - `standard` → read `${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND.md`
 
-Look for the marker comment `<!-- claude-code-dev-hermit: Development Workflow -->` in the project's `CLAUDE.md`.
+Look for the marker comment `<!-- claude-code-dev-hermit: Development Workflow -->` in the target file.
 
-- Marker absent: append the selected template to `CLAUDE.md`.
+- Marker absent: append the selected template to the target file.
 - Marker present, stamped version differs from the plugin version: silently replace the existing block with the selected template.
 - Marker present, versions match AND mode is unchanged from config: skip — block is current.
 - Marker present, versions match but mode changed: replace — operator switched modes.
+
+The template is the source of truth. No operator prompt is needed for the replace step.
 
 The template is the source of truth. No operator prompt is needed for this step.
 
