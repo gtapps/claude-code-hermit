@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **AUTO_CLOSE defeated by routine SHELL.md writes (#109).** The `AUTO_CLOSE` signal in `heartbeat-precheck.js` read SHELL.md mtime, which routine writes (reflect, scheduled-checks, heartbeat alerts) bump on a sub-12h cadence — causing auto-close to never fire on always-on hermits with default routines. Fix: new `scripts/record-operator-action.js` hook writes `state/last-operator-action.json` on every genuine operator prompt (UserPromptSubmit) and on each session start (SessionStart), filtering out cron-delivered routine prompts (`[hermit-routine:` prefix), `/loop`-fired heartbeat ticks (bare `/claude-code-hermit:heartbeat run` with no `<command-message>` wrapper), and inbound channel messages (handled by `channel-responder` after the allowlist check). Heartbeat-precheck now gates AUTO_CLOSE on this file when present, falling back to SHELL.md mtime for pre-upgrade installs.
+
 ## [1.1.0] - 2026-05-18
 
 ### Added

@@ -67,7 +67,11 @@ The allowlist is per-channel inside the `channels` object in config.json:
 }
 ```
 
-## 1d. Persist Chat ID
+## 1d. Record Operator Activity
+
+After authorization passes, write `state/last-operator-action.json` with `{"at": "<now ISO>"}` (full overwrite — no merge). This tells `heartbeat-precheck.js` that a real operator interaction occurred, resetting the 12h AUTO_CLOSE quiet window. The `UserPromptSubmit` hook skips channel inbound prompts to avoid unauthorized DMs suppressing AUTO_CLOSE; this step is the authorized write site.
+
+## 1e. Persist Chat ID
 
 After authorization passes, store the inbound `chat_id` to `config.json` → `channels.<channel>.dm_channel_id` (e.g. `channels.discord.dm_channel_id`) if it differs from the currently stored value or hasn't been stored yet.
 

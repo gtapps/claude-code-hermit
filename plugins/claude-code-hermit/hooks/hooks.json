@@ -99,6 +99,18 @@
           }
         ],
         "description": "Inject reply-tool reminder when inbound prompt starts with a <channel source=...> envelope"
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/record-operator-action.js"],
+            "timeout": 3
+          }
+        ],
+        "description": "Record last operator-action timestamp; skips routine/loop/channel prompts"
       }
     ],
     "SessionStart": [
@@ -112,6 +124,18 @@
           }
         ],
         "description": "Load session context on startup"
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/record-operator-action.js"],
+            "timeout": 3
+          }
+        ],
+        "description": "Reset last-operator-action clock on session start"
       }
     ],
     "Stop": [
