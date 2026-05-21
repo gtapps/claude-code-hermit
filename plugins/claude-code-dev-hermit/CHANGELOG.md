@@ -1,5 +1,30 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Duplicate dev block after core 1.1.1 target migration.** When an operator upgraded core hermit to 1.1.1 and chose `target = "local"`, core's `hermit-evolve` migrated its own block from `CLAUDE.md` to `CLAUDE.local.md` but the dev-hermit block was left behind. The subsequent sibling-sync in `hermit-evolve` Step 7 found no marker in `CLAUDE.local.md` and appended a fresh dev block there, while the pre-existing block in `CLAUDE.md` was never removed — resulting in duplicate `<!-- claude-code-dev-hermit: Development Workflow -->` blocks in both files. The Upgrade Instructions below run a one-shot migration via `hermit-evolve` Step 7 to remove the stray block.
+
+### Changed
+
+- **`/hatch` Step 3 is now target-aware (GH #111 follow-up).** Reads `.claude-code-hermit/state/hatch-options.json` written by core hatch and writes the CLAUDE-APPEND block to `CLAUDE.local.md` (when `target = "local"`) or `CLAUDE.md` (when `target = "committed"`). If core hatch hasn't run yet (operator's core hermit predates 1.1.1), the skill detects `core_install_scope` from `claude plugin list --json` and presents the scope-derived default at position 0 of the Visibility prompt, then stamps `hatch-options.json` with the canonical 5-field schema (`target`, `core_install_scope`, `stamped_at`, `stamped_by`, `version`). Stray-block migration is handled one-shot by the Upgrade Instructions below — hatch itself stays focused on target-aware setup and steady-state refresh.
+- **Polish following code-review pass.** Step 1 of `/hatch` now explicitly captures `prior_hatch_mode` before Step 5 overwrites it (sequencing clarification, no behavior change). The Upgrade Instructions Step 3 is now fully unattended — dropped the hand-edit detection / Carry-forward branch since `/hatch`'s single-source-of-truth contract already makes the marked block template-authoritative. Test coverage extended with 15 structural-lint assertions for target routing, the 5-field schema, scope mapping, and migration delegation.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill executes the following steps automatically (via Step 7's sibling upgrade flow, which runs every plugin's `### Upgrade Instructions` before its CLAUDE-APPEND sync). The migration is unattended — no operator prompts. `hermit-evolve` Step 7 re-syncs the canonical block to `hatch_target` afterwards.
+
+1. **Resolve `hatch_target`.** Use the same fallback chain `hermit-evolve` Step 2a uses, substituting the dev marker: read `.claude-code-hermit/state/hatch-options.json` and use the `"target"` field; else check `CLAUDE.local.md` for `<!-- claude-code-dev-hermit: Development Workflow -->` → `hatch_target = "local"`; else check `CLAUDE.md` for the same marker → `hatch_target = "committed"`; else stop — the dev block is in neither file, nothing to migrate.
+
+2. **Identify the non-target file.** `non_target = (hatch_target == "local") ? "CLAUDE.md" : "CLAUDE.local.md"`.
+
+3. **If the marker is present in `non_target`, silently strip the marked block.** Per `/hatch`'s single-source-of-truth contract, the CLAUDE-APPEND template is authoritative and operator overrides belong outside the marked block, so no hand-edit preservation is needed. Step 7's sync re-appends the canonical block to `hatch_target` afterwards.
+
+4. **If the marker is only in `hatch_target`:** no-op. Steady state — Step 7's normal sync handles routine version-bump replacement.
+
+No `config.json` changes required.
+
 ## [0.3.8] - 2026-05-21
 
 ### Changed

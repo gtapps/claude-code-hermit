@@ -27,7 +27,9 @@ Language-agnostic safety layer for any agent doing dev work in a hermit project.
 
 ## Hatch target routing
 
-`/hatch` Step 3 reads `.claude-code-hermit/state/hatch-options.json` (written by core hatch) to determine where to write the CLAUDE-APPEND block: `target = "local"` → `CLAUDE.local.md`; `target = "committed"` → `CLAUDE.md`. If core hatch hasn't run yet, the skill prompts the operator and stamps the file itself. Applies to both `CLAUDE-APPEND.md` (standard) and `CLAUDE-APPEND-SAFETY.md` (safety) templates.
+`/hatch` Step 3 reads `.claude-code-hermit/state/hatch-options.json` (written by core hatch) to determine where to write the CLAUDE-APPEND block: `target = "local"` → `CLAUDE.local.md`; `target = "committed"` → `CLAUDE.md`. If core hatch hasn't run yet, the skill detects `core_install_scope` from `claude plugin list --json`, presents the scope-derived default at position 0 of the Visibility prompt, and stamps the full canonical schema (`target`, `core_install_scope`, `stamped_at`, `stamped_by`, `version`) into `hatch-options.json`. Applies to both `CLAUDE-APPEND.md` (standard) and `CLAUDE-APPEND-SAFETY.md` (safety) templates.
+
+**Migration on target change.** When the operator flips `hatch_target` (e.g. via core 1.1.1's `hermit-evolve` Upgrade Instructions), the dev block can end up stranded in the old file. The most recent CHANGELOG entry's `### Upgrade Instructions` run a one-shot migration via `hermit-evolve` Step 7's sibling upgrade flow to strip the stranded block.
 
 ## Depends On
 

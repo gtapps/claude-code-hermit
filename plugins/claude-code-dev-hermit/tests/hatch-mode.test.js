@@ -92,6 +92,37 @@ if (fs.existsSync(HATCH_SKILL)) {
   ok('references standard mode', text.includes('"standard"') || text.includes("'standard'") || text.includes('`standard`'));
   ok('references CLAUDE-APPEND-SAFETY.md', text.includes('CLAUDE-APPEND-SAFETY.md'));
   ok('references capability scan slugs', text.includes('create-pr') && text.includes('release'));
+
+  console.log('\nskills/hatch/SKILL.md target routing + schema stamping:');
+
+  ok('references hatch-options.json', text.includes('hatch-options.json'));
+  ok('reads "target" field from hatch-options.json',
+    /hatch-options\.json[\s\S]{0,200}["`]target["`]/.test(text));
+  ok('local target routes to CLAUDE.local.md',
+    /["`]local["`][\s\S]{0,80}target_file = CLAUDE\.local\.md/.test(text));
+  ok('committed target routes to CLAUDE.md',
+    /["`]committed["`][\s\S]{0,120}target_file = CLAUDE\.md/.test(text));
+
+  ok('schema stamps "target" field', /"target":\s*"/.test(text));
+  ok('schema stamps "core_install_scope" field', /"core_install_scope":\s*"/.test(text));
+  ok('schema stamps "stamped_at" field', /"stamped_at":\s*"/.test(text));
+  ok('schema stamps "stamped_by" field', /"stamped_by":\s*"claude-code-dev-hermit:hatch"/.test(text));
+  ok('schema stamps "version" field', /"version":\s*"/.test(text));
+
+  ok('detects core_install_scope from `claude plugin list --json`',
+    /core_install_scope[\s\S]{0,120}claude plugin list --json/.test(text));
+  ok('documents `project` → `committed` scope mapping',
+    /`project`[^\n]{0,20}`committed`/.test(text));
+  ok('documents `local`/`user`/`null` → `local` scope mapping',
+    /`local`\/`user`\/`null`[^\n]{0,40}`local`/.test(text));
+
+  ok('Step 1 captures `prior_hatch_mode`',
+    /Capture `prior_hatch_mode`/.test(text));
+  ok('Step 3 compares against `prior_hatch_mode`',
+    /Step 2's mode equals `prior_hatch_mode`/.test(text));
+
+  ok('delegates stray-block migration to hermit-evolve Step 7',
+    /hermit-evolve[\s\S]{0,20}Step 7/.test(text));
 }
 
 process.exit(summary() === 0 ? 0 : 1);

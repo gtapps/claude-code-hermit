@@ -18,6 +18,8 @@ Check if `.claude-code-hermit/` exists in the current project.
 - Missing: ask the operator (`AskUserQuestion`) "Core hermit isn't set up yet. Run `/claude-code-hermit:hatch` now?" with options `Yes — run now` / `No — I'll do it later`. If yes, invoke `/claude-code-hermit:hatch`, then continue. If no, stop.
 - Present: read `.claude-code-hermit/config.json` and the plugin's `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/hermit-meta.json`. Verify `_hermit_versions["claude-code-hermit"]` from config satisfies `required_core_version` from hermit-meta (e.g. `">=1.0.22"`). If absent or below the floor, ask whether to run `/claude-code-hermit:hermit-evolve` first; allow opt-out with a warning. (Reading the floor from hermit-meta — never hardcoding it in skill prose — keeps this skill in sync with the plugin's declared requirement.)
 
+**Capture `prior_hatch_mode`.** While reading `config.json`, also record `claude-code-dev-hermit.hatch_mode` as `prior_hatch_mode` (or `null` if unset). Step 3's skip-vs-replace decision compares against this value, and Step 5 overwrites `hatch_mode` with Step 2's answer — capturing the prior value here keeps it intact across the wizard.
+
 ### 2. Capability scan + choose mode
 
 Run all detection in a single parallel turn:
@@ -68,24 +70,30 @@ When building the options array at runtime:
 Read the plugin version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`.
 
 **Resolve target file:** Read `.claude-code-hermit/state/hatch-options.json`. Use the `"target"` field:
-- `"local"` → write to `CLAUDE.local.md`
-- `"committed"` or absent → write to `CLAUDE.md`
-- If the file doesn't exist (operator ran dev-hermit hatch before core hatch): ask with `AskUserQuestion` (header: "Visibility") — options: **`.local` files** (gitignored) / **Committed files** (shared). Record choice and write `.claude-code-hermit/state/hatch-options.json` with `{"target": "<choice>", "stamped_by": "claude-code-dev-hermit:hatch", "stamped_at": "<iso>"}`.
+- `"local"` → `target_file = CLAUDE.local.md`
+- `"committed"` or absent → `target_file = CLAUDE.md`
+- If the file doesn't exist (no `hatch-options.json` yet — operator's core hermit predates 1.1.1): detect `core_install_scope` from `claude plugin list --json` using the same precedence rules core hatch's Step 1.5 item 2 uses (filter to entries where plugin name is `claude-code-hermit` and `enabled == true`; apply precedence `local` > `project` (both require `projectPath == project root`) > `user` (any `projectPath`) > `null`; map `project` → `committed`, `local`/`user`/`null` → `local` as the scope-derived default). Ask with `AskUserQuestion` (header: "Visibility") — present the scope-derived default at position 0 with `(recommended)` in the label: **`.local` files** (gitignored — operator-personal) / **Committed files** (shared with teammates). Record the choice and write `.claude-code-hermit/state/hatch-options.json` with the full schema:
 
-Based on the mode chosen in step 2:
-- `safety` → read `${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND-SAFETY.md`
-- `standard` → read `${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND.md`
+  ```json
+  {
+    "target": "<choice>",
+    "core_install_scope": "<project|local|user|null>",
+    "stamped_at": "<current ISO 8601 timestamp with timezone offset>",
+    "stamped_by": "claude-code-dev-hermit:hatch",
+    "version": "<current dev-hermit plugin version from ${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json>"
+  }
+  ```
 
-Look for the marker comment `<!-- claude-code-dev-hermit: Development Workflow -->` in the target file.
+  This matches the canonical schema core hatch Step 9b writes, so when core hatch later runs its 1.1.1 preservation logic keeps `stamped_at`/`stamped_by` intact and adds `last_updated_at`/`last_updated_by`.
 
-- Marker absent: append the selected template to the target file.
-- Marker present, stamped version differs from the plugin version: silently replace the existing block with the selected template.
-- Marker present, versions match AND mode is unchanged from config: skip — block is current.
-- Marker present, versions match but mode changed: replace — operator switched modes.
+Read `target_file` (treat a missing file as marker-absent — Edit will create the file in the append branch). Look for the marker `<!-- claude-code-dev-hermit: Development Workflow -->` and extract the stamped version from the existing block (if present).
 
-The template is the source of truth. No operator prompt is needed for the replace step.
+Compare against the run's chosen mode (from Step 2's answer this run) and `prior_hatch_mode` (captured in Step 1, before Step 5 overwrites `hatch_mode`):
 
-The template is the source of truth. No operator prompt is needed for this step.
+- **Marker present, stamped version matches plugin version, AND Step 2's mode equals `prior_hatch_mode`**: skip — block is current. Do not read the template.
+- **All other cases** (marker absent, stamped version stale, OR mode changed): read the mode template — `safety` → `${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND-SAFETY.md`; `standard` → `${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND.md` — and either append (marker absent) or replace the marked block (marker present). The template is the source of truth; no operator prompt is needed.
+
+Stray-block migration (block stranded in the non-target file after a target flip) is handled one-shot by the Upgrade Instructions in this version's CHANGELOG entry, executed by `hermit-evolve` Step 7. Hatch itself stays focused on target-aware setup and steady-state refresh.
 
 ### 4. Ask about remaining settings
 
