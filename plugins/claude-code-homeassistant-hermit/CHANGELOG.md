@@ -2,11 +2,32 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
-## [Unreleased]
+## [0.1.5] - 2026-05-21
+
+### Changed
+
+- **deps: bump core requirement to `>=1.1.1` / `^1.1.1`** — was `>=1.0.40`; aligns with core v1.1.1 release.
 
 ### Fixed
 
 - **`ha fetch-history` no longer fails with Cloudflare HTTP 520 on default-scope fetches** (gh #107). `HomeAssistantClient.get_history()` now splits the requested entity IDs into chunks of 50 and merges the per-chunk responses, keeping the `filter_entity_id` query string short enough to pass through the Nabu Casa Cloudflare proxy. Restores the `Overnight:` section in `ha-morning-brief` and unblocks `ha-analyze-patterns` for deployments with large entity inventories. No CLI or skill changes; explicit `--entities` calls keep their original single-request shape when they fit under the chunk size. Duplicate entity IDs are now collapsed (first occurrence wins) before chunking so the chunk merge can't silently drop one chunk's rows.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `src/ha_agent_lab/ha_api.py` | Add `_HISTORY_CHUNK_SIZE = 50`; split `get_history()` into chunk loop + `_fetch_history_chunk()`; dedupe entity IDs with `dict.fromkeys()` |
+| `tests/test_ha_api.py` | Add tests for chunked path and dedup behaviour |
+| `.claude-plugin/hermit-meta.json` | Bump `required_core_version` and `requires` to `>=1.1.1` |
+| `.claude-plugin/plugin.json` | Bump `claude-code-hermit` dependency to `^1.1.1` |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Update core** — run `/plugin update` and confirm `claude-code-hermit` is at v1.1.1 or later before this plugin's features are used.
+
+No `config.json` changes required.
 
 ## [0.1.4] - 2026-05-16
 
