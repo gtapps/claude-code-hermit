@@ -145,10 +145,10 @@ Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status --probe` and present the
   }
   ```
 
-Read `${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND.md`. Look for the marker `<!-- claude-code-homeassistant-hermit: Home Assistant Workflow -->` in `target_file`:
+Read the plugin version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and the stamped version from `.claude-code-hermit/config.json` at `_hermit_versions["claude-code-homeassistant-hermit"]` (treat absent as `null`). Step 8 of this skill stamps that field at the end of every run, so on re-runs it reflects the version that last wrote the block. Look for the marker `<!-- claude-code-homeassistant-hermit: Home Assistant Workflow -->` in `target_file`:
 
-- Absent → append the full CLAUDE-APPEND.md content to `target_file`.
-- Present → replace the marked block with the updated template (template is the source of truth).
+- **Marker present AND stamped version equals plugin version:** skip — block is current. Do not read the template.
+- **All other cases** (marker absent, stamped version null, OR stamped version stale): read `${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND.md` and either append it to `target_file` (marker absent — the Edit tool creates `target_file` if missing) or replace the marked block (marker present) — everything from the opening `<!-- claude-code-homeassistant-hermit: Home Assistant Workflow -->` through the matching closing `<!-- /claude-code-homeassistant-hermit: Home Assistant Workflow -->`, inclusive. The template is the source of truth; no operator prompt is needed.
 
 Stray-block migration (block stranded in the non-target file after a target flip) is handled one-shot by the Upgrade Instructions in this version's CHANGELOG entry, executed by `hermit-evolve` Step 7. Hatch itself stays focused on target-aware setup and steady-state refresh.
 
