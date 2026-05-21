@@ -2,15 +2,13 @@
 
 ## [Unreleased]
 
-### Changed
-
-- **Adapted to CC 2.1.146 `/simplify` → `/code-review` rename.** All runtime invocations (`proposal-act` step e.5 quality-gate tiers, `quality-gate-judge` agent), injected templates (`state-templates/CLAUDE-APPEND.md`), and descriptive references updated. `min_claude_code_version` bumped to `>=2.1.146` in `hermit-meta.json` so `/hermit-evolve` Step 0 blocks upgrades on stale CC versions. **Requires Claude Code 2.1.146+.** After upgrading, run `/claude-code-hermit:hermit-evolve` to refresh existing project CLAUDE-APPEND content (state-templates only seed new installs via `/hatch`).
 ### Added
 
 - **Scope-aware hatch output routing (GH #111).** `hatch` now detects the core plugin's install scope (`claude plugin list --json`) and routes operator-personal outputs accordingly: `scope=local` → `CLAUDE.local.md` + `.claude/settings.local.json`; `scope=project` → `CLAUDE.md` + `.claude/settings.json` (current behavior); `scope=user` → `.local` (safer default). The choice is shown in Quick Turn 5's confirm bundle and Step 10 report. Advanced users get a Visibility question in Phase 6 to override the scope-derived default. The chosen target is persisted to `.claude-code-hermit/state/hatch-options.json` for downstream skills (`hermit-evolve`, `docker-setup`, `claude-code-dev-hermit:hatch`). `hermit-evolve` Steps 6, 7, and 8 are now target-aware — they no longer re-add committed files on every evolve run after a `.local` migration. `docker-setup` Step 6.4 is likewise target-aware. Step 7 (.gitignore) now checks missing entries per-line rather than skipping the whole append if any marker is already present.
 
 ### Changed
 
+- **Adapted to CC 2.1.146 `/simplify` → `/code-review` rename.** All runtime invocations (`proposal-act` step e.5 quality-gate tiers, `quality-gate-judge` agent), injected templates (`state-templates/CLAUDE-APPEND.md`), and descriptive references updated. `min_claude_code_version` bumped to `>=2.1.146` in `hermit-meta.json` so `/hermit-evolve` Step 0 blocks upgrades on stale CC versions. **Requires Claude Code 2.1.146+.** After upgrading, run `/claude-code-hermit:hermit-evolve` to refresh existing project CLAUDE-APPEND content (state-templates only seed new installs via `/hatch`).
 - **Hatch routing review-pass refinements (GH #111).** `docker-setup` Step 6.4 now uses the same fallback chain as `hermit-evolve` step 2a (state file → marker scan → scope detection) instead of silently defaulting to committed when `hatch-options.json` is absent — prevents leaking operator-personal hardening into the repo. `hatch` Step 9b preserves the original `stamped_by` and `stamped_at` when re-stamping an existing `hatch-options.json` (e.g. one written by `claude-code-dev-hermit:hatch` first), recording the new writer under `last_updated_by`/`last_updated_at` instead. Upgrade Instructions step 2 collapses three sequential per-step migration prompts into a single Visibility prompt with a "Stay on committed (skip migration)" shortcut option. New contract test `tests/test-hatch-options-contract.sh` asserts the canonical state-file path and `"target"` field name are referenced consistently across all five consumers — guards against rename drift.
 
 ### Fixed
