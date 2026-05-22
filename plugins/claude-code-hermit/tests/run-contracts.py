@@ -539,6 +539,99 @@ class TestWriteSettingsEnv(_TempDirTest):
         settings = self._read_settings()
         self.assertNotIn('sandbox', settings)
 
+    def test_sandbox_probe_cache_hit_returns_cached_result(self):
+        """A cached probe with matching fingerprint short-circuits subprocess invocation."""
+        probe_cache = Path('.claude-code-hermit/state/sandbox-probe.json')
+        probe_cache.parent.mkdir(parents=True, exist_ok=True)
+        # Precompute the fingerprint the function will generate.
+        import hashlib
+        import platform
+        bwrap_path = shutil.which('bwrap') or ''
+        socat_path = shutil.which('socat') or ''
+        try:
+            bwrap_mtime = str(os.path.getmtime(bwrap_path)) if bwrap_path else ''
+            socat_mtime = str(os.path.getmtime(socat_path)) if socat_path else ''
+        except OSError:
+            bwrap_mtime = socat_mtime = ''
+        fp_raw = f'{platform.release()}|{bwrap_path}|{bwrap_mtime}|{socat_path}|{socat_mtime}'
+        fingerprint = hashlib.sha1(fp_raw.encode()).hexdigest()[:16]
+        cached = {'fingerprint': fingerprint, 'result': {'status': 'pass', 'message': 'cached'}}
+        probe_cache.write_text(json.dumps(cached))
+
+        with unittest.mock.patch('subprocess.run') as mock_run:
+            result = hermit_start._sandbox_probe_cached()
+        mock_run.assert_not_called()
+        self.assertEqual(result, {'status': 'pass', 'message': 'cached'})
+
+    def test_sandbox_probe_cache_miss_invokes_probe(self):
+        """A missing cache file triggers subprocess invocation and writes a fresh cache."""
+        probe_cache = Path('.claude-code-hermit/state/sandbox-probe.json')
+        self.assertFalse(probe_cache.exists())
+
+        fake_completed = unittest.mock.Mock(
+            returncode=0,
+            stdout='{"status": "pass", "message": "fresh"}',
+        )
+        with unittest.mock.patch('subprocess.run', return_value=fake_completed) as mock_run:
+            result = hermit_start._sandbox_probe_cached()
+        mock_run.assert_called_once()
+        self.assertEqual(result.get('status'), 'pass')
+        self.assertTrue(probe_cache.exists())
+        cached = json.loads(probe_cache.read_text())
+        self.assertIn('fingerprint', cached)
+        self.assertEqual(cached['result'].get('status'), 'pass')
+
+    def test_sandbox_probe_corrupted_cache_reprobes(self):
+        """A cache file with a non-dict result is treated as a miss and the probe re-runs."""
+        probe_cache = Path('.claude-code-hermit/state/sandbox-probe.json')
+        probe_cache.parent.mkdir(parents=True, exist_ok=True)
+        probe_cache.write_text(json.dumps({'fingerprint': 'whatever', 'result': 'corrupted-string'}))
+
+        fake_completed = unittest.mock.Mock(
+            returncode=0,
+            stdout='{"status": "pass", "message": "fresh"}',
+        )
+        with unittest.mock.patch('subprocess.run', return_value=fake_completed) as mock_run:
+            result = hermit_start._sandbox_probe_cached()
+        mock_run.assert_called_once()
+        self.assertEqual(result.get('status'), 'pass')
+
+    def test_check_sandbox_capability_warns_on_fail_probe(self):
+        """When sandbox enabled and probe fails, the warning + install hint are printed."""
+        self._write_settings({'sandbox': {'enabled': True}})
+        fake_probe = {
+            'status': 'fail',
+            'message': 'Missing: bwrap, socat.',
+            'install_hint': 'apt-get install -y bubblewrap socat',
+        }
+        buf = io.StringIO()
+        with unittest.mock.patch.object(hermit_start, 'is_container', return_value=False), \
+             unittest.mock.patch.object(hermit_start, '_sandbox_probe_cached', return_value=fake_probe), \
+             redirect_stdout(buf):
+            hermit_start.check_sandbox_capability()
+        out = buf.getvalue()
+        self.assertIn('Warning: sandbox enabled', out)
+        self.assertIn('Missing: bwrap, socat.', out)
+        self.assertIn('apt-get install -y bubblewrap socat', out)
+
+    def test_check_sandbox_capability_warns_on_warn_probe(self):
+        """A warn-status probe surfaces the message; install_hint may be absent."""
+        self._write_settings({'sandbox': {'enabled': True}})
+        fake_probe = {
+            'status': 'warn',
+            'message': 'user-namespaces disabled.',
+            'install_hint': None,
+        }
+        buf = io.StringIO()
+        with unittest.mock.patch.object(hermit_start, 'is_container', return_value=False), \
+             unittest.mock.patch.object(hermit_start, '_sandbox_probe_cached', return_value=fake_probe), \
+             redirect_stdout(buf):
+            hermit_start.check_sandbox_capability()
+        out = buf.getvalue()
+        self.assertIn('user-namespaces disabled.', out)
+        # No "Fix:" line when install_hint is None.
+        self.assertNotIn('Fix:', out)
+
 
 # ============================================================
 # Hook output tests

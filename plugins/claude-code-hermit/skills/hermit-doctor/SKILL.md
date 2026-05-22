@@ -27,6 +27,8 @@ summary. Safe to run at any time. Produces no side effects beyond writing
 
 2.5. **Sandbox capability check** (ninth check, run after step 2):
 
+   Architectural note: this check is computed by the skill orchestrator, not by `doctor-check.js`. `state/doctor-report.json` therefore contains only the eight checks emitted in step 2; the sandbox line is appended to the rendered summary and to SHELL.md but is not present in the JSON report. Tools that consume `doctor-report.json` programmatically should call `scripts/sandbox-probe.py` separately if they need the sandbox status.
+
    Determine the sandbox enabled state: read `.claude/settings.json` and `.claude/settings.local.json`; the last file that explicitly declares `sandbox.enabled` wins (Claude Code's merge order). Treat non-bool values as undeclared.
 
    - If sandbox is **not enabled** (no declaration, or last declaration is `false`): emit `✓ sandbox — disabled (not configured)`. Do not run the probe.

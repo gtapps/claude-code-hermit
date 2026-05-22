@@ -10,6 +10,7 @@
 - **`/hermit-doctor` sandbox check** (ninth check). Runs the capability probe and cross-references `sandbox.enabled` in settings files. Reports `pass/warn/fail` with remediation.
 - **FAQ entry** for bash sandboxing — explains the macOS/Linux split, custom-CA tooling edge cases, and the WSL2 prerequisite.
 - **`sandbox-profiles.json`** in `state-templates/` defines the `off` and `standard` profiles. `deny-patterns.json` gains a `sandbox.filesystem.denyRead` section as the canonical source for credential-path denies.
+- **Sandbox test coverage and doc clarification.** Added contract tests for `_sandbox_probe_cached` (cache hit, cache miss, corrupted-cache reprobe) and `check_sandbox_capability` warn/fail probe paths (5 new tests, contract suite now 81). Clarified in `/hermit-doctor` SKILL.md that the ninth (sandbox) check is computed by the skill orchestrator, not by `doctor-check.js` — the sandbox line is therefore not present in `state/doctor-report.json`. Tools consuming the JSON report should call `scripts/sandbox-probe.py` separately if they need the sandbox status.
 
 ### Upgrade Instructions
 
