@@ -80,10 +80,16 @@ def probe():
             'message': (
                 'bwrap and socat found, but unprivileged user-namespaces appear disabled. '
                 'Sandbox may not start. '
-                'Enable: sysctl -w kernel.unprivileged_userns_clone=1 '
-                '(or kernel.userns_restrict=0 on Ubuntu 24.04+).'
+                'On Ubuntu 24.04+ the cause is the AppArmor restriction on bwrap (install '
+                'the bwrap AppArmor profile per the Claude Code sandbox docs). '
+                'On older kernels the cause is `kernel.unprivileged_userns_clone=0` '
+                '(enable with `sysctl -w kernel.unprivileged_userns_clone=1`).'
             ),
-            'install_hint': None,
+            'install_hint': (
+                'Ubuntu 24.04+: install /etc/apparmor.d/bwrap (see '
+                'https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2). '
+                'Older kernels: sysctl -w kernel.unprivileged_userns_clone=1.'
+            ),
         }
 
     return {

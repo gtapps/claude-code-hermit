@@ -614,6 +614,15 @@ class TestWriteSettingsEnv(_TempDirTest):
         self.assertIn('Missing: bwrap, socat.', out)
         self.assertIn('apt-get install -y bubblewrap socat', out)
 
+    def test_sandbox_probe_warn_message_references_apparmor_for_ubuntu_24_04(self):
+        """The user-namespace warn branch must mention the AppArmor remediation path,
+        not the (incorrect) kernel.userns_restrict sysctl."""
+        probe_script = REPO / 'scripts' / 'sandbox-probe.py'
+        src = probe_script.read_text()
+        self.assertIn('AppArmor', src, 'AppArmor remediation missing from probe source')
+        self.assertNotIn('kernel.userns_restrict', src,
+            'Stale kernel.userns_restrict reference still present in probe')
+
     def test_check_sandbox_capability_warns_on_warn_probe(self):
         """A warn-status probe surfaces the message; install_hint may be absent."""
         self._write_settings({'sandbox': {'enabled': True}})

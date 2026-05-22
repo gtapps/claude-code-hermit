@@ -12,6 +12,10 @@
 - **`sandbox-profiles.json`** in `state-templates/` defines the `off` and `standard` profiles. `deny-patterns.json` gains a `sandbox.filesystem.denyRead` section as the canonical source for credential-path denies.
 - **Sandbox test coverage and doc clarification.** Added contract tests for `_sandbox_probe_cached` (cache hit, cache miss, corrupted-cache reprobe) and `check_sandbox_capability` warn/fail probe paths (5 new tests, contract suite now 81). Clarified in `/hermit-doctor` SKILL.md that the ninth (sandbox) check is computed by the skill orchestrator, not by `doctor-check.js` — the sandbox line is therefore not present in `state/doctor-report.json`. Tools consuming the JSON report should call `scripts/sandbox-probe.py` separately if they need the sandbox status.
 
+### Fixed
+
+- **Sandbox probe message corrected for Ubuntu 24.04+.** The warn branch in `scripts/sandbox-probe.py` for failed user-namespace detection (`unshare --user --pid true`) previously suggested `sysctl -w kernel.userns_restrict=0` on Ubuntu 24.04+ — that sysctl does not exist. Per upstream Claude Code sandbox docs, the actual remediation is to install an AppArmor profile granting `bwrap` the `userns` capability. The message now points operators at the AppArmor profile path for Ubuntu 24.04+ while preserving the correct `kernel.unprivileged_userns_clone=1` sysctl for older kernels. The actionable command is also populated in the probe result's `install_hint` field (previously `None`) so callers like `/hatch` step 9a, `/hermit-doctor`, and `hermit-start` surface it consistently.
+
 ### Upgrade Instructions
 
 1. **Apply the standard sandbox profile when supported** (or confirm existing config).
