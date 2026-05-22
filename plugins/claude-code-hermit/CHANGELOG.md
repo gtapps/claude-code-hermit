@@ -12,35 +12,13 @@
 - **`sandbox-profiles.json`** in `state-templates/` defines the `off` and `standard` profiles. `deny-patterns.json` gains a `sandbox.filesystem.denyRead` section as the canonical source for credential-path denies.
 - **Sandbox test coverage and doc clarification.** Added contract tests for `_sandbox_probe_cached` (cache hit, cache miss, corrupted-cache reprobe) and `check_sandbox_capability` warn/fail probe paths (5 new tests, contract suite now 81). Clarified in `/hermit-doctor` SKILL.md that the ninth (sandbox) check is computed by the skill orchestrator, not by `doctor-check.js` — the sandbox line is therefore not present in `state/doctor-report.json`. Tools consuming the JSON report should call `scripts/sandbox-probe.py` separately if they need the sandbox status.
 
-### Fixed
-
-- **Sandbox probe message corrected for Ubuntu 24.04+.** The warn branch in `scripts/sandbox-probe.py` for failed user-namespace detection (`unshare --user --pid true`) previously suggested `sysctl -w kernel.userns_restrict=0` on Ubuntu 24.04+ — that sysctl does not exist. Per upstream Claude Code sandbox docs, the actual remediation is to install an AppArmor profile granting `bwrap` the `userns` capability. The message now points operators at the AppArmor profile path for Ubuntu 24.04+ while preserving the correct `kernel.unprivileged_userns_clone=1` sysctl for older kernels. The actionable command is also populated in the probe result's `install_hint` field (previously `None`) so callers like `/hatch` step 9a, `/hermit-doctor`, and `hermit-start` surface it consistently.
-
-### Upgrade Instructions
-
-1. **Apply the standard sandbox profile when supported** (or confirm existing config).
-
-   Read the target settings file — resolve via `hatch_target` (`local` → `.claude/settings.local.json`; `committed` → `.claude/settings.json`; fallback chain: `.claude-code-hermit/state/hatch-options.json` → marker scan → scope detection).
-
-   - If the file already contains any *operator-intent* sandbox key (`enabled`, `filesystem`, `network`, `failIfUnavailable`, `autoAllowBashIfSandboxed`, or `allowUnsandboxedCommands`): tell the operator "Your existing sandbox config was preserved." **Skip the rest of this step.** Note: `enableWeakerNestedSandbox` is hermit-managed (auto-written by `hermit-start` in Docker) and does NOT count as operator config — ignore it when deciding whether to skip.
-   - **If running inside a container** (`/.dockerenv` or `/run/.containerenv` exists): skip the probe (it would fail unconditionally on `unshare --user --pid true` in unprivileged containers). Apply the standard profile directly (see below). Tell the operator: "Sandbox enabled (standard profile, container — enableWeakerNestedSandbox auto-managed by hermit-start)."
-   - Otherwise (not a container, no operator config): run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/sandbox-probe.py`.
-     - If status is `"pass"`: apply the standard profile (see below). Tell the operator: "Sandbox enabled (standard profile, written to {file})."
-     - If status is `"warn"`: surface the probe `message` to the operator first, then apply the standard profile. Tell the operator: "Sandbox configured (may degrade silently per warning above; written to {file})."
-     - If status is `"fail"`: do NOT write any sandbox block. Print one line: "Sandbox unavailable: {message} — run `{install_hint}` to enable later, then re-run this migration."
-
-   **Apply the standard profile** means: read `${CLAUDE_PLUGIN_ROOT}/state-templates/sandbox-profiles.json` (select the `standard` entry — includes `enabled`, `failIfUnavailable`, `autoAllowBashIfSandboxed`, `allowUnsandboxedCommands`); read `${CLAUDE_PLUGIN_ROOT}/state-templates/deny-patterns.json` and extract `sandbox.filesystem.denyRead`; merge `profile.filesystem = { "denyRead": <that array> }`; merge into the target settings file under the `sandbox` key.
-
-2. **Rebuild the Docker image** (Docker operators only).
-
-   The base image now includes `bubblewrap` and `socat`. Without a rebuild the sandbox silently degrades inside the container. Run `hermit-docker update` or `docker compose build` to pick up the new packages. Note: the entrypoint itself did not change, so no template refresh is needed.
-
-3. **Note on custom-CA tooling** (informational, no action required unless affected).
-
-   Tools that use a MITM proxy with a custom certificate authority (e.g. `gcloud` with a corporate proxy, `terraform` with a company CA) may require `"enableWeakerNetworkIsolation": true` in the `sandbox` block. See [Claude Code sandbox docs](https://code.claude.com/docs/en/settings#sandbox-settings) and the FAQ entry in `docs/faq.md`.
 ### Changed
 
 - **Default `permission_mode` is now `auto` (CC 2.1.148+).** `auto` mode lets a classifier review each action before it runs, which is safer than `bypassPermissions` and more reviewed than `acceptEdits`. It is now the default for both Docker and non-Docker hermits, including new Docker installs via `/hatch` Quick mode (previously `bypassPermissions`). `bypassPermissions` remains available as an explicit opt-in for operators who need zero prompts for fully unattended Docker operation. `config.json.template`, `hermit-start.py`, `hatch`, `hermit-settings`, and `hermit-evolve` all updated. **Requires Claude Code 2.1.148+** (Sonnet 4.6 or Opus 4.6/4.7 on Max/Team/Enterprise/API plan). Operators on Pro, Haiku, or non-Anthropic providers will see CC report `auto` unavailable at launch and should switch via `/hermit-settings permissions`. `min_claude_code_version` bumped to `>=2.1.148` in `hermit-meta.json`.
+
+### Fixed
+
+- **Sandbox probe message corrected for Ubuntu 24.04+.** The warn branch in `scripts/sandbox-probe.py` for failed user-namespace detection (`unshare --user --pid true`) previously suggested `sysctl -w kernel.userns_restrict=0` on Ubuntu 24.04+ — that sysctl does not exist. Per upstream Claude Code sandbox docs, the actual remediation is to install an AppArmor profile granting `bwrap` the `userns` capability. The message now points operators at the AppArmor profile path for Ubuntu 24.04+ while preserving the correct `kernel.unprivileged_userns_clone=1` sysctl for older kernels. The actionable command is also populated in the probe result's `install_hint` field (previously `None`) so callers like `/hatch` step 9a, `/hermit-doctor`, and `hermit-start` surface it consistently.
 
 ### Upgrade Instructions
 
@@ -55,6 +33,27 @@
    **Note for `bypassPermissions` operators:** `auto` pauses for confirmation on risky actions, so it will not work for fully unattended hermits that cannot tolerate any pause. Only switch if your workload can handle occasional confirmation prompts, or if a human is present when the hermit runs.
 
    **Note for Pro, Haiku, or non-Anthropic-provider operators:** `auto` mode is not available on your plan/model/provider. CC will report it as unavailable at launch and the hermit will not enter `auto`. Answer `n` here and keep your current mode, or pick another mode via `/hermit-settings permissions` after upgrade.
+
+2. **Apply the standard sandbox profile when supported** (or confirm existing config).
+
+   Read the target settings file — resolve via `hatch_target` (`local` → `.claude/settings.local.json`; `committed` → `.claude/settings.json`; fallback chain: `.claude-code-hermit/state/hatch-options.json` → marker scan → scope detection).
+
+   - If the file already contains any *operator-intent* sandbox key (`enabled`, `filesystem`, `network`, `failIfUnavailable`, `autoAllowBashIfSandboxed`, or `allowUnsandboxedCommands`): tell the operator "Your existing sandbox config was preserved." **Skip the rest of this step.** Note: `enableWeakerNestedSandbox` is hermit-managed (auto-written by `hermit-start` in Docker) and does NOT count as operator config — ignore it when deciding whether to skip.
+   - **If running inside a container** (`/.dockerenv` or `/run/.containerenv` exists): skip the probe (it would fail unconditionally on `unshare --user --pid true` in unprivileged containers). Apply the standard profile directly (see below). Tell the operator: "Sandbox enabled (standard profile, container — enableWeakerNestedSandbox auto-managed by hermit-start)."
+   - Otherwise (not a container, no operator config): run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/sandbox-probe.py`.
+     - If status is `"pass"`: apply the standard profile (see below). Tell the operator: "Sandbox enabled (standard profile, written to {file})."
+     - If status is `"warn"`: surface the probe `message` to the operator first, then apply the standard profile. Tell the operator: "Sandbox configured (may degrade silently per warning above; written to {file})."
+     - If status is `"fail"`: do NOT write any sandbox block. Print one line: "Sandbox unavailable: {message} — run `{install_hint}` to enable later, then re-run this migration."
+
+   **Apply the standard profile** means: read `${CLAUDE_PLUGIN_ROOT}/state-templates/sandbox-profiles.json` (select the `standard` entry — includes `enabled`, `failIfUnavailable`, `autoAllowBashIfSandboxed`, `allowUnsandboxedCommands`); read `${CLAUDE_PLUGIN_ROOT}/state-templates/deny-patterns.json` and extract `sandbox.filesystem.denyRead`; merge `profile.filesystem = { "denyRead": <that array> }`; merge into the target settings file under the `sandbox` key.
+
+3. **Rebuild the Docker image** (Docker operators only).
+
+   The base image now includes `bubblewrap` and `socat`. Without a rebuild the sandbox silently degrades inside the container. Run `hermit-docker update` or `docker compose build` to pick up the new packages. Note: the entrypoint itself did not change, so no template refresh is needed.
+
+4. **Note on custom-CA tooling** (informational, no action required unless affected).
+
+   Tools that use a MITM proxy with a custom certificate authority (e.g. `gcloud` with a corporate proxy, `terraform` with a company CA) may require `"enableWeakerNetworkIsolation": true` in the `sandbox` block. See [Claude Code sandbox docs](https://code.claude.com/docs/en/settings#sandbox-settings) and the FAQ entry in `docs/faq.md`.
 
 ## [1.1.1] - 2026-05-21
 
