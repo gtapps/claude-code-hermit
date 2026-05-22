@@ -8,7 +8,7 @@
   "channels": {},
   "remote": true,
   "model": "sonnet",
-  "permission_mode": "acceptEdits",
+  "permission_mode": "auto",
   "tmux_session_name": "hermit-{project_name}",
   "auto_session": true,
   "ask_budget": false,
