@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
@@ -447,6 +448,198 @@ class TestWriteSettingsEnv(_TempDirTest):
         settings = self._read_settings()
         self.assertNotIn('AGENT_HOOK_PROFILE', settings['env'])
         self.assertEqual(settings['env']['OTHER'], 'keep')
+
+    def test_sandbox_enabled_respects_local_override_false(self):
+        """settings.local.json enabled=false overrides settings.json enabled=true."""
+        self._write_settings({'sandbox': {'enabled': False}})
+        # Simulate settings.json having enabled=true by temporarily writing it.
+        settings_json = Path('.claude/settings.json')
+        settings_json.parent.mkdir(parents=True, exist_ok=True)
+        settings_json.write_text(json.dumps({'sandbox': {'enabled': True}}))
+        try:
+            result = hermit_start._is_sandbox_enabled()
+        finally:
+            settings_json.unlink(missing_ok=True)
+        self.assertFalse(result)
+
+    def test_sandbox_enabled_uses_local_true_when_json_absent(self):
+        """settings.local.json enabled=true is used when settings.json is absent."""
+        self._write_settings({'sandbox': {'enabled': True}})
+        self.assertTrue(hermit_start._is_sandbox_enabled())
+
+    def test_sandbox_enabled_handles_null_sandbox_block(self):
+        """`sandbox: null` in settings file does not crash; treated as undeclared."""
+        self._write_settings({'sandbox': None})
+        # Should not raise; returns False (no enabled declaration).
+        self.assertFalse(hermit_start._is_sandbox_enabled())
+
+    def test_sandbox_enabled_rejects_string_enabled(self):
+        """`enabled: "false"` (string) is not coerced via bool() — treated as undeclared."""
+        self._write_settings({'sandbox': {'enabled': 'false'}})
+        # bool("false") is True; we must not coerce. Result should be False.
+        self.assertFalse(hermit_start._is_sandbox_enabled())
+
+    def test_write_settings_env_handles_null_sandbox(self):
+        """`sandbox: null` in settings file does not crash write_settings_env."""
+        self._write_settings({'sandbox': None})
+        self._write_config({})
+        config = hermit_start.load_config()
+        with unittest.mock.patch.object(hermit_start, 'is_container', return_value=False):
+            # Should not raise.
+            hermit_start.write_settings_env(config)
+        settings = self._read_settings()
+        self.assertNotIn('sandbox', settings)
+
+    def test_check_sandbox_capability_skipped_in_container(self):
+        """check_sandbox_capability returns immediately inside a container without probing."""
+        self._write_settings({'sandbox': {'enabled': True}})
+        self._write_config({})
+        with unittest.mock.patch.object(hermit_start, 'is_container', return_value=True), \
+             unittest.mock.patch.object(hermit_start, '_sandbox_probe_cached') as mock_probe:
+            hermit_start.check_sandbox_capability()
+        mock_probe.assert_not_called()
+
+    def test_docker_overlay_adds_nested_sandbox(self):
+        """In-container boot adds enableWeakerNestedSandbox without clobbering other sandbox keys."""
+        self._write_settings({'sandbox': {'enabled': True, 'allowUnsandboxedCommands': True}})
+        self._write_config({})
+        config = hermit_start.load_config()
+        with unittest.mock.patch.object(hermit_start, 'is_container', return_value=True):
+            hermit_start.write_settings_env(config)
+        settings = self._read_settings()
+        self.assertTrue(settings['sandbox']['enableWeakerNestedSandbox'])
+        self.assertTrue(settings['sandbox']['enabled'])
+        self.assertTrue(settings['sandbox']['allowUnsandboxedCommands'])
+
+    def test_non_docker_removes_nested_sandbox_preserves_operator_keys(self):
+        """Non-container boot removes enableWeakerNestedSandbox and preserves other sandbox keys."""
+        self._write_settings({
+            'sandbox': {
+                'enabled': True,
+                'allowUnsandboxedCommands': True,
+                'enableWeakerNestedSandbox': True,
+            }
+        })
+        self._write_config({})
+        config = hermit_start.load_config()
+        with unittest.mock.patch.object(hermit_start, 'is_container', return_value=False):
+            hermit_start.write_settings_env(config)
+        settings = self._read_settings()
+        self.assertNotIn('enableWeakerNestedSandbox', settings['sandbox'])
+        self.assertTrue(settings['sandbox']['enabled'])
+        self.assertTrue(settings['sandbox']['allowUnsandboxedCommands'])
+
+    def test_non_docker_cleans_empty_sandbox_block(self):
+        """Non-container boot removes the sandbox key entirely when only the managed key was set."""
+        self._write_settings({'sandbox': {'enableWeakerNestedSandbox': True}})
+        self._write_config({})
+        config = hermit_start.load_config()
+        with unittest.mock.patch.object(hermit_start, 'is_container', return_value=False):
+            hermit_start.write_settings_env(config)
+        settings = self._read_settings()
+        self.assertNotIn('sandbox', settings)
+
+    def test_sandbox_probe_cache_hit_returns_cached_result(self):
+        """A cached probe with matching fingerprint short-circuits subprocess invocation."""
+        probe_cache = Path('.claude-code-hermit/state/sandbox-probe.json')
+        probe_cache.parent.mkdir(parents=True, exist_ok=True)
+        # Precompute the fingerprint the function will generate.
+        import hashlib
+        import platform
+        bwrap_path = shutil.which('bwrap') or ''
+        socat_path = shutil.which('socat') or ''
+        try:
+            bwrap_mtime = str(os.path.getmtime(bwrap_path)) if bwrap_path else ''
+            socat_mtime = str(os.path.getmtime(socat_path)) if socat_path else ''
+        except OSError:
+            bwrap_mtime = socat_mtime = ''
+        fp_raw = f'{platform.release()}|{bwrap_path}|{bwrap_mtime}|{socat_path}|{socat_mtime}'
+        fingerprint = hashlib.sha1(fp_raw.encode()).hexdigest()[:16]
+        cached = {'fingerprint': fingerprint, 'result': {'status': 'pass', 'message': 'cached'}}
+        probe_cache.write_text(json.dumps(cached))
+
+        with unittest.mock.patch('subprocess.run') as mock_run:
+            result = hermit_start._sandbox_probe_cached()
+        mock_run.assert_not_called()
+        self.assertEqual(result, {'status': 'pass', 'message': 'cached'})
+
+    def test_sandbox_probe_cache_miss_invokes_probe(self):
+        """A missing cache file triggers subprocess invocation and writes a fresh cache."""
+        probe_cache = Path('.claude-code-hermit/state/sandbox-probe.json')
+        self.assertFalse(probe_cache.exists())
+
+        fake_completed = unittest.mock.Mock(
+            returncode=0,
+            stdout='{"status": "pass", "message": "fresh"}',
+        )
+        with unittest.mock.patch('subprocess.run', return_value=fake_completed) as mock_run:
+            result = hermit_start._sandbox_probe_cached()
+        mock_run.assert_called_once()
+        self.assertEqual(result.get('status'), 'pass')
+        self.assertTrue(probe_cache.exists())
+        cached = json.loads(probe_cache.read_text())
+        self.assertIn('fingerprint', cached)
+        self.assertEqual(cached['result'].get('status'), 'pass')
+
+    def test_sandbox_probe_corrupted_cache_reprobes(self):
+        """A cache file with a non-dict result is treated as a miss and the probe re-runs."""
+        probe_cache = Path('.claude-code-hermit/state/sandbox-probe.json')
+        probe_cache.parent.mkdir(parents=True, exist_ok=True)
+        probe_cache.write_text(json.dumps({'fingerprint': 'whatever', 'result': 'corrupted-string'}))
+
+        fake_completed = unittest.mock.Mock(
+            returncode=0,
+            stdout='{"status": "pass", "message": "fresh"}',
+        )
+        with unittest.mock.patch('subprocess.run', return_value=fake_completed) as mock_run:
+            result = hermit_start._sandbox_probe_cached()
+        mock_run.assert_called_once()
+        self.assertEqual(result.get('status'), 'pass')
+
+    def test_check_sandbox_capability_warns_on_fail_probe(self):
+        """When sandbox enabled and probe fails, the warning + install hint are printed."""
+        self._write_settings({'sandbox': {'enabled': True}})
+        fake_probe = {
+            'status': 'fail',
+            'message': 'Missing: bwrap, socat.',
+            'install_hint': 'apt-get install -y bubblewrap socat',
+        }
+        buf = io.StringIO()
+        with unittest.mock.patch.object(hermit_start, 'is_container', return_value=False), \
+             unittest.mock.patch.object(hermit_start, '_sandbox_probe_cached', return_value=fake_probe), \
+             redirect_stdout(buf):
+            hermit_start.check_sandbox_capability()
+        out = buf.getvalue()
+        self.assertIn('Warning: sandbox enabled', out)
+        self.assertIn('Missing: bwrap, socat.', out)
+        self.assertIn('apt-get install -y bubblewrap socat', out)
+
+    def test_sandbox_probe_warn_message_references_apparmor_for_ubuntu_24_04(self):
+        """The user-namespace warn branch must mention the AppArmor remediation path,
+        not the (incorrect) kernel.userns_restrict sysctl."""
+        probe_script = REPO / 'scripts' / 'sandbox-probe.py'
+        src = probe_script.read_text()
+        self.assertIn('AppArmor', src, 'AppArmor remediation missing from probe source')
+        self.assertNotIn('kernel.userns_restrict', src,
+            'Stale kernel.userns_restrict reference still present in probe')
+
+    def test_check_sandbox_capability_warns_on_warn_probe(self):
+        """A warn-status probe surfaces the message; install_hint may be absent."""
+        self._write_settings({'sandbox': {'enabled': True}})
+        fake_probe = {
+            'status': 'warn',
+            'message': 'user-namespaces disabled.',
+            'install_hint': None,
+        }
+        buf = io.StringIO()
+        with unittest.mock.patch.object(hermit_start, 'is_container', return_value=False), \
+             unittest.mock.patch.object(hermit_start, '_sandbox_probe_cached', return_value=fake_probe), \
+             redirect_stdout(buf):
+            hermit_start.check_sandbox_capability()
+        out = buf.getvalue()
+        self.assertIn('user-namespaces disabled.', out)
+        # No "Fix:" line when install_hint is None.
+        self.assertNotIn('Fix:', out)
 
 
 # ============================================================

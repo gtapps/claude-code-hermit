@@ -337,11 +337,11 @@ questions: [
     header: "Permissions",
     question: "Permission mode for Claude Code?",
     options: [
-      { label: "bypassPermissions", description: "No permission prompts. Best for true always-on use in isolated, trusted environments (Docker)" },
-      { label: "acceptEdits", description: "Auto-approve file edits, prompt for shell commands. Good balance for semi-autonomous use." },
-      { label: "auto", description: "Classifier-reviewed autonomy — each action reviewed before it runs. Requires Max, Team, or Enterprise plan (not Pro/Haiku)." },
+      { label: "auto", description: "**Default.** Classifier-reviewed autonomy — each action reviewed before it runs. Available on Max/Team/Enterprise/API plans with Sonnet 4.6 or Opus 4.6/4.7 (Max → Opus 4.7 only). Not on Pro or Haiku — choose acceptEdits if unsure." },
+      { label: "acceptEdits", description: "Auto-approve file edits, prompt for shell commands. Good balance if auto is unavailable on your plan." },
       { label: "default", description: "Prompt for permission on first use of each tool" },
-      { label: "dontAsk", description: "Deny all tools not in permissions.allow — requires curated allowlist" }
+      { label: "dontAsk", description: "Deny all tools not in permissions.allow — requires curated allowlist" },
+      { label: "bypassPermissions", description: "No permission prompts. Opt-in for fully unattended Docker-isolated hermits that cannot tolerate any pause." }
     ]
   },
   {
@@ -374,7 +374,7 @@ The recommended option is always at index 0 with `(recommended)` in the label. W
 
 Record the operator's Visibility choice as `hatch_target` (overrides scope-derived default if different).
 
-Record: `permission_mode` (default/acceptEdits/auto/plan/dontAsk/bypassPermissions). `plan` mode can be typed via Other if needed.
+Record: `permission_mode` (auto/acceptEdits/default/dontAsk/bypassPermissions/plan). `plan` mode can be typed via Other if needed.
 
 For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, `end = 23:00`) to derive morning = `08:30` and evening = `22:30`. Add to `routines` array:
 
@@ -684,6 +684,31 @@ Merge selected rules into existing `permissions.deny` in the target settings fil
 
 Do NOT include `Bash(docker *)`, `Bash(kubectl *)`, `Bash(ssh *)` in hatch — these are valid in devops contexts on the host. Docker-setup includes them because the container should not spawn child containers or SSH out.
 
+### 9a. Sandbox profile (silent auto-apply, no question)
+
+Configure the Claude Code bash sandbox for this hermit when the system supports it. The sandbox isolates bash tool calls at the OS level (`bwrap` on Linux/WSL2, `sandbox-exec` on macOS), adding defense in depth on top of the `permissions.deny` rules from Step 9. This step asks the operator no questions — silent secure default when deps are present, silent skip when they're not.
+
+**Step:**
+
+1. **Resolve target settings file** using `hatch_target` (`local` → `.claude/settings.local.json`; `committed` → `.claude/settings.json`).
+
+2. **Skip if operator already has sandbox config.** Check if the target settings file already has any of these *operator-intent* keys under `sandbox`: `enabled`, `filesystem`, `network`, `failIfUnavailable`, `autoAllowBashIfSandboxed`, `allowUnsandboxedCommands`. If any are present, skip silently — tell the operator once: "Existing sandbox config preserved." Continue to Step 9b.
+
+   **Important:** `sandbox.enableWeakerNestedSandbox` does NOT count as operator config — it's hermit-managed (auto-written by `hermit-start` inside Docker). Ignore it when deciding whether to skip.
+
+3. **Probe capability**:
+   ```bash
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/sandbox-probe.py
+   ```
+   Parse the JSON `status` field.
+
+4. **Branch on probe status:**
+   - `"pass"`: build the standard profile and write it. Read `${CLAUDE_PLUGIN_ROOT}/state-templates/sandbox-profiles.json` (select `standard` entry); read `${CLAUDE_PLUGIN_ROOT}/state-templates/deny-patterns.json` (extract `sandbox.filesystem.denyRead`); merge `profile.filesystem = { "denyRead": <that array> }`; merge into the target settings file under the `sandbox` key. One-line note to the operator: "Sandbox enabled (standard profile, written to {file})."
+   - `"warn"`: surface the probe `message` verbatim to the operator first (e.g., "user-namespaces appear disabled — sandbox may not start"), then write the standard profile (same merge as `pass`). One-line note: "Sandbox configured (standard profile, may degrade silently per warning above; written to {file})." The operator now has a configured-but-potentially-degraded sandbox; the warning tells them what to do if they want it actually enforced.
+   - `"fail"`: do NOT write any sandbox block. Print a single line with the install hint from the probe result: "Sandbox unavailable: {message} — run `{install_hint}` to enable later, then re-run `/claude-code-hermit:hermit-evolve`." Continue.
+
+No `AskUserQuestion`. Operators who want the sandbox off can set `sandbox.enabled: false` in their settings file at any time — documented in `docs/faq.md`.
+
 ### 9b. Persist hatch options
 
 After Steps 6–9 complete, write `.claude-code-hermit/state/hatch-options.json`.
@@ -804,7 +829,7 @@ questions: [
 Record `sign_off`, `deployment` (one of `docker` / `tmux` / `interactive`), `channel` (one of `none` / `discord` / `telegram`).
 
 **Derived values from this turn (used in the confirm bundle and Step 5 overlay):**
-- `permission_mode`: Docker → `bypassPermissions`, else → `acceptEdits`.
+- `permission_mode`: `auto` (same default for both Docker and non-Docker deployments). Requires CC 2.1.148+ and Max/Team/Enterprise/API plan — not on Pro or Haiku. If the operator is on an ineligible plan, they'll see an "unavailable" error at launch and should run `/hermit-settings permissions` to switch to `acceptEdits`.
 - Deny pattern profile: Docker → hardened (default + always_on), else → minimal (default only). Applied at Step 9 silently.
 - `auto-chain target`: see "Quick — auto-chain at end of Step 10" table.
 
@@ -864,7 +889,7 @@ Quick replaces Step 4 entirely and applies these defaults silently at the shared
 | Advanced Phase 4 equivalent | plugins + scheduled_checks | install all 4; write 3 scheduled_checks entries per Phase 4 mapping |
 | Advanced Phase 4b equivalent | `.baseline-pending` marker | same eligibility check as Advanced |
 | Advanced Phase 5 equivalent | channels.<name>.* | state_dir + enabled + dm_channel_id=null; omit allowed_users + morning_brief |
-| Advanced Phase 6 equivalent | permission_mode, routines | derived from deployment; routines = morning 08:30 + evening 22:30 + (template) heartbeat 04:00 |
+| Advanced Phase 6 equivalent | permission_mode, routines | permission_mode = `auto`; routines = morning 08:30 + evening 22:30 + (template) heartbeat 04:00 |
 | Step 6 | CLAUDE.md / CLAUDE.local.md append | apply silently to `hatch_target` file (default "keep" if marker already present) |
 | Step 7 | .gitignore append | apply silently (per-line idempotent) |
 | Step 8 | plugin permissions (target settings file) | merge silently into `hatch_target` settings file |

@@ -27,9 +27,9 @@ cleanup
 # Static file checks
 # -------------------------------------------------------
 
-# 2. deny-patterns.json — valid JSON with expected arrays
+# 2. deny-patterns.json — valid JSON with expected structure
 run_test "deny-patterns.json" bash -c \
-  "python3 -c \"import json; d=json.load(open('$REPO_ROOT/state-templates/deny-patterns.json')); assert isinstance(d.get('default'),list) and isinstance(d.get('always_on'),list)\""
+  "python3 -c \"import json; d=json.load(open('$REPO_ROOT/state-templates/deny-patterns.json')); denyRead=d.get('sandbox',{}).get('filesystem',{}).get('denyRead',[]); assert isinstance(d.get('default'),list) and isinstance(d.get('always_on'),list) and isinstance(denyRead,list) and len(denyRead)>0\""
 
 # 3. Bin scripts are executable
 run_test "bin scripts executable" bash -c \

@@ -2,7 +2,7 @@
 
 Plugins that complement Hermit's autonomous operation. These are optional — Hermit works fine without them — but they add capabilities that improve self-learning and self-improvement over time.
 
-> **Disclaimer:** Hermit does not vet, audit, or take responsibility for any plugin — including official ones. Plugins run with the same permissions as Hermit. In Docker mode (`bypassPermissions`), this means full unrestricted execution. You are responsible for evaluating any plugin you install. Review the plugin's source, understand what it does, and only install plugins you trust.
+> **Disclaimer:** Hermit does not vet, audit, or take responsibility for any plugin — including official ones. Plugins run with the same permissions as Hermit. Operators who use `bypassPermissions` for fully unattended Docker operation grant plugins full unrestricted execution. You are responsible for evaluating any plugin you install. Review the plugin's source, understand what it does, and only install plugins you trust.
 
 Nothing is pre-shipped or pre-configured. During `/docker-setup`, you're asked whether to install each recommended plugin. Only plugins you explicitly opt into are added to your config and installed on container boot. You can manage them anytime with `/hermit-settings docker`.
 
@@ -64,7 +64,7 @@ The entrypoint installs every enabled entry in `docker.recommended_plugins`, reg
 
 The safety gate is at **configuration time**: entries only land in `docker.recommended_plugins` when the operator explicitly confirms the mirrored plugin list during `/docker-setup` or `/hermit-settings docker`. The host-installed list is the vetted set — the operator already installed these plugins on the host before triggering docker-setup.
 
-> **Reminder:** Plugins run with the same permissions as Hermit. In Docker mode (`bypassPermissions`), this means full unrestricted execution. Only add plugins you trust.
+> **Reminder:** Plugins run with the same permissions as Hermit. If you use `bypassPermissions` for fully unattended Docker operation, this means full unrestricted execution. Only add plugins you trust.
 
 ### Trust model
 

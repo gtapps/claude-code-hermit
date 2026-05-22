@@ -17,6 +17,15 @@
     "Bash(*TOKEN*)",
     "Bash(*> *.claude-code-hermit/OPERATOR.md*)"
   ],
+  "sandbox": {
+    "filesystem": {
+      "denyRead": [
+        "~/.aws",
+        "~/.ssh",
+        "~/.gnupg"
+      ]
+    }
+  },
   "always_on": [
     "Bash(ssh *)",
     "Bash(docker *)",

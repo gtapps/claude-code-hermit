@@ -54,4 +54,20 @@ run_test "Compose: GH_TOKEN uses HERMIT_GH_TOKEN source with empty-safe default"
 run_test "Compose: GH_TOKEN entry is in the environment block (indented with spaces)" bash -c \
   "grep -qE '^      - GH_TOKEN=' '$COMPOSE'"
 
+# -------------------------------------------------------
+# Dockerfile: sandbox deps (bubblewrap + socat) present
+# Added in v1.1.2 — required for Claude Code sandbox inside
+# unprivileged containers.
+# -------------------------------------------------------
+run_test "Dockerfile: bubblewrap present in apt-get install" bash -c \
+  "grep -q 'bubblewrap' '$DOCKERFILE'"
+
+run_test "Dockerfile: socat present in apt-get install" bash -c \
+  "grep -q 'socat' '$DOCKERFILE'"
+
+run_test "Dockerfile: bubblewrap and socat in same RUN layer as cleanup" bash -c \
+  "bwrap_line=\$(grep -n 'bubblewrap' '$DOCKERFILE' | cut -d: -f1 | head -1)
+   rm_line=\$(grep -n 'rm -rf /var/lib/apt/lists' '$DOCKERFILE' | cut -d: -f1)
+   [ -n \"\$bwrap_line\" ] && [ -n \"\$rm_line\" ] && [ \"\$bwrap_line\" -lt \"\$rm_line\" ]"
+
 print_results

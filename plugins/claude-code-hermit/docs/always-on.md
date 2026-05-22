@@ -6,9 +6,9 @@ Docker is the recommended way to run your hermit autonomously. For lifecycle int
 
 ## Why Docker
 
-An always-on agent needs `bypassPermissions` — no prompts, no babysitting. Without isolation that's reckless. With Docker, the container can only see what you mount and restarts automatically on crash.
+An always-on agent runs without operator hand-holding. The default `auto` mode lets a classifier review each action before it runs — safer than `bypassPermissions`, more reviewed than `acceptEdits`. With Docker, the container can only see what you mount and restarts automatically on crash.
 
-You get four things at once: safe permission bypass, config isolation, crash recovery, and a reproducible environment.
+You get four things at once: config isolation, crash recovery, a reproducible environment, and permission handling that matches your risk tolerance. If your workload is truly unattended and cannot tolerate any pause for confirmation, `bypassPermissions` is still available as an explicit opt-in.
 
 ---
 
@@ -235,7 +235,7 @@ Adjust with `/hermit-settings env`.
 | Entrypoint exits after tmux spawns | Entrypoint polls `tmux has-session` to keep PID 1 alive. SIGTERM trap handles graceful close. |
 | `.local` mDNS hostnames don't resolve | Use IP addresses in service URLs, even with `network_mode: host` |
 | Workspace trust prompt on first run | Attach once, press Enter, detach |
-| `permission_mode` stays `bypassPermissions` after Docker | Reset via `/hermit-settings permissions` if you run locally later |
+| `permission_mode` shows `bypassPermissions` or `auto` causing unexpected pauses in fully unattended ops | Change via `/hermit-settings permissions` — use `bypassPermissions` for zero-prompt unattended Docker, `auto` for classifier-reviewed autonomy |
 | Windows paths break config | Must run from WSL2 — clone inside WSL2 (`/home/you/project`) |
 | Docker not available | Channels still work — see [Always-On Operations](always-on-ops.md) for bare tmux |
 

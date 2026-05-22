@@ -1,0 +1,12 @@
+{
+  "_note": "filesystem.denyRead is merged from state-templates/deny-patterns.json `sandbox.filesystem.denyRead` at hatch time.",
+  "off": {
+    "enabled": false
+  },
+  "standard": {
+    "enabled": true,
+    "failIfUnavailable": false,
+    "autoAllowBashIfSandboxed": true,
+    "allowUnsandboxedCommands": true
+  }
+}

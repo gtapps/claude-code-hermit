@@ -57,4 +57,29 @@ for key in "${TEMPLATE_KEYS[@]}"; do
     grep -qF "$key" <<< "$SKILL_CONTENT"
 done
 
+# -------------------------------------------------------
+# Sandbox template files referenced in hatch/SKILL.md
+# -------------------------------------------------------
+SANDBOX_PROFILES="$REPO_ROOT/state-templates/sandbox-profiles.json"
+DENY_PATTERNS="$REPO_ROOT/state-templates/deny-patterns.json"
+
+run_test "sandbox-profiles.json exists" test -f "$SANDBOX_PROFILES"
+run_test "deny-patterns.json exists"    test -f "$DENY_PATTERNS"
+
+run_test "hatch/SKILL.md references sandbox-profiles.json" \
+  grep -qF "sandbox-profiles.json" <<< "$SKILL_CONTENT"
+
+run_test "hatch/SKILL.md references deny-patterns.json sandbox section" \
+  grep -qF "deny-patterns.json" <<< "$SKILL_CONTENT"
+
+run_test "deny-patterns.json has sandbox.filesystem.denyRead section" bash -c \
+  "python3 -c '
+import json, sys
+with open(sys.argv[1]) as f:
+    d = json.load(f)
+assert \"sandbox\" in d, \"missing sandbox key\"
+assert \"filesystem\" in d[\"sandbox\"], \"missing sandbox.filesystem\"
+assert \"denyRead\" in d[\"sandbox\"][\"filesystem\"], \"missing sandbox.filesystem.denyRead\"
+' \"$DENY_PATTERNS\""
+
 print_results
