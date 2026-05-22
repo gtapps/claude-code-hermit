@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **`/proposal-act` applies `/code-review` findings.** Step e.5 `quality` and `balanced(RUN)` tiers now parse `/code-review`'s JSON output, Edit-apply findings whose fix is unambiguous from the summary, and surface the rest. Notification reports `applied N/M findings (K surfaced)` instead of a hallucinated `M cleanups`. The no-post-apply-test-gate risk is documented inline; `/claude-code-dev-hermit:dev-quality` is the follow-up for verification.
+
 ## [1.1.1] - 2026-05-21
 
 ### Added

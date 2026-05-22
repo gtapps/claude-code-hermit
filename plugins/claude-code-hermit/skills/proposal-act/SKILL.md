@@ -96,17 +96,21 @@ When the operator accepts a proposal:
            ```
            /code-review focus on PROP-NNN implementation: path/a, path/b
            ```
-           Otherwise invoke `/code-review` with no focus; it falls back to git diff. Apply any fixes it produces. Resolution notification: "PROP-NNN implemented and resolved. /code-review reviewed N files, applied M cleanups."
+           Otherwise invoke `/code-review` with no focus; it falls back to git diff. `/code-review` is read-only (since CC 2.1.146) and emits a JSON array of `{file, line, summary, failure_scenario}` findings. Parse it. For each finding, Edit-apply when the fix is unambiguous from `summary` + `failure_scenario` (e.g. off-by-one, missing null guard, `=` vs `==`); otherwise surface. When in doubt, surface. Track `M` (total), `N` (applied), `K = M − N`. On JSON parse failure, fall back to "surfaced (apply skipped — output not parseable)" — never block resolution.
+
+           Resolution notification: "PROP-NNN implemented and resolved. /code-review applied N/M findings (K surfaced)." When `M == 0`: "… /code-review surfaced 0 findings."
          - **`balanced`**: delegate to `claude-code-hermit:quality-gate-judge` with:
            ```
            Proposal: <absolute path to PROP-NNN-*.md>
            Touched-Files: <space-separated relative paths>   (omit this line if not reliably enumerable)
            ```
            Parse line-1 verdict:
-           - `RUN: <reason>` → invoke `/code-review` in the main session with the same touched-files focus (or no focus if omitted). Notification: "PROP-NNN implemented and resolved. Judge: <reason>. /code-review applied M cleanups."
+           - `RUN: <reason>` → invoke `/code-review` with the touched-files focus (or no focus if omitted), classify and Edit-apply per the `quality` tier above. Notification: "PROP-NNN implemented and resolved. Judge: <reason>. /code-review applied N/M findings."
            - `SKIP: <reason>` → skip `/code-review`. Notification: "PROP-NNN implemented and resolved. Judge skipped /code-review: <reason>."
 
-         Best-effort throughout: if any step errors out (judge fails, `/code-review` errors, file read fails), log a one-line warning to SHELL.md Findings and fall back to skip. The gate never blocks resolution.
+         **No post-apply test gate fires before step f resolves** — the operator authorized the accept; broken applies ship unless the operator runs `/claude-code-dev-hermit:dev-quality` afterwards.
+
+         Best-effort throughout: if any step errors out (judge fails, `/code-review` errors, JSON parse fails, file read fails), log a one-line warning to SHELL.md Findings and fall back to skip. The gate never blocks resolution.
      f. When verifiably done: run `/proposal-act resolve PROP-NNN`, then notify the operator (or channel in autonomous mode) with the tier-appropriate message from (e.5).
 
    - **"Create a session task"** → Write `.claude-code-hermit/sessions/NEXT-TASK.md`:
