@@ -65,7 +65,7 @@ Operational:
   Heartbeat:       disabled       → yes | no  (interval, show_ok, active hours, stale threshold)
   Routines:        2 configured   → run: /claude-code-hermit:hermit-settings routines
   Quality gate:    budget         → budget | balanced | quality
-  Permission mode: acceptEdits    → default | acceptEdits | auto | plan | dontAsk | bypassPermissions
+  Permission mode: auto           → default | acceptEdits | auto | plan | dontAsk | bypassPermissions
   Auto session:    enabled        → read-only
   Boot skill:      /claude-code-hermit:session  → any namespaced skill | 'none' to reset to default
   tmux name:       hermit-myproject → read-only
@@ -181,10 +181,10 @@ Update `boot_skill` in config.json. Set to `null` if operator says "none", "defa
 Note: "Boot skill changes take effect on next `hermit-start` run."
 
 **If argument is "permissions":**
-Ask: "Permission mode for Claude Code? (default / acceptEdits / auto / plan / dontAsk / bypassPermissions) [current value]"
+Ask: "Permission mode for Claude Code? (auto / acceptEdits / default / plan / dontAsk / bypassPermissions) [current value]"
+- `auto` — autonomous mode; a classifier reviews each action before it runs. Max plan → Opus 4.7 only. Team/Enterprise/API → Sonnet 4.6 or Opus 4.6/4.7. Not available on Pro, Haiku, or non-Anthropic providers. **(default)**
+- `acceptEdits` — auto-approves file edits, prompts for shell commands
 - `default` — prompts for permission on first use of each tool
-- `acceptEdits` — auto-approves file edits, prompts for shell commands (default)
-- `auto` — autonomous mode; a classifier reviews each action before it runs. Max plan → Opus 4.7 only. Team/Enterprise/API → Sonnet 4.6 or Opus 4.6/4.7. Not available on Pro, Haiku, or non-Anthropic providers.
 - `plan` — read-only exploration, no file modifications or shell commands
 - `dontAsk` — denies all tools not in `permissions.allow`; requires a curated allowlist in `settings.json`
 - `bypassPermissions` — no checks; isolated containers/VMs only

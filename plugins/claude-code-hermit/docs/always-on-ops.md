@@ -40,12 +40,12 @@ This reads `config.json`, starts a tmux session with your configured channels an
 tmux new-session -d -s hermit
 tmux attach -t hermit
 cd /path/to/your/project
-claude --permission-mode acceptEdits
+claude --permission-mode auto
 ```
 
-> **Why `--permission-mode acceptEdits`?** Always-on agents need to act without prompts for file edits. Deny patterns and hooks provide safety instead. **Run `claude` interactively once first** to accept the workspace trust prompt — without this, the agent hangs in tmux.
+> **Why `--permission-mode auto`?** The default `auto` mode lets a classifier review each action before it runs — safer than `bypassPermissions`, more reviewed than `acceptEdits`. Deny patterns and hooks provide an additional safety layer. **Run `claude` interactively once first** to accept the workspace trust prompt — without this, the agent hangs in tmux.
 >
-> For fully isolated containers/VMs, set `permission_mode: "bypassPermissions"` in `config.json` — `hermit-start` maps this to `--dangerously-skip-permissions`. See [Always-On Setup](always-on.md) for the Docker workflow and [Permission Modes](https://code.claude.com/docs/en/permission-modes).
+> For fully unattended containers/VMs where any pause would stall the hermit, set `permission_mode: "bypassPermissions"` in `config.json` — `hermit-start` maps this to `--dangerously-skip-permissions`. See [Always-On Setup](always-on.md) for the Docker workflow and [Permission Modes](https://code.claude.com/docs/en/permission-modes).
 
 ### Remote access
 

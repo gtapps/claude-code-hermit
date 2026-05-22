@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Default `permission_mode` is now `auto` (CC 2.1.148+).** `auto` mode lets a classifier review each action before it runs, which is safer than `bypassPermissions` and more reviewed than `acceptEdits`. It is now the default for both Docker and non-Docker hermits, including new Docker installs via `/hatch` Quick mode (previously `bypassPermissions`). `bypassPermissions` remains available as an explicit opt-in for operators who need zero prompts for fully unattended Docker operation. `config.json.template`, `hermit-start.py`, `hatch`, `hermit-settings`, and `hermit-evolve` all updated. **Requires Claude Code 2.1.148+** (Sonnet 4.6 or Opus 4.6/4.7 on Max/Team/Enterprise/API plan). Operators on Pro, Haiku, or non-Anthropic providers will see CC report `auto` unavailable at launch and should switch via `/hermit-settings permissions`. `min_claude_code_version` bumped to `>=2.1.148` in `hermit-meta.json`.
+
+### Upgrade Instructions
+
+1. **Migrate `permission_mode` to `auto` (optional).** If `config.json` has `permission_mode` set to `acceptEdits` or `bypassPermissions`, ask the operator:
+
+   > Your hermit's `permission_mode` is currently `"<current_value>"`. The new default is `"auto"`: classifier-reviewed autonomy. Eligibility depends on plan and model (Max plan → Opus 4.7 only; Team/Enterprise/API → Sonnet 4.6 or Opus 4.6/4.7; not available on Pro, Haiku, or non-Anthropic providers). Switch to `"auto"`? (y/N)
+
+   - If `y`: write `permission_mode: "auto"` directly to `.claude-code-hermit/config.json` now. Do not rely on the silent-defaults pass later in evolve, which only adds missing keys and will not overwrite the existing value.
+   - If `n`: leave `permission_mode` unchanged.
+   - If `permission_mode` is already `"auto"`, `"default"`, `"plan"`, or `"dontAsk"`: skip this prompt.
+
+   **Note for `bypassPermissions` operators:** `auto` pauses for confirmation on risky actions, so it will not work for fully unattended hermits that cannot tolerate any pause. Only switch if your workload can handle occasional confirmation prompts, or if a human is present when the hermit runs.
+
+   **Note for Pro, Haiku, or non-Anthropic-provider operators:** `auto` mode is not available on your plan/model/provider. CC will report it as unavailable at launch and the hermit will not enter `auto`. Answer `n` here and keep your current mode, or pick another mode via `/hermit-settings permissions` after upgrade.
+
 ## [1.1.1] - 2026-05-21
 
 ### Added

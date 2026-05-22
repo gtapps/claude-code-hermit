@@ -4,7 +4,7 @@ description: Generates Docker scaffolding and walks the operator through the ful
 ---
 # Docker Setup
 
-Generate Docker scaffolding for running hermit as an always-on autonomous agent in a container. Docker provides isolation so you can safely use `bypassPermissions` — no interactive prompts, no babysitting, crash recovery for free.
+Generate Docker scaffolding for running hermit as an always-on autonomous agent in a container. Docker provides isolation, crash recovery, and a reproducible environment. The default `auto` mode (classifier-reviewed autonomy) works well for most Docker hermits. Operators who need zero prompts for fully unattended operation can opt into `bypassPermissions` via `/hermit-settings permissions`.
 
 **Tone:** Friendly guided wizard. Celebrate progress. When something fails, help fix it.
 
@@ -206,7 +206,7 @@ For each configured channel:
 
 Mirror host-installed plugins into the container so the container starts with the same plugin set the operator already curated — including any domain hermit (e.g. `claude-code-homeassistant-hermit`) that may have triggered this setup flow.
 
-> **SECURITY-CRITICAL STEP.** Every plugin written here is auto-installed on container boot with `bypassPermissions` (full unrestricted execution). Do not shortcut the safelist, validation, or deselection rules below. If you find yourself about to skip one, stop and re-read this section.
+> **SECURITY-CRITICAL STEP.** Every plugin written here is auto-installed on container boot with whatever `permission_mode` the operator chose — for `bypassPermissions` hermits, this means full unrestricted execution. Do not shortcut the safelist, validation, or deselection rules below. If you find yourself about to skip one, stop and re-read this section.
 
 1. Run `claude plugin list --json` to enumerate plugins. Each entry includes `id` (form `<plugin>@<marketplace_name>`), `scope`, `enabled`, `projectPath`, and `installPath`. Apply the **project-or-local + enabled filter**:
    - Keep `enabled == true` AND (`scope == "project"` OR `scope == "local"`) AND `projectPath` equals the current project root.
@@ -379,7 +379,7 @@ Manual deployment guide
    .claude-code-hermit/bin/hermit-docker attach
 
    Screen 1 — Workspace trust: press Enter to accept.
-   Screen 2 — Bypass Permissions (bypassPermissions mode only): arrow keys → "Yes, I accept" → Enter.
+   Screen 2 — Bypass Permissions (only appears when permission_mode is bypassPermissions; skip if using auto or any other mode).
 
 4. (Channels only) Pair each bot — DM it to get a 6-char code, then run
    (send text and Enter as two separate calls with a 0.5s pause — one-shot
@@ -429,7 +429,7 @@ Once the session exists, tell the operator:
 > ```
 > **Screen 1 — Workspace trust** (always): You'll see "Accessing workspace … Quick safety check: Is this a project you created or one you trust?" — press **Enter** to accept.
 >
-> **Screen 2 — Bypass Permissions mode** (only if `permission_mode: bypassPermissions`, the Docker default): You'll then see the `--dangerously-skip-permissions` acknowledgement. Use the **arrow keys** to select **"Yes, I accept"**, then press **Enter**.
+> **Screen 2 — Bypass Permissions mode** (only if `permission_mode: bypassPermissions`): You'll then see the `--dangerously-skip-permissions` acknowledgement. Use the **arrow keys** to select **"Yes, I accept"**, then press **Enter**.
 >
 > After accepting, you'll see a **blank claude prompt** — that's expected during setup. The skill will send pair commands from here; don't type `/session` yourself.
 >
@@ -556,6 +556,6 @@ If something looks wrong, help diagnose — suggest concrete next steps.
 
 **Domain-plugin apt dependencies.** Declare system packages your plugin needs in a `## Docker apt dependencies` section in the plugin's hatch SKILL.md or a `DOCKER.md` at the plugin root. See step 7b.packages and [Creating Your Own Hermit — Docker dependencies](../../docs/creating-your-own-hermit.md#docker-dependencies).
 
-**Why the three hardening stanzas (`no-new-privileges`, `cap_drop`, `pids_limit`)?** The container runs with `bypassPermissions` and the recommended-plugins flow accepts third-party marketplaces — defense in depth matters here. The load-bearing one is `no-new-privileges:true` — it blocks setuid escalation at the kernel level, which is a real vector against future supply-chain compromise of any installed plugin. `cap_drop: ALL` is incremental: the container already runs as non-root `claude` so most caps were already unreachable, but dropping them explicitly closes the kernel-enforced ceiling. `pids_limit: 2048` is a resource bound, not a security primitive — it caps fork-bomb-style payloads with comfortable headroom over hermit's ~80 PID steady state. Hermit's runtime needs none of what's removed (verified across tmux, claude CLI, python3, jq, npm, git+HTTPS plugin installs). Operators extending the container with services on privileged ports (<1024), setuid helpers, or high-PID workloads must relax the relevant stanza explicitly. See [Security — Container Hardening](../../docs/security.md#container-hardening) for the full rationale.
+**Why the three hardening stanzas (`no-new-privileges`, `cap_drop`, `pids_limit`)?** The container may run with `bypassPermissions` (or the default `auto` mode), and the recommended-plugins flow accepts third-party marketplaces — defense in depth matters here. The load-bearing one is `no-new-privileges:true` — it blocks setuid escalation at the kernel level, which is a real vector against future supply-chain compromise of any installed plugin. `cap_drop: ALL` is incremental: the container already runs as non-root `claude` so most caps were already unreachable, but dropping them explicitly closes the kernel-enforced ceiling. `pids_limit: 2048` is a resource bound, not a security primitive — it caps fork-bomb-style payloads with comfortable headroom over hermit's ~80 PID steady state. Hermit's runtime needs none of what's removed (verified across tmux, claude CLI, python3, jq, npm, git+HTTPS plugin installs). Operators extending the container with services on privileged ports (<1024), setuid helpers, or high-PID workloads must relax the relevant stanza explicitly. See [Security — Container Hardening](../../docs/security.md#container-hardening) for the full rationale.
 
 **Want stronger isolation?** v1.0.26 ships an opt-in advanced wizard, `/claude-code-hermit:docker-security`, that adds LAN containment with DNS policy (firewall + DNS sidecar with port-53 redirect for actual enforcement), read-only root filesystem with smoke test, resource bounds with kernel hygiene sysctls, and a boot-time plugin-install audit log. Each toggle is opt-in with honest cost/benefit framing, runs verification against the live container, and is fully reversible. **Note:** the LAN containment toggle is hard-skipped when `docker.network_mode: "host"` is in use — bridge networking required. See [Docker Security](../../docs/docker-security.md).

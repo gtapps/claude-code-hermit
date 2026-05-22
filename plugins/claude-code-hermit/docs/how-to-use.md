@@ -109,7 +109,7 @@ Both fire once per day. Configure with `/claude-code-hermit:hermit-settings rout
 
 ## Going Always-On
 
-Docker is the recommended way to run your hermit autonomously. It provides container isolation so you can safely use `bypassPermissions` — no interactive prompts, no babysitting.
+Docker is the recommended way to run your hermit autonomously. It provides container isolation, crash recovery, and a reproducible environment. The default `auto` mode works inside or outside Docker; use `bypassPermissions` as an explicit opt-in if you need zero prompts for fully unattended operation.
 
 ```bash
 /claude-code-hermit:docker-setup    # generates hermit Docker files, walks you through deployment

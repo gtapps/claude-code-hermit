@@ -36,7 +36,7 @@ DEFAULT_CONFIG = {
     'channels': {},
     'remote': True,
     'model': 'sonnet',
-    'permission_mode': 'acceptEdits',
+    'permission_mode': 'auto',
     'tmux_session_name': 'hermit-{project_name}',
     'auto_session': True,
     'ask_budget': False,
@@ -394,7 +394,7 @@ def build_claude_command(config, tools):
     if config.get('model'):
         cmd.extend(['--model', config['model']])
 
-    mode = config.get('permission_mode', 'acceptEdits')
+    mode = config.get('permission_mode', 'auto')
     if mode == 'bypassPermissions':
         if not is_container():
             print('[hermit] WARNING: bypassPermissions is intended for containers/VMs only.')
@@ -568,7 +568,7 @@ def main():
     print(f'[hermit] Channels: {", ".join(get_enabled_channels(config)) or "none"}')
     print(f'[hermit] Remote: {"enabled" if config.get("remote") else "disabled"}')
     print(f'[hermit] Chrome: {"enabled" if config.get("chrome") else "disabled"}')
-    print(f'[hermit] Permissions: {config.get("permission_mode") or "acceptEdits"}')
+    print(f'[hermit] Permissions: {config.get("permission_mode") or "auto"}')
 
     write_settings_env(config)
 

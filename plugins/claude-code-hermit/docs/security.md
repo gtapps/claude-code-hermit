@@ -4,7 +4,7 @@ Safety model for autonomous hermit agents — deny patterns, defense in depth, a
 
 ---
 
-> **Important:** Deny patterns are blocklist-based string matches. They block known dangerous commands but cannot prevent all harmful invocations. Always use container isolation when running with `bypassPermissions`. See [Known Limitations](#known-limitations) below.
+> **Important:** Deny patterns are blocklist-based string matches. They block known dangerous commands but cannot prevent all harmful invocations. The default `auto` mode reduces (but does not eliminate) the need for container isolation by requiring classifier review of each action. Always use container isolation when running with `bypassPermissions`. See [Known Limitations](#known-limitations) below.
 
 ## Deny Patterns
 
@@ -160,7 +160,7 @@ Beyond the always-on baseline above, `/claude-code-hermit:docker-security` is an
 
 Installing a plugin runs that plugin's hooks and skills with the same authority as hermit. Only install plugins from sources you trust the same as hermit itself. The container hardening in `docker-compose.hermit.yml` (`cap_drop`, `no-new-privileges`, `pids_limit`) reduces what a *compromised* plugin can do to the host kernel — it does not vet the plugin's intent, sandbox its file access within the project, or prevent it from acting on your behalf via the agent. A malicious or careless plugin still runs as you.
 
-Plugins run with the same permissions as Hermit. In Docker mode (`bypassPermissions`), this means full unrestricted execution — no permission prompts, no human review.
+Plugins run with the same permissions as Hermit. The default `auto` mode applies classifier review to each action; if the operator has opted into `bypassPermissions` for fully unattended Docker operation, plugins run with full unrestricted execution — no permission prompts, no human review.
 
 **Policy:** The entrypoint installs every enabled entry in `docker.recommended_plugins` on first boot, regardless of marketplace. The trust gate is at **configuration time**: entries only land in `config.json` when the operator explicitly confirmed the mirrored plugin list during `/docker-setup` or `/hermit-settings docker`. Preselection during setup is restricted to `claude-plugins-official` and `gtapps/*` — third-party entries must be manually opted in. See [Recommended Plugins — Trust model](recommended-plugins.md#trust-model).
 
