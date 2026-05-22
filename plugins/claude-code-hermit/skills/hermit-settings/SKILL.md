@@ -67,7 +67,7 @@ Operational:
   Routines:        2 configured   → run: /claude-code-hermit:hermit-settings routines
   Quality gate:    budget         → budget | balanced | quality
   Permission mode: auto           → default | acceptEdits | auto | plan | dontAsk | bypassPermissions
-  Push notifications: disabled    → on | off
+  Push notif:      disabled       → on | off
   Auto session:    enabled        → read-only
   Boot skill:      /claude-code-hermit:session  → any namespaced skill | 'none' to reset to default
   tmux name:       hermit-myproject → read-only

@@ -71,11 +71,11 @@ All values in `env` should be strings.
 
 - `quality_gate.tier` (string, one of: budget, balanced, quality) if present
 
-### 8a. Optional booleans
+### 8. Optional booleans
 
 - `push_notifications` (boolean, optional) — if present, must be `true` or `false`
 
-### 8. Monitor validation
+### 9. Monitor validation
 
 For each monitor in `monitors[]` (if present — skip if key is absent):
 

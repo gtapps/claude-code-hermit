@@ -37,7 +37,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
 | `shutdown_requested_at` | hermit-stop.py | Set when shutdown initiated |
 | `shutdown_completed_at` | hermit-stop.py / session-close | Set when shutdown completes cleanly |
 | `last_error` | Any writer | `unclean_shutdown`, `heartbeat_stale`, `missing_tmux_session`, `interrupted_archiving` |
-| `waiting_reason` | session-start, heartbeat, channel-responder | One of: `operator_input`, `unclean_shutdown`, `dead_process`, `conservative_pickup`. Cleared (set to `null`) when exiting `waiting` state. |
+| `waiting_reason` | session-start, heartbeat, channel-responder | One of: `operator_input`, `unclean_shutdown`, `dead_process`, `conservative_pickup`, `unclean_shutdown_no_channel`, `dead_process_no_channel`. The `_no_channel` variants are set by session-start on push-only setups; they rely on `heartbeat.waiting_timeout` to auto-transition the session to `idle`. Cleared (set to `null`) when exiting `waiting` state. |
 
 **SHELL.md `Status:` is cosmetic only.** Update it as a secondary effect of lifecycle transitions for operator readability. No script or hook reads it for decisions. Exception: evaluate-session.js reads it for cosmetic nudges only.
 

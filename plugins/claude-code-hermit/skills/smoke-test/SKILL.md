@@ -92,9 +92,10 @@ For each file: parse JSON. If missing or unparseable, rewrite from the correspon
 
 - Read `push_notifications` from config.json
 - If `false` or absent: skip silently
-- If `true`: call `PushNotification(message="Smoke test — push fallback is wired.", status="proactive")`
-  - Call accepted: **PASS** `PushNotification test dispatched (visible: desktop if daemon running, mobile if Remote Control paired)`
-  - Call errored or schema-rejected: **FAIL** `PushNotification test failed: <error>` — likely a model/schema bug, surface for inspection
+- If `true`: call `PushNotification(message="Smoke test: push fallback is wired.", status="proactive")`
+  - Call accepted, push sent: **PASS** `PushNotification test dispatched (visible: desktop if daemon running, mobile if Remote Control paired)`
+  - Call accepted, push not delivered: **WARN** `PushNotification accepted but not delivered. Push will silently no-op until a notification daemon is running or Remote Control is paired.`
+  - Call errored or schema-rejected: **FAIL** `PushNotification test failed: <error>` (likely a model/schema bug, surface for inspection)
 
 ### 8. Print report
 
