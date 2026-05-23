@@ -79,8 +79,8 @@ Compaction:
 
 Environment (env):
   AGENT_HOOK_PROFILE              standard
-  COMPACT_THRESHOLD               50
-  CLAUDE_AUTOCOMPACT_PCT_OVERRIDE 50
+  COMPACT_THRESHOLD               75
+  CLAUDE_AUTOCOMPACT_PCT_OVERRIDE 65
   MAX_THINKING_TOKENS             10000
   → run: /claude-code-hermit:hermit-settings env
 
@@ -258,8 +258,8 @@ Update `permission_mode` in config.json.
   Environment Variables (config.json env → .claude/settings.local.json)
 
     AGENT_HOOK_PROFILE              standard
-    COMPACT_THRESHOLD               50
-    CLAUDE_AUTOCOMPACT_PCT_OVERRIDE 50
+    COMPACT_THRESHOLD               75
+    CLAUDE_AUTOCOMPACT_PCT_OVERRIDE 65
     MAX_THINKING_TOKENS             10000
   ```
 - **Protected keys** that cannot be changed via this command: `AGENT_HOOK_PROFILE`. These are managed by the boot script and docker-setup. If the operator tries to set one, respond: "AGENT_HOOK_PROFILE is managed by the boot script (standard for interactive, strict for Docker). To change it, edit config.json directly — the boot script validates on next start."

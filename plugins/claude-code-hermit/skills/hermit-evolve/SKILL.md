@@ -93,7 +93,7 @@ For each new key, check the table below. If the key is interactive, ask the oper
 - `heartbeat.waiting_timeout` (0.3.0): `null` | `heartbeat.stale_threshold` (0.0.9): `"2h"`
 - `idle_budget` (0.0.9): `"$0.50"` | `routines` (0.0.9): `[]`
 - `scheduled_checks` (0.3.1): `[]`
-- `env` (0.0.7): `{"AGENT_HOOK_PROFILE":"standard","COMPACT_THRESHOLD":"50","CLAUDE_AUTOCOMPACT_PCT_OVERRIDE":"50","MAX_THINKING_TOKENS":"10000"}`
+- `env` (0.0.7): `{"AGENT_HOOK_PROFILE":"standard","COMPACT_THRESHOLD":"75","CLAUDE_AUTOCOMPACT_PCT_OVERRIDE":"65","MAX_THINKING_TOKENS":"10000"}`
 - `docker` (0.0.7): `{"packages":[],"recommended_plugins":[]}`
 - `compact` (0.0.7): `{"monitoring_threshold":30,"monitoring_keep":20,"summary_threshold":30,"summary_keep":15}`
 - `knowledge` (0.4.0): `{"raw_retention_days":14,"compiled_budget_chars":1000,"working_set_warn":20}`

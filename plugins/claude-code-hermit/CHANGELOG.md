@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **env defaults: `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` bumped 50 → 65** — auto-compact was firing well before the quality-degradation zone (~73%); 65 reduces premature context loss while staying conservative.
+- **env defaults: `COMPACT_THRESHOLD` bumped 50 → 75** — the tool-call-based nudge was firing mid-session for any non-trivial work; 75 quiets the fallback path while `context_usage > 60%` continues to drive real nudges in `suggest-compact.js`.
+
+### Upgrade Instructions
+
+1. Read `.claude-code-hermit/config.json`.
+   - If `env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE == "50"`, set it to `"65"`. If absent or any other value, leave it alone.
+   - If `env.COMPACT_THRESHOLD == "50"`, set it to `"75"`. If absent or any other value, leave it alone.
+   - Write the file back only if either key changed.
+2. Read `.claude/settings.local.json` (or `.claude/settings.json` per `hatch_target`). Apply the same only-if-still-50 guard for both keys; update to `"65"` / `"75"` respectively. Otherwise leave them alone.
+3. Report to the operator, one line per key:
+   - "Bumped `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` 50 → 65 — auto-compact triggers later." or "Left `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` at `<value>` (custom override preserved)."
+   - "Bumped `COMPACT_THRESHOLD` 50 → 75 — fewer mid-session nudges." or "Left `COMPACT_THRESHOLD` at `<value>` (custom override preserved)."
+
 ## [1.1.3] - 2026-05-23
 
 ### Fixed

@@ -218,7 +218,7 @@ Container restarts trigger recovery automatically:
 
 | Setting                            | Value   | Effect                           |
 | ---------------------------------- | ------- | -------------------------------- |
-| `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`  | `50`    | Compacts at 50% context          |
+| `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`  | `65`    | Compacts at 65% context          |
 | `MAX_THINKING_TOKENS`              | `10000` | Prevents runaway reasoning costs |
 
 Adjust with `/hermit-settings env`.

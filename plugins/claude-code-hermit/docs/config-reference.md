@@ -35,8 +35,8 @@ Written to `.claude/settings.local.json` at boot by `hermit-start`. Exported to 
 | Key | Default | Purpose |
 |-----|---------|---------|
 | `AGENT_HOOK_PROFILE` | `"standard"` | Hook profile: `minimal`, `standard`, `strict`. Protected in always-on mode. |
-| `COMPACT_THRESHOLD` | `"50"` | Context % threshold for compact suggestion. |
-| `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | `"50"` | Auto-compact at this % of context window. |
+| `COMPACT_THRESHOLD` | `"75"` | Tool-call-count threshold for compact suggestion (fallback when `context_usage` is unavailable). |
+| `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | `"65"` | Auto-compact at this % of context window. |
 | `MAX_THINKING_TOKENS` | `"10000"` | Cap on thinking tokens per turn. |
 Modify with `/hermit-settings env`.
 
@@ -280,8 +280,8 @@ A realistic `config.json` for an always-on Docker hermit with Discord:
   ],
   "env": {
     "AGENT_HOOK_PROFILE": "strict",
-    "COMPACT_THRESHOLD": "50",
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50",
+    "COMPACT_THRESHOLD": "75",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "65",
     "MAX_THINKING_TOKENS": "10000"
   },
   "scheduled_checks": [
