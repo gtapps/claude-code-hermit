@@ -87,6 +87,9 @@ Empty findings → `{"findings": []}`. Don't pad.
 > - Leaky abstractions: exposing internals, breaking existing abstraction boundaries
 > - Stringly-typed code: raw strings where constants, enums, or branded types already exist
 > - Verbose patterns: unnecessary intermediate variables, `== true`/`== false`, redundant else after return, multi-check null guards that collapse to one expression
+> - Unnecessary JSX nesting: wrapper Boxes/elements that add no layout value — check if inner component props (flexShrink, alignItems, etc.) already provide the needed behavior
+> - Nested conditionals: ternary chains (`a ? x : b ? y : ...`), nested if/else, or nested switch 3+ levels deep — flatten with early returns, guard clauses, a lookup table, or an if/else-if cascade
+> - Unnecessary comments: comments explaining WHAT the code does (well-named identifiers already do that), narrating the change, or referencing the task/caller — delete; keep only non-obvious WHY (hidden constraints, subtle invariants, workarounds)
 >
 > **Principles** (apply to every finding):
 > - **Preserve behavior.** If your refactor alters return values, exceptions, side effects, or edge-case handling for *any* input, it's a behavior change — flag it as such, don't dress it up as a cleanup.
@@ -106,6 +109,7 @@ Empty findings → `{"findings": []}`. Don't pad.
 > - Unnecessary work: redundant computations, repeated file reads, duplicate API calls, N+1 patterns
 > - Missed concurrency: independent operations run sequentially
 > - Hot-path bloat: blocking work on startup or per-request paths
+> - Recurring no-op updates: state/store updates inside polling loops, intervals, or event handlers that fire unconditionally — add a change-detection guard so downstream consumers aren't notified when nothing changed. Also: if a wrapper function takes an updater/reducer callback, verify it honors same-reference returns (or whatever the "no change" signal is) — otherwise callers' early-return no-ops are silently defeated
 > - TOCTOU anti-patterns: pre-checking existence before operating instead of operating and handling errors
 > - Memory: unbounded data structures, missing cleanup, event listener leaks
 > - Overly broad operations: reading entire files when only portions needed
