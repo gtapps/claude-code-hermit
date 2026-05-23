@@ -49,7 +49,7 @@ For `$SCOPE = root`: skip this step entirely. Root-scope edits (CI tweaks, root 
 
 For `$SCOPE = plugin`: open `$PLUGIN_DIR/CHANGELOG.md`. Find the `## [Unreleased]` section at the top. Under the correct sub-section (`### Added`, `### Changed`, or `### Fixed`), append one or more bullets that describe what changed and why. Create the sub-section header if it's missing. If `[Unreleased]` itself is missing, prepend it immediately after the `# Changelog` header.
 
-Follow the existing format exactly — `**Bold summary** — detailed explanation of what changed and why.`
+Follow the format: `- **component: one-line summary** — one short sentence of rationale if non-obvious.` Keep each bullet to 1–3 lines (~40 words for the whole bullet). Content that doesn't obviously affect operator behavior belongs in the commit message body, not here. The verbose form is reserved for `### Upgrade Instructions` (added by `/release`, not here), which `hermit-evolve` reads imperative-step-by-step.
 
 Do not create a new version header (`## [X.Y.Z]`). That belongs to `/release`.
 
