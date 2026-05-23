@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- **Issue title format** — uses Conventional Commits (`feat(scope): ...` / `fix(scope): ...` / `chore(scope): ...`) instead of `[hermit/{category}] ...` for proposal-backed issues. Type maps from `category`: `bug` → `fix`, `infrastructure`/`investigation` → `chore`, everything else → `feat`. Scope is inferred from explicit target mentions in the proposal text (`plugins/<slug>/` paths or recognized plugin slugs) first; the recognized slug vocabulary is derived at runtime from the keys of `_hermit_versions` in `.claude-code-hermit/config.json`, falling back to the lone activated fleet hermit when no explicit target appears. Omitted when signals are absent or ambiguous. Ad-hoc issues pass the operator's title through unchanged.
+- **Issue title format** — switches to Conventional Commits (`feat(scope):` / `fix(scope):` / `chore(scope):`) for proposal-backed issues. Type derived from `category`; scope inferred from proposal text (plugin paths or slug vocab from `config.json`). Ad-hoc issues pass the operator's title unchanged.
 - **Operator preview is single-message, body-inlined** — the confirmation prompt is now the last line the operator sees, and the body is shown in full (not "see below"). If the content exceeds the channel size limit, the prompt appears only in the final split message.
 - **`edit` confirmation now defined** — replies with `edit` enter a loop: skill asks what to change, applies it, re-renders the preview, and re-asks. Previously this branch was undefined.
 
