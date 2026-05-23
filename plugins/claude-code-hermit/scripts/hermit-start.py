@@ -42,7 +42,7 @@ DEFAULT_CONFIG = {
     'ask_budget': False,
     'always_on': False,
     'chrome': False,
-    'push_notifications': False,
+    'push_notifications': True,
     'idle_behavior': 'discover',
     'idle_budget': '$0.50',
     'routines': [
@@ -54,8 +54,8 @@ DEFAULT_CONFIG = {
     'monitors': [],
     'env': {
         'AGENT_HOOK_PROFILE': 'standard',
-        'COMPACT_THRESHOLD': '50',
-        'CLAUDE_AUTOCOMPACT_PCT_OVERRIDE': '50',
+        'COMPACT_THRESHOLD': '75',
+        'CLAUDE_AUTOCOMPACT_PCT_OVERRIDE': '65',
         'MAX_THINKING_TOKENS': '10000',
     },
     'boot_skill': None,

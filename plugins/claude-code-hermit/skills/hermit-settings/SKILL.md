@@ -31,7 +31,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings scheduled-checks    — manage scheduled plugin skill checks
 /claude-code-hermit:hermit-settings boot-skill       — view/clear/change the always-on boot skill
 /claude-code-hermit:hermit-settings quality-gate     — set post-implementation /claude-code-hermit:simplify gate tier (budget|balanced|quality)
-/claude-code-hermit:hermit-settings push-notifications — toggle PushNotification fallback (fires when no channel is enabled or a configured channel is unreachable)
+/claude-code-hermit:hermit-settings push-notifications — toggle PushNotification doorbell (fires when no channel is enabled or a configured channel is unreachable)
 ```
 
 ## Plan
@@ -79,8 +79,8 @@ Compaction:
 
 Environment (env):
   AGENT_HOOK_PROFILE              standard
-  COMPACT_THRESHOLD               50
-  CLAUDE_AUTOCOMPACT_PCT_OVERRIDE 50
+  COMPACT_THRESHOLD               75
+  CLAUDE_AUTOCOMPACT_PCT_OVERRIDE 65
   MAX_THINKING_TOKENS             10000
   → run: /claude-code-hermit:hermit-settings env
 
@@ -257,8 +257,8 @@ Update `permission_mode` in config.json.
   Environment Variables (config.json env → .claude/settings.local.json)
 
     AGENT_HOOK_PROFILE              standard
-    COMPACT_THRESHOLD               50
-    CLAUDE_AUTOCOMPACT_PCT_OVERRIDE 50
+    COMPACT_THRESHOLD               75
+    CLAUDE_AUTOCOMPACT_PCT_OVERRIDE 65
     MAX_THINKING_TOKENS             10000
   ```
 - **Protected keys** that cannot be changed via this command: `AGENT_HOOK_PROFILE`. These are managed by the boot script and docker-setup. If the operator tries to set one, respond: "AGENT_HOOK_PROFILE is managed by the boot script (standard for interactive, strict for Docker). To change it, edit config.json directly — the boot script validates on next start."
@@ -361,8 +361,8 @@ Note: if you have `claude-code-dev-hermit:dev-quality` installed and you commit 
 
 **If argument is "push-notifications":**
 Ask: "Send a PushNotification (desktop notification in your terminal app, plus mobile push if Remote Control is connected) on proactive alerts? Fires when no channel is enabled OR a configured channel is unreachable (missing pairing, empty allowed_users, all-disabled). In always-on Docker or headless tmux only the Remote Control mobile push will be visible. Note: push is one-way; operator-→hermit replies (micro-proposals, session recovery) require a channel.
-  on  — enable push fallback
-  off — disable push fallback
+  on  — enable push notifications
+  off — disable push notifications
 [current: <value>]"
 Update `push_notifications` in config.json (`true` for on, `false` for off).
 

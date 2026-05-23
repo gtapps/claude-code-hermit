@@ -312,10 +312,10 @@ config.json "env"  →  hermit-start.py  →  .claude/settings.local.json "env" 
 
 | Field                             | Value      | Purpose                                            |
 | --------------------------------- | ---------- | -------------------------------------------------- |
-| `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | `50`       | Auto-compact at 50% context                        |
+| `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | `65`       | Auto-compact at 65% context                        |
 | `MAX_THINKING_TOKENS`             | `10000`    | Cap thinking budget                                |
 | `AGENT_HOOK_PROFILE`              | `standard` | Active hook profile                                |
-| `COMPACT_THRESHOLD`               | `50`       | Compaction suggestion threshold                    |
+| `COMPACT_THRESHOLD`               | `75`       | Tool-call-count fallback for compact suggestion    |
 | `DISCORD_STATE_DIR`               | (derived)  | Derived from `channels.discord.state_dir` at boot  |
 | `TELEGRAM_STATE_DIR`              | (derived)  | Derived from `channels.telegram.state_dir` at boot |
 

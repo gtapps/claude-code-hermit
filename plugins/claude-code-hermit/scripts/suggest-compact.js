@@ -10,7 +10,7 @@ const path = require('path');
 const os = require('os');
 
 const MAX_STDIN = 1024 * 1024; // 1MB safety limit
-const COMPACT_THRESHOLD = parseInt(process.env.COMPACT_THRESHOLD || '50', 10) || 50;
+const COMPACT_THRESHOLD = parseInt(process.env.COMPACT_THRESHOLD || '75', 10) || 75;
 const SUBSEQUENT_INTERVAL = 25;
 const MAX_COUNTER = 1_000_000;
 const CONTEXT_USAGE_THRESHOLD = 0.6; // 60%

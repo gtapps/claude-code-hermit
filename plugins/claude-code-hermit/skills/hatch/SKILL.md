@@ -287,11 +287,8 @@ questions: [
 ]
 ```
 
-- **If None:** record `channels: {}`. Ask one follow-up before proceeding to Phase 6:
-  > "Send a PushNotification on proactive alerts (desktop notification in your terminal app, plus mobile push if Remote Control is connected)? Note: in always-on Docker or headless tmux without a host-terminal surface, only the Remote Control mobile push will be visible. Note: push is one-way — operator → hermit replies (micro-proposals, session-recovery prompts) need a channel. (yes / no) [no]"
-
-  Set `push_notifications: true` on yes; leave at default `false` on no. Then proceed to Phase 6. Do not ask channel follow-ups.
-- **If Discord or Telegram:** create a channel entry under the `channels` object (e.g., `channels.discord`). Boot script maps the key to the full plugin identifier. Then ask follow-ups below — including the push fallback follow-up at the end (push covers configured-but-unpaired states and recovers if the channel later breaks).
+- **If None:** record `channels: {}`. Proceed to Phase 6. Do not ask channel follow-ups.
+- **If Discord or Telegram:** create a channel entry under the `channels` object (e.g., `channels.discord`). Boot script maps the key to the full plugin identifier. Then ask follow-ups below.
 - Channel plugins require Bun and manual setup (bot creation, token, pairing). After saving the preference to `config.json`, note:
 
   > **Channel preference saved.** Activation depends on how you run hermit:
@@ -326,10 +323,6 @@ questions: [
 
 - **Access control:** If "Restrict" and a numeric ID was typed via Other, record in `channels.<channel>.allowed_users` as `["<id>"]`. If "Allow everyone" or no ID provided, omit the key (absent = accept all). Note: "Add more user IDs later with `/claude-code-hermit:hermit-settings channels`. An empty array [] blocks all messages."
 - **Morning brief:** If "Yes — 07:00", record as `channels.<channel>.morning_brief: { "enabled": true, "time": "07:00" }`. If "No", omit the key (or set to `null`).
-- **Push fallback (asked AFTER the two channel follow-ups above):**
-  > "Also enable PushNotification as a last-resort fallback if the channel becomes unreachable (e.g. pairing lost, token expired)? (yes / no) [no]"
-
-  Set `push_notifications: true` on yes; leave at default `false` on no. This covers the configured-but-unpaired window after `/hatch` and any later channel breakage.
 
 #### Phase 6 — Deployment (AskUserQuestion batch, 3 questions)
 
@@ -404,7 +397,7 @@ For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, 
 5. **Overlay operator choices** from the wizard:
    - From Phase 2: `agent_name`, `language`, `timezone`, `sign_off`.
    - From Phase 3: `escalation`, `remote`, `ask_budget`, `idle_behavior`.
-   - From Phase 5: `channels.<name>` populated per Phase 5 rules (state_dir, allowed_users, morning_brief). Set `push_notifications` from the Phase 5 opt-in follow-up (asked for all three channel choices — None, Discord, Telegram).
+   - From Phase 5: `channels.<name>` populated per Phase 5 rules (state_dir, allowed_users, morning_brief). Set `push_notifications` from the Phase 5 channel choice on **fresh hatch only**: `false` if any channel was selected (channel is the doorbell); `true` if None (push is the doorbell). On re-init (`is_reinit == true`), do **not** re-derive — leave the existing `push_notifications` value untouched, same as any field the wizard didn't ask about. This preserves a manual `/hermit-settings push-notifications` toggle across re-inits. This rule is shared with Quick Turn 3 (Quick is fresh-only by Step 1.6's gate, so the re-init carve-out only affects Advanced).
    - From Phase 6: `permission_mode`; append routines (morning, evening) if enabled — heartbeat-restart is already in the template.
    - From Phase 4: append `scheduled_checks` entries per the per-plugin mapping in Phase 4 (only `claude-code-setup` and `claude-md-management` contribute — 3 entries total when both selected; `skill-creator` and `feature-dev` add zero entries).
 6. **Write merged object** as `.claude-code-hermit/config.json`.
@@ -835,10 +828,7 @@ questions: [
 
 Record `sign_off`, `deployment` (one of `docker` / `tmux` / `interactive`), `channel` (one of `none` / `discord` / `telegram`).
 
-Ask one follow-up before the confirm bundle (asked for ALL channel choices — None, Discord, Telegram — since push covers both the no-channel and configured-but-unreachable cases):
-> "Send a PushNotification as fallback when the channel is unreachable (desktop notification in your terminal app, plus mobile push if Remote Control is connected)? In always-on Docker / headless tmux only the Remote Control mobile push will be visible. (yes / no) [no]"
-
-Record `push_notifications: true` on yes, `false` on no.
+`push_notifications` is derived from Turn 3's channel choice in Step 5 — no follow-up question. Set to `false` if any channel was selected, `true` if None.
 
 **Derived values from this turn (used in the confirm bundle and Step 5 overlay):**
 - `permission_mode`: `auto` (same default for both Docker and non-Docker deployments). Requires CC 2.1.148+ and Max/Team/Enterprise/API plan — not on Pro or Haiku. If the operator is on an ineligible plan, they'll see an "unavailable" error at launch and should run `/hermit-settings permissions` to switch to `acceptEdits`.
@@ -863,7 +853,7 @@ Quick setup will apply:
   Plugins:     all 4 installed
   Routines:    morning 08:30, evening 22:30, heartbeat 04:00
   Channel:     {channel or None} (allow-everyone; token + pairing later)
-  Push fallback: {enabled | disabled}
+  Push notifications: {enabled | disabled}
   Hermit ext:  {activated or none}
   Visibility:  {.local — plugin installed at <scope> scope | committed — plugin installed at project scope}
   Files:       {CLAUDE.local.md | CLAUDE.md}, .gitignore, {.claude/settings.local.json | .claude/settings.json}
@@ -872,7 +862,7 @@ Quick setup will apply:
 Customize restarts the wizard from scratch; your Quick answers won't carry over.
 ```
 
-The `Visibility:` and `Files:` lines are dynamic based on `hatch_target`. The `Push fallback:` line is always shown (push applies to both empty-channel and configured-but-unreachable states).
+The `Visibility:` and `Files:` lines are dynamic based on `hatch_target`. The `Push notifications:` line is always shown (derived from the Channel: choice — enabled when Channel is None, disabled when a channel was selected).
 
 Ask:
 
@@ -902,7 +892,7 @@ Quick replaces Step 4 entirely and applies these defaults silently at the shared
 | Advanced Phase 4 equivalent | plugins + scheduled_checks | install all 4; write 3 scheduled_checks entries per Phase 4 mapping |
 | Advanced Phase 4b equivalent | `.baseline-pending` marker | same eligibility check as Advanced |
 | Advanced Phase 5 equivalent | channels.<name>.* | state_dir + enabled + dm_channel_id=null; omit allowed_users + morning_brief |
-| Quick Turn 3 follow-up | push_notifications | from the Turn 3 follow-up (asked for all channel choices) |
+| Quick Turn 3 channel choice | push_notifications | derived: true if channel = None, false if any channel selected |
 | Advanced Phase 6 equivalent | permission_mode, routines | permission_mode = `auto`; routines = morning 08:30 + evening 22:30 + (template) heartbeat 04:00 |
 | Step 6 | CLAUDE.md / CLAUDE.local.md append | apply silently to `hatch_target` file (default "keep" if marker already present) |
 | Step 7 | .gitignore append | apply silently (per-line idempotent) |
@@ -953,7 +943,7 @@ Identity:
 Config:
   Plugins:         claude-code-setup, claude-md-management, skill-creator, feature-dev
   Channels:        none
-  Push fallback:   {enabled | disabled}
+  Push notifications: {enabled | disabled}
   Budget prompts:  enabled
   Morning brief:   disabled
   Heartbeat:       disabled
