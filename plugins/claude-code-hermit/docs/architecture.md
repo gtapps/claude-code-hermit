@@ -275,7 +275,7 @@ Hermit provides the **timing infrastructure** (when to reflect), the **proposal 
 Morning routine (configurable time, default: active hours start + 30m): brief, proposal review, priority check, pending micro-proposals surfaced.
 Evening routine (configurable time, default: active hours end - 30m): daily journal archived as S-NNN, reflection, preparation for tomorrow.
 
-Both are managed by `/claude-code-hermit:hermit-routines` (per-session CronCreate registrations). Fire at exact cron times. CronCreate is idle-gated: routines that come due during `in_progress` are deferred until the REPL is between turns — never dropped, never interrupting mid-task. A daily 4am `heartbeat-restart` routine re-runs `/claude-code-hermit:hermit-routines load` to re-arm both the heartbeat `/loop` (3-day expiry) and the routine CronCreates (7-day expiry).
+Both are managed by `/claude-code-hermit:hermit-routines` (per-session CronCreate registrations). Fire at exact cron times. CronCreate is idle-gated: routines that come due during `in_progress` are deferred until the REPL is between turns — never dropped, never interrupting mid-task. A daily 4am `heartbeat-restart` routine re-runs `/claude-code-hermit:hermit-routines load` to re-arm both the heartbeat tick and the routine CronCreates (both 7-day expiry).
 
 ---
 

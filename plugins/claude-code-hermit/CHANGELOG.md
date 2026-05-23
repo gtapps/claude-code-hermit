@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **heartbeat: schedule via `CronCreate` instead of `/loop`** — Claude Code 2.1.150's new "Cloud schedule" prompt inside `/loop` was blocking always-on bootstrap.
+
 ## [1.1.3] - 2026-05-23
 
 ### Fixed

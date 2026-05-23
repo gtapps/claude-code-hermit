@@ -1,11 +1,11 @@
 ---
 name: commit
-description: Changelog and commit — lightweight motion for day-to-day plugin dev work in the monorepo. One commit per plugin scope; CHANGELOG and staging routed by detected slug. Code-review is handled upstream by /dev-quality before committing. Trigger when the user says "commit", "commit this", "save this", "wrap this up", "let's commit", or finishes a change and wants to capture it. NOT for releases, version bumps, or pushing — defer to /release for those. Always run this before the user can walk away from an incomplete change.
+description: Changelog and commit — lightweight motion for day-to-day plugin dev work in the monorepo. One commit per plugin scope; CHANGELOG and staging routed by detected slug. Trigger when the user says "commit", "commit this", "save this", "wrap this up", "let's commit", or finishes a change and wants to capture it. NOT for releases, version bumps, or pushing — defer to /release for those. Always run this before the user can walk away from an incomplete change.
 ---
 
 # Commit
 
-Detect which plugin's scope this change belongs to, append a changelog line in that plugin's CHANGELOG, then commit. No push, no tag, no version bump — that's `/release`'s job. Code-review runs upstream via `/dev-quality` before commit.
+Detect which plugin's scope this change belongs to, append a changelog line in that plugin's CHANGELOG, then commit. No push, no tag, no version bump — that's `/release`'s job.
 
 ## Guardrails (check before starting)
 

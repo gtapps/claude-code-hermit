@@ -10,9 +10,9 @@ Background health checker that periodically evaluates a checklist and surfaces a
 
 ```
 /claude-code-hermit:heartbeat run      — execute one tick immediately
-/claude-code-hermit:heartbeat start    — start the recurring loop
-/claude-code-hermit:heartbeat stop     — stop the recurring loop
-/claude-code-hermit:heartbeat status   — show last result and loop state
+/claude-code-hermit:heartbeat start    — start the recurring tick
+/claude-code-hermit:heartbeat stop     — stop the recurring tick
+/claude-code-hermit:heartbeat status   — show last result and schedule state
 /claude-code-hermit:heartbeat edit     — modify the checklist
 ```
 
@@ -51,22 +51,29 @@ Execute one heartbeat tick.
 
 ### start
 
-Start a recurring heartbeat loop using `/loop`.
+Start a recurring heartbeat tick using `CronCreate`.
 
 1. Read `heartbeat.every` from config (default: `"2h"`).
-2. Invoke `/loop <interval> /claude-code-hermit:heartbeat run`.
+2. Convert the interval to a 5-field cron expression using an off-minute (never `:00`, never `:30`) so a fleet of hermits doesn't cluster on the same wall-clock moment:
+   - `30m` → `7,37 * * * *`
+   - `Nh` (N≥1) → `7 */N * * *` (e.g. `1h` → `7 * * * *`, `2h` → `7 */2 * * *`)
+   - `Nd` → `7 4 */N * *`
+   - Any other `Nm` value: use `*/N * * * *` and proceed — `CronCreate` accepts non-clean steps without error.
+3. Call `CronList` and delete any existing task whose prompt is `/claude-code-hermit:heartbeat run` (via `CronDelete`). Idempotent: safe to re-run from `heartbeat-restart` to reset the 7-day expiry.
+4. Call `CronCreate` with `cron` set to the expression from step 2, `prompt` set to `/claude-code-hermit:heartbeat run`, and `recurring: true`.
+5. Append to SHELL.md Monitoring: `[HH:MM] Heartbeat: started (every <interval>, cron <expr>, task <id>)`.
 
-If a heartbeat loop is already running, cancel it first then start fresh. Safe to call from a routine — resets the 3-day `/loop` expiry without losing any state.
+We use `CronCreate` directly rather than `/loop` because Claude Code 2.1.150 added an operator-facing "Cloud schedule vs This session only" prompt inside `/loop` that blocks the always-on bootstrap. `CronCreate` is the same local in-session scheduler `/loop` wraps — same runtime semantics, no prompt.
 
 ### stop
 
-1. Stop the active `/loop`.
+1. Call `CronList`. Delete every task whose prompt is `/claude-code-hermit:heartbeat run` via `CronDelete`.
 2. Append to SHELL.md Monitoring: `[HH:MM] Heartbeat: stopped`.
 
 ### status
 
 Report current heartbeat state:
-- Loop running (yes/no), configured interval, active hours window, last tick time and result, show_ok setting.
+- Call `CronList` and find the task whose prompt is `/claude-code-hermit:heartbeat run`. Report: running (yes/no), cron expression, task ID, configured interval, active hours window, last tick time and result, show_ok setting.
 
 ### edit
 

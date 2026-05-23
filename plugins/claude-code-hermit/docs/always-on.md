@@ -192,7 +192,7 @@ Heartbeat archives the session when SHELL.md has been idle for more than 12 hour
 1. `heartbeat-precheck.js` checks SHELL.md mtime on each tick
 2. If idle >12h, returns the `AUTO_CLOSE` verdict
 3. Heartbeat appends `[HH:MM] Heartbeat: auto-closed after 12h quiet.` to SHELL.md Monitoring (so the trace lands in the archived report, not the next session)
-4. Invokes `/session-close --auto` — bypasses the operator-summary prompt and skips reflect; the heartbeat loop continues
+4. Invokes `/session-close --auto` — bypasses the operator-summary prompt and skips reflect; the heartbeat tick continues
 5. The report is archived with frontmatter `closed_via: auto`
 
 `weekly-review` includes auto-archived sessions in cost/session totals but excludes them from the autonomy-rate denominator (with an inline "(N auto-archived excluded)" note). Reflect skips them when scanning archive evidence, preventing mtime-triggered false compute-phase runs. No configuration is needed — the trigger is fixed at 12h.

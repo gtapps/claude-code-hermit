@@ -183,7 +183,7 @@ Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect 
 
 CronCreate fires only between REPL turns — never mid-task. There is no queue: if Claude is mid-task when the cron time hits, the fire is deferred (not dropped) until idle. `run_during_waiting: false` routines additionally check `runtime.json` and self-suppress with a `skipped-waiting` event when `session_state == "waiting"`.
 
-**`heartbeat-restart`** fires at 4am daily and restarts both the heartbeat `/loop` and the routine registrations (CronCreate auto-expires after 7 days; daily re-arm keeps everything fresh).
+**`heartbeat-restart`** fires at 4am daily and restarts both the heartbeat tick and the routine registrations (CronCreate auto-expires after 7 days; daily re-arm keeps everything fresh).
 
 Inspect live registrations with `/claude-code-hermit:hermit-routines status` (calls `CronList` under the hood). Inspect fire history with `tail .claude-code-hermit/state/routine-metrics.jsonl`.
 
@@ -194,7 +194,7 @@ Inspect live registrations with `/claude-code-hermit:hermit-routines status` (ca
 | Timing         | Exact cron schedule              | Every N minutes                | Event-driven or interval          |
 | Engine         | CronCreate (idle-gated)          | LLM evaluation                 | Monitor tool (OS subprocess)      |
 | Cost           | Zero tokens until fire           | Checklist evaluation per tick  | Zero tokens when quiet            |
-| Survives exit  | No (re-registered on launch)     | No (3-day `/loop` expiry)      | No (session-scoped)               |
+| Survives exit  | No (re-registered on launch)     | No (7-day CronCreate expiry)   | No (session-scoped)               |
 | Mid-task fire  | Deferred until idle              | N/A                            | Yes (interrupts)                  |
 | Use for        | Scheduled tasks (briefs, audits) | Continuous monitoring          | Reactive watching / quiet polling |
 
