@@ -76,7 +76,7 @@ Tier mapping:
 ## Dev Quick Reference
 
 - One-time setup / re-config: `/claude-code-dev-hermit:hatch`
-- Read-only correctness review: `/code-review` (built-in; `/dev-quality` wraps it and applies findings with a derivable fix)
+- Cleanup: `/code-review` (built-in)
 - Parallel changes across many files: `/batch` (built-in)
 - Diagnostics: `/debug` (built-in)
 - High-stakes review: `/code-review:code-review` (from `code-review@claude-plugins-official`, recommended companion)

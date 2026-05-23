@@ -55,11 +55,12 @@ Per `§Implementation Flow`: run the configured test command (`claude-code-dev-h
 
 Per `§Tests Before PR`:
 
-1. Run `/claude-code-dev-hermit:dev-quality` on changed files. It wraps the built-in `/code-review`, applies findings whose fix is derivable from the summary, then re-runs the test command.
-2. If tests pass, proceed.
-3. If tests fail, `git checkout -- <changed-files>` to revert the findings dev-quality applied and stop. Surface the regression.
+1. Run `/code-review` (built-in) on changed files.
+2. Re-run the test command.
+3. If tests pass post-`/code-review`, proceed.
+4. If tests fail post-`/code-review`, `git checkout -- <changed-files>` and stop. Surface the regression.
 
-For PR review, security-sensitive changes, or large refactors, invoke `/code-review:code-review` (from the optional `code-review` plugin) after the dev-quality pass.
+For PR review, security-sensitive changes, or large refactors, invoke `/code-review:code-review` (from the optional `code-review` plugin) after the built-in `/code-review` pass.
 
 ### 5. Open the PR
 

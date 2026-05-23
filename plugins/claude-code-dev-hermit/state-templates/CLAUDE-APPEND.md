@@ -100,7 +100,7 @@ Tier mapping:
 - Mid-task test run + cache warm: `/claude-code-dev-hermit:dev-test` (supports `--cwd <path>`)
 - Pre-wrap quality gate: `/claude-code-dev-hermit:dev-quality` (supports `--cwd <path>`)
 - Open the PR: `/claude-code-dev-hermit:dev-pr` (supports `--cwd <path>`)
-- Read-only correctness review: `/code-review` (built-in; `/dev-quality` wraps it and applies findings with a derivable fix)
+- Cleanup: `/code-review` (built-in)
 - Parallel changes across many files: `/batch` (built-in)
 - Diagnostics: `/debug` (built-in)
 - High-stakes review: `/code-review:code-review` (from `code-review@claude-plugins-official`, recommended companion)

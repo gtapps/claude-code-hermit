@@ -1,13 +1,5 @@
 # Changelog
 
-## [Unreleased]
-
-### Fixed
-
-- **`/dev-quality` applies `/code-review` findings.** `/code-review` became read-only in Claude Code 2.1.146+ (replacing `/simplify`). Gate 1 now parses its JSON output, Edit-applies findings whose fix is unambiguous from the summary, surfaces the rest, and reports truthful `N/M` counts. NOTICE, recovery hint, and docs (`WORKFLOW.md`, `HOW-TO-USE.md`, `README.md`) updated to route through `/dev-quality` for the apply step.
-- **State-templates realigned to read-only `/code-review`.** `state-templates/CLAUDE-APPEND.md` and `CLAUDE-APPEND-SAFETY.md` Dev Quick Reference no longer describe `/code-review` as "Cleanup" — they describe it as a read-only correctness review wrapped by `/dev-quality`. Operators who `/hatch` a project after this release get the corrected description.
-- **`/dev-quality` Gate 3 failure attribution and Output spec polish.** Test-failure message now says "tests regressed after applied findings" (the applied findings are what changed the tree, not `/code-review` itself, which is read-only). Output spec now documents the parser-failure form (`surfaced (apply skipped — output not parseable as JSON array)`) defined in Gate 1's fallback.
-
 ## [0.3.9] - 2026-05-21
 
 ### Fixed

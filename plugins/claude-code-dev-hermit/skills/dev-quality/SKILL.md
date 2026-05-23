@@ -1,11 +1,11 @@
 ---
 name: dev-quality
-description: Pre-wrap quality gate. Runs /code-review on the working-tree diff, applies findings with a derivable fix, re-runs commands.test, and reports results. Suggests /code-review:code-review when installed. Run this before committing.
+description: Pre-wrap quality gate. Runs /code-review on the working-tree diff, re-runs commands.test, and reports results. Suggests /code-review:code-review when installed. Run this before committing.
 ---
 
 # /dev-quality
 
-Run a quality pass on the working-tree diff before declaring the task done. Invokes `/code-review` (read-only since CC 2.1.146), applies the findings whose fix is derivable from the summary, surfaces the rest, then re-runs the configured test command. Call this at task wrap-up, before committing.
+Run a quality pass on the working-tree diff before declaring the task done. Invokes `/code-review`, re-runs the configured test command, and reports the outcome. Call this at task wrap-up, before committing.
 
 ## Prerequisites
 
@@ -34,29 +34,18 @@ If both are empty: working tree is clean. Before failing, check whether HEAD has
 
    ```
    NOTICE: working tree is clean but HEAD has N commits ahead of <BASE_NAME>.
-           /dev-quality is designed to run BEFORE commit (so /code-review findings can be applied to the working tree before they're locked into a commit).
+           /dev-quality is designed to run BEFORE commit (so /code-review can edit the diff).
            Correct order: /dev-quality → commit → /dev-pr.
            To verify the committed state passes tests, run /dev-test instead.
    ```
 
 Then FAIL `"no working-tree diff — nothing to code-review"`. Append the hint `hint: if edits are in a nested git repo, re-run with --cwd <path>` unless `--cwd` was already passed.
 
-### Gate 1 — run `/code-review`, apply findings
+### Gate 1 — run `/code-review`
 
-Invoke `/code-review` on the current diff. Wait for it to complete.
+Invoke `/code-review` on the current diff. Wait for it to complete. If `/code-review` reports no changes, note `code-review: no changes` and continue to Gate 2 anyway.
 
 When `--cwd <path>` is set, scope `/code-review` to files under `<path>` — list them via `git -C "<path>" diff --name-only` and pass that file set as the focus. Don't review files outside `<path>`.
-
-`/code-review` emits a JSON array of `{file, line, summary, failure_scenario}`. Empty array → record `code-review: 0 findings` and continue to Gate 2.
-
-For each finding, decide:
-
-- **apply**: the fix is unambiguous from `summary` + `failure_scenario` (e.g. off-by-one, missing null guard, `=` vs `==`). Read `file:line` to confirm, then Edit.
-- **surface**: fix is ambiguous, multi-location, or requires judgment. Leave the working tree untouched.
-
-When in doubt, surface. Track `M` = total, `N` = applied, `K = M − N`.
-
-If the response isn't a valid JSON array, record `code-review: surfaced (apply skipped — output not parseable as JSON array)` and continue to Gate 2. Never block on parser ambiguity.
 
 ### Gate 2 — re-run tests
 
@@ -84,18 +73,14 @@ Do **not** invoke `/code-review:code-review` autonomously — operator decision 
 
 **Tests fail:**
 
-Read `state/last-test.json` and include `likely_cause` in the failure message if present. FAIL with `"tests regressed after applied findings (exit <N>[, likely OOM|timeout|user-interrupt]) — investigate before committing"` and the last 20 lines of stderr. Leave the working tree as-is (post-apply state) — the agent or operator decides whether to fix forward or revert the applied findings manually (`git checkout -- <files>`).
+Read `state/last-test.json` and include `likely_cause` in the failure message if present. FAIL with `"tests regressed after /code-review (exit <N>[, likely OOM|timeout|user-interrupt]) — investigate before committing"` and the last 20 lines of stderr. Leave the working tree as-is (post-`/code-review` state) — the agent or operator decides whether to fix forward or revert the `/code-review` pass manually (`git checkout -- <files>`).
 
 ## Output
-
-`code-review:` is `N/M findings applied (K surfaced)`, dropping the `(K surfaced)` when `K == 0`; `0 findings` when `M == 0`; or `surfaced (apply skipped — output not parseable as JSON array)` on parser failure (see Gate 1 fallback). The optional `unapplied:` block lists surface-only findings as `<file>:<line> — <summary>` (truncate to ~80 chars); omit when `K == 0`.
 
 ```
 dev-quality
   diff:        12 files modified
-  code-review: 3/5 findings applied (2 surfaced)
-  unapplied:   path/foo.js:42 — possible race in lock acquisition
-               path/bar.js:18 — consider error handling for fetch failure
+  code-review: applied
   tests:       pass (12.3s)
   next:        suggest operator run /code-review:code-review (installed)
   status:      ok
@@ -107,7 +92,7 @@ When invoked with `--cwd <path>`, prepend a `target:` line:
 dev-quality
   target:      packages/foo
   diff:        3 files modified
-  code-review: 1/1 findings applied
+  code-review: applied
   tests:       pass (4.1s)
   status:      ok
 ```
@@ -117,9 +102,9 @@ On Gate 3 failure:
 ```
 dev-quality
   diff:        12 files modified
-  code-review: 2/3 findings applied (1 surfaced)
+  code-review: applied
   tests:       FAIL (exit 137, likely OOM, 8.7s)
-  recovery:    investigate the regression; fix forward or `git checkout -- <files>` to revert the applied findings
+  recovery:    investigate the regression; fix forward or `git checkout -- <files>` to revert the `/code-review` pass
   status:      tests-regressed
 ```
 
@@ -128,7 +113,7 @@ When `commands.test` is unset:
 ```
 dev-quality
   diff:        12 files modified
-  code-review: 1/1 findings applied
+  code-review: applied
   tests:       skipped (commands.test not configured)
   status:      ok
 ```
@@ -138,7 +123,7 @@ On Gate 0 failure (clean tree, commits ahead):
 ```
 dev-quality
   NOTICE: working tree is clean but HEAD has 3 commits ahead of main.
-          /dev-quality is designed to run BEFORE commit (so /code-review findings can be applied to the working tree before they're locked into a commit).
+          /dev-quality is designed to run BEFORE commit (so /code-review can edit the diff).
           Correct order: /dev-quality → commit → /dev-pr.
           To verify the committed state passes tests, run /dev-test instead.
   FAIL (Gate 0): no working-tree diff — nothing to code-review

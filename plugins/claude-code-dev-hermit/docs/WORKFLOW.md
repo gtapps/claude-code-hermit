@@ -50,11 +50,12 @@ Per `§Implementation Flow`: agent runs `claude-code-dev-hermit.commands.test` b
 
 Per `§Tests Before PR`:
 
-1. Run `/claude-code-dev-hermit:dev-quality` on changed files. It invokes the built-in `/code-review`, applies findings whose fix is derivable from the summary, then re-runs `commands.test`.
-2. If tests pass → proceed.
-3. If tests fail → `git checkout -- <changed-files>` to revert the findings dev-quality applied, surface the regression, stop.
+1. Run `/code-review` on changed files (built-in, ships parallel reuse/quality/efficiency reviewers).
+2. Re-run the test command.
+3. If tests pass → proceed.
+4. If tests fail → `git checkout -- <changed-files>` to revert the `/code-review` pass, surface the regression, stop.
 
-For high-stakes changes, optionally invoke `/code-review:code-review` (from the optional `code-review` companion plugin) after the dev-quality pass.
+For high-stakes changes, optionally invoke `/code-review:code-review` (from the optional `code-review` companion plugin) after the built-in `/code-review` pass.
 
 ### Step 6 — PR
 
