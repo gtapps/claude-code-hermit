@@ -4,7 +4,7 @@
 
 ### Changed
 
-- **`/dev-quality` Gate 1 swaps to `/claude-code-hermit:simplify`.** Requires core v1.1.2+ (see `hermit-meta.json` bump). Drops the JSON parser and apply/surface classifier — the skill applies its own edits (parallel review, sequential apply with conflict resolution per its Principles) and reports a totals line. Reframes from correctness (bug-finding via JSON output) to cleanup (refactor proposals). Gate 0 precondition extended to accept untracked-only working trees (previously `git -C "$TARGET" diff --quiet && git -C "$TARGET" diff --cached --quiet` ignored untracked files, so a task that only added new files would fail "nothing to clean up"; now uses `git -C "$TARGET" status --porcelain` — empty output → fail, any output passes, matching `/simplify`'s Phase 1 capture of untracked files). Output spec swaps `code-review: N/M findings applied (K surfaced)` for `simplify: applied N · deduped M · principle-rejected K · stale-anchor skips L · parse failures P`; drops the `unapplied:` block (the skill reports its own "Noticed but not applied" section inline). NOTICE and recovery hint rewritten ("nothing to clean up", "revert the applied edits"). State-templates (`CLAUDE-APPEND.md`, `CLAUDE-APPEND-SAFETY.md`) and docs (`README.md`, `CONTRIBUTING.md`, `WORKFLOW.md`, `HOW-TO-USE.md`) realigned to the new wrapped skill. The marketplace `code-review:code-review` plugin remains the deeper bug-finding option `/dev-quality` suggests when installed.
+- **dev-quality: Gate 1 swaps to `/claude-code-hermit:simplify`** — requires core v1.1.2+. Reframes from bug-finding to cleanup; skill applies its own edits and reports a totals line. Gate 0 extended to accept untracked-only trees via `git status --porcelain`. Docs and state-templates realigned.
 
 ### Upgrade Instructions
 
@@ -16,12 +16,12 @@
 
 ### Fixed
 
-- **Duplicate dev block after core 1.1.1 target migration.** When an operator upgraded core hermit to 1.1.1 and chose `target = "local"`, core's `hermit-evolve` migrated its own block from `CLAUDE.md` to `CLAUDE.local.md` but the dev-hermit block was left behind. The subsequent sibling-sync in `hermit-evolve` Step 7 found no marker in `CLAUDE.local.md` and appended a fresh dev block there, while the pre-existing block in `CLAUDE.md` was never removed — resulting in duplicate `<!-- claude-code-dev-hermit: Development Workflow -->` blocks in both files. The Upgrade Instructions below run a one-shot migration via `hermit-evolve` Step 7 to remove the stray block.
+- **hatch: duplicate dev block after core 1.1.1 target migration** — when core migrated to `CLAUDE.local.md`, the dev-hermit block remained in `CLAUDE.md` and a second was appended, producing duplicates. Upgrade Instructions run a one-shot migration to remove the stray block.
 
 ### Changed
 
-- **`/hatch` Step 3 is now target-aware (GH #111 follow-up).** Reads `.claude-code-hermit/state/hatch-options.json` written by core hatch and writes the CLAUDE-APPEND block to `CLAUDE.local.md` (when `target = "local"`) or `CLAUDE.md` (when `target = "committed"`). If core hatch hasn't run yet (operator's core hermit predates 1.1.1), the skill detects `core_install_scope` from `claude plugin list --json` and presents the scope-derived default at position 0 of the Visibility prompt, then stamps `hatch-options.json` with the canonical 5-field schema (`target`, `core_install_scope`, `stamped_at`, `stamped_by`, `version`). Stray-block migration is handled one-shot by the Upgrade Instructions below — hatch itself stays focused on target-aware setup and steady-state refresh.
-- **Polish following code-review pass.** Step 1 of `/hatch` now explicitly captures `prior_hatch_mode` before Step 5 overwrites it (sequencing clarification, no behavior change). The Upgrade Instructions Step 3 is now fully unattended — dropped the hand-edit detection / Carry-forward branch since `/hatch`'s single-source-of-truth contract already makes the marked block template-authoritative. Test coverage extended with 15 structural-lint assertions for target routing, the 5-field schema, scope mapping, and migration delegation.
+- **hatch: target-aware CLAUDE-APPEND routing (GH #111 follow-up)** — reads `hatch-options.json` to write to `CLAUDE.local.md` or `CLAUDE.md`. Falls back to `claude plugin list --json` scope detection when core hatch hasn't run yet. Stamps 5-field schema on first run.
+- **hatch: polish from code-review pass** — captures `prior_hatch_mode` before Step 5 overwrites it; Upgrade Step 3 is now fully unattended. Test coverage extended with 15 structural-lint assertions.
 
 ### Upgrade Instructions
 
@@ -41,9 +41,9 @@ No `config.json` changes required.
 
 ### Changed
 
-- **Adapted to CC 2.1.146 `/simplify` → `/code-review` rename.** All runtime invocations (`dev-quality` Gate 1, Gate 0 NOTICE text, output format labels), state templates (`CLAUDE-APPEND.md`, `CLAUDE-APPEND-SAFETY.md`), and descriptive references updated. `min_claude_code_version: ">=2.1.146"` added to `hermit-meta.json` so `/hermit-evolve` Step 0 blocks upgrades on stale CC versions. The marketplace `/code-review:code-review` plugin (`code-review@claude-plugins-official`) is now consistently prefixed throughout to disambiguate it from the built-in. **Requires Claude Code 2.1.146+.** After upgrading, run `/claude-code-dev-hermit:hatch` to refresh your project's CLAUDE-APPEND content.
-- **Post-rename polish.** Fixes one missed `simplify` reference in `docs/WORKFLOW.md`. Re-pads `dev-quality` output blocks (`skills/dev-quality/SKILL.md`) to a 13-col label width so the longer `code-review:` label aligns with the other rows. Reword "code-review pass" → "built-in `/code-review` pass" in `docs/HOW-TO-USE.md` and `docs/WORKFLOW.md` only where the marketplace `/code-review:code-review` plugin is referenced in the same paragraph, to disambiguate; elsewhere the term stays "`/code-review` pass" so it matches the Gate 1 name used in the same skill.
-- **`/hatch` Step 3 is now target-aware (GH #111).** Reads `.claude-code-hermit/state/hatch-options.json` written by core hatch and writes the CLAUDE-APPEND block to `CLAUDE.local.md` (when `target = "local"`) or `CLAUDE.md` (when `target = "committed"`). If core hatch hasn't run yet, prompts the operator for a Visibility choice and stamps the file. Both `CLAUDE-APPEND.md` (standard mode) and `CLAUDE-APPEND-SAFETY.md` (safety mode) targets follow the same routing.
+- **dev-quality: adapted to CC 2.1.146 `/simplify` → `/code-review` rename** — all runtime invocations, state templates, and docs updated. `min_claude_code_version: ">=2.1.146"` added to `hermit-meta.json`. Requires Claude Code 2.1.146+.
+- **dev-quality: post-rename polish** — fixes missed `simplify` ref in `WORKFLOW.md`; re-pads output block labels to 13-col width; disambiguates marketplace vs built-in `/code-review` in docs where both appear.
+- **hatch: target-aware CLAUDE-APPEND routing (GH #111)** — reads `hatch-options.json` to write to `CLAUDE.local.md` or `CLAUDE.md`; prompts for Visibility on first run and stamps the file.
 
 ### Files affected
 
@@ -74,7 +74,7 @@ No `config.json` changes required.
 
 ### Changed
 
-- **Surface `/dev-pr` as the sanctioned push path in §Git Safety.** Both CLAUDE-APPEND templates and `docs/GIT-SAFETY.md` now end the "Never `git push`" rule with a pointer to `/claude-code-dev-hermit:dev-pr` as the operator-sanctioned alternative, and soften "The operator pushes" to "Stop and ask the operator." Resolves the discoverability gap where downstream LLMs offered manual-push workarounds instead of invoking the skill. `skills/dev-pr/SKILL.md` description updated with the inverse note. `tests/hatch-mode.test.js` drops the "no /dev-pr in safety template" assertion (no longer correct) and adds named positive assertions for both templates. `docs/WORKFLOW.md` updated to match the new voice. Closes PROP-027.
+- **CLAUDE-APPEND, GIT-SAFETY: name `/dev-pr` as sanctioned push path** — ends the "Never git push" rule with a pointer to `/claude-code-dev-hermit:dev-pr`; softens "The operator pushes" to "Stop and ask." Closes PROP-027.
 - **core requirement bumped to `>=1.0.40`** — aligns `required_core_version`, `requires`, and `dependencies` with the latest core release.
 
 ### Files affected
@@ -102,14 +102,14 @@ No `config.json` changes required.
 
 ### Changed
 
-- **README and marketplace reframe: git-safety leads, workflow skills demoted to optional.** `git-push-guard` + CLAUDE-APPEND template are now the headline product. The three workflow skills (`/dev-pr`, `/dev-quality`, `/dev-test`) are consolidated into an "Optional workflow scaffolding" block in the README and grouped under "Optional workflow skills" in What's Included. Marketplace description updated to match. `/hatch`'s no-match default flipped from `standard` first to `safety` first — new installs on greenfield projects with no existing commit/PR/release skills detected now land in safety mode by default.
+- **README, marketplace: git-safety-first reframe** — `git-push-guard` + CLAUDE-APPEND template are now the headline product; workflow skills (`/dev-pr`, `/dev-quality`, `/dev-test`) moved to "Optional workflow scaffolding." `/hatch` default flipped to `safety` for greenfield projects.
 - **hooks: converted `git-push-guard` and `record-test-result` to exec form.** Aligns with core's exec-form sweep. Fixes path-with-spaces fragility on installs whose plugin dir contains a space.
 - **core requirement bumped to `>=1.0.38`** — aligns `required_core_version`, `requires`, and `dependencies` with the latest core release.
 
 ### Fixed
 
-- **`git-push-guard`: branches with a protected name as a path segment no longer false-positive blocked.** `git push origin feature/main` (and refspec forms like `HEAD:feature/main`) were blocked by the protected-branch regex because `/` was not treated as a word boundary. Guard now extracts the destination ref from each refspec before matching, and uses exact-match regexes for non-glob patterns. Glob patterns (e.g. `release/*`) retain the previous lookaround regex. Resolves PROP-015 item 1.
-- **`README.md` and `CLAUDE.md` now match the actual `--force-with-lease` policy.** Both previously stated `--force-with-lease` was blocked unconditionally. The code (and `docs/GIT-SAFETY.md`) have allowed it on non-protected branches with an explicit refspec since v0.3.0. Docs updated to reflect the real contract. Resolves PROP-015 item 2.
+- **git-push-guard: protected-name path-segment false-positive fixed** — `git push origin feature/main` was blocked because `/` was not treated as a word boundary. Guard now extracts the destination ref per refspec and uses exact-match regexes for non-glob patterns. Resolves PROP-015 item 1.
+- **README, CLAUDE.md: `--force-with-lease` docs aligned with actual policy** — both previously claimed it was blocked unconditionally; code has allowed it on non-protected branches with an explicit refspec since v0.3.0. Resolves PROP-015 item 2.
 
 ### Files affected
 
@@ -138,7 +138,7 @@ No `config.json` changes required.
 
 ### Removed
 
-- **`scripts/git-commit-quality-gate.js`** PreToolUse hook removed (and its registration in `hooks/hooks.json`). The strict-profile branch unconditionally blocked every `git commit` with no state check; the standard-profile nudge duplicated guidance already present in `CLAUDE-APPEND.md`. PR-time enforcement via `/dev-pr` Gate 0's `state/last-test.json` SHA check is unchanged. Resolves [#39](https://github.com/gtapps/claude-code-hermit/issues/39).
+- **git-commit-quality-gate: PreToolUse hook removed** — strict profile unconditionally blocked all commits; standard profile duplicated CLAUDE-APPEND guidance. PR-time enforcement via `/dev-pr` Gate 0 SHA check is unchanged. Resolves [#39](https://github.com/gtapps/claude-code-hermit/issues/39).
 
 ### Files affected
 
@@ -161,9 +161,9 @@ No `config.json` changes required.
 
 ### Added
 
-- **`scripts/git-commit-quality-gate.js`** — new `PreToolUse` Bash hook that fires on `git commit`. In `standard` profile, injects an `additionalContext` reminder to run `/dev-quality` first. In `strict` profile, hard-blocks the commit (exit 2). Tokenizer-based argv parsing handles `git -C <path> commit`, env-var prefixes, and chained commands; avoids false positives on `git log --grep="commit"` and `git config commit.template`. Resolves [#30](https://github.com/gtapps/claude-code-hermit/issues/30).
-- **`--cwd <path>` argument on `/dev-quality`, `/dev-test`, `/dev-pr`** — scopes the entire flow at a nested git working tree (submodule, path workspace, vendored dep) while letting the operator stay in the parent CWD. Git ops use `git -C "<path>"`, the test command spawns from `<path>`, `last-test.json` records the child's HEAD SHA (so `/dev-pr`'s SHA-only cache check correctly discriminates parent-scope from child-scope records), `/simplify` is scoped to files under `<path>`, and `gh`/`glab` runs from `<path>` so the PR opens against the child's remote. Hermit state still lives under the parent's `.claude-code-hermit/`. Resolves [#32](https://github.com/gtapps/claude-code-hermit/issues/32).
-- **`record-test-result.js` `--cwd <path>` flag** on `run` and `write` subcommands. Validates the path exists and is a git working tree, spawns the test command from `<path>`, captures `<path>`'s HEAD SHA. The PostToolUse hook entry-point is unchanged — it still captures `process.cwd()`'s SHA and cannot reliably parse `cd <path> && testcmd` chains; the `--cwd`-driven flow (via `run --cwd`) is the supported nested-repo entry point.
+- **git-commit-quality-gate: new PreToolUse hook** — standard profile injects an `additionalContext` reminder; strict profile hard-blocks the commit (exit 2). Tokenizer parses `git -C <path> commit` and avoids false positives. Resolves [#30](https://github.com/gtapps/claude-code-hermit/issues/30).
+- **dev-quality, dev-test, dev-pr: `--cwd <path>` argument** — scopes git ops, test runner, `/simplify`, and PR creation to a nested working tree (submodule, path workspace). Hermit state still lives under the parent's `.claude-code-hermit/`. Resolves [#32](https://github.com/gtapps/claude-code-hermit/issues/32).
+- **record-test-result: `--cwd <path>` flag on `run` and `write` subcommands** — validates path is a git tree, spawns test command from `<path>`, captures child HEAD SHA. PostToolUse hook entry-point unchanged.
 
 ### Changed
 
@@ -192,15 +192,15 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill picks up the new hook 
 
 ### Added
 
-- **`likely_cause` field in `state/last-test.json`** — when `record-test-result.js` records a non-zero exit, it now classifies well-known signal exits: `137` → `"oom"`, `124` → `"timeout"`, `130` → `"user-interrupt"`. Surfaced in `/dev-pr` Gate 0 and `/dev-quality` Gate 2 failure messages so operators see `tests failed (exit 137, likely OOM)` instead of an opaque exit code.
-- **`/dev-quality` commits-ahead NOTICE** — when Gate 0 fails on a clean working tree, `/dev-quality` checks whether HEAD has commits ahead of the base. If so, it emits a NOTICE explaining the correct ordering (`/dev-quality → commit → /dev-pr`) and points to `/dev-test` for post-commit verification. Resolves the common foot-gun of committing first and then finding `/dev-quality` has nothing to act on.
-- **`/hatch` base-branch detection** — during the capability scan in step 2, hatch now detects common base branches from the remote (`main`, `master`, `develop`, `development`, `dev`, `trunk`). If exactly one candidate differs from what `/dev-pr`'s fallback chain would resolve, it is written as `pr_base_branch` automatically. If two or more candidates are detected, a `Base branch` question is added to the Round 2 `AskUserQuestion` batch. In both cases, the key is only written when the value differs from the fallback — ordinary trunk repos see no change in behavior.
+- **record-test-result: `likely_cause` field in `last-test.json`** — classifies signal exits: `137` → `"oom"`, `124` → `"timeout"`, `130` → `"user-interrupt"`. Surfaced in `/dev-pr` Gate 0 and `/dev-quality` Gate 2 failure messages.
+- **dev-quality: commits-ahead NOTICE on clean-tree Gate 0 fail** — emits the correct ordering (`/dev-quality → commit → /dev-pr`) and points to `/dev-test` for post-commit verification.
+- **hatch: base-branch auto-detection** — detects common base branches from remote during capability scan. Writes `pr_base_branch` automatically when one candidate is found; prompts when multiple are detected.
 
 ### Changed
 
-- **`/dev-pr` Gate 4 session-close nudge** — after a successful `gh pr create`, `/dev-pr` now appends `next: PR opened — consider /claude-code-hermit:session-close to wrap the session` to the report. Reduces false-positive stale-session heartbeat alerts caused by sessions left open after PR creation.
+- **dev-pr: Gate 4 session-close nudge** — appends a `session-close` pointer after a successful PR create to reduce stale-session heartbeat alerts.
 - **`/hatch` safety-mode skip list** — `pr_base_branch` added to the list of keys not written in safety mode (these feed `/dev-pr` which is not prescribed in that mode).
-- **`/hatch` Docker network requirements section** — adds an explicit "intentionally empty" Docker domains/LAN block with an explanation for why the plugin cannot pre-declare DNS allowlist entries (language-agnostic; dev workflows vary per project).
+- **hatch: Docker network requirements section** — adds an "intentionally empty" Docker domains/LAN block explaining why the plugin cannot pre-declare DNS allowlist entries.
 - **core requirement bumped to `>=1.0.26` / `^1.0.26`** — was `>=1.0.22` / `^1.0.22`. `required_core_version` + `requires` (in `hermit-meta.json`) and `dependencies[0].version` (in `plugin.json`) all bumped together. Updated `CLAUDE.md`, `CONTRIBUTING.md`, `docs/HOW-TO-USE.md`.
 
 ### Files affected
@@ -231,19 +231,19 @@ No `config.json` changes required.
 
 ### Added
 
-- **`claude-code-dev-hermit.hatch_mode` config key** — `"safety"` | `"standard"`. Persists the operator's hatch mode across re-runs and is used by `/hatch` to select the right CLAUDE-APPEND template.
-- **`state-templates/CLAUDE-APPEND-SAFETY.md`** — a subset template for `safety` mode containing only mode-independent sections: §Git Safety, §Branch Discipline, §Technical Constraints, §Before Archiving a Task, §Dev Session Hygiene, §Dev Knowledge, §Dev Proposal Categories, and a trimmed §Dev Quick Reference. Does not include §Implementation Flow, §Tests Before PR, or `/dev-test`/`/dev-quality`/`/dev-pr` references.
+- **`claude-code-dev-hermit.hatch_mode` config key** — `"safety"` | `"standard"`. Persists the operator's hatch mode across re-runs for CLAUDE-APPEND template selection.
+- **`state-templates/CLAUDE-APPEND-SAFETY.md`** — new safety-mode template: §Git Safety, §Branch Discipline, §Technical Constraints, §Dev Knowledge, §Dev Proposal Categories, trimmed §Dev Quick Reference. Excludes §Implementation Flow, §Tests Before PR, and workflow skill references.
 
 ### Changed
 
-- **`state-templates/CLAUDE-APPEND.md`** — adds a one-sentence "project conventions take precedence" preamble to §Branch Discipline, §Implementation Flow, and §Tests Before PR. Makes `standard`-mode installs non-destructive in projects that already have their own commit/PR/release skills.
-- **`/hatch` capability scan** — at hatch time, scans `.claude/skills/` for dirs named `commit`, `create-pr`, `pr`, `pull-request`, `release`, or `git-commit`. If matched, defaults the mode prompt to `safety` and surfaces the detected skill names. Else defaults to `standard`.
-- **`/hatch` mode-conditional prompts** — in `safety` mode, skips prompts for `commands.test`, `commands.lint`, `commands.format`, `commands.pr_create`, and `pr_template_path` (workflow keys that feed sections not injected). Only asks `Protected` branches, `Hook` profile, and companion `Plugins`. In `standard` mode, behavior is unchanged from v0.3.1.
-- **`/hatch` template selection** — injects `CLAUDE-APPEND-SAFETY.md` in safety mode, `CLAUDE-APPEND.md` in standard mode.
+- **CLAUDE-APPEND.md: "project conventions take precedence" preamble** — added to §Branch Discipline, §Implementation Flow, §Tests Before PR to avoid overriding existing commit/PR/release skills.
+- **hatch: capability scan** — scans `.claude/skills/` for existing commit/PR/release skills; defaults mode prompt to `safety` if found, `standard` otherwise.
+- **hatch: mode-conditional prompts** — safety mode skips workflow-key prompts (`commands.test`, `lint`, `format`, `pr_create`, `pr_template_path`); standard mode unchanged.
+- **hatch: template selection** — injects `CLAUDE-APPEND-SAFETY.md` in safety mode, `CLAUDE-APPEND.md` in standard mode.
 
 ### Fixed
 
-- **git-push-guard tests: `master`-branch cases falsely passing** — `runRaw` used `process.cwd()` as the guard's working directory, so it found the monorepo's `.claude-code-hermit/config.json` (which only lists `main`) and overrode the default `["main", "master"]` fallback. Fixed by running test spawns in a fresh tmpdir with no hermit config. Also wrapped `runWithConfig` in `try/finally` to prevent tmpdir leaks and unified `force: true` on both cleanup calls.
+- **git-push-guard tests: `master`-branch cases falsely passing** — `runRaw` resolved the guard's CWD to the monorepo root, which has a config listing only `main`, overriding the `["main","master"]` default. Fixed by spawning tests in a fresh tmpdir with no hermit config.
 
 ### Files affected
 
@@ -266,15 +266,15 @@ No `config.json` changes required.
 
 ### Added
 
-- **`/dev-test` skill (`skills/dev-test/SKILL.md`)** — run the configured test suite and record the result to `last-test.json`. Useful for mid-task verification and warming the `/dev-pr` test cache. Internally calls `record-test-result.js run`.
-- **`/dev-quality` skill (`skills/dev-quality/SKILL.md`)** — re-introduces a `/dev-quality` skill (removed in v0.3.0 as "workflow ceremony") in leaner form as a mechanical pre-wrap quality gate: runs `/simplify` on the working-tree diff, re-runs `commands.test` if set, and reports results. On test regression, surfaces the failure and stops — no auto-rollback. If `/code-review:code-review` (`code-review@claude-plugins-official`) is in the agent's available slash-command list, the skill tells the agent to suggest it to the operator (never invokes it autonomously).
+- **`/dev-test` skill** — runs the configured test suite and records the result to `last-test.json`. Useful for mid-task verification and warming the `/dev-pr` cache.
+- **`/dev-quality` skill** — re-introduced in leaner form: runs `/simplify` on the working-tree diff and re-runs `commands.test`. Surfaces failures; suggests `code-review:code-review` to the operator when installed (never invokes it autonomously).
 
 ### Changed
 
-- **`/dev-pr` Gate 0 tests check** — now runs tests automatically on cache miss instead of blocking with "run the test command yourself". A fresh `status:"pass"` record at the current HEAD is a cache hit (instant); anything else triggers `record-test-result.js run`. Fixes #12 (hook couldn't observe exit codes; gate previously refused all PRs).
-- **`scripts/record-test-result.js`** — adds `run` subcommand (executes `commands.test`, records real exit code + duration) and `write <exit_code> <duration_ms>` subcommand (for direct callers and CI). Hook path now silently skips on missing exit code instead of writing `status:"unknown"`. Interrupted runs (`tool_response.interrupted === true`) are skipped.
-- **`/dev-quality`** — test step now calls `record-test-result.js run` instead of `$COMMANDS_TEST`, so the result is recorded to `last-test.json` (note: SHA is pre-commit; `/dev-pr` will still re-run after commit).
-- **`state-templates/CLAUDE-APPEND.md`** — adds step 4 to §Implementation Flow pointing to `/dev-quality`; rewrites §Tests Before PR to reference `/dev-quality` as the `/simplify`+re-run owner. Operators must re-run `/claude-code-dev-hermit:hatch` to refresh their project's CLAUDE.md.
+- **dev-pr: Gate 0 auto-runs tests on cache miss** — runs `record-test-result.js run` instead of blocking; fresh `status:"pass"` at current HEAD is a cache hit. Fixes #12.
+- **record-test-result: `run` and `write` subcommands** — `run` executes `commands.test` and records exit code + duration; `write` is for direct callers and CI. Silently skips on missing exit code; skips interrupted runs.
+- **dev-quality: test step records to `last-test.json`** — calls `record-test-result.js run` so the result is cached (SHA is pre-commit; `/dev-pr` re-runs after commit).
+- **CLAUDE-APPEND.md: `/dev-quality` wired into §Implementation Flow and §Tests Before PR** — operators must re-run `/hatch` to refresh.
 
 ### Files affected
 
@@ -296,25 +296,24 @@ No `config.json` changes required.
 
 ## [0.3.0] - 2026-04-28
 
-**v0.3.0 — language-agnostic safety layer.** Mass cleanup: dropped ~6,000 lines (~70% of the plugin) to reframe dev-hermit as a thin safety layer instead of a stack-aware orchestrator. The plugin now ships 2 skills (`hatch`, `dev-pr`), 1 hook (`git-push-guard`), and a CLAUDE-APPEND template that injects safety rules into the project's CLAUDE.md. No built-in implementer agent — operators use the native `Agent` tool, `feature-dev`'s research/architect agents, or custom subagents, all governed by the injected rules. Three audits (value / complexity / native-delegation) and a series of design-iteration conversations led to this redesign; full rationale in the v0.3.0 plan (`/home/d0m/.claude/plans/cryptic-weaving-dolphin.md`).
+**v0.3.0 — language-agnostic safety layer.** Dropped ~6,000 lines (~70%) to reframe dev-hermit as a thin safety layer. Now ships 2 skills (`hatch`, `dev-pr`), 1 hook (`git-push-guard`), and a CLAUDE-APPEND template. Implementer agent removed — operators use the native `Agent` tool or `feature-dev` agents governed by the injected rules.
 
 ### Changed
 
-- **`state-templates/CLAUDE-APPEND.md`** — rewritten as the rules-of-the-road for any agent doing dev work. New sections: §Git Safety (no push, no `--no-verify`, no commits to protected, no force-push), §Branch Discipline (clean-tree gate, branch from `protected_branches[0]`, prefix detection, verbatim 5-step slug rules), §Implementation Flow (run configured test command before declaring done), §Tests Before PR (re-run after `/simplify`, `git checkout -- <changed>` on regression). Dropped Dev Agent table, 7-step Dev Workflow, Local Dev Environment, Watchdog, Always-on Worktree Topology. With no in-plugin agent, this prose is the only safety layer at non-strict hook profiles — written concretely and without hedging.
-- **`/hatch` rewrite (`skills/hatch/SKILL.md`)** — 271 → ~155 lines. Subsumes `/dev-adapt`'s wizard prompts (`test_command`, `lint_command`, `format_command`, `protected_branches`, `pr_template_path`). Defaults to installing `git-push-guard` at strict profile with an explicit opt-out; never silently downgrades an existing strict install. Idempotent on re-run: every key offers `Keep current (<value>)` as the recommended option, so operators sweep through Enter-presses to fast-confirm. Reads `required_core_version` from `hermit-meta.json` instead of hardcoding the floor in skill prose. Detects GitLab vs GitHub remote to seed `commands.pr_create` (`gh pr create` vs `glab pr create`); preserves operator overrides.
-- **`/dev-pr` rewrite (`skills/dev-pr/SKILL.md`)** — 241 → ~140 lines. Body assembly is inline LLM prose with explicit per-section templates (Summary / Context / Verification / Screenshots / Notes) instead of a 240-line template-merge engine. Dropped Gate 0 quality-check (no `/dev-quality`), Gate 0 alert-check (no watchdogs), the `--force` flag (clean-tree and protected-branch are NEVER skipped; quality/alert checks no longer exist), all `$HERMIT_AGENT_WORKTREE` always-on branching, all calls to the deleted `scripts/check-protected-branch.js` (replaced with inline bash glob via `case ... in <pattern>`). Project PR templates now append verbatim after the assembled body — no heading-merge engine.
-- **`scripts/git-push-guard.js` simplification** — 286 → ~85 lines. Replaced the shell-aware tokenizer + per-flag option parser with regex chains. Inlined `loadProtectedBranches()` and the glob-to-regex conversion (formerly in `scripts/lib/protected-branches.js`). All exotic shell cases the old tokenizer handled (env-var prefix, `git -C path push`, `git -c key=val push`) still work — the regex approach catches them by looking at the whole subcommand. New policy: bare `--force` and `-f` are blocked unconditionally; `--force-with-lease` is allowed only to a non-protected branch with an explicit refspec (the safe rebase-recovery case), and blocked for protected targets and ambiguous-target leases. Hook now walks up from cwd to find `.claude-code-hermit/` instead of assuming `cwd == project root`. Trade-off: false positives on commit messages mentioning `--no-verify` and on deeply nested branch names matched against `release/*` glob (rename / use a different word in the message).
-- **Docs rewritten for v0.3.0 identity** — full rewrites of `CLAUDE.md` (plugin-level), `README.md`, `docs/HOW-TO-USE.md`, `docs/WORKFLOW.md`. Substantive trim of `docs/GIT-SAFETY.md` and `docs/RECOMMENDED-PLUGINS.md`. Small structural edit to `CONTRIBUTING.md`. New identity throughout: "language-agnostic safety layer + dev conventions for any agent your hermit uses to write code." `README.md` adds a v0.2.x → v0.3.0 migration section pointing operators at `feature-dev` / native `Agent` as implementer replacements.
+- **CLAUDE-APPEND.md: rewritten as rules-of-the-road** — new §Git Safety, §Branch Discipline, §Implementation Flow, §Tests Before PR sections. Dropped Dev Agent table, 7-step workflow, Local Dev Environment, Watchdog, Always-on Worktree Topology.
+- **hatch: rewritten (271 → ~155 lines)** — subsumes `/dev-adapt` wizard prompts; idempotent; defaults to strict push-guard profile with explicit opt-out; detects GitLab vs GitHub for `commands.pr_create`.
+- **dev-pr: rewritten (241 → ~140 lines)** — inline LLM body assembly replaces 240-line template-merge engine; dropped `--force` flag, alert-check gate, and `check-protected-branch.js` shell-out (replaced with inline bash glob).
+- **git-push-guard: simplified (286 → ~85 lines)** — tokenizer replaced with regex chains; inlined `loadProtectedBranches`; walks up from cwd to find `.claude-code-hermit/`. `--force-with-lease` to non-protected branches with explicit refspec now allowed.
+- **Docs: full rewrite for v0.3.0 identity** — `CLAUDE.md`, `README.md`, `HOW-TO-USE.md`, `WORKFLOW.md` rewritten; `GIT-SAFETY.md`, `RECOMMENDED-PLUGINS.md` trimmed.
 
 ### Removed
 
-- **Implementer agent** — `agents/implementer.md` and the entire `agents/` directory. Safety rules now live in `state-templates/CLAUDE-APPEND.md`; agents read and follow them. Operators relying on `subagent_type: implementer` must switch to native `Agent` or `feature-dev`'s `code-architect` / `code-explorer` (`feature-dev` does not ship a code-writing implementer of its own). `hermit-evolve` surfaces this on next run.
-- **Skills**: `dev-branch` (slug rules + clean-tree gate now in CLAUDE-APPEND §Branch Discipline), `dev-quality` (tests-then-simplify-then-tests pattern now in CLAUDE-APPEND §Tests Before PR), `dev-cleanup` (use `git branch --merged | grep -v <protected> | xargs git branch -d`), `dev-doctor` (if `hatch` works and tests pass, the plugin works), `dev-adapt` (folded into `hatch`), `dev-up` / `dev-down` / `dev-log-watch` / `dev-status` (every language's dev server is different — operators write a project-specific skill or use `tmux` / `Bash run_in_background` directly).
-- **Scripts**: `scripts/watchdog-health.js`, `watchdog-errors.js`, `check-protected-branch.js` and their test siblings. The watchdog pipeline (~1,370 lines including alerts-store and the `state/alerts.json` ack flow) was babysitter-watching-babysitter; Monitor's stderr-on-exit notification covers "dev server died" without it.
-- **`scripts/lib/`** entire directory: `alerts-store`, `dev-server-command`, `health-poll`, `log-watch-builder`, `port-check`, `pr-body-builder`, `protected-branches`, `resolve-command`, `shell-utils` (~1,300 lines). Body builder inlined into `/dev-pr` SKILL prose; protected-branches inlined into `git-push-guard.js`; the rest were thin wrappers over `curl` / `tail -F | grep` / `command -v` / `lsof` that did not earn their keep across language stacks.
-- **Tests**: `tests/agents-structure.test.js` (no agents to lint); `pr-body-builder.test.js`, `port-check.test.js`, `health-poll.test.js`, `log-watch-builder.test.js`, `dev-server-command.test.js`, `alerts-store.test.js`, `resolve-command.test.js`, `check-protected-branch.test.js`, `watchdog-health.test.js`, `watchdog-errors.test.js` (their subjects were deleted). 55 tests survive: 9 structural lints + 46 git-push-guard cases.
-- **Docs**: `docs/DEV-LOG-WATCH.md` (the rotating-log monitoring skill it documented is gone).
-- **CLAUDE.md plugin block updates** — operators upgrading via `hermit-evolve` will see the §Dev Agent table, §Local Dev Environment, §Watchdog block, and §Always-on Worktree Topology sections silently replaced with the new safety rules. Existing config keys for the dropped features become inert (harmless but unused) — see Migration below.
+- **Implementer agent** (`agents/` directory) — safety rules now live in CLAUDE-APPEND; operators switch to native `Agent` or `feature-dev`. `hermit-evolve` surfaces this on next run.
+- **Skills**: `dev-branch`, `dev-quality`, `dev-cleanup`, `dev-doctor`, `dev-adapt` (folded into `hatch`), `dev-up`, `dev-down`, `dev-log-watch`, `dev-status` — all removed; rules moved to CLAUDE-APPEND or left to operators.
+- **Scripts**: watchdog pipeline (`watchdog-health.js`, `watchdog-errors.js`, `check-protected-branch.js`, ~1,370 lines) — Monitor's stderr-on-exit covers the use case.
+- **`scripts/lib/`**: entire directory (~1,300 lines) — helpers inlined into `git-push-guard.js` and `/dev-pr` prose; thin wrappers removed.
+- **Tests**: 10 test files whose subjects were deleted; 55 tests survive (9 structural lints + 46 push-guard cases).
+- **Docs**: `docs/DEV-LOG-WATCH.md` removed; §Dev Agent table, §Watchdog, §Always-on Worktree Topology in CLAUDE.md replaced by safety rules on `hermit-evolve`.
 
 ### Files affected
 
@@ -339,10 +338,10 @@ No `config.json` changes required.
 
 ### Migration (operators upgrading from v0.2.x)
 
-- **`subagent_type: implementer` calls will silently fall back** to general-purpose. Switch to the native `Agent` tool with the project's CLAUDE-APPEND rules in scope, or to `feature-dev:code-architect` / `code-explorer` for planning + the native `Agent` for writing.
-- **Inert config keys** in `.claude-code-hermit/config.json` (no harm, but cleanly removable): `claude-code-dev-hermit.dev_health_url`, `dev_log_path_pattern`, `dev_error_pattern`, `dev_watchdog.*`, `commands.dev_start`, `commands.dev_stop`, `dev_port_agent`, `dev_required_ports`, `dev_auth_check`, `dev_expected_listeners`, `pr_title_format`, `pr_body_sections`. The `commands.test`, `commands.lint`, `commands.format`, `commands.pr_create`, `protected_branches`, `pr_template_path`, `pr_base_branch`, `env.AGENT_HOOK_PROFILE` keys are all preserved by the new `/hatch`.
-- **Workflow scripts** that explicitly invoked `/dev-up`, `/dev-down`, `/dev-log-watch`, `/dev-status`, `/dev-quality`, `/dev-cleanup`, `/dev-doctor`, `/dev-adapt`, `/dev-branch` will fail with "skill not found." For dev servers, use `tmux` or `Bash run_in_background`. For test-then-simplify, the agent now runs that loop directly per CLAUDE-APPEND §Tests Before PR — no skill wrapper.
-- **`required_core_version`** stays at `>=1.0.22`. The cleanup removed features that depended on later core changes, so the floor could potentially relax in a future release; for now we keep the existing floor.
+- **`subagent_type: implementer`** calls fall back to general-purpose — switch to native `Agent` or `feature-dev:code-architect` / `code-explorer`.
+- **Inert config keys** (harmless but removable): `dev_health_url`, `dev_log_path_pattern`, `dev_error_pattern`, `dev_watchdog.*`, `commands.dev_start/stop`, `dev_port_agent`, `dev_required_ports`, `dev_auth_check`, `dev_expected_listeners`, `pr_title_format`, `pr_body_sections`. Workflow keys (`commands.test`, `lint`, `format`, `pr_create`, `protected_branches`, etc.) are preserved.
+- **Removed skill invocations** (`/dev-up`, `/dev-down`, `/dev-log-watch`, `/dev-status`, `/dev-quality`, `/dev-cleanup`, `/dev-doctor`, `/dev-adapt`, `/dev-branch`) will fail with "skill not found" — use `tmux` / `Bash run_in_background` for dev servers; agent runs test-then-simplify directly via CLAUDE-APPEND.
+- **`required_core_version`** unchanged at `>=1.0.22`.
 
 ### Upgrade Instructions
 
@@ -359,24 +358,24 @@ Executed by `/claude-code-hermit:hermit-evolve` Step 2b in oldest-first order. v
 
 ### Added
 
-- **`scripts/lib/protected-branches.js`** — shared protected-branch helpers (load, normalize, glob-match, isProtected) extracted from `git-push-guard.js`. All skills and agents now shell out to `check-protected-branch.js` instead of restating glob logic inline.
-- **`scripts/check-protected-branch.js`** — CLI wrapper; exit 0 = not protected, exit 1 = protected (stdout names the matched pattern). Used by implementer Step 0b, `/dev-branch` Gate 0, `/dev-cleanup`, and `/dev-pr` Gate 0.
-- **`tests/agents-structure.test.js`** — structural lint for `agents/*.md`: frontmatter required fields, `isolation: worktree` absent, Step 0a/0b refusal language distinct and referencing the right tokens.
+- **`scripts/lib/protected-branches.js`** — shared protected-branch helpers (load, normalize, glob-match, isProtected) extracted from `git-push-guard.js`.
+- **`scripts/check-protected-branch.js`** — CLI wrapper; exit 0 = not protected, exit 1 = protected. Used by implementer, `/dev-branch`, `/dev-cleanup`, and `/dev-pr` gates.
+- **`tests/agents-structure.test.js`** — structural lint for `agents/*.md`: frontmatter, `isolation: worktree` absence, Step 0a/0b refusal language.
 - **`tests/test-utils.js`** — shared `parseFrontmatter` helper used by both structural test files.
 
 ### Changed
 
-- **implementer: caller contract** — removed `isolation: worktree` (caller now owns worktree setup via `/dev-branch`). Added Step 0a (require `Worktree:` token in prompt) and Step 0b (verify branch is not protected via `check-protected-branch.js`) before any edits. Implementer refuses with actionable messages on missing token or protected branch. **Breaking workflow change**: any caller that invoked the implementer directly must now run `/dev-branch` first and copy its `Worktree:` line into the implementer's prompt verbatim.
-- **`/dev-branch`: worktree + token emission** — in active-dev mode (no `$HERMIT_AGENT_WORKTREE`), Gate 6 now runs `git worktree add .claude/worktrees/<slug>` and emits `Worktree:`/`Branch:` tokens. Gate 0 short-circuits when already on a feature branch and emits the same tokens. Gate 4b adds a slug-path guard before Gate 5 to prevent silent conflicts.
-- **`/dev-cleanup`: worktree removal** — before deleting a confirmed branch, checks `git worktree list` for a managed worktree under `.claude/worktrees/`; removes it (non-force) before the branch delete. Skips `agent/` basename and worktrees outside `.claude/worktrees/`.
-- **`/dev-pr` Gate 0** — replaced inline glob-match logic with `check-protected-branch.js` shell-out.
-- **`state-templates/CLAUDE-APPEND.md`** — step 2 (Implement) updated: `/dev-branch` is now mandatory before invoking the implementer; `Worktree:` token must be copied verbatim into the implementer prompt. Step 3 (after implementer) simplified: worktree cleanup is `/dev-cleanup`'s job.
-- **`scripts/git-push-guard.js`** — imports `loadProtectedBranches`/`isProtected` from `lib/protected-branches.js`; destructures `{ branches }` from the new return shape.
+- **implementer: caller contract** — removed `isolation: worktree`; caller must run `/dev-branch` first and pass its `Worktree:` token verbatim. Step 0a/0b gates refuse on missing token or protected branch.
+- **dev-branch: worktree + token emission** — Gate 6 creates the worktree and emits `Worktree:`/`Branch:` tokens; Gate 0 short-circuits when already on a feature branch. Gate 4b adds slug-path guard.
+- **dev-cleanup: worktree removal** — checks `git worktree list` for a managed worktree before branch deletion; removes it non-force first.
+- **dev-pr: Gate 0** — replaced inline glob-match with `check-protected-branch.js` shell-out.
+- **CLAUDE-APPEND.md: `/dev-branch` mandatory before implementer** — `Worktree:` token must be copied verbatim; worktree cleanup delegated to `/dev-cleanup`.
+- **git-push-guard: imports from `lib/protected-branches.js`** — destructures `{ branches }` from the new return shape.
 
 ### Fixed
 
-- **`agents/implementer.md` and `skills/dev-branch/SKILL.md` frontmatter** — `description` values contained unquoted `Worktree:`/`Branch:` colons, causing the YAML parser to drop all frontmatter fields silently at runtime. Both descriptions are now quoted strings.
-- **`scripts/lib/pr-body-builder.test.js` CLI smoke test** — `execSync` lacked an explicit `cwd`, so the relative `node scripts/lib/pr-body-builder.js` path resolved against the caller's CWD. Now sets `cwd` to the plugin root so the test passes when `tests/run-all.sh` is invoked from the repo root.
+- **implementer, dev-branch: frontmatter description quoting** — unquoted `Worktree:`/`Branch:` colons caused YAML parser to silently drop all frontmatter fields; both descriptions are now quoted strings.
+- **pr-body-builder CLI smoke test: missing `cwd`** — `execSync` resolved the script path against the caller's CWD; now sets `cwd` to plugin root so the test passes from repo root.
 
 ### Files affected
 
@@ -416,20 +415,20 @@ No `config.json` changes required.
 
 ### Added
 
-- **dev-pr: new skill** — opens a PR from the current feature branch. Assembles title + body from `/dev-quality` output, commits, work-binding context, screenshots, and an optional project PR template. Gates: protected-branch, clean tree, commits-ahead, fresh quality report, no unresolved health-degraded alerts. Accepts `--force` to skip quality and alert gates. Writes PR URL to `state/bindings.json`.
-- **watchdog: health + error monitors** — `watchdog-health.js` polls `dev_health_url` and emits `health-degraded`/`health-recovered`; `watchdog-errors.js` tails the dev-server log and emits `error-spike`/`error-cleared` when rolling error count crosses `dev_watchdog.log_error_alert_threshold`. Registered by `/dev-up` Gate 5b in always-on mode; skipped in interactive mode or when `dev_watchdog.enabled === false`.
+- **dev-pr: new skill** — opens a PR from the current feature branch with assembled title + body. Gates: protected-branch, clean tree, commits-ahead, fresh quality report, no unresolved alerts. Writes PR URL to `state/bindings.json`.
+- **watchdog: health + error monitors** — `watchdog-health.js` polls `dev_health_url`; `watchdog-errors.js` tails the dev-server log and emits alerts on error spikes. Registered by `/dev-up` Gate 5b in always-on mode.
 - **`scripts/lib/alerts-store.js`** — atomic `state/alerts.json` helpers with MAX_ALERTS=50 pruning and deduplication. Shared by both watchdog processes and `/dev-status`.
 - **`scripts/lib/pr-body-builder.js`** — pure function assembling PR title + body from commits, quality report, binding, screenshots, and project template.
 
 ### Changed
 
-- **dev-up: worktree `cwd` support** — when `$HERMIT_AGENT_WORKTREE` is set, the dev-server Monitor pipeline `cd`s into the worktree first so the server runs on the agent's branch, not the operator's checkout. A `cd` failure emits a `[dev-up] Fatal:` sentinel surfaced as a notification rather than silently falling back.
-- **dev-up: watchdog registration (Gate 5b)** — in always-on mode, registers `dev-watchdog-health` and `dev-watchdog-errors` as persistent Monitor entries after the dev-server starts. Both shut down on `/dev-down`.
+- **dev-up: worktree `cwd` support** — when `$HERMIT_AGENT_WORKTREE` is set, Monitor pipeline runs from the worktree so the server runs on the agent's branch. `cd` failure emits a `[dev-up] Fatal:` sentinel.
+- **dev-up: watchdog registration (Gate 5b)** — registers `dev-watchdog-health` and `dev-watchdog-errors` after server start in always-on mode; both shut down on `/dev-down`.
 - **dev-up: `dev_port_agent` config key** — when `$HERMIT_AGENT_WORKTREE` is set, resolves the port from `dev_port_agent` instead of `dev_required_ports[0]`, so the agent's server doesn't collide with the operator's.
 - **dev-adapt: PR template + GitLab detection** — reads `.github/PULL_REQUEST_TEMPLATE.md` / `docs/pull_request_template.md` during discovery; detects `.gitlab-ci.yml` and sets `commands.pr_create` default for GitLab remotes.
 - **dev-quality / dev-status / dev-branch / dev-down / dev-cleanup / dev-doctor** — surface watchdog alerts in status output; `/dev-down` shuts down watchdog entries.
 - **state-templates/CLAUDE-APPEND.md** — `/dev-pr` usage rules and watchdog alert acknowledgement flow added.
-- **state-templates/CLAUDE-APPEND.md: routine schedule pointer** — removed hardcoded cron times from the routines quick-reference line; schedules and `enabled` state now point to `config.json → routines[]` (edit via `/claude-code-hermit:hermit-settings`) so the runtime context stays in sync with config.
+- **CLAUDE-APPEND.md: routine schedule pointer** — replaced hardcoded cron times with a pointer to `config.json → routines[]` so the context stays in sync with config.
 - **required_core_version: bumped to `>=1.0.22`** — worktree cwd support depends on `$HERMIT_AGENT_WORKTREE` set by hermit-start.py v1.0.22.
 
 ### Files affected
@@ -474,11 +473,11 @@ No `config.json` changes required.
 
 ### Fixed
 
-- **`dev-up`: dev server no longer killed by Monitor on chatty output** — Gate 5 now wraps `commands.dev_start` in `{ … } 2>&1 | tee .claude-code-hermit/state/dev-server.log | grep --line-buffered -E <pattern> || true`. Monitor receives only error-matched lines and never trips its notification-rate limit. Full stdout is preserved in the log file for forensics. Error pattern defaults to anchored Node/Vite/Next.js signals (e.g. `^\s*(Error|TypeError|...):`, `EADDRINUSE`, `Uncaught`) to avoid false-positives on the bare word "error" common in Next.js compile output; override via `dev_error_pattern` in config.
+- **dev-up: dev server no longer killed by Monitor on chatty output** — Gate 5 wraps dev start in a `tee | grep --line-buffered` pipeline; Monitor receives only error-matched lines. Full stdout is preserved in `state/dev-server.log`; override pattern via `dev_error_pattern`.
 
 ### Added
 
-- **`scripts/lib/dev-server-command.js`** — builds the Monitor pipeline command for `/dev-up` Gate 5. Handles shell-escaping of `commands.dev_start`, log path, and error pattern via `shellQuote`; ships the anchored default regex; exports `buildDevServerCommand({ devStart, logPath, errorPattern })`. Co-located `dev-server-command.test.js` covers input validation, defaulting, shell-injection safety (`bash -n` round-trips for adversarial inputs), and runtime smoke (filter correctness, zero-match exit-0 guard).
+- **`scripts/lib/dev-server-command.js`** — builds the Monitor pipeline for `/dev-up` Gate 5; handles shell-escaping via `shellQuote` and ships the anchored default error regex. 18 tests cover validation, escaping, and runtime behavior.
 
 ### Changed
 
@@ -530,7 +529,7 @@ No `config.json` changes required.
 - **manifest: move hermit-internal fields to `hermit-meta.json` sidecar.** `required_core_version` and `requires` removed from `plugin.json` so `claude plugin tag --push` passes the native validator cleanly.
 - **Prerequisite bumped to Claude Code v2.1.110+** — required by `claude plugin tag` and the dep resolver. Updated `docs/HOW-TO-USE.md`, `CONTRIBUTING.md`.
 - **Per-plugin release skill removed** — root `/release claude-code-dev-hermit` covers the full validation suite; per-plugin skill was a lower-fidelity duplicate.
-- **core requirement bumped to `>=1.0.21` / `^1.0.21`** — was `>=1.0.18` / `^1.0.18`. Aligns the dev plugin with the upcoming core release. `required_core_version` + `requires` (in `hermit-meta.json`) and `dependencies[0].version` (in `plugin.json`) all bumped together. Updated `README.md` (badge + Prerequisites), `CLAUDE.md` (Depends On), `CONTRIBUTING.md` (also clears stale `v1.0.16+` reference).
+- **core requirement bumped to `>=1.0.21` / `^1.0.21`** — was `>=1.0.18`; bumped in `hermit-meta.json`, `plugin.json`, README, CLAUDE.md, and CONTRIBUTING.md together.
 
 ### Files affected
 
@@ -580,7 +579,7 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 ### Changed
 
-- **Monorepo housekeeping.** Plugin source moved into `plugins/claude-code-dev-hermit/` of the `gtapps/claude-code-hermit` monorepo. `required_core_version` reconciled to semver-range form (`>=1.0.18`); a parallel `requires.claude-code-hermit` field was added to mirror it. Inner `.claude-plugin/marketplace.json` removed (the repo-root marketplace catalog is now authoritative). README and Documentation links now point at the monorepo.
+- **Monorepo housekeeping** — plugin source moved into `plugins/claude-code-dev-hermit/`; `required_core_version` reconciled to semver-range form; inner `marketplace.json` removed; README links updated.
 
 ### Upgrade Instructions
 
@@ -621,12 +620,12 @@ No `config.json` changes required.
 
 ### Changed
 
-- **implementer: stronger Concerns contract** — The Concerns return section now requires flagging any non-obvious, load-bearing choice with a `Rejected alternatives:` sub-bullet naming what was considered and why it was rejected. This prevents the main session from "tidying" the implementer's code into a regression (motivated by a real incident where a misleading PHPDoc caused the caller to replace correct-but-unusual framework wiring with a more idiomatic approach that failed). The implementer also now treats caller-provided architectures (e.g. from `/feature-dev:feature-dev`) as hard constraints, surfacing deviations in Concerns rather than silently picking a different approach.
-- **dev workflow: verify before overriding implementer choices** — `CLAUDE-APPEND.md` step 3 now instructs the main session to run the implementer's tests before overriding any non-obvious choice; if they pass, the choice should be treated as potentially load-bearing and traced before replacement. If no tests exist, trace before overriding.
-- **dev workflow: `/dev-quality` vs `/simplify` clarification** — Step 4 now explains that `/dev-quality` is the end-of-task gate (it wraps `/simplify` plus test invocation); direct `/simplify` calls should be reserved for mid-task cleanup and post-`/batch` follow-up only. Consistent across `CLAUDE-APPEND.md`, `HOW-TO-USE.md`, and `README.md`.
-- **dev workflow: optional planning gate via feature-dev** — A new optional step between Plan and Implement suggests running `/feature-dev:feature-dev` when the task touches unfamiliar code paths or framework internals (features, refactors, or bugfixes alike — trigger is unfamiliarity, not urgency). The chosen architecture should be recorded in the Task or Progress Log before invoking the implementer. Updated across `CLAUDE-APPEND.md`, `HOW-TO-USE.md`, `README.md`, and `RECOMMENDED-PLUGINS.md`.
-- **dev-quality: code-review step removed** — `/simplify` already runs parallel reuse/quality/efficiency review agents on the changed files, so the follow-up `code-review:code-review` call was redundant overhead for the typical solo workflow. The pass is now tests → `/simplify` → tests. The `code-review` plugin remains an optional companion in `hatch` for PR review, security-sensitive code, and large refactors — invoke `/code-review` explicitly when the stakes warrant it.
-- **hatch: no scheduled_checks entry for code-review** — since it is no longer part of any default code path, there is no reason to health-check it on a cadence. `docker.recommended_plugins` still records it when selected.
+- **implementer: stronger Concerns contract** — non-obvious load-bearing choices must include a `Rejected alternatives:` sub-bullet; caller-provided architectures (e.g. from `feature-dev`) treated as hard constraints.
+- **dev workflow: verify before overriding implementer choices** — CLAUDE-APPEND step 3 instructs the main session to run implementer tests before overriding a non-obvious choice; trace before replacing if no tests exist.
+- **dev workflow: `/dev-quality` vs `/simplify` clarification** — step 4 now specifies `/dev-quality` as the end-of-task gate; direct `/simplify` reserved for mid-task cleanup and post-`/batch` follow-up.
+- **dev workflow: optional planning gate via feature-dev** — new optional step suggests `/feature-dev:feature-dev` when the task touches unfamiliar code paths (trigger: unfamiliarity, not urgency).
+- **dev-quality: code-review step removed** — `/simplify` already covers reuse/quality/efficiency review; pass is now tests → `/simplify` → tests. `code-review` plugin remains an optional companion.
+- **hatch: no scheduled_checks entry for code-review** — no longer in any default code path; `docker.recommended_plugins` still records it when selected.
 
 ---
 
@@ -634,7 +633,7 @@ No `config.json` changes required.
 
 ### Changed
 
-- **Minimum core version bumped to v1.0.16** — dev-hermit now requires `claude-code-hermit` v1.0.16+ so that the `scheduled-checks` standalone routine (which runs dev-hermit's `scheduled_checks` entries) is guaranteed to be present in the project config.
+- **Minimum core version bumped to v1.0.16** — requires `claude-code-hermit` v1.0.16+ to guarantee the `scheduled-checks` routine is present.
 
 ---
 
@@ -642,14 +641,14 @@ No `config.json` changes required.
 
 ### Changed
 
-- **BREAKING: minimum core version bumped to v1.0.15** — dev-hermit now requires `claude-code-hermit` v1.0.15+ to reflect the `scheduled_checks` rename and other protocol changes in the core.
-- **hatch: `plugin_checks` → `scheduled_checks`** — All five references in the hatch skill updated to match core v1.0.15's renamed config key; `RECOMMENDED-PLUGINS.md` and `CLAUDE.md` updated likewise.
-- **hatch: dev-cleanup routine gate removed** — The `< 1.0.12` version guard is redundant now that the min floor is v1.0.15; the cleanup routine question is shown unconditionally.
-- **hatch report: surfaces `hermit-settings boot-skill`** — "Other core skills" block now includes the v1.0.14 boot-skill management command.
-- **CLAUDE-APPEND: reflect suppression codes** — The reflect note now mentions structured Progress Log suppression codes (`no-evidence`, `weak-recurrence`, etc.) for tuning proposal tiers.
-- **CLAUDE-APPEND: knowledge-schema.md pointer** — Dev Knowledge section points at `knowledge-schema.md` if present, matching core v1.0.15's new template.
-- **release skill: `claude plugin validate` step** — Release flow now runs validation between file updates and commit, surfacing errors before they land in git.
-- **marketplace.json: full metadata** — Added `author`, `license`, `homepage`, `repository`, and `keywords` fields to match core v1.0.15's expanded schema.
+- **BREAKING: minimum core version bumped to v1.0.15** — reflects the `scheduled_checks` rename and other protocol changes in core.
+- **hatch: `plugin_checks` → `scheduled_checks`** — five references updated; `RECOMMENDED-PLUGINS.md` and `CLAUDE.md` updated likewise.
+- **hatch: dev-cleanup routine gate removed** — `< 1.0.12` version guard redundant now that floor is v1.0.15; cleanup routine question shown unconditionally.
+- **hatch report: surfaces `hermit-settings boot-skill`** — added to "Other core skills" block.
+- **CLAUDE-APPEND: reflect suppression codes** — reflect note now lists structured suppression codes (`no-evidence`, `weak-recurrence`, etc.).
+- **CLAUDE-APPEND: knowledge-schema.md pointer** — Dev Knowledge section points at `knowledge-schema.md` if present.
+- **release skill: `claude plugin validate` step** — validation now runs between file updates and commit.
+- **marketplace.json: full metadata** — added `author`, `license`, `homepage`, `repository`, `keywords` fields.
 
 ---
 
@@ -657,7 +656,7 @@ No `config.json` changes required.
 
 ### Changed
 
-- **Skill renamed: `dev-hatch` → `hatch`** — The `dev-` prefix was redundant; the plugin namespace (`claude-code-dev-hermit:`) already conveys scope. Invoke as `/claude-code-dev-hermit:hatch`.
+- **Skill renamed: `dev-hatch` → `hatch`** — `dev-` prefix redundant given the plugin namespace. Invoke as `/claude-code-dev-hermit:hatch`.
 
 ---
 
@@ -683,7 +682,7 @@ No `config.json` changes required.
 
 ### Fixed
 
-- **Fully qualified agent/skill names enforced throughout skill instructions** — Bare names (`implementer`, `/dev-quality`, `code-review`) were replaced with canonical forms (`claude-code-dev-hermit:implementer`, `/claude-code-dev-hermit:dev-quality`, `code-review:code-review`) in all skill and template files. Mirrors the fix applied in claude-code-hermit v1.0.2.
+- **Fully qualified agent/skill names enforced** — bare names replaced with canonical forms (`claude-code-dev-hermit:implementer`, `/claude-code-dev-hermit:dev-quality`, `code-review:code-review`) in all skill and template files.
 
 ### Files affected
 
