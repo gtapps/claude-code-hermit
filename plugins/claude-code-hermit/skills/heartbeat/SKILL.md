@@ -10,9 +10,9 @@ Background health checker that periodically evaluates a checklist and surfaces a
 
 ```
 /claude-code-hermit:heartbeat run      — execute one tick immediately
-/claude-code-hermit:heartbeat start    — start the recurring loop
-/claude-code-hermit:heartbeat stop     — stop the recurring loop
-/claude-code-hermit:heartbeat status   — show last result and loop state
+/claude-code-hermit:heartbeat start    — start the recurring tick
+/claude-code-hermit:heartbeat stop     — stop the recurring tick
+/claude-code-hermit:heartbeat status   — show last result and schedule state
 /claude-code-hermit:heartbeat edit     — modify the checklist
 ```
 
