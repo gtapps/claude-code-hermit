@@ -114,13 +114,11 @@ No `config.json` changes required.
 
 **Template constraints (enforce these):**
 
-1. **Narrative bullets (Added / Changed / Fixed)** — open with a one-line summary in this shape:
-   `- **component: what changed** — short rationale.`
-   Expand only when an operator running `/hermit-evolve` would be surprised without the context — fixes that cross subsystems, change runtime behavior, or require a non-obvious migration earn paragraphs (and may include shell snippets for manual recovery). Cosmetic fixes, copy tweaks, and refactors do not.
+1. **Narrative bullets (Added / Changed / Fixed)** — one-line summary in the shape `- **component: what changed** — short rationale if non-obvious.` Target 1–3 lines, ~40 words max. If a bullet wants to grow longer, the surplus belongs in the PR description, not here.
    - Lead with the component or subsystem (`reflect:`, `session-mgr:`, `hermit-docker:`).
    - Do NOT list internal refactors, helper extractions, test scaffolding, or renamed variables — those are visible in `git diff`.
    - Do NOT repeat what `Files affected` already shows.
-   - The test for "does this earn extra detail" is operator impact, not author effort. A 4-paragraph debugging story rarely passes; a 4-paragraph recovery procedure often does.
+   - **Recovery procedures, migration shell snippets, and breaking-change steps belong in `### Upgrade Instructions`, never in the narrative bullet.** Write a tight summary ("changed default X to Y") and let that section carry the imperative steps — `hermit-evolve` reads them step-by-step.
 
 2. **Upgrade Instructions** — strict imperative block:
    - Every step starts with a verb (`Add`, `Replace`, `Copy`, `Run`, `Delete`, `Refresh`).
