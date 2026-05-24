@@ -21,4 +21,10 @@ bash "$SCRIPT_DIR/test-channel-responder-reply-rule.sh"    || rc=$?
 bash "$SCRIPT_DIR/test-proposal-act-accept-flow.sh"        || rc=$?
 bash "$SCRIPT_DIR/test-simplify-totals-contract.sh"        || rc=$?
 bash "$SCRIPT_DIR/test-auto-close.sh"                      || rc=$?
+bash "$SCRIPT_DIR/test-cost-schema-contract.sh"            || rc=$?
+bash "$SCRIPT_DIR/test-cost-drift-fix.sh"                  || rc=$?
+bash "$SCRIPT_DIR/test-cost-aggregator.sh"                 || rc=$?
+bash "$SCRIPT_DIR/test-cost-redaction.sh"                  || rc=$?
+bash "$SCRIPT_DIR/test-cost-tracker-fail-open.sh"          || rc=$?
+bash "$SCRIPT_DIR/test-invocation-log-attribution.sh"      || rc=$?
 exit $rc

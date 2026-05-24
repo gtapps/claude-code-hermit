@@ -41,7 +41,9 @@ Use `run_during_waiting` (rdw) from the config entry to select the template. Def
 
 **rdw=true** — routine fires even when `session_state` is `waiting`:
 ```
-[hermit-routine:<id>] Invoke /<skill>. After it completes, run:
+[hermit-routine:<id>] Run:
+<pluginRoot>/scripts/log-invocation-event.sh skill-invoke /<skill-base> routine <id>
+Then: Invoke /<skill>. After it completes, run:
 <pluginRoot>/scripts/log-routine-event.sh <id> fired
 ```
 
@@ -49,11 +51,13 @@ Use `run_during_waiting` (rdw) from the config entry to select the template. Def
 ```
 [hermit-routine:<id>] Read .claude-code-hermit/state/runtime.json. If session_state is "waiting", run:
 <pluginRoot>/scripts/log-routine-event.sh <id> skipped-waiting
-and stop. Otherwise: invoke /<skill>. After it completes, run:
+and stop. Otherwise: run:
+<pluginRoot>/scripts/log-invocation-event.sh skill-invoke /<skill-base> routine <id>
+Then: invoke /<skill>. After it completes, run:
 <pluginRoot>/scripts/log-routine-event.sh <id> fired
 ```
 
-Replace `<pluginRoot>` with the resolved absolute path from step 1, `<id>` with the routine's `id`, and `<skill>` with the routine's `skill` field. The skill string is passed verbatim to the slash invocation (so `claude-code-hermit:brief --morning` becomes `/claude-code-hermit:brief --morning`). `log-routine-event.sh` takes `<id> <event>` only.
+Replace `<pluginRoot>` with the resolved absolute path from step 1, `<id>` with the routine's `id`, `<skill>` with the routine's `skill` field (verbatim, e.g. `claude-code-hermit:brief --morning` becomes `/claude-code-hermit:brief --morning`), and `<skill-base>` with the first-space-split of `skill` (the base command without args, e.g. `claude-code-hermit:brief`). `log-routine-event.sh` takes `<id> <event>` only; `log-invocation-event.sh` takes `skill-invoke <skill-base> routine <id>`.
 
 **Special case — `heartbeat-restart`:** append ` Then invoke /claude-code-hermit:hermit-routines load to re-arm all routine CronCreates and reset the 7-day expiry clock.` to the prompt (after the trailing `fired` log line). Daily re-arm via this routine is what keeps routine CronCreates from ever reaching the 7-day auto-expiry in always-on deployments.
 

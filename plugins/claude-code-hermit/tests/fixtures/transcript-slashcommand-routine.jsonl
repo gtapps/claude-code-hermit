@@ -1,0 +1,4 @@
+{"type":"human","message":{"content":[{"type":"text","text":"[hermit-routine:morning-brief] Invoke /claude-code-hermit:brief --morning. After it completes, run: /path/log-routine-event.sh morning-brief fired"}]}}
+{"type":"assistant","message":{"model":"claude-sonnet-4-6","content":[{"type":"tool_use","id":"tu_sc_02","name":"SlashCommand","input":{"command":"/claude-code-hermit:brief --morning"}}],"usage":{"input_tokens":800,"cache_creation_input_tokens":50,"cache_read_input_tokens":20000,"output_tokens":200}}}
+{"type":"human","message":{"content":[{"type":"tool_result","tool_use_id":"tu_sc_02","content":"Brief complete."}]}}
+{"type":"assistant","message":{"model":"claude-sonnet-4-6","content":[{"type":"text","text":"Morning brief delivered."}],"usage":{"input_tokens":1200,"cache_creation_input_tokens":100,"cache_read_input_tokens":35000,"output_tokens":400}}}

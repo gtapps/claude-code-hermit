@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **cost-tracker: 9 new attribution fields per JSONL row** — `model_full`, `had_human_turn`, `skill`, `skill_args`, `task`, `triggered_by`, `routine_id`, `proposal`, `proposal_tag`; enables per-skill/routine/proposal cost profiling.
+- **cost-tracker: four cost-profile files** — `state/skill-cost-profile.json`, `state/routine-cost-profile.json`, `state/proposal-cost-profile.json`, `state/task-cost-profile.json`; rebuilt atomically by `cost-aggregator.js` after each Stop.
+- **`scripts/log-invocation-event.sh`** — append-only sidecar log for skill invocations and proposal lifecycle events; drives `triggered_by`/`routine_id`/`proposal` attribution without mutable runtime fields.
+- **hermit-routines: invocation event logged before each skill dispatch** — routine-fired skills are now attributable in the cost log via `triggered_by: "routine"` and `routine_id`.
+- **heartbeat: idle-agency invocations logged** — autonomous session-start calls from the idle branch log `triggered_by: "idle"`.
+- **proposal-act: `proposal-accept` event logged on "Start implementing now"** — cost rows during implementation attribute to the accepted proposal; `proposal-resolve` clears the attribution.
+- **weekly-review: trims `state/invocation-log.jsonl` to last 1000 entries** — prevents unbounded growth at low cadence.
+
+### Fixed
+
+- **cost-tracker: cost drift between `.status.json` and `cost-summary.md`** — `cost_usd` in `.status.json` is now derived by summing the full JSONL on every Stop (no rounding accumulation); `operator_turns` uses a one-time baseline snapshot plus an incremental count from the `had_human_turn` log field.
+
 ## [1.1.4] - 2026-05-23
 
 ### Changed

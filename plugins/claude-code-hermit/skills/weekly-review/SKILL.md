@@ -45,6 +45,11 @@ Generates the weekly review for the current ISO week.
    ```
    Report how many were archived, retained, and skipped.
 
+6. Trim `state/invocation-log.jsonl` to the last 1000 entries (prevents unbounded growth):
+   ```
+   bash -c 'f=".claude-code-hermit/state/invocation-log.jsonl"; [ -f "$f" ] && tail -n 1000 "$f" > "$f.trim.tmp" && mv "$f.trim.tmp" "$f" || true'
+   ```
+
 ## Notes
 
 - Safe to run manually at any time — re-runs overwrite the current week's review.

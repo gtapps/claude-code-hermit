@@ -1,0 +1,2 @@
+{"type":"human","message":{"content":[{"type":"tool_use","id":"tu_sc_01","name":"SlashCommand","input":{"command":"/claude-code-hermit:pulse"}}]}}
+{"type":"assistant","message":{"model":"claude-sonnet-4-6","content":[{"type":"text","text":"Pulse complete."}],"usage":{"input_tokens":1500,"cache_creation_input_tokens":200,"cache_read_input_tokens":40000,"output_tokens":500}}}

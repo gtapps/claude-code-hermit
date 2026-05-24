@@ -99,12 +99,20 @@ After evaluating the checklist, if SHELL.md status is `idle`:
 
 **NEXT-TASK.md pickup** (both `wait` and `discover`): check `sessions/NEXT-TASK.md`. If found, act per `escalation` in config:
 - `conservative`: notify operator, set SHELL.md to `waiting`, set `waiting_reason: "conservative_pickup"` in runtime.json.
-- `balanced`: start via `/claude-code-hermit:session-start`.
-- `autonomous`: start, notify on completion.
+- `balanced`: log the invocation, then start:
+  ```
+  bash ${CLAUDE_PLUGIN_ROOT}/scripts/log-invocation-event.sh skill-invoke /claude-code-hermit:session-start idle
+  ```
+  Then invoke `/claude-code-hermit:session-start`.
+- `autonomous`: log the invocation (same command as balanced), start, notify on completion.
 
 **The following only when `idle_behavior: "discover"`:**
 
-- **Idle task pickup:** read `.claude-code-hermit/IDLE-TASKS.md`. Pick first unchecked item. Record provenance in `runtime.json` `idle_task` (`text`, `line`, `picked_at`). Start via `/claude-code-hermit:session-start --task '<text>'`, cost-capped at `idle_budget`. Run at `escalation: conservative`. Maximum one task per tick.
+- **Idle task pickup:** read `.claude-code-hermit/IDLE-TASKS.md`. Pick first unchecked item. Record provenance in `runtime.json` `idle_task` (`text`, `line`, `picked_at`). Log the invocation:
+  ```
+  bash ${CLAUDE_PLUGIN_ROOT}/scripts/log-invocation-event.sh skill-invoke /claude-code-hermit:session-start idle
+  ```
+  Then start via `/claude-code-hermit:session-start --task '<text>'`, cost-capped at `idle_budget`. Run at `escalation: conservative`. Maximum one task per tick.
 - **Priority alignment:** check OPERATOR.md + `.claude/cost-log.jsonl`. Alert if deadlines or budgets need attention.
 
 All time comparisons use `timezone` from config.json.

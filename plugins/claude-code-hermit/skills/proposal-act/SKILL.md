@@ -79,6 +79,10 @@ When the operator accepts a proposal:
         - Yes: append `[HH:MM] switched to PROP-NNN: <title> (prior task: <prior task>)` to SHELL.md `## Progress Log`; overwrite SHELL.md `Task:` field with "Implement PROP-NNN: <title>"; `runtime.json session_state` stays `in_progress`. Proceed to (e).
         - No: fall back to "Create a session task" below.
      d. **Waiting:** fall back to "Create a session task" without asking, then notify: "PROP-NNN queued. Session is currently waiting."
+     d.5. **Invocation tracking** (branches b, c-yes only — not d, which fell back): log the proposal-accept event so cost-tracker can attribute subsequent turns:
+        ```
+        bash ${CLAUDE_PLUGIN_ROOT}/scripts/log-invocation-event.sh proposal-accept <PROP-NNN>
+        ```
      e. Read the proposal body and execute the Proposed Solution as the active task. If the body contains `## Skill Improvement`, use `/skill-creator` for the implementation. If the body is vague, ask the operator for clarification before proceeding.
      e.5. **Quality gate (tier-branched).** Read `.claude-code-hermit/config.json` → `quality_gate.tier`. Resolve per this table:
 
@@ -177,6 +181,10 @@ Used when reflect has surfaced a sparse-cadence proposal as a resolution candida
 3. Append a `resolved` event to proposal-metrics.jsonl:
    ```
    node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"resolved","proposal_id":"PROP-NNN"}'
+   ```
+3b. Log the proposal-resolve event so cost-tracker stops attributing turns to this proposal:
+   ```
+   bash ${CLAUDE_PLUGIN_ROOT}/scripts/log-invocation-event.sh proposal-resolve <PROP-NNN>
    ```
 4. Append to the Operator Decision section:
    ```

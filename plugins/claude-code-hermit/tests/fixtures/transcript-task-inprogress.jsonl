@@ -1,0 +1,4 @@
+{"type":"human","message":{"content":[{"type":"tool_use","id":"tu_sc_03","name":"SlashCommand","input":{"command":"/claude-code-hermit:session-start"}}]}}
+{"type":"assistant","message":{"model":"claude-sonnet-4-6","content":[{"type":"tool_use","id":"tu_tc_01","name":"TaskCreate","input":{"subject":"Implement cost attribution for PROP-047"}}],"usage":{"input_tokens":500,"cache_creation_input_tokens":0,"cache_read_input_tokens":10000,"output_tokens":100}}}
+{"type":"human","message":{"content":[{"type":"tool_result","tool_use_id":"tu_tc_01","content":"{\"id\":\"1\",\"status\":\"in_progress\"}"}]}}
+{"type":"assistant","message":{"model":"claude-sonnet-4-6","content":[{"type":"text","text":"Task created."}],"usage":{"input_tokens":1500,"cache_creation_input_tokens":200,"cache_read_input_tokens":40000,"output_tokens":500}}}
