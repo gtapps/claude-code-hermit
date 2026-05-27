@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **skills/simplify: sync to upstream reference** — Preserve-behavior principles now treat a diff's deleted (`-`) lines as the behavior baseline, so reverting an added `== True` back to a plain truthiness check is no longer mis-flagged as a behavior change; Phase 3a repairs malformed findings (unescaped quotes in `old_string`/`new_string`) from intent instead of dropping them.
+
 ## [1.1.5] - 2026-05-25
 
 ### Added
