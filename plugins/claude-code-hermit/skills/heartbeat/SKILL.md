@@ -55,7 +55,7 @@ Start the heartbeat as a persistent CC Monitor subprocess.
 1. Read `heartbeat.every` from config (default: `"2h"`). Parse to seconds (`"30m"` → 1800, `"2h"` → 7200, etc).
 2. Resolve the script path: `${CLAUDE_PLUGIN_ROOT}/scripts/heartbeat-monitor.sh` (resolve at skill execution time — not available inside the subprocess).
 3. Sweep any pre-existing CronCreate entry for the old recurring-cron approach: `CronList` → if an entry's `prompt` matches `/claude-code-hermit:heartbeat run`, `CronDelete` it. Idempotent.
-4. Read `state/heartbeat-monitor.runtime.json` if it exists (Write requires a prior Read in the same session). If a Monitor with description `heartbeat-monitor` exists (TaskList), TaskStop it. Also remove any prior entry from `state/heartbeat-monitor.runtime.json`.
+4. Read `state/heartbeat-monitor.runtime.json` if it exists. If it contains a `task_id`, TaskStop that task — ignore not-found errors (the monitor may have already exited). Then TaskList → TaskStop any remaining task with description `heartbeat-monitor` (fallback for orphans where the runtime file was never written). Clear any prior entry from `state/heartbeat-monitor.runtime.json`.
 5. Register a new Monitor:
    - `description`: `heartbeat-monitor` (reserved slot — operators must not reuse this description for ad-hoc `/watch` entries)
    - `command`: `bash <abs_script_path> <interval_seconds> $PWD/.claude-code-hermit`

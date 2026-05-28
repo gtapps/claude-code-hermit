@@ -34,9 +34,15 @@ Glob `.claude-code-hermit/proposals/PROP-*.md`. For each file:
 - Read the YAML frontmatter (`id`, `status`, `title`)
 - Fall back to parsing `**Title:**` bullet if no frontmatter
 
-If a proposal with the same problem already exists (any status, including dismissed):
+**Same problem** means the problem statements match — not just that two proposals share an integration, API, data store, or implementation surface. Shared infrastructure alone is not grounds for suppression.
+
+If a proposal with the same problem exists and its status is `proposed`, `deferred`, or `dismissed`:
 - Return: `DUPLICATE:<PROP-ID> — <one-line reason why they match>`
 - Stop. Do not evaluate further.
+
+If a proposal with the same problem exists but its status is `accepted` or `resolved`:
+- Record its PROP-ID as the `closest_prop` metadata — do not return `DUPLICATE`.
+- Continue to Step 1.5.
 
 Note the nearest near-miss PROP-ID even if no exact duplicate is found — it goes into `closest_prop` metadata.
 

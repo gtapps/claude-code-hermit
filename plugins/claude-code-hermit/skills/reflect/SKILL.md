@@ -253,14 +253,16 @@ After each reflection run, call `update-reflection-state.js` with the run's verd
 ```bash
 node ${CLAUDE_PLUGIN_ROOT}/scripts/update-reflection-state.js \
   .claude-code-hermit/state/reflection-state.json \
-  '{"last_resolution_check":"<last-PROP-NNN-or-null>","ran_with_candidates":<true|false>,"judge_accept":<N>,"judge_downgrade":<N>,"judge_suppress":<N>,"proposals_created":<N>,"micro_proposals_queued":<N>}'
+  '{"last_resolution_check":"<last-PROP-NNN-or-null>","ran_with_candidates":<true|false>,"judge_accept":<N>,"judge_downgrade":<N>,"judge_suppress":<N>,"judge_suppress_by_code":{"no-evidence":<N>,"no-sessions":<N>,"covered-by-memory":<N>},"proposals_created":<N>,"micro_proposals_queued":<N>}'
 ```
+
+For `judge_suppress_by_code`: count SUPPRESS verdicts from the judge grouped by canonical code (`no-evidence`, `no-sessions`, `covered-by-memory`). Omit codes with a zero count; omit the key entirely when `judge_suppress` is 0.
 
 Include `"last_digest_at":"<now ISO>"` in the payload only when a juvenile digest fired in this run (see Outcomes → phase-aware surfacing). Omit otherwise — the script preserves the prior value.
 
 Include `"last_sparse_nudge":{"<PROP-NNN>":"<now ISO>"}` when a sparse-pattern nudge was emitted this run (step 4e). The script merges the provided map into the existing `last_sparse_nudge` top-level key. Omit if no sparse nudge was emitted — the script preserves the prior map.
 
-The script handles: counter increments, `last_reflection`/`last_run_at` timestamps, missing-counters fallback, `since` preservation, `last_digest_at` passthrough, `last_sparse_nudge` merge, and atomic write. It always exits 0 — if the write fails it logs one line to stderr and continues. Counters are diagnostic, not audit-grade — a missed increment is acceptable.
+The script handles: counter increments, `last_reflection`/`last_run_at` timestamps, missing-counters fallback, `since` preservation, `last_digest_at` passthrough, `last_sparse_nudge` merge, `judge_suppress_by_code` accumulation, and atomic write. It always exits 0 — if the write fails it logs one line to stderr and continues. Counters are diagnostic, not audit-grade — a missed increment is acceptable.
 
 ## Progress Log Entry (non-empty runs)
 

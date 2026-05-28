@@ -62,6 +62,18 @@ for code in weak-recurrence weak-consequence not-actionable; do
   fi
 done
 
+# proposal-triage status-aware dedup (#159): closed-status branch must demote
+# accepted/resolved matches to closest_prop and never to DUPLICATE; the
+# "same problem" guard must explicitly reject shared-infrastructure suppression.
+if ! grep -q '`accepted` or `resolved`' "$triage"; then
+  echo "FAIL [agents/proposal-triage.md]: missing closed-status (accepted/resolved) dedup branch"
+  rc=1
+fi
+if ! grep -q "Shared infrastructure" "$triage"; then
+  echo "FAIL [agents/proposal-triage.md]: missing 'Shared infrastructure' same-problem guard"
+  rc=1
+fi
+
 # ── 3. DOWNGRADE grammar ────────────────────────────────────────────────────
 echo "=== Recurrence gate: DOWNGRADE grammar ==="
 

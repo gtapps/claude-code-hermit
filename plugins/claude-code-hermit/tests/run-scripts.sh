@@ -211,6 +211,38 @@ run_test "update-reflection-state (last_sparse_nudge merge)" bash -c \
   "python3 -c \"import json; d=json.load(open('$workdir/.claude-code-hermit/state/reflection-state.json')); n=d['last_sparse_nudge']; assert n['PROP-001']=='2026-04-01T00:00:00Z' and n['PROP-002']=='2026-04-22T00:00:00Z'\""
 cleanup
 
+# 11a. judge_suppress_by_code — first run initializes map and accumulates codes
+workdir="$(setup_workdir)"
+echo '{"counters":{"total_runs":1}}' > "$workdir/.claude-code-hermit/state/reflection-state.json"
+node "$REPO_ROOT/scripts/update-reflection-state.js" \
+  "$workdir/.claude-code-hermit/state/reflection-state.json" \
+  '{"ran_with_candidates":true,"judge_suppress":2,"judge_suppress_by_code":{"no-evidence":1,"covered-by-memory":1}}' >/dev/null
+run_test "update-reflection-state (judge_suppress_by_code: initial accumulation)" bash -c \
+  "python3 -c \"import json; d=json.load(open('$workdir/.claude-code-hermit/state/reflection-state.json')); c=d['counters']; assert c['judge_suppress_by_code']['no-evidence']==1 and c['judge_suppress_by_code']['covered-by-memory']==1 and 'no-sessions' not in c['judge_suppress_by_code']\""
+cleanup
+
+# 11b. judge_suppress_by_code — second run accumulates into existing counts
+workdir="$(setup_workdir)"
+echo '{"counters":{"total_runs":2,"judge_suppress":2,"judge_suppress_by_code":{"no-evidence":1,"covered-by-memory":1}}}' \
+  > "$workdir/.claude-code-hermit/state/reflection-state.json"
+node "$REPO_ROOT/scripts/update-reflection-state.js" \
+  "$workdir/.claude-code-hermit/state/reflection-state.json" \
+  '{"ran_with_candidates":true,"judge_suppress":2,"judge_suppress_by_code":{"no-evidence":1,"no-sessions":1}}' >/dev/null
+run_test "update-reflection-state (judge_suppress_by_code: cumulative accumulation)" bash -c \
+  "python3 -c \"import json; d=json.load(open('$workdir/.claude-code-hermit/state/reflection-state.json')); c=d['counters']; assert c['judge_suppress_by_code']['no-evidence']==2 and c['judge_suppress_by_code']['covered-by-memory']==1 and c['judge_suppress_by_code']['no-sessions']==1\""
+cleanup
+
+# 11c. judge_suppress_by_code — absent from payload leaves existing map unchanged
+workdir="$(setup_workdir)"
+echo '{"counters":{"total_runs":3,"judge_suppress_by_code":{"no-evidence":5}}}' \
+  > "$workdir/.claude-code-hermit/state/reflection-state.json"
+node "$REPO_ROOT/scripts/update-reflection-state.js" \
+  "$workdir/.claude-code-hermit/state/reflection-state.json" \
+  '{"ran_with_candidates":false}' >/dev/null
+run_test "update-reflection-state (judge_suppress_by_code: absent payload preserves map)" bash -c \
+  "python3 -c \"import json; d=json.load(open('$workdir/.claude-code-hermit/state/reflection-state.json')); c=d['counters']; assert c['judge_suppress_by_code']['no-evidence']==5\""
+cleanup
+
 # -------------------------------------------------------
 # heartbeat-precheck.js
 # -------------------------------------------------------

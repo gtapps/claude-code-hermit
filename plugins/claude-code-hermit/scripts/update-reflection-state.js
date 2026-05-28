@@ -42,6 +42,7 @@ c.empty_runs = intOf(c.empty_runs);
 c.judge_accept = intOf(c.judge_accept);
 c.judge_downgrade = intOf(c.judge_downgrade);
 c.judge_suppress = intOf(c.judge_suppress);
+if (!c.judge_suppress_by_code || typeof c.judge_suppress_by_code !== 'object') c.judge_suppress_by_code = {};
 c.proposals_created = intOf(c.proposals_created);
 c.micro_proposals_queued = intOf(c.micro_proposals_queued);
 
@@ -56,6 +57,11 @@ c.empty_runs += ranWithCandidates ? 0 : 1;
 c.judge_accept += intOf(payload.judge_accept);
 c.judge_downgrade += intOf(payload.judge_downgrade);
 c.judge_suppress += intOf(payload.judge_suppress);
+if (payload.judge_suppress_by_code && typeof payload.judge_suppress_by_code === 'object') {
+  for (const [code, n] of Object.entries(payload.judge_suppress_by_code)) {
+    c.judge_suppress_by_code[code] = intOf(c.judge_suppress_by_code[code]) + intOf(n);
+  }
+}
 c.proposals_created += proposalsCreated;
 c.micro_proposals_queued += microQueued;
 c.last_output_at = (proposalsCreated + microQueued > 0) ? now : (c.last_output_at ?? null);
