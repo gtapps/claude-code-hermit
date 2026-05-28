@@ -8,6 +8,19 @@ Pause and think about your recent work.
 
 This skill is **silent by default**. Only notify the operator (per the channel policy in CLAUDE.md § Operator Notification) if reflect produces an outcome: a proposal candidate, a micro-approval, a resolved proposal, a graduated sub-threshold observation, or a cost spike.
 
+## Quick mode
+
+If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --quick`):
+
+- **Skip the precheck** entirely — the cadence gate does not apply.
+- **Bind `$PHASE = adult`** — skip the compute phase eval.
+- **Skip the cost_spike read, proposal scan, Resolution Check, and Component Health section.** Only the live SHELL.md scan + judge + outcomes path runs.
+- Read SHELL.md `## Findings` and `## Blockers` for actionable patterns. **Only Tier-1 + `Evidence Source: current-session` candidates are eligible** — see § Three-Condition Rule, condition 1. Candidates that would need archived-session evidence or belong to Tier 2/3 are deferred silently to the next scheduled reflect.
+- For each candidate that passes the evidence integrity rule: run `claude-code-hermit:proposal-triage`, then `claude-code-hermit:reflection-judge`. ACCEPT/DOWNGRADE verdicts route through the standard Outcomes path (micro-approval queue for Tier 1/2, `/claude-code-hermit:proposal-create` for Tier 3).
+- Append one Progress Log line: `[HH:MM] reflect (quick, post-routine) — N candidates; verdicts: accept=A downgrade=D suppress=S; outcomes: <list or "none">`.
+- **Do not call `update-reflection-state.js`** — quick runs are event-driven, not cadence ticks. Mutating `last_run_at` would suppress the next scheduled reflect. Consequence: judge verdicts from quick runs do not accumulate into the Component Health counters (`judge_accept` / `judge_suppress`); on daemons with frequent `reflect_after` use, those counters will under-represent total judge activity. This is intentional — cadence preservation wins.
+- Then stop. Do not continue to the scheduled-reflect steps below.
+
 1. Run the precheck to determine whether a full reflect run is warranted:
    ```
    node ${CLAUDE_PLUGIN_ROOT}/scripts/reflect-precheck.js .claude-code-hermit ${CLAUDE_PLUGIN_ROOT}

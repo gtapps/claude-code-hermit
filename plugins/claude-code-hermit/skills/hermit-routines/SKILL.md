@@ -57,6 +57,8 @@ Replace `<pluginRoot>` with the resolved absolute path from step 1, `<id>` with 
 
 **Special case — `heartbeat-restart`:** append ` Then invoke /claude-code-hermit:hermit-routines load to re-arm all routine CronCreates and reset the 7-day expiry clock.` to the prompt (after the trailing `fired` log line). Daily re-arm via this routine is what keeps routine CronCreates from ever reaching the 7-day auto-expiry in always-on deployments.
 
+**`reflect_after: true`:** when a routine config entry has `reflect_after: true`, append ` Then, only if the skill actually fired (not skipped-waiting), invoke /claude-code-hermit:reflect --quick.` to the prompt (after the trailing `fired` log line, and after the `heartbeat-restart` append if both apply). **Skip this append when the routine's `skill` is `claude-code-hermit:reflect`** — chaining reflect after reflect is wasteful and a config foot-gun.
+
 ### list
 
 Show configured routines from `config.json` (not from CronList — this is the config view, not the live view).
@@ -66,10 +68,11 @@ Show configured routines from `config.json` (not from CronList — this is the c
 3. Display table:
 ```
 Routines (config.json):
-  #  ID                 Schedule      Skill                                    RDW    Status
-  1. heartbeat-restart  0 4 * * *     claude-code-hermit:heartbeat start       true   enabled
-  2. weekly-review      0 23 * * 0    claude-code-hermit:weekly-review         false  disabled
+  #  ID                 Schedule      Skill                                    RDW    RA     Status
+  1. heartbeat-restart  0 4 * * *     claude-code-hermit:heartbeat start       true   false  enabled
+  2. weekly-review      0 23 * * 0    claude-code-hermit:weekly-review         false  false  disabled
 ```
+`RA` is `true` when `reflect_after: true` is set on the routine entry, `false` otherwise.
 
 ### status
 

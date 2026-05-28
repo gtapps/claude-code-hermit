@@ -44,6 +44,8 @@ For each routine in `routines[]`:
 - `schedule` (string, 5-field cron: `minute hour dom month dow`)
 - `skill` (string, must contain `:`)
 - `enabled` (boolean)
+- `run_during_waiting` (boolean, optional) — if present, must be `true` or `false`
+- `reflect_after` (boolean, optional) — if present, must be `true` or `false`
 
 ### 4. Channel structure
 
