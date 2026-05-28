@@ -228,3 +228,5 @@ Run /claude-code-hermit:hermit-settings to adjust any settings.
 ```
 
 Adjust the summary based on what actually changed. Omit sections where nothing changed.
+
+After printing the summary, notify the operator per CLAUDE-APPEND.md § Operator Notification with a condensed one-line message such as `"Hermit upgraded: vOLD → vNEW. N settings added, M templates refreshed."` Omit segments where nothing changed.

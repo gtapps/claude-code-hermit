@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`--comment` mode in `file-issue.js`** — `node file-issue.js --comment <issue-number> <body-file>` posts a comment on an existing issue via the same App identity, prints the comment URL on success.
+- **Comment flow in the skill** — activation patterns "add a comment to issue #NNN", "comment on #NNN", "reply to issue #NNN"; runs sanitize → operator preview → post → report URL. No dedup check, no proposal back-write.
+
+---
+
 ## [0.0.3] - 2026-05-14
 
 ### Changed
