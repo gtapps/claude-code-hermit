@@ -145,6 +145,10 @@ async function commentMode() {
   const { owner, repo } = env;
 
   const body = readFileSync(bodyFile, "utf8");
+  if (!body.trim()) {
+    process.stderr.write(`Body file is empty: ${bodyFile}\n`);
+    process.exit(1);
+  }
   const comment = await ghRequest(
     "POST",
     `/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
