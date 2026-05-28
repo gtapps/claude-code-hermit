@@ -132,9 +132,41 @@ async function checkMode() {
   process.exit(2);
 }
 
+async function commentMode() {
+  const issueNumber = parseInt(process.argv[3], 10);
+  const bodyFile = process.argv[4];
+  if (!issueNumber || issueNumber <= 0 || !bodyFile) {
+    process.stderr.write("Usage: node file-issue.js --comment <issue-number> <body-file>\n");
+    process.exit(1);
+  }
+
+  const env = loadEnv();
+  const token = await getInstallToken(env);
+  const { owner, repo } = env;
+
+  const body = readFileSync(bodyFile, "utf8");
+  if (!body.trim()) {
+    process.stderr.write(`Body file is empty: ${bodyFile}\n`);
+    process.exit(1);
+  }
+  const comment = await ghRequest(
+    "POST",
+    `/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
+    `Bearer ${token}`,
+    { body }
+  );
+
+  process.stdout.write(comment.html_url + "\n");
+}
+
 async function main() {
   if (process.argv[2] === "--check") {
     await checkMode();
+    return;
+  }
+
+  if (process.argv[2] === "--comment") {
+    await commentMode();
     return;
   }
 

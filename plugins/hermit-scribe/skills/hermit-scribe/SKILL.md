@@ -1,19 +1,26 @@
 ---
 name: hermit-scribe
-description: File a GitHub issue on the configured repository via a GitHub App bot identity. Use when the operator says "file as a GH issue", "open an issue for PROP-NNN", "report this to the tracker", or similar. Requires HERMIT_GH_APP_ID, HERMIT_GH_APP_INSTALL_ID, HERMIT_GH_APP_KEY_FILE in env.
+description: File a GitHub issue or post a comment on an existing issue via a GitHub App bot identity. Use when the operator says "file as a GH issue", "open an issue for PROP-NNN", "report this to the tracker", "add a comment to issue #NNN", "comment on #NNN", "reply to issue #NNN", or similar. Requires HERMIT_GH_APP_ID, HERMIT_GH_APP_INSTALL_ID, HERMIT_GH_APP_KEY_FILE in env.
 ---
 
 # hermit-scribe
 
-Files a GitHub issue via a configured GitHub App bot identity.
+Files a GitHub issue or posts a comment on an existing issue via a configured GitHub App bot identity.
 
-## When to activate
+## When to activate (filing)
 
 Activate when the operator says:
 - "file PROP-NNN as a GH issue"
 - "open an issue for this"
 - "report this to the tracker"
 - "file a GH issue for [description]"
+
+## When to activate (commenting)
+
+Activate when the operator says:
+- "add a comment to issue #NNN"
+- "comment on #NNN: [text]"
+- "reply to issue #NNN"
 
 ## How to file
 
@@ -131,8 +138,64 @@ On error, surface the stderr. Common causes:
 - `GH 404` → App not installed on target repo, or repo name typo.
 - `GH 422` → empty title or GH validation error.
 
+## How to comment
+
+**Step 1: resolve content.**
+
+Use the body the operator provides verbatim. No proposal lookup, no CC title construction, no frontmatter fields.
+
+**Step 1b: language normalization.**
+
+Same rules as filing — translate prose to English, preserve identifiers/code/paths/proper nouns unchanged.
+
+**Step 2: sanitize.**
+
+Pass the draft body to the `hermit-scribe:issue-sanitizer` subagent with a placeholder title:
+
+```
+DRAFT_TITLE: (issue comment)
+DRAFT_BODY:
+{draft body}
+```
+
+Parse the response as usual (split on `<<<HERMIT_SCRIBE_BODY>>>`). Use only the cleaned body; discard the returned title.
+
+**Step 3: operator preview.**
+
+Present the post-sanitization content as a **single message** containing, in order:
+1. Target: `Issue #NNN`
+2. Complete comment body — everything that will be posted
+3. Confirmation prompt: `Post this comment? (yes / edit / cancel)`
+
+If the content exceeds the channel's message-size limit (Discord: 2000 chars), split into multiple messages. The confirmation prompt MUST appear in the FINAL message only.
+
+Wait for the operator's response.
+- On `cancel`: abort.
+- On `yes`: proceed to Step 4.
+- On `edit`: ask what to change, apply the correction, re-render from the top of Step 3. Loop until `yes` or `cancel`.
+
+**Step 4: write body to temp file.**
+
+Run `mktemp -d` and capture the path. Use the Write tool to create:
+- `/tmp/tmp.AbCdEf/body.md` — the cleaned comment body.
+
+**Step 5: run the script.**
+
+```bash
+node "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.js" --comment {issue-number} /tmp/tmp.AbCdEf/body.md
+```
+
+Capture stdout: it is the comment URL on success. Stderr has any error message.
+
+**Step 6: report.**
+
+On success: output `Commented: {url}`. No back-write to any proposal frontmatter.
+
+On error, surface the stderr (same causes as filing: missing key file, bad credentials, 404, 422).
+
 ## Notes
 
 - `HERMIT_GH_REPO` overrides the default target (`gtapps/claude-code-hermit`).
 - If the operator overrides the dedup check and re-files the same proposal, `gh_issue` in the frontmatter is overwritten with the new URL (latest wins).
+- Comments skip the dedup check by design — there is no uniqueness constraint on comments.
 - The `issue-sanitizer` subagent strips anything personal or specific to the operator's machine and project unless it's clearly part of an upstream hermit plugin. It does not edit for style or clarity — only for privacy.

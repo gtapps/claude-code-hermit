@@ -15,7 +15,7 @@ claude plugin install hermit-scribe@claude-code-hermit --scope project
 
 - `agents/issue-sanitizer.md`: subagent that sanitizes draft issue content before filing — strips anything personal or specific to the operator's machine and project unless it's clearly part of an upstream hermit plugin. Tools: none (pure text transform).
 - `skills/hermit-scribe/SKILL.md`: the skill, namespaced as `/hermit-scribe:hermit-scribe`
-- `skills/hermit-scribe/file-issue.js`: Node stdlib script that signs the JWT, gets an install token, and POSTs the issue. Supports `--check <proposal-id>` to query existing issues before filing.
+- `skills/hermit-scribe/file-issue.js`: Node stdlib script that signs the JWT, gets an install token, and POSTs the issue. Supports `--check <proposal-id>` to query existing issues before filing, and `--comment <issue-number> <body-file>` to post a comment on an existing issue.
 - `.claude-plugin/plugin.json`: plugin manifest
 
 ## Required env vars
