@@ -44,7 +44,9 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope project
 
 **Two guided wizards.** `/hatch` (initialize), `/docker-setup` (always-on container). Each runs a Quick path (sensible defaults) or Advanced (full wizard).
 
-**Always-on** Docker isolation, `cap_drop: ALL`, `no-new-privileges`, `pids_limit` baseline. The opt-in `/docker-security` wizard adds LAN containment with DNS allowlist sidecar, resource bounds, and a plugin-install audit log.
+**Always-on** Docker isolation, `cap_drop: ALL`, `no-new-privileges`, `pids_limit` baseline. The opt-in `/docker-security` wizard adds LAN containment with DNS allowlist sidecar, resource bounds, and a plugin-install audit log. `/hatch` auto-configures the native bash sandbox (standard profile: credential paths denied, network unrestricted).
+
+**Sessions self-manage.** Long-running daemons auto-archive at 12h idle and at midnight when the operator is inactive — evidence reaches reflect and weekly-review without manual close.
 
 ---
 
@@ -58,6 +60,7 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope project
 - **Auto-memory** (`MEMORY.md`) — load-bearing memory; hermit layers `raw/` and `compiled/` for durable domain artifacts
 - **Native Tasks** — `TaskCreate` for plan tracking; hooks read task files for `tasks-snapshot.md`
 - **Deny patterns** — configured in `.claude/settings.json` for fail-closed safety
+- **Bash sandbox** — `/hatch` auto-configures the standard profile (credential path denies, unrestricted network); opt out via `sandbox.enabled: false`
 
 Hermit adds the integration layer — `/hatch` to spawn one, the proposal pipeline to evolve one, `OPERATOR.md` as policy.
 
@@ -80,13 +83,15 @@ Survivors land as a proposal you can act on:
 
 What gets proposed: improvements, routines, new capabilities (skills, agents, heartbeat checks), constraints (OPERATOR.md guidance you confirm), and bugs.
 
+On demand: `/hermit-brain` (fragile zones and learnings), `/hermit-evolution` (cost and autonomy trends), `/hermit-health` (alert state and channel availability) — each emits a compact, channel-ready snapshot.
+
 Voyager-style auto-curriculum, you're editor-in-chief. Under the hood, raw session journals distill into compiled artifacts that reload next session — the [raw-vs-compiled pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) Karpathy described for his wiki-LLM.
 
 ---
 
 ## Quick Start
 
-> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.140+, a Claude plan (Pro, Max, Teams, or Enterprise), and Node.js 22+. Linux, macOS, and Windows via WSL2 — see [FAQ](plugins/claude-code-hermit/docs/faq.md).
+> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.150+, a Claude plan (Pro, Max, Teams, or Enterprise), and Node.js 22+. Linux, macOS, and Windows via WSL2 — see [FAQ](plugins/claude-code-hermit/docs/faq.md).
 
 ### 1. Install
 

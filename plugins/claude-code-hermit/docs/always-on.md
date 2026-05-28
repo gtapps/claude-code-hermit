@@ -6,9 +6,9 @@ Docker is the recommended way to run your hermit autonomously. For lifecycle int
 
 ## Why Docker
 
-An always-on agent runs without operator hand-holding. The default `auto` mode lets a classifier review each action before it runs — safer than `bypassPermissions`, more reviewed than `acceptEdits`. With Docker, the container can only see what you mount and restarts automatically on crash.
+An always-on agent runs without operator hand-holding. The default `auto` mode (classifier-reviewed autonomy) works well for most Docker hermits — it requires the same one-time Screen 2 acknowledgement as `bypassPermissions` on first launch. With Docker, the container can only see what you mount and restarts automatically on crash.
 
-You get four things at once: config isolation, crash recovery, a reproducible environment, and permission handling that matches your risk tolerance. If your workload is truly unattended and cannot tolerate any pause for confirmation, `bypassPermissions` is still available as an explicit opt-in.
+You get four things at once: config isolation, crash recovery, a reproducible environment, and permission handling that matches your risk tolerance. Both `auto` and `bypassPermissions` require attending the first container launch to click through the Screen 2 gate. After that, the choice persists in the named volume and subsequent boots are headless. If your workload cannot tolerate any action-level confirmation at all, opt into `bypassPermissions` via `/hermit-settings permissions`.
 
 ---
 
@@ -19,7 +19,7 @@ You get four things at once: config isolation, crash recovery, a reproducible en
 | **Docker**               | Container    | `docker compose` v2 (Docker Desktop or modern Docker Engine) |
 | **Node.js 22+**          | Hooks        | Inside the container — handled by the Dockerfile |
 | **Bun**                  | Plugins      | Inside the container — always included          |
-| **Claude Code v2.1.110+** | Channels     | Required for the channels research preview     |
+| **Claude Code v2.1.150+** | Channels, sandbox | Minimum supported version |
 
 ---
 

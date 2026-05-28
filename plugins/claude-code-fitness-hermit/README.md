@@ -49,13 +49,13 @@ Need a different cadence or a new routine? Just ask — hermit sets it up.
 
 **Tracks how it felt.** After each synced activity, reply with your RPE (1–10) in the channel — `capture-activity-rpe` binds it to the activity. Use `/claude-code-fitness-hermit:set-rpe` for manual or retroactive entries. Subjective load surfaces in `activity-deep-dive` output and weekly summaries.
 
-**Everything is browsable.** Activity notes, weekly summaries, and load baselines flow into your hermit Cortex — the Obsidian vault hermit maintains — so your training history is greppable, linkable, and yours.
+**Everything is searchable.** Activity notes, weekly summaries, and load baselines land in your hermit's compiled knowledge and auto-memory — accessible across sessions and surfaceable on demand via `/hermit-brain` and `/hermit-health`.
 
 ---
 
 ## Quick Start
 
-> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.140+, a paid Claude plan (Pro, Max, Teams, or Enterprise), Node.js (for `npx` to launch the Strava MCP server), and a [Strava developer app](https://www.strava.com/settings/api) with four OAuth credentials — `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_ACCESS_TOKEN`, `STRAVA_REFRESH_TOKEN` — and scopes `read,activity:read_all,profile:read_all`. The default `read` scope alone is not enough; activity and stream reads will return 401. See the [Strava OAuth guide](https://developers.strava.com/docs/authentication/) for the full flow.
+> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.150+, a paid Claude plan (Pro, Max, Teams, or Enterprise), Node.js (for `npx` to launch the Strava MCP server), and a [Strava developer app](https://www.strava.com/settings/api) with four OAuth credentials — `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_ACCESS_TOKEN`, `STRAVA_REFRESH_TOKEN` — and scopes `read,activity:read_all,profile:read_all`. The default `read` scope alone is not enough; activity and stream reads will return 401. See the [Strava OAuth guide](https://developers.strava.com/docs/authentication/) for the full flow.
 
 ### 1. Install
 
@@ -114,7 +114,7 @@ claude-code-fitness-hermit (this plugin)
   ├── docs/               knowledge-schema.md
   └── settings.json       Strava read allow-list, write tools blocked
 
-claude-code-hermit (core, required ≥ 1.0.26)
+claude-code-hermit (core, required ≥ 1.1.1)
   └── Session lifecycle, routines, channels, memory, cost tracking
 ```
 

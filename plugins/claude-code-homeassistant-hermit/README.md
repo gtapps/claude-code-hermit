@@ -40,13 +40,13 @@ claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scop
 
 **Routines that respect your day.** Morning brief (off until you confirm the house profile), daily context refresh, weekly safety audit, daily integration-health and automation-error checks. Need a different cadence or a new routine? Just ask — hermit sets it up.
 
-**Everything is browsable.** HA sessions, proposals, pattern findings, and cost tracking flow into your hermit Cortex — the Obsidian vault hermit maintains — so your house's history is greppable, linkable, and yours.
+**Everything is searchable.** HA sessions, proposals, pattern findings, and cost tracking land in your hermit's compiled knowledge and auto-memory — surfaceable on demand via `/hermit-brain` and `/hermit-health`, greppable from the state tree.
 
 ---
 
 ## Quick Start
 
-> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.140+, a paid Claude plan (Pro, Max, Teams, or Enterprise), Python 3.12+, and a running [Home Assistant](https://www.home-assistant.io/) instance with the official [MCP Server](https://www.home-assistant.io/integrations/mcp_server/) integration enabled and a Long-Lived Access Token (create one under `/profile/security` on your HA instance).
+> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.150+, a paid Claude plan (Pro, Max, Teams, or Enterprise), Python 3.12+, and a running [Home Assistant](https://www.home-assistant.io/) instance with the official [MCP Server](https://www.home-assistant.io/integrations/mcp_server/) integration enabled and a Long-Lived Access Token (create one under `/profile/security` on your HA instance).
 
 ### 1. Install
 
@@ -122,7 +122,7 @@ claude-code-homeassistant-hermit (this plugin)
   ├── src/ha_agent_lab/   Python package (REST client, policy, simulation, apply, history, silence)
   └── state-templates/    CLAUDE-APPEND.md (injected by hatch)
 
-claude-code-hermit (core, required ≥ 1.0.26)
+claude-code-hermit (core, required ≥ 1.1.1)
   └── Session lifecycle, proposals, reflect, memory, cost tracking
 ```
 

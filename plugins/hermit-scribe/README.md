@@ -88,6 +88,7 @@ The cleaned title and body are shown to the operator before filing as a single m
 - `*.pem` is gitignored. Private key never committed.
 - Key is read at runtime; never appears in session files, proposals, or memory.
 - Missing env vars produce a clear error and non-zero exit. No silent no-ops.
+- **Sandbox**: `file-issue.js` makes two HTTPS calls to `api.github.com`. The hermit's standard sandbox profile has unrestricted network; custom profiles that restrict outbound HTTPS need to allow `api.github.com`.
 
 ## Architecture
 
