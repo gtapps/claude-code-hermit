@@ -152,8 +152,23 @@ Skip the step entirely if nothing was added. The release-auditor (Step 1.3) cove
 Update the version string in:
 - `plugins/<slug>/.claude-plugin/plugin.json` → `"version"` field
 - `.claude-plugin/marketplace.json` → find the entry in `plugins[]` where `"name" == "<slug>"` and update its `"version"` field. Other plugin entries are untouched.
-- `plugins/<slug>/README.md` → version badge if present: both the `img.shields.io` URL slug (`version-X.Y.Z-green.svg`) and the `alt` text (`Version X.Y.Z`). Confirm with `grep "version-" plugins/<slug>/README.md` that the new version appears and the old one does not. Skip silently if the README has no version badge.
+- `plugins/<slug>/README.md` → version badge if present: both the `img.shields.io` URL slug (`version-X.Y.Z-green.svg`) and the `alt` text (`Version X.Y.Z`). Confirm with `grep "version-" plugins/<slug>/README.md` that the new version appears and the old one does not. Skip silently if the README has no version badge. (For `claude-code-hermit`, skip this direct edit — the sync block below re-derives the whole file from root, picking up the updated badge automatically.)
 - If `<slug>` is `claude-code-hermit`: also update the root `README.md` badge — `version-OLD-green.svg` → `version-NEW-green.svg` and `Version OLD` → `Version NEW`. This is the only plugin whose version the root README tracks.
+
+**Sync plugin README from root (claude-code-hermit only):** `plugins/claude-code-hermit/README.md` is a path-adjusted derivative of the root `README.md`. After updating version badges, re-derive it by applying these substitutions to the root README content:
+
+| In root `README.md`                              | In plugin `README.md`                          |
+|--------------------------------------------------|------------------------------------------------|
+| `href="LICENSE"`                                 | `href="../../LICENSE"`                         |
+| `[MIT](LICENSE)`                                 | `[MIT](../../LICENSE)`                         |
+| `href="plugins/claude-code-hermit/CHANGELOG.md"` | `href="CHANGELOG.md"`                          |
+| `src="plugins/claude-code-hermit/assets/`        | `src="assets/`                                 |
+| `](plugins/claude-code-hermit/docs/`             | `](docs/`                                      |
+| `](plugins/claude-code-dev-hermit/`              | `](../claude-code-dev-hermit/`                 |
+| `](plugins/claude-code-homeassistant-hermit/`    | `](../claude-code-homeassistant-hermit/`       |
+| `](plugins/claude-code-fitness-hermit/`          | `](../claude-code-fitness-hermit/`             |
+
+Write the result to `plugins/claude-code-hermit/README.md`.
 
 After editing, verify the manifest and marketplace are in sync — the plugin manifest wins silently if they differ:
 ```bash
