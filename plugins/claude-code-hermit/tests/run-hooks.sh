@@ -801,6 +801,23 @@ run_test "checkReflectLoop (unproductive ≥10 runs → warn)" bash -c \
 cleanup
 
 # -------------------------------------------------------
+# 61. checkArchival — idle with non-null session_id + stale → warn
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+mkdir -p "$workdir/.claude-code-hermit/proposals"
+cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
+{"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[]}
+EOF
+stale_ts=$(python3 -c "import datetime; print((datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=5)).strftime('%Y-%m-%dT%H:%M:%SZ'))")
+cat > "$workdir/.claude-code-hermit/state/runtime.json" <<EOF
+{"version":1,"session_state":"idle","session_id":"S-042","updated_at":"$stale_ts"}
+EOF
+run_test "checkArchival (idle + non-null session_id → warn)" bash -c \
+  "node '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); a=[c for c in r['checks'] if c['id']=='archive'][0]; assert a['status']=='warn' and 'orphaned session' in a['detail'], a\""
+cleanup
+
+# -------------------------------------------------------
 # Summary
 # -------------------------------------------------------
 # Clean up any suggest-compact counter files left in /tmp

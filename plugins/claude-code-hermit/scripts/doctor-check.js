@@ -456,13 +456,14 @@ function checkArchival() {
     const state = rt.session_state;
     const sid = rt.session_id;
     const age = daysSince(rt.updated_at);
-    const ageStr = age == null ? 'unknown' : `${age.toFixed(1)}d`;
+    const ageStr = age == null ? null : `${age.toFixed(1)}d`;
+    const ageDetail = ageStr == null ? 'no timestamp' : `last update ${ageStr} ago`;
 
     if ((state === 'in_progress' || state === 'waiting') && age > 2) {
       return {
         id: 'archive',
         status: 'warn',
-        detail: `stale active session: state=${state}, last update ${ageStr} ago (daily-auto-close may have stopped archiving)`,
+        detail: `stale active session: state=${state}, ${ageDetail} (daily-auto-close may have stopped archiving)`,
       };
     }
     if (state === 'idle' && sid && age > 2) {
@@ -472,7 +473,7 @@ function checkArchival() {
         detail: `orphaned session: id=${sid}, idle but never archived (${ageStr} ago)`,
       };
     }
-    return { id: 'archive', status: 'ok', detail: `session_state=${state || 'unset'}, last update ${ageStr} ago` };
+    return { id: 'archive', status: 'ok', detail: `session_state=${state || 'unset'}, ${ageDetail}` };
   } catch (e) {
     return { id: 'archive', status: 'fail', detail: `check failed: ${e.message}` };
   }
