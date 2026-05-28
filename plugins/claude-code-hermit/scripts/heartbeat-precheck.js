@@ -61,7 +61,7 @@ if (process.env.HERMIT_NOW) {
   const pendingClose = readJSON(path.join(stateDir, 'state', 'pending-close.json'));
   if (pendingClose !== null) {
     const runtime = readJSON(path.join(stateDir, 'state', 'runtime.json')) ?? {};
-    if (runtime.session_state === 'in_progress') {
+    if (runtime.session_state === 'in_progress' || runtime.session_state === 'idle') {
       const lastAction = readJSON(path.join(stateDir, 'state', 'last-operator-action.json'));
       const tStr = lastAction && typeof lastAction.at === 'string' ? lastAction.at : null;
       const t = tStr ? new Date(tStr).getTime() : NaN;

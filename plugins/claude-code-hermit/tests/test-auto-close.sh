@@ -381,7 +381,9 @@ run_test "drain: pending-close + last_op < 10min + in_progress → does NOT emit
 cleanup
 
 # -------------------------------------------------------
-# drain.3. pending-close.json + session_state == idle → not AUTO_CLOSE (stale flag)
+# drain.3. pending-close.json + session_state == idle + lull > 10min → AUTO_CLOSE
+# (idle sessions now participate in the midnight close — always-on deployments
+#  where work happens via channels/routines without a formal task get daily archival)
 # -------------------------------------------------------
 workdir="$(mktemp -d)"
 hb_setup "$workdir"
@@ -390,7 +392,21 @@ echo '{"queued_at":"2026-05-20T22:00:00+00:00","queued_by":"daily-auto-close"}' 
 echo '{"at":"2026-05-20T22:30:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
 out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
-run_test "drain: pending-close + session_state idle → does NOT emit AUTO_CLOSE" bash -c "[ '$out' != 'AUTO_CLOSE' ]"
+run_test "drain: pending-close + idle + lull > 10min → AUTO_CLOSE" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
+cleanup
+
+# -------------------------------------------------------
+# drain.3b. pending-close.json + session_state == idle + last_op < 10min → not AUTO_CLOSE
+# (operator is between tasks but recently active — respect the lull threshold)
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+hb_setup "$workdir"
+echo '{"queued_at":"2026-05-20T22:00:00+00:00","queued_by":"daily-auto-close"}' \
+  > "$workdir/.claude-code-hermit/state/pending-close.json"
+echo '{"at":"2026-05-20T22:40:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
+echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+run_test "drain: pending-close + idle + last_op < 10min → does NOT emit AUTO_CLOSE" bash -c "[ '$out' != 'AUTO_CLOSE' ]"
 cleanup
 
 # -------------------------------------------------------

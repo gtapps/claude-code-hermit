@@ -67,7 +67,7 @@ Empty findings → `{"findings": []}`. Don't pad.
 > - Similar patterns in utility directories, shared modules, and adjacent files
 >
 > **Principles** (apply to every finding):
-> - **Preserve behavior.** If your proposed change alters return values, exceptions, side effects, or edge-case handling for *any* input — including malformed input — it's a redesign, not a simplification. Don't propose it as a cleanup; if worth doing, flag it as a behavior change.
+> - **Preserve behavior.** If your proposed change alters return values, exceptions, side effects, or edge-case handling for *any* input — including malformed input — it's a redesign, not a simplification. Don't propose it as a cleanup; if worth doing, flag it as a behavior change. Treat the diff's deleted (`-`) lines as the behavior baseline — restoring the behavior of a deleted line (e.g. reverting an added `== True` to a plain truthiness check) is *not* a behavior change.
 > - **Clarity > brevity.** Wrapping `n * n` in `multiplyTwoNumbers(n, n)` is not reuse, it's worse code. Only propose reuse when the existing helper genuinely captures a non-trivial pattern.
 > - **Respect house conventions.** Project conventions (below) override generic idioms.
 >
@@ -87,9 +87,12 @@ Empty findings → `{"findings": []}`. Don't pad.
 > - Leaky abstractions: exposing internals, breaking existing abstraction boundaries
 > - Stringly-typed code: raw strings where constants, enums, or branded types already exist
 > - Verbose patterns: unnecessary intermediate variables, `== true`/`== false`, redundant else after return, multi-check null guards that collapse to one expression
+> - Unnecessary JSX nesting: wrapper Boxes/elements that add no layout value — check if inner component props (flexShrink, alignItems, etc.) already provide the needed behavior
+> - Nested conditionals: ternary chains (`a ? x : b ? y : ...`), nested if/else, or nested switch 3+ levels deep — flatten with early returns, guard clauses, a lookup table, or an if/else-if cascade
+> - Unnecessary comments: comments explaining WHAT the code does (well-named identifiers already do that), narrating the change, or referencing the task/caller — delete; keep only non-obvious WHY (hidden constraints, subtle invariants, workarounds)
 >
 > **Principles** (apply to every finding):
-> - **Preserve behavior.** If your refactor alters return values, exceptions, side effects, or edge-case handling for *any* input, it's a behavior change — flag it as such, don't dress it up as a cleanup.
+> - **Preserve behavior.** If your refactor alters return values, exceptions, side effects, or edge-case handling for *any* input, it's a behavior change — flag it as such, don't dress it up as a cleanup. Treat the diff's deleted (`-`) lines as the behavior baseline — restoring the behavior of a deleted line (e.g. reverting an added `== True` to a plain truthiness check) is *not* a behavior change.
 > - **Clarity > brevity.** Don't trade readability for fewer lines. Nested ternaries, dense one-liners, chained mystery operators are not improvements over clear `if/else` blocks. A reader should grok the rewrite faster than the original.
 > - **Respect house conventions.** Project conventions (below) override generic idioms.
 >
@@ -106,12 +109,13 @@ Empty findings → `{"findings": []}`. Don't pad.
 > - Unnecessary work: redundant computations, repeated file reads, duplicate API calls, N+1 patterns
 > - Missed concurrency: independent operations run sequentially
 > - Hot-path bloat: blocking work on startup or per-request paths
+> - Recurring no-op updates: state/store updates inside polling loops, intervals, or event handlers that fire unconditionally — add a change-detection guard so downstream consumers aren't notified when nothing changed. Also: if a wrapper function takes an updater/reducer callback, verify it honors same-reference returns (or whatever the "no change" signal is) — otherwise callers' early-return no-ops are silently defeated
 > - TOCTOU anti-patterns: pre-checking existence before operating instead of operating and handling errors
 > - Memory: unbounded data structures, missing cleanup, event listener leaks
 > - Overly broad operations: reading entire files when only portions needed
 >
 > **Principles** (apply to every finding):
-> - **Preserve behavior.** A faster algorithm that handles edge cases differently is a behavior change, not an optimization. Flag it as such.
+> - **Preserve behavior.** A faster algorithm that handles edge cases differently is a behavior change, not an optimization. Flag it as such. Treat the diff's deleted (`-`) lines as the behavior baseline — restoring the behavior of a deleted line (e.g. reverting an added `== True` to a plain truthiness check) is *not* a behavior change.
 > - **Clarity > brevity.** A single-pass loop is only better than two-pass if it stays readable. If merging passes makes the control flow harder to follow, the two-pass version was fine.
 > - **Respect house conventions.** Project conventions (below) override generic idioms.
 >
@@ -128,7 +132,7 @@ Once all three reviewers return:
 
 ### 3a. Collect, group, and resolve same-region findings
 
-Parse the JSON blocks. If one reviewer's block fails to parse, log it and continue with the others — don't abort the whole run. Group findings by `(file, old_string)`. For each group with more than one finding, compare the `new_string` values:
+Parse the JSON blocks. If one reviewer's block fails to parse, log it and continue with the others — don't abort the whole run. If a finding is malformed (e.g. unescaped quotes inside `old_string`/`new_string`), repair it from the obvious intent and use it rather than dropping it — a repaired finding does not increment the parse-failure counter; only an unrecoverable finding counts as a parse failure. Group findings by `(file, old_string)`. For each group with more than one finding, compare the `new_string` values:
 
 - **Byte-identical or semantically equivalent `new_string`** (e.g., trivial renames like `u for u in ...` vs `user for user in ...`) → silent dedupe. Keep the one with higher confidence; if tied, Code Quality > Code Reuse > Efficiency (Quality fixes tend to be the most local and least risky). If you're unsure whether two rewrites are equivalent, treat them as different and escalate.
 - **Meaningfully different `new_string`** (different algorithm, different control flow, different intermediates) → check the **Principles** against each variant:
