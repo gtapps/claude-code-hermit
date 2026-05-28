@@ -36,11 +36,11 @@ Glob `.claude-code-hermit/proposals/PROP-*.md`. For each file:
 
 **Same problem** means the problem statements match — not just that two proposals share an integration, API, data store, or implementation surface. Shared infrastructure alone is not grounds for suppression.
 
-If a proposal with the same problem exists and its status is `proposed` or `deferred`:
+If a proposal with the same problem exists and its status is `proposed`, `deferred`, or `dismissed`:
 - Return: `DUPLICATE:<PROP-ID> — <one-line reason why they match>`
 - Stop. Do not evaluate further.
 
-If a proposal with the same problem exists but its status is `accepted`, `resolved`, or `dismissed`:
+If a proposal with the same problem exists but its status is `accepted` or `resolved`:
 - Record its PROP-ID as the `closest_prop` metadata — do not return `DUPLICATE`.
 - Continue to Step 1.5.
 

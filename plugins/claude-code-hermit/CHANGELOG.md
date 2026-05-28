@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **proposal-triage: status-aware dedup (#159)** — open proposals (`proposed`/`deferred`/`dismissed`) still hard-block as `DUPLICATE`; `accepted`/`resolved` surface via `closest_prop` metadata and let evaluation continue, instead of silently killing follow-up proposals on shared infrastructure. Adds explicit "same problem" definition: shared integrations/APIs/data stores are not grounds for suppression on their own.
+
 ## [1.1.5] - 2026-05-25
 
 ### Added
