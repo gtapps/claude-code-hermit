@@ -4,6 +4,7 @@
 
 ### Changed
 
+- **hermit-evolve step 10** — after printing the upgrade summary, the skill now fires the standard Operator Notification (channel DM or push fallback) with a condensed one-line message. Always-on operators no longer miss upgrades that completed while they weren't watching the terminal. Closes #141.
 - **skills/simplify: sync to upstream reference** — Preserve-behavior principles now treat a diff's deleted (`-`) lines as the behavior baseline, so reverting an added `== True` back to a plain truthiness check is no longer mis-flagged as a behavior change; Phase 3a repairs malformed findings (unescaped quotes in `old_string`/`new_string`) from intent instead of dropping them.
 
 ## [1.1.5] - 2026-05-25
