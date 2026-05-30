@@ -100,7 +100,7 @@ After evaluating the checklist, if SHELL.md status is `idle`:
 **NEXT-TASK.md pickup** (both `wait` and `discover`): check `sessions/NEXT-TASK.md`. If found, act per `escalation` in config:
 - `conservative`: notify operator, set SHELL.md to `waiting`, set `waiting_reason: "conservative_pickup"` in runtime.json.
 - `balanced`: start via `/claude-code-hermit:session-start`.
-- `autonomous`: start, notify on completion.
+- `autonomous`: start via `/claude-code-hermit:session-start`. On completion, run the `session` skill's Work-done flow (§6) — never send a bare notification without it: a notified-but-`in_progress` session triggers stale-session alerts and delays archival.
 
 **The following only when `idle_behavior: "discover"`:**
 

@@ -45,6 +45,8 @@ Work through tasks using whatever tools, skills, and agents are available:
 
 When the work is done, or the operator decides to move on (even if partial or blocked):
 
+**Completion notification is the final step of this flow, not a substitute for it.** Skipping the idle transition in step 6 leaves the session `in_progress`, which triggers stale-session heartbeat alerts and delays report archival until the time-based backstops kick in.
+
 1. Compile final session data **in context** — do NOT write to SHELL.md at this point. session-mgr owns the final write. Gather:
    - `Status:` one of `completed` | `partial` | `blocked`
    - `Blockers:` one line each, enough context for a cold start
@@ -68,7 +70,7 @@ When the work is done, or the operator decides to move on (even if partial or bl
    ```
    Also include the task table (if native Tasks were created).
 7. If `heartbeat.enabled` is true in config and heartbeat is not already running: start it (`/claude-code-hermit:heartbeat start`)
-8. Notify the operator: "Archived as S-NNN. Task: [summary]. Status: [outcome]. Ready for what's next."
+8. After the idle transition in step 6 succeeds: notify the operator: "Archived as S-NNN. Task: [summary]. Status: [outcome]. Ready for what's next."
 9. Once the operator says what's next: go to step 4 (plan the work)
 
 To close the session entirely, the operator runs `/claude-code-hermit:session-close` at any time.
