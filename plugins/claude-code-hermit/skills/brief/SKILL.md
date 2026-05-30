@@ -8,7 +8,7 @@ Provide a concise executive summary of recent session activity. Designed for mor
 
 ## Always-On Delivery Rule
 
-If `config.always_on` is `true` and channels are configured, send all operator-facing output via the configured channel — the terminal is unmonitored in always-on mode. In interactive mode, output to terminal. This applies to all flags below.
+If `config.always_on` is `true`, deliver all operator-facing output per `CLAUDE-APPEND.md § Operator Notification`. The terminal is unmonitored in always-on mode. For the push-fallback branch, condense the brief to a single line (≤200 chars, no markdown): include whichever of yesterday's/today's cost, open proposal count, and active heartbeat alerts are present and non-zero; omit zero or unavailable fields. Example: `Brief: 16 proposals open, yesterday $0.42, 1 alert — open CC to view`. In interactive mode, output to terminal. This applies to all flags below.
 
 ## Flags
 
