@@ -1,6 +1,6 @@
 ---
 name: activity-deep-dive
-description: Per-activity coaching analysis from Strava. Detects interval vs steady-state sessions. Interval sessions: work-interval HR progression and recovery quality. Steady sessions: pace/HR efficiency and cardiac drift. Both: zone breakdown and recovery estimate. Saves a compiled artifact and returns a compact summary. Run after a workout or to retro-analyze a specific activity.
+description: Per-activity coaching analysis from Strava. Detects interval vs steady-state sessions and branches the metrics accordingly. Computes zone breakdown and recovery estimate; saves a compiled artifact and returns a compact summary. Run after a workout or to retro-analyze a specific activity.
 allowed-tools:
   - Read
   - Write
@@ -41,7 +41,7 @@ Produces a standardised per-activity coaching note. Detects interval vs steady-s
 4b. **Classify session kind** — using the lap data and HR stream already fetched:
 
    - **Primary signal (HR alternation):** does the HR stream show ≥ 3 repeated high→low→high cycles?
-     Divide the stream into segments aligned with laps (or into equal thirds if lap data is sparse).
+     Divide the stream into segments aligned with laps (or into 8–12 equal windows if lap data is sparse).
      If alternating segments show a ≥ 15 bpm differential between "work" and "recovery" phases, the
      session is a candidate for `interval`.
    - **Corroborating (lap clustering):** do laps cluster into two groups — high-HR laps and low-HR
@@ -49,8 +49,9 @@ Produces a standardised per-activity coaching note. Detects interval vs steady-s
    - **Default to `steady`** when the alternation pattern is absent or ambiguous (e.g. a tempo run
      with gradually rising HR, a progression run, or a steady run with 1 km auto-laps that have
      flat HR across all laps).
-   - Hold the result as `session_kind` (`interval` or `steady`) and the interval structure
-     (`N` work bouts, avg work-lap duration in minutes) for steps 5 and 6.
+   - Hold the result as `session_kind` (`interval` or `steady`) and the interval structure —
+     `N` work bouts (the high-HR lap group identified by the clustering signal) and their avg
+     duration in minutes — for steps 5 and 6.
 
 5. Compute metrics:
 

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **activity-deep-dive: interval vs steady-state session detection** — classifies each workout from HR alternation and lap clustering, then branches the metrics: interval sessions report work-interval HR progression and between-bout recovery, steady sessions report pace/HR efficiency and cardiac drift. Both still get zone breakdown and recovery estimate. `session_kind` is recorded in the compiled artifact frontmatter.
+
 ## [0.0.5] - 2026-05-21
 
 ### Fixed
