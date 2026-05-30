@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **activity-deep-dive: labeled coaching observations to SHELL.md Findings** — signal-bearing observations (cardiac drift, zone anomalies, RPE/recovery conflicts, efficiency regressions) are appended under `## Findings` as `Coaching observation [<label>] (activity <id>)`, feeding reflect's `current-session` evidence path. Dedup-guarded against repeated runs.
+
+---
+
 ## [0.0.5] - 2026-05-21
 
 ### Fixed
