@@ -26,9 +26,10 @@ Check for new Strava activities uploaded today. Compare against the last known a
    - If it's a **run on a day after a hard session (Z4+ flagged)**: note "recovery day recommended tomorrow".
    - If **no activity today** (0 new): check if yesterday also had 0 new. If 2+ consecutive rest days after a non-rest day, log: "2 consecutive rest days — intentional recovery or missed session?"
 7. Write the highest new activity ID to `state/strava-last-activity-id.txt`.
-8. For each new **Run** in the new activities list, invoke `/claude-code-fitness-hermit:activity-deep-dive <id>` to produce a full coaching analysis.
+8. For each new activity whose Strava `type` is `Run`, invoke `/claude-code-fitness-hermit:activity-deep-dive <id>` to produce a full coaching analysis.
    - Cap at 3: if more than 3 new runs exist, process the 3 most recent by ID.
    - If the cap is hit, log the skipped IDs to SHELL.md Progress Log: `Skipped deep-dive (cap): <id>, <id>, ...`
+   - If a deep-dive invocation fails, log `Deep-dive failed: <id>` to SHELL.md Progress Log and continue. The cursor advanced at step 7, so failed analyses are not retried — the log is the only record.
 9. Send a summary via the configured channel. Format:
    ```
    Daily sync: [X run Xkm, Y ride, Z weights]. [Flag if any]

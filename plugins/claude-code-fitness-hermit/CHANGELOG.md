@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **strava-sync: auto-trigger activity-deep-dive for new runs** — the daily sync runs a full coaching deep-dive for each new run (capped at the 3 most-recent, skipped IDs logged). Deep-dive failures are logged to the Progress Log and not retried, since the cursor has already advanced.
+
+### Changed
+
+- **capture-activity-rpe: refresh deep-dive after RPE capture** — re-runs `activity-deep-dive` for `Run` activities so the artifact includes RPE, which is unavailable at sync time.
+
+---
+
 ## [0.0.5] - 2026-05-21
 
 ### Fixed
