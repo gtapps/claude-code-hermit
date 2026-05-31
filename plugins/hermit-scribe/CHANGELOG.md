@@ -4,12 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [0.0.4] - 2026-05-31
 
 ### Added
 
-- **`--comment` mode in `file-issue.js`** — `node file-issue.js --comment <issue-number> <body-file>` posts a comment on an existing issue via the same App identity, prints the comment URL on success.
-- **Comment flow in the skill** — activation patterns "add a comment to issue #NNN", "comment on #NNN", "reply to issue #NNN"; runs sanitize → operator preview → post → report URL. No dedup check, no proposal back-write.
+- **file-issue: `--comment` mode** — `node file-issue.js --comment <issue-number> <body-file>` posts a comment on an existing issue via the same App identity, prints the comment URL on success.
+- **skill: comment flow** — activation patterns "add a comment to issue #NNN", "comment on #NNN", "reply to issue #NNN"; runs sanitize → operator preview → post → report URL. No dedup check, no proposal back-write.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/hermit-scribe/file-issue.js` | Added `commentMode()` and `--comment` dispatch in `main()` |
+| `skills/hermit-scribe/SKILL.md` | Added comment activation patterns and How-to-comment section |
+| `CLAUDE.md` | Updated file-issue.js description to mention `--comment` |
+| `README.md` | Added sandbox note for custom network profiles |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Update the skill** — pulls the revised `SKILL.md` with the comment activation patterns and comment flow.
+
+No `config.json` changes required.
 
 ---
 
