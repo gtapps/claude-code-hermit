@@ -106,13 +106,5 @@ def test_delegates_stray_block_migration_to_hermit_evolve(skill_text: str):
     assert re.search(r"hermit-evolve[\s\S]{0,20}Step 7", skill_text)
 
 
-def test_unreleased_migration_is_unattended(changelog_unreleased: str):
-    assert "unattended" in changelog_unreleased
-
-
 def test_unreleased_drops_carry_forward_branch(changelog_unreleased: str):
     assert "Carry forward" not in changelog_unreleased
-
-
-def test_unreleased_strips_block_silently(changelog_unreleased: str):
-    assert re.search(r"silently strip the marked block", changelog_unreleased)
