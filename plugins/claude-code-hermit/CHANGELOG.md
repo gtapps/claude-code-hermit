@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- **cost-tracker: reset per-session cost/tokens on session change** — `getCumulativeCost` now resets the running total when `.status.json` belongs to a different hermit session, so session reports record per-session spend instead of all-time cumulative carryover. Closes #190.
 - **brief/proposal-list/heartbeat/reflect: fresh-read annotations on state-reading steps** — adds an inline nudge to each skill's load-bearing current-state reads instructing the agent to re-read the file now rather than reuse a value from a pre-compaction context summary; prevents stale proposal statuses and session state from appearing in operator-facing outputs after compaction. Closes #192.
 - **scripts/log-routine-event.sh: resolve hermit root by walking up from CWD** — CronCreate prompts fire with the session's primary working directory as `$PWD`, which may be a subdirectory of the hermit root; the script now walks up to the nearest ancestor containing `.claude-code-hermit/` so the metrics append lands in the right place instead of failing with "No such file or directory". Closes #180.
 

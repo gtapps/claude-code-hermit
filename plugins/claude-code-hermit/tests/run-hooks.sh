@@ -20,6 +20,37 @@ run_test "cost-tracker (empty stdin)" bash -c \
 cleanup
 
 # -------------------------------------------------------
+# 1b. cost-tracker getCumulativeCost — same session accumulates
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+echo '{"session_id":"S-001","cost_usd":698.78,"tokens":300000000,"operator_turns":0}' \
+  > "$workdir/.claude-code-hermit/sessions/.status.json"
+run_test "getCumulativeCost (same session → accumulates)" node -e "
+  const { getCumulativeCost } = require('$REPO_ROOT/scripts/cost-tracker.js');
+  const r = getCumulativeCost(0.10, 1000, false, 'S-001');
+  if (Math.abs(r.cost - 698.88) > 0.001) { console.error('cost', r.cost); process.exit(1); }
+  if (r.tokens !== 300001000) { console.error('tokens', r.tokens); process.exit(1); }
+"
+cleanup
+
+# -------------------------------------------------------
+# 1c. cost-tracker getCumulativeCost — session change resets
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+echo '{"session_id":"S-001","cost_usd":698.78,"tokens":300000000,"operator_turns":5}' \
+  > "$workdir/.claude-code-hermit/sessions/.status.json"
+run_test "getCumulativeCost (session change → resets)" node -e "
+  const { getCumulativeCost } = require('$REPO_ROOT/scripts/cost-tracker.js');
+  const r = getCumulativeCost(0.10, 1000, false, 'S-002');
+  if (Math.abs(r.cost - 0.10) > 0.001) { console.error('cost', r.cost); process.exit(1); }
+  if (r.tokens !== 1000) { console.error('tokens', r.tokens); process.exit(1); }
+  if (r.operatorTurns !== 0) { console.error('operatorTurns', r.operatorTurns); process.exit(1); }
+"
+cleanup
+
+# -------------------------------------------------------
 # 2. suggest-compact — happy path
 # -------------------------------------------------------
 workdir="$(setup_workdir)"

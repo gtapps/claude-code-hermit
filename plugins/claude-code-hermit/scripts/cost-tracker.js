@@ -120,10 +120,14 @@ function parseLogEntries() {
   }
 }
 
-function getCumulativeCost(newCost, newTokens, hadHumanTurn) {
+function getCumulativeCost(newCost, newTokens, hadHumanTurn, currentSessionId) {
   // O(1) path: read running totals from .status.json
   try {
     const status = JSON.parse(fs.readFileSync(STATUS_JSON, 'utf-8'));
+    // Reset when the hermit session changes — prevents cumulative carryover across sessions.
+    if (currentSessionId && status.session_id && status.session_id !== currentSessionId) {
+      return { cost: newCost, tokens: newTokens, operatorTurns: hadHumanTurn ? 1 : 0 };
+    }
     return {
       cost: (status.cost_usd || 0) + newCost,
       tokens: (status.tokens || 0) + newTokens,
@@ -409,7 +413,7 @@ async function run(data) {
     fs.appendFileSync(COST_LOG, JSON.stringify(logEntry) + '\n', 'utf-8');
 
     // Running total from .status.json (O(1)), falls back to full JSONL scan on first run
-    const cumulative = getCumulativeCost(roundedCost, totalTokens, hadHumanTurn);
+    const cumulative = getCumulativeCost(roundedCost, totalTokens, hadHumanTurn, runtimeSessionId || sessionId);
     const costStr = `$${cumulative.cost.toFixed(4)}`;
 
     // Read SHELL.md for status/budget — do NOT write back (avoids race condition with Claude's edits)
@@ -434,7 +438,7 @@ async function run(data) {
   }
 }
 
-module.exports = { run };
+module.exports = { run, getCumulativeCost };
 
 if (require.main === module) {
   (async () => {
