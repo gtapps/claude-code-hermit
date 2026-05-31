@@ -63,6 +63,19 @@ The trade-off rationale: false positives are 5-second annoyances; false negative
 
 ---
 
+## worktree-boundary-guard Hook
+
+A `PreToolUse` hook on `Edit`/`Write` for the `claude --worktree` workflow. When the session runs inside a linked git worktree (Claude Code's default layout nests these under `<repo>/.claude/worktrees/<name>/`, sharing a path prefix with the main checkout), the agent can drift into editing the main checkout instead of the worktree. This hook hard-blocks any edit whose resolved `file_path` escapes the worktree into the main checkout.
+
+- **Detection is the gate, not a profile.** It runs `git rev-parse` to compare the session's git dir against the common git dir; outside a linked worktree it exits 0 immediately. It ships **always-on** (no `AGENT_HOOK_PROFILE` gate) — a `claude --worktree` launch that omits the strict profile won't silently skip it.
+- **Carve-out:** writes under the main checkout's `.claude-code-hermit/` are allowed — a worktree session's hermit state (SHELL.md, sessions/, state/) intentionally resolves up to that gitignored directory.
+- **Escape hatch:** set `WORKTREE_GUARD=off` to disable without editing code.
+- **Scope:** `Bash` command-string parsing (`cd`/`git -C` into main) is deliberately not handled — `Edit`/`Write` are the actual file-mutation path and always carry an absolute `file_path`. `NotebookEdit` is not covered (its path field differs).
+
+**Implementation:** `scripts/worktree-boundary-guard.js`, exits 0 (allow) or 2 (block), fails open on any error. No runtime dependencies.
+
+---
+
 ## Hook Profiles
 
 | Profile | Hook behavior | When to use |
