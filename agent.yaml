@@ -1,0 +1,39 @@
+spec_version: "0.1.0"
+name: claude-code-hermit
+version: 1.1.6
+description: >
+  A Claude Code plugin that transforms Claude into a 24/7 always-on personal AI
+  assistant. Hermit wires Claude Code's native scheduling (/loop, CronCreate),
+  messaging channels (Discord, Telegram), remote control, cost tracking, and a
+  self-learning proposal pipeline into a fully autonomous, operator-gated agent
+  you deploy to your own machine or Docker container. One Claude subscription
+  powers multiple independent hermits — each with its own memory, budget, and
+  routines.
+author: gtapps
+license: MIT
+
+model:
+  preferred: anthropic:claude-sonnet-4-6
+  constraints:
+    temperature: 0.3
+
+skills:
+  - hatch
+  - docker-setup
+  - proposal-list
+  - proposal-act
+  - hermit-brain
+  - hermit-evolution
+  - hermit-health
+
+runtime:
+  max_turns: 100
+  timeout: 43200
+
+compliance:
+  risk_tier: standard
+  supervision:
+    human_in_the_loop: destructive
+    kill_switch: true
+  data_governance:
+    pii_handling: redact
