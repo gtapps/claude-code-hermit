@@ -31,6 +31,7 @@ Always launch Claude Code from this repo's root, not from inside a plugin dir. A
 - **Default: PR `fix/<N>-<slug>` / `feat/<N>-<slug>` / `chore/<slug>` branches to `main`.** Same flow for contributors and maintainer. `<N>` is the GH issue number (omit if no issue), `<slug>` is a short kebab-case descriptor. Examples: `fix/44-self-update-race`, `feat/57-cortex-tagging`, `chore/upgrade-node-24`. Regular merge to `main`.
 - **Why main is safe as staging.** Claude Code's `/plugin update` only fires when `version` in `plugin.json` changes ([docs](https://code.claude.com/docs/en/plugins-reference#version-management)). Commits on `main` between releases are invisible to operators on the standard install path — `/release <slug>` is the actual ship event because it bumps `version` and promotes `[Unreleased]` → `[X.Y.Z]`. Caveats: brand-new installers and `--plugin-dir` testers get whatever is on `main` HEAD, so don't leave `main` knowingly broken for long.
 - **Tags ship to operators on next `/plugin update`.** The `version` bump inside `/release` is the gate — pre-release commits on `main` don't reach `/plugin update` users until that bump happens.
+- **Worktree discipline (`claude --worktree`).** When the session runs inside a git worktree, the repo root is the worktree (`git rev-parse --show-toplevel`), not the main checkout. Never `cd` into, edit, or `git -C` files under the main checkout or any sibling worktree — that's another session's territory. The only shared, intentionally main-rooted path is `.claude-code-hermit/` (gitignored hermit state). The `claude-code-dev-hermit` `worktree-boundary-guard` hook hard-blocks edits that escape the worktree.
 
 ## Layout gotchas
 
@@ -44,7 +45,7 @@ Always launch Claude Code from this repo's root, not from inside a plugin dir. A
 - **`rm -rf` is blocked** by the `enforce-deny-patterns` hook. Use `rm -r` (no `-f`) for scratch cleanup.
 - **Subtree imports are unsquashed**: `git log --first-parent` for the monorepo-only view; full upstream commits live under each subtree merge.
 - **CI is not path-filtered yet**: every plugin's tests run on every PR. Don't assume a HA-test failure on a core-only PR is your fault.
-- **Shell `cd` persists across Bash calls.** Any `cd` in a Bash call leaves CWD pinned for subsequent Bash calls in the session — affects CWD-relative scripts like `heartbeat-precheck.js .claude-code-hermit` (silently `SKIP|HEARTBEAT.md missing`) and commands like `git add`. Plugin test runners (`bash plugins/<slug>/tests/run-all.sh`) end inside `plugins/<slug>/`. Use absolute paths or prefix `cd /home/d0m/Projects/gtapps/claude-code-hermit && …`.
+- **Shell `cd` persists across Bash calls.** Any `cd` in a Bash call leaves CWD pinned for subsequent Bash calls in the session — affects CWD-relative scripts like `heartbeat-precheck.js .claude-code-hermit` (silently `SKIP|HEARTBEAT.md missing`) and commands like `git add`. Plugin test runners (`bash plugins/<slug>/tests/run-all.sh`) end inside `plugins/<slug>/`. Use absolute paths or prefix `cd "$(git rev-parse --show-toplevel)" && …` (resolves to the current tree root — the worktree under `claude --worktree`, the main checkout otherwise — never a hardcoded path).
 
 ## Rules
 
