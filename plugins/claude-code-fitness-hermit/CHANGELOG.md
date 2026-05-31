@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **strava-sync: auto-trigger activity-deep-dive for new runs** — the daily sync runs a full coaching deep-dive for each new run (capped at the 3 most-recent, skipped IDs logged). Deep-dive failures are logged to the Progress Log and not retried, since the cursor has already advanced.
+- **activity-deep-dive: cadence analysis** — surfaces avg spm, CV, and over-striding/variability flags for running activities (skipped for non-running types or absent stream).
 
 ### Changed
 
