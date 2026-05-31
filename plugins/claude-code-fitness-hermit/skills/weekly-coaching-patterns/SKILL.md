@@ -1,6 +1,6 @@
 ---
 name: weekly-coaching-patterns
-description: Interval scheduled check — detects multi-session cardiac-drift trends across recent compiled activity notes. Runs weekly via the scheduled-checks routine; findings are routed through the proposal pipeline as Evidence Source: scheduled-check/weekly-coaching-patterns.
+description: "Interval scheduled check — detects multi-session cardiac-drift trends across recent compiled activity notes. Runs weekly via the scheduled-checks routine; findings are routed through the proposal pipeline as Evidence Source: scheduled-check/weekly-coaching-patterns."
 ---
 
 # Weekly Coaching Patterns
