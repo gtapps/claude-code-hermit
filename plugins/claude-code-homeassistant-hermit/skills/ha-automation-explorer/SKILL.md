@@ -20,7 +20,7 @@ Read-only. No writes, no proposals, no actuation.
 
 ## Mode 1 — List all automations
 
-Invoked as `/ha-automation-explorer` (no args).
+Invoked as `/claude-code-homeassistant-hermit:ha-automation-explorer` (no args).
 
 1. If the automation list is empty, output: "No automations found in the context snapshot." Stop.
 2. Group automations by topic, inferring from `friendly_name` (from `attributes.friendly_name`) and `entity_id`. Buckets (best-effort — no area registry exists):
@@ -42,16 +42,17 @@ Invoked as `/ha-automation-explorer` (no args).
 
 ## Mode 2 — Explain automations matching a keyword
 
-Invoked as `/ha-automation-explorer <keyword>`.
+Invoked as `/claude-code-homeassistant-hermit:ha-automation-explorer <keyword>`.
 
 1. Filter the automation list: keep entries where `keyword` appears (case-insensitive) in `friendly_name` or `entity_id`.
 2. If no matches: output "No automations matching '<keyword>'." Stop.
-3. For each match, check `attributes.id`. If null (YAML-packaged automation, not retrievable via REST), note: "Config not retrievable — automation is YAML-packaged." Skip the config fetch for that entry.
-4. For each match with a numeric `id`, fetch its config:
+3. If more than 8 matches, the keyword is too broad to explain at once. List the matching `entity_id` + `friendly_name` pairs and ask the operator to narrow the keyword. Do not fetch any configs. Stop.
+4. For each match, check `attributes.id`. If null (YAML-packaged automation, not retrievable via REST), note: "Config not retrievable — automation is YAML-packaged." Skip the config fetch for that entry.
+5. For each match with a numeric `id`, fetch its config:
    ```
    ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-automation-config <id>
    ```
-5. Explain the fetched YAML in plain language in the operator's locale:
+6. Explain the fetched YAML in plain language in the operator's locale:
    - **Triggers**: what starts this automation (time, state change, event, etc.)
    - **Conditions**: any guards that must be true for it to run
    - **Actions**: what it does, step by step
@@ -59,7 +60,7 @@ Invoked as `/ha-automation-explorer <keyword>`.
 
 ## Mode 3 — Sort by last fired
 
-Invoked as `/ha-automation-explorer --last-fired`.
+Invoked as `/claude-code-homeassistant-hermit:ha-automation-explorer --last-fired`.
 
 1. Call `mcp__homeassistant__GetDateTime` for the current UTC timestamp.
 2. Sort all automations by `entity_index[entity_id].attributes.last_triggered` descending (most recently fired first). Automations with null `last_triggered` go at the bottom.
@@ -77,5 +78,6 @@ Invoked as `/ha-automation-explorer --last-fired`.
 ## Notes
 
 - This skill is the on-demand browsing view. `ha-analyze-patterns` is the scheduled, proposal-generating silence audit — it remains authoritative for surfacing dead automations via the proposal pipeline.
+- **Mode 1 and Mode 3 flag never-fired automations differently, by design.** Mode 1 reads `silence_summary.dead_automations`, which only lists a never-fired automation once it is 30+ days old — so a recently-created automation that has never fired is *not* flagged in Mode 1. Mode 3 reads `attributes.last_triggered` directly, so it shows "never fired" immediately regardless of age.
 - For deep pattern analysis, use `/claude-code-homeassistant-hermit:ha-analyze-patterns`.
 - For building new automations, use `/claude-code-homeassistant-hermit:ha-build-automation`.
