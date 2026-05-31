@@ -36,7 +36,7 @@ This subcommand is the handler for `HEARTBEAT_EVALUATE` notifications emitted by
      4. Emit `HEARTBEAT_AUTO_CLOSED`. Stop. Do NOT run the EVALUATE flow — the session is being archived; generating stale-session alerts for a closing session would create phantom dedup entries.
    - `EVALUATE` → continue to step 3.
 3. Read `${CLAUDE_PLUGIN_ROOT}/skills/heartbeat/reference.md` for the semantic key taxonomy, alert deduplication procedure, self-evaluation steps, and output format.
-4. Read `.claude-code-hermit/HEARTBEAT.md`, `config.json`, `state/runtime.json`, `.claude-code-hermit/sessions/SHELL.md`.
+4. Read `.claude-code-hermit/HEARTBEAT.md`, `config.json`, `state/runtime.json`, `.claude-code-hermit/sessions/SHELL.md`. **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**
 5. **Stale session check.** If `session_state` is `waiting`: skip. If `in_progress`:
    - Read the last `## Progress Log` entry timestamp from SHELL.md. Use session start time if none.
    - If elapsed > `heartbeat.stale_threshold` (default `"2h"`): generate alert with key `stale-session`.

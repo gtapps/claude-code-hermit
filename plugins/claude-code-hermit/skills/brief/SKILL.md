@@ -26,7 +26,7 @@ Emphasize forward-looking content:
 - If auto-memory seems sparse (new instance, fresh machine), read the latest S-NNN-REPORT.md for context recovery
 
 <!-- keep in sync with plugins/claude-code-homeassistant-hermit/skills/ha-morning-brief/SKILL.md step 9a — same MP lifecycle protocol -->
-After composing the morning brief, check `state/micro-proposals.json → pending` for entries with `status: "pending"`:
+After composing the morning brief, check `state/micro-proposals.json → pending` for entries with `status: "pending"` **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**:
 - If **one or more** pending entries with `follow_up_count` of 0: append each as a final line: `MP-YYYYMMDD-N (tier N): [question]` — Reply `"MP-YYYYMMDD-N yes"` or `"MP-YYYYMMDD-N no"`. (Bare `yes`/`no` accepted when only one pending.)
 - For any entry with `follow_up_count` of 1: append with softer framing: "Still waiting on MP-YYYYMMDD-N: [question] — ignore again to drop it". Increment `follow_up_count` to 2.
 - For any entry with `follow_up_count` >= 2: read `question` first, then set `status: "expired"`, remove from `pending`. Append `micro-resolved` event via `append-metrics.js` with `"action":"expired","question":"<question>"`. Do not resurrect unless fresh evidence accumulates from scratch.
@@ -49,7 +49,7 @@ Current behavior — general purpose summary as described below.
 
 ## Plan
 
-1. Check if `.claude-code-hermit/sessions/SHELL.md` exists:
+1. Check if `.claude-code-hermit/sessions/SHELL.md` exists **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**:
    - If Status is `in_progress`: summarize the active task (existing behavior below)
    - If Status is `idle` (session between tasks): format as:
      ```
@@ -84,7 +84,7 @@ Next: description of next action (or "Session complete" if all done)
 - For the "Done" line: list completed task subjects from `TaskList`, comma-separated. If too many, show first 3 and "+ N more"
 - For the "Next" line: show the first pending or in_progress task from `TaskList`. If blocked, show "Blocked: reason"
 - If summarizing a completed report: "Next" becomes the report's "Next Start Point" content
-- After composing the 5-line output: scan `.claude-code-hermit/proposals/` for files with `source: auto-detected` and `status: proposed` (read from YAML frontmatter if present, fall back to bullet metadata). If any exist, append a 6th line: `Proposals: N auto-detected proposal(s) pending review`
+- After composing the 5-line output: scan `.claude-code-hermit/proposals/` for files with `source: auto-detected` and `status: proposed` (read from YAML frontmatter if present, fall back to bullet metadata). **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction).** If any exist, append a 6th line: `Proposals: N auto-detected proposal(s) pending review`
 
 ## Daily Summary Format
 

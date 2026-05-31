@@ -28,7 +28,7 @@ If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --qu
    Read the verdict (first line of output):
    - `EMPTY` → the precheck found no due phases and no compute activity. It has already updated `reflection-state.json` and appended the mandatory Progress Log line to SHELL.md. Emit `reflect: no candidates` and stop.
    - `RUN|<phases-json>` → continue to step 2. The JSON object lists which phases are due (`cost_spike`, `resolution_check`, `compute`, `digest`, `newborn`). Skip evaluation sections for phases not listed — they are not due this run.
-2. Read SHELL.md for current context.
+2. Read SHELL.md for current context. **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**
 3. Read last 20 lines of cost-log.jsonl. If `cost_spike` is listed in the phases JSON: compute today's total and the 7-day median. If today's total > 2× the 7-day median (and both are non-zero), record the spike to project memory as a sub-threshold observation with pattern `cost_spike: $X.XX vs 7d median $Y.YY` and today's session_id — it becomes input to later reflects and may graduate via the recurrence rule. If `cost_spike` is not listed, skip this read.
 4. **Compute phase** — gates adapt to hermit age so cold-start installs produce visible output without eroding mature-hermit rigor.
    - Read `counters.since` from `state/reflection-state.json` (set once at hatch, never rewritten). If missing or unparseable → default `$PHASE = adult` and continue. Never block.
