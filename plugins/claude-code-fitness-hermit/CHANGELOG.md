@@ -8,7 +8,9 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **weekly-coaching-patterns: first scheduled check for fitness-hermit** — weekly interval check that reads the last 4 steady-session `activity-note` compiled artifacts and detects upward cardiac-drift trends (4 consecutive steady sessions strictly rising). Findings are routed through the `reflect-scheduled-checks` proposal pipeline as `Evidence Source: scheduled-check/weekly-coaching-patterns`. Registered by `hatch` via `config.scheduled_checks`; no new routine required.
 - **strava-sync: auto-trigger activity-deep-dive for new runs** — the daily sync runs a full coaching deep-dive for each new run (capped at the 3 most-recent, skipped IDs logged). Deep-dive failures are logged to the Progress Log and not retried, since the cursor has already advanced.
+- **activity-deep-dive: cadence analysis** — surfaces avg spm, CV, and over-striding/variability flags for running activities (skipped for non-running types or absent stream).
 
 ### Changed
 

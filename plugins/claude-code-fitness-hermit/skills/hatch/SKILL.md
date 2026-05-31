@@ -240,6 +240,16 @@ In the `routines` array, check for each of these four IDs. For any that are **ab
 }
 ```
 
+### 8c — Merge scheduled_checks
+
+In `config.scheduled_checks`, check for an entry with `id: "weekly-coaching-patterns"`. If absent, append it. If present (by `id`), skip — do not clobber existing operator edits.
+
+```json
+{"id": "weekly-coaching-patterns", "plugin": "claude-code-fitness-hermit", "skill": "claude-code-fitness-hermit:weekly-coaching-patterns", "enabled": true, "trigger": "interval", "interval_days": 7}
+```
+
+No prompt needed — this is a read-only analysis. The core daily `scheduled-checks` routine picks it up; `interval_days: 7` gates cadence. Findings surface as proposals automatically via the existing pipeline.
+
 Write the updated `config.json` using Write tool (full file replacement to ensure valid JSON).
 
 ---
@@ -259,7 +269,7 @@ Installation summary:
   ✓ Routine prompts: {N}/4 dropped, {M}/4 already present
   ✓ CLAUDE.md: Fitness Workflow block injected (or was already present)
   ✓ knowledge-schema.md: fitness types added (or were already present)
-  ✓ config.json: _hermit_versions stamped, {K}/4 routines added
+  ✓ config.json: _hermit_versions stamped, {K}/4 routines added, weekly-coaching-patterns check registered
 
 Manual steps remaining:
   - Restart Claude Code so the `strava` MCP server loads from .mcp.json
@@ -282,7 +292,8 @@ The always-on runtime activates routines automatically — the interactive
 steps are only for a test drive before handing over to the runtime.
 
 Installed skills:
-  /claude-code-fitness-hermit:activity-deep-dive   — per-activity coaching analysis
+  /claude-code-fitness-hermit:activity-deep-dive        — per-activity coaching analysis
+  /claude-code-fitness-hermit:weekly-coaching-patterns  — weekly cardiac-drift trend check (scheduled, interval_days: 7)
 
 Installed subagent:
   @claude-code-fitness-hermit:strava-data-cruncher — bulk Strava data aggregation (Haiku)

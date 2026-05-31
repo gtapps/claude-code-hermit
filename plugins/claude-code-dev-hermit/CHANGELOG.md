@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **worktree-boundary-guard hook** — when a session runs in a linked git worktree, blocks `Edit`/`Write` whose target escapes into the main checkout. Self-limiting (inert outside worktrees, so no profile gate); carve-out for shared `.claude-code-hermit/` state; disable with `WORKTREE_GUARD=off`.
+
 ## [0.3.10] - 2026-05-23
 
 ### Changed

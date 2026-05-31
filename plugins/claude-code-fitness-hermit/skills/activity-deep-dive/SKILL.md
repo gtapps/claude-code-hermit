@@ -58,6 +58,14 @@ Produces a standardised per-activity coaching note. Detects interval vs steady-s
 
    **Zone breakdown** — from HR stream vs athlete zone boundaries. Calculate % of stream datapoints in each zone (Z1–Z5). If HR stream absent: note "HR data unavailable".
 
+   **Cadence** *(running sport types only — Run, TrailRun, VirtualRun)* — from the cadence stream.
+   Convert to steps-per-minute first: if the median stream value is < 130 it is single-leg RPM —
+   multiply every value by 2; otherwise use as-is. Compute avg, standard deviation σ, and
+   coefficient of variation CV = σ/μ × 100. Flag if avg < 170 spm (over-striding risk) and/or
+   CV > 8% (high within-run variability — neuromuscular fatigue signal). If the cadence stream is
+   absent or empty, or the sport type is not a running type, skip the cadence line entirely (mirror
+   the "HR data unavailable" guard — do not emit a placeholder).
+
    **Pace/HR efficiency** *(steady sessions only)* — average pace (min/km) divided by average HR.
    Lower = more efficient. Call `mcp__strava__get-recent-activities` with `perPage: 5` now (only
    needed for this metric): filter for activities of the same sport type, exclude the current
@@ -94,6 +102,7 @@ Produces a standardised per-activity coaching note. Detects interval vs steady-s
    Activity: <name> | <date> | <distance>km in <duration>
    Session type: Steady
    Zones: Z1 N% / Z2 N% / Z3 N% / Z4 N% / Z5 N%
+   Cadence: N spm avg (CV: X%) [⚠ over-striding | ⚠ high variability]   ← omit line when cadence absent or non-running; show ⚠ only on a tripped flag
    Pace/HR efficiency: X.XX min·km⁻¹·bpm⁻¹ (vs prior 4: ±X%)
    Cardiac drift: +N bpm (flag if > 10 bpm)
    Recovery: N/5 — recommended rest: Xh
@@ -106,6 +115,7 @@ Produces a standardised per-activity coaching note. Detects interval vs steady-s
    Activity: <name> | <date> | <distance>km in <duration>
    Session type: Interval (N×~Xmin)
    Zones: Z1 N% / Z2 N% / Z3 N% / Z4 N% / Z5 N%
+   Cadence: N spm avg (CV: X%) [⚠ over-striding | ⚠ high variability]   ← omit line when cadence absent or non-running; show ⚠ only on a tripped flag
    Intervals: I1 NNNbpm → IN NNNbpm — <progressive ✓ / regressive / flat>; peaked at NNNbpm on IN
    Between-bout recovery: HR to ~NNNbpm — <adequate / incomplete>
    Recovery: N/5 — recommended rest: Xh
@@ -133,7 +143,7 @@ Body: the full output above.
 
 7b. Write signal-only coaching observations to `.claude-code-hermit/sessions/SHELL.md` Findings.
 
-   From the computed metrics and coaching note, derive 0–N observations that carry a coaching signal worth tracking across sessions: a flagged cardiac drift, a zone-distribution anomaly, a recovery estimate that conflicts with subjective RPE, an efficiency regression vs the prior mean. Do NOT write routine confirmations ("session completed normally") unless they represent a pattern break. If nothing clears the signal bar, skip this step.
+   From the computed metrics and coaching note, derive 0–N observations that carry a coaching signal worth tracking across sessions: a flagged cardiac drift, a zone-distribution anomaly, a recovery estimate that conflicts with subjective RPE, an efficiency regression vs the prior mean, a flagged cadence (low average or high within-run variability). Do NOT write routine confirmations ("session completed normally") unless they represent a pattern break. If nothing clears the signal bar, skip this step.
 
    First `Read` `.claude-code-hermit/sessions/SHELL.md` (Edit requires the file in context, and you need its current `## Findings` content to dedup). For each qualifying observation, anchor on the HTML comment and append one line:
 
@@ -144,7 +154,7 @@ Body: the full output above.
 
    Skip the append if a line with the same `[<label>] (activity <id>)` already exists in `## Findings`; re-running the deep-dive must not duplicate observations. If the anchor comment is absent (operator edited SHELL.md), append directly under the `## Findings` heading instead.
 
-   Labels are kebab-case and reused across sessions for consistency. Prefer an existing label over inventing a synonym. Seed vocabulary: `cooldown-hr-elevated`, `vo2max-stimulus-confirmed`, `cardiac-drift-high`, `interval-pacing-inconsistent`, `recovery-insufficient`, `efficiency-regression`. Add a new kebab-case label only when none fit.
+   Labels are kebab-case and reused across sessions for consistency. Prefer an existing label over inventing a synonym. Seed vocabulary: `cooldown-hr-elevated`, `vo2max-stimulus-confirmed`, `cardiac-drift-high`, `interval-pacing-inconsistent`, `recovery-insufficient`, `efficiency-regression`, `cadence-low`, `cadence-variability-high`. Add a new kebab-case label only when none fit.
 
    These lines feed reflect's `current-session` evidence path; the label convention lets reflect recognize recurrence across sessions, and recurring observations graduate to proposals through the normal `reflection-judge` / `proposal-triage` gates.
 

@@ -634,6 +634,33 @@ run_test "reflect-precheck (ARCHIVE failed: archive_due omitted)" bash -c \
 cleanup
 
 # -------------------------------------------------------
+# log-routine-event.sh — resolves hermit root by walking up from CWD
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+metrics="$workdir/.claude-code-hermit/state/routine-metrics.jsonl"
+mkdir -p "$workdir/app/sub"
+
+# Fired from a subdirectory → appends to the ancestor's state file
+( cd "$workdir/app/sub" && bash "$REPO_ROOT/scripts/log-routine-event.sh" morning-brief fired ) >/dev/null 2>&1 || true
+run_test "log-routine-event (subdir resolves to ancestor)" bash -c \
+  "grep -q '\"routine_id\":\"morning-brief\",\"event\":\"fired\"' '$metrics'"
+
+# Fired from the hermit root → unchanged behavior
+( cd "$workdir" && bash "$REPO_ROOT/scripts/log-routine-event.sh" weekly-review skipped-waiting ) >/dev/null 2>&1 || true
+run_test "log-routine-event (root resolves to state file)" bash -c \
+  "grep -q '\"routine_id\":\"weekly-review\",\"event\":\"skipped-waiting\"' '$metrics'"
+cleanup
+
+# No .claude-code-hermit/ ancestor → non-zero exit with a clear diagnostic
+nohermit="$(mktemp -d)"
+nh_rc=0
+nh_err="$(cd "$nohermit" && bash "$REPO_ROOT/scripts/log-routine-event.sh" x fired 2>&1)" || nh_rc=$?
+run_test "log-routine-event (no ancestor exits non-zero)" bash -c "[ $nh_rc -ne 0 ]"
+run_test "log-routine-event (no ancestor diagnostic)" bash -c \
+  "echo '$nh_err' | grep -qF 'could not find .claude-code-hermit/'"
+rm -rf "$nohermit"
+
+# -------------------------------------------------------
 # Summary
 # -------------------------------------------------------
 print_results

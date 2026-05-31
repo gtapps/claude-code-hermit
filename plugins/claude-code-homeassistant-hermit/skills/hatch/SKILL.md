@@ -200,6 +200,10 @@ The skill name format is `/<plugin-id>:<skill-id>`. Parse the plugin-id as the t
 
    **Non-standard config** (entry exists but matches none of the above conditions — e.g. custom schedule): skip (no-op, report "non-standard `morning-brief` config detected — skipping upgrade prompt").
 
+3. **Evening brief** — "Add evening house-check routine (22:30 every day)? Delivers a brief end-of-day security and device confirmation."
+   - If yes: merge `{"id": "evening-brief", "schedule": "30 22 * * *", "skill": "claude-code-homeassistant-hermit:ha-evening-brief", "enabled": true, "run_during_waiting": true}`. If `config.routines` contains an entry with `id: "evening"` and `enabled: true`, set its `enabled` to `false` and emit: "Disabled core `evening` routine — `evening-brief` subsumes it."
+   - If no: skip.
+
 After adding or updating any entries, remind the operator: "Run `/claude-code-hermit:hermit-routines load` to activate routines in the current session."
 
 **Scheduled checks registration**: `config.scheduled_checks` is an array of periodic skill entries that the `scheduled-checks` routine (via `reflect-scheduled-checks`) invokes on a cadence and funnels through the proposal pipeline. For each entry below, check whether an existing record has the same `id`. If not, append it — no prompt needed, all three are safe read-only analyses.
@@ -230,7 +234,7 @@ hatch complete
   ✓  CLAUDE.md updated
   ✓  config.json stamped v<version>
   ✓  boot_skill: /claude-code-homeassistant-hermit:ha-boot (set | already set | operator override preserved)
-  ✓  Routines registered: daily-ha-context, morning-brief (disabled by default)
+  ✓  Routines registered: daily-ha-context, morning-brief (disabled by default), evening-brief
   ✓  Scheduled checks registered: ha-patterns, ha-safety-audit, ha-integration-health
 
 Manual steps remaining:

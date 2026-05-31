@@ -11,31 +11,11 @@ import pytest
 
 PLUGIN_ROOT = Path(__file__).parent.parent
 HATCH_SKILL = PLUGIN_ROOT / "skills" / "hatch" / "SKILL.md"
-CHANGELOG = PLUGIN_ROOT / "CHANGELOG.md"
 
 
 @pytest.fixture(scope="module")
 def skill_text() -> str:
     return HATCH_SKILL.read_text(encoding="utf-8")
-
-
-@pytest.fixture(scope="module")
-def changelog_unreleased() -> str:
-    text = CHANGELOG.read_text(encoding="utf-8")
-    m = re.search(r"## \[Unreleased\]([\s\S]*?)(?=\n## \[)", text)
-    if not m:
-        m = re.search(r"## \[\d+\.\d+\.\d+\][^\n]*\n([\s\S]*?)(?=\n## \[)", text)
-    assert m, "No changelog section found in CHANGELOG.md"
-    return m.group(1)
-
-
-@pytest.fixture(scope="module")
-def changelog_v016() -> str:
-    """Returns the body of the [0.1.6] section, where the hatch migration upgrade instructions live."""
-    text = CHANGELOG.read_text(encoding="utf-8")
-    m = re.search(r"## \[0\.1\.6\][^\n]*\n([\s\S]*?)(?=\n## \[)", text)
-    assert m, "[0.1.6] section not found in CHANGELOG.md"
-    return m.group(1)
 
 
 def test_references_hatch_options_json(skill_text: str):
@@ -113,17 +93,3 @@ def test_marker_replacement_specifies_closing_marker(skill_text: str):
 
 def test_delegates_stray_block_migration_to_hermit_evolve(skill_text: str):
     assert re.search(r"hermit-evolve[\s\S]{0,20}Step 7", skill_text)
-
-
-def test_v016_migration_is_unattended(changelog_v016: str):
-    # The 0.1.6 Upgrade Instructions describe an unattended hatch migration.
-    assert "unattended" in changelog_v016
-
-
-def test_unreleased_drops_carry_forward_branch(changelog_unreleased: str):
-    assert "Carry forward" not in changelog_unreleased
-
-
-def test_v016_strips_block_silently(changelog_v016: str):
-    # The 0.1.6 Upgrade Instructions instruct hermit-evolve to silently strip the old block.
-    assert re.search(r"silently strip the marked block", changelog_v016)

@@ -23,6 +23,7 @@ This project has the `claude-code-fitness-hermit` plugin installed. The rules be
 | `/claude-code-fitness-hermit:activity-deep-dive` | Per-activity coaching analysis (zone breakdown, cardiac drift, recovery estimate) |
 | `/claude-code-fitness-hermit:capture-activity-rpe` | Auto-captures RPE from channel replies to strava-sync notifications |
 | `/claude-code-fitness-hermit:set-rpe` | Manually record RPE for any activity (backfill, correction, non-latest activities) |
+| `/claude-code-fitness-hermit:weekly-coaching-patterns` | Scheduled check — detects upward cardiac-drift trends across recent steady-session activity notes |
 
 ### Subagents
 
@@ -61,6 +62,14 @@ These run automatically on their cron schedule. Schedules and `enabled` state li
 | `monday-planning` | Weekly training structure suggestion |
 
 Routine prompts are at `.claude-code-hermit/compiled/routine-*.md`.
+
+### Scheduled Checks
+
+These run via the core `scheduled-checks` routine (daily) and fire at most once per `interval_days`. Findings are routed through the proposal pipeline automatically.
+
+| Check | Interval | Purpose |
+|-------|----------|---------|
+| `weekly-coaching-patterns` | 7 days | Detects upward cardiac-drift trends across recent steady sessions |
 
 ### Conventions
 

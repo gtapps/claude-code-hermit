@@ -11,6 +11,17 @@
           }
         ],
         "description": "Block direct git push to protected branches, --no-verify, force-push (strict profile)"
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/worktree-boundary-guard.js"]
+          }
+        ],
+        "description": "In a linked git worktree, block edits that escape into the main checkout (self-limiting; WORKTREE_GUARD=off to disable)"
       }
     ],
     "PostToolUse": [
