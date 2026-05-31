@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **scripts/log-routine-event.sh: resolve hermit root by walking up from CWD** — CronCreate prompts fire with the session's primary working directory as `$PWD`, which may be a subdirectory of the hermit root; the script now walks up to the nearest ancestor containing `.claude-code-hermit/` so the metrics append lands in the right place instead of failing with "No such file or directory". Closes #180.
+
 ### Changed
 
 - **brief: push-notification fallback** — the always-on brief now delivers via the standard Operator Notification pattern (channel DM or push fallback) instead of requiring a configured channel, so push-only operators get a condensed one-liner rather than a silent no-op when no channel is reachable. Closes #174.
