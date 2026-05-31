@@ -2,6 +2,12 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Added
+
+- **ha-automation-explorer: browse and explain active automations** — read-only skill with three modes: list all automations grouped by inferred topic (Mode 1), explain a keyword-filtered automation's YAML in plain language (Mode 2), sort by last-fired using snapshot data (Mode 3). Dead/stale detection reuses `silence_summary` from the context snapshot; `ha-analyze-patterns` remains the scheduled proposal-generating audit.
+
 ## [0.1.6] - 2026-05-21
 
 ### Fixed
