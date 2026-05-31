@@ -128,6 +128,9 @@ def aggregate_history(
             prev_state: str | None = None
             for ev, ts in zip(events, timestamps):
                 state = ev.get("state", "")
+                # An event with an unparseable timestamp is skipped without advancing
+                # prev_state (a state change hidden behind a bad ts can be lost). HA
+                # timestamps are reliably parseable in practice, so we accept this.
                 if state != prev_state and ts is not None:
                     transitions.append({"ts": ts.isoformat(), "state": state})
                     prev_state = state

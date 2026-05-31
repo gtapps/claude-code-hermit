@@ -33,7 +33,7 @@ allowed-tools:
 4. Read `snapshot-ha-history-7d-latest.json`. For each presence entity:
    - **Recent transitions**: show the last 5 entries from `transitions` (ordered chronologically), formatted as `HH:MM DD-Mon — <state>`.
    - **Home/away split**: derive from `state_durations` — what percentage of the window was "home" vs "away".
-   - **Typical activity windows**: from `hour_histogram`, identify hours with elevated activity (the top 2–3 hours by event count). With ≥7d of data and ≥5 total events, describe them as "typically arrives around HH:00 UTC"; below that threshold, say "insufficient data for pattern detection."
+   - **Typical activity windows**: bucket the `transitions` list by UTC hour, keyed on direction: transitions *to* `home` are arrivals, transitions *to* `away` are departures. Report the top 1–2 arrival hours and departure hours separately (e.g. "typically arrives around 18:00 UTC, leaves around 08:00 UTC"). With ≥7d of data and ≥5 total transitions, state the windows; below that threshold, say "insufficient data for pattern detection." (`hour_histogram` counts all events regardless of direction, so use it only as a fallback for entities whose states aren't home/away.)
 
 5. Compose and print the inline report in the operator's locale:
    ```
