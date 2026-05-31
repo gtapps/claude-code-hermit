@@ -21,3 +21,12 @@
 .claude.local/
 CLAUDE.local.md
 .claude/settings.local.json
+
+# Claude Code sandbox (sets $HOME to CWD, dropping shell dotfiles here)
+.bash_profile
+.bashrc
+.zshrc
+.zprofile
+.profile
+.gitconfig
+.ripgreprc

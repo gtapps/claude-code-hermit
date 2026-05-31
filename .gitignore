@@ -34,6 +34,15 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Claude Code sandbox (sets $HOME to CWD, dropping shell dotfiles here)
+.bash_profile
+.bashrc
+.zshrc
+.zprofile
+.profile
+.gitconfig
+.ripgreprc
+
 # Session local state (settings.local.json is per-developer)
 .claude/settings.local.json
 
