@@ -31,6 +31,7 @@ Before appending any alert to SHELL.md Monitoring:
    - **Not suppressed:** Append `[HH:MM] Heartbeat: resolved — {text}`. Remove entry.
    - **Suppressed:** Resolve silently — remove entry, omit from next daily digest.
 4. **Daily digest:** If `last_digest_date` is not today and suppressed alerts exist: notify the operator `Suppressed alert digest: {list with counts and ages}`. Set `last_digest_date` to today.
+   - **Proposal entries:** For any suppressed key matching `proposal-pending:<PROP-NNN>`, render it as `PROP-NNN "<title>"` rather than the raw key. Find the title by reading frontmatter `title` from `proposals/PROP-NNN-*.md` (also check legacy `proposals/PROP-NNN.md`). If exactly one file matches, render its title; on zero or multiple matches, fall back to the bare key — never block the digest.
 5. **Micro-proposal check:** Read `state/micro-proposals.json → pending`. For each entry where `status === "pending"` and `tier === 1`: append `[HH:MM] Heartbeat: micro-proposal '{id}' awaiting operator input — {question}`. Use key `micro-proposal-pending:<id>` for dedup.
 6. Write `state/alert-state.json`. **Write `alerts{}` and `self_eval{}` only — do NOT write `total_ticks` (owned by the precheck script).**
 
