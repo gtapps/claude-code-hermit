@@ -6,6 +6,7 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ### Added
 
+- **ha-automation-explorer: browse and explain active automations** — read-only skill with three modes: list all automations grouped by inferred topic (Mode 1), explain a keyword-filtered automation's YAML in plain language (Mode 2), sort by last-fired using snapshot data (Mode 3). Dead/stale detection reuses `silence_summary` from the context snapshot; `ha-analyze-patterns` remains the scheduled proposal-generating audit.
 - **ha-evening-brief: new skill and routine** — end-of-day security check (locks, alarm, open covers), device status (robovac, lights), and energy snapshot at 22:30; subsumes core `evening` routine when both plugins are installed.
 
 ## [0.1.6] - 2026-05-21
