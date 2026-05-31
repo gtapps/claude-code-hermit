@@ -1,6 +1,7 @@
 """History API aggregation — pattern detection for ha-analyze-patterns and ha-morning-brief."""
 from __future__ import annotations
 
+import fnmatch
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -26,14 +27,21 @@ def select_history_entities(
 ) -> list[str]:
     """Return entity IDs for the history fetch.
 
-    When override is given it is returned verbatim (sorted). Otherwise the
-    default scope applies: all entities in light/switch/cover/climate/automation
-    domains, plus binary_sensor entities whose device_class is in the event
-    sensor set.
+    When override is given, tokens containing '*' are expanded against the
+    entity_index via fnmatch; tokens without '*' are treated as exact IDs.
+    Results are de-duped and sorted. Otherwise the default scope applies:
+    all entities in light/switch/cover/climate/automation domains, plus
+    binary_sensor entities whose device_class is in the event sensor set.
     """
-    if override is not None:
-        return sorted(override)
     entity_index: dict[str, Any] = normalized.get("entity_index", {})
+    if override is not None:
+        out: set[str] = set()
+        for token in override:
+            if "*" in token:
+                out.update(e for e in entity_index if fnmatch.fnmatchcase(e, token))
+            else:
+                out.add(token)
+        return sorted(out)
     result: list[str] = []
     for entity_id, entity in entity_index.items():
         domain = entity_id.split(".", 1)[0]
@@ -52,12 +60,17 @@ def aggregate_history(
     *,
     window_start: datetime,
     window_end: datetime,
+    include_transitions: bool = False,
 ) -> dict[str, dict[str, Any]]:
     """Aggregate HA history events per entity.
 
     Entities in `requested` that are absent from `history` (no events in the
     window) get synthesized zero-count rows so callers always see a complete
     picture. `state_durations` clips event spans to [window_start, window_end].
+
+    When `include_transitions` is True, each aggregate gains a `transitions`
+    list: ordered ``{"ts": <iso>, "state": <str>}`` dicts for real state
+    changes only (consecutive duplicate states are collapsed).
     """
     ws = window_start.astimezone(UTC)
     we = window_end.astimezone(UTC)
@@ -66,13 +79,16 @@ def aggregate_history(
     for entity_id in requested:
         events = history.get(entity_id)
         if events is None:
-            result[entity_id] = {
+            row: dict[str, Any] = {
                 "event_count": 0,
                 "returned": False,
                 "hour_histogram": [0] * 24,
                 "last_event_iso": None,
                 "state_durations": {},
             }
+            if include_transitions:
+                row["transitions"] = []
+            result[entity_id] = row
             continue
 
         timestamps = [parse_iso(ev.get("last_changed")) for ev in events]
@@ -99,13 +115,28 @@ def aggregate_history(
                 state = ev.get("state", "")
                 state_durations[state] = state_durations.get(state, 0.0) + (span_end - span_start).total_seconds()
 
-        result[entity_id] = {
+        agg: dict[str, Any] = {
             "event_count": len(events),
             "returned": True,
             "hour_histogram": histogram,
             "last_event_iso": last_event.isoformat() if last_event else None,
             "state_durations": {s: int(secs) for s, secs in state_durations.items()},
         }
+
+        if include_transitions:
+            transitions: list[dict[str, str]] = []
+            prev_state: str | None = None
+            for ev, ts in zip(events, timestamps):
+                state = ev.get("state", "")
+                # An event with an unparseable timestamp is skipped without advancing
+                # prev_state (a state change hidden behind a bad ts can be lost). HA
+                # timestamps are reliably parseable in practice, so we accept this.
+                if state != prev_state and ts is not None:
+                    transitions.append({"ts": ts.isoformat(), "state": state})
+                    prev_state = state
+            agg["transitions"] = transitions
+
+        result[entity_id] = agg
 
     return result
 
@@ -144,6 +175,7 @@ def fetch_history_snapshot(
     *,
     window_days: int = 7,
     entity_override: list[str] | None = None,
+    include_transitions: bool = False,
 ) -> dict[str, Any]:
     """Fetch, aggregate, and write a history snapshot artifact.
 
@@ -155,7 +187,11 @@ def fetch_history_snapshot(
 
     entity_ids = select_history_entities(normalized, override=entity_override)
     history = client.get_history(entity_ids, window_start, now)
-    aggregates = aggregate_history(history, entity_ids, window_start=window_start, window_end=now)
+    aggregates = aggregate_history(
+        history, entity_ids,
+        window_start=window_start, window_end=now,
+        include_transitions=include_transitions,
+    )
     time_patterns = detect_time_patterns(aggregates)
 
     returned_entities = sorted(eid for eid, agg in aggregates.items() if agg.get("returned"))

@@ -6,6 +6,12 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ### Added
 
+- **ha-presence-report: new on-demand skill** — presence history, tracker-health, arrival/departure transitions, and activity patterns for `person.*` / `device_tracker.*` entities. Gives operators a direct diagnostic path when presence-dependent automations misbehave.
+
+### Changed
+
+- **fetch-history `--entities`: glob expansion** — tokens containing `*` are now expanded against `entity_index` via `fnmatch`; exact IDs still pass through. Fixes the documented `--entities <glob> …` contract, which previously passed patterns verbatim to HA's REST API and returned empty data.
+- **fetch-history `--include-transitions`** — new flag; when set, each entity aggregate in the snapshot includes a `transitions` list of ordered `{ts, state}` dicts with consecutive duplicates collapsed. Default off; existing callers are unaffected.
 - **ha-automation-explorer: browse and explain active automations** — read-only skill with three modes: list all automations grouped by inferred topic (Mode 1), explain a keyword-filtered automation's YAML in plain language (Mode 2), sort by last-fired using snapshot data (Mode 3). Dead/stale detection reuses `silence_summary` from the context snapshot; `ha-analyze-patterns` remains the scheduled proposal-generating audit.
 - **ha-evening-brief: new skill and routine** — end-of-day security check (locks, alarm, open covers), device status (robovac, lights), and energy snapshot at 22:30; subsumes core `evening` routine when both plugins are installed.
 

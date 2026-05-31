@@ -266,3 +266,130 @@ def _make_mock_client(history_data: dict) -> object:
     client = MagicMock()
     client.get_history.return_value = history_data
     return client
+
+
+# ---------------------------------------------------------------------------
+# select_history_entities — glob expansion (added for ha-presence-report)
+# ---------------------------------------------------------------------------
+
+def test_select_history_entities_glob_expands_against_entity_index() -> None:
+    normalized = _normalized({
+        "person.alice": _entity("home"),
+        "person.bob": _entity("away"),
+        "device_tracker.alice_phone": _entity("home"),
+        "light.living_room": _entity("on"),
+    })
+    result = select_history_entities(normalized, override=["person.*"])
+    assert result == ["person.alice", "person.bob"]
+    assert "light.living_room" not in result
+    assert "device_tracker.alice_phone" not in result
+
+
+def test_select_history_entities_multiple_globs_combined() -> None:
+    normalized = _normalized({
+        "person.alice": _entity("home"),
+        "device_tracker.alice_phone": _entity("home"),
+        "light.living_room": _entity("on"),
+    })
+    result = select_history_entities(normalized, override=["person.*", "device_tracker.*"])
+    assert "person.alice" in result
+    assert "device_tracker.alice_phone" in result
+    assert "light.living_room" not in result
+
+
+def test_select_history_entities_mixed_exact_and_glob_dedupes() -> None:
+    normalized = _normalized({
+        "person.alice": _entity("home"),
+        "person.bob": _entity("away"),
+    })
+    # person.alice matches both the exact token and person.*
+    result = select_history_entities(normalized, override=["person.alice", "person.*"])
+    assert result.count("person.alice") == 1
+    assert "person.bob" in result
+
+
+def test_select_history_entities_nonmatching_glob_yields_empty() -> None:
+    normalized = _normalized({"light.kitchen": _entity()})
+    result = select_history_entities(normalized, override=["sensor.*"])
+    assert result == []
+
+
+def test_select_history_entities_exact_id_not_in_index_passes_through() -> None:
+    # Exact IDs (no *) are still returned verbatim even if absent from entity_index
+    normalized = _normalized({"light.kitchen": _entity()})
+    result = select_history_entities(normalized, override=["sensor.unknown"])
+    assert result == ["sensor.unknown"]
+
+
+# ---------------------------------------------------------------------------
+# aggregate_history — include_transitions (added for ha-presence-report)
+# ---------------------------------------------------------------------------
+
+def test_aggregate_history_transitions_omitted_by_default() -> None:
+    history = {"person.alice": [
+        _event("home", "2026-05-01T06:00:00+00:00"),
+        _event("away", "2026-05-01T18:00:00+00:00"),
+    ]}
+    result = aggregate_history(history, ["person.alice"], window_start=_W_START, window_end=_W_END)
+    assert "transitions" not in result["person.alice"]
+
+
+def test_aggregate_history_transitions_included_when_flag_set() -> None:
+    history = {"person.alice": [
+        _event("home", "2026-05-01T06:00:00+00:00"),
+        _event("away", "2026-05-01T18:00:00+00:00"),
+        _event("home", "2026-05-02T08:00:00+00:00"),
+    ]}
+    result = aggregate_history(
+        history, ["person.alice"],
+        window_start=_W_START, window_end=_W_END,
+        include_transitions=True,
+    )
+    transitions = result["person.alice"]["transitions"]
+    states = [t["state"] for t in transitions]
+    assert states == ["home", "away", "home"]
+    # All entries must have a "ts" key
+    assert all("ts" in t for t in transitions)
+
+
+def test_aggregate_history_transitions_consecutive_duplicates_collapsed() -> None:
+    # HA can emit same-state events for attribute-only updates
+    history = {"person.alice": [
+        _event("home", "2026-05-01T06:00:00+00:00"),
+        _event("home", "2026-05-01T06:01:00+00:00"),   # duplicate — collapsed
+        _event("away", "2026-05-01T18:00:00+00:00"),
+        _event("away", "2026-05-01T18:01:00+00:00"),   # duplicate — collapsed
+        _event("home", "2026-05-02T08:00:00+00:00"),
+    ]}
+    result = aggregate_history(
+        history, ["person.alice"],
+        window_start=_W_START, window_end=_W_END,
+        include_transitions=True,
+    )
+    states = [t["state"] for t in result["person.alice"]["transitions"]]
+    assert states == ["home", "away", "home"]
+
+
+def test_aggregate_history_missing_entity_gets_empty_transitions_list() -> None:
+    result = aggregate_history(
+        {}, ["person.alice"],
+        window_start=_W_START, window_end=_W_END,
+        include_transitions=True,
+    )
+    assert result["person.alice"]["transitions"] == []
+    assert result["person.alice"]["returned"] is False
+
+
+def test_aggregate_history_include_transitions_false_regression() -> None:
+    """Existing callers (ha-analyze-patterns, ha-morning-brief) must be byte-for-byte unaffected."""
+    history = {"light.kitchen": [
+        _event("off", "2026-05-01T06:00:00+00:00"),
+        _event("on", "2026-05-01T18:00:00+00:00"),
+    ]}
+    result = aggregate_history(
+        history, ["light.kitchen"],
+        window_start=_W_START, window_end=_W_END,
+        include_transitions=False,
+    )
+    assert "transitions" not in result["light.kitchen"]
+    assert result["light.kitchen"]["event_count"] == 2

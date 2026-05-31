@@ -82,6 +82,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     fetch_history_parser.add_argument("--window-days", type=int, default=7)
     fetch_history_parser.add_argument("--entities", nargs="+", metavar="ENTITY")
+    fetch_history_parser.add_argument(
+        "--include-transitions",
+        action="store_true",
+        help="Include ordered state-transition list per entity in the artifact.",
+    )
 
     ha_subparsers.add_parser("list-automations", help="List all automation entity IDs and config IDs.")
     ha_subparsers.add_parser("list-scripts", help="List all script entity IDs and config IDs.")
@@ -162,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     if args.command == "ha" and args.ha_command == "fetch-history":
-        return _handle_fetch_history(root, config, args.window_days, args.entities)
+        return _handle_fetch_history(root, config, args.window_days, args.entities, args.include_transitions)
 
     if args.command == "ha" and args.ha_command == "simulate":
         from .simulate import simulate_artifact
@@ -298,7 +303,7 @@ def main(argv: list[str] | None = None) -> int:
     return 1
 
 
-def _handle_fetch_history(root: Path, config: Any, window_days: int, entity_override: list[str] | None) -> int:
+def _handle_fetch_history(root: Path, config: Any, window_days: int, entity_override: list[str] | None, include_transitions: bool = False) -> int:
     try:
         client = HomeAssistantClient(config)
     except HomeAssistantError as exc:
@@ -315,7 +320,11 @@ def _handle_fetch_history(root: Path, config: Any, window_days: int, entity_over
 
     try:
         normalized = json.loads(snapshot_path.read_text(encoding="utf-8"))
-        payload = fetch_history_snapshot(root, client, normalized, window_days=window_days, entity_override=entity_override)
+        payload = fetch_history_snapshot(
+            root, client, normalized,
+            window_days=window_days, entity_override=entity_override,
+            include_transitions=include_transitions,
+        )
     except (HomeAssistantError, OSError, json.JSONDecodeError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
