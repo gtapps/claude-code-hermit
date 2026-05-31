@@ -25,7 +25,7 @@ Ephemeral inputs and rolling snapshots. Archived after `knowledge.raw_retention_
 | Filename pattern | type frontmatter | Produced by | When |
 |---|---|---|---|
 | `snapshot-ha-context-<date>.json` | `snapshot` | `ha-refresh-context` | On demand or daily routine |
-| `snapshot-ha-normalized-latest.json` | `snapshot` | `ha-refresh-context` | Same run; overwritten each refresh (fixed name). Includes a `silence_summary` block (keys: `dead_automations`, `silent_event_sensors`, `inactive_candidates_by_domain`, `long_unavailable`, `suppressed_entity_domains`, `thresholds`) — computed from existing timestamp fields, no extra HTTP calls. |
+| `snapshot-ha-normalized-latest.json` | `snapshot` | `ha-refresh-context` | Same run; overwritten each refresh (fixed name). Includes a top-level `entity_index` (per-entity `{state, attributes, …}` map keyed by `entity_id`) and a `silence_summary` block (keys: `dead_automations`, `silent_event_sensors`, `inactive_candidates_by_domain`, `long_unavailable`, `suppressed_entity_domains`, `thresholds`) — computed from existing timestamp fields, no extra HTTP calls. |
 | `automation-<slug>-<date>.yaml` | `automation` | `ha-build-automation` | Each automation draft |
 | `script-<slug>-<date>.yaml` | `script` | `ha-build-automation` | Each script draft |
 | `audit-ha-safety-<date>.md` | `audit` | `ha-safety-audit` | Weekly scheduled check |

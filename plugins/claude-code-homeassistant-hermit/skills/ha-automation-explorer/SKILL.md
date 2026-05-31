@@ -64,7 +64,7 @@ Cross-reference `silence_summary.dead_automations` to pick up pre-computed `days
 
 Sort ascending by last-fired time (never-fired last). Display a table or list:
 - Each row: friendly_name, last triggered (human-readable, stored locale), days since
-- Highlight: `never fired` (enabled automations with `last_triggered: null`) and `>30 days` silent
+- Highlight: `never fired` (enabled automations with `last_triggered: null`) and any automation present in `silence_summary.dead_automations` (mark `⚠ dead — N days` using its `days_silent`). The snapshot's own `silence_summary.thresholds` define "dead" — do not apply a separate day cutoff, so the highlight always matches the snapshot's classification.
 
 Do **not** call `fetch-history` or use `automation.*` history entries to infer execution — `silence_summary.dead_automations` and `last_triggered` from the snapshot are the sanctioned sources.
 
