@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.1.6-green.svg" alt="Version 0.1.6" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.1.7-green.svg" alt="Version 0.1.7" /></a>
 </p>
 
 # claude-code-homeassistant-hermit

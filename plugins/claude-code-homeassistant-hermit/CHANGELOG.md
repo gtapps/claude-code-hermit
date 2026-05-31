@@ -2,7 +2,7 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
-## [Unreleased]
+## [0.1.7] - 2026-05-31
 
 ### Added
 
@@ -11,9 +11,30 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 ### Changed
 
 - **fetch-history `--entities`: glob expansion** — tokens containing `*` are now expanded against `entity_index` via `fnmatch`; exact IDs still pass through. Fixes the documented `--entities <glob> …` contract, which previously passed patterns verbatim to HA's REST API and returned empty data.
-- **fetch-history `--include-transitions`** — new flag; when set, each entity aggregate in the snapshot includes a `transitions` list of ordered `{ts, state}` dicts with consecutive duplicates collapsed. Default off; existing callers are unaffected.
-- **ha-automation-explorer: browse and explain active automations** — read-only skill with three modes: list all automations grouped by inferred topic (Mode 1), explain a keyword-filtered automation's YAML in plain language (Mode 2), sort by last-fired using snapshot data (Mode 3). Dead/stale detection reuses `silence_summary` from the context snapshot; `ha-analyze-patterns` remains the scheduled proposal-generating audit.
+- **fetch-history `--include-transitions`** — new flag; each entity aggregate in the snapshot includes a `transitions` list of ordered `{ts, state}` dicts with consecutive duplicates collapsed. Default off; existing callers unaffected.
+- **ha-automation-explorer: browse and explain active automations** — read-only skill with three modes: list all automations grouped by inferred topic (Mode 1), explain a keyword-filtered automation's YAML in plain language (Mode 2), sort by last-fired using snapshot data (Mode 3). Dead/stale detection reuses `silence_summary` from the context snapshot.
 - **ha-evening-brief: new skill and routine** — end-of-day security check (locks, alarm, open covers), device status (robovac, lights), and energy snapshot at 22:30; subsumes core `evening` routine when both plugins are installed.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/ha-presence-report/SKILL.md` | New skill: presence history and tracker diagnostics |
+| `skills/ha-automation-explorer/SKILL.md` | New skill: browse and explain automations by topic, keyword, or last-fired |
+| `skills/ha-evening-brief/SKILL.md` | New skill: end-of-day security and device status brief |
+| `src/ha_agent_lab/history.py` | Glob expansion for `--entities`; `--include-transitions` flag |
+| `tests/test_cli_fetch_history.py` | Tests for new fetch-history flags |
+| `tests/test_history.py` | Unit tests for glob expansion and transitions logic |
+| `tests/test_automation_explorer_skill.py` | Skill validation tests |
+| `state-templates/CLAUDE-APPEND.md` | Add new skills to quick reference table; update fetch-history CLI line |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Sync the CLAUDE-APPEND block** — re-writes the HA section in your target CLAUDE file with the updated skills table and CLI reference.
+
+No `config.json` changes required.
 
 ## [0.1.6] - 2026-05-21
 
