@@ -13,7 +13,7 @@ All state lives under `.claude-code-hermit/` in the project root.
 
 1. Read `.claude-code-hermit/config.json` for agent identity settings (`agent_name`, `language`)
 2. If the SessionStart hook output above includes "---Upgrade Available---", mention it to the operator. Do NOT block session start.
-3. **Read `state/runtime.json`** for lifecycle state. This is the single source of truth — never parse SHELL.md `Status:` for decisions.
+3. **Read `state/runtime.json`** for lifecycle state **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**. This is the single source of truth — never parse SHELL.md `Status:` for decisions.
    - **Advisory lock check:** Try to acquire `state/.lifecycle.lock` non-blocking. If held by another process (hermit-start.py, hermit-stop.py), tell the operator "A lifecycle operation is in progress — wait for it to complete" and abort.
    - **If runtime.json is missing:** This is either a first run or a pre-runtime.json installation. If SHELL.md exists, treat as a first session and proceed normally. If neither exists, this is a fresh installation — proceed to step 5.
    - **Interrupted transition recovery (P3):** If `transition` is not null, use `claude-code-hermit:session-mgr` to resume the interrupted operation:
@@ -133,7 +133,7 @@ All state lives under `.claude-code-hermit/` in the project root.
 ## Context to Load
 
 - `.claude-code-hermit/OPERATOR.md` (always)
-- `.claude-code-hermit/sessions/SHELL.md` (if exists)
+- `.claude-code-hermit/sessions/SHELL.md` (if exists) **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**
 - Most recent `.claude-code-hermit/sessions/S-*-REPORT.md` (for continuity — only the latest one)
 - `.claude-code-hermit/state/runtime.json` (always — for lifecycle state)
 

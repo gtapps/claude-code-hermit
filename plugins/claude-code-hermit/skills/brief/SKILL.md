@@ -84,7 +84,7 @@ Next: description of next action (or "Session complete" if all done)
 - For the "Done" line: list completed task subjects from `TaskList`, comma-separated. If too many, show first 3 and "+ N more"
 - For the "Next" line: show the first pending or in_progress task from `TaskList`. If blocked, show "Blocked: reason"
 - If summarizing a completed report: "Next" becomes the report's "Next Start Point" content
-- After composing the 5-line output: scan `.claude-code-hermit/proposals/` for files with `source: auto-detected` and `status: proposed` (read from YAML frontmatter if present, fall back to bullet metadata) **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**. If any exist, append a 6th line: `Proposals: N auto-detected proposal(s) pending review`
+- After composing the 5-line output: scan `.claude-code-hermit/proposals/` for files with `source: auto-detected` and `status: proposed` (read from YAML frontmatter if present, fall back to bullet metadata). **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction).** If any exist, append a 6th line: `Proposals: N auto-detected proposal(s) pending review`
 
 ## Daily Summary Format
 
