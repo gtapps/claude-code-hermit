@@ -49,7 +49,7 @@ fs.mkdirSync(archiveDir, { recursive: true });
 
 let archived = 0;
 let retained = 0;
-let skipped = 0;
+const skippedFiles = []; // { file, reason } — surfaced by name so operators can fix the root cause
 
 for (const filePath of rawFullPaths) {
   const filename = path.basename(filePath);
@@ -57,13 +57,13 @@ for (const filePath of rawFullPaths) {
 
   // Skip if no frontmatter or no created date — can't determine age
   if (!fm || !fm.created) {
-    skipped++;
+    skippedFiles.push({ file: filename, reason: 'missing created: frontmatter' });
     continue;
   }
 
   const created = new Date(fm.created);
   if (isNaN(created.getTime())) {
-    skipped++;
+    skippedFiles.push({ file: filename, reason: `unparseable created: "${fm.created}"` });
     continue;
   }
 
@@ -92,12 +92,15 @@ for (const filePath of rawFullPaths) {
   try {
     fs.renameSync(filePath, dest);
     archived++;
-  } catch {
-    skipped++;
+  } catch (err) {
+    skippedFiles.push({ file: filename, reason: `move failed: ${err.message}` });
   }
 }
 
-console.log(`archive-raw: ${archived} archived, ${retained} retained, ${skipped} skipped.`);
+console.log(`archive-raw: ${archived} archived, ${retained} retained, ${skippedFiles.length} skipped.`);
 if (archived > 0) {
   console.log(`Archived to ${archiveDir}`);
+}
+for (const { file, reason } of skippedFiles) {
+  console.log(`archive-raw: skipped ${file} — ${reason}`);
 }
