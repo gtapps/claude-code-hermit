@@ -384,6 +384,24 @@ run_test "startup-context (section priority)" bash -c \
   "out=\$(CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/startup-context.js' 2>/dev/null); echo \"\$out\" | grep -q 'Operator' && [ \${#out} -lt 8000 ]"
 cleanup
 
+# 36b. startup-context — injection_stub replaces body verbatim, no ellipsis
+workdir="$(setup_workdir)"
+cd "$workdir"
+mkdir -p "$workdir/.claude-code-hermit/compiled"
+cat > "$workdir/.claude-code-hermit/compiled/context-house-profile-2026-06-01.md" <<'EOF'
+---
+title: House Profile
+created: 2026-06-01T00:00:00+00:00
+type: context
+tags: [foundational]
+injection_stub: STUB_MARKER read compiled/context-house-profile-2026-06-01.md for detail
+---
+BODY_MARKER this long body should never be injected when a stub is present.
+EOF
+run_test "startup-context (injection_stub replaces body)" bash -c \
+  "out=\$(CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/startup-context.js' 2>/dev/null); echo \"\$out\" | grep -q 'STUB_MARKER' && ! echo \"\$out\" | grep -q 'BODY_MARKER' && ! echo \"\$out\" | grep -qF '[...]'"
+cleanup
+
 # 37a. startup-context — schema drift: undeclared compiled type surfaces warning
 workdir="$(setup_workdir)"
 cd "$workdir"

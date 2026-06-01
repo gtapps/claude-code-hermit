@@ -217,8 +217,9 @@ function lint(hermitDir, options = {}) {
         });
       }
 
-      // Oversized by char budget
-      if (a.bodyChars > compiledBudgetChars) {
+      // Oversized by char budget (skip if artifact has an injection_stub — body is never injected)
+      const stub = typeof a.fm.injection_stub === 'string' ? a.fm.injection_stub.trim() : '';
+      if (a.bodyChars > compiledBudgetChars && !stub) {
         findings.push({
           type: 'oversized',
           file: `compiled/${a.file}`,

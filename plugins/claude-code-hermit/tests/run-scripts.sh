@@ -105,6 +105,24 @@ run_test "knowledge-lint (finds missing-type)" grep -q 'missing-type' "$outfile"
 rm -f "$outfile"
 cleanup
 
+# 5a. injection_stub exempts oversized artifact; unstubbed oversized still flagged
+workdir="$(setup_workdir)"
+mkdir -p "$workdir/.claude-code-hermit/compiled"
+echo '{}' > "$workdir/.claude-code-hermit/config.json"
+printf -- '---\ntitle: stubbed\ntype: context\ncreated: 2026-06-01T00:00:00+00:00\ntags: [foundational]\ninjection_stub: House profile stub\n---\n%s' \
+  "$(python3 -c "print('x' * 1500)")" \
+  > "$workdir/.claude-code-hermit/compiled/context-stubbed.md"
+printf -- '---\ntitle: big\ntype: briefing\ncreated: 2026-06-01T00:00:00+00:00\n---\n%s' \
+  "$(python3 -c "print('x' * 1500)")" \
+  > "$workdir/.claude-code-hermit/compiled/briefing-big.md"
+outfile="$(mktemp)"
+node "$REPO_ROOT/scripts/knowledge-lint.js" "$workdir/.claude-code-hermit" > "$outfile" 2>&1
+run_test "knowledge-lint (stub exempts oversized)" bash -c \
+  "! grep -q 'context-stubbed' \"$outfile\""
+run_test "knowledge-lint (unstubbed oversized still flagged)" grep -q 'oversized' "$outfile"
+rm -f "$outfile"
+cleanup
+
 # 6. Clean state — valid files with matching schema, no findings
 workdir="$(setup_workdir)"
 mkdir -p "$workdir/.claude-code-hermit/raw" "$workdir/.claude-code-hermit/compiled"

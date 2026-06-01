@@ -53,6 +53,6 @@ Durable outputs. Injected into session context at startup within `compiled_budge
 
 - `snapshot-ha-normalized-latest.json` uses a fixed name (no date) so the safety reviewer and other tools always find the current inventory without globbing.
 - `-latest.{md,json}` siblings (e.g. `audit-ha-safety-latest.md`) are fixed-name copies of the most recent dated file. Readers that want the latest use the fixed name; the dated file is the archival record.
-- Mark a compiled artifact `foundational: true` in its frontmatter to pin it to every session start regardless of age.
+- Add `foundational` to a compiled artifact's `tags` array to pin it to every session start regardless of age. Also set `injection_stub` to a short summary string for startup context injection (see `docs/frontmatter-contract.md` in the core plugin).
 - Staged automation YAML lives in `raw/` until applied; after `ha-apply-change` succeeds it stays in `raw/` as the source-of-truth record (not moved to `compiled/`).
 - JSON artifacts do not carry frontmatter.
