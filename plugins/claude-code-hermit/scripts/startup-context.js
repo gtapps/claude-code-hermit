@@ -11,7 +11,8 @@ process.stdout.on('error', () => {});
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { readFileWithFrontmatter, newestByType, globDir } = require('./lib/frontmatter');
+const { readFrontmatter, readFileWithFrontmatter, newestByType, globDir } = require('./lib/frontmatter');
+const { parseSchema } = require('./knowledge-lint');
 
 const AGENT_DIR = process.env.AGENT_DIR || '.claude-code-hermit';
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT || path.resolve(__dirname, '..');
@@ -24,6 +25,7 @@ const BUDGETS = {
   operator:      2000,
   session:       3000,
   knowledge:     1000, // compiled/ artifacts — read from config, 1000 default
+  schemaDrift:    400, // only emitted when compiled/ types are undeclared in knowledge-schema.md
   storageDrift:   500, // only emitted when misplaced files are found
   cost:           500,
   report:        1500,
@@ -251,6 +253,34 @@ function main() {
         const suffix = hits.length > 5 ? `\n(${hits.length - 5} more)` : '';
         const body = `${hits.length} path${hits.length !== 1 ? 's' : ''} invisible to session injection and archival:\n${lines}${suffix}\nMove files into .claude-code-hermit/raw/ or compiled/ (flat). See docs/plugin-hermit-storage.md.`;
         emit('Storage Drift', body.slice(0, BUDGETS.storageDrift));
+      }
+    } catch {}
+  }
+
+  // -------------------------------------------------------
+  // 5b. Schema drift (priority 2.9, budget 400 — silent when clean or no schema)
+  // -------------------------------------------------------
+  if (totalChars < HARD_CAP) {
+    try {
+      const schemaPath = path.resolve(AGENT_DIR, 'knowledge-schema.md');
+      const schema = parseSchema(schemaPath);
+      if (schema) {
+        const compiledDir = path.resolve(AGENT_DIR, 'compiled');
+        const compiledFiles = globDir(compiledDir, /^[^.].*\.md$/);
+        const undeclared = new Map(); // type -> first filename
+        for (const f of compiledFiles) {
+          const fm = readFrontmatter(f);
+          if (!fm || !fm.type) continue;
+          if (!schema.workProducts.has(fm.type) && !undeclared.has(fm.type)) {
+            undeclared.set(fm.type, path.basename(f));
+          }
+        }
+        if (undeclared.size > 0) {
+          const lines = Array.from(undeclared.entries())
+            .map(([t, f]) => `- \`${t}\` (e.g. compiled/${f})`).join('\n');
+          const body = `${undeclared.size} undeclared type${undeclared.size !== 1 ? 's' : ''} in compiled/ — add to knowledge-schema.md ## Work Products:\n${lines}`;
+          emit('Schema Drift', body.slice(0, BUDGETS.schemaDrift));
+        }
       }
     } catch {}
   }

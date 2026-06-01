@@ -4,6 +4,7 @@
 
 ### Added
 
+- **startup-context: schema-drift warning at session start** — surfaces a "Schema Drift" block when any `compiled/` artifact has a `type` not declared in `knowledge-schema.md ## Work Products`, closing the up-to-7-day lag before the weekly Knowledge Health check fires. Silent when schema is absent/empty (weekly review handles that) or when all types are declared. Reuses the existing `parseSchema` logic from `knowledge-lint.js`. Closes #208.
 - **archive-compiled.js** — weekly-review now rotates compiled artifacts, keeping the newest 2 per type; `foundational`-tagged artifacts exempt. Companion to `archive-raw.js`. (#201)
 ### Changed
 

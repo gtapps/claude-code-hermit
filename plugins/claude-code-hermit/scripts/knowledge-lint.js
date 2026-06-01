@@ -335,4 +335,4 @@ if (require.main === module) {
   console.log(`\n(${counts.raw} raw, ${counts.compiled} compiled, ${counts.archived} archived)`);
 }
 
-module.exports = { lint };
+module.exports = { lint, parseSchema };

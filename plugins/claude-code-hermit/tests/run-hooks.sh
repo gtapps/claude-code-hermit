@@ -384,6 +384,30 @@ run_test "startup-context (section priority)" bash -c \
   "out=\$(CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/startup-context.js' 2>/dev/null); echo \"\$out\" | grep -q 'Operator' && [ \${#out} -lt 8000 ]"
 cleanup
 
+# 37a. startup-context — schema drift: undeclared compiled type surfaces warning
+workdir="$(setup_workdir)"
+cd "$workdir"
+mkdir -p "$workdir/.claude-code-hermit/compiled"
+printf -- '---\ntitle: Test\ntype: undeclared-widget\ncreated: 2025-01-01\n---\nBody.\n' \
+  > "$workdir/.claude-code-hermit/compiled/test-artifact.md"
+printf -- '## Work Products\n- known-type: a declared type\n\n## Raw Captures\n' \
+  > "$workdir/.claude-code-hermit/knowledge-schema.md"
+run_test "startup-context (schema drift — undeclared type)" bash -c \
+  "out=\$(AGENT_DIR='$workdir/.claude-code-hermit' CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/startup-context.js'); echo \"\$out\" | grep -qF -- '---Schema Drift---' && echo \"\$out\" | grep -qF -- 'undeclared-widget'"
+cleanup
+
+# 37b. startup-context — schema drift: declared type is silent
+workdir="$(setup_workdir)"
+cd "$workdir"
+mkdir -p "$workdir/.claude-code-hermit/compiled"
+printf -- '---\ntitle: Test\ntype: known-type\ncreated: 2025-01-01\n---\nBody.\n' \
+  > "$workdir/.claude-code-hermit/compiled/test-artifact.md"
+printf -- '## Work Products\n- known-type: a declared type\n\n## Raw Captures\n' \
+  > "$workdir/.claude-code-hermit/knowledge-schema.md"
+run_test "startup-context (schema drift — declared type, no warning)" bash -c \
+  "! AGENT_DIR='$workdir/.claude-code-hermit' CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/startup-context.js' | grep -qF -- 'Schema Drift'"
+cleanup
+
 # -------------------------------------------------------
 # generate-summary tests
 # -------------------------------------------------------
