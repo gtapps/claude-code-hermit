@@ -40,12 +40,12 @@ function emitArtifacts(artifacts, budget, headerFn, parts) {
     const header = headerFn(a);
     const available = budget - used - header.length;
     if (available <= 0) break;
-    const stub = typeof a.fm.injection_stub === 'string' ? a.fm.injection_stub.trim() : '';
+    const stubRaw = typeof a.fm.injection_stub === 'string' ? a.fm.injection_stub : '';
+    const stub = stubRaw.trim();
     let entry;
     if (stub) {
-      if (stub.length > available) continue; // too long for remaining budget — skip rather than garble
-      entry = header + stub;
-    } else {
+      if (stubRaw.length > available) continue; // too long for remaining budget — skip rather than garble
+      entry = header + stubRaw;
       const body = a.body || '';
       const snippet = body.slice(0, available);
       entry = header + snippet + (snippet.length < body.length ? '\n[...]\n' : '');
