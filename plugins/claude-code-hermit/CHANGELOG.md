@@ -5,6 +5,13 @@
 ### Added
 
 - **archive-compiled.js** — weekly-review now rotates compiled artifacts, keeping the newest 2 per type; `foundational`-tagged artifacts exempt. Companion to `archive-raw.js`. (#201)
+### Changed
+
+- **hermit-evolve: deterministic pre-pass (`scripts/evolve-plan.js`)** — a read-only analyzer precomputes the version gap, bounded CHANGELOG slice, new config keys, changed templates/bin, and the CLAUDE-APPEND block diff in one JSON pass; the skill acts on it instead of reading and diffing whole files in-context. Cuts a typical evolve run to ~15–25K tokens and fixes the CHANGELOG 2000-line read truncation that could silently skip the oldest `### Upgrade Instructions`. Closes #211.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. No `config.json` changes required. The skill's Step 8 adds the new `Bash(node */scripts/evolve-plan.js*)` permission automatically; you may see a single approval prompt for the helper on the first run.
 
 ## [1.1.7] - 2026-05-31
 

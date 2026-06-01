@@ -31,27 +31,9 @@ Upgrade the project's hermit configuration after a plugin update.
   Substitute `<min>` with the value from `min_claude_code_version` and
   `<detected>` with the parsed CLI version. Then stop. Do not prompt to bypass.
 
-### 1. Read versions
+### 1. Resolve hatch target, then run the pre-pass
 
-- Read `.claude-code-hermit/config.json`
-- Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` to get the current plugin version
-- Read `_hermit_versions` from config (default to `{"claude-code-hermit": "0.0.0"}` if the field is missing — this means the project was initialized before version tracking existed)
-- Compare: `config_version` vs `plugin_version`
-
-If versions match: report "You're up to date (vX.Y.Z). Nothing to upgrade." and stop.
-
-If config.json doesn't exist: report "No config found. Run `/claude-code-hermit:hatch` first." and stop.
-
-### 2. Read changelog
-
-- Read `${CLAUDE_PLUGIN_ROOT}/CHANGELOG.md`
-- Extract entries between the config version and the plugin version
-- Present a summary to the operator: "Upgrading from vX.Y.Z to vA.B.C. Here's what changed:"
-- Show only the relevant changelog sections (not the entire file)
-
-### 2a. Resolve hatch target
-
-Before running version migrations, determine `hatch_target` so Steps 6, 7, and 8 write to the correct file:
+First determine `hatch_target` (the pre-pass needs it, and so do Steps 6, 7, 8):
 
 1. Read `.claude-code-hermit/state/hatch-options.json` if it exists. Use the `"target"` field as `hatch_target`.
 2. If the file is absent or has no `"target"` field:
@@ -59,26 +41,41 @@ Before running version migrations, determine `hatch_target` so Steps 6, 7, and 8
    - Else if `CLAUDE.md` contains the marker → `hatch_target = "committed"`.
    - Else → re-run scope detection: read `claude plugin list --json`. From the output, find all entries where plugin name (substring of `id` left of `@`) is `claude-code-hermit` and `enabled == true`. Apply precedence: if any has `scope == "local"` and `projectPath` equals current project root → `local`; else if any has `scope == "project"` and `projectPath` equals current project root → `project`; else if any has `scope == "user"` (any `projectPath`) → `user`; else → `null`. Map: `project` → `committed`; `local`/`user`/`null` → `local`.
 
+Then run the deterministic pre-pass — a single read-only analyzer that computes the version gap, the bounded CHANGELOG slice, new config keys, changed templates/bin, and the CLAUDE-APPEND block diff, so the steps below act on its output instead of reading and diffing whole files:
+
+```
+node ${CLAUDE_PLUGIN_ROOT}/scripts/evolve-plan.js .claude-code-hermit --hatch-target=<hatch_target>
+```
+
+Parse stdout as JSON (the "plan"). The plan's `errors` array is the **sole error channel** — objects of `{code, message}`:
+
+- If `errors` contains an entry with `code == "no_config"` → report "No config found. Run `/claude-code-hermit:hatch` first." and stop.
+- Else if `errors` is non-empty (any other code, e.g. `no_hatch_target`) **or** stdout is not valid JSON → report "evolve-plan failed: <joined messages> — re-run or report." and stop. Do not fall back to reading and diffing the files by hand.
+
+**Version check:** the plan reports `from`, `to`, and `up_to_date`. If `up_to_date` is `true`, report "You're up to date (v<to>). Nothing to upgrade." and stop. Otherwise announce: "Upgrading from v<from> to v<to>."
+
+### 2. Present the changelog
+
+Present the plan's `changelog_slice` to the operator: "Here's what changed:" followed by the slice. It already contains only the entries in `(from, to]`, oldest-first — no full-file read.
+
 ### 2b. Execute version migrations
 
-For each CHANGELOG.md version entry between `config_version` (exclusive) and `plugin_version` (inclusive), processed in **oldest-first order**:
+Within `changelog_slice` (already ordered oldest-first), each version entry may contain a `### Upgrade Instructions` section:
 
-1. Find the `### Upgrade Instructions` section within that version's entry
+1. Find the `### Upgrade Instructions` section within each version's entry
 2. If found, execute every instruction in that section — these are the authoritative migration steps
 3. Present version-specific operator notes as you go
 4. If a step is interactive (asks the operator a question), ask it before proceeding
 
-This is the same pattern used for hermit plugin upgrades in step 7. The CHANGELOG.md `### Upgrade Instructions` sections are the single source of truth for migrations — do not skip or merely display them.
+The CHANGELOG.md `### Upgrade Instructions` sections are the single source of truth for migrations — do not skip or merely display them. The same pattern applies to sibling-hermit upgrades in Step 7.
 
-### 3. Detect new config keys
+### 3. New config keys
 
-- Read `${CLAUDE_PLUGIN_ROOT}/state-templates/config.json.template` for the current schema
-- Compare keys in the template against keys in the project's config.json
-- Identify new keys not present in the project's config
+The plan's `new_config_keys` array lists every key in the current `config.json.template` that is missing from the project's config, each as `{path, default}` — a dotted `path` for a nested leaf, or a fully-absent parent carrying its whole default subtree. Operator-set values are never listed, so acting on these never overwrites them.
 
 ### 4. Ask about new settings
 
-For each new key, check the table below. If the key is interactive, ask the operator. If not, add it silently with the default value. Batch interactive questions into a single numbered list.
+For each entry in the plan's `new_config_keys`, check the interactive allowlist below. If the entry's `path` is interactive, ask the operator. **Every other key — including template-only keys not enumerated below — is added silently with its `default` from the plan.** Batch interactive questions into a single numbered list.
 
 **Interactive keys** (ask operator if missing):
 - `agent_name` (0.0.1), `language` (0.0.1, auto-detect from `$LANG`), `timezone` (0.0.1, auto-detect), `escalation` (0.0.1), `idle_behavior` (0.0.9)
@@ -118,8 +115,8 @@ Also: if an active SHELL.md has a `## Plan` section (legacy plan table), warn th
 
 ### 5. Update templates
 
-- Compare each template file in `${CLAUDE_PLUGIN_ROOT}/state-templates/` against the corresponding file in `.claude-code-hermit/templates/`
-- If the plugin's template has different content: replace the project's template
+- For each basename in the plan's `templates_changed`, copy `${CLAUDE_PLUGIN_ROOT}/state-templates/<name>` over `.claude-code-hermit/templates/<name>`. The plan already byte-compared them — don't re-read contents to diff.
+- If `templates_changed` is empty, skip.
 - Report which templates were updated
 - Note: SHELL.md.template no longer has a `## Plan` section — plan tracking is now handled by native Claude Code Tasks
 
@@ -141,23 +138,21 @@ If `<project-root>/obsidian/` exists in the target project:
 
 ### 5b. Update boot script wrappers
 
-- Copy all files from `${CLAUDE_PLUGIN_ROOT}/state-templates/bin/` into `.claude-code-hermit/bin/`
-- For each file: compare against the existing version and replace if different. Copy new files that don't exist yet.
+- For each basename in the plan's `bin_changed`, copy `${CLAUDE_PLUGIN_ROOT}/state-templates/bin/<name>` into `.claude-code-hermit/bin/<name>` (the plan already byte-compared and lists differing or missing files).
 - Ensure all files in `.claude-code-hermit/bin/` are executable
+- If `bin_changed` is empty, skip the copy (still confirm executability).
 
 ### 6. Update CLAUDE-APPEND block
 
-The target file is determined by `hatch_target` (resolved in step 2a):
+The target file is determined by `hatch_target` (resolved in Step 1):
 - `hatch_target == "local"` → `CLAUDE.local.md`
 - `hatch_target == "committed"` → `CLAUDE.md`
 
-- Read the target file
-- Find the `<!-- claude-code-hermit: Session Discipline -->` marker
-- Read `${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND.md` for the current version
-- Compare the block in the target file (from the marker to the end of file or next `---` separator) with the template
-- If different: replace the block with the updated content
-- If the marker is not found: append the full CLAUDE-APPEND.md to the target file (same as init)
-- Report what changed
+If the plan's `claude_append_changed` is `false`, skip this step. If `true`, read `${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND.md` for the new content, then branch on the plan's `claude_append_old_block`:
+
+- **`claude_append_old_block` present** (marker found — replace case): the new content is the marker-onward portion of `CLAUDE-APPEND.md` (from the `<!-- claude-code-hermit: Session Discipline -->` marker to its end; the leading `---` already sits above the marker in the target). Apply a targeted `Edit` to the target file with `old_string` = `claude_append_old_block` (the exact current block) and `new_string` = that marker-onward content. **Do not read the whole target file** — the exact `old_string` is supplied by the plan, and the `---` must not be duplicated.
+- **`claude_append_old_block` absent** (marker not found — append case): append the **full `CLAUDE-APPEND.md` including its leading `---`** to the target file (same as init — the `---` separates the project's content from the block).
+- Report what changed.
 
 ### 7. Hermit upgrades
 
@@ -183,19 +178,20 @@ The target file is determined by `hatch_target` (resolved in step 2a):
 
 ### 8. Ensure plugin permissions in settings file
 
-Same logic as init step 8, but target the file determined by `hatch_target` (resolved in step 2a):
+Same logic as init step 8, but target the file determined by `hatch_target` (resolved in Step 1):
 - `hatch_target == "local"` → `.claude/settings.local.json`
 - `hatch_target == "committed"` → `.claude/settings.json`
 
-Check the target settings file for the plugin's required permissions (`git diff/status/log`, per-script `node` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required node entries are: `cost-tracker.js`, `suggest-compact.js`, `run-with-profile.js`, `evaluate-session.js`, `append-metrics.js`, `generate-summary.js`, `cron-tz-shift.js`, `archive-shell.js`. If any are missing, show the operator which ones and ask for confirmation before adding. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found in the target file:
+Check the target settings file for the plugin's required permissions (`git diff/status/log`, per-script `node` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required node entries are: `cost-tracker.js`, `suggest-compact.js`, `run-with-profile.js`, `evaluate-session.js`, `append-metrics.js`, `generate-summary.js`, `cron-tz-shift.js`, `archive-shell.js`, `evolve-plan.js`. If any are missing, show the operator which ones and ask for confirmation before adding. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found in the target file:
 
 - `Bash(python3:*)`, `Bash(node:*)` — replaced by scoped node entries
 - `Edit(.claude/.claude-code-hermit/**)`, `Write(.claude/.claude-code-hermit/**)` — replaced by `.claude-code-hermit/**` (v0.0.6 path change)
 
 ### 9. Write updated config
 
-- Merge new keys into existing config (existing operator values are never overwritten)
-- Update `_hermit_versions["claude-code-hermit"]` to the current plugin version
+- **Re-read `.claude-code-hermit/config.json` now** — Step 2b migrations may have written keys since the pre-pass ran.
+- For each entry in `new_config_keys` (plus interactive answers from Step 4), set `path` to its value **only if that path is still missing** in the freshly-read config. Never overwrite an existing operator or migration-set value.
+- Update `_hermit_versions["claude-code-hermit"]` to the current plugin version (the plan's `to`)
 - For hermits: only update versions for hermits already present as keys in `_hermit_versions` — never add new keys here
 - Write to `.claude-code-hermit/config.json`
 

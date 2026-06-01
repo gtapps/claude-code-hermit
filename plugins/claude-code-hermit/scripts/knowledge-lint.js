@@ -18,7 +18,7 @@ const { readFrontmatter, readFileWithFrontmatter, newestByType, globDirRecursive
 
 function parseSchema(schemaPath) {
   // Returns { workProducts: Set<string>, rawCaptures: Set<string> }, null if present but empty, false if missing.
-  // Bullet grammar: lines matching `^-\s+([\w-]+):` under each section heading.
+  // Bullet grammar: lines matching `^-\s+([\w-]+):` or `^-\s+\*\*([\w-]+)\*\*:` under each section heading.
   let text;
   try { text = fs.readFileSync(schemaPath, 'utf8'); } catch { return false; }
   text = text.replace(/<!--[\s\S]*?-->/g, '');
@@ -29,10 +29,11 @@ function parseSchema(schemaPath) {
     if (/^##\s+Work Products\b/.test(line)) { section = 'work'; continue; }
     if (/^##\s+Raw Captures\b/.test(line)) { section = 'raw'; continue; }
     if (/^##/.test(line)) { section = null; continue; }
-    const m = line.match(/^-\s+([\w-]+):/);
+    const m = line.match(/^-\s+(?:\*\*([\w-]+)\*\*|([\w-]+)):/);
     if (!m) continue;
-    if (section === 'work') workProducts.add(m[1]);
-    if (section === 'raw') rawCaptures.add(m[1]);
+    const type = m[1] || m[2];
+    if (section === 'work') workProducts.add(type);
+    if (section === 'raw') rawCaptures.add(type);
   }
   if (workProducts.size === 0 && rawCaptures.size === 0) return null;
   return { workProducts, rawCaptures };
@@ -81,7 +82,7 @@ function lint(hermitDir, options = {}) {
         if (!result || !result.fm) return null;
         const lineCount = result.content.split('\n').length;
         const bodyChars = result.body.length;
-        compiledBodies.set(f, result.body);
+        if (!f.startsWith('review-weekly-')) compiledBodies.set(f, result.body);
         return { file: f, fm: result.fm, lineCount, bodyChars };
       } catch { return null; }
     }).filter(Boolean);
@@ -118,7 +119,9 @@ function lint(hermitDir, options = {}) {
   for (const raw of rawFiles) {
     const filename = raw.file;
 
-    // Check if any compiled/ body references this filename
+    // Check if any compiled/ body references this filename.
+    // review-weekly-*.md are excluded from compiledBodies at build time above so they
+    // don't mask the very files they report as expired.
     let referenced = false;
     for (const [, body] of compiledBodies) {
       if (body.includes(filename)) { referenced = true; break; }

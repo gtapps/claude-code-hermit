@@ -1,5 +1,5 @@
 # Knowledge Schema
-<!-- knowledge-lint.js reads ## Work Products and ## Raw Captures to enforce type declarations. Bullet lines matching `- <type>:` are parsed; HTML comment blocks are ignored. -->
+<!-- knowledge-lint.js reads ## Work Products and ## Raw Captures to enforce type declarations. Bullet lines matching `- <type>:` or `- **<type>**:` are parsed; HTML comment blocks are ignored. -->
 
 <!-- Co-evolve this file with your operator over time.
      Defines what this hermit produces — plumbing, not policy.
