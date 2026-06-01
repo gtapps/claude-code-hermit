@@ -945,7 +945,7 @@ Identity:
 Config:
   Plugins:         claude-code-setup, claude-md-management, skill-creator, feature-dev
   Channels:        none
-  Push notifications: enabled
+  Push notifications: {enabled | disabled}
   Budget prompts:  enabled
   Morning brief:   disabled
   Heartbeat:       disabled
