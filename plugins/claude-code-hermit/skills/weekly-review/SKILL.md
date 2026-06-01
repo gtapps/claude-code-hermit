@@ -45,8 +45,15 @@ Generates the weekly review for the current ISO week.
    ```
    Report how many were archived, retained, and skipped.
 
+6. Archive superseded compiled artifacts:
+   ```
+   node ${CLAUDE_PLUGIN_ROOT}/scripts/archive-compiled.js .claude-code-hermit
+   ```
+   Report how many were archived, retained, and skipped.
+
 ## Notes
 
 - Safe to run manually at any time — re-runs overwrite the current week's review.
 - The routine is enabled by default for new installs. Existing operators who haven't opted in can enable it via `/claude-code-hermit:hermit-settings`.
 - `archive-raw.js` only moves files — it never deletes. Archived files land in `raw/.archive/` and can be restored manually.
+- `archive-compiled.js` only moves files — it never deletes. Keeps the newest 2 artifacts per type; `foundational`-tagged artifacts are always retained. Archived files land in `compiled/.archive/` and can be restored manually.

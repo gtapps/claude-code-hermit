@@ -16,6 +16,7 @@ bash "$SCRIPT_DIR/test-docker-baseline-content.sh"   || rc=$?
 bash "$SCRIPT_DIR/test-template-skill-sync.sh"       || rc=$?
 bash "$SCRIPT_DIR/test-hatch-options-contract.sh"    || rc=$?
 bash "$SCRIPT_DIR/test-archive-shell.sh"             || rc=$?
+bash "$SCRIPT_DIR/test-archive-compiled.sh"         || rc=$?
 bash "$SCRIPT_DIR/test-hook-registration-form.sh"          || rc=$?
 bash "$SCRIPT_DIR/test-channel-responder-reply-rule.sh"    || rc=$?
 bash "$SCRIPT_DIR/test-proposal-act-accept-flow.sh"        || rc=$?
