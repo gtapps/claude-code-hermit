@@ -7,7 +7,7 @@ description: On-demand dev-voice brainstorm — reads codebase friction signals 
 
 ## Kill criteria (read before running)
 
-After ≥8 invocations, read `state/proposal-metrics.jsonl` and filter events where `type:"brainstorm-emit"` and `skill:"domain-brainstorm"`. Count CREATE vs total emits with ideas (triage-survival) and read `status:` of the resulting PROP files (PROP-acceptance). If triage-survival < 25% or PROP-acceptance < 30%, cut this skill rather than tune it — signal-to-noise isn't there.
+After ≥8 invocations, read `.claude-code-hermit/state/proposal-metrics.jsonl` and filter events where `type:"brainstorm-emit"` and `skill:"domain-brainstorm"`. Count CREATE vs total emits with ideas (triage-survival) and read `status:` of the resulting PROP files (PROP-acceptance). If triage-survival < 25% or PROP-acceptance < 30%, cut this skill rather than tune it — signal-to-noise isn't there.
 
 ### Gate 0 — Gather inputs
 
@@ -51,6 +51,8 @@ Evidence: <one paragraph: friction sentence + named grounding items>
 ```
 
 Set frontmatter: `source: auto-detected`, `category: improvement`.
+
+> `Evidence Source: capability-brainstorm` is reused intentionally: it is the only source `proposal-triage` recognizes for the single-pass recurrence bypass, and adding a dedicated `domain-brainstorm` source is a core edit this skill deliberately avoids. The cost: domain-brainstorm proposals carry capability-brainstorm provenance to any consumer that buckets by evidence source. Per-skill kill metrics are unaffected (they read the `brainstorm-emit` events below, which are tagged `skill:"domain-brainstorm"`). If this skill graduates from pilot, promote it to a first-class triage bypass source.
 
 Parse the verdict:
 - `CREATE` — note PROP-NNN.
