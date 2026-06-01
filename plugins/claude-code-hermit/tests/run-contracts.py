@@ -1401,15 +1401,21 @@ class TestKillMetricsContract(unittest.TestCase):
 
     def test_proposal_create_triage_verdict_has_evidence_source(self):
         """proposal-create triage-verdict event must include evidence_source."""
-        self.assertIn('"evidence_source"', self._proposal_create,
-                      'proposal-create triage-verdict event is missing evidence_source — '
-                      'triage-survival rate cannot be segmented by brainstorm origin')
+        self.assertIn(
+            '"type":"triage-verdict","verdict":"<CREATE|SUPPRESS|DUPLICATE>","caller":"proposal-create","evidence_source":"<evidence source>"',
+            self._proposal_create,
+            'proposal-create triage-verdict emitter example is missing evidence_source — '
+            'triage-survival rate cannot be segmented by brainstorm origin',
+        )
 
     def test_proposal_create_created_event_has_tags(self):
         """proposal-create created event must include tags."""
-        self.assertIn('"tags"', self._proposal_create,
-                      'proposal-create created event is missing tags — '
-                      'PROP-acceptance rate cannot be segmented by brainstorm origin')
+        self.assertIn(
+            '"type":"created","proposal_id":"PROP-NNN-slug-HHMMSS","source":"<source>","category":"<category>","tags":["<tag-1>","<tag-2>"]',
+            self._proposal_create,
+            'proposal-create created emitter example is missing tags — '
+            'PROP-acceptance rate cannot be segmented by brainstorm origin',
+        )
 
     def test_capability_brainstorm_kill_criteria_references_evidence_source(self):
         """capability-brainstorm kill criteria must reference evidence_source for triage-survival."""

@@ -89,7 +89,7 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js \
 
 4. Append a `created` event to proposal metrics (include `source`, `category`, and `tags` from the frontmatter):
    ```
-   node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"created","proposal_id":"PROP-NNN-slug-HHMMSS","source":"<source>","category":"<category>","tags":["<tag>"]}'
+   node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"created","proposal_id":"PROP-NNN-slug-HHMMSS","source":"<source>","category":"<category>","tags":["<tag-1>","<tag-2>"]}'
    ```
 5. Update state summary:
    ```
