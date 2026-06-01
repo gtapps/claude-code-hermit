@@ -19,7 +19,7 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill executes the following step automatically (via Step 7's sibling upgrade flow).
 
-1. **Extend knowledge-schema.md with HA types.** Read `.claude-code-hermit/knowledge-schema.md`. Check if `- analysis:` is present — if so, skip (already up to date). If absent, append the following under `## Work Products`:
+1. **Extend knowledge-schema.md with HA types.** Read `.claude-code-hermit/knowledge-schema.md`. Check if either `- analysis:` or `- **analysis**:` is present — if so, skip (already up to date). If absent, append the following under `## Work Products`:
 
    ```
    - brief: morning/evening house brief. location: compiled/brief-<morning|evening>-<date>.md

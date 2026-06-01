@@ -102,8 +102,13 @@ def test_has_knowledge_schema_extension_step(skill_text: str):
 
 
 def test_knowledge_schema_idempotency_sentinel(skill_text: str):
-    # The sentinel that gates the idempotency check must be the last-written bullet.
-    assert "- analysis:" in skill_text
+    # The sentinel must appear as the actual typed bullet in the appended block,
+    # not just as a backtick-quoted example in the prose description.
+    assert "- analysis: HA pattern analysis" in skill_text
+
+
+def test_knowledge_schema_declares_context(skill_text: str):
+    assert "- context:" in skill_text
 
 
 def test_knowledge_schema_declares_brief(skill_text: str):
