@@ -38,7 +38,7 @@ for (const fullPath of globDir(compiledDir, /^[^.].*\.md$/)) {
 }
 
 // --- Scan raw/ ---
-const rawFullPaths = globDir(rawDir, /^[^.].*\.md$/);
+const rawFullPaths = globDir(rawDir, /^[^.].*\.(md|json)$/);
 if (rawFullPaths.length === 0) {
   console.log('raw/ does not exist or is empty — nothing to archive.');
   process.exit(0);
@@ -50,19 +50,26 @@ fs.mkdirSync(archiveDir, { recursive: true });
 let archived = 0;
 let retained = 0;
 let skipped = 0;
+let pinned = 0;
 
 for (const filePath of rawFullPaths) {
   const filename = path.basename(filePath);
-  const fm = readFrontmatter(filePath);
 
-  // Skip if no frontmatter or no created date — can't determine age
-  if (!fm || !fm.created) {
-    skipped++;
+  // Pin -latest.* aliases — they're overwritten in place, never accumulate
+  if (/-latest\.(md|json)$/.test(filename)) {
+    pinned++;
     continue;
   }
 
-  const created = new Date(fm.created);
-  if (isNaN(created.getTime())) {
+  // Resolve artifact age: prefer frontmatter `created`, fall back to YYYY-MM-DD in filename
+  const fm = readFrontmatter(filePath);
+  let created = fm && fm.created ? new Date(fm.created) : null;
+  if (!created || isNaN(created.getTime())) {
+    const m = filename.match(/(\d{4}-\d{2}-\d{2})/);
+    created = m ? new Date(m[1]) : null;
+  }
+
+  if (!created || isNaN(created.getTime())) {
     skipped++;
     continue;
   }
@@ -97,7 +104,7 @@ for (const filePath of rawFullPaths) {
   }
 }
 
-console.log(`archive-raw: ${archived} archived, ${retained} retained, ${skipped} skipped.`);
+console.log(`archive-raw: ${archived} archived, ${retained} retained, ${skipped} skipped, ${pinned} pinned (-latest).`);
 if (archived > 0) {
   console.log(`Archived to ${archiveDir}`);
 }
