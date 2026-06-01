@@ -398,7 +398,7 @@ For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, 
 5. **Overlay operator choices** from the wizard:
    - From Phase 2: `agent_name`, `language`, `timezone`, `sign_off`.
    - From Phase 3: `escalation`, `remote`, `ask_budget`, `idle_behavior`.
-   - From Phase 5: `channels.<name>` populated per Phase 5 rules (state_dir, allowed_users, morning_brief). Set `push_notifications` from the Phase 5 channel choice on **fresh hatch only**: `false` if any channel was selected (channel is the doorbell); `true` if None (push is the doorbell). On re-init (`is_reinit == true`), do **not** re-derive — leave the existing `push_notifications` value untouched, same as any field the wizard didn't ask about. This preserves a manual `/hermit-settings push-notifications` toggle across re-inits. This rule is shared with Quick Turn 3 (Quick is fresh-only by Step 1.6's gate, so the re-init carve-out only affects Advanced).
+   - From Phase 5: `channels.<name>` populated per Phase 5 rules (state_dir, allowed_users, morning_brief). Do **not** derive `push_notifications` from the channel choice — leave it at the template default (`true`) on fresh hatch. The runtime channel-first/push-fallback guard in CLAUDE-APPEND.md already prevents double-notification (push only fires when a channel is unreachable or absent). On re-init (`is_reinit == true`), leave the existing `push_notifications` value untouched, same as any field the wizard didn't ask about, preserving a manual `/hermit-settings push-notifications` toggle across re-inits.
    - From Phase 6: `permission_mode`; append routines (morning, evening) if enabled — heartbeat-restart is already in the template.
    - From Phase 4: append `scheduled_checks` entries per the per-plugin mapping in Phase 4 (only `claude-code-setup` and `claude-md-management` contribute — 3 entries total when both selected; `skill-creator` and `feature-dev` add zero entries).
 6. **Write merged object** as `.claude-code-hermit/config.json`.
@@ -830,7 +830,7 @@ questions: [
 
 Record `sign_off`, `deployment` (one of `docker` / `tmux` / `interactive`), `channel` (one of `none` / `discord` / `telegram`).
 
-`push_notifications` is derived from Turn 3's channel choice in Step 5 — no follow-up question. Set to `false` if any channel was selected, `true` if None.
+`push_notifications` is left at the template default (`true`) — no follow-up question. Push is dormant whenever a channel is reachable (the runtime guard in CLAUDE-APPEND.md sends channel-first) and fires only as fallback when a channel is unreachable or absent.
 
 **Derived values from this turn (used in the confirm bundle and Step 5 overlay):**
 - `permission_mode`: `auto` (same default for both Docker and non-Docker deployments). Requires CC 2.1.148+ and Max/Team/Enterprise/API plan — not on Pro or Haiku. If the operator is on an ineligible plan, they'll see an "unavailable" error at launch and should run `/hermit-settings permissions` to switch to `acceptEdits`.
@@ -855,7 +855,7 @@ Quick setup will apply:
   Plugins:     all 4 installed
   Routines:    morning 08:30, evening 22:30, heartbeat 04:00
   Channel:     {channel or None} (allow-everyone; token + pairing later)
-  Push notifications: {enabled | disabled}
+  Push notifications: enabled
   Hermit ext:  {activated or none}
   Visibility:  {.local — plugin installed at <scope> scope | committed — plugin installed at project scope}
   Files:       {CLAUDE.local.md | CLAUDE.md}, .gitignore, {.claude/settings.local.json | .claude/settings.json}
@@ -864,7 +864,7 @@ Quick setup will apply:
 Customize restarts the wizard from scratch; your Quick answers won't carry over.
 ```
 
-The `Visibility:` and `Files:` lines are dynamic based on `hatch_target`. The `Push notifications:` line is always shown (derived from the Channel: choice — enabled when Channel is None, disabled when a channel was selected).
+The `Visibility:` and `Files:` lines are dynamic based on `hatch_target`. The `Push notifications:` line is always shown as `enabled` (template default; push acts as fallback when a channel is unreachable — the runtime guard in CLAUDE-APPEND.md prevents double-notification).
 
 Ask:
 
@@ -894,7 +894,7 @@ Quick replaces Step 4 entirely and applies these defaults silently at the shared
 | Advanced Phase 4 equivalent | plugins + scheduled_checks | install all 4; write 3 scheduled_checks entries per Phase 4 mapping |
 | Advanced Phase 4b equivalent | `.baseline-pending` marker | same eligibility check as Advanced |
 | Advanced Phase 5 equivalent | channels.<name>.* | state_dir + enabled + dm_channel_id=null; omit allowed_users + morning_brief |
-| Quick Turn 3 channel choice | push_notifications | derived: true if channel = None, false if any channel selected |
+| Quick Turn 3 channel choice | push_notifications | template default (true) — don't override |
 | Advanced Phase 6 equivalent | permission_mode, routines | permission_mode = `auto`; routines = morning 08:30 + evening 22:30 + (template) heartbeat 04:00 |
 | Step 6 | CLAUDE.md / CLAUDE.local.md append | apply silently to `hatch_target` file (default "keep" if marker already present) |
 | Step 7 | .gitignore append | apply silently (per-line idempotent) |
@@ -945,7 +945,7 @@ Identity:
 Config:
   Plugins:         claude-code-setup, claude-md-management, skill-creator, feature-dev
   Channels:        none
-  Push notifications: {enabled | disabled}
+  Push notifications: enabled
   Budget prompts:  enabled
   Morning brief:   disabled
   Heartbeat:       disabled
