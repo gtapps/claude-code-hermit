@@ -24,6 +24,7 @@ This project has the `claude-code-fitness-hermit` plugin installed. The rules be
 | `/claude-code-fitness-hermit:capture-activity-rpe` | Auto-captures RPE from channel replies to strava-sync notifications |
 | `/claude-code-fitness-hermit:set-rpe` | Manually record RPE for any activity (backfill, correction, non-latest activities) |
 | `/claude-code-fitness-hermit:weekly-coaching-patterns` | Scheduled check — detects upward cardiac-drift trends across recent steady-session activity notes |
+| `/claude-code-fitness-hermit:domain-brainstorm` | On-demand brainstorm — surfaces goal-coverage gaps and training imbalances as proposals |
 
 ### Subagents
 
@@ -78,5 +79,14 @@ These run via the core `scheduled-checks` routine (daily) and fire at most once 
 - Weekly load baselines: `state/strava-weekly-baselines.json` (written by weekly-load-review, read by monday-planning)
 - Subjective notes: `state/activity-notes.json` (written by capture-activity-rpe + set-rpe, read by activity-deep-dive + weekly-load-review)
 - Pending RPE: `state/strava-pending-rpe.json` (written by strava-sync after a successful channel send, read and deleted by capture-activity-rpe)
+
+### Fitness Proposal Categories
+
+Use these prefixes in proposal titles produced by `/claude-code-fitness-hermit:domain-brainstorm`:
+
+- **[goal-gap]** — a stated or inferred goal with no recent supporting data (includes a discipline not logged in N weeks, and untracked sleep/macro dimensions)
+- **[imbalance]** — training mix wrong vs stated or inferred goals (cardio/strength ratio skew, same workout repeated with no progression)
+
+Per the core three-condition proposal gate, ideas surfaced by `/claude-code-fitness-hermit:domain-brainstorm` are single-pass — the brainstorm establishes the candidate, so condition (1) (repeated pattern) is waived; conditions 2 and 3 still apply.
 
 <!-- /claude-code-fitness-hermit: Fitness Workflow -->
