@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **domain-brainstorm: on-demand training-gap brainstorm skill** — reads Strava history and MEMORY.md goals, delegates bulk aggregation to `strava-data-cruncher`, and surfaces at most 2 goal-coverage or imbalance ideas (prefixes `[goal-gap]`, `[imbalance]`) as proposals via `proposal-create`. Scoped to coverage/imbalance gaps only — cardiac-drift and load trends remain with `weekly-coaching-patterns`. Never runs autonomously.
+- **Core Rule: ground training-history facts in Strava, not memory** — records, PBs, all-time totals, counts, and cross-block comparisons require a full-history Strava query; context/compaction may drop older activities. Recent-activity questions are unaffected.
 
 ### Upgrade Instructions
 

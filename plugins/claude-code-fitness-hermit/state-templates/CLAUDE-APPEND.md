@@ -14,6 +14,7 @@ This project has the `claude-code-fitness-hermit` plugin installed. The rules be
 - Never call `star-segment`, `connect-strava`, or `disconnect-strava` without explicit operator instruction.
 - Use `get-activity-streams` for load/intensity analysis — it's the richest data source.
 - HR zone boundaries come from `mcp__strava__get-athlete-zones` — never hardcode numeric thresholds.
+- Records, PBs, all-time totals, counts, and cross-block comparisons depend on older activities that context or compaction may drop. Ground them in a full-history Strava query (see the Strava MCP Tools table), or flag the number as unverified and offer to check. Recent-activity questions are fine from live context.
 
 ### Skills
 
