@@ -2,6 +2,45 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Fixed
+
+- **hatch: knowledge-schema.md now seeded with HA artifact types** — weekly-review Knowledge Health no longer flags HA `.md` artifacts as `undeclared-type`. Covers `brief`, `context`, `presence-report` (Work Products) and `audit`, `simulation`, `apply`, `remove`, `analysis` (Raw Captures).
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/hatch/SKILL.md` | New Step 7.6: idempotent knowledge-schema extension; final-report line |
+| `tests/test_hatch_skill.py` | Structural tests for Step 7.6 |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill executes the following step automatically (via Step 7's sibling upgrade flow).
+
+1. **Extend knowledge-schema.md with HA types.** Read `.claude-code-hermit/knowledge-schema.md`. Check if either `- analysis:` or `- **analysis**:` is present — if so, skip (already up to date). If absent, append the following under `## Work Products`:
+
+   ```
+   - brief: morning/evening house brief. location: compiled/brief-<morning|evening>-<date>.md
+   - context: foundational house/system profile. location: compiled/context-house-profile-<date>.md
+   - presence-report: presence history and tracker diagnostics. location: compiled/presence-report-<date>.md
+   ```
+
+   And under `## Raw Captures`:
+
+   ```
+   - audit: HA operational audit (safety, integration-health, context-refresh). location: raw/audit-ha-<type>-<date>.md
+   - simulation: HA automation simulation result. location: raw/audit-ha-simulation-<slug>-<date>.md
+   - apply: HA automation apply result. location: raw/audit-ha-apply-<slug>-<date>.md
+   - remove: HA automation/script delete audit. location: raw/audit-ha-remove-<slug>-<date>.md
+   - analysis: HA pattern analysis. location: raw/patterns-<date>.md
+   ```
+
+   Use Edit to append.
+
+---
+
 ## [0.1.7] - 2026-05-31
 
 ### Added

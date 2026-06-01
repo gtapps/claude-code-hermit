@@ -163,6 +163,35 @@ Read `ha_safety_mode` from `.claude-code-hermit/config.json`.
 
 Write the chosen value to `config.json` as `ha_safety_mode`. Default to `strict` if the operator skips or is unsure.
 
+### 7.6 Knowledge-schema extension
+
+Read `.claude-code-hermit/knowledge-schema.md`.
+
+Check if either `- analysis:` or `- **analysis**:` is present in the file. This string only appears as the last Raw Captures bullet written — so its presence means both blocks were fully written on a prior run.
+If **absent**, append the following block under `## Work Products` (create the section header if the base schema only has a template stub):
+
+```
+- brief: morning/evening house brief. location: compiled/brief-<morning|evening>-<date>.md
+- context: foundational house/system profile. location: compiled/context-house-profile-<date>.md
+- presence-report: presence history and tracker diagnostics. location: compiled/presence-report-<date>.md
+```
+
+And under `## Raw Captures` (create if absent):
+
+```
+- audit: HA operational audit (safety, integration-health, context-refresh). location: raw/audit-ha-<type>-<date>.md
+- simulation: HA automation simulation result. location: raw/audit-ha-simulation-<slug>-<date>.md
+- apply: HA automation apply result. location: raw/audit-ha-apply-<slug>-<date>.md
+- remove: HA automation/script delete audit. location: raw/audit-ha-remove-<slug>-<date>.md
+- analysis: HA pattern analysis. location: raw/patterns-<date>.md
+```
+
+If already present: skip (idempotent).
+
+Use Edit to make the changes.
+
+---
+
 ### 8. Stamp version and register routines
 
 Write `_hermit_versions["claude-code-homeassistant-hermit"]` into `.claude-code-hermit/config.json` with the current plugin version.
@@ -236,6 +265,7 @@ hatch complete
   ✓  boot_skill: /claude-code-homeassistant-hermit:ha-boot (set | already set | operator override preserved)
   ✓  Routines registered: daily-ha-context, morning-brief (disabled by default), evening-brief
   ✓  Scheduled checks registered: ha-patterns, ha-safety-audit, ha-integration-health
+  ✓  knowledge-schema.md: HA types added (or already present)
 
 Manual steps remaining:
   - Enable 'Model Context Protocol Server' integration in Home Assistant (if not done)
