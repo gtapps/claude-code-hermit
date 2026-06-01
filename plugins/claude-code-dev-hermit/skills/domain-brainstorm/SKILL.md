@@ -62,8 +62,9 @@ Parse the verdict:
 After each verdict, append a metrics event via the shared helper:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js" .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"brainstorm-emit","skill":"domain-brainstorm","verdict":"<CREATE|SUPPRESS|DUPLICATE>","proposal_id":<\"PROP-NNN\" or null>}'
+node "${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js" .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"brainstorm-emit","skill":"domain-brainstorm","verdict":"<CREATE|SUPPRESS|DUPLICATE>","proposal_id":null}'
 ```
+Set `"proposal_id":"PROP-NNN"` for CREATE events; use JSON `null` for SUPPRESS/DUPLICATE events.
 
 This event is what the kill-criteria audit reads — `proposal-create`'s own `created` event does not carry per-skill provenance.
 
