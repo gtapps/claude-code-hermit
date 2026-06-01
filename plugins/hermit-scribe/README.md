@@ -12,7 +12,7 @@ Files GitHub issues via a configured GitHub App so they're attributed to a bot i
 
 ```bash
 claude plugin marketplace add gtapps/claude-code-hermit
-claude plugin install hermit-scribe@claude-code-hermit --scope project
+claude plugin install hermit-scribe@claude-code-hermit --scope local
 ```
 
 ## GitHub App setup

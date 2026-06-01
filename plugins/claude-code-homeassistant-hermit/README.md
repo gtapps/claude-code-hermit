@@ -17,7 +17,7 @@ Understands your house, spots the patterns, drafts automations, catches things b
 ```
 # Install
 claude plugin marketplace add gtapps/claude-code-hermit
-claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scope project
+claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scope local
 
 # Setup wizard
 /claude-code-homeassistant-hermit:hatch
@@ -53,7 +53,7 @@ claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scop
 ```bash
 cd /path/to/your/project   # any folder — empty is fine
 claude plugin marketplace add gtapps/claude-code-hermit
-claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scope project
+claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scope local
 ```
 
 ### 2. Initialize
@@ -79,8 +79,8 @@ See [Always-On Setup](https://github.com/gtapps/claude-code-hermit/blob/main/plu
 ### Upgrading
 
 ```
-claude plugin update claude-code-hermit@claude-code-hermit --scope project
-claude plugin update claude-code-homeassistant-hermit@claude-code-hermit --scope project
+claude plugin update claude-code-hermit@claude-code-hermit --scope local
+claude plugin update claude-code-homeassistant-hermit@claude-code-hermit --scope local
 /claude-code-hermit:hermit-evolve
 ```
 

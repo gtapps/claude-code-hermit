@@ -9,9 +9,6 @@
     "deny": []
   },
   "enabledPlugins": {
-    "claude-code-hermit@claude-code-hermit": true,
-    "feature-dev@claude-plugins-official": true,
-    "hermit-scribe@claude-code-hermit": true,
-    "claude-code-dev-hermit@claude-code-hermit": true
+    "feature-dev@claude-plugins-official": true
   }
 }

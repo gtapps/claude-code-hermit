@@ -17,7 +17,7 @@ Reads your Strava, spots load anomalies, drafts weekly plans, and flags recovery
 ```
 # Install
 claude plugin marketplace add gtapps/claude-code-hermit
-claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope project
+claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope local
 
 # Setup wizard
 /claude-code-fitness-hermit:hatch
@@ -62,8 +62,10 @@ Need a different cadence or a new routine? Just ask — hermit sets it up.
 ```bash
 cd /path/to/your/project   # any folder — empty is fine
 claude plugin marketplace add gtapps/claude-code-hermit
-claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope project
+claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope local
 ```
+
+> Use `--scope local` (writes to the gitignored `.claude/settings.local.json`) to keep the hermit out of a shared repo's committed config. Use `--scope project` only when the folder is a fresh directory dedicated to the assistant.
 
 ### 2. Initialize
 
@@ -88,8 +90,8 @@ See [Always-On Setup](https://github.com/gtapps/claude-code-hermit/blob/main/plu
 ### Upgrading
 
 ```
-claude plugin update claude-code-hermit@claude-code-hermit --scope project
-claude plugin update claude-code-fitness-hermit@claude-code-hermit --scope project
+claude plugin update claude-code-hermit@claude-code-hermit --scope local
+claude plugin update claude-code-fitness-hermit@claude-code-hermit --scope local
 /claude-code-hermit:hermit-evolve
 ```
 

@@ -11,7 +11,7 @@
 ```bash
 cd /path/to/your/project   # or any folder — even an empty one
 claude plugin marketplace add gtapps/claude-code-hermit
-claude plugin install claude-code-hermit@claude-code-hermit --scope project
+claude plugin install claude-code-hermit@claude-code-hermit --scope local
 ```
 
 ---

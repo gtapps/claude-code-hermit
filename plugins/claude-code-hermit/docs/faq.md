@@ -20,7 +20,7 @@ Native Windows is not supported by hermit in general; use WSL2.
 
 ## Can I use this with multiple projects?
 
-Yes. Each project gets its own `.claude-code-hermit/` state directory. Install the plugin per-project (`--scope project`). For always-on, each project runs its own Docker container or tmux session.
+Yes. Each project gets its own `.claude-code-hermit/` state directory. Install the plugin with `--scope local` or `--scope project`. For always-on, each project runs its own Docker container or tmux session.
 
 ---
 

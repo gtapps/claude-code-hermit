@@ -18,7 +18,7 @@ Installs a `git-push-guard` hook (strict-by-default) and injects git-safety rule
 ```
 # Install
 claude plugin marketplace add gtapps/claude-code-hermit
-claude plugin install claude-code-dev-hermit@claude-code-hermit --scope project
+claude plugin install claude-code-dev-hermit@claude-code-hermit --scope local
 
 # Boot Claude Code and run the setup wizard
 /claude-code-dev-hermit:hatch
@@ -52,7 +52,7 @@ That's it. One hook + one template, with optional workflow skills on top. Whatev
 ```bash
 cd /path/to/your/project
 claude plugin marketplace add gtapps/claude-code-hermit
-claude plugin install claude-code-dev-hermit@claude-code-hermit --scope project
+claude plugin install claude-code-dev-hermit@claude-code-hermit --scope local
 ```
 
 ### 2. Initialize
@@ -78,7 +78,7 @@ Boots the hermit in a tmux session — sessions, routines, heartbeat, and the le
 ### Upgrading
 
 ```bash
-claude plugin update claude-code-dev-hermit@claude-code-hermit --scope project
+claude plugin update claude-code-dev-hermit@claude-code-hermit --scope local
 /claude-code-hermit:hermit-evolve
 ```
 

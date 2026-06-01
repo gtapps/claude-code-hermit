@@ -8,7 +8,7 @@ This repo is structured as a Claude Code plugin. It is NOT a standalone project 
 
 ```
 claude plugin marketplace add gtapps/claude-code-hermit
-claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope project
+claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope local
 ```
 
 After install, run `/claude-code-fitness-hermit:hatch` in the target project. The core hermit (`claude-code-hermit` ≥1.0.26) must be installed and hatched first — `hatch` will prompt if it isn't.

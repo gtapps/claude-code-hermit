@@ -13,7 +13,7 @@
 
 ```bash
 claude plugin marketplace add gtapps/claude-code-hermit
-claude plugin install claude-code-dev-hermit@claude-code-hermit --scope project
+claude plugin install claude-code-dev-hermit@claude-code-hermit --scope local
 /claude-code-dev-hermit:hatch
 ```
 

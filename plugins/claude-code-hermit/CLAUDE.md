@@ -8,7 +8,7 @@ This repo is structured as a Claude Code plugin. It is NOT a standalone project 
 
 ```
 claude plugin marketplace add gtapps/claude-code-hermit
-claude plugin install claude-code-hermit@claude-code-hermit --scope project
+claude plugin install claude-code-hermit@claude-code-hermit --scope local
 ```
 
 After install, run `/claude-code-hermit:hatch` in the target project to create the state directory.

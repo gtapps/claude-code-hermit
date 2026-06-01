@@ -8,7 +8,7 @@ This repo is structured as a Claude Code plugin. It is NOT a standalone project;
 
 ```
 claude plugin marketplace add gtapps/claude-code-hermit
-claude plugin install hermit-scribe@claude-code-hermit --scope project
+claude plugin install hermit-scribe@claude-code-hermit --scope local
 ```
 
 ## Plugin Structure

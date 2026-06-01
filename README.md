@@ -19,7 +19,7 @@ Hermit wires all the native Claude Code capabilities (`/loop`, `CronCreate`, cha
 ```
 # Install
 claude plugin marketplace add gtapps/claude-code-hermit
-claude plugin install claude-code-hermit@claude-code-hermit --scope project
+claude plugin install claude-code-hermit@claude-code-hermit --scope local
 
 # Boot Claude Code and run the setup wizard
 /claude-code-hermit:hatch
@@ -108,7 +108,7 @@ Each emits a compact snapshot that's also channel-ready — ask from Discord or 
 ```bash
 cd /path/to/your/project   # or any folder — even an empty one
 claude plugin marketplace add gtapps/claude-code-hermit
-claude plugin install claude-code-hermit@claude-code-hermit --scope project
+claude plugin install claude-code-hermit@claude-code-hermit --scope local
 ```
 
 ### 2. Initialize
@@ -134,7 +134,7 @@ See [Always-On Setup](plugins/claude-code-hermit/docs/always-on.md) for the full
 ### Upgrading
 
 ```
-claude plugin update claude-code-hermit@claude-code-hermit --scope project
+claude plugin update claude-code-hermit@claude-code-hermit --scope local
 /claude-code-hermit:hermit-evolve
 ```
 
