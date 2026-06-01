@@ -9,7 +9,7 @@ Everything else is infra managed by the base hermit (`state/`, `sessions/`, `pro
 
 ## Why these two and nothing else
 
-The `compiled/` directory is scanned at session start to inject foundational context. `scripts/archive-raw.js` and the weekly review run retention only against `raw/`. Anything outside these two paths is invisible to both mechanisms — your audits won't surface at session start, and your snapshots will never be archived.
+The `compiled/` directory is scanned at session start to inject foundational context. `scripts/archive-raw.js` and the weekly review run retention against `raw/`, covering both dated `.md` and `.json` artifacts. Fixed-name `-latest.*` aliases are never archived. Anything outside these two paths is invisible to both mechanisms — your audits won't surface at session start, and your snapshots will never be archived.
 
 This mirrors the Karpathy raw-vs-compiled split: raw is the immutable ground truth, compiled is the LLM-maintained derivative. The filesystem layout is fixed; the `type` field in frontmatter is what differentiates work products within each directory.
 

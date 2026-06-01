@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for archive-raw.js — raw artifact archival and skip diagnostics.
+# Tests for archive-raw.js — retention, skip diagnostics, -latest pinning, .json support, filename-date fallback.
 # Usage: bash tests/test-archive-raw.sh
 set -uo pipefail
 
@@ -9,53 +9,98 @@ source "$SCRIPT_DIR/lib.sh"
 echo "=== archive-raw.js ==="
 echo ""
 
-SCRIPT="$REPO_ROOT/scripts/archive-raw.js"
-created_old="$(date -u -d '30 days ago' '+%Y-%m-%d' 2>/dev/null || date -u -v-30d '+%Y-%m-%d')"
+ARCHIVE="$REPO_ROOT/scripts/archive-raw.js"
+# archive-raw.js uses Date.now() directly; to control "now" we manipulate file dates via filenames/frontmatter.
+# We use dates well in the past (2020) to guarantee they're expired under any retention window.
+PAST="2020-01-01"
+RECENT="2099-12-31"
+
+# -------------------------------------------------------
+# Helper: make a minimal hermit state dir with raw/ and config.json
+# -------------------------------------------------------
+make_hermit() {
+  local dir
+  dir="$(mktemp -d)"
+  mkdir -p "$dir/.claude-code-hermit/raw"
+  mkdir -p "$dir/.claude-code-hermit/compiled"
+  cat > "$dir/.claude-code-hermit/config.json" <<'EOF'
+{"knowledge":{"raw_retention_days":14}}
+EOF
+  echo "$dir"
+}
 
 # -------------------------------------------------------
 # 1. Empty raw/ — nothing to archive
 # -------------------------------------------------------
-workdir="$(mktemp -d)"
-mkdir -p "$workdir/.claude-code-hermit/raw"
-out="$(node "$SCRIPT" "$workdir/.claude-code-hermit")"
+workdir="$(make_hermit)"
+out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
 run_test "empty raw/: nothing to archive message" bash -c "echo '$out' | grep -q 'nothing to archive'"
 cleanup
 
 # -------------------------------------------------------
-# 2. Valid expired unreferenced file — archived
+# 2. Expired dated .md with frontmatter → archived
 # -------------------------------------------------------
-workdir="$(mktemp -d)"
-mkdir -p "$workdir/.claude-code-hermit/raw"
-mkdir -p "$workdir/.claude-code-hermit/compiled"
-# created 30 days ago (past default 14-day retention)
-cat > "$workdir/.claude-code-hermit/raw/old-note.md" <<EOF
+workdir="$(make_hermit)"
+cat > "$workdir/.claude-code-hermit/raw/note-${PAST}.md" <<EOF
 ---
-created: $created_old
+title: Old note
 type: input
+created: ${PAST}T00:00:00Z
+tags: []
 ---
-Old content.
+body
 EOF
-out="$(node "$SCRIPT" "$workdir/.claude-code-hermit")"
-run_test "valid expired: 1 archived" bash -c "echo '$out' | grep -qF '1 archived'"
-run_test "valid expired: 0 skipped" bash -c "echo '$out' | grep -qF '0 skipped'"
-run_test "valid expired: file moved to .archive/" bash -c \
-  "[ -f '$workdir/.claude-code-hermit/raw/.archive/old-note.md' ]"
-run_test "valid expired: file no longer in raw/" bash -c \
-  "[ ! -f '$workdir/.claude-code-hermit/raw/old-note.md' ]"
+out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+run_test "md frontmatter: archived (output says 1 archived)" bash -c "echo '$out' | grep -qE '^archive-raw: 1 archived, 0 retained, 0 skipped, 0 pinned'"
+run_test "md frontmatter: file moved to .archive/" bash -c \
+  "[ -f '$workdir/.claude-code-hermit/raw/.archive/note-${PAST}.md' ] && [ ! -f '$workdir/.claude-code-hermit/raw/note-${PAST}.md' ]"
 cleanup
 
 # -------------------------------------------------------
-# 3. File with no created: key — skipped with named reason
+# 3. Expired dated .json with YYYY-MM-DD in filename, no frontmatter → archived via filename fallback
 # -------------------------------------------------------
-workdir="$(mktemp -d)"
-mkdir -p "$workdir/.claude-code-hermit/raw"
+workdir="$(make_hermit)"
+echo '{"entities":[]}' > "$workdir/.claude-code-hermit/raw/snapshot-ha-context-${PAST}.json"
+out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+run_test "json filename-date: archived (output says 1 archived)" bash -c "echo '$out' | grep -qE '^archive-raw: 1 archived, 0 retained, 0 skipped, 0 pinned'"
+run_test "json filename-date: file moved to .archive/" bash -c \
+  "[ -f '$workdir/.claude-code-hermit/raw/.archive/snapshot-ha-context-${PAST}.json' ] && [ ! -f '$workdir/.claude-code-hermit/raw/snapshot-ha-context-${PAST}.json' ]"
+cleanup
+
+# -------------------------------------------------------
+# 4. -latest.md and -latest.json → pinned, never archived even when old
+# -------------------------------------------------------
+workdir="$(make_hermit)"
+cat > "$workdir/.claude-code-hermit/raw/patterns-latest.md" <<EOF
+---
+title: Latest patterns
+type: analysis
+created: ${PAST}T00:00:00Z
+tags: []
+---
+body
+EOF
+echo '{"entities":[]}' > "$workdir/.claude-code-hermit/raw/snapshot-ha-normalized-latest.json"
+out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+run_test "latest alias: output says 0 archived" bash -c "echo '$out' | grep -qE '^archive-raw: 0 archived'"
+run_test "latest alias: pinned count = 2" bash -c "echo '$out' | grep -qE '2 pinned'"
+run_test "latest alias: patterns-latest.md still in raw/" bash -c \
+  "[ -f '$workdir/.claude-code-hermit/raw/patterns-latest.md' ]"
+run_test "latest alias: snapshot-ha-normalized-latest.json still in raw/" bash -c \
+  "[ -f '$workdir/.claude-code-hermit/raw/snapshot-ha-normalized-latest.json' ]"
+cleanup
+
+# -------------------------------------------------------
+# 5. File with no created: key and no date in filename → skipped with named reason
+# -------------------------------------------------------
+workdir="$(make_hermit)"
 cat > "$workdir/.claude-code-hermit/raw/no-date.md" <<'EOF'
 ---
 type: input
 ---
 Missing created field.
 EOF
-out="$(node "$SCRIPT" "$workdir/.claude-code-hermit")"
+out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
 run_test "missing created: 1 skipped" bash -c "echo '$out' | grep -qF '1 skipped'"
 run_test "missing created: named in output" bash -c "echo '$out' | grep -qF 'no-date.md'"
 run_test "missing created: reason text" bash -c "echo '$out' | grep -q 'missing created'"
@@ -64,10 +109,9 @@ run_test "missing created: file stays in raw/" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 4. File with malformed created: value — skipped with named reason
+# 6. File with malformed created: value and no date in filename → skipped, unparseable reason
 # -------------------------------------------------------
-workdir="$(mktemp -d)"
-mkdir -p "$workdir/.claude-code-hermit/raw"
+workdir="$(make_hermit)"
 cat > "$workdir/.claude-code-hermit/raw/bad-date.md" <<'EOF'
 ---
 created: not-a-date
@@ -75,98 +119,109 @@ type: input
 ---
 Bad date value.
 EOF
-out="$(node "$SCRIPT" "$workdir/.claude-code-hermit")"
+out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
 run_test "malformed created: 1 skipped" bash -c "echo '$out' | grep -qF '1 skipped'"
 run_test "malformed created: named in output" bash -c "echo '$out' | grep -qF 'bad-date.md'"
 run_test "malformed created: unparseable reason" bash -c "echo '$out' | grep -q 'unparseable'"
 cleanup
 
 # -------------------------------------------------------
-# 5. Referenced file — retained even if past retention
+# 7. .json with no date in filename and no frontmatter → skipped
 # -------------------------------------------------------
-workdir="$(mktemp -d)"
-mkdir -p "$workdir/.claude-code-hermit/raw"
-mkdir -p "$workdir/.claude-code-hermit/compiled"
-cat > "$workdir/.claude-code-hermit/raw/referenced.md" <<EOF
----
-created: $created_old
-type: input
----
-Referenced content.
-EOF
-cat > "$workdir/.claude-code-hermit/compiled/briefing.md" <<'EOF'
----
-type: note
----
-See referenced.md for context.
-EOF
-out="$(node "$SCRIPT" "$workdir/.claude-code-hermit")"
-run_test "referenced: 1 retained" bash -c "echo '$out' | grep -qF '1 retained'"
-run_test "referenced: 0 archived" bash -c "echo '$out' | grep -qF '0 archived'"
-run_test "referenced: file stays in raw/" bash -c \
-  "[ -f '$workdir/.claude-code-hermit/raw/referenced.md' ]"
+workdir="$(make_hermit)"
+echo '{"state":"unknown"}' > "$workdir/.claude-code-hermit/raw/nodatefile.json"
+out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+run_test "json no-date: output says 1 skipped" bash -c "echo '$out' | grep -qE '^archive-raw: 0 archived, 0 retained, 1 skipped'"
+run_test "json no-date: file still in raw/" bash -c \
+  "[ -f '$workdir/.claude-code-hermit/raw/nodatefile.json' ]"
 cleanup
 
 # -------------------------------------------------------
-# 6. Mixed bag: valid+expired, missing-created, malformed-created, referenced
-#    Summary counts and per-file skip lines all present
+# 8. Malformed frontmatter created but valid date in filename → rescued via filename fallback
 # -------------------------------------------------------
-workdir="$(mktemp -d)"
-mkdir -p "$workdir/.claude-code-hermit/raw"
-mkdir -p "$workdir/.claude-code-hermit/compiled"
-
-cat > "$workdir/.claude-code-hermit/raw/archivable.md" <<EOF
+workdir="$(make_hermit)"
+cat > "$workdir/.claude-code-hermit/raw/snapshot-${PAST}.md" <<EOF
 ---
-created: $created_old
+created: not-a-date
 type: input
 ---
-Archivable.
+Bad frontmatter date, but filename carries ${PAST}.
 EOF
+out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+run_test "filename rescue: archived despite bad frontmatter" bash -c "echo '$out' | grep -qE '^archive-raw: 1 archived'"
+run_test "filename rescue: file moved to .archive/" bash -c \
+  "[ -f '$workdir/.claude-code-hermit/raw/.archive/snapshot-${PAST}.md' ]"
+cleanup
+
+# -------------------------------------------------------
+# 9. Recent dated .json (not yet expired) → retained
+# -------------------------------------------------------
+workdir="$(make_hermit)"
+echo '{"entities":[]}' > "$workdir/.claude-code-hermit/raw/snapshot-ha-context-${RECENT}.json"
+out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+run_test "json recent: output says 1 retained" bash -c "echo '$out' | grep -qE '^archive-raw: 0 archived, 1 retained'"
+run_test "json recent: file still in raw/" bash -c \
+  "[ -f '$workdir/.claude-code-hermit/raw/snapshot-ha-context-${RECENT}.json' ]"
+cleanup
+
+# -------------------------------------------------------
+# 10. Expired .json referenced by a compiled/ artifact → retained (safety check)
+# -------------------------------------------------------
+workdir="$(make_hermit)"
+echo '{"entities":[]}' > "$workdir/.claude-code-hermit/raw/snapshot-ha-context-${PAST}.json"
+cat > "$workdir/.claude-code-hermit/compiled/briefing-2020-01-05.md" <<'EOF'
+---
+title: Briefing
+type: briefing
+---
+See snapshot-ha-context-2020-01-01.json for details.
+EOF
+out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+run_test "json compiled-ref safety: output says 1 retained" bash -c "echo '$out' | grep -qE '^archive-raw: 0 archived, 1 retained'"
+run_test "json compiled-ref safety: file still in raw/" bash -c \
+  "[ -f '$workdir/.claude-code-hermit/raw/snapshot-ha-context-${PAST}.json' ]"
+cleanup
+
+# -------------------------------------------------------
+# 11. Mixed bag: expired .md (frontmatter) + expired .json (filename) + -latest.json
+#     + missing-created skip → 2 archived, 1 skipped, 1 pinned
+# -------------------------------------------------------
+workdir="$(make_hermit)"
+cat > "$workdir/.claude-code-hermit/raw/audit-${PAST}.md" <<EOF
+---
+title: Audit
+type: audit
+created: ${PAST}T00:00:00Z
+tags: []
+---
+body
+EOF
+echo '{"entities":[]}' > "$workdir/.claude-code-hermit/raw/snapshot-ha-history-7d-${PAST}.json"
+echo '{"entities":[]}' > "$workdir/.claude-code-hermit/raw/snapshot-ha-normalized-latest.json"
 cat > "$workdir/.claude-code-hermit/raw/no-created.md" <<'EOF'
 ---
 type: input
 ---
 No created.
 EOF
-cat > "$workdir/.claude-code-hermit/raw/bad-created.md" <<'EOF'
----
-created: oops
-type: input
----
-Bad.
-EOF
-cat > "$workdir/.claude-code-hermit/raw/kept.md" <<EOF
----
-created: $created_old
-type: input
----
-Kept.
-EOF
-cat > "$workdir/.claude-code-hermit/compiled/ref.md" <<'EOF'
----
-type: note
----
-kept.md is referenced here.
-EOF
-
-out="$(node "$SCRIPT" "$workdir/.claude-code-hermit")"
-run_test "mixed: 1 archived" bash -c "echo '$out' | grep -qF '1 archived'"
-run_test "mixed: 1 retained" bash -c "echo '$out' | grep -qF '1 retained'"
-run_test "mixed: 2 skipped" bash -c "echo '$out' | grep -qF '2 skipped'"
-run_test "mixed: no-created.md named" bash -c "echo '$out' | grep -qF 'no-created.md'"
-run_test "mixed: bad-created.md named" bash -c "echo '$out' | grep -qF 'bad-created.md'"
+out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+run_test "mixed: output says 2 archived, 0 retained, 1 skipped, 1 pinned" bash -c "echo '$out' | grep -qE '^archive-raw: 2 archived, 0 retained, 1 skipped, 1 pinned'"
+run_test "mixed: no-created.md named in skip output" bash -c "echo '$out' | grep -qF 'no-created.md'"
+run_test "mixed: -latest.json still in raw/" bash -c \
+  "[ -f '$workdir/.claude-code-hermit/raw/snapshot-ha-normalized-latest.json' ]"
+run_test "mixed: dated .md moved to .archive/" bash -c \
+  "[ -f '$workdir/.claude-code-hermit/raw/.archive/audit-${PAST}.md' ]"
+run_test "mixed: dated .json moved to .archive/" bash -c \
+  "[ -f '$workdir/.claude-code-hermit/raw/.archive/snapshot-ha-history-7d-${PAST}.json' ]"
 cleanup
 
 # -------------------------------------------------------
-# 7. Exit code is always 0 (fail-open)
+# 12. Exit code is always 0 (fail-open)
 # -------------------------------------------------------
 workdir="$(mktemp -d)"
-node "$SCRIPT" "$workdir/nonexistent-hermit" >/dev/null 2>&1
+node "$ARCHIVE" "$workdir/nonexistent-hermit" >/dev/null 2>&1
 ec=$?
 run_test "fail-open: exit 0 with missing state dir" bash -c "[ $ec -eq 0 ]"
 cleanup
 
-# -------------------------------------------------------
-# Summary
-# -------------------------------------------------------
 print_results

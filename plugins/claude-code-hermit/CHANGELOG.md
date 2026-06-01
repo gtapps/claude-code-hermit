@@ -10,6 +10,10 @@
 
 - **hermit-evolve: deterministic pre-pass (`scripts/evolve-plan.js`)** — a read-only analyzer precomputes the version gap, bounded CHANGELOG slice, new config keys, changed templates/bin, and the CLAUDE-APPEND block diff in one JSON pass; the skill acts on it instead of reading and diffing whole files in-context. Cuts a typical evolve run to ~15–25K tokens and fixes the CHANGELOG 2000-line read truncation that could silently skip the oldest `### Upgrade Instructions`. Closes #211.
 
+### Fixed
+
+- **archive-raw: cover dated `.json` snapshots and pin `-latest.*` aliases** — retention now globs `(md|json)`, so domain-hermit JSON snapshots obey `raw_retention_days` instead of accumulating forever; `-latest.*` pointer files are pinned (never archived); `.json` artifacts with no frontmatter fall back to a `YYYY-MM-DD` filename date for age resolution. Closes #209.
+
 ### Upgrade Instructions
 
 Run `/claude-code-hermit:hermit-evolve`. No `config.json` changes required. The skill's Step 8 adds the new `Bash(node */scripts/evolve-plan.js*)` permission automatically; you may see a single approval prompt for the helper on the first run.

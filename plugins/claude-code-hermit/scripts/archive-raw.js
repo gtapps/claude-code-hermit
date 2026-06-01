@@ -42,7 +42,7 @@ for (const fullPath of globDir(compiledDir, /^[^.].*\.md$/)) {
 }
 
 // --- Scan raw/ ---
-const rawFullPaths = globDir(rawDir, /^[^.].*\.md$/);
+const rawFullPaths = globDir(rawDir, /^[^.].*\.(md|json)$/);
 if (rawFullPaths.length === 0) {
   console.log('raw/ does not exist or is empty — nothing to archive.');
   process.exit(0);
@@ -53,22 +53,40 @@ fs.mkdirSync(archiveDir, { recursive: true });
 
 let archived = 0;
 let retained = 0;
+let pinned = 0;
 const skippedFiles = []; // { file, reason } — surfaced by name so operators can fix the root cause
 
 for (const filePath of rawFullPaths) {
   const filename = path.basename(filePath);
-  const fm = readFrontmatter(filePath);
 
-  // Skip if no frontmatter or no created date — can't determine age
-  if (!fm || !fm.created) {
-    skippedFiles.push({ file: filename, reason: 'missing created: frontmatter' });
+  // Pin -latest.* aliases — they're overwritten in place, never accumulate
+  if (/-latest\.(md|json)$/.test(filename)) {
+    pinned++;
     continue;
   }
 
-  const created = new Date(fm.created);
-  if (isNaN(created.getTime())) {
-    skippedFiles.push({ file: filename, reason: `unparseable created: "${fm.created}"` });
-    continue;
+  // Resolve artifact age: prefer frontmatter `created`, fall back to a YYYY-MM-DD
+  // date in the filename (dated .json snapshots carry no frontmatter).
+  const fm = readFrontmatter(filePath);
+  const m = filename.match(/(\d{4}-\d{2}-\d{2})/);
+  const filenameDate = m ? m[1] : null;
+
+  let created;
+  if (fm && fm.created) {
+    created = new Date(fm.created);
+    if (isNaN(created.getTime())) {
+      created = filenameDate ? new Date(filenameDate) : null;
+    }
+    if (!created || isNaN(created.getTime())) {
+      skippedFiles.push({ file: filename, reason: `unparseable created: "${fm.created}"` });
+      continue;
+    }
+  } else {
+    created = filenameDate ? new Date(filenameDate) : null;
+    if (!created || isNaN(created.getTime())) {
+      skippedFiles.push({ file: filename, reason: 'missing created: frontmatter and no date in filename' });
+      continue;
+    }
   }
 
   // Not yet past retention
@@ -101,7 +119,7 @@ for (const filePath of rawFullPaths) {
   }
 }
 
-console.log(`archive-raw: ${archived} archived, ${retained} retained, ${skippedFiles.length} skipped.`);
+console.log(`archive-raw: ${archived} archived, ${retained} retained, ${skippedFiles.length} skipped, ${pinned} pinned (-latest).`);
 if (archived > 0) {
   console.log(`Archived to ${archiveDir}`);
 }
