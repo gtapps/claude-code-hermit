@@ -37,6 +37,7 @@ This project has the `claude-code-homeassistant-hermit` plugin installed. The ru
 | `/claude-code-homeassistant-hermit:ha-automation-explorer` | Browse and explain active automations by topic, keyword, or last-fired |
 | `/claude-code-homeassistant-hermit:ha-evening-brief` | End-of-day security check: locks, alarm, open covers, device status, energy |
 | `/claude-code-homeassistant-hermit:ha-presence-report` | Presence history, tracker health, and arrival/departure diagnostics |
+| `/claude-code-homeassistant-hermit:domain-brainstorm` | On-demand capability-gap brainstorm — surfaces missing automations/coverage as proposals (operator-invoked) |
 
 ### Subagents
 
@@ -90,6 +91,15 @@ Requires `.env` at the project root (gitignored):
 - Sensitive files: `.env` (token/URL), `hooks/mcp-safety-gate.py`, `src/ha_agent_lab/policy.py`.
 - MCP actuation tools are blocked by the safety hook before reaching HA.
 - Explicit operator approval is required before applying automations or modifying safety policy.
+
+### HA Proposal Categories
+
+Use these prefixes in capability-gap proposal titles (from `domain-brainstorm`):
+- **[automation-gap]** — a device/sensor/area wired into zero automations
+- **[coverage-asymmetry]** — a paired-pattern gap (e.g. `bom_dia` with no `boa_noite`)
+- **[unbuilt-intent]** — an operator-stated want with no automation implementing it
+
+Ideas surfaced by `/claude-code-homeassistant-hermit:domain-brainstorm` are single-pass — the brainstorm establishes the candidate, so the cross-session recurrence condition is waived (consequence + operator-actionable still apply).
 
 ### Routines
 

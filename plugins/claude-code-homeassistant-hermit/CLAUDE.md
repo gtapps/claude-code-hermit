@@ -5,6 +5,7 @@ A Home Assistant domain layer for `claude-code-hermit`: skills, subagents, a saf
 ## Plugin Structure
 
 - `skills/ha-*/` — workflow skills namespaced as `/claude-code-homeassistant-hermit:ha-*`
+- `skills/domain-brainstorm/` — on-demand capability-gap brainstorm: reads entity inventory, automation/script listing, and operator intent to surface at most 2 `[prefix]`-tagged improvement proposals. Operator-invoked only. Kill criteria: retire if triage-survival < 25% after ≥8 runs.
 - `agents/` — `ha-safety-reviewer`, `ha-automation-builder`, `ha-pattern-analyst`
 - `hooks/` — `mcp-safety-gate.py` + `hooks.json` (PreToolUse on `mcp__homeassistant__Hass.*`)
 - `bin/ha-agent-lab` + `src/ha_agent_lab/` — Python CLI (REST client, policy engine, simulation, apply)
