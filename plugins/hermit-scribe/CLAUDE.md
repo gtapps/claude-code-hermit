@@ -39,10 +39,13 @@ HERMIT_GH_APP_ID=1 HERMIT_GH_APP_INSTALL_ID=2 HERMIT_GH_APP_KEY_FILE=/nonexisten
   node "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.js" /dev/null /dev/null
 
 # Extra label args should parse cleanly and reach token acquisition
-TMP_DIR="$(mktemp -d)" && printf 't\n' > "$TMP_DIR/t" && printf 'b\n' > "$TMP_DIR/b.md" && \
-HERMIT_GH_APP_ID=1 HERMIT_GH_APP_INSTALL_ID=2 HERMIT_GH_APP_KEY_FILE=/nonexistent \
-  node "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.js" \
-  "$TMP_DIR/t" "$TMP_DIR/b.md" enhancement homeassistant-hermit; rm -r "$TMP_DIR"
+TMP_DIR="$(mktemp -d)" && (
+  trap 'rm -r "$TMP_DIR"' EXIT
+  printf 't\n' > "$TMP_DIR/t" && printf 'b\n' > "$TMP_DIR/b.md" && \
+  HERMIT_GH_APP_ID=1 HERMIT_GH_APP_INSTALL_ID=2 HERMIT_GH_APP_KEY_FILE=/nonexistent \
+    node "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.js" \
+    "$TMP_DIR/t" "$TMP_DIR/b.md" enhancement homeassistant-hermit
+)
 ```
 
 The script takes two positional file paths: title file (single line; trimmed) and body file (markdown). Both are read directly; nothing is interpolated into shell commands, so title content is safe from quoting issues.
