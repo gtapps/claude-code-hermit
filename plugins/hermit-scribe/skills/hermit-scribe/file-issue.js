@@ -159,6 +159,10 @@ async function commentMode() {
   process.stdout.write(comment.html_url + "\n");
 }
 
+function buildLabels(extra = []) {
+  return [...new Set(["hermit-filed", ...extra])];
+}
+
 async function main() {
   if (process.argv[2] === "--check") {
     await checkMode();
@@ -170,9 +174,12 @@ async function main() {
     return;
   }
 
-  const [, , titleFile, bodyFile] = process.argv;
+  const titleFile = process.argv[2];
+  const bodyFile = process.argv[3];
+  const extraLabels = process.argv.slice(4);
+
   if (!titleFile || !bodyFile) {
-    process.stderr.write("Usage: node file-issue.js <title-file> <body-file>\n");
+    process.stderr.write("Usage: node file-issue.js <title-file> <body-file> [label...]\n");
     process.exit(1);
   }
 
@@ -192,13 +199,17 @@ async function main() {
     "POST",
     `/repos/${owner}/${repo}/issues`,
     `Bearer ${token}`,
-    { title, body: issueBody, labels: ["hermit-filed"] }
+    { title, body: issueBody, labels: buildLabels(extraLabels) }
   );
 
   process.stdout.write(issue.html_url + "\n");
 }
 
-main().catch((err) => {
-  process.stderr.write(err.message + "\n");
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((err) => {
+    process.stderr.write(err.message + "\n");
+    process.exit(1);
+  });
+}
+
+module.exports = { buildLabels };

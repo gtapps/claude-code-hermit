@@ -57,7 +57,7 @@ For proposal-backed issues: the skill globs `.claude-code-hermit/proposals/PROP-
 
 For ad-hoc issues: supply title and body directly. The operator's title is passed through verbatim (no CC enforcement); translation and sanitization still apply.
 
-All issues get the `hermit-filed` label.
+All issues get the `hermit-filed` label. Proposal-backed issues also receive a type label derived from `category` (`bug` → `bug`; `infrastructure`/`investigation` → `chore`; otherwise `enhancement`) and, when a single plugin scope was resolved, a scope label matching the stripped slug (e.g. `homeassistant-hermit`). These labels must already exist on the target repo — unknown ones are silently dropped or auto-created by GitHub, so filing never errors on a missing label.
 
 ### Dedup
 
@@ -101,7 +101,7 @@ hermit-scribe/
         └── file-issue.js       stdlib: JWT → install token → POST /issues; --check flag
 ```
 
-`file-issue.js` is a single-shot Node script: signs an RS256 JWT from the App private key, exchanges it for an installation access token at `POST /app/installations/{id}/access_tokens`, then `POST /repos/{owner}/{repo}/issues` with the `hermit-filed` label. Two HTTPS round-trips per invocation. Node is required (Claude Code already provides it).
+`file-issue.js` is a single-shot Node script: signs an RS256 JWT from the App private key, exchanges it for an installation access token at `POST /app/installations/{id}/access_tokens`, then `POST /repos/{owner}/{repo}/issues` with the derived label set (`hermit-filed` always, plus any extra labels passed as trailing positional args). Two HTTPS round-trips per invocation. Node is required (Claude Code already provides it).
 
 ## License
 

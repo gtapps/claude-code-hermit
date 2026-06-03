@@ -8,6 +8,7 @@ const { generateKeyPairSync } = require("crypto");
 const path = require("path");
 
 const SCRIPT = path.join(__dirname, "..", "skills", "hermit-scribe", "file-issue.js");
+const { buildLabels } = require(SCRIPT);
 
 let pass = 0;
 let fail = 0;
@@ -159,6 +160,46 @@ test("empty title file is rejected", () => {
 
 test("whitespace-only title file is rejected after trim", () => {
   assertFails(fullEnv, [wsTitleFile, bodyFile], /Title file is empty/);
+});
+
+// --- buildLabels unit tests ---
+
+function assertDeepEqual(actual, expected, label) {
+  const a = JSON.stringify(actual);
+  const e = JSON.stringify(expected);
+  if (a !== e) {
+    throw new Error(`${label}: expected ${e}, got ${a}`);
+  }
+}
+
+test("buildLabels([]) returns [hermit-filed]", () => {
+  assertDeepEqual(buildLabels([]), ["hermit-filed"], "labels");
+});
+
+test("buildLabels(undefined) returns [hermit-filed]", () => {
+  assertDeepEqual(buildLabels(undefined), ["hermit-filed"], "labels");
+});
+
+test("buildLabels with extra labels puts hermit-filed first", () => {
+  assertDeepEqual(
+    buildLabels(["bug", "homeassistant-hermit"]),
+    ["hermit-filed", "bug", "homeassistant-hermit"],
+    "labels"
+  );
+});
+
+test("buildLabels deduplicates hermit-filed if passed explicitly", () => {
+  assertDeepEqual(buildLabels(["hermit-filed", "bug"]), ["hermit-filed", "bug"], "labels");
+});
+
+// --- trailing label args CLI test ---
+
+test("trailing label args do not break arg parsing (reaches token acquisition)", () => {
+  assertFails(
+    { ...fullEnv, HERMIT_GH_APP_KEY_FILE: "/nonexistent/key.pem" },
+    [titleFile, bodyFile, "bug", "homeassistant-hermit"],
+    /HERMIT_GH_APP_KEY_FILE=.*does not exist/
+  );
 });
 
 console.log("");

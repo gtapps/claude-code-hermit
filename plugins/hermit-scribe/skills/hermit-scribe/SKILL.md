@@ -50,6 +50,11 @@ If the operator named a proposal (`PROP-NNN`):
 
    Build: `<type>(<scope>): <title>` if scope present, else `<type>: <title>`.
 
+**Derive labels** from the same category and scope values used above:
+   - Always derive a type label: `bug` → `bug`; `infrastructure`/`investigation` → `chore`; all others (including unknown) → `enhancement`.
+   - If a single scope was resolved for the title above, use that stripped scope token as an additional label (e.g. `homeassistant-hermit`, `hermit-scribe`). Omit if scope was absent or ambiguous.
+   - `hermit-filed` is always applied by the script — do NOT include it in the labels you pass as arguments.
+
 5. Construct draft body with the four body sections, then append:
    ```
    ---
@@ -99,7 +104,8 @@ Parse the response: split on the `<<<HERMIT_SCRIBE_BODY>>>` line. Everything bef
 Present the post-translation, post-sanitization content to the operator as a **single message** containing, in order:
 1. Proposed title
 2. Complete issue body — everything that will be written to the issue, including the `---\n*Filed via hermit-scribe...*` footer
-3. Confirmation prompt: `File this issue? (yes / edit / cancel)`
+3. Labels that will be applied (informational — no operator editing): `Labels: hermit-filed (always); plus bug/enhancement/chore and optional homeassistant-hermit/hermit-scribe for proposal-backed issues`
+4. Confirmation prompt: `File this issue? (yes / edit / cancel)`
 
 If the content exceeds the channel's message-size limit (Discord: 2000 chars), split into multiple messages. The confirmation prompt MUST appear in the FINAL message only — never in the first. Do NOT replace the body with placeholders like "(see below)" — inline the full body.
 
@@ -118,8 +124,20 @@ Use the Write tool to create two files inside that directory:
 
 **Step 6: run the script.**
 
-Substitute the same path from step 5:
+Substitute the same path from step 5 and append the derived type label and (if resolved) scope label as trailing arguments. Do NOT include `hermit-filed` — the script always adds it.
 
+```bash
+node "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.js" \
+  /tmp/tmp.AbCdEf/title /tmp/tmp.AbCdEf/body.md <type-label> [<scope-label>]
+```
+
+For example, a `capability` proposal scoped to `homeassistant-hermit`:
+```bash
+node "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.js" \
+  /tmp/tmp.AbCdEf/title /tmp/tmp.AbCdEf/body.md enhancement homeassistant-hermit
+```
+
+For an ad-hoc issue (no proposal), omit the label args entirely:
 ```bash
 node "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.js" /tmp/tmp.AbCdEf/title /tmp/tmp.AbCdEf/body.md
 ```

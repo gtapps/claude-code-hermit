@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **hermit-scribe: auto-derive issue labels** — type label from proposal `category` (`bug`/`chore`/`enhancement`) and plugin-scope label when a single scope resolves, on top of the always-present `hermit-filed`.
+
+---
+
 ## [0.0.4] - 2026-05-31
 
 ### Added
