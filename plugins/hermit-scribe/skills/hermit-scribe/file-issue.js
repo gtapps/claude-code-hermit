@@ -159,7 +159,7 @@ async function commentMode() {
   process.stdout.write(comment.html_url + "\n");
 }
 
-function buildLabels(extra) {
+function buildLabels(extra = []) {
   return [...new Set(["hermit-filed", ...extra])];
 }
 

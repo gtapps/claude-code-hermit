@@ -176,6 +176,10 @@ test("buildLabels([]) returns [hermit-filed]", () => {
   assertDeepEqual(buildLabels([]), ["hermit-filed"], "labels");
 });
 
+test("buildLabels(undefined) returns [hermit-filed]", () => {
+  assertDeepEqual(buildLabels(undefined), ["hermit-filed"], "labels");
+});
+
 test("buildLabels with extra labels puts hermit-filed first", () => {
   assertDeepEqual(
     buildLabels(["bug", "homeassistant-hermit"]),

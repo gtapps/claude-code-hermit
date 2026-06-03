@@ -104,7 +104,7 @@ Parse the response: split on the `<<<HERMIT_SCRIBE_BODY>>>` line. Everything bef
 Present the post-translation, post-sanitization content to the operator as a **single message** containing, in order:
 1. Proposed title
 2. Complete issue body — everything that will be written to the issue, including the `---\n*Filed via hermit-scribe...*` footer
-3. Labels that will be applied (informational — no operator editing): `Labels: hermit-filed, <type>[, <scope>]`
+3. Labels that will be applied (informational — no operator editing): `Labels: hermit-filed[, <type>[, <scope>]]`
 4. Confirmation prompt: `File this issue? (yes / edit / cancel)`
 
 If the content exceeds the channel's message-size limit (Discord: 2000 chars), split into multiple messages. The confirmation prompt MUST appear in the FINAL message only — never in the first. Do NOT replace the body with placeholders like "(see below)" — inline the full body.
