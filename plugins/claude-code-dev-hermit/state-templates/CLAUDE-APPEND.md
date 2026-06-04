@@ -46,7 +46,7 @@ After making code changes:
 1. Run the configured test command (`claude-code-dev-hermit.commands.test`, set via `/claude-code-dev-hermit:hatch`). If unset, ask the operator for the command and offer to save it via `hatch`.
 2. If tests fail, fix the failures or surface them in the response — **do not declare the task done with broken tests**.
 3. If the task is non-trivial and `/feature-dev:feature-dev` is installed, run it first when the code path is unfamiliar (framework lifecycle hooks, ORM internals, build-tool plugins, auth middleware). The trigger is **unfamiliarity, not urgency**. Skip for: doc/prompt/config edits, single-line fixes, code paths you've already read end-to-end.
-4. Before declaring the task done: run `/claude-code-dev-hermit:dev-quality`. It runs `/claude-code-hermit:simplify` on the working tree (cleanup pass) and re-runs `commands.test` if configured. If tests regress, investigate before committing. If `/code-review:code-review` is installed (`code-review@claude-plugins-official`), the skill will tell you to suggest it to the operator for a deeper correctness review — do not invoke that skill autonomously. **Nested git repo?** If your work is happening inside a nested git repo (true submodule, Composer path package, npm/pnpm path workspace, vendored dep edited in place), pass `--cwd <relative/path>` so `/dev-quality` scopes git ops, `/claude-code-hermit:simplify`, and the test re-run to that repo. State still lives under the parent's `.claude-code-hermit/`, but the captured SHA is the child's HEAD.
+4. Before declaring the task done: run `/claude-code-dev-hermit:dev-quality`. It runs `/claude-code-hermit:simplify` on the working tree (cleanup pass) and re-runs `commands.test` if configured. If tests regress, investigate before committing. The skill will suggest the native `/code-review` to the operator for deeper correctness review — do not invoke it autonomously. **Nested git repo?** If your work is happening inside a nested git repo (true submodule, Composer path package, npm/pnpm path workspace, vendored dep edited in place), pass `--cwd <relative/path>` so `/dev-quality` scopes git ops, `/claude-code-hermit:simplify`, and the test re-run to that repo. State still lives under the parent's `.claude-code-hermit/`, but the captured SHA is the child's HEAD.
 
 ## Tests Before PR
 
@@ -104,4 +104,4 @@ Tier mapping:
 - Cleanup pass: `/claude-code-hermit:simplify` (parallel reviewers, applies its own edits; `/dev-quality` wraps it)
 - Parallel changes across many files: `/batch` (built-in)
 - Diagnostics: `/debug` (built-in)
-- High-stakes review: `/code-review:code-review` (from `code-review@claude-plugins-official`, recommended companion)
+- High-stakes review: `/code-review` (built-in)

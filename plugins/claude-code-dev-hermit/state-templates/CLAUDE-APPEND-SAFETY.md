@@ -80,4 +80,4 @@ Tier mapping:
 - Cleanup pass: `/claude-code-hermit:simplify` (parallel reviewers, applies its own edits)
 - Parallel changes across many files: `/batch` (built-in)
 - Diagnostics: `/debug` (built-in)
-- High-stakes review: `/code-review:code-review` (from `code-review@claude-plugins-official`, recommended companion)
+- High-stakes review: `/code-review` (built-in)

@@ -1,6 +1,6 @@
 ---
 name: dev-quality
-description: Pre-wrap quality gate. Runs /claude-code-hermit:simplify for a cleanup pass on the working-tree diff (including untracked files), re-runs commands.test, and reports results. Suggests /code-review:code-review when installed. Run this before committing.
+description: Pre-wrap quality gate. Runs /claude-code-hermit:simplify for a cleanup pass on the working-tree diff (including untracked files), re-runs commands.test, and reports results. Suggests /code-review for a deeper review. Run this before committing.
 ---
 
 # /dev-quality
@@ -89,13 +89,13 @@ Use `timeout: 600000`. Records the result to `last-test.json`.
 
 **Tests pass:**
 
-Report the outcome. Then check whether `/code-review:code-review` is in the agent's available slash-command list. If available, append:
+Report the outcome. Append:
 
 ```
-next: suggest the operator run /code-review:code-review for a deeper review before commit
+next: suggest the operator run /code-review for a deeper review before commit
 ```
 
-Do **not** invoke `/code-review:code-review` autonomously — operator decision only. Skill exits clean; reviewed changes remain uncommitted for the operator to commit.
+Do **not** invoke `/code-review` autonomously — operator decision only. Skill exits clean; reviewed changes remain uncommitted for the operator to commit.
 
 **Tests fail:**
 
@@ -110,7 +110,7 @@ dev-quality
   diff:        12 files modified
   simplify:    applied 4 · deduped 1 · principle-rejected 2 · stale-anchor skips 0 · parse failures 0
   tests:       pass (12.3s)
-  next:        suggest operator run /code-review:code-review (installed)
+  next:        suggest operator run /code-review
   status:      ok
 ```
 
@@ -179,7 +179,7 @@ dev-quality
 ## Rules
 
 - **Main session only.** Subagents cannot invoke skills (see CLAUDE-APPEND §Technical Constraints) — `/dev-quality` only fires from the main session.
-- **Never invokes `/code-review:code-review`.** Suggests it to the operator when available; the operator decides.
+- **Never invokes `/code-review`.** Suggests it to the operator; the operator decides.
 - **Never commits.** Leaves the diff uncommitted for the operator.
 - **Never modifies the working tree on test failure.** Surfaces the regression and stops; no rollback.
 - **Writes `last-test.json`, but no cross-skill contract.** The record is written at the pre-commit HEAD. After committing, `/dev-pr` sees a stale SHA and re-runs tests — expected behaviour.

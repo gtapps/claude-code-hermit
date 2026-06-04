@@ -118,7 +118,7 @@ See [docs/GIT-SAFETY.md](docs/GIT-SAFETY.md) for the full safety model and the t
 **Optional workflow skills** (for greenfield projects — skip if you already have your own `/commit`, `/create-pr`, or `/release` skills):
 
 - **`dev-pr` skill** — Push the current feature branch and open a PR with body assembled from commits + last test result + screenshots + optional project template. Runs tests automatically on cache miss — fresh HEAD pass hits instantly; anything else triggers the test runner.
-- **`dev-quality` skill** — Pre-wrap quality gate. Runs `/claude-code-hermit:simplify` (cleanup pass) on the working tree, re-runs `commands.test`, and reports pass/fail. Suggests `/code-review:code-review` if available for a deeper correctness review — never invokes it.
+- **`dev-quality` skill** — Pre-wrap quality gate. Runs `/claude-code-hermit:simplify` (cleanup pass) on the working tree, re-runs `commands.test`, and reports pass/fail. Suggests the native `/code-review` for a deeper correctness review — never invokes it.
 - **`dev-test` skill** — Run the configured test suite and record the result to `last-test.json`. Useful for mid-task verification and warming the `/dev-pr` cache.
 
 ---

@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **hatch + dev-quality: drop `code-review` companion plugin** — `code-review@claude-plugins-official` is built into Claude Code since v2.1.150; removed it from hatch's companion picker and the `/dev-quality` install guard (#279).
+
 ## [0.3.13] - 2026-06-04
 
 ### Fixed

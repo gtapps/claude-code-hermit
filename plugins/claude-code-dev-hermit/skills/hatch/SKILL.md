@@ -210,7 +210,6 @@ questions: [
     question: "Install companion plugins?",
     multiSelect: true,
     options: [
-      { label: "code-review", description: "Second-pass review for PRs and high-stakes code" },
       { label: "feature-dev", description: "Architect/explorer/reviewer agents for guided feature dev" },
       { label: "context7", description: "Live docs lookup for framework APIs" }
     ]
@@ -273,7 +272,7 @@ Updated:
   PR template: <path or 'none'>  [standard mode only]
 
 Companion plugins:
-  [installed: code-review, feature-dev, context7  /  partial  /  none]
+  [installed: feature-dev, context7  /  partial  /  none]
 
 Available skills:
   /claude-code-dev-hermit:hatch    — re-run to update settings (idempotent)

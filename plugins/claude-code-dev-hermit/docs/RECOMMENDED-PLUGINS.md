@@ -2,17 +2,7 @@
 
 The `/claude-code-dev-hermit:hatch` wizard offers these during setup. All are official plugins from `claude-plugins-official` — install individually or accept them all at once.
 
----
-
-## code-review
-
-GitHub: [anthropics/code-review](https://github.com/anthropics/claude-code/tree/main/plugins/code-review)
-
-```bash
-claude plugin install code-review@claude-plugins-official --scope project
-```
-
-Official Anthropic plugin — PR-level code review with git-blame context and inline GitHub comments. Invoke via `/code-review:code-review` explicitly when the stakes warrant it: someone else's PR, security-sensitive changes, large refactors where history matters. The CLAUDE-APPEND `§Tests Before PR` rule covers the lighter-weight `/claude-code-hermit:simplify` cleanup pass that runs on every commit; `/code-review:code-review` is for when you want git-blame context, prior PR comments, and inline GitHub comments.
+> **Note:** `/code-review` is built into Claude Code since v2.1.150. No plugin install needed — invoke it directly for PR-level review with git-blame context.
 
 ---
 
