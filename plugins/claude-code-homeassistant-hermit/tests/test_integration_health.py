@@ -162,3 +162,26 @@ def test_cli_integration_health_skips_cleanly_when_refresh_fails(tmp_path: Path,
     out = capsys.readouterr().out
     assert rc == 0
     assert "refresh failed" in out
+
+
+def test_cli_integration_health_refreshes_when_stat_raises_oserror(tmp_path: Path, capsys, monkeypatch):
+    import ha_agent_lab.cli as cli_mod
+    from ha_agent_lab.cli import _handle_integration_health
+
+    snapshot_path = tmp_path / ".claude-code-hermit" / "raw" / "snapshot-ha-normalized-latest.json"
+    _setup_refresh_monkeypatch(monkeypatch, cli_mod, snapshot_path)
+
+    real_stat = Path.stat
+
+    def boom_stat(self, *args, **kwargs):
+        if self == snapshot_path:
+            raise PermissionError("stat denied")
+        return real_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", boom_stat)
+
+    rc = _handle_integration_health(tmp_path, object())
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "skipped" not in out
+    assert "Degraded domains:" in out

@@ -2,6 +2,12 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Fixed
+
+- **ha-integration-health: refresh stale/missing snapshot before analysis** — the daily check used to skip and exit 0 when `snapshot-ha-normalized-latest.json` was stale or missing, so in always-on deployments (where `daily-ha-context` doesn't run during waiting) it never produced output and `reflect-scheduled-checks` filed a backwards proposal to lengthen the interval. It now self-heals by running `refresh-context` first; if HA is unreachable it skips with a distinct `refresh failed` message so the backoff counter isn't tripped.
+
 ## [0.1.8] - 2026-06-01
 
 ### Added

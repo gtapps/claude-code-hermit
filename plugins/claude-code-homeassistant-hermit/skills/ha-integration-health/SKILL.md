@@ -37,5 +37,6 @@ Degraded domains: N
 
 If nothing is flagged: `No actionable findings. (D domains scanned)`.
 If snapshot is stale or missing and HA is unreachable: `No actionable findings. (skipped: snapshot stale, refresh failed — <error>)`.
+If the snapshot exists but can't be parsed: `No actionable findings. (skipped: snapshot unreadable — <error>)`.
 
 Keep stdout to this shape — no prose, no extra sections.

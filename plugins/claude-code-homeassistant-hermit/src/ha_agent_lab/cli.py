@@ -347,7 +347,7 @@ def _handle_integration_health(root: Path, config: Any) -> int:
     try:
         mtime = datetime.fromtimestamp(snapshot_path.stat().st_mtime, tz=UTC)
         stale = datetime.now(UTC) - mtime > timedelta(hours=24)
-    except FileNotFoundError:
+    except OSError:
         stale = True
 
     if stale:
