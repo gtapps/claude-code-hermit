@@ -126,23 +126,44 @@ BEHIND=$(git rev-list --count "HEAD..$REMOTE_SHA")
 
 **On push failure.** Capture stderr.
 
-- If stderr contains `cannot run ssh` **and** `FORGE=github` (from Gate 0 step 0b): the
-  container has no SSH binary but `gh` is the configured tool. Derive the HTTPS URL from
-  `git remote get-url origin`: `git@github.com:OWNER/REPO(.git)?` →
-  `https://github.com/OWNER/REPO.git`; for a `github.`-alias host (e.g.
-  `git@github.work:OWNER/REPO.git`, matching Gate 0's `github.` rule), take the
-  `OWNER/REPO` tail and prefix `https://github.com/`. Retry:
+- If stderr contains `cannot run ssh`: the container has no SSH binary. Dispatch on `FORGE`
+  (from Gate 0 step 0b):
 
-  ```bash
-  git -c "credential.helper=!gh auth git-credential" \
-    push https://github.com/<owner>/<repo>.git "$CURRENT_BRANCH:$CURRENT_BRANCH"
-  ```
+  - **`FORGE=github`**: derive the HTTPS URL from `git remote get-url origin`:
+    `git@github.com:OWNER/REPO(.git)?` → `https://github.com/OWNER/REPO.git`; for a
+    `github.`-alias host (e.g. `git@github.work:OWNER/REPO.git`, matching Gate 0's `github.`
+    rule), take the `OWNER/REPO` tail and prefix `https://github.com/`. Retry:
 
-  - Success: record `push: HTTPS fallback (SSH unavailable)` and continue to Gate 2.
-  - Failure (or `gh` not found): FAIL `"SSH unavailable and HTTPS fallback failed; ensure gh is authenticated (gh auth login)"`.
+    ```bash
+    git -c "credential.helper=!gh auth git-credential" \
+      push https://github.com/<owner>/<repo>.git "$CURRENT_BRANCH:$CURRENT_BRANCH"
+    ```
 
-- Any other failure (including `cannot run ssh` on a non-GitHub forge): FAIL with stderr
-  tail + recovery hint.
+    - Success: record `push: HTTPS fallback (SSH unavailable)` and continue to Gate 2.
+    - Failure (or `gh` not found): FAIL `"SSH unavailable and HTTPS fallback failed; ensure gh is authenticated (gh auth login)"`.
+
+  - **`FORGE=gitlab`**: derive the HTTPS URL from `git remote get-url origin`:
+    `git@gitlab.com:OWNER/REPO(.git)?` → `https://gitlab.com/OWNER/REPO.git`; for a
+    `gitlab.`-alias host (e.g. `git@gitlab.work:OWNER/REPO.git`, matching Gate 0's `gitlab.`
+    rule), take the `OWNER/REPO` tail and prefix `https://gitlab.com/`. Retry:
+
+    ```bash
+    git -c "credential.helper=!glab auth git-credential" \
+      push https://gitlab.com/<owner>/<repo>.git "$CURRENT_BRANCH:$CURRENT_BRANCH"
+    ```
+
+    - Success: record `push: HTTPS fallback (SSH unavailable)` and continue to Gate 2.
+    - Failure (or `glab` not found): FAIL `"SSH unavailable and HTTPS fallback failed; ensure glab is authenticated (glab auth login)"`.
+    - Note: this rewrite assumes gitlab.com SaaS. A self-hosted GitLab reached via a
+      `gitlab.`-alias host resolves to gitlab.com and fails auth; switch origin to that
+      instance's HTTPS remote instead.
+
+  - **Otherwise** (`bitbucket` / `custom` / unknown): FAIL `"SSH push failed because no ssh
+    binary is available, and automatic HTTPS fallback is only supported for GitHub and GitLab.
+    For this forge, either install an SSH client, or switch origin to an HTTPS remote with a
+    credential helper configured (git remote set-url origin https://...)"`.
+
+- Any other failure: FAIL with stderr tail + recovery hint.
 
 ### Gate 2 — assemble title and body
 

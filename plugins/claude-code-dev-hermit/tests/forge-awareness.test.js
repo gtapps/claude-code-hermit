@@ -98,9 +98,11 @@ ok('glab mr create documented', devPr.includes('glab mr create'));
 
 console.log('\ndev-pr SKILL.md — Gate 0 forge sanity check:');
 
-ok('not configured message present', devPr.includes('not configured'));
-ok('FORGE=github check present',     devPr.includes('FORGE=github'));
-ok('FORGE=gitlab check present',     devPr.includes('FORGE=gitlab'));
+ok('not configured message present',        devPr.includes('not configured'));
+ok('FORGE=github check present',            devPr.includes('FORGE=github'));
+ok('FORGE=gitlab check present',            devPr.includes('FORGE=gitlab'));
+ok('GitLab SSH→HTTPS fallback present',     devPr.includes('!glab auth git-credential'));
+ok('unsupported-forge SSH message present', devPr.includes('only supported for GitHub and GitLab'));
 
 // ── dev-pr — Gate 3 exact flag assertions ───────────────────────────────────
 
