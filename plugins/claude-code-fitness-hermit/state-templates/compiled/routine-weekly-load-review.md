@@ -21,7 +21,7 @@ Pull the last 14 days of Strava activities and compute weekly training load summ
 4. For each week compute:
    - Run: total distance (km), total elevation (m), session count
    - Bike: total distance (km), session count
-   - Strength: session count, total duration in minutes as `strength_minutes` (sum `moving_time` over WeightTraining/Workout activities — already in the Step 2 payload, no extra call)
+   - Strength: session count, total duration in minutes as `strength_minutes` (sum `moving_time` over WeightTraining/Workout activities — already in the Step 2 payload, no extra call; `moving_time` is in seconds, so divide the sum by 60)
    - Total active days
 5. Read `state/strava-weekly-baselines.json` and `state/activity-notes.json` (or `{}` if absent) in the same turn. The baselines file is used in step 6; the activity notes will be used in step 8.
 6. Compare this week's run distance to the 4-week rolling average from the baseline file:

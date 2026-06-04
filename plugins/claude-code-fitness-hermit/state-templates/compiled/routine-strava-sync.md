@@ -24,7 +24,7 @@ Check for new Strava activities uploaded today. Compare against the last known a
    - Log: date, type (run/ride/weight training), distance (km), duration, name
    - If it's a **run > 10km**: call `mcp__strava__get-activity-streams` with keys `heartrate,velocity_smooth,altitude,cadence`. Compute average HR zone distribution using the zone boundaries from Step 5. Flag if >30% time in Z4+.
    - If it's a **run on a day after a hard session (Z4+ flagged)**: note "recovery day recommended tomorrow".
-   - If it's a **WeightTraining or Workout**: derive a fatigue tier from `moving_time` (already in the Step 2 payload) — `≥45 min → moderate`, `30–44 min → light`, `<30 min → none`. Track the highest tier seen across all new strength activities today (`moderate` > `light` > `none`).
+   - If it's a **WeightTraining or Workout**: derive a fatigue tier from `moving_time` (already in the Step 2 payload, in seconds; divide by 60 for minutes) — `≥45 min → moderate`, `30–44 min → light`, `<30 min → none`. Track the highest tier seen across all new strength activities today (`moderate` > `light` > `none`).
    - If **no activity today** (0 new): check if yesterday also had 0 new. If 2+ consecutive rest days after a non-rest day, log: "2 consecutive rest days — intentional recovery or missed session?"
 7. Write the highest new activity ID to `state/strava-last-activity-id.txt`.
 8. For each new activity whose Strava `type` is `Run`, invoke `/claude-code-fitness-hermit:activity-deep-dive <id>` to produce a full coaching analysis.
