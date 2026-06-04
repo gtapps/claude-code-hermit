@@ -26,7 +26,7 @@ Pull the last 14 days of Strava activities and compute weekly training load summ
    Also compute **load-adjusted run distance** (`adjusted_km`): for each run activity, derive
    `elev_gain_per_km = elevation_gain_m / distance_km` and apply a heuristic multiplier to account
    for the higher mechanical load of gradient (descents especially):
-   `< 10 m/km → 1.0×` · `10–25 m/km → 1.2×` · `25–40 m/km → 1.35×` · `> 40 m/km → 1.5×`.
+   `< 10 m/km → 1.0×` · `10 to < 25 m/km → 1.2×` · `25 to < 40 m/km → 1.35×` · `≥ 40 m/km → 1.5×`.
    Sum the adjusted distances to get the week's `adjusted_km`.
 5. Read `state/strava-weekly-baselines.json` and `state/activity-notes.json` (or `{}` if absent) in the same turn. The baselines file is used in step 6; the activity notes will be used in step 8.
 6. Compare this week's `adjusted_km` to the 4-week rolling average of `adjusted_km` from the

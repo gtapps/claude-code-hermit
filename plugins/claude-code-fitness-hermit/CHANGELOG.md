@@ -10,12 +10,18 @@ All notable changes to this project will be documented in this file.
 
 - **domain-brainstorm: on-demand training-gap brainstorm skill** — reads Strava history and MEMORY.md goals, delegates bulk aggregation to `strava-data-cruncher`, and surfaces at most 2 goal-coverage or imbalance ideas (prefixes `[goal-gap]`, `[imbalance]`) as proposals via `proposal-create`. Scoped to coverage/imbalance gaps only — cardiac-drift and load trends remain with `weekly-coaching-patterns`. Never runs autonomously.
 - **Core Rule: ground training-history facts in Strava, not memory** — records, PBs, all-time totals, counts, and cross-block comparisons require a full-history Strava query; context/compaction may drop older activities. Recent-activity questions are unaffected.
+- **activity-deep-dive: trail running support** — classifies terrain (road/trail) from `sport_type: TrailRun` plus an elevation-gain fallback, then swaps the confounded pace/HR efficiency for VAM and a heuristic grade-adjusted-pace estimate, reframes cardiac drift against the altitude profile, suppresses road-calibrated cadence flags, and extends the recovery window for descent load. Adds `terrain` to artifact frontmatter. Closes #256.
+
+### Changed
+
+- **routine-weekly-load-review: elevation-weighted load** — run distance is scaled by a gradient multiplier (1.0–1.5×) into `adjusted_km`; spike/dip flags compare adjusted figures (falls back to raw `km` for weeks logged before this change). Channel output shows both raw and load-adjusted distance.
 
 ### Upgrade Instructions
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 1. **Sync the CLAUDE-APPEND block** — Step 7 re-appends the updated canonical block to the hatch target, adding `domain-brainstorm` to the quick-reference skills table and the new Fitness Proposal Categories section.
+2. **Overwrite the routine template** — copy `state-templates/compiled/routine-weekly-load-review.md` from the plugin into `.claude-code-hermit/compiled/` so the weekly review picks up load-adjusted distance. This is a bot-owned prompt; overwriting is safe.
 
 ---
 

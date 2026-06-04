@@ -1,6 +1,6 @@
 ---
 name: activity-deep-dive
-description: Per-activity coaching analysis from Strava. Detects interval vs steady-state sessions and branches the metrics accordingly. Computes zone breakdown and recovery estimate; saves a compiled artifact and returns a compact summary. Run after a workout or to retro-analyze a specific activity.
+description: Per-activity coaching analysis from Strava. Detects interval vs steady-state sessions and road vs trail terrain, branching the metrics accordingly. Computes zone breakdown and recovery estimate; saves a compiled artifact and returns a compact summary. Run after a workout or to retro-analyze a specific activity.
 allowed-tools:
   - Read
   - Write
@@ -15,7 +15,7 @@ allowed-tools:
 
 # Activity Deep-Dive
 
-Produces a standardised per-activity coaching note. Detects interval vs steady-state sessions and branches accordingly: interval sessions get work-interval HR progression and between-bout recovery quality; steady sessions get pace/HR efficiency and cardiac drift. Both get zone breakdown, recovery estimate, and a coaching note. Saves a compiled artifact and returns a compact summary.
+Produces a standardised per-activity coaching note. Detects interval vs steady-state sessions and branches accordingly: interval sessions get work-interval HR progression and between-bout recovery quality; steady sessions get pace/HR efficiency and cardiac drift. It also classifies terrain (road vs trail): trail sessions swap pace/HR efficiency for VAM and a grade-adjusted-pace estimate, reframe cardiac drift against the altitude profile, and extend the recovery window for descent load. Both get zone breakdown, recovery estimate, and a coaching note. Saves a compiled artifact and returns a compact summary.
 
 ## Usage
 
@@ -56,9 +56,12 @@ Produces a standardised per-activity coaching note. Detects interval vs steady-s
 
 4c. **Classify terrain** — compute `elev_gain_per_km = total_elevation_gain_m / distance_km`.
    Set `terrain`:
-   - `trail` if `sport_type == TrailRun`, OR as a fallback if `elev_gain_per_km >= 20` for a
-     running activity (≥ 100 m gain per 5 km — significant gradient that decouples pace from effort).
-   - `road` otherwise.
+   - `trail` if `sport_type == TrailRun` and `elev_gain_per_km >= 10`, OR as a fallback if
+     `elev_gain_per_km >= 20` for a running activity (≥ 100 m gain per 5 km — significant gradient
+     that decouples pace from effort).
+   - `road` otherwise. This includes a flat `TrailRun` (`elev_gain_per_km < 10`, e.g. a canal or
+     gravel path), where pace stays a valid effort proxy and VAM/GAP add no signal — road metrics
+     are the right lens.
    Hold `terrain` and `elev_gain_per_km` for steps 5–7.
 
 5. Compute metrics:
@@ -69,9 +72,12 @@ Produces a standardised per-activity coaching note. Detects interval vs steady-s
    Convert to steps-per-minute first: if the median stream value is < 130 it is single-leg RPM —
    multiply every value by 2; otherwise use as-is. Compute avg, standard deviation σ, and
    coefficient of variation CV = σ/μ × 100. Flag if avg < 170 spm (over-striding risk) and/or
-   CV > 8% (high within-run variability — neuromuscular fatigue signal). If the cadence stream is
-   absent or empty, or the sport type is not a running type, skip the cadence line entirely (mirror
-   the "HR data unavailable" guard — do not emit a placeholder).
+   CV > 8% (high within-run variability — neuromuscular fatigue signal). On trail terrain, report
+   avg and CV for reference but suppress both ⚠ flags — the < 170 spm and CV > 8% thresholds are
+   road-calibrated, and naturally lower, more variable cadence is expected on technical terrain
+   (climbs, descents, footing) rather than a fault. If the cadence stream is absent or empty, or
+   the sport type is not a running type, skip the cadence line entirely (mirror the "HR data
+   unavailable" guard — do not emit a placeholder).
 
    **Pace/HR efficiency** *(steady sessions only, road terrain only)* — average pace (min/km)
    divided by average HR. Lower = more efficient. Call `mcp__strava__get-recent-activities` with
@@ -93,7 +99,8 @@ Produces a standardised per-activity coaching note. Detects interval vs steady-s
    **GAP estimate** *(trail terrain only)* — session-level grade-adjusted pace: converts the run
    to an equivalent flat effort using total elevation gain only (not per-point grade). Heuristic:
    `equiv_flat_km = distance_km + 0.008 × total_elevation_gain_m` (100 m of ascent ≈ 0.8 km of
-   flat effort). `GAP = total_duration / equiv_flat_km`. Report
+   flat effort). `GAP = moving_time / equiv_flat_km` — use moving time, not elapsed, so the
+   estimate is comparable to Strava's moving-time-based actual pace. Report
    `GAP ~M:SS/km (est, vs actual P:SS/km)`. Label as heuristic in output.
 
    **Work-interval HR progression** *(interval sessions only)* — per-lap avg HR across work laps
@@ -116,8 +123,8 @@ Produces a standardised per-activity coaching note. Detects interval vs steady-s
    For trail activities, extend the recommended window based on `elev_gain_per_km` to account for
    the muscular load of descents and technical footwork not captured by HR zones (heuristic):
    - `elev_gain_per_km < 15` → no extension
-   - `elev_gain_per_km 15–30` → add 1 day to the window (e.g. 48h → 72h, 72h → 4 days)
-   - `elev_gain_per_km > 30` → add 1–2 days (e.g. 72h → 4–5 days, 5–7 days stays at 5–7 days)
+   - `elev_gain_per_km 15 to < 30` → add 1 day to the window (e.g. 48h → 72h, 72h → 4 days)
+   - `elev_gain_per_km >= 30` → add 1–2 days (e.g. 72h → 4–5 days, 5–7 days stays at 5–7 days)
    Append `(+trail vert)` to the recovery line when an extension is applied.
 
    **Coaching note** — 2–3 sentences grounded in the numbers. Highlight what was executed well and one concrete thing to monitor or adjust next time. Reference specific metrics (e.g. "cardiac drift of +14 bpm suggests pacing started too hot").
@@ -142,8 +149,8 @@ Produces a standardised per-activity coaching note. Detects interval vs steady-s
    Activity: <name> | <date> | <distance>km in <duration> | <elevation>m gain
    Session type: Steady · Trail
    Zones: Z1 N% / Z2 N% / Z3 N% / Z4 N% / Z5 N%
-   Cadence: N spm avg (CV: X%) [⚠ over-striding | ⚠ high variability]   ← omit line when cadence absent or non-running; show ⚠ only on a tripped flag
-   Trail: VAM N m/h | GAP ~M:SS/km (est, actual P:SS/km)
+   Cadence: N spm avg (CV: X%)   ← reference only on trail (no ⚠ flags); omit line when cadence absent or non-running
+   Trail: VAM N m/h | GAP ~M:SS/km (est, vs actual P:SS/km)
    HR/altitude: <qualitative note on whether HR tracked the climb/descent profile>
    Recovery: N/5 — recommended rest: Xh[(+trail vert)]
    Subjective: RPE N/10 — <notes>          ← include only when RPE data exists from step 3b
@@ -168,8 +175,8 @@ Produces a standardised per-activity coaching note. Detects interval vs steady-s
    Activity: <name> | <date> | <distance>km in <duration> | <elevation>m gain
    Session type: Interval (N×~Xmin) · Trail
    Zones: Z1 N% / Z2 N% / Z3 N% / Z4 N% / Z5 N%
-   Cadence: N spm avg (CV: X%) [⚠ over-striding | ⚠ high variability]   ← omit line when cadence absent or non-running; show ⚠ only on a tripped flag
-   Trail: VAM N m/h | GAP ~M:SS/km (est, actual P:SS/km)
+   Cadence: N spm avg (CV: X%)   ← reference only on trail (no ⚠ flags); omit line when cadence absent or non-running
+   Trail: VAM N m/h | GAP ~M:SS/km (est, vs actual P:SS/km)
    Intervals: I1 NNNbpm → IN NNNbpm — <progressive ✓ / regressive / flat>; peaked at NNNbpm on IN
    Between-bout recovery: HR to ~NNNbpm — <adequate / incomplete>
    Recovery: N/5 — recommended rest: Xh[(+trail vert)]
@@ -198,7 +205,7 @@ Body: the full output above.
 
 7b. Write signal-only coaching observations to `.claude-code-hermit/sessions/SHELL.md` Findings.
 
-   From the computed metrics and coaching note, derive 0–N observations that carry a coaching signal worth tracking across sessions: a flagged cardiac drift, a zone-distribution anomaly, a recovery estimate that conflicts with subjective RPE, an efficiency regression vs the prior mean, a flagged cadence (low average or high within-run variability). Do NOT write routine confirmations ("session completed normally") unless they represent a pattern break. If nothing clears the signal bar, skip this step.
+   From the computed metrics and coaching note, derive 0–N observations that carry a coaching signal worth tracking across sessions: a flagged cardiac drift, a zone-distribution anomaly, a recovery estimate that conflicts with subjective RPE, an efficiency regression vs the prior mean, a flagged cadence (low average or high within-run variability), a notable VAM value, or a trail recovery extension. Do NOT write routine confirmations ("session completed normally") unless they represent a pattern break. If nothing clears the signal bar, skip this step.
 
    First `Read` `.claude-code-hermit/sessions/SHELL.md` (Edit requires the file in context, and you need its current `## Findings` content to dedup). For each qualifying observation, anchor on the HTML comment and append one line:
 
