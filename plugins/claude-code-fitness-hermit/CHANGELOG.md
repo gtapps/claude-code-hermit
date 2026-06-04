@@ -4,18 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [0.0.7] - 2026-06-04
 
 ### Added
 
 - **domain-brainstorm: on-demand training-gap brainstorm skill** — reads Strava history and MEMORY.md goals, delegates bulk aggregation to `strava-data-cruncher`, and surfaces at most 2 goal-coverage or imbalance ideas (prefixes `[goal-gap]`, `[imbalance]`) as proposals via `proposal-create`. Scoped to coverage/imbalance gaps only — cardiac-drift and load trends remain with `weekly-coaching-patterns`. Never runs autonomously.
 - **Core Rule: ground training-history facts in Strava, not memory** — records, PBs, all-time totals, counts, and cross-block comparisons require a full-history Strava query; context/compaction may drop older activities. Recent-activity questions are unaffected.
 
+### Changed
+
+- **required_core_version: bumped to >=1.1.9** — aligns with the issue-proposals routine added in core 1.1.9.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/domain-brainstorm/SKILL.md` | New training-gap brainstorm skill |
+| `state-templates/CLAUDE-APPEND.md` | Adds domain-brainstorm to skills table and Fitness Proposal Categories section |
+| `.claude-plugin/hermit-meta.json` | required_core_version and requires bumped to >=1.1.9 |
+| `.claude-plugin/plugin.json` | dependencies claude-code-hermit bumped to ^1.1.9 |
+
 ### Upgrade Instructions
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 1. **Sync the CLAUDE-APPEND block** — Step 7 re-appends the updated canonical block to the hatch target, adding `domain-brainstorm` to the quick-reference skills table and the new Fitness Proposal Categories section.
+
+No `config.json` changes required.
 
 ---
 
