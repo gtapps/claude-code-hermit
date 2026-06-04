@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- **session bootstrap: drop `disable-model-invocation` from session skill** — always-on multi-step boot invokes it via the Skill tool, which the flag rejected; bare hermits (single step) were unaffected, making the failure look intermittent (#229).
 - **hatch: always default `push_notifications: true` on fresh hatch** — removed the channel-choice derivation that wrote `false` whenever a channel was selected. The runtime guard in `CLAUDE-APPEND.md` already enforces channel-first delivery with push as fallback, so the hatch-time override was discarding the fallback unnecessarily. Both Quick and Advanced modes now leave `push_notifications` at the template default (`true`); re-init still preserves the existing value.
 
 ### Upgrade Instructions
