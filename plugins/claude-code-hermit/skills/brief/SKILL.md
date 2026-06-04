@@ -41,7 +41,7 @@ Emphasize backward-looking content:
 - Read `.claude-code-hermit/cost-summary.md` for today's cost and token total. If the summary is stale (its frontmatter `updated` date is not today), the cost-tracker will regenerate it on the next interaction — use the trend table's today row (Cost and Tokens columns) or fall back to scanning reports.
 - Key findings or patterns noticed
 - What to look at tomorrow
-- After generating summary: if SHELL.md Status is `in_progress` or has progress entries since last report, note it in the brief (e.g., "Session still open — run /session-close to archive.") and let the operator close explicitly. Idle transitions are owned by the `session` skill and `session-mgr`; brief does not trigger them.
+- After generating summary: if SHELL.md Status is `in_progress` or has progress entries since last report, note it in the brief (e.g., "Session still open — run /session-close to archive.") and let the operator close explicitly. Exception: if `config.always_on` is `true` AND `config.routines` contains an enabled entry with skill containing `daily-auto-close`, suppress the note — the auto-close routine archives it at midnight. Idle transitions are owned by the `session` skill and `session-mgr`; brief does not trigger them.
 
 ### No flag (default)
 
