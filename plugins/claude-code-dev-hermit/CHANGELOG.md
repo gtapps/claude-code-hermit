@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- **dev-pr Gate 1: HTTPS fallback when SSH unavailable** — when `git push` fails with `cannot run ssh` on a GitHub remote, retry over HTTPS via `gh auth git-credential` and record the fallback, instead of a generic FAIL. Makes `/dev-pr` work in Docker hermit containers without an `ssh` binary (#234).
+- **dev-pr Gate 1: HTTPS fallback when SSH unavailable** — when `git push` fails with `cannot run ssh`, retry over HTTPS via the forge's git-credential helper and record the fallback, instead of a generic FAIL. Covers GitHub (`gh`, #234) and GitLab (`glab`, #246); other forges get a tailored message naming the manual recovery path. Makes `/dev-pr` work in Docker hermit containers without an `ssh` binary. The GitLab auto-fallback targets gitlab.com, so a self-hosted instance reached via a `gitlab.`-alias host should switch origin to that instance's HTTPS remote.
 
 ## [0.3.12] - 2026-06-01
 

@@ -154,6 +154,9 @@ BEHIND=$(git rev-list --count "HEAD..$REMOTE_SHA")
 
     - Success: record `push: HTTPS fallback (SSH unavailable)` and continue to Gate 2.
     - Failure (or `glab` not found): FAIL `"SSH unavailable and HTTPS fallback failed; ensure glab is authenticated (glab auth login)"`.
+    - Note: this rewrite assumes gitlab.com SaaS. A self-hosted GitLab reached via a
+      `gitlab.`-alias host resolves to gitlab.com and fails auth; switch origin to that
+      instance's HTTPS remote instead.
 
   - **Otherwise** (`bitbucket` / `custom` / unknown): FAIL `"SSH push failed because no ssh
     binary is available, and automatic HTTPS fallback is only supported for GitHub and GitLab.
