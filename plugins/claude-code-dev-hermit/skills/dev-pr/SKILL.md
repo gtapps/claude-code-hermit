@@ -124,7 +124,25 @@ BEHIND=$(git rev-list --count "HEAD..$REMOTE_SHA")
 - `AHEAD > 0`: regular push: `git push origin "$CURRENT_BRANCH"`.
 - Both 0: skip push, record `push: already up to date`.
 
-On push failure: FAIL with stderr tail + recovery hint.
+**On push failure.** Capture stderr.
+
+- If stderr contains `cannot run ssh` **and** `FORGE=github` (from Gate 0 step 0b): the
+  container has no SSH binary but `gh` is the configured tool. Derive the HTTPS URL from
+  `git remote get-url origin`: `git@github.com:OWNER/REPO(.git)?` →
+  `https://github.com/OWNER/REPO.git`; for a `github.`-alias host (e.g.
+  `git@github-work:OWNER/REPO.git`), take the `OWNER/REPO` tail and prefix
+  `https://github.com/`. Retry:
+
+  ```bash
+  git -c "credential.helper=!gh auth git-credential" \
+    push https://github.com/<owner>/<repo>.git "$CURRENT_BRANCH:$CURRENT_BRANCH"
+  ```
+
+  - Success: record `push: HTTPS fallback (SSH unavailable)` and continue to Gate 2.
+  - Failure (or `gh` not found): FAIL `"SSH unavailable and HTTPS fallback failed; ensure gh is authenticated (gh auth login)"`.
+
+- Any other failure (including `cannot run ssh` on a non-GitHub forge): FAIL with stderr
+  tail + recovery hint.
 
 ### Gate 2 — assemble title and body
 
