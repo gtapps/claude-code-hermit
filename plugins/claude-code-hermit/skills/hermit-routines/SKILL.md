@@ -23,6 +23,8 @@ Register and manage scheduled routines as per-session CronCreate jobs. Each rout
 Called automatically by `hermit-start.py` on always-on launches. Can also be called manually to apply config changes mid-session.
 
 1. Resolve the plugin root path: run `echo $CLAUDE_PLUGIN_ROOT` via Bash. Store as `pluginRoot`. Read `config.timezone` from `.claude-code-hermit/config.json`. Store as `configTz` (may be null — the shift helper treats null as a no-op). This env var is available at skill execution time but NOT inside cron-delivered prompts — it must be baked into each prompt at registration.
+
+   **Validate `pluginRoot` before proceeding.** If `pluginRoot` is empty or `<pluginRoot>/scripts/log-routine-event.sh` does not exist (`test -f`), abort `load` immediately — do **not** run the Step 3 reset or register any CronCreate — and log one line: `Routine load aborted: plugin scripts not found at "<pluginRoot>" (CLAUDE_PLUGIN_ROOT unresolved or wrong). No routines registered or reset.` This is a whole-`load` abort, not the per-routine isolation of Step 4: a bad `pluginRoot` breaks every routine's baked paths, and aborting before Step 3 protects the prior session's CronCreates from being torn down and left unreplaced.
 2. Read `config.routines`, filter `enabled: true`. If none, log "No enabled routines in config." and stop.
 3. Call `CronList`. For each entry whose prompt contains `[hermit-routine:`: call `CronDelete` with its ID. Unconditional reset — ensures stale entries from prior sessions are cleared and the 7-day auto-expiry clock is reset.
 4. For each enabled routine, build the prompt string (see templates below), then call `CronCreate`:

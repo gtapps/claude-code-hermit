@@ -25,7 +25,7 @@ Use this when the operator wants to end everything (via `hermit-stop` or explici
 
 ### Auto-close path (`--auto`)
 
-When invoked with `--auto` by heartbeat, skip steps 1–5 and jump directly to step 6 (Tasks cleanup), step 7 (session-mgr archive), and step 8 (pending-close cleanup). Pass this templated payload to session-mgr:
+When invoked with `--auto` by heartbeat, skip steps 1–5 and jump directly to step 6 (shutdown_skill), step 7 (Tasks cleanup), step 8 (session-mgr archive), and step 9 (pending-close cleanup). Pass this templated payload to session-mgr:
 
 ```
 Status: completed
@@ -39,7 +39,7 @@ Next Start Point: Fresh start.
 
 Write `Auto-closed by heartbeat.` as the first line of `## Overview` in the session report.
 
-If the archive in step 7 fails, leave `pending-close.json` in place so the next heartbeat tick retries the drain — skip step 8.
+If the archive in step 8 fails, leave `pending-close.json` in place so the next heartbeat tick retries the drain — skip step 9.
 
 ---
 
@@ -54,8 +54,9 @@ If the archive in step 7 fails, leave `pending-close.json` in place so the next 
 4. If any high-leverage improvements were discovered during work, create proposals via the `claude-code-hermit:proposal-create` skill
 5. Invoke the `claude-code-hermit:reflect` skill to reflect on accumulated experience. Reflect no longer requires archived reports — it uses memory. This runs before archiving so any findings are included in the archived report. **Skip on `--auto`** — during auto-close, `session_state` is still `in_progress`, which forces reflect-precheck into compute phase before the `closed_via: auto` filter can run; there is no operator-curated session content to reflect on anyway.
    If reflect returns `reflect: no candidates`, scan this session's `## Findings` and `## Progress Log` for non-obvious discoveries not already in memory and issue the standard "remember it" reflection for any that clear the auto-memory threshold. Apply WHAT_NOT_TO_SAVE as normal.
-6. If native Tasks exist: call `TaskList`, format as a markdown table. Then `TaskUpdate(status=deleted)` for completed tasks only — pending/in_progress tasks persist for next session.
-7. Archive the session via `claude-code-hermit:session-mgr` (full close — finalize SHELL.md and replace with fresh template in one operation). Pass the following compact structured payload in the prompt — keep it brief, no freeform prose:
+6. **Stop always-on services (`shutdown_skill`).** Read `shutdown_skill` from `.claude-code-hermit/config.json`. If non-null, invoke it as a skill command (the value may include arguments, e.g. `/serve stop`) via the Skill tool. **Best-effort:** on error or if the skill does not return, log a Monitoring line and continue to archival — never abort the close. Runs on both operator and `--auto` paths.
+7. If native Tasks exist: call `TaskList`, format as a markdown table. Then `TaskUpdate(status=deleted)` for completed tasks only — pending/in_progress tasks persist for next session.
+8. Archive the session via `claude-code-hermit:session-mgr` (full close — finalize SHELL.md and replace with fresh template in one operation). Pass the following compact structured payload in the prompt — keep it brief, no freeform prose:
    ```
    Status: <completed|partial|blocked>
    Blockers: <one line each, or none>
@@ -66,7 +67,7 @@ If the archive in step 7 fails, leave `pending-close.json` in place so the next 
    Next Start Point: <one line>
    ```
    Also include the task table (if native Tasks were created).
-8. **Pending-close cleanup (both paths).** After the session-mgr archive returns success, delete `.claude-code-hermit/state/pending-close.json` if it exists (`rm -f` — ignore if absent). Any pending midnight-drain flag is invalidated by a successful close, regardless of trigger; without this step a flag queued before an operator-invoked close would survive and the next session's first heartbeat tick could fire `AUTO_CLOSE` against it.
+9. **Pending-close cleanup (both paths).** After the session-mgr archive returns success, delete `.claude-code-hermit/state/pending-close.json` if it exists (`rm -f` — ignore if absent). Any pending midnight-drain flag is invalidated by a successful close, regardless of trigger; without this step a flag queued before an operator-invoked close would survive and the next session's first heartbeat tick could fire `AUTO_CLOSE` against it.
 
 ---
 

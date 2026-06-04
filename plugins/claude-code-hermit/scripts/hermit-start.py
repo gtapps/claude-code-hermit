@@ -60,6 +60,7 @@ DEFAULT_CONFIG = {
         'MAX_THINKING_TOKENS': '10000',
     },
     'boot_skill': None,
+    'shutdown_skill': None,
     'scheduled_checks': [],
     'docker': {
         'packages': [],

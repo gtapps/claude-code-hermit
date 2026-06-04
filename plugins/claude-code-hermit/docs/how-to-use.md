@@ -50,6 +50,8 @@ A web app. Be careful.
 
 The whole file is loaded on session start — write what matters, keep it short. Update anytime: just tell Hermit "update OPERATOR.md with [your change]."
 
+Behavioral "when X, do Y" rules belong in `CLAUDE.md`, not here — see [the FAQ](faq.md#operatormd-vs-claudemd--where-does-it-go).
+
 ---
 
 ## Your First Session

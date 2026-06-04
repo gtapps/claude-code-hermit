@@ -139,6 +139,24 @@ This is how the agent learns the DM channel ID for proactive outbound notificati
 - Always reference the current task so the operator knows you're oriented
 - If you can't handle the request, say so clearly and suggest what the operator should do
 
+## 4. Capture Interactive Patterns
+
+After sending the response, check whether this turn revealed a durable signal worth recording. Append **at most one** line to SHELL.md `## Findings` when the turn matches one of these conditions:
+
+- **Stated preference or rule** — the operator explicitly said how they want something done going forward ("always include the cost", "stop sending the brief before 9", "I prefer X over Y").
+- **Recurring request type** — you recognise this as the same kind of request handled earlier in this session or in recent session context loaded at start, not a first occurrence.
+- **Correction or emergency implying a durable preference** — "stop doing X", "don't do that again", "revert" with a reason that names a general behaviour.
+
+**Do not write a finding** for: one-off questions, research turns with no preference signal, task assignments, status checks, or micro-approval responses. When in doubt, write nothing — the next scheduled reflect catches genuine recurrence via archived-session evidence.
+
+Format (one line, appended under `## Findings`):
+
+```
+[HH:MM] Channel pattern: <one-line description of the preference or recurrence>
+```
+
+Do not classify tier, tag Evidence Source, or decide memory-vs-proposal. Reflect reads this line as `current-session` evidence (`Evidence Source: current-session`, `Sessions: current`) and runs triage and the reflection-judge to decide the outcome.
+
 ## Note
 
 This skill is a stub for the Channels research preview (Claude Code v2.1.110+). As Channels matures, extend this skill with:

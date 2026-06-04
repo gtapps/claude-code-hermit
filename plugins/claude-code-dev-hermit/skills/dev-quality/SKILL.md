@@ -10,7 +10,7 @@ Run a cleanup pass on the working-tree changes before declaring the task done. I
 ## Prerequisites
 
 - Verify `.claude-code-hermit/sessions/` exists. If not: tell the operator to run `/claude-code-hermit:hatch` and `/claude-code-dev-hermit:hatch` first.
-- Read `commands.test` from `.claude-code-hermit/config.json`. If unset, the test step is skipped — `/claude-code-hermit:simplify` still runs.
+- Read `.claude-code-hermit/config.json` once. Cache `commands.test` (if unset, the test step is skipped — `/claude-code-hermit:simplify` still runs) and `claude-code-dev-hermit.protected_branches` (default `["main", "master"]` if absent).
 
 ## Plan
 
@@ -28,7 +28,7 @@ git -C "$TARGET" status --porcelain
 
 Empty output → working tree is clean (no modified, staged, or untracked-but-not-ignored files). Any non-empty output passes Gate 0, including untracked-only changes — `/claude-code-hermit:simplify` captures new files via `git status --short` + synthetic `+++` blocks, so a task that only adds files still has cleanup scope.
 
-Before failing on empty output, check whether HEAD has commits ahead of the base:
+Before failing on empty output, run the following checks in order:
 
 1. Resolve `BASE_NAME` using the same priority order as `/dev-pr` Gate 0 step 4 (`pr_base_branch` → first non-glob `protected_branches` → `origin/HEAD` → `main`/`master`).
 2. Resolve `BASE_REF`: try `git -C "$TARGET" rev-parse --verify "$BASE_NAME" 2>/dev/null`; on failure try `git -C "$TARGET" rev-parse --verify "origin/$BASE_NAME" 2>/dev/null`; if neither resolves, skip the NOTICE.
@@ -41,7 +41,23 @@ Before failing on empty output, check whether HEAD has commits ahead of the base
            To verify the committed state passes tests, run /dev-test instead.
    ```
 
-Then FAIL `"no working-tree changes — nothing to clean up"`. Append the hint `hint: if edits are in a nested git repo, re-run with --cwd <path>` unless `--cwd` was already passed.
+4. Detect whether the current branch is protected using bash glob semantics (same pattern as `/dev-pr` Gate 0 step 1):
+
+   ```bash
+   PROTECTED_BRANCHES=(main master)   # from config.claude-code-dev-hermit.protected_branches
+   CURRENT_BRANCH=$(git -C "$TARGET" rev-parse --abbrev-ref HEAD)
+   ON_PROTECTED=0
+   for pattern in "${PROTECTED_BRANCHES[@]}"; do
+     case "$CURRENT_BRANCH" in $pattern) ON_PROTECTED=1 ;; esac
+   done
+   ```
+
+   - If `ON_PROTECTED=1`: FAIL `"no working-tree changes — nothing to clean up"` with hint:
+     ```
+     hint: you're on protected branch '<CURRENT_BRANCH>' with a clean tree.
+           create a feature branch before making changes (see CLAUDE-APPEND.md §Branch Discipline).
+     ```
+   - Otherwise: FAIL `"no working-tree changes — nothing to clean up"`. Append `hint: if edits are in a nested git repo, re-run with --cwd <path>` unless `--cwd` was already passed.
 
 ### Gate 1 — run `/claude-code-hermit:simplify`
 
@@ -150,6 +166,15 @@ dev-quality
 ```
 
 (The `hint:` line is omitted when `--cwd` was already passed.)
+
+On Gate 0 failure (clean tree, on a protected branch):
+
+```
+dev-quality
+  FAIL (Gate 0): no working-tree changes — nothing to clean up
+                 hint: you're on protected branch 'main' with a clean tree.
+                       create a feature branch before making changes (see CLAUDE-APPEND.md §Branch Discipline).
+```
 
 ## Rules
 

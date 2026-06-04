@@ -21,7 +21,7 @@ Pull the last 14 days of Strava activities and compute weekly training load summ
 4. For each week compute:
    - Run: total distance (km), total elevation (m), session count
    - Bike: total distance (km), session count
-   - Strength: session count
+   - Strength: session count, total duration in minutes as `strength_minutes` (sum `moving_time` over WeightTraining/Workout activities — already in the Step 2 payload, no extra call; `moving_time` is in seconds, so divide the sum by 60)
    - Total active days
    Also compute **load-adjusted run distance** (`adjusted_km`): for each run activity, derive
    `elev_gain_per_km = elevation_gain_m / distance_km` and apply a heuristic multiplier to account
@@ -36,7 +36,7 @@ Pull the last 14 days of Strava activities and compute weekly training load summ
    - >25% below average → 🟡 "Load dip: [Y]km (adj) vs [avg]km average"
    - Within range → 🟢 "Consistent load"
 7. Update `state/strava-weekly-baselines.json`: append this week's totals, including `adjusted_km`
-   alongside the existing raw `km`. Keep only the last 8 weeks.
+   alongside the existing raw `km`, and `strength_minutes`. Keep only the last 8 weeks.
 8. From the activity list fetched in step 2, collect the IDs of this week's activities. Filter the `activity-notes.json` read in step 5 to those IDs. If 2 or more RPE entries exist, compute the average (one decimal place) and prepare the line: `💬 Avg RPE: X.X/10 (N=<count>)`. Otherwise prepare no RPE line.
 
    Send a message via the configured channel. If no channel is configured, log the summary to SHELL.md Progress Log instead and skip the notification.
@@ -44,7 +44,7 @@ Pull the last 14 days of Strava activities and compute weekly training load summ
    📅 Weekly review — w/e [date]
    🏃 Run: [X]km ([N] sessions, [E]m elev) → load-adj [Y]km [flag]
    🚴 Bike: [X]km ([N] sessions)
-   💪 Strength: [N] sessions
+   💪 Strength: [N] sessions ([M] min)
    💬 Avg RPE: X.X/10 (N=3)           ← omit this line if fewer than 2 rated
    Next week: [one-sentence recommendation based on load]
    ```

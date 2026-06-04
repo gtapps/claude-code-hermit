@@ -95,6 +95,15 @@ By design, no. OPERATOR.md is human-curated — the hermit reads it but never wr
 
 ---
 
+## OPERATOR.md vs CLAUDE.md — where does it go?
+
+- **OPERATOR.md** — project context the operator curates: priorities, constraints, stakeholder notes, approval rules. Loaded at session start. Never auto-edited.
+- **CLAUDE.md** (or **CLAUDE.local.md**) — behavioral instructions for Claude Code: "when X happens, do Y", skill-invocation patterns, coding conventions. Loaded on every invocation (sessions, heartbeats, routines, channel messages) and edited normally.
+
+Rule of thumb: *what the project is* → OPERATOR.md. *What Claude should do* → CLAUDE.md.
+
+---
+
 ## What's the difference between a "hermit" and a "hermit plugin"?
 
 - **Hermit** = the running assistant instance in your project — what you get after running `/hatch`.

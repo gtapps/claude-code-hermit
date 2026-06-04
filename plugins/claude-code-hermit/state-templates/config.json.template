@@ -32,6 +32,7 @@
     "MAX_THINKING_TOKENS": "10000"
   },
   "boot_skill": null,
+  "shutdown_skill": null,
   "scheduled_checks": [],
   "docker": {
     "packages": [],

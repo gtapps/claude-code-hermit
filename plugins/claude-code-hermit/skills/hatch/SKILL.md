@@ -395,6 +395,7 @@ For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, 
 2. **Substitute scaffold variables**: replace `{project_name}` in `tmux_session_name` with the actual project directory name (e.g. `hermit-my-project`).
 3. **Stamp `_hermit_versions`**: read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` for the core version and write it to `_hermit_versions["claude-code-hermit"]`. If a hermit was activated in step 3, also stamp its version under its slug.
 4. **Set `boot_skill`**: if a hermit was activated and declared `hermit.boot_skill` in its `plugin.json`, write that value here. Otherwise leave as `null`.
+   **Set `shutdown_skill`**: leave as `null` — operator sets it via config edit if they run always-on services that need stopping on full close.
 5. **Overlay operator choices** from the wizard:
    - From Phase 2: `agent_name`, `language`, `timezone`, `sign_off`.
    - From Phase 3: `escalation`, `remote`, `ask_budget`, `idle_behavior`.
@@ -480,7 +481,7 @@ Collect findings silently. Do NOT print scan results to the operator.
 Using the scan results, write a concise context document. Follow these rules:
 
 1. **Never duplicate CLAUDE.md content.** If CLAUDE.md already covers a topic (testing, conventions, build commands), don't repeat it.
-2. **Never duplicate `config.json` fields.** `routines`, `channels` (including Discord/Telegram user IDs and `morning_brief`), `permission_mode`, `agent_name`, `sign_off`, `escalation`, `idle_behavior`, `boot_skill`, and `_hermit_versions` are already loaded structurally — do not restate them as prose. OPERATOR.md is for context the model can't infer from config (project focus, constraints, approval gates, comms style, project rationale).
+2. **Never duplicate `config.json` fields.** `routines`, `channels` (including Discord/Telegram user IDs and `morning_brief`), `permission_mode`, `agent_name`, `sign_off`, `escalation`, `idle_behavior`, `boot_skill`, `shutdown_skill`, and `_hermit_versions` are already loaded structurally — do not restate them as prose. OPERATOR.md is for context the model can't infer from config (project focus, constraints, approval gates, comms style, project rationale).
 3. **Only include high-confidence inferences.** If the scan clearly reveals something (e.g., package.json shows Node.js, README describes the project), include it. If uncertain, leave it for Phase 3 questions.
 4. **Keep it under 50 lines.** OPERATOR.md is loaded every session-start — bloat costs tokens. Write concise prose, not documentation.
 5. **No rigid sections required.** Use headers if they help organize, but don't create empty sections. The goal is a useful context document, not a filled-in form.
@@ -528,7 +529,7 @@ Incorporate the operator's answers into the draft:
 - Keep the document under 50 lines total
 - For hermit-specific context, append after the core content
 
-**Before writing, scrub the draft for `config.json` mirroring.** Re-scan and remove any sentence that restates a `config.json` field (routine schedules, Discord/Telegram user IDs, `morning_brief` time, `permission_mode`, `agent_name`, `sign_off`, `escalation`, `idle_behavior`, `boot_skill`). If removing a sentence leaves a paragraph hollow, drop the paragraph. Those facts are already loaded from config.json on every session-start — duplicating them in OPERATOR.md is pure token tax and drifts when config changes.
+**Before writing, scrub the draft for `config.json` mirroring.** Re-scan and remove any sentence that restates a `config.json` field (routine schedules, Discord/Telegram user IDs, `morning_brief` time, `permission_mode`, `agent_name`, `sign_off`, `escalation`, `idle_behavior`, `boot_skill`, `shutdown_skill`). If removing a sentence leaves a paragraph hollow, drop the paragraph. Those facts are already loaded from config.json on every session-start — duplicating them in OPERATOR.md is pure token tax and drifts when config changes.
 
 Write the final version to `.claude-code-hermit/OPERATOR.md`.
 
