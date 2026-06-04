@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [0.0.7] - 2026-06-04
 
 ### Added
 
@@ -17,12 +17,27 @@ All notable changes to this project will be documented in this file.
 
 - **routine-weekly-load-review: elevation-weighted load** — run distance is scaled by a gradient multiplier (1.0–1.5×) into `adjusted_km`; spike/dip flags compare adjusted figures (falls back to raw `km` for weeks logged before this change). Channel output shows both raw and load-adjusted distance.
 
+### Changed
+
+- **required_core_version: bumped to >=1.1.9** — aligns with the issue-proposals routine added in core 1.1.9.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/domain-brainstorm/SKILL.md` | New training-gap brainstorm skill |
+| `state-templates/CLAUDE-APPEND.md` | Adds domain-brainstorm to skills table and Fitness Proposal Categories section |
+| `.claude-plugin/hermit-meta.json` | required_core_version and requires bumped to >=1.1.9 |
+| `.claude-plugin/plugin.json` | dependencies claude-code-hermit bumped to ^1.1.9 |
+
 ### Upgrade Instructions
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 1. **Sync the CLAUDE-APPEND block** — Step 7 re-appends the updated canonical block to the hatch target, adding `domain-brainstorm` to the quick-reference skills table and the new Fitness Proposal Categories section.
 2. **Overwrite the routine template** — copy `state-templates/compiled/routine-weekly-load-review.md` from the plugin into `.claude-code-hermit/compiled/` so the weekly review picks up load-adjusted distance. This is a bot-owned prompt; overwriting is safe.
+
+No `config.json` changes required.
 
 ---
 

@@ -46,7 +46,8 @@ Thumbs.db
 # Session local state (settings.local.json is per-developer)
 .claude/settings.local.json
 
-# Hermit local state (scope=local — OPERATOR.md is the only tracked file)
+# Hermit local state (fully local in this monorepo)
+.claude-code-hermit/OPERATOR.md
 .claude-code-hermit/sessions/
 .claude-code-hermit/templates/
 .claude-code-hermit/cost-log.jsonl

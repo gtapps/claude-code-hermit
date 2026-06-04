@@ -6,6 +6,8 @@ description: |
     • GitHub issue number — "tackle issue 99", "work issue 17", "start on gh #42". Fetches via gh, runs the full triage workflow. On SHIP / SHIP WITH CAVEAT, offers to check out a branch and seed implementation tasks.
     • Pasted task content — "investigate this proposal", "pressure-test this", "scope this before I touch it". Runs the triage workflow on the pasted text. Read-only output only — no branch, no TaskCreate seeding.
     • No input / picker phrasing — "tackle the next issue", "pick an issue", "what should I work on", "next issue". Lists ready-labelled open issues in gtapps/claude-code-hermit, filters those with linked open PRs, applies the dedup log, picks one, then runs the issue-number flow on it.
+  Flag:
+    • --investigate-only — runs the full triage workflow (including Proposed approach / Files / Verification on positive verdicts) and then stops. No branch checkout, no TaskCreate seeding. Used by /issue-proposals.
   NOT for committing (/commit), opening PRs (/dev-pr), or merging. Stops once a branch is checked out and tasks are seeded.
 ---
 
@@ -28,13 +30,15 @@ Two failure modes to avoid:
 
 ## Inputs and dispatch
 
-**Issue number:** any of "tackle issue 99", "work issue 17", "start on gh #42", "look at issue 5" — or a bare `#N` or `owner/repo#N`. Fetch with `gh issue view <N> --repo gtapps/claude-code-hermit --json title,body,labels,comments,author,state,url`. If the issue is closed, surface that and ask whether to continue.
+**Issue number:** any of "tackle issue 99", "work issue 17", "start on gh #42", "look at issue 5" — or a bare `#N` or `owner/repo#N`. Fetch with `gh issue view <N> --repo gtapps/claude-code-hermit --json title,body,labels,comments,author,state,url`. If the issue is closed, surface that and ask whether to continue. Can be combined with `--investigate-only` to suppress the branch + task handoff (see Flag below).
 
 **Pasted task content:** user pastes a proposal, spec, or free-form description. No `gh` fetch needed. Triage output only — no branch, no TaskCreate seeding (no issue-number anchor).
 
 **Picker phrasing:** "tackle the next issue", "pick an issue", "what should I work on", "next issue", or `/tackle-issue` with no argument. Run the Picker mode below, then fall through to the issue-number flow.
 
 **Ambiguous:** user says "tackle this" with no number, no paste, no picker phrasing → ask which mode before fetching anything.
+
+**Flag `--investigate-only`:** can be combined with any issue-number input. Runs the full triage workflow (Falsification → Verdict → Recommendation → Output format, including Proposed approach / Files / Verification on positive verdicts), then stops. No branch checkout, no TaskCreate seeding. See [§ Flag: --investigate-only](#flag----investigate-only) below.
 
 ## Picker mode
 
@@ -109,6 +113,10 @@ Read referenced files with `Read`. Grep with `Grep`. Skim sibling tests for the 
 
 Present everything in chat. **Do not call ExitPlanMode.**
 
+> Contract note: `/issue-proposals` parses this output by exact heading (`## Recommendation:`,
+> `## Verdict:`, `Proposed approach`, `Files to touch`, `Verification plan`, `Trade-offs`).
+> If you rename any of these, update `/issue-proposals` Steps 6–7 to match.
+
 ```
 ## Verdict: <Confirmed as-is | Refined approach | Corrected scope | Nothing to do>
 
@@ -140,9 +148,18 @@ Then, **only if recommendation is SHIP or SHIP WITH CAVEAT**, append:
 
 Then stop. Do not ask whether to proceed.
 
+## Flag: --investigate-only
+
+When `--investigate-only` is passed:
+- Run the full Falsification workflow → Verdict → Recommendation → Output format (including
+  Proposed approach / Files to touch / Verification plan on positive verdicts).
+- **Stop after printing the report.** Do not run the Branch + task handoff (H0–H6).
+- This flag is used by `/issue-proposals` to capture the verdict and plan text for proposal
+  creation, without starting implementation.
+
 ## Branch + task handoff
 
-Runs only when the verdict is SHIP or SHIP WITH CAVEAT **and** the input mode produced a GitHub issue number (not pasted text).
+Runs only when the verdict is SHIP or SHIP WITH CAVEAT **and** the input mode produced a GitHub issue number (not pasted text) **and** `--investigate-only` was NOT passed.
 
 ### H0. Guardrails
 
