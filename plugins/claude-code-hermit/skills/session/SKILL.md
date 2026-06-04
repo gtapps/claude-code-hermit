@@ -1,7 +1,6 @@
 ---
 name: session
 description: Start or resume a work session with full context loading and work tracking. Use at the beginning of work.
-disable-model-invocation: true
 ---
 # Session
 

@@ -1437,5 +1437,25 @@ class TestKillMetricsContract(unittest.TestCase):
         )
 
 
+class TestBootstrapSkills(unittest.TestCase):
+    """Skills reachable from hermit-start.py's bootstrap `steps` are invoked
+    via the Skill tool when 2+ steps produce the prose path.
+    Any `disable-model-invocation: true` among them silently breaks first
+    boot (issue #229). Keep them model-invocable."""
+
+    BOOTSTRAP_SKILLS = ('heartbeat', 'hermit-routines', 'session')
+
+    def test_bootstrap_skills_are_model_invocable(self):
+        offenders = []
+        for skill in self.BOOTSTRAP_SKILLS:
+            text = (REPO / 'skills' / skill / 'SKILL.md').read_text()
+            parts = text.split('---\n', 2)
+            fm = parts[1] if len(parts) == 3 else ''
+            if 'disable-model-invocation: true' in fm:
+                offenders.append(skill)
+        self.assertEqual(offenders, [],
+                         f'Bootstrap skills must stay model-invocable; offenders: {offenders}')
+
+
 if __name__ == '__main__':
     unittest.main()
