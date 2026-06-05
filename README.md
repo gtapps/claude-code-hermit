@@ -50,19 +50,37 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope local
 
 ---
 
-## Built on Claude Code's native stack
+## Native foundation, and how hermit builds on top
 
-- **`/loop`** (scheduled tasks) — heartbeat ticks at your chosen cadence, local routines
-- **`CronCreate`** — built-in **local routines** (morning brief, evening summary, scheduled checks, heartbeat restart) plus **your own custom routines**
-- **Channels** — talk to your hermit via Discord or Telegram
-- **Remote Control** — drive live sessions from claude.ai/code or your phone; survives sleep and network drops
-- **Monitor tool** — background watches stream events as conversation notifications; zero tokens when quiet
-- **Auto-memory** (`MEMORY.md`) — load-bearing memory; hermit layers `raw/` and `compiled/` for durable domain artifacts
-- **Native Tasks** — `TaskCreate` for plan tracking; hooks read task files for `tasks-snapshot.md`
-- **Deny patterns** — configured in `.claude/settings.json` for fail-closed safety
-- **Bash sandbox** — `/hatch` auto-configures the standard profile (credential path denies, unrestricted network); opt out via `sandbox.enabled: false`
+No proprietary runtime and no server. Hermit is markdown and Node on top of Claude Code's own primitives, and everything it adds is yours to configure in `config.json` and `OPERATOR.md`.
 
-Hermit adds the integration layer — `/hatch` to spawn one, the proposal pipeline to evolve one, `OPERATOR.md` as policy.
+| Native Claude Code gives you | What hermit builds on top |
+|---|---|
+| **`/loop`** — re-run a prompt on an interval | A token-cheap heartbeat: a precheck decides if anything's due, so the model only wakes when there's a reason |
+| **`CronCreate`** — idle-gated cron, machine-local, 7-day expiry | Custom routines (reflection, scheduled checks, weekly review, and auto-close ship enabled; add your own), timezone-correct and self-rearming |
+| **Channels** — inbound DMs and a reply tool | An authenticated, session-aware control plane that DMs you briefs and one-tap decisions unprompted |
+| **Remote Control** — drive a live session from anywhere | A durable always-on session that survives sleep and network drops, so there's always one to attach to |
+| **Monitor tool** — zero-cost background event streams | `/watch`: persistent stream and poll monitors you point at anything, silent when quiet |
+| **Auto-memory** (`MEMORY.md`) — persistent lessons | A `raw/` to `compiled/` knowledge layer with retention and budgeted re-injection at session start |
+| **Native Tasks** — in-session plan tracking | Projected into `tasks-snapshot.md` and carried across session archives |
+| **Deny patterns** — fail-closed settings rules | A profile-gated, operator-editable denylist: the unattended agent is locked down harder than the supervised one |
+| **Bash sandbox** — confined tool execution | `/hatch` auto-configures the standard profile and probes whether your host supports it |
+
+---
+
+## Always-on: watches & routines
+
+A hermit runs around the clock, and the schedule is yours. Watches, routines, and the heartbeat checklist are all operator-defined, not baked in.
+
+**Watches** (`/watch`) — point a persistent monitor at anything: a log, a file tree, a CI run, an endpoint, your own command. Declare them in `config.json` to auto-start every session, or spin one up on the fly in plain language. Two classes, **stream** (`tail -f`, `inotifywait`) and **poll** (interval checks that only speak up on change). Silence costs zero tokens, so leave a dozen running.
+
+**Routines** — scheduled jobs on `/loop` and `CronCreate`. Enabled out of the box: daily reflection, scheduled checks, a weekly review, and midnight auto-close. Add a morning brief, an evening summary, or your own cadence and prompts in `config.json` or `/hermit-settings`. Idle-gated so they never interrupt mid-task, timezone-correct (your wall clock, not the server's), and self-rearming so they never silently expire.
+
+**Heartbeat** (`/heartbeat`) — a periodic sweep of a checklist you write. Put anything on it; a pure-Node precheck decides whether it's even worth waking the model, so a quiet heartbeat costs nothing. Alerts dedupe themselves: a recurring one nags a few times, then drops to a once-a-day digest, and clears when resolved.
+
+**Reaches you first.** A hermit doesn't wait to be asked. It DMs your morning brief, pings you the moment a watch or the heartbeat finds something, and asks a one-tap yes/no when it needs a decision. Messages land on Discord or Telegram when you've paired a channel, and fall back to a native push notification when you haven't (toggle with `push_notifications`), so a signal is never stranded.
+
+**The cost scales with events, not time.** An idle always-on hermit is effectively free, because nothing wakes the model until something actually happens. You pay for findings, not for waiting.
 
 ---
 
