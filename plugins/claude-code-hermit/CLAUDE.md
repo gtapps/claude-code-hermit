@@ -32,7 +32,7 @@ After install, run `/claude-code-hermit:hatch` in the target project to create t
 
 When installed in a target project, state lives in `.claude-code-hermit/`:
 
-- `sessions/SHELL.md` — current session (with tags, budget, monitoring)
+- `sessions/SHELL.md` — current session (with tags, monitoring)
 - `sessions/S-NNN-REPORT.md` — archived reports
 - `proposals/PROP-NNN-<slug>-HHMMSS.md` — improvement proposals
 - `templates/` — session and proposal templates

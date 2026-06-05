@@ -12,7 +12,7 @@
 - **hatch: git init on fresh dirs** — when hatching in an empty, non-git directory (e.g. a dedicated ops-hermit workspace), offers a local `git init` so the hermit's build artifacts are versioned from day one. Existing projects and re-inits are untouched. Closes #282.
 - **cost-reflect: structural cost audit skill** — breaks 7-day spend into token-type drivers (cache_read / cache_write / output / input), flags cold-start overhead, and attributes cost per session. Read-only report; opt-in as a weekly routine via `/hermit-settings`. Closes #295.
 - **cost-tracker/cost-reflect: trigger-source attribution** — every `cost-log.jsonl` entry records its trigger source (`heartbeat`, `routine:<id>`, or `other`), and cost-reflect adds a **Cost by source** breakdown so idle spend can be traced to its origin. Closes #294.
-- **session-discipline: context-hygiene rule** — delegate broad scans/research to `Explore` subagent; keeps main context lean. Cost-neutral (`idle_budget` still gates).
+- **session-discipline: context-hygiene rule** — delegate broad scans/research to `Explore` subagent; keeps main context lean.
 
 ### Removed
 
