@@ -53,6 +53,18 @@ setup_git_workdir() {
   echo "$workdir"
 }
 
+# Run a single test in a fresh throwaway workdir: setup + cd + run_test + cleanup.
+# For the common case of one test with no per-case setup. Cases that need a git repo,
+# pre-test fixture/config writes, captured output, or multiple run_test calls stay explicit.
+hook_case() {
+  local name="$1"
+  shift
+  workdir="$(setup_workdir)"
+  cd "$workdir"
+  run_test "$name" "$@"
+  cleanup
+}
+
 cleanup() {
   cd "$ORIG_DIR"
   if [ -n "${workdir:-}" ] && [ -d "${workdir:-}" ]; then
