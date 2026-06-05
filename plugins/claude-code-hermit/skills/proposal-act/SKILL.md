@@ -108,9 +108,14 @@ When the operator accepts a proposal:
            - `RUN: <reason>` → invoke `/claude-code-hermit:simplify` per the `quality` tier above. Notification: "PROP-NNN implemented and resolved. Judge: <reason>. /simplify applied N edits (M deduped, K rejected on principle)." When `N == 0` use "… /simplify made no changes." Same totals-missing fallback as the `quality` tier.
            - `SKIP: <reason>` → skip `/claude-code-hermit:simplify`. Notification: "PROP-NNN implemented and resolved. Judge skipped /simplify: <reason>."
 
-         **No post-apply test gate fires before step f resolves** — the operator authorized the accept; broken applies ship unless the operator runs `/claude-code-dev-hermit:dev-quality` afterwards.
+         **The quality gate is cleanup, not correctness** — `/simplify` does not check that the proposal works. Correctness is verified by the `## Verification` gate in step (e.6); proposals with no defined verification still resolve, but the skip is recorded.
 
          Best-effort throughout: if any step errors out (judge fails, `/simplify` failed or totals unavailable, file read fails), log a one-line warning to SHELL.md Findings and fall back to skip. The gate never blocks resolution.
+     e.6. **Verification gate.** Read the proposal's `## Verification` section.
+         - If it contains real steps (more than the HTML-comment placeholder), perform them now — after the quality gate has applied any `/simplify` edits — before resolving. If a defined step fails, **do not resolve**: report the failure to the operator (or channel in autonomous mode) and stop.
+         - If the section is empty, missing, or contains only its placeholder comment, append `Verification: none defined for PROP-NNN — skipped.` to SHELL.md `## Findings` and proceed. The omission is recorded, not blocked.
+
+         Unlike the e.5 quality gate (best-effort, never blocks), e.6 **blocks resolution when a defined verification step fails** — that is the correctness check the quality gate does not provide.
      f. When verifiably done: run `/proposal-act resolve PROP-NNN`, then notify the operator (or channel in autonomous mode) with the tier-appropriate message from (e.5).
 
    - **"Create a session task"** → Write `.claude-code-hermit/sessions/NEXT-TASK.md`:

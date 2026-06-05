@@ -81,7 +81,7 @@ node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js \
      - `title`: short proposal title (same text used in the H1 heading after the dash)
      - `resolved_date`: `null` (set later by reflect when pattern is confirmed gone)
    - Fill in the title in the H1 heading
-   - while writing the body: write a clear Context, Problem, Proposed Solution, and Impact
+   - while writing the body: write a clear Context, Problem, Proposed Solution, Impact, and Verification (never leave blank — state the check, or an explicit "none needed because…")
    - Leave "Operator Decision" blank — the operator fills that in
    - Do NOT write bullet-point metadata (`- **Created:**`, etc.) — all metadata lives in frontmatter only
 

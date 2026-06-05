@@ -1399,6 +1399,12 @@ class TestKillMetricsContract(unittest.TestCase):
                       'PROPOSAL.md.template is missing the tags field — '
                       'brainstorm origin can never be preserved in proposal frontmatter')
 
+    def test_proposal_template_has_verification_section(self):
+        """PROPOSAL.md.template must carry a Verification section so the success check is a recorded decision rather than a silent default."""
+        self.assertIn('## Verification', self._proposal_template,
+                      'PROPOSAL.md.template is missing the Verification section — '
+                      'proposals ship with no defined success check')
+
     def test_proposal_create_triage_verdict_has_evidence_source(self):
         """proposal-create triage-verdict event must include evidence_source."""
         self.assertIn(

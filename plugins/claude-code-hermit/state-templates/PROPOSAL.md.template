@@ -28,5 +28,9 @@ accepted_in_session: null
 ## Impact
 <!-- Effort vs benefit estimate -->
 
+## Verification
+<!-- How will we know this worked? Tests, smoke-check, validation run, manual steps —
+     or an explicit recorded "no verification needed because…". -->
+
 ## Operator Decision
 <!-- Filled in by operator during review -->
