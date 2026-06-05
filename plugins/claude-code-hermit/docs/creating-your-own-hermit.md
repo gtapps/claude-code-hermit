@@ -291,3 +291,4 @@ Skills should say "notify the operator" instead of referencing specific channels
 - [ ] Cadence-driven skills registered in `scheduled_checks` (not a bespoke scheduler)
 - [ ] Docker system packages (if any) declared in a `## Docker apt dependencies` section in the hatch SKILL.md or `DOCKER.md` at plugin root
 - [ ] Docker network requirements (if any) declared in a `## Docker network requirements` section so `/docker-security` can surface them — outbound domains and LAN-IP suggestions (use `ASK_OPERATOR_FOR_<NAME>_IP` if the IP is operator-specific)
+- [ ] Each agent's `model:` matches task complexity (Haiku for scanning, Sonnet for reasoning) — use the short alias, not a pinned ID

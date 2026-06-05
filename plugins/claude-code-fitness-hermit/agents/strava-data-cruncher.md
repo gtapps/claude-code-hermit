@@ -1,7 +1,7 @@
 ---
 name: strava-data-cruncher
 description: Lightweight Haiku subagent for bulk Strava data aggregation — weekly load, zone distribution, efficiency trends. Returns compact structured output; no coaching judgment. Use when you need multi-week trend tables, zone distribution over time, or bulk activity metrics.
-model: claude-haiku-4-5-20251001
+model: haiku
 maxTurns: 10
 tools:
   - mcp__strava__check-strava-connection
