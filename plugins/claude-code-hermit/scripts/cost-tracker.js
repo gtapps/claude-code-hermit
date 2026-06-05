@@ -58,18 +58,29 @@ function entryText(entry) {
   return typeof c === 'string' ? c : JSON.stringify(c);
 }
 
-// Scan backward from billedIndex through the current turn (stopping at the previous
-// assistant-with-usage entry or the tail start) and return concatenated entry text.
-// Turn-boundary is load-bearing: the 128KB tail often contains several stacked turns,
-// so without this bound a prior routine's marker can bleed into a later turn's source.
+// A user entry is a tool_result carrier (not a turn boundary) when its content
+// is an array containing any tool_result block. The triggering prompt that opens
+// a turn is a "real" user entry: string content, or an array with no tool_result.
+function isToolResult(entry) {
+  if (entry.type !== 'user') return false;
+  const c = entry.message?.content;
+  return Array.isArray(c) && c.some(b => b && b.type === 'tool_result');
+}
+
+// Scan backward from billedIndex through the current turn and return concatenated
+// entry text. The turn boundary is the triggering user prompt (the first non-tool_result
+// user entry) — we include it and stop. This passes over intermediate tool-calling
+// assistant steps (which each carry their own usage) so a multi-step heartbeat/routine
+// turn still reaches its marker, while stopping before the prior turn's prompt so an
+// earlier routine's marker can't bleed into a later turn's source.
 function scanTriggerMarkers(lines, billedIndex) {
   const parts = [];
   for (let j = billedIndex - 1; j >= 0; j--) {
     try {
       const prev = JSON.parse(lines[j]);
-      // Stop at the previous billed assistant turn — that's the turn boundary
-      if (prev.type === 'assistant' && prev.message?.usage) break;
       parts.push(entryText(prev));
+      // Reached this turn's triggering prompt — include it, then stop.
+      if (prev.type === 'user' && !isToolResult(prev)) break;
     } catch {}
   }
   return parts.join(' ');
@@ -82,6 +93,9 @@ function scanTriggerMarkers(lines, billedIndex) {
 // strict charset here ([A-Za-z0-9._-]+) is the classifier's own gate, and
 // it is confirmed to reject skill-template noise ([hermit-routine:*], <id> placeholders)
 // that appears in tool_result entries when routines register.
+// Limitation: scanning covers the whole turn (prompt + tool_results), so a turn that
+// merely surfaces a marker string in tool output (e.g. grepping these very sources)
+// can be misclassified. Accepted — the markers are stable and this is rare in practice.
 function classifySource(triggerText) {
   if (!triggerText) return 'other';
   if (triggerText.includes('HEARTBEAT_EVALUATE') ||

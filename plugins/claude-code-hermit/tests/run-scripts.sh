@@ -915,6 +915,23 @@ const text=scanTriggerMarkers(lines,3);
 if(text.includes('[hermit-routine:old-routine]')) throw new Error('prior turn marker bled in: '+text.slice(0,200));
 \""
 
+# scanTriggerMarkers: reaches the marker past an intermediate tool-calling assistant
+# that ITSELF carries usage — the realistic transcript shape (every API round-trip is
+# billed). The scan must skip it and stop at the triggering user prompt, not truncate early.
+run_test "cost-tracker: scanTriggerMarkers passes intermediate billed assistant" bash -c \
+  "node -e \"
+const {scanTriggerMarkers,classifySource}=require('$TRACKER_LIB');
+const lines=[
+  JSON.stringify({type:'user',message:{content:'[hermit-routine:reflect] Invoke /reflect.'}}),
+  JSON.stringify({type:'assistant',message:{usage:{input_tokens:80,output_tokens:30},content:[{type:'tool_use',id:'t1',name:'Skill',input:{}}]}}),
+  JSON.stringify({type:'user',message:{content:[{tool_use_id:'t1',type:'tool_result',content:'ok'}]}}),
+  JSON.stringify({type:'assistant',message:{usage:{input_tokens:100,output_tokens:50},content:[{type:'text',text:'done'}]}})
+];
+const text=scanTriggerMarkers(lines,3);
+if(!text.includes('[hermit-routine:reflect]')) throw new Error('marker not reached past billed tool step: '+text.slice(0,200));
+if(classifySource(text)!=='routine:reflect') throw new Error('got '+classifySource(text));
+\""
+
 # -------------------------------------------------------
 # cost-reflect.js: source attribution tests
 # -------------------------------------------------------
@@ -952,6 +969,24 @@ run_test "cost-reflect: routine row triggers subagent footnote" bash -c \
 
 run_test "cost-reflect (source fixture): output ≤1500 chars" bash -c \
   "[ \$(echo '$REFLECT_SRC_OUT' | wc -c) -le 1500 ]"
+
+cleanup
+
+# No-routine fixture: footnote must be absent when no routine row is displayed (no dangling note)
+REFLECT_NOROUTINE_WORKDIR="$(setup_workdir)"
+REFLECT_NOROUTINE_DATE="$(date -u -d '1 day ago' +%Y-%m-%d 2>/dev/null || date -u -v-1d +%Y-%m-%d 2>/dev/null || echo "$(date -u +%Y-%m-%d)")"
+
+cat > "$REFLECT_NOROUTINE_WORKDIR/.claude/cost-log.jsonl" <<NOROUTEOF
+{"timestamp":"${REFLECT_NOROUTINE_DATE}T10:00:00.000Z","session_id":"s1","source":"heartbeat","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":100000,"output_tokens":0,"total_tokens":100000,"estimated_cost_usd":0.03}
+{"timestamp":"${REFLECT_NOROUTINE_DATE}T10:02:00.000Z","session_id":"s3","source":"other","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":50000,"output_tokens":5000,"total_tokens":55000,"estimated_cost_usd":0.09}
+NOROUTEOF
+
+REFLECT_NOROUTINE_OUT="$(cd "$REFLECT_NOROUTINE_WORKDIR" && node "$REPO_ROOT/scripts/cost-reflect.js" .claude-code-hermit 2>&1)"
+
+run_test "cost-reflect: no routine row → source section still present" bash -c \
+  "echo '$REFLECT_NOROUTINE_OUT' | grep -q 'Cost by source'"
+run_test "cost-reflect: no routine row → no subagent footnote" bash -c \
+  "! echo '$REFLECT_NOROUTINE_OUT' | grep -qi 'subagent'"
 
 cleanup
 

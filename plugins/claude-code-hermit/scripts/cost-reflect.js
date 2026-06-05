@@ -117,7 +117,6 @@ function run() {
 
   // All source entries sorted desc by cost; tail count used for the '+N more' line
   const allSources = Object.entries(sourceMap).sort((a, b) => b[1] - a[1]);
-  const hasRoutineRow = allSources.some(([src]) => src.startsWith('routine:'));
 
   const header = `### Cost by token type (${days}d · ${formatCost(total)} · ${turns} turns / ${sessions} sessions)\n` +
     `- cache_read ${formatCost(totals.cacheRead)} (${pct(totals.cacheRead, total)})` +
@@ -129,19 +128,20 @@ function run() {
     ? `\n### Cold starts\n- ${coldStartTurns} turn${coldStartTurns === 1 ? '' : 's'} · ${formatCost(coldStartCost)} (${pct(coldStartCost, total)}) — cache-write, no cache-read, <${COLD_START_OUTPUT_MAX} output tokens\n`
     : '';
 
-  const subagentFootnote = hasRoutineRow
-    ? `\n_routines with a model override run their skill in a subagent; only the in-session dispatch cost is counted here_\n`
-    : '';
-
   function buildSourceSection(n) {
     if (n <= 0 || allSources.length === 0) return '';
     const rest = allSources.length - n;
-    const rows = allSources.slice(0, n).map(([src, cost]) => {
+    const shown = allSources.slice(0, n);
+    const rows = shown.map(([src, cost]) => {
       const label = src === 'other' ? `${src} _(non-scheduled)_` : src;
       return `- ${label}: ${formatCost(cost)} (${pct(cost, total)})`;
     });
     if (rest > 0) rows.push(`- +${rest} more sources`);
-    return `\n### Cost by source\n${rows.join('\n')}\n`;
+    // Footnote only when a routine row is actually displayed — otherwise it dangles.
+    const footnote = shown.some(([src]) => src.startsWith('routine:'))
+      ? `\n_routines with a model override run their skill in a subagent; only the in-session dispatch cost is counted here_\n`
+      : '';
+    return `\n### Cost by source\n${rows.join('\n')}\n${footnote}`;
   }
 
   function buildTopSection(n) {
@@ -152,16 +152,20 @@ function run() {
     return `\n### Top sessions\n${lines}\n`;
   }
 
-  // Enforce ≤1500 chars by dropping rows from both sections until it fits.
-  // Source rows shed first (lowest-value for operators with many routines),
-  // then top-sessions, mirroring the existing degradation pattern.
-  for (let m = MAX_TOP_SOURCES; m >= 0; m--) {
-    for (let n = MAX_TOP_SESSIONS; n >= 0; n--) {
-      const body = header + coldSection + buildSourceSection(m) + subagentFootnote + buildTopSection(n);
-      if (body.length <= MAX_CHARS || (m === 0 && n === 0)) {
-        process.stdout.write(body);
-        return;
-      }
+  // Enforce ≤1500 chars. Shed source rows first (lowest-value for operators with
+  // many routines) down to zero, then shed top-sessions — a single monotonic path.
+  for (let m = MAX_TOP_SOURCES; m >= 1; m--) {
+    const body = header + coldSection + buildSourceSection(m) + buildTopSection(MAX_TOP_SESSIONS);
+    if (body.length <= MAX_CHARS) {
+      process.stdout.write(body);
+      return;
+    }
+  }
+  for (let n = MAX_TOP_SESSIONS; n >= 0; n--) {
+    const body = header + coldSection + buildTopSection(n);
+    if (body.length <= MAX_CHARS || n === 0) {
+      process.stdout.write(body);
+      return;
     }
   }
 }
