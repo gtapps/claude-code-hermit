@@ -8,10 +8,21 @@
 
 ### Added
 
+- **session-start: `--task` handler** — non-interactive start seeds the task and bypasses all operator prompts; scheduled `--task` routines now work by design, not LLM inference.
 - **hatch: git init on fresh dirs** — when hatching in an empty, non-git directory (e.g. a dedicated ops-hermit workspace), offers a local `git init` so the hermit's build artifacts are versioned from day one. Existing projects and re-inits are untouched. Closes #282.
 - **cost-reflect: structural cost audit skill** — breaks 7-day spend into token-type drivers (cache_read / cache_write / output / input), flags cold-start overhead, and attributes cost per session. Read-only report; opt-in as a weekly routine via `/hermit-settings`. Closes #295.
 - **cost-tracker/cost-reflect: trigger-source attribution** — every `cost-log.jsonl` entry records its trigger source (`heartbeat`, `routine:<id>`, or `other`), and cost-reflect adds a **Cost by source** breakdown so idle spend can be traced to its origin. Closes #294.
-- **session-discipline: context-hygiene rule** — delegate broad scans/research to `Explore` subagent; keeps main context lean. Cost-neutral (`idle_budget` still gates).
+- **session-discipline: context-hygiene rule** — delegate broad scans/research to `Explore` subagent; keeps main context lean.
+
+### Removed
+
+- **budget-enforcement layer** — `idle_budget`, `ask_budget`, the SHELL.md `Budget:` field, cost-tracker budget warnings, and `hermit-status` budget display removed (advisory-only, unused). All cost logging/reporting unchanged; doctor's cost check is now visibility-only.
+- **idle-tasks checklist** — `IDLE-TASKS.md` template, heartbeat pickup, and session-mgr idle-task reconciliation removed; autonomous work flows through reflection → proposal → NEXT-TASK.
+
+### Upgrade Instructions
+
+a. If `.claude-code-hermit/IDLE-TASKS.md` exists, offer the operator (via AskUserQuestion) to delete it or leave it as-is. Do not auto-migrate its contents.
+b. Note: `idle_budget`/`ask_budget` in `config.json` and any `**Budget:**` line in `SHELL.md` are now ignored; optionally remove them. No action required. Existing `.status.json` files may show a stale `budget_usd` field until the next cost-tracker write — harmless.
 
 ### Changed
 

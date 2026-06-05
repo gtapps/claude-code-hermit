@@ -23,7 +23,7 @@ if os.path.exists(config_path):
         cfg = json.load(open(config_path))
         agent = cfg.get('agent_name', '') or ''
     except: pass
-fields = [''] * 7
+fields = [''] * 6
 if os.path.exists(status_path):
     try:
         s = json.load(open(status_path))
@@ -33,14 +33,13 @@ if os.path.exists(status_path):
             str(s.get('plan_done', '0')),
             str(s.get('plan_total', '0')),
             str(s.get('cost_usd', '')),
-            str(s.get('budget_usd', '') if s.get('budget_usd') is not None else ''),
             str(s.get('blockers', '') if s.get('blockers') is not None else ''),
         ]
     except: pass
 print(agent + '\t' + '\t'.join(fields))
 " "$CONFIG_FILE" "$STATUS_FILE" 2>/dev/null || echo "")
 
-IFS=$'\t' read -r AGENT_NAME STATUS TASK PLAN_DONE PLAN_TOTAL COST BUDGET BLOCKERS <<< "$FIELDS"
+IFS=$'\t' read -r AGENT_NAME STATUS TASK PLAN_DONE PLAN_TOTAL COST BLOCKERS <<< "$FIELDS"
 [ -z "$AGENT_NAME" ] && AGENT_NAME="hermit"
 
 # Docker container status
@@ -77,11 +76,7 @@ fi
 
 COST_STR="—"
 if [ -n "$COST" ]; then
-  if [ -n "$BUDGET" ]; then
-    COST_STR="\$${COST}/\$${BUDGET}"
-  else
-    COST_STR="\$${COST}"
-  fi
+  COST_STR="\$${COST}"
 fi
 
 BLOCKER_STR="no blockers"

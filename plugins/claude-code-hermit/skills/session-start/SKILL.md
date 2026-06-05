@@ -7,6 +7,10 @@ description: Initializes or resumes a work session. Loads context from OPERATOR.
 ## Operator Notification
 Notify the operator per the channel policy in CLAUDE.md (§ Operator Notification).
 
+## `--task` flag (non-interactive autonomous start)
+
+If invoked as `session-start --task '<text>'`: use `<text>` as the task and bypass interactive prompts/questions only. Operator notifications in step 8 still follow the channel policy above. Skip the NEXT-TASK.md presentation (step 6), the "What should I work on next?" / "What should I help with?" prompts (steps 9b/10), the Tags prompt (step 11), the step-12 first-step confirmation, and the "After confirming the plan with the operator" plan-confirmation prose in the task-source paths. Do not ask for plan confirmation. Steps 1–4 run unchanged; create the session via `claude-code-hermit:session-mgr` and proceed autonomously.
+
 When starting a new session:
 
 All state lives under `.claude-code-hermit/` in the project root.
@@ -119,12 +123,6 @@ All state lives under `.claude-code-hermit/` in the project root.
    - Once provided, use `claude-code-hermit:session-mgr` to create the session with the task. After confirming the plan, create native Tasks (`TaskCreate`) for each step.
 11. Once I know what to work on (new session only):
     - **Tags:** Ask "Any tags for this session? (e.g., refactor, frontend, urgent) Enter to skip." Write the answer to the `Tags:` field in SHELL.md. If skipped, leave blank.
-    - **Budget:** Check `ask_budget` from the config read in step 1. If `ask_budget` is `true`:
-      - Ask: "Set a cost budget for this work?"
-        1. Set budget — enter a dollar amount → write `Budget: $X.XX` to SHELL.md
-        2. No budget for this session — leave Budget field blank
-        3. Never ask about budget — set `ask_budget` to `false` in config.json, leave Budget blank
-    - If `ask_budget` is `false`: skip the budget prompt silently.
 11b. **Watch registration.** If `config.monitors` exists and has enabled entries, invoke
      `/claude-code-hermit:watch start` to register them. (Registry was already cleared in
      step 3b.) This is silent — do not prompt the operator about watch registration.

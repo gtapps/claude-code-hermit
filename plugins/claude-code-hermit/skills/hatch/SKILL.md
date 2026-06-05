@@ -58,7 +58,7 @@ questions: [
     header: "Setup mode",
     question: "How would you like to configure hermit?",
     options: [
-      { label: "Quick", description: "Sensible defaults, ~5 questions, ~3 min. Tweak via /hermit-settings later." },
+      { label: "Quick", description: "Sensible defaults, ~4 questions, ~3 min. Tweak via /hermit-settings later." },
       { label: "Advanced", description: "Full wizard — every option exposed (~15 questions, ~15 min)." }
     ]
   }
@@ -101,7 +101,6 @@ Create the following directories and files:
 │   ├── hermit-stop
 │   └── hermit-status
 ├── OPERATOR.md
-├── IDLE-TASKS.md
 └── knowledge-schema.md
 ```
 
@@ -137,7 +136,6 @@ Initialize state files (inline — shape-insensitive or append-only):
 - Copy `SHELL.md.template`, `SESSION-REPORT.md.template`, `PROPOSAL.md.template` into `templates/`
 - **OPERATOR.md guard:** If `.claude-code-hermit/OPERATOR.md` already exists, do NOT copy the template over it. Remember this fact as `operator_existed = true` for use in step 5a. If it does not exist, copy `OPERATOR.md` from the templates into the state directory root.
 - Copy `HEARTBEAT.md.template` → `.claude-code-hermit/HEARTBEAT.md` (the operator's editable checklist)
-- Copy `IDLE-TASKS.md.template` → `.claude-code-hermit/IDLE-TASKS.md` (the operator's idle task list)
 - Copy `bin/hermit-attach`, `bin/hermit-docker`, `bin/hermit-run`, `bin/hermit-start`, `bin/hermit-stop`, and `bin/hermit-status` from `${CLAUDE_SKILL_DIR}/../../state-templates/bin/` into `.claude-code-hermit/bin/`. Ensure they are executable (`chmod +x`).
 - Copy `knowledge-schema.md.template` → `.claude-code-hermit/knowledge-schema.md` (the operator's behavioral schema for domain outputs).
 
@@ -178,9 +176,9 @@ Step 1.5 already ran the language/timezone detection silently. Reuse those value
 - If "Skip": record as `sign_off: null`
 - Otherwise: record selected or typed value as `sign_off`
 
-#### Phase 3 — Behavior (AskUserQuestion batch, 4 questions)
+#### Phase 3 — Behavior (AskUserQuestion batch, 3 questions)
 
-Ask all four in a single `AskUserQuestion` call:
+Ask all three in a single `AskUserQuestion` call:
 
 ```
 questions: [
@@ -202,25 +200,17 @@ questions: [
     ]
   },
   {
-    header: "Budget",
-    question: "Ask for a cost budget at session start?",
-    options: [
-      { label: "Never", description: "No cost prompts at session start (default)" },
-      { label: "Always", description: "Ask for a dollar cap each session" }
-    ]
-  },
-  {
     header: "Idle",
     question: "What should hermit do when idle between tasks?",
     options: [
-      { label: "Discover", description: "Maintenance, reflection, and idle tasks (default)" },
+      { label: "Discover", description: "Maintenance and reflection (default)" },
       { label: "Wait", description: "Passive — only check for new tasks and messages" }
     ]
   }
 ]
 ```
 
-Record: `escalation` (conservative/balanced/autonomous), `remote` (true/false), `ask_budget` (true/false), `idle_behavior` (wait/discover).
+Record: `escalation` (conservative/balanced/autonomous), `remote` (true/false), `idle_behavior` (wait/discover).
 
 #### Phase 4 — Recommended plugins (AskUserQuestion, single multiSelect question)
 
@@ -403,7 +393,7 @@ For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, 
    **Set `shutdown_skill`**: leave as `null` — operator sets it via config edit if they run always-on services that need stopping on full close.
 5. **Overlay operator choices** from the wizard:
    - From Phase 2: `agent_name`, `language`, `timezone`, `sign_off`.
-   - From Phase 3: `escalation`, `remote`, `ask_budget`, `idle_behavior`.
+   - From Phase 3: `escalation`, `remote`, `idle_behavior`.
    - From Phase 5: `channels.<name>` populated per Phase 5 rules (state_dir, allowed_users, morning_brief). Do **not** derive `push_notifications` from the channel choice — leave it at the template default (`true`) on fresh hatch. The runtime channel-first/push-fallback guard in CLAUDE-APPEND.md already prevents double-notification (push only fires when a channel is unreachable or absent). On re-init (`is_reinit == true`), leave the existing `push_notifications` value untouched, same as any field the wizard didn't ask about, preserving a manual `/hermit-settings push-notifications` toggle across re-inits.
    - From Phase 6: `permission_mode`; append routines (morning, evening) if enabled — heartbeat-restart is already in the template.
    - From Phase 4: append `scheduled_checks` entries per the per-plugin mapping in Phase 4 (only `claude-code-setup` and `claude-md-management` contribute — 3 entries total when both selected; `skill-creator` and `feature-dev` add zero entries).
@@ -411,7 +401,7 @@ For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, 
 
 **Re-initialization merge**: read the existing `.claude-code-hermit/config.json`, then overlay only the fields the wizard asked about. Never strip unknown keys (operators may have added custom fields). Don't re-default fields the operator didn't touch this run.
 
-**Template-only fields** (the wizard never asks about these — they come straight from `config.json.template` and the operator can tune them via `/hermit-settings` later): `model`, `auto_session`, `idle_budget`, `always_on`, `chrome`, `monitors`, `compact`, `heartbeat`, `knowledge`, `env`, `quality_gate`. The Quick branch and Advanced wizard both leave these at template defaults.
+**Template-only fields** (the wizard never asks about these — they come straight from `config.json.template` and the operator can tune them via `/hermit-settings` later): `model`, `auto_session`, `always_on`, `chrome`, `monitors`, `compact`, `heartbeat`, `knowledge`, `env`, `quality_gate`. The Quick branch and Advanced wizard both leave these at template defaults.
 
 If channels were configured in Phase 5, populate each channel's entry in the `channels` object using a **relative path** (relative to the project root):
 
@@ -867,7 +857,7 @@ Print a labeled summary in this shape:
 ```
 Quick setup will apply:
   Identity:    {agent_name}, {language}, {timezone}, sign-off={sign_off}
-  Behavior:    escalation=balanced, idle=discover, budget=off, remote=on
+  Behavior:    escalation=balanced, idle=discover, remote=on
   Deployment:  {deployment}, permission={derived}, deny={derived hardened|minimal}
   Plugins:     all 4 installed
   Routines:    morning 08:30, evening 22:30, heartbeat 04:00
@@ -908,7 +898,7 @@ Quick replaces Step 4 entirely and applies these defaults silently at the shared
 
 | Source | Field | Quick value |
 |---|---|---|
-| Advanced Phase 3 equivalent | escalation, remote, ask_budget, idle_behavior | template defaults (balanced, true, false, discover) — don't override |
+| Advanced Phase 3 equivalent | escalation, remote, idle_behavior | template defaults (balanced, true, discover) — don't override |
 | Advanced Phase 4 equivalent | plugins + scheduled_checks | install all 4; write 3 scheduled_checks entries per Phase 4 mapping |
 | Advanced Phase 4b equivalent | `.baseline-pending` marker | same eligibility check as Advanced |
 | Advanced Phase 5 equivalent | channels.<name>.* | state_dir + enabled + dm_channel_id=null; omit allowed_users + morning_brief |
@@ -965,7 +955,6 @@ Config:
   Plugins:         claude-code-setup, claude-md-management, skill-creator, feature-dev
   Channels:        none
   Push notifications: {enabled | disabled}
-  Budget prompts:  enabled
   Morning brief:   disabled
   Heartbeat:       disabled
   Unattended mode: off

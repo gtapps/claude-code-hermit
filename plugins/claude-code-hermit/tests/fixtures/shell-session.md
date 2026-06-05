@@ -6,7 +6,6 @@
 - **Started:** 2025-01-01 10:00
 - **Status:** in_progress
 - **Tags:** test
-- **Budget:** $5.00
 - **Tasks Completed:** 1
 - **Session Mode:** interactive
 

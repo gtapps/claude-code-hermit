@@ -1,6 +1,6 @@
 ---
 name: hermit-settings
-description: View or change hermit configuration for this project. Manages model, channels, budget prompts, morning brief, heartbeat, routines, idle behavior, compaction thresholds, Docker packages, and unattended mode.
+description: View or change hermit configuration for this project. Manages model, channels, morning brief, heartbeat, routines, idle behavior, compaction thresholds, Docker packages, and unattended mode.
 disable-model-invocation: true
 ---
 # Hermit Settings
@@ -19,7 +19,6 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings channels       — configure channels
 /claude-code-hermit:hermit-settings remote          — toggle remote control
 /claude-code-hermit:hermit-settings model           — set Claude model
-/claude-code-hermit:hermit-settings budget         — toggle budget prompting
 /claude-code-hermit:hermit-settings brief          — configure morning brief
 /claude-code-hermit:hermit-settings permissions    — configure unattended mode
 /claude-code-hermit:hermit-settings heartbeat      — enable/disable, interval, quiet mode, active hours
@@ -59,10 +58,8 @@ Operational:
   Channels:        none           → run: /claude-code-hermit:hermit-settings channels
   Remote control:  disabled       → yes | no
   Model:           default        → opus | sonnet | haiku | none (for default)
-  Budget prompts:  disabled       → always | never
   Morning brief:   disabled       → run: /claude-code-hermit:hermit-settings brief
   Idle behavior:   discover       → discover | wait
-  Idle budget:     $0.50          → any dollar amount (e.g. $0.25, $1.00)
   Heartbeat:       disabled       → yes | no  (interval, active hours, stale threshold)
   Routines:        2 configured   → run: /claude-code-hermit:hermit-settings routines
   Quality gate:    budget         → budget | balanced | quality
@@ -159,13 +156,6 @@ Ask: "Claude model to use?
 Update `model` in config.json. Set to `null` if operator says "none", "default", or "clear".
 Note: "Model changes take effect on next `hermit-start` run."
 
-**If argument is "budget":**
-Ask: "Ask for a cost budget at session start?
-  always — prompt for a $ cap at every session start
-  never  — skip the budget prompt
-[current: <value>]"
-Update `ask_budget` in config.json.
-
 **If argument is "brief":**
 - If no channels configured: "Morning brief requires channels. Configure channels first with `/claude-code-hermit:hermit-settings channels`."
 - If channels configured:
@@ -241,15 +231,12 @@ Update `permission_mode` in config.json.
   - Failure: "Settings saved to config.json, but `/claude-code-hermit:hermit-routines load` failed: <reason>. Run `/claude-code-hermit:hermit-routines load` manually to apply."
 
 **If argument is "idle":**
-- Show current `idle_behavior` and `idle_budget` values
+- Show current `idle_behavior` value
 - Ask: "What should the hermit do when idle between tasks?
-    1. Discover — also run idle tasks, reflection, and priority alignment (default)
+    1. Discover — run reflection and priority alignment (default)
     2. Wait — only check for new tasks and channel messages
   Choose 1-2: [current value]"
 - Update `idle_behavior` in config.json with `"wait"` or `"discover"`.
-- If "discover" is selected, show `idle_budget` and offer to change it:
-  "Cost cap per idle task? [{current value}]"
-  Update `idle_budget` if changed.
 
 **If argument is "env":**
 - Show current `env` values from config.json in a table:

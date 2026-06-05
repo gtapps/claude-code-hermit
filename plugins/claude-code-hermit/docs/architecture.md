@@ -105,7 +105,7 @@ See [Skills Reference](skills.md) for the full list.
 | Contract tests      | PostToolUse  | strict    | Runs plugin contract tests after changes               |
 | Config validator    | PostToolUse  | strict    | Validates config.json after mutations                  |
 | Context loader      | SessionStart | all       | Loads OPERATOR.md, SHELL.md, latest report, cost data  |
-| Cost tracker        | Stop         | all       | Logs tokens/cost, enforces budget                      |
+| Cost tracker        | Stop         | all       | Logs tokens/cost                                       |
 | Compact suggestion  | Stop         | standard+ | Suggests `/compact` at 60% context usage               |
 | Session diff        | Stop         | standard+ | Auto-populates `## Changed` from `git diff`            |
 | Session evaluator   | Stop         | standard+ | Validates SHELL.md quality, detects zombie/stale/bloat |

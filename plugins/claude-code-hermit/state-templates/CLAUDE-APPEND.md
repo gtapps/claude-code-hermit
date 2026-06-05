@@ -86,7 +86,7 @@ Auto-memory handles all learning. `compiled/` is for durable domain outputs and 
 
 - **Rate limits:** Log pause/resume in Progress Log. Never silently stall.
 - **Self-awareness:** If stuck — say so, log it, alert via channel. Don't push through silently.
-- **Context hygiene:** For broad file scans, archive traversals, or research where only the conclusion is needed, delegate to the built-in `Explore` subagent. Keeps context lean on long runs. Not a compute fan-out — `idle_budget` still gates.
+- **Context hygiene:** For broad file scans, archive traversals, or research where only the conclusion is needed, delegate to the built-in `Explore` subagent. Keeps context lean on long runs.
 - **Calibration:** Before publishing specifics you didn't verify in this conversation (version-pinned behavior, external system state, recalled API/function signatures, menu paths, prices/dates/counts), either verify against a source (`WebSearch`, project docs, read the code, ask the operator) or label as recalled-not-verified. Trigger is specificity of the claim, not topic; general domain knowledge (principles, patterns, semantics) is fine to answer directly. `OPERATOR.md` can tighten or relax.
 - **Secrets:** Never log API keys, tokens, passwords, or credentials to SHELL.md, reports, or proposals. Session files may be committed to git.
 - **OPERATOR.md:** Never edit autonomously. If you notice stale or contradictory context, draft the minimal change, show a diff, and apply only after the operator confirms. In always-on mode, flag it via channel instead — the operator edits directly.

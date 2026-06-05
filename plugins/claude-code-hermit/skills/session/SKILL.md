@@ -22,7 +22,7 @@ Invoke `/claude-code-hermit:session-start` to check session state and load conte
 ### 3. If starting a new session
 
 - Ask: "What should I help with?"
-- The session-start skill handles tags and budget prompts
+- The session-start skill handles tags
 
 ### 4. Plan the work
 

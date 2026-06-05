@@ -39,12 +39,10 @@ DEFAULT_CONFIG = {
     'permission_mode': 'auto',
     'tmux_session_name': 'hermit-{project_name}',
     'auto_session': True,
-    'ask_budget': False,
     'always_on': False,
     'chrome': False,
     'push_notifications': True,
     'idle_behavior': 'discover',
-    'idle_budget': '$0.50',
     'routines': [
         {'id': 'heartbeat-restart', 'schedule': '0 4 * * *', 'skill': 'claude-code-hermit:heartbeat start', 'run_during_waiting': True, 'enabled': True},
         {'id': 'reflect', 'schedule': '0 9 * * *', 'skill': 'claude-code-hermit:reflect', 'enabled': True},

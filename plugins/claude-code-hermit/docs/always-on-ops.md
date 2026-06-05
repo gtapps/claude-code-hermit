@@ -135,8 +135,7 @@ When idle and `idle_behavior` is `"discover"` (set via `/hermit-settings idle`),
 
 1. **NEXT-TASK.md** — picks up accepted proposals (gated by escalation level). Active for both `wait` and `discover` modes.
 2. **Reflection** — runs reflect if 4+ hours since last
-3. **Idle tasks** — picks first unchecked item from `IDLE-TASKS.md`, runs in a capped session (`idle_budget`)
-4. **Priority alignment** — reads OPERATOR.md, checks alignment with the operator's stated priorities and constraints
+3. **Priority alignment** — reads OPERATOR.md, checks alignment with the operator's stated priorities and constraints
 
 ### Edge cases
 

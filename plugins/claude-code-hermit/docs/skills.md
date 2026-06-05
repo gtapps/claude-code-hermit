@@ -57,10 +57,6 @@ Each routine has an `id`, a `schedule` (5-field cron: `minute hour dom month dow
 
 Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routine` config. Existing config is migrated automatically on upgrade.
 
-## Idle Tasks (IDLE-TASKS.md)
-
-`.claude-code-hermit/IDLE-TASKS.md` is an operator-editable checklist of low-priority tasks the hermit works through during downtime. Only active when `idle_behavior` is `"discover"`. Tasks are picked sequentially (top-to-bottom), each capped by `idle_budget`. The hermit marks items `[x]` on completion.
-
 ## Proposals & Learning
 
 | Skill             | What it does                                                                                                                                                                             | Auto-triggers                                                |
@@ -76,7 +72,7 @@ Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routin
 
 | Skill             | What it does                                                                                                                                                                                                                                                | Auto-triggers |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| `hermit-settings` | View or change project config. Subcommands: `name`, `language`, `timezone`, `escalation`, `sign-off`, `channels`, `remote`, `model`, `budget`, `brief`, `permissions`, `heartbeat`, `routines`, `idle-agency`, `env`, `compact`, `docker`, `scheduled-checks`, `quality-gate`, `push-notifications`. | --            |
+| `hermit-settings` | View or change project config. Subcommands: `name`, `language`, `timezone`, `escalation`, `sign-off`, `channels`, `remote`, `model`, `brief`, `permissions`, `heartbeat`, `routines`, `idle`, `env`, `compact`, `docker`, `scheduled-checks`, `quality-gate`, `push-notifications`. | --            |
 | `hatch`           | One-time project setup. Creates state directory, runs the wizard, scans your project, writes OPERATOR.md, and configures scheduled checks for accepted plugins.                                                                                                | --            |
 | `hermit-evolve`   | Run after updating the plugin. Detects version gaps, refreshes templates, prompts for new settings.                                                                                                                                                         | --            |
 
@@ -115,5 +111,5 @@ Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routin
 | Skill        | What it does                                                                                                                                                | Auto-triggers |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | `smoke-test`    | Post-hatch validation — checks config structure, OPERATOR.md, routine schema, plugin references, and optionally sends a channel test message. Run after hatch to verify setup. | --            |
-| `hermit-doctor` | Nine-check installation health report — config validity, hook registration, state file integrity, cost budget, proposal health, sibling dependency ranges, file permissions, docker-security posture, sandbox capability. Use when diagnosing an install, before a release, or after suspicious behavior. | --            |
+| `hermit-doctor` | Eleven-check installation health report — config validity, hook registration, state file integrity, cost visibility, proposal health, sibling dependency ranges, file permissions, docker-security posture, archival health, reflect loop health, sandbox capability. Use when diagnosing an install, before a release, or after suspicious behavior. | --            |
 | `test-run`      | Runs the full hermit test suite (`run-contracts.py`, `run-hooks.sh`) and reports pass/fail. Use before releasing changes.                                   | --            |

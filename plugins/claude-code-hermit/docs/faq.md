@@ -141,7 +141,7 @@ The hermit reflects on its own memory — not by scanning old reports. It notice
 Depends on the `idle_behavior` setting in `config.json`:
 
 - **`"wait"`** — checks for incoming tasks and channel messages only. Passive.
-- **`"discover"`** (default) — also picks up accepted proposals from `NEXT-TASK.md`, runs reflection, picks idle tasks from `IDLE-TASKS.md`, and aligns priorities with OPERATOR.md. Active.
+- **`"discover"`** (default) — also picks up accepted proposals from `NEXT-TASK.md`, runs reflection, and aligns priorities with OPERATOR.md. Active.
 
 Both modes run the heartbeat if enabled. Change with `/hermit-settings idle`.
 

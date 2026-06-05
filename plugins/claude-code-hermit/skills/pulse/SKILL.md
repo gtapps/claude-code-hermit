@@ -23,7 +23,6 @@ Provide a compact summary of the current session state. Designed for channel res
    - **ID** from `**ID:**` line
    - **Status** from `**Status:**` line
    - **Tags** from `**Tags:**` line (if present and non-empty)
-   - **Budget** from `**Budget:**` line (if present and non-empty)
    - **Task** — first non-comment, non-empty line after `## Task`
    - **Task progress** — call `TaskList` and count by status. Total = all tasks, completed = `completed` tasks.
    - **Current step** — first task with status `in_progress`
@@ -35,12 +34,10 @@ Provide a compact summary of the current session state. Designed for channel res
 Session S-NNN | in_progress | [tags if present]
 Working on: one-line summary
 Progress: X/Y tasks | Current: Step N - description
-Budget: $spent / $total (percentage%) · 12.3K tokens
 Blockers: none (or brief description)
 Cost: $X.XX (12.3K tokens)
 ```
 
-- Omit the Budget line if no budget is set
 - Omit tags from the header if none are set
 - If the session is blocked, append: "Run `/debug` to diagnose, or `/claude-code-hermit:session` to start a new session."
 

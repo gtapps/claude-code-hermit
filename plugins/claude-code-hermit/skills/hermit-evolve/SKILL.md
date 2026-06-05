@@ -84,11 +84,11 @@ For each entry in the plan's `new_config_keys`, check the interactive allowlist 
 
 **Silent keys** (add with default if missing):
 - `always_on` (0.0.1): `false` | `auto_session` (0.0.1): `true`
-- `model` (0.0.1): `"sonnet"` | `permission_mode` (0.0.1): `"auto"` | `ask_budget` (0.0.1): `false`
+- `model` (0.0.1): `"sonnet"` | `permission_mode` (0.0.1): `"auto"`
 - `tmux_session_name` (0.0.1): `"hermit-{project_name}"` | `chrome` (0.0.1): `false` | `push_notifications` (1.1.2): `true`
 - `channels` (0.0.1): `{}` | `monitors` (0.3.14): `[]`
 - `heartbeat.waiting_timeout` (0.3.0): `null` | `heartbeat.stale_threshold` (0.0.9): `"2h"`
-- `idle_budget` (0.0.9): `"$0.50"` | `routines` (0.0.9): `[]`
+- `routines` (0.0.9): `[]`
 - `scheduled_checks` (0.3.1): `[]`
 - `env` (0.0.7): `{"AGENT_HOOK_PROFILE":"standard","COMPACT_THRESHOLD":"75","CLAUDE_AUTOCOMPACT_PCT_OVERRIDE":"65","MAX_THINKING_TOKENS":"10000"}`
 - `docker` (0.0.7): `{"packages":[],"recommended_plugins":[]}`
@@ -120,7 +120,7 @@ Also: if an active SHELL.md has a `## Plan` section (legacy plan table), warn th
 - Report which templates were updated
 - Note: SHELL.md.template no longer has a `## Plan` section — plan tracking is now handled by native Claude Code Tasks
 
-**Never touch:** sessions, proposals, OPERATOR.md, HEARTBEAT.md, IDLE-TASKS.md (operator-editable), or config.json (handled separately).
+**Never touch:** sessions, proposals, OPERATOR.md, HEARTBEAT.md (operator-editable), or config.json (handled separately).
 
 Only update files in `templates/`:
 

@@ -2,7 +2,7 @@
 // Original: scripts/hooks/cost-tracker.js — MIT License
 // Changes: Added SHELL.md cost injection for session tracking,
 //          simplified pricing model, removed ECC-specific metric paths,
-//          added cumulative cost tracking and budget enforcement,
+//          added cumulative cost tracking,
 //          plan progress sourced from native Claude Code Tasks (via lib/tasks.js).
 
 'use strict';
@@ -204,21 +204,9 @@ function getCumulativeCost(newCost, newTokens, hadHumanTurn, currentSessionId) {
   };
 }
 
-function checkBudget(budget, cumulativeCost) {
-  if (!budget || budget <= 0) return;
-
-  const pct = (cumulativeCost / budget) * 100;
-
-  if (pct >= 100) {
-    console.error(`[cost-tracker] Budget exceeded: $${cumulativeCost.toFixed(2)} spent of $${budget.toFixed(2)} budget. Consider /claude-code-hermit:session-close.`);
-  } else if (pct >= 80) {
-    console.error(`[cost-tracker] Budget warning: ${Math.round(pct)}% of $${budget.toFixed(2)} budget spent ($${cumulativeCost.toFixed(2)}).`);
-  }
-}
-
 const MAX_SUMMARY_LEN = 120;
 
-function writeStatusJson(shellContent, cumulative, budget, sessionId) {
+function writeStatusJson(shellContent, cumulative, sessionId) {
   const { cost: cumulativeCost, tokens: cumulativeTokens, operatorTurns: cumulativeOperatorTurns } = cumulative;
   const statusMatch = shellContent.match(/\*\*Status:\*\*\s*(\S+)/);
   const taskMatch = shellContent.match(/## Task\n([\s\S]*?)(?=\n## |$)/);
@@ -246,7 +234,6 @@ function writeStatusJson(shellContent, cumulative, budget, sessionId) {
     plan_total: progress.total,
     tasks_completed: tasksMatch ? parseInt(tasksMatch[1], 10) : 0,
     cost_usd: Math.round(cumulativeCost * 10000) / 10000,
-    budget_usd: budget,
     tokens: cumulativeTokens,
     operator_turns: cumulativeOperatorTurns,
     blockers: hasBlockers ? blockersText.split('\n')[0].substring(0, MAX_SUMMARY_LEN) : null,
@@ -255,11 +242,6 @@ function writeStatusJson(shellContent, cumulative, budget, sessionId) {
   // Atomic write: write to tmp, then rename
   fs.writeFileSync(STATUS_JSON_TMP, JSON.stringify(statusData, null, 2) + '\n', 'utf-8');
   fs.renameSync(STATUS_JSON_TMP, STATUS_JSON);
-}
-
-function parseBudget(shellContent) {
-  const match = shellContent.match(/\*\*Budget:\*\*\s*\$(\d+\.?\d*)/);
-  return match ? parseFloat(match[1]) : null;
 }
 
 function writeTaskSnapshot(tasks, progress) {
@@ -470,12 +452,10 @@ async function run(data) {
     const cumulative = getCumulativeCost(roundedCost, totalTokens, hadHumanTurn, runtimeSessionId || sessionId);
     const costStr = `$${cumulative.cost.toFixed(4)}`;
 
-    // Read SHELL.md for status/budget — do NOT write back (avoids race condition with Claude's edits)
+    // Read SHELL.md for status — do NOT write back (avoids race condition with Claude's edits)
     try {
       const shellContent = fs.readFileSync(SHELL_SESSION, 'utf-8');
-      const budget = parseBudget(shellContent);
-      writeStatusJson(shellContent, cumulative, budget, runtimeSessionId || sessionId);
-      checkBudget(budget, cumulative.cost);
+      writeStatusJson(shellContent, cumulative, runtimeSessionId || sessionId);
     } catch {
       // Non-fatal — session file may not exist yet
     }

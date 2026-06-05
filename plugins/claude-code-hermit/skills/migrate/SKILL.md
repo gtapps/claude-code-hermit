@@ -34,7 +34,6 @@ Read the following files if they exist:
 - `.claude-code-hermit/config.json`
 - `.claude-code-hermit/OPERATOR.md`
 - `.claude-code-hermit/HEARTBEAT.md`
-- `.claude-code-hermit/IDLE-TASKS.md`
 - `.gitignore`
 
 ### 2. Git hygiene audit
@@ -87,7 +86,7 @@ Apply classification heuristics (see below). For each file include a one-line re
 Classify each `.claude-code-hermit/` artifact using the defaults table. For each artifact present, state the classification and why.
 
 For `config.json` specifically, provide field-level analysis:
-- **Portable fields** (safe to copy as-is): `agent_name`, `language`, `escalation`, `sign_off`, `idle_behavior`, `idle_budget`, `auto_session`, `ask_budget`, `chrome`, `heartbeat`, `compact`, `env` (most entries), `routines`, `scheduled_checks`, `docker`
+- **Portable fields** (safe to copy as-is): `agent_name`, `language`, `escalation`, `sign_off`, `idle_behavior`, `auto_session`, `chrome`, `heartbeat`, `compact`, `env` (most entries), `routines`, `scheduled_checks`, `docker`
 - **Machine-specific fields** (must be updated on destination): `timezone`, `channels.*.dm_channel_id`, `tmux_session_name`, `permission_mode` — see `docs/config-reference.md` for any fields added since this list was written
 - **Note on `channels.*.state_dir`:** If the value is a relative path (e.g. `.claude.local/channels/discord`), it is portable and can be copied as-is. If it is an absolute path (legacy), treat it as machine-specific and update it on the destination.
 - Recommend either: copy then edit machine-specific fields, or recreate from `hatch` and manually port identity/behavior settings
@@ -190,7 +189,7 @@ Recommendation: [copy-then-edit or recreate-from-hatch]
    ```
    (Other transport methods work equally well with the same manifest.)
 5. On destination: run `/claude-code-hermit:hatch` to initialize hermit state
-   - hatch preserves existing OPERATOR.md, config.json, HEARTBEAT.md, IDLE-TASKS.md if present
+   - hatch preserves existing OPERATOR.md, config.json, HEARTBEAT.md if present
 6. Update machine-specific fields in config.json
 7. Recreate .claude.local/ (channel state dirs — see section 7)
 8. Run verification checklist
@@ -212,7 +211,6 @@ Recommendation: [copy-then-edit or recreate-from-hatch]
 |----------|---------|-------|
 | `OPERATOR.md` | usually MUST_MIGRATE | human-curated, not regenerable |
 | `HEARTBEAT.md` | usually MUST_MIGRATE | operator-customized |
-| `IDLE-TASKS.md` | usually MUST_MIGRATE | operator-customized |
 | `config.json` | REVIEW_MANUALLY | portable + machine-specific fields mixed — requires field-level analysis |
 | `sessions/` | usually DO_NOT_MIGRATE | historical runtime state; operator may choose to archive |
 | `proposals/` | usually DO_NOT_MIGRATE | historical; operator may choose to archive |

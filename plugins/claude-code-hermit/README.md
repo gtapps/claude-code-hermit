@@ -28,7 +28,7 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope local
 /claude-code-hermit:docker-setup
 ```
 
-**One Claude subscription, multiple hermits** — each with its own memory, budget, and routines.
+**One Claude subscription, multiple hermits** — each with its own memory, cost history, and routines.
 
 ---
 
@@ -103,7 +103,7 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope local
 claude /claude-code-hermit:hatch
 ```
 
-The wizard sets up your agent's identity, scans your folder, generates `OPERATOR.md`, and offers Quick (5 questions) or Advanced (full wizard).
+The wizard sets up your agent's identity, scans your folder, generates `OPERATOR.md`, and offers Quick (4 questions) or Advanced (full wizard).
 
 > **Just trying it?** After `hatch`, run `.claude-code-hermit/bin/hermit-start --no-tmux` for sessions, routines, heartbeat, and the learning loop without 24/7 autonomy. Run `/claude-code-hermit:channel-setup` first if you want Discord or Telegram.
 
@@ -132,8 +132,6 @@ claude plugin update claude-code-hermit@claude-code-hermit --scope local
 - **Per-session** running total in `.status.json`; carried into archived session reports as frontmatter `cost_usd`.
 - **Per-day** rollup in `cost-summary.md`, regenerated on every cost-tracker tick.
 - **Morning brief** (when scheduled as a routine) reads `cost-summary.md` and includes yesterday's spend.
-- **`idle_budget`** is a soft cap. `hermit-doctor` warns at 80%, fails the cost check at 100% — no surprise stop-mid-task; you decide when to wind down.
-
 No daily caps, no per-runtime-hour billing.
 
 ---
@@ -146,7 +144,7 @@ Domain plugins you stack on top of any hermit you've hatched.
 - [**`homeassistant-hermit`**](../claude-code-homeassistant-hermit/README.md) — *For Home Assistant users.* HA skills, safety hook, automation builder, Python CLI.
 - [**`fitness-hermit`**](../claude-code-fitness-hermit/README.md) — *Fitness focused.* Strava MCP wiring, activity deep-dives, weekly-load routines.
 
-Many operators run several hermits in parallel — one per domain. Each one is a `/hatch` away. They share nothing but the protocol; their memory, budgets, and routines are independent. See [Creating Your Own Hermit](docs/creating-your-own-hermit.md).
+Many operators run several hermits in parallel — one per domain. Each one is a `/hatch` away. They share nothing but the protocol; their memory, cost history, and routines are independent. See [Creating Your Own Hermit](docs/creating-your-own-hermit.md).
 
 ---
 

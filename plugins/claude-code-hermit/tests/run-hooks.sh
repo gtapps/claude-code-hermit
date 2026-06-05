@@ -492,10 +492,38 @@ workdir="$(setup_workdir)"
 cd "$workdir"
 mkdir -p "$workdir/.claude-code-hermit/proposals"
 cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
-{"agent_name":"test","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"active_hours":{"start":"08:00","end":"23:00"}},"routines":[],"idle_budget":"$0.50"}
+{"agent_name":"test","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"active_hours":{"start":"08:00","end":"23:00"}},"routines":[]}
 EOF
 run_test "doctor-check (minimal install, 10 checks)" bash -c \
   "node '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); ids=[c['id'] for c in r['checks']]; assert ids==['config','hooks','state','cost','proposals','dependencies','permissions','docker-security','archive','reflect'], ids\""
+cleanup
+
+# -------------------------------------------------------
+# 44b. doctor-check — cost check is visibility-only (ok with data, warn without)
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+mkdir -p "$workdir/.claude-code-hermit/proposals"
+cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
+{"agent_name":"test","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[]}
+EOF
+TODAY=$(date -u +%Y-%m-%d)
+echo "{\"timestamp\":\"${TODAY}T10:00:00.000Z\",\"model\":\"claude-sonnet-4-6\",\"input_tokens\":100,\"output_tokens\":50,\"cache_read_tokens\":200,\"total_tokens\":350,\"estimated_cost_usd\":0.0012}" > "$workdir/.claude/cost-log.jsonl"
+run_test "doctor-check (cost visibility — ok with data, detail has today spend)" bash -c \
+  "node '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); c=[x for x in r['checks'] if x['id']=='cost'][0]; assert c['status']=='ok', c; assert 'today' in c['detail'], c\""
+cleanup
+
+# -------------------------------------------------------
+# 44c. doctor-check — cost check warns when cost-log absent
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+mkdir -p "$workdir/.claude-code-hermit/proposals"
+cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
+{"agent_name":"test","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[]}
+EOF
+run_test "doctor-check (cost visibility — warn when no cost-log)" bash -c \
+  "node '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); c=[x for x in r['checks'] if x['id']=='cost'][0]; assert c['status']=='warn', c\""
 cleanup
 
 # -------------------------------------------------------

@@ -60,7 +60,7 @@ Behavioral "when X, do Y" rules belong in `CLAUDE.md`, not here — see [the FAQ
 /claude-code-hermit:session
 ```
 
-Tell it what you need, add optional tags (e.g., `feature, api`), and an optional budget. Hermit proposes a plan, creates native Tasks for each step, and waits for your go-ahead. As it works, `SHELL.md` tracks the narrative — progress log, blockers, findings — while Tasks tracks the plan steps. Cost is tracked separately in `.status.json` and injected into context at session start.
+Tell it what you need, add optional tags (e.g., `feature, api`). Hermit proposes a plan, creates native Tasks for each step, and waits for your go-ahead. As it works, `SHELL.md` tracks the narrative — progress log, blockers, findings — while Tasks tracks the plan steps. Cost is tracked separately in `.status.json` and injected into context at session start.
 
 Check status anytime — just type "status":
 
@@ -68,7 +68,6 @@ Check status anytime — just type "status":
 Session S-001 | in_progress | feature, api
 Working on: Add input validation to the API endpoints
 Progress: 2/4 tasks | Current: Step 3 - Add request body validation
-Budget: $1.80 / $5.00 (36%)
 Blockers: none
 ```
 
@@ -171,7 +170,7 @@ See [Always-On Operations](always-on-ops.md) for tmux setup and operational deta
 └── config.json                <- settings
 ```
 
-> Files in `state/` are managed by the plugin at runtime — do not edit them manually. Files you own and can edit: `config.json`, `OPERATOR.md`, `HEARTBEAT.md`, `IDLE-TASKS.md`.
+> Files in `state/` are managed by the plugin at runtime — do not edit them manually. Files you own and can edit: `config.json`, `OPERATOR.md`, `HEARTBEAT.md`.
 
 ---
 

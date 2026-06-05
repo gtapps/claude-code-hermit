@@ -91,8 +91,6 @@ Open `.claude-code-hermit/HEARTBEAT.md` for the operator to modify.
 - Ask what to add, remove, or change. Suggest additions based on project context.
 - Write updated checklist back.
 
-If the operator asks about idle tasks: read/write `.claude-code-hermit/IDLE-TASKS.md` instead. Warn if `idle_behavior` is `"wait"` (tasks won't be picked up automatically).
-
 ## Idle Agency
 
 After evaluating the checklist, if SHELL.md status is `idle`:
@@ -104,8 +102,7 @@ After evaluating the checklist, if SHELL.md status is `idle`:
 
 **The following only when `idle_behavior: "discover"`:**
 
-- **Idle task pickup:** read `.claude-code-hermit/IDLE-TASKS.md`. Pick first unchecked item. Record provenance in `runtime.json` `idle_task` (`text`, `line`, `picked_at`). Start via `/claude-code-hermit:session-start --task '<text>'`, cost-capped at `idle_budget`. Run at `escalation: conservative`. Maximum one task per tick.
-- **Priority alignment:** check OPERATOR.md + `.claude/cost-log.jsonl`. Alert if deadlines or budgets need attention.
+- **Priority alignment:** check OPERATOR.md + `.claude/cost-log.jsonl`. Alert if deadlines need attention.
 
 All time comparisons use `timezone` from config.json.
 

@@ -109,26 +109,13 @@ function checkStateFiles() {
   }
 }
 
-function parseBudgetString(s) {
-  if (typeof s !== 'string') return null;
-  const m = s.match(/\$(\d+\.?\d*)/);
-  return m ? parseFloat(m[1]) : null;
-}
-
 function checkCost() {
   try {
     if (!fs.existsSync(costLog)) {
       return { id: 'cost', status: 'warn', detail: 'no cost data yet (.claude/cost-log.jsonl absent)' };
     }
-    let config = {};
-    try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch {}
-    const budget = parseBudgetString(config.idle_budget);
-    // No ceiling configured (or config unreadable) — can't compare. checkConfig surfaces the config issue separately.
-    if (budget == null) {
-      return { id: 'cost', status: 'ok', detail: 'no idle_budget ceiling configured' };
-    }
 
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const today = new Date().toISOString().slice(0, 10);
     let todayTotal = 0;
     let todayTokens = 0;
     let todayCacheRead = 0;
@@ -144,10 +131,7 @@ function checkCost() {
         }
       } catch {}
     }
-    const pct = Math.round((todayTotal / budget) * 100);
-    const detail = `today $${todayTotal.toFixed(4)} / $${budget.toFixed(2)} (${pct}% of idle_budget) · ${kStr(todayTokens)}K tokens, ${kStr(todayCacheRead)}K cached`;
-    if (pct >= 100) return { id: 'cost', status: 'fail', detail };
-    if (pct >= 80) return { id: 'cost', status: 'warn', detail };
+    const detail = `today $${todayTotal.toFixed(4)} · ${kStr(todayTokens)}K tokens, ${kStr(todayCacheRead)}K cached`;
     return { id: 'cost', status: 'ok', detail };
   } catch (e) {
     return { id: 'cost', status: 'fail', detail: `check failed: ${e.message}` };
