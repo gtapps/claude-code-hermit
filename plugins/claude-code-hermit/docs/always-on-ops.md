@@ -169,6 +169,7 @@ Routines live in `config.json` as a `routines` array:
 - `schedule`: 5-field cron expression (`minute hour dom month dow`), written in `config.timezone` — converted to machine local time at load before CronCreate registration (see [Config reference — routines.schedule](../docs/config-reference.md#cron-schedule-rules))
 - `skill`: full slash-command name (e.g. `claude-code-hermit:brief --morning` for plugin skills, `ha-refresh-context` for local project skills)
 - `run_during_waiting`: optional — if `true`, fires even when session status is `waiting` (default: `false`)
+- `model`: optional — one of `opus`, `sonnet`, `haiku`. Runs the skill in a subagent at that model to save cost on lightweight routines (e.g. URL checks, threshold comparisons). Subagents run in isolated context and return only a one-line status, so only use it on stateless routines — not ones whose value is chat/transcript output, and not `heartbeat-restart` (ignored there). See [config-reference](config-reference.md#idle-agency--routines) for details.
 - `enabled`: toggle without removing
 
 Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect immediately — `hermit-settings` auto-runs `/claude-code-hermit:hermit-routines load` after writing config. If you edit `config.json` by hand, run `/claude-code-hermit:hermit-routines load` to apply.

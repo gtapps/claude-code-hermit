@@ -46,6 +46,7 @@ For each routine in `routines[]`:
 - `enabled` (boolean)
 - `run_during_waiting` (boolean, optional) — if present, must be `true` or `false`
 - `reflect_after` (boolean, optional) — if present, must be `true` or `false`
+- `model` (string|null, optional) — if present and non-null, must be one of `opus`, `sonnet`, `haiku` (else error); if set on `heartbeat-restart`, emit a warning (ignored at load — re-arm must run in the session)
 
 ### 4. Channel structure
 

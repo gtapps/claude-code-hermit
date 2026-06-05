@@ -27,6 +27,7 @@ const REQUIRED_KEYS = {
 
 const VALID_ESCALATION = ['conservative', 'balanced', 'autonomous'];
 const VALID_QUALITY_GATE_TIER = ['budget', 'balanced', 'quality'];
+const VALID_ROUTINE_MODEL = ['opus', 'sonnet', 'haiku'];
 const TIME_RE = /^\d{2}:\d{2}$/;
 
 // --- Cron validation (5-field: minute hour dom month dow) ---
@@ -135,6 +136,13 @@ function validate(config) {
         warnings.push(`routines[${i}]: duplicate id "${r.id}"`);
       }
       if (r.id) ids.add(r.id);
+      if (r.model !== undefined && r.model !== null) {
+        if (typeof r.model !== 'string' || !VALID_ROUTINE_MODEL.includes(r.model)) {
+          errors.push(`routines[${i}]: model "${r.model}" not in [${VALID_ROUTINE_MODEL.join(', ')}] (omit to use session model)`);
+        } else if (r.id === 'heartbeat-restart') {
+          warnings.push(`routines[${i}]: model on "heartbeat-restart" is ignored — re-arm must run in the session`);
+        }
+      }
     });
   }
 

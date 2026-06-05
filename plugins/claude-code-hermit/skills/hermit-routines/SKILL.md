@@ -41,6 +41,14 @@ Called automatically by `hermit-start.py` on always-on launches. Can also be cal
 
 Use `run_during_waiting` (rdw) from the config entry to select the template. Default `run_during_waiting` is `false` when the field is absent.
 
+**Model-override substitution.** Read the routine's optional `model` field. First, if `id === "heartbeat-restart"`, treat `model` as absent regardless of its value — its re-arm append must run in the session, so it is never dispatched to a subagent. Then: if `model` is absent/null, use the literal `invoke /<skill>` clause in the templates below (current behavior). If set to a non-null `<model>`, replace that clause — `invoke /<skill>` in the rdw=false template, `Invoke /<skill>` (capitalized) in the rdw=true template — with the **Agent-dispatch clause**:
+
+```
+dispatch the skill via the Agent tool: subagent_type "general-purpose", model "<model>", prompt "Invoke the skill /<skill> to completion in this project, following its instructions exactly, including any reads/writes to .claude-code-hermit/ state files. Return only a one-line status."
+```
+
+The Agent runs in isolated context (no live session conversation, but full filesystem access) and returns only a one-line status to the session. The waiting-check, `log-routine-event.sh` call, and any `heartbeat-restart`/`reflect_after` appends stay in the session turn and run at the session model.
+
 **rdw=true** — routine fires even when `session_state` is `waiting`:
 ```
 [hermit-routine:<id>] Invoke /<skill>. After it completes, run:
@@ -70,11 +78,11 @@ Show configured routines from `config.json` (not from CronList — this is the c
 3. Display table:
 ```
 Routines (config.json):
-  #  ID                 Schedule      Skill                                    RDW    RA     Status
-  1. heartbeat-restart  0 4 * * *     claude-code-hermit:heartbeat start       true   false  enabled
-  2. weekly-review      0 23 * * 0    claude-code-hermit:weekly-review         false  false  disabled
+  #  ID                 Schedule      Skill                                    RDW    RA     Model   Status
+  1. heartbeat-restart  0 4 * * *     claude-code-hermit:heartbeat start       true   false  -       enabled
+  2. weekly-review      0 23 * * 0    claude-code-hermit:weekly-review         false  false  -       disabled
 ```
-`RA` is `true` when `reflect_after: true` is set on the routine entry, `false` otherwise.
+`RA` is `true` when `reflect_after: true` is set on the routine entry, `false` otherwise. `Model` is the value of `model` if set, otherwise `-`.
 
 ### status
 
@@ -117,3 +125,4 @@ Extract the routine ID from the `[hermit-routine:<id>]` prefix in the prompt.
 - **CronCreate is idle-gated.** Routines only fire between REPL turns — never mid-task.
 - **`durable: false` (default).** CronCreates die with the session. `hermit-start.py` re-registers on every always-on launch.
 - **7-day auto-expiry depends on `heartbeat-restart`.** `load` resets the 7-day clock unconditionally on each call. The `heartbeat-restart` routine fires daily and re-invokes `/claude-code-hermit:hermit-routines load`, so entries never reach expiry. **If you disable `heartbeat-restart`, routine CronCreates expire after 7 days** — re-enable it, or run `/claude-code-hermit:hermit-routines load` weekly by hand.
+- **`model` (optional) runs a routine's skill in a subagent at the named model** (`opus`, `sonnet`, or `haiku`) to save cost on lightweight routines. Subagents run in **isolated context** and return only a one-line status to the session — only set `model` on self-contained, stateless routines (file/threshold/URL checks). Do **not** set it on `heartbeat-restart` (re-arm must run in the session — `load` ignores it), avoid it on `reflect`/`weekly-review` (live-session-dependent or already cheap), and **do not use it for routines whose value is chat/transcript output** (the rich output is collapsed to one line and lost). Validated by `scripts/validate-config.js`.

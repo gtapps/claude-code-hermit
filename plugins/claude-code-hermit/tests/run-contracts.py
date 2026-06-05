@@ -1463,5 +1463,114 @@ class TestBootstrapSkills(unittest.TestCase):
                          f'Bootstrap skills must stay model-invocable; offenders: {offenders}')
 
 
+class TestRoutineModelValidation(unittest.TestCase):
+    """validate-config.js routine model field — validation rules."""
+
+    BASE_CONFIG = {
+        "agent_name": None, "language": None, "timezone": None,
+        "escalation": "balanced", "channels": {}, "env": {},
+        "heartbeat": {"enabled": True, "active_hours": {"start": "08:00", "end": "23:00"}},
+        "routines": [],
+        "quality_gate": {"tier": "budget"},
+    }
+
+    BASE_ROUTINE = {"id": "check", "schedule": "0 9 * * *", "skill": "claude-code-hermit:knowledge", "enabled": True}
+    HB_ROUTINE = {"id": "heartbeat-restart", "schedule": "0 4 * * *", "skill": "claude-code-hermit:heartbeat start", "run_during_waiting": True, "enabled": True}
+
+    def _run_validate(self, config_dict):
+        """Call validate-config.js validate() via node -e; return {errors, warnings}."""
+        config_json = json.dumps({**self.BASE_CONFIG, **config_dict})
+        js = f"""
+        const v = require('{SCRIPTS}/validate-config.js');
+        const result = v.validate({config_json});
+        process.stdout.write(JSON.stringify(result));
+        """
+        result = subprocess.run(
+            ['node', '-e', js], capture_output=True, text=True, timeout=5,
+        )
+        self.assertEqual(result.returncode, 0, f'node exited non-zero: {result.stderr}')
+        return json.loads(result.stdout)
+
+    def test_routine_model_valid_values(self):
+        """Each valid model value on a routine produces no errors."""
+        for model in ['haiku', 'sonnet', 'opus']:
+            out = self._run_validate({"routines": [{**self.BASE_ROUTINE, "model": model}]})
+            self.assertEqual(out['errors'], [], f'unexpected errors for model={model!r}: {out}')
+
+    def test_routine_model_absent_ok(self):
+        """Routine without model field produces no model-related error."""
+        out = self._run_validate({"routines": [self.BASE_ROUTINE]})
+        self.assertFalse(
+            any('model' in e for e in out['errors']),
+            f'unexpected model error for absent field: {out}',
+        )
+
+    def test_routine_model_null_ok(self):
+        """model: null is treated as absent — no error."""
+        out = self._run_validate({"routines": [{**self.BASE_ROUTINE, "model": None}]})
+        self.assertFalse(
+            any('model' in e for e in out['errors']),
+            f'unexpected model error for null: {out}',
+        )
+
+    def test_routine_model_invalid_rejected(self):
+        """model: haik (typo) is an error."""
+        out = self._run_validate({"routines": [{**self.BASE_ROUTINE, "model": "haik"}]})
+        self.assertTrue(
+            any('not in' in e for e in out['errors']),
+            f'expected "not in" error for invalid model, got {out}',
+        )
+
+    def test_routine_model_non_string_rejected(self):
+        """model: 5 (non-string) is an error."""
+        out = self._run_validate({"routines": [{**self.BASE_ROUTINE, "model": 5}]})
+        self.assertTrue(
+            any('not in' in e for e in out['errors']),
+            f'expected "not in" error for non-string model, got {out}',
+        )
+
+    def test_heartbeat_restart_model_warns_not_errors(self):
+        """model on heartbeat-restart produces a warning (ignored), not an error."""
+        out = self._run_validate({"routines": [{**self.HB_ROUTINE, "model": "haiku"}]})
+        self.assertEqual(out['errors'], [], f'unexpected errors: {out}')
+        self.assertTrue(
+            any('ignored' in w for w in out['warnings']),
+            f'expected "ignored" warning for heartbeat-restart model, got {out}',
+        )
+
+
+class TestHermitRoutinesModelContract(unittest.TestCase):
+    """Structural contract for the model-override substitution in hermit-routines SKILL.md.
+
+    Guards against the template change being reverted while the validator keeps
+    accepting the model field (which would leave the field accepted-but-inert),
+    and against the heartbeat-restart short-circuit guard being silently dropped.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        path = REPO / 'skills' / 'hermit-routines' / 'SKILL.md'
+        if not path.exists():
+            raise FileNotFoundError('skills/hermit-routines/SKILL.md missing')
+        cls._skill_content = path.read_text()
+
+    def test_skill_documents_model_override_substitution(self):
+        """SKILL.md must document the model-override substitution rule."""
+        self.assertIn('Model-override substitution', self._skill_content,
+                      'hermit-routines SKILL.md is missing the Model-override substitution section')
+
+    def test_skill_documents_agent_dispatch(self):
+        """SKILL.md must reference Agent tool dispatch for model overrides."""
+        self.assertIn('via the Agent tool', self._skill_content,
+                      'hermit-routines SKILL.md is missing the Agent tool dispatch clause')
+
+    def test_skill_documents_heartbeat_restart_guard(self):
+        """SKILL.md must document the heartbeat-restart short-circuit in the substitution rule."""
+        self.assertIn('heartbeat-restart', self._skill_content,
+                      'hermit-routines SKILL.md missing heartbeat-restart reference')
+        self.assertIn('treat `model` as absent', self._skill_content,
+                      'hermit-routines SKILL.md is missing the heartbeat-restart short-circuit guard phrase')
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -9,6 +9,7 @@
 ### Added
 
 - **hatch: git init on fresh dirs** — when hatching in an empty, non-git directory (e.g. a dedicated ops-hermit workspace), offers a local `git init` so the hermit's build artifacts are versioned from day one. Existing projects and re-inits are untouched. Closes #282.
+- **hermit-routines: optional per-routine `model` override** — run lightweight routines (URL checks, threshold comparisons) on Haiku via subagent dispatch to cut idle cost. Ignored on `heartbeat-restart`; not for routines whose value is chat/transcript output. Closes #289.
 
 ### Files affected
 
