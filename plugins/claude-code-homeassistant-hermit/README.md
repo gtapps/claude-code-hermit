@@ -9,7 +9,7 @@
 Turn Claude Code into a 24/7 personal AI for your Home Assistant. **HA-aware**, **Read-first**, **Safe-by-default**, **Built on `claude-code-hermit`**.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/gtapps/claude-code-hermit/main/plugins/claude-code-hermit/assets/demo.gif" alt="claude-code-hermit demo — Obsidian dashboard, Discord control, autonomous briefings, remote access" width="720" />
+  <img src="../claude-code-hermit/assets/cover.png" alt="Always-on Claude Code Home Assistant Agent" width="720" />
 </p>
 
 Understands your house, spots the patterns, drafts automations, catches things breaking while you sleep — and never flips a switch without your say-so. Wires the official Home Assistant [MCP Server](https://www.home-assistant.io/integrations/mcp_server/) and [REST API](https://www.home-assistant.io/integrations/api/) into the [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) loop with a fail-closed safety hook in front of every actuation call.
@@ -32,7 +32,7 @@ claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scop
 
 **Knows your house.** Hatch points the hermit at HA, then learns your entities, areas, automations, and patterns — your house becomes the context it reasons from. `daily-ha-context` keeps it fresh.
 
-**Drive it from anywhere.** Ask what's on, draft an automation, ask why the porch light fired at 3am — DM the hermit on Discord or Telegram, or jump into a live session from claude.ai/code on your phone. Replies are conversational; YAML drafts get isolated, simulated, and only applied after you approve.
+**Drive it from anywhere.** Ask what's on, draft an automation, or ask why the porch light fired at 3am. Reach it from the Claude app or claude.ai/code on your phone (handy if you run several hermits), and optionally DM it on Discord or Telegram. Replies are conversational; YAML drafts get isolated, simulated, and only applied after you approve.
 
 **It watches the house for you.** Daily integration health, silence detection (dead automations, sensors that stopped triggering, long-unavailable entities), and automation error checks; weekly pattern analysis, history-backed automation suggestions, and safety re-audit. Anomalies surface as proposals you can act on — never silent edits.
 

@@ -10,7 +10,7 @@
 Strict git-safety hook for any Claude Code agent — blocks force-push, `--no-verify`, and direct push to protected branches. Optional dev workflow skills for greenfield projects.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/gtapps/claude-code-hermit/main/plugins/claude-code-hermit/assets/demo.gif" alt="claude-code-hermit demo (the core hermit — dev-hermit extends it with the safety layer described below)" width="720" />
+  <img src="../claude-code-hermit/assets/cover.png" alt="Always-on Claude Code DevAgent" width="720" />
 </p>
 
 Installs a `git-push-guard` hook (strict-by-default) and injects git-safety rules into your project's `CLAUDE.md` via a CLAUDE-APPEND template — so every code-writing agent, regardless of framework, can't push to main or bypass hooks. No built-in implementer — bring your own agents. Optional workflow skills (`/dev-pr`, `/dev-quality`, `/dev-test`) are available for greenfield projects that don't already have their own commit/PR/release conventions.

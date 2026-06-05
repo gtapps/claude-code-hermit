@@ -9,7 +9,7 @@
 Turn Claude Code into a 24/7 personal fitness assistant. **Strava-aware**, **Read-only**, **Plans + flags**, **Built on `claude-code-hermit`**.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/gtapps/claude-code-hermit/main/plugins/claude-code-hermit/assets/demo.gif" alt="claude-code-hermit demo — Obsidian dashboard, Discord control, autonomous briefings, remote access" width="720" />
+  <img src="../claude-code-hermit/assets/cover.png" alt="Always-on Claude Code Fitness Agent" width="720" />
 </p>
 
 Reads your Strava, spots load anomalies, drafts weekly plans, and flags recovery — never modifies your account. Wires the community Strava [MCP Server](https://github.com/r-huijts/strava-mcp-server) and the [Strava REST API](https://developers.strava.com/docs/reference/) into the [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) loop, with write-class tools blocked at the settings layer.
@@ -32,9 +32,9 @@ claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope loca
 
 **Knows your training.** Hatch wires the Strava MCP server, drops in routine prompt templates, and registers them with the core hermit. Your training history becomes the context it reasons from.
 
-**Drive it from anywhere.** Ask about last week's load, request an activity deep-dive, or get tomorrow's session suggestion — DM the hermit on Discord or Telegram, or jump into a live session from claude.ai/code on your phone. `activity-deep-dive` produces a coaching artifact (zone breakdown, pace/HR efficiency, cardiac drift, recovery estimate) you can skim in seconds.
+**Drive it from anywhere.** Ask about last week's load, request an activity deep-dive, or get tomorrow's session suggestion. Reach it from the Claude app or claude.ai/code on your phone (handy if you run several hermits), and optionally DM it on Discord or Telegram. `activity-deep-dive` produces a coaching artifact (zone breakdown, pace/HR efficiency, cardiac drift, recovery estimate) you can skim in seconds.
 
-**It watches your training for you.** Daily checks for new activities and Strava connectivity; weekly load review on Sundays; Monday planning suggestions. Anomalies — skipped recovery, ramp-rate spikes, missing data — get flagged in your channel.
+**It watches your training for you.** Daily checks for new activities and Strava connectivity; weekly load review on Sundays; Monday planning suggestions. Anomalies — skipped recovery, ramp-rate spikes, missing data — get flagged by push notification, or in your channel if you've paired one.
 
 **Routines that match a training week:**
 
