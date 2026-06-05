@@ -115,7 +115,7 @@ function checkCost() {
       return { id: 'cost', status: 'warn', detail: 'no cost data yet (.claude/cost-log.jsonl absent)' };
     }
 
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const today = new Date().toISOString().slice(0, 10);
     let todayTotal = 0;
     let todayTokens = 0;
     let todayCacheRead = 0;
