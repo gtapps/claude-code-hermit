@@ -155,7 +155,15 @@ Format (one line, appended under `## Findings`):
 [HH:MM] Channel pattern: <one-line description of the preference or recurrence>
 ```
 
-Do not classify tier, tag Evidence Source, or decide memory-vs-proposal. Reflect reads this line as `current-session` evidence (`Evidence Source: current-session`, `Sessions: current`) and runs triage and the reflection-judge to decide the outcome.
+If the sender's user ID (verified in §1c) is **not** the primary paired operator (i.e. not the first or only entry in `allowed_users`), append ` [origin: external]` to the line:
+
+```
+[HH:MM] Channel pattern: <description> [origin: external]
+```
+
+Under the common single-operator config, `allowed_users` has exactly one entry and this marker never fires — all channel content stays `own-work`. The marker is only relevant on multi-user allowlists (e.g. a trusted third party added for task delegation).
+
+Do not classify tier, tag Evidence Source, or decide memory-vs-proposal. Reflect reads this line as `current-session` evidence (`Evidence Source: current-session`, `Sessions: current`) and uses the `[origin: external]` marker (if present) to set `Evidence Origin: external-content` when passing to the judge.
 
 ## Note
 
