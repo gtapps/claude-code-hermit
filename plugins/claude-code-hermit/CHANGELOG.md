@@ -1,12 +1,32 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.12] - 2026-06-10
+
+### Added
+
+- **hermit-settings: watchdog subcommand** — new interactive menu exposes watchdog enable/disable, `stale_factor`, `escalate_after`, and `operator_grace` fields.
+- **docker-setup: enable watchdog at step 9** — after container verification, step 9 now flips `watchdog.enabled: true` in `config.json` for Docker hermits; the entrypoint loop already runs the watchdog so no `bin/hermit-watchdog install` is needed.
 
 ### Fixed
 
+- **watchdog: install/uninstall no longer crash on systemd-less Linux** — falls back to printing a crontab line when `systemctl` is absent; uninstall exits cleanly with a "no timer to remove" message instead of throwing.
+- **heartbeat-monitor: suppress first-iteration EVALUATE to avoid cold-start double-fire** — first tick after session start skips EVALUATE (alerts empty, checklist unseen); AUTO_CLOSE is never suppressed.
 - **hermit-stop: `Started` and `Status` read from wrong source** — `read_active_session()` now reads `session_state` and `created_at` from `runtime.json` (the documented single source of truth). The `**Status:**` field was removed from SHELL.md and always fell back to `unknown`; `**Started:**` could show the raw template placeholder `YYYY-MM-DD HH:MM` if session-mgr missed the substitution. SHELL.md `**Started:**` is still preferred when it contains a real date.
 - **hermit-status: `Status` fallback read from runtime.json** — the no-cost-data fallback branch now reads `session_state` from `state/runtime.json` instead of grepping `**Status:**` from SHELL.md (which no longer exists in that file).
 - **session-mgr/session-start: `Started` placeholder now explicitly named** — `session-mgr.md` step 5 and `session-start` fast-path step now name the literal placeholder `YYYY-MM-DD HH:MM` so substitution is unambiguous, matching the precision already applied to the `**ID:**` field.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/hermit-settings/SKILL.md` | New watchdog subcommand |
+| `skills/docker-setup/SKILL.md` | Step 9 enables `watchdog.enabled` for Docker hermits |
+| `scripts/hermit-watchdog.py` | Graceful systemd-absent fallback in install/uninstall |
+| `scripts/heartbeat-monitor.sh` | Suppress EVALUATE on first tick; AUTO_CLOSE always fires |
+| `scripts/hermit-stop.py` | Read `session_state`/`created_at` from `runtime.json` |
+| `state-templates/bin/hermit-status` | Fixed fallback reads `session_state` from `runtime.json` |
+| `agents/session-mgr.md` | Explicitly name `YYYY-MM-DD HH:MM` placeholder in step 5 |
+| `skills/session-start/SKILL.md` | Explicitly name placeholder in fast-path step |
 
 ### Upgrade Instructions
 
