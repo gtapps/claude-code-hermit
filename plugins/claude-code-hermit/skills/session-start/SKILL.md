@@ -56,7 +56,7 @@ All state lives under `.claude-code-hermit/` in the project root.
    - This is a session between tasks — do NOT create a new session or SHELL.md
    - Present: session start date, tasks completed count, latest entry from Session Summary
    - Skip to step 5 (NEXT-TASK.md check) to determine the task source
-   - When a task is provided: use `claude-code-hermit:session-mgr` to set Status back to `in_progress` (cosmetic in SHELL.md) and update runtime.json `session_state` to `in_progress`. Fill in Task. After confirming the plan with the operator, create native Tasks (`TaskCreate`) for each step.
+   - When a task is provided: use `claude-code-hermit:session-mgr` to update runtime.json `session_state` to `in_progress`. Fill in Task. After confirming the plan with the operator, create native Tasks (`TaskCreate`) for each step.
    - The session ID is pre-computed in runtime.json (set by session-mgr on previous idle transition)
    - If heartbeat is running, it continues
 5. Read `.claude-code-hermit/OPERATOR.md` for project context and constraints
@@ -117,7 +117,7 @@ All state lives under `.claude-code-hermit/` in the project root.
 9b. If resuming an idle session (runtime.json `session_state` is `idle`):
    - Show session continuity info: tasks completed, session duration, cumulative cost
    - Ask: "What should I work on next?" (unless a NEXT-TASK.md was accepted in step 6)
-   - Once provided, use `claude-code-hermit:session-mgr` to update SHELL.md: set Status to `in_progress` (cosmetic), fill Task. Update runtime.json `session_state` to `in_progress`. After confirming the plan, create native Tasks for each step.
+   - Once provided, use `claude-code-hermit:session-mgr` to fill Task and update runtime.json `session_state` to `in_progress`. After confirming the plan, create native Tasks for each step.
 10. If starting a new session:
    - Ask the operator: "What should I help with?" (unless a NEXT-TASK.md was accepted in step 6)
    - Once provided, use `claude-code-hermit:session-mgr` to create the session with the task. After confirming the plan, create native Tasks (`TaskCreate`) for each step.

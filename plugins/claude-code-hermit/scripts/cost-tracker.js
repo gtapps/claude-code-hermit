@@ -25,13 +25,16 @@ const HEARTBEAT_FILE = path.resolve('.claude-code-hermit/state/.heartbeat');
 const COST_SUMMARY = path.resolve('.claude-code-hermit/cost-summary.md');
 const TASK_SNAPSHOT = path.resolve('.claude-code-hermit/tasks-snapshot.md');
 
-function readRuntimeSessionId() {
+function readRuntimeJson() {
   try {
-    const data = JSON.parse(fs.readFileSync(RUNTIME_JSON, 'utf-8'));
-    return data.session_id || '';
+    return JSON.parse(fs.readFileSync(RUNTIME_JSON, 'utf-8'));
   } catch {
-    return '';
+    return {};
   }
+}
+
+function readRuntimeSessionId() {
+  return readRuntimeJson().session_id || '';
 }
 
 function touchHeartbeat() {
@@ -182,9 +185,12 @@ function getCumulativeCost(newCost, newTokens, hadHumanTurn, currentSessionId) {
 
 const MAX_SUMMARY_LEN = 120;
 
+function readRuntimeSessionState() {
+  return readRuntimeJson().session_state || 'unknown';
+}
+
 function writeStatusJson(shellContent, cumulative, sessionId) {
   const { cost: cumulativeCost, tokens: cumulativeTokens, operatorTurns: cumulativeOperatorTurns } = cumulative;
-  const statusMatch = shellContent.match(/\*\*Status:\*\*\s*(\S+)/);
   const taskMatch = shellContent.match(/## Task\n([\s\S]*?)(?=\n## |$)/);
   const blockersMatch = shellContent.match(/## Blockers\n([\s\S]*?)(?=\n## |$)/);
   const tasksMatch = shellContent.match(/\*\*Tasks Completed:\*\*\s*(\d+)/);
@@ -204,7 +210,7 @@ function writeStatusJson(shellContent, cumulative, sessionId) {
   const statusData = {
     updated: new Date().toISOString(),
     session_id: sessionId,
-    status: statusMatch ? statusMatch[1] : 'unknown',
+    status: readRuntimeSessionState(),
     task: task.split('\n')[0].substring(0, MAX_SUMMARY_LEN),
     plan_done: progress.done,
     plan_total: progress.total,

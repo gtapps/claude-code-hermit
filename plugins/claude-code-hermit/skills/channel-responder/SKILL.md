@@ -44,7 +44,7 @@ Read `waiting_reason` from runtime.json to understand why:
 - `"operator_input"`, `"conservative_pickup"`, or null → treat as normal task resumption.
 
 - **Status request** → respond with current context, stay `waiting`
-- **New instruction or answer to a question** → update runtime.json `session_state` to `in_progress`, clear `waiting_reason` to `null`, update SHELL.md Status to `in_progress` (cosmetic), resume work
+- **New instruction or answer to a question** → update runtime.json `session_state` to `in_progress`, clear `waiting_reason` to `null`, resume work
 - **Anything else** → respond, stay `waiting`
 
 ## 1c. Check Authorization
