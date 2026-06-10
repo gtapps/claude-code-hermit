@@ -4,7 +4,6 @@
 ## Session Info
 - **ID:** S-TEST
 - **Started:** 2025-01-01 10:00
-- **Status:** in_progress
 - **Tags:** test
 - **Tasks Completed:** 1
 - **Session Mode:** interactive

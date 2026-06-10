@@ -42,7 +42,7 @@ Emphasize backward-looking content:
 - Compute today's cost live: run `node "${CLAUDE_PLUGIN_ROOT}/scripts/today-cost.js"` and use its output for the today's cost and token total. Do not read `cost-summary.md` for the today figure — it is only updated once per day and will be stale throughout the day in always-on deployments.
 - Key findings or patterns noticed
 - What to look at tomorrow
-- After generating summary: if SHELL.md Status is `in_progress` or has progress entries since last report, note it in the brief (e.g., "Session still open — run /session-close to archive.") and let the operator close explicitly. Exception: if `config.always_on` is `true` AND `config.routines` contains an enabled entry with skill containing `daily-auto-close`, suppress the note — the auto-close routine archives it at midnight. Idle transitions are owned by the `session` skill and `session-mgr`; brief does not trigger them.
+- After generating summary: if `runtime.json session_state` is `in_progress` or SHELL.md has progress entries since last report, note it in the brief (e.g., "Session still open — run /session-close to archive.") and let the operator close explicitly. Exception: if `config.always_on` is `true` AND `config.routines` contains an enabled entry with skill containing `daily-auto-close`, suppress the note — the auto-close routine archives it at midnight. Idle transitions are owned by the `session` skill and `session-mgr`; brief does not trigger them.
 
 ### No flag (default)
 
@@ -50,9 +50,9 @@ Current behavior — general purpose summary as described below.
 
 ## Plan
 
-1. Check if `.claude-code-hermit/sessions/SHELL.md` exists **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**:
-   - If Status is `in_progress`: summarize the active task (existing behavior below)
-   - If Status is `idle` (session between tasks): format as:
+1. Check if `.claude-code-hermit/sessions/SHELL.md` exists **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**. Read `session_state` from `.claude-code-hermit/state/runtime.json` for the lifecycle state:
+   - If `session_state` is `in_progress`: summarize the active task (existing behavior below)
+   - If `session_state` is `idle` (session between tasks): format as:
      ```
      [Brief] YYYY-MM-DD | idle | N tasks completed
      Session: since [start date]

@@ -406,7 +406,12 @@ Re-run /claude-code-hermit:docker-setup any time you want guided help.
 
 **If "Yes — build now":**
 1. Pre-create all channel state directories on the host so Docker doesn't create them as root on first mount — if a bind-mount source doesn't exist, `docker compose up` creates it owned by root, making it unwritable by the `claude` user inside the container. For each configured channel run `mkdir -p .claude.local/channels/<plugin>`. Then run `mkdir -p .claude-code-hermit/state && touch .claude-code-hermit/state/.setup-mode` to put the container in setup mode (suppresses the bootstrap prompt so channel pairing commands land on an idle REPL, not a busy session turn). Then run `docker compose -f docker-compose.hermit.yml up -d --build` — builds and starts. Help fix errors (daemon not running, network, disk). Do **not** use `.claude-code-hermit/bin/hermit-docker up` here — its trailing echo prints attach/detach instructions that look like imperative commands and can mislead the LLM running this skill into executing them mid-setup. The final hand-off at step 9 provides the canonical attach guidance.
-2. **Verify the container stayed running:** Poll `docker compose -f docker-compose.hermit.yml ps --status running --format '{{.Service}}'` every 2s for up to 10s. If the service appears — continue to the next sub-section. If it never appears after 10s, run `docker compose -f docker-compose.hermit.yml logs --tail=30 hermit` and show the output. Help diagnose (common: image build failure, missing `.env` var, port conflict, Docker daemon not fully ready). **Do not continue to Login / Workspace trust / Channel pairing while the container is down — stop here and ask the operator to fix and re-run the skill.**
+2. **Verify the container stayed running:** Poll `docker compose -f docker-compose.hermit.yml ps --status running --format '{{.Service}}'` every 2s for up to 10s. If the service appears — continue to the next sub-section. If it never appears after 10s, run `docker compose -f docker-compose.hermit.yml logs --tail=30 hermit` and show the output. Suggest a targeted fix based on the log:
+   - **Daemon not running** → `docker info` errors → start Docker Desktop or `sudo systemctl start docker`, then re-run this skill
+   - **Build failure** → read the build error line in the log above; fix the Dockerfile or missing dependency
+   - **Missing `.env` var** → `docker compose -f docker-compose.hermit.yml config 2>&1 | grep -i error` names it
+   - **Port conflict** → `ss -tlnp | grep <port>` finds what's using the published port
+   **Do not continue to Login / Workspace trust / Channel pairing while the container is down — stop here and ask the operator to fix and re-run the skill.**
 
 **Login (oauth only):** If operator chose oauth, proceed only once the container is confirmed running. Guide them through login:
 1. Tell them: "The container is waiting for you to log in. Run this from another terminal:"
@@ -415,7 +420,11 @@ Re-run /claude-code-hermit:docker-setup any time you want guided help.
    ```
    This opens a claude REPL inside the container. Type `/login`, follow the URL in a browser, then paste the code back when prompted. Type `/exit` when done — the hermit starts automatically.
 2. Ask with `AskUserQuestion` (header: `"Login"`) — `"Done — login succeeded"` / `"Failed — couldn't complete login"`. Do **not** poll logs in a loop. Do **not** rebuild or restart the container. `hermit-docker login` already verifies `.credentials.json` and exits non-zero if absent, so a "Done" answer means creds are present.
-3. On `"Failed"`: run `docker compose -f docker-compose.hermit.yml logs --tail=30 hermit` and show output, then **stop** — operator re-runs `/claude-code-hermit:docker-setup` after resolving the issue.
+3. On `"Failed"`: run `docker compose -f docker-compose.hermit.yml logs --tail=30 hermit` and show output. Suggest the targeted fix:
+   - **OAuth URL unreachable** → copy the URL from the log and open it manually in a browser
+   - **Code expired / rejected** → re-run `hermit-docker login` (codes expire in ~10 min)
+   - **Credentials not written** → `docker compose exec -T hermit ls /home/claude/.claude/.credentials.json` (should exist after login); missing = named volume not mounted — check `docker-compose.hermit.yml` volume entry
+   Then **stop** — operator re-runs `/claude-code-hermit:docker-setup` after resolving the issue.
 
 **First-run acceptance (workspace trust + bypass mode):** Before asking the operator to attach, verify the tmux session exists inside the container (the entrypoint may still be installing plugins):
 ```
@@ -519,7 +528,7 @@ Then run, in sequence:
 
 2. `docker compose -f docker-compose.hermit.yml up -d` — recreates the container. Do **not** use `hermit-docker up` here for the same LLM-misleading-echo reason as step 8. Docker's named volume preserves credentials, plugins, workspace trust. Bind-mounts preserve `.claude.local/channels/<plugin>/access.json` and `.claude-code-hermit/`.
 
-3. Re-verify the container stayed running (same poll as step 8.2). If it failed to come back up, surface `docker compose logs --tail=30 hermit` and stop — don't proceed to step 9.
+3. Re-verify the container stayed running (same poll as step 8.2). If it failed to come back up, run `docker compose -f docker-compose.hermit.yml logs --tail=30 hermit`, show the output, and apply the same targeted hints as step 8.2 (daemon down, build failure, port conflict). Stop — don't proceed to step 9.
 
 Why this step exists: mid-setup, claude REPL starts before plugins are fully enabled and channel pairing completes. The session it was running is a "bootstrap session" full of setup chatter. A clean restart gives the operator a first *real* session with correctly-loaded plugins, fresh tmux state, and no config-time noise.
 

@@ -120,7 +120,7 @@ Only create a proposal if all three are true:
 If any of the three cannot be stated concretely, do not create the proposal.
 Sub-threshold observations (interesting but failing the rule) are recorded to project memory so they can graduate on later recurrence — see the Outcomes section.
 
-If SHELL.md status is `idle` — think broader:
+If `runtime.json` `session_state` is `idle` — think broader:
 - Should any recurring check be added to HEARTBEAT.md?
 - Is there a preference or constraint missing from OPERATOR.md?
 - Would a sub-agent improve a type of work that keeps coming up?

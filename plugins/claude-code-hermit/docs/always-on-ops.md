@@ -87,7 +87,7 @@ hermit-start -> [in_progress] -> task done -> [idle] -> new task -> [in_progress
 | **Heartbeat**       | Keeps running (or starts)                                                  | Runs (skips stale checks)      | Keeps running                                  | Stopped                          |
 | **Monitors**        | Keep running                                                               | Keep running                   | Keep running                                   | Stopped (TaskStop + registry cleared) |
 | **Channels**        | Keep running (always-on only)                                              | Keep running                   | Keep running                                   | Stopped                          |
-| **SHELL.md**        | Reset in-place to `idle`, Monitoring & Summary compacted if over threshold | Status set to `waiting`        | Replaced with fresh template                   | Replaced with fresh template     |
+| **SHELL.md**        | Reset in-place, Monitoring & Summary compacted if over threshold           | Unchanged (state in runtime.json) | Replaced with fresh template                | Replaced with fresh template     |
 | **Applies to**      | Both interactive and always-on                                             | Both interactive and always-on | Both interactive and always-on                 | Both interactive and always-on   |
 
 Default: idle transition when work finishes. Waiting when blocked on operator input (configurable `waiting_timeout` auto-transitions to idle). Auto-close on either 12h operator inactivity OR the daily midnight routine once the operator is idle ≥10 min (both heartbeat-driven, no configuration). Full shutdown only via explicit `/session-close` or `hermit-stop`.

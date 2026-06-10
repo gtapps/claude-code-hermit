@@ -39,7 +39,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
 | `last_error` | Any writer | `unclean_shutdown`, `heartbeat_stale`, `missing_tmux_session`, `interrupted_archiving` |
 | `waiting_reason` | session-start, heartbeat, channel-responder | One of: `operator_input`, `unclean_shutdown`, `dead_process`, `conservative_pickup`, `unclean_shutdown_no_channel`, `dead_process_no_channel`. The `_no_channel` variants are set by session-start on push-only setups; they rely on `heartbeat.waiting_timeout` to auto-transition the session to `idle`. Cleared (set to `null`) when exiting `waiting` state. |
 
-**SHELL.md `Status:` is cosmetic only.** Update it as a secondary effect of lifecycle transitions for operator readability. No script or hook reads it for decisions. Exception: evaluate-session.js reads it for cosmetic nudges only.
+**There is no `Status:` field in SHELL.md.** Lifecycle state lives exclusively in `session_state` (runtime.json). Close outcome (`completed`, `partial`, `blocked`) flows through the session-close → session-mgr payload — never extracted from SHELL.md.
 
 **Atomic writes are mandatory.** When writing runtime.json: write to `state/.runtime.json.tmp`, then rename to `state/runtime.json`. Always set `updated_at` to current ISO timestamp on every write.
 
@@ -56,7 +56,6 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
 5. If SHELL.md does not exist: create a new one from `.claude-code-hermit/templates/SHELL.md.template`
    - Fill in the current date/time for "Started"
    - Leave Task blank — the main session will provide it
-   - Set Status to `in_progress` (cosmetic)
 6. **Pre-compute session ID:** List all `.claude-code-hermit/sessions/S-*-REPORT.md` files, extract the highest NNN, increment by 1. If none exist, use `S-001`. Write this to runtime.json `session_id` field. Update SHELL.md `**ID:**` field with this session ID (replace the placeholder `S-NNN (assigned on close)` with the actual value, e.g., `S-009`).
 7. Update runtime.json: set `session_state` to `in_progress`. If `session_id` is null or missing, pre-compute it now (same sequential S-NNN logic as step 6) and write it in the same update.
 
@@ -71,14 +70,14 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
 5. Generate `.claude-code-hermit/sessions/S-NNN-REPORT.md` with YAML frontmatter:
    - **Prepend YAML frontmatter** as the first content of the file. Extract values from SHELL.md:
      - `id`: the assigned S-NNN
-     - `status`: from the `**Status:**` field in SHELL.md (e.g., `completed`, `partial`, `blocked`)
+     - `status`: from the `Status:` line in the invocation prompt payload (e.g., `completed`, `partial`, `blocked`)
      - `date`: current ISO 8601 timestamp with timezone offset (e.g., `2026-04-06T14:30:00+01:00`). Use the timezone from `config.json` if set, otherwise UTC.
      - `duration`: compute from `**Started:**` timestamp to now (e.g., `2h 15m`, `45m`)
      - `cost_usd`: read `cost_usd` from `.claude-code-hermit/sessions/.status.json`. Fall back to parsing `## Cost` section from SHELL.md (strip `$`, take the number before `(`). Use `0.00` if neither is available.
      - `tags`: from `**Tags:**` field, split on comma, trim whitespace, output as YAML array. E.g., `refactor, frontend` → `[refactor, frontend]`. Use `[]` if empty.
      - `proposals_created`: scan `## Proposals Created` section for proposal IDs matching the regex `/PROP-[a-z0-9][a-z0-9-]*/gi` (captures legacy `PROP-006`, short `PROP-006-103612`, and full `PROP-006-capability-brainstorm-103612` / collision `PROP-006-capability-brainstorm-103612a` forms). Output the matched IDs verbatim as a YAML array. Use `[]` if none.
      - `task`: extract the first non-comment, non-empty line from `## Task` in SHELL.md. Trim to 120 characters max. Use `""` if blank.
-     - `status`: must be one of `completed`, `partial`, `blocked`. Extract from the `**Status:**` field in SHELL.md. If the value is anything else, normalize to `partial` and add a line to `## Blockers` in the report: `Status normalized: original value \`<value>\` coerced to \`partial\`.`
+     - `status`: must be one of `completed`, `partial`, `blocked`. Use the `Status:` value from the invocation prompt payload. If the value is anything else, normalize to `partial` and add a line to `## Blockers` in the report: `Status normalized: original value \`<value>\` coerced to \`partial\`.`
      - `escalation`: read `escalation` from `.claude-code-hermit/config.json`. If the field is missing or empty, default to `"balanced"`. Allowed values: `conservative`, `balanced`, `autonomous`.
      - `operator_turns`: read `operator_turns` from `.claude-code-hermit/sessions/.status.json`. Use `0` if the field is missing or the file doesn't exist. This is the count of human-type transcript entries for this session, maintained by the cost-tracker hook.
      - `tokens`: read `tokens` from `.claude-code-hermit/sessions/.status.json`. Use `0` if the field is missing or the file doesn't exist.
@@ -121,7 +120,6 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
 7. Replace `SHELL.md` with a fresh template that includes a "Next Start Point" section
    - Carry forward blockers from the closed session
    - If unfinished tasks remain in the native task list, note: "Unfinished tasks remain in the task list."
-   - Set Status to `idle` (cosmetic)
 8. **Clear transition and update runtime.json**: `transition: null`, `transition_target: null`, `transition_started_at: null`, `session_state: "idle"`, `session_id: null`, `shutdown_completed_at: <now>` (if this is a full shutdown close)
    **Reset per-session counters in `.status.json`**: write `{"cost_usd": 0, "tokens": 0, "operator_turns": 0}` (merging into existing keys). Same atomic write pattern as On Task Complete step 10.
 
@@ -142,7 +140,6 @@ When the main session requests an idle transition (not a full close):
    - **If a task table was provided in the invocation prompt**, include it as `## Plan` in the report
 6. **Advance transition marker**: `transition: "cleaning"`, keep `transition_target` and `transition_started_at`
 7. Update SHELL.md in place (do NOT replace with a fresh template):
-   - Set Status to `idle` (cosmetic)
    - Increment `Tasks Completed` counter
    - Clear `## Task` content (replace with `<!-- Awaiting next task -->`)
    - Clear `## Progress Log`, `## Blockers`, `## Findings`, `## Changed` (all task-specific — already preserved in the archived report)
@@ -168,8 +165,7 @@ Note: Plan item tracking is handled by the main session agent via native Claude 
 - Session IDs are sequential and never reused
 - Never truncate progress logs during a task — only clear them on idle transition (after archiving to report)
 - Monitoring and Session Summary may be compacted on idle transition per the `compact` config thresholds
-- If SHELL.md exists but has Status `completed` or `blocked`, treat it as needing a new session
-- If SHELL.md exists with Status `idle`, treat it as ready for a new task (not a new session) — do not create a new SHELL.md
+- If `session_state` is `idle` and SHELL.md exists, treat it as ready for a new task (not a new session) — do not create a new SHELL.md
 - Keep session reports factual and concise — no filler text
 - Idle transitions are not mode-specific — they happen at every task boundary regardless of `always_on` setting
 - **Always use atomic writes for runtime.json** — write to `state/.runtime.json.tmp`, rename to `state/runtime.json`

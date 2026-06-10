@@ -1,6 +1,6 @@
 ---
 name: pulse
-description: Returns a compact summary of the current session state. Channel-optimized (under 10 lines). Pass --full to append infrastructure health (proposals, routines, last activity, knowledge). Activates on messages like "status", "progress", "what are you working on", "how's it going".
+description: Returns a compact summary of the current session state. Channel-optimized (under 10 lines). Activates on messages like "status", "progress", "what are you working on", "how's it going".
 ---
 # Session Status
 
@@ -10,7 +10,7 @@ Provide a compact summary of the current session state. Designed for channel res
 
 1. Read `.claude-code-hermit/sessions/SHELL.md`
 2. If the file does not exist: respond "No active session. Run `/claude-code-hermit:session` to start one."
-2b. If Status is `idle` (session between tasks), format as:
+2b. Read `session_state` from `.claude-code-hermit/state/runtime.json`. If `session_state` is `idle` (session between tasks), format as:
    ```
    Session (idle) | started YYYY-MM-DD | N tasks completed
    Last: [latest Session Summary entry]
@@ -21,14 +21,13 @@ Provide a compact summary of the current session state. Designed for channel res
    Return this output and stop — do not proceed to step 3.
 3. Parse the following fields from SHELL.md:
    - **ID** from `**ID:**` line
-   - **Status** from `**Status:**` line
    - **Tags** from `**Tags:**` line (if present and non-empty)
    - **Task** — first non-comment, non-empty line after `## Task`
    - **Task progress** — call `TaskList` and count by status. Total = all tasks, completed = `completed` tasks.
    - **Current step** — first task with status `in_progress`
    - **Blockers** — content under `## Blockers` (if any non-comment content)
    - **Cost and tokens** — read `cost_usd` and `tokens` from `.claude-code-hermit/sessions/.status.json` (live per-session totals). Fall back to `0`/`0` if the file is missing.
-4. Format as a compact output (under 10 lines):
+4. Format as a compact output (under 10 lines). Use `session_state` from runtime.json for the status field in the header:
 
 ```
 Session S-NNN | in_progress | [tags if present]
@@ -40,34 +39,4 @@ Cost: $X.XX (12.3K tokens)
 
 - Omit tags from the header if none are set
 - If the session is blocked, append: "Run `/debug` to diagnose, or `/claude-code-hermit:session` to start a new session."
-
-## --full flag
-
-When the operator passes `--full`, append infrastructure health sections after the session block above.
-This answers "is my hermit healthy?" — not a config dump (that's `hermit-settings`), not a work summary (that's `brief`).
-
-5. Read `.claude-code-hermit/config.json`
-6. Glob `.claude-code-hermit/proposals/PROP-*.md`. For each file, parse the `status` field from YAML frontmatter (or bullet-point metadata for legacy files). Count per status (proposed, accepted, in_progress, resolved, dismissed, deferred).
-7. Read `.claude-code-hermit/state/micro-proposals.json`. Count entries where `status` is `pending`.
-8. From config.json `routines` array: list each routine as `id (schedule, on/off)`.
-9. Read `.claude-code-hermit/state/reflection-state.json` for `last_reflection` timestamp and `counters`. Read `.claude-code-hermit/state/alert-state.json` for the most recent alert timestamp. Compute relative age ("2h ago", "45m ago").
-10. Glob file counts: `.claude-code-hermit/raw/**` (excluding `.archive/`), `.claude-code-hermit/compiled/**`, `.claude-code-hermit/raw/.archive/**`.
-
-Format the additional sections:
-
-```
-Proposals: N proposed, N accepted, N in_progress
-Micro: N pending decision
-Routines: morning-brief (08:00 daily), weekly-deps (09:00 mon, off)
-Last: reflect 2h ago, heartbeat 45m ago
-Reflect: N runs, N empty | judge: N accepted / N downgraded / N suppressed | output: N proposals, N micro | since YYYY-MM-DD
-Knowledge: N raw, N compiled, N archived
-```
-
-- If a section has no data or the source file is missing, show `—` (not an error)
-- Omit the Micro line entirely if there are zero pending micro-proposals
-- **Reflect line rules:**
-  - If `counters` is absent: `Reflect: —`
-  - If `total_runs` is 0: `Reflect: no runs yet (since YYYY-MM-DD)`
-  - Otherwise: full format as above; omit the `| output: ...` clause if both `proposals_created` and `micro_proposals_queued` are 0
-- Total output (session + infrastructure) should stay under 12 lines
+- Read `.claude-code-hermit/state/alert-state.json`. If the `active` array is non-empty, append one line: `⚠ N alert(s) active — run /claude-code-hermit:hermit-health`

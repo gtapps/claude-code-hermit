@@ -14,6 +14,7 @@ const { readTasks } = require('./lib/tasks');
 
 const SHELL_SESSION = path.resolve('.claude-code-hermit/sessions/SHELL.md');
 const HASH_FILE = path.resolve('.claude-code-hermit/sessions/.eval-hash');
+const RUNTIME_JSON = path.resolve('.claude-code-hermit/state/runtime.json');
 
 function evaluateSession(content, tasks) {
   const results = {
@@ -31,16 +32,19 @@ function evaluateSession(content, tasks) {
     return results;
   }
 
-  // Criterion 1: Task status is set
-  const statusMatch = content.match(/\*\*Status:\*\*\s*(\S+)/);
-  const parsedStatus = statusMatch ? statusMatch[1] : null;
-  const hasStatus = parsedStatus && /^(completed|partial|blocked|in_progress|waiting|idle)$/i.test(parsedStatus);
+  // Criterion 1: Session state is valid (reads runtime.json — authoritative lifecycle source)
+  let sessionState = null;
+  try {
+    const rt = JSON.parse(fs.readFileSync(RUNTIME_JSON, 'utf-8'));
+    sessionState = rt.session_state || null;
+  } catch {}
+  const hasState = sessionState && /^(in_progress|waiting|idle|dead_process)$/.test(sessionState);
   results.criteria.push({
-    name: 'Task status updated',
-    status: hasStatus ? 'pass' : 'warn',
-    detail: hasStatus ? 'Status field is populated' : 'Status field is missing or empty',
+    name: 'Session state valid',
+    status: hasState ? 'pass' : 'warn',
+    detail: hasState ? `session_state: ${sessionState}` : 'runtime.json session_state missing or invalid',
   });
-  results.status = parsedStatus;
+  results.status = sessionState;
 
   // Criterion 2: Plan tracked (via native Claude Code Tasks)
   const hasSteps = tasks.length > 0;

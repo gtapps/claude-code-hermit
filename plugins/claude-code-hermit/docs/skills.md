@@ -16,7 +16,7 @@ Skills are Hermit's built-in workflows — invoke them with `/claude-code-hermit
 
 | Skill   | What it does                                                                                                 | Auto-triggers                                                     |
 | ------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| `pulse` | Compact session summary, under 10 lines. Channel-friendly. Pass `--full` to append infrastructure health (proposals, routines, last activity, knowledge counts). | "status", "progress", "what are you working on", "how's it going" |
+| `pulse` | Compact session summary, under 10 lines. Channel-friendly. Flags active alerts inline with a pointer to `/hermit-health`. | "status", "progress", "what are you working on", "how's it going" |
 | `brief` | 5-line executive summary. Checks active session, falls back to latest report. Also supports daily summaries. | "brief", "what happened", "morning update", "overnight summary"   |
 | `knowledge` | Read-only lint of `raw/` and `compiled/` — flags stale, unreferenced, missing-type, and oversized artifacts. | "check knowledge", "lint knowledge", "knowledge health" |
 
@@ -96,7 +96,7 @@ Routines replace the old `heartbeat.morning_routine` / `heartbeat.evening_routin
 | `hermit-brain`     | Show fragile zones, stale accepted proposals, and recent learnings from session history, proposals, and reflect output. Activated by natural language: "what's stuck", "fragile zones", etc.    | --                  |
 | `hermit-evolution` | Show cost trend, autonomy delta, and proposal-resolution times across recent weekly reviews. Activated by: "how am I trending", "cost trend", "hermit evolution", etc.                          | --                  |
 | `cost-reflect`     | Structural cost audit — token-type breakdown (cache_read / cache_write / output / input), cold-start detection, and per-session attribution over the last 7 days. Read-only report. For week-over-week trend lines, use `hermit-evolution`. Opt-in as a weekly routine via `/hermit-settings`. Activated by: "where is my spend going", "cost breakdown", "cost audit", "cold starts", "cost drivers", etc. | opt-in routine |
-| `hermit-health`    | Show alert state, proposal queue depth, routine engagement, and channel availability. Activated by: "health check", "how's the hermit", "is anything broken", etc.                              | --                  |
+| `hermit-health`    | Show alert state, proposal queue depth, routine engagement, knowledge state, and channel availability. Activated by: "health check", "how's the hermit", "is anything broken", etc.            | --                  |
 | `weekly-review` | Generates a weekly review report at `.claude-code-hermit/compiled/review-weekly-YYYY-Www.md` and sends a channel-friendly summary with an evolution block. Archives expired raw artifacts.      | Sunday 23:00 routine |
 
 ## Communication

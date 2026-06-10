@@ -3,7 +3,6 @@
 ## Session Info
 - **ID:** S-NNN (assigned on close)
 - **Started:** YYYY-MM-DD HH:MM
-- **Status:** in_progress <!-- valid: in_progress, waiting, idle -->
 - **Tags:** <!-- e.g., refactor, frontend, urgent -->
 - **Tasks Completed:** 0
 - **Session Mode:** <!-- interactive | always_on — infrastructure tier, not behavioral mode -->

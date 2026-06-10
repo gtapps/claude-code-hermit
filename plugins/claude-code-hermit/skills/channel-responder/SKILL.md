@@ -44,7 +44,7 @@ Read `waiting_reason` from runtime.json to understand why:
 - `"operator_input"`, `"conservative_pickup"`, or null → treat as normal task resumption.
 
 - **Status request** → respond with current context, stay `waiting`
-- **New instruction or answer to a question** → update runtime.json `session_state` to `in_progress`, clear `waiting_reason` to `null`, update SHELL.md Status to `in_progress` (cosmetic), resume work
+- **New instruction or answer to a question** → update runtime.json `session_state` to `in_progress`, clear `waiting_reason` to `null`, resume work
 - **Anything else** → respond, stay `waiting`
 
 ## 1c. Check Authorization
@@ -90,13 +90,13 @@ This is how the agent learns the DM channel ID for proactive outbound notificati
   - If nothing matches, say so briefly.
 
 - **Status request** ("what are you working on?", "status", "progress")
-  - If Status is `idle`: respond with session summary — tasks completed, cumulative cost, "ready for what's next"
-  - If Status is `in_progress`: respond with a concise summary of SHELL.md: task, current step, blockers
+  - If `session_state` (runtime.json) is `idle`: respond with session summary — tasks completed, cumulative cost, "ready for what's next"
+  - If `session_state` is `in_progress`: respond with a concise summary of SHELL.md: task, current step, blockers
   - Keep it short — channel messages should be brief
 
-- **Task assignment** (only when Status is `idle`: "work on X", "next task: Z", "start Y", or any message describing work to be done)
+- **Task assignment** (only when `session_state` is `idle`: "work on X", "next task: Z", "start Y", or any message describing work to be done)
   - Invoke `/claude-code-hermit:session-start` to begin the new task (idle → in_progress)
-  - The session-start skill handles filling Task and setting Status; plan items are created as native Tasks
+  - The session-start skill handles filling Task and setting `session_state`; plan items are created as native Tasks
   - Confirm via channel: "On it: [summary]."
 
 - **Micro-approval response** ("yes", "no", "MP-… yes/no", or similar while any pending micro-proposal exists)
@@ -119,7 +119,7 @@ This is how the agent learns the DM channel ID for proactive outbound notificati
   - If the operator uses informal numbers (#1, #2): run `/claude-code-hermit:proposal-list` to resolve to PROP-NNN IDs. If no match, tell the operator.
 
 - **New instruction** ("work on X", "switch to Y", "prioritize Z")
-  - If Status is `idle`: treat as **Task assignment** (above)
+  - If `session_state` is `idle`: treat as **Task assignment** (above)
   - If compatible with current task: update SHELL.md and confirm
   - If it would replace the current task: confirm with the operator before switching
   - Never silently abandon work in progress
@@ -130,7 +130,7 @@ This is how the agent learns the DM channel ID for proactive outbound notificati
 
 - **Emergency** ("stop", "abort", "revert", "rollback")
   - Halt current work immediately
-  - Update SHELL.md with status `blocked` and reason
+  - Set `runtime.json` `session_state` to `waiting` (`waiting_reason: "operator_input"`) and note the halt reason in SHELL.md `## Blockers`
   - Confirm the halt and ask for next steps
 
 ## 3. Response Guidelines

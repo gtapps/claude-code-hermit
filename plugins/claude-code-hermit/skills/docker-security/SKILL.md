@@ -409,7 +409,11 @@ After all files are copied, force a fresh netguard image build:
 timeout 180s docker compose -f docker-compose.hermit.yml -f docker-compose.security.yml build --no-cache hermit-netguard
 ```
 
-If the build exits non-zero, run `docker compose -f docker-compose.hermit.yml -f docker-compose.security.yml logs hermit-netguard --tail=30`, surface the output, and stop. Do not proceed to step 6d.
+If the build exits non-zero, run `docker compose -f docker-compose.hermit.yml -f docker-compose.security.yml logs hermit-netguard --tail=30`, surface the output, and suggest a targeted fix:
+- **`apk add` fails** → DNS not reachable at build time; check host network and Docker DNS config (`/etc/docker/daemon.json`)
+- **Syntax error in nftables.conf or dnsmasq.allowlist** → read the error line; it usually names the file and line number
+- **Port already in use** → a published port in the overlay conflicts; `ss -tlnp | grep <port>` finds the owner
+Then stop. Do not proceed to step 6d.
 
 #### 6d. Show diff + confirm
 
@@ -420,22 +424,32 @@ On `"No — I'll restart manually later"`: skip to step 9 with the note "Overlay
 ### 7. Restart + smoke test
 
 **Hard gate — re-check base ports before starting:**
-Before running `hermit-docker up`, re-run the step 5 port detection: `timeout 10s docker compose -f docker-compose.hermit.yml config --format json 2>/dev/null | python3 -c "import json,sys; p=json.load(sys.stdin)['services'].get('hermit',{}).get('ports',[]); print(len(p))"`. If the result is non-zero (or the command output from the grep fallback is non-empty) AND `docker.security.network.enabled === true` (LAN containment is on): stop here and print:
+Before running `hermit-docker up`, re-run the step 5 port detection: `timeout 10s docker compose -f docker-compose.hermit.yml config --format json 2>/dev/null | python3 -c "import json,sys; p=json.load(sys.stdin)['services'].get('hermit',{}).get('ports',[]); print(len(p))"`. If the result is non-zero (or the command output from the grep fallback is non-empty) AND `docker.security.network.enabled === true` (LAN containment is on):
 
+Ask with `AskUserQuestion` (header: `"Ports conflict"`):
+- `"Auto-fix — I'll remove the \`ports:\` block (backup first)"` (Recommended)
+- `"I'll edit it myself — pause here"`
+
+**On "Auto-fix":** Back up the base compose file first: `cp docker-compose.hermit.yml docker-compose.hermit.yml.bak`. Then read `docker-compose.hermit.yml`, locate the `ports:` key under the `hermit:` service, and remove it and all its child lines (keep every other key). Write the file back. Print: "Removed `ports:` block from docker-compose.hermit.yml (backup: docker-compose.hermit.yml.bak). Ports are now published by hermit-netguard via the overlay." Continue to the restart sequence below ("If operator chose to restart now...").
+
+**On "I'll edit it myself":** Print:
 ```
 Cannot start container — docker-compose.hermit.yml still publishes ports on hermit.
 Those ports are now published by hermit-netguard via the overlay.
 Delete the `ports:` block from docker-compose.hermit.yml, then run:
   .claude-code-hermit/bin/hermit-docker up
 ```
-
-Skip steps 8.1-8.4 entirely. Tell the operator: "Overlay and config have been written — just delete the base `ports:` block first."
+Stop here. Tell the operator: "Overlay and config have been written — just delete the base `ports:` block first, then run `.claude-code-hermit/bin/hermit-docker up`."
 
 If operator chose to restart now AND container was running before this skill (and the hard gate passed):
 
 1. Run `.claude-code-hermit/bin/hermit-docker down`.
 2. Run `.claude-code-hermit/bin/hermit-docker up` (the wrapper now picks up the overlay automatically). The first up will trigger `docker compose build hermit-netguard` if Prompt 1 was enabled — wait for completion (can be 30-60s on first build).
-3. Poll `docker compose -f docker-compose.hermit.yml -f docker-compose.security.yml ps --status running --format '{{.Service}}'` every 2s for up to 30s; expect `hermit` (and `hermit-netguard` if Prompt 1 enabled). If either is missing after 30s: run `docker compose ... logs --tail=30` for the missing service, surface output, stop.
+3. Poll `docker compose -f docker-compose.hermit.yml -f docker-compose.security.yml ps --status running --format '{{.Service}}'` every 2s for up to 30s; expect `hermit` (and `hermit-netguard` if Prompt 1 enabled). If either is missing after 30s: run `docker compose -f docker-compose.hermit.yml -f docker-compose.security.yml logs <missing-service> --tail=30` (substitute `hermit` or `hermit-netguard` per the missing service; omit the service name if both are down), surface output, and suggest:
+   - **hermit-netguard won't start** → nftables or dnsmasq config error; read the log for the line number
+   - **hermit won't start** → check if the base `ports:` conflict was fully resolved (re-run the hard gate port check above)
+   - **Both down** → Docker daemon issue; `docker info` to confirm daemon is healthy
+   Then stop.
 ### 8. Verify
 
 Run the verification block via `docker exec hermit sh -c '...'`. The hermit base image has `python3`, `jq`, `curl`, and glibc (`getent`) — no `nc` or `nslookup`. Use Python and getent.

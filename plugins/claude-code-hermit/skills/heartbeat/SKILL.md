@@ -41,7 +41,7 @@ This subcommand is the handler for `HEARTBEAT_EVALUATE` notifications emitted by
    - Read the last `## Progress Log` entry timestamp from SHELL.md. Use session start time if none.
    - If elapsed > `heartbeat.stale_threshold` (default `"2h"`): generate alert with key `stale-session`.
 6. **Waiting timeout check.** If `session_state` is `waiting` and `heartbeat.waiting_timeout` is set:
-   - If elapsed > `waiting_timeout` with no channel activity: update `runtime.json` `session_state` to `idle`, update SHELL.md Status to `idle`, notify the operator.
+   - If elapsed > `waiting_timeout` with no channel activity: update `runtime.json` `session_state` to `idle`, notify the operator.
 7. Evaluate each checklist item against available information. Generate alerts with semantic keys (taxonomy in reference.md).
 8. Determine if anything needs operator attention.
 9. Apply alert deduplication and write `state/alert-state.json` (procedure in reference.md).
@@ -93,7 +93,7 @@ Open `.claude-code-hermit/HEARTBEAT.md` for the operator to modify.
 
 ## Idle Agency
 
-After evaluating the checklist, if SHELL.md status is `idle`:
+After evaluating the checklist, if `runtime.json` `session_state` is `idle`:
 
 **NEXT-TASK.md pickup** (both `wait` and `discover`): check `sessions/NEXT-TASK.md`. If found, act per `escalation` in config:
 - `conservative`: notify operator, set SHELL.md to `waiting`, set `waiting_reason: "conservative_pickup"` in runtime.json.

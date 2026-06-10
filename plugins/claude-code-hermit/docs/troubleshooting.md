@@ -98,7 +98,7 @@ SHELL.md from a crashed session persists. Choose **resume** or **start new** (ge
 ## Idle Agency Not Working
 
 - Check `idle_behavior` in config.json — must be `"discover"` for maintenance tasks. `"wait"` only checks tasks and channels.
-- Your hermit must be in `idle` state (check SHELL.md status). Idle agency only runs between tasks.
+- Your hermit must be in `idle` state (check `session_state` in `.claude-code-hermit/state/runtime.json`). Idle agency only runs between tasks.
 - NEXT-TASK.md pickup is gated by escalation level: `conservative` only alerts, `balanced` auto-starts, `autonomous` runs fully unattended.
 - If no NEXT-TASK.md exists: idle agency runs reflection (every 4+ hours), then priority alignment via OPERATOR.md context.
 
