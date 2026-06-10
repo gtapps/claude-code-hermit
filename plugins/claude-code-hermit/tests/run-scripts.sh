@@ -735,7 +735,7 @@ CC_COMPAT_LIB="$REPO_ROOT/scripts/lib/cc-compat.js"
 
 # Exports present
 run_test "cc-compat.js: exports required symbols" bash -c \
-  "node -e \"const c=require('$CC_COMPAT_LIB'); ['sessionId','transcriptPath','sessionCrons','backgroundTasks','extractUsage','costLogPath','parseCostLogLine','ccVersion'].forEach(k=>{ if(typeof c[k]!=='function') throw new Error(k+' missing or not a function'); });\""
+  "node -e \"const c=require('$CC_COMPAT_LIB'); ['sessionId','transcriptPath','sessionCrons','backgroundTasks','extractUsage','costLogPath','ccVersion'].forEach(k=>{ if(typeof c[k]!=='function') throw new Error(k+' missing or not a function'); });\""
 
 # sessionId: session_id preferred, sessionId fallback, absent → null
 run_test "cc-compat.js: sessionId reads session_id" bash -c \

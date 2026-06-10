@@ -13,7 +13,7 @@ const path = require('path');
 const { calculateCost } = require('./lib/pricing');
 const { readTasks, taskProgress } = require('./lib/tasks');
 const { kStr, formatTokens } = require('./lib/format');
-const { entryText, isToolResult, extractUsage, costLogPath } = require('./lib/cc-compat');
+const { sessionId: ccSessionId, transcriptPath: ccTranscriptPath, entryText, isToolResult, extractUsage, costLogPath } = require('./lib/cc-compat');
 
 const MAX_STDIN = 1024 * 1024; // 1MB safety limit
 const COST_LOG = costLogPath('.claude-code-hermit');
@@ -382,8 +382,8 @@ function updateShellSession(content, costStr, tokenStr) {
 // process.exit() calls become returns so the pipeline is not killed.
 async function run(data) {
   try {
-    const sessionId = data.session_id || 'unknown';
-    const transcriptPath = data.transcript_path;
+    const sessionId = ccSessionId(data) || 'unknown';
+    const transcriptPath = ccTranscriptPath(data);
 
     if (!transcriptPath) {
       return null;

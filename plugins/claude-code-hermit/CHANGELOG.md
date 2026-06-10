@@ -4,13 +4,13 @@
 
 ### Added
 
-- **cc-compat: centralized Claude Code format accessors** — new `scripts/lib/cc-compat.js` wraps every surface Anthropic owns and can change (hook-payload field names, transcript JSONL usage shape, cost-log path/record fields, best-effort CC version). A CC release now breaks one file loudly instead of five quietly.
+- **cc-compat: centralized Claude Code format accessors** — new `scripts/lib/cc-compat.js` wraps every surface Anthropic owns and can change (hook-payload field names, transcript JSONL usage shape, cost-log path, best-effort CC version). A CC release now breaks one file loudly instead of five quietly.
 - **stop-pipeline: persist structured Stop-payload snapshot** — after each Stop, `state/cc-stop-snapshot.json` records `session_crons` and `background_tasks` as tri-state (`populated / empty / unsupported_or_unreachable`), `captured_at`, and `cc_version`. Sole writer: `stop-pipeline.js`.
 - **doctor: scheduler/background-task health check** — new `checkScheduler()` reads the snapshot and reports cron and task state with labeled staleness. Missing snapshot → ok ("not yet captured"); `unsupported_or_unreachable` → warn (never falsely reported as "0 crons").
 
 ### Changed
 
-- **cost-tracker: migrate CC-shape parsing to cc-compat** — `entryText`, `isToolResult`, and usage-field extraction now delegate to `cc-compat.js`; `COST_LOG` path resolved via `costLogPath()`. No behavior change; existing tests still pass.
+- **cost-tracker, suggest-compact: route hook-payload reads through cc-compat** — `entryText`, `isToolResult`, usage-field extraction, `session_id`, and `transcript_path` now delegate to `cc-compat.js`; `COST_LOG` path resolved via `costLogPath()`. Completes the centralization so every CC-owned read fails in one place. No behavior change; existing tests still pass.
 - **heartbeat: gate in_progress stale-check on operator activity** — skip the per-tick LLM wake when `last-operator-action.json` shows activity within `stale_threshold`; the faithful Progress-Log check still runs when the operator is quiet beyond the threshold or a stale alert is already active. Falls back to the original unconditional wake on pre-upgrade installs (no `last-operator-action.json`) and on future-dated timestamps (clock skew). Closes #315.
 
 ## [1.1.10] - 2026-06-05

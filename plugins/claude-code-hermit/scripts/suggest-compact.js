@@ -8,6 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { sessionId: ccSessionId } = require('./lib/cc-compat');
 
 const MAX_STDIN = 1024 * 1024; // 1MB safety limit
 const COMPACT_THRESHOLD = parseInt(process.env.COMPACT_THRESHOLD || '75', 10) || 75;
@@ -50,7 +51,7 @@ function writeCounter(counterPath, value) {
 // process.exit() calls become returns so the pipeline is not killed.
 async function run(data) {
   try {
-    const sessionId = data.session_id || data.sessionId || 'default';
+    const sessionId = ccSessionId(data) || 'default';
 
     // Check context usage if provided
     const contextUsage = data.context_usage || data.contextUsage || 0;

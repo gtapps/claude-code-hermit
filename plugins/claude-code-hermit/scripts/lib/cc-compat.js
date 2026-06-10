@@ -11,7 +11,7 @@
 //     background_tasks)
 //   - Transcript JSONL entry shape (message.usage, cache field names,
 //     assistant/user/tool_result type discrimination)
-//   - Cost-log path resolution and record field names
+//   - Cost-log path resolution (record shape is hermit-owned — see costLogPath)
 //   - Best-effort CC version string (diagnostic only — never branch on it;
 //     the install-gate is min_claude_code_version in hermit-meta.json)
 //
@@ -175,26 +175,6 @@ function costLogPath(hermitRootOrState) {
   return path.join(path.dirname(abs), '.claude', 'cost-log.jsonl');
 }
 
-/**
- * Parse a single line from .claude/cost-log.jsonl.
- * Returns the record object or null on any parse error.
- * Known fields: timestamp, session_id, source, model,
- *   input_tokens, cache_write_tokens, cache_read_tokens, output_tokens,
- *   total_tokens, estimated_cost_usd.
- *
- * @param {string} line
- * @returns {object|null}
- */
-function parseCostLogLine(line) {
-  try {
-    const trimmed = (line || '').trim();
-    if (!trimmed) return null;
-    return JSON.parse(trimmed);
-  } catch {
-    return null;
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Capability / version sniff (diagnostic only — never branch on it)
 // ---------------------------------------------------------------------------
@@ -231,7 +211,6 @@ module.exports = {
   extractUsage,
   // Cost-log
   costLogPath,
-  parseCostLogLine,
   // Capability sniff
   ccVersion,
 };
