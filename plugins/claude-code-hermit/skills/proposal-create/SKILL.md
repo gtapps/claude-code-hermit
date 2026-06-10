@@ -38,9 +38,9 @@ After receiving the verdict, append one event to `state/proposal-metrics.jsonl`:
 ```bash
 node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js \
   .claude-code-hermit/state/proposal-metrics.jsonl \
-  '{"ts":"<now ISO>","type":"triage-verdict","verdict":"<CREATE|SUPPRESS|DUPLICATE>","caller":"proposal-create","evidence_source":"<evidence source>"}'
+  '{"ts":"<now ISO>","type":"triage-verdict","verdict":"<CREATE|SUPPRESS|DUPLICATE>","caller":"proposal-create","evidence_source":"<evidence source>","tags":[<caller-supplied tags>]}'
 ```
-`evidence_source` is the `Evidence Source:` value the caller passed (default `archived-session`).
+`evidence_source` is the `Evidence Source:` value the caller passed (default `archived-session`). `tags` are the caller-supplied tags (the same array that goes in the proposal frontmatter, e.g. `["procedure-capture"]`); use `[]` if none. Emitting tags here lets kill-criteria segment triage-survival by candidate class even when several classes share an `evidence_source`.
 
 - `CREATE` — proceed with the steps below
 - `DUPLICATE:<PROP-ID> — <reason>`: stop, report to the caller: "Proposal already exists as <PROP-ID>"
@@ -126,6 +126,16 @@ When the proposed solution involves creating a new agent, skill, heartbeat item,
    - Numbered steps covering the full workflow
 2. Test by invoking the skill with a representative input
 3. Verify it completes correctly
+
+**For a captured procedure (procedure-capture — called from reflect):**
+When `reflect` detects a recurring multi-step procedure (≥2 sessions, no existing skill covers it), it calls `proposal-create` with a `## Skill Draft` body block carrying the audit artifact path. Include this block verbatim in the PROP body as the dispatch signal for `proposal-act`. Set `category: capability`, `tags: [procedure-capture]`, `source: auto-detected`. Do not write the SKILL.md here — the accept flow delegates authoring to `/skill-creator` so the operator can review the final skill before install.
+```markdown
+## Skill Draft
+- name: <skill-name>
+- source_artifact: .claude-code-hermit/compiled/procedure-brief-<slug>-YYYY-MM-DD.md
+- install_target: .claude/skills/<name>/SKILL.md
+- triggers: <comma-separated proposed trigger phrases>
+```
 
 **For a heartbeat check:**
 1. Add the check to `.claude-code-hermit/HEARTBEAT.md` under the appropriate group

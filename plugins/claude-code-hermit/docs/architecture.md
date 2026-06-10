@@ -145,6 +145,7 @@ your-project/
 │   │   ├── alert-state.json          # Alert dedup state + self-eval evidence (heartbeat-owned)
 │   │   ├── reflection-state.json     # Last reflection timestamp (reflect-owned)
 │   │   ├── channel-activity.json     # Last channel interaction timestamp (channel-hook-owned)
+│   │   ├── channel-replies.jsonl     # Append-only channel reply log (channel-hook-owned)
 │   │   ├── session-diff.json         # Uncommitted file tracking (session-diff-owned)
 │   │   ├── proposal-metrics.jsonl    # Append-only event log (proposal-create + proposal-act)
 │   │   ├── micro-proposals.json      # Pending micro-approvals list (reflect + channel-responder)
@@ -171,6 +172,7 @@ One writer per state file. No shared mutation bus.
 | `state/alert-state.json`       | heartbeat only                                      | heartbeat; evaluate-session (read-only nudge computation)     |
 | `state/reflection-state.json`  | reflect + session (non-overlapping phases)          | heartbeat (debounce), hermit-settings (scheduled-checks display) |
 | `state/channel-activity.json`  | channel-hook.js only                                | channel-responder, heartbeat                                  |
+| `state/channel-replies.jsonl`  | channel-hook.js (append only)                       | reflect (routine-ROI engagement join)                         |
 | `state/session-diff.json`      | session-diff.js only                                | session-close (display)                                       |
 | `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only)        | generate-summary.js                                           |
 | `state/micro-proposals.json`   | reflect (queue) + channel-responder/brief (resolve) | brief, generate-summary.js                                    |
@@ -231,6 +233,8 @@ The `proposal-triage` and `reflection-judge` gate agents each carry their own pr
 ```
 
 **Ownership boundary:** Claude Code memory owns instructions, preferences, and recurring operating context; hermit knowledge owns domain artifacts; skills own procedures.
+
+A `procedure-brief` (`type: procedure-brief`) is the boundary case: it lives in `compiled/` as a *record* of what recurring procedure was observed and which sessions showed it. The installed skill under `.claude/skills/` is the live procedure. The brief is not injected at startup (it is a transient record, not a durable domain output); the installed skill is what the operator cares about day-to-day.
 
 **Scope boundary:**
 

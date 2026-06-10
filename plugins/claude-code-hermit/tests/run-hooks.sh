@@ -184,6 +184,53 @@ run_test "channel-hook (iMessage persist dm_channel_id)" bash -c \
 cleanup
 
 # -------------------------------------------------------
+# 17c. channel-hook — appends one entry to channel-replies.jsonl
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+echo '{"channels":{"discord":{"enabled":true}}}' > "$workdir/.claude-code-hermit/config.json"
+run_test "channel-hook (channel-replies.jsonl single entry)" bash -c \
+  "echo '{\"tool_name\":\"mcp__discord__reply\",\"tool_input\":{}}' | node '$REPO_ROOT/scripts/channel-hook.js' 2>/dev/null && python3 -c \"
+import json
+lines = open('$workdir/.claude-code-hermit/state/channel-replies.jsonl').read().splitlines()
+assert len(lines) == 1, 'expected 1 line, got %d' % len(lines)
+e = json.loads(lines[-1])
+assert e.get('event') == 'reply', e
+assert e.get('channel') == 'discord', e
+assert 'ts' in e, e
+\""
+cleanup
+
+# -------------------------------------------------------
+# 17d. channel-hook — appends (not overwrites) on second reply
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+echo '{"channels":{"discord":{"enabled":true}}}' > "$workdir/.claude-code-hermit/config.json"
+run_test "channel-hook (channel-replies.jsonl append)" bash -c \
+  "echo '{\"tool_name\":\"mcp__discord__reply\",\"tool_input\":{}}' | node '$REPO_ROOT/scripts/channel-hook.js' 2>/dev/null &&
+   echo '{\"tool_name\":\"mcp__discord__reply\",\"tool_input\":{}}' | node '$REPO_ROOT/scripts/channel-hook.js' 2>/dev/null &&
+   python3 -c \"
+lines = open('$workdir/.claude-code-hermit/state/channel-replies.jsonl').read().splitlines()
+assert len(lines) == 2, 'expected 2 lines, got %d' % len(lines)
+\""
+cleanup
+
+# -------------------------------------------------------
+# 17e. channel-hook — unconfigured channel leaves no channel-replies.jsonl
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+echo '{"channels":{}}' > "$workdir/.claude-code-hermit/config.json"
+run_test "channel-hook (channel-replies.jsonl unconfigured skip)" bash -c \
+  "echo '{\"tool_name\":\"mcp__discord__reply\",\"tool_input\":{}}' | node '$REPO_ROOT/scripts/channel-hook.js' 2>/dev/null &&
+   python3 -c \"
+import os
+assert not os.path.exists('$workdir/.claude-code-hermit/state/channel-replies.jsonl'), 'file should not exist for unconfigured channel'
+\""
+cleanup
+
+# -------------------------------------------------------
 # 18. validate-config — valid config passes
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
