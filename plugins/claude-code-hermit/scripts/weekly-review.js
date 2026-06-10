@@ -8,7 +8,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const { readFrontmatter, parseFrontmatter, isEmptyAutoArchive, newestByType, globDir } = require('./lib/frontmatter');
+const { readFrontmatter, readFileWithFrontmatter, parseFrontmatter, isEmptyAutoArchive, newestByType, globDir } = require('./lib/frontmatter');
+const { costLogPath } = require('./lib/cc-compat');
 const { lint: knowledgeLint } = require('./knowledge-lint');
 
 // --- Args ---
@@ -67,7 +68,7 @@ weekEnd.setUTCDate(weekStart.getUTCDate() + 7); // exclusive
 const sessionsDir = path.join(hermitDir, 'sessions');
 const sessionFiles = globDir(sessionsDir, /^S-\d+-REPORT\.md$/);
 const allSessions = sessionFiles
-  .map(f => ({ file: f, fm: readFrontmatter(f) }))
+  .map(f => { const r = readFileWithFrontmatter(f); return { file: f, fm: r && r.fm, content: r ? r.content : '' }; })
   .filter(s => s.fm && s.fm.id && s.fm.date)
   .map(s => ({ ...s, parsedDate: new Date(s.fm.date) }));
 
@@ -204,9 +205,7 @@ let reflectRuns = 0;
 let reflectCandidates = 0;
 const reflectSuppressed = new Set();
 for (const s of weekSessions) {
-  let text = '';
-  try { text = fs.readFileSync(s.file, 'utf-8'); } catch { continue; }
-  for (const line of text.split('\n')) {
+  for (const line of (s.content || '').split('\n')) {
     const m = line.match(REFLECT_LINE_RE);
     if (!m) continue;
     reflectRuns++;
@@ -241,7 +240,7 @@ try {
 // counted; quick-mode reflect_after runs inside other sessions are not.
 let reflectCost = 0;
 try {
-  const lines = fs.readFileSync(path.resolve(process.cwd(), '.claude/cost-log.jsonl'), 'utf-8').split('\n');
+  const lines = fs.readFileSync(costLogPath(hermitDir), 'utf-8').split('\n');
   for (const line of lines) {
     if (!line.trim()) continue;
     try {
@@ -344,7 +343,7 @@ if (openLoops.length > 0) {
 // Reflect vital-signs — makes healthy-quiet distinguishable from dead: a week
 // of runs with zero surfaced/accepted while cost accumulates is the loop
 // telling the operator to prune it.
-if (reflectRuns > 0 || reflectSuppressed.size > 0) {
+if (reflectRuns > 0) {
   body += `### Reflect\n`;
   let line = `reflect: ${reflectRuns} run${reflectRuns !== 1 ? 's' : ''}, ${reflectCandidates} candidates, ${reflectSurfaced} surfaced, ${reflectAccepted} accepted, ~$${reflectCost.toFixed(2)}`;
   if (reflectSuppressed.size > 0) {
