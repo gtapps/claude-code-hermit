@@ -42,7 +42,7 @@ All state lives under `.claude-code-hermit/` in the project root.
    - `last_error` is null
    - `.claude-code-hermit/sessions/SHELL.md` exists
 
-   If all five are true: SHELL.md content is already available from the startup hook injection. Proceed directly to step 4b with the data already in hand. Do **not** spawn session-mgr. Read `session_id` from runtime.json — if set and SHELL.md `**ID:**` still contains the placeholder `S-NNN`, update it to the actual session ID (e.g., `S-009`) in-context without spawning session-mgr.
+   If all five are true: SHELL.md content is already available from the startup hook injection. Proceed directly to step 4b with the data already in hand. Do **not** spawn session-mgr. Read `session_id` from runtime.json — if set and SHELL.md `**ID:**` still contains the placeholder `S-NNN`, update it to the actual session ID (e.g., `S-009`) in-context without spawning session-mgr. Similarly, if `**Started:**` still contains the placeholder `YYYY-MM-DD HH:MM`, replace it with `created_at` from runtime.json (or the current date/time if `created_at` is absent), in-context without spawning session-mgr.
 
    **Slow path (spawn session-mgr) — any condition above fails:**
    - `runtime.json` is missing or malformed → first run or corrupted state

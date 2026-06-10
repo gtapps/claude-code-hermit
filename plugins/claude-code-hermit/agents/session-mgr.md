@@ -54,7 +54,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
    - After recovery, clear transition fields in runtime.json
 4. If SHELL.md exists: read it and present the current task status to the main session
 5. If SHELL.md does not exist: create a new one from `.claude-code-hermit/templates/SHELL.md.template`
-   - Fill in the current date/time for "Started"
+   - Replace the placeholder `YYYY-MM-DD HH:MM` on the `**Started:**` line with the current date/time (e.g., `2026-06-10 21:59`).
    - Leave Task blank — the main session will provide it
 6. **Pre-compute session ID:** List all `.claude-code-hermit/sessions/S-*-REPORT.md` files, extract the highest NNN, increment by 1. If none exist, use `S-001`. Write this to runtime.json `session_id` field. Update SHELL.md `**ID:**` field with this session ID (replace the placeholder `S-NNN (assigned on close)` with the actual value, e.g., `S-009`).
 7. Update runtime.json: set `session_state` to `in_progress`. If `session_id` is null or missing, pre-compute it now (same sequential S-NNN logic as step 6) and write it in the same update.

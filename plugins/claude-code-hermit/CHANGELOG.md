@@ -2,11 +2,26 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **hermit-stop: `Started` and `Status` read from wrong source** — `read_active_session()` now reads `session_state` and `created_at` from `runtime.json` (the documented single source of truth). The `**Status:**` field was removed from SHELL.md and always fell back to `unknown`; `**Started:**` could show the raw template placeholder `YYYY-MM-DD HH:MM` if session-mgr missed the substitution. SHELL.md `**Started:**` is still preferred when it contains a real date.
+- **hermit-status: `Status` fallback read from runtime.json** — the no-cost-data fallback branch now reads `session_state` from `state/runtime.json` instead of grepping `**Status:**` from SHELL.md (which no longer exists in that file).
+- **session-mgr/session-start: `Started` placeholder now explicitly named** — `session-mgr.md` step 5 and `session-start` fast-path step now name the literal placeholder `YYYY-MM-DD HH:MM` so substitution is unambiguous, matching the precision already applied to the `**ID:**` field.
+
 ### Upgrade Instructions
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
-1. **Auto-enable the watchdog on Docker hermits.** If `docker-entrypoint.hermit.sh` exists in the project root (the artifact `/docker-setup` leaves behind), the watchdog scheduler is already wired into the entrypoint loop, so enable it:
+1. **Refresh `bin/hermit-status` from the updated template.** The fallback branch that printed `Status: unknown` has been fixed to read from `state/runtime.json`. Overwrite the script if it has not been locally modified:
+
+   ```
+   if [ -f .claude-code-hermit/bin/hermit-status ]; then
+     cp "$(claude plugin path claude-code-hermit)"/state-templates/bin/hermit-status \
+       .claude-code-hermit/bin/hermit-status
+   fi
+   ```
+
+2. **Auto-enable the watchdog on Docker hermits.** If `docker-entrypoint.hermit.sh` exists in the project root (the artifact `/docker-setup` leaves behind), the watchdog scheduler is already wired into the entrypoint loop, so enable it:
 
    ```
    if [ -f docker-entrypoint.hermit.sh ]; then

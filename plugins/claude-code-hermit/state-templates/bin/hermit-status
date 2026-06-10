@@ -8,8 +8,6 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 AGENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 STATUS_FILE="$AGENT_DIR/sessions/.status.json"
 CONFIG_FILE="$AGENT_DIR/config.json"
-SHELL_FILE="$AGENT_DIR/sessions/SHELL.md"
-
 PROJECT_DIR="$(cd "$AGENT_DIR/../.." && pwd)"
 PROJECT_NAME="$(basename "$PROJECT_DIR")"
 
@@ -55,10 +53,17 @@ if command -v docker &>/dev/null && [ -f "$COMPOSE" ] && docker info &>/dev/null
   fi
 fi
 
-# If no status data, try basic info from SHELL.md
+# If no status data, source session_state from runtime.json (SHELL.md has no **Status:** field)
 if [ -z "$STATUS" ]; then
-  if [ -f "$SHELL_FILE" ]; then
-    STATUS=$(grep -oP '\*\*Status:\*\*\s*\K\S+' "$SHELL_FILE" 2>/dev/null || echo "unknown")
+  RUNTIME_FILE="$AGENT_DIR/state/runtime.json"
+  if [ -f "$RUNTIME_FILE" ]; then
+    STATUS=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    print(d.get('session_state', 'unknown'))
+except Exception: print('unknown')
+" "$RUNTIME_FILE" 2>/dev/null || echo "unknown")
     echo "$AGENT_NAME ($PROJECT_NAME) | $STATUS | no cost data yet${DOCKER_STATE:+ | $DOCKER_STATE}"
   else
     echo "$AGENT_NAME ($PROJECT_NAME) | no session${DOCKER_STATE:+ | $DOCKER_STATE}"

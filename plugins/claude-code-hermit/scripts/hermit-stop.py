@@ -59,19 +59,28 @@ def find_latest_report():
 
 
 def read_active_session():
-    """Read SHELL.md for session stats."""
-    if not SHELL_PATH.exists():
-        return None
-    content = SHELL_PATH.read_text()
+    """Read session stats from runtime.json (status, started) and SHELL.md (tasks)."""
     stats = {}
-    for line in content.split('\n'):
-        if '**Status:**' in line:
-            stats['status'] = line.split('**Status:**')[1].strip()
-        elif '**Tasks Completed:**' in line:
-            stats['tasks_completed'] = line.split('**Tasks Completed:**')[1].strip()
-        elif '**Started:**' in line:
-            stats['started'] = line.split('**Started:**')[1].strip()
-    return stats
+
+    # Status and started come from runtime.json — the documented single source of truth.
+    # SHELL.md has no **Status:** field (removed; see session-mgr.md).
+    runtime = read_runtime_json()
+    if runtime:
+        stats['status'] = runtime.get('session_state', 'unknown')
+        stats['started'] = runtime.get('created_at', 'unknown')
+
+    # Prefer SHELL.md's **Started:** over runtime.json's only when it has been substituted
+    # (i.e. does not still contain the template placeholder YYYY-MM-DD HH:MM).
+    if SHELL_PATH.exists():
+        for line in SHELL_PATH.read_text().split('\n'):
+            if '**Tasks Completed:**' in line:
+                stats['tasks_completed'] = line.split('**Tasks Completed:**')[1].strip()
+            elif '**Started:**' in line:
+                value = line.split('**Started:**')[1].strip()
+                if 'YYYY' not in value:
+                    stats['started'] = value
+
+    return stats if stats else None
 
 
 def save_config(config):
