@@ -10,12 +10,14 @@ const { safe } = require('./lib/sanitize');
  * Runs after any channel MCP reply tool call. Handles:
  * - Persisting dm_channel_id from chat_id in tool input (config.json)
  * - Updating last_reply_at timestamp (state/channel-activity.json)
+ * - Appending a reply event to state/channel-replies.jsonl (routine-ROI source)
  *
  * Only acts when the channel is already configured in config.json.
  */
 
 const CONFIG_PATH = path.resolve('.claude-code-hermit/config.json');
 const ACTIVITY_PATH = path.resolve('.claude-code-hermit/state/channel-activity.json');
+const REPLIES_PATH = path.resolve('.claude-code-hermit/state/channel-replies.jsonl');
 const MAX_STDIN = 64 * 1024;
 
 const SERVER_TO_CHANNEL = {
@@ -59,7 +61,7 @@ function persistDmChannelId(config, channelKey, chatId) {
   return true;
 }
 
-function updateLastReplyAt(channelKey) {
+function updateLastReplyAt(channelKey, ts) {
   try {
     let activity = {};
     try {
@@ -67,9 +69,16 @@ function updateLastReplyAt(channelKey) {
     } catch {}
 
     if (!activity[channelKey]) activity[channelKey] = {};
-    activity[channelKey].last_reply_at = new Date().toISOString();
+    activity[channelKey].last_reply_at = ts;
 
     fs.writeFileSync(ACTIVITY_PATH, JSON.stringify(activity, null, 2) + '\n');
+  } catch {}
+}
+
+function appendReplyEvent(channelKey, ts) {
+  try {
+    const entry = JSON.stringify({ ts, channel: channelKey, event: 'reply' });
+    fs.appendFileSync(REPLIES_PATH, entry + '\n', 'utf8');
   } catch {}
 }
 
@@ -97,7 +106,9 @@ function main() {
       dirty = persistDmChannelId(config, channelKey, input.chat_id) || dirty;
       if (dirty) writeConfig(config);
 
-      updateLastReplyAt(channelKey);
+      const ts = new Date().toISOString();
+      updateLastReplyAt(channelKey, ts);
+      appendReplyEvent(channelKey, ts);
     } catch (e) {
       // Silently ignore errors — don't block the agent
     }

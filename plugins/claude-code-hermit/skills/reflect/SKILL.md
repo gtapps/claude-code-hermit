@@ -143,6 +143,22 @@ If SHELL.md status is `idle` — think broader:
   {"id":"weekly-deps","schedule":"0 9 * * 1","skill":"claude-code-hermit:session-start --task 'dependency audit'","enabled":false}
   ```
 
+- Is a channel-delivering routine being ignored? For any routine with ≥10 fires in the last 14 days, check engagement via the channel-reply log:
+  1. Read last 200 lines of `state/channel-replies.jsonl` (skip silently if the file is absent or empty — this check requires data). Parse per-line with `try { JSON.parse(line) } catch {}`; collect `{ ts, channel }` for entries with `event == "reply"`. These are the hermit's outbound reply-tool calls — both routine deliveries and replies the hermit sent because the operator messaged in.
+  2. **Engagement join (delivery-anchored, same-channel window):** for each routine, sort its `fired` events by `ts`. For a fire at `T` (next fire at `T_next`, or the 14-day window boundary for the last fire):
+     - **Anchor on the routine's own delivery.** Routines deliver via the reply tool, so the routine's send is itself a reply event near `T`. Take the first reply event at or after `T` within a 10-minute delivery window as the delivery: its `channel` is the routine's delivery channel `C`, its `ts` is `T_deliver`. If no reply lands in that window, the routine produced no channel output for this fire (delivery failed or fell back to push) — count it as *not engaged* and move on. Anchoring on `T_deliver` rather than a fixed offset means the delivery reply is still the anchor even when the brief takes several minutes to render — it is never mistaken for an engagement reply.
+     - **Engaged** if at least one *further* reply on the same channel `C` has `ts` in `(T_deliver, T_next]`. Scoping to `C` avoids crediting the routine when the operator was active on an unrelated channel.
+     Engagement ratio = engaged_fires / total_fires.
+  3. **Cost join:** read last 200 lines of `cost-log.jsonl`. Sum `cost` for entries where `source` starts with `"routine:<id>"` and `ts` is within the 14-day window. Divide by 14 → `$/day` (approximate; model-override subagent costs are not attributed — note this when relevant).
+  4. **Proposal gate:** if engagement ratio ≤ 20% — apply the Three-Condition Rule. Meaningful consequence: operator incurs `~$X/day` for output that generates no reply within the engagement window. If all three conditions hold:
+     - Prefer re-time over disable if there is an obvious better time (e.g. routine fires at 06:00 but operator is active at 09:00+). Tier 1.
+     - Prefer disable if no better time is apparent. Tier 1.
+     - Evidence section must cite: `"~$X/day, R replies in N sends over 14 days"`.
+     ```markdown
+     ## Config
+     {"id":"morning-brief","schedule":"0 9 * * *","skill":"claude-code-hermit:brief --morning","enabled":true}
+     ```
+
 ## Component Health
 
 Check whether any skill, agent, or hook is underperforming.

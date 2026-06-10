@@ -89,6 +89,7 @@ Create the following directories and files:
 │   ├── routine-metrics.jsonl
 │   ├── proposal-metrics.jsonl
 │   ├── update-history.jsonl
+│   ├── channel-replies.jsonl
 │   └── micro-proposals.json
 ├── raw/
 │   └── .archive/
@@ -128,6 +129,7 @@ Initialize state files (inline — shape-insensitive or append-only):
 - `.claude-code-hermit/state/proposal-metrics.jsonl`: empty file — append-only, not schema-sensitive JSON state
 - `.claude-code-hermit/state/routine-metrics.jsonl`: empty file — append-only routine fire log (`fired` events written by `scripts/log-routine-event.sh` from CronCreate prompts)
 - `.claude-code-hermit/state/update-history.jsonl`: empty file — append-only log of `hermit-docker update` runs
+- `.claude-code-hermit/state/channel-replies.jsonl`: empty file — append-only channel reply log (routine-ROI join source; written by `channel-hook.js`)
 - `.claude-code-hermit/state/pending-close.json`: do NOT initialize — created lazily by the `daily-auto-close` skill when the midnight routine fires while the operator is currently active. Deleted by `session-close --auto` after the archive succeeds.
 
 - Read the template files from `${CLAUDE_SKILL_DIR}/../../state-templates/`
