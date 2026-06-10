@@ -17,6 +17,7 @@ Read the following (gracefully skip any file that doesn't exist):
 1. `.claude-code-hermit/compiled/review-weekly-*.md` — glob all, sort by `week` frontmatter descending, read the 8 most recent. Extract per-file: `week`, `total_cost_usd`, `self_directed_rate`, `proposals_created`, `proposals_resolved`.
 2. `.claude-code-hermit/cost-summary.md` — frontmatter `total_cost_usd` and `total_tokens` for the current (partial) week's running total if the review file for the current week doesn't exist yet.
 3. `.claude-code-hermit/state/proposal-metrics.jsonl` — if present, scan from the end (most recent entries first); stop once entries are older than 30 days. Use `resolved_at` and `created_at` to compute resolution days for recently resolved proposals.
+4. Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/proposal-metrics-report.js .claude-code-hermit` and capture stdout. Skip gracefully if the script is unavailable.
 
 ## Analysis
 
@@ -25,6 +26,8 @@ Read the following (gracefully skip any file that doesn't exist):
 **Autonomy:** From review files, extract `self_directed_rate` (fraction of sessions with no operator turns). Show latest value and Δ vs prior week. Higher = more self-directed. If fewer than 2 reviews exist, show "not enough data".
 
 **Proposal resolution:** From `proposal-metrics.jsonl`, compute median days between `created_at` and `resolved_at` for proposals resolved in the last 30 days. If no data: "no resolution data yet". (For specific stale proposal names, use `/hermit-brain`.)
+
+**Proposal acceptance by source:** From the script output (step 4), show the table. Omit rows where `n=0`. If any source has reached the ≥8-sample gate, call out whether the kill gate is clear or triggered.
 
 ## Output
 
@@ -43,6 +46,10 @@ Reply in ≤1500 chars. Use exactly this section structure:
 ### Proposal resolution
 - Median resolution: Nd (from N proposals resolved last 30d)
 (or: Proposal resolution — no proposal-metrics data yet.)
+
+### Proposal acceptance by source
+(table from proposal-metrics-report.js, rows with n>0 only; note any triggered kill gates)
+(or: Proposal acceptance — no data yet.)
 ```
 
 Omit sections that have no data rather than showing a heading with an empty body. Keep each bullet to one line.

@@ -86,11 +86,11 @@ run_test "reflect: kill criteria 25% triage-survival threshold" \
 run_test "reflect: kill criteria 30% acceptance threshold" \
   grep -qF "30%" "$REFLECT"
 
-run_test "reflect: kill criteria grep targets procedure-capture tag in created events" \
-  grep -qF '"type":"created".*"tags":.*"procedure-capture"' "$REFLECT"
+run_test "reflect: kill criteria invokes proposal-metrics-report.js for procedure-capture" \
+  grep -qF "proposal-metrics-report.js" "$REFLECT"
 
-run_test "reflect: kill criteria caveat — segment triage-survival by tags, not shared evidence_source" \
-  bash -c "grep -qF 'the tag is the only reliable discriminator' \"$REFLECT\" && grep -qF 'archived-session' \"$REFLECT\""
+run_test "reflect: kill criteria passes --source=procedure-capture to report script" \
+  grep -qF -- "--source=procedure-capture" "$REFLECT"
 
 run_test "reflect: routing relies on proposal-create's single internal triage gate (no untagged pre-gate)" \
   grep -qF "runs \`proposal-triage\` internally" "$REFLECT"

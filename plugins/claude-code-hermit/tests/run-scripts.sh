@@ -1299,6 +1299,95 @@ fs.rmSync(tmp, { recursive: true });
 "
 
 # -------------------------------------------------------
+# proposal-metrics-report.js
+# -------------------------------------------------------
+
+# Missing / empty file — fails open
+workdir="$(setup_workdir)"
+run_test "proposal-metrics-report (missing file exits 0)" bash -c \
+  "node '$REPO_ROOT/scripts/proposal-metrics-report.js' '$workdir/.claude-code-hermit' 2>&1 | grep -q 'No proposal metrics'"
+cleanup
+
+workdir="$(setup_workdir)"
+touch "$workdir/.claude-code-hermit/state/proposal-metrics.jsonl"
+run_test "proposal-metrics-report (empty file exits 0)" bash -c \
+  "node '$REPO_ROOT/scripts/proposal-metrics-report.js' '$workdir/.claude-code-hermit' 2>&1 | grep -q 'No proposal metrics'"
+cleanup
+
+# Insufficient sample (<8) — INSUFFICIENT output
+workdir="$(setup_workdir)"
+# 3 triage-verdicts from brainstorm + 2 created tagged brainstorm, 1 accepted
+printf '%s\n' \
+  '{"ts":"2026-01-01T00:00:00Z","type":"triage-verdict","verdict":"CREATE","caller":"proposal-create","evidence_source":"capability-brainstorm","tags":["capability-brainstorm"]}' \
+  '{"ts":"2026-01-01T00:01:00Z","type":"triage-verdict","verdict":"SUPPRESS","caller":"proposal-create","evidence_source":"capability-brainstorm","tags":["capability-brainstorm"]}' \
+  '{"ts":"2026-01-01T00:02:00Z","type":"triage-verdict","verdict":"SUPPRESS","caller":"proposal-create","evidence_source":"capability-brainstorm","tags":["capability-brainstorm"]}' \
+  '{"ts":"2026-01-01T01:00:00Z","type":"created","proposal_id":"PROP-001","source":"auto-detected","category":"capability","tags":["capability-brainstorm"]}' \
+  '{"ts":"2026-01-01T02:00:00Z","type":"created","proposal_id":"PROP-002","source":"auto-detected","category":"capability","tags":["capability-brainstorm"]}' \
+  '{"ts":"2026-01-01T03:00:00Z","type":"responded","proposal_id":"PROP-001","action":"accept"}' \
+  > "$workdir/.claude-code-hermit/state/proposal-metrics.jsonl"
+run_test "proposal-metrics-report --source (INSUFFICIENT, n<8)" bash -c \
+  "node '$REPO_ROOT/scripts/proposal-metrics-report.js' '$workdir/.claude-code-hermit' --source=capability-brainstorm | grep -q 'INSUFFICIENT'"
+cleanup
+
+# Full sample (>=8) — correct rates and kill verdict
+workdir="$(setup_workdir)"
+# 10 triage-verdicts: 4 CREATE, 6 SUPPRESS → survival 40%
+# 4 created tagged, 1 accepted → acceptance 25% → KILL (acceptance < 30%)
+for i in $(seq 1 4); do
+  printf '{"ts":"2026-01-01T00:0%sZ","type":"triage-verdict","verdict":"CREATE","caller":"proposal-create","evidence_source":"capability-brainstorm","tags":["capability-brainstorm"]}\n' "$i"
+done >> "$workdir/.claude-code-hermit/state/proposal-metrics.jsonl"
+for i in $(seq 5 10); do
+  printf '{"ts":"2026-01-01T00:0%sZ","type":"triage-verdict","verdict":"SUPPRESS","caller":"proposal-create","evidence_source":"capability-brainstorm","tags":["capability-brainstorm"]}\n' "$i"
+done >> "$workdir/.claude-code-hermit/state/proposal-metrics.jsonl"
+for i in $(seq 1 4); do
+  printf '{"ts":"2026-01-01T01:0%sZ","type":"created","proposal_id":"PROP-00%s","source":"auto-detected","category":"capability","tags":["capability-brainstorm"]}\n' "$i" "$i"
+done >> "$workdir/.claude-code-hermit/state/proposal-metrics.jsonl"
+printf '%s\n' \
+  '{"ts":"2026-01-01T02:00:00Z","type":"responded","proposal_id":"PROP-001","action":"accept"}' \
+  >> "$workdir/.claude-code-hermit/state/proposal-metrics.jsonl"
+outfile="$(mktemp)"
+node "$REPO_ROOT/scripts/proposal-metrics-report.js" "$workdir/.claude-code-hermit" --source=capability-brainstorm > "$outfile" 2>&1
+run_test "proposal-metrics-report --source (survival 40%)" grep -q 'triage-survival 40%' "$outfile"
+run_test "proposal-metrics-report --source (acceptance 25%)" grep -q 'acceptance 25%' "$outfile"
+run_test "proposal-metrics-report --source (KILL verdict)" grep -q 'KILL' "$outfile"
+rm -f "$outfile"
+cleanup
+
+# Default table mode — all segments appear, known rate in table
+workdir="$(setup_workdir)"
+printf '%s\n' \
+  '{"ts":"2026-01-01T00:01:00Z","type":"triage-verdict","verdict":"CREATE","caller":"reflect"}' \
+  '{"ts":"2026-01-01T00:02:00Z","type":"triage-verdict","verdict":"SUPPRESS","caller":"reflect"}' \
+  '{"ts":"2026-01-01T01:00:00Z","type":"created","proposal_id":"PROP-R1","source":"auto-detected","category":"improvement","tags":[]}' \
+  '{"ts":"2026-01-01T02:00:00Z","type":"responded","proposal_id":"PROP-R1","action":"accept"}' \
+  > "$workdir/.claude-code-hermit/state/proposal-metrics.jsonl"
+outfile="$(mktemp)"
+node "$REPO_ROOT/scripts/proposal-metrics-report.js" "$workdir/.claude-code-hermit" > "$outfile" 2>&1
+run_test "proposal-metrics-report table (header present)" grep -q 'Proposal acceptance by source' "$outfile"
+run_test "proposal-metrics-report table (reflect row present)" grep -q '| reflect |' "$outfile"
+run_test "proposal-metrics-report table (capability-brainstorm row present)" grep -q '| capability-brainstorm |' "$outfile"
+rm -f "$outfile"
+cleanup
+
+# Malformed line is skipped; valid events still counted
+workdir="$(setup_workdir)"
+printf '%s\n' \
+  'this is not json at all' \
+  '{"ts":"2026-01-01T00:01:00Z","type":"triage-verdict","verdict":"CREATE","caller":"reflect"}' \
+  > "$workdir/.claude-code-hermit/state/proposal-metrics.jsonl"
+run_test "proposal-metrics-report (malformed line skipped)" bash -c \
+  "node '$REPO_ROOT/scripts/proposal-metrics-report.js' '$workdir/.claude-code-hermit' 2>&1 | grep -q 'Proposal acceptance'"
+cleanup
+
+# --source with unknown key reports error gracefully
+workdir="$(setup_workdir)"
+printf '{"ts":"2026-01-01T00:01:00Z","type":"triage-verdict","verdict":"CREATE","caller":"reflect"}\n' \
+  > "$workdir/.claude-code-hermit/state/proposal-metrics.jsonl"
+run_test "proposal-metrics-report (unknown --source key)" bash -c \
+  "node '$REPO_ROOT/scripts/proposal-metrics-report.js' '$workdir/.claude-code-hermit' --source=nonexistent | grep -q 'Unknown source key'"
+cleanup
+
+# -------------------------------------------------------
 # Summary
 # -------------------------------------------------------
 print_results

@@ -174,7 +174,7 @@ One writer per state file. No shared mutation bus.
 | `state/channel-activity.json`  | channel-hook.js only                                | channel-responder, heartbeat                                  |
 | `state/channel-replies.jsonl`  | channel-hook.js (append only)                       | reflect (routine-ROI engagement join)                         |
 | `state/session-diff.json`      | session-diff.js only                                | session-close (display)                                       |
-| `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only)        | generate-summary.js                                           |
+| `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only)        | generate-summary.js, proposal-metrics-report.js (read-only)   |
 | `state/micro-proposals.json`   | reflect (queue) + channel-responder/brief (resolve) | brief, generate-summary.js                                    |
 | `state/state-summary.md`       | generate-summary.js only                            | humans                                                        |
 | `state/monitors.runtime.json`  | watch skill only                                    | session-start (clear on start), session-close (stop all)      |

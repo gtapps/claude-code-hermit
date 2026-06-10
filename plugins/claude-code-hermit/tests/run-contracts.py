@@ -1387,12 +1387,14 @@ class TestKillMetricsContract(unittest.TestCase):
     PROPOSAL_TEMPLATE = REPO / 'state-templates' / 'PROPOSAL.md.template'
     PROPOSAL_CREATE = REPO / 'skills' / 'proposal-create' / 'SKILL.md'
     CAPABILITY_BRAINSTORM = REPO / 'skills' / 'capability-brainstorm' / 'SKILL.md'
+    REPORT_SCRIPT = REPO / 'scripts' / 'proposal-metrics-report.js'
 
     @classmethod
     def setUpClass(cls):
         cls._proposal_template = cls.PROPOSAL_TEMPLATE.read_text()
         cls._proposal_create = cls.PROPOSAL_CREATE.read_text()
         cls._capability_brainstorm = cls.CAPABILITY_BRAINSTORM.read_text()
+        cls._report_script = cls.REPORT_SCRIPT.read_text() if cls.REPORT_SCRIPT.exists() else ''
 
     def test_proposal_template_has_tags_field(self):
         """PROPOSAL.md.template must declare a tags field so proposal-create can write it."""
@@ -1439,24 +1441,35 @@ class TestKillMetricsContract(unittest.TestCase):
             'PROP-acceptance rate cannot be segmented by brainstorm origin',
         )
 
-    def test_capability_brainstorm_kill_criteria_references_evidence_source(self):
-        """capability-brainstorm kill criteria must reference evidence_source for triage-survival."""
-        self.assertIn('evidence_source', self._capability_brainstorm,
-                      'capability-brainstorm kill criteria no longer references evidence_source — '
-                      'triage-survival grep target has drifted from the emitter')
-
-    def test_capability_brainstorm_kill_criteria_references_tags(self):
-        """capability-brainstorm kill criteria must reference tags for acceptance rate."""
+    def test_capability_brainstorm_kill_criteria_uses_report_script(self):
+        """capability-brainstorm kill criteria must invoke proposal-metrics-report.js."""
         parts = self._capability_brainstorm.split('## Kill criteria')
         self.assertGreater(len(parts), 1,
                            'capability-brainstorm SKILL.md is missing the Kill criteria section')
         kill_section = parts[1].split('## ')[0]
         self.assertIn(
-            'grep \'"type":"created".*"tags":.*"capability-brainstorm"\' state/proposal-metrics.jsonl',
+            'proposal-metrics-report.js',
             kill_section,
-            'capability-brainstorm kill criteria no longer references the created-event grep token — '
-            'acceptance-rate grep target has drifted from what proposal-create emits',
+            'capability-brainstorm kill criteria no longer invokes proposal-metrics-report.js — '
+            'triage-survival and acceptance rates will not be computed',
         )
+
+    def test_report_script_segments_capability_brainstorm(self):
+        """proposal-metrics-report.js segment registry must discriminate capability-brainstorm
+        via evidence_source (triage) and tags (acceptance), so the contract between
+        the emitter (proposal-create) and the consumer (brainstorm kill criteria) holds."""
+        self.assertTrue(self.REPORT_SCRIPT.exists(),
+                        'scripts/proposal-metrics-report.js does not exist — '
+                        'kill criteria have no data-driven aggregator')
+        self.assertIn('evidence_source', self._report_script,
+                      'proposal-metrics-report.js segment registry is missing evidence_source — '
+                      'triage-survival cannot be segmented for capability-brainstorm')
+        self.assertIn("'capability-brainstorm'", self._report_script,
+                      "proposal-metrics-report.js segment registry is missing 'capability-brainstorm' — "
+                      'brainstorm origin token has drifted from the emitter')
+        self.assertIn("'procedure-capture'", self._report_script,
+                      "proposal-metrics-report.js segment registry is missing 'procedure-capture' — "
+                      'procedure-capture origin token has drifted from the emitter')
 
 
 class TestProcedureCaptureContract(unittest.TestCase):
@@ -1490,14 +1503,14 @@ class TestProcedureCaptureContract(unittest.TestCase):
                            'Procedure capture subsection is missing a Kill criteria block')
         return kill_parts[1].split('**Detection')[0]
 
-    def test_procedure_capture_kill_criteria_references_created_tag(self):
-        """Reflect kill criteria must grep for 'procedure-capture' in created events."""
+    def test_procedure_capture_kill_criteria_uses_report_script(self):
+        """Reflect procedure-capture kill criteria must invoke proposal-metrics-report.js."""
         kill_section = self._procedure_capture_kill_section()
         self.assertIn(
-            '"type":"created".*"tags":.*"procedure-capture"',
+            'proposal-metrics-report.js',
             kill_section,
-            'Reflect procedure-capture kill criteria no longer references the created-event grep token — '
-            'acceptance-rate grep target has drifted from what proposal-create emits',
+            'Reflect procedure-capture kill criteria no longer invokes proposal-metrics-report.js — '
+            'triage-survival and acceptance rates will not be computed for procedure-capture',
         )
 
     def test_procedure_capture_kill_criteria_thresholds_present(self):

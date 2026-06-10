@@ -184,11 +184,13 @@ Component Health above improves existing components. This subsection is the symm
 
 **Kill criteria (evaluate per candidate surfaced, not per reflect run — recurrence-gating means this fires rarely).**
 
-After ≥8 procedure-capture candidates surfaced, compute two rates over `state/proposal-metrics.jsonl`:
-- **Triage-survival rate** — `grep '"type":"triage-verdict".*"tags":.*"procedure-capture"' state/proposal-metrics.jsonl` to find all `triage-verdict` events from procedure-capture candidates. Rate = `CREATE` count ÷ total. Kill if < 25%. Segmentation is by the `tags` field on the triage-verdict event (emitted by `proposal-create`), not `evidence_source` — procedure-capture shares `Evidence Source: archived-session` with ordinary reflect candidates, so the tag is the only reliable discriminator. `proposal-create` is the sole gate for these candidates (see Routing below), so every CREATE/SUPPRESS/DUPLICATE verdict is captured tagged.
-- **PROP-acceptance rate** — `grep '"type":"created".*"tags":.*"procedure-capture"' state/proposal-metrics.jsonl` to find `created` events tagged `procedure-capture`. Cross-reference their `proposal_id` against `responded` events with `"action":"accept"`. Rate = accepted ÷ created. Kill if < 30%.
+After ≥8 procedure-capture candidates surfaced, run:
 
-If either rate is below threshold, disable procedure capture rather than tune it. Do not read thresholds until the ≥8 sample exists.
+```
+node ${CLAUDE_PLUGIN_ROOT}/scripts/proposal-metrics-report.js .claude-code-hermit --source=procedure-capture
+```
+
+Triage-survival < 25% or acceptance < 30% → disable procedure capture rather than tune it. `INSUFFICIENT` output means the ≥8-verdict sample hasn't been reached yet; do not read thresholds until it does.
 
 **Detection — when to trigger:**
 

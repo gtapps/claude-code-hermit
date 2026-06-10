@@ -7,12 +7,13 @@ description: On-demand hermit-voice brainstorm — synthesizes memory, available
 
 ## Kill criteria (read before running)
 
-After ≥8 invocations, compute two rates over `state/proposal-metrics.jsonl`:
+After ≥8 invocations, run:
 
-- **Triage-survival rate** — `grep '"type":"triage-verdict".*"evidence_source":"capability-brainstorm"' state/proposal-metrics.jsonl` to find all `triage-verdict` events from this skill. Rate = `CREATE` count ÷ total. Kill if < 25%.
-- **PROP-acceptance rate** — `grep '"type":"created".*"tags":.*"capability-brainstorm"' state/proposal-metrics.jsonl` to find `created` events tagged `capability-brainstorm`. Cross-reference their `proposal_id` against `responded` events with `"action":"accept"`. Rate = accepted ÷ created. Kill if < 30%.
+```
+node ${CLAUDE_PLUGIN_ROOT}/scripts/proposal-metrics-report.js .claude-code-hermit --source=capability-brainstorm
+```
 
-If either rate is below threshold, cut this skill rather than tune it — the signal-to-noise ratio isn't there.
+Triage-survival < 25% or acceptance < 30% → cut this skill rather than tune it — the signal-to-noise ratio isn't there. `INSUFFICIENT` output means the ≥8-verdict sample hasn't been reached yet; wait and re-check.
 
 ## 1. Gather inputs
 
