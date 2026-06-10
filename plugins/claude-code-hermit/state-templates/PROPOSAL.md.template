@@ -13,6 +13,7 @@ tags: []
 responded: false
 self_eval_key: null
 accepted_in_session: null
+success_signal: null
 ---
 # Proposal: PROP-NNN — [Title]
 
@@ -31,6 +32,14 @@ accepted_in_session: null
 ## Verification
 <!-- How will we know this worked? Tests, smoke-check, validation run, manual steps —
      or an explicit recorded "no verification needed because…". -->
+
+## Success Signal
+<!-- Optional. Machine-checkable predicate that AUTO-RESOLVES this proposal when met.
+     v1 grammar: avg_session_cost_usd <OP> <NUMBER> over <N> sessions   (OP: < <= > >=)
+     Example: avg_session_cost_usd < 0.30 over 10 sessions
+     Window: first N sessions after accepted_date, excluding the implementation
+     session and any session without a recorded cost (cost-tracker hook inactive).
+     Leave empty → reflect's default prose pattern-absence resolution applies. -->
 
 ## Operator Decision
 <!-- Filled in by operator during review -->

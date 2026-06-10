@@ -46,7 +46,28 @@ If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --qu
    a. Read `state/reflection-state.json` → `last_resolution_check` (last PROP-NNN checked, or null if first run).
    b. Read all proposals with `status: accepted`. Sort by `accepted_date` ascending. Resume from the proposal after `last_resolution_check`, wrapping around. Take up to 5.
    c. If the accepted list from step b is empty, skip to step f.
-   d. For each proposal: read its `title` and Evidence section to understand the original pattern.
+   d. For each proposal: read its `title`, `success_signal`, `accepted_in_session`, and Evidence section.
+
+      **If `success_signal` is non-null** — skip the 3-session Explore fetch and cadence computation; the predicate is the resolution test:
+      ```
+      node ${CLAUDE_PLUGIN_ROOT}/scripts/eval-success-signal.js .claude-code-hermit "<accepted_date>" "<accepted_in_session|null>" "<success_signal>"
+      ```
+      Parse the one JSON line printed to stdout. Branch on `verdict`:
+      - `INSUFFICIENT_DATA` → skip; revisit next cycle (the window hasn't filled yet).
+      - `MET` → **auto-resolve**:
+        - Update frontmatter: `status: resolved`, `resolved_date: <now ISO>`.
+        - Append a `resolved` event:
+          ```
+          node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"resolved","proposal_id":"PROP-NNN"}'
+          ```
+        - Note in SHELL.md Findings: `PROP-NNN resolved — success signal met: avg session cost $<observed> over <sessions_counted> sessions (target <op> $<threshold>).`
+      - `UNMET` → do **not** resolve. Surface once for operator judgment, debounced by the existing 7-day `last_sparse_nudge` guard:
+        - Check `state/reflection-state.json → last_sparse_nudge.<PROP-NNN>`. If present and fewer than 7 days have elapsed, skip.
+        - Otherwise, add to SHELL.md Findings: `PROP-NNN success signal NOT met: avg session cost $<observed> over <sessions_counted> sessions (target <op> $<threshold>). Run /claude-code-hermit:proposal-act resolve|dismiss PROP-NNN, or revise.`
+        - Record nudge: include `"last_sparse_nudge": {"<PROP-NNN>": "<now ISO>"}` in the State Update payload. The update script merges under `last_sparse_nudge`.
+
+      **If `success_signal` is null** — use the prose pattern-absence test below (existing behaviour).
+
       Delegate the session fetch to the built-in `Explore` subagent. Prompt: `Glob .claude-code-hermit/sessions/S-*-REPORT.md. Sort descending by filename. Read the 3 most recent and return: filename, date from frontmatter, and the full body verbatim — do not truncate, summarize, or excerpt (full body is required for pattern presence/absence detection). If a body exceeds your read window, say so explicitly per file rather than silently trimming.` If Explore returns truncated bodies for any of the 3 files, fall back to reading those files inline with the Read tool before evaluating step e.
    e. If the pattern is **absent** from all 3 checked sessions — apply the cadence-aware resolution rule:
 

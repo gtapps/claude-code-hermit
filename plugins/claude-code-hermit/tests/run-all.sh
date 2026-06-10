@@ -24,4 +24,5 @@ bash "$SCRIPT_DIR/test-simplify-totals-contract.sh"        || rc=$?
 bash "$SCRIPT_DIR/test-auto-close.sh"                      || rc=$?
 bash "$SCRIPT_DIR/test-evolve-plan.sh"                     || rc=$?
 bash "$SCRIPT_DIR/test-archive-raw.sh"                     || rc=$?
+bash "$SCRIPT_DIR/test-eval-success-signal.sh"             || rc=$?
 exit $rc

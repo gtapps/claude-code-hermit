@@ -4,6 +4,7 @@
 
 ### Added
 
+- **proposal-act/reflect: falsifiable success signals** — optional cost-per-session predicate (`success_signal` frontmatter field) on a proposal auto-resolves it when met; reflect evaluates via `scripts/eval-success-signal.js` against session-report `cost_usd` anchored at `accepted_date`. Closes #317-adjacent (§17.1 of architecture review).
 - **gate-agent memory: proposal-triage and reflection-judge now persist private heuristics (`memory: project`)** — triage learns suppression patterns, judge learns hollow-evidence shapes; guardrail forbids private memory as the sole suppress basis; over-suppression bounded by reflect's existing Component Health check.
 ### Security
 

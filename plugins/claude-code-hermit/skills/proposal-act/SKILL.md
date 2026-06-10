@@ -70,6 +70,16 @@ When the operator accepts a proposal:
     - Notify the operator.
     - Skip step 4 — no further implementation needed.
 
+3c. **Success signal (optional).** Check whether the proposal body has a `## Success Signal` section with a non-empty predicate line (ignore comment lines starting with `<!--`).
+   - If a non-empty predicate line is found, validate it:
+     ```
+     node ${CLAUDE_PLUGIN_ROOT}/scripts/eval-success-signal.js --validate "<predicate line>"
+     ```
+   - Exit 0 → set `success_signal: <predicate line>` in the proposal's YAML frontmatter.
+   - Exit non-zero → log a one-line warning to SHELL.md Findings: `PROP-NNN success_signal ignored: <reason printed by the script>`. Leave `success_signal: null`.
+   - No `## Success Signal` section, or the section is empty / comment-only → leave `success_signal: null`.
+   - Never block accept regardless of outcome.
+
 4. Ask: **"How should this be implemented?"**
 
    - **"Start implementing now"** (default, typical answer): run the falsification gate, then handle session lifecycle, then execute in this turn.
