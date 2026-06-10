@@ -1572,5 +1572,61 @@ class TestHermitRoutinesModelContract(unittest.TestCase):
                       'hermit-routines SKILL.md is missing the heartbeat-restart short-circuit guard phrase')
 
 
+class TestExternalOriginQuarantineContract(unittest.TestCase):
+    """Contract: external-origin quarantine vocabulary must be consistent across all gate files.
+
+    Guards against the ROP-001 class of drift where a security rule is added to one
+    file but not the others — e.g. reflect sets Evidence Origin but judge never reads it.
+    """
+
+    REFLECT = REPO / 'skills' / 'reflect' / 'SKILL.md'
+    JUDGE = REPO / 'agents' / 'reflection-judge.md'
+    TRIAGE = REPO / 'agents' / 'proposal-triage.md'
+    PROPOSAL_CREATE = REPO / 'skills' / 'proposal-create' / 'SKILL.md'
+
+    @classmethod
+    def setUpClass(cls):
+        cls._reflect = cls.REFLECT.read_text()
+        cls._judge = cls.JUDGE.read_text()
+        cls._triage = cls.TRIAGE.read_text()
+        cls._proposal_create = cls.PROPOSAL_CREATE.read_text()
+
+    def test_reflect_ties_external_content_to_tier3(self):
+        """reflect SKILL.md must document that external-content candidates are Tier 3."""
+        self.assertIn('external-content', self._reflect,
+                      'reflect SKILL.md is missing external-content vocabulary')
+        self.assertIn('Tier 3', self._reflect,
+                      'reflect SKILL.md is missing Tier 3 classification')
+
+    def test_judge_documents_quarantine_escalation(self):
+        """reflection-judge must document the quarantine escalation and reason phrase."""
+        self.assertIn('external-content', self._judge,
+                      'reflection-judge.md is missing external-content vocabulary')
+        self.assertIn('quarantine', self._judge,
+                      'reflection-judge.md is missing quarantine escalation reason')
+        self.assertIn('Evidence Origin', self._judge,
+                      'reflection-judge.md is missing Evidence Origin field documentation')
+
+    def test_triage_documents_evidence_origin_field(self):
+        """proposal-triage must document the Evidence Origin field."""
+        self.assertIn('external-content', self._triage,
+                      'proposal-triage.md is missing external-content vocabulary')
+        self.assertIn('Evidence Origin', self._triage,
+                      'proposal-triage.md is missing Evidence Origin field documentation')
+
+    def test_proposal_create_documents_evidence_origin_field(self):
+        """proposal-create must thread Evidence Origin through its Pre-Creation Gate."""
+        self.assertIn('external-content', self._proposal_create,
+                      'proposal-create SKILL.md is missing external-content vocabulary')
+        self.assertIn('Evidence Origin', self._proposal_create,
+                      'proposal-create SKILL.md is missing Evidence Origin field documentation')
+
+    def test_proposal_create_writes_provenance_line(self):
+        """proposal-create must write operator-visible provenance for external-content proposals."""
+        self.assertIn('review for injection', self._proposal_create,
+                      'proposal-create SKILL.md is missing the provenance/injection-review line '
+                      'in the PROP body instruction')
+
+
 if __name__ == '__main__':
     unittest.main()

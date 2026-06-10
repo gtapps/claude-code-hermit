@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Security
+
+- **reflect/judge: quarantine external-origin evidence** — candidates derived from web fetches, `raw/` third-party captures, or non-operator channel messages are forced to Tier 3 (full operator review via `proposal-create`), closing the "learn this habit" injection path into the learning loop. Adds orthogonal `Evidence Origin: own-work | external-content` axis; default `own-work` is backward-safe.
+
 ### Changed
 
 - **reflection-judge: weight evidence by session provenance** — Tier 2/3 candidates backed only by auto-closed sessions lean toward DOWNGRADE; operator-supervised or mixed evidence is unaffected.
