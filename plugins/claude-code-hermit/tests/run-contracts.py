@@ -1572,6 +1572,45 @@ class TestHermitRoutinesModelContract(unittest.TestCase):
                       'hermit-routines SKILL.md is missing the heartbeat-restart short-circuit guard phrase')
 
 
+class TestGateAgentMemoryContract(unittest.TestCase):
+    """Gate agents (proposal-triage, reflection-judge) must declare memory: project.
+
+    Guards against the frontmatter key being accidentally dropped, since it enables
+    persistent heuristic accumulation across invocations (17.3 gate-agent memory).
+    """
+
+    GATE_AGENTS = ['proposal-triage', 'reflection-judge']
+
+    def _frontmatter(self, name):
+        path = REPO / 'agents' / f'{name}.md'
+        self.assertTrue(path.exists(), f'agents/{name}.md missing')
+        parts = path.read_text().split('---\n', 2)
+        self.assertEqual(len(parts), 3, f'{name}: agent file missing closing --- of frontmatter')
+        return parts[1]
+
+    def test_gate_agents_declare_memory_project(self):
+        for name in self.GATE_AGENTS:
+            self.assertIn('memory: project', self._frontmatter(name),
+                          f'{name}: frontmatter must declare "memory: project" (gate-agent memory feature)')
+
+    def test_gate_agents_grant_write_edit(self):
+        """Memory curation needs Write/Edit granted and out of disallowedTools.
+
+        A silent revert of the tool grant breaks curation just as badly as
+        dropping the memory key, so guard it explicitly.
+        """
+        for name in self.GATE_AGENTS:
+            head = self._frontmatter(name)
+            self.assertIn('disallowedTools:', head,
+                          f'{name}: frontmatter missing disallowedTools key')
+            tools, disallowed = head.split('disallowedTools:', 1)
+            for tool in ('Write', 'Edit'):
+                self.assertIn(f'- {tool}\n', tools,
+                              f'{name}: "{tool}" must be granted in tools (memory curation)')
+                self.assertNotIn(f'- {tool}\n', disallowed,
+                                 f'{name}: "{tool}" must not be in disallowedTools')
+
+
 class TestExternalOriginQuarantineContract(unittest.TestCase):
     """Contract: external-origin quarantine vocabulary must be consistent across all gate files.
 

@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+
+- **gate-agent memory: proposal-triage and reflection-judge now persist private heuristics (`memory: project`)** — triage learns suppression patterns, judge learns hollow-evidence shapes; guardrail forbids private memory as the sole suppress basis; over-suppression bounded by reflect's existing Component Health check.
 ### Security
 
 - **reflect/judge: quarantine external-origin evidence** — candidates derived from web fetches, `raw/` third-party captures, or non-operator channel messages are forced to Tier 3 (full operator review via `proposal-create`), closing the "learn this habit" injection path into the learning loop. Adds orthogonal `Evidence Origin: own-work | external-content` axis; default `own-work` is backward-safe.
