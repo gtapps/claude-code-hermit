@@ -46,7 +46,7 @@ If the archive in step 8 fails, leave `pending-close.json` in place so the next 
 1. Compile final session data **in context** — do NOT write to SHELL.md yet. session-mgr owns the final write. Gather:
    - `Status:` one of `completed` | `partial` | `blocked`
    - `Blockers:` one line each, enough context for a cold start
-   - `Lessons:` only genuinely useful ones
+   - `Lessons:` only genuinely useful ones. Before compiling, run the tooling debrief — answer one self-directed question: *"What did I build ad-hoc this session (throwaway scripts, repeated manual procedures, long waits a tool would remove) that should persist?"* One Lesson line per qualifying item, with quantified cost where known (e.g. `rebuilt wm pipeline in /tmp, 5 scripts, ~40 min/rerun`). If nothing qualifies, add nothing — no placeholder lines. These lines are the input procedure-capture recurs on (reflect reads `## Lessons` of archived reports).
    - `Changed:` list of files modified
    - `Artifacts:` if this session produced a durable output (research note, decision doc, audit summary), write it to `compiled/<type>-<slug>-<date>.md` with `session: S-NNN` in the frontmatter and list the wikilink here. Don't leave domain output wedged in SHELL.md Findings or a proposal body.
 2. Ensure all native Tasks reflect their correct status (`completed`, `pending`)

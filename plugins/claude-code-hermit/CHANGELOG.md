@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **session-close: tooling debrief in Lessons** — step 1 asks what was built ad-hoc this session (throwaway scripts, manual procedures, long waits a tool would remove) and persists one quantified Lesson line per item; arms procedure-capture recurrence upstream.
+
 ## [1.1.12] - 2026-06-10
 
 ### Added
