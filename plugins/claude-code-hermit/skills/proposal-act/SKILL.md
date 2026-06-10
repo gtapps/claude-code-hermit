@@ -184,7 +184,8 @@ Deferred proposals still appear in `/proposal-list` but are sorted below open pr
    ```
    Dismissed on 2026-04-06T14:30:00+01:00. Reason: [operator's reason]
    ```
-5. Respond: "PROP-NNN dismissed."
+4b. **Dismissal learning** — only when a reason was provided in step 3. Judge whether the reason states a durable preference, rule, or taste that applies to a *family* of future proposals (e.g. "don't propose process changes for things I do twice a year", "stop suggesting test-coverage proposals on docs-only changes") versus a one-off or proposal-specific response ("not now", "already did this manually", "the analysis is wrong", "duplicate of last week"). If generalizable, issue the standard "remember it" reflection framed as a `feedback`-type entry: state the preference as a rule, add a brief `Why:` and `How to apply:` so proposal-triage and reflection-judge can match it in their memory cross-check. Apply auto-memory discipline: respect `WHAT_NOT_TO_SAVE` (no file paths, no debugging recipes, no facts derivable from grep), keep it concise. The native auto-memory flow writes `feedback_<slug>.md` and updates the `MEMORY.md` index — do not write those files directly. If the reason is one-off or sub-threshold, skip — save nothing.
+5. Respond: "PROP-NNN dismissed." If step 4b saved a preference, add: "Remembered that as a standing preference (future similar proposals may be filtered)."
 
 Dismissed proposals are hidden from the default `/proposal-list` view. Use "show all" with `/proposal-list` to see them.
 
