@@ -88,7 +88,7 @@ Manage with `/hermit-settings channels` (subcommands include `primary <name>` an
 | `every` | string | `"2h"` | Heartbeat interval (e.g., `"15m"`, `"1h"`, `"2h"`). |
 | `active_hours.start` | string | `"08:00"` | Start of active window (heartbeat pauses outside). |
 | `active_hours.end` | string | `"23:00"` | End of active window. |
-| `stale_threshold` | string | `"2h"` | Alert if active session has no progress for this duration. |
+| `stale_threshold` | string | `"2h"` | Alert if active session has no operator activity and no progress for this duration. |
 | `waiting_timeout` | string/null | `null` | Auto-transition from `waiting` to `idle` after this duration (e.g., `"4h"`). `null` = no timeout. |
 
 > **Note:** The tick counter (`total_ticks`) lives in `state/alert-state.json`, not here. It is runtime state, not operator configuration.

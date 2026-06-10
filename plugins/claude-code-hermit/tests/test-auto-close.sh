@@ -666,4 +666,105 @@ run_test "reflect-precheck: only empty 12h archive (operator_turns:0, closed_via
   bash -c "[ '$out' = 'EMPTY' ]"
 cleanup
 
+echo ""
+echo "=== stale-session gate: skip LLM wake when operator is present ==="
+echo ""
+
+# Shared setup: HEARTBEAT.md with one suppressed item (all OK for checklist gate),
+# last_digest_date = today so the digest gate doesn't fire, total_ticks = 1.
+TODAY_DATE="$(date -u +%Y-%m-%d)"
+SUPPRESSED_ALERT_STATE="{\"alerts\":{\"checklist:checksys\":{\"count\":6,\"consecutive_clean\":0,\"suppressed\":true,\"first_seen\":\"${TODAY_DATE}\",\"last_seen\":\"${TODAY_DATE}\",\"text\":\"Check system\"}},\"last_digest_date\":\"${TODAY_DATE}\",\"self_eval\":{},\"total_ticks\":1}"
+
+# -------------------------------------------------------
+# stale.1. in_progress + operator within stale_threshold + all items suppressed + digest ran → OK
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+mkdir -p "$workdir/.claude-code-hermit/sessions"
+mkdir -p "$workdir/.claude-code-hermit/state"
+printf '# Heartbeat\n\n- Check system\n' > "$workdir/.claude-code-hermit/HEARTBEAT.md"
+touch "$workdir/.claude-code-hermit/sessions/SHELL.md"
+echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo '{"at":"2026-05-20T21:30:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
+echo "$SUPPRESSED_ALERT_STATE" > "$workdir/.claude-code-hermit/state/alert-state.json"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" node "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
+run_test "stale-gate: in_progress + operator 30min ago + suppressed checklist + digest done → OK" bash -c "[ '$out' = 'OK' ]"
+cleanup
+
+# -------------------------------------------------------
+# stale.2. in_progress + operator quiet beyond stale_threshold → EVALUATE (unchanged)
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+mkdir -p "$workdir/.claude-code-hermit/sessions"
+mkdir -p "$workdir/.claude-code-hermit/state"
+printf '# Heartbeat\n\n- Check system\n' > "$workdir/.claude-code-hermit/HEARTBEAT.md"
+touch "$workdir/.claude-code-hermit/sessions/SHELL.md"
+echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo '{"at":"2026-05-20T19:00:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
+echo "$SUPPRESSED_ALERT_STATE" > "$workdir/.claude-code-hermit/state/alert-state.json"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" node "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
+run_test "stale-gate: in_progress + operator 3h ago (> 2h threshold) → EVALUATE" bash -c "[ '$out' = 'EVALUATE' ]"
+cleanup
+
+# -------------------------------------------------------
+# stale.3. in_progress + operator recent + stale-session alert active → EVALUATE (resolution tracking)
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+mkdir -p "$workdir/.claude-code-hermit/sessions"
+mkdir -p "$workdir/.claude-code-hermit/state"
+printf '# Heartbeat\n\n- Check system\n' > "$workdir/.claude-code-hermit/HEARTBEAT.md"
+touch "$workdir/.claude-code-hermit/sessions/SHELL.md"
+echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo '{"at":"2026-05-20T21:30:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
+STALE_ACTIVE="{\"alerts\":{\"checklist:checksys\":{\"count\":6,\"consecutive_clean\":0,\"suppressed\":true,\"first_seen\":\"${TODAY_DATE}\",\"last_seen\":\"${TODAY_DATE}\",\"text\":\"Check system\"},\"stale-session\":{\"count\":1,\"consecutive_clean\":0,\"suppressed\":false,\"first_seen\":\"${TODAY_DATE}\",\"last_seen\":\"${TODAY_DATE}\",\"text\":\"Stale session\"}},\"last_digest_date\":\"${TODAY_DATE}\",\"self_eval\":{},\"total_ticks\":1}"
+echo "$STALE_ACTIVE" > "$workdir/.claude-code-hermit/state/alert-state.json"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" node "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
+run_test "stale-gate: operator recent + stale-session alert active → EVALUATE (resolution tracking)" bash -c "[ '$out' = 'EVALUATE' ]"
+cleanup
+
+# -------------------------------------------------------
+# stale.4. in_progress + future-dated last-operator-action (clock skew) → EVALUATE (fail-open)
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+mkdir -p "$workdir/.claude-code-hermit/sessions"
+mkdir -p "$workdir/.claude-code-hermit/state"
+printf '# Heartbeat\n\n- Check system\n' > "$workdir/.claude-code-hermit/HEARTBEAT.md"
+touch "$workdir/.claude-code-hermit/sessions/SHELL.md"
+echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo '{"at":"2026-05-20T23:00:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
+echo "$SUPPRESSED_ALERT_STATE" > "$workdir/.claude-code-hermit/state/alert-state.json"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" node "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
+run_test "stale-gate: future-dated last-operator-action (clock skew) → EVALUATE (fail-open)" bash -c "[ '$out' = 'EVALUATE' ]"
+cleanup
+
+# -------------------------------------------------------
+# stale.5. in_progress + no last-operator-action.json → EVALUATE (no regression for pre-upgrade installs)
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+mkdir -p "$workdir/.claude-code-hermit/sessions"
+mkdir -p "$workdir/.claude-code-hermit/state"
+printf '# Heartbeat\n\n- Check system\n' > "$workdir/.claude-code-hermit/HEARTBEAT.md"
+touch "$workdir/.claude-code-hermit/sessions/SHELL.md"
+echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo "$SUPPRESSED_ALERT_STATE" > "$workdir/.claude-code-hermit/state/alert-state.json"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" node "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
+run_test "stale-gate: absent last-operator-action (pre-upgrade install) → EVALUATE (no regression)" bash -c "[ '$out' = 'EVALUATE' ]"
+cleanup
+
+# -------------------------------------------------------
+# stale.6. stale.1 variant WITHOUT last_digest_date=today → EVALUATE (digest gate fires correctly)
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+mkdir -p "$workdir/.claude-code-hermit/sessions"
+mkdir -p "$workdir/.claude-code-hermit/state"
+printf '# Heartbeat\n\n- Check system\n' > "$workdir/.claude-code-hermit/HEARTBEAT.md"
+touch "$workdir/.claude-code-hermit/sessions/SHELL.md"
+echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo '{"at":"2026-05-20T21:30:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
+# Same suppressed item but last_digest_date is yesterday → digest gate fires
+STALE_NO_DIGEST="{\"alerts\":{\"checklist:checksys\":{\"count\":6,\"consecutive_clean\":0,\"suppressed\":true,\"first_seen\":\"2026-05-19\",\"last_seen\":\"2026-05-19\",\"text\":\"Check system\"}},\"last_digest_date\":\"2026-05-19\",\"self_eval\":{},\"total_ticks\":1}"
+echo "$STALE_NO_DIGEST" > "$workdir/.claude-code-hermit/state/alert-state.json"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" node "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
+run_test "stale-gate: operator recent + suppressed but digest not yet run today → EVALUATE (daily digest)" bash -c "[ '$out' = 'EVALUATE' ]"
+cleanup
+
 print_results

@@ -44,6 +44,15 @@ function normalizeItemKey(itemText) {
   return text ? `checklist:${text}` : null;
 }
 
+// Same unit set the heartbeat skill uses for `every`.
+function parseDuration(str, defaultMs) {
+  if (typeof str !== 'string') return defaultMs;
+  const m = str.trim().match(/^(\d+)\s*([smh])$/i);
+  if (!m) return defaultMs;
+  const mult = { s: 1000, m: 60000, h: 3600000 }[m[2].toLowerCase()];
+  return parseInt(m[1], 10) * mult;
+}
+
 // Resolve "now" once: real wall-clock, overridable by HERMIT_NOW for deterministic
 // tests. Shared by the pending-close drain and the in_progress 12h check below.
 let now = Date.now();
@@ -133,6 +142,7 @@ if (sessionState === 'in_progress') {
   // by routine writes (reflect, scheduled-checks, heartbeat alerts) that bump SHELL.md mtime.
   // Falls back to SHELL.md mtime for pre-upgrade installs that don't have the file yet.
   let usedActionFile = false;
+  let lastActionAt = NaN;
   try {
     const lastAction = readJSON(path.join(stateDir, 'state', 'last-operator-action.json'));
     if (lastAction && typeof lastAction.at === 'string') {
@@ -140,6 +150,7 @@ if (sessionState === 'in_progress') {
       if (!isNaN(t)) {
         if ((now - t) / (1000 * 60 * 60) > 12) emit('AUTO_CLOSE');
         usedActionFile = true; // valid timestamp — skip mtime fallback
+        lastActionAt = t;
       }
     }
   } catch { /* fail-open: fall through to mtime */ }
@@ -153,8 +164,14 @@ if (sessionState === 'in_progress') {
       if ((now - mtime) / (1000 * 60 * 60) > 12) emit('AUTO_CLOSE');
     } catch { /* fail-open */ }
   }
-  // stale-session check needs SHELL.md parsing — delegate to LLM
-  emit('EVALUATE');
+  // Stale-session check: skip the LLM wake when the operator is demonstrably present.
+  // Falls back to unconditional EVALUATE when last-operator-action.json is absent (pre-upgrade
+  // installs), mtime fallback was used, or timestamp is future-dated (clock skew / cross-machine).
+  // staleAlertActive: keep waking while an active alert exists so the LLM can track resolution.
+  const staleMs = parseDuration(hbConfig.stale_threshold, 2 * 3600000);
+  const opQuiet = !usedActionFile || lastActionAt > now || (now - lastActionAt) > staleMs;
+  const staleAlertActive = !!alertState.alerts['stale-session'];
+  if (opQuiet || staleAlertActive) emit('EVALUATE');
 }
 
 // waiting-timeout check requires elapsed computation — delegate to LLM
