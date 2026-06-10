@@ -105,6 +105,7 @@ Now reflect — think hard — using your memory and the context above:
 - Could a subagent have handled a repeating subtask within this session?
 - Was context bloat avoidable — did I load files I didn't need, or keep large content in context longer than necessary?
 - Am I producing value the operator actually uses? Cross-reference the `responded` counts and `micro-resolved` counts from step 5: a high `dismiss` ratio on proposals, a high `rejected` rate on micro-proposals, or compiled/brief outputs that go uncited in subsequent sessions signal that some output is noise — consider a Tier 1 micro-proposal to pare it back. A high `expired` rate is a separate signal: questions are timed poorly rather than unwanted — consider a Tier 1 micro-proposal to adjust question scheduling rather than cutting volume.
+- Have I executed the same multi-step procedure in ≥2 sessions with no skill covering it? (procedure-capture candidate — see § Procedure capture below)
 
 ## Three-Condition Rule
 
@@ -160,6 +161,75 @@ Signal ladder (same for all three):
 - **Weak signal** (one-off or ambiguous): no action — not worth surfacing.
 - **Moderate signal** (pattern across 2-3 sessions): create a proposal via `/claude-code-hermit:proposal-create` with the evidence (subject to Three-Condition Rule).
 - **Strong signal** (clear, repeated pattern): create a proposal via `/claude-code-hermit:proposal-create` with the evidence and include a `## Skill Improvement` section (or `## Agent Improvement`) listing the component name, observed failures, and suggested eval criteria. When the proposal is accepted via `proposal-act`, use `/skill-creator eval` and `/skill-creator improve` to implement the changes. If `/skill-creator` is not available, apply the changes to the component's definition file directly.
+
+### Procedure capture (new-skill creation)
+
+Component Health above improves existing components. This subsection is the symmetric path: creating a brand-new skill from a recurring procedure the hermit keeps executing manually.
+
+**Kill criteria (evaluate per candidate surfaced, not per reflect run — recurrence-gating means this fires rarely).**
+
+After ≥8 procedure-capture candidates surfaced, compute two rates over `state/proposal-metrics.jsonl`:
+- **Triage-survival rate** — `grep '"type":"triage-verdict".*"tags":.*"procedure-capture"' state/proposal-metrics.jsonl` to find all `triage-verdict` events from procedure-capture candidates. Rate = `CREATE` count ÷ total. Kill if < 25%. Note: procedure-capture shares `Evidence Source: archived-session` with ordinary reflect candidates, so triage-survival is best-effort (segment on the `created` event's tags); acceptance rate below is the reliable kill signal.
+- **PROP-acceptance rate** — `grep '"type":"created".*"tags":.*"procedure-capture"' state/proposal-metrics.jsonl` to find `created` events tagged `procedure-capture`. Cross-reference their `proposal_id` against `responded` events with `"action":"accept"`. Rate = accepted ÷ created. Kill if < 30%.
+
+If either rate is below threshold, disable procedure capture rather than tune it. Do not read thresholds until the ≥8 sample exists.
+
+**Detection — when to trigger:**
+
+Read two sources (reuse the `Explore` subagent fetch already used in the Resolution Check and Component Health steps — no new I/O pattern):
+1. Operator `MEMORY.md` index + topic files flagged as workflow patterns (same read path as `capability-brainstorm` step 1).
+2. `## Lessons` sections of the 3 most recent archived session reports.
+
+Recurrence signal: the same multi-step procedure appears as a Lesson or memory workflow-pattern in **≥2 distinct archived sessions** and no existing skill covers it.
+
+**Evidence fields** (both set by construction — satisfies the evidence-integrity rule below trivially):
+- `Evidence Source: archived-session` (reads MEMORY.md + archived Lessons, never live SHELL.md)
+- `Evidence Origin: own-work` unless the procedure was originally learned from external content (web fetches, `raw/` captures, channel messages) — then `external-content`, which forces Tier 3 anyway
+
+**Dedup guard (both checks required before writing a brief):**
+1. Glob `.claude/skills/*/SKILL.md`; for each, read `name:` and `description:` frontmatter. If an installed skill already covers the procedure (name or trigger-phrase match) → suppress; note as a housekeeping line in SHELL.md Findings (exempt from evidence-integrity per the rule below).
+2. Consult the harness available-skills list (authoritative — never disk checks or `claude plugin list`). If any `/claude-code-hermit:*` or sibling-plugin skill already covers the procedure → suppress.
+3. The standard `proposal-triage` gate still runs and catches an already-open PROP (DUPLICATE verdict).
+
+**Write the procedure brief (audit artifact):**
+
+Write `.claude-code-hermit/compiled/procedure-brief-<slug>-YYYY-MM-DD.md` before queuing the candidate. This is a housekeeping artifact (not evidence injected into the judged session content), so writing it before the judge call is permitted.
+
+Frontmatter:
+```yaml
+---
+title: "Procedure brief — <name>"
+type: procedure-brief
+created: <ISO with tz>
+tags: [procedure-capture]
+source: session
+session: S-NNN
+related_sessions: [S-AAA, S-BBB]
+proposed_skill_name: <name>
+---
+```
+
+Body (concise — fits the `compiled/` char-budget/lint contract; do NOT write a full SKILL.md here):
+- The recurring steps in order
+- Evidence sessions (which sessions and what Lessons/memory entries show the recurrence)
+- Proposed skill name and trigger phrases
+
+**Routing:** classify **Tier 3** (a new skill auto-loads into every future session, its triggers can fire autonomously, and writing under `.claude/` is operator-space — effectively irreversible/cross-cutting). This matches the Tier-3 definition and the convention that all `category: capability` writers go straight to `proposal-create`.
+
+Queue as a Tier-3 candidate: gate with `claude-code-hermit:proposal-triage` first, then call `/claude-code-hermit:proposal-create` with:
+- `category: capability`
+- `tags: [procedure-capture]`
+- `source: auto-detected`
+- The `## Skill Draft` body block (see `proposal-create` for format):
+  ```
+  ## Skill Draft
+  - name: <skill-name>
+  - source_artifact: .claude-code-hermit/compiled/procedure-brief-<slug>-YYYY-MM-DD.md
+  - install_target: .claude/skills/<name>/SKILL.md
+  - triggers: <comma-separated proposed trigger phrases>
+  ```
+
+Never queue procedure-capture candidates to the micro-approval queue. External-origin procedures (where the procedure was derived from external content) should carry `Evidence Origin: external-content` through to proposal-create, which will write the operator-visible provenance line.
 
 ## Evidence integrity rule (applies before calling reflection-judge)
 

@@ -11,6 +11,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -1441,6 +1442,92 @@ class TestKillMetricsContract(unittest.TestCase):
             'capability-brainstorm kill criteria no longer references the created-event grep token — '
             'acceptance-rate grep target has drifted from what proposal-create emits',
         )
+
+
+class TestProcedureCaptureContract(unittest.TestCase):
+    """Contract: procedure-capture kill-criteria grep targets must match the emitters.
+
+    Guards against the silent breakage where reflect declares kill criteria that
+    grep for a tag token that proposal-create never actually emits.  Both sides of
+    the contract (emit side = proposal-create; measure side = reflect) are asserted
+    in parallel so they can't silently drift.
+
+    Does NOT simulate the kill verdict — asserts only that the tagging and threshold
+    documentation are present and consistent.
+    """
+
+    REFLECT = REPO / 'skills' / 'reflect' / 'SKILL.md'
+    PROPOSAL_CREATE = REPO / 'skills' / 'proposal-create' / 'SKILL.md'
+
+    @classmethod
+    def setUpClass(cls):
+        cls._reflect = cls.REFLECT.read_text()
+        cls._proposal_create = cls.PROPOSAL_CREATE.read_text()
+
+    def _procedure_capture_kill_section(self):
+        """Extract the kill-criteria block from the Procedure capture subsection."""
+        parts = self._reflect.split('### Procedure capture (new-skill creation)')
+        self.assertGreater(len(parts), 1,
+                           'reflect SKILL.md is missing the "### Procedure capture (new-skill creation)" subsection')
+        subsection = parts[1].split('\n## ')[0]
+        kill_parts = subsection.split('Kill criteria')
+        self.assertGreater(len(kill_parts), 1,
+                           'Procedure capture subsection is missing a Kill criteria block')
+        return kill_parts[1].split('**Detection')[0]
+
+    def test_procedure_capture_kill_criteria_references_created_tag(self):
+        """Reflect kill criteria must grep for 'procedure-capture' in created events."""
+        kill_section = self._procedure_capture_kill_section()
+        self.assertIn(
+            '"type":"created".*"tags":.*"procedure-capture"',
+            kill_section,
+            'Reflect procedure-capture kill criteria no longer references the created-event grep token — '
+            'acceptance-rate grep target has drifted from what proposal-create emits',
+        )
+
+    def test_procedure_capture_kill_criteria_thresholds_present(self):
+        """Reflect kill criteria must document the 25%/30% kill thresholds."""
+        kill_section = self._procedure_capture_kill_section()
+        self.assertIn('25%', kill_section,
+                      'Procedure capture kill criteria is missing the 25% triage-survival threshold')
+        self.assertIn('30%', kill_section,
+                      'Procedure capture kill criteria is missing the 30% PROP-acceptance threshold')
+
+    def test_procedure_capture_kill_criteria_counts_per_candidate(self):
+        """Reflect kill criteria must specify counting per candidate surfaced (not per reflect run)."""
+        kill_section = self._procedure_capture_kill_section()
+        self.assertIn('per candidate surfaced', kill_section,
+                      'Procedure capture kill criteria must count per candidate surfaced, not per reflect run')
+
+    def test_proposal_create_emits_procedure_capture_tag(self):
+        """proposal-create Skill Draft variant must set the procedure-capture tag."""
+        skill_draft_parts = self._proposal_create.split('## Skill Draft')
+        self.assertGreater(len(skill_draft_parts), 1,
+                           'proposal-create SKILL.md is missing the ## Skill Draft variant')
+        skill_draft_section = skill_draft_parts[1].split('\n**For ')[0]
+        self.assertIn('procedure-capture', skill_draft_section,
+                      'proposal-create ## Skill Draft variant does not set the procedure-capture tag — '
+                      'acceptance-rate grep in reflect kill criteria will find nothing')
+
+    def test_proposal_template_unchanged_no_new_frontmatter(self):
+        """PROPOSAL.md.template must not have new frontmatter keys (body-section decision locked)."""
+        template_text = (REPO / 'state-templates' / 'PROPOSAL.md.template').read_text()
+        m = re.search(r'^---\n(.*?)\n---', template_text, re.DOTALL | re.MULTILINE)
+        self.assertIsNotNone(m, 'PROPOSAL.md.template has no YAML frontmatter')
+        keys = [
+            line.split(':')[0].strip()
+            for line in m.group(1).splitlines()
+            if ':' in line and not line.startswith(' ')
+        ]
+        expected = {
+            'id', 'title', 'status', 'source', 'session', 'created',
+            'accepted_date', 'resolved_date', 'related_sessions', 'category',
+            'tags', 'responded', 'self_eval_key', 'accepted_in_session', 'success_signal',
+        }
+        extra = set(keys) - expected
+        self.assertEqual(extra, set(),
+                         f'PROPOSAL.md.template has unexpected new frontmatter keys: {extra} — '
+                         f'procedure capture must use a body section (## Skill Draft), not a new field')
 
 
 class TestBootstrapSkills(unittest.TestCase):

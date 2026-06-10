@@ -127,6 +127,16 @@ When the proposed solution involves creating a new agent, skill, heartbeat item,
 2. Test by invoking the skill with a representative input
 3. Verify it completes correctly
 
+**For a captured procedure (procedure-capture — called from reflect):**
+When `reflect` detects a recurring multi-step procedure (≥2 sessions, no existing skill covers it), it calls `proposal-create` with a `## Skill Draft` body block carrying the audit artifact path. Include this block verbatim in the PROP body as the dispatch signal for `proposal-act`. Set `category: capability`, `tags: [procedure-capture]`, `source: auto-detected`. Do not write the SKILL.md here — the accept flow delegates authoring to `/skill-creator` so the operator can review the final skill before install.
+```markdown
+## Skill Draft
+- name: <skill-name>
+- source_artifact: .claude-code-hermit/compiled/procedure-brief-<slug>-YYYY-MM-DD.md
+- install_target: .claude/skills/<name>/SKILL.md
+- triggers: <comma-separated proposed trigger phrases>
+```
+
 **For a heartbeat check:**
 1. Add the check to `.claude-code-hermit/HEARTBEAT.md` under the appropriate group
 2. Run `/claude-code-hermit:heartbeat run` to verify it evaluates correctly

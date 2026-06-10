@@ -147,7 +147,7 @@ printf -- '---\ntitle: snap\ncreated: 2026-04-22T00:00:00+00:00\n---\ndata' \
 # Copy the real template (all bullets inside HTML comments) so parseSchema returns null
 cp "$REPO_ROOT/state-templates/knowledge-schema.md.template" "$workdir/.claude-code-hermit/knowledge-schema.md"
 # Remove the starter bullets we just added to simulate a pre-upgrade all-comments schema
-sed -i '/^- note:/d; /^- input:/d; /^- review:/d' "$workdir/.claude-code-hermit/knowledge-schema.md"
+sed -i '/^- note:/d; /^- input:/d; /^- review:/d; /^- procedure-brief:/d' "$workdir/.claude-code-hermit/knowledge-schema.md"
 outfile="$(mktemp)"
 node "$REPO_ROOT/scripts/knowledge-lint.js" "$workdir/.claude-code-hermit" > "$outfile" 2>&1 || true
 run_test "knowledge-lint (schema-empty emitted without --verbose)" grep -q 'schema-empty' "$outfile"
