@@ -12,7 +12,7 @@ import { calculateCost } from './lib/pricing';
 import { readTasks, taskProgress } from './lib/tasks';
 import { kStr, formatTokens } from './lib/format';
 import { sessionId as ccSessionId, transcriptPath as ccTranscriptPath, entryText, isToolResult, extractUsage, costLogPath } from './lib/cc-compat';
-import { costIndexPath, updateCostIndex, readCostIndex } from './lib/cost-log';
+import { costIndexPath, updateCostIndex, readCostIndex, scanAutomatedOpus } from './lib/cost-log';
 
 type Json = any;
 
@@ -338,6 +338,11 @@ function writeCostSummary(index: Json): void {
   const weekSessionCount = weekSessionIds.size;
   const weekAvg = weekSessionCount > 0 ? weekCost / weekSessionCount : 0;
 
+  const opusWake = scanAutomatedOpus(COST_LOG, weekAgo);
+  const opusWakeLine = opusWake.count > 0
+    ? `\n- ⚠ ${opusWake.count} automated wake(s) on Opus this week ($${opusWake.cost.toFixed(2)}) — consider a lower session model`
+    : '';
+
   let trendTable = '| Date | Sessions | Cost | Tokens |\n|------|----------|------|--------|\n';
   for (let i = 0; i < 7; i++) {
     const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
@@ -369,7 +374,7 @@ avg_session_tokens: ${Math.round(avgSessionTokens)}
 - Sessions: ${weekSessionCount}
 - Cost: $${weekCost.toFixed(2)}
 - Tokens: ${kStr(weekTokens)}K
-- Avg per session: $${weekAvg.toFixed(2)}
+- Avg per session: $${weekAvg.toFixed(2)}${opusWakeLine}
 
 ## All Time
 - Sessions: ${totalSessions}

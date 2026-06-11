@@ -191,4 +191,25 @@ function updateCostIndex(logPath: string, indexPath: string): Json {
   return _writeIndex(indexPath, index);
 }
 
-export { costIndexPath, readCostIndex, updateCostIndex, rebuildCostIndex };
+// Warn-only: surfaces tier-drift cost without a hard block.
+function scanAutomatedOpus(costLogFile: string, sinceDateInclusive: string): { count: number; cost: number } {
+  let count = 0;
+  let cost = 0;
+  if (!fs.existsSync(costLogFile)) return { count, cost };
+  for (const line of fs.readFileSync(costLogFile, 'utf8').split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const e = JSON.parse(line);
+      const date = (e.timestamp || '').slice(0, 10);
+      const src = e.source || 'other';
+      const automated = src === 'heartbeat' || src.startsWith('routine:');
+      if (date >= sinceDateInclusive && e.model === 'opus' && automated) {
+        count += 1;
+        cost += e.estimated_cost_usd || 0;
+      }
+    } catch { /* skip corrupt lines — checkCost already surfaces corruption */ }
+  }
+  return { count, cost };
+}
+
+export { costIndexPath, readCostIndex, updateCostIndex, rebuildCostIndex, scanAutomatedOpus };

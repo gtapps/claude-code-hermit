@@ -9,7 +9,7 @@ import { parseDuration } from './lib/time';
 import { globDir, readFrontmatter } from './lib/frontmatter';
 import { validate } from './validate-config';
 import { kStr } from './lib/format';
-import { costIndexPath, readCostIndex } from './lib/cost-log';
+import { costIndexPath, readCostIndex, scanAutomatedOpus } from './lib/cost-log';
 
 type Json = any;
 
@@ -629,6 +629,20 @@ function checkWatchdog() {
   }
 }
 
+function checkOpusWake() {
+  try {
+    const since = new Date(Date.now() - 7 * MS_PER_DAY).toISOString().slice(0, 10);
+    const { count, cost } = scanAutomatedOpus(costLog, since);
+    if (count > 0) {
+      return { id: 'opus-wake', status: 'warn',
+        detail: `${count} automated wake(s) on Opus in last 7d ($${cost.toFixed(2)}) — lower the session model to cut tier-drift cost` };
+    }
+    return { id: 'opus-wake', status: 'ok', detail: 'no Opus automated wakes in last 7d' };
+  } catch (e: any) {
+    return { id: 'opus-wake', status: 'fail', detail: `check failed: ${e.message}` };
+  }
+}
+
 function checkHeartbeat() {
   try {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
@@ -727,6 +741,7 @@ function runAllChecks() {
     checkReflectLoop(),
     checkScheduler(),
     checkWatchdog(),
+    checkOpusWake(),
     checkHeartbeat(),
   ];
 }
@@ -749,7 +764,7 @@ export {
   checkRuntime, checkConfig, checkHooks, checkStateFiles,
   checkCost, checkProposals, checkDependencies, checkPermissions,
   checkDockerSecurity, checkArchival, checkReflectLoop, checkScheduler,
-  checkWatchdog, checkHeartbeat,
+  checkWatchdog, checkOpusWake, checkHeartbeat,
   satisfiesRange, cidrOverlap,
   runAllChecks, writeReport,
 };

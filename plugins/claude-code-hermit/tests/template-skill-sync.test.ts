@@ -83,3 +83,24 @@ describe('sandbox templates', () => {
     expect(d.sandbox.filesystem).toHaveProperty('denyRead');
   });
 });
+
+// -------------------------------------------------------
+// Routine model defaults
+// -------------------------------------------------------
+describe('routine model defaults', () => {
+  let routines: any[] = [];
+  try {
+    routines = JSON.parse(fs.readFileSync(TEMPLATE_PATH, 'utf-8')).routines || [];
+  } catch {}
+
+  test('daily-auto-close has model: haiku', () => {
+    const entry = routines.find((r: any) => r.id === 'daily-auto-close');
+    expect(entry).toBeTruthy();
+    expect(entry.model).toBe('haiku');
+  });
+
+  test('no other default routine carries a model field', () => {
+    const withModel = routines.filter((r: any) => r.id !== 'daily-auto-close' && r.model !== undefined);
+    expect(withModel).toEqual([]);
+  });
+});
