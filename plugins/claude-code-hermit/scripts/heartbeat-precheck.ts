@@ -5,7 +5,7 @@
 // With --peek: read-only — computes the same verdict without any state mutation.
 //
 // Owner contract (write-field split with SKILL.md):
-//   This script owns: alert-state.json total_ticks
+//   This script owns: alert-state.json total_ticks, last_stale_wake_at
 //   SKILL.md owns:    alert-state.json alerts{}, self_eval{}, last_digest_date
 
 import fs from 'node:fs';
@@ -164,14 +164,29 @@ if (sessionState === 'in_progress') {
       if ((now - mtime) / (1000 * 60 * 60) > 12) emit('AUTO_CLOSE');
     } catch { /* fail-open */ }
   }
-  // Stale-session check: skip the LLM wake when the operator is demonstrably present.
-  // Falls back to unconditional EVALUATE when last-operator-action.json is absent (pre-upgrade
-  // installs), mtime fallback was used, or timestamp is future-dated (clock skew / cross-machine).
-  // staleAlertActive: keep waking while an active alert exists so the LLM can track resolution.
+  // Stale-session check: wake once per stale_threshold, not every tick.
+  // Falls back to EVALUATE when last-operator-action.json is absent (pre-upgrade installs),
+  // mtime fallback was used, or timestamp is future-dated (clock skew / cross-machine).
+  // Damped by last_stale_wake_at: if the staleness condition is unchanged and stale_threshold
+  // hasn't elapsed since last wake, fall through to the digest/checklist gates instead of
+  // emitting EVALUATE — identical operator-visible behavior, 1 LLM wake per interval instead of N.
   const staleMs = parseDuration(hbConfig.stale_threshold, 2 * 3600000);
   const opQuiet = !usedActionFile || lastActionAt > now || (now - lastActionAt) > staleMs;
   const staleAlertActive = !!(alertState.alerts ?? {})['stale-session'];
-  if (opQuiet || staleAlertActive) emit('EVALUATE');
+  if (opQuiet || staleAlertActive) {
+    const lastStaleWakeAt = typeof alertState.last_stale_wake_at === 'string'
+      ? new Date(alertState.last_stale_wake_at).getTime()
+      : NaN;
+    const operatorAdvanced = usedActionFile && !isNaN(lastStaleWakeAt) && lastActionAt > lastStaleWakeAt;
+    const wakeDue = isNaN(lastStaleWakeAt) || operatorAdvanced || (now - lastStaleWakeAt) >= staleMs;
+    if (wakeDue) {
+      if (!peek) {
+        alertState.last_stale_wake_at = new Date(now).toISOString();
+        writeJSON(alertStatePath, alertState);
+      }
+      emit('EVALUATE');
+    }
+  }
 }
 
 // waiting-timeout check requires elapsed computation — delegate to LLM

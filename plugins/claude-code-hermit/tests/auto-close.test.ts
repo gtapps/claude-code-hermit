@@ -647,4 +647,96 @@ describe('stale-session gate: skip LLM wake when operator is present', () => {
     writeState(dir, 'last-operator-action.json', '{"at":"2026-05-20T21:30:00+00:00"}');
     expect(await precheck(dir, { now: NOW, peek: true })).toBe('EVALUATE');
   }));
+
+  // stale.7. Damper: second tick within stale_threshold, unchanged condition → fall-through → OK
+  test('stale-gate: damper — stale condition unchanged within threshold → fall-through → OK', withTmp(async (dir) => {
+    const damped = JSON.stringify({
+      alerts: {
+        'checklist:checksys': {
+          count: 6, consecutive_clean: 0, suppressed: true,
+          first_seen: TODAY_DATE, last_seen: TODAY_DATE, text: 'Check system',
+        },
+      },
+      last_digest_date: TODAY_DATE, self_eval: {}, total_ticks: 1,
+      last_stale_wake_at: '2026-05-20T21:00:00+00:00', // 1h before NOW, < 2h threshold
+    });
+    seedStale(dir, damped);
+    writeState(dir, 'last-operator-action.json', '{"at":"2026-05-20T19:00:00+00:00"}'); // 3h ago (opQuiet)
+    expect(await precheck(dir, { now: NOW, peek: true })).toBe('OK');
+  }));
+
+  // stale.8. Damper: stale_threshold elapsed since last wake → EVALUATE again
+  test('stale-gate: damper — stale_threshold elapsed since last_stale_wake_at → EVALUATE', withTmp(async (dir) => {
+    const damped = JSON.stringify({
+      alerts: {
+        'checklist:checksys': {
+          count: 6, consecutive_clean: 0, suppressed: true,
+          first_seen: TODAY_DATE, last_seen: TODAY_DATE, text: 'Check system',
+        },
+      },
+      last_digest_date: TODAY_DATE, self_eval: {}, total_ticks: 1,
+      last_stale_wake_at: '2026-05-20T19:30:00+00:00', // 2.5h before NOW, > 2h threshold
+    });
+    seedStale(dir, damped);
+    writeState(dir, 'last-operator-action.json', '{"at":"2026-05-20T19:00:00+00:00"}'); // 3h ago (opQuiet)
+    expect(await precheck(dir, { now: NOW, peek: true })).toBe('EVALUATE');
+  }));
+
+  // stale.9. Damper: operator advances after damp period → EVALUATE (operatorAdvanced)
+  test('stale-gate: damper — operator advances after damp → EVALUATE', withTmp(async (dir) => {
+    const staleActive = JSON.stringify({
+      alerts: {
+        'checklist:checksys': {
+          count: 6, consecutive_clean: 0, suppressed: true,
+          first_seen: TODAY_DATE, last_seen: TODAY_DATE, text: 'Check system',
+        },
+        'stale-session': {
+          count: 1, consecutive_clean: 0, suppressed: false,
+          first_seen: TODAY_DATE, last_seen: TODAY_DATE, text: 'Stale session',
+        },
+      },
+      last_digest_date: TODAY_DATE, self_eval: {}, total_ticks: 1,
+      last_stale_wake_at: '2026-05-20T21:30:00+00:00', // 30min before NOW
+    });
+    seedStale(dir, staleActive);
+    // Operator acted at 21:45 — after last_stale_wake_at (21:30) → operatorAdvanced = true
+    writeState(dir, 'last-operator-action.json', '{"at":"2026-05-20T21:45:00+00:00"}');
+    expect(await precheck(dir, { now: NOW, peek: true })).toBe('EVALUATE');
+  }));
+
+  // stale.10. Regression: digest gate still fires when staleness is damped (fall-through must reach it)
+  test('stale-gate: damper — digest gate fires through the damp fall-through', withTmp(async (dir) => {
+    const dampedNoDigest = JSON.stringify({
+      alerts: {
+        'checklist:checksys': {
+          count: 6, consecutive_clean: 0, suppressed: true,
+          first_seen: '2026-05-19', last_seen: '2026-05-19', text: 'Check system',
+        },
+      },
+      last_digest_date: '2026-05-19', self_eval: {}, total_ticks: 1, // yesterday → digest due
+      last_stale_wake_at: '2026-05-20T21:00:00+00:00', // 1h ago (within threshold → damped)
+    });
+    seedStale(dir, dampedNoDigest);
+    writeState(dir, 'last-operator-action.json', '{"at":"2026-05-20T19:00:00+00:00"}'); // 3h ago (opQuiet)
+    expect(await precheck(dir, { now: NOW, peek: true })).toBe('EVALUATE');
+  }));
+
+  // stale.11. Non-peek: first stale wake writes last_stale_wake_at to alert-state.json
+  test('stale-gate: non-peek first stale wake writes last_stale_wake_at', withTmp(async (dir) => {
+    seedStale(dir);
+    writeState(dir, 'last-operator-action.json', '{"at":"2026-05-20T19:00:00+00:00"}'); // 3h ago (opQuiet)
+    expect(await precheck(dir, { now: NOW })).toBe('EVALUATE'); // non-peek
+    const state = JSON.parse(fs.readFileSync(hermit(dir, 'state', 'alert-state.json'), 'utf-8'));
+    expect(typeof state.last_stale_wake_at).toBe('string');
+    expect(new Date(state.last_stale_wake_at).toISOString()).toBe(new Date(NOW).toISOString());
+  }));
+
+  // stale.12. Peek: does NOT write last_stale_wake_at
+  test('stale-gate: peek does not write last_stale_wake_at', withTmp(async (dir) => {
+    seedStale(dir);
+    writeState(dir, 'last-operator-action.json', '{"at":"2026-05-20T19:00:00+00:00"}');
+    expect(await precheck(dir, { now: NOW, peek: true })).toBe('EVALUATE');
+    const state = JSON.parse(fs.readFileSync(hermit(dir, 'state', 'alert-state.json'), 'utf-8'));
+    expect(state.last_stale_wake_at).toBeUndefined();
+  }));
 });
