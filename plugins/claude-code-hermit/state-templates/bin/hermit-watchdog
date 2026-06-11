@@ -5,4 +5,4 @@
 #   run        (default) — one decision cycle; exit 0 always
 #   install    — install OS scheduler timer (systemd/launchd/cron)
 #   uninstall  — remove the installed timer
-exec "$(dirname "$0")/hermit-run" hermit-watchdog.py "$@"
+exec "$(dirname "$0")/hermit-run" hermit-watchdog "$@"

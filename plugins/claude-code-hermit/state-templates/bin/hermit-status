@@ -11,30 +11,25 @@ CONFIG_FILE="$AGENT_DIR/config.json"
 PROJECT_DIR="$(cd "$AGENT_DIR/../.." && pwd)"
 PROJECT_NAME="$(basename "$PROJECT_DIR")"
 
-# Read agent name and all status fields in a single python3 invocation
-FIELDS=$(python3 -c "
-import json, sys, os
-config_path, status_path = sys.argv[1], sys.argv[2]
-agent = ''
-if os.path.exists(config_path):
-    try:
-        cfg = json.load(open(config_path))
-        agent = cfg.get('agent_name', '') or ''
-    except: pass
-fields = [''] * 6
-if os.path.exists(status_path):
-    try:
-        s = json.load(open(status_path))
-        fields = [
-            str(s.get('status', '')),
-            str(s.get('task', '')),
-            str(s.get('plan_done', '0')),
-            str(s.get('plan_total', '0')),
-            str(s.get('cost_usd', '')),
-            str(s.get('blockers', '') if s.get('blockers') is not None else ''),
-        ]
-    except: pass
-print(agent + '\t' + '\t'.join(fields))
+# Read agent name and all status fields in a single bun invocation
+FIELDS=$(bun -e "
+const fs = require('fs');
+const [configPath, statusPath] = [process.argv[1], process.argv[2]];
+let agent = '';
+try { agent = JSON.parse(fs.readFileSync(configPath, 'utf8')).agent_name || ''; } catch {}
+let fields = ['', '', '', '', '', ''];
+try {
+  const s = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
+  fields = [
+    String(s.status ?? ''),
+    String(s.task ?? ''),
+    String(s.plan_done ?? '0'),
+    String(s.plan_total ?? '0'),
+    String(s.cost_usd ?? ''),
+    String(s.blockers ?? ''),
+  ];
+} catch {}
+console.log(agent + '\t' + fields.join('\t'));
 " "$CONFIG_FILE" "$STATUS_FILE" 2>/dev/null || echo "")
 
 IFS=$'\t' read -r AGENT_NAME STATUS TASK PLAN_DONE PLAN_TOTAL COST BLOCKERS <<< "$FIELDS"
@@ -57,12 +52,13 @@ fi
 if [ -z "$STATUS" ]; then
   RUNTIME_FILE="$AGENT_DIR/state/runtime.json"
   if [ -f "$RUNTIME_FILE" ]; then
-    STATUS=$(python3 -c "
-import json, sys
-try:
-    d = json.load(open(sys.argv[1]))
-    print(d.get('session_state', 'unknown'))
-except Exception: print('unknown')
+    STATUS=$(bun -e "
+try {
+  const d = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'));
+  console.log(d.session_state ?? 'unknown');
+} catch {
+  console.log('unknown');
+}
 " "$RUNTIME_FILE" 2>/dev/null || echo "unknown")
     echo "$AGENT_NAME ($PROJECT_NAME) | $STATUS | no cost data yet${DOCKER_STATE:+ | $DOCKER_STATE}"
   else

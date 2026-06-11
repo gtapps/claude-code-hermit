@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
-# Dispatcher for hermit boot scripts — resolves plugin path by scanning installed plugins
-# Usage: hermit-run <script.py> [args...]
-# Called by hermit-start and hermit-stop wrappers.
+# Dispatcher for hermit boot scripts — resolves plugin path by scanning installed
+# plugins, then hands off to the plugin-shipped scripts/hermit-exec.sh, which owns
+# the script-name → (file, runtime) mapping. Keeping that mapping plugin-side means
+# this wrapper survives runtime changes without another on-disk refresh.
+# Usage: hermit-run <script-name> [args...]
+# Called by hermit-start, hermit-stop, and hermit-watchdog wrappers.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG="$SCRIPT_DIR/../config.json"
-TARGET="${1:?Usage: hermit-run <script.py> [args...]}"
+TARGET="${1:?Usage: hermit-run <script-name> [args...]}"
 shift
 
 if [ ! -f "$CONFIG" ]; then
@@ -48,11 +51,11 @@ if [ -z "$PLUGIN_ROOT" ] || [ ! -d "$PLUGIN_ROOT" ]; then
   exit 1
 fi
 
-SCRIPT="$PLUGIN_ROOT/scripts/$TARGET"
-if [ ! -f "$SCRIPT" ]; then
-  echo "[hermit] $TARGET not found at $PLUGIN_ROOT/scripts/" >&2
+DISPATCH="$PLUGIN_ROOT/scripts/hermit-exec.sh"
+if [ ! -f "$DISPATCH" ]; then
+  echo "[hermit] hermit-exec.sh not found at $PLUGIN_ROOT/scripts/" >&2
   echo "[hermit] Plugin may be corrupted. Reinstall with: claude plugin install claude-code-hermit@claude-code-hermit --scope local" >&2
   exit 1
 fi
 
-exec python3 "$SCRIPT" "$@"
+exec bash "$DISPATCH" "$TARGET" "$@"

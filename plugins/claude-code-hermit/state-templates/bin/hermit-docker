@@ -27,12 +27,10 @@ if [ ! -f "$COMPOSE" ]; then
 fi
 
 # Resolve tmux session name from config
-TMUX_SESSION=$(python3 -c "
-import json, sys, os
-config = json.load(open(sys.argv[1]))
-name = config.get('tmux_session_name', 'hermit-{project_name}')
-project = os.path.basename(sys.argv[2])
-print(name.replace('{project_name}', project))
+TMUX_SESSION=$(bun -e "
+const config = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'));
+const name = config.tmux_session_name ?? 'hermit-{project_name}';
+console.log(name.replace('{project_name}', require('path').basename(process.argv[2])));
 " "$CONFIG" "$PROJECT_DIR" 2>/dev/null || echo "hermit")
 
 # SERVICE is pinned to "hermit". When the security overlay is in use,
@@ -74,6 +72,12 @@ _wait_for_claude_prompt() {
     sleep 2
   done
   return 1
+}
+
+_get_plugin_count() {
+  cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+    claude plugin list --json 2>/dev/null \
+    | bun -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8")).length)' || echo "0"
 }
 
 case "$CMD" in
@@ -142,7 +146,7 @@ case "$CMD" in
   login)
     _require_running
     AUTH_STATUS=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" claude auth status --json 2>/dev/null || echo '{}')
-    PARSED=$(echo "$AUTH_STATUS" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('loggedIn','false')); print(d.get('email','unknown'))" 2>/dev/null || printf 'false\nunknown')
+    PARSED=$(echo "$AUTH_STATUS" | bun -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8')); console.log(d.loggedIn ?? 'false'); console.log(d.email ?? 'unknown');" 2>/dev/null || printf 'false\nunknown')
     LOGGED_IN="${PARSED%%$'\n'*}"
     EMAIL="${PARSED#*$'\n'}"
     if [ "$LOGGED_IN" = "True" ] || [ "$LOGGED_IN" = "true" ]; then
@@ -206,12 +210,10 @@ case "$CMD" in
     [ "$PLUGINS_ONLY" = false ] && CC_LATEST=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
       npm view @anthropic-ai/claude-code version 2>/dev/null || echo "unknown") || true
     PLUGINS_COUNT_BEFORE=0
-    [ "$CC_ONLY" = false ] && PLUGINS_COUNT_BEFORE=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
-      claude plugin list --json 2>/dev/null \
-      | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' || echo "0") || true
+    [ "$CC_ONLY" = false ] && PLUGINS_COUNT_BEFORE=$(_get_plugin_count) || true
     MARKETPLACES=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
       claude plugin marketplace list --json 2>/dev/null \
-      | python3 -c "import json,sys; d=json.load(sys.stdin); print('\n'.join(m.get('name','') for m in d if m.get('name')))" \
+      | bun -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8')); console.log(d.map(m=>m.name||'').filter(Boolean).join('\n'))" \
       2>/dev/null || echo "")
 
     echo "[hermit] Update plan:"
@@ -311,44 +313,40 @@ case "$CMD" in
         | grep -oP '[\d.]+' | head -1 || echo "unknown")
     fi
     PLUGINS_COUNT_AFTER=0
-    [ "$CC_ONLY" = false ] && PLUGINS_COUNT_AFTER=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
-      claude plugin list --json 2>/dev/null \
-      | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' || echo "0") || true
+    [ "$CC_ONLY" = false ] && PLUGINS_COUNT_AFTER=$(_get_plugin_count) || true
     LOG_FILE="$PROJECT_DIR/.claude-code-hermit/state/update-history.jsonl"
     mkdir -p "$(dirname "$LOG_FILE")"
     UPDATE_MODE="full"
     [ "$CC_ONLY" = true ] && UPDATE_MODE="cc-only"
     [ "$PLUGINS_ONLY" = true ] && UPDATE_MODE="plugins-only"
     if [ ${#MARKETPLACES_OK[@]} -gt 0 ]; then
-      OK_JSON=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' -- "${MARKETPLACES_OK[@]}")
+      OK_JSON=$(bun -e 'console.log(JSON.stringify(process.argv.slice(1)))' "${MARKETPLACES_OK[@]}")
     else
       OK_JSON='[]'
     fi
     if [ ${#MARKETPLACES_FAIL[@]} -gt 0 ]; then
-      FAIL_JSON=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' -- "${MARKETPLACES_FAIL[@]}")
+      FAIL_JSON=$(bun -e 'console.log(JSON.stringify(process.argv.slice(1)))' "${MARKETPLACES_FAIL[@]}")
     else
       FAIL_JSON='[]'
     fi
-    python3 - "$UPDATE_MODE" "$CC_BEFORE" "$CC_AFTER" \
-              "$OK_JSON" "$FAIL_JSON" \
-              "$PLUGINS_COUNT_BEFORE" "$PLUGINS_COUNT_AFTER" "$LOG_FILE" "$RELOAD_PLUGINS_SENT" <<'PYEOF' || \
+    bun - "$UPDATE_MODE" "$CC_BEFORE" "$CC_AFTER" \
+          "$OK_JSON" "$FAIL_JSON" \
+          "$PLUGINS_COUNT_BEFORE" "$PLUGINS_COUNT_AFTER" "$LOG_FILE" "$RELOAD_PLUGINS_SENT" <<'JSEOF' || \
       echo "[hermit] Warning: could not write update log" >&2
-import json, sys, time
-mode, cc_before, cc_after, ok_json, fail_json, pb_count, pa_count, log_file, reload_sent = sys.argv[1:]
-entry = {
-    'ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-    'trigger': 'hermit-docker update',
-    'mode': mode,
-    'cc_before': cc_before, 'cc_after': cc_after,
-    'marketplaces_refreshed': json.loads(ok_json),
-    'marketplaces_failed': json.loads(fail_json),
-    'plugins_before_count': int(pb_count),
-    'plugins_after_count': int(pa_count),
-    'reload_plugins_sent': reload_sent == 'true',
-}
-with open(log_file, 'a') as f:
-    f.write(json.dumps(entry) + '\n')
-PYEOF
+const [mode, ccBefore, ccAfter, okJson, failJson, pbCount, paCount, logFile, reloadSent] = process.argv.slice(2);
+const entry = {
+  ts: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+  trigger: 'hermit-docker update',
+  mode,
+  cc_before: ccBefore, cc_after: ccAfter,
+  marketplaces_refreshed: JSON.parse(okJson),
+  marketplaces_failed: JSON.parse(failJson),
+  plugins_before_count: parseInt(pbCount, 10),
+  plugins_after_count: parseInt(paCount, 10),
+  reload_plugins_sent: reloadSent === 'true',
+};
+require('fs').appendFileSync(logFile, JSON.stringify(entry) + '\n');
+JSEOF
 
     echo ""
     echo "[hermit] Update complete."

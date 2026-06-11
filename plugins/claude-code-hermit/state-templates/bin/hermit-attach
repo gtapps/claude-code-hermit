@@ -12,13 +12,13 @@ if [ ! -f "$RUNTIME_FILE" ]; then
   exit 1
 fi
 
-FIELDS=$(python3 -c "
-import json, sys
-try:
-    r = json.load(open(sys.argv[1]))
-    print(r.get('runtime_mode', '') + '\t' + (r.get('tmux_session') or ''))
-except Exception as e:
-    print('\t')
+FIELDS=$(bun -e "
+try {
+  const r = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'));
+  console.log((r.runtime_mode ?? '') + '\t' + (r.tmux_session || ''));
+} catch {
+  console.log('\t');
+}
 " "$RUNTIME_FILE" 2>/dev/null || echo "	")
 
 IFS=$'\t' read -r RUNTIME_MODE TMUX_SESSION <<< "$FIELDS"

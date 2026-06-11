@@ -15,6 +15,7 @@
 ### Changed
 
 - **bun is now a required runtime (>=1.3)** — first step of the bun migration (#18): declared in `hermit-meta.json`, gated by `hermit-evolve` Step 0b (upgrade refuses to proceed without it), pinned in the Docker template (`BUN_VERSION` arg, native installer; the Claude Code CLI stays on npm).
+- **bin/ wrappers: runtime-agnostic dispatch, python3-free** — operator-resident shims delegate to the new plugin-shipped `scripts/hermit-exec.sh`, which owns the script-name → runtime mapping (future runtime changes need no wrapper refresh); inline `python3 -c` in `hermit-status`/`hermit-attach`/`hermit-docker` rewritten to bun. Also fixes a stray `"--"` element in `update-history.jsonl` marketplace arrays.
 - **reflect/judge: artifact-cited evidence path** — efficiency/cost candidates may pass the judge with `Sessions: none` plus an `Artifact:` citation to a machine-written state file (`cost-log.jsonl`, `proposal-metrics.jsonl`, `observations.jsonl`); the judge verifies the file contains the cited values instead of suppressing `no-sessions`. The evidence-integrity rule softens accordingly — prose self-certification stays barred.
 - **proposal-create: push for measurable success_signal** — cost-measurable proposals must fill `## Success Signal` with a `--validate`-checked predicate; an empty section is the documented exception and `## Verification` must say why.
 - **reflect: pattern-absence resolution requires same-area overlap** — absence across 3 sessions only counts when at least one checked session shares a tag with the proposal (tags pooled from the proposal itself and its `related_sessions`); otherwise skip-and-revisit. Stops "stopped doing that kind of work" from auto-resolving as "fixed".
@@ -25,6 +26,9 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 1. Create `.claude-code-hermit/state/observations.jsonl` as an empty file if it does not exist (append-only ledger; `append-metrics.js` also creates it lazily on first write, so pre-upgrade hermits fail open).
 2. No migration of existing sub-threshold memory entries is performed — future observations land in the ledger. Stale pattern-label notes in operator MEMORY.md can be pruned manually at the operator's convenience.
+3. Verify bun is installed before anything else (Step 0b is the hard gate): `bun --version` must be >= 1.3.0. If missing: `curl -fsSL https://bun.sh/install | bash`.
+4. Refresh ALL on-disk boot wrappers (Step 5b's byte-compare will list every `bin/` file as changed — copy each from `state-templates/bin/`). The old wrappers exec `python3` directly and break when the Python scripts are removed from the plugin.
+5. Note for Docker operators: `hermit-status`, `hermit-attach`, and `hermit-docker` run on the HOST and now use bun there — install bun on the host even when the hermit itself runs in the container.
 
 ## [1.1.12] - 2026-06-10
 
