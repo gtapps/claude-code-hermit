@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **tests run on bun** — the test runner invokes `bun` instead of `node` (bun migration, core #18).
+
+---
+
 ## [0.0.7] - 2026-06-04
 
 ### Added
