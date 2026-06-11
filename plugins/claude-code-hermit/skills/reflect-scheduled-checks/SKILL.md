@@ -135,7 +135,7 @@ Adjustments always go through PROP-NNN — this skill never auto-adjusts.
 Write the state delta directly to `state/reflection-state.json → scheduled_checks.<id>`:
 
 ```bash
-node -e "
+bun -e "
 const fs=require('fs');
 const f='.claude-code-hermit/state/reflection-state.json';
 try {

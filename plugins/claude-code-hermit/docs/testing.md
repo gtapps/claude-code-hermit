@@ -57,7 +57,7 @@ For hooks that read `.claude-code-hermit/sessions/SHELL.md`, ensure the file exi
 
 When adding or modifying a hook:
 
-1. **Happy-path test** — add a fixture input and assert exit 0 in `run-hooks.sh`
+1. **Happy-path test** — add a fixture input and assert exit 0 in `hooks.contract.test.ts`
 2. **Empty-stdin test** — verify `echo '' | bun scripts/your-hook.ts` exits 0 without crashing
 3. **Output validation** — if the hook writes files, assert they exist and contain valid data
 
@@ -72,9 +72,9 @@ All hooks follow this contract:
 | **Profile gating** | Use `run-with-profile.ts` or check `AGENT_HOOK_PROFILE` internally. Valid profiles: `minimal`, `standard`, `strict`. |
 | **File paths**     | Resolved relative to cwd (the target project root).                                                                  |
 
-### No Test Framework
+### Test Framework
 
-Tests are shell scripts. No Jest, Vitest, or anything else. This is a design constraint — see [Contributing](../CONTRIBUTING.md).
+Hook contract tests live in `tests/hooks.contract.test.ts` and run with `bun test` (no extra dependencies — `bun:test` is built in). The remaining suites are shell/Python scripts. No Jest, Vitest, or anything else — see [Contributing](../CONTRIBUTING.md).
 
 ---
 
@@ -91,7 +91,7 @@ Runs 20+ Python-based contract tests that verify:
 - State file ownership constraints
 - Profile-gating correctness
 
-These are stricter than `run-hooks.sh` — they test the plugin's behavioral contracts, not just exit codes.
+These are stricter than `hooks.contract.test.ts` — they test the plugin's behavioral contracts, not just exit codes.
 
 ### Fixture: cron-test-corpus.json
 
