@@ -1,0 +1,10 @@
+{
+  "name": "claude-code-hermit-monorepo",
+  "private": true,
+  "description": "Dev-only toolchain for the hermit plugin monorepo. Shipped plugins have zero runtime dependencies — bun runs their .ts sources directly; these devDependencies exist solely for `bunx tsc --noEmit` typechecking and test-only fuzzing.",
+  "devDependencies": {
+    "@types/bun": "~1.3.11",
+    "fast-check": "^4.1.0",
+    "typescript": "~5.8.0"
+  }
+}
