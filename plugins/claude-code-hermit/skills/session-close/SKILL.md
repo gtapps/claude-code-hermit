@@ -17,6 +17,8 @@ If watches are registered (`state/monitors.runtime.json` has entries), stop all 
 
 session-mgr handles updating both SHELL.md (cosmetic) and `state/runtime.json` (lifecycle truth) during archiving. For full shutdown, session-mgr sets `shutdown_completed_at` in runtime.json.
 
+> **Tool note:** `claude-code-hermit:session-mgr` is a **subagent** — invoke it via the Agent tool, never the Skill tool. The `plugin:name` form it shares with skills does not imply the Skill tool.
+
 ---
 
 ## Full Shutdown

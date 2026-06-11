@@ -4,6 +4,8 @@ description: Initializes or resumes a work session. Loads context from OPERATOR.
 ---
 # Session Start
 
+> **Tool note:** `claude-code-hermit:session-mgr` is a **subagent** — invoke it via the Agent tool, never the Skill tool. The `plugin:name` form it shares with skills does not imply the Skill tool.
+
 ## Operator Notification
 Notify the operator per the channel policy in CLAUDE.md (§ Operator Notification).
 

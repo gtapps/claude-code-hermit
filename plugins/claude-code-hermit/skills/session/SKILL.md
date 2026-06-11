@@ -46,6 +46,8 @@ When the work is done, or the operator decides to move on (even if partial or bl
 
 **Completion notification is the final step of this flow, not a substitute for it.** Skipping the session-mgr idle transition (step 6 below) leaves the session `in_progress`, which triggers stale-session heartbeat alerts and delays report archival until the time-based backstops kick in.
 
+> **Tool note:** `claude-code-hermit:session-mgr` is a **subagent** — invoke it via the Agent tool, never the Skill tool. The `plugin:name` form it shares with skills does not imply the Skill tool.
+
 1. Compile final session data **in context** — do NOT write to SHELL.md at this point. session-mgr owns the final write. Gather:
    - `Status:` one of `completed` | `partial` | `blocked`
    - `Blockers:` one line each, enough context for a cold start
