@@ -13,6 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { runScript, SCRIPTS_DIR } from './helpers/run';
+import { inActiveHours } from '../scripts/hermit-watchdog';
 
 // The one line to flip when hermit-watchdog is ported to TypeScript.
 // (Absolute bun path via process.execPath: Bun.spawn resolves the executable
@@ -466,3 +467,19 @@ test.if(isLinux)('uninstall without systemctl → exit 0, no traceback', withHer
   expect(r.exitCode).toBe(0);
   expect(r.stdout + r.stderr).not.toContain('Traceback');
 }));
+
+// ---------- inActiveHours unit tests ----------
+// 2026-06-11T03:00:00Z → 12:00 Asia/Tokyo (inside 09:00-17:00), 23:00 America/New_York (outside)
+const ACTIVE_WINDOW = { start: '09:00', end: '17:00' };
+const REF = new Date('2026-06-11T03:00:00Z');
+
+describe('inActiveHours (timezone)', () => {
+  test('honours config.timezone, not the machine clock', () => {
+    expect(inActiveHours(ACTIVE_WINDOW, 'Asia/Tokyo', REF)).toBe(true);
+    expect(inActiveHours(ACTIVE_WINDOW, 'America/New_York', REF)).toBe(false);
+  });
+
+  test('fail-open on unparseable timezone', () => {
+    expect(inActiveHours(ACTIVE_WINDOW, 'Not/AZone', REF)).toBe(true);
+  });
+});

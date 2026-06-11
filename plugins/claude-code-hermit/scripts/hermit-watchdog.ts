@@ -22,7 +22,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { acquireLock, releaseLock } from './lib/lockfile';
-import { utcISOStamp as utcStamp } from './lib/time';
+import { utcISOStamp as utcStamp, currentHHMM } from './lib/time';
 import { writeRuntimeJson, readRuntimeJson, STATE_DIR, LIFECYCLE_LOCK } from './lib/runtime';
 
 type Json = any;
@@ -131,15 +131,15 @@ function getFileAgeSecs(p: string): number | null {
   }
 }
 
-/** True if local time is within the active_hours window. */
-function inActiveHours(activeHours: Json): boolean {
+/** True if the current time in `timezone` is within the active_hours window. Pass `ref` to override the reference instant. */
+export function inActiveHours(activeHours: Json, timezone: string, ref?: Date): boolean {
   try {
-    const [sh, sm] = String(activeHours.start ?? '00:00').split(':').map(Number);
-    const [eh, em] = String(activeHours.end ?? '23:59').split(':').map(Number);
-    if ([sh, sm, eh, em].some((n) => !Number.isInteger(n))) return true; // fail-open
-    const now = new Date();
-    const nowMins = now.getHours() * 60 + now.getMinutes();
-    return sh * 60 + sm <= nowMins && nowMins <= eh * 60 + em;
+    const start = String(activeHours.start ?? '00:00');
+    const end = String(activeHours.end ?? '23:59');
+    if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) return true; // fail-open on malformed window
+    const now = currentHHMM(timezone, ref);
+    if (now === null) return true; // fail-open on unparseable tz
+    return start <= now && now <= end;
   } catch {
     return true; // fail-open
   }
@@ -297,7 +297,7 @@ function main(): void {
   if (heartbeatIsObj && ('enabled' in heartbeatCfg ? heartbeatCfg.enabled : true)) {
     const activeHours = heartbeatCfg.active_hours;
     const activeHoursIsObj = activeHours && typeof activeHours === 'object' && !Array.isArray(activeHours);
-    if (!activeHoursIsObj || inActiveHours(activeHours)) {
+    if (!activeHoursIsObj || inActiveHours(activeHours, config.timezone ?? 'UTC')) {
       const heartbeatEverySecs = parseDuration(heartbeatCfg.every ?? '2h');
       const staleThresholdSecs = heartbeatEverySecs * staleFactor;
 
