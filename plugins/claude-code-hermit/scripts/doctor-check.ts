@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
+import { parseDuration } from './lib/time';
 import { globDir, readFrontmatter } from './lib/frontmatter';
 import { validate } from './validate-config';
 import { kStr } from './lib/format';
@@ -628,6 +629,75 @@ function checkWatchdog() {
   }
 }
 
+function checkHeartbeat() {
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    const hbCfg = config.heartbeat || {};
+
+    if (!hbCfg.enabled) {
+      return { id: 'heartbeat', status: 'ok', detail: 'heartbeat: disabled' };
+    }
+
+    const runtimePath = path.join(stateDir, 'runtime.json');
+    if (!fs.existsSync(runtimePath)) {
+      return { id: 'heartbeat', status: 'ok', detail: 'heartbeat: enabled, no runtime state' };
+    }
+    const rt = JSON.parse(fs.readFileSync(runtimePath, 'utf-8'));
+    const sessionState = rt.session_state;
+    if (sessionState !== 'in_progress' && sessionState !== 'waiting') {
+      return { id: 'heartbeat', status: 'ok', detail: `heartbeat: enabled, no active session (state=${sessionState ?? 'unknown'})` };
+    }
+
+    const threshold = 3 * parseDuration(hbCfg.every, 2 * 3600000);
+    const now = Date.now();
+
+    const livenessPath = path.join(stateDir, 'heartbeat-liveness.json');
+    let lastPeekAt: number | null = null;
+    try {
+      const liveness = JSON.parse(fs.readFileSync(livenessPath, 'utf-8'));
+      if (typeof liveness.last_peek_at === 'string') {
+        const t = Date.parse(liveness.last_peek_at);
+        if (Number.isFinite(t)) lastPeekAt = t;
+      }
+    } catch { /* missing or unparseable — handled below */ }
+
+    if (lastPeekAt !== null) {
+      const ageMs = now - lastPeekAt;
+      if (ageMs > threshold) {
+        const ageStr = `${Math.round(ageMs / 60000)}m ago`;
+        return {
+          id: 'heartbeat',
+          status: 'fail',
+          detail: `heartbeat not ticking — Monitor subprocess spawn likely blocked (seccomp / nested-userns in container); shell /watch streams are dead too. Last tick: ${ageStr}.`,
+        };
+      }
+      return { id: 'heartbeat', status: 'ok', detail: `heartbeat: ticking (last tick ${Math.round(ageMs / 60000)}m ago)` };
+    }
+
+    // Liveness file absent — check grace period via monitor registration time.
+    let startedAt: number | null = null;
+    try {
+      const monRt = JSON.parse(fs.readFileSync(path.join(stateDir, 'heartbeat-monitor.runtime.json'), 'utf-8'));
+      if (typeof monRt.started_at === 'string') {
+        const t = Date.parse(monRt.started_at);
+        if (Number.isFinite(t)) startedAt = t;
+      }
+    } catch { /* missing or unparseable */ }
+
+    if (startedAt !== null && (now - startedAt) >= threshold) {
+      return {
+        id: 'heartbeat',
+        status: 'fail',
+        detail: `heartbeat not ticking — Monitor subprocess spawn likely blocked (seccomp / nested-userns in container); shell /watch streams are dead too. Last tick: never.`,
+      };
+    }
+
+    return { id: 'heartbeat', status: 'ok', detail: 'heartbeat: warming up — monitor registered, first tick pending' };
+  } catch (e: any) {
+    return { id: 'heartbeat', status: 'fail', detail: `check failed: ${e.message}` };
+  }
+}
+
 // ----------------- Orchestration -----------------
 
 function runAllChecks() {
@@ -645,6 +715,7 @@ function runAllChecks() {
     checkReflectLoop(),
     checkScheduler(),
     checkWatchdog(),
+    checkHeartbeat(),
   ];
 }
 
@@ -666,7 +737,7 @@ export {
   checkRuntime, checkConfig, checkHooks, checkStateFiles,
   checkCost, checkProposals, checkDependencies, checkPermissions,
   checkDockerSecurity, checkArchival, checkReflectLoop, checkScheduler,
-  checkWatchdog,
+  checkWatchdog, checkHeartbeat,
   satisfiesRange, cidrOverlap,
   runAllChecks, writeReport,
 };

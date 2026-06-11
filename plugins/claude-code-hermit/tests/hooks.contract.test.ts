@@ -15,7 +15,7 @@ import path from 'node:path';
 
 import { runScript, PLUGIN_ROOT, MONOREPO_ROOT } from './helpers/run';
 import { setupWorkdir, setupGitWorkdir, fixturesDir, type Workdir } from './helpers/workdir';
-import { cidrOverlap } from '../scripts/doctor-check';
+import { cidrOverlap, checkHeartbeat } from '../scripts/doctor-check';
 
 // ---------- small local helpers ----------
 
@@ -762,13 +762,13 @@ describe('channel-reply-reminder', () => {
 // -------------------------------------------------------
 
 describe('doctor-check', () => {
-  test('doctor-check (minimal install, 13 checks)', withDir(async (dir) => {
+  test('doctor-check (minimal install, 14 checks)', withDir(async (dir) => {
     seedDoctor(dir,
       '{"agent_name":"test","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"active_hours":{"start":"08:00","end":"23:00"}},"routines":[]}');
     const report = await doctorReport(dir);
     expect(report.checks.map((c: any) => c.id)).toEqual([
       'runtime', 'config', 'hooks', 'state', 'cost', 'proposals', 'dependencies',
-      'permissions', 'docker-security', 'archive', 'reflect', 'scheduler', 'watchdog',
+      'permissions', 'docker-security', 'archive', 'reflect', 'scheduler', 'watchdog', 'heartbeat',
     ]);
   }));
 
@@ -831,6 +831,69 @@ describe('doctor-check', () => {
     fs.rmSync(hermit(dir, 'config.json'), { force: true });
     const c = checkById(await doctorReport(dir), 'config');
     expect(c.status).toBe('fail');
+  }));
+
+  // heartbeat check unit cases (subprocess via doctorReport + seedDoctor)
+  test('doctor-check heartbeat: disabled → ok', withDir(async (dir) => {
+    seedDoctor(dir, '{"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":false},"routines":[]}');
+    const c = checkById(await doctorReport(dir), 'heartbeat');
+    expect(c.status).toBe('ok');
+    expect(c.detail).toContain('disabled');
+  }));
+
+  test('doctor-check heartbeat: enabled + no active session → ok', withDir(async (dir) => {
+    seedDoctor(dir);
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"idle"}');
+    const c = checkById(await doctorReport(dir), 'heartbeat');
+    expect(c.status).toBe('ok');
+  }));
+
+  test('doctor-check heartbeat: enabled + active session + fresh liveness → ok', withDir(async (dir) => {
+    seedDoctor(dir);
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"in_progress"}');
+    write(hermit(dir, 'state', 'heartbeat-liveness.json'), `{"last_peek_at":"${new Date().toISOString()}"}`);
+    const c = checkById(await doctorReport(dir), 'heartbeat');
+    expect(c.status).toBe('ok');
+    expect(c.detail).toContain('ticking');
+  }));
+
+  test('doctor-check heartbeat: enabled + active session + stale liveness → fail', withDir(async (dir) => {
+    seedDoctor(dir, '{"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"every":"2h"},"routines":[]}');
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"in_progress"}');
+    // 7h ago — well past 3×2h=6h threshold
+    const stale = new Date(Date.now() - 7 * 3600 * 1000).toISOString();
+    write(hermit(dir, 'state', 'heartbeat-liveness.json'), `{"last_peek_at":"${stale}"}`);
+    const c = checkById(await doctorReport(dir), 'heartbeat');
+    expect(c.status).toBe('fail');
+    expect(c.detail).toContain('Monitor subprocess spawn');
+  }));
+
+  test('doctor-check heartbeat: active session + liveness missing + recent started_at → ok (warming up)', withDir(async (dir) => {
+    seedDoctor(dir);
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"in_progress"}');
+    write(hermit(dir, 'state', 'heartbeat-monitor.runtime.json'), `{"started_at":"${new Date().toISOString()}"}`);
+    const c = checkById(await doctorReport(dir), 'heartbeat');
+    expect(c.status).toBe('ok');
+    expect(c.detail).toContain('warming up');
+  }));
+
+  test('doctor-check heartbeat: active session + liveness missing + old started_at → fail', withDir(async (dir) => {
+    seedDoctor(dir, '{"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"every":"2h"},"routines":[]}');
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"in_progress"}');
+    const old = new Date(Date.now() - 7 * 3600 * 1000).toISOString();
+    write(hermit(dir, 'state', 'heartbeat-monitor.runtime.json'), `{"started_at":"${old}"}`);
+    const c = checkById(await doctorReport(dir), 'heartbeat');
+    expect(c.status).toBe('fail');
+    expect(c.detail).toContain('Monitor subprocess spawn');
+  }));
+
+  test('doctor-check heartbeat: active session + liveness missing + no started_at → ok (not yet registered)', withDir(async (dir) => {
+    seedDoctor(dir);
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"in_progress"}');
+    // No heartbeat-monitor.runtime.json at all
+    const c = checkById(await doctorReport(dir), 'heartbeat');
+    expect(c.status).toBe('ok');
+    expect(c.detail).toContain('warming up');
   }));
 });
 

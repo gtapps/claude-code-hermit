@@ -673,15 +673,20 @@ describe('heartbeat-monitor', () => {
     return { path: p, cleanup: () => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch {} } };
   }
 
-  /** One monitor iteration with the precheck stubbed out; returns stdout (stderr discarded). */
-  async function monitorOnce(stubBody: string): Promise<string> {
+  /** One monitor iteration with the precheck stubbed out; returns stdout and the temp hermit dir. */
+  async function monitorOnce(stubBody: string): Promise<{ stdout: string; hbDir: string; cleanup(): void }> {
     const stub = makeStub(stubBody);
+    const hbDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hb-hermit-'));
     try {
       const r = await runBash(MONITOR_SH, {
-        args: ['60', '/tmp'],
+        args: ['60', hbDir],
         env: { HEARTBEAT_MONITOR_ONCE: '1', HEARTBEAT_PRECHECK: stub.path },
       });
-      return r.stdout.trimEnd();
+      return {
+        stdout: r.stdout.trimEnd(),
+        hbDir,
+        cleanup: () => { try { fs.rmSync(hbDir, { recursive: true, force: true }); } catch {} },
+      };
     } finally {
       stub.cleanup();
     }
@@ -689,48 +694,79 @@ describe('heartbeat-monitor', () => {
 
   // 20b. EVALUATE on iter-1 → silent (cold-start suppression)
   test('heartbeat-monitor (iter-1 EVALUATE → silent, cold-start suppressed)', async () => {
-    expect(await monitorOnce('process.stdout.write("EVALUATE\\n");\n')).toBe('');
+    const r = await monitorOnce('process.stdout.write("EVALUATE\\n");\n');
+    r.cleanup();
+    expect(r.stdout).toBe('');
   });
 
   // 20c. EVALUATE with suffix on iter-1 → silent (prefix match still suppressed)
   test('heartbeat-monitor (iter-1 EVALUATE|micro-pending → silent)', async () => {
-    expect(await monitorOnce('process.stdout.write("EVALUATE|micro-pending\\n");\n')).toBe('');
+    const r = await monitorOnce('process.stdout.write("EVALUATE|micro-pending\\n");\n');
+    r.cleanup();
+    expect(r.stdout).toBe('');
   });
 
   // 20d. AUTO_CLOSE → HEARTBEAT_EVALUATE
   test('heartbeat-monitor (AUTO_CLOSE → HEARTBEAT_EVALUATE)', async () => {
-    expect(await monitorOnce('process.stdout.write("AUTO_CLOSE\\n");\n')).toBe('HEARTBEAT_EVALUATE');
+    const r = await monitorOnce('process.stdout.write("AUTO_CLOSE\\n");\n');
+    r.cleanup();
+    expect(r.stdout).toBe('HEARTBEAT_EVALUATE');
   });
 
   // 20e. OK → silent (no output)
   test('heartbeat-monitor (OK → silent)', async () => {
-    expect(await monitorOnce('process.stdout.write("OK\\n");\n')).toBe('');
+    const r = await monitorOnce('process.stdout.write("OK\\n");\n');
+    r.cleanup();
+    expect(r.stdout).toBe('');
   });
 
   // 20f. SKIP|outside-hours → silent
   test('heartbeat-monitor (SKIP|outside-hours → silent)', async () => {
-    expect(await monitorOnce('process.stdout.write("SKIP|outside-hours\\n");\n')).toBe('');
+    const r = await monitorOnce('process.stdout.write("SKIP|outside-hours\\n");\n');
+    r.cleanup();
+    expect(r.stdout).toBe('');
   });
 
   // 20g. precheck nonzero exit → HEARTBEAT_ERROR: precheck failed
   test('heartbeat-monitor (nonzero exit → HEARTBEAT_ERROR: precheck failed)', async () => {
-    const out = await monitorOnce('process.stderr.write("crash\\n"); process.exit(1);\n');
-    expect(out).toContain('HEARTBEAT_ERROR: precheck failed');
+    const r = await monitorOnce('process.stderr.write("crash\\n"); process.exit(1);\n');
+    r.cleanup();
+    expect(r.stdout).toContain('HEARTBEAT_ERROR: precheck failed');
   });
 
   // 20h. unknown verdict → HEARTBEAT_ERROR: unknown verdict
   test('heartbeat-monitor (unknown verdict → HEARTBEAT_ERROR: unknown verdict)', async () => {
-    const out = await monitorOnce('process.stdout.write("WHATEVER\\n");\n');
-    expect(out).toContain('HEARTBEAT_ERROR: unknown verdict');
+    const r = await monitorOnce('process.stdout.write("WHATEVER\\n");\n');
+    r.cleanup();
+    expect(r.stdout).toContain('HEARTBEAT_ERROR: unknown verdict');
+  });
+
+  // 20j. liveness file written on every iteration
+  test('heartbeat-monitor (liveness file written with fresh last_peek_at)', async () => {
+    const before = Date.now();
+    const r = await monitorOnce('process.stdout.write("OK\\n");\n');
+    try {
+      const livenessPath = path.join(r.hbDir, 'state', 'heartbeat-liveness.json');
+      expect(fs.existsSync(livenessPath)).toBe(true);
+      const liveness = JSON.parse(fs.readFileSync(livenessPath, 'utf-8'));
+      expect(typeof liveness.last_peek_at).toBe('string');
+      const t = new Date(liveness.last_peek_at).getTime();
+      // date -u has 1s precision; allow up to 1s before `before`
+      expect(t).toBeGreaterThanOrEqual(before - 1000);
+      expect(t).toBeLessThanOrEqual(Date.now() + 5000);
+    } finally {
+      r.cleanup();
+    }
   });
 
   // 20i. EVALUATE on iter-2 → HEARTBEAT_EVALUATE (suppression is first-iteration-only).
   // Runs without HEARTBEAT_MONITOR_ONCE so the loop can reach iter-2; bounded by timeout(1).
   test('heartbeat-monitor (iter-2 EVALUATE → HEARTBEAT_EVALUATE, suppression not permanent)', async () => {
     const stub = makeStub('process.stdout.write("EVALUATE\\n");\n');
+    const hbDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hb-hermit-'));
     try {
       const proc = Bun.spawn({
-        cmd: ['timeout', '3', 'bash', MONITOR_SH, '1', '/tmp'],
+        cmd: ['timeout', '3', 'bash', MONITOR_SH, '1', hbDir],
         env: { ...process.env, HEARTBEAT_PRECHECK: stub.path },
         stdin: Buffer.from(''),
         stdout: 'pipe',
@@ -740,6 +776,7 @@ describe('heartbeat-monitor', () => {
       expect(stdout).toContain('HEARTBEAT_EVALUATE');
     } finally {
       stub.cleanup();
+      try { fs.rmSync(hbDir, { recursive: true, force: true }); } catch {}
     }
   }, 10000);
 });

@@ -10,7 +10,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { currentHHMM, todayYMD } from './lib/time';
+import { currentHHMM, todayYMD, parseDuration } from './lib/time';
 
 type Json = any;
 
@@ -42,15 +42,6 @@ function normalizeItemKey(itemText: string): string | null {
     .replace(/[^a-z0-9]/g, '')
     .slice(0, 8);
   return text ? `checklist:${text}` : null;
-}
-
-// Same unit set the heartbeat skill uses for `every`.
-function parseDuration(str: Json, defaultMs: number): number {
-  if (typeof str !== 'string') return defaultMs;
-  const m = str.trim().match(/^(\d+)\s*([smh])$/i);
-  if (!m) return defaultMs;
-  const mult = ({ s: 1000, m: 60000, h: 3600000 } as Record<string, number>)[m[2].toLowerCase()];
-  return parseInt(m[1], 10) * mult;
 }
 
 // Resolve "now" once: real wall-clock, overridable by HERMIT_NOW for deterministic

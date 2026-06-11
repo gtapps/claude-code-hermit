@@ -45,4 +45,14 @@ function utcISOStamp(): string {
   return new Date().toISOString().slice(0, 19) + 'Z';
 }
 
-export { currentHHMM, todayYMD, localISOStamp, utcISOStamp };
+// Parses a duration string like "30s", "5m", "2h" to milliseconds.
+// Returns defaultMs on any parse failure.
+function parseDuration(str: unknown, defaultMs: number): number {
+  if (typeof str !== 'string') return defaultMs;
+  const m = str.trim().match(/^(\d+)\s*([smh])$/i);
+  if (!m) return defaultMs;
+  const mult = ({ s: 1000, m: 60000, h: 3600000 } as Record<string, number>)[m[2].toLowerCase()];
+  return parseInt(m[1], 10) * mult;
+}
+
+export { currentHHMM, todayYMD, localISOStamp, utcISOStamp, parseDuration };

@@ -4,6 +4,8 @@
 
 ### Added
 
+- **heartbeat liveness check in `/hermit-doctor`** (#346) — `heartbeat-monitor.sh` writes `state/heartbeat-liveness.json` (`last_peek_at`) on every poll iteration; `doctor-check.ts` gains a `heartbeat` check (14 JSON checks total) that fails with a seccomp/container diagnosis when an active session's heartbeat has not ticked in 3× the configured interval. Closes the silent-death hole where a Monitor subprocess blocked by kernel restrictions reported fully healthy. `parseDuration` moved to `scripts/lib/time.ts` (shared with precheck). Report grows to fifteen lines (fourteen JSON + sandbox).
+
 - **deny-patterns: block Edit/Write to installed plugin source** — a hermit can no longer modify its own files under `~/.claude/plugins/marketplaces/` (#351).
 
 - **doctor-check: `runtime` check (bun)** — verifies bun presence and version against `required_bun_version` in `hermit-meta.json` (report grows to 13 checks); `hermit-start` preflight hard-errors when bun is missing or below 1.3.0.
@@ -38,6 +40,10 @@
 - **reflect: pattern-absence resolution requires same-area overlap** — absence across 3 sessions only counts when at least one checked session shares a tag with the proposal (tags pooled from the proposal itself and its `related_sessions`); otherwise skip-and-revisit. Stops "stopped doing that kind of work" from auto-resolving as "fixed".
 
 ### Upgrade Instructions
+
+1. Run `/claude-code-hermit:heartbeat start` (or wait for the next session start) to restart the monitor so it begins writing `state/heartbeat-liveness.json`. An already-running monitor does not pick up the change automatically. Once the first iteration completes, `state/heartbeat-liveness.json` appears and `/hermit-doctor` can evaluate heartbeat liveness.
+2. `state/heartbeat-liveness.json` is runtime-created — no manual seeding required.
+3. To disable the heartbeat doctor check: set `heartbeat.enabled: false` in `config.json` (check returns `ok: disabled`).
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
