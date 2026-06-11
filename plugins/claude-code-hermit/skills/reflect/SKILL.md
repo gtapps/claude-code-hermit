@@ -15,7 +15,7 @@ If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --qu
 - **Skip the precheck** entirely — the cadence gate does not apply.
 - **Bind `$PHASE = adult`** — skip the compute phase eval.
 - **Skip the cost_spike read, proposal scan, Resolution Check, and Component Health section.** Only the live SHELL.md scan + judge + outcomes path runs.
-- Read SHELL.md `## Findings` and `## Blockers` for actionable patterns. **Only Tier-1 + `Evidence Source: current-session` candidates are eligible** — see § Three-Condition Rule, condition 1. Candidates that would need archived-session evidence or belong to Tier 2/3 are deferred silently to the next scheduled reflect. **Exception:** a `current-session` candidate with `Evidence Origin: external-content` (see § Proposal Tier Classification) is **not** deferred — send it to the judge and let the Tier-3 escalation route it to `proposal-create`.
+- Read SHELL.md `## Findings` and `## Blockers` for actionable patterns. **Only Tier-1 + `Evidence Source: current-session` candidates are eligible** — see § Three-Condition Rule, condition 1. Candidates that would need archived-session evidence or belong to Tier 2/3 are deferred to the next scheduled reflect — append one ledger entry per deferred candidate (`node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/observations.jsonl '{"ts":"<now ISO>","pattern":"<candidate-title-slug>","session_id":"<S-NNN>","source":"quick-deferral"}'`) so the signal survives session archival and can graduate by recurrence (§ Outcomes). **Exception:** a `current-session` candidate with `Evidence Origin: external-content` (see § Proposal Tier Classification) is **not** deferred — send it to the judge and let the Tier-3 escalation route it to `proposal-create`.
 - For each candidate that passes the evidence integrity rule, run `claude-code-hermit:proposal-triage`. Collect candidates where triage returned CREATE, then make a single `claude-code-hermit:reflection-judge` call for those candidates (see § Evidence Validation for input/output format). Route each ACCEPT/DOWNGRADE verdict through the standard Outcomes path (micro-approval queue for Tier 1/2, `/claude-code-hermit:proposal-create` for Tier 3).
 - Append one Progress Log line: `[HH:MM] reflect (quick, post-routine) — N candidates; verdicts: accept=A downgrade=D suppress=S; outcomes: <list or "none">`.
 - **Do not call `update-reflection-state.js`** — quick runs are event-driven, not cadence ticks. Mutating `last_run_at` would suppress the next scheduled reflect. Consequence: judge verdicts from quick runs do not accumulate into the Component Health counters (`judge_accept` / `judge_suppress`); on daemons with frequent `reflect_after` use, those counters will under-represent total judge activity. This is intentional — cadence preservation wins.
@@ -29,7 +29,16 @@ If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --qu
    - `EMPTY` → the precheck found no due phases and no compute activity. It has already updated `reflection-state.json` and appended the mandatory Progress Log line to SHELL.md. Emit `reflect: no candidates` and stop.
    - `RUN|<phases-json>` → continue to step 2. The JSON object lists which phases are due (`cost_spike`, `resolution_check`, `compute`, `digest`, `newborn`). Skip evaluation sections for phases not listed — they are not due this run.
 2. Read SHELL.md for current context. **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**
-3. Read last 20 lines of cost-log.jsonl. If `cost_spike` is listed in the phases JSON: compute today's total and the 7-day median. If today's total > 2× the 7-day median (and both are non-zero), record the spike to project memory as a sub-threshold observation with pattern `cost_spike: $X.XX vs 7d median $Y.YY` and today's session_id — it becomes input to later reflects and may graduate via the recurrence rule. If `cost_spike` is not listed, skip this read.
+3. Read last 20 lines of cost-log.jsonl. If `cost_spike` is listed in the phases JSON: compute today's total and the 7-day median. If today's total > 2× the 7-day median (and both are non-zero), record the spike as a sub-threshold observation in the ledger: `node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/observations.jsonl '{"ts":"<now ISO>","pattern":"cost_spike: $X.XX vs 7d median $Y.YY","session_id":"<S-NNN>","source":"cost-spike"}'` — it becomes input to later reflects and may graduate via the step 3b recurrence promotion. If `cost_spike` is not listed, skip this read.
+
+3b. **Observations ledger** — prune, then graduate recurring patterns.
+   - Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/prune-observations.js .claude-code-hermit` (fail-open; prints `pruned N, kept M`).
+   - Read `state/observations.jsonl` (skip silently if absent or empty). Parse per-line with `try { JSON.parse(line) } catch {}`; group entries by `pattern`.
+   - Any pattern with **≥2 distinct `session_id`s, at least one not the current session** (reflect cannot graduate something it appended this run), is mechanically promoted to a proposal candidate:
+     - `Evidence Source: archived-session`
+     - `Sessions: <the distinct session_ids>`
+     - `Artifact: state/observations.jsonl — pattern "<label>" in N sessions`
+     Route it through triage + judge like any other candidate (§ Evidence Validation, § Outcomes). Patterns below the threshold stay in the ledger untouched.
 4. **Compute phase** — gates adapt to hermit age so cold-start installs produce visible output without eroding mature-hermit rigor.
    - Read `counters.since` from `state/reflection-state.json` (set once at hatch, never rewritten). If missing or unparseable → default `$PHASE = adult` and continue. Never block.
    - `age_days` = whole days between `counters.since` and now.
@@ -118,7 +127,7 @@ Only create a proposal if all three are true:
 3. **Operator-actionable change** — something the operator can concretely approve
 
 If any of the three cannot be stated concretely, do not create the proposal.
-Sub-threshold observations (interesting but failing the rule) are recorded to project memory so they can graduate on later recurrence — see the Outcomes section.
+Sub-threshold observations (interesting but failing the rule) are appended to the observations ledger (`state/observations.jsonl`) so they can graduate on later recurrence — see the Outcomes section.
 
 If `runtime.json` `session_state` is `idle` — think broader:
 - Should any recurring check be added to HEARTBEAT.md?
@@ -269,6 +278,7 @@ Evidence Source: archived-session | current-session | scheduled-check/<id> | ope
 Evidence Origin: own-work | external-content
 Evidence: <summary>
 Sessions: <S-001, S-002, ...> (or "none")
+Artifact: <machine-written state file> — <cited value/pattern>   (optional)
 
 Candidate: <next title>
 Tier: <1|2|3>
@@ -277,6 +287,8 @@ Evidence Origin: ...
 Evidence: ...
 Sessions: ...
 ```
+
+`Artifact:` is optional. A valid artifact is a **machine-written state file** only (`.claude/cost-log.jsonl`, `state/proposal-metrics.jsonl`, `state/observations.jsonl`) — SHELL.md, session reports, and `compiled/` prose are never artifacts. Ledger-graduated candidates from step 3b always carry it.
 
 The judge returns one verdict line per candidate, matched by `<title>`. Apply the routing below to each line independently.
 
@@ -297,15 +309,15 @@ Only act on ACCEPT and DOWNGRADE verdicts. `proposal-triage` (the gate in § Pro
 After reflecting and validating with `claude-code-hermit:reflection-judge`, choose exactly one outcome per observation:
 
 1. **No action** — pattern not strong enough, already handled, or already addressed by the Resolution Check above.
-2. **Memory update** — for sub-threshold patterns AND for **durable lessons** worth remembering for future sessions: operator-stated rules, preferences that recurred, decision rationales that may apply later, workflow patterns that worked. For any such observation, issue the standard "remember it" reflection — Claude's trained auto-memory flow handles the write. Use auto-memory's discipline (concise, MEMORY.md ≤ 200 lines / 25KB, topic files for detail, respect WHAT_NOT_TO_SAVE — no file paths, debugging recipes, or facts derivable from grep). Save nothing if nothing rises above noise.
+2. **Memory update** — for **durable lessons** worth remembering for future sessions: operator-stated rules, preferences that recurred, decision rationales that may apply later, workflow patterns that worked. For any such observation, issue the standard "remember it" reflection — Claude's trained auto-memory flow handles the write. Use auto-memory's discipline (concise, MEMORY.md ≤ 200 lines / 25KB, topic files for detail, respect WHAT_NOT_TO_SAVE — no file paths, debugging recipes, or facts derivable from grep). Save nothing if nothing rises above noise. Sub-threshold *patterns* do NOT go to memory — they go to the observations ledger (see below); keeping the recurrence store separate from operator memory is what prevents the judge's `covered-by-memory` check from suppressing a pattern at the moment it graduates.
 3. **Proposal candidate** — repeated pattern + clear consequence + operator-actionable
    → classify tier (see Proposal Tier Classification below):
    - Tier 1/2: gate with `claude-code-hermit:proposal-triage` first (see below), then queue micro-approval in `state/micro-proposals.json`
    - Tier 3: gate with `claude-code-hermit:proposal-triage` first (see below), then call `/claude-code-hermit:proposal-create`
 
-Sub-threshold observations (interesting but failing the Three-Condition Rule — typically single-occurrence) do not surface to the operator in steady state. Record them to project memory with a short pattern label and today's session_id so they can graduate via recurrence on a later reflect. Do not generate observations for their own sake, and do not surface them before they graduate.
+Sub-threshold observations (interesting but failing the Three-Condition Rule — typically single-occurrence) do not surface to the operator in steady state. Append them to the observations ledger with a short stable pattern label: `node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/observations.jsonl '{"ts":"<now ISO>","pattern":"<short pattern label>","session_id":"<S-NNN>","source":"reflect"}'` — they graduate via the step 3b recurrence promotion (≥2 distinct sessions). Reuse the exact label when re-observing a known pattern; grouping is by string equality. Do not generate observations for their own sake, and do not surface them before they graduate.
 
-Reflect-generated inferences (cost spikes, token-count shapes, timing patterns) **never** use bypass Evidence Sources (`scheduled-check/*` or `operator-request`). They remain sub-threshold observations recorded to project memory and graduate only by genuine recurrence across sessions, at which point they can be cited as `Evidence Source: archived-session` or `current-session` like any other session-grounded observation.
+Reflect-generated inferences (cost spikes, token-count shapes, timing patterns) **never** use bypass Evidence Sources (`scheduled-check/*` or `operator-request`). They remain sub-threshold observations in the ledger and graduate only by genuine recurrence across sessions, at which point step 3b promotes them with `Evidence Source: archived-session` and the ledger `Artifact:` citation.
 
 **Phase-aware surfacing exception:**
 - `newborn`: also log each sub-threshold observation inline to SHELL.md Findings as `Noticed: <pattern>` (single line, no ceremony). Gives the operator early signal that reflect is watching while recurrence data accumulates.

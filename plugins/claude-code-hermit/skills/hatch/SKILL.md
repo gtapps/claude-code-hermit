@@ -88,6 +88,7 @@ Create the following directories and files:
 │   ├── reflection-state.json
 │   ├── routine-metrics.jsonl
 │   ├── proposal-metrics.jsonl
+│   ├── observations.jsonl
 │   ├── update-history.jsonl
 │   ├── channel-replies.jsonl
 │   └── micro-proposals.json
@@ -127,6 +128,7 @@ Initialize state files (inline — shape-insensitive or append-only):
   }
   ```
 - `.claude-code-hermit/state/proposal-metrics.jsonl`: empty file — append-only, not schema-sensitive JSON state
+- `.claude-code-hermit/state/observations.jsonl`: empty file — append-only sub-threshold observation ledger (`{ts, pattern, session_id, source}`; read by `reflect` for recurrence graduation, pruned by `scripts/prune-observations.js`)
 - `.claude-code-hermit/state/routine-metrics.jsonl`: empty file — append-only routine fire log (`fired` events written by `scripts/log-routine-event.sh` from CronCreate prompts)
 - `.claude-code-hermit/state/update-history.jsonl`: empty file — append-only log of `hermit-docker update` runs
 - `.claude-code-hermit/state/channel-replies.jsonl`: empty file — append-only channel reply log (routine-ROI join source; written by `channel-hook.js`)

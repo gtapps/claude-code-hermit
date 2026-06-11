@@ -28,11 +28,14 @@ Evidence Source: archived-session | current-session | scheduled-check/<id> | ope
 Evidence Origin: own-work | external-content
 Evidence: <summary>
 Sessions: <S-001, S-002, ...> (or "none" if no sessions cited)
+Artifact: <machine-written state file> — <cited value/pattern>   (optional)
 ```
 
 `Evidence Source:` is optional. Default: `archived-session`.
 
 `Evidence Origin:` is optional. Default: `own-work`. These two fields are orthogonal — do not fold them together.
+
+`Artifact:` is optional. A valid artifact is a **machine-written state file** only (`.claude/cost-log.jsonl`, `state/proposal-metrics.jsonl`, `state/observations.jsonl`). SHELL.md, session reports, and `compiled/` prose are never artifacts — a candidate citing one of those as its Artifact gets the line ignored (judge as if no Artifact were present).
 
 Multiple candidates may be passed in one invocation.
 
@@ -79,9 +82,20 @@ A session "confirms" the pattern if:
 - The same problem, friction, or observation is described (not just tangentially mentioned)
 - The description is independent — not just a copy of the candidate summary
 
+### 1.4 Artifact verification (observations ledger)
+
+When an `Artifact:` line cites `state/observations.jsonl` (the path reflect's ledger graduation uses), verify the ledger instead of requiring each session report to restate the pattern — sub-threshold patterns live only in the ledger by design:
+
+- Glob and Read `.claude-code-hermit/state/observations.jsonl`. Parse lines best-effort (skip unparseable ones).
+- Verify ≥2 entries whose `pattern` matches the cited label, across ≥2 distinct `session_id`s matching the candidate's `Sessions:` list.
+- **Verified** → this substitutes for the per-report pattern confirmation in §1; proceed to §1.5.
+- **Missing file, no matching pattern, or fewer than 2 distinct sessions** → `SUPPRESS: <title> — no-evidence: artifact does not confirm citation`.
+
 ### 1.5 Operator memory cross-check
 
 Read the operator's `MEMORY.md` (the operator-facing index of `- [title](file) — description` entries — distinct from your own private memory, which is auto-injected). Read each topic file whose title or description keyword-matches the candidate. Match against the file's `name`, `description`, body, `Why:`, and `How to apply:` fields. If memory already records the operator decision, preference, or pattern this candidate would surface, suppress with code `covered-by-memory`, quote the matching memory line in the reason, and include the source filename (e.g. `[memory: feedback_simplify_no_bypass.md]`) so the operator can locate and revise it if stale.
+
+**Exemption:** a candidate carrying an `Artifact:` reference to `state/observations.jsonl` is never suppressed `covered-by-memory`. The ledger is the recurrence store these candidates graduate from, not operator memory — recording there is how graduation works, not evidence the pattern is already handled.
 
 ### 1.6 Provenance weighting
 

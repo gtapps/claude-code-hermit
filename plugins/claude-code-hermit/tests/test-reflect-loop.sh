@@ -115,4 +115,57 @@ run_test "weekly-review: regression — self_directed_rate intact" bash -c \
   "grep -q 'self_directed_rate:' '$review_file'"
 rm -r "$workdir"
 
+# ── item 3: observations ledger ─────────────────────────────────────────────
+
+REFLECT="$REPO_ROOT/skills/reflect/SKILL.md"
+JUDGE="$REPO_ROOT/agents/reflection-judge.md"
+HATCH="$REPO_ROOT/skills/hatch/SKILL.md"
+PRUNE="$REPO_ROOT/scripts/prune-observations.js"
+
+run_test "reflect: ledger graduation step present" \
+  grep -qF "Observations ledger" "$REFLECT"
+run_test "reflect: graduation threshold is 2 distinct sessions excl current" \
+  grep -qF "≥2 distinct \`session_id\`s, at least one not the current session" "$REFLECT"
+run_test "reflect: quick-mode deferrals append to ledger" \
+  grep -qF '"source":"quick-deferral"' "$REFLECT"
+run_test "reflect: cost spike recorded to ledger not memory" \
+  grep -qF '"source":"cost-spike"' "$REFLECT"
+run_test "reflect: sub-threshold outcomes append to ledger not memory" \
+  grep -qF '"source":"reflect"' "$REFLECT"
+run_test "judge: artifact verification section present" \
+  grep -qF "Artifact verification" "$JUDGE"
+run_test "judge: covered-by-memory exemption for ledger graduates" \
+  grep -qF 'never suppressed `covered-by-memory`' "$JUDGE"
+run_test "hatch: seeds observations.jsonl" \
+  grep -qF "state/observations.jsonl" "$HATCH"
+
+# prune-observations.js behavior
+workdir="$(mktemp -d)"
+mkdir -p "$workdir/.claude-code-hermit/state"
+LEDGER="$workdir/.claude-code-hermit/state/observations.jsonl"
+FRESH_TS="$(date -u +%Y-%m-%dT12:00:00Z)"
+
+cat > "$LEDGER" << EOF
+{"ts":"${FRESH_TS}","pattern":"fresh-pattern","session_id":"S-010","source":"reflect"}
+{"ts":"2020-01-01T00:00:00Z","pattern":"fresh-pattern","session_id":"S-001","source":"reflect"}
+{"ts":"2020-01-01T00:00:00Z","pattern":"dead-pattern","session_id":"S-001","source":"reflect"}
+not json at all
+EOF
+
+run_test "prune-observations: exits 0 and reports counts" bash -c \
+  "node '$PRUNE' '$workdir/.claude-code-hermit' | grep -q 'pruned 1, kept 3'"
+run_test "prune-observations: fresh entry kept" bash -c \
+  "grep -q 'S-010' '$LEDGER'"
+run_test "prune-observations: stale entry of fresh pattern kept (recurrence history)" bash -c \
+  "grep -q '\"pattern\":\"fresh-pattern\",\"session_id\":\"S-001\"' '$LEDGER'"
+run_test "prune-observations: fully stale pattern dropped" bash -c \
+  "! grep -q 'dead-pattern' '$LEDGER'"
+run_test "prune-observations: unparseable line preserved verbatim" bash -c \
+  "grep -qx 'not json at all' '$LEDGER'"
+run_test "prune-observations: missing file exits 0" bash -c \
+  "node '$PRUNE' '$workdir/nonexistent-dir' | grep -q 'pruned 0, kept 0'"
+run_test "prune-observations: no args exits 1" bash -c \
+  "! node '$PRUNE' >/dev/null 2>&1"
+rm -r "$workdir"
+
 print_results

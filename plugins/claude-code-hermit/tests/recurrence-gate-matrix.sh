@@ -127,6 +127,34 @@ for file in "${GATE_FILES[@]}"; do
   fi
 done
 
+# ── 6. Artifact-cited evidence vocabulary ────────────────────────────────────
+echo "=== Artifact-cited evidence: vocabulary coverage ==="
+
+# reflect (ledger graduation + candidate format) and judge (verification +
+# covered-by-memory exemption) must share the Artifact: grammar and the
+# observations.jsonl path. Note: 'Artifact:' is NOT a new Evidence Source value —
+# do not add it to the source-value checks above.
+for file in "$reflect" "$judge"; do
+  label="$(basename "$(dirname "$file")")/$(basename "$file")"
+  if ! grep -q "Artifact:" "$file"; then
+    echo "FAIL [$label]: missing 'Artifact:' candidate-line grammar"
+    rc=1
+  fi
+  if ! grep -q "observations.jsonl" "$file"; then
+    echo "FAIL [$label]: missing 'observations.jsonl' ledger path"
+    rc=1
+  fi
+  if ! grep -q "machine-written state file" "$file"; then
+    echo "FAIL [$label]: missing 'machine-written state file' valid-artifact rule"
+    rc=1
+  fi
+done
+
+if ! grep -q 'never suppressed `covered-by-memory`' "$judge"; then
+  echo "FAIL [agents/reflection-judge.md]: missing covered-by-memory exemption for ledger-graduated candidates"
+  rc=1
+fi
+
 if [[ $rc -eq 0 ]]; then
   echo "PASS: all recurrence gate checks passed"
 fi
