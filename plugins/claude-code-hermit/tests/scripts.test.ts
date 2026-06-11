@@ -1513,6 +1513,75 @@ describe('cost-tracker classifySource / scanTriggerMarkers', () => {
 });
 
 // -------------------------------------------------------
+// cost-tracker: sumTurnUsage unit tests (in-process)
+// -------------------------------------------------------
+
+describe('cost-tracker sumTurnUsage', () => {
+  let sumTurnUsage: typeof import('../scripts/cost-tracker').sumTurnUsage;
+
+  beforeAll(async () => {
+    const mod = (await import(
+      '../scripts/cost-tracker' + '?scripts-test-sumTurnUsage'
+    )) as typeof import('../scripts/cost-tracker');
+    ({ sumTurnUsage } = mod);
+  });
+
+  test('cost-tracker: sumTurnUsage exported', () => {
+    expect(typeof sumTurnUsage).toBe('function');
+  });
+
+  // Single-call turn — baseline: result equals what the old code returned
+  test('cost-tracker: sumTurnUsage single billed entry', () => {
+    const lines = [
+      JSON.stringify({ type: 'user', message: { content: 'hello' } }),
+      JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 100, output_tokens: 50, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }, model: 'claude-sonnet-4-6' } }),
+    ];
+    const r = sumTurnUsage(lines, 1);
+    expect(r.inputTokens).toBe(100);
+    expect(r.outputTokens).toBe(50);
+    expect(r.apiCalls).toBe(1);
+    expect(r.model).toBe('claude-sonnet-4-6');
+  });
+
+  // Three-call turn — the core undercount fix
+  test('cost-tracker: sumTurnUsage sums three billed entries in one turn', () => {
+    const lines = [
+      // Prior turn (must NOT be included)
+      JSON.stringify({ type: 'user', message: { content: 'prior turn prompt' } }),
+      JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 999, output_tokens: 999 } } }),
+      // Current turn
+      JSON.stringify({ type: 'user', message: { content: '[hermit-routine:reflect] go' } }),
+      JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 100, output_tokens: 10 }, content: [{ type: 'tool_use', id: 't1', name: 'Read', input: {} }] } }),
+      JSON.stringify({ type: 'user', message: { content: [{ tool_use_id: 't1', type: 'tool_result', content: 'ok' }] } }),
+      JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 200, output_tokens: 20 }, content: [{ type: 'tool_use', id: 't2', name: 'Write', input: {} }] } }),
+      JSON.stringify({ type: 'user', message: { content: [{ tool_use_id: 't2', type: 'tool_result', content: 'written' }] } }),
+      JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 300, output_tokens: 30, cache_read_input_tokens: 150 }, model: 'claude-sonnet-4-6' } }),
+    ];
+    const billedIndex = lines.length - 1; // last assistant entry
+    const r = sumTurnUsage(lines, billedIndex);
+    expect(r.apiCalls).toBe(3);
+    expect(r.inputTokens).toBe(100 + 200 + 300);
+    expect(r.outputTokens).toBe(10 + 20 + 30);
+    expect(r.cacheReadTokens).toBe(150);
+    // Prior turn's 999 tokens must not bleed in
+    expect(r.inputTokens).not.toBeGreaterThanOrEqual(999);
+  });
+
+  // Boundary respected: prior turn's billed entries are excluded
+  test('cost-tracker: sumTurnUsage stops at turn boundary (prior-turn tokens excluded)', () => {
+    const lines = [
+      JSON.stringify({ type: 'user', message: { content: 'turn 1 prompt' } }),
+      JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 500, output_tokens: 500 } } }),
+      JSON.stringify({ type: 'user', message: { content: 'turn 2 prompt' } }),
+      JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 10, output_tokens: 5 } } }),
+    ];
+    const r = sumTurnUsage(lines, 3);
+    expect(r.apiCalls).toBe(1);
+    expect(r.inputTokens).toBe(10);
+  });
+});
+
+// -------------------------------------------------------
 // cost-reflect.ts: source attribution tests (subprocess)
 // -------------------------------------------------------
 

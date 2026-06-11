@@ -58,13 +58,16 @@ If the archive in step 8 fails, leave `pending-close.json` in place so the next 
    If reflect returns `reflect: no candidates`, scan this session's `## Findings` and `## Progress Log` for non-obvious discoveries not already in memory and issue the standard "remember it" reflection for any that clear the auto-memory threshold. Apply WHAT_NOT_TO_SAVE as normal.
 6. **Stop always-on services (`shutdown_skill`).** Read `shutdown_skill` from `.claude-code-hermit/config.json`. If non-null, invoke it as a skill command (the value may include arguments, e.g. `/serve stop`) via the Skill tool. **Best-effort:** on error or if the skill does not return, log a Monitoring line and continue to archival — never abort the close. Runs on both operator and `--auto` paths.
 7. If native Tasks exist: call `TaskList`, format as a markdown table. Then `TaskUpdate(status=deleted)` for completed tasks only — pending/in_progress tasks persist for next session.
-8. Archive the session via `claude-code-hermit:session-mgr` (full close — finalize SHELL.md and replace with fresh template in one operation). Pass the following compact structured payload in the prompt — keep it brief, no freeform prose:
+8. Archive the session via `claude-code-hermit:session-mgr` (full close — finalize SHELL.md and replace with fresh template in one operation).
+   Before invoking session-mgr: read `session_id` from `.claude-code-hermit/state/runtime.json`. Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-cost.ts <session_id>` via Bash and parse the JSON output to get `cost_usd` and `tokens` for this session. If the script fails or returns zeros, omit the `Cost:` line (session-mgr will fall back to `.status.json`).
+   Pass the following compact structured payload in the prompt — keep it brief, no freeform prose:
    ```
    Status: <completed|partial|blocked>
    Blockers: <one line each, or none>
    Lessons: <one line each, or none>
    Changed: <file list, or none>
    Artifacts: <wikilinks to compiled/ outputs produced this session, or none>
+   Cost: $X.XXXX (N tokens)
    Closed Via: <operator|auto>
    Next Start Point: <one line>
    ```

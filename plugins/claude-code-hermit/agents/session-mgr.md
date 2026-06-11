@@ -73,14 +73,14 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
      - `status`: from the `Status:` line in the invocation prompt payload (e.g., `completed`, `partial`, `blocked`)
      - `date`: current ISO 8601 timestamp with timezone offset (e.g., `2026-04-06T14:30:00+01:00`). Use the timezone from `config.json` if set, otherwise UTC.
      - `duration`: compute from `**Started:**` timestamp to now (e.g., `2h 15m`, `45m`)
-     - `cost_usd`: read `cost_usd` from `.claude-code-hermit/sessions/.status.json`. Fall back to parsing `## Cost` section from SHELL.md (strip `$`, take the number before `(`). Use `0.00` if neither is available.
+     - `cost_usd`: from the `Cost:` line in the invocation prompt payload (e.g. `$0.4231 (152689 tokens)` — strip `$`, take the number before the space). Fall back to `cost_usd` from `.claude-code-hermit/sessions/.status.json`, then to parsing `## Cost` from SHELL.md. Use `0.00` if none is available.
      - `tags`: from `**Tags:**` field, split on comma, trim whitespace, output as YAML array. E.g., `refactor, frontend` → `[refactor, frontend]`. Use `[]` if empty.
      - `proposals_created`: scan `## Proposals Created` section for proposal IDs matching the regex `/PROP-[a-z0-9][a-z0-9-]*/gi` (captures legacy `PROP-006`, short `PROP-006-103612`, and full `PROP-006-capability-brainstorm-103612` / collision `PROP-006-capability-brainstorm-103612a` forms). Output the matched IDs verbatim as a YAML array. Use `[]` if none.
      - `task`: extract the first non-comment, non-empty line from `## Task` in SHELL.md. Trim to 120 characters max. Use `""` if blank.
      - `status`: must be one of `completed`, `partial`, `blocked`. Use the `Status:` value from the invocation prompt payload. If the value is anything else, normalize to `partial` and add a line to `## Blockers` in the report: `Status normalized: original value \`<value>\` coerced to \`partial\`.`
      - `escalation`: read `escalation` from `.claude-code-hermit/config.json`. If the field is missing or empty, default to `"balanced"`. Allowed values: `conservative`, `balanced`, `autonomous`.
      - `operator_turns`: read `operator_turns` from `.claude-code-hermit/sessions/.status.json`. Use `0` if the field is missing or the file doesn't exist. This is the count of human-type transcript entries for this session, maintained by the cost-tracker hook.
-     - `tokens`: read `tokens` from `.claude-code-hermit/sessions/.status.json`. Use `0` if the field is missing or the file doesn't exist.
+     - `tokens`: from the `Cost:` line in the invocation prompt payload (the number in parentheses). Fall back to `tokens` from `.claude-code-hermit/sessions/.status.json`. Use `0` if neither is available.
      - `closed_via`: from the `Closed Via:` line in the invocation prompt payload. Default to `operator` if not provided.
    - **Write `## Overview`** with the one-line task description from `## Task`
    - **If a task table was provided in the invocation prompt**, include it as `## Plan` in the report
@@ -121,7 +121,6 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
    - Carry forward blockers from the closed session
    - If unfinished tasks remain in the native task list, note: "Unfinished tasks remain in the task list."
 8. **Clear transition and update runtime.json**: `transition: null`, `transition_target: null`, `transition_started_at: null`, `session_state: "idle"`, `session_id: null`, `shutdown_completed_at: <now>` (if this is a full shutdown close)
-   **Reset per-session counters in `.status.json`**: write `{"cost_usd": 0, "tokens": 0, "operator_turns": 0}` (merging into existing keys). Same atomic write pattern as On Task Complete step 10.
 
 ## On Task Complete (Idle Transition)
 
@@ -151,7 +150,6 @@ When the main session requests an idle transition (not a full close):
      `**S-NNN** (YYYY-MM-DD): [one-line task summary] — [status] ($X.XX)`
 8. **Transition clear (single atomic runtime.json write).** Set all of: `transition: null`, `transition_target: null`, `transition_started_at: null`, `session_state: "idle"`. Pre-compute next `session_id` (for the next task).
 9. If cost data is available, preserve the cumulative total in the Cost section
-10. **Reset per-session counters in `.status.json`**: write `{"cost_usd": 0, "tokens": 0, "operator_turns": 0}` (merging into existing keys, preserving `session_id`, `status`, etc.). This ensures the next task's cost-tracker readings start from zero rather than carrying over this task's totals. Use atomic write: write to `sessions/.status.json.tmp`, rename to `sessions/.status.json`.
 
 ## On Progress Update
 

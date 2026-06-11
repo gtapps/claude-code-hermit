@@ -98,6 +98,10 @@ describe('hook outputs', () => {
     expect(typeof entry.estimated_cost_usd).toBe('number');
     expect(typeof entry.timestamp).toBe('string');
     expect(entry.estimated_cost_usd).toBeGreaterThan(0);
+    // schema v2 fields
+    expect(typeof entry.api_calls).toBe('number');
+    expect(entry.api_calls).toBeGreaterThanOrEqual(1);
+    if (entry.context_usage !== null) { expect(typeof entry.context_usage).toBe('number'); }
   }), 15000);
 
   test('standard profile produces structured JSON with criteria', withTmpdir(async (dir) => {

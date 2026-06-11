@@ -104,8 +104,38 @@ function classifySource(triggerText: string): string {
   return 'other';
 }
 
+// Limitation: a turn spanning more than TAIL_BYTES is summed from buffer start, not the real boundary — same bleed as scanTriggerMarkers.
+function sumTurnUsage(lines: string[], billedIndex: number): {
+  inputTokens: number; cacheWriteTokens: number; cacheReadTokens: number;
+  outputTokens: number; model: string; apiCalls: number;
+} {
+  let inputTokens = 0, cacheWriteTokens = 0, cacheReadTokens = 0, outputTokens = 0;
+  let model = 'sonnet';
+  let apiCalls = 0;
+
+  for (let j = billedIndex; j >= 0; j--) {
+    try {
+      const entry = JSON.parse(lines[j]);
+      const usage = extractUsage(entry);
+      if (usage) {
+        inputTokens += usage.inputTokens;
+        cacheWriteTokens += usage.cacheWriteTokens;
+        cacheReadTokens += usage.cacheReadTokens;
+        outputTokens += usage.outputTokens;
+        apiCalls++;
+        // Model is constant within a turn; capture it once from the outermost call.
+        if (apiCalls === 1) model = usage.model;
+      }
+      // Turn boundary: the first non-tool_result user entry (same rule as scanTriggerMarkers).
+      if (entry.type === 'user' && !isToolResult(entry)) break;
+    } catch {}
+  }
+
+  return { inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens, model, apiCalls };
+}
+
 function readLastTurnUsage(transcriptPath: string): Json {
-  const TAIL_BYTES = 131072; // 128KB — read from end, avoid loading full transcript
+  const TAIL_BYTES = 524288; // 512KB — covers most multi-step agentic turns
   try {
     const stat = fs.statSync(transcriptPath);
     const readFrom = Math.max(0, stat.size - TAIL_BYTES);
@@ -121,23 +151,26 @@ function readLastTurnUsage(transcriptPath: string): Json {
     for (let i = lines.length - 1; i >= 0; i--) {
       try {
         const entry = JSON.parse(lines[i]);
-        const usage = extractUsage(entry);
-        if (usage) {
-          // Detect operator interaction for operator_turns tracking.
-          // Note: real transcripts use type:'user', not type:'human', so this is
-          // effectively always false in production — left intact for future correctness.
-          let hadHumanTurn = false;
-          for (let j = i - 1; j >= 0; j--) {
-            try {
-              const prev = JSON.parse(lines[j]);
-              hadHumanTurn = prev.type === 'human';
-              break; // stop at first valid entry before this assistant turn
-            } catch {}
-          }
-          const triggerText = scanTriggerMarkers(lines, i);
-          const source = classifySource(triggerText);
-          return { ...usage, hadHumanTurn, source };
+        if (!extractUsage(entry)) continue;
+
+        // Found the last billed entry — sum the whole turn.
+        const summed = sumTurnUsage(lines, i);
+
+        // Detect operator interaction for operator_turns tracking.
+        // Note: real transcripts use type:'user', not type:'human', so this is
+        // effectively always false in production — left intact for future correctness.
+        let hadHumanTurn = false;
+        for (let j = i - 1; j >= 0; j--) {
+          try {
+            const prev = JSON.parse(lines[j]);
+            hadHumanTurn = prev.type === 'human';
+            break;
+          } catch {}
         }
+
+        const triggerText = scanTriggerMarkers(lines, i);
+        const source = classifySource(triggerText);
+        return { ...summed, hadHumanTurn, source };
       } catch {}
     }
   } catch {}
@@ -386,7 +419,7 @@ async function run(data: Json): Promise<string | null> {
       return null;
     }
 
-    const { inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens, model: rawModel, hadHumanTurn, source } = turn;
+    const { inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens, model: rawModel, hadHumanTurn, source, apiCalls } = turn;
     const model = detectModel(rawModel);
 
     const totalTokens = inputTokens + cacheWriteTokens + cacheReadTokens + outputTokens;
@@ -411,6 +444,8 @@ async function run(data: Json): Promise<string | null> {
       cache_read_tokens: cacheReadTokens,
       output_tokens: outputTokens,
       total_tokens: totalTokens,
+      api_calls: apiCalls,
+      context_usage: data.context_usage ?? data.contextUsage ?? null,
       estimated_cost_usd: roundedCost,
     };
 
@@ -443,7 +478,7 @@ async function run(data: Json): Promise<string | null> {
   }
 }
 
-export { run, getCumulativeCost, classifySource, scanTriggerMarkers };
+export { run, getCumulativeCost, classifySource, scanTriggerMarkers, sumTurnUsage };
 
 if (import.meta.main) {
   (async () => {
