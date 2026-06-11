@@ -1,0 +1,8 @@
+# Unicode handling. markdown.py dumps with allow_unicode=False (escapes non-ASCII);
+# parse-level equivalence must hold regardless.
+portuguese: "Ligar a luz da sala às 19h, por favor"
+accented_plain: café com pão
+japanese: 日本語のテキスト
+emoji: "lights 💡 on"
+escaped_unicode: "caf\xE9"
+combining: "é"

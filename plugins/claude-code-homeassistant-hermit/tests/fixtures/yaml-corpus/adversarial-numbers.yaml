@@ -1,0 +1,15 @@
+# Number-format divergences between YAML 1.1 (PyYAML) and 1.2 core (Bun).
+octal_legacy: 0777
+octal_legacy_small: 030
+octal_modern: 0o777
+hex: 0x1A
+underscore_int: 1_000
+float_trailing: 1.10
+leading_dot: .5
+plus_int: +12
+inf: .inf
+neg_inf: -.inf
+nan: .nan
+plain_int: 42
+plain_float: 3.14
+big_e: 1e3

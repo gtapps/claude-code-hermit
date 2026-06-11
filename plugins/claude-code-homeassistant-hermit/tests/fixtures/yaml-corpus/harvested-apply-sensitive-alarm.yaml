@@ -1,0 +1,6 @@
+id: disarm_home
+alias: Disarm
+actions:
+  - service: alarm_control_panel.alarm_disarm
+    target:
+      entity_id: alarm_control_panel.home

@@ -1,0 +1,10 @@
+# ISO timestamps: PyYAML 1.1 coerces unquoted forms to datetime.date / datetime.datetime.
+# Bun.YAML (1.2 core schema) keeps them all as strings.
+# Real-world exposure: markdown frontmatter convention uses unquoted
+# `created: <ISO 8601 with offset>` (docs/knowledge-schema.md).
+date_plain: 2024-01-01
+datetime_utc: 2024-01-01T10:00:00Z
+datetime_offset: 2026-04-24T09:00:00+00:00
+datetime_space: 2024-01-01 10:00:00
+date_quoted: "2024-01-01"
+datetime_quoted: "2024-01-01T10:00:00Z"

@@ -1,0 +1,8 @@
+# Realistic compiled-artifact frontmatter per docs/knowledge-schema.md:
+# unquoted ISO `created` is the documented convention -- this is the
+# real-world datetime-coercion exposure for markdown.py.
+title: "Morning Brief — 2026-06-11"
+type: brief
+created: 2026-06-11T08:30:00+00:00
+session: null
+tags: [morning-brief, ha]

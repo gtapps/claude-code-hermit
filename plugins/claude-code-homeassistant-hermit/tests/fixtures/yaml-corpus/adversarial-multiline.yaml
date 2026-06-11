@@ -1,0 +1,15 @@
+# Block scalars: literal, folded, strip/keep chomping.
+literal: |
+  line one
+  line two
+folded: >
+  fold one
+  fold two
+literal_strip: |-
+  no trailing newline
+folded_keep: >+
+  kept
+
+literal_indent: |
+    indented content
+    second line

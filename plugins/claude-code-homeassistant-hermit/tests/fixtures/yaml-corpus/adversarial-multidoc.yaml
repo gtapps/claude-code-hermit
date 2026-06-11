@@ -1,0 +1,8 @@
+# Multi-document stream. PyYAML yaml.safe_load REJECTS this (ComposerError);
+# yaml.safe_load_all yields two docs. Bun.YAML.parse returns an array of docs.
+---
+alias: First
+trigger: []
+---
+alias: Second
+trigger: []

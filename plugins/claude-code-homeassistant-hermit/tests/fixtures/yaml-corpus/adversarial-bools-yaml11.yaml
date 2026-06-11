@@ -1,0 +1,17 @@
+# YAML 1.1 vs 1.2 boolean divergence. PyYAML: yes/no/on/off (any case) -> bool.
+# Bun.YAML (1.2): only true/false (and Title/UPPER variants) -> bool; yes/no/on/off stay strings.
+# HA exposure: entity states are literally "on"/"off" -- agents writing
+# `state: on` unquoted get True in PyYAML/HA but "on" in Bun.
+yes_plain: yes
+no_plain: no
+on_plain: on
+off_plain: off
+yes_title: Yes
+no_upper: NO
+true_plain: true
+false_title: False
+true_upper: TRUE
+y_single: y
+n_single: n
+on_quoted: "on"
+off_quoted: 'off'

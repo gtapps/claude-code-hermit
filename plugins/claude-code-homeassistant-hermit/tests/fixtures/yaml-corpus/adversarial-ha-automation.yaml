@@ -1,0 +1,41 @@
+# Realistic nested HA automation exercising the risky scalars in context:
+# unquoted no-leading-zero time (PyYAML -> 435), unquoted `on` state,
+# templates, choose blocks, numeric data.
+id: morning_lights
+alias: Morning lights
+description: ""
+mode: single
+triggers:
+  - trigger: time
+    at: 7:15
+  - trigger: time
+    at: "07:15:00"
+  - trigger: state
+    entity_id: binary_sensor.kitchen_motion
+    to: on
+    for: 00:05:00
+conditions:
+  - condition: numeric_state
+    entity_id: sensor.outdoor_lux
+    below: 100
+  - condition: template
+    value_template: "{{ states('person.owner') == 'home' }}"
+actions:
+  - choose:
+      - conditions:
+          - condition: time
+            before: "08:00:00"
+        sequence:
+          - service: light.turn_on
+            target:
+              entity_id: light.kitchen
+            data:
+              brightness_pct: 40
+              transition: 2.5
+    default:
+      - service: light.turn_on
+        target:
+          entity_id:
+            - light.kitchen
+            - light.hallway
+  - delay: "00:00:30"

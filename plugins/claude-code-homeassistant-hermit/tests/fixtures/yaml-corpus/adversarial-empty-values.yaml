@@ -1,0 +1,10 @@
+# Empty / null values. apply.py and simulate.py rely on `safe_load(...) or {}`.
+empty_value:
+explicit_null: null
+tilde: ~
+empty_string: ""
+empty_single: ''
+empty_list: []
+empty_map: {}
+nested:
+  also_empty:

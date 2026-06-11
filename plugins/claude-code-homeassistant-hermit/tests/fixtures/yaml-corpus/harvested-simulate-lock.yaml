@@ -1,0 +1,5 @@
+alias: Unlock
+actions:
+  - service: lock.unlock
+    target:
+      entity_id: lock.front_door

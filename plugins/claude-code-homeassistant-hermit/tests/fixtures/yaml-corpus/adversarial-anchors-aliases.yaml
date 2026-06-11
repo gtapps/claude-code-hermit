@@ -1,0 +1,15 @@
+# Anchors, aliases, and merge keys (PyYAML safe_load supports all three).
+defaults: &defaults
+  mode: single
+  max_exceeded: silent
+light_target: &kitchen
+  entity_id: light.kitchen
+automation_a:
+  <<: *defaults
+  alias: A
+  target: *kitchen
+automation_b:
+  <<: *defaults
+  alias: B
+  mode: restart
+  target: *kitchen

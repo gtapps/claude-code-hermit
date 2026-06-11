@@ -1,0 +1,12 @@
+# Sexagesimal (base-60) ints are YAML 1.1 only. PyYAML: 10:30 -> 630.
+# Bun.YAML (1.2): "10:30" string. HA automations are full of time strings.
+# Note: leading-zero forms (00:00:01, 07:15:00) do NOT match PyYAML's
+# sexagesimal regex and stay strings in both -- only no-leading-zero forms diverge.
+hhmm: 10:30
+hms: 1:02:03
+negative: -10:30
+big: 190:20:30
+leading_zero_hms: 00:00:01
+leading_zero_at: 07:15:00
+quoted: "10:30"
+out_of_range: 10:30:61

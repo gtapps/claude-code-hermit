@@ -1,0 +1,8 @@
+alias: Test
+actions:
+  - service: light.turn_on
+    target:
+      entity_id: light.kitchen_counter
+  - service: cover.open_cover
+    target:
+      entity_id: cover.garage_door

@@ -1,0 +1,5 @@
+alias: Unsafe automation
+actions:
+  - service: lock.lock
+    target:
+      entity_id: lock.front_door

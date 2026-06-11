@@ -1,0 +1,12 @@
+# Quoted vs unquoted strings -- quoting must defeat scalar coercion identically.
+quoted_number: "123"
+single_quoted_number: '456'
+quoted_bool: "true"
+quoted_null: "null"
+plain_word: hello
+plain_with_spaces: hello world there
+quoted_with_colon: "key: value"
+single_with_apostrophe: 'it''s fine'
+double_with_escape: "line1\nline2"
+template: "{{ states('sensor.temp') | float > 21.5 }}"
+plain_template_brace_safe: state is {{ ok }}

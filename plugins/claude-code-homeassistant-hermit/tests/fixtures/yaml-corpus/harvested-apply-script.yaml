@@ -1,0 +1,4 @@
+id: my_script
+alias: Safe script
+sequence:
+  - delay: "00:00:01"

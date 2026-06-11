@@ -1,0 +1,2 @@
+# Comment-only document: both engines must yield null (Python None).
+# The src/ call sites normalize with `or {}`.
