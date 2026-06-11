@@ -1,0 +1,6 @@
+{
+  "gate": "mcp",
+  "stdin": "{\"tool_input\":{\"entity_id\":\"LOCK.front_door\"}}",
+  "verdict": "allow",
+  "note": "domain match is case-sensitive in both implementations; pinned as parity, see SAFETY.md keyword note"
+}

@@ -1,0 +1,10 @@
+{
+  "gate": "mcp",
+  "stdin": "{\"tool_input\": {\"entity_id\": NaN}}",
+  "verdict": "block",
+  "divergence": "Python json accepts NaN (-> no resolvable ids -> \"Cannot verify\" exit 2); JSON.parse rejects it (-> \"Failed to parse\" exit 2). Same fail-closed verdict, different stderr text.",
+  "expect_py": {
+    "exit": 2,
+    "stderr_contains": "Cannot verify target safety"
+  }
+}

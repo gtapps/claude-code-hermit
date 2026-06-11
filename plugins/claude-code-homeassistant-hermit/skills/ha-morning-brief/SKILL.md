@@ -62,9 +62,9 @@ Before doing any work, read `.claude-code-hermit/state/runtime.json` if it exist
 9a. **Micro-proposals lifecycle** — Read `.claude-code-hermit/state/micro-proposals.json`. If the `pending` array is non-empty:
    - Each entry with `follow_up_count` of 0: include in `Awaiting decision:` output (see Output Format). Do not mutate.
    - Each entry with `follow_up_count` of 1: include in `Awaiting decision:` with softer framing: "Still waiting on MP-YYYYMMDD-N: [question] (ignore again to drop it)". Increment `follow_up_count` to 2.
-   - Each entry with `follow_up_count` >= 2: capture `id` and `question` first, set `status: "expired"`, remove from `pending`. Append to `.claude-code-hermit/state/proposal-metrics.jsonl` using Python (avoids JSON injection from question text). Schema matches core's `append-metrics.js`: `ts`, `type`, `micro_id`, `action`, `question`:
+   - Each entry with `follow_up_count` >= 2: capture `id` and `question` first, set `status: "expired"`, remove from `pending`. Append to `.claude-code-hermit/state/proposal-metrics.jsonl` using bun (avoids JSON injection from question text). Schema matches core's `append-metrics.js`: `ts`, `type`, `micro_id`, `action`, `question`:
      ```bash
-     python3 -c "import json,sys; print(json.dumps({'ts':sys.argv[1],'type':'micro-resolved','micro_id':sys.argv[2],'action':'expired','question':sys.argv[3]}))" "<ISO8601>" "<id>" "<question>" >> .claude-code-hermit/state/proposal-metrics.jsonl
+     bun -e 'console.log(JSON.stringify({ts: process.argv[1], type: "micro-resolved", micro_id: process.argv[2], action: "expired", question: process.argv[3]}))' -- "<ISO8601>" "<id>" "<question>" >> .claude-code-hermit/state/proposal-metrics.jsonl
      ```
      (Core's `append-metrics.js` is unreachable from HA's `${CLAUDE_PLUGIN_ROOT}` — write directly.)
    - If `pending` is empty: skip this step entirely.

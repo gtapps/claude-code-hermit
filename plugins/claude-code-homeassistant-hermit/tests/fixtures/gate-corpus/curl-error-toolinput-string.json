@@ -1,0 +1,6 @@
+{
+  "gate": "curl",
+  "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":\"curl http://127.0.0.1:8123\"}",
+  "verdict": "error-passthrough",
+  "stderr_class": "exception-text"
+}

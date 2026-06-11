@@ -1,0 +1,6 @@
+{
+  "gate": "mcp",
+  "stdin": "{\"tool_input\":{\"entity_id\":\"alarm_control_panel.home\"}}",
+  "config_mode": "ask",
+  "verdict": "ask"
+}

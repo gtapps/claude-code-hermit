@@ -1,0 +1,5 @@
+{
+  "gate": "mcp",
+  "stdin": "{\"tool_input\":{\"entity_id\":{\"id\":\"lock.x\"}}}",
+  "verdict": "block"
+}

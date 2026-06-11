@@ -1,0 +1,6 @@
+{
+  "gate": "mcp",
+  "stdin": "{\"tool_input\":{\"entity_id\":\"lock.back_door\"}}",
+  "env_file": "HA_SAFE_ENTITIES=lock.front_door\n",
+  "verdict": "block"
+}

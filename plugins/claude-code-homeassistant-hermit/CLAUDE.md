@@ -7,7 +7,7 @@ A Home Assistant domain layer for `claude-code-hermit`: skills, subagents, a saf
 - `skills/ha-*/` — workflow skills namespaced as `/claude-code-homeassistant-hermit:ha-*`
 - `skills/domain-brainstorm/` — on-demand capability-gap brainstorm: reads entity inventory, automation/script listing, and operator intent to surface at most 2 `[prefix]`-tagged improvement proposals. Operator-invoked only. Kill criteria: retire if triage-survival < 25% after ≥8 runs.
 - `agents/` — `ha-safety-reviewer`, `ha-automation-builder`, `ha-pattern-analyst`
-- `hooks/` — `mcp-safety-gate.py` + `hooks.json` (PreToolUse on `mcp__homeassistant__Hass.*`)
+- `hooks/` — `mcp-safety-gate.ts` + `hooks.json` (PreToolUse on `mcp__homeassistant__Hass.*`)
 - `bin/ha-agent-lab` + `src/*.ts` — TypeScript CLI run by bun (REST client, policy engine, simulation, apply)
 - `settings.json` — pre-approved permissions for safe CLI and read-only MCP tools
 - `state-templates/CLAUDE-APPEND.md` — block injected into the target project's `CLAUDE.md` by `hatch`
@@ -42,7 +42,7 @@ A Home Assistant domain layer for `claude-code-hermit`: skills, subagents, a saf
 
 ## MCP vs CLI
 
-- **Home Assistant MCP Server** (`homeassistant`): live ops — `GetLiveContext`, `GetDateTime`, light/cover/fan control. Gated by `hooks/mcp-safety-gate.py`.
+- **Home Assistant MCP Server** (`homeassistant`): live ops — `GetLiveContext`, `GetDateTime`, light/cover/fan control. Gated by `hooks/mcp-safety-gate.ts`.
 - **CLI** (`bin/ha-agent-lab`): bulk work — context refresh, YAML simulation, policy checks, apply, audits.
 
 MCP tool IDs follow the pattern `mcp__homeassistant__*`. The `homeassistant` name is required — the safety hook matches on it.
@@ -68,7 +68,6 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha probe <path>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status [--probe]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url> [--token <token>]
 bun test
-/usr/bin/python3 -m pytest tests/test_safety_hook.py tests/test_curl_host_gate.py -v
 ```
 
 Run `--help` for current flags. Source of truth: `src/cli.ts`.
@@ -89,8 +88,8 @@ Before changing HA endpoint usage, verify against upstream (WebFetch or the `fin
 ## Development constraints
 
 - When aligning with a new hermit version, include `docs/` in terminology sweeps — `docs/knowledge-schema.md` and other doc files carry hermit-facing terms that go stale. Verification: `grep -rn "<old-term>" skills/ agents/ state-templates/ docs/ CLAUDE.md .claude-plugin/`
-- The CLI is TypeScript run directly by bun (`bun src/cli.ts`) with zero runtime dependencies — bun is guaranteed by the core hermit requirement. The two hooks (`hooks/*.py`) are still Python until the WP8 hook port; their pytest files (`tests/test_safety_hook.py`, `tests/test_curl_host_gate.py`) are the only Python tests left.
-- The safety hook fails closed — if an MCP call's target cannot be resolved to concrete entity IDs, it is blocked.
+- The CLI and both hooks are TypeScript run directly by bun (`bun src/cli.ts`, `bun hooks/*.ts`) with zero runtime dependencies — bun is guaranteed by the core hermit requirement. No shipped code runs Python; the only Python in the test suite is a fixture (`tests/gate-corpus.test.ts` replays the retired Python hooks from git history at `42c0c8f~1`, `tests/yaml-parity.test.ts` compares against PyYAML).
+- The safety hook fails closed — if an MCP call's target cannot be resolved to concrete entity IDs, it is blocked. Changes to `hooks/mcp-safety-gate.ts` or `src/policy.ts` must keep `tests/gate-corpus.test.ts` (golden byte-equivalence vs the retired Python gate) and `tests/gate-fuzz.test.ts` (fail-closed property) green.
 - The deny-pattern hook blocks Bash commands whose arguments contain the literal string `TOKEN`. Read credentials via the CLI (`bin/ha-agent-lab boot status`), never `cat .env` / `echo $HOMEASSISTANT_TOKEN`.
 - Agent references in skill instructions must use the full namespaced form (e.g., `claude-code-homeassistant-hermit:ha-safety-reviewer`). Bare names will fail at dispatch.
 

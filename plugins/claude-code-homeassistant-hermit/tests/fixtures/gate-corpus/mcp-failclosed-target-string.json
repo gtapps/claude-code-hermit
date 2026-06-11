@@ -1,0 +1,5 @@
+{
+  "gate": "mcp",
+  "stdin": "{\"tool_input\":{\"target\":\"lock.front_door\"}}",
+  "verdict": "block"
+}

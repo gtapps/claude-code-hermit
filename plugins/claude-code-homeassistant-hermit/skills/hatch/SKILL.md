@@ -76,7 +76,7 @@ Read the HA URL from the `boot status` JSON (`active_url` field, already fetched
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status
 ```
 
-For the token value, use the **Read** tool on `.env` (not Bash — the deny-pattern hook blocks any Bash argument containing the literal string `TOKEN`, including via `python -c`). Parse the `HOMEASSISTANT_TOKEN=...` line in-memory and use the value directly when writing `.mcp.json`. Do not echo the token to the conversation or log it.
+For the token value, use the **Read** tool on `.env` (not Bash — the deny-pattern hook blocks any Bash argument containing the literal string `TOKEN`, including via `bun -e`). Parse the `HOMEASSISTANT_TOKEN=...` line in-memory and use the value directly when writing `.mcp.json`. Do not echo the token to the conversation or log it.
 
 Check the project root for `.mcp.json`:
 - If absent → write it with literal values substituted.

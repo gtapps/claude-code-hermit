@@ -22,7 +22,7 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha integration-health
 The CLI:
 - Checks that `snapshot-ha-normalized-latest.json` exists and is fresh (< 24h). If stale or missing, runs `ha refresh-context` first to bring it up to date, then proceeds with analysis.
 - Groups entities by domain prefix, computes unavailable ratios, and flags domains where `total >= 3` AND `ratio >= 0.5`.
-- Writes `.claude-code-hermit/state/integration-health-degraded-domains.json` — a machine-readable state artifact consumed by `ha-analyze-patterns` (via `silence.py`) to suppress overlapping `long_unavailable` findings.
+- Writes `.claude-code-hermit/state/integration-health-degraded-domains.json` — a machine-readable state artifact consumed by `ha-analyze-patterns` (via `silence.ts`) to suppress overlapping `long_unavailable` findings.
 - Prints the findings block to stdout in the documented format below.
 
 ## Output contract

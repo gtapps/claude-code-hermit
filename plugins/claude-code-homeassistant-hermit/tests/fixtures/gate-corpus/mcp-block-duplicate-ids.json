@@ -1,0 +1,6 @@
+{
+  "gate": "mcp",
+  "stdin": "{\"tool_input\":{\"entity_id\":[\"lock.a\",\"lock.a\"]}}",
+  "verdict": "block",
+  "note": "hook does not dedupe — names repeat in the reason; parity pin"
+}

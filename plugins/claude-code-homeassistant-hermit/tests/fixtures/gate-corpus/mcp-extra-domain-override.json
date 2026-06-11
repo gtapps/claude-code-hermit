@@ -1,0 +1,6 @@
+{
+  "gate": "mcp",
+  "stdin": "{\"tool_input\":{\"entity_id\":\"vacuum.roomba\"}}",
+  "env_file": "HA_EXTRA_SENSITIVE_DOMAINS=vacuum,media_player\n",
+  "verdict": "block"
+}

@@ -1,0 +1,8 @@
+{
+  "gate": "curl",
+  "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"curl http://ha.lan:8123/api/config\"}}",
+  "env_file": "HOMEASSISTANT_URL=\"http://ha.lan:8123/\"\n",
+  "set_project_dir": true,
+  "verdict": "curl-allow",
+  "note": "quote stripping + trailing-slash rstrip parity in the hook-local .env parser"
+}

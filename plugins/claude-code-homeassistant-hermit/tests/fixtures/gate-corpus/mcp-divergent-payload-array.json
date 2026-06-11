@@ -1,0 +1,10 @@
+{
+  "gate": "mcp",
+  "stdin": "[1, 2, 3]",
+  "verdict": "block",
+  "divergence": "Python: uncaught AttributeError (list.get) -> exit 1 -> Claude Code treats non-2 exits as non-blocking = FAIL-OPEN. TS blocks (exit 2).",
+  "expect_py": {
+    "exit": 1,
+    "stderr_contains": "AttributeError"
+  }
+}

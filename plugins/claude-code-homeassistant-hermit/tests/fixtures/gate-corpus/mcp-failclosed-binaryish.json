@@ -1,0 +1,5 @@
+{
+  "gate": "mcp",
+  "stdin": "\u0000\u0001\u0002{\"tool_input\"",
+  "verdict": "block"
+}

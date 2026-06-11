@@ -1,0 +1,5 @@
+{
+  "gate": "curl",
+  "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{}}",
+  "verdict": "passthrough"
+}

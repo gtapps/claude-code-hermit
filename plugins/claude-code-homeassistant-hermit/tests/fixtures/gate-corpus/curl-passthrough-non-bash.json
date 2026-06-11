@@ -1,0 +1,8 @@
+{
+  "gate": "curl",
+  "stdin": "{\"tool_name\":\"Read\",\"tool_input\":{\"command\":\"/tmp/x\"}}",
+  "env": {
+    "HOMEASSISTANT_LOCAL_URL": "http://homeassistant.local:8123"
+  },
+  "verdict": "passthrough"
+}

@@ -117,7 +117,7 @@ Policy overrides (allow-lists, extra sensitive domains/keywords) are configured 
 claude-code-homeassistant-hermit (this plugin)
   ├── skills/             HA workflow skills
   ├── agents/             HA subagents (safety-reviewer, automation-builder, pattern-analyst)
-  ├── hooks/              mcp-safety-gate.py + hooks.json
+  ├── hooks/              mcp-safety-gate.ts + hooks.json
   ├── bin/ha-agent-lab    CLI launcher (runs src/cli.ts with bun)
   ├── src/*.ts            TypeScript modules (REST client, policy, simulation, apply, history, silence)
   └── state-templates/    CLAUDE-APPEND.md (injected by hatch)

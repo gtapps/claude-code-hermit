@@ -1,0 +1,6 @@
+{
+  "gate": "mcp",
+  "stdin": "{\"tool_input\":{\"entity_id\":\"lock.front_door\"}}",
+  "config_mode": "ask",
+  "verdict": "ask"
+}

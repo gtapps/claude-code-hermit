@@ -1,0 +1,10 @@
+{
+  "gate": "curl",
+  "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"curl http://file.lan:8123/api\"}}",
+  "env_file": "HOMEASSISTANT_URL=http://file.lan:8123\n",
+  "set_project_dir": true,
+  "env": {
+    "HOMEASSISTANT_URL": "http://proc.lan:8123"
+  },
+  "verdict": "passthrough"
+}

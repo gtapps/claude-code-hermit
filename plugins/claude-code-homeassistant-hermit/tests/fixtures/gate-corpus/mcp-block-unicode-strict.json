@@ -1,0 +1,5 @@
+{
+  "gate": "mcp",
+  "stdin": "{\"tool_input\":{\"entity_id\":\"alarm_control_panel.中文\"}}",
+  "verdict": "block"
+}

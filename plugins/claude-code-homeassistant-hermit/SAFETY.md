@@ -4,7 +4,7 @@ This plugin controls real home devices. The safety model is layered — the agen
 
 ## How Actuation Is Gated
 
-Every MCP call matching `mcp__homeassistant__Hass*` is pre-screened by `hooks/mcp-safety-gate.py` (mirroring the policy in `src/policy.ts`) before it reaches Home Assistant. The hook fails closed — if the policy check errors or the target can't be resolved to a concrete entity, the call is blocked.
+Every MCP call matching `mcp__homeassistant__Hass*` is pre-screened by `hooks/mcp-safety-gate.ts` (importing the policy from `src/policy.ts` directly) before it reaches Home Assistant. The hook fails closed — if the policy check errors, the input can't be parsed, or the target can't be resolved to a concrete entity, the call is blocked (exit 2).
 
 ## What's Blocked by Default
 
@@ -68,17 +68,18 @@ Run on demand:
 
 ## Changing the Policy
 
-Policy source of truth is `src/policy.ts`. Changes to this file are considered sensitive — review carefully and run the test suite before shipping:
+Policy source of truth is `src/policy.ts`, enforced at the harness level by `hooks/mcp-safety-gate.ts`. Changes to either file are considered sensitive — review carefully and run the test suite before shipping:
 
 ```bash
 bun test
-/usr/bin/python3 -m pytest tests/test_safety_hook.py tests/test_curl_host_gate.py -v
 ```
+
+`tests/gate-corpus.test.ts` replays the retired Python gates (from git history) side by side with the TS hooks and asserts byte-identical verdicts; `tests/gate-fuzz.test.ts` property-tests the fail-closed guarantee on arbitrary garbage input. Both must stay green for any hook or policy change.
 
 When in doubt the hook fails closed. You can always relax the policy, but you have to do it deliberately.
 
 ## Hook Profile Gating
 
-`hooks/mcp-safety-gate.py` runs on **all profiles** by design — actuation gating is non-optional and must hold even in `lite` and `default` profiles where the operator may have loosened other controls.
+`hooks/mcp-safety-gate.ts` runs on **all profiles** by design — actuation gating is non-optional and must hold even in `lite` and `default` profiles where the operator may have loosened other controls.
 
-`hooks/curl-host-gate.py` (convenience auto-approver for curl/wget to the HA instance) is gated to `standard,strict` profiles. In `lite` profile it does not run, so HA URL calls go through the normal permission flow instead of being auto-approved.
+`hooks/curl-host-gate.ts` (convenience auto-approver for curl/wget to the HA instance) is gated to `standard,strict` profiles. In `lite` profile it does not run, so HA URL calls go through the normal permission flow instead of being auto-approved.

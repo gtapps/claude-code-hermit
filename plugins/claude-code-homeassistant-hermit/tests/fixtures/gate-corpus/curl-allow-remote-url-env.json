@@ -1,0 +1,9 @@
+{
+  "gate": "curl",
+  "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"curl https://myha.nabu.casa/api/states\"}}",
+  "env": {
+    "HOMEASSISTANT_URL": "https://myha.nabu.casa",
+    "HOMEASSISTANT_LOCAL_URL": "http://homeassistant.local:8123"
+  },
+  "verdict": "curl-allow"
+}

@@ -1,0 +1,8 @@
+{
+  "gate": "curl",
+  "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"curl http://homeassistant.local:8123/api/states\"}}",
+  "env": {
+    "HOMEASSISTANT_LOCAL_URL": "http://homeassistant.local:8123"
+  },
+  "verdict": "curl-allow"
+}

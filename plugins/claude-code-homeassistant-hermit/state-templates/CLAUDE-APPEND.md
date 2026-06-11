@@ -51,7 +51,7 @@ This project has the `claude-code-homeassistant-hermit` plugin installed. The ru
 
 - **MCP (`homeassistant`)**: live operations — `GetLiveContext`, `GetDateTime`, light/cover/fan control.
 - **CLI** (`${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab`): bulk work — context refresh, simulation, policy checks, apply, audits.
-- **Safety hook**: MCP actuation tools are gated by `hooks/mcp-safety-gate.py` before reaching HA.
+- **Safety hook**: MCP actuation tools are gated by `hooks/mcp-safety-gate.ts` before reaching HA.
 
 MCP tool IDs follow `mcp__homeassistant__*`. If you registered the HA MCP Server under a different name, update `hooks/hooks.json` accordingly.
 
@@ -88,7 +88,7 @@ Requires `.env` at the project root (gitignored):
 
 ### Safety
 
-- Sensitive files: `.env` (token/URL), `hooks/mcp-safety-gate.py`, `src/policy.ts`.
+- Sensitive files: `.env` (token/URL), `hooks/mcp-safety-gate.ts`, `src/policy.ts`.
 - MCP actuation tools are blocked by the safety hook before reaching HA.
 - Explicit operator approval is required before applying automations or modifying safety policy.
 

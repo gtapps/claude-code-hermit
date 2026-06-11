@@ -1,0 +1,5 @@
+{
+  "gate": "mcp",
+  "stdin": "{\"tool_input\":{\"entity_id\":\"switch.security_camera_power\"}}",
+  "verdict": "block"
+}

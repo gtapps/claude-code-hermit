@@ -1,0 +1,5 @@
+{
+  "gate": "curl",
+  "stdin": "{\"tool_input\":{\"command\":\"curl http://127.0.0.1:8123\"}}",
+  "verdict": "passthrough"
+}

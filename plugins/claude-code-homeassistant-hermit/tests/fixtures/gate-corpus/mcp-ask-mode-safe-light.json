@@ -1,0 +1,6 @@
+{
+  "gate": "mcp",
+  "stdin": "{\"tool_input\":{\"entity_id\":\"light.living_room\"}}",
+  "config_mode": "ask",
+  "verdict": "allow"
+}

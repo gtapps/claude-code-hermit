@@ -1,0 +1,6 @@
+{
+  "gate": "curl",
+  "stdin": "null",
+  "verdict": "error-passthrough",
+  "stderr_class": "exception-text"
+}

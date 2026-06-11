@@ -1,0 +1,6 @@
+{
+  "gate": "mcp",
+  "stdin": "{\"tool_input\":{\"entity_id\":\"lоck.front_door\"}}",
+  "verdict": "allow",
+  "note": "Cyrillic-o homoglyph domain is not \"lock\" and not conditionally sensitive — BOTH implementations allow; pinned as a known policy property, not a porting bug"
+}

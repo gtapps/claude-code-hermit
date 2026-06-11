@@ -1,0 +1,6 @@
+{
+  "gate": "curl",
+  "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"wget -qO- http://localhost:8123/api | jq .\"}}",
+  "verdict": "curl-allow",
+  "note": "gate is substring-based; pipes do not defeat the match"
+}

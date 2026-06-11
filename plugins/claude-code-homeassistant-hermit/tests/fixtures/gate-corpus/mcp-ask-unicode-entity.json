@@ -1,0 +1,7 @@
+{
+  "gate": "mcp",
+  "stdin": "{\"tool_input\":{\"entity_id\":\"lock.pórta_da_frente\"}}",
+  "config_mode": "ask",
+  "verdict": "ask",
+  "note": "ensure_ascii \\uXXXX escaping parity in the ask JSON"
+}

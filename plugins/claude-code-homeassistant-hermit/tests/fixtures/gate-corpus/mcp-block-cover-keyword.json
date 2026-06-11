@@ -1,0 +1,5 @@
+{
+  "gate": "mcp",
+  "stdin": "{\"tool_input\":{\"entity_id\":\"cover.garage_door\"}}",
+  "verdict": "block"
+}

@@ -1,0 +1,6 @@
+{
+  "gate": "mcp",
+  "stdin": "{\"tool_input\":{\"entity_id\":\"switch.pool_pump\"}}",
+  "env_file": "HA_EXTRA_SENSITIVE_KEYWORDS=pool\n",
+  "verdict": "block"
+}
