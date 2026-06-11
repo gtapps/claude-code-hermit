@@ -98,7 +98,7 @@ Or edit `.claude-code-hermit/config.json` directly: `"env": { "AGENT_HOOK_PROFIL
 
 ## Core Deny Patterns
 
-Core hermit ships its own `enforce-deny-patterns.js` `PreToolUse` hook that provides broader protections:
+Core hermit ships its own `enforce-deny-patterns.ts` `PreToolUse` hook that provides broader protections:
 
 - **`default` tier** (always active): catastrophic commands (`rm -rf`, credential access, OPERATOR.md bash redirects)
 - **`always_on` tier** (when `always_on: true` in config): `ssh`, `docker`, `kubectl`, `npm publish`, force push, `--no-verify`, OPERATOR.md Edit/Write, settings file modification
