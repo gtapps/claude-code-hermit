@@ -160,9 +160,16 @@ export async function validateAndApply(
       await client.post(`/api/config/${reloadDomain}/config/${configId}`, artifactConfig);
       try {
         const verify = await client.get(`/api/config/${reloadDomain}/config/${configId}`);
-        creationOk = verify?.alias === artifactConfig.alias;
-      } catch (exc) {
-        if (!(exc instanceof HomeAssistantError)) throw exc;
+        // The GET must return an object; when the artifact carries an alias it
+        // must match. (`verify?.alias === artifactConfig.alias` alone was
+        // undefined === undefined = true-by-default for alias-less artifacts.)
+        const isObject = verify !== null && typeof verify === 'object' && !Array.isArray(verify);
+        creationOk =
+          isObject && (artifactConfig.alias === undefined || verify.alias === artifactConfig.alias);
+      } catch {
+        // Any verify failure (HA error, timeout/AbortError, body-read failure)
+        // means we could not confirm — never rethrow here, the POST already
+        // landed; report unverified instead of escaping with no report written.
         creationOk = false;
       }
     } catch (exc) {

@@ -253,3 +253,35 @@ test('select url raises when no url configured', async () => {
   const config = loadConfig(tmp);
   await expect(selectHomeAssistantUrl(config, unreachableFetch)).rejects.toThrow(/URL/);
 });
+
+// --- code-review finding 9: body-stream failures keep the HTTP status ---
+
+function clientWithFetch(tmp: string, fetchImpl: any): HomeAssistantClient {
+  saveEnvFile(tmp, { HOMEASSISTANT_URL: 'http://ha.local:8123', HOMEASSISTANT_TOKEN: 'fake-token' });
+  const config = loadConfig(tmp);
+  return new HomeAssistantClient(config, 'http://ha.local:8123', 'test', fetchImpl);
+}
+
+test('error response whose body read throws still surfaces the HTTP status', async () => {
+  const client = clientWithFetch(tmpPath(), async () => ({
+    ok: false,
+    status: 403,
+    text: () => Promise.reject(new Error('stream reset')),
+  }));
+  try {
+    await client.get('/api/config/automation/config/x');
+    throw new Error('expected throw');
+  } catch (e: any) {
+    expect(e).toBeInstanceOf(HomeAssistantError);
+    expect(e.statusCode).toBe(403); // not lost to a raw stream TypeError
+  }
+});
+
+test('success response whose body read throws becomes a HomeAssistantError, not a raw throw', async () => {
+  const client = clientWithFetch(tmpPath(), async () => ({
+    ok: true,
+    status: 200,
+    text: () => Promise.reject(new Error('truncated')),
+  }));
+  await expect(client.get('/api/states')).rejects.toBeInstanceOf(HomeAssistantError);
+});

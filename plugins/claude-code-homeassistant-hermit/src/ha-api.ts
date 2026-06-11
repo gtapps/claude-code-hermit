@@ -231,11 +231,24 @@ export class HomeAssistantClient {
         continue;
       }
       if (!response.ok) {
-        // urllib HTTPError equivalent: surfaced immediately, no retry.
-        const errorBody = await response.text();
+        // urllib HTTPError equivalent: surfaced immediately, no retry. Read the
+        // error body defensively — a mid-stream failure must NOT lose the HTTP
+        // status, or callers (apply.ts) skip the 403→YAML-mode / 400→message
+        // handling keyed on statusCode and get an opaque error instead.
+        let errorBody = '';
+        try {
+          errorBody = await response.text();
+        } catch {}
         throw new HomeAssistantError(httpErrorMessage(response.status), response.status, errorBody);
       }
-      const text = await response.text();
+      let text: string;
+      try {
+        text = await response.text();
+      } catch (exc) {
+        // Success status but the body stream failed (truncated/aborted) — keep
+        // it a HomeAssistantError carrying the status, not a raw TypeError.
+        throw new HomeAssistantError('Failed to read Home Assistant response.', response.status, String(exc));
+      }
       if (!text.trim()) return {};
       try {
         return JSON.parse(text);
