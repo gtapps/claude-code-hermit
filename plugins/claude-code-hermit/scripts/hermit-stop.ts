@@ -15,12 +15,11 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { acquireLock, releaseLock } from './lib/lockfile';
 import { localISOStamp } from './lib/time';
-import { readRuntimeJson, updateRuntimeField, STATE_DIR } from './lib/runtime';
+import { readRuntimeJson, updateRuntimeField, STATE_DIR, LIFECYCLE_LOCK } from './lib/runtime';
 
 type Json = any;
 
 const CONFIG_PATH = '.claude-code-hermit/config.json';
-const LIFECYCLE_LOCK = path.join(STATE_DIR, '.lifecycle.lock');
 const SESSIONS_DIR = '.claude-code-hermit/sessions';
 const SHELL_PATH = path.join(SESSIONS_DIR, 'SHELL.md');
 const DEFAULT_TIMEOUT = 60; // seconds to wait for graceful close
@@ -40,7 +39,7 @@ function getSessionName(config: Json): string {
   return name.replaceAll('{project_name}', path.basename(process.cwd()));
 }
 
-function sessionExists(name: string): boolean {
+function tmuxSessionAlive(name: string): boolean {
   return spawnSync('tmux', ['has-session', '-t', name], { stdio: 'ignore' }).status === 0;
 }
 
@@ -120,7 +119,7 @@ async function main(): Promise<void> {
   acquireLifecycleLock();
   const sessionName = getSessionName(config);
 
-  if (!sessionExists(sessionName)) {
+  if (!tmuxSessionAlive(sessionName)) {
     const runtime = readRuntimeJson();
     if (runtime && runtime.runtime_mode === 'interactive') {
       // Claude is still running in the operator's terminal — don't corrupt
@@ -181,7 +180,7 @@ async function main(): Promise<void> {
   }
 
   // Stop heartbeat first (only if enabled in config)
-  if (config.heartbeat?.enabled && sessionExists(sessionName)) {
+  if (config.heartbeat?.enabled && tmuxSessionAlive(sessionName)) {
     console.log('[hermit] Stopping heartbeat...');
     tmux(['send-keys', '-t', sessionName, '/claude-code-hermit:heartbeat stop', 'Enter']);
     await sleep(2);
@@ -208,7 +207,7 @@ async function main(): Promise<void> {
   let closedEarly = false;
   for (let i = 0; i < DEFAULT_TIMEOUT; i++) {
     await sleep(1);
-    if (!sessionExists(sessionName)) {
+    if (!tmuxSessionAlive(sessionName)) {
       console.log('[hermit] Session exited without generating a report.');
       closedEarly = true;
       break;
@@ -233,7 +232,7 @@ async function main(): Promise<void> {
   saveConfig(config);
 
   // Kill tmux session
-  if (sessionExists(sessionName)) {
+  if (tmuxSessionAlive(sessionName)) {
     tmux(['kill-session', '-t', sessionName]);
     console.log(`[hermit] tmux session "${sessionName}" terminated.`);
   }

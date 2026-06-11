@@ -22,14 +22,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { acquireLock, releaseLock } from './lib/lockfile';
-import { localISOStamp } from './lib/time';
-import { writeRuntimeJson, RUNTIME_JSON } from './lib/runtime';
+import { utcISOStamp as utcStamp } from './lib/time';
+import { writeRuntimeJson, RUNTIME_JSON, STATE_DIR, LIFECYCLE_LOCK } from './lib/runtime';
 
 type Json = any;
 
 const CONFIG_PATH = '.claude-code-hermit/config.json';
-const STATE_DIR = '.claude-code-hermit/state';
-const LIFECYCLE_LOCK = path.join(STATE_DIR, '.lifecycle.lock');
 const WATCHDOG_STATE_JSON = path.join(STATE_DIR, 'watchdog-state.json');
 const WATCHDOG_EVENTS_JSONL = path.join(STATE_DIR, 'watchdog-events.jsonl');
 const HEARTBEAT_FILE = path.join(STATE_DIR, '.heartbeat');
@@ -64,11 +62,6 @@ function writeJson(p: string, data: Json): void {
   } catch (e) {
     process.stderr.write(`[watchdog] write ${path.basename(p)}: ${e}\n`);
   }
-}
-
-/** UTC timestamp in time.strftime('%Y-%m-%dT%H:%M:%SZ', gmtime()) shape. */
-function utcStamp(): string {
-  return new Date().toISOString().slice(0, 19) + 'Z';
 }
 
 /** Append one audit line to watchdog-events.jsonl. */

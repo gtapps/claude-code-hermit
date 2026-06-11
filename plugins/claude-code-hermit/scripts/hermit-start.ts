@@ -16,16 +16,12 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { acquireLock, releaseLock } from './lib/lockfile';
-import { writeRuntimeJson, readRuntimeJson } from './lib/runtime';
+import { writeRuntimeJson, readRuntimeJson, STATE_DIR, RUNTIME_JSON, RUNTIME_TMP, LIFECYCLE_LOCK } from './lib/runtime';
 import { localISOStamp } from './lib/time';
 
 type Json = any;
 
 const CONFIG_PATH = '.claude-code-hermit/config.json';
-const STATE_DIR = '.claude-code-hermit/state';
-const RUNTIME_JSON = path.join(STATE_DIR, 'runtime.json');
-const RUNTIME_TMP = path.join(STATE_DIR, '.runtime.json.tmp');
-const LIFECYCLE_LOCK = path.join(STATE_DIR, '.lifecycle.lock');
 const PROFILE_LEVELS: Record<string, number> = { minimal: 0, standard: 1, strict: 2 };
 
 const PLUGIN_ROOT = path.resolve(import.meta.dirname, '..');
@@ -120,7 +116,7 @@ function shlexQuote(s: string): string {
   return "'" + s.replaceAll("'", "'\"'\"'") + "'";
 }
 
-/** Python shlex.join. */
+/** Join args into a shell-safe string using shlexQuote. */
 function shlexJoin(args: string[]): string {
   return args.map(shlexQuote).join(' ');
 }
@@ -203,8 +199,7 @@ function checkPrerequisites(): Json {
   if (!hasBun) {
     errors.push('bun: required runtime not found. Install: curl -fsSL https://bun.sh/install | bash');
   } else {
-    // The Python spawned `bun --version`; this script already runs under bun,
-    // so Bun.version is the same probe without the subprocess.
+    // Already running under bun, so Bun.version is a free in-process probe.
     const bunVersion = Bun.version.trim();
     let required = '1.3.0';
     try {

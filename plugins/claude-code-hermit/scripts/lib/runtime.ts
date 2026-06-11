@@ -13,6 +13,7 @@ type Json = any;
 const STATE_DIR = '.claude-code-hermit/state';
 const RUNTIME_JSON = path.join(STATE_DIR, 'runtime.json');
 const RUNTIME_TMP = path.join(STATE_DIR, '.runtime.json.tmp');
+const LIFECYCLE_LOCK = path.join(STATE_DIR, '.lifecycle.lock');
 
 /** Atomic write to state/runtime.json; stamps updated_at. */
 function writeRuntimeJson(data: Json): void {
@@ -38,4 +39,4 @@ function updateRuntimeField(updates: Json): void {
   writeRuntimeJson(runtime);
 }
 
-export { writeRuntimeJson, readRuntimeJson, updateRuntimeField, STATE_DIR, RUNTIME_JSON, RUNTIME_TMP };
+export { writeRuntimeJson, readRuntimeJson, updateRuntimeField, STATE_DIR, RUNTIME_JSON, RUNTIME_TMP, LIFECYCLE_LOCK };

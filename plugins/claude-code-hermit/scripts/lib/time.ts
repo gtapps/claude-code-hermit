@@ -40,4 +40,9 @@ function localISOStamp(d: Date = new Date()): string {
   );
 }
 
-export { currentHHMM, todayYMD, localISOStamp };
+// UTC timestamp in Python's time.strftime('%Y-%m-%dT%H:%M:%SZ', gmtime()) shape.
+function utcISOStamp(): string {
+  return new Date().toISOString().slice(0, 19) + 'Z';
+}
+
+export { currentHHMM, todayYMD, localISOStamp, utcISOStamp };

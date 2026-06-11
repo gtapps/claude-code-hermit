@@ -28,7 +28,7 @@ const COST_SUMMARY = path.resolve('.claude-code-hermit/cost-summary.md');
 const TASK_SNAPSHOT = path.resolve('.claude-code-hermit/tasks-snapshot.md');
 
 let _runtimeCache: Json;
-function readRuntimeJson(): Json {
+function readRuntimeJsonCached(): Json {
   if (_runtimeCache !== undefined) return _runtimeCache;
   try {
     _runtimeCache = JSON.parse(fs.readFileSync(RUNTIME_JSON, 'utf-8'));
@@ -39,7 +39,7 @@ function readRuntimeJson(): Json {
 }
 
 function readRuntimeSessionId(): string {
-  return readRuntimeJson().session_id || '';
+  return readRuntimeJsonCached().session_id || '';
 }
 
 function touchHeartbeat(): void {
@@ -192,7 +192,7 @@ function getCumulativeCost(newCost: number, newTokens: number, hadHumanTurn: boo
 const MAX_SUMMARY_LEN = 120;
 
 function readRuntimeSessionState(): string {
-  return readRuntimeJson().session_state || 'unknown';
+  return readRuntimeJsonCached().session_state || 'unknown';
 }
 
 function writeStatusJson(shellContent: string, cumulative: { cost: number; tokens: number; operatorTurns: number }, sessionId: string): void {
