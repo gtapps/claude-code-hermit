@@ -6,7 +6,7 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ### Changed
 
-- **TypeScript port underway (bun migration, core #18)** — YAML parity corpus + 91-test divergence-pin suite (Bun.YAML vs PyYAML, verdict: semantic equivalence with a dump-quoting normalization layer); foundation modules ported beside the untouched Python: `src/yaml.ts` (normalizing wrapper — multi-doc rejection, PyYAML-1.1 implicit-scalar quoting on dump, JS-Date rejection), `src/time-utils.ts`, `src/config.ts` (explicit `.env` parser with python-dotenv parity), `src/policy.ts`, `src/markdown.ts`. One sanctioned representation change: frontmatter `created` is handled as an ISO string end-to-end (audit confirmed no datetime-object consumers).
+- **TypeScript port underway (bun migration, core #18)** — YAML parity corpus + 91-test divergence-pin suite (Bun.YAML vs PyYAML, verdict: semantic equivalence with a dump-quoting normalization layer); foundation modules ported beside the untouched Python: `src/yaml.ts` (normalizing wrapper — multi-doc rejection, PyYAML-1.1 implicit-scalar quoting on dump, JS-Date rejection), `src/time-utils.ts`, `src/config.ts` (explicit `.env` parser with python-dotenv parity), `src/policy.ts`, `src/markdown.ts`; tier 2 adds `src/ha-api.ts` (urllib → fetch, async end-to-end, injectable transport, verbatim HA `{"message"}` error surfacing), `src/history.ts`, `src/silence.ts`, `src/audits.ts` (thread pool → 20-wide async worker pool), `src/integration-health.ts`, `src/artifacts.ts`. One sanctioned representation change: frontmatter `created` is handled as an ISO string end-to-end (audit confirmed no datetime-object consumers).
 
 ## [0.1.9] - 2026-06-04
 
