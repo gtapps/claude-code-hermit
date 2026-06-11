@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **hooks and tests run on bun** — hooks.json command strings and the test runner invoke `bun` instead of `node` (bun migration, core #18; the bun >=1.3 requirement comes with the core plugin).
+
 ## [0.3.14] - 2026-06-05
 
 ### Changed
