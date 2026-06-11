@@ -22,6 +22,7 @@ const TEMPLATE_PATH = path.join(PLUGIN_ROOT, 'state-templates', 'config.json.tem
 const SKILL_PATH = path.join(PLUGIN_ROOT, 'skills', 'hatch', 'SKILL.md');
 const SANDBOX_PROFILES_PATH = path.join(PLUGIN_ROOT, 'state-templates', 'sandbox-profiles.json');
 const DENY_PATTERNS_PATH = path.join(PLUGIN_ROOT, 'state-templates', 'deny-patterns.json');
+const WORKTREEINCLUDE_PATH = path.join(PLUGIN_ROOT, 'state-templates', 'WORKTREEINCLUDE-APPEND.txt');
 
 test('template file exists', () => {
   expect(fs.existsSync(TEMPLATE_PATH)).toBe(true);
@@ -81,6 +82,31 @@ describe('sandbox templates', () => {
     expect(d).toHaveProperty('sandbox');
     expect(d.sandbox).toHaveProperty('filesystem');
     expect(d.sandbox.filesystem).toHaveProperty('denyRead');
+  });
+});
+
+// -------------------------------------------------------
+// .worktreeinclude template
+// -------------------------------------------------------
+describe('.worktreeinclude template', () => {
+  test('WORKTREEINCLUDE-APPEND.txt exists', () => {
+    expect(fs.existsSync(WORKTREEINCLUDE_PATH)).toBe(true);
+  });
+
+  test('hatch/SKILL.md references WORKTREEINCLUDE-APPEND.txt', () => {
+    expect(skillContent).toContain('WORKTREEINCLUDE-APPEND.txt');
+  });
+
+  test('template only contains the two allowed paths (safety-invariant: no runtime state)', () => {
+    const raw = fs.readFileSync(WORKTREEINCLUDE_PATH, 'utf-8');
+    const effectiveLines = raw
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && !l.startsWith('#'));
+    expect(effectiveLines).toEqual([
+      '.claude-code-hermit/OPERATOR.md',
+      '.claude-code-hermit/compiled/',
+    ]);
   });
 });
 
