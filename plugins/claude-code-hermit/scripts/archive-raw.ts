@@ -25,7 +25,8 @@ try {
       retentionDays = config.knowledge.raw_retention_days;
     }
     const arc = config.knowledge.archive_retention_days;
-    if (arc === null || typeof arc === 'number') archiveRetentionDays = arc;
+    // Guard against a hand-edited 0/negative, which would purge the whole archive.
+    if (typeof arc === 'number' && arc > 0) archiveRetentionDays = arc;
   }
 } catch {}
 
