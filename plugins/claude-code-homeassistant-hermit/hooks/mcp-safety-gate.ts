@@ -90,7 +90,7 @@ function fail(message: string): never {
 function main(): void {
   let payload: unknown;
   try {
-    payload = JSON.parse(readFileSync(0, 'utf8'));
+      payload = JSON.parse(readFileSync(0, 'utf8'));
   } catch {
     fail('Failed to parse hook input');
   }
@@ -106,49 +106,49 @@ function main(): void {
   // ENOENT) would exit 1 — which Claude Code treats as NON-blocking. A safety
   // gate must never fail open on an internal error.
   try {
-  let toolInput = (payload as Record<string, unknown>)['tool_input'];
-  if (typeof toolInput !== 'object' || toolInput === null || Array.isArray(toolInput)) {
-    toolInput = {};
-  }
+    let toolInput = (payload as Record<string, unknown>)['tool_input'];
+    if (typeof toolInput !== 'object' || toolInput === null || Array.isArray(toolInput)) {
+      toolInput = {};
+    }
 
-  const entityIds = extractEntityIds(toolInput as Record<string, unknown>);
+    const entityIds = extractEntityIds(toolInput as Record<string, unknown>);
 
-  if (entityIds.length === 0) {
-    fail(
-      'Cannot verify target safety: no resolvable entity IDs found ' +
-        '(area_id / device_id targets are not evaluated). Use a proposal instead.',
+    if (entityIds.length === 0) {
+      fail(
+        'Cannot verify target safety: no resolvable entity IDs found ' +
+          '(area_id / device_id targets are not evaluated). Use a proposal instead.',
+      );
+    }
+
+    const hits: Array<[string, Severity]> = [];
+    for (const eid of entityIds) {
+      const [sev] = classifyEntity(eid);
+      if (sev !== Severity.ALLOW) hits.push([eid, sev]);
+    }
+
+    if (hits.length === 0) {
+      process.exit(0);
+    }
+
+    // All hits share the same severity under the two-tier model — the current
+    // mode applies uniformly to every sensitive entity in this call.
+    const currentSev = hits[0]![1];
+    const names = hits.map(([e]) => e).join(', ');
+
+    if (currentSev === Severity.BLOCK) {
+      fail(`Blocked sensitive entities: ${names}. Use a proposal instead.`);
+    }
+
+    // Byte-identical to Python's json.dumps(...) of the same dict: `, ` / `: `
+    // separators and ensure_ascii string escaping.
+    const reason = pyJsonString(`Sensitive entities: ${names}`);
+    writeSync(
+      1,
+      '{"hookSpecificOutput": {"hookEventName": "PreToolUse", ' +
+        '"permissionDecision": "ask", ' +
+        `"permissionDecisionReason": ${reason}}}\n`,
     );
-  }
-
-  const hits: Array<[string, Severity]> = [];
-  for (const eid of entityIds) {
-    const [sev] = classifyEntity(eid);
-    if (sev !== Severity.ALLOW) hits.push([eid, sev]);
-  }
-
-  if (hits.length === 0) {
     process.exit(0);
-  }
-
-  // All hits share the same severity under the two-tier model — the current
-  // mode applies uniformly to every sensitive entity in this call.
-  const currentSev = hits[0]![1];
-  const names = hits.map(([e]) => e).join(', ');
-
-  if (currentSev === Severity.BLOCK) {
-    fail(`Blocked sensitive entities: ${names}. Use a proposal instead.`);
-  }
-
-  // Byte-identical to Python's json.dumps(...) of the same dict: `, ` / `: `
-  // separators and ensure_ascii string escaping.
-  const reason = pyJsonString(`Sensitive entities: ${names}`);
-  writeSync(
-    1,
-    '{"hookSpecificOutput": {"hookEventName": "PreToolUse", ' +
-      '"permissionDecision": "ask", ' +
-      `"permissionDecisionReason": ${reason}}}\n`,
-  );
-  process.exit(0);
   } catch (e: any) {
     fail(`Cannot verify target safety: internal error (${e?.code ?? 'unknown'}). Use a proposal instead.`);
   }

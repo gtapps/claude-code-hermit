@@ -66,7 +66,7 @@ export interface RemoveResult {
   reportPath: string;
 }
 
-/** Python `str(value or "")`: None/falsy -> "". */
+/** Coerce value to string; "" for null/undefined/false/0/empty string. */
 function pyStrOrEmpty(value: unknown): string {
   if (value === null || value === undefined || value === false || value === 0 || value === '') {
     return '';
@@ -105,7 +105,7 @@ export async function validateAndApply(
   let configOk: boolean;
   try {
     const checkResult = await client.post('/api/config/core/check_config', {});
-    configOk = isTruthy(checkResult);
+    configOk = isConfigCheckOk(checkResult);
   } catch (exc) {
     if (!(exc instanceof HomeAssistantError)) throw exc;
     const reportPath = writeApplyReport(root, artifactPath, simulation, {
@@ -355,9 +355,10 @@ function writeRemoveReport(
   );
 }
 
-// Python _is_truthy: bool -> itself; dict with "result" -> == "valid";
-// other dict -> no value is literal False; everything else -> bool(value).
-function isTruthy(checkResult: unknown): boolean {
+// Interprets the HA config/core/check_config response as a boolean.
+// bool -> itself; dict with "result" -> "valid" means pass; other dict ->
+// passes unless any value is literally false; else -> Boolean coerce.
+function isConfigCheckOk(checkResult: unknown): boolean {
   if (typeof checkResult === 'boolean') return checkResult;
   if (Array.isArray(checkResult)) return checkResult.length > 0; // Python bool(list)
   if (checkResult !== null && typeof checkResult === 'object') {
