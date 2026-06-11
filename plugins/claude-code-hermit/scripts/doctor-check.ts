@@ -630,7 +630,7 @@ function checkWatchdog() {
 
 function checkOpusWake() {
   try {
-    const since = new Date(Date.now() - 6 * MS_PER_DAY).toISOString().slice(0, 10);
+    const since = new Date(Date.now() - 7 * MS_PER_DAY).toISOString().slice(0, 10);
     const { count, cost } = scanAutomatedOpus(costLog, since);
     if (count > 0) {
       return { id: 'opus-wake', status: 'warn',
