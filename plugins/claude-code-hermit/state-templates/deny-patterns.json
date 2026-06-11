@@ -15,7 +15,9 @@
     "Bash(*API_KEY*)",
     "Bash(*SECRET*)",
     "Bash(*TOKEN*)",
-    "Bash(*> *.claude-code-hermit/OPERATOR.md*)"
+    "Bash(*> *.claude-code-hermit/OPERATOR.md*)",
+    "Edit(*/.claude/plugins/marketplaces/*)",
+    "Write(*/.claude/plugins/marketplaces/*)"
   ],
   "sandbox": {
     "filesystem": {

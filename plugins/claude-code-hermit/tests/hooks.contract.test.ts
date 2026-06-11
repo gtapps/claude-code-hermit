@@ -286,6 +286,22 @@ describe('enforce-deny-patterns', () => {
     expect(r.exitCode).toBe(0);
   }));
 
+  test('enforce-deny-patterns (block marketplaces path)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Edit","tool_input":{"file_path":"/home/u/.claude/plugins/marketplaces/claude-code-hermit/plugins/claude-code-hermit/scripts/foo.ts"}}',
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(2);
+  }));
+
+  test('enforce-deny-patterns (allow normal project path)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Edit","tool_input":{"file_path":"/home/u/project/src/foo.ts"}}',
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(0);
+  }));
+
   test('enforce-deny-patterns (empty stdin)', withDir(async (dir) => {
     const r = await runScript('enforce-deny-patterns.ts', {
       stdin: '', cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },

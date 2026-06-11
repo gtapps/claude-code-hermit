@@ -4,6 +4,8 @@
 
 ### Added
 
+- **deny-patterns: block Edit/Write to installed plugin source** — a hermit can no longer modify its own files under `~/.claude/plugins/marketplaces/` (#351).
+
 - **doctor-check: `runtime` check (bun)** — verifies bun presence and version against `required_bun_version` in `hermit-meta.json` (report grows to 13 checks); `hermit-start` preflight hard-errors when bun is missing or below 1.3.0.
 
 - **reflect: observations ledger with mechanical graduation** — sub-threshold observations (cost spikes, quick-mode deferrals, failed three-condition candidates) append to `state/observations.jsonl` instead of project memory; step 3b prunes (30-day TTL, recurrence keeps a pattern's history) and promotes patterns seen in ≥2 distinct sessions to candidates carrying a ledger `Artifact:` citation. New `scripts/prune-observations.js`.
