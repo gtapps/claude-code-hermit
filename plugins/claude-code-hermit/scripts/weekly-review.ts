@@ -257,6 +257,23 @@ try {
   }
 } catch {}
 
+// observations.jsonl is the reflect ledger's kill signal: empty everywhere =
+// graduation never fires.
+let reflectObsTotal = 0;
+let reflectObsWeek = 0;
+try {
+  const lines = fs.readFileSync(path.join(hermitDir, 'state', 'observations.jsonl'), 'utf-8').split('\n');
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    reflectObsTotal++;
+    try {
+      const e = JSON.parse(line);
+      const d = new Date(e.ts);
+      if (d >= weekStart && d < weekEnd) reflectObsWeek++;
+    } catch {}
+  }
+} catch {}
+
 // --- Build report ---
 
 const frontmatter = [
@@ -281,6 +298,7 @@ const frontmatter = [
   `reflect_surfaced: ${reflectSurfaced}`,
   `reflect_accepted: ${reflectAccepted}`,
   `reflect_cost_usd: ${reflectCost.toFixed(2)}`,
+  `reflect_observations: ${reflectObsTotal}`,
   '---',
 ].join('\n');
 
@@ -348,9 +366,10 @@ if (openLoops.length > 0) {
 // Reflect vital-signs — makes healthy-quiet distinguishable from dead: a week
 // of runs with zero surfaced/accepted while cost accumulates is the loop
 // telling the operator to prune it.
-if (reflectRuns > 0) {
+if (reflectRuns > 0 || reflectObsTotal > 0) {
   body += `### Reflect\n`;
   let line = `reflect: ${reflectRuns} run${reflectRuns !== 1 ? 's' : ''}, ${reflectCandidates} candidates, ${reflectSurfaced} surfaced, ${reflectAccepted} accepted, ~$${reflectCost.toFixed(2)}`;
+  line += `; obs: ${reflectObsTotal} ledger${reflectObsWeek > 0 ? ` (+${reflectObsWeek} this week)` : ''}`;
   if (reflectSuppressed.size > 0) {
     const list = [...reflectSuppressed];
     const more = list.length > 5 ? `, +${list.length - 5} more` : '';
