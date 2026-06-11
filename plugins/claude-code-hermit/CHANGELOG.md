@@ -27,6 +27,8 @@
 
 ### Changed
 
+- **hermit-evolution: merged into a full evolution report** — the skill now produces a unified 6-section digest (cost trend + 30d source split, autonomy, proposal velocity, routines/watches with cadence, top-3 produced (inferred), grown since hatch (approximated)) instead of the prior terse 4-section snapshot; trigger phrases extended to include "evolution report", "monthly report", "how have I grown", "what did I produce last month".
+
 - **bun is now a required runtime (>=1.3)** — first step of the bun migration (#18): declared in `hermit-meta.json`, gated by `hermit-evolve` Step 0b (upgrade refuses to proceed without it), pinned in the Docker template (`BUN_VERSION` arg, native installer; the Claude Code CLI stays on npm).
 - **hooks and test harnesses run on bun** — every hooks.json command string, `heartbeat-monitor.sh`, and all test suites invoke `bun` instead of `node`; hook scripts stay stdlib `.js` at this step. `run-with-profile` spawns `process.execPath` so inner hooks inherit the outer runtime.
 - **Docker layer is Python-free** — the image drops `python3/venv/pip` from apt; every inline `python3 -c` in the entrypoint template (cred expiry, mtime watch, init JSON, recommended-plugins) and `check-upgrade.sh` converts to `bun -e`/heredoc equivalents with byte-identical outputs; docker-security's host-side verify blocks likewise. The entrypoint PATH line now includes `~/.bun/bin`. Bun quirk hardened: `-e` mode exits 0 on uncaught fs errors, so snippets catch internally and the init block fail-louds explicitly.
