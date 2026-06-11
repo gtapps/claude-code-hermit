@@ -69,7 +69,7 @@ Parse the verdict:
 After each verdict, append a metrics event (Node stdlib, no deps):
 
 ```bash
-node -e "const fs=require('fs'); fs.appendFileSync('.claude-code-hermit/state/proposal-metrics.jsonl', JSON.stringify({ts:'<now ISO>',type:'brainstorm-emit',skill:'domain-brainstorm',verdict:'<CREATE|SUPPRESS|DUPLICATE>',proposal_id:'<PROP-NNN or null>'})+'\n','utf-8');"
+bun -e "const fs=require('fs'); fs.appendFileSync('.claude-code-hermit/state/proposal-metrics.jsonl', JSON.stringify({ts:'<now ISO>',type:'brainstorm-emit',skill:'domain-brainstorm',verdict:'<CREATE|SUPPRESS|DUPLICATE>',proposal_id:'<PROP-NNN or null>'})+'\n','utf-8');"
 ```
 
 Use the `config.json` timezone for `<now ISO>` (matching `proposal-create`), so this file isn't a mix of UTC and local timestamps. This event is what the kill-criteria audit reads — `proposal-create`'s own `created` event does not carry per-skill provenance.

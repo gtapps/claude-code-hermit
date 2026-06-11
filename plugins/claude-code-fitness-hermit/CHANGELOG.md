@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- **tests run on bun** — the test runner invokes `bun` instead of `node` (bun migration, core #18).
+- **tests run on bun and are TypeScript** — test files renamed `.js` → `.ts`; the runner and the domain-brainstorm inline eval invoke `bun` (bun migration, core #18).
 
 ---
 

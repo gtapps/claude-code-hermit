@@ -1,9 +1,7 @@
-'use strict';
-
-function parseFrontmatter(text) {
+function parseFrontmatter(text: string) {
   const m = text.match(/^---\n([\s\S]*?)\n---\n/);
   if (!m) return null;
-  const fields = {};
+  const fields: Record<string, string> = {};
   for (const line of m[1].split('\n')) {
     const kv = line.match(/^(\w+):\s*(.*)$/);
     if (kv) fields[kv[1]] = kv[2].trim();
@@ -14,7 +12,7 @@ function parseFrontmatter(text) {
 function makeReporter() {
   let passed = 0;
   let failed = 0;
-  function ok(name, cond, detail) {
+  function ok(name: string, cond: boolean, detail?: string) {
     if (cond) {
       console.log(`  ✓ ${name}`);
       passed += 1;
@@ -23,11 +21,11 @@ function makeReporter() {
       failed += 1;
     }
   }
-  function summary() {
+  function summary(): number {
     console.log(`\nResults: ${passed} passed, ${failed} failed`);
     return failed;
   }
   return { ok, summary };
 }
 
-module.exports = { parseFrontmatter, makeReporter };
+export { parseFrontmatter, makeReporter };

@@ -1,7 +1,5 @@
-'use strict';
-
 // Structural invariants for SKILL.md files in claude-code-fitness-hermit.
-// Run with: node tests/skill-structure.test.js
+// Run with: bun tests/skill-structure.test.ts
 //
 // What this checks (and what it does NOT):
 //   ✓ Frontmatter present and parseable; `name` and `description` set.
@@ -11,11 +9,11 @@
 // We do NOT execute the skill or assert on its prose semantics — that's the
 // LLM's job at runtime. This is structural lint only.
 
-const fs = require('fs');
-const path = require('path');
-const { parseFrontmatter, makeReporter } = require('./test-utils');
+import fs from 'node:fs';
+import path from 'node:path';
+import { parseFrontmatter, makeReporter } from './test-utils';
 
-const SKILL_DIR = path.join(__dirname, '..', 'skills');
+const SKILL_DIR = path.join(import.meta.dir, '..', 'skills');
 
 // Per-skill expectations. Update if a skill's gate count changes.
 // gates: 0 → skill has no Gate N — section structure (e.g., read-only status skills).
@@ -59,7 +57,7 @@ for (const { name, gates } of SKILLS) {
   // Skip absolute URLs (http://, mailto:) and same-document anchors (#section).
   const linkRe = /\[[^\]]+\]\(([^)]+)\)/g;
   const skillBaseDir = path.dirname(file);
-  let linkMatch;
+  let linkMatch: RegExpExecArray | null;
   let linksChecked = 0;
   let linksBad = 0;
   while ((linkMatch = linkRe.exec(fm.body)) !== null) {
