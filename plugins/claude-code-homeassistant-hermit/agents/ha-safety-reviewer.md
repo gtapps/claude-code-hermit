@@ -32,7 +32,7 @@ Review YAML files in `.claude-code-hermit/raw/` (named `automation-*.yaml` or `s
 ## How to Check
 
 - Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <artifact_path>` for automated policy checking
-- Read `src/ha_agent_lab/policy.py` for the sensitive domains and keywords list
+- Read `src/policy.ts` for the sensitive domains and keywords list
 - Read `.claude-code-hermit/raw/snapshot-ha-normalized-latest.json` for the entity inventory
 
 ## Memory Cross-Check

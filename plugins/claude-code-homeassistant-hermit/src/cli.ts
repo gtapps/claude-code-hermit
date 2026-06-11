@@ -1,0 +1,1045 @@
+// WP7 tier 3 port of src/ha_agent_lab/cli.py — the argv-compatible CLI behind
+// bin/ha-agent-lab. Stdout shapes and exit codes are a contract consumed by
+// skills; JSON output replicates Python json.dumps byte-for-byte where
+// feasible (indent=2, ensure_ascii escaping, compact separators with spaces).
+//
+// Parser: hand-rolled argparse equivalent. Error messages, usage strings and
+// exit code 2 match CPython argparse for the observed paths (no args, unknown
+// command/subcommand, missing positional/required sub, bad --reload choice,
+// bad --window-days int, unrecognized arguments). Argparse's abbreviated
+// `--flag` prefix matching is NOT replicated — flags must be spelled out.
+//
+// Dependency injection: main(argv, deps) accepts overrides for loadConfig,
+// client construction and refreshContext — the TS equivalent of the pytest
+// monkeypatching of cli.load_config / cli.HomeAssistantClient /
+// cli.refresh_context.
+
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { relative, resolve } from 'node:path';
+
+import { readConfig, removeConfig, validateAndApply } from './apply';
+import {
+  currentSessionId,
+  standardMetadata,
+  utcTimestamp,
+  writeJsonArtifact,
+  writeMarkdownArtifact,
+} from './artifacts';
+import { auditAutomations, auditScripts } from './audits';
+import { bootStatus, saveBootPreferences } from './boot';
+import { AppConfig, loadConfig, normalizedContextPath } from './config';
+import { HomeAssistantClient, HomeAssistantError } from './ha-api';
+import { fetchHistorySnapshot } from './history';
+import {
+  computeDegradedDomains,
+  formatIntegrationHealthStdout,
+  writeDegradedDomainsArtifact,
+} from './integration-health';
+import { checkEntity, normalizeEntityIndex } from './policy';
+import { evaluateYamlPolicy, simulateArtifact } from './simulate';
+import { computeSilenceSummary } from './silence';
+
+// ---------------------------------------------------------------------------
+// JSON output helpers — Python json.dumps parity
+// ---------------------------------------------------------------------------
+
+/** json.dumps(ensure_ascii=True): escape every non-ASCII UTF-16 code unit. */
+function escapeNonAscii(text: string): string {
+  return text.replace(
+    /[\u007f-\uffff]/g,
+    (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`,
+  );
+}
+
+function jsonDumps(value: unknown, options: { indent?: number; ensureAscii?: boolean } = {}): string {
+  const { indent = 2, ensureAscii = true } = options;
+  const text = JSON.stringify(value, null, indent);
+  return ensureAscii ? escapeNonAscii(text) : text;
+}
+
+/** Python json.dumps default separators (', ', ': ') — single-line. */
+function jsonDumpsCompact(value: unknown): string {
+  if (value === null || typeof value !== 'object') return escapeNonAscii(JSON.stringify(value));
+  if (Array.isArray(value)) return `[${value.map(jsonDumpsCompact).join(', ')}]`;
+  const entries = Object.entries(value).map(
+    ([key, child]) => `${escapeNonAscii(JSON.stringify(key))}: ${jsonDumpsCompact(child)}`,
+  );
+  return `{${entries.join(', ')}}`;
+}
+
+/** date.today().isoformat() — local date. */
+function todayIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// ---------------------------------------------------------------------------
+// Dependency injection (pytest monkeypatch equivalent)
+// ---------------------------------------------------------------------------
+
+/** The client surface the CLI uses (HomeAssistantClient satisfies it). */
+export interface CliClient {
+  baseUrlSource: string;
+  get(path: string): Promise<any>;
+  post(path: string, payload?: Record<string, unknown> | null): Promise<any>;
+  delete(path: string): Promise<any>;
+  getStates(): Promise<Array<Record<string, any>>>;
+  getHistory(
+    entityIds: string[],
+    startTime: Date,
+    endTime: Date,
+  ): Promise<Record<string, Array<Record<string, any>>>>;
+}
+
+export interface CliDeps {
+  loadConfig: (root?: string | null) => AppConfig;
+  createClient: (config: AppConfig) => Promise<CliClient>;
+  refreshContext: (root: string, client: CliClient) => Promise<Record<string, any>>;
+}
+
+function resolveDeps(overrides: Partial<CliDeps>): CliDeps {
+  return {
+    loadConfig: overrides.loadConfig ?? loadConfig,
+    createClient: overrides.createClient ?? ((config) => HomeAssistantClient.create(config)),
+    refreshContext: overrides.refreshContext ?? refreshContext,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Argparse-equivalent parsing
+// ---------------------------------------------------------------------------
+
+class ParserExit extends Error {
+  constructor(readonly code: number) {
+    super(`parser exit ${code}`);
+  }
+}
+
+const TOP_USAGE = 'usage: ha_agent_lab [-h] {boot,ha} ...';
+const BOOT_USAGE = 'usage: ha_agent_lab boot [-h] {status,store} ...';
+const HA_COMMANDS = [
+  'refresh-context',
+  'simulate',
+  'validate-apply',
+  'policy-check',
+  'audit-automations',
+  'audit-scripts',
+  'probe',
+  'integration-health',
+  'fetch-history',
+  'list-automations',
+  'list-scripts',
+  'delete-automation',
+  'delete-script',
+  'get-automation-config',
+  'get-script-config',
+] as const;
+const HA_USAGE = [
+  'usage: ha_agent_lab ha [-h]',
+  `                       {${HA_COMMANDS.join(',')}}`,
+  '                       ...',
+].join('\n');
+
+const TOP_HELP = `${TOP_USAGE}
+
+positional arguments:
+  {boot,ha}
+
+options:
+  -h, --help  show this help message and exit`;
+
+const BOOT_HELP = `${BOOT_USAGE}
+
+positional arguments:
+  {status,store}
+
+options:
+  -h, --help      show this help message and exit`;
+
+const HA_HELP = `${HA_USAGE}
+
+positional arguments:
+  {${HA_COMMANDS.join(',')}}
+    audit-automations   Audit all live HA automations against the safety
+                        policy.
+    audit-scripts       Audit all live HA scripts against the safety policy.
+    probe               GET a raw HA REST path and print the JSON response.
+                        Useful for verifying endpoints.
+    integration-health  Detect degraded HA integrations and write
+                        state/integration-health-degraded-domains.json.
+    fetch-history       Fetch and aggregate HA history into a snapshot
+                        artifact. Requires a normalized snapshot; runs
+                        \`refresh-context\` first if none exists.
+    list-automations    List all automation entity IDs and config IDs.
+    list-scripts        List all script entity IDs and config IDs.
+    delete-automation   Delete an automation config by ID.
+    delete-script       Delete a script config by ID.
+    get-automation-config
+                        Read an automation's stored config from HA.
+    get-script-config   Read a script's stored config from HA.
+
+options:
+  -h, --help            show this help message and exit`;
+
+function argError(prog: string, usage: string, message: string): never {
+  console.error(`${usage}\n${prog}: error: ${message}`);
+  throw new ParserExit(2);
+}
+
+function printHelp(text: string): never {
+  console.log(text);
+  throw new ParserExit(0);
+}
+
+interface FlagSpec {
+  // 'store_true' | 'value' | 'plus' (nargs='+')
+  kind: 'store_true' | 'value' | 'plus';
+  choices?: readonly string[];
+  int?: boolean;
+}
+
+interface LeafSpec {
+  prog: string;
+  usage: string;
+  positionals: string[];
+  flags: Record<string, FlagSpec>;
+}
+
+interface ParsedLeaf {
+  positionals: string[];
+  flags: Record<string, unknown>;
+  extras: string[];
+}
+
+function parseLeaf(spec: LeafSpec, args: string[]): ParsedLeaf {
+  const positionals: string[] = [];
+  const flags: Record<string, unknown> = {};
+  const extras: string[] = [];
+
+  for (let i = 0; i < args.length; i++) {
+    let token = args[i]!;
+    if (token === '-h' || token === '--help') {
+      printHelp(`${spec.usage}\n\noptions:\n  -h, --help  show this help message and exit`);
+    }
+    let inlineValue: string | null = null;
+    if (token.startsWith('--') && token.includes('=')) {
+      const eq = token.indexOf('=');
+      inlineValue = token.slice(eq + 1);
+      token = token.slice(0, eq);
+    }
+    if (token.startsWith('--')) {
+      const flag = spec.flags[token];
+      if (!flag) {
+        extras.push(args[i]!);
+        continue;
+      }
+      if (flag.kind === 'store_true') {
+        if (inlineValue !== null) {
+          argError(spec.prog, spec.usage, `argument ${token}: ignored explicit argument '${inlineValue}'`);
+        }
+        flags[token] = true;
+        continue;
+      }
+      if (flag.kind === 'plus') {
+        const values: string[] = [];
+        if (inlineValue !== null) values.push(inlineValue);
+        while (i + 1 < args.length && !args[i + 1]!.startsWith('-')) {
+          values.push(args[++i]!);
+        }
+        if (values.length === 0) {
+          argError(spec.prog, spec.usage, `argument ${token}: expected at least one argument`);
+        }
+        flags[token] = values;
+        continue;
+      }
+      let value: string;
+      if (inlineValue !== null) {
+        value = inlineValue;
+      } else if (i + 1 < args.length) {
+        value = args[++i]!;
+      } else {
+        argError(spec.prog, spec.usage, `argument ${token}: expected one argument`);
+      }
+      if (flag.choices && !flag.choices.includes(value)) {
+        const choices = flag.choices.map((c) => `'${c}'`).join(', ');
+        argError(spec.prog, spec.usage, `argument ${token}: invalid choice: '${value}' (choose from ${choices})`);
+      }
+      if (flag.int) {
+        if (!/^[+-]?\d+$/.test(value.trim())) {
+          argError(spec.prog, spec.usage, `argument ${token}: invalid int value: '${value}'`);
+        }
+        flags[token] = parseInt(value.trim(), 10);
+      } else {
+        flags[token] = value;
+      }
+      continue;
+    }
+    if (positionals.length < spec.positionals.length) positionals.push(token);
+    else extras.push(token);
+  }
+
+  if (positionals.length < spec.positionals.length) {
+    const missing = spec.positionals.slice(positionals.length).join(', ');
+    argError(spec.prog, spec.usage, `the following arguments are required: ${missing}`);
+  }
+  return { positionals, flags, extras };
+}
+
+function rejectExtras(extras: string[]): void {
+  if (extras.length > 0) {
+    argError('ha_agent_lab', TOP_USAGE, `unrecognized arguments: ${extras.join(' ')}`);
+  }
+}
+
+const LEAF_SPECS: Record<string, LeafSpec> = {
+  'boot status': {
+    prog: 'ha_agent_lab boot status',
+    usage: 'usage: ha_agent_lab boot status [-h] [--probe]',
+    positionals: [],
+    flags: { '--probe': { kind: 'store_true' } },
+  },
+  'boot store': {
+    prog: 'ha_agent_lab boot store',
+    usage:
+      'usage: ha_agent_lab boot store [-h] [--language LANGUAGE] [--url URL]\n' +
+      '                               [--local-url LOCAL_URL]\n' +
+      '                               [--remote-url REMOTE_URL] [--token TOKEN]',
+    positionals: [],
+    flags: {
+      '--language': { kind: 'value' },
+      '--url': { kind: 'value' },
+      '--local-url': { kind: 'value' },
+      '--remote-url': { kind: 'value' },
+      '--token': { kind: 'value' },
+    },
+  },
+  'ha refresh-context': {
+    prog: 'ha_agent_lab ha refresh-context',
+    usage: 'usage: ha_agent_lab ha refresh-context [-h] [--incremental]',
+    positionals: [],
+    flags: { '--incremental': { kind: 'store_true' } },
+  },
+  'ha simulate': {
+    prog: 'ha_agent_lab ha simulate',
+    usage: 'usage: ha_agent_lab ha simulate [-h] artifact',
+    positionals: ['artifact'],
+    flags: {},
+  },
+  'ha validate-apply': {
+    prog: 'ha_agent_lab ha validate-apply',
+    usage:
+      'usage: ha_agent_lab ha validate-apply [-h] [--reload {automation,script}]\n' +
+      '                                      artifact',
+    positionals: ['artifact'],
+    flags: { '--reload': { kind: 'value', choices: ['automation', 'script'] } },
+  },
+  'ha policy-check': {
+    prog: 'ha_agent_lab ha policy-check',
+    usage: 'usage: ha_agent_lab ha policy-check [-h] target',
+    positionals: ['target'],
+    flags: {},
+  },
+  'ha audit-automations': {
+    prog: 'ha_agent_lab ha audit-automations',
+    usage: 'usage: ha_agent_lab ha audit-automations [-h]',
+    positionals: [],
+    flags: {},
+  },
+  'ha audit-scripts': {
+    prog: 'ha_agent_lab ha audit-scripts',
+    usage: 'usage: ha_agent_lab ha audit-scripts [-h]',
+    positionals: [],
+    flags: {},
+  },
+  'ha probe': {
+    prog: 'ha_agent_lab ha probe',
+    usage: 'usage: ha_agent_lab ha probe [-h] path',
+    positionals: ['path'],
+    flags: {},
+  },
+  'ha integration-health': {
+    prog: 'ha_agent_lab ha integration-health',
+    usage: 'usage: ha_agent_lab ha integration-health [-h]',
+    positionals: [],
+    flags: {},
+  },
+  'ha fetch-history': {
+    prog: 'ha_agent_lab ha fetch-history',
+    usage:
+      'usage: ha_agent_lab ha fetch-history [-h] [--window-days WINDOW_DAYS]\n' +
+      '                                     [--entities ENTITY [ENTITY ...]]\n' +
+      '                                     [--include-transitions]',
+    positionals: [],
+    flags: {
+      '--window-days': { kind: 'value', int: true },
+      '--entities': { kind: 'plus' },
+      '--include-transitions': { kind: 'store_true' },
+    },
+  },
+  'ha list-automations': {
+    prog: 'ha_agent_lab ha list-automations',
+    usage: 'usage: ha_agent_lab ha list-automations [-h]',
+    positionals: [],
+    flags: {},
+  },
+  'ha list-scripts': {
+    prog: 'ha_agent_lab ha list-scripts',
+    usage: 'usage: ha_agent_lab ha list-scripts [-h]',
+    positionals: [],
+    flags: {},
+  },
+  'ha delete-automation': {
+    prog: 'ha_agent_lab ha delete-automation',
+    usage: 'usage: ha_agent_lab ha delete-automation [-h] id',
+    positionals: ['id'],
+    flags: {},
+  },
+  'ha delete-script': {
+    prog: 'ha_agent_lab ha delete-script',
+    usage: 'usage: ha_agent_lab ha delete-script [-h] id',
+    positionals: ['id'],
+    flags: {},
+  },
+  'ha get-automation-config': {
+    prog: 'ha_agent_lab ha get-automation-config',
+    usage: 'usage: ha_agent_lab ha get-automation-config [-h] id',
+    positionals: ['id'],
+    flags: {},
+  },
+  'ha get-script-config': {
+    prog: 'ha_agent_lab ha get-script-config',
+    usage: 'usage: ha_agent_lab ha get-script-config [-h] id',
+    positionals: ['id'],
+    flags: {},
+  },
+};
+
+interface ParsedArgs {
+  command: 'boot' | 'ha';
+  sub: string;
+  positionals: string[];
+  flags: Record<string, unknown>;
+}
+
+function parseArgs(argv: string[]): ParsedArgs {
+  if (argv[0] === '-h' || argv[0] === '--help') printHelp(TOP_HELP);
+  if (argv.length === 0) {
+    argError('ha_agent_lab', TOP_USAGE, 'the following arguments are required: command');
+  }
+  const command = argv[0]!;
+  if (command !== 'boot' && command !== 'ha') {
+    argError(
+      'ha_agent_lab',
+      TOP_USAGE,
+      `argument command: invalid choice: '${command}' (choose from 'boot', 'ha')`,
+    );
+  }
+
+  const rest = argv.slice(1);
+  if (rest[0] === '-h' || rest[0] === '--help') {
+    printHelp(command === 'boot' ? BOOT_HELP : HA_HELP);
+  }
+  const subProg = `ha_agent_lab ${command}`;
+  const subUsage = command === 'boot' ? BOOT_USAGE : HA_USAGE;
+  const subDest = command === 'boot' ? 'boot_command' : 'ha_command';
+  if (rest.length === 0) {
+    argError(subProg, subUsage, `the following arguments are required: ${subDest}`);
+  }
+  const sub = rest[0]!;
+  const validSubs = command === 'boot' ? ['status', 'store'] : [...HA_COMMANDS];
+  if (!validSubs.includes(sub)) {
+    const choices = validSubs.map((c) => `'${c}'`).join(', ');
+    argError(subProg, subUsage, `argument ${subDest}: invalid choice: '${sub}' (choose from ${choices})`);
+  }
+
+  const spec = LEAF_SPECS[`${command} ${sub}`]!;
+  const leaf = parseLeaf(spec, rest.slice(1));
+  rejectExtras(leaf.extras);
+  return { command: command as 'boot' | 'ha', sub, positionals: leaf.positionals, flags: leaf.flags };
+}
+
+// ---------------------------------------------------------------------------
+// main
+// ---------------------------------------------------------------------------
+
+export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Promise<number> {
+  const deps = resolveDeps(overrides);
+
+  let args: ParsedArgs;
+  try {
+    args = parseArgs(argv);
+  } catch (exc) {
+    if (exc instanceof ParserExit) return exc.code;
+    throw exc;
+  }
+
+  const config = deps.loadConfig();
+  const root = config.root;
+
+  if (args.command === 'ha' && args.sub === 'policy-check') {
+    return handlePolicyCheck(args.positionals[0]!, root);
+  }
+
+  if (args.command === 'boot' && args.sub === 'status') {
+    const status = await bootStatus(config, { probe: Boolean(args.flags['--probe']) });
+    console.log(jsonDumps(status));
+    return 0;
+  }
+
+  if (args.command === 'boot' && args.sub === 'store') {
+    const changes = saveBootPreferences(root, {
+      language: (args.flags['--language'] as string | undefined) ?? null,
+      url: (args.flags['--url'] as string | undefined) ?? null,
+      localUrl: (args.flags['--local-url'] as string | undefined) ?? null,
+      remoteUrl: (args.flags['--remote-url'] as string | undefined) ?? null,
+      token: (args.flags['--token'] as string | undefined) ?? null,
+    });
+    console.log(jsonDumps({ updated: changes }));
+    return 0;
+  }
+
+  if (args.command === 'ha' && args.sub === 'integration-health') {
+    return handleIntegrationHealth(root, config, deps);
+  }
+
+  if (args.command === 'ha' && args.sub === 'refresh-context') {
+    try {
+      const client = await deps.createClient(config);
+      if (args.flags['--incremental']) {
+        const [payload, delta] = await refreshContextIncremental(root, client, deps);
+        console.log(
+          jsonDumps({
+            status: 'ok',
+            mode: 'incremental',
+            entities: Object.keys(payload.entity_index).length,
+            added: delta.added.length,
+            removed: delta.removed.length,
+            changed: delta.changed.length,
+            base_url_source: client.baseUrlSource,
+          }),
+        );
+      } else {
+        const payload = await deps.refreshContext(root, client);
+        console.log(
+          jsonDumps({
+            status: 'ok',
+            mode: 'full',
+            entities: Object.keys(payload.entity_index).length,
+            base_url_source: client.baseUrlSource,
+          }),
+        );
+      }
+      return 0;
+    } catch (exc) {
+      if (!(exc instanceof HomeAssistantError)) throw exc;
+      console.log(exc.message);
+      return 1;
+    }
+  }
+
+  if (args.command === 'ha' && args.sub === 'fetch-history') {
+    return handleFetchHistory(
+      root,
+      config,
+      deps,
+      (args.flags['--window-days'] as number | undefined) ?? 7,
+      (args.flags['--entities'] as string[] | undefined) ?? null,
+      Boolean(args.flags['--include-transitions']),
+    );
+  }
+
+  if (args.command === 'ha' && args.sub === 'simulate') {
+    const result = simulateArtifact(root, resolve(args.positionals[0]!));
+    console.log(
+      jsonDumps({
+        valid: result.isValid,
+        missing_entities: result.missingEntities,
+        blocked_reasons: result.blockedReasons,
+      }),
+    );
+    return result.isValid ? 0 : 1;
+  }
+
+  if (args.command === 'ha' && (args.sub === 'audit-automations' || args.sub === 'audit-scripts')) {
+    try {
+      const client = await deps.createClient(config);
+      const domain = args.sub === 'audit-automations' ? 'automation' : 'script';
+      const summary =
+        domain === 'automation'
+          ? await auditAutomations(root, client)
+          : await auditScripts(root, client);
+      printSafetyAuditSummary(summary, domain);
+      return 0;
+    } catch (exc) {
+      if (!(exc instanceof HomeAssistantError)) throw exc;
+      console.log(exc.message);
+      return 1;
+    }
+  }
+
+  if (args.command === 'ha' && args.sub === 'probe') {
+    try {
+      const client = await deps.createClient(config);
+      const response = await client.get(args.positionals[0]!);
+      console.log(jsonDumps(response, { ensureAscii: false }));
+      return 0;
+    } catch (exc) {
+      if (!(exc instanceof HomeAssistantError)) throw exc;
+      console.error(`HA error ${exc.statusCode}: ${String(exc.payload).slice(0, 500)}`);
+      return 1;
+    }
+  }
+
+  if (args.command === 'ha' && args.sub === 'validate-apply') {
+    try {
+      const client = await deps.createClient(config);
+      const result = await validateAndApply(
+        root,
+        client,
+        resolve(args.positionals[0]!),
+        (args.flags['--reload'] as string | undefined) ?? null,
+      );
+      console.log(
+        jsonDumps({
+          ok: result.ok,
+          config_id: result.configId,
+          creation_attempted: result.creationAttempted,
+          creation_ok: result.creationOk,
+          reload_attempted: result.reloadAttempted,
+          message: result.message,
+          report_path: relative(root, result.reportPath),
+          base_url_source: client.baseUrlSource,
+        }),
+      );
+      return result.ok ? 0 : 1;
+    } catch (exc) {
+      if (!(exc instanceof HomeAssistantError)) throw exc;
+      console.log(exc.message);
+      return 1;
+    }
+  }
+
+  if (args.command === 'ha' && (args.sub === 'list-automations' || args.sub === 'list-scripts')) {
+    try {
+      const client = await deps.createClient(config);
+      const domain = args.sub === 'list-automations' ? 'automation' : 'script';
+      const items = await listDomain(client, domain);
+      console.log(jsonDumps(items, { ensureAscii: false }));
+      return 0;
+    } catch (exc) {
+      if (!(exc instanceof HomeAssistantError)) throw exc;
+      console.log(exc.message);
+      return 1;
+    }
+  }
+
+  if (args.command === 'ha' && (args.sub === 'delete-automation' || args.sub === 'delete-script')) {
+    try {
+      const client = await deps.createClient(config);
+      const domain = args.sub === 'delete-automation' ? 'automation' : 'script';
+      const result = await removeConfig(root, client, domain, args.positionals[0]!);
+      console.log(
+        jsonDumps({
+          ok: result.ok,
+          domain: result.domain,
+          config_id: result.configId,
+          message: result.message,
+          report_path: relative(root, result.reportPath),
+        }),
+      );
+      return result.ok ? 0 : 1;
+    } catch (exc) {
+      if (!(exc instanceof HomeAssistantError)) throw exc;
+      console.log(exc.message);
+      return 1;
+    }
+  }
+
+  if (
+    args.command === 'ha' &&
+    (args.sub === 'get-automation-config' || args.sub === 'get-script-config')
+  ) {
+    try {
+      const client = await deps.createClient(config);
+      const domain = args.sub === 'get-automation-config' ? 'automation' : 'script';
+      const result = await readConfig(client, domain, args.positionals[0]!);
+      console.log(
+        jsonDumps(
+          {
+            ok: result.ok,
+            domain: result.domain,
+            config_id: result.configId,
+            config: result.config,
+            message: result.message,
+          },
+          { ensureAscii: false },
+        ),
+      );
+      return result.ok ? 0 : 1;
+    } catch (exc) {
+      if (!(exc instanceof HomeAssistantError)) throw exc;
+      console.log(exc.message);
+      return 1;
+    }
+  }
+
+  // Unreachable: every subcommand is handled above (argparse parity guard).
+  console.error(`${TOP_USAGE}\nha_agent_lab: error: Unsupported command.`);
+  return 2;
+}
+
+// ---------------------------------------------------------------------------
+// Command handlers
+// ---------------------------------------------------------------------------
+
+async function handleFetchHistory(
+  root: string,
+  config: AppConfig,
+  deps: CliDeps,
+  windowDays: number,
+  entityOverride: string[] | null,
+  includeTransitions: boolean,
+): Promise<number> {
+  let client: CliClient;
+  try {
+    client = await deps.createClient(config);
+  } catch (exc) {
+    if (!(exc instanceof HomeAssistantError)) throw exc;
+    console.error(exc.message);
+    return 1;
+  }
+
+  const snapshotPath = normalizedContextPath(root);
+  if (!existsSync(snapshotPath)) {
+    try {
+      await deps.refreshContext(root, client);
+    } catch (exc) {
+      if (!(exc instanceof HomeAssistantError)) throw exc;
+      console.error(exc.message);
+      return 1;
+    }
+  }
+
+  let payload: Record<string, any>;
+  try {
+    const normalized = JSON.parse(readFileSync(snapshotPath, 'utf8'));
+    payload = await fetchHistorySnapshot(root, client, normalized, {
+      windowDays,
+      entityOverride,
+      includeTransitions,
+    });
+  } catch (exc: any) {
+    // Python catches (HomeAssistantError, OSError, json.JSONDecodeError).
+    console.error(String(exc?.message ?? exc));
+    return 1;
+  }
+
+  console.log(
+    jsonDumpsCompact({
+      status: 'ok',
+      entities: payload.requested_entities.length,
+      events: payload.event_total,
+      window_days: windowDays,
+    }),
+  );
+  return 0;
+}
+
+export async function handleIntegrationHealth(
+  root: string,
+  config: AppConfig,
+  overrides: Partial<CliDeps> = {},
+): Promise<number> {
+  const deps = resolveDeps(overrides);
+  const today = todayIso();
+  const header = `ha-integration-health findings — ${today}`;
+  const snapshotPath = normalizedContextPath(root);
+
+  let stale = false;
+  try {
+    const mtimeMs = statSync(snapshotPath).mtimeMs;
+    stale = Date.now() - mtimeMs > 24 * 3600 * 1000;
+  } catch {
+    stale = true;
+  }
+
+  if (stale) {
+    try {
+      const client = await deps.createClient(config);
+      await deps.refreshContext(root, client);
+    } catch (exc: any) {
+      console.log(
+        `${header}\nNo actionable findings. (skipped: snapshot stale, refresh failed — ${exc?.message ?? exc})`,
+      );
+      return 0;
+    }
+  }
+
+  let normalized: Record<string, any>;
+  try {
+    normalized = JSON.parse(readFileSync(snapshotPath, 'utf8'));
+  } catch (exc: any) {
+    console.log(`${header}\nNo actionable findings. (skipped: snapshot unreadable — ${exc?.message ?? exc})`);
+    return 0;
+  }
+
+  const payload = computeDegradedDomains(normalized);
+  writeDegradedDomainsArtifact(root, payload);
+  console.log(formatIntegrationHealthStdout(payload, today));
+  return 0;
+}
+
+async function listDomain(client: CliClient, domain: string): Promise<Array<Record<string, any>>> {
+  const states = await client.get('/api/states');
+  const prefix = `${domain}.`;
+  const items: Array<Record<string, any>> = [];
+  for (const s of states) {
+    if (!(s !== null && typeof s === 'object' && String(s.entity_id ?? '').startsWith(prefix))) {
+      continue;
+    }
+    const attrs = s.attributes || {};
+    const configId = attrs.id;
+    items.push({
+      entity_id: s.entity_id,
+      id: configId ?? null,
+      friendly_name: attrs.friendly_name ?? null,
+      state: s.state ?? null,
+      last_changed: s.last_changed ?? null,
+      deletable: configId !== null && configId !== undefined,
+    });
+  }
+  items.sort((a, b) => (a.entity_id < b.entity_id ? -1 : a.entity_id > b.entity_id ? 1 : 0));
+  return items;
+}
+
+function printSafetyAuditSummary(summary: Record<string, any>, domain = 'automation'): void {
+  const violations: Array<Record<string, any>> = summary.violations ?? [];
+  const acknowledged: Array<Record<string, any>> = summary.acknowledged ?? [];
+  const total: number = summary[`total_${domain}s`] ?? 0;
+  const unmanaged: string[] = summary.unmanaged ?? [];
+  const fetchFailures: string[] = summary.fetch_failures ?? [];
+  const label = domain === 'automation' ? 'ha-safety-audit' : `ha-${domain}-safety-audit`;
+  console.log(`${label} findings — ${todayIso()}`);
+  if (violations.length === 0) {
+    console.log(`No actionable findings. (${total} ${domain}s scanned)`);
+  } else {
+    console.log(`Policy violations: ${violations.length}`);
+    for (const v of violations) {
+      const reasons = (v.reasons ?? []).join('; ');
+      console.log(`- ${v.alias} (\`${v.id}\`): ${reasons}`);
+    }
+    console.log(`No action needed: ${summary.passed} ${domain}s passed`);
+  }
+  if (acknowledged.length > 0) console.log(`Acknowledged (suppressed): ${acknowledged.length}`);
+  if (unmanaged.length > 0) console.log(`Skipped (no numeric id): ${unmanaged.length}`);
+  if (fetchFailures.length > 0) console.log(`Skipped (404 on config fetch): ${fetchFailures.length}`);
+}
+
+function handlePolicyCheck(target: string, root: string): number {
+  if (existsSync(target) && (target.endsWith('.yaml') || target.endsWith('.yml'))) {
+    const [entities, services, decision] = evaluateYamlPolicy(target, root);
+    console.log(
+      jsonDumps({
+        file: target,
+        blocked: decision.blocked,
+        severity: decision.severity,
+        entities,
+        services,
+        reasons: decision.reasons,
+      }),
+    );
+    return decision.blocked ? 1 : 0;
+  }
+  const result = checkEntity(target);
+  console.log(jsonDumps(result));
+  return result.sensitive ? 1 : 0;
+}
+
+// ---------------------------------------------------------------------------
+// Context refresh
+// ---------------------------------------------------------------------------
+
+export async function refreshContext(root: string, client: CliClient): Promise<Record<string, any>> {
+  const paths = ['/api/', '/api/config', '/api/components', '/api/services', '/api/states'];
+  const [apiRoot, config, components, services, states] = await Promise.all(
+    paths.map((path) => client.get(path)),
+  );
+
+  const snapshot = {
+    api: apiRoot,
+    config,
+    components,
+    services,
+    states,
+  };
+  writeJsonArtifact(root, '.claude-code-hermit/raw', 'snapshot-ha-context', snapshot, 'snapshot-ha-context-latest.json');
+
+  const normalized = normalizeContext(states, services, components);
+  normalized.silence_summary = computeSilenceSummary(normalized, root);
+  writeJsonArtifact(root, '.claude-code-hermit/raw', 'snapshot-ha-normalized', normalized, 'snapshot-ha-normalized-latest.json');
+  writeMarkdownArtifact(
+    root,
+    '.claude-code-hermit/raw',
+    'audit-ha-context-refresh',
+    standardMetadata('audit', 'HA Context Refresh', {
+      session: currentSessionId(root),
+      tags: ['ha-context', 'refresh'],
+      extra: {
+        source: 'routine',
+        entity_count: Object.keys(normalized.entity_index).length,
+        service_domain_count: Object.keys(normalized.service_index).length,
+      },
+    }),
+    [
+      '# Home Assistant Context Refresh',
+      '',
+      `- entities: ${Object.keys(normalized.entity_index).length}`,
+      `- service_domains: ${Object.keys(normalized.service_index).length}`,
+      `- components: ${normalized.components.length}`,
+    ].join('\n'),
+    'audit-ha-context-refresh-latest.md',
+  );
+  return normalized;
+}
+
+/**
+ * Fetch only /api/states, diff against the existing artifact, and merge the delta.
+ *
+ * Returns [updatedNormalized, deltaSummary].
+ * Falls back to a full refresh if no baseline artifact exists.
+ */
+export async function refreshContextIncremental(
+  root: string,
+  client: CliClient,
+  overrides: Partial<CliDeps> = {},
+): Promise<[Record<string, any>, Record<string, any>]> {
+  const deps = resolveDeps(overrides);
+  const baselinePath = normalizedContextPath(root);
+  if (!existsSync(baselinePath)) {
+    const payload = await deps.refreshContext(root, client);
+    return [payload, { added: [], removed: [], changed: [] }];
+  }
+
+  const baseline: Record<string, any> = JSON.parse(readFileSync(baselinePath, 'utf8'));
+  const baselineIndex: Record<string, any> = baseline.entity_index ?? {};
+
+  const states: Array<Record<string, any>> = await client.get('/api/states');
+  const newIndex = normalizeEntityIndex(states);
+
+  const baselineIds = new Set(Object.keys(baselineIndex));
+  const newIds = new Set(Object.keys(newIndex));
+
+  const added = [...newIds].filter((eid) => !baselineIds.has(eid)).sort();
+  const removed = [...baselineIds].filter((eid) => !newIds.has(eid)).sort();
+  const changed = [...baselineIds]
+    .filter(
+      (eid) =>
+        newIds.has(eid) &&
+        (newIndex[eid]!.state !== baselineIndex[eid].state ||
+          newIndex[eid]!.last_updated !== baselineIndex[eid].last_updated),
+    )
+    .sort();
+
+  const mergedIndex: Record<string, any> = { ...baselineIndex };
+  for (const eid of [...added, ...changed]) mergedIndex[eid] = newIndex[eid];
+  for (const eid of removed) delete mergedIndex[eid];
+
+  const unavailableEntities = collectUnavailable(mergedIndex);
+
+  const normalized: Record<string, any> = {
+    ...baseline,
+    entity_index: mergedIndex,
+    unavailable_entities: unavailableEntities,
+    silence_summary: computeSilenceSummary(
+      { entity_index: mergedIndex, unavailable_entities: unavailableEntities },
+      root,
+    ),
+  };
+
+  writeJsonArtifact(root, '.claude-code-hermit/raw', 'snapshot-ha-normalized', normalized, 'snapshot-ha-normalized-latest.json');
+
+  const delta: Record<string, any> = {
+    mode: 'incremental',
+    timestamp: utcTimestamp(),
+    added,
+    removed,
+    changed,
+    unavailable_total: unavailableEntities.length,
+    entity_total: Object.keys(mergedIndex).length,
+  };
+  writeJsonArtifact(root, '.claude-code-hermit/raw', 'snapshot-ha-delta', delta);
+
+  writeMarkdownArtifact(
+    root,
+    '.claude-code-hermit/raw',
+    'audit-ha-context-refresh',
+    standardMetadata('audit', 'HA Context Refresh (incremental)', {
+      session: currentSessionId(root),
+      tags: ['ha-context', 'refresh', 'incremental'],
+      extra: {
+        source: 'routine',
+        mode: 'incremental',
+        entity_count: Object.keys(mergedIndex).length,
+        added: added.length,
+        removed: removed.length,
+        changed: changed.length,
+        unavailable: unavailableEntities.length,
+      },
+    }),
+    [
+      '# Home Assistant Context Refresh (incremental)',
+      '',
+      `- entities: ${Object.keys(mergedIndex).length}`,
+      `- added: ${added.length}`,
+      `- removed: ${removed.length}`,
+      `- changed: ${changed.length}`,
+      `- unavailable: ${unavailableEntities.length}`,
+    ].join('\n'),
+    'audit-ha-context-refresh-latest.md',
+  );
+
+  return [normalized, delta];
+}
+
+function collectUnavailable(entityIndex: Record<string, any>): string[] {
+  return Object.entries(entityIndex)
+    .filter(([, state]) => ['unavailable', 'unknown'].includes(String(state.state)))
+    .map(([eid]) => eid)
+    .sort();
+}
+
+export function normalizeContext(
+  states: Array<Record<string, any>>,
+  services: Array<Record<string, any>>,
+  components: unknown[],
+): Record<string, any> {
+  const entityIndex = normalizeEntityIndex(states);
+  const serviceIndex: Record<string, string[]> = {};
+  for (const item of services) {
+    const domain = item.domain;
+    if (typeof domain !== 'string') continue;
+    const servicesPayload = item.services ?? {};
+    const serviceNames = new Set<string>();
+    if (Array.isArray(servicesPayload)) {
+      for (const service of servicesPayload) {
+        if (service !== null && typeof service === 'object') {
+          const name = service.service;
+          if (typeof name === 'string') serviceNames.add(name);
+        }
+      }
+    } else if (servicesPayload !== null && typeof servicesPayload === 'object') {
+      for (const name of Object.keys(servicesPayload)) serviceNames.add(name);
+    }
+    serviceIndex[domain] = [...serviceNames].sort();
+  }
+  return {
+    entity_index: entityIndex,
+    service_index: serviceIndex,
+    components: components.filter((c): c is string => typeof c === 'string').sort(),
+    unavailable_entities: collectUnavailable(entityIndex),
+  };
+}
+
+if (import.meta.main) {
+  process.exit(await main(Bun.argv.slice(2)));
+}

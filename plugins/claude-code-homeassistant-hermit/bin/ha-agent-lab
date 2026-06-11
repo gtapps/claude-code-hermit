@@ -2,24 +2,10 @@
 set -euo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export PYTHONPATH="${PLUGIN_ROOT}/src${PYTHONPATH:+:${PYTHONPATH}}"
 
-if [ -x "${PLUGIN_ROOT}/.venv/bin/python" ]; then
-  _PYTHON="${PLUGIN_ROOT}/.venv/bin/python"
-  # venv created by hatch guarantees deps are present; skip probe
-else
-  if command -v python3 >/dev/null 2>&1; then
-    _PYTHON=python3
-  elif command -v python >/dev/null 2>&1; then
-    _PYTHON=python
-  else
-    printf 'Error: python3 (or python) not found on PATH.\n' >&2
-    exit 1
-  fi
-  if ! "$_PYTHON" -c "import yaml, dotenv" 2>/dev/null; then
-    printf 'Missing dependencies. Run /claude-code-homeassistant-hermit:hatch to install them.\n' >&2
-    exit 1
-  fi
+if ! command -v bun >/dev/null 2>&1; then
+  printf 'Error: bun not found on PATH. Install it from https://bun.sh (required by claude-code-hermit core).\n' >&2
+  exit 1
 fi
 
-exec "$_PYTHON" -m ha_agent_lab "$@"
+exec bun "${PLUGIN_ROOT}/src/cli.ts" "$@"

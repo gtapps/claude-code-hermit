@@ -2,9 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(./bin/ha-agent-lab *)",
-      "Bash(.venv/bin/python -m ha_agent_lab *)",
-      "Bash(.venv/bin/pytest *)",
-      "Bash(python -c *ha_agent_lab*)",
+      "Bash(bun *src/cli.ts*)",
+      "Bash(bun test*)",
       "mcp__homeassistant__GetLiveContext",
       "mcp__homeassistant__GetDateTime",
       "Bash(git status)",

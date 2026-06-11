@@ -1,6 +1,6 @@
 # claude-code-homeassistant-hermit
 
-A Home Assistant domain layer for `claude-code-hermit`: skills, subagents, a safety hook, and a Python CLI for bulk work.
+A Home Assistant domain layer for `claude-code-hermit`: skills, subagents, a safety hook, and a TypeScript CLI (run by bun) for bulk work.
 
 ## Plugin Structure
 
@@ -8,7 +8,7 @@ A Home Assistant domain layer for `claude-code-hermit`: skills, subagents, a saf
 - `skills/domain-brainstorm/` — on-demand capability-gap brainstorm: reads entity inventory, automation/script listing, and operator intent to surface at most 2 `[prefix]`-tagged improvement proposals. Operator-invoked only. Kill criteria: retire if triage-survival < 25% after ≥8 runs.
 - `agents/` — `ha-safety-reviewer`, `ha-automation-builder`, `ha-pattern-analyst`
 - `hooks/` — `mcp-safety-gate.py` + `hooks.json` (PreToolUse on `mcp__homeassistant__Hass.*`)
-- `bin/ha-agent-lab` + `src/ha_agent_lab/` — Python CLI (REST client, policy engine, simulation, apply)
+- `bin/ha-agent-lab` + `src/*.ts` — TypeScript CLI run by bun (REST client, policy engine, simulation, apply)
 - `settings.json` — pre-approved permissions for safe CLI and read-only MCP tools
 - `state-templates/CLAUDE-APPEND.md` — block injected into the target project's `CLAUDE.md` by `hatch`
 - `.claude-plugin/plugin.json` — plugin manifest
@@ -27,23 +27,23 @@ A Home Assistant domain layer for `claude-code-hermit`: skills, subagents, a saf
 - Actuation of sensitive domains (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`) is gated by `ha_safety_mode` in `.claude-code-hermit/config.json` (absent = `strict`). Under `strict` (default): never autonomously actuate — blocked work becomes a proposal. Under `ask`: the operator is prompted before any sensitive actuation (both YAML apply and direct MCP calls). When in doubt about a new domain, default to sensitive. See `SAFETY.md` for the full safety model.
 - Uncertain entities default to sensitive. Blocked work becomes a proposal.
 - Use the stored language from OPERATOR.md (`## HA hermit` section) for all user-facing output.
-- Prefer the Python CLI over ad-hoc reasoning when a helper exists.
+- Prefer the CLI over ad-hoc reasoning when a helper exists.
 - Don't overengineer.
 
 ## Memory Conventions
 
 - **Auto memory** (`~/.claude/projects/<key>/memory/`): Claude-derived knowledge — learned patterns, house profile observations, known issues, cross-session suppression signals. Platform-managed; loaded automatically at each session start.
-- **`.claude-code-hermit/OPERATOR.md`** — operator-set config (locale today; future room defaults, alert preferences, etc.). Curated by the operator under a `## HA hermit` section. Read by the Python CLI and by skills/agents at session start.
+- **`.claude-code-hermit/OPERATOR.md`** — operator-set config (locale today; future room defaults, alert preferences, etc.). Curated by the operator under a `## HA hermit` section. Read by the CLI and by skills/agents at session start.
 - `.claude-code-hermit/raw/` — HA context snapshots, normalized data, audits, staged automation YAML (ephemeral; aged out by retention).
 - `.claude-code-hermit/compiled/` — durable domain outputs (morning briefs, house profile) injected at session start.
 - `.claude-code-hermit/state/` — machine state (runtime, reflection, micro-proposals, alert state).
 - `.claude-code-hermit/proposals/` — PROP-NNN improvement proposals.
 - `.claude-code-hermit/sessions/S-*-REPORT.md` — archived session reports.
 
-## MCP vs Python
+## MCP vs CLI
 
 - **Home Assistant MCP Server** (`homeassistant`): live ops — `GetLiveContext`, `GetDateTime`, light/cover/fan control. Gated by `hooks/mcp-safety-gate.py`.
-- **Python CLI** (`bin/ha-agent-lab`): bulk work — context refresh, YAML simulation, policy checks, apply, audits.
+- **CLI** (`bin/ha-agent-lab`): bulk work — context refresh, YAML simulation, policy checks, apply, audits.
 
 MCP tool IDs follow the pattern `mcp__homeassistant__*`. The `homeassistant` name is required — the safety hook matches on it.
 
@@ -67,10 +67,11 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha fetch-history [--window-days N] [--ent
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha probe <path>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status [--probe]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url> [--token <token>]
-.venv/bin/pytest tests/ -v
+bun test
+/usr/bin/python3 -m pytest tests/test_safety_hook.py tests/test_curl_host_gate.py -v
 ```
 
-Run `--help` for current flags. Source of truth: `src/ha_agent_lab/cli.py`.
+Run `--help` for current flags. Source of truth: `src/cli.ts`.
 
 ## HA API gotchas
 
@@ -88,9 +89,9 @@ Before changing HA endpoint usage, verify against upstream (WebFetch or the `fin
 ## Development constraints
 
 - When aligning with a new hermit version, include `docs/` in terminology sweeps — `docs/knowledge-schema.md` and other doc files carry hermit-facing terms that go stale. Verification: `grep -rn "<old-term>" skills/ agents/ state-templates/ docs/ CLAUDE.md .claude-plugin/`
-- Python deps (`PyYAML`, `python-dotenv`) are installed into a project-local `.venv` by `hatch`. Do not assume system Python has them.
+- The CLI is TypeScript run directly by bun (`bun src/cli.ts`) with zero runtime dependencies — bun is guaranteed by the core hermit requirement. The two hooks (`hooks/*.py`) are still Python until the WP8 hook port; their pytest files (`tests/test_safety_hook.py`, `tests/test_curl_host_gate.py`) are the only Python tests left.
 - The safety hook fails closed — if an MCP call's target cannot be resolved to concrete entity IDs, it is blocked.
-- The deny-pattern hook blocks Bash commands whose arguments contain the literal string `TOKEN`. Read credentials via the CLI (`bin/ha-agent-lab boot status`) or via `dotenv`, never `cat .env` / `echo $HOMEASSISTANT_TOKEN`.
+- The deny-pattern hook blocks Bash commands whose arguments contain the literal string `TOKEN`. Read credentials via the CLI (`bin/ha-agent-lab boot status`), never `cat .env` / `echo $HOMEASSISTANT_TOKEN`.
 - Agent references in skill instructions must use the full namespaced form (e.g., `claude-code-homeassistant-hermit:ha-safety-reviewer`). Bare names will fail at dispatch.
 
 ## Routines and Scheduled Checks

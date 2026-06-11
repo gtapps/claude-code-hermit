@@ -1,0 +1,83 @@
+// WP7 tier 3: tests for cli.ts get-*-config commands — 1:1 port of
+// tests/test_cli_get_config.py (3 cases + 1 parametrized pair).
+
+import { afterEach, expect, test } from 'bun:test';
+
+import { main } from '../src/cli';
+import { HomeAssistantError } from '../src/ha-api';
+import { captureOutput, cleanupTmp, fakeClient, makeMockConfig, type FakeClient } from './helpers';
+
+afterEach(cleanupTmp);
+
+function runCli(argv: string[], client: FakeClient) {
+  const cfg = makeMockConfig();
+  return captureOutput(() =>
+    main(argv, { loadConfig: () => cfg, createClient: async () => client }),
+  );
+}
+
+test('get automation config ok', async () => {
+  const configPayload = { id: 'my_automation', alias: 'My Automation', trigger: [], action: [] };
+  const client = fakeClient({ get: () => configPayload });
+  const { code, out } = await runCli(['ha', 'get-automation-config', 'my_automation'], client);
+
+  expect(code).toBe(0);
+  const parsed = JSON.parse(out);
+  expect(parsed.ok).toBe(true);
+  expect(parsed.domain).toBe('automation');
+  expect(parsed.config_id).toBe('my_automation');
+  expect(parsed.config).toEqual(configPayload);
+  expect(client.calls.get).toEqual(['/api/config/automation/config/my_automation']);
+});
+
+test('get script config ok', async () => {
+  const configPayload = { id: 'garage_gate', alias: 'Garage Gate', sequence: [{ enabled: true }] };
+  const client = fakeClient({ get: () => configPayload });
+  const { code, out } = await runCli(['ha', 'get-script-config', 'garage_gate'], client);
+
+  expect(code).toBe(0);
+  const parsed = JSON.parse(out);
+  expect(parsed.ok).toBe(true);
+  expect(parsed.domain).toBe('script');
+  expect(parsed.config_id).toBe('garage_gate');
+  expect(parsed.config).toEqual(configPayload);
+  expect(client.calls.get).toEqual(['/api/config/script/config/garage_gate']);
+});
+
+for (const command of ['get-automation-config', 'get-script-config']) {
+  test(`${command} not found exits nonzero`, async () => {
+    const client = fakeClient({
+      get: () => {
+        throw new HomeAssistantError(
+          'Home Assistant request failed.',
+          400,
+          '{"message":"Resource not found"}',
+        );
+      },
+    });
+    const { code, out } = await runCli(['ha', command, 'nonexistent'], client);
+
+    expect(code).toBe(1);
+    const parsed = JSON.parse(out);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.message).toBe('Resource not found');
+  });
+}
+
+test('get automation config yaml mode 403', async () => {
+  const client = fakeClient({
+    get: () => {
+      throw new HomeAssistantError(
+        'Forbidden: Home Assistant is in YAML mode (REST config API unavailable).',
+        403,
+        '',
+      );
+    },
+  });
+  const { code, out } = await runCli(['ha', 'get-automation-config', 'my_auto'], client);
+
+  expect(code).toBe(1);
+  const parsed = JSON.parse(out);
+  expect(parsed.ok).toBe(false);
+  expect(parsed.message).toContain('YAML mode');
+});

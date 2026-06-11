@@ -13,7 +13,7 @@ When an HA integration loses its connection (lost WiFi, API change, expired toke
 
 ## Steps
 
-Run the integration-health check via the Python CLI:
+Run the integration-health check via the CLI:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha integration-health

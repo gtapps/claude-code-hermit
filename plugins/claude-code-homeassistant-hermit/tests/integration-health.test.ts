@@ -1,7 +1,7 @@
 // WP7 tier 2: tests for src/integration-health.ts — 1:1 port of the 7 module
-// cases in tests/test_integration_health.py. The remaining 5 cases there
-// (`test_cli_integration_health_*`) exercise cli.py's
-// `_handle_integration_health` and move with the tier-3 cli port.
+// cases in tests/test_integration_health.py. The remaining 5 cases
+// (`test_cli_integration_health_*`) exercise the CLI handler and live in
+// tests/cli-integration-health.test.ts (tier 3).
 //
 // pytest fixture mapping: tmp_path -> mkdtempSync.
 

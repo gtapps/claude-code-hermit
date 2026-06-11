@@ -18,5 +18,5 @@ Bullet format:
   - refs=[automation.<id>] rationale="<why this is acceptable>" acknowledged=<ISO-date>
   - refs=[script.<id>] rationale="<why this is acceptable>" acknowledged=<ISO-date>
 
-To find the id for an automation: `ha_agent_lab ha list-automations` or check the audit output.
-To find the id for a script: `ha_agent_lab ha list-scripts`.
+To find the id for an automation: `ha-agent-lab ha list-automations` or check the audit output.
+To find the id for a script: `ha-agent-lab ha list-scripts`.

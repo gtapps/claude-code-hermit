@@ -1,6 +1,6 @@
 ---
 name: hatch
-description: One-time Home Assistant setup for this hermit. Configures HA access, connects to the official Home Assistant MCP Server integration, and verifies both the Python CLI and HA MCP. Run once per project after /claude-code-hermit:hatch.
+description: One-time Home Assistant setup for this hermit. Configures HA access, connects to the official Home Assistant MCP Server integration, and verifies both the CLI and HA MCP. Run once per project after /claude-code-hermit:hatch.
 ---
 
 # Home Assistant Hatch
@@ -54,20 +54,11 @@ Also check locale:
 
 Do not collect or store the token — it stays in `.env` only.
 
-### 4. Python runtime deps + CLI check
+### 4. CLI check
 
-Run `python3 -c "import yaml, dotenv"` (or `.venv/bin/python -c "import yaml, dotenv"` if `.venv/` exists).
+The CLI runs on bun, which the core hermit requirement guarantees — no runtime deps to install.
 
-- **If it passes** → skip to the CLI status check below.
-- **If it fails**:
-  1. Probe `python3 -m venv --help`. If that fails, stop and tell the user: `apt install python3-venv` (or OS equivalent), then re-run hatch.
-  2. `AskUserQuestion`: "Install Python deps into a project-local `.venv`? Recommended — isolates from system Python and works on PEP 668 hosts." Options: `venv` (default) / `system` / `skip`.
-     - **`venv`**: run `python3 -m venv ${CLAUDE_PLUGIN_ROOT}/.venv` then `${CLAUDE_PLUGIN_ROOT}/.venv/bin/pip install PyYAML python-dotenv`. Re-probe — if still failing, stop with a diagnostic.
-     - **`system`**: run `pip install --user PyYAML python-dotenv`. If it errors with `externally-managed-environment` (PEP 668), offer to fall back to `venv` automatically.
-     - **`skip`**: note that §6 will probe again and will fail if deps are absent; continue anyway.
-  3. **Do not exit or ask the user to re-run the skill** — continue to the CLI status check in-flight.
-
-CLI check: run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status` (read-only, no `--probe`) to confirm the launcher and Python package resolve correctly.
+Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status` (read-only, no `--probe`) to confirm the launcher resolves correctly. If it fails with "bun not found", stop and tell the user to install bun (https://bun.sh) — it is required by `claude-code-hermit` core.
 
 ### 5. Home Assistant MCP Server setup
 
@@ -120,11 +111,11 @@ After writing `.mcp.json`, check the project's `.gitignore`:
 
 Tell the user: **restart Claude Code** in this project directory. On first use, Claude Code will prompt you to trust the `homeassistant` server — approve it. Then run `/mcp` to confirm `homeassistant` appears as connected. The next `ha-boot` will verify live HA connectivity.
 
-### 6. Verify Python CLI (full probe)
+### 6. Verify CLI (full probe)
 
 Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status --probe` and present the result. If it fails:
 
-- Missing deps → repeat the §4 venv install steps inline (create `.venv`, pip install) without exiting or re-invoking hatch.
+- bun not found → tell the user to install bun (https://bun.sh), then re-run this check.
 - Connection refused → check `HOMEASSISTANT_LOCAL_URL` in `.env`.
 - Auth error → check `HOMEASSISTANT_TOKEN`.
 
@@ -245,11 +236,6 @@ After adding or updating any entries, remind the operator: "Run `/claude-code-he
 
 These replace any need for CronCreate routines around analysis/observability — the `scheduled-checks` routine picks up whichever check is due, runs it, and any findings surface as proposals automatically.
 
-## Docker apt dependencies
-
-- python3-yaml
-- python3-dotenv
-
 ### 9. Final report
 
 Summarize:
@@ -257,8 +243,7 @@ Summarize:
 ```
 hatch complete
   ✓  .env verified (user-managed)
-  ✓  Python deps: <venv at .venv/ | system python> → OK / FAILED
-  ✓  Python CLI: bin/ha-agent-lab boot status --probe → OK / FAILED
+  ✓  CLI: bin/ha-agent-lab boot status --probe → OK / FAILED
   ✓  .mcp.json: homeassistant entry written / already present
   ✓  CLAUDE.md updated
   ✓  config.json stamped v<version>

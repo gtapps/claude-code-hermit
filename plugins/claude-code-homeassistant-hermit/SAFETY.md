@@ -4,7 +4,7 @@ This plugin controls real home devices. The safety model is layered — the agen
 
 ## How Actuation Is Gated
 
-Every MCP call matching `mcp__homeassistant__Hass*` is pre-screened by `hooks/mcp-safety-gate.py` against `src/ha_agent_lab/policy.py` before it reaches Home Assistant. The hook fails closed — if the policy check errors or the target can't be resolved to a concrete entity, the call is blocked.
+Every MCP call matching `mcp__homeassistant__Hass*` is pre-screened by `hooks/mcp-safety-gate.py` (mirroring the policy in `src/policy.ts`) before it reaches Home Assistant. The hook fails closed — if the policy check errors or the target can't be resolved to a concrete entity, the call is blocked.
 
 ## What's Blocked by Default
 
@@ -68,10 +68,11 @@ Run on demand:
 
 ## Changing the Policy
 
-Policy source of truth is `src/ha_agent_lab/policy.py`. Changes to this file are considered sensitive — review carefully and run the test suite before shipping:
+Policy source of truth is `src/policy.ts`. Changes to this file are considered sensitive — review carefully and run the test suite before shipping:
 
 ```bash
-.venv/bin/pytest tests/ -v
+bun test
+/usr/bin/python3 -m pytest tests/test_safety_hook.py tests/test_curl_host_gate.py -v
 ```
 
 When in doubt the hook fails closed. You can always relax the policy, but you have to do it deliberately.

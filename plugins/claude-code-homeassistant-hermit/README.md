@@ -46,7 +46,7 @@ claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scop
 
 ## Quick Start
 
-> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.150+, a paid Claude plan (Pro, Max, Teams, or Enterprise), Python 3.12+, and a running [Home Assistant](https://www.home-assistant.io/) instance with the official [MCP Server](https://www.home-assistant.io/integrations/mcp_server/) integration enabled and a Long-Lived Access Token (create one under `/profile/security` on your HA instance).
+> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.150+, a paid Claude plan (Pro, Max, Teams, or Enterprise), [Bun](https://bun.sh) 1.3+ (Python 3 is still needed for the safety hooks), and a running [Home Assistant](https://www.home-assistant.io/) instance with the official [MCP Server](https://www.home-assistant.io/integrations/mcp_server/) integration enabled and a Long-Lived Access Token (create one under `/profile/security` on your HA instance).
 
 ### 1. Install
 
@@ -62,7 +62,7 @@ claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scop
 /claude-code-homeassistant-hermit:hatch
 ```
 
-The wizard triggers `claude-code-hermit:hatch` if the core hermit isn't ready, prompts for your `.env` (HA URL + Long-Lived Access Token), installs Python deps into a local `.venv`, wires up the official Home Assistant MCP server, and registers the routines.
+The wizard triggers `claude-code-hermit:hatch` if the core hermit isn't ready, prompts for your `.env` (HA URL + Long-Lived Access Token), wires up the official Home Assistant MCP server, and registers the routines.
 
 > **Just trying it?** After `hatch`, run `.claude-code-hermit/bin/hermit-start --no-tmux` for sessions, routines, heartbeat, and the learning loop without 24/7 autonomy. Ctrl+C exits cleanly. Run `/claude-code-hermit:channel-setup` first if you want Discord or Telegram.
 
@@ -118,15 +118,15 @@ claude-code-homeassistant-hermit (this plugin)
   ├── skills/             HA workflow skills
   ├── agents/             HA subagents (safety-reviewer, automation-builder, pattern-analyst)
   ├── hooks/              mcp-safety-gate.py + hooks.json
-  ├── bin/ha-agent-lab    Python CLI launcher
-  ├── src/ha_agent_lab/   Python package (REST client, policy, simulation, apply, history, silence)
+  ├── bin/ha-agent-lab    CLI launcher (runs src/cli.ts with bun)
+  ├── src/*.ts            TypeScript modules (REST client, policy, simulation, apply, history, silence)
   └── state-templates/    CLAUDE-APPEND.md (injected by hatch)
 
 claude-code-hermit (core, required ≥ 1.1.1)
   └── Session lifecycle, proposals, reflect, memory, cost tracking
 ```
 
-**MCP vs Python.** MCP handles live ops — light/cover/fan control, live context queries. The Python CLI (`bin/ha-agent-lab`) handles bulk work — context refresh, YAML simulation, policy checks, audits, apply.
+**MCP vs CLI.** MCP handles live ops — light/cover/fan control, live context queries. The CLI (`bin/ha-agent-lab`) handles bulk work — context refresh, YAML simulation, policy checks, audits, apply.
 
 ---
 

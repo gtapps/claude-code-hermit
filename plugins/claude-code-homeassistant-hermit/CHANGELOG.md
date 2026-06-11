@@ -6,6 +6,7 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ### Changed
 
+- **zero-dependency setup: the Python CLI is fully TypeScript** — `bin/ha-agent-lab` execs `bun src/cli.ts`; `pyproject.toml`, the `.venv`/pip/PEP-668 hatch wizard, and the Python package are gone. CLI argv surface, stdout shapes (incl. `json.dumps` byte format), and exit codes verified byte-identical against CPython argparse captures. `test-ha.yml` runs `bun test` (364 tests); the two safety-gate hooks stay Python until their golden-corpus port and keep a minimal pytest leg.
 - **TypeScript port underway (bun migration, core #18)** — YAML parity corpus + 91-test divergence-pin suite (Bun.YAML vs PyYAML, verdict: semantic equivalence with a dump-quoting normalization layer); foundation modules ported beside the untouched Python: `src/yaml.ts` (normalizing wrapper — multi-doc rejection, PyYAML-1.1 implicit-scalar quoting on dump, JS-Date rejection), `src/time-utils.ts`, `src/config.ts` (explicit `.env` parser with python-dotenv parity), `src/policy.ts`, `src/markdown.ts`; tier 2 adds `src/ha-api.ts` (urllib → fetch, async end-to-end, injectable transport, verbatim HA `{"message"}` error surfacing), `src/history.ts`, `src/silence.ts`, `src/audits.ts` (thread pool → 20-wide async worker pool), `src/integration-health.ts`, `src/artifacts.ts`. One sanctioned representation change: frontmatter `created` is handled as an ISO string end-to-end (audit confirmed no datetime-object consumers).
 
 ## [0.1.9] - 2026-06-04
