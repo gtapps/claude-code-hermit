@@ -18,8 +18,12 @@ function pidAlive(pid: number): boolean {
     process.kill(pid, 0);
     return true;
   } catch (e: any) {
-    // EPERM means the pid exists but belongs to another user — still alive.
-    return e && e.code === 'EPERM';
+    // EPERM means the pid exists but belongs to ANOTHER user. Every hermit
+    // lifecycle process runs as the same uid, so a pid we can't signal cannot
+    // be a hermit lock holder — treat it as not-holding rather than wedging the
+    // lock for the full staleness window against an unrelated (possibly
+    // pid-reused) process.
+    return false;
   }
 }
 
@@ -33,8 +37,9 @@ function tryCreate(lockPath: string): boolean {
     fs.writeFileSync(tmp, String(process.pid));
     fs.linkSync(tmp, lockPath);
     return true;
-  } catch {
-    return false;
+  } catch (e: any) {
+    if (e && e.code === 'EEXIST') return false; // genuine contention — lock exists
+    throw e; // real fs error (ENOSPC/EACCES/EROFS/EDQUOT) — surface it, don't mask as contention
   } finally {
     try {
       fs.unlinkSync(tmp);
@@ -67,11 +72,22 @@ function acquireLock(lockPath: string, staleMs: number = DEFAULT_STALE_MS): bool
   }
 
   // Stale: dead holder, no/garbage PID (legacy empty flock file), or expired
-  // mtime. Re-stat before unlinking — if the file changed since we judged it
-  // stale, another process took over in the meantime; back off.
+  // mtime. Claim it by atomic rename, NOT unlink-by-path: two racers that both
+  // judged the lock stale would otherwise each unlink the path and each create
+  // a fresh lock (the second deletes the first's live lock) → double-acquire.
+  // renameSync is atomic on a given inode, so exactly one racer moves it aside;
+  // the loser's rename throws ENOENT and falls through to a clean retry.
+  const graveyard = `${lockPath}.stale.${process.pid}`;
   try {
-    if (fs.statSync(lockPath).mtimeMs !== mtimeMs) return false;
-    fs.unlinkSync(lockPath);
+    if (fs.statSync(lockPath).mtimeMs !== mtimeMs) return false; // renewed in-window → back off
+    fs.renameSync(lockPath, graveyard);
+  } catch {
+    // Vanished or lost the takeover race — retry create; if someone else won,
+    // tryCreate returns false (genuinely held now).
+    return tryCreate(lockPath);
+  }
+  try {
+    fs.unlinkSync(graveyard);
   } catch {}
   return tryCreate(lockPath);
 }

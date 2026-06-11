@@ -157,12 +157,19 @@ describe('hermit-stop contract', () => {
     writeConfig();
     writeRuntime({ runtime_mode: 'tmux', session_state: 'in_progress' });
     const lock = path.join(dir, '.claude-code-hermit', 'state', '.lifecycle.lock');
-    fs.writeFileSync(lock, '1'); // pid 1: always alive, never us
-    const { bin } = installFakeTmux({ hasSession: false });
-    const { exitCode, stdout } = await runStop([], bin);
-    expect(exitCode).toBe(1);
-    expect(stdout).toContain('Another lifecycle operation in progress');
-    expect(readJson('.claude-code-hermit/state/runtime.json').session_state).toBe('in_progress');
-    expect(readJson('.claude-code-hermit/config.json').always_on).toBe(true);
+    // A real, signalable, same-user holder — a foreign-user pid (EPERM) is no
+    // longer treated as a hermit holder, so pid 1 would be taken over.
+    const holder = Bun.spawn(['sleep', '30']);
+    try {
+      fs.writeFileSync(lock, String(holder.pid));
+      const { bin } = installFakeTmux({ hasSession: false });
+      const { exitCode, stdout } = await runStop([], bin);
+      expect(exitCode).toBe(1);
+      expect(stdout).toContain('Another lifecycle operation in progress');
+      expect(readJson('.claude-code-hermit/state/runtime.json').session_state).toBe('in_progress');
+      expect(readJson('.claude-code-hermit/config.json').always_on).toBe(true);
+    } finally {
+      holder.kill();
+    }
   });
 });

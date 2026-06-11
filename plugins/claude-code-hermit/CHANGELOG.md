@@ -14,6 +14,7 @@
 
 ### Fixed
 
+- **lib/lockfile: double-acquire, wedged-lock, and masked-fs-error fixes** (code-review findings) — stale takeover now claims the lock by atomic `rename` instead of unlink-by-path, so two racers over one stale lock can't both end up holding it; a foreign-user pid (EPERM) is treated as not-a-hermit-holder (single-uid invariant) instead of wedging the lock for the staleness window against a possibly-reused pid; and `tryCreate` rethrows real fs errors (ENOSPC/EACCES/EROFS) instead of masking them as "another lifecycle operation in progress".
 - **doctor-check: hooks check now verifies exec-form hooks** — `checkHooks` only parsed string-form `command` paths, silently skipping every real hook (all use `command` + `args`); it now resolves `args` entries too, so a missing hook script actually fails the check.
 
 ### Changed
