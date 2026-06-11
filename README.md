@@ -35,17 +35,18 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope local
 
 ## What you get
 
-Just Claude Code everything is yours to shape: channels (Discord/Telegram), MCP servers, routines, watches, the heartbeat checklist, Hermit adds persistance, a learning loop, and a quick setup to wire everything.
+Just Claude Code everything is yours to shape: channels (Discord/Telegram), MCP servers, routines, watches, the heartbeat checklist. Hermit adds persistence, a learning loop, and a quick setup to wire everything.
 
 - **Heartbeat** gates `/loop` behind a filesystem-only precheck so it stops paying the model every tick, sweeping your checklist for **zero tokens**.
 - **Routines** wrap `CronCreate` jobs that expire in 7 days and fire in the machine's timezone: they self-rearm daily, run on your wall clock, and are managed by `/hermit-routines`.
 - **`/watch`** wraps `Monitor` streams that die with the session: it auto-starts from config (or plain language) and routes findings to your notifications, silent when quiet.
 - **Channels** let you DM a session; the hermit agent acts on it (*"accept PROP-014"*, *"status"*) and **pings you first** when something needs a yes/no.
-- **Auto-memory** just accumulates. Hermit **distills** `raw/` → `compiled/` and re-injects it within a context budget at session start.
+- **Auto-memory** just accumulates. Hermit **distills** `raw/` → `compiled/` — including living topic pages updated in place — and re-injects a catalog within a context budget at session start; `/recall` pulls the full depth on demand.
 - **Task snapshots** persist native `Tasks` past session end, so the plan survives archives.
 - **Profile-gated guardrails** scope `deny patterns + sandbox` per profile, locking the unattended agent down harder than the one you're watching.
+- **One runtime.** Everything is TypeScript running on [Bun](https://bun.sh) — zero npm packages, zero Python, across the whole fleet. Install Bun, done.
 
-**Sessions self-manage.** Daemons auto-archive at 12h idle and at midnight when you're away, so evidence reaches the learning loop without a manual close.
+**Sessions self-manage.** Daemons auto-archive at 12h idle and at midnight when you're away, so evidence reaches the learning loop without a manual close. An external watchdog restarts dead sessions, nudges wedged ones, re-arms missed schedules, and clears stale context after a midnight close — recovery never depends on the session being conscious.
 
 **It reaches you first.** Notifications default to a native push (headless-friendly), or a Discord/Telegram DM you can reply to if you've paired a channel.
 
@@ -69,17 +70,20 @@ Survivors land as a proposal you can act on from anywhere — including a DM:
 /claude-code-hermit:proposal-act accept PROP-003    # or just reply "accept PROP-003"
 ```
 
-What it proposes: improvements, routines, new capabilities (skills, agents, heartbeat checks), guardrails (OPERATOR.md guidance you confirm), and bugs. You're the acceptance gate for every change. Raw session journals distill into compiled artifacts that reload next session — the [raw/compiled pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) Karpathy described for his wiki-LLM.
+What it proposes: improvements, routines, new capabilities (skills, agents, heartbeat checks), guardrails (OPERATOR.md guidance you confirm), and bugs. When it catches itself repeating the same multi-step procedure across sessions, it drafts the skill and asks before installing. Accepted proposals can carry a measurable success signal and auto-resolve when met. You're the acceptance gate for every change. Raw session journals distill into compiled artifacts that reload next session — the [raw/compiled pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) Karpathy described for his wiki-LLM.
 
 ---
 
 ## Observable
 
-Three on-demand skills, pullable from the Claude app, your terminal, or a DM:
+On-demand skills — pullable from the Claude app, your terminal, or a DM:
 
+- **`/recall`** — full-text search over past sessions, compiled knowledge, and proposals ("what did I decide about X?")
 - **`/hermit-brain`** — open loops, fragile zones, and key learnings from recent sessions
 - **`/hermit-evolution`** — cost trend and behavior drift over weeks
 - **`/hermit-health`** — alerts, routines, channels, heartbeat state
+- **`/hermit-doctor`** — fifteen-check install diagnostic, from hook registration to heartbeat liveness
+- **`/cost-reflect`** — structural cost audit: which token types and trigger sources drive spend
 - **`/pulse`** — what it's doing right now
 - **`/brief`** — summary of recent work
 
