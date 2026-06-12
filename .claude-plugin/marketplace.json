@@ -70,7 +70,7 @@
       "name": "claude-code-fitness-hermit",
       "source": "./plugins/claude-code-fitness-hermit",
       "description": "Fitness/training layer for claude-code-hermit — Strava MCP integration, activity analysis skills, and routine templates for an autonomous training assistant",
-      "version": "0.0.7",
+      "version": "0.0.8",
       "category": "fitness",
       "author": {
         "name": "gtapps",

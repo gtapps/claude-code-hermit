@@ -4,11 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [0.0.8] - 2026-06-12
 
 ### Changed
 
-- **tests run on bun and are TypeScript** — test files renamed `.js` → `.ts`; the runner and the domain-brainstorm inline eval invoke `bun` (bun migration, core #18).
+- **tests: migrated from Node/JS to Bun/TypeScript** — test files renamed `.js` → `.ts`; runner and domain-brainstorm inline eval now invoke `bun` (bun migration, core #18).
+- **strava-data-cruncher: model alias normalized** — `claude-haiku-4-5-20251001` → `haiku` for forward-compatible model resolution.
+- **required_core_version: bumped to >=1.2.0** — aligns with core 1.2.0 dependency floor.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `tests/skill-structure.test.ts` | Renamed from `.js`; migrated to TypeScript with ESM imports |
+| `tests/test-utils.ts` | Renamed from `.js`; TypeScript types added |
+| `tests/run-all.sh` | Runner updated: `node` → `bun` |
+| `agents/strava-data-cruncher.md` | Model alias: `claude-haiku-4-5-20251001` → `haiku` |
+| `skills/domain-brainstorm/SKILL.md` | Metrics append: `node -e` → `bun -e` |
+| `.claude-plugin/hermit-meta.json` | `required_core_version` and `requires` bumped to `>=1.2.0` |
+| `.claude-plugin/plugin.json` | `dependencies.claude-code-hermit` bumped to `^1.2.0` |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Verify core version** — confirm the installed `claude-code-hermit` core is >=1.2.0. If not, run `claude plugin update claude-code-hermit` first.
+
+No `config.json` changes required.
 
 ---
 
