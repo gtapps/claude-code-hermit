@@ -1,0 +1,266 @@
+#!/usr/bin/env bash
+# One-command hermit update for local / tmux (bare-metal) operators.
+# Moves the durable plugin pin (claude plugin update <id>@<mp> --scope <scope>),
+# then reloads + auto-evolves the running tmux session if there is one.
+# Docker operators are delegated to hermit-docker update.
+# Run from project root: .claude-code-hermit/bin/hermit-update [--dry-run] [--yes]
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CONFIG="$SCRIPT_DIR/../config.json"
+
+if [ ! -f "$CONFIG" ]; then
+  echo "[hermit] No config found at $CONFIG" >&2
+  echo "[hermit] Run /claude-code-hermit:hatch inside Claude Code first." >&2
+  exit 1
+fi
+
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+COMPOSE="$PROJECT_DIR/docker-compose.hermit.yml"
+
+ORIG_ARGS=("$@")  # preserved for docker delegation — the parse loop below shifts $@ empty
+DRY_RUN=false; ASSUME_YES=false
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dry-run) DRY_RUN=true ;;
+    --yes|-y) ASSUME_YES=true ;;
+    *) echo "[hermit] Unknown flag: $1" >&2
+       echo "Usage: hermit-update [--dry-run] [--yes]" >&2
+       exit 2 ;;
+  esac
+  shift
+done
+
+# --- Docker delegation: the container keeps its plugins in an isolated config volume,
+# so host pins are irrelevant to it. Three cases. ---
+if [ -f "$COMPOSE" ]; then
+  STACK_RUNNING=false
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    RUNNING=$(cd "$PROJECT_DIR" && docker compose -f "$COMPOSE" ps --status running --format '{{.Service}}' 2>/dev/null | grep -x "hermit" || true)
+    [ -n "$RUNNING" ] && STACK_RUNNING=true
+  fi
+  if [ "$STACK_RUNNING" = true ]; then
+    exec "$SCRIPT_DIR/hermit-docker" update ${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"}
+  else
+    echo "[hermit] Docker scaffolding present but the container is stopped." >&2
+    echo "[hermit] The container's plugins live in its own 'claude-config' volume — updating" >&2
+    echo "[hermit] host pins would not touch them. Start it first, then update:" >&2
+    echo "[hermit]   .claude-code-hermit/bin/hermit-docker up" >&2
+    echo "[hermit]   .claude-code-hermit/bin/hermit-update   (or: hermit-docker update)" >&2
+    exit 1
+  fi
+fi
+
+# --- Host path (no docker scaffolding): move pins for plugins installed in THIS project. ---
+if ! command -v claude >/dev/null 2>&1; then
+  echo "[hermit] 'claude' not found on PATH — cannot update plugins." >&2
+  exit 1
+fi
+
+# Resolve tmux session name from config (same logic as hermit-docker / lib/tmux.getSessionName).
+TMUX_SESSION=$(bun -e "
+const config = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'));
+const name = config.tmux_session_name ?? 'hermit-{project_name}';
+console.log(name.replaceAll('{project_name}', require('path').basename(process.argv[2])));
+" "$CONFIG" "$PROJECT_DIR" 2>/dev/null || echo "hermit")
+
+# Enumerate plugins. Project/local entries scoped to THIS project move pins; user-scope
+# entries are skipped (moving a shared pin from a project wrapper would hit every project).
+# Emits class-tagged TAB rows: "UPDATE<TAB>id<TAB>scope<TAB>version" or "SKIPUSER<TAB>id<TAB>...".
+_enumerate_host() {
+  claude plugin list --json 2>/dev/null \
+    | bun -e '
+      const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
+      const proj = process.argv[1];
+      for (const p of (Array.isArray(d) ? d : [])) {
+        if (p.enabled !== true || !p.id) continue;
+        if ((p.scope === "project" || p.scope === "local") && p.projectPath === proj) {
+          console.log(["UPDATE", p.id, p.scope, p.version ?? ""].join("\t"));
+        } else if (p.scope === "user") {
+          console.log(["SKIPUSER", p.id, p.scope, p.version ?? ""].join("\t"));
+        }
+      }
+    ' "$PROJECT_DIR" 2>/dev/null || true
+}
+
+ROWS=$(_enumerate_host)
+UPDATE_ROWS=$(printf '%s\n' "$ROWS" | grep '^UPDATE	' || true)
+SKIP_ROWS=$(printf '%s\n' "$ROWS" | grep '^SKIPUSER	' || true)
+
+echo "[hermit] Update plan (host, project: $(basename "$PROJECT_DIR")):"
+if [ -z "$UPDATE_ROWS" ]; then
+  echo "  Plugins to update: (none)"
+else
+  echo "  Plugins to update (durable pin move):"
+  printf '%s\n' "$UPDATE_ROWS" | while IFS=$'\t' read -r _cls pid pscope pver; do
+    [ -z "$pid" ] && continue
+    echo "    - $pid ($pscope, v$pver)"
+  done
+fi
+if [ -n "$SKIP_ROWS" ]; then
+  echo "  Skipped (user scope — shared across projects, update manually if intended):"
+  printf '%s\n' "$SKIP_ROWS" | while IFS=$'\t' read -r _cls pid pscope pver; do
+    [ -z "$pid" ] && continue
+    echo "    - $pid  ->  claude plugin update $pid --scope user"
+  done
+fi
+echo "  Note: Claude Code itself is updated separately on the host: claude update"
+
+if [ "$DRY_RUN" = true ]; then
+  echo "[hermit] --dry-run: no changes made."
+  exit 0
+fi
+
+if [ -z "$UPDATE_ROWS" ]; then
+  echo "[hermit] Nothing to update."
+  exit 0
+fi
+
+if [ "$ASSUME_YES" = false ]; then
+  read -rp "Continue? [y/N] " ANS
+  case "$ANS" in [yY]|[yY][eE][sS]) ;; *) echo "[hermit] Aborted."; exit 0 ;; esac
+fi
+
+PLUGINS_OK_IDS=()
+PLUGINS_FAIL_IDS=()
+while IFS=$'\t' read -r _cls pid pscope pver; do
+  [ -z "$pid" ] && continue
+  echo "[hermit] Updating $pid (scope $pscope)..."
+  if claude plugin update "$pid" --scope "$pscope"; then
+    PLUGINS_OK_IDS+=("$pid")
+  else
+    PLUGINS_FAIL_IDS+=("$pid")
+    echo "[hermit] Warning: update failed for $pid — run manually:" >&2
+    echo "[hermit]          claude plugin update $pid --scope $pscope" >&2
+  fi
+done <<< "$UPDATE_ROWS"
+
+# Re-read pins now (pin moves at CLI-update time, before any reload).
+ROWS_AFTER=$(_enumerate_host)
+UPDATE_ROWS_AFTER=$(printf '%s\n' "$ROWS_AFTER" | grep '^UPDATE	' || true)
+
+# --- Apply in the running tmux session if one exists (host tmux, no docker exec). ---
+RELOAD_PLUGINS_SENT=false
+EVOLVE_SENT=false
+NEW_HERMIT_VER=""; CONFIG_HERMIT_VER=""
+
+# Match the rendered REPL input box: the prompt char ❯ plus any structural marker
+# (── rule, older ╭─/╰─ corners, or the always-present mode/shortcuts hint). See the
+# matching helper in hermit-docker for the live-verification note (CC 2.1.175).
+_wait_for_claude_prompt_host() {
+  local i pane tail8
+  for i in $(seq 1 30); do
+    pane=$(tmux capture-pane -p -t "$TMUX_SESSION:0.0" 2>/dev/null || true)
+    tail8=$(printf '%s\n' "$pane" | tail -8)
+    if printf '%s\n' "$tail8" | grep -qF '❯' \
+       && printf '%s\n' "$tail8" | grep -qE '────────|╭─|╰─|to cycle|for shortcuts|for agents'; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+if [ ${#PLUGINS_OK_IDS[@]} -gt 0 ] && tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
+  echo "[hermit] Waiting for Claude Code prompt in tmux session '$TMUX_SESSION' (up to 60s)..."
+  if _wait_for_claude_prompt_host; then
+    echo "[hermit] Sending /reload-plugins..."
+    tmux send-keys -t "$TMUX_SESSION:0.0" "/reload-plugins" 2>/dev/null || \
+      echo "[hermit] Warning: could not reach tmux session — /reload-plugins not sent" >&2
+    sleep 0.5
+    tmux send-keys -t "$TMUX_SESSION:0.0" Enter 2>/dev/null || true
+    RELOAD_PLUGINS_SENT=true
+
+    NEW_HERMIT_VER=$(printf '%s\n' "$UPDATE_ROWS_AFTER" | awk -F'\t' '$2 ~ /^claude-code-hermit@/ {print $4; exit}')
+    CONFIG_HERMIT_VER=$(bun -e 'try { const c = JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); console.log((c._hermit_versions ?? {})["claude-code-hermit"] ?? ""); } catch { console.log(""); }' \
+      "$PROJECT_DIR/.claude-code-hermit/config.json" 2>/dev/null || echo "")
+    CORE_FAILED=false
+    for _fid in "${PLUGINS_FAIL_IDS[@]:-}"; do
+      case "$_fid" in claude-code-hermit@*) CORE_FAILED=true ;; esac
+    done
+    if [ -n "$NEW_HERMIT_VER" ] && [ -n "$CONFIG_HERMIT_VER" ] && \
+       [ "$NEW_HERMIT_VER" != "$CONFIG_HERMIT_VER" ] && [ "$CORE_FAILED" = false ]; then
+      echo "[hermit] Hermit gap: config v${CONFIG_HERMIT_VER} -> plugin v${NEW_HERMIT_VER}. Chaining hermit-evolve (unattended)..."
+      if _wait_for_claude_prompt_host; then
+        tmux send-keys -t "$TMUX_SESSION:0.0" "/claude-code-hermit:hermit-evolve unattended" 2>/dev/null || true
+        sleep 0.5
+        tmux send-keys -t "$TMUX_SESSION:0.0" Enter 2>/dev/null || true
+        EVOLVE_SENT=true
+      else
+        echo "[hermit] Warning: prompt not detected — hermit-evolve not auto-started." >&2
+        echo "[hermit]          The pin is already durable; run /claude-code-hermit:hermit-evolve when you attach." >&2
+      fi
+    fi
+  else
+    echo "[hermit] Warning: claude prompt not detected — /reload-plugins not sent." >&2
+    echo "[hermit]          Pins are already updated (durable); next session start picks them up." >&2
+  fi
+else
+  echo "[hermit] No live tmux session '$TMUX_SESSION' — pins are moved (durable);"
+  echo "[hermit] the next session start picks them up. If the hermit version bumped, run"
+  echo "[hermit] /claude-code-hermit:hermit-evolve in that session (always-on does it automatically)."
+fi
+
+# --- History entry (shared schema with hermit-docker update). ---
+LOG_FILE="$PROJECT_DIR/.claude-code-hermit/state/update-history.jsonl"
+mkdir -p "$(dirname "$LOG_FILE")"
+FAIL_IDS_JSON='[]'
+if [ ${#PLUGINS_FAIL_IDS[@]} -gt 0 ]; then
+  FAIL_IDS_JSON=$(bun -e 'console.log(JSON.stringify(process.argv.slice(1)))' "${PLUGINS_FAIL_IDS[@]}")
+fi
+# Strip the class column so the writer sees plain id<TAB>scope<TAB>version rows.
+BEFORE_TSV=$(printf '%s\n' "$UPDATE_ROWS" | cut -f2-)
+AFTER_TSV=$(printf '%s\n' "$UPDATE_ROWS_AFTER" | cut -f2-)
+bun - "$BEFORE_TSV" "$AFTER_TSV" "$FAIL_IDS_JSON" "$LOG_FILE" \
+      "$RELOAD_PLUGINS_SENT" "$EVOLVE_SENT" <<'JSEOF' || \
+  echo "[hermit] Warning: could not write update log" >&2
+const [beforeTsv, afterTsv, failJson, logFile, reloadSent, evolveSent] = process.argv.slice(2);
+const parseRows = (tsv) => {
+  const m = new Map();
+  for (const line of (tsv || '').split('\n')) {
+    if (!line.trim()) continue;
+    const [id, scope, version] = line.split('\t');
+    if (id) m.set(id, { scope: scope || '', version: version || '' });
+  }
+  return m;
+};
+const before = parseRows(beforeTsv);
+const after = parseRows(afterTsv);
+const failed = new Set(JSON.parse(failJson));
+const plugins = [];
+for (const [id, { scope, version }] of before) {
+  const a = after.get(id);
+  const afterVer = a ? a.version : version;
+  const status = failed.has(id) ? 'failed' : (afterVer !== version ? 'updated' : 'unchanged');
+  plugins.push({ id, scope, before: version, after: afterVer, status });
+}
+const entry = {
+  ts: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+  trigger: 'hermit-update',
+  mode: 'host-plugins',
+  plugins,
+  reload_plugins_sent: reloadSent === 'true',
+  evolve_sent: evolveSent === 'true',
+};
+require('fs').appendFileSync(logFile, JSON.stringify(entry) + '\n');
+JSEOF
+
+echo ""
+echo "[hermit] Update complete."
+if [ -n "$UPDATE_ROWS" ]; then
+  echo "  Plugins:"
+  bun -e '
+    const parse = (t) => { const m = new Map(); for (const l of (t||"").split("\n")) { if(!l.trim()) continue; const [id,scope,version]=l.split("\t"); if(id) m.set(id,{scope,version}); } return m; };
+    const before = parse(process.argv[1]); const after = parse(process.argv[2]); const failed = new Set(JSON.parse(process.argv[3]));
+    for (const [id,{version}] of before) {
+      const a = after.get(id); const av = a ? a.version : version;
+      const tag = failed.has(id) ? " (FAILED — run manually)" : (av !== version ? "" : " (unchanged)");
+      console.log("    " + id + ": v" + version + " -> v" + av + tag);
+    }
+  ' "$BEFORE_TSV" "$AFTER_TSV" "$FAIL_IDS_JSON" 2>/dev/null || true
+fi
+if [ "$EVOLVE_SENT" = true ]; then
+  echo "  hermit-evolve auto-started (unattended) — hermit config is upgrading."
+elif [ -n "$NEW_HERMIT_VER" ] && [ -n "$CONFIG_HERMIT_VER" ] && [ "$NEW_HERMIT_VER" != "$CONFIG_HERMIT_VER" ]; then
+  echo "  Hermit plugin version bumped — run: /claude-code-hermit:hermit-evolve"
+fi

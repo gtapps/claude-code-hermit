@@ -149,6 +149,21 @@ function checkStateFiles() {
       if (badKeys.length > 0) {
         return { id: 'state', status: 'fail', detail: `template-manifest.json: invalid sha256 in: ${badKeys.join(', ')}` };
       }
+      // Docker baseline guard: a docker-deployed project with no compose/Dockerfile
+      // template baselines has its F2 drift signal unarmed — either never recorded
+      // (pre-this-version deploy) or dropped by a manifest rewrite. Warn (not fail):
+      // re-running /docker-setup records them. Check the compose/Dockerfile TEMPLATE
+      // keys specifically, not any `docker/` key — hermit-evolve Step 5c writes the
+      // `docker/docker-entrypoint.hermit.sh` baseline on its own, so its presence
+      // does NOT imply docker-setup ran (the F2 baselines would still be missing).
+      const projRoot = path.join(hermitDir, '..');
+      const dockerDeployed = ['docker-compose.hermit.yml', 'Dockerfile.hermit', 'docker-entrypoint.hermit.sh']
+        .some(f => fs.existsSync(path.join(projRoot, f)));
+      const hasTemplateBaselines = m.files['docker/docker-compose.hermit.yml.template'] != null
+        || m.files['docker/Dockerfile.hermit.template'] != null;
+      if (dockerDeployed && !hasTemplateBaselines) {
+        return { id: 'state', status: 'warn', detail: 'docker files deployed but compose/Dockerfile template baselines missing from manifest — run /claude-code-hermit:docker-setup to arm drift detection' };
+      }
     } catch {
       // file existence was already checked above; any error here is unexpected
       return { id: 'state', status: 'fail', detail: 'template-manifest.json: unreadable' };

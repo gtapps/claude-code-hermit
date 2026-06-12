@@ -337,6 +337,13 @@ Now that `docker.packages` (Step 7b.packages), `docker.recommended_plugins` (Ste
 
 Use the placeholder rules from Step 4 verbatim.
 
+**Record docker template baselines in the manifest** (arms the `hermit-evolve` drift signals). After writing the three files, merge these keys into `.claude-code-hermit/state/template-manifest.json` (read existing first; create `{ "version": 1, "files": {} }` if absent; overwrite only these keys, keep all others — same merge rule as `hatch`):
+
+- `"docker/docker-entrypoint.hermit.sh"`: `{ "sha256": "<hash of the UPSTREAM state-templates/docker/docker-entrypoint.hermit.sh.template>", "plugin_version": "<current plugin version>" }` — the entrypoint is copied verbatim, so the upstream-template hash equals the on-disk hash. This baseline lets `hermit-evolve` Step 5c manage the entrypoint as a boot-critical file (keep operator edits, refresh when upstream moves).
+- `"docker/docker-compose.hermit.yml.template"` and `"docker/Dockerfile.hermit.template"`: `{ "sha256": "<hash of the UPSTREAM template>", "plugin_version": "<current version>" }` — these render with substitution, so hash the **upstream template**, not the rendered output. Lets `hermit-evolve` Step 10 report upstream drift (`status: changed`) without false positives from placeholder substitution.
+
+Compute the current plugin version from `${CLAUDE_SKILL_DIR}/../../.claude-plugin/plugin.json`. Use `bun ${CLAUDE_PLUGIN_ROOT}/scripts/lib/hash.ts` semantics (sha256 of the file bytes) — match how `hatch` hashes `templates/`/`bin/`.
+
 ### 7c. Write Docker settings to config.json
 
 **Pre-write gate for `docker.recommended_plugins`:** Re-run the step 7b.10 assertion on every entry. If any fails, do **not** write — return to step 7b.3 to re-resolve. This gate is the final backstop; do not bypass it even "just this once."
@@ -559,7 +566,7 @@ You're all set! Your hermit is live and running autonomously.
   .claude-code-hermit/bin/hermit-docker login     — OAuth login
   .claude-code-hermit/bin/hermit-docker logs -f   — follow logs
   .claude-code-hermit/bin/hermit-docker restart   — restart container
-  .claude-code-hermit/bin/hermit-docker update    — rebuild image + refresh plugin marketplaces
+  .claude-code-hermit/bin/hermit-docker update    — rebuild image + update plugins (durable pin move) + auto-evolve
   .claude-code-hermit/bin/hermit-status           — quick check
 ```
 

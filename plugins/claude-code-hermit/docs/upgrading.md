@@ -6,21 +6,36 @@ Hermit is backwards compatible — nothing breaks if you don't upgrade. But upgr
 
 ## Core Plugin
 
-### 1. Update the plugin
+### One command (recommended)
+
+From the project root, run the wrapper for your deployment — it moves the durable plugin pin, reloads the running session, and auto-runs `hermit-evolve` when the version bumped:
 
 ```bash
-claude plugin marketplace add gtapps/claude-code-hermit
+# Docker hermits:
+.claude-code-hermit/bin/hermit-docker update
+# Local / tmux hermits:
+.claude-code-hermit/bin/hermit-update
 ```
 
-### 2. Run the upgrade skill
+Always-on hermits do this on their own: the session-start upgrade banner triggers `hermit-evolve unattended` automatically.
 
-Inside Claude Code, in each project that uses the plugin:
+### Manual
+
+If you'd rather drive it by hand:
+
+**1. Move the plugin pin (durable).** Refreshing the marketplace alone does NOT update the installed version — it only stages it; the pin reverts on the next restart. Use `plugin update` with the full marketplace-qualified id and your install scope (a bare plugin name fails with "not found"):
+
+```bash
+claude plugin update claude-code-hermit@claude-code-hermit --scope local
+```
+
+**2. Run the upgrade skill.** Inside Claude Code, in each project that uses the plugin:
 
 ```
 /claude-code-hermit:hermit-evolve
 ```
 
-This detects the version gap, shows what changed, prompts for new settings, refreshes templates, and updates the CLAUDE.md session discipline block.
+This detects the version gap, shows what changed, prompts for new settings, refreshes templates and the Docker entrypoint, and updates the CLAUDE.md session discipline block.
 
 ### 3. What if I don't upgrade?
 
@@ -30,10 +45,10 @@ This detects the version gap, shows what changed, prompts for new settings, refr
 
 ## Hermit Plugins
 
-Hermits (e.g., `claude-code-dev-hermit`) upgrade the same way:
+Hermits (e.g., `claude-code-dev-hermit`) upgrade the same way — the wrappers above update every installed hermit plugin in one pass. To do it by hand, move each hermit's pin with its own id and scope:
 
 ```bash
-claude plugin marketplace add your-org/claude-code-dev-hermit
+claude plugin update claude-code-dev-hermit@your-org --scope local
 ```
 
 Then `/claude-code-hermit:hermit-evolve` — it detects hermit version gaps automatically and updates their CLAUDE-APPEND blocks.

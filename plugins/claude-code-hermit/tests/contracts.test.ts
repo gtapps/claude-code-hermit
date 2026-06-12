@@ -1091,4 +1091,44 @@ describe('template-manifest doctor contract', () => {
     expect(s.status).toBe('fail');
     expect(s.detail).toContain('templates/SHELL.md.template');
   }), 20000);
+
+  test('docker deployed but no template baselines → state warns', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    seedState(dir); // default manifest: templates key only, no docker/
+    fs.writeFileSync(path.join(dir, 'docker-compose.hermit.yml'), 'services: {}\n');
+    const report = await runDoctorCheck(dir);
+    const s = stateCheck(report);
+    expect(s).toBeDefined();
+    expect(s.status).toBe('warn');
+    expect(s.detail).toContain('docker');
+  }), 20000);
+
+  test('docker deployed + ONLY entrypoint baseline (evolve wrote it, docker-setup did not) → still warns', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    // Step 5c writes the entrypoint key independently of docker-setup; that alone must
+    // NOT suppress the warn — the F2 compose/Dockerfile baselines are still missing.
+    seedState(dir, JSON.stringify({ version: 1, files: {
+      'templates/SHELL.md.template': { sha256: 'a'.repeat(64), plugin_version: '1.2.0' },
+      'docker/docker-entrypoint.hermit.sh': { sha256: 'b'.repeat(64), plugin_version: '1.2.0' },
+    }}));
+    fs.writeFileSync(path.join(dir, 'docker-compose.hermit.yml'), 'services: {}\n');
+    const report = await runDoctorCheck(dir);
+    const s = stateCheck(report);
+    expect(s).toBeDefined();
+    expect(s.status).toBe('warn');
+  }), 20000);
+
+  test('docker deployed WITH compose/Dockerfile template baselines → state ok', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    seedState(dir, JSON.stringify({ version: 1, files: {
+      'templates/SHELL.md.template': { sha256: 'a'.repeat(64), plugin_version: '1.2.0' },
+      'docker/docker-compose.hermit.yml.template': { sha256: 'b'.repeat(64), plugin_version: '1.2.0' },
+      'docker/Dockerfile.hermit.template': { sha256: 'c'.repeat(64), plugin_version: '1.2.0' },
+    }}));
+    fs.writeFileSync(path.join(dir, 'docker-compose.hermit.yml'), 'services: {}\n');
+    const report = await runDoctorCheck(dir);
+    const s = stateCheck(report);
+    expect(s).toBeDefined();
+    expect(s.status).toBe('ok');
+  }), 20000);
 });

@@ -14,12 +14,18 @@ CONFIG=".claude-code-hermit/config.json"
 
 # Extract version from plugin.json (simple grep — avoids interpreter startup)
 PLUGIN_VER=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$PLUGIN_ROOT/.claude-plugin/plugin.json" | head -1 | grep -o '"[^"]*"$' | tr -d '"')
-# Extract config version from _hermit_versions.claude-code-hermit
+# Extract config version + always_on from config.json (two lines: version, then true|false)
 # try/catch inside the snippet: bun exits 0 on uncaught fs errors, so a shell `||` fallback alone is not enough
-CONFIG_VER=$(bun -e 'try { const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log((c._hermit_versions ?? {})["claude-code-hermit"] ?? "0.0.0"); } catch { console.log("0.0.0"); }' "$CONFIG" 2>/dev/null || echo "0.0.0")
+CONFIG_OUT=$(bun -e 'try { const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log((c._hermit_versions ?? {})["claude-code-hermit"] ?? "0.0.0"); console.log(c.always_on === true ? "true" : "false"); } catch { console.log("0.0.0"); console.log("false"); }' "$CONFIG" 2>/dev/null || printf '0.0.0\nfalse\n')
+CONFIG_VER=$(printf '%s\n' "$CONFIG_OUT" | sed -n '1p')
+ALWAYS_ON=$(printf '%s\n' "$CONFIG_OUT" | sed -n '2p')
 
 [ -z "$PLUGIN_VER" ] && exit 0
 [ "$PLUGIN_VER" = "$CONFIG_VER" ] && exit 0
 
 echo "---Upgrade Available---"
-echo "Plugin v${PLUGIN_VER} ≠ config v${CONFIG_VER}. Run /claude-code-hermit:hermit-evolve"
+if [ "$ALWAYS_ON" = "true" ]; then
+  echo "Plugin v${PLUGIN_VER} ≠ config v${CONFIG_VER}. REQUIRED: run /claude-code-hermit:hermit-evolve unattended NOW, before any other work this session."
+else
+  echo "Plugin v${PLUGIN_VER} ≠ config v${CONFIG_VER}. Run /claude-code-hermit:hermit-evolve"
+fi

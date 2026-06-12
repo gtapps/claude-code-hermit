@@ -7,6 +7,14 @@ description: Evolves hermit configuration and templates after a plugin update. D
 
 Upgrade the project's hermit configuration after a plugin update.
 
+## Unattended mode
+
+Active when invoked with the positional argument `unattended` (e.g. `/claude-code-hermit:hermit-evolve unattended`), or as a fallback when running in an always-on session invoked via channel. In this mode the upgrade must complete without operator input:
+
+- **Never call `AskUserQuestion` at any step** — including the migration steps (2b, 7) that execute `### Upgrade Instructions`. Each step's unattended behavior is stated inline below.
+- For any interactive choice with a safe non-destructive default (new settings, file deletions, `## Plan` strip), take the default silently and report it in the Step 10 channel notification.
+- For a genuine either/or with no safe default, **defer**: leave state untouched and log a channel line `"migration step deferred for operator review: <desc>"`. Never guess.
+
 ## Plan
 
 ### 0. Verify Claude Code CLI version
@@ -86,7 +94,7 @@ Within `changelog_slice` (already ordered oldest-first), each version entry may 
 1. Find the `### Upgrade Instructions` section within each version's entry
 2. If found, execute every instruction in that section — these are the authoritative migration steps
 3. Present version-specific operator notes as you go
-4. If a step is interactive (asks the operator a question), ask it before proceeding
+4. If a step is interactive (asks the operator a question): in normal mode, ask it before proceeding. **In unattended mode, do not ask** — apply the non-destructive default (e.g. a delete/cleanup offer → keep the file) or defer per the Unattended mode rules, and note it for the Step 10 channel report.
 
 The CHANGELOG.md `### Upgrade Instructions` sections are the single source of truth for migrations — do not skip or merely display them. The same pattern applies to sibling-hermit upgrades in Step 7.
 
@@ -97,6 +105,8 @@ The plan's `new_config_keys` array lists every key in the current `config.json.t
 ### 4. Ask about new settings
 
 For each entry in the plan's `new_config_keys`, check the interactive allowlist below. If the entry's `path` is interactive, ask the operator. **Every other key — including template-only keys not enumerated below — is added silently with its `default` from the plan.** Batch interactive questions into a single numbered list.
+
+**Unattended mode:** do not ask — set every interactive key silently to its plan `default` (`language`/`timezone` keep their auto-detected default), and list the silently-set keys in the Step 10 channel notification ("adjust via /hermit-settings").
 
 **Interactive keys** (ask operator if missing):
 - `agent_name` (0.0.1), `language` (0.0.1, auto-detect from `$LANG`), `timezone` (0.0.1, auto-detect), `escalation` (0.0.1), `idle_behavior` (0.0.9)
@@ -132,7 +142,7 @@ If `CLAUDE_CODE_TASK_LIST_ID` is not already set in `.claude/settings.local.json
 1. Derive: `hermit-{project_basename}` (lowercase, alphanumeric + hyphens)
 2. Read `.claude/settings.local.json`, merge into `env` block, write back
 
-Also: if an active SHELL.md has a `## Plan` section (legacy plan table), warn the operator: "Close active sessions before upgrading, or the old plan table will be orphaned." Strip the `## Plan` section from the active SHELL.md if operator confirms.
+Also: if an active SHELL.md has a `## Plan` section (legacy plan table), warn the operator: "Close active sessions before upgrading, or the old plan table will be orphaned." Strip the `## Plan` section from the active SHELL.md if operator confirms. **Unattended mode: warn only — never strip.**
 
 ### 5. Update templates
 
@@ -143,7 +153,7 @@ Also: if an active SHELL.md has a `## Plan` section (legacy plan table), warn th
 - **`customized-kept`**: operator edited it and the template hasn't moved. **Keep the operator's copy unchanged.** Collect in a summary line at the end: "Kept N operator-customized template(s): `<name>`, ..."
 - **`conflict`**: both the operator and the template changed since hatch.
   - **Interactive session** (operator typed the command): present a three-way diff summary and `AskUserQuestion` with options: "Keep mine" / "Take new" / "Merge manually later". Default: keep mine. If "Take new": copy upstream over it and preserve old copy as `<name>.bak`. If "Merge manually": write upstream as `<name>.new` beside the operator's copy, leave the operator's copy live.
-  - **Unattended / always-on** (invoked via channel): write upstream as `<name>.new` beside the operator's copy, keep operator's copy live. Report one channel line: "N template conflict(s) parked as .new — review when convenient: `<name>`, ..."
+  - **Unattended mode**: write upstream as `<name>.new` beside the operator's copy, keep operator's copy live. Report one channel line: "N template conflict(s) parked as .new — review when convenient: `<name>`, ..."
 
 If `templates_changed` is empty, skip.
 
@@ -180,11 +190,25 @@ If `bin_changed` is empty, skip the copy (still confirm executability for all fi
 
 **Bootstrap safety net** (`manifest_bootstrap: true` in the plan): on the first evolve after this feature ships (no manifest yet), any template or bin file that gets overwritten or restored also gets a one-time `<name>.bak` alongside it. This makes the quiet bootstrap recoverable: if an existing customization was already present before the manifest was seeded, it survives in the `.bak`. One noisy set of `.bak` files, once, then quiet thereafter.
 
-**After resolving all templates (Step 5) and all bin/ files (Step 5b)**, write `state/template-manifest.json`:
-- For each file that was copied, replaced, or restored: record `"<prefix>/<name>": { "sha256": "<hash of the new upstream content>", "plugin_version": "<plan.to>" }` in the manifest.
+### 5c. Update the Docker entrypoint (boot-critical, manifest-managed)
+
+`docker_entrypoint` in the plan is a single classified object `{ name, class, boot_critical }`, or `null` when the project has no deployed `docker-entrypoint.hermit.sh` (non-Docker project — skip this step). The entrypoint is placeholder-free, so it is managed exactly like a boot-critical `bin/` wrapper. On-disk file: `<project-root>/docker-entrypoint.hermit.sh`; upstream: `${CLAUDE_PLUGIN_ROOT}/state-templates/docker/docker-entrypoint.hermit.sh.template`. Resolve by class:
+
+- **`unmodified`**: operator never customized it. Copy upstream over it silently.
+- **`customized-kept`**: operator edited it; template hasn't moved. Keep the operator's copy. Summary line: "Kept operator-customized docker-entrypoint.hermit.sh."
+- **`conflict`** (any context — no `.new` parking for boot-critical files): replace with the upstream version, and save the operator's copy to a **gitignore-safe backup inside the state tree**: `.claude-code-hermit/state/docker-entrypoint.hermit.sh.<UTC-timestamp>.bak`. Do NOT write the backup next to the project-root entrypoint — that path is not gitignored and would surface as an untracked file in the operator's repo. Report loudly (run report + channel): "**docker-entrypoint.hermit.sh had local changes — replaced with the new version; your copy saved as `<backup path>`.** Rebuild to apply: `.claude-code-hermit/bin/hermit-docker update`."
+- (`missing` is never emitted for the entrypoint — the plan returns `null` when it is absent — so there is no restore branch.)
+
+**Per-file bootstrap (`bootstrap: true` on the entry).** The plan sets this when no docker entrypoint baseline was recorded yet (e.g. a Docker deploy from before this version, where the manifest exists for `templates/`/`bin/` but `/docker-setup` never recorded the entrypoint hash). In that state the class falls back to `unmodified`, but a silent overwrite would destroy an operator customization that can't be distinguished from an old upstream copy. So: **whenever `bootstrap` is true and you are about to overwrite, FIRST write the operator's current copy to the gitignore-safe `.claude-code-hermit/state/docker-entrypoint.hermit.sh.<UTC-timestamp>.bak`**, then apply the class action, and report the backup path. This is a one-time net — the manifest records the baseline below, so it won't recur. (The global `manifest_bootstrap: true` net does NOT cover this case: the manifest is present, just missing the docker key.)
+
+The replaced entrypoint takes effect only after a rebuild (Step 10 carries the reminder).
+
+**After resolving Steps 5 (templates), 5b (bin/), and 5c (docker entrypoint)**, write `state/template-manifest.json`:
+- For each file that was copied, replaced, or restored: record `"<prefix>/<name>": { "sha256": "<hash of the new on-disk content>", "plugin_version": "<plan.to>" }`. Prefixes: `templates/`, `bin/`, and for the entrypoint the literal key `docker/docker-entrypoint.hermit.sh`.
 - For files classified `customized-kept`: leave their existing manifest entry unchanged.
-- If `manifest_bootstrap` was true: seed the full manifest — for every managed file under `templates/` and `bin/`, record the hash of whatever is now on-disk (after any overwrites) plus the current `plugin_version`. This is the one-time baseline seeding.
-- Write the complete updated manifest as `state/template-manifest.json` with `{ "version": 1, "files": { ... } }`.
+- **Preserve every manifest entry under a prefix this run did not touch.** Read the existing manifest first and keep entries whose keys are not in the set you just resolved (the same re-init merge rule `hatch` uses). In particular, do NOT drop the `docker/docker-compose.hermit.yml.template` and `docker/Dockerfile.hermit.template` baselines that `/docker-setup` records (Step 10 reads them) or any sibling-hermit keys. Merge into the existing `files` map — never replace it wholesale.
+- If `manifest_bootstrap` was true: seed the full manifest — for every managed file under `templates/` and `bin/` (and the entrypoint, if deployed), record the hash of whatever is now on-disk (after any overwrites) plus the current `plugin_version`. This is the one-time baseline seeding.
+- Write the merged manifest as `state/template-manifest.json` with `{ "version": 1, "files": { ... } }`.
 - Read the current sha256 of each on-disk file for the manifest (don't trust cached buffers).
 
 ### 6. Update CLAUDE-APPEND block
@@ -227,7 +251,7 @@ Same logic as init step 8, but target the file determined by `hatch_target` (res
 - `hatch_target == "local"` → `.claude/settings.local.json`
 - `hatch_target == "committed"` → `.claude/settings.json`
 
-Check the target settings file for the plugin's required permissions (`git diff/status/log`, per-script `bun` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required entries are: `cost-tracker.ts`, `suggest-compact.ts`, `run-with-profile.ts`, `evaluate-session.ts`, `append-metrics.ts`, `generate-summary.ts`, `cron-tz-shift.ts`, `archive-shell.ts`, `evolve-plan.ts`. If any are missing, show the operator which ones and ask for confirmation before adding. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found in the target file:
+Check the target settings file for the plugin's required permissions (`git diff/status/log`, per-script `bun` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required entries are: `cost-tracker.ts`, `suggest-compact.ts`, `run-with-profile.ts`, `evaluate-session.ts`, `append-metrics.ts`, `generate-summary.ts`, `cron-tz-shift.ts`, `archive-shell.ts`, `evolve-plan.ts`. If any are missing, show the operator which ones and ask for confirmation before adding. **Unattended mode: add the missing entries without asking** (a missing `bun` permission breaks hooks, so this is non-optional), and report them loudly in the run report + Step 10 channel notification. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found in the target file:
 
 - `Bash(python3:*)`, `Bash(node:*)` — replaced by scoped bun entries
 - `Edit(.claude/.claude-code-hermit/**)`, `Write(.claude/.claude-code-hermit/**)` — replaced by `.claude-code-hermit/**` (v0.0.6 path change)
@@ -270,4 +294,11 @@ Run /claude-code-hermit:hermit-settings to adjust any settings.
 
 Adjust the summary based on what actually changed. Omit sections where nothing changed.
 
-After printing the summary, notify the operator per CLAUDE-APPEND.md § Operator Notification with a condensed one-line message such as `"Hermit upgraded: vOLD → vNEW. N settings added, M templates refreshed."` Omit segments where nothing changed.
+**Docker rebuild notice.** If the plan's `docker_entrypoint` was a `conflict`/`unmodified` that you refreshed in Step 5c, OR `docker_templates` (from F2) is non-empty, append a `Docker:` section telling the operator a rebuild is needed and in what order:
+
+- Entrypoint refreshed (Step 5c) → "Docker entrypoint refreshed. Rebuild to apply: `.claude-code-hermit/bin/hermit-docker update`."
+- `docker_templates` entries with `status: "changed"` (compose/Dockerfile moved upstream) → "Docker template(s) changed upstream: `<names>`. These render with your config, so refresh them FIRST, then rebuild — in this order: (1) re-run `/claude-code-hermit:docker-setup` (it backs up and re-renders), (2) THEN `hermit-docker update`. Rebuilding first bakes the stale on-disk files into the image." Lead with the compose file; the entrypoint is already handled by Step 5c.
+- `docker_templates` entries with `status: "unknown"` → "Docker template baseline not recorded (deployed before this version). Run `/claude-code-hermit:docker-setup` once to arm the drift signal; until then a rebuild can't be drift-checked."
+- Never auto-rebuild. In unattended mode this whole section is report-only and rides the channel notification below.
+
+After printing the summary, notify the operator per CLAUDE-APPEND.md § Operator Notification with a condensed one-line message such as `"Hermit upgraded: vOLD → vNEW. N settings added, M templates refreshed."` Omit segments where nothing changed. **In unattended mode, append the deferred/auto-applied segments** to this notification: settings set to defaults (Step 4), permission entries added without confirmation (Step 8), and any migration steps deferred for operator review (Steps 2b/7) — so the operator can follow up via `/hermit-settings`.

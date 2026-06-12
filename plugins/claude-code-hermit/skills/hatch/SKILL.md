@@ -130,7 +130,7 @@ Initialize state files (inline — shape-insensitive or append-only):
 - `.claude-code-hermit/state/proposal-metrics.jsonl`: empty file — append-only, not schema-sensitive JSON state
 - `.claude-code-hermit/state/observations.jsonl`: empty file — append-only sub-threshold observation ledger (`{ts, pattern, session_id, source}`; read by `reflect` for recurrence graduation, pruned by `scripts/prune-observations.ts`)
 - `.claude-code-hermit/state/routine-metrics.jsonl`: empty file — append-only routine fire log (`fired` events written by `scripts/log-routine-event.sh` from CronCreate prompts)
-- `.claude-code-hermit/state/update-history.jsonl`: empty file — append-only log of `hermit-docker update` runs
+- `.claude-code-hermit/state/update-history.jsonl`: empty file — append-only log of `hermit-docker update` and `hermit-update` runs
 - `.claude-code-hermit/state/channel-replies.jsonl`: empty file — append-only channel reply log (routine-ROI join source; written by `channel-hook.ts`)
 - `.claude-code-hermit/state/pending-close.json`: do NOT initialize — created lazily by the `daily-auto-close` skill when the midnight routine fires while the operator is currently active. Deleted by `session-close --auto` after the archive succeeds.
 
@@ -140,7 +140,7 @@ Initialize state files (inline — shape-insensitive or append-only):
 - Copy `SHELL.md.template`, `SESSION-REPORT.md.template`, `PROPOSAL.md.template` into `templates/`
 - **OPERATOR.md guard:** If `.claude-code-hermit/OPERATOR.md` already exists, do NOT copy the template over it. Remember this fact as `operator_existed = true` for use in step 5a. If it does not exist, copy `OPERATOR.md` from the templates into the state directory root.
 - Copy `HEARTBEAT.md.template` → `.claude-code-hermit/HEARTBEAT.md` (the operator's editable checklist)
-- **Enumerate** all files under `${CLAUDE_SKILL_DIR}/../../state-templates/bin/` (do not hardcode the list). Copy each one into `.claude-code-hermit/bin/`. Ensure all are executable (`chmod +x`). Current set: hermit-attach, hermit-docker, hermit-run, hermit-start, hermit-status, hermit-stop, hermit-watchdog.
+- **Enumerate** all files under `${CLAUDE_SKILL_DIR}/../../state-templates/bin/` (do not hardcode the list). Copy each one into `.claude-code-hermit/bin/`. Ensure all are executable (`chmod +x`). Current set: hermit-attach, hermit-docker, hermit-run, hermit-start, hermit-status, hermit-stop, hermit-update, hermit-watchdog.
 - Copy `knowledge-schema.md.template` → `.claude-code-hermit/knowledge-schema.md` (the operator's behavioral schema for domain outputs).
 - **Seed `state/template-manifest.json`**: after copying all `templates/` and `bin/` files above, write `.claude-code-hermit/state/template-manifest.json` recording the sha256 + current plugin version for each seeded file:
   - Read the current version from `${CLAUDE_SKILL_DIR}/../../.claude-plugin/plugin.json`.
@@ -962,7 +962,7 @@ Created:
   .claude-code-hermit/templates/ (3 templates)
   .claude-code-hermit/OPERATOR.md (onboarded)
   .claude-code-hermit/HEARTBEAT.md
-  .claude-code-hermit/bin/ (hermit-attach, hermit-docker, hermit-run, hermit-start, hermit-status, hermit-stop, hermit-watchdog)
+  .claude-code-hermit/bin/ (hermit-attach, hermit-docker, hermit-run, hermit-start, hermit-status, hermit-stop, hermit-update, hermit-watchdog)
   .claude-code-hermit/config.json
 
 Identity:

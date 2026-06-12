@@ -99,6 +99,42 @@ describe('check-upgrade.sh', () => {
   });
 });
 
+describe('check-upgrade.sh always_on banner', () => {
+  const pluginVer = readJson(path.join(PLUGIN_ROOT, '.claude-plugin', 'plugin.json')).version;
+  async function run(configObj: any) {
+    const wd = setupWorkdir();
+    try {
+      write(hermit(wd.dir, 'config.json'), JSON.stringify(configObj));
+      const r = await runBash(path.join(SCRIPTS_DIR, 'check-upgrade.sh'), { args: [PLUGIN_ROOT], cwd: wd.dir });
+      return r.stdout + r.stderr;
+    } finally { wd.cleanup(); }
+  }
+
+  test('always_on=true + gap -> REQUIRED directive', async () => {
+    const out = await run({ always_on: true, _hermit_versions: { 'claude-code-hermit': '0.0.0' } });
+    expect(out).toContain('---Upgrade Available---');
+    expect(out).toContain('REQUIRED');
+    expect(out).toContain('hermit-evolve unattended');
+  });
+
+  test('always_on=false + gap -> advisory, no REQUIRED', async () => {
+    const out = await run({ always_on: false, _hermit_versions: { 'claude-code-hermit': '0.0.0' } });
+    expect(out).toContain('---Upgrade Available---');
+    expect(out).not.toContain('REQUIRED');
+  });
+
+  test('always_on absent + gap -> advisory, no REQUIRED', async () => {
+    const out = await run({ _hermit_versions: { 'claude-code-hermit': '0.0.0' } });
+    expect(out).toContain('---Upgrade Available---');
+    expect(out).not.toContain('REQUIRED');
+  });
+
+  test('no gap -> silent (no banner)', async () => {
+    const out = await run({ always_on: true, _hermit_versions: { 'claude-code-hermit': pluginVer } });
+    expect(out).not.toContain('---Upgrade Available---');
+  });
+});
+
 // -------------------------------------------------------
 // Static file checks
 // -------------------------------------------------------
@@ -118,6 +154,91 @@ describe('static file checks', () => {
     for (const f of fs.readdirSync(binDir)) {
       expect(() => fs.accessSync(path.join(binDir, f), fs.constants.X_OK)).not.toThrow();
     }
+  });
+
+  test('hermit-docker update moves the pin, not the marketplace', () => {
+    const src = fs.readFileSync(path.join(PLUGIN_ROOT, 'state-templates', 'bin', 'hermit-docker'), 'utf8');
+    // The whole point of the fix: durable `plugin update` per plugin with explicit scope...
+    expect(src).toContain('claude plugin update');
+    expect(src).toContain('--scope');
+    expect(src).toContain('hermit-evolve unattended');
+    // ...and NOT the old ephemeral marketplace-refresh loop.
+    expect(src).not.toContain('claude plugin marketplace update');
+  });
+});
+
+// -------------------------------------------------------
+// hermit-update (host path, stubbed claude/tmux)
+// -------------------------------------------------------
+
+describe('hermit-update host path', () => {
+  // Build a workdir with the wrapper installed at .claude-code-hermit/bin, a config
+  // (no docker compose → host path), and stub `claude`/`tmux` on a prepended PATH.
+  function fixture(opts: { listJson: (proj: string) => string }) {
+    const wd = setupWorkdir();
+    const proj = wd.dir;
+    const binDir = hermit(proj, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.copyFileSync(
+      path.join(PLUGIN_ROOT, 'state-templates', 'bin', 'hermit-update'),
+      path.join(binDir, 'hermit-update'),
+    );
+    write(hermit(proj, 'config.json'),
+      JSON.stringify({ tmux_session_name: 'hermit-{project_name}', _hermit_versions: { 'claude-code-hermit': '1.2.0' } }));
+
+    const stub = path.join(proj, '.stub');
+    fs.mkdirSync(stub, { recursive: true });
+    const listFile = path.join(stub, 'list.json');
+    const recFile = path.join(stub, 'rec.txt');
+    write(listFile, opts.listJson(proj));
+    write(path.join(stub, 'claude'),
+      `#!/usr/bin/env bash\n` +
+      `if [ "$1" = "plugin" ] && [ "$2" = "list" ]; then cat "${listFile}"; exit 0; fi\n` +
+      `if [ "$1" = "plugin" ] && [ "$2" = "update" ]; then echo "$@" >> "${recFile}"; exit 0; fi\n` +
+      `exit 0\n`);
+    write(path.join(stub, 'tmux'),
+      `#!/usr/bin/env bash\n[ "$1" = "has-session" ] && exit 1\nexit 0\n`);
+    fs.chmodSync(path.join(stub, 'claude'), 0o755);
+    fs.chmodSync(path.join(stub, 'tmux'), 0o755);
+
+    return { wd, proj, recFile, env: { PATH: `${stub}:${process.env.PATH}` } };
+  }
+
+  const listThreeScopes = (proj: string) => JSON.stringify([
+    { id: 'claude-code-hermit@claude-code-hermit', scope: 'local', enabled: true, version: '1.2.0', projectPath: proj },
+    { id: 'some-user@official', scope: 'user', enabled: true, version: '0.5.0', projectPath: '/elsewhere' },
+    { id: 'cross@mp', scope: 'local', enabled: true, version: '9.9.9', projectPath: '/other/project' },
+  ]);
+
+  test('updates project plugin with full id + scope; skips user + cross-project', async () => {
+    const f = fixture({ listJson: listThreeScopes });
+    try {
+      const r = await runBash(hermit(f.proj, 'bin', 'hermit-update'), { args: ['--yes'], cwd: f.proj, env: f.env });
+      const rec = fs.existsSync(f.recFile) ? fs.readFileSync(f.recFile, 'utf8') : '';
+      // durable update of the project-local plugin, full id + explicit scope
+      expect(rec).toContain('plugin update claude-code-hermit@claude-code-hermit --scope local');
+      // user-scope and cross-project entries are NOT updated
+      expect(rec).not.toContain('some-user@official');
+      expect(rec).not.toContain('cross@mp');
+      // user-scope surfaced as a skip hint; no live tmux session message
+      expect(r.stdout).toContain('some-user@official');
+      expect(r.stdout).toContain('No live tmux session');
+      // history entry shape
+      const hist = fs.readFileSync(hermit(f.proj, 'state', 'update-history.jsonl'), 'utf8').trim();
+      const entry = JSON.parse(hist);
+      expect(entry.trigger).toBe('hermit-update');
+      expect(entry.mode).toBe('host-plugins');
+      expect(Array.isArray(entry.plugins)).toBe(true);
+      expect(entry.plugins[0].id).toBe('claude-code-hermit@claude-code-hermit');
+    } finally { f.wd.cleanup(); }
+  });
+
+  test('--dry-run records no update calls', async () => {
+    const f = fixture({ listJson: listThreeScopes });
+    try {
+      await runBash(hermit(f.proj, 'bin', 'hermit-update'), { args: ['--dry-run'], cwd: f.proj, env: f.env });
+      expect(fs.existsSync(f.recFile)).toBe(false);
+    } finally { f.wd.cleanup(); }
   });
 });
 

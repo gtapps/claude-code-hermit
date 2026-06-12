@@ -18,7 +18,7 @@ import { sha256 } from './lib/hash';
 type Json = any;
 
 type FileClass = 'missing' | 'unmodified' | 'customized-kept' | 'conflict';
-interface ClassifiedFile { name: string; class: FileClass; boot_critical?: boolean; }
+interface ClassifiedFile { name: string; class: FileClass; boot_critical?: boolean; bootstrap?: boolean; }
 
 const MARKER = '<!-- claude-code-hermit: Session Discipline -->';
 const TEMPLATE_FILES = [
@@ -124,6 +124,55 @@ function newConfigKeys(tmpl: Json, config: Json, prefix?: string, out?: Json[]):
   return out;
 }
 
+// 3-way classify a single file (already-read buffers) against the manifest
+// baseline. Returns null when on-disk is byte-identical to upstream (nothing to
+// do). dstBuf null -> `missing`. manifestKey is the lookup key in manifestFiles.
+function classifyOne(
+  name: string,
+  srcBuf: Buffer,
+  dstBuf: Buffer | null,
+  manifestFiles: Record<string, { sha256: string }> | null,
+  manifestKey: string,
+  bootCritical: boolean,
+): ClassifiedFile | null {
+  // on-disk absent -> restore unconditionally (deleted wrapper / fresh install)
+  if (dstBuf === null) {
+    const e: ClassifiedFile = { name, class: 'missing' };
+    if (bootCritical) e.boot_critical = true;
+    return e;
+  }
+
+  // on-disk identical to upstream -> nothing to do
+  if (srcBuf.equals(dstBuf)) return null;
+
+  // on-disk differs from upstream -> 3-way classify via manifest baseline
+  const baseline = manifestFiles ? manifestFiles[manifestKey] : null;
+
+  let cls: FileClass;
+  if (baseline == null) {
+    // No manifest entry (bootstrap or file added after last hatch) ->
+    // treat baseline as on-disk (seed-as-unmodified): safe to overwrite.
+    cls = 'unmodified';
+  } else {
+    const onDiskHash = sha256(dstBuf);
+    const baseHash = baseline.sha256;
+    if (onDiskHash === baseHash) {
+      cls = 'unmodified';          // operator never touched it; template moved
+    } else {
+      const upstreamHash = sha256(srcBuf);
+      if (upstreamHash === baseHash) {
+        cls = 'customized-kept';   // operator edited; template didn't change
+      } else {
+        cls = 'conflict';          // both sides diverged
+      }
+    }
+  }
+
+  const e: ClassifiedFile = { name, class: cls };
+  if (bootCritical) e.boot_critical = true;
+  return e;
+}
+
 // Classify each managed file against the pristine-baseline manifest.
 //
 // manifestFiles: the `files` map from state/template-manifest.json, or null
@@ -157,46 +206,83 @@ function classifyFiles(
       dstBuf = null;
     }
 
-    // on-disk absent -> restore unconditionally (deleted wrapper / fresh install)
-    if (dstBuf === null) {
-      const e: ClassifiedFile = { name, class: 'missing' };
-      if (bootCritical) e.boot_critical = true;
-      result.push(e);
-      continue;
-    }
-
-    // on-disk identical to upstream -> nothing to do
-    if (srcBuf.equals(dstBuf)) continue;
-
-    // on-disk differs from upstream -> 3-way classify via manifest baseline
-    const manifestKey = `${keyPrefix}/${name}`;
-    const baseline = manifestFiles ? manifestFiles[manifestKey] : null;
-
-    let cls: FileClass;
-    if (baseline == null) {
-      // No manifest entry (bootstrap or file added after last hatch) ->
-      // treat baseline as on-disk (seed-as-unmodified): safe to overwrite.
-      cls = 'unmodified';
-    } else {
-      const onDiskHash = sha256(dstBuf);
-      const baseHash = baseline.sha256;
-      if (onDiskHash === baseHash) {
-        cls = 'unmodified';          // operator never touched it; template moved
-      } else {
-        const upstreamHash = sha256(srcBuf);
-        if (upstreamHash === baseHash) {
-          cls = 'customized-kept';   // operator edited; template didn't change
-        } else {
-          cls = 'conflict';          // both sides diverged
-        }
-      }
-    }
-
-    const e: ClassifiedFile = { name, class: cls };
-    if (bootCritical) e.boot_critical = true;
-    result.push(e);
+    const e = classifyOne(name, srcBuf, dstBuf, manifestFiles, `${keyPrefix}/${name}`, bootCritical);
+    if (e) result.push(e);
   }
   return result;
+}
+
+// F1 — classify the deployed docker entrypoint. It is now placeholder-free
+// (rendered == upstream byte-for-byte), so it joins the manifest system exactly
+// like a boot-critical bin/ wrapper. Upstream is `<name>.template`; on-disk is
+// the suffix-stripped file at project root. Returns null when the project has no
+// deployed entrypoint (don't create docker files in a non-docker project).
+function classifyDockerEntrypoint(
+  stDir: string,
+  projectRoot: string,
+  manifestFiles: Record<string, { sha256: string }> | null,
+): ClassifiedFile | null {
+  let srcBuf: Buffer;
+  try {
+    srcBuf = fs.readFileSync(path.join(stDir, 'docker', 'docker-entrypoint.hermit.sh.template'));
+  } catch {
+    return null; // no upstream entrypoint template -> nothing to manage
+  }
+  let dstBuf: Buffer;
+  try {
+    dstBuf = fs.readFileSync(path.join(projectRoot, 'docker-entrypoint.hermit.sh'));
+  } catch {
+    return null; // no deployed entrypoint -> project isn't docker-deployed
+  }
+  const e = classifyOne(
+    'docker-entrypoint.hermit.sh', srcBuf, dstBuf,
+    manifestFiles, 'docker/docker-entrypoint.hermit.sh', true,
+  );
+  // Per-file bootstrap: the global manifest can exist (templates/bin seeded) while
+  // the docker baseline is absent — it is recorded only by /docker-setup. With no
+  // baseline, classifyOne falls back to `unmodified` (would overwrite silently),
+  // but we cannot actually tell an operator edit from an old upstream version. Flag
+  // it so Step 5c writes a one-time recovery .bak before overwriting. Only matters
+  // when on-disk differs from upstream (e !== null); identical files return null.
+  const hasBaseline = e !== null && manifestFiles != null
+    && manifestFiles['docker/docker-entrypoint.hermit.sh'] != null;
+  if (e !== null && !hasBaseline) e.bootstrap = true;
+  return e;
+}
+
+// F2 — report-only upstream-drift signal for the wizard-rendered docker files
+// (compose + Dockerfile). These carry placeholders, so rendered bytes never
+// match upstream — we can only compare the UPSTREAM template hash against the
+// baseline recorded by docker-setup. status: "changed" (upstream moved since
+// last render) | "unknown" (no baseline recorded — pre-this-version deploy).
+// Skips files with no rendered counterpart in the project (no docker deploy).
+function classifyDockerTemplates(
+  stDir: string,
+  projectRoot: string,
+  manifestFiles: Record<string, { sha256: string }> | null,
+): Json[] {
+  const out: Json[] = [];
+  const files = [
+    { tmpl: 'docker-compose.hermit.yml.template', rendered: 'docker-compose.hermit.yml' },
+    { tmpl: 'Dockerfile.hermit.template', rendered: 'Dockerfile.hermit' },
+  ];
+  for (const f of files) {
+    let srcBuf: Buffer;
+    try {
+      srcBuf = fs.readFileSync(path.join(stDir, 'docker', f.tmpl));
+    } catch {
+      continue; // no upstream template -> nothing to compare
+    }
+    if (!fs.existsSync(path.join(projectRoot, f.rendered))) continue; // not deployed
+    const baseline = manifestFiles ? manifestFiles[`docker/${f.tmpl}`] : null;
+    if (baseline == null) {
+      out.push({ name: f.rendered, status: 'unknown' });
+    } else if (sha256(srcBuf) !== baseline.sha256) {
+      out.push({ name: f.rendered, status: 'changed' });
+    }
+    // upstream unchanged since last render -> omit
+  }
+  return out;
 }
 
 // Marker-onward block: from the MARKER line to EOF or the next standalone
@@ -333,6 +419,23 @@ function buildPlan({ hermitDir, pluginRoot, hatchTarget }: { hermitDir: string; 
   }
   plan.bin_changed = classifyFiles(binSrc, path.join(hermitDir, 'bin'), binNames, manifestFiles, 'bin', true);
 
+  // Docker drift. F1: the placeholder-free entrypoint is manifest-managed like a
+  // boot-critical bin/ wrapper. F2: compose/Dockerfile are report-only (rendered,
+  // so only upstream-template drift is detectable). Both fail open to safe defaults.
+  const projectRoot = path.resolve(hermitDir, '..');
+  try {
+    plan.docker_entrypoint = classifyDockerEntrypoint(stDir, projectRoot, manifestFiles);
+  } catch (e: any) {
+    plan.docker_entrypoint = null;
+    errors.push({ code: 'docker_entrypoint_classify_failed', message: e.message });
+  }
+  try {
+    plan.docker_templates = classifyDockerTemplates(stDir, projectRoot, manifestFiles);
+  } catch (e: any) {
+    plan.docker_templates = [];
+    errors.push({ code: 'docker_templates_classify_failed', message: e.message });
+  }
+
   computeClaudeAppend(plan, pluginRoot, hermitDir, hatchTarget, errors);
 
   return plan;
@@ -348,7 +451,7 @@ function parseArgs(argv: string[]) {
   return { hermitDir: hermitDir || '.claude-code-hermit', hatchTarget };
 }
 
-export { buildPlan, cmpSemver, changelogSlice, newConfigKeys, markerOnward, classifyFiles };
+export { buildPlan, cmpSemver, changelogSlice, newConfigKeys, markerOnward, classifyFiles, classifyDockerEntrypoint, classifyDockerTemplates };
 export type { ClassifiedFile, FileClass };
 
 if (import.meta.main) {

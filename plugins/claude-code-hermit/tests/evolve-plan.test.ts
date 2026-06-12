@@ -54,6 +54,10 @@ Run the evolve skill.
   fs.writeFileSync(path.join(PR, 'state-templates', 'SESSION-REPORT.md.template'), 'REPORT TEMPLATE\n');
   fs.writeFileSync(path.join(PR, 'state-templates', 'PROPOSAL.md.template'), 'PROPOSAL TEMPLATE\n');
   fs.writeFileSync(path.join(PR, 'state-templates', 'bin', 'hermit-run'), '#!/bin/sh\necho run\n');
+  fs.mkdirSync(path.join(PR, 'state-templates', 'docker'), { recursive: true });
+  fs.writeFileSync(path.join(PR, 'state-templates', 'docker', 'docker-entrypoint.hermit.sh.template'), 'ENTRYPOINT UPSTREAM\n');
+  fs.writeFileSync(path.join(PR, 'state-templates', 'docker', 'docker-compose.hermit.yml.template'), 'COMPOSE UPSTREAM {{X}}\n');
+  fs.writeFileSync(path.join(PR, 'state-templates', 'docker', 'Dockerfile.hermit.template'), 'DOCKERFILE UPSTREAM {{Y}}\n');
 });
 
 afterAll(() => {
@@ -415,4 +419,72 @@ test('no_hatch_target: missing flag -> errors[no_hatch_target], exit 0', withPro
   const d = await runPlan(proj); // no --hatch-target flag (runPlan asserts exit 0)
   const codes = d.errors.map((e: any) => e.code);
   expect(codes).toContain('no_hatch_target');
+}));
+
+// -------------------------------------------------------
+// 11. Docker template drift — F1 (entrypoint, manifest-managed) + F2 (report-only)
+// -------------------------------------------------------
+
+const deployDocker = (proj: string, f: { entrypoint?: string; compose?: string; dockerfile?: string }) => {
+  if (f.entrypoint !== undefined) fs.writeFileSync(path.join(proj, 'docker-entrypoint.hermit.sh'), f.entrypoint);
+  if (f.compose !== undefined) fs.writeFileSync(path.join(proj, 'docker-compose.hermit.yml'), f.compose);
+  if (f.dockerfile !== undefined) fs.writeFileSync(path.join(proj, 'Dockerfile.hermit'), f.dockerfile);
+};
+const dockerManifest = (proj: string, hashes: Record<string, string>) =>
+  writeManifest(proj, Object.fromEntries(
+    Object.entries(hashes).map(([k, v]) => [k, { sha256: v, plugin_version: '1.1.6' }])));
+
+test('docker: no deployment -> entrypoint null, templates empty', withProj(async (proj) => {
+  writeConfig(proj, '{"_hermit_versions":{"claude-code-hermit":"1.1.6"}}');
+  const d = await runPlan(proj, 'local');
+  expect(d.docker_entrypoint).toBeNull();
+  expect(d.docker_templates).toEqual([]);
+}));
+
+test('docker bootstrap (no manifest): entrypoint unmodified, templates unknown', withProj(async (proj) => {
+  writeConfig(proj, '{"_hermit_versions":{"claude-code-hermit":"1.1.6"}}');
+  deployDocker(proj, { entrypoint: 'ENTRYPOINT OLD\n', compose: 'rendered\n', dockerfile: 'rendered\n' });
+  const d = await runPlan(proj, 'local');
+  expect(d.manifest_bootstrap).toBe(true);
+  expect(d.docker_entrypoint.class).toBe('unmodified');
+  expect(d.docker_entrypoint.boot_critical).toBe(true);
+  const statuses = Object.fromEntries(d.docker_templates.map((t: any) => [t.name, t.status]));
+  expect(statuses['docker-compose.hermit.yml']).toBe('unknown');
+  expect(statuses['Dockerfile.hermit']).toBe('unknown');
+}));
+
+test('docker with manifest: compose match omitted, stale Dockerfile -> changed, identical entrypoint -> null', withProj(async (proj) => {
+  writeConfig(proj, '{"_hermit_versions":{"claude-code-hermit":"1.1.6"}}');
+  deployDocker(proj, { entrypoint: 'ENTRYPOINT UPSTREAM\n', compose: 'rendered\n', dockerfile: 'rendered\n' });
+  dockerManifest(proj, {
+    'docker/docker-compose.hermit.yml.template': sha256(Buffer.from('COMPOSE UPSTREAM {{X}}\n')),
+    'docker/Dockerfile.hermit.template': sha256(Buffer.from('DOCKERFILE OLD {{Y}}\n')), // stale baseline
+  });
+  const d = await runPlan(proj, 'local');
+  expect(d.docker_entrypoint).toBeNull(); // on-disk identical to upstream
+  const names = d.docker_templates.map((t: any) => t.name);
+  expect(names).not.toContain('docker-compose.hermit.yml'); // upstream unchanged -> omitted
+  expect(d.docker_templates).toContainEqual({ name: 'Dockerfile.hermit', status: 'changed' });
+}));
+
+test('docker entrypoint per-file bootstrap: manifest present but NO docker key + customized entrypoint -> unmodified + bootstrap (forces .bak)', withProj(async (proj) => {
+  writeConfig(proj, '{"_hermit_versions":{"claude-code-hermit":"1.1.6"}}');
+  deployDocker(proj, { entrypoint: 'ENTRYPOINT OPERATOR EDIT\n' }); // differs from upstream
+  // Manifest exists (templates key) but has NO docker/ entrypoint baseline — the
+  // exact data-loss scenario: an existing operator who never re-ran /docker-setup.
+  dockerManifest(proj, { 'templates/SHELL.md.template': sha256(Buffer.from('x')) });
+  const d = await runPlan(proj, 'local');
+  expect(d.manifest_bootstrap).toBeUndefined(); // global bootstrap is FALSE (manifest present)
+  expect(d.docker_entrypoint.class).toBe('unmodified');
+  expect(d.docker_entrypoint.bootstrap).toBe(true); // -> Step 5c writes a recovery .bak
+}));
+
+test('docker entrypoint conflict: operator edited AND upstream moved', withProj(async (proj) => {
+  writeConfig(proj, '{"_hermit_versions":{"claude-code-hermit":"1.1.6"}}');
+  deployDocker(proj, { entrypoint: 'ENTRYPOINT OPERATOR EDIT\n' });
+  dockerManifest(proj, { 'docker/docker-entrypoint.hermit.sh': sha256(Buffer.from('ENTRYPOINT BASELINE\n')) });
+  const d = await runPlan(proj, 'local');
+  expect(d.docker_entrypoint.class).toBe('conflict');
+  expect(d.docker_entrypoint.boot_critical).toBe(true);
+  expect(d.docker_entrypoint.bootstrap).toBeUndefined(); // baseline present -> not a bootstrap
 }));

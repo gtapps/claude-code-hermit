@@ -61,14 +61,23 @@ _require_running() {
   fi
 }
 
-# Poll tmux pane for the Claude Code input box (╭─ / ╰─ box-drawing chars).
-# Returns 0 when ready, 1 after 60s timeout.
+# Poll tmux pane for the Claude Code REPL input box. The exact rendering varies by
+# CC version / TUI / terminal width, so match the prompt char ❯ plus ANY structural
+# marker of the rendered input box: a horizontal rule (──── or older ╭─/╰─ corners)
+# OR the always-present mode/shortcuts hint line. Verified live against CC 2.1.175,
+# whose box is ──── rules + ❯ + "shift+tab to cycle" (the old ╭─/╰─-only check never
+# matched it). A bash prompt or the trust dialog has none of these markers, so this
+# won't fire prematurely. Returns 0 when ready, 1 after 60s timeout.
 _wait_for_claude_prompt() {
-  local i pane
+  local i pane tail8
   for i in $(seq 1 30); do
     pane=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
       tmux capture-pane -p -t "$TMUX_SESSION:0.0" 2>/dev/null || true)
-    printf '%s\n' "$pane" | tail -10 | grep -qE '╭─|╰─' && return 0
+    tail8=$(printf '%s\n' "$pane" | tail -8)
+    if printf '%s\n' "$tail8" | grep -qF '❯' \
+       && printf '%s\n' "$tail8" | grep -qE '────────|╭─|╰─|to cycle|for shortcuts|for agents'; then
+      return 0
+    fi
     sleep 2
   done
   return 1
@@ -78,6 +87,25 @@ _get_plugin_count() {
   cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
     claude plugin list --json 2>/dev/null \
     | bun -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8")).length)' || echo "0"
+}
+
+# Enumerate updatable plugins inside the container as TAB-separated id<TAB>scope<TAB>version
+# rows. The container's claude-config volume is single-tenant, so user-scope entries are
+# safe to include; project/local entries are filtered to this project (projectPath equals
+# the host PROJECT_DIR via the ${PWD}:${PWD} mount). `id` is already <name>@<marketplace>.
+_enumerate_plugins() {
+  cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+    claude plugin list --json 2>/dev/null \
+    | bun -e '
+      const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
+      const proj = process.argv[1];
+      for (const p of (Array.isArray(d) ? d : [])) {
+        if (p.enabled !== true || !p.id) continue;
+        const inProj = (p.scope === "project" || p.scope === "local") && p.projectPath === proj;
+        if (!inProj && p.scope !== "user") continue;
+        console.log([p.id, p.scope ?? "", p.version ?? ""].join("\t"));
+      }
+    ' "$PROJECT_DIR" 2>/dev/null || true
 }
 
 case "$CMD" in
@@ -211,19 +239,23 @@ case "$CMD" in
       npm view @anthropic-ai/claude-code version 2>/dev/null || echo "unknown") || true
     PLUGINS_COUNT_BEFORE=0
     [ "$CC_ONLY" = false ] && PLUGINS_COUNT_BEFORE=$(_get_plugin_count) || true
-    MARKETPLACES=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
-      claude plugin marketplace list --json 2>/dev/null \
-      | bun -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8')); console.log(d.map(m=>m.name||'').filter(Boolean).join('\n'))" \
-      2>/dev/null || echo "")
+    PLUGIN_ROWS=""
+    [ "$CC_ONLY" = false ] && PLUGIN_ROWS=$(_enumerate_plugins)
 
     echo "[hermit] Update plan:"
     [ "$PLUGINS_ONLY" = false ] && \
       echo "  Claude Code:  ${CC_BEFORE} → ${CC_LATEST} (image rebuild, container bounces)" || true
     if [ "$CC_ONLY" = false ]; then
-      echo "  Marketplaces to refresh:"
-      [ -z "$MARKETPLACES" ] && echo "    (none)" || echo "$MARKETPLACES" | sed 's/^/    - /'
-      [ "$PLUGINS_ONLY" = true ] && \
-        echo "  Apply method: /reload-plugins sent into tmux once claude prompt is detected" || true
+      echo "  Plugins to update (durable pin move):"
+      if [ -z "$PLUGIN_ROWS" ]; then
+        echo "    (none)"
+      else
+        printf '%s\n' "$PLUGIN_ROWS" | while IFS=$'\t' read -r pid pscope pver; do
+          [ -z "$pid" ] && continue
+          echo "    - $pid ($pscope, v$pver)"
+        done
+      fi
+      echo "  Apply method: claude plugin update per plugin, then /reload-plugins + hermit-evolve via tmux"
     fi
 
     if [ "$DRY_RUN" = true ]; then
@@ -273,36 +305,74 @@ case "$CMD" in
       done
     fi
 
-    MARKETPLACES_OK=()
-    MARKETPLACES_FAIL=()
-    if [ "$CC_ONLY" = false ] && [ -n "$MARKETPLACES" ]; then
-      while IFS= read -r slug; do
-        [ -z "$slug" ] && continue
-        echo "[hermit] Refreshing marketplace: $slug"
+    PLUGINS_OK_IDS=()
+    PLUGINS_FAIL_IDS=()
+    PLUGIN_ROWS_AFTER=""
+    if [ "$CC_ONLY" = false ] && [ -n "$PLUGIN_ROWS" ]; then
+      while IFS=$'\t' read -r pid pscope pver; do
+        [ -z "$pid" ] && continue
+        echo "[hermit] Updating $pid (scope $pscope)..."
         if (cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
-            claude plugin marketplace update "$slug"); then
-          MARKETPLACES_OK+=("$slug")
+            claude plugin update "$pid" --scope "$pscope"); then
+          PLUGINS_OK_IDS+=("$pid")
         else
-          MARKETPLACES_FAIL+=("$slug")
-          echo "[hermit] Warning: marketplace update failed for $slug" >&2
+          PLUGINS_FAIL_IDS+=("$pid")
+          echo "[hermit] Warning: update failed for $pid — run manually inside the container:" >&2
+          echo "[hermit]          claude plugin update $pid --scope $pscope" >&2
         fi
-      done <<< "$MARKETPLACES"
+      done <<< "$PLUGIN_ROWS"
 
-      # Wait for the Claude Code interactive prompt before sending — tmux send-keys
-      # on a pane that hasn't reached the REPL yet goes to bash, not to the skill queue.
-      echo "[hermit] Waiting for Claude Code prompt (up to 60s)..."
-      if _wait_for_claude_prompt; then
-        echo "[hermit] Sending /reload-plugins..."
-        cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
-          tmux send-keys -t "$TMUX_SESSION:0.0" "/reload-plugins" 2>/dev/null || \
-          echo "[hermit] Warning: could not reach tmux session — /reload-plugins not sent" >&2
-        sleep 0.5
-        cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
-          tmux send-keys -t "$TMUX_SESSION:0.0" Enter 2>/dev/null || true
-        RELOAD_PLUGINS_SENT=true
-      else
-        echo "[hermit] Warning: claude prompt not detected after 60s — /reload-plugins was not sent." >&2
-        echo "[hermit]          Run it manually: hermit-docker attach, then type /reload-plugins" >&2
+      # Re-read pinned versions NOW — the pin moves at CLI-update time, before reload, so
+      # this read is reliable (reading after /reload-plugins risks list/session view lag).
+      PLUGIN_ROWS_AFTER=$(_enumerate_plugins)
+
+      # Apply in the running session — tmux send-keys on a pane that hasn't reached the
+      # REPL yet goes to bash, not the skill queue, so wait for the prompt box first.
+      if [ ${#PLUGINS_OK_IDS[@]} -gt 0 ]; then
+        echo "[hermit] Waiting for Claude Code prompt (up to 60s)..."
+        if _wait_for_claude_prompt; then
+          echo "[hermit] Sending /reload-plugins..."
+          cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+            tmux send-keys -t "$TMUX_SESSION:0.0" "/reload-plugins" 2>/dev/null || \
+            echo "[hermit] Warning: could not reach tmux session — /reload-plugins not sent" >&2
+          sleep 0.5
+          cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+            tmux send-keys -t "$TMUX_SESSION:0.0" Enter 2>/dev/null || true
+          RELOAD_PLUGINS_SENT=true
+        else
+          echo "[hermit] Warning: claude prompt not detected after 60s — /reload-plugins was not sent." >&2
+          echo "[hermit]          Pins are already updated (durable); run /reload-plugins after: hermit-docker attach" >&2
+        fi
+      fi
+    fi
+
+    # Auto-chain hermit-evolve when the core plugin version moved past the config baseline.
+    # Both sides are reachable without guessing: NEW from the post-update enumeration, the
+    # baseline from the bind-mounted config.json the in-container evolve will itself update.
+    EVOLVE_SENT=false
+    NEW_HERMIT_VER=""; CONFIG_HERMIT_VER=""
+    if [ "$CC_ONLY" = false ] && [ "$RELOAD_PLUGINS_SENT" = true ]; then
+      NEW_HERMIT_VER=$(printf '%s\n' "$PLUGIN_ROWS_AFTER" | awk -F'\t' '$1 ~ /^claude-code-hermit@/ {print $3; exit}')
+      CONFIG_HERMIT_VER=$(bun -e 'try { const c = JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); console.log((c._hermit_versions ?? {})["claude-code-hermit"] ?? ""); } catch { console.log(""); }' \
+        "$PROJECT_DIR/.claude-code-hermit/config.json" 2>/dev/null || echo "")
+      CORE_FAILED=false
+      for _fid in "${PLUGINS_FAIL_IDS[@]:-}"; do
+        case "$_fid" in claude-code-hermit@*) CORE_FAILED=true ;; esac
+      done
+      if [ -n "$NEW_HERMIT_VER" ] && [ -n "$CONFIG_HERMIT_VER" ] && \
+         [ "$NEW_HERMIT_VER" != "$CONFIG_HERMIT_VER" ] && [ "$CORE_FAILED" = false ]; then
+        echo "[hermit] Hermit gap: config v${CONFIG_HERMIT_VER} → plugin v${NEW_HERMIT_VER}. Chaining hermit-evolve (unattended)..."
+        if _wait_for_claude_prompt; then
+          cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+            tmux send-keys -t "$TMUX_SESSION:0.0" "/claude-code-hermit:hermit-evolve unattended" 2>/dev/null || true
+          sleep 0.5
+          cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+            tmux send-keys -t "$TMUX_SESSION:0.0" Enter 2>/dev/null || true
+          EVOLVE_SENT=true
+        else
+          echo "[hermit] Warning: prompt not detected — hermit-evolve not auto-started." >&2
+          echo "[hermit]          The pin is already durable; run /claude-code-hermit:hermit-evolve when you attach." >&2
+        fi
       fi
     fi
 
@@ -319,31 +389,45 @@ case "$CMD" in
     UPDATE_MODE="full"
     [ "$CC_ONLY" = true ] && UPDATE_MODE="cc-only"
     [ "$PLUGINS_ONLY" = true ] && UPDATE_MODE="plugins-only"
-    if [ ${#MARKETPLACES_OK[@]} -gt 0 ]; then
-      OK_JSON=$(bun -e 'console.log(JSON.stringify(process.argv.slice(1)))' "${MARKETPLACES_OK[@]}")
-    else
-      OK_JSON='[]'
-    fi
-    if [ ${#MARKETPLACES_FAIL[@]} -gt 0 ]; then
-      FAIL_JSON=$(bun -e 'console.log(JSON.stringify(process.argv.slice(1)))' "${MARKETPLACES_FAIL[@]}")
-    else
-      FAIL_JSON='[]'
+    FAIL_IDS_JSON='[]'
+    if [ ${#PLUGINS_FAIL_IDS[@]} -gt 0 ]; then
+      FAIL_IDS_JSON=$(bun -e 'console.log(JSON.stringify(process.argv.slice(1)))' "${PLUGINS_FAIL_IDS[@]}")
     fi
     bun - "$UPDATE_MODE" "$CC_BEFORE" "$CC_AFTER" \
-          "$OK_JSON" "$FAIL_JSON" \
-          "$PLUGINS_COUNT_BEFORE" "$PLUGINS_COUNT_AFTER" "$LOG_FILE" "$RELOAD_PLUGINS_SENT" <<'JSEOF' || \
+          "$PLUGIN_ROWS" "$PLUGIN_ROWS_AFTER" "$FAIL_IDS_JSON" \
+          "$PLUGINS_COUNT_BEFORE" "$PLUGINS_COUNT_AFTER" "$LOG_FILE" \
+          "$RELOAD_PLUGINS_SENT" "$EVOLVE_SENT" <<'JSEOF' || \
       echo "[hermit] Warning: could not write update log" >&2
-const [mode, ccBefore, ccAfter, okJson, failJson, pbCount, paCount, logFile, reloadSent] = process.argv.slice(2);
+const [mode, ccBefore, ccAfter, beforeTsv, afterTsv, failJson, pbCount, paCount, logFile, reloadSent, evolveSent] = process.argv.slice(2);
+const parseRows = (tsv) => {
+  const m = new Map();
+  for (const line of (tsv || '').split('\n')) {
+    if (!line.trim()) continue;
+    const [id, scope, version] = line.split('\t');
+    if (id) m.set(id, { scope: scope || '', version: version || '' });
+  }
+  return m;
+};
+const before = parseRows(beforeTsv);
+const after = parseRows(afterTsv);
+const failed = new Set(JSON.parse(failJson));
+const plugins = [];
+for (const [id, { scope, version }] of before) {
+  const a = after.get(id);
+  const afterVer = a ? a.version : version;
+  const status = failed.has(id) ? 'failed' : (afterVer !== version ? 'updated' : 'unchanged');
+  plugins.push({ id, scope, before: version, after: afterVer, status });
+}
 const entry = {
   ts: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
   trigger: 'hermit-docker update',
   mode,
   cc_before: ccBefore, cc_after: ccAfter,
-  marketplaces_refreshed: JSON.parse(okJson),
-  marketplaces_failed: JSON.parse(failJson),
+  plugins,
   plugins_before_count: parseInt(pbCount, 10),
   plugins_after_count: parseInt(paCount, 10),
   reload_plugins_sent: reloadSent === 'true',
+  evolve_sent: evolveSent === 'true',
 };
 require('fs').appendFileSync(logFile, JSON.stringify(entry) + '\n');
 JSEOF
@@ -351,19 +435,33 @@ JSEOF
     echo ""
     echo "[hermit] Update complete."
     [ "$PLUGINS_ONLY" = false ] && echo "  Claude Code: ${CC_BEFORE} → ${CC_AFTER}" || true
-    [ ${#MARKETPLACES_OK[@]} -gt 0 ] && echo "  Marketplaces refreshed: ${MARKETPLACES_OK[*]}" || true
-    [ ${#MARKETPLACES_FAIL[@]} -gt 0 ] && echo "  Marketplaces failed:    ${MARKETPLACES_FAIL[*]}" || true
+    if [ "$CC_ONLY" = false ] && [ -n "$PLUGIN_ROWS" ]; then
+      echo "  Plugins:"
+      bun -e '
+        const parse = (t) => { const m = new Map(); for (const l of (t||"").split("\n")) { if(!l.trim()) continue; const [id,scope,version]=l.split("\t"); if(id) m.set(id,{scope,version}); } return m; };
+        const before = parse(process.argv[1]); const after = parse(process.argv[2]); const failed = new Set(JSON.parse(process.argv[3]));
+        for (const [id,{version}] of before) {
+          const a = after.get(id); const av = a ? a.version : version;
+          const tag = failed.has(id) ? " (FAILED — run manually)" : (av !== version ? "" : " (unchanged)");
+          console.log("    " + id + ": v" + version + " -> v" + av + tag);
+        }
+      ' "$PLUGIN_ROWS" "$PLUGIN_ROWS_AFTER" "$FAIL_IDS_JSON" 2>/dev/null || true
+    fi
     if [ "$CC_ONLY" = false ]; then
       if [ "$RELOAD_PLUGINS_SENT" = true ]; then
-        echo "  /reload-plugins sent — plugin updates active."
+        echo "  /reload-plugins sent — plugin updates active in the running session."
       else
         echo "  /reload-plugins not sent — attach and run it manually: hermit-docker attach"
+      fi
+      if [ "$EVOLVE_SENT" = true ]; then
+        echo "  hermit-evolve auto-started (unattended) — hermit config is upgrading."
+      elif [ -n "$NEW_HERMIT_VER" ] && [ -n "$CONFIG_HERMIT_VER" ] && [ "$NEW_HERMIT_VER" != "$CONFIG_HERMIT_VER" ]; then
+        echo "  Hermit plugin version bumped — run: /claude-code-hermit:hermit-evolve"
       fi
     fi
     echo ""
     echo "Verify with:  .claude-code-hermit/bin/hermit-status"
     echo "Attach with:  .claude-code-hermit/bin/hermit-docker attach"
-    echo "If the hermit plugin version bumped, run: /claude-code-hermit:hermit-evolve"
     _oauth_hint
     ;;
 
