@@ -8,6 +8,7 @@
 // Usage: bun test tests/docker-baseline-content.test.ts   (from the plugin root)
 
 import { describe, test, expect } from 'bun:test';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -162,6 +163,34 @@ describe('Entrypoint: placeholder-free session name resolution', () => {
     const config = { tmux_session_name: 'my-custom-session' };
     const actual = String(config.tmux_session_name ?? 'hermit-{project_name}');
     expect(actual).toBe(getSessionName(config));
+  });
+
+  // Execution-based parity: extract the REAL `bun -e` block from the template and run it.
+  // The formula tests above only re-implement the logic in TS — they would not catch a wrong
+  // process.argv[N] index in the shell snippet. This runs the actual code the container runs.
+  test('entrypoint: embedded bun -e snippet resolves the same name the container will use', () => {
+    const m = entrypoint.match(/bun -e "\n([\s\S]*?)\n" "\$\{AGENT_DIR\}\/config\.json"/);
+    expect(m).not.toBeNull();
+    const snippet = m![1];
+
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-snippet-'));
+    try {
+      const cfgPath = path.join(tmpDir, 'config.json');
+      const projectDir = path.join(tmpDir, 'my-proj');
+
+      // Default config: {project_name} expands to basename(projectDir).
+      fs.writeFileSync(cfgPath, '{}');
+      const out = spawnSync('bun', ['-e', snippet, cfgPath, projectDir], { encoding: 'utf8' });
+      expect(out.status).toBe(0);
+      expect(out.stdout.trim()).toBe('hermit-my-proj');
+
+      // Custom name passes through untouched.
+      fs.writeFileSync(cfgPath, JSON.stringify({ tmux_session_name: 'custom-x' }));
+      const out2 = spawnSync('bun', ['-e', snippet, cfgPath, projectDir], { encoding: 'utf8' });
+      expect(out2.stdout.trim()).toBe('custom-x');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true });
+    }
   });
 });
 

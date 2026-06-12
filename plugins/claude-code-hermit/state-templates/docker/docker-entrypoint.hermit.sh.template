@@ -485,12 +485,14 @@ fi
 # --- 6. Keep PID 1 alive, handle graceful shutdown ---
 # Resolve the tmux session name from config at runtime (same logic as
 # lib/tmux.getSessionName). Resolving here instead of baking a static placeholder
-# keeps a raw `cp` of this template safe.
+# keeps a raw `cp` of this template safe. The fallback mirrors the bun default
+# (hermit-{project_name}) so a bun failure still lands on the real session name
+# rather than a bare "hermit" that would never match and reboot-loop the container.
 SESSION_NAME=$(bun -e "
 const config = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'));
 const name = String(config.tmux_session_name ?? 'hermit-{project_name}');
 console.log(name.replaceAll('{project_name}', require('path').basename(process.argv[2])));
-" "${AGENT_DIR}/config.json" "$PROJECT_DIR" 2>/dev/null || echo "hermit")
+" "${AGENT_DIR}/config.json" "$PROJECT_DIR" 2>/dev/null || echo "hermit-$(basename "$PROJECT_DIR")")
 
 # SIGTERM trap: attempt graceful session close before container dies.
 # docker compose down sends SIGTERM to PID 1. Without this trap, the hermit
