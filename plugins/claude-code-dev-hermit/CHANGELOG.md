@@ -1,10 +1,36 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.0] - 2026-06-12
 
 ### Changed
 
-- **hooks and tests run on bun; all scripts are TypeScript** — hooks.json command strings and the test runner invoke `bun`; `git-push-guard`, `worktree-boundary-guard`, `record-test-result` and all tests renamed `.js` → `.ts` (typed ESM, no build step). Bun migration, core #18; the bun >=1.3 requirement comes with the core plugin.
+- **hooks and tests: bun + TypeScript** — hooks.json command strings and the test runner invoke `bun`; `git-push-guard`, `worktree-boundary-guard`, `record-test-result` and all tests renamed `.js` → `.ts` (typed ESM, no build step). Bun >=1.3 requirement comes with the core plugin (core #18).
+- **core requirement: `>=1.2.0`** — aligns `required_core_version`, `requires`, and `dependencies` with the bun-enabled core release.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `hooks/hooks.json` | Command strings use `bun` instead of `node` |
+| `scripts/git-push-guard.ts` | Renamed from `.js`; typed ESM |
+| `scripts/worktree-boundary-guard.ts` | Renamed from `.js`; typed ESM |
+| `scripts/record-test-result.ts` | Renamed from `.js`; typed ESM |
+| `tests/*.test.ts` | All test files renamed from `.js`; typed ESM |
+| `tests/run-all.sh` | Runs tests via `bun test` |
+| `docs/GIT-SAFETY.md` | Updated reference to renamed `.ts` script |
+| `.claude-plugin/hermit-meta.json` | `required_core_version` and `requires` bumped to `>=1.2.0` |
+| `.claude-plugin/plugin.json` | `dependencies` bumped to `^1.2.0` |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Update the plugin.** Run `claude plugin update claude-code-dev-hermit --scope local` (or the scope you used at install).
+2. **Ensure bun is installed.** Run `bun --version` — if missing, install from https://bun.sh.
+
+No `config.json` changes required.
+
+**Note:** The core hermit plugin must be at v1.2.0+ for the bun runtime to be available.
 
 ## [0.3.14] - 2026-06-05
 
