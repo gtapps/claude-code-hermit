@@ -77,7 +77,8 @@ function run() {
     totals.cacheRead  += types.cacheRead;
     totals.output     += types.output;
 
-    if (cw > 0 && cr === 0 && out < COLD_START_OUTPUT_MAX) {
+    // Subagent lines contribute to cost totals but not to turn counts or cold-start detection.
+    if (!e.subagent && cw > 0 && cr === 0 && out < COLD_START_OUTPUT_MAX) {
       coldStartTurns++;
       coldStartCost += entryCost;
     }
@@ -90,7 +91,7 @@ function run() {
       }
       const s = sessionMap[sid];
       s.cost += entryCost;
-      s.turns++;
+      if (!e.subagent) s.turns++;
       s.byType.input      += types.input;
       s.byType.cacheWrite += types.cacheWrite;
       s.byType.cacheRead  += types.cacheRead;
@@ -104,7 +105,7 @@ function run() {
 
   const total = totals.input + totals.cacheWrite + totals.cacheRead + totals.output;
   const sessions = Object.keys(sessionMap).length;
-  const turns = window.length;
+  const turns = window.filter(e => !e.subagent).length;
 
   const topSessions = Object.entries(sessionMap)
     .sort((a, b) => b[1].cost - a[1].cost)
@@ -139,7 +140,7 @@ function run() {
     if (rest > 0) rows.push(`- +${rest} more sources`);
     // Footnote only when a routine row is actually displayed — otherwise it dangles.
     const footnote = shown.some(([src]) => src.startsWith('routine:'))
-      ? `\n_routines with a model override run their skill in a subagent; only the in-session dispatch cost is counted here_\n`
+      ? `\n_routine model-override subagent cost is included, attributed to its dispatching source_\n`
       : '';
     return `\n### Cost by source\n${rows.join('\n')}\n${footnote}`;
   }

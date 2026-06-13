@@ -105,6 +105,44 @@ function classifySource(triggerText: string): string {
   return 'other';
 }
 
+// Collect Agent tool_results from the current turn window.
+// Subagent assistant entries live in separate transcript files and never appear here;
+// only the Agent tool_result (type:'user' with toolUseResult.usage) does. extractUsage
+// skips these because they aren't type:'assistant', so collect them explicitly or their
+// tokens vanish from the ledger.
+// Limitation: shares sumTurnUsage's TAIL_BYTES window — a turn larger than the 512KB tail
+// is scanned from buffer start, so a prior turn's dispatch can bleed in. Same rare
+// over-count as the main-turn sum, accepted for the same reason.
+function collectSubagentUsage(lines: string[], billedIndex: number): Array<{
+  model: string; inputTokens: number; cacheWriteTokens: number;
+  cacheReadTokens: number; outputTokens: number; agentType: string;
+}> {
+  const out: Array<{
+    model: string; inputTokens: number; cacheWriteTokens: number;
+    cacheReadTokens: number; outputTokens: number; agentType: string;
+  }> = [];
+  for (let j = billedIndex; j >= 0; j--) {
+    try {
+      const e = JSON.parse(lines[j]);
+      const r = e.toolUseResult;
+      if (e.type === 'user' && r && r.agentType && r.usage) {
+        const u = r.usage;
+        out.push({
+          model: r.resolvedModel || '',
+          inputTokens: u.input_tokens || 0,
+          cacheWriteTokens: u.cache_creation_input_tokens || 0,
+          cacheReadTokens: u.cache_read_input_tokens || 0,
+          outputTokens: u.output_tokens || 0,
+          agentType: r.agentType,
+        });
+      }
+      // Same turn boundary as sumTurnUsage: the first non-tool_result user entry.
+      if (e.type === 'user' && !isToolResult(e)) break;
+    } catch {}
+  }
+  return out;
+}
+
 // Limitation: a turn spanning more than TAIL_BYTES is summed from buffer start, not the real boundary — same bleed as scanTriggerMarkers.
 function sumTurnUsage(lines: string[], billedIndex: number): {
   inputTokens: number; cacheWriteTokens: number; cacheReadTokens: number;
@@ -171,7 +209,8 @@ function readLastTurnUsage(transcriptPath: string): Json {
 
         const triggerText = scanTriggerMarkers(lines, i);
         const source = classifySource(triggerText);
-        return { ...summed, hadHumanTurn, source };
+        const subagents = collectSubagentUsage(lines, i);
+        return { ...summed, hadHumanTurn, source, subagents };
       } catch {}
     }
   } catch {}
@@ -425,7 +464,7 @@ async function run(data: Json): Promise<string | null> {
       return null;
     }
 
-    const { inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens, model: rawModel, hadHumanTurn, source, apiCalls } = turn;
+    const { inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens, model: rawModel, hadHumanTurn, source, apiCalls, subagents } = turn;
     const model = detectModel(rawModel);
 
     const totalTokens = inputTokens + cacheWriteTokens + cacheReadTokens + outputTokens;
@@ -457,12 +496,45 @@ async function run(data: Json): Promise<string | null> {
 
     fs.appendFileSync(COST_LOG, JSON.stringify(logEntry) + '\n', 'utf-8');
 
+    // Emit one log line per dispatched subagent at its resolved model.
+    // Subagent assistant entries live in separate transcript files; only the Agent tool_result
+    // (type:'user' with toolUseResult.usage) appears here. collectSubagentUsage captured them;
+    // attribute them to the same source so cost-reflect folds them into the dispatching row.
+    let subTokens = 0, subCost = 0;
+    for (const sa of (subagents || [])) {
+      const saTotal = sa.inputTokens + sa.cacheWriteTokens + sa.cacheReadTokens + sa.outputTokens;
+      if (saTotal === 0) continue;
+      const saModel = detectModel(sa.model);
+      const saCostRaw = calculateCost(saModel, sa.inputTokens, sa.cacheWriteTokens, sa.cacheReadTokens, sa.outputTokens);
+      const saCost = Math.round(saCostRaw * 10000) / 10000;
+      fs.appendFileSync(COST_LOG, JSON.stringify({
+        timestamp: new Date().toISOString(),
+        session_id: runtimeSessionId || sessionId,
+        source,
+        model: saModel,
+        input_tokens: sa.inputTokens,
+        cache_write_tokens: sa.cacheWriteTokens,
+        cache_read_tokens: sa.cacheReadTokens,
+        output_tokens: sa.outputTokens,
+        total_tokens: saTotal,
+        api_calls: 0,
+        subagent: true,
+        agent_type: sa.agentType,
+        model_resolved: !!sa.model,   // false → resolvedModel was absent; model is a sonnet-default guess
+        context_usage: null,
+        estimated_cost_usd: saCost,
+      }) + '\n', 'utf-8');
+      subTokens += saTotal;
+      subCost += saCost;
+    }
+
     // Update incremental index — O(1) in the common case; O(n) only on first run or log truncation.
-    // Must happen before getCumulativeCost so the index fallback sees this turn's line.
+    // Must happen before getCumulativeCost so the index fallback sees this turn's lines.
     const costIdx = updateCostIndex(COST_LOG, COST_INDEX);
 
-    // Running total from .status.json (O(1)), falls back to index (O(1)) on first run
-    const cumulative = getCumulativeCost(roundedCost, totalTokens, hadHumanTurn, runtimeSessionId || sessionId, costIdx);
+    // Running total from .status.json (O(1)), falls back to index (O(1)) on first run.
+    // Include subagent spend so .status.json stays consistent with the index.
+    const cumulative = getCumulativeCost(roundedCost + subCost, totalTokens + subTokens, hadHumanTurn, runtimeSessionId || sessionId, costIdx);
     const costStr = `$${cumulative.cost.toFixed(4)}`;
 
     // Read SHELL.md for task/blockers — do NOT write back (avoids race condition with Claude's edits)
@@ -484,7 +556,7 @@ async function run(data: Json): Promise<string | null> {
   }
 }
 
-export { run, getCumulativeCost, classifySource, scanTriggerMarkers, sumTurnUsage };
+export { run, getCumulativeCost, classifySource, scanTriggerMarkers, sumTurnUsage, collectSubagentUsage };
 
 if (import.meta.main) {
   (async () => {

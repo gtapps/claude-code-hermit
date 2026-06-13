@@ -1807,9 +1807,14 @@ describe('cost-reflect source attribution', () => {
     beforeAll(async () => {
       wd = setupWorkdir();
       const d = utcDate(daysAgo(1));
+      // Fixture: 4 main-turn entries + 1 subagent:true entry for routine:reflect (haiku).
+      // haiku cost: input=10000→$0.008, output=2000→$0.008 = $0.016.
+      // routine:reflect total: $0.06 (main) + $0.016 (subagent) = $0.076 → displayed as $0.08.
+      // turns count must remain 4 (subagent line excluded from turn counter).
       write(path.join(wd.dir, '.claude', 'cost-log.jsonl'), [
         `{"timestamp":"${d}T10:00:00.000Z","session_id":"s1","source":"heartbeat","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":100000,"output_tokens":0,"total_tokens":100000,"estimated_cost_usd":0.03}`,
         `{"timestamp":"${d}T10:01:00.000Z","session_id":"s2","source":"routine:reflect","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":100000,"output_tokens":2000,"total_tokens":102000,"estimated_cost_usd":0.06}`,
+        `{"timestamp":"${d}T10:01:30.000Z","session_id":"s2","source":"routine:reflect","model":"haiku","input_tokens":10000,"cache_write_tokens":0,"cache_read_tokens":0,"output_tokens":2000,"total_tokens":12000,"estimated_cost_usd":0.016,"subagent":true,"agent_type":"general-purpose","api_calls":0}`,
         `{"timestamp":"${d}T10:02:00.000Z","session_id":"s3","source":"other","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":50000,"output_tokens":5000,"total_tokens":55000,"estimated_cost_usd":0.09}`,
         `{"timestamp":"${d}T10:03:00.000Z","session_id":"s4","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":50000,"output_tokens":1000,"total_tokens":51000,"estimated_cost_usd":0.021}`,
         '',
@@ -1838,6 +1843,17 @@ describe('cost-reflect source attribution', () => {
     });
     test('cost-reflect (source fixture): output ≤1500 chars', () => {
       expect(out.length).toBeLessThanOrEqual(1500);
+    });
+    test('cost-reflect: subagent entry folds into routine:reflect row (cost rises)', () => {
+      // routine:reflect = $0.06 (main sonnet) + $0.016 (haiku subagent) = $0.076 → $0.08
+      // Without subagent attribution it would show $0.06; with it, $0.08.
+      const routineLine = out.split('\n').find(l => l.includes('routine:reflect'));
+      expect(routineLine).toBeDefined();
+      expect(routineLine).toMatch(/\$0\.0[78]/); // $0.07 or $0.08 depending on rounding
+    });
+    test('cost-reflect: subagent line is excluded from turns count', () => {
+      // 4 main-turn entries in fixture (not 5); subagent line must not inflate turns.
+      expect(out).toContain('4 turns');
     });
   });
 

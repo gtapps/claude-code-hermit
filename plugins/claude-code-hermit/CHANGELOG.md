@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **cost-tracker: attribute dispatched-subagent tokens (#390)** — Agent tool_result usage (model-override routines, heartbeat, ad-hoc Task) was silently dropped; now emitted as a per-subagent cost-log line at its resolved model, attributed to the dispatching source. Cost totals will rise to reflect previously-invisible spend; cost-reflect folds subagent cost into the dispatching source row automatically.
 ### Changed
 
 - **min CC version: floor bumped to 2.1.172 (#389)** — nested-subagent dispatch (used by the shipped `daily-auto-close: haiku` default) requires it; on older versions the nested `session-mgr` call fails silently, preventing auto-close. Prerequisite docs updated.
