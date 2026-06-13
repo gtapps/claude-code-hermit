@@ -19,12 +19,11 @@ Always launch Claude Code from this repo's root, not from inside a plugin dir. A
 
 ## Commits
 
-- **Use `/commit` for every commit in this repo.** It detects which plugin's scope the diff belongs to, routes the CHANGELOG entry to that plugin's `CHANGELOG.md`, and path-scopes staging (never `git add -A`). The skill enforces "one plugin per commit" — cross-plugin changes are split into separate `/commit` runs. Run `/dev-quality` before `/commit` — it handles the cleanup pass.
 - Root-scope edits (CI, root README, `.claude/`, `.claude-plugin/marketplace.json`) skip the CHANGELOG step entirely — they don't ship to operators. `/commit` handles that automatically.
 - Releases still go through `/release <slug>`, which promotes a plugin's `[Unreleased]` section to a real version. `/commit` accumulates those entries during day-to-day work.
 - **Where these skills live**: `/commit`, `/release`, `/release-status`, `/fleet-release`, `/test-run`, `/tackle-issue` are repo-internal skills under `.claude/skills/` — they're not shipped to operators, only used during monorepo dev. Use `/release-status` for a read-only pipeline snapshot before any release session; use `/fleet-release` when multiple plugins change together on one branch (handles dep ordering and `required_core_version` sync automatically).
 - **Changelog style: terse like [Claude Code's CHANGELOG](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md).** Each `### Added / Changed / Fixed` bullet is 1–3 lines, `- **component: what changed** — short rationale if non-obvious.` Rationale, debugging context, and design tradeoffs go in the commit message and PR description, not the bullet. The verbose form is reserved for `### Upgrade Instructions`, which `hermit-evolve` reads imperative-step-by-step. The `/commit` and `/release` skills enforce this; the convention lives here for any agent that bypasses them.
-- **`/release` is operator-initiated — don't auto-suggest it.** Don't propose `/release <slug>` or `/fleet-release` in plans, summaries, or "next steps." Wait for an explicit ship/release/version request. `/dev-pr` is the normal end of feature/fix flow and is welcome to suggest. `/release-status` is read-only and fine to suggest when checking pipeline state.
+- **`/release` is operator-initiated — don't auto-suggest it.** Don't propose `/release <slug>` or `/fleet-release` in plans, summaries, or "next steps." Wait for an explicit ship/release/version request. `/release-status` is read-only and fine to suggest when checking pipeline state.
 
 ## Branching
 

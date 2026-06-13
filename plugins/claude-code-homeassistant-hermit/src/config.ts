@@ -6,9 +6,39 @@
 //   process env var > .env file > operator context file > fallback.
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import { dumpFrontmatter, loadFrontmatter } from './markdown';
+
+// ---------------------------------------------------------------------------
+// Project-root resolution (robust to drifted hook/CLI cwd — fix for #384)
+// ---------------------------------------------------------------------------
+
+/**
+ * Fleet resolver — one of three; same walk-up logic, different return and fallback:
+ *   core hermitDir    (core/scripts/lib/cc-compat.ts)              → the .cch dir
+ *   HA   projectRoot  (homeassistant-hermit/src/config.ts)         → project root (this file)
+ *   dev  findHermitDir(dev-hermit/scripts/git-push-guard.ts)       → the .cch dir or null
+ * INVARIANT: hermitDir() === join(projectRoot(), '.claude-code-hermit').
+ * Fix one (env-var precedence, iteration cap) → check the other two.
+ *
+ * Returns the project ROOT (the dir containing .claude-code-hermit), NOT the
+ * .cch dir itself — callers append paths themselves. Does NOT honor AGENT_DIR
+ * (core-only signal pointing AT the .cch dir; honoring it here would break the
+ * return-value contract).
+ */
+export function projectRoot(): string {
+  const proj = process.env.CLAUDE_PROJECT_DIR;
+  if (proj && existsSync(join(proj, '.claude-code-hermit'))) return proj;
+  let dir = process.cwd();
+  for (let i = 0; i < 8; i++) {
+    if (existsSync(join(dir, '.claude-code-hermit', 'config.json'))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return process.cwd(); // fail-open: preserves today's behavior
+}
 
 export class AppConfig {
   constructor(

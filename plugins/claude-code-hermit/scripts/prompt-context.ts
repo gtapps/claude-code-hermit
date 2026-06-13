@@ -5,10 +5,11 @@ process.stdout.on('error', () => {});
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { hermitDir } from './lib/cc-compat';
 
 type Json = any;
 
-const AGENT_DIR = process.env.AGENT_DIR || '.claude-code-hermit';
+const AGENT_DIR = hermitDir();
 
 // Drain stdin (fail-open contract — broken pipe if unread)
 process.stdin.resume();

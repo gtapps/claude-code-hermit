@@ -206,7 +206,7 @@ Run `git branch --show-current` and compare to `main` (or the repo's default bra
 - **On `main`/default branch** → tag immediately (step 9).
 - **On any other branch** (e.g. `dev-hermit/v0.3.0`) → **stop**. Do not tag yet. Tagging the branch tip creates a commit SHA that `main` never carries after a regular merge (and is outright wrong after squash/rebase), leaving the tag stranded on an orphan commit.
 
-  **Recommended path** (default): open a PR via `/dev-pr`, merge into `main`, then re-run `/release <slug>` from `main`. Step 2's already-bumped detection will skip straight to tagging.
+  **Recommended path** (default): open a PR, merge into `main`, then re-run `/release <slug>` from `main`. Step 2's already-bumped detection will skip straight to tagging.
 
   If the user explicitly wants to tag now despite the risk, offer that as a secondary option. Wait for their explicit choice before proceeding.
 

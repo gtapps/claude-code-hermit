@@ -7,14 +7,15 @@ import { run as costTracker } from './cost-tracker';
 import { run as suggestCompact } from './suggest-compact';
 import { run as sessionDiff } from './session-diff';
 import { run as evaluateSession } from './evaluate-session';
-import { sessionCrons, backgroundTasks, ccVersion } from './lib/cc-compat';
+import { sessionCrons, backgroundTasks, ccVersion, hermitDir } from './lib/cc-compat';
 import fs from 'node:fs';
 import path from 'node:path';
 
 type Json = any;
 
-const HEARTBEAT_FILE = path.resolve('.claude-code-hermit/state/.heartbeat');
-const SNAPSHOT_FILE = path.resolve('.claude-code-hermit/state/cc-stop-snapshot.json');
+const HERMIT_DIR = hermitDir();
+const HEARTBEAT_FILE = path.join(HERMIT_DIR, 'state', '.heartbeat');
+const SNAPSHOT_FILE = path.join(HERMIT_DIR, 'state', 'cc-stop-snapshot.json');
 
 async function main(): Promise<void> {
   // Read stdin once

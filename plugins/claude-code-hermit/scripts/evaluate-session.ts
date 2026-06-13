@@ -9,12 +9,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { readTasks } from './lib/tasks';
+import { hermitDir } from './lib/cc-compat';
 
 type Json = any;
 
-const SHELL_SESSION = path.resolve('.claude-code-hermit/sessions/SHELL.md');
-const HASH_FILE = path.resolve('.claude-code-hermit/sessions/.eval-hash');
-const RUNTIME_JSON = path.resolve('.claude-code-hermit/state/runtime.json');
+const HERMIT_DIR = hermitDir();
+const SHELL_SESSION = path.join(HERMIT_DIR, 'sessions', 'SHELL.md');
+const HASH_FILE = path.join(HERMIT_DIR, 'sessions', '.eval-hash');
+const RUNTIME_JSON = path.join(HERMIT_DIR, 'state', 'runtime.json');
 
 function evaluateSession(content: Json, tasks: Json[]): Json {
   const results: Json = {

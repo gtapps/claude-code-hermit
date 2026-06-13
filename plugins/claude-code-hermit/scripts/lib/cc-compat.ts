@@ -18,10 +18,42 @@
 //   - Cron grammar (5-field POSIX, stable; CronCreate semantics are doc)
 //   - Monitor sentinel constants (HEARTBEAT_EVALUATE is hermit's own protocol)
 
+import fs from 'node:fs';
 import path from 'node:path';
 
 type Json = any;
 type TriState = { state: string; count: number; entries: Json[] };
+
+// ---------------------------------------------------------------------------
+// Project-root resolution (robust to drifted hook cwd — fix for #384)
+// ---------------------------------------------------------------------------
+
+/**
+ * Fleet resolver — one of three; same walk-up logic, different return and fallback:
+ *   core hermitDir    (scripts/lib/cc-compat.ts)              → the .cch dir (this file)
+ *   HA   projectRoot  (homeassistant-hermit/src/config.ts)    → the project root (parent)
+ *   dev  findHermitDir(dev-hermit/scripts/git-push-guard.ts)  → the .cch dir or null
+ * INVARIANT: hermitDir() === path.join(projectRoot(), '.claude-code-hermit').
+ * Fix one (env-var precedence, iteration cap) → check the other two.
+ *
+ * Robust to a drifted hook cwd (#384). A *relative* AGENT_DIR (the legacy
+ * drift-prone default, e.g. `AGENT_DIR=".claude-code-hermit"`) is intentionally
+ * NOT honored — it falls through to CLAUDE_PROJECT_DIR, then walk-up, then fail-open.
+ */
+function hermitDir(): string {
+  const agent = process.env.AGENT_DIR;
+  if (agent && path.isAbsolute(agent)) return path.resolve(agent);
+  const proj = process.env.CLAUDE_PROJECT_DIR;
+  if (proj) { const d = path.join(proj, '.claude-code-hermit'); if (fs.existsSync(d)) return d; }
+  let dir = process.cwd();
+  for (let i = 0; i < 8; i++) {
+    if (fs.existsSync(path.join(dir, '.claude-code-hermit', 'config.json'))) return path.join(dir, '.claude-code-hermit');
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return path.resolve('.claude-code-hermit'); // fail-open: preserves today's behavior
+}
 
 // ---------------------------------------------------------------------------
 // Hook-payload accessors (pure, null-safe)
@@ -201,6 +233,8 @@ function ccVersion(payload?: Json): string | null {
 // ---------------------------------------------------------------------------
 
 export {
+  // Project-root resolution
+  hermitDir,
   // Hook-payload accessors
   sessionId,
   transcriptPath,

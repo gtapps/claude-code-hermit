@@ -10,7 +10,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { loadConfig, parseEnvText, saveEnvFile } from '../src/config';
+import { loadConfig, parseEnvText, projectRoot, saveEnvFile } from '../src/config';
 import { Severity, classifyEntity, clearPolicyCaches } from '../src/policy';
 
 const tmpDirs: string[] = [];
@@ -102,5 +102,74 @@ describe('parseEnvText (python-dotenv parity)', () => {
 
   test('quoted values may span lines', () => {
     expect(parseEnvText('M="line1\nline2"\n')).toEqual({ M: 'line1\nline2' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// projectRoot() — cwd-drift regression (#384)
+// ---------------------------------------------------------------------------
+
+describe('projectRoot()', () => {
+  const ORIG_CWD = process.cwd();
+  let savedClaudeProjectDir: string | undefined;
+  const driftDirs: string[] = [];
+
+  function makeTmpHermit() {
+    const { mkdirSync, writeFileSync } = require('node:fs') as typeof import('node:fs');
+    const dir = mkdtempSync(join(tmpdir(), 'ha-root-test-'));
+    driftDirs.push(dir);
+    mkdirSync(join(dir, '.claude-code-hermit', 'state'), { recursive: true });
+    writeFileSync(join(dir, '.claude-code-hermit', 'config.json'), '{}');
+    return dir;
+  }
+
+  afterEach(() => {
+    process.chdir(ORIG_CWD);
+    if (savedClaudeProjectDir === undefined) delete process.env.CLAUDE_PROJECT_DIR;
+    else process.env.CLAUDE_PROJECT_DIR = savedClaudeProjectDir;
+    savedClaudeProjectDir = undefined;
+    clearPolicyCaches();
+    const { rmSync } = require('node:fs') as typeof import('node:fs');
+    for (const d of driftDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  test('CLAUDE_PROJECT_DIR wins when .claude-code-hermit exists there', () => {
+    savedClaudeProjectDir = process.env.CLAUDE_PROJECT_DIR;
+    const root = makeTmpHermit();
+    process.env.CLAUDE_PROJECT_DIR = root;
+    // Drift cwd elsewhere
+    process.chdir(join(root, '.claude-code-hermit', 'state'));
+    expect(projectRoot()).toBe(root);
+  });
+
+  test('walk-up recovers from drifted cwd when CLAUDE_PROJECT_DIR is absent/invalid', () => {
+    savedClaudeProjectDir = process.env.CLAUDE_PROJECT_DIR;
+    const root = makeTmpHermit();
+    process.env.CLAUDE_PROJECT_DIR = '/nonexistent-path';
+    process.chdir(join(root, '.claude-code-hermit', 'state'));
+    expect(projectRoot()).toBe(root);
+  });
+
+  test('HA_EXTRA_SENSITIVE_DOMAINS blocks under drifted cwd (the #384 safety hole)', () => {
+    // Without fix: classifyEntity(eid) no root arg → resolve(process.cwd()) →
+    // drifted path → .env not found → HA_EXTRA_SENSITIVE_DOMAINS empty → ALLOW (fail-open).
+    // With fix: classifyEntity(eid, projectRoot()) → walk-up finds root → .env loads → BLOCK.
+    savedClaudeProjectDir = process.env.CLAUDE_PROJECT_DIR;
+    const { writeFileSync } = require('node:fs') as typeof import('node:fs');
+    const root = makeTmpHermit();
+    // Set extra sensitive domain in .env
+    writeFileSync(join(root, '.env'), 'HA_EXTRA_SENSITIVE_DOMAINS=sprinkler\n');
+    // Set ha_safety_mode=strict (default, but be explicit)
+    writeFileSync(join(root, '.claude-code-hermit', 'config.json'), '{"ha_safety_mode":"strict"}');
+
+    process.env.CLAUDE_PROJECT_DIR = '/nonexistent-path'; // force walk-up
+    process.chdir(join(root, '.claude-code-hermit', 'state')); // drift
+
+    const resolvedRoot = projectRoot();
+    expect(resolvedRoot).toBe(root); // walk-up succeeded
+
+    // classifyEntity with the resolved root must see the .env override
+    const [sev] = classifyEntity('sprinkler.front_yard', resolvedRoot);
+    expect(sev).toBe(Severity.BLOCK); // would be ALLOW without the fix
   });
 });

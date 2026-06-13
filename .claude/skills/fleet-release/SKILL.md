@@ -101,4 +101,4 @@ Fleet release complete:
   claude-code-dev-hermit  v0.2.3   (commit def5678)
 ```
 
-Use AskUserQuestion: "Open a PR for this fleet release?" with Yes / No. If yes, invoke `/dev-pr`.
+Use AskUserQuestion: "Open a PR for this fleet release?" with Yes / No. If yes, open a PR.

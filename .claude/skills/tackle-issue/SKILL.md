@@ -7,8 +7,7 @@ description: |
     • Pasted task content — "investigate this proposal", "pressure-test this", "scope this before I touch it". Runs the triage workflow on the pasted text. Read-only output only — no branch, no TaskCreate seeding.
     • No input / picker phrasing — "tackle the next issue", "pick an issue", "what should I work on", "next issue". Lists ready-labelled open issues in gtapps/claude-code-hermit, filters those with linked open PRs, applies the dedup log, picks one, then runs the issue-number flow on it.
   Flag:
-    • --investigate-only — runs the full triage workflow (including Proposed approach / Files / Verification on positive verdicts) and then stops. No branch checkout, no TaskCreate seeding. Used by /issue-proposals.
-  NOT for committing (/commit), opening PRs (/dev-pr), or merging. Stops once a branch is checked out and tasks are seeded.
+    • --investigate-only — runs the full triage workflow (including Proposed approach / Files / Verification on positive verdicts) and then stops. No branch checkout, no TaskCreate seeding. Stops once a branch is checked out and tasks are seeded.
 ---
 
 # Tackle Issue
@@ -222,7 +221,7 @@ If the branch already exists locally: `git checkout <branch>` and warn.
 
 ```
 On branch <branch>, ready to implement.
-When done: /dev-quality → /commit → /dev-pr.
+When done: /claude-code-dev-hermit:dev-quality → /commit → /claude-code-dev-hermit:dev-pr.
 ```
 
 Exit. No code edits, no commits, no PR.

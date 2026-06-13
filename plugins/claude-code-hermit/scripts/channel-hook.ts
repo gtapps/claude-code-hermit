@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { safe } from './lib/sanitize';
+import { hermitDir } from './lib/cc-compat';
 
 type Json = any;
 
@@ -15,9 +16,10 @@ type Json = any;
  * Only acts when the channel is already configured in config.json.
  */
 
-const CONFIG_PATH = path.resolve('.claude-code-hermit/config.json');
-const ACTIVITY_PATH = path.resolve('.claude-code-hermit/state/channel-activity.json');
-const REPLIES_PATH = path.resolve('.claude-code-hermit/state/channel-replies.jsonl');
+const HERMIT_DIR = hermitDir();
+const CONFIG_PATH = path.join(HERMIT_DIR, 'config.json');
+const ACTIVITY_PATH = path.join(HERMIT_DIR, 'state', 'channel-activity.json');
+const REPLIES_PATH = path.join(HERMIT_DIR, 'state', 'channel-replies.jsonl');
 const MAX_STDIN = 64 * 1024;
 
 const SERVER_TO_CHANNEL: Record<string, string> = {

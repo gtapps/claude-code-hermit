@@ -11,21 +11,22 @@ import path from 'node:path';
 import { calculateCost } from './lib/pricing';
 import { readTasks, taskProgress } from './lib/tasks';
 import { kStr, formatTokens } from './lib/format';
-import { sessionId as ccSessionId, transcriptPath as ccTranscriptPath, entryText, isToolResult, extractUsage, costLogPath } from './lib/cc-compat';
+import { sessionId as ccSessionId, transcriptPath as ccTranscriptPath, entryText, isToolResult, extractUsage, costLogPath, hermitDir } from './lib/cc-compat';
 import { costIndexPath, updateCostIndex, readCostIndex, scanAutomatedOpus } from './lib/cost-log';
 
 type Json = any;
 
 const MAX_STDIN = 1024 * 1024; // 1MB safety limit
-const COST_LOG = costLogPath('.claude-code-hermit');
-const COST_INDEX = costIndexPath('.claude-code-hermit');
-const SHELL_SESSION = path.resolve('.claude-code-hermit/sessions/SHELL.md');
-const STATUS_JSON = path.resolve('.claude-code-hermit/sessions/.status.json');
-const STATUS_JSON_TMP = path.resolve('.claude-code-hermit/sessions/.status.json.tmp');
-const RUNTIME_JSON = path.resolve('.claude-code-hermit/state/runtime.json');
-const HEARTBEAT_FILE = path.resolve('.claude-code-hermit/state/.heartbeat');
-const COST_SUMMARY = path.resolve('.claude-code-hermit/cost-summary.md');
-const TASK_SNAPSHOT = path.resolve('.claude-code-hermit/tasks-snapshot.md');
+const HERMIT_DIR = hermitDir();
+const COST_LOG = costLogPath(HERMIT_DIR);
+const COST_INDEX = costIndexPath(HERMIT_DIR);
+const SHELL_SESSION = path.join(HERMIT_DIR, 'sessions', 'SHELL.md');
+const STATUS_JSON = path.join(HERMIT_DIR, 'sessions', '.status.json');
+const STATUS_JSON_TMP = path.join(HERMIT_DIR, 'sessions', '.status.json.tmp');
+const RUNTIME_JSON = path.join(HERMIT_DIR, 'state', 'runtime.json');
+const HEARTBEAT_FILE = path.join(HERMIT_DIR, 'state', '.heartbeat');
+const COST_SUMMARY = path.join(HERMIT_DIR, 'cost-summary.md');
+const TASK_SNAPSHOT = path.join(HERMIT_DIR, 'tasks-snapshot.md');
 
 let _runtimeCache: Json;
 function readRuntimeJsonCached(): Json {

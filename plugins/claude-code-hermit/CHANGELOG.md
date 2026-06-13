@@ -11,6 +11,7 @@
 ### Fixed
 
 - **session-start: suppress duplicate startup ping after watchdog context-clear (#385)** — when the watchdog sends `/clear` to refresh a hermit's context (post-close-clear or context-size-clear), a scheduled task could re-invoke `session-start` which re-sent the "Hermit online" channel ping even though the session never stopped. The watchdog now writes `context_cleared: true` to `state/runtime.json` before sending `/clear`; session-start step 3 detects and consumes the marker (sets it to `false`) and suppresses the step-8 startup ping for that invocation only.
+- **hooks: cwd-drift bug class resolved** — `hermitDir()` added to `scripts/lib/cc-compat.ts` resolves `.claude-code-hermit/` via `AGENT_DIR` (absolute only) → `CLAUDE_PROJECT_DIR`+`existsSync` → cwd walk-up → fail-open, surviving any `cd` that leaves shell cwd inside `.claude-code-hermit/`. All 10 affected hook scripts updated; payload-anchored hooks (`validate-config`, `generate-summary`) anchor on the absolute `file_path` from the hook payload instead. Fixes #384.
 
 ## [1.2.2] - 2026-06-13
 

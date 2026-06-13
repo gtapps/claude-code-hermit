@@ -198,8 +198,10 @@ process.stdin.on('end', () => {
     if (!raw.includes(STATE_SUBDIR)) process.exit(0);
     const event = JSON.parse(raw);
     const filePath = (event.tool_input || {}).file_path || (event.tool_input || {}).path || '';
-    if (!filePath.includes(STATE_SUBDIR)) process.exit(0);
-    run(STATE_SUBDIR);
+    // Anchor on the absolute path from the payload — immune to cwd drift (#384)
+    const idx = filePath.indexOf(STATE_SUBDIR);
+    if (idx === -1) process.exit(0);
+    run(filePath.slice(0, idx + STATE_SUBDIR.length));
   } catch {
     // Never block the agent
   }
