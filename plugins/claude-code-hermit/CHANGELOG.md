@@ -4,7 +4,12 @@
 
 ### Fixed
 
+- **hermit-evolve: stop seeding dead `watchdog/` templates into project state (#379)** — v1.2.0 seeded four infra templates into `.claude-code-hermit/watchdog/`; nothing reads them (`hermit-watchdog install` renders from the plugin's `state-templates/watchdog/`), and the storage-drift checker flagged them on every session start. Seeding removed; existing stray dirs cleaned up on next evolve.
 - **reflect, hermit-evolution: name the `event` field in routine-metrics fire counts** — prevents silent zero counts when a model confuses `routine-metrics.jsonl`'s `event` field with `proposal-metrics.jsonl`'s `type` field; both skills now explicitly say `event == "fired"` (#375).
+
+### Upgrade Instructions
+
+Remove the dead watchdog template dir if a prior 1.2.0 evolve seeded it. In `.claude-code-hermit/watchdog/`, delete only these four files if present: `hermit-watchdog@.service`, `hermit-watchdog@.timer`, `com.hermit.watchdog.plist`, `crontab.txt`. Then run `rmdir .claude-code-hermit/watchdog/`. `rmdir` refuses a non-empty dir, so if the operator added their own files there the dir is left intact: note it and move on. Use per-file `rm` plus `rmdir` only, never `rm -rf` (blocked by the deny-pattern hook).
 
 ## [1.2.1] - 2026-06-12
 
@@ -258,9 +263,8 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 1. Check whether `config.json` has `knowledge.compiled_budget_chars` set to `1000`. If so, update it to `2500`. If the operator has set a custom value other than `1000`, leave it as-is.
 2. The `/recall` skill is auto-discovered — no file changes needed for existing hermits.
 3. Seed `bin/hermit-watchdog` from `state-templates/bin/hermit-watchdog` if it does not already exist in `.claude-code-hermit/bin/`.
-4. Seed the `watchdog/` directory from `state-templates/watchdog/` (four files: `hermit-watchdog@.service`, `hermit-watchdog@.timer`, `com.hermit.watchdog.plist`, `crontab.txt`) into `.claude-code-hermit/watchdog/`, skipping any file that already exists.
-5. Add `"watchdog": {"enabled": false, "stale_factor": 2, "escalate_after": 3, "operator_grace": "15m"}` to `config.json` if the `watchdog` key is absent.
-6. Re-run `/docker-setup` (or surgically update `docker-entrypoint.hermit.sh` — add the `_wd_cycle` counter and `hermit-watchdog run` call inside the `while tmux has-session` loop) before running `hermit-docker update` if running a Docker hermit.
+4. Add `"watchdog": {"enabled": false, "stale_factor": 2, "escalate_after": 3, "operator_grace": "15m"}` to `config.json` if the `watchdog` key is absent.
+5. Re-run `/docker-setup` (or surgically update `docker-entrypoint.hermit.sh` — add the `_wd_cycle` counter and `hermit-watchdog run` call inside the `while tmux has-session` loop) before running `hermit-docker update` if running a Docker hermit.
 
 The watchdog is **disabled by default**. To opt in: set `config.watchdog.enabled: true` via `/hermit-settings`, then run `bin/hermit-watchdog install` to register the OS timer.
 
