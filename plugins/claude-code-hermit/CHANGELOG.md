@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **capability-brainstorm: use fully-qualified skill name for proposal-create** — short-form `/proposal-create` fails when the model autonomously invokes a skill; changed to `/claude-code-hermit:proposal-create` so the Skill tool resolves it correctly.
+
 ### Added
 
 - **Community Discord** — publishes the dev-community invite in both READMEs
