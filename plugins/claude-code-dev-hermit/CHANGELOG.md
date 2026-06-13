@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **CLAUDE-APPEND: fully-qualify dev-quality and dev-pr back-references** — short-form `/dev-quality` and `/dev-pr` in prose left the model with an ambiguous name; updated all occurrences in §Implementation Flow, §Tests Before PR, and §Dev Quick Reference to the namespaced form so injected templates are internally consistent.
+
 ## [0.4.0] - 2026-06-12
 
 ### Changed

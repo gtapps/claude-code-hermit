@@ -129,7 +129,7 @@ When the proposed solution involves creating a new agent, skill, heartbeat item,
 3. Verify it completes correctly
 
 **For a captured procedure (procedure-capture — called from reflect):**
-When `reflect` detects a recurring multi-step procedure (≥2 sessions, no existing skill covers it), it calls `proposal-create` with a `## Skill Draft` body block carrying the audit artifact path. Include this block verbatim in the PROP body as the dispatch signal for `proposal-act`. Set `category: capability`, `tags: [procedure-capture]`, `source: auto-detected`. Do not write the SKILL.md here — the accept flow delegates authoring to `/skill-creator` so the operator can review the final skill before install.
+When `reflect` detects a recurring multi-step procedure (≥2 sessions, no existing skill covers it), it calls `proposal-create` with a `## Skill Draft` body block carrying the audit artifact path. Include this block verbatim in the PROP body as the dispatch signal for `proposal-act`. Set `category: capability`, `tags: [procedure-capture]`, `source: auto-detected`. Do not write the SKILL.md here — the accept flow delegates authoring to `/skill-creator:skill-creator` so the operator can review the final skill before install.
 ```markdown
 ## Skill Draft
 - name: <skill-name>

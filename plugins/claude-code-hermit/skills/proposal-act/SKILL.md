@@ -83,7 +83,7 @@ When the operator accepts a proposal:
 4. Ask: **"How should this be implemented?"**
 
    - **"Start implementing now"** (default, typical answer): run the falsification gate, then handle session lifecycle, then execute in this turn.
-     **Falsification gate (runs first, before any session transition).** Verify the proposal is actionable as written with a read-only pass. Skip if the body contains `## Skill Improvement` (step (e) routes that to `/skill-creator`). Also skip if the body contains `## Skill Draft` — authoring is delegated to `/skill-creator` on accept, not a code-edit plan — but first check that the `source_artifact` path listed in `## Skill Draft` exists and is readable (if the file is missing or unreadable, REJECT with code `stale-paths` — the procedure brief was removed or archived; the operator should re-run reflect to generate a fresh brief).
+     **Falsification gate (runs first, before any session transition).** Verify the proposal is actionable as written with a read-only pass. Skip if the body contains `## Skill Improvement` (step (e) routes that to `/skill-creator:skill-creator`). Also skip if the body contains `## Skill Draft` — authoring is delegated to `/skill-creator:skill-creator` on accept, not a code-edit plan — but first check that the `source_artifact` path listed in `## Skill Draft` exists and is readable (if the file is missing or unreadable, REJECT with code `stale-paths` — the procedure brief was removed or archived; the operator should re-run reflect to generate a fresh brief).
 
        Agent selection — check the harness's available-skills list (never `claude plugin list` or disk checks):
        - `feature-dev:feature-dev` in available-skills → use `feature-dev:code-explorer` as the subagent.
@@ -104,12 +104,12 @@ When the operator accepts a proposal:
         - Yes: append `[HH:MM] switched to PROP-NNN: <title> (prior task: <prior task>)` to SHELL.md `## Progress Log`; overwrite SHELL.md `Task:` field with "Implement PROP-NNN: <title>"; `runtime.json session_state` stays `in_progress`. Proceed to (e).
         - No: fall back to "Create a session task" below.
      d. **Waiting:** fall back to "Create a session task" without asking, then notify: "PROP-NNN queued. Session is currently waiting."
-     e. Read the proposal body and execute the Proposed Solution as the active task. If the body contains `## Skill Improvement`, use `/skill-creator` for the implementation. If the body contains `## Skill Draft`, follow the procedure-capture install flow below. If the body is vague, ask the operator for clarification before proceeding — unless the falsification gate already returned `PROCEED` with a file list, in which case actionability is confirmed and this check is skipped.
+     e. Read the proposal body and execute the Proposed Solution as the active task. If the body contains `## Skill Improvement`, use `/skill-creator:skill-creator` for the implementation. If the body contains `## Skill Draft`, follow the procedure-capture install flow below. If the body is vague, ask the operator for clarification before proceeding — unless the falsification gate already returned `PROCEED` with a file list, in which case actionability is confirmed and this check is skipped.
 
      **Procedure-capture install flow (when body contains `## Skill Draft`):**
      1. Parse `name`, `source_artifact`, `install_target`, and `triggers` from the `## Skill Draft` block.
      2. **Collision guard:** if `install_target` (`.claude/skills/<name>/SKILL.md`) already exists, do **not** overwrite. Ask the operator: "Skill `<name>` already exists at `<install_target>`. Overwrite / Rename / Cancel?" Default = **Cancel**.
-     3. Invoke `/skill-creator` using `source_artifact` (the procedure brief in `compiled/`) as input. Pass the proposed `name` and `triggers` so it can author the correct frontmatter and trigger phrases. `/skill-creator` outputs a proposed SKILL.md.
+     3. Invoke `/skill-creator:skill-creator` using `source_artifact` (the procedure brief in `compiled/`) as input. Pass the proposed `name` and `triggers` so it can author the correct frontmatter and trigger phrases. `/skill-creator:skill-creator` outputs a proposed SKILL.md.
      4. **Second confirmation gate:** present the full authored SKILL.md to the operator and require an explicit yes/no before installing. An installed skill auto-loads into every future session, so the operator approves the artifact, not just the intent. Record the operator's verdict (confirmed / declined) in the PROP's `## Operator Decision` section.
         - Confirmed: proceed to install.
         - Declined: stop. Notify the operator that they can re-run `/proposal-act accept PROP-NNN` after revising the procedure brief.
@@ -172,8 +172,8 @@ When the operator accepts a proposal:
      ```
      If `NEXT-TASK.md` already exists: do **not** write. Status still flips to `accepted` (operator intent is recorded). Notify: "PROP-NNN accepted. NEXT-TASK is already pending another proposal. Run `/session-start` to consume it first, then re-run `/proposal-act accept PROP-NNN` and pick 'Start implementing now' or manual."
      Otherwise write the file. Then append any of the following bullets to the end of the Suggested Plan, in order, numbered sequentially from `4.` (quality-gate bullet is last so `/claude-code-hermit:simplify` reviews any skill-creator output):
-       - **(if the proposal contains `## Skill Improvement` AND `/skill-creator` is available)** `Use /skill-creator to build and validate the skill.`
-       - **(if the proposal contains `## Skill Draft`)** `Use /skill-creator to author the captured procedure from the source_artifact (see ## Skill Draft), present the final SKILL.md to the operator for confirmation, then install it to the install_target only on confirmation.`
+       - **(if the proposal contains `## Skill Improvement` AND `/skill-creator:skill-creator` is available)** `Use /skill-creator:skill-creator to build and validate the skill.`
+       - **(if the proposal contains `## Skill Draft`)** `Use /skill-creator:skill-creator to author the captured procedure from the source_artifact (see ## Skill Draft), present the final SKILL.md to the operator for confirmation, then install it to the install_target only on confirmation.`
        - **(if `quality_gate.tier` in `.claude-code-hermit/config.json` is not `"budget"` — i.e. `"balanced"` or `"quality"`)** `Run /claude-code-hermit:simplify on the touched files for a cleanup pass, then commit.`
      Confirm: "Task prepared. The next `/session-start` will offer this as the default task."
 

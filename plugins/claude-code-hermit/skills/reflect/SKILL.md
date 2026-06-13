@@ -189,7 +189,7 @@ Check whether any skill, agent, or hook is underperforming.
 Signal ladder (same for all three):
 - **Weak signal** (one-off or ambiguous): no action — not worth surfacing.
 - **Moderate signal** (pattern across 2-3 sessions): create a proposal via `/claude-code-hermit:proposal-create` with the evidence (subject to Three-Condition Rule).
-- **Strong signal** (clear, repeated pattern): create a proposal via `/claude-code-hermit:proposal-create` with the evidence and include a `## Skill Improvement` section (or `## Agent Improvement`) listing the component name, observed failures, and suggested eval criteria. When the proposal is accepted via `proposal-act`, use `/skill-creator eval` and `/skill-creator improve` to implement the changes. If `/skill-creator` is not available, apply the changes to the component's definition file directly.
+- **Strong signal** (clear, repeated pattern): create a proposal via `/claude-code-hermit:proposal-create` with the evidence and include a `## Skill Improvement` section (or `## Agent Improvement`) listing the component name, observed failures, and suggested eval criteria. When the proposal is accepted via `proposal-act`, use `/skill-creator:skill-creator eval` and `/skill-creator:skill-creator improve` to implement the changes. If `/skill-creator:skill-creator` is not available, apply the changes to the component's definition file directly.
 
 ### Procedure capture (new-skill creation)
 

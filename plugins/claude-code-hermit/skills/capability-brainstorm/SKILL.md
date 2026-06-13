@@ -42,9 +42,9 @@ Think across all four inputs simultaneously. For each candidate idea, apply both
 
 Cap at 2 ideas that pass both constraints. Emit-zero if none do. Record discarded ideas (one line each) for the artifact.
 
-## 3. Create proposals (single-pass via `/proposal-create`)
+## 3. Create proposals (single-pass via `/claude-code-hermit:proposal-create`)
 
-For each generated idea, invoke `/proposal-create` once with:
+For each generated idea, invoke `/claude-code-hermit:proposal-create` once with:
 
 ```
 Title: <short idea title>
@@ -57,12 +57,12 @@ Set the PROP frontmatter:
 - `category: capability`
 - `tags: [capability-brainstorm, ideation]`
 
-`/proposal-create` invokes `proposal-triage` internally. Parse its outcome:
+`/claude-code-hermit:proposal-create` invokes `proposal-triage` internally. Parse its outcome:
 - `CREATE` — PROP file written, note the assigned PROP-NNN.
 - `SUPPRESS — <code>` — record the suppression code. Don't retry.
 - `DUPLICATE:<PROP-ID>` — record the existing PROP-ID. Don't create.
 
-Do NOT invoke `proposal-triage` directly in this skill — `/proposal-create` already does it.
+Do NOT invoke `proposal-triage` directly in this skill — `/claude-code-hermit:proposal-create` already does it.
 
 ## 4. Emit batch message
 
