@@ -46,7 +46,7 @@ async function runCollect(lines: string[], billedIndex: number): Promise<any[]> 
 // CC uses a hybrid representation: both toolUseResult (the subagent summary) and
 // message.content:[{type:'tool_result'}] (so isToolResult returns true and boundary
 // scanning doesn't stop here).
-function subagentEntry(resolvedModel: string, inputTokens: number, outputTokens: number): string {
+function subagentEntry(resolvedModel: string | undefined, inputTokens: number, outputTokens: number): string {
   return JSON.stringify({
     type: 'user',
     message: { content: [{ type: 'tool_result', tool_use_id: 'agent-1', content: 'done' }] },
@@ -207,6 +207,7 @@ describe('cost-tracker subagent log lines', () => {
     expect(entry.model).toBe('haiku');
     expect(entry.agent_type).toBe('general-purpose');
     expect(entry.api_calls).toBe(0);
+    expect(entry.model_resolved).toBe(true); // resolvedModel was present
   });
 
   test('cost-tracker: subagent entry inherits the dispatching source', () => {
@@ -225,5 +226,47 @@ describe('cost-tracker subagent log lines', () => {
 
   test('cost-tracker: stderr summary produced (exit 0)', () => {
     expect(out.length).toBeGreaterThan(0);
+  });
+});
+
+// A subagent dispatch whose tool_result carries no resolvedModel must still be
+// logged (tokens stay visible), but flagged model_resolved:false so the sonnet
+// default is auditable rather than a silent mis-bill.
+describe('cost-tracker subagent with no resolvedModel', () => {
+  let dir: string;
+  let logPath: string;
+
+  beforeAll(async () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-cost-tracker-nomodel-'));
+    fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
+    logPath = path.join(dir, '.claude', 'cost-log.jsonl');
+    const stateDir = path.join(dir, '.claude-code-hermit', 'state');
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(path.join(stateDir, 'runtime.json'), JSON.stringify({ session_id: 'test-session', session_state: 'active' }));
+
+    const transcriptLines = [
+      triggerPrompt('[hermit-routine:demo] start'),
+      assistantEntry('claude-sonnet-4-6', 500, 100),
+      subagentEntry(undefined, 1000, 400), // resolvedModel absent → model_resolved:false
+      assistantEntry('claude-sonnet-4-6', 10, 5),
+    ];
+    const transcriptPath = path.join(dir, 'transcript.jsonl');
+    fs.writeFileSync(transcriptPath, transcriptLines.join('\n') + '\n');
+
+    const stdin = JSON.stringify({ session_id: 'test-session', transcript_path: transcriptPath });
+    await runScript('cost-tracker.ts', { stdin, cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT } });
+  });
+
+  afterAll(() => {
+    if (dir) fs.rmSync(dir, { recursive: true });
+  });
+
+  test('cost-tracker: missing resolvedModel is logged with model_resolved:false at sonnet default', () => {
+    const lines = fs.readFileSync(logPath, 'utf-8').trim().split('\n');
+    const subEntry = JSON.parse(lines[1]);
+    expect(subEntry.subagent).toBe(true);
+    expect(subEntry.model_resolved).toBe(false);
+    expect(subEntry.model).toBe('sonnet');
+    expect(subEntry.input_tokens).toBe(1000);
   });
 });

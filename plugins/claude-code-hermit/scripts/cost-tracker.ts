@@ -110,6 +110,9 @@ function classifySource(triggerText: string): string {
 // only the Agent tool_result (type:'user' with toolUseResult.usage) does. extractUsage
 // skips these because they aren't type:'assistant', so collect them explicitly or their
 // tokens vanish from the ledger.
+// Limitation: shares sumTurnUsage's TAIL_BYTES window — a turn larger than the 512KB tail
+// is scanned from buffer start, so a prior turn's dispatch can bleed in. Same rare
+// over-count as the main-turn sum, accepted for the same reason.
 function collectSubagentUsage(lines: string[], billedIndex: number): Array<{
   model: string; inputTokens: number; cacheWriteTokens: number;
   cacheReadTokens: number; outputTokens: number; agentType: string;
@@ -517,6 +520,7 @@ async function run(data: Json): Promise<string | null> {
         api_calls: 0,
         subagent: true,
         agent_type: sa.agentType,
+        model_resolved: !!sa.model,   // false → resolvedModel was absent; model is a sonnet-default guess
         context_usage: null,
         estimated_cost_usd: saCost,
       }) + '\n', 'utf-8');
