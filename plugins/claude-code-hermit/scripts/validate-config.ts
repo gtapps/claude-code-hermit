@@ -10,7 +10,6 @@ type Json = any;
  * Exit 2 = validation failed, surface errors to agent.
  */
 
-const CONFIG_PATH = path.resolve('.claude-code-hermit/config.json');
 const MAX_STDIN = 64 * 1024;
 
 const REQUIRED_KEYS: Record<string, string[]> = {
@@ -303,7 +302,7 @@ function main() {
 
       let config: Json;
       try {
-        config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+        config = JSON.parse(fs.readFileSync(filePath, 'utf8'));
       } catch (e: any) {
         process.stderr.write(`[config-validate] FAIL: config.json is not valid JSON — ${safeForLLM(e.message)}\n`);
         process.exit(2);

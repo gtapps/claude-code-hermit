@@ -21,10 +21,11 @@ process.stdout.on('error', () => {});
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { hermitDir } from './lib/cc-compat';
 
-const AGENT_DIR = process.env.AGENT_DIR || '.claude-code-hermit';
-const STATE_PATH = path.resolve(AGENT_DIR, 'state', 'last-operator-action.json');
-const TMP_PATH   = path.resolve(AGENT_DIR, 'state', '.last-operator-action.json.tmp');
+const AGENT_DIR = hermitDir();
+const STATE_PATH = path.join(AGENT_DIR, 'state', 'last-operator-action.json');
+const TMP_PATH   = path.join(AGENT_DIR, 'state', '.last-operator-action.json.tmp');
 
 function write() {
   try {

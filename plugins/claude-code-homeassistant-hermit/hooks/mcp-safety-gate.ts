@@ -30,6 +30,7 @@
 import { readFileSync, writeSync } from 'node:fs';
 
 import { Severity, classifyEntity } from '../src/policy';
+import { projectRoot } from '../src/config';
 
 /** Pull entity_id values from MCP tool parameters. */
 export function extractEntityIds(toolInput: Record<string, unknown>): string[] {
@@ -169,9 +170,10 @@ function main(): void {
       );
     }
 
+    const root = projectRoot();
     const hits: Array<[string, Severity]> = [];
     for (const eid of entityIds) {
-      const [sev] = classifyEntity(eid);
+      const [sev] = classifyEntity(eid, root);
       if (sev !== Severity.ALLOW) hits.push([eid, sev]);
     }
 

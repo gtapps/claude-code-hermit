@@ -8,6 +8,10 @@
   and documents the channel shape, starter message, starter threads, moderation
   notes, and invite publishing checklist.
 
+### Fixed
+
+- **hooks: cwd-drift bug class resolved** — `hermitDir()` added to `scripts/lib/cc-compat.ts` resolves `.claude-code-hermit/` via `AGENT_DIR` (absolute only) → `CLAUDE_PROJECT_DIR`+`existsSync` → cwd walk-up → fail-open, surviving any `cd` that leaves shell cwd inside `.claude-code-hermit/`. All 10 affected hook scripts updated; payload-anchored hooks (`validate-config`, `generate-summary`) anchor on the absolute `file_path` from the hook payload instead. Fixes #384.
+
 ## [1.2.2] - 2026-06-13
 
 ### Added

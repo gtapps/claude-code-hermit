@@ -14,12 +14,14 @@
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { hermitDir } from "./lib/cc-compat";
 
 type Json = any;
 
 const MAX_STDIN = 1024 * 1024; // 1MB safety limit
-const SIDECAR_PATH = path.resolve(".claude-code-hermit/state/session-diff.json");
-const SIDECAR_TMP = path.resolve(".claude-code-hermit/state/.session-diff.json.tmp");
+const HERMIT_DIR = hermitDir();
+const SIDECAR_PATH = path.join(HERMIT_DIR, "state", "session-diff.json");
+const SIDECAR_TMP = path.join(HERMIT_DIR, "state", ".session-diff.json.tmp");
 
 const STATUS_LABELS: Record<string, string> = { A: "added", M: "modified", D: "deleted" };
 
@@ -92,7 +94,7 @@ function writeSidecar(changedFiles: { file: string; status: string }[]): void {
   fs.renameSync(SIDECAR_TMP, SIDECAR_PATH);
 }
 
-const RUNTIME_JSON = path.resolve(".claude-code-hermit/state/runtime.json");
+const RUNTIME_JSON = path.join(HERMIT_DIR, "state", "runtime.json");
 const DEBOUNCE_MS = 60 * 1000; // 60 seconds
 
 // Exported run() function for use by stop-pipeline.ts.

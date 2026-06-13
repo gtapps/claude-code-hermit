@@ -121,3 +121,18 @@ When reviewing a plugin hermit for storage compliance, run these checks:
 4. Update `knowledge-schema.md` to declare the types.
 5. Delete the empty old folders.
 6. Run a final checklist pass to confirm nothing points at the old paths.
+
+## Hook cwd and project-root resolution
+
+Claude Code hooks fire with the session's shell cwd, which can drift away from the project root (a persisted `cd` into a subdirectory, for example). Hook scripts must **never** resolve `.claude-code-hermit/...` paths relative to cwd.
+
+All core hook scripts use `hermitDir()` from `scripts/lib/cc-compat.ts` instead. Resolution order:
+
+1. `AGENT_DIR` if **absolute** — operator override via `config.env`, points directly at the `.cch` dir.
+2. `CLAUDE_PROJECT_DIR`/`.claude-code-hermit` if that directory exists — CC-authoritative root.
+3. cwd walk-up looking for `.claude-code-hermit/config.json` — drift recovery.
+4. `path.resolve('.claude-code-hermit')` — fail-open, preserves today's behavior.
+
+Hooks that receive an absolute `file_path` in their payload (`validate-config`, `generate-summary`) anchor directly on that path instead of using the resolver — they have a guaranteed absolute source.
+
+When adding a new hook script, import `hermitDir` from `./lib/cc-compat` and compute all `.claude-code-hermit/...` paths against its return value.

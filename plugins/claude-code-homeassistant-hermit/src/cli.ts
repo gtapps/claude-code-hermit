@@ -27,7 +27,7 @@ import {
 } from './artifacts';
 import { auditAutomations, auditScripts } from './audits';
 import { bootStatus, saveBootPreferences } from './boot';
-import { AppConfig, loadConfig, normalizedContextPath } from './config';
+import { AppConfig, loadConfig, normalizedContextPath, projectRoot } from './config';
 import { HomeAssistantClient, HomeAssistantError } from './ha-api';
 import { fetchHistorySnapshot } from './history';
 import {
@@ -473,7 +473,7 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
     throw exc;
   }
 
-  const config = deps.loadConfig();
+  const config = deps.loadConfig(projectRoot());
   const root = config.root;
 
   if (args.command === 'ha' && args.sub === 'policy-check') {

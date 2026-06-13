@@ -11,10 +11,11 @@ import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { readFrontmatter, readFileWithFrontmatter, globDir } from './lib/frontmatter';
 import { parseSchema } from './knowledge-lint';
+import { hermitDir } from './lib/cc-compat';
 
 type Json = any;
 
-const AGENT_DIR = process.env.AGENT_DIR || '.claude-code-hermit';
+const AGENT_DIR = hermitDir();
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT || path.resolve(import.meta.dir, '..');
 const HARD_CAP = 9000;
 
