@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **min CC version: floor bumped to 2.1.172 (#389)** — nested-subagent dispatch (used by the shipped `daily-auto-close: haiku` default) requires it; on older versions the nested `session-mgr` call fails silently, preventing auto-close. Prerequisite docs updated.
+
 ## [1.2.3] - 2026-06-13
 
 ### Added

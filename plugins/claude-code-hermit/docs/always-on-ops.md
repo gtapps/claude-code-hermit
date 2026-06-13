@@ -12,7 +12,7 @@ For skill details, see [Skills Reference](skills.md).
 | ------------------------ | ------------ | ------------------------------------------ |
 | **tmux**                 | Boot scripts | `brew install tmux` / `apt install tmux`   |
 | **Node.js 22+**          | Hooks        | Cost tracking, session evaluation          |
-| **Claude Code v2.1.150+** | Channels, sandbox | Minimum supported version |
+| **Claude Code v2.1.172+** | Channels, sandbox | Minimum supported version |
 
 tmux is required. Channels are optional.
 

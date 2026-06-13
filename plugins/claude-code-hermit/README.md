@@ -92,7 +92,7 @@ On-demand skills — pullable from the Claude app, your terminal, or a DM:
 
 ## Quick Start
 
-> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.150+, a Claude plan (Pro, Max, Teams, or Enterprise), and [Bun](https://bun.sh) 1.3+. Linux, macOS, and Windows via WSL2 — see [FAQ](docs/faq.md).
+> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.172+, a Claude plan (Pro, Max, Teams, or Enterprise), and [Bun](https://bun.sh) 1.3+. Linux, macOS, and Windows via WSL2 — see [FAQ](docs/faq.md).
 
 ### 1. Install
 
