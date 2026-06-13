@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="plugins/claude-code-hermit/CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.1-green.svg" alt="Version 1.2.1" /></a>
+  <a href="plugins/claude-code-hermit/CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.2-green.svg" alt="Version 1.2.2" /></a>
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/_gh_traffic_stats/.github/badges/clones.json" alt="Downloads" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
 </p>
@@ -41,7 +41,7 @@ Just Claude Code everything is yours to shape: channels (Discord/Telegram), MCP 
 - **Routines** wrap `CronCreate` jobs that expire in 7 days and fire in the machine's timezone: they self-rearm daily, run on your wall clock, and are managed by `/hermit-routines`.
 - **`/watch`** wraps `Monitor` streams that die with the session: it auto-starts from config (or plain language) and routes findings to your notifications, silent when quiet.
 - **Channels** let you DM a session; the hermit agent acts on it (*"accept PROP-014"*, *"status"*) and **pings you first** when something needs a yes/no.
-- **Auto-memory** just accumulates. Hermit **distills** `raw/` → `compiled/` — including living topic pages updated in place — and re-injects a catalog within a context budget at session start; `/recall` pulls the full depth on demand.
+- **Auto-memory** Hermit adds a `raw/` → `compiled/` — including living topic pages updated in place — and re-injects a catalog within a context budget at session start; `/recall` pulls the full depth on demand.
 - **Task snapshots** persist native `Tasks` past session end, so the plan survives archives.
 - **Profile-gated guardrails** scope `deny patterns + sandbox` per profile, locking the unattended agent down harder than the one you're watching.
 - **One runtime.** Everything is TypeScript running on [Bun](https://bun.sh) — zero npm packages, zero Python, across the whole fleet. Install Bun, done.

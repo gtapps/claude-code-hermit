@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.2] - 2026-06-13
 
 ### Added
 
@@ -8,38 +8,32 @@
 - **watchdog: context-size auto-clear** — sends `/clear` when a hermit-owned turn's prompt-side tokens (`input + cache_write + cache_read`) exceed `watchdog.context_clear_tokens` (default 700 000), preventing scheduled routines from re-reading a bloated context at 5–22× normal cost. Fires independently of `watchdog.enabled`; gated on always-on mode, operator silence ≥ 10 min, and 2-tick pane-hash quiescence. Fixes #373.
 - **watchdog: liveness signal + doctor detection** — `hermit-watchdog run` now stamps `last_run` into `state/watchdog-state.json` on every invocation, before any gate, so a fresh stamp proves the scheduler/loop (systemd/launchd/cron or the Docker entrypoint loop) is firing the script. `hermit-doctor`'s `watchdog` check reads it: a stale (>20 min) or missing stamp reports `enabled but not firing` with remediation keyed to `runtime_mode` (tmux → `bin/hermit-watchdog install`; docker → recreate the container; unknown → both). Replaces the `systemctl`/`crontab`/`ps` self-diagnosis that false-alarmed on healthy Docker hermits (the loop runs no OS timer by design, and `watchdog.log` only captures stderr, so it stays stale even when firing).
 
-### Upgrade Instructions
-
-Add `context_clear_tokens: 700000` to the `watchdog` block in `.claude-code-hermit/config.json`:
-
-```json
-"watchdog": {
-  "enabled": false,
-  "stale_factor": 2,
-  "escalate_after": 3,
-  "operator_grace": "15m",
-  "context_clear_tokens": 700000
-}
-```
-
-To disable: set `"context_clear_tokens": null` (or `0`).
-
-Seed the new watchdog liveness stamp so `hermit-doctor` does not false-warn before the first tick. Run once:
-
-```
-.claude-code-hermit/bin/hermit-watchdog run
-```
-
-This writes `last_run` immediately (it is stamped before any gate, so it works even with `watchdog.enabled: false`) and no-ops otherwise during an active session. A healthy watchdog keeps the stamp fresh on every ~5 min tick; a genuinely uninstalled/non-firing one lets it go stale within 20 min, which is when the new doctor warning is meant to fire.
-
 ### Fixed
 
 - **hermit-evolve: stop seeding dead `watchdog/` templates into project state (#379)** — v1.2.0 seeded four infra templates into `.claude-code-hermit/watchdog/`; nothing reads them (`hermit-watchdog install` renders from the plugin's `state-templates/watchdog/`), and the storage-drift checker flagged them on every session start. Seeding removed; existing stray dirs cleaned up on next evolve.
 - **reflect, hermit-evolution: name the `event` field in routine-metrics fire counts** — prevents silent zero counts when a model confuses `routine-metrics.jsonl`'s `event` field with `proposal-metrics.jsonl`'s `type` field; both skills now explicitly say `event == "fired"` (#375).
 
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/hermit-watchdog.ts` | Adds `last_run` liveness stamp and context-clear auto-send |
+| `scripts/doctor-check.ts` | Reads `last_run` to detect non-firing watchdog |
+| `scripts/log-routine-event.sh` | Emits `started` event before skill invocation |
+| `scripts/validate-config.ts` | Validates `watchdog.context_clear_tokens` field |
+| `skills/reflect/SKILL.md` | Surfaces errored routines (`started` without `fired` ≥ 2) |
+| `skills/hermit-doctor/SKILL.md` | Adds liveness check to watchdog section |
+| `skills/hermit-evolution/SKILL.md` | Names `event` field in routine-metrics queries |
+| `skills/hermit-routines/SKILL.md` | Documents started-marker behavior |
+| `state-templates/config.json.template` | Adds `context_clear_tokens: 700000` to watchdog block |
+
 ### Upgrade Instructions
 
-Remove the dead watchdog template dir if a prior 1.2.0 evolve seeded it. In `.claude-code-hermit/watchdog/`, delete only these four files if present: `hermit-watchdog@.service`, `hermit-watchdog@.timer`, `com.hermit.watchdog.plist`, `crontab.txt`. Then run `rmdir .claude-code-hermit/watchdog/`. `rmdir` refuses a non-empty dir, so if the operator added their own files there the dir is left intact: note it and move on. Use per-file `rm` plus `rmdir` only, never `rm -rf` (blocked by the deny-pattern hook).
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Remove dead watchdog template dir** — in `.claude-code-hermit/watchdog/`, delete only these four files if present: `hermit-watchdog@.service`, `hermit-watchdog@.timer`, `com.hermit.watchdog.plist`, `crontab.txt`. Then run `rmdir .claude-code-hermit/watchdog/`. `rmdir` refuses a non-empty dir — if the operator added their own files, leave the dir intact and note it. Use per-file `rm` plus `rmdir` only, never `rm -rf`.
+2. **Add `context_clear_tokens` to `watchdog` config** — add `"context_clear_tokens": 700000` to the `watchdog` block in `.claude-code-hermit/config.json`. To disable, set to `null` or `0`.
+3. **Seed watchdog liveness stamp** — run `.claude-code-hermit/bin/hermit-watchdog run` once to write `last_run` into `state/watchdog-state.json` before the first tick. Stamped before any gate, so it works even with `watchdog.enabled: false`.
 
 ## [1.2.1] - 2026-06-12
 
