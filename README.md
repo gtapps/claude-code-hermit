@@ -4,6 +4,7 @@
   <a href="plugins/claude-code-hermit/CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.2-green.svg" alt="Version 1.2.2" /></a>
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/_gh_traffic_stats/.github/badges/clones.json" alt="Downloads" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
+  <a href="https://discord.gg/54sJqAxhUh"><img src="https://img.shields.io/badge/Discord-Join%20community-5865F2?logo=discord&logoColor=white" alt="Join the Discord community" /></a>
 </p>
 
 # claude-code-hermit
@@ -168,12 +169,19 @@ Many operators run several hermits in parallel — one per domain. Each one is a
 
 ---
 
+## Community
+
+Join the [`claude-code-hermit` Discord community](https://discord.gg/54sJqAxhUh) for install help, always-on ops, plugin authoring, bug triage, and proposal/design discussion. Confirmed bugs and roadmap decisions should still move back to GitHub so they remain searchable and reviewable.
+
+---
+
 ## Documentation
 
 - [Always-On Operations](plugins/claude-code-hermit/docs/always-on-ops.md)
 - [Always-On Setup](plugins/claude-code-hermit/docs/always-on.md)
 - [Architecture](plugins/claude-code-hermit/docs/architecture.md)
 - [Config Reference](plugins/claude-code-hermit/docs/config-reference.md)
+- [Community Discord](plugins/claude-code-hermit/docs/community-discord.md)
 - [Creating Your Own Hermit](plugins/claude-code-hermit/docs/creating-your-own-hermit.md)
 - [Docker Security](plugins/claude-code-hermit/docs/docker-security.md)
 - [FAQ](plugins/claude-code-hermit/docs/faq.md)

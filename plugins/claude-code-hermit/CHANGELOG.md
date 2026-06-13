@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Community Discord** — publishes the dev-community invite in both READMEs
+  and documents the channel shape, starter message, starter threads, moderation
+  notes, and invite publishing checklist.
+
 ## [1.2.2] - 2026-06-13
 
 ### Added
@@ -1153,7 +1161,7 @@ Docker users only — this patch updates the rendered `docker-entrypoint.hermit.
    ```
      fi
    fi
-   
+
    # --- 0. Wait for auth credentials ---
    ```
 
@@ -1161,7 +1169,7 @@ Docker users only — this patch updates the rendered `docker-entrypoint.hermit.
    ```
      fi
    fi
-   
+
    # Sanity-check: if the recovered (or pre-existing) binary reports 0.0.0, the
    # orphan was non-functional. Reinstall from npm to self-heal so a `restart`
    # unwedges the container without needing `docker compose down && up -d`.
@@ -1187,7 +1195,7 @@ Docker users only — this patch updates the rendered `docker-entrypoint.hermit.
      fi
    fi
    unset _CLAUDE_VER
-   
+
    # --- 0. Wait for auth credentials ---
    ```
 
