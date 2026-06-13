@@ -1,13 +1,13 @@
 ---
 name: fleet-release
-description: Use this skill whenever the user wants to release, ship, prep, or cut versions for two or more plugins together on the current branch. Trigger on phrasings like "release both plugins", "ship them together", "release all changed plugins", "fleet release", "multi-plugin release", "release in order", or "release everything on this branch". Handles dependency ordering (core first), automatic required_core_version sync, and offers /create-pr when done.
+description: Use this skill whenever the user wants to release, ship, prep, or cut versions for two or more plugins together on the current branch. Trigger on phrasings like "release both plugins", "ship them together", "release all changed plugins", "fleet release", "multi-plugin release", "release in order", or "release everything on this branch". Handles dependency ordering (core first), automatic required_core_version sync, and tags each plugin immediately on main.
 ---
 
 # Fleet Release
 
-Orchestrate a multi-plugin release: determines order, runs each plugin's `/release` prep sequentially, injects cross-plugin `hermit-meta.json` sync between core and domain plugins, then offers `/create-pr`.
+Orchestrate a multi-plugin release: determines order, runs each plugin's `/release` prep sequentially, injects cross-plugin `hermit-meta.json` sync between core and domain plugins, tags each plugin on main.
 
-**Does not tag.** Tags happen on `main` after the PR merges — the existing `/release` fast-path handles that.
+**Runs on `main`.** Each plugin is committed, tagged, and pushed in order. No PR needed.
 
 ## Usage
 
@@ -21,7 +21,7 @@ Orchestrate a multi-plugin release: determines order, runs each plugin's `/relea
 
 ### 1. Validate branch
 
-Run `git branch --show-current`. If not on `main` or the repo's default branch: stop.
+Run `git branch --show-current`. If not on `main` or the repo's default branch: stop and tell the user to switch to main before running a fleet release.
 
 ### 2. Determine target plugins
 
@@ -39,7 +39,7 @@ If condition 1 holds but condition 2 does not (branch changes but version not bu
 
 Rule — not a graph:
 1. `claude-code-hermit` goes first if present
-2. Remaining plugins in alphabetical order
+2. Remaining plugins in the order the operator specified, or alphabetical for auto-detect
 
 ### 4. Determine version bumps and confirm upfront
 
@@ -64,13 +64,13 @@ Wait for confirmation. If the user adjusts, accept corrections before continuing
 
 With `--dry-run`: stop here. Print the plan and exit without touching anything.
 
-### 5. Run `/release` prep for core (if in fleet)
+### 5. Run `/release` for core (if in fleet)
 
-Invoke the full `/release claude-code-hermit` skill logic (steps 1–8 of that skill). Step 8 will detect non-main branch and stop before tagging — that is expected. Continue to step 6.
+Invoke the full `/release claude-code-hermit` skill logic (all steps, including tag and push — we are on main).
 
 ### 6. Inject cross-plugin dep sync
 
-Immediately after core's prep commit, before any domain plugin runs:
+Immediately after core's release commit and tag, before any domain plugin runs:
 
 ```bash
 NEW_CORE=$(jq -r .version plugins/claude-code-hermit/.claude-plugin/plugin.json)
@@ -89,16 +89,14 @@ These changes will be staged and committed as part of each domain plugin's `/rel
 
 **Only update plugins in this fleet.** Plugins not being released are not touched.
 
-### 7. Run `/release` prep for each domain plugin
+### 7. Run `/release` for each domain plugin
 
-For each domain plugin in order, invoke the full `/release <slug>` skill logic. The updated `hermit-meta.json` from step 6 will be included in the files that release commit touches.
+For each domain plugin in order, invoke the full `/release <slug>` skill logic (all steps, including tag and push). The updated `hermit-meta.json` from step 6 will be included in the files that release commit touches.
 
-### 8. Report and offer PR
+### 8. Report
 
 ```
 Fleet release complete:
-  claude-code-hermit      v1.0.23  (commit abc1234)
-  claude-code-dev-hermit  v0.2.3   (commit def5678)
+  claude-code-hermit      v1.0.23  (commit abc1234, tag claude-code-hermit--v1.0.23)
+  claude-code-dev-hermit  v0.2.3   (commit def5678, tag claude-code-dev-hermit--v0.2.3)
 ```
-
-Use AskUserQuestion: "Open a PR for this fleet release?" with Yes / No. If yes, open a PR.
