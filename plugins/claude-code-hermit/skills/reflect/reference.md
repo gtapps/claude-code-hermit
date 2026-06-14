@@ -19,6 +19,9 @@ populate the corresponding field in the return JSON instead — the main session
 The calling skill passes `phases_json` (the precheck output object listing which phases are due) and
 `last_resolution_check` (the cursor from reflection-state.json) in the dispatch prompt. Read them from
 the prompt; do not re-read reflection-state.json for the cursor (the main session already read it).
+It also passes `plugin_root` (the resolved absolute plugin path) — substitute it for `<plugin_root>`
+below. Do not use the `${CLAUDE_PLUGIN_ROOT}` token: it is not substituted in this file's content and
+is empty as a Bash variable.
 
 ## Step 1 — Resolution Check
 
@@ -35,7 +38,7 @@ Run this step only if `resolution_check` is listed in `phases_json`.
 
    **If `success_signal` is non-null** — run the predicate:
    ```
-   bun ${CLAUDE_PLUGIN_ROOT}/scripts/eval-success-signal.ts .claude-code-hermit "<accepted_date>" "<accepted_in_session|null>" "<success_signal>"
+   bun <plugin_root>/scripts/eval-success-signal.ts .claude-code-hermit "<accepted_date>" "<accepted_in_session|null>" "<success_signal>"
    ```
    Parse the one JSON line on stdout. Branch on `verdict`:
    - `INSUFFICIENT_DATA` → skip; add nothing to `resolution_actions` for this proposal.

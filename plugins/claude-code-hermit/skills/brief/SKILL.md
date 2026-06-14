@@ -21,8 +21,9 @@ Before composing any brief, determine the dispatch mode:
 - `--morning` → dispatch (mode: `morning`)
 - `--evening` → dispatch (mode: `evening`)
 - "brief today" / "daily summary" / "what happened today" → dispatch (mode: `daily`)
-- No flag + `session_state` is NOT `in_progress` (idle, no-session) → dispatch (mode: `default-no-session`)
-- No flag + `session_state` is `in_progress` → **no dispatch** — summarize the live SHELL.md in main (step 1a of Plan below)
+- No flag + `session_state` is `in_progress` → **no dispatch** — summarize the live SHELL.md in main (Plan step 1a)
+- No flag + `session_state` is `idle` → **no dispatch** — read the live SHELL.md in main and emit the idle block (Plan step 1b)
+- No flag + no active session (no SHELL.md / no `session_state`) → dispatch (mode: `default-no-session`, Plan step 1c)
 
 For dispatching modes: invoke `claude-code-hermit:skill-eval-runner` pointed at `${CLAUDE_PLUGIN_ROOT}/skills/brief/reference.md`. Pass in the dispatch prompt: `mode` (one of the values above), `today` (current ISO date), and for `morning` only: `context_recovery` (set to `true` if auto-memory seems sparse — new instance, fresh machine — `false` otherwise).
 

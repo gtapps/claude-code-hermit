@@ -26,6 +26,7 @@ These three sources require the main session's harness context and cannot be del
 ## 2. Dispatch the eval runner
 
 Pass the capability signals from Step 1 in the dispatch prompt. Dispatch `claude-code-hermit:skill-eval-runner` pointed at `${CLAUDE_PLUGIN_ROOT}/skills/capability-brainstorm/reference.md`. Include in the dispatch prompt:
+- `plugin_root`: `${CLAUDE_PLUGIN_ROOT}` (resolved absolute path — the runner needs it for the sibling-scan, since `${CLAUDE_PLUGIN_ROOT}` is not substituted in `reference.md` content)
 - `skills_list`: the harness available-skills list (one skill per line)
 - `mcp_tools`: the `ListMcpResourcesTool` output
 - `channels_keys`: the `channels` key list from config.json

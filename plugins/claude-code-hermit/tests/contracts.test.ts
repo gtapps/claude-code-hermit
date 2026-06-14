@@ -1389,3 +1389,33 @@ describe('capability-brainstorm delegation contract', () => {
     expect(block(refFile)).toBe(block(skill));
   });
 });
+
+// ============================================================
+// reference.md plugin-root contract (TestReferencePluginRootContract)
+//
+// The skill-eval-runner reads each reference.md via the Read tool, where the
+// `${CLAUDE_PLUGIN_ROOT}` token is NOT substituted (it is only text-substituted
+// in skill markdown loaded by the harness in installed mode, and is empty as a
+// Bash variable). Any executable path in a reference.md must therefore use the
+// `<plugin_root>` value passed in the dispatch prompt, never `${CLAUDE_PLUGIN_ROOT}/`.
+// Mirrors the #395 regression guard for hermit-routines. A plain `${CLAUDE_PLUGIN_ROOT}`
+// mention (the warning telling the runner not to use it) is allowed; only the
+// path form `${CLAUDE_PLUGIN_ROOT}/` is forbidden.
+// ============================================================
+
+describe('reference.md plugin-root contract', () => {
+  const refFiles = fs.readdirSync(SKILLS)
+    .map((d) => path.join(SKILLS, d, 'reference.md'))
+    .filter((p) => fs.existsSync(p));
+
+  test('at least one reference.md exists', () => {
+    expect(refFiles.length).toBeGreaterThan(0);
+  });
+
+  for (const refPath of refFiles) {
+    const rel = path.relative(SKILLS, refPath);
+    test(`${rel} uses no \${CLAUDE_PLUGIN_ROOT}/ path (must use <plugin_root>)`, () => {
+      expect(read(refPath)).not.toContain('${CLAUDE_PLUGIN_ROOT}/');
+    });
+  }
+});

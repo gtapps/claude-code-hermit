@@ -51,6 +51,7 @@ If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --qu
 5. Delegate the proposal scan to the built-in `Explore` subagent. Prompt: `List all .claude-code-hermit/proposals/PROP-*.md files. For each, extract id, status, title, source, created, accepted_date, related_sessions from YAML frontmatter (or **Status:**/**Title:** bullet fallback for pre-Observatory proposals). Return a compact JSON array — metadata only, no file bodies.` Also tail the last 100 lines of `state/proposal-metrics.jsonl` (inline, single read): count `responded` events by `action` (accept / defer / dismiss) and `micro-resolved` events by `action` (approved / rejected / expired) — both feed the operator-value self-check below. Also count `triage-verdict` events by `verdict` (CREATE / SUPPRESS / DUPLICATE) — feeds the Component Health triage check below.
 
 6. **Dispatch the eval runner.** Dispatch `claude-code-hermit:skill-eval-runner` pointed at `${CLAUDE_PLUGIN_ROOT}/skills/reflect/reference.md`. Include in the dispatch prompt:
+   - `plugin_root`: `${CLAUDE_PLUGIN_ROOT}` (resolved absolute path — the runner needs it to run `eval-success-signal.ts`, since `${CLAUDE_PLUGIN_ROOT}` is not substituted in `reference.md` content).
    - The precheck `phases-json` (from step 1).
    - `last_resolution_check` cursor (read from `state/reflection-state.json`).
    - `session_state` (read from `state/runtime.json`; controls whether the runner executes the routine check).

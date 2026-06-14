@@ -6,6 +6,7 @@ ideas. All side effects — proposal creation, channel send, artifact write — 
 calling main session, which applies them after receiving this structured return value.
 
 The calling skill passes the following in the dispatch prompt (do not re-read or re-derive these):
+- `plugin_root`: the resolved absolute plugin path. Substitute it for `<plugin_root>` below — do not use the `${CLAUDE_PLUGIN_ROOT}` token, which is not substituted in this file's content and is empty as a Bash variable.
 - `skills_list`: the authoritative harness available-skills list (string — one line per skill)
 - `mcp_tools`: enumerated MCP tools currently online (string from ListMcpResourcesTool)
 - `channels_keys`: `config.json` `channels` key list (string)
@@ -25,7 +26,7 @@ and `project_domain` fields passed in the dispatch prompt if present; otherwise 
 - `skills_list`: authoritative available-skills list.
 - `mcp_tools`: enumerated MCP output.
 - `channels_keys`: channels key list.
-- Sibling-scan `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json` for plugin presence and
+- Sibling-scan `<plugin_root>/../*/.claude-plugin/plugin.json` for plugin presence and
   version metadata only (not skill lists).
 
 **Compiled artifacts**

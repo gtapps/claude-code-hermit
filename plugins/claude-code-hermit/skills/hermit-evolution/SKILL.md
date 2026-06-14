@@ -14,6 +14,8 @@ If this skill was invoked from a channel-arrived message (the inbound prompt con
 
 Dispatch `claude-code-hermit:skill-eval-runner` pointed at `${CLAUDE_PLUGIN_ROOT}/skills/hermit-evolution/reference.md`. The runner reads the weekly review files, proposal metrics, config, session reports, and OPERATOR.md — and runs `proposal-metrics-report.ts` and `cost-reflect.ts` — in an isolated context, then returns the assembled evolution report. This keeps those heavy reads off this session's inherited context.
 
+Pass `plugin_root: ${CLAUDE_PLUGIN_ROOT}` in the dispatch prompt — the runner reads `reference.md` as file content, where `${CLAUDE_PLUGIN_ROOT}` is never substituted, so it needs the resolved absolute path to run the scripts and read template/skill paths.
+
 **Eval runner return schema** — the runner's return value is a JSON object conforming to this block. The schema is byte-identical in `reference.md` (producer) and here (consumer); a contract test asserts this.
 
 <!-- hermit-evolution-eval-schema:start -->

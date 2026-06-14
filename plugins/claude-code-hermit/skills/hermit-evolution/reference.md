@@ -7,6 +7,8 @@ returns the assembled evolution report. The calling main session decides where t
 
 ## Inputs (read fresh — do not reuse cached values)
 
+The calling skill passes `plugin_root` (the resolved absolute plugin path) in the dispatch prompt. Substitute that value wherever `<plugin_root>` appears below. Do not use the `${CLAUDE_PLUGIN_ROOT}` token — it is not substituted in this file's content and is empty as a Bash variable.
+
 Gracefully skip any file, glob, or script that doesn't exist or exits non-zero.
 
 Steps are independent — read files and run scripts concurrently where possible.
@@ -18,9 +20,9 @@ Steps are independent — read files and run scripts concurrently where possible
    week if the review file for it doesn't exist yet.
 3. `.claude-code-hermit/state/proposal-metrics.jsonl` — scan from the end (most recent first); stop
    at entries older than 30 days. Use `resolved_at` and `created_at` to compute resolution days.
-4. Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal-metrics-report.ts .claude-code-hermit` and
+4. Run `bun <plugin_root>/scripts/proposal-metrics-report.ts .claude-code-hermit` and
    capture stdout. Skip gracefully if unavailable. (Steps 4 and 5 may run concurrently.)
-5. Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/cost-reflect.ts .claude-code-hermit 30` and capture
+5. Run `bun <plugin_root>/scripts/cost-reflect.ts .claude-code-hermit 30` and capture
    stdout. This produces a 30-day cost breakdown including a `### Cost by source` section. Skip
    gracefully if unavailable.
 6. `.claude-code-hermit/config.json` — read `routines[]` (id, schedule, enabled), `monitors[]`
@@ -30,10 +32,10 @@ Steps are independent — read files and run scripts concurrently where possible
 8. `.claude-code-hermit/sessions/S-NNN-REPORT.md` files for the last 30 days — read Artifacts and
    Changed sections plus `proposals_created` and `operator_turns` frontmatter. List filenames in
    `.claude-code-hermit/compiled/` created in the last 30 days.
-9. `.claude-code-hermit/OPERATOR.md` and `${CLAUDE_PLUGIN_ROOT}/state-templates/OPERATOR.md` —
+9. `.claude-code-hermit/OPERATOR.md` and `<plugin_root>/state-templates/OPERATOR.md` —
    read both.
 10. List dirs under `.claude/skills/` in the target project root and under
-    `${CLAUDE_PLUGIN_ROOT}/skills/`.
+    `<plugin_root>/skills/`.
 
 ## Analysis
 
@@ -62,7 +64,7 @@ and describe each in one line. Label: _inferred — no operator-used signal exis
 
 **Grown since hatch (approximated):** From step 9, diff `.claude-code-hermit/OPERATOR.md`
 against the template and note sections the operator added or meaningfully filled in. From step 10,
-list skill names present under `.claude/skills/` but absent from `${CLAUDE_PLUGIN_ROOT}/skills/`
+list skill names present under `.claude/skills/` but absent from `<plugin_root>/skills/`
 — those are organically created. Label: _approximated — no hatch baseline stored._
 
 ## Return Value
