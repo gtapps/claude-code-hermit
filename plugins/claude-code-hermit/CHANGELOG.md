@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- **hermit-routines: routines silently never registered (#395)** — `load` resolved pluginRoot via `echo $CLAUDE_PLUGIN_ROOT`, which is empty at Bash runtime in all modes, so the guard aborted load and no CronCreate was registered. Now derives pluginRoot from the skill's Base directory (mirrors the #394 hermit-evolve fix).
 - **cost-tracker: attribute dispatched-subagent tokens (#390)** — Agent tool_result usage (model-override routines, heartbeat, ad-hoc Task) was silently dropped; now emitted as a per-subagent cost-log line at its resolved model, attributed to the dispatching source. Cost totals will rise to reflect previously-invisible spend; cost-reflect folds subagent cost into the dispatching source row automatically.
 ### Changed
 
