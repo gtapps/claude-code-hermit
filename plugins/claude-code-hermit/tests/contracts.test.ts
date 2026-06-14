@@ -929,6 +929,28 @@ describe('stop payload snapshot', () => {
 });
 
 // ============================================================
+// hermit-routines plugin-root resolution contract (TestHermitRoutinesPluginRootContract)
+//
+// Guards against the `echo $CLAUDE_PLUGIN_ROOT` pattern being reintroduced.
+// That bare env-var form always returns empty at Bash runtime (in all modes),
+// causing load to abort and leaving all CronCreates unregistered. The
+// mode-independent fix derives pluginRoot from the skill's Base directory.
+// ============================================================
+
+describe('hermit-routines plugin-root resolution contract', () => {
+  const skillContent = read(path.join(SKILLS, 'hermit-routines', 'SKILL.md'));
+
+  test('SKILL.md derives pluginRoot from Base directory, not echo $CLAUDE_PLUGIN_ROOT', () => {
+    expect(skillContent).toContain('Base directory');
+    expect(skillContent).not.toContain('echo $CLAUDE_PLUGIN_ROOT');
+  });
+
+  test('SKILL.md documents that $CLAUDE_PLUGIN_ROOT is not a Bash env var at runtime', () => {
+    expect(skillContent).toContain('NOT a Bash env var at runtime');
+  });
+});
+
+// ============================================================
 // hermit-routines model contract (TestHermitRoutinesModelContract)
 //
 // Guards against the template change being reverted while the validator keeps
