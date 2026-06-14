@@ -18,6 +18,7 @@ const read = (...p: string[]) => fs.readFileSync(path.join(PLUGIN_ROOT, ...p), '
 
 const sessionClose = read('skills', 'session-close', 'SKILL.md');
 const reflect = read('skills', 'reflect', 'SKILL.md');
+const reflectRef = read('skills', 'reflect', 'reference.md');
 const judge = read('agents', 'reflection-judge.md');
 const hatch = read('skills', 'hatch', 'SKILL.md');
 const proposalCreate = read('skills', 'proposal-create', 'SKILL.md');
@@ -296,11 +297,11 @@ describe('success_signal push + same-area guard', () => {
   });
 
   test('reflect: same-area guard before pattern-absence resolution', () => {
-    expect(reflect).toContain('Same-area guard');
+    expect(reflectRef).toContain('Same-area guard');
   });
 
   test('reflect: same-area guard requires tag overlap', () => {
-    expect(reflect).toContain('share ≥1 tag');
+    expect(reflectRef).toContain('share ≥1 tag');
   });
 });
 

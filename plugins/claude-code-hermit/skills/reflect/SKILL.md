@@ -50,64 +50,44 @@ If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --qu
 
 5. Delegate the proposal scan to the built-in `Explore` subagent. Prompt: `List all .claude-code-hermit/proposals/PROP-*.md files. For each, extract id, status, title, source, created, accepted_date, related_sessions from YAML frontmatter (or **Status:**/**Title:** bullet fallback for pre-Observatory proposals). Return a compact JSON array — metadata only, no file bodies.` Also tail the last 100 lines of `state/proposal-metrics.jsonl` (inline, single read): count `responded` events by `action` (accept / defer / dismiss) and `micro-resolved` events by `action` (approved / rejected / expired) — both feed the operator-value self-check below. Also count `triage-verdict` events by `verdict` (CREATE / SUPPRESS / DUPLICATE) — feeds the Component Health triage check below.
 
-6. **Resolution Check** — check whether any accepted proposals can be marked resolved. **Cap: check up to 5 per reflect cycle, round-robin.**
+6. **Dispatch the eval runner.** Dispatch `claude-code-hermit:skill-eval-runner` pointed at `${CLAUDE_PLUGIN_ROOT}/skills/reflect/reference.md`. Include in the dispatch prompt:
+   - The precheck `phases-json` (from step 1).
+   - `last_resolution_check` cursor (read from `state/reflection-state.json`).
+   - `session_state` (read from `state/runtime.json`; controls whether the runner executes the routine check).
 
-   a. Read `state/reflection-state.json` → `last_resolution_check` (last PROP-NNN checked, or null if first run).
-   b. Read all proposals with `status: accepted`. Sort by `accepted_date` ascending. Resume from the proposal after `last_resolution_check`, wrapping around. Take up to 5.
-   c. If the accepted list from step b is empty, skip to step f.
-   d. For each proposal: read its `title`, `success_signal`, `accepted_in_session`, and Evidence section.
+   **Failure policy:** if the runner returns null or malformed JSON, fail-open — skip all apply steps in this step, carry forward empty `routine_candidates` and `procedure_candidates`, do not advance the cursor. Append `[HH:MM] reflect — analysis-runner failed; introspection-only` to the Progress Log and continue.
 
-      **If `success_signal` is non-null** — skip the 3-session Explore fetch and cadence computation; the predicate is the resolution test:
-      ```
-      bun ${CLAUDE_PLUGIN_ROOT}/scripts/eval-success-signal.ts .claude-code-hermit "<accepted_date>" "<accepted_in_session|null>" "<success_signal>"
-      ```
-      Parse the one JSON line printed to stdout. Branch on `verdict`:
-      - `INSUFFICIENT_DATA` → skip; revisit next cycle (the window hasn't filled yet).
-      - `MET` → **auto-resolve**:
-        - Update frontmatter: `status: resolved`, `resolved_date: <now ISO>`.
-        - Append a `resolved` event:
-          ```
-          bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"resolved","proposal_id":"PROP-NNN"}'
-          ```
-        - Note in SHELL.md Findings: `PROP-NNN resolved — success signal met: avg session cost $<observed> over <sessions_counted> sessions (target <op> $<threshold>).`
-      - `UNMET` → do **not** resolve. Surface once for operator judgment, debounced by the existing 7-day `last_sparse_nudge` guard:
-        - Check `state/reflection-state.json → last_sparse_nudge.<PROP-NNN>`. If present and fewer than 7 days have elapsed, skip.
-        - Otherwise, add to SHELL.md Findings: `PROP-NNN success signal NOT met: avg session cost $<observed> over <sessions_counted> sessions (target <op> $<threshold>). Run /claude-code-hermit:proposal-act resolve|dismiss PROP-NNN, or revise.`
-        - Record nudge: include `"last_sparse_nudge": {"<PROP-NNN>": "<now ISO>"}` in the State Update payload. The update script merges under `last_sparse_nudge`.
+**Eval runner return schema** — the runner's return value is a JSON object conforming to this block. The schema is byte-identical in `reference.md` (producer) and here (consumer); a contract test asserts this.
 
-      **If `success_signal` is null** — use the prose pattern-absence test below (existing behaviour).
+<!-- reflect-eval-schema:start -->
+```json
+{
+  "resolution_actions": [ { "proposal_id": "PROP-NNN", "action": "auto-resolve|nudge|skip",
+                            "frontmatter_patch": {"status":"resolved","resolved_date":"<ISO>"}|null,
+                            "metrics_event": "<JSON string for append-metrics>"|null,
+                            "shell_findings_line": "<pre-rendered finding text>"|null } ],
+  "routine_candidates": [ { "routine_id": "<id>", "action": "disable|retime|diagnostic",
+                            "tier": 1, "schedule": "<new-cron>"|null,
+                            "evidence": "<text>", "sessions": ["<S-NNN>"],
+                            "shell_findings_line": "<pre-rendered>"|null } ],
+  "procedure_candidates": [ { "slug": "<slug>", "title": "<title>", "tier": 3,
+                              "evidence_source": "archived-session", "evidence_origin": "own-work",
+                              "evidence": "<text>", "sessions": ["<S-NNN>"]|"none",
+                              "artifact": "<file — value>"|null } ],
+  "last_resolution_check": "PROP-NNN|null",
+  "last_sparse_nudge": { "PROP-NNN": "<ISO>" }
+}
+```
+<!-- reflect-eval-schema:end -->
 
-      Delegate the session fetch to the built-in `Explore` subagent. Prompt: `Glob .claude-code-hermit/sessions/S-*-REPORT.md. Sort descending by filename. Read the 3 most recent and return: filename, date from frontmatter, and the full body verbatim — do not truncate, summarize, or excerpt (full body is required for pattern presence/absence detection). If a body exceeds your read window, say so explicitly per file rather than silently trimming.` If Explore returns truncated bodies for any of the 3 files, fall back to reading those files inline with the Read tool before evaluating step e.
-   e. If the pattern is **absent** from all 3 checked sessions — apply the cadence-aware resolution rule:
+   **Apply `resolution_actions`** (housekeeping writes; exempt from the evidence integrity rule):
+   - `action == "auto-resolve"`: write `frontmatter_patch` fields to the proposal's YAML frontmatter; run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl '<metrics_event>'`; append `shell_findings_line` to SHELL.md `## Findings`.
+   - `action == "nudge"`: append `shell_findings_line` to SHELL.md `## Findings`. (Nudge debounce is handled inside the runner — `action: "nudge"` already passed the 7-day guard.)
+   - `action == "skip"`: no action.
 
-      **Same-area guard (absence must be meaningful):** before counting absence, establish work-area overlap — collect the proposal's `tags` plus the `tags:` frontmatter of its `related_sessions` reports into a tag pool; at least one of the 3 checked sessions must share ≥1 tag from that pool (fallback when the pool is empty: a proposal-title keyword match in a session body). If none of the 3 sessions overlaps, the absence is vacuous — the fix was never exercised because the work moved elsewhere. Skip and revisit next cycle (same handling as the elapsed-guard-not-met branch below): do not resolve, do not nudge.
+   Carry `routine_candidates`, `procedure_candidates`, `last_resolution_check`, and `last_sparse_nudge` forward to Evidence Validation and State Update below.
 
-      **Compute original cadence:**
-      - Read the proposal's `related_sessions` list from frontmatter.
-      - For each `S-NNN`, read `date:` from `sessions/S-NNN-REPORT.md` frontmatter.
-      - `original_cadence_days = max(date) - min(date)` in whole days. Single session → 0.
-      - If any session report is unreadable or `related_sessions` is empty → treat as **sparse** (conservative fallback).
-
-      **Frequent pattern** (`original_cadence_days ≤ 14`) — auto-resolve if ≥ 14 days have elapsed since `accepted_date`:
-      - Update frontmatter: `status: resolved`, `resolved_date: <now ISO>`.
-      - Append a `resolved` event:
-        ```
-        bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"resolved","proposal_id":"PROP-NNN"}'
-        ```
-      - Note in SHELL.md Findings: "PROP-NNN resolved — pattern absent from last 3 sessions."
-
-      **Sparse pattern** (`original_cadence_days > 14`) — never auto-resolve. Surface for operator confirmation if elapsed ≥ `2 × original_cadence_days` since `accepted_date`:
-      - Check `state/reflection-state.json → last_sparse_nudge.<PROP-NNN>`. If present and fewer than 7 days have elapsed since that date, skip (prevents daily re-nudge noise).
-      - Otherwise, add to SHELL.md Findings:
-        ```
-        PROP-NNN appears resolved (pattern absent 3/3 recent sessions, original cadence Nd, Xd since accept). Run /claude-code-hermit:proposal-act resolve PROP-NNN to confirm.
-        ```
-      - Record nudge: include `"last_sparse_nudge": {"<PROP-NNN>": "<now ISO>"}` in the State Update payload below. The update script merges under the top-level `last_sparse_nudge` key.
-
-      If the pattern is absent but the elapsed guard is not yet met (frequent: < 14d, sparse: < 2×cadence), skip and revisit next cycle.
-   f. Note the last PROP-NNN checked (or null if batch was empty). Include as `last_resolution_check` in the final state write in the State Update section below — do NOT write `reflection-state.json` here.
-
-Now reflect — think hard — using your memory and the context above:
+Now reflect — think hard — using **inherited context only** (this session's SHELL.md body from step 2, cost/token shape from step 3, proposal-metrics summary from step 5). The eval runner handled cross-session file analysis; do not re-read session reports or proposal bodies here. Signals available to think-hard:
 - Is anything recurring that shouldn't be?
 - Have you been working around something that deserves a real fix?
 - Is spending proportional to the work being done?
@@ -146,31 +126,7 @@ If `runtime.json` `session_state` is `idle` — think broader:
   ```
   When accepted via `proposal-act`, this JSON is parsed and added to `config.json` routines automatically.
 
-- Is a routine firing repeatedly with no visible downstream effect? Read the last 400 lines of `state/routine-metrics.jsonl` inline — count entries where `event == "fired"` and entries where `event == "started"` per `routine_id` where `ts` falls within the last 14 days (`routine-metrics.jsonl` uses `event`; `proposal-metrics.jsonl` uses `type`). Compute `errored = count(started) − count(fired)` per `routine_id`; if `errored >= 2`, surface a finding: *"routine `<id>` fired but errored before completion N× in the last 14 days — its output and cost are unattributed."* (Diagnostic only — an erroring routine should be investigated, not silenced. The threshold absorbs one in-flight run and window-boundary off-by-one.) Then delegate the session citation check to the built-in `Explore` subagent. Prompt: `Glob .claude-code-hermit/sessions/S-*-REPORT.md. Read the 3 most recent. Return which routine_ids appear in any session body.` If a routine has ≥5 fires in the last 14 days and no session report cites its `routine_id` or skill output as producing findings, decisions, or follow-ups — apply the Three-Condition Rule. If all three conditions hold:
-  - Propose `enabled: false` (disable) via a `Type: routine` proposal reusing the existing `id`. `proposal-act` upserts by `id`, so no delete path is needed.
-  - Or propose a changed `schedule` if the routine is valuable but mis-timed.
-  - Include the fire count + window in the proposal's Evidence section.
-  - Tier: `disable` → Tier 1 (micro-approval). Re-time → Tier 1. Both are fully reversible. Operators can clean up disabled entries any time via `/hermit-settings routines`.
-  ```markdown
-  ## Config
-  {"id":"weekly-deps","schedule":"0 9 * * 1","skill":"claude-code-hermit:session-start --task 'dependency audit'","enabled":false}
-  ```
-
-- Is a channel-delivering routine being ignored? For any routine with ≥10 fires in the last 14 days, check engagement via the channel-reply log:
-  1. Read last 200 lines of `state/channel-replies.jsonl` (skip silently if the file is absent or empty — this check requires data). Parse per-line with `try { JSON.parse(line) } catch {}`; collect `{ ts, channel }` for entries with `event == "reply"`. These are the hermit's outbound reply-tool calls — both routine deliveries and replies the hermit sent because the operator messaged in.
-  2. **Engagement join (delivery-anchored, same-channel window):** for each routine, sort its `fired` events by `ts`. For a fire at `T` (next fire at `T_next`, or the 14-day window boundary for the last fire):
-     - **Anchor on the routine's own delivery.** Routines deliver via the reply tool, so the routine's send is itself a reply event near `T`. Take the first reply event at or after `T` within a 10-minute delivery window as the delivery: its `channel` is the routine's delivery channel `C`, its `ts` is `T_deliver`. If no reply lands in that window, the routine produced no channel output for this fire (delivery failed or fell back to push) — count it as *not engaged* and move on. Anchoring on `T_deliver` rather than a fixed offset means the delivery reply is still the anchor even when the brief takes several minutes to render — it is never mistaken for an engagement reply.
-     - **Engaged** if at least one *further* reply on the same channel `C` has `ts` in `(T_deliver, T_next]`. Scoping to `C` avoids crediting the routine when the operator was active on an unrelated channel.
-     Engagement ratio = engaged_fires / total_fires.
-  3. **Cost join:** read last 200 lines of `cost-log.jsonl`. Sum `cost` for entries where `source` starts with `"routine:<id>"` and `ts` is within the 14-day window. Divide by 14 → `$/day` (approximate; model-override subagent costs are not attributed — note this when relevant).
-  4. **Proposal gate:** if engagement ratio ≤ 20% — apply the Three-Condition Rule. Meaningful consequence: operator incurs `~$X/day` for output that generates no reply within the engagement window. If all three conditions hold:
-     - Prefer re-time over disable if there is an obvious better time (e.g. routine fires at 06:00 but operator is active at 09:00+). Tier 1.
-     - Prefer disable if no better time is apparent. Tier 1.
-     - Evidence section must cite: `"~$X/day, R replies in N sends over 14 days"`.
-     ```markdown
-     ## Config
-     {"id":"morning-brief","schedule":"0 9 * * *","skill":"claude-code-hermit:brief --morning","enabled":true}
-     ```
+- Routine health and channel-engagement analysis run in the eval runner (step 6) and return as `routine_candidates`. Each entry is a disable/retime/diagnostic candidate; apply in Evidence Validation below alongside procedure and think-hard candidates.
 
 ## Component Health
 
@@ -207,11 +163,9 @@ Triage-survival < 25% or acceptance < 30% → disable procedure capture rather t
 
 **Detection — when to trigger:**
 
-Read two sources (reuse the `Explore` subagent fetch already used in the Resolution Check and Component Health steps — no new I/O pattern):
-1. Operator `MEMORY.md` index + topic files flagged as workflow patterns (same read path as `capability-brainstorm` step 1).
-2. `## Lessons` sections of the 3 most recent archived session reports.
+The eval runner (step 6) reads MEMORY.md and archived `## Lessons` sections and returns recurring procedures as `procedure_candidates`. Each entry already carries `slug`, `title`, `evidence`, `sessions`, `evidence_source`, and `evidence_origin`. Process each entry through the dedup guard and write-brief steps below.
 
-Recurrence signal: the same multi-step procedure appears as a Lesson or memory workflow-pattern in **≥2 distinct archived sessions** and no existing skill covers it.
+Recurrence signal (as evaluated by the runner): the same multi-step procedure appears as a Lesson or memory workflow-pattern in **≥2 distinct archived sessions** and no existing skill covers it.
 
 **Ephemerality exception:** a procedure observed only in the current session is eligible when (a) its artifacts are ephemeral — they live outside the repo and the hermit state dir (e.g. `/tmp` scripts) and will not survive the session — and (b) its cost is quantified in session content that already exists (wall-clock, rerun count, or script count in SHELL.md Progress Log / Findings; reflect must not write it there itself — § Evidence integrity rule). Such candidates use `Evidence Source: current-session` with `Sessions: current`, stay Tier 3, write the procedure brief as usual (the brief preserves the evidence before it vanishes), and route through `proposal-create` like any procedure-capture candidate. They count toward the kill-criteria sample above — the safety valve if this exception turns noisy.
 
@@ -277,7 +231,7 @@ If the pattern is only visible to reflect via inference (cost log, token counter
 
 ## Evidence Validation
 
-Before acting on any proposal candidate, delegate to `claude-code-hermit:reflection-judge`. Collect **all** candidates first, then make a **single** invocation — the judge returns one verdict line per candidate. A single candidate is still passed as a batch of one.
+Before acting on any proposal candidate, delegate to `claude-code-hermit:reflection-judge`. Collect **all** candidates first — including `routine_candidates` and `procedure_candidates` from step 6 alongside candidates from the think-hard block and procedure capture — then make a **single** invocation. Dedup by title-slug before passing to the judge (reflection-judge matches verdicts by title; duplicates would produce ambiguous routing). The judge returns one verdict line per candidate. A single candidate is still passed as a batch of one.
 
 Pass candidates as a sequence of blocks separated by a blank line:
 ```
@@ -323,6 +277,8 @@ After reflecting and validating with `claude-code-hermit:reflection-judge`, choo
    → classify tier (see Proposal Tier Classification below):
    - Tier 1/2: gate with `claude-code-hermit:proposal-triage` first (see below), then queue micro-approval in `state/micro-proposals.json`
    - Tier 3: gate with `claude-code-hermit:proposal-triage` first (see below), then call `/claude-code-hermit:proposal-create`
+
+   `routine_candidates` from the eval runner are Tier 1; any pre-rendered `shell_findings_line` (diagnostic entries) goes to SHELL.md `## Findings` directly — no judge/triage needed for diagnostics, only for disable/retime action candidates.
 
 Sub-threshold observations (interesting but failing the Three-Condition Rule — typically single-occurrence) do not surface to the operator in steady state. Append them to the observations ledger with a short stable pattern label: `bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/observations.jsonl '{"ts":"<now ISO>","pattern":"<short pattern label>","session_id":"<S-NNN>","source":"reflect"}'` — they graduate via the step 3b recurrence promotion (≥2 distinct sessions). Reuse the exact label when re-observing a known pattern; grouping is by string equality. Do not generate observations for their own sake, and do not surface them before they graduate.
 
@@ -405,7 +361,7 @@ For `judge_suppress_by_code`: count SUPPRESS verdicts from the judge grouped by 
 
 Include `"last_digest_at":"<now ISO>"` in the payload only when a juvenile digest fired in this run (see Outcomes → phase-aware surfacing). Omit otherwise — the script preserves the prior value.
 
-Include `"last_sparse_nudge":{"<PROP-NNN>":"<now ISO>"}` when a sparse-pattern nudge was emitted this run (step 4e). The script merges the provided map into the existing `last_sparse_nudge` top-level key. Omit if no sparse nudge was emitted — the script preserves the prior map.
+Include `"last_sparse_nudge":{"<PROP-NNN>":"<now ISO>"}` when a sparse-pattern nudge was emitted this run. Use the `last_sparse_nudge` map returned by the eval runner (step 6) if non-empty; otherwise omit. The script merges the provided map into the existing `last_sparse_nudge` top-level key.
 
 The script handles: counter increments, `last_reflection`/`last_run_at` timestamps, missing-counters fallback, `since` preservation, `last_digest_at` passthrough, `last_sparse_nudge` merge, `judge_suppress_by_code` accumulation, and atomic write. It always exits 0 — if the write fails it logs one line to stderr and continues. Counters are diagnostic, not audit-grade — a missed increment is acceptable.
 

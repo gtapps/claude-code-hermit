@@ -89,6 +89,14 @@ function agentFrontmatter(name: string): string {
   return parts[1];
 }
 
+function extractBlock(text: string, startSentinel: string, endSentinel: string): string {
+  const start = text.indexOf(startSentinel);
+  const end = text.indexOf(endSentinel, start);
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
+  return text.slice(start, end + endSentinel.length);
+}
+
 // ============================================================
 // Hook output tests (TestHookOutputs)
 // ============================================================
@@ -1023,15 +1031,60 @@ describe('hermit-evolve delegation contract', () => {
   test('report contract is identical in evolve-runner.md and SKILL.md', () => {
     // The report format is duplicated: the agent emits it, step 10 parses it.
     // Drift between the two copies would desync producer and consumer.
-    const block = (text: string): string => {
-      const start = text.indexOf('Upgrade: vOLD -> vNEW');
-      const end = text.indexOf('--- end ---', start);
-      expect(start).toBeGreaterThanOrEqual(0);
-      expect(end).toBeGreaterThan(start);
-      return text.slice(start, end + '--- end ---'.length);
-    };
+    const block = (text: string) => extractBlock(text, 'Upgrade: vOLD -> vNEW', '--- end ---');
     const agent = read(path.join(AGENTS, 'evolve-runner.md'));
     expect(block(agent)).toBe(block(skill));
+  });
+});
+
+// ============================================================
+// reflect delegation contract (TestReflectDelegationContract)
+//
+// reflect dispatches the cross-session file analysis (Resolution Check, routine
+// check, procedure detection) to skill-eval-runner, a shared read-only runner.
+// Guards against: losing the fully-qualified agent reference, skill-eval-runner
+// re-coupling to a single skill or hardcoding a hermit state path, the
+// no-memory and no-model-override invariants being dropped (non-gate agent), and
+// producer/consumer schema drift between reference.md and SKILL.md.
+// ============================================================
+
+describe('reflect delegation contract', () => {
+  const skill = read(path.join(SKILLS, 'reflect', 'SKILL.md'));
+  const refFile = read(path.join(SKILLS, 'reflect', 'reference.md'));
+
+  test('SKILL.md dispatches skill-eval-runner fully-qualified with reference.md', () => {
+    expect(skill).toContain('claude-code-hermit:skill-eval-runner');
+    expect(skill).toContain('skills/reflect/reference.md');
+  });
+
+  test('skill-eval-runner stays generic and reference-driven', () => {
+    // Shared runner: a downstream operator can't edit plugin source, so behavior
+    // must come from the dispatched reference.md, not from rules baked into the agent.
+    // Guard against re-coupling it to a single skill or hardcoding a state path.
+    const agent = read(path.join(AGENTS, 'skill-eval-runner.md'));
+    expect(agent).not.toContain('.claude-code-hermit/');
+    expect(agent.toLowerCase()).not.toContain('reflect');
+  });
+
+  test('skill-eval-runner declares no memory and no model override', () => {
+    // Non-gate agent; inherits the session model rather than pinning one.
+    const head = agentFrontmatter('skill-eval-runner');
+    expect(head).not.toContain('memory:');
+    expect(head).not.toContain('model:');
+  });
+
+  test('schema block is byte-identical in reference.md and SKILL.md', () => {
+    const block = (text: string) => extractBlock(text, '<!-- reflect-eval-schema:start -->', '<!-- reflect-eval-schema:end -->');
+    expect(block(refFile)).toBe(block(skill));
+  });
+
+  test('nudge write-back uses top-level last_sparse_nudge, not a per-entry field', () => {
+    // Producer and consumer must agree on the nudge-debounce write-back field.
+    // The runner returns nudge timestamps in the top-level `last_sparse_nudge` map;
+    // a stray per-entry `last_sparse_nudge_update` would never reach reflection-state.json.
+    expect(refFile).not.toContain('last_sparse_nudge_update');
+    expect(refFile).toContain('last_sparse_nudge');
+    expect(skill).toContain('last_sparse_nudge');
   });
 });
 
