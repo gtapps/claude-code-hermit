@@ -120,6 +120,8 @@ Your hermit reflects on its own memory — not archived reports. Reflection trig
 
 **Feedback loop:** When an accepted proposal's pattern stops recurring (based on memory), it auto-resolves. The heartbeat self-evaluates every 20 ticks — suggesting stale checks to remove and relevant ones to add.
 
+**Cost model:** Heartbeat EVALUATE runs in an isolated-context subagent (fresh ~40k context, not the main session's 200k–500k). It reads only files and needs none of the inherited conversational history. The main session applies the resulting writes and notifications. After a clean EVALUATE, the `clean_recheck_cooldown` (default `"6h"`) suppresses re-evaluation until a change-detecting gate (stale session, micro-proposal, pending-close, suppressed-digest) fires — reducing LLM wakes to ~3× per active-day for a healthy hermit.
+
 ### Daily rhythm
 
 If routines are configured (default after init or upgrade):

@@ -9,6 +9,17 @@
 
 - **min CC version: floor bumped to 2.1.172 (#389)** — nested-subagent dispatch (used by the shipped `daily-auto-close: haiku` default) requires it; on older versions the nested `session-mgr` call fails silently, preventing auto-close. Prerequisite docs updated.
 - **hermit-evolve: upgrades now run in an `evolve-runner` subagent** — keeps the upgrade's transient context (changelog, migrations, diffs) out of the calling session, cutting recurring token cost; only a compact report returns. Undecidable migration choices escalate back to the operator. Interactive evolve no longer prompts mid-flight for new settings or template-conflict choices — safe defaults applied, conflicts parked as `.new`; adjust via `/hermit-settings`.
+- **heartbeat: unreachable OK gate replaced by clean-recheck damper** — the per-item OK fast-path in `heartbeat-precheck.ts` was unreachable for any hermit with a checklist (clean items never produce alert entries, which the gate required). A `clean_recheck_cooldown` damper (default `"6h"`) now makes the clean path reachable: after a clean EVALUATE, subsequent ticks return OK directly until the cooldown expires. All change-detecting gates — stale session, micro-proposal, pending-close, suppressed-digest, 20-tick self-eval — bypass the damper. This reduces LLM wakes from every-tick to ~3 per active-day for a healthy hermit. Set `heartbeat.clean_recheck_cooldown: null` to revert to per-tick EVALUATE.
+
+### Changed
+
+- **heartbeat: EVALUATE runs in an isolated-context subagent** — the checklist evaluation is dispatched as a fresh-context Agent subagent instead of running inline in the main session. The eval reads only files and needs none of the inherited main-session context; moving it to isolated context significantly reduces per-wake token cost. The main session handles all writes (alert-state, SHELL.md Monitoring) and notifications after receiving the subagent's structured JSON result, keeping cost attribution and channel access on the main turn.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. Add `"clean_recheck_cooldown": "6h"` under `heartbeat` in `.claude-code-hermit/config.json`. If already present, skip. To disable the damper (revert to per-tick EVALUATE), set the value to `null`.
 
 ## [1.2.3] - 2026-06-13
 

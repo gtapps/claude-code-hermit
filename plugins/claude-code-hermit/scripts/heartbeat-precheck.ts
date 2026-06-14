@@ -6,7 +6,7 @@
 //
 // Owner contract (write-field split with SKILL.md):
 //   This script owns: alert-state.json total_ticks, last_stale_wake_at
-//   SKILL.md owns:    alert-state.json alerts{}, self_eval{}, last_digest_date
+//   SKILL.md owns:    alert-state.json alerts{}, self_eval{}, last_digest_date, last_clean_eval_at
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -184,9 +184,27 @@ if (sessionState === 'in_progress') {
 if (sessionState === 'waiting' && hbConfig.waiting_timeout) emit('EVALUATE');
 
 const alerts: Json = alertState.alerts ?? {};
-const hasSuppressed = Object.values(alerts).some((e: Json) => e?.suppressed === true);
+const alertValues = Object.values(alerts);
+const hasSuppressed = alertValues.some((e: Json) => e?.suppressed === true);
 const today = todayYMD(timezone);
 if (hasSuppressed && alertState.last_digest_date !== today) emit('EVALUATE');
+
+// Clean-recheck damper: suppress re-evaluation for clean_recheck_cooldown after a tick
+// concludes nothing actionable. Sits after all change-detecting gates so stale/micro-
+// proposal/suppressed-digest still pre-empt it. Active alerts (unsuppressed or resolving)
+// bypass the damper so a firing alert is never masked. `null` cooldown disables it.
+if (hbConfig.clean_recheck_cooldown !== null) {
+  const hasActiveFollowup = alertValues.some(
+    (e: Json) => e && (e.suppressed !== true || (e.consecutive_clean ?? 0) > 0));
+  const lastCleanEvalAt = typeof alertState.last_clean_eval_at === 'string'
+    ? new Date(alertState.last_clean_eval_at).getTime()
+    : NaN;
+  const cooldownMs = parseDuration(hbConfig.clean_recheck_cooldown, 6 * 3600000);
+  if (!hasActiveFollowup && !isNaN(lastCleanEvalAt) && lastCleanEvalAt <= now &&
+      (now - lastCleanEvalAt) < cooldownMs) {
+    emit('OK');
+  }
+}
 
 // OK fires only when every item in HEARTBEAT.md has a matching entry in alerts{}
 // that is suppressed (count > 5) and not approaching resolution (consecutive_clean === 0).

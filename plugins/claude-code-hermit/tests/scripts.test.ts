@@ -820,6 +820,115 @@ describe('heartbeat-precheck', () => {
   });
 });
 
+// heartbeat-precheck — clean-recheck damper
+// ----------------------------------------------------------
+function seedDamper(dir: string, opts: {
+  nowIso: string;
+  cleanAgoMs: number;
+  cooldown: string | null | undefined;
+  alerts?: Record<string, unknown>;
+}) {
+  const now = new Date(opts.nowIso).getTime();
+  const cleanAt = new Date(now - opts.cleanAgoMs).toISOString();
+  const cooldownPart = opts.cooldown === undefined ? '' :
+    `,"clean_recheck_cooldown":${opts.cooldown === null ? 'null' : `"${opts.cooldown}"`}`;
+  write(hermit(dir, 'config.json'),
+    `{"timezone":"UTC","heartbeat":{"active_hours":{"start":"00:00","end":"23:59"}${cooldownPart}}}`);
+  const alertsJson = JSON.stringify(opts.alerts ?? {});
+  write(hermit(dir, 'state', 'alert-state.json'),
+    `{"alerts":${alertsJson},"last_digest_date":null,"self_eval":{},"total_ticks":3,"last_clean_eval_at":"${cleanAt}"}`);
+  write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"idle"}');
+  write(hermit(dir, 'state', 'micro-proposals.json'), '{"pending":[]}');
+  write(hermit(dir, 'HEARTBEAT.md'), DEFAULT_CHECKLIST);
+}
+
+async function precheckWithNow(dir: string, nowIso: string, peek = false): Promise<string> {
+  const r = await runScript('heartbeat-precheck.ts', {
+    args: peek ? ['--peek', hermit(dir)] : [hermit(dir)],
+    env: { HERMIT_NOW: nowIso },
+  });
+  expect(r.exitCode).toBe(0);
+  return r.stdout.trimEnd();
+}
+
+const NOW_ISO = '2026-06-14T12:00:00.000Z';
+
+describe('heartbeat-precheck (damper: clean-recheck cooldown)', () => {
+  test('heartbeat-precheck (OK: last_clean_eval_at 1h ago, cooldown 6h)', withDir(async (dir) => {
+    seedDamper(dir, { nowIso: NOW_ISO, cleanAgoMs: 1 * 3600000, cooldown: '6h' });
+    expect(await precheckWithNow(dir, NOW_ISO)).toBe('OK');
+  }));
+
+  test('heartbeat-precheck (EVALUATE: last_clean_eval_at 7h ago, cooldown expired)', withDir(async (dir) => {
+    seedDamper(dir, { nowIso: NOW_ISO, cleanAgoMs: 7 * 3600000, cooldown: '6h' });
+    expect(await precheckWithNow(dir, NOW_ISO)).toBe('EVALUATE');
+  }));
+
+  test('heartbeat-precheck (EVALUATE: last_clean_eval_at absent)', withDir(async (dir) => {
+    write(hermit(dir, 'config.json'),
+      '{"timezone":"UTC","heartbeat":{"active_hours":{"start":"00:00","end":"23:59"},"clean_recheck_cooldown":"6h"}}');
+    write(hermit(dir, 'state', 'alert-state.json'),
+      '{"alerts":{},"last_digest_date":null,"self_eval":{},"total_ticks":3}');
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"idle"}');
+    write(hermit(dir, 'state', 'micro-proposals.json'), '{"pending":[]}');
+    write(hermit(dir, 'HEARTBEAT.md'), DEFAULT_CHECKLIST);
+    expect(await precheckWithNow(dir, NOW_ISO)).toBe('EVALUATE');
+  }));
+
+  test('heartbeat-precheck (EVALUATE: last_clean_eval_at future-dated, skew guard)', withDir(async (dir) => {
+    // cleanAgoMs negative → cleanAt is in the future relative to nowIso
+    seedDamper(dir, { nowIso: NOW_ISO, cleanAgoMs: -1 * 3600000, cooldown: '6h' });
+    expect(await precheckWithNow(dir, NOW_ISO)).toBe('EVALUATE');
+  }));
+
+  test('heartbeat-precheck (EVALUATE: clean_recheck_cooldown null disables damper)', withDir(async (dir) => {
+    seedDamper(dir, { nowIso: NOW_ISO, cleanAgoMs: 1 * 3600000, cooldown: null });
+    expect(await precheckWithNow(dir, NOW_ISO)).toBe('EVALUATE');
+  }));
+
+  test('heartbeat-precheck (OK: clean_recheck_cooldown absent defaults to 6h)', withDir(async (dir) => {
+    // absent key: parseDuration(undefined, 6h) falls back to 6h default → damper active
+    seedDamper(dir, { nowIso: NOW_ISO, cleanAgoMs: 1 * 3600000, cooldown: undefined });
+    expect(await precheckWithNow(dir, NOW_ISO)).toBe('OK');
+  }));
+
+  test('heartbeat-precheck (EVALUATE: active unsuppressed alert overrides damper)', withDir(async (dir) => {
+    seedDamper(dir, {
+      nowIso: NOW_ISO, cleanAgoMs: 1 * 3600000, cooldown: '6h',
+      alerts: { 'checklist:reviewpr': { count: 2, suppressed: false, consecutive_clean: 0 } },
+    });
+    expect(await precheckWithNow(dir, NOW_ISO)).toBe('EVALUATE');
+  }));
+
+  test('heartbeat-precheck (EVALUATE: resolving alert consecutive_clean > 0 overrides damper)', withDir(async (dir) => {
+    seedDamper(dir, {
+      nowIso: NOW_ISO, cleanAgoMs: 1 * 3600000, cooldown: '6h',
+      alerts: { 'checklist:reviewpr': { count: 6, suppressed: true, consecutive_clean: 1 } },
+    });
+    expect(await precheckWithNow(dir, NOW_ISO)).toBe('EVALUATE');
+  }));
+
+  // 21h. OK --peek — read-only, does not mutate total_ticks
+  describe('--peek with damper active', () => {
+    let wd: Workdir;
+    let peekOut = '';
+
+    beforeAll(async () => {
+      wd = setupWorkdir();
+      seedDamper(wd.dir, { nowIso: NOW_ISO, cleanAgoMs: 1 * 3600000, cooldown: '6h' });
+      peekOut = await precheckWithNow(wd.dir, NOW_ISO, true);
+    });
+    afterAll(() => wd.cleanup());
+
+    test('heartbeat-precheck --peek (damper OK verdict)', () => {
+      expect(peekOut).toBe('OK');
+    });
+    test('heartbeat-precheck --peek (damper: total_ticks not mutated)', () => {
+      expect(readJson(hermit(wd.dir, 'state', 'alert-state.json')).total_ticks).toBe(3);
+    });
+  });
+});
+
 // -------------------------------------------------------
 // heartbeat-monitor.sh — real-script tests (HEARTBEAT_MONITOR_ONCE=1)
 // -------------------------------------------------------

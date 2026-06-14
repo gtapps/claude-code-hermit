@@ -90,6 +90,7 @@ Manage with `/hermit-settings channels` (subcommands include `primary <name>` an
 | `active_hours.end` | string | `"23:00"` | End of active window. |
 | `stale_threshold` | string | `"2h"` | Alert if active session has no operator activity and no progress for this duration. |
 | `waiting_timeout` | string/null | `null` | Auto-transition from `waiting` to `idle` after this duration (e.g., `"4h"`). `null` = no timeout. |
+| `clean_recheck_cooldown` | string/null | `"6h"` | After a clean EVALUATE (nothing found), suppress re-evaluation for this window. Trades up to this much latency for surfacing a newly-arising condition in exchange for ~3× fewer LLM wakes/active-day. `null` disables (reverts to per-tick EVALUATE). All time-sensitive gates — stale session, micro-proposal, pending-close, suppressed-digest — bypass the damper. |
 
 > **Note:** The tick counter (`total_ticks`) lives in `state/alert-state.json`, not here. It is runtime state, not operator configuration.
 
@@ -335,7 +336,8 @@ A realistic `config.json` for an always-on Docker hermit with Discord:
       "end": "23:00"
     },
     "stale_threshold": "2h",
-    "waiting_timeout": "4h"
+    "waiting_timeout": "4h",
+    "clean_recheck_cooldown": "6h"
   },
   "quality_gate": {
     "tier": "budget"

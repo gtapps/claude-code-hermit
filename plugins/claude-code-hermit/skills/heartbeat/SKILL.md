@@ -35,18 +35,17 @@ This subcommand is the handler for `HEARTBEAT_EVALUATE` notifications emitted by
      3. Notify the operator per CLAUDE-APPEND.md § Operator Notification: "Auto-closed S-NNN."
      4. Emit `HEARTBEAT_AUTO_CLOSED`. Stop. Do NOT run the EVALUATE flow — the session is being archived; generating stale-session alerts for a closing session would create phantom dedup entries.
    - `EVALUATE` → continue to step 3.
-3. Read `${CLAUDE_PLUGIN_ROOT}/skills/heartbeat/reference.md` for the semantic key taxonomy, alert deduplication procedure, self-evaluation steps, and output format.
-4. Read `.claude-code-hermit/HEARTBEAT.md`, `config.json`, `state/runtime.json`, `.claude-code-hermit/sessions/SHELL.md`. **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**
-5. **Stale session check.** If `session_state` is `waiting`: skip. If `in_progress`:
-   - Read the last `## Progress Log` entry timestamp from SHELL.md. Use session start time if none.
-   - If elapsed > `heartbeat.stale_threshold` (default `"2h"`): generate alert with key `stale-session`.
-6. **Waiting timeout check.** If `session_state` is `waiting` and `heartbeat.waiting_timeout` is set:
-   - If elapsed > `waiting_timeout` with no channel activity: update `runtime.json` `session_state` to `idle`, notify the operator.
-7. Evaluate each checklist item against available information. Generate alerts with semantic keys (taxonomy in reference.md).
-8. Determine if anything needs operator attention.
-9. Apply alert deduplication and write `state/alert-state.json` (procedure in reference.md).
-   **Do NOT write `total_ticks` — it was already incremented by the precheck.**
-10. If `total_ticks % 20 === 0` (read from updated `state/alert-state.json`): run self-evaluation (procedure in reference.md).
+3. **Waiting-timeout check** (main session, pre-dispatch). Read `state/runtime.json`. If `session_state === 'waiting'` and `heartbeat.waiting_timeout` is set (not null) in config: compute elapsed since `waiting_since` in runtime.json. If `waiting_since` is absent, skip the timeout check. If elapsed > `waiting_timeout`: write `runtime.json` `session_state: idle`, clear `waiting_reason`, notify the operator (`Waiting timeout reached after {waiting_timeout} — session returning to idle.`). Continue to step 4.
+4. **Dispatch an isolated-context Agent subagent** to run the report-only evaluation as specified in `reference.md` and return structured results. This runs the evaluation in a fresh ~40k context instead of the main session's 200k–500k inherited context — the eval reads only files and needs none of that history. Instructions for the subagent:
+   > Read `${CLAUDE_PLUGIN_ROOT}/skills/heartbeat/reference.md` for the complete evaluation instructions. Execute the evaluation steps in that file against `.claude-code-hermit/` in the current project directory, using the file paths described there. Return a JSON object (no prose): `{"resolved_keys": [...], "new_entries": {...}, "updated_entries": {...}, "last_clean_eval_at": "<ISO or null>", "self_eval_updates": {...}, "shell_monitoring_lines": [...], "operator_message": "<string or null>", "heartbeat_result": "OK"|"ALERT"}`. Do NOT write any files or send any notifications — the calling session handles all writes and notifications. Follow the reference.md write instructions to populate the return value instead.
+
+   Receive the structured JSON back from the subagent.
+5. **Apply writes** in the main session (to preserve cost attribution and channel/file access):
+   - Write `state/alert-state.json`: merge `new_entries` and `updated_entries` into `alerts{}`, apply `resolved_keys` deletions, set `last_clean_eval_at` from the subagent result, merge `self_eval_updates` into `self_eval{}`. **Do NOT write `total_ticks`** — already incremented by the precheck.
+   - If `shell_monitoring_lines` is non-empty: append each line to SHELL.md `## Monitoring`.
+   - If `operator_message` is non-null: notify the operator (per CLAUDE-APPEND.md § Operator Notification).
+   - For each entry in `self_eval_updates` with a `proposal_args` field: invoke `/claude-code-hermit:proposal-create` with those args.
+6. Respond with `HEARTBEAT_OK` or `HEARTBEAT_ALERT` per `heartbeat_result`.
 
 ### start
 
