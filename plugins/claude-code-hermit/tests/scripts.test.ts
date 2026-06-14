@@ -825,14 +825,15 @@ describe('heartbeat-precheck', () => {
 function seedDamper(dir: string, opts: {
   nowIso: string;
   cleanAgoMs: number;
-  cooldown: string | null;
+  cooldown: string | null | undefined;
   alerts?: Record<string, unknown>;
 }) {
   const now = new Date(opts.nowIso).getTime();
   const cleanAt = new Date(now - opts.cleanAgoMs).toISOString();
-  const cooldownStr = opts.cooldown === null ? 'null' : `"${opts.cooldown}"`;
+  const cooldownPart = opts.cooldown === undefined ? '' :
+    `,"clean_recheck_cooldown":${opts.cooldown === null ? 'null' : `"${opts.cooldown}"`}`;
   write(hermit(dir, 'config.json'),
-    `{"timezone":"UTC","heartbeat":{"active_hours":{"start":"00:00","end":"23:59"},"clean_recheck_cooldown":${cooldownStr}}}`);
+    `{"timezone":"UTC","heartbeat":{"active_hours":{"start":"00:00","end":"23:59"}${cooldownPart}}}`);
   const alertsJson = JSON.stringify(opts.alerts ?? {});
   write(hermit(dir, 'state', 'alert-state.json'),
     `{"alerts":${alertsJson},"last_digest_date":null,"self_eval":{},"total_ticks":3,"last_clean_eval_at":"${cleanAt}"}`);
@@ -883,6 +884,12 @@ describe('heartbeat-precheck (damper: clean-recheck cooldown)', () => {
   test('heartbeat-precheck (EVALUATE: clean_recheck_cooldown null disables damper)', withDir(async (dir) => {
     seedDamper(dir, { nowIso: NOW_ISO, cleanAgoMs: 1 * 3600000, cooldown: null });
     expect(await precheckWithNow(dir, NOW_ISO)).toBe('EVALUATE');
+  }));
+
+  test('heartbeat-precheck (OK: clean_recheck_cooldown absent defaults to 6h)', withDir(async (dir) => {
+    // absent key: parseDuration(undefined, 6h) falls back to 6h default → damper active
+    seedDamper(dir, { nowIso: NOW_ISO, cleanAgoMs: 1 * 3600000, cooldown: undefined });
+    expect(await precheckWithNow(dir, NOW_ISO)).toBe('OK');
   }));
 
   test('heartbeat-precheck (EVALUATE: active unsuppressed alert overrides damper)', withDir(async (dir) => {

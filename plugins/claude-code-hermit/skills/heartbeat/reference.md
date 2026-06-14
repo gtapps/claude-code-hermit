@@ -12,7 +12,7 @@ This file is read only on the EVALUATE path, once the precheck determines a full
 
 **1. Read inputs fresh** — do not reuse values cached from prior reads in this session.
 - `.claude-code-hermit/HEARTBEAT.md` — the checklist items
-- `.claude-code-hermit/config.json` — for `heartbeat.stale_threshold` (default `"8h"`)
+- `.claude-code-hermit/config.json` — for `heartbeat.stale_threshold` (default `"2h"`)
 - `.claude-code-hermit/state/runtime.json` — for `session_state`, `session_id`
 - `.claude-code-hermit/state/alert-state.json` — for `alerts{}`, `self_eval{}`, `total_ticks`, `last_digest_date`
 - `.claude-code-hermit/state/micro-proposals.json` — for pending micro-proposals
@@ -20,7 +20,7 @@ This file is read only on the EVALUATE path, once the precheck determines a full
 
 **2. Stale-session check.** If `session_state === 'in_progress'` in `runtime.json`:
 - Find the most recent `[HH:MM]` timestamp in SHELL.md `## Progress Log`.
-- Parse `heartbeat.stale_threshold` from config (default `"8h"`). Compute elapsed since that timestamp (current wall-clock time minus parsed timestamp).
+- Parse `heartbeat.stale_threshold` from config (default `"2h"`). Compute elapsed since that timestamp (current wall-clock time minus parsed timestamp).
 - If elapsed > stale_threshold: add `stale-session` to the firing-alert set (key: `stale-session`).
 
 **3. Per-item evaluation.** For each item in HEARTBEAT.md:
