@@ -13,7 +13,7 @@ populate the corresponding field in the return JSON instead — the main session
 - `.claude-code-hermit/sessions/S-*-REPORT.md` — 3 most recent (read full bodies)
 - `.claude-code-hermit/state/routine-metrics.jsonl` — last 400 lines (routine check)
 - `.claude-code-hermit/state/channel-replies.jsonl` — last 200 lines (engagement check; skip if absent)
-- `.claude-code-hermit/.claude/cost-log.jsonl` — last 200 lines (cost join; resolve path relative to the project root, not `.claude-code-hermit/`)
+- `.claude/cost-log.jsonl` — last 200 lines (cost join; project root, sibling of `.claude-code-hermit/` — not nested under it)
 - `MEMORY.md` — operator's auto-memory index (procedure detection)
 
 The calling skill passes `phases_json` (the precheck output object listing which phases are due) and
@@ -55,8 +55,7 @@ Run this step only if `resolution_check` is listed in `phases_json`.
        "action": "nudge",
        "frontmatter_patch": null,
        "metrics_event": null,
-       "shell_findings_line": "PROP-NNN success signal NOT met: avg session cost $<observed> over <sessions_counted> sessions (target <op> $<threshold>). Run /claude-code-hermit:proposal-act resolve|dismiss PROP-NNN, or revise.",
-       "last_sparse_nudge_update": { "PROP-NNN": "<now ISO>" } }
+       "shell_findings_line": "PROP-NNN success signal NOT met: avg session cost $<observed> over <sessions_counted> sessions (target <op> $<threshold>). Run /claude-code-hermit:proposal-act resolve|dismiss PROP-NNN, or revise." }
      ```
 
    **If `success_signal` is null** — use the prose pattern-absence test:
@@ -88,6 +87,13 @@ Run this step only if `resolution_check` is listed in `phases_json`.
 
 **d.** Set `last_resolution_check` in the return value to the last PROP-NNN checked (or null if the
    batch was empty).
+
+**e.** Set the top-level `last_sparse_nudge` return field to the union of every proposal nudged this
+   run: for each `resolution_actions` entry with `action: "nudge"` (both the UNMET and sparse-pattern
+   branches above), add `{ "PROP-NNN": "<now ISO>" }`. Emit `{}` if no proposal was nudged. This
+   top-level map is the only nudge write-back — the calling session merges it into `reflection-state.json`
+   to honour the 7-day debounce. Do not return nudge timestamps inside the individual `resolution_actions`
+   entries; only the top-level map is read.
 
 ## Step 2 — Routine Check
 
