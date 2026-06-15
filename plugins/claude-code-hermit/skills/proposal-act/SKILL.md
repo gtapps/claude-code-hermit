@@ -104,7 +104,7 @@ When the operator accepts a proposal:
         - Yes: append `[HH:MM] switched to PROP-NNN: <title> (prior task: <prior task>)` to SHELL.md `## Progress Log`; overwrite SHELL.md `Task:` field with "Implement PROP-NNN: <title>"; `runtime.json session_state` stays `in_progress`. Proceed to (e).
         - No: fall back to "Create a session task" below.
      d. **Waiting:** fall back to "Create a session task" without asking, then notify: "PROP-NNN queued. Session is currently waiting."
-     e. Implement the proposal. If the body contains `## Skill Improvement`, use `/skill-creator:skill-creator` for the implementation (run in main — subagents cannot invoke skills). If the body contains `## Skill Draft`, follow the procedure-capture install flow below. Otherwise, dispatch implementation to the native `general-purpose` agent:
+     e. Implement the proposal. If the body contains `## Skill Improvement` and `skill-creator:skill-creator` is in the available-skills list, use `/skill-creator:skill-creator` for the implementation. If the body contains `## Skill Draft`, follow the procedure-capture install flow below. Otherwise, dispatch implementation to the native `general-purpose` agent (this includes `## Skill Improvement` proposals when skill-creator is absent):
 
         **Dispatch (PROCEED + no skill marker):**
         Invoke `general-purpose` via the Agent tool with this prompt (fill in the bracketed value):
