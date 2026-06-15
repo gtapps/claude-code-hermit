@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **proposal-act: dispatch step (e) implementation to a general-purpose subagent (#402)** — keeps multi-file implementation noise out of the always-on main session; only a compact structured report (status, touched files, tests run, escalation) returns. e.5 quality gate, e.6 verification, and resolve stay in main. Skill-authoring (`## Skill Improvement`, `## Skill Draft`) and routine proposals are unaffected.
+
 ## [1.2.4] - 2026-06-14
 
 ### Fixed

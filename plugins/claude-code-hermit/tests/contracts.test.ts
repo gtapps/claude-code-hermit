@@ -1419,3 +1419,52 @@ describe('reference.md plugin-root contract', () => {
     });
   }
 });
+
+// ============================================================
+// proposal-act dispatch contract (TestProposalActDispatchContract)
+//
+// Step (e) dispatches implementation to general-purpose when the falsification
+// gate returned PROCEED and the body has no skill marker. The dispatch prompt is
+// the contract — guard its key invariants so they can't silently drift.
+// ============================================================
+
+describe('proposal-act dispatch contract', () => {
+  const skill = read(path.join(SKILLS, 'proposal-act', 'SKILL.md'));
+
+  test('step (e) gates dispatch on PROCEED and absence of skill markers', () => {
+    // missing → skill-authoring or routine proposals would be incorrectly dispatched
+    expect(skill).toContain('PROCEED + no skill marker');
+    expect(skill).toContain('## Skill Draft');
+    expect(skill).toContain('## Skill Improvement');
+  });
+
+  test('dispatch prompt instructs escalate-don\'t-guess (cannot prompt the operator)', () => {
+    // missing → subagent guesses on ambiguous/destructive choices instead of escalating
+    expect(skill).toContain('You cannot prompt the operator');
+    expect(skill).toContain('stop and return an escalation block');
+  });
+
+  test('dispatch prompt defines the four-field structured return shape', () => {
+    // missing → e.5 touched-files source and escalation relay are undefined
+    expect(skill).toContain('Status: implemented | escalated | blocked:');
+    expect(skill).toContain('Touched files:');
+    expect(skill).toContain('Tests run:');
+    expect(skill).toContain('Deferred for operator:');
+  });
+
+  test('e.5 sources touched-files from the subagent return when dispatched', () => {
+    // missing → simplify focus loses precision after dispatch; falls back to git diff silently
+    expect(skill).toContain('from the subagent\'s return');
+  });
+
+  test('e.6 re-dispatch path is documented for verification failures', () => {
+    // missing → a verification failure after dispatch has no defined recovery path
+    expect(skill).toContain('e.6 re-dispatch');
+  });
+
+  test('escalation handling branches on interactive vs autonomous mode', () => {
+    // missing → escalated results silently discarded in autonomous mode
+    expect(skill).toContain('Interactive mode');
+    expect(skill).toContain('Autonomous mode');
+  });
+});

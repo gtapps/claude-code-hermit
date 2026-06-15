@@ -104,7 +104,32 @@ When the operator accepts a proposal:
         - Yes: append `[HH:MM] switched to PROP-NNN: <title> (prior task: <prior task>)` to SHELL.md `## Progress Log`; overwrite SHELL.md `Task:` field with "Implement PROP-NNN: <title>"; `runtime.json session_state` stays `in_progress`. Proceed to (e).
         - No: fall back to "Create a session task" below.
      d. **Waiting:** fall back to "Create a session task" without asking, then notify: "PROP-NNN queued. Session is currently waiting."
-     e. Read the proposal body and execute the Proposed Solution as the active task. If the body contains `## Skill Improvement`, use `/skill-creator:skill-creator` for the implementation. If the body contains `## Skill Draft`, follow the procedure-capture install flow below. If the body is vague, ask the operator for clarification before proceeding — unless the falsification gate already returned `PROCEED` with a file list, in which case actionability is confirmed and this check is skipped.
+     e. Implement the proposal. If the body contains `## Skill Improvement`, use `/skill-creator:skill-creator` for the implementation (run in main — subagents cannot invoke skills). If the body contains `## Skill Draft`, follow the procedure-capture install flow below. Otherwise, dispatch implementation to the native `general-purpose` agent:
+
+        **Dispatch (PROCEED + no skill marker):**
+        Invoke `general-purpose` via the Agent tool with this prompt (fill in the bracketed value):
+
+        > Implement the accepted proposal at `<absolute path to PROP-NNN-*.md>`.
+        >
+        > Read the proposal file. The `## Operator Decision` section contains a `PROCEED` line from the falsification gate with the authoritative file list — use that list as your scope (over any files mentioned in the proposal body).
+        >
+        > Do the edits and any test/fix loops yourself. You may spawn a nested Explore subagent if the proposal warrants a search. You cannot prompt the operator — if you encounter an ambiguous spec or an undecidable/destructive choice, **stop and return an escalation block** in your final message rather than guessing.
+        >
+        > Return exactly this structure as your final message (nothing else):
+        > ```
+        > Status: implemented | escalated | blocked: <reason>
+        > Touched files: <relative paths, space-separated | none>
+        > Tests run: <commands + pass/fail summary | none>
+        > Deferred for operator: <none | what was ambiguous and what safe no-op was taken>
+        > ```
+
+        After the subagent returns:
+        - `Status: implemented` → continue to e.5, passing the returned **Touched files** as the `/simplify` focus scope.
+        - `Status: escalated` or `Status: blocked:` → do **not** resolve. Interactive mode: surface the Deferred-for-operator block to the operator. Autonomous mode: notify via channel. Proposal status stays `accepted`.
+
+        **e.6 re-dispatch:** if a defined `## Verification` step fails after a dispatched implementation, re-dispatch to `general-purpose` once with the failure output appended to the original prompt; if it fails again, surface to the operator (interactive) or channel (autonomous) and do not resolve.
+
+        If the body is vague and the falsification gate did not return `PROCEED`, ask the operator for clarification before proceeding.
 
      **Procedure-capture install flow (when body contains `## Skill Draft`):**
      1. Parse `name`, `source_artifact`, `install_target`, and `triggers` from the `## Skill Draft` block.
@@ -124,7 +149,7 @@ When the operator accepts a proposal:
          | `tier` is `"budget"` / `"balanced"` / `"quality"` | use as-is |
          | `tier` missing, `quality_gate` missing, or value not in enum | `budget` (log one-line warning to SHELL.md Findings) |
 
-         Build a touched-files list from the writes you made during step (e) if you can reliably enumerate them. This is the precise scope for `/claude-code-hermit:simplify` and for the judge. If you can't recall the list (multi-turn work, sub-agent delegation), omit it; downstream falls back to `git diff --name-only HEAD`.
+         Build a touched-files list for step (e): when step (e) was dispatched to `general-purpose`, use the **Touched files** from the subagent's return. For in-main implementations, enumerate the writes made during step (e). This is the precise scope for `/claude-code-hermit:simplify` and for the judge. If the list is unavailable (multi-turn work, subagent returned `none`), omit it; downstream falls back to `git diff --name-only HEAD`.
 
          Branch on the resolved tier:
 
