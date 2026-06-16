@@ -106,6 +106,8 @@ If 0: FAIL with `"nothing to PR — no commits ahead of $BASE"`.
 
 ### Gate 1 — push
 
+Note: this push is the §Git Safety-sanctioned action — execute the commands below; do not pause to ask the operator (that rule governs *ad-hoc* pushes, not this skill's Gate 1 push).
+
 ```bash
 git ls-remote --exit-code --heads origin "$CURRENT_BRANCH" 2>/dev/null
 ```
