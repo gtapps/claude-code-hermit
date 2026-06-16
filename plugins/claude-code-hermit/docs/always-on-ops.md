@@ -105,7 +105,7 @@ Default: idle transition when work finishes. Waiting when blocked on operator in
   Morning: brief + priority check. Evening: daily journal.
 ```
 
-**Hooks fire throughout the session:** `cost-tracker.ts` (costs), `suggest-compact.ts` (context warnings), `session-diff.ts` (changed files), and `evaluate-session.ts` (quality nudges) run on every assistant turn (Stop). At the strict profile, `enforce-deny-patterns.ts` blocks banned commands before execution (PreToolUse), and `channel-hook.ts` + `heartbeat-touch.js` run on tool use (PostToolUse).
+**Hooks fire throughout the session:** `cost-tracker.ts` (costs), `suggest-compact.ts` (context warnings), `session-diff.ts` (changed files), and `evaluate-session.ts` (quality nudges) run on every assistant turn (Stop). At the strict profile, `enforce-deny-patterns.ts` blocks banned commands before execution (PreToolUse), and `channel-hook.ts` + `heartbeat-touch.ts` run on tool use (PostToolUse).
 
 ### When learning fires
 
@@ -177,7 +177,7 @@ Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect 
 
 ### How it works
 
-`hermit-start.py` auto-sends `/claude-code-hermit:hermit-routines load` after launching the always-on session. The skill:
+`hermit-start.ts` auto-sends `/claude-code-hermit:hermit-routines load` after launching the always-on session. The skill:
 
 1. Resolves `$CLAUDE_PLUGIN_ROOT` and reads `config.timezone`
 2. Calls `CronList`, `CronDelete`s every `[hermit-routine:*]` entry — clears stale registrations and resets the 7-day expiry clock

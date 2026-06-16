@@ -189,7 +189,7 @@ This means even a raw `docker compose down` (without `hermit-docker down`) will 
 
 Heartbeat archives the current session via two triggers:
 
-- **12h inactivity** — `heartbeat-precheck.js` checks `last-operator-action.json` on each tick. If the operator has not acted for >12h, it returns the `AUTO_CLOSE` verdict.
+- **12h inactivity** — `heartbeat-precheck.ts` checks `last-operator-action.json` on each tick. If the operator has not acted for >12h, it returns the `AUTO_CLOSE` verdict.
 - **Daily midnight with lull** — the `daily-auto-close` routine fires at `0 0 * * *` (local). If the operator is currently active (last action ≤10 min), the routine writes `state/pending-close.json`. The next heartbeat tick where the operator has been idle >10 min drains the flag and emits `AUTO_CLOSE`. If the operator was already idle when the routine fired, it closes directly without queueing.
 
 On either trigger:

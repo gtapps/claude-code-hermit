@@ -79,10 +79,14 @@ SHELL.md tasks,  status,   S-NNN-REPORT.md,
 
 ## Layer 3: Agent Layer
 
-| Agent           | Model  | Max Turns | Role                                            |
-| --------------- | ------ | --------- | ----------------------------------------------- |
-| `session-mgr`   | Sonnet | 15        | Session lifecycle, progress tracking            |
-| `evolve-runner` | Sonnet | 50        | Runs the hermit-evolve upgrade in isolation     |
+| Agent                    | Model  | Max Turns | Role                                                                              |
+| ------------------------ | ------ | --------- | --------------------------------------------------------------------------------- |
+| `session-mgr`            | Sonnet | 15        | Session lifecycle, progress tracking                                              |
+| `evolve-runner`          | Sonnet | 50        | Runs the hermit-evolve upgrade in isolation                                       |
+| `proposal-triage`        | Haiku  | —         | Pre-creation gate: deduplicates proposals, applies three-condition rule           |
+| `reflection-judge`       | Sonnet | —         | Post-reflect validator: verifies cross-session evidence citations before queuing  |
+| `hermit-config-validator`| Haiku  | —         | Lightweight config.json validator: keys, types, routine times, channel structure  |
+| `quality-gate-judge`     | Haiku  | —         | Decides whether `/simplify` runs at step e.5 of the proposal-act accept flow     |
 
 Tools: Read, Write, Edit, Bash, Glob, Grep. No web access. Uses `memory: project` for accumulated knowledge across sessions.
 
@@ -156,7 +160,7 @@ your-project/
 │   │   └── .lifecycle.lock           # Always-on lifecycle lock (hermit-start-owned)
 │   ├── bin/hermit-start, hermit-stop
 │   ├── config.json
-│   ├── OPERATOR.md
+│   ├── OPERATOR.md           # Human-curated context — never edit autonomously; always confirm changes
 │   └── HEARTBEAT.md
 └── CLAUDE.md (session discipline appended)
 ```
@@ -172,9 +176,9 @@ One writer per state file. No shared mutation bus.
 | `state/runtime.json`           | session-mgr + cost-tracker                          | heartbeat, session-start, /hermit-routines (rdw=false suppression)   |
 | `state/alert-state.json`       | heartbeat only                                      | heartbeat; evaluate-session (read-only nudge computation)     |
 | `state/reflection-state.json`  | reflect + session (non-overlapping phases)          | heartbeat (debounce), hermit-settings (scheduled-checks display) |
-| `state/channel-activity.json`  | channel-hook.js only                                | channel-responder, heartbeat                                  |
-| `state/channel-replies.jsonl`  | channel-hook.js (append only)                       | reflect (routine-ROI engagement join)                         |
-| `state/session-diff.json`      | session-diff.js only                                | session-close (display)                                       |
+| `state/channel-activity.json`  | channel-hook.ts only                                | channel-responder, heartbeat                                  |
+| `state/channel-replies.jsonl`  | channel-hook.ts (append only)                       | reflect (routine-ROI engagement join)                         |
+| `state/session-diff.json`      | session-diff.ts only                                | session-close (display)                                       |
 | `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only)        | generate-summary.ts, proposal-metrics-report.ts (read-only)   |
 | `state/micro-proposals.json`   | reflect (queue) + channel-responder/brief (resolve) | brief, generate-summary.ts                                    |
 | `state/state-summary.md`       | generate-summary.ts only                            | humans                                                        |
@@ -182,8 +186,8 @@ One writer per state file. No shared mutation bus.
 | `state/heartbeat-monitor.runtime.json` | heartbeat skill only                        | heartbeat-start (write), heartbeat-stop (clear), heartbeat-restart (rewrite) |
 | `state/heartbeat-liveness.json` | heartbeat-monitor.sh (every poll iteration)         | doctor-check.ts (heartbeat liveness check), heartbeat status  |
 | `state/cc-stop-snapshot.json`  | stop-pipeline.ts only                               | doctor-check.ts (scheduler/background-task health check)      |
-| `state/.heartbeat`             | heartbeat-touch.js only                             | heartbeat (detect activity gaps)                              |
-| `state/.lifecycle.lock`        | hermit-start.py only                                | hermit-stop.py (cleanup)                                      |
+| `state/.heartbeat`             | heartbeat-touch.ts only                             | heartbeat (detect activity gaps)                              |
+| `state/.lifecycle.lock`        | hermit-start.ts only                                | hermit-stop.ts (cleanup)                                      |
 | `state/cost-index.json`        | cost-tracker.ts only                                | cost-tracker.ts (writeCostSummary, getCumulativeCost fallback), doctor-check.ts |
 | `state/watchdog-state.json`    | hermit-watchdog.ts only                             | doctor-check.ts (`last_run` liveness + consecutive_stale)     |
 | `state/watchdog-events.jsonl`  | hermit-watchdog.ts only (append)                    | doctor-check.ts (event counts), session-start (restart reason)|
@@ -298,6 +302,17 @@ Evening routine (configurable time, default: active hours end - 30m): daily jour
 
 Both are managed by `/claude-code-hermit:hermit-routines` (per-session CronCreate registrations). Fire at exact cron times. CronCreate is idle-gated: routines that come due during `in_progress` are deferred until the REPL is between turns — never dropped, never interrupting mid-task. A daily 4am `heartbeat-restart` routine re-runs `/claude-code-hermit:hermit-routines load` to re-arm the routine CronCreates (7-day expiry) and re-register the heartbeat Monitor.
 
+### Scheduling ownership boundaries
+
+Four mechanisms handle background work — each owns a distinct axis:
+
+- **hermit-routines** — the only place for time-based semantic work (reflect, scheduled-checks, weekly-review, daily-auto-close). Implemented as idle-gated `CronCreate` registrations; each cron fire wakes the model for a scheduled task turn.
+- **heartbeat** — health/checklist/idle-wake gate only. Polls via `--peek` in a bash subprocess (zero model cost when quiet); wakes the model only on `EVALUATE` or `AUTO_CLOSE` verdicts. Must not be merged into routines — doing so would lose the zero-token quiet path because `CronCreate` fires unconditionally on every tick with no precheck filter.
+- **watch** — session-scoped external event streams via the `Monitor` tool. Dies with the session; not a scheduler.
+- **watchdog** — out-of-session process recovery (restart, wedge-nudge, re-arm). `post_close_clear` and `context_clear_tokens` run on every scheduler tick **independent of `watchdog.enabled`**; they are scheduler-owned context-hygiene co-located in the watchdog script, not watchdog features. Setting `enabled: false` disables restart/nudge only.
+
+New periodic semantic work belongs in hermit-routines. Heartbeat, watchdog, and watch must not become general schedulers.
+
 ---
 
 ## What You Give Up / What You Gain
@@ -313,14 +328,14 @@ Both are managed by `/claude-code-hermit:hermit-routines` (per-session CronCreat
 ### Environment Variable Flow
 
 ```
-config.json "env"  →  hermit-start.py  →  .claude/settings.local.json "env"  →  Claude Code  →  hooks, Bash tool calls
+config.json "env"  →  hermit-start.ts  →  .claude/settings.local.json "env"  →  Claude Code  →  hooks, Bash tool calls
                    →  shell env (tmux temp file / Docker environment:)  →  MCP servers
 ```
 
 1. Operator configures env vars in `config.json` `env` (or via `/hermit-settings env`)
-2. `hermit-start.py` writes all `config["env"]` values into `.claude/settings.local.json` `env`
+2. `hermit-start.ts` writes all `config["env"]` values into `.claude/settings.local.json` `env`
 3. Claude Code reads `settings.local.json` and exports `env` values to hooks and Bash tool calls
-4. For vars that MCP servers need (`*_STATE_DIR`), `hermit-start.py` also forwards them as OS env vars (tmux temp file or Docker compose `environment:`) — MCP servers are separate processes that inherit shell env but do NOT read `settings.local.json`
+4. For vars that MCP servers need (`*_STATE_DIR`), `hermit-start.ts` also forwards them as OS env vars (tmux temp file or Docker compose `environment:`) — MCP servers are separate processes that inherit shell env but do NOT read `settings.local.json`
 
 **Bucket A (shell env only):** `CLAUDE_CONFIG_DIR`, `ANTHROPIC_API_KEY` — must be in shell env before `claude` starts. Forwarded via temp file in tmux, or Docker `environment:`. OAuth credentials live in `.credentials.json` (written by `claude /login`), not in env vars.
 
@@ -347,8 +362,8 @@ Deny patterns block dangerous operations regardless of permission mode. See [Sec
 
 ## Known Limitations
 
-1. ~~**O(n) cost-log scan**~~ — Fixed: `cost-tracker.js` now maintains `cost-index.json`, an incremental byte-offset index updated on every Stop hook. `writeCostSummary` and the `getCumulativeCost` fallback both render from the index; the O(n) scan only runs on first use or after log truncation.
+1. ~~**O(n) cost-log scan**~~ — Fixed: `cost-tracker.ts` now maintains `cost-index.json`, an incremental byte-offset index updated on every Stop hook. `writeCostSummary` and the `getCumulativeCost` fallback both render from the index; the O(n) scan only runs on first use or after log truncation.
 
-2. **Boot script timing** — `hermit-start.py` waits 3 seconds before sending commands to tmux. May not be enough on slow hardware. Fix: poll `tmux capture-pane` for readiness.
+2. **Boot script timing** — `hermit-start.ts` waits 3 seconds before sending commands to tmux. May not be enough on slow hardware. Fix: poll `tmux capture-pane` for readiness.
 
 3. ~~**Silent cost-log corruption**~~ — Fixed: `cost-index.json` carries a `skipped_corrupt_lines` counter incremented on every `JSON.parse` failure; `doctor-check.ts` surfaces a `warn` when the counter is non-zero.

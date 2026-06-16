@@ -163,4 +163,4 @@ Automatic invocations of skills on a cadence — either from installed plugins (
 
 Skip it for quick one-off tasks, sessions under ~5 minutes, or any time the upfront context load isn't justified by the length of the work.
 
-**Always-on / Docker mode:** `hermit-start.py` handles initialization automatically at container start. You don't run `/session-start` manually in always-on mode.
+**Always-on / Docker mode:** `hermit-start.ts` handles initialization automatically at container start. You don't run `/session-start` manually in always-on mode.

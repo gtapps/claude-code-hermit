@@ -139,7 +139,7 @@ Otherwise: read and append CLAUDE-APPEND.md.
 
 ### Custom boot skill
 
-If your hermit needs to run domain-specific setup on every always-on launch (e.g. connectivity probe, context refresh, pulling a live snapshot), declare a boot skill and wire it via your plugin manifest. Core's `hermit-start.py` will fire it into the tmux REPL at boot instead of the default `/claude-code-hermit:session`.
+If your hermit needs to run domain-specific setup on every always-on launch (e.g. connectivity probe, context refresh, pulling a live snapshot), declare a boot skill and wire it via your plugin manifest. Core's `hermit-start.ts` will fire it into the tmux REPL at boot instead of the default `/claude-code-hermit:session`.
 
 1. **Write the boot skill** — a normal skill at `skills/<your>-boot/SKILL.md`. First line of the skill's plan must invoke core session init: `/claude-code-hermit:session-start`. After that, run your domain setup. Example from `claude-code-homeassistant-hermit`:
 
@@ -159,7 +159,7 @@ If your hermit needs to run domain-specific setup on every always-on launch (e.g
    }
    ```
 
-   Core's `hatch` reads `hermit.boot_skill` when the operator activates your hermit and writes it to the project's `config.json` as a top-level `boot_skill` field. `hermit-start.py` then substitutes it for the default bootstrap on every launch — local tmux and Docker alike.
+   Core's `hatch` reads `hermit.boot_skill` when the operator activates your hermit and writes it to the project's `config.json` as a top-level `boot_skill` field. `hermit-start.ts` then substitutes it for the default bootstrap on every launch — local tmux and Docker alike.
 
 **Contract:** your boot skill owns the full bootstrap turn. Core does not call `session-start` before invoking it; your skill must. This keeps composition in the skill layer so core's boot script stays domain-agnostic.
 

@@ -4,8 +4,8 @@
 
 These are non-negotiable. Read them before making any changes.
 
-- **No dependencies.** No `package.json`, no `node_modules`. Hook scripts use Node.js stdlib only.
-- **No build step.** Skills are plain markdown. Hooks are standalone `.js` / `.sh` scripts.
+- **No dependencies.** No `package.json`, no `node_modules`. Hook scripts use Bun stdlib only.
+- **No build step.** Skills are plain markdown. Hooks are standalone `.ts` / `.sh` scripts.
 - **Hooks fail open.** A hook must never block Claude Code. Catch errors, `process.exit(0)`. Never exit non-zero on transient failures.
 - **Consume stdin.** Every hook must read stdin to completion even if unused, to avoid broken pipe errors from Claude Code.
 - **No test framework.** Tests are a shell script. Don't add Jest, Vitest, or anything else.
