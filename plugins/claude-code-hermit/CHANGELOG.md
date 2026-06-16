@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **proposal-act: dispatch the whole accept-flow tail to a general-purpose subagent (#402)** — implement, quality gate (`/simplify`), and verification all run in one isolated subagent context; only a compact structured report returns. Main keeps just the `resolve` lifecycle mutation and operator/channel notification. Skill-authoring (`## Skill Improvement` with skill-creator, `## Skill Draft`) and routine proposals stay in main and are unaffected; a `## Skill Improvement` proposal with skill-creator absent now runs the falsification gate and dispatches as a normal code edit.
+
 ## [1.2.4] - 2026-06-14
 
 ### Fixed

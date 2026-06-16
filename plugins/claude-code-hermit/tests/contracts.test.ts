@@ -1419,3 +1419,63 @@ describe('reference.md plugin-root contract', () => {
     });
   }
 });
+
+// ============================================================
+// proposal-act dispatch contract (TestProposalActDispatchContract)
+//
+// Step (e) dispatches the WHOLE implementation tail (implement → quality gate →
+// verification) to general-purpose when the falsification gate returned PROCEED and
+// there is no in-main skill handler. Main only resolves + notifies on a verified
+// return. The dispatch prompt is the contract — guard its key invariants so they
+// can't silently drift.
+// ============================================================
+
+describe('proposal-act dispatch contract', () => {
+  const skill = read(path.join(SKILLS, 'proposal-act', 'SKILL.md'));
+
+  test('falsification gate runs for every code-edit implementation', () => {
+    // missing → skill-improvement-without-skill-creator dispatches with no PROCEED file list
+    expect(skill).toContain('Skip only when the body contains `## Skill Improvement` **and** `/skill-creator:skill-creator` is in the available-skills list');
+    expect(skill).toContain('the gate runs to produce a `PROCEED` file list for the dispatch');
+    // dispatch block is labelled by what gates it, not the stale "no skill marker"
+    expect(skill).toContain('Dispatch (falsification gate returned PROCEED, no in-main skill handler)');
+  });
+
+  test('dispatch prompt instructs escalate-don\'t-guess (cannot prompt the operator)', () => {
+    // missing → subagent guesses on ambiguous/destructive choices instead of escalating
+    expect(skill).toContain('You cannot prompt the operator');
+    expect(skill).toContain('stop and return an escalation block');
+  });
+
+  test('dispatch prompt defines the six-field structured return shape', () => {
+    // missing → resolve/notify branch and escalation relay have no defined source fields
+    expect(skill).toContain('Status: implemented | escalated | blocked:');
+    expect(skill).toContain('Touched files:');
+    expect(skill).toContain('Tests run:');
+    expect(skill).toContain('Quality gate:');
+    expect(skill).toContain('Verification: passed | failed:');
+    expect(skill).toContain('Deferred for operator:');
+  });
+
+  test('subagent owns the quality gate and verification (design b)', () => {
+    // missing → e.5/e.6 bounce back to main, splitting execution across two contexts
+    expect(skill).toContain('then run its quality gate and verification');
+    expect(skill).toContain('quality_gate.tier');
+    expect(skill).toContain('/claude-code-hermit:simplify');
+    expect(skill).toContain('claude-code-hermit:quality-gate-judge');
+  });
+
+  test('verification failure is handled inside the subagent with a bounded retry', () => {
+    // missing → a verification failure after dispatch has no defined recovery path
+    expect(skill).toContain('attempt **one** fix and re-verify');
+    expect(skill).toContain('it still fails, set `Verification: failed`');
+  });
+
+  test('main resolves only on a verified return; escalation branches interactive vs autonomous', () => {
+    // missing → main resolves on failed/escalated, or silently discards escalations
+    expect(skill).toContain('`Status: implemented` **and** `Verification:` is `passed` or `none defined`');
+    expect(skill).toContain('do **not** resolve');
+    expect(skill).toContain('(interactive)');
+    expect(skill).toContain('(autonomous)');
+  });
+});

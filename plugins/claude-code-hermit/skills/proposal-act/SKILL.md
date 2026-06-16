@@ -83,7 +83,7 @@ When the operator accepts a proposal:
 4. Ask: **"How should this be implemented?"**
 
    - **"Start implementing now"** (default, typical answer): run the falsification gate, then handle session lifecycle, then execute in this turn.
-     **Falsification gate (runs first, before any session transition).** Verify the proposal is actionable as written with a read-only pass. Skip if the body contains `## Skill Improvement` (step (e) routes that to `/skill-creator:skill-creator`). Also skip if the body contains `## Skill Draft` — authoring is delegated to `/skill-creator:skill-creator` on accept, not a code-edit plan — but first check that the `source_artifact` path listed in `## Skill Draft` exists and is readable (if the file is missing or unreadable, REJECT with code `stale-paths` — the procedure brief was removed or archived; the operator should re-run reflect to generate a fresh brief).
+     **Falsification gate (runs first, before any session transition).** Verify the proposal is actionable as written with a read-only pass. Skip only when the body contains `## Skill Improvement` **and** `/skill-creator:skill-creator` is in the available-skills list (step (e) routes that to `/skill-creator:skill-creator`) — if `## Skill Improvement` is present but skill-creator is absent, the proposal becomes a code-edit implementation, so the gate runs to produce a `PROCEED` file list for the dispatch. Also skip if the body contains `## Skill Draft` — authoring is delegated to `/skill-creator:skill-creator` on accept, not a code-edit plan — but first check that the `source_artifact` path listed in `## Skill Draft` exists and is readable (if the file is missing or unreadable, REJECT with code `stale-paths` — the procedure brief was removed or archived; the operator should re-run reflect to generate a fresh brief).
 
        Agent selection — check the harness's available-skills list (never `claude plugin list` or disk checks):
        - `feature-dev:feature-dev` in available-skills → use `feature-dev:code-explorer` as the subagent.
@@ -104,7 +104,35 @@ When the operator accepts a proposal:
         - Yes: append `[HH:MM] switched to PROP-NNN: <title> (prior task: <prior task>)` to SHELL.md `## Progress Log`; overwrite SHELL.md `Task:` field with "Implement PROP-NNN: <title>"; `runtime.json session_state` stays `in_progress`. Proceed to (e).
         - No: fall back to "Create a session task" below.
      d. **Waiting:** fall back to "Create a session task" without asking, then notify: "PROP-NNN queued. Session is currently waiting."
-     e. Read the proposal body and execute the Proposed Solution as the active task. If the body contains `## Skill Improvement`, use `/skill-creator:skill-creator` for the implementation. If the body contains `## Skill Draft`, follow the procedure-capture install flow below. If the body is vague, ask the operator for clarification before proceeding — unless the falsification gate already returned `PROCEED` with a file list, in which case actionability is confirmed and this check is skipped.
+     e. Implement the proposal. If the body contains `## Skill Improvement` and `skill-creator:skill-creator` is in the available-skills list, use `/skill-creator:skill-creator` for the implementation (in-main; continues to e.5). If the body contains `## Skill Draft`, follow the procedure-capture install flow below (in-main; continues to e.5). Otherwise, dispatch the full implementation tail to the native `general-purpose` agent (this includes `## Skill Improvement` proposals when skill-creator is absent):
+
+        **Dispatch (falsification gate returned PROCEED, no in-main skill handler):**
+        Invoke `general-purpose` via the Agent tool with this prompt (fill in the bracketed value). The subagent inherits `CLAUDE.md`/`CLAUDE.local.md`, can invoke skills, and can spawn nested subagents — so it runs the whole tail (implement → quality gate → verification) in its own isolated context and returns one report.
+
+        > Implement the accepted proposal at `<absolute path to PROP-NNN-*.md>`, then run its quality gate and verification. Work entirely in this context; your final message is the only thing returned to the caller.
+        >
+        > 1. Read the proposal file. The `## Operator Decision` section contains a `PROCEED` line from the falsification gate with the authoritative file list — use that list as your scope (over any files mentioned in the proposal body).
+        > 2. Do the edits and any test/fix loops yourself. You may spawn a nested Explore subagent if the proposal warrants a search.
+        > 3. **Quality gate.** Read `.claude-code-hermit/config.json` → `quality_gate.tier` (treat missing/invalid as `budget`). `budget` → skip cleanup. `quality` → invoke `/claude-code-hermit:simplify` focused on the files you touched. `balanced` → delegate to the `claude-code-hermit:quality-gate-judge` subagent (pass the proposal path + touched files); on `RUN:` invoke `/claude-code-hermit:simplify` as for `quality`, on `SKIP:` skip. Capture `/simplify`'s totals line (`applied N · deduped M · principle-rejected K · …`). Best-effort: if the judge or `/simplify` errors, note it and continue — never block on this step.
+        > 4. **Verification.** Read the proposal's `## Verification` section. If it has real steps (more than the HTML-comment placeholder), perform them. If a step fails, attempt **one** fix and re-verify; if it still fails, set `Verification: failed` with the output and stop (do not loop further). If the section is empty or placeholder-only, set `Verification: none defined`.
+        > 5. You cannot prompt the operator — if you hit an ambiguous spec or an undecidable/destructive choice at any step, **stop and return an escalation block** rather than guessing.
+        >
+        > Return exactly this structure as your final message (nothing else):
+        > ```
+        > Status: implemented | escalated | blocked: <reason>
+        > Touched files: <relative paths, space-separated | none>
+        > Tests run: <commands + pass/fail summary | none>
+        > Quality gate: <tier> — simplify <totals line> | skipped: <reason> | n/a
+        > Verification: passed | failed: <output> | none defined
+        > Deferred for operator: <none | what was ambiguous and the safe no-op you took>
+        > ```
+
+        **After the subagent returns** (the dispatched path ran its own quality gate + verification, so it skips main's e.5/e.6 and is handled here):
+        - `Status: implemented` **and** `Verification:` is `passed` or `none defined` → run `/proposal-act resolve PROP-NNN`, then notify the operator (interactive) or channel (autonomous), building the message from the `Quality gate` field: if it carries a simplify totals line → "PROP-NNN implemented and resolved. /simplify applied N edits (M deduped, K rejected on principle)." (use "… /simplify made no changes." when N == 0, and "… /simplify completed (totals unavailable)." if the line is unparseable); if it is `skipped:` or `n/a` → "PROP-NNN implemented and resolved."
+        - `Verification: failed: <output>` → do **not** resolve. Surface the failure output to the operator (interactive) or channel (autonomous). Proposal status stays `accepted`.
+        - `Status: escalated` or `Status: blocked: <reason>` → do **not** resolve. Surface the `Deferred for operator` block to the operator (interactive) or channel (autonomous). Proposal status stays `accepted`.
+
+        If the body is vague and the falsification gate did not return `PROCEED`, ask the operator for clarification before proceeding.
 
      **Procedure-capture install flow (when body contains `## Skill Draft`):**
      1. Parse `name`, `source_artifact`, `install_target`, and `triggers` from the `## Skill Draft` block.
@@ -117,14 +145,14 @@ When the operator accepts a proposal:
      6. **Do not auto-stage or commit** the new skill file. Notify the operator: "Skill `<name>` installed at `<install_target>`. Commit it if you want it tracked in version control."
 
      **Verification for procedure-capture proposals (e.6 note):** the `## Verification` section of a procedure-capture PROP should instruct reading the installed file's frontmatter (`name`/`description` parse) rather than checking the live available-skills list — the harness only picks up new skills on the next session reload, so the live list is unreliable here. A missing or malformed installed file blocks resolution per the normal e.6 contract.
-     e.5. **Quality gate (tier-branched).** Read `.claude-code-hermit/config.json` → `quality_gate.tier`. Resolve per this table:
+     e.5. **Quality gate (tier-branched).** Applies to **in-main** implementations only (the `## Skill Improvement` → skill-creator and `## Skill Draft` → procedure-capture branches). Dispatched implementations run their own quality gate inside the subagent (see the step (e) dispatch) and are resolved there. Read `.claude-code-hermit/config.json` → `quality_gate.tier`. Resolve per this table:
 
          | Config state | Resolved tier |
          |---|---|
          | `tier` is `"budget"` / `"balanced"` / `"quality"` | use as-is |
          | `tier` missing, `quality_gate` missing, or value not in enum | `budget` (log one-line warning to SHELL.md Findings) |
 
-         Build a touched-files list from the writes you made during step (e) if you can reliably enumerate them. This is the precise scope for `/claude-code-hermit:simplify` and for the judge. If you can't recall the list (multi-turn work, sub-agent delegation), omit it; downstream falls back to `git diff --name-only HEAD`.
+         Build a touched-files list from the writes made during the in-main implementation (skill-creator / skill-draft). This is the precise scope for `/claude-code-hermit:simplify` and for the judge. If you can't reliably enumerate it (multi-turn work), omit it; downstream falls back to `git diff --name-only HEAD`.
 
          Branch on the resolved tier:
 
@@ -148,12 +176,12 @@ When the operator accepts a proposal:
          **The quality gate is cleanup, not correctness** — `/simplify` does not check that the proposal works. Correctness is verified by the `## Verification` gate in step (e.6); proposals with no defined verification still resolve, but the skip is recorded.
 
          Best-effort throughout: if any step errors out (judge fails, `/simplify` failed or totals unavailable, file read fails), log a one-line warning to SHELL.md Findings and fall back to skip. The gate never blocks resolution.
-     e.6. **Verification gate.** Read the proposal's `## Verification` section.
+     e.6. **Verification gate** (in-main implementations only — dispatched implementations verify inside the subagent). Read the proposal's `## Verification` section.
          - If it contains real steps (more than the HTML-comment placeholder), perform them now — after the quality gate has applied any `/simplify` edits — before resolving. If a defined step fails, **do not resolve**: report the failure to the operator (or channel in autonomous mode) and stop.
          - If the section is empty, missing, or contains only its placeholder comment, append `Verification: none defined for PROP-NNN — skipped.` to SHELL.md `## Findings` and proceed. The omission is recorded, not blocked.
 
          Unlike the e.5 quality gate (best-effort, never blocks), e.6 **blocks resolution when a defined verification step fails** — that is the correctness check the quality gate does not provide.
-     f. When verifiably done: run `/proposal-act resolve PROP-NNN`, then notify the operator (or channel in autonomous mode) with the tier-appropriate message from (e.5).
+     f. **(in-main path)** When verifiably done: run `/proposal-act resolve PROP-NNN`, then notify the operator (or channel in autonomous mode) with the tier-appropriate message from (e.5). (Dispatched implementations resolve + notify in the step (e) post-return handling.)
 
    - **"Create a session task"** → Write `.claude-code-hermit/sessions/NEXT-TASK.md`:
      ```markdown
