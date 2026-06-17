@@ -85,6 +85,8 @@ This is how the agent learns the DM channel ID for proactive outbound notificati
 
 ## 2. Classify the Message
 
+Before running any heavy sub-step — an archive traversal, a multi-file search, or a delegated execution step — apply the **Context-hygiene & delegation** rule: delegate when its criteria hold and keep only the verdict.
+
 - **Slash command** (message starts with `/`, e.g. `/claude-code-hermit:simplify`, `/plugin:command`)
   - Invoke the matching skill, slash command, or subagent via the appropriate tool. Pass any remaining text as arguments/prompt.
   - If nothing matches, say so briefly.
