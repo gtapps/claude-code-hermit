@@ -18,7 +18,7 @@ After install, run `/claude-code-hermit:hatch` in the target project to create t
 - `agents/` — subagent definitions (session-mgr, hermit-config-validator, proposal-triage, reflection-judge, quality-gate-judge, evolve-runner, skill-eval-runner; hermit plugins add more subagents)
 - `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, pulse, brief, watch, heartbeat, daily-auto-close, hermit-routines, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, reflect-scheduled-checks, capability-brainstorm, channel-responder, channel-setup, hatch, hermit-evolve, docker-setup, docker-security, simplify, smoke-test, test-run, hermit-brain, hermit-evolution, cost-reflect, hermit-health, weekly-review, migrate, knowledge, hermit-doctor, recall
 - `hooks/hooks.json` — hook registrations
-- `scripts/` — hook implementation scripts + boot scripts (hermit-start.py, hermit-stop.py)
+- `scripts/` — hook implementation scripts + boot scripts (hermit-start.ts, hermit-stop.ts)
 - `state-templates/` — templates copied into target projects by the `hatch` skill
 - `.claude-plugin/plugin.json` — plugin manifest
 

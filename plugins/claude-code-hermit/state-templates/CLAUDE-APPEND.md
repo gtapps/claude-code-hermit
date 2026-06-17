@@ -10,26 +10,6 @@
 - If none: ask what to help with
 - Use `/claude-code-hermit:session-start` and `/claude-code-hermit:session-close`
 
-## Agent State
-
-| Path                       | Contents                                                        |
-| -------------------------- | --------------------------------------------------------------- |
-| `sessions/SHELL.md`        | Live working document                                           |
-| `sessions/S-NNN-REPORT.md` | Archived reports                                                |
-| `proposals/PROP-NNN-<slug>-HHMMSS.md` | Improvement proposals                                           |
-| `state/`                   | Runtime state (alert dedup, reflection, routine queue, metrics) |
-| `state/monitors.runtime.json` | Active watch registry — cleared on each session start       |
-| `OPERATOR.md`              | Human-curated context — draft changes, confirm before writing |
-
-## Subagents
-
-- `session-mgr` (Sonnet) — session lifecycle (open, archive, idle transitions)
-- `proposal-triage` (Haiku) — pre-creation gate: deduplicates proposals and applies the three-condition rule before queuing
-- `reflection-judge` (Sonnet) — post-reflect validator: verifies cross-session evidence citations exist before proposals are queued
-- `hermit-config-validator` (Haiku) — lightweight config.json validator: checks required keys, types, routine times, channel structure, env naming. Use after hermit-settings, hermit-evolve, or any config mutation.
-- `quality-gate-judge` (Haiku) — decides whether `/claude-code-hermit:simplify` should run at step (e.5) of `/proposal-act` accept flow; reads proposal body + touched files, returns RUN/SKIP verdict. Only invoked when `quality_gate.tier: "balanced"`.
-- `evolve-runner` (Sonnet) — runs the hermit-evolve upgrade (steps 0–9) in an isolated context so upgrades don't pollute the session; escalates undecidable migration choices back to the main loop.
-
 ## Watches
 
 Config-defined watches auto-register on session start. Ad-hoc watches via `/watch <instruction>`.
@@ -45,13 +25,8 @@ Rules:
 - Be selective with stdout — noisy watches are auto-stopped by CC
 - All 4 CC Monitor tool params are required: `description`, `command`, `timeout_ms`, `persistent`. Always pass `timeout_ms` even when `persistent: true` (required by schema; ignored when persistent).
 - `$CLAUDE_PLUGIN_ROOT` is **NOT available** in the watch subprocess. `$PWD` is project root. Resolve plugin paths at registration time (skill execution context has the var).
-- Watch dies with the session — for scheduled work, use `/claude-code-hermit:hermit-routines` (re-registered on every always-on launch by `hermit-start.py`)
+- Watch dies with the session — for scheduled work, use `/claude-code-hermit:hermit-routines` (re-registered on every always-on launch by `hermit-start.ts`)
 - `HEARTBEAT_EVALUATE` notification → invoke `/claude-code-hermit:heartbeat run`.
-
-## Quick Reference
-
-`/session-start` `/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/daily-auto-close` `/watch` `/reflect` `/reflect-scheduled-checks` `/hermit-routines` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/capability-brainstorm` `/hermit-evolve` `/channel-setup` `/channel-responder` `/docker-setup` `/docker-security` `/hatch` `/smoke-test` `/hermit-brain` `/hermit-evolution` `/hermit-health` `/weekly-review` `/migrate` `/knowledge` `/hermit-doctor`
-(All prefixed with `/claude-code-hermit:`)
 
 ## Operator Notification
 

@@ -70,7 +70,7 @@ Abort with: `Plugin 'plugins/<slug>/' not found. Available: <comma-separated slu
 
 - Glob `plugins/<slug>/state-templates/*`.
 - For each template file, check it's valid (JSON files parse, markdown files are non-empty).
-- **Core-only sub-check**: only when `<slug> == "claude-code-hermit"`, compare `plugins/<slug>/state-templates/config.json.template` keys against the `DEFAULT_CONFIG` in `plugins/<slug>/scripts/hermit-start.py`. Flag key mismatches as WARN. Skip silently for other slugs (they have no `hermit-start.py`).
+- **Core-only sub-check**: only when `<slug> == "claude-code-hermit"`, compare `plugins/<slug>/state-templates/config.json.template` keys against the `DEFAULT_CONFIG` in `plugins/<slug>/scripts/hermit-start.ts`. Flag key mismatches as WARN. Skip silently for other slugs (they have no `hermit-start.ts`).
 - If `plugins/<slug>/state-templates/` does not exist: SKIP this check with a note.
 
 ### 6. Plugin manifest

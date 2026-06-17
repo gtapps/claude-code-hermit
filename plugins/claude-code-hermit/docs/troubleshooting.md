@@ -42,7 +42,7 @@ Scheduled checks run during idle reflection via `reflect`. If configured checks 
 
 `$CLAUDE_PLUGIN_ROOT` is injected by Claude Code's harness in hook invocations but is not forwarded to the tmux shell environment in always-on mode. This means Bash tool calls inside skills that use `${CLAUDE_PLUGIN_ROOT}` may fail in cron-triggered sessions.
 
-**Fixed in hermit-start.py** (v1.0.16+): the env file written before launching the tmux session now derives and exports `CLAUDE_PLUGIN_ROOT` from hermit-start.py's own location. Upgrade hermit to get the fix; no operator action needed.
+**Fixed in hermit-start.ts** (v1.0.16+): the env file written before launching the tmux session now derives and exports `CLAUDE_PLUGIN_ROOT` from hermit-start.ts's own location. Upgrade hermit to get the fix; no operator action needed.
 
 **If still occurring after upgrade:** verify the always-on session was restarted (Docker: `.claude-code-hermit/bin/hermit-docker down && .claude-code-hermit/bin/hermit-docker up`; tmux: stop the running `bin/hermit-start` session and relaunch). The env file is only written at launch.
 

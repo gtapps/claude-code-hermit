@@ -90,7 +90,7 @@ Report the full output. Any FAIL from the native validator is a FAIL in your rep
 
 Only when `<slug> == "claude-code-hermit"`. Skip silently for other slugs.
 
-- Compare keys in `plugins/<slug>/state-templates/config.json.template` with the `DEFAULT_CONFIG` in `plugins/<slug>/scripts/hermit-start.py`
+- Compare keys in `plugins/<slug>/state-templates/config.json.template` with the `DEFAULT_CONFIG` in `plugins/<slug>/scripts/hermit-start.ts`
 - Flag any keys present in one but not the other
 
 ## Output format

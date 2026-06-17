@@ -171,7 +171,7 @@ Ask: "Boot skill to invoke on always-on launch? This runs after heartbeat/routin
   <skill>  — any namespaced skill (e.g. `/claude-code-foo-hermit:foo-boot`)
   none     — clear (falls back to `/claude-code-hermit:session`)
 [current: <value or 'default'>]"
-Update `boot_skill` in config.json. Set to `null` if operator says "none", "default", or "clear". The domain boot skill is responsible for calling `/claude-code-hermit:session-start` itself — this setting just controls the single bootstrap command `hermit-start.py` fires into the REPL.
+Update `boot_skill` in config.json. Set to `null` if operator says "none", "default", or "clear". The domain boot skill is responsible for calling `/claude-code-hermit:session-start` itself — this setting just controls the single bootstrap command `hermit-start.ts` fires into the REPL.
 Note: "Boot skill changes take effect on next `hermit-start` run."
 
 **If argument is "permissions":**
@@ -197,7 +197,7 @@ Update `permission_mode` in config.json.
   ```
   Then ask each field in sequence.
 - Update `heartbeat` object in config.json.
-  - Note: "Heartbeat changes take effect on next `/claude-code-hermit:heartbeat start` or `hermit-start.py` run."
+  - Note: "Heartbeat changes take effect on next `/claude-code-hermit:heartbeat start` or `hermit-start.ts` run."
 
 **If argument is "watchdog":**
 - Show current watchdog config from `config.json`:

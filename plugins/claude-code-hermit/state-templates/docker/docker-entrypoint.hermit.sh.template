@@ -509,7 +509,7 @@ cleanup() {
   echo "[docker-entrypoint] Requesting graceful session close..."
   # Split text and Enter into two send-keys calls with a pause — Claude Code's
   # TUI treats text+Enter in one burst as bracketed paste and Enter becomes a
-  # literal newline instead of submit. Same fix as scripts/hermit-start.py.
+  # literal newline instead of submit. Same fix as scripts/hermit-start.ts.
   tmux send-keys -t "$SESSION_NAME:0.0" "/claude-code-hermit:session-close --shutdown" 2>/dev/null || true
   sleep 0.5
   tmux send-keys -t "$SESSION_NAME:0.0" Enter 2>/dev/null || true

@@ -39,7 +39,7 @@ This detects the version gap, shows what changed, prompts for new settings, refr
 
 ### 3. What if I don't upgrade?
 
-`hermit-start.py` merges missing config keys from defaults at runtime. Session start shows a soft nudge: "A hermit upgrade is available."
+`hermit-start.ts` merges missing config keys from defaults at runtime. Session start shows a soft nudge: "A hermit upgrade is available."
 
 ---
 
