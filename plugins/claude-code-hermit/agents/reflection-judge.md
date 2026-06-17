@@ -90,9 +90,9 @@ A session "confirms" the pattern if:
 **Observations ledger.** When an `Artifact:` line cites `state/observations.jsonl` (the path reflect's ledger graduation uses), verify the ledger instead of requiring each session report to restate the pattern — sub-threshold patterns live only in the ledger by design:
 
 - Glob and Read `.claude-code-hermit/state/observations.jsonl`. Parse lines best-effort (skip unparseable ones).
-- Verify ≥2 entries whose `pattern` matches the cited label, across ≥2 distinct `session_id`s matching the candidate's `Sessions:` list.
+- Verify that the ledger contains ≥1 matching entry per session in the candidate's cited `Sessions:` list — i.e. every `session_id` in the `Sessions:` field has at least one ledger row whose `pattern` matches the cited label. (The graduation threshold is operator-configured; the judge stays config-agnostic by verifying the cited evidence exists, not by re-counting the threshold.)
 - **Verified** → this substitutes for the per-report pattern confirmation in §1; proceed to §1.5.
-- **Missing file, no matching pattern, or fewer than 2 distinct sessions** → `SUPPRESS: <title> — no-evidence: artifact does not confirm citation`.
+- **Missing file, no matching pattern, or cited session missing from ledger** → `SUPPRESS: <title> — no-evidence: artifact does not confirm citation`.
 
 **Other machine-written artifacts (the §0.5 efficiency path).** When the `Artifact:` line cites `.claude/cost-log.jsonl` or `state/proposal-metrics.jsonl`, Read the cited file and confirm it contains the cited value or measurement (the specific entries, amounts, or counts the candidate claims — recurrence here means the same waste measured ≥2 times in the file). Verified → proceed to §1.5/§2 and emit a plain `ACCEPT: <title>` verdict (no source tag — this candidate carries no session evidence; the bare form is the closest grammar fit, not an archived-session claim). Missing file or cited value not found → `SUPPRESS: <title> — no-evidence: artifact does not contain cited value`.
 

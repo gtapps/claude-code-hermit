@@ -10,8 +10,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { readFrontmatter, readFileWithFrontmatter, globDir } from './lib/frontmatter';
-import { parseSchema } from './knowledge-lint';
 import { hermitDir } from './lib/cc-compat';
+import { findStorageDrift, findSchemaDrift } from './lib/drift';
 
 type Json = any;
 
@@ -73,42 +73,6 @@ function extractSection(md: string, name: string): string | null {
 function lastLines(text: string, n: number): string {
   const lines = text.split('\n').filter(l => l.trim());
   return lines.slice(-n).join('\n');
-}
-
-// Scan hermitDir for artifacts written outside raw/ and compiled/ (flat).
-// Returns an array of human-readable hit strings, empty when clean.
-function findStorageDrift(hermitDir: string): string[] {
-  const KNOWN_DIRS = new Set(['raw', 'compiled', 'sessions', 'proposals', 'state', 'templates',
-    'memory', 'bin', 'docker']);
-  const hits: string[] = [];
-
-  function countEntries(dir: string): number {
-    try { return fs.readdirSync(dir).filter(f => !f.startsWith('.')).length; } catch { return 0; }
-  }
-
-  // Unknown top-level dirs inside .claude-code-hermit/
-  try {
-    for (const entry of fs.readdirSync(hermitDir, { withFileTypes: true })) {
-      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-      if (!KNOWN_DIRS.has(entry.name)) {
-        const n = countEntries(path.join(hermitDir, entry.name));
-        hits.push(`.claude-code-hermit/${entry.name}/ (${n} file${n !== 1 ? 's' : ''})`);
-      }
-    }
-  } catch {}
-
-  // Subdirs under raw/ and compiled/ (except .archive)
-  for (const side of ['raw', 'compiled']) {
-    try {
-      for (const entry of fs.readdirSync(path.join(hermitDir, side), { withFileTypes: true })) {
-        if (!entry.isDirectory() || entry.name === '.archive') continue;
-        const n = countEntries(path.join(hermitDir, side, entry.name));
-        hits.push(`.claude-code-hermit/${side}/${entry.name}/ (${n} file${n !== 1 ? 's' : ''})`);
-      }
-    } catch {}
-  }
-
-  return hits;
 }
 
 function main() {
@@ -306,25 +270,11 @@ function main() {
   // -------------------------------------------------------
   if (totalChars < HARD_CAP) {
     try {
-      const schemaPath = path.resolve(AGENT_DIR, 'knowledge-schema.md');
-      const schema = parseSchema(schemaPath);
-      if (schema) {
-        const compiledDir = path.resolve(AGENT_DIR, 'compiled');
-        const compiledFiles = globDir(compiledDir, /^[^.].*\.md$/);
-        const undeclared = new Map<string, string>(); // type -> first filename
-        for (const f of compiledFiles) {
-          const fm = readFrontmatter(f);
-          if (!fm || !fm.type) continue;
-          if (!schema.workProducts.has(fm.type) && !undeclared.has(fm.type)) {
-            undeclared.set(fm.type, path.basename(f));
-          }
-        }
-        if (undeclared.size > 0) {
-          const lines = Array.from(undeclared.entries())
-            .map(([t, f]) => `- \`${t}\` (e.g. compiled/${f})`).join('\n');
-          const body = `${undeclared.size} undeclared type${undeclared.size !== 1 ? 's' : ''} in compiled/ — add to knowledge-schema.md ## Work Products:\n${lines}`;
-          emit('Schema Drift', body.slice(0, BUDGETS.schemaDrift));
-        }
+      const drifts = findSchemaDrift(AGENT_DIR);
+      if (drifts.length > 0) {
+        const lines = drifts.map(({ type, example }) => `- \`${type}\` (e.g. compiled/${example})`).join('\n');
+        const body = `${drifts.length} undeclared type${drifts.length !== 1 ? 's' : ''} in compiled/ — add to knowledge-schema.md ## Work Products:\n${lines}`;
+        emit('Schema Drift', body.slice(0, BUDGETS.schemaDrift));
       }
     } catch {}
   }

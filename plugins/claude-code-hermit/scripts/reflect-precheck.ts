@@ -12,6 +12,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { currentHHMM } from './lib/time';
 import { readFrontmatter, isEmptyAutoArchive } from './lib/frontmatter';
+import { findStorageDrift, findSchemaDrift } from './lib/drift';
 
 type Json = any;
 
@@ -244,6 +245,82 @@ if (pluginRoot && daysSince(runtime.last_raw_archive_at) >= 7) {
     } catch { /* fail-open */ }
   } catch { /* fail-open */ }
 }
+
+const ledgerPath = path.join(stateDir, 'state', 'observations.jsonl');
+
+// --- Drift capture: write storage/schema drift rows to observations ledger ---
+// Drift is structural (a dir/type is present or absent), not a recurring behavior, so
+// dedup by pattern alone: a standing unresolved drift writes exactly one row and then
+// stays silent, instead of writing a fresh row every session (which would flip the
+// freshness gate to RUN on every session forever). The row ages out of the ledger after
+// prune-observations' 30-day window, so persistent drift re-surfaces ~monthly on the next
+// reflect run rather than never. Mechanical drift is always own-work; writing happens
+// before the freshness gate so a first-sighting row triggers RUN on the same invocation.
+let wroteNewRows = false;
+try {
+  // runtime.session_id is commonly null (written at startup, cleared on shutdown) — treat null as 'unknown'
+  const sessionId = (runtime.session_id ?? 'unknown') as string;
+
+  // Load existing pattern labels to dedup-on-write. Drift slugs are namespaced
+  // (storage-drift:/schema-drift:), so scanning all patterns can't collide with
+  // reflect-noticed/cost-spike rows.
+  const existingPatterns = new Set<string>();
+  try {
+    for (const line of fs.readFileSync(ledgerPath, 'utf-8').trim().split('\n').filter(Boolean)) {
+      try {
+        const row = JSON.parse(line);
+        if (row.pattern) existingPatterns.add(row.pattern);
+      } catch {}
+    }
+  } catch {}
+
+  const newRows: string[] = [];
+  const nowIso = new Date().toISOString();
+  const capture = (slug: string) => {
+    if (existingPatterns.has(slug)) return;
+    existingPatterns.add(slug);
+    newRows.push(JSON.stringify({ ts: nowIso, pattern: slug, session_id: sessionId, source: 'startup-drift', origin: 'own-work' }));
+  };
+
+  // Storage drift — capture the full subpath so raw/foo and raw/bar get distinct slugs
+  for (const hit of findStorageDrift(stateDir)) {
+    const m = hit.match(/\.claude-code-hermit\/(.+)\/ \(/);
+    if (m) capture(`storage-drift:${m[1]}`);
+  }
+
+  // Schema drift
+  for (const { type } of findSchemaDrift(stateDir)) {
+    capture(`schema-drift:${type}`);
+  }
+
+  if (newRows.length > 0) {
+    fs.appendFileSync(ledgerPath, newRows.join('\n') + '\n', 'utf-8');
+    wroteNewRows = true;
+  }
+} catch { /* fail-open */ }
+
+// --- Freshness gate: flip EMPTY→RUN when ledger has rows newer than last_run_at ---
+// Only precheck-written (startup-drift) rows self-trigger because they are written above,
+// before this gate runs. Rows written *during* a run (reflect-noticed, cost-spike) have
+// ts ≤ last_run_at on the next tick and do NOT self-trigger — they surface opportunistically.
+if (wroteNewRows) {
+  // Rows just appended carry ts = now > last_run_at by construction — skip the re-read.
+  phases.observations_fresh = true;
+} else try {
+  const content = fs.readFileSync(ledgerPath, 'utf-8').trim();
+  if (content) {
+    // null last_run_at (fresh hermit) → cutoff = 0 → any valid ts triggers
+    const cutoff = lastRunAt ? new Date(lastRunAt).getTime() : 0;
+    const hasFresh = content.split('\n').filter(Boolean).some(line => {
+      try {
+        const row = JSON.parse(line);
+        const rowTime = new Date(row.ts).getTime();
+        return !isNaN(rowTime) && rowTime > cutoff;
+      } catch { return false; }
+    });
+    if (hasFresh) phases.observations_fresh = true;
+  }
+} catch { /* fail-open: scan error → skip trigger, don't force RUN */ }
 
 if (Object.keys(phases).length > 0) emit('RUN|' + JSON.stringify(phases));
 

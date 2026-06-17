@@ -49,8 +49,9 @@ describe('reflect: procedure capture', () => {
     expect(reflect).toContain('Lessons');
   });
 
-  test('reflect: ≥2 distinct archived sessions recurrence gate', () => {
-    expect(reflect).toContain('≥2 distinct archived sessions');
+  test('reflect: procedure-capture recurrence gate reads graduation_min_sessions', () => {
+    expect(reflect).toContain('graduation_min_sessions');
+    expect(reflect).toContain('distinct archived sessions');
   });
 
   test('reflect: dedup guard checks .claude/skills glob', () => {

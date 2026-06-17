@@ -31,6 +31,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings scheduled-checks    — manage scheduled plugin skill checks
 /claude-code-hermit:hermit-settings boot-skill       — view/clear/change the always-on boot skill
 /claude-code-hermit:hermit-settings quality-gate     — set post-implementation /claude-code-hermit:simplify gate tier (budget|balanced|quality)
+/claude-code-hermit:hermit-settings reflection       — tune graduation threshold (graduation_min_sessions)
 /claude-code-hermit:hermit-settings push-notifications — toggle PushNotification doorbell (fires when no channel is enabled or a configured channel is unreachable)
 ```
 
@@ -371,6 +372,18 @@ Options:
 Write the chosen value to `quality_gate.tier` in config.json. If the `quality_gate` object is missing, create it as `{ "tier": "<chosen>" }`. If a legacy `enabled` key is present, leave it in place (skill behavior reads `tier` only; legacy `enabled` is ignored).
 
 Note: if you have `claude-code-dev-hermit:dev-quality` installed and you commit autonomous-implementation diffs through it, consider **Budget** — `/dev-quality` already runs `/claude-code-hermit:simplify` before commit, and any non-Budget tier here would double-fire the cleanup pass (~$0.40-$0.70 of duplicated spend per committed implementation).
+
+**If argument is "reflection":**
+- Show current value from config.json:
+  ```
+  Reflection (config.json reflection)
+
+    graduation_min_sessions   1   (minimum distinct sessions before a ledger pattern graduates to a proposal candidate)
+  ```
+  (substitute the actual value; show 1 if absent)
+- Ask: "Minimum distinct sessions before a pattern graduates? 1 = surfaces after first session (default, ships enabled); 2 = requires recurrence across two sessions (pre-v1.2.6 behavior). [current: <value>]"
+- Accept a positive integer (≥1) as input. Update `reflection.graduation_min_sessions` in config.json. If the `reflection` object is missing, create it.
+- Note: "Takes effect on the next reflect run. Set to 1 for fast feedback on fresh hermits; dial to 2 if the operator channel gets noisy."
 
 **If argument is "push-notifications":**
 Ask: "Send a PushNotification (desktop notification in your terminal app, plus mobile push if Remote Control is connected) on proactive alerts? Fires when no channel is enabled OR a configured channel is unreachable (missing pairing, empty allowed_users, all-disabled). In always-on Docker or headless tmux only the Remote Control mobile push will be visible. Note: push is one-way; operator-→hermit replies (micro-proposals, session recovery) require a channel.

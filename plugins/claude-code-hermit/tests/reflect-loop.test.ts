@@ -161,8 +161,9 @@ describe('observations ledger phrases', () => {
     expect(reflect).toContain('Observations ledger');
   });
 
-  test('reflect: graduation threshold is 2 distinct sessions excl current', () => {
-    expect(reflect).toContain('≥2 distinct `session_id`s, at least one not the current session');
+  test('reflect: graduation threshold reads graduation_min_sessions from config', () => {
+    expect(reflect).toContain('graduation_min_sessions');
+    expect(reflect).toContain('distinct `session_id`s');
   });
 
   test('reflect: quick-mode deferrals append to ledger', () => {
@@ -178,7 +179,7 @@ describe('observations ledger phrases', () => {
   });
 
   test('reflect: sub-threshold outcomes append to ledger not memory', () => {
-    expect(reflect).toContain('"source":"reflect"');
+    expect(reflect).toContain('"source":"reflect-noticed"');
   });
 
   test('judge: artifact verification section present', () => {
@@ -352,7 +353,8 @@ describe('ephemerality exception', () => {
     expect(reflect).toContain('count toward the kill-criteria sample');
   });
 
-  test('reflect: base ≥2-sessions recurrence signal intact', () => {
-    expect(reflect).toContain('≥2 distinct archived sessions');
+  test('reflect: procedure-capture recurrence signal reads graduation_min_sessions', () => {
+    expect(reflect).toContain('graduation_min_sessions');
+    expect(reflect).toContain('distinct archived sessions');
   });
 });

@@ -173,8 +173,10 @@ Read two sources directly (no Explore nesting):
    if available).
 
 **Recurrence signal:** the same multi-step procedure appears as a Lesson or memory workflow-pattern in
-**≥2 distinct archived sessions** and no existing skill covers it (the "existing skill" check runs in
-the main session — do not Glob `.claude/skills/` here; the main session handles dedup).
+**≥ `graduation_min_sessions` distinct archived sessions** (read from `.claude-code-hermit/config.json`
+at `reflection.graduation_min_sessions`; default 1 if absent) and no existing skill covers it (the
+"existing skill" check runs in the main session — do not Glob `.claude/skills/` here; the main session
+handles dedup).
 
 For each recurring procedure found, produce one `procedure_candidates` entry:
 ```json

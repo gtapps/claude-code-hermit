@@ -274,6 +274,15 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
     errors.push('push_notifications: must be a boolean');
   }
 
+  if (config.reflection !== undefined) {
+    if (typeof config.reflection !== 'object' || config.reflection === null) {
+      errors.push('reflection: must be an object');
+    } else if (config.reflection.graduation_min_sessions !== undefined &&
+        (!Number.isInteger(config.reflection.graduation_min_sessions) || config.reflection.graduation_min_sessions < 1)) {
+      errors.push('reflection.graduation_min_sessions: must be a positive integer (≥1)');
+    }
+  }
+
   if (config.post_close_clear !== undefined && typeof config.post_close_clear !== 'boolean') {
     errors.push('post_close_clear: must be a boolean');
   }

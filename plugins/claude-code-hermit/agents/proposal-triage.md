@@ -88,7 +88,8 @@ Only if no duplicate found and no memory match, check applicable conditions:
      - `current-session`: recurrence was validated upstream by `reflection-judge`; do not re-check here.
      - `capability-brainstorm`: the brainstorm pass establishes the candidate; cross-session recurrence is not required.
    - **Required for `archived-session`** (or absent field): a single incident does not qualify.
-   - **Artifact-cited efficiency/cost-class candidates**: evidence citing a machine-written state file with the measured values counts as concrete recurrence — `reflection-judge` verified the file; do not re-check here.
+   - **Artifact-cited `state/observations.jsonl` candidates**: any judge-verified candidate whose `Artifact:` line cites `state/observations.jsonl` satisfies condition 1 — the ledger graduation is the recurrence evidence; `reflection-judge` verified the ledger entries; do not re-check here.
+   - **Artifact-cited efficiency/cost-class candidates**: evidence citing a machine-written state file with the measured values (e.g. `cost-log.jsonl`, `proposal-metrics.jsonl`) counts as concrete recurrence — `reflection-judge` verified the file; do not re-check here.
    - **Procedure-capture ephemerality exception**: a `current-session` procedure-capture candidate citing ephemeral artifacts and quantified cost qualifies at a single session (already covered by the `current-session` skip above).
 2. **Meaningful consequence** — does something actually go wrong without fixing this? (Mild inconvenience does not qualify.) Always required.
 3. **Operator-actionable change** — is there something the operator can concretely approve and implement? (Vague improvements do not qualify.) Always required.

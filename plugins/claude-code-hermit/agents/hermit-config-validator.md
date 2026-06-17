@@ -74,6 +74,10 @@ All values in `env` should be strings.
 
 - `quality_gate.tier` (string, one of: budget, balanced, quality) if present
 
+### 7b. Reflection settings (optional)
+
+- `reflection.graduation_min_sessions` (integer, ≥1) if present
+
 ### 8. Optional booleans
 
 - `push_notifications` (boolean, optional) — if present, must be `true` or `false`

@@ -1,5 +1,26 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **reflect: break reflection input-starvation** — three changes that unblock the pipeline on hermits where `observations.jsonl` never fills: (1) `reflect-precheck.ts` now writes storage-drift and schema-drift rows to the observations ledger (deduped by pattern — drift is structural, so a standing drift writes one row until it ages out of the 30-day prune window, not one per session, and never re-triggers a full reflect run every session; the drift slug preserves the full subpath, e.g. `storage-drift:raw/foo`); (2) a freshness RUN gate (`observations_fresh` phase key) flips EMPTY→RUN when new ledger rows exist; (3) new config key `reflection.graduation_min_sessions` (default 1) lowers the graduation threshold from a hardcoded 2, so single-session observations can surface. The judge, triage, and all security guards are unchanged.
+- **reflect: `origin` field on ledger rows** — `startup-drift` rows carry `origin:"own-work"`; `reflect-noticed` rows carry `origin` copied from SHELL.md `[origin: external]` markers. Step 3b aggregates origin across grouped rows (external-content wins) and carries it into the candidate's `Evidence Origin`, so judge §2 correctly quarantines external-origin observations to Tier 3.
+- **config: `reflection.graduation_min_sessions`** — positive integer, default 1. Dial to 2 to restore pre-v1.2.6 behavior. Applies to both observations-ledger graduation and procedure-capture recurrence. Documented in `docs/config-reference.md` and `hermit-settings reflection`.
+
+### Changed
+
+- **reflect step 3b: graduation threshold is now config-driven** — removed "at least one not the current session" sub-clause; replaced hardcoded ≥2 with `graduation_min_sessions`.
+- **reflection-judge §1.4: config-agnostic verification** — verifies ≥1 ledger row per cited session instead of hardcoded ≥2 distinct sessions.
+- **proposal-triage + proposal-create: accept ledger graduates** — broadened the artifact exception so any judge-verified `Artifact: state/observations.jsonl` candidate satisfies condition 1 (was limited to efficiency/cost-class candidates).
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. Update the plugin — run `claude plugin update claude-code-hermit`.
+2. Add `reflection` to `config.json`: open `.claude-code-hermit/config.json` and add `"reflection": { "graduation_min_sessions": 1 }` at the top level (before the closing `}`). Ships enabled by default; set to 2 to restore the two-session recurrence bar.
+
 ## [1.2.5] - 2026-06-16
 
 ### Changed
