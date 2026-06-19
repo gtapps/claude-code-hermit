@@ -5,6 +5,17 @@
 ### Fixed
 
 - **session-mgr: report filename is invariant** (#418) — archive steps now explicitly state that the report file is always `${session_id}-REPORT.md`; if it already exists, overwrite in place. Prevents the archiving model from improvising a dated `S-NNN-REPORT-YYYYMMDD-HHMM.md` duplicate when the canonical file is already present (e.g. re-archive of a previously operator-closed session).
+- **hermit-evolve: confirm the `_hermit_versions` bump on disk (#426)** — step 9 now performs the version bump via a deterministic `scripts/evolve-finalize.ts` instead of an LLM hand-edit. The runner reports the re-read on-disk version (`core.confirmed`) instead of `plan.to`. A dropped bump now surfaces as `Upgrade: blocked` instead of falsely reporting success and re-nagging the upgrade banner every session.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/evolve-finalize.ts` | New: deterministic `_hermit_versions` writer — atomic read-modify-write, on-disk confirm, fail-loud exit |
+| `skills/hermit-evolve/SKILL.md` | Step 8: add `evolve-finalize.ts` to required permissions; step 9: run finalizer after key merge, report `core.confirmed` |
+| `agents/evolve-runner.md` | Step-9 delegated note + version-bump rule; report `vNEW` from `core.confirmed`; blocked on mismatch |
+| `skills/hatch/SKILL.md` | Add `Bash(bun */scripts/evolve-finalize.ts*)` to permissions seed list |
+| `tests/evolve-finalize.test.ts` | New: 16 cases covering #426 regression, key preservation, sibling gating, mismatch, idempotency, exit codes |
 
 ## [1.2.6] - 2026-06-17
 

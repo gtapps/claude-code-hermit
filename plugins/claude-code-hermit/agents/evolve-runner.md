@@ -46,9 +46,14 @@ never block:
 - **`### Upgrade Instructions` migrations (steps 2b, 7):** execute every non-interactive instruction. If a
   step poses a genuine either/or with **no safe non-destructive default**, do **not** guess — record it
   as a deferred-migration block (below) and **skip that step only**. This is the sole escalation path.
+- **Version bump (step 9):** run `evolve-finalize.ts` and parse its stdout JSON. Use `core.confirmed` as
+  `vNEW` in the report — NOT `plan.to`. If the script exits non-zero, `core.matched` is false, or `errors`
+  is non-empty, return `Upgrade: blocked: config version bump failed — <joined error messages>` and omit
+  the rest of the report.
 
 Everything else (version gates 0/0b, the plan pre-pass, classification, copies, manifest write, config
-write incl. the `_hermit_versions` bump in step 9) runs exactly as the SKILL.md specifies.
+write in step 9 — the `new_config_keys` merge by hand then the `_hermit_versions` bump via
+`evolve-finalize.ts`) runs exactly as the SKILL.md specifies.
 
 ## Return value — the report (your final message, nothing else)
 
