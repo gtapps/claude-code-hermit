@@ -248,7 +248,7 @@ Same logic as init step 8, but target the file determined by `hatch_target` (res
 - `hatch_target == "local"` → `.claude/settings.local.json`
 - `hatch_target == "committed"` → `.claude/settings.json`
 
-Check the target settings file for the plugin's required permissions (`git diff/status/log`, per-script `bun` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required entries are: `cost-tracker.ts`, `suggest-compact.ts`, `run-with-profile.ts`, `evaluate-session.ts`, `append-metrics.ts`, `generate-summary.ts`, `cron-tz-shift.ts`, `archive-shell.ts`, `evolve-plan.ts`. **Delegated mode: add any missing entries without asking** (a missing `bun` permission breaks hooks, so this is non-optional), and collect them for the step-10 report. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found in the target file:
+Check the target settings file for the plugin's required permissions (`git diff/status/log`, per-script `bun` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required entries are: `cost-tracker.ts`, `suggest-compact.ts`, `run-with-profile.ts`, `evaluate-session.ts`, `append-metrics.ts`, `generate-summary.ts`, `cron-tz-shift.ts`, `archive-shell.ts`, `evolve-plan.ts`, `evolve-finalize.ts`. **Delegated mode: add any missing entries without asking** (a missing `bun` permission breaks hooks, so this is non-optional), and collect them for the step-10 report. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found in the target file:
 
 - `Bash(python3:*)`, `Bash(node:*)` — replaced by scoped bun entries
 - `Edit(.claude/.claude-code-hermit/**)`, `Write(.claude/.claude-code-hermit/**)` — replaced by `.claude-code-hermit/**` (v0.0.6 path change)
@@ -256,10 +256,16 @@ Check the target settings file for the plugin's required permissions (`git diff/
 ### 9. Write updated config
 
 - **Re-read `.claude-code-hermit/config.json` now** — Step 2b migrations may have written keys since the pre-pass ran.
-- For each entry in `new_config_keys` (with the defaults applied in Step 4), set `path` to its value **only if that path is still missing** in the freshly-read config. Never overwrite an existing operator or migration-set value.
-- Update `_hermit_versions["claude-code-hermit"]` to the current plugin version (the plan's `to`)
-- For hermits: only update versions for hermits already present as keys in `_hermit_versions` — never add new keys here
-- Write to `.claude-code-hermit/config.json`
+- For each entry in `new_config_keys` (with the defaults applied in Step 4), set `path` to its value **only if that path is still missing** in the freshly-read config. Never overwrite an existing operator or migration-set value. Write these merged keys to `.claude-code-hermit/config.json` before running the finalizer below.
+- **Bump `_hermit_versions` deterministically — do NOT hand-edit this key.** After the `new_config_keys` merge above is written to disk, run the finalizer. It re-reads config from disk, writes the version bumps atomically, and prints the confirmed on-disk values:
+
+  ```
+  bun ${CLAUDE_PLUGIN_ROOT}/scripts/evolve-finalize.ts .claude-code-hermit --core=<to> --plugin-root=${CLAUDE_PLUGIN_ROOT} [--sibling=<name>=<vNEW> ...]
+  ```
+
+  - `<to>` is the plan's `to`. Add one `--sibling=<name>=<vNEW>` for each sibling hermit upgraded in Step 7 (where `name` is the sibling's plugin name and `vNEW` is its new version). Omit `--sibling` entirely if no siblings were upgraded.
+  - Parse stdout as JSON. The finalizer's `core.confirmed` is the **authoritative on-disk version** — use it as `vNEW` in the Step 10 report, NOT `plan.to`.
+  - If `core.matched` is `false` or `errors` is non-empty, the bump did not land: set the `Upgrade:` line in the Step 10 report to `blocked: config version bump failed (<joined errors>)` and stop.
 
 ### 10. Report
 
