@@ -620,6 +620,7 @@ Merge these into the target file:
       "Bash(bun */scripts/update-reflection-state.ts*)",
       "Bash(bun */scripts/cron-tz-shift.ts*)",
       "Bash(bun */scripts/evolve-plan.ts*)",
+      "Bash(bun */scripts/evolve-finalize.ts*)",
       "Bash(bash -c 'AGENT_DIR=\".claude-code-hermit\"*)",
       "Edit(.claude-code-hermit/**)",
       "Write(.claude-code-hermit/**)"
