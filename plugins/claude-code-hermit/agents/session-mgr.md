@@ -69,6 +69,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
    - If not set: list all `.claude-code-hermit/sessions/S-*-REPORT.md` files, extract the highest NNN, increment by 1. If no reports exist, use `S-001`. Format: `S-NNN` with zero-padded 3-digit number.
 4. **Set transition marker** in runtime.json: `transition: "archiving"`, `transition_target: "S-NNN-REPORT.md"`, `transition_started_at: <now>`
 5. Generate `.claude-code-hermit/sessions/S-NNN-REPORT.md` with YAML frontmatter:
+   - **Filename is invariant.** The report file is ALWAYS exactly `${session_id}-REPORT.md` (the `transition_target` set in step 4). Never append a date, time, or any other suffix. If that file already exists, this is a re-archive of the same session — overwrite it in place. Never create a second, differently-named file such as `S-NNN-REPORT-YYYYMMDD-HHMM.md`.
    - **Prepend YAML frontmatter** as the first content of the file. Extract values from SHELL.md:
      - `id`: the assigned S-NNN
      - `status`: from the `Status:` line in the invocation prompt payload (e.g., `completed`, `partial`, `blocked`)
@@ -134,6 +135,7 @@ When the main session requests an idle transition (not a full close):
    - If not set: same sequential S-NNN logic as full close.
 4. **Set transition marker** in runtime.json: `transition: "archiving"`, `transition_target: "S-NNN-REPORT.md"`, `transition_started_at: <now>`
 5. Generate a session report to `.claude-code-hermit/sessions/S-NNN-REPORT.md`
+   - **Filename invariant as in On Session Close step 5:** always `${session_id}-REPORT.md`, overwrite in place if the file already exists, never a dated or otherwise-suffixed variant.
    - **Prepend YAML frontmatter** using the same extraction logic as On Session Close (step 5 above)
    - Use the SESSION-REPORT.md.template as reference for structure
    - Write `## Overview` with the task description, not a `## Summary` bullet list
@@ -169,3 +171,4 @@ Note: Plan item tracking is handled by the main session agent via native Claude 
 - Idle transitions are not mode-specific — they happen at every task boundary regardless of `always_on` setting
 - **Always use atomic writes for runtime.json** — write to `state/.runtime.json.tmp`, rename to `state/runtime.json`
 - **Transition markers are mandatory** around archive and SHELL.md cleanup steps — they enable crash recovery
+- **Report filename is always exactly `${session_id}-REPORT.md`** — never a dated or otherwise-suffixed variant (e.g. never `S-NNN-REPORT-YYYYMMDD-HHMM.md`). If the file already exists, overwrite it in place (re-archive); never create a second file.
