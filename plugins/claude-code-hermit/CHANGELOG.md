@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.7] - 2026-06-19
+
+### Added
+
+- **session-close: third debrief question for skill-correction telemetry** — close debrief now asks whether a skill produced defective output this session; a positive answer appends a `skill-correction:<name>` ledger row to `state/observations.jsonl` (fail-open, gated to operator-close only). The `## Lessons` line carries the what/why; the ledger row is a bare recurrence counter.
+- **reflect: `skill-correction:*` graduation routing** — graduated `skill-correction:<name>` ledger patterns resolve to a Tier 2 skill-improvement candidate: brief found → `## Skill Improvement` section with `source_artifact:` pointing to the procedure brief; no brief → plain Tier 2. Both routes carry `Artifact: state/observations.jsonl` and proceed via triage then micro-approval queue.
+- **proposal-act: `source_artifact:` anchor for skill-creator improve** — before invoking `skill-creator:skill-creator`, parses the `source_artifact:` line from `## Skill Improvement`; if the brief path is readable, passes its content as input context. Missing or unreadable: proceeds without it (no REJECT).
 
 ### Fixed
 
@@ -10,11 +16,25 @@
 
 | File | Change |
 |------|--------|
+| `skills/session-close/SKILL.md` | Add third debrief question; append `skill-correction:<name>` ledger row on positive answer |
+| `skills/reflect/SKILL.md` | `skill-correction:*` graduation routing; Component Health note linking to ledger |
+| `skills/proposal-act/SKILL.md` | Parse `source_artifact:` anchor; pass procedure brief to skill-creator improve |
+| `docs/architecture.md` | Add `observations.jsonl` state ownership row; startup-drift source value |
+| `tests/skill-correction-ledger.test.ts` | New: 25 tests covering capture contract, ledger round-trip, graduation routing, anchor-parse |
 | `scripts/evolve-finalize.ts` | New: deterministic `_hermit_versions` writer — atomic read-modify-write, on-disk confirm, fail-loud exit |
-| `skills/hermit-evolve/SKILL.md` | Step 8: add `evolve-finalize.ts` to required permissions; step 9: run finalizer after key merge, report `core.confirmed` |
+| `skills/hermit-evolve/SKILL.md` | Step 8: add `evolve-finalize.ts` to required permissions; step 9: run finalizer, report `core.confirmed` |
 | `agents/evolve-runner.md` | Step-9 delegated note + version-bump rule; report `vNEW` from `core.confirmed`; blocked on mismatch |
 | `skills/hatch/SKILL.md` | Add `Bash(bun */scripts/evolve-finalize.ts*)` to permissions seed list |
-| `tests/evolve-finalize.test.ts` | New: 16 cases covering #426 regression, key preservation, sibling gating, mismatch, idempotency, exit codes |
+| `tests/evolve-finalize.test.ts` | New: 16 tests covering #426 regression, key preservation, sibling gating, mismatch, idempotency, exit codes |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. Update the plugin — run `claude plugin update claude-code-hermit`.
+2. Add `Bash(bun */scripts/evolve-finalize.ts*)` permission — hermit-evolve step 8 adds it automatically if missing.
+
+No `config.json` changes required.
 
 ## [1.2.6] - 2026-06-17
 
