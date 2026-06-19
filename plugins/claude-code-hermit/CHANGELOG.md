@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **heartbeat: configurable eval model (`heartbeat.model`, default `haiku`)** — cuts the EVALUATE subagent cost ~70% on sonnet sessions. Override to `"sonnet"` or `"opus"` for richer checklist evaluation, or set to `null` to inherit the session model. Dispatch now uses `claude-code-hermit:skill-eval-runner` explicitly with the configured model. Step 5 gains a fail-open JSON guard: malformed or incomplete subagent returns skip the state merge and emit `HEARTBEAT_OK` rather than corrupting `alert-state.json`.
+
 ### Fixed
 
 - **session-mgr: report filename is invariant** (#418) — archive steps now explicitly state that the report file is always `${session_id}-REPORT.md`; if it already exists, overwrite in place. Prevents the archiving model from improvising a dated `S-NNN-REPORT-YYYYMMDD-HHMM.md` duplicate when the canonical file is already present (e.g. re-archive of a previously operator-closed session).
@@ -11,11 +15,21 @@
 
 | File | Change |
 |------|--------|
+| `state-templates/config.json.template` | Add `heartbeat.model: "haiku"` to heartbeat block |
+| `skills/heartbeat/SKILL.md` | Step 4: read `heartbeat.model`, dispatch via `skill-eval-runner` with explicit model; step 5: fail-open JSON guard before state merge |
+| `scripts/validate-config.ts` | Validate `heartbeat.model` against `[opus, sonnet, haiku]` in the heartbeat block |
 | `scripts/evolve-finalize.ts` | New: deterministic `_hermit_versions` writer — atomic read-modify-write, on-disk confirm, fail-loud exit |
 | `skills/hermit-evolve/SKILL.md` | Step 8: add `evolve-finalize.ts` to required permissions; step 9: run finalizer after key merge, report `core.confirmed` |
 | `agents/evolve-runner.md` | Step-9 delegated note + version-bump rule; report `vNEW` from `core.confirmed`; blocked on mismatch |
 | `skills/hatch/SKILL.md` | Add `Bash(bun */scripts/evolve-finalize.ts*)` to permissions seed list |
 | `tests/evolve-finalize.test.ts` | New: 16 cases covering #426 regression, key preservation, sibling gating, mismatch, idempotency, exit codes |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. Update the plugin — run `claude plugin update claude-code-hermit`.
+2. Add `"model": "haiku"` to the `heartbeat` block in `.claude-code-hermit/config.json`. Open the file and insert `"model": "haiku"` alongside the existing `heartbeat` fields (e.g. after `"clean_recheck_cooldown"`). This cuts EVALUATE subagent cost ~70% on sonnet sessions. To keep prior behavior (session model), set `"model": null` or omit the field. To use richer evaluation, set `"model": "sonnet"` or `"model": "opus"`.
 
 ## [1.2.6] - 2026-06-17
 

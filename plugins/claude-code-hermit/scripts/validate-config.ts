@@ -187,6 +187,11 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
       if (start && !TIME_RE.test(start)) errors.push(`heartbeat.active_hours.start: invalid time "${start}"`);
       if (end && !TIME_RE.test(end)) errors.push(`heartbeat.active_hours.end: invalid time "${end}"`);
     }
+    if (hb.model !== undefined && hb.model !== null) {
+      if (typeof hb.model !== 'string' || !VALID_ROUTINE_MODEL.includes(hb.model)) {
+        errors.push(`heartbeat.model: "${hb.model}" not in [${VALID_ROUTINE_MODEL.join(', ')}] (omit for haiku default; set null to use session model)`);
+      }
+    }
   }
 
   if (config.watchdog && typeof config.watchdog === 'object') {
