@@ -10,6 +10,7 @@
 
 - **session-mgr: report filename is invariant** (#418) — archive steps now explicitly state that the report file is always `${session_id}-REPORT.md`; if it already exists, overwrite in place. Prevents the archiving model from improvising a dated `S-NNN-REPORT-YYYYMMDD-HHMM.md` duplicate when the canonical file is already present (e.g. re-archive of a previously operator-closed session).
 - **hermit-evolve: confirm the `_hermit_versions` bump on disk (#426)** — step 9 now performs the version bump via a deterministic `scripts/evolve-finalize.ts` instead of an LLM hand-edit. The runner reports the re-read on-disk version (`core.confirmed`) instead of `plan.to`. A dropped bump now surfaces as `Upgrade: blocked` instead of falsely reporting success and re-nagging the upgrade banner every session.
+- **recall: reap stray timestamped report stubs on upgrade** (#430) — existing `S-NNN-REPORT-YYYYMMDD-HHMM.md` stubs (created before #427) bypass strict consumers but pollute `/recall`'s broad scan; hermit-evolve now deletes them on next upgrade.
 
 ### Files affected
 
@@ -30,6 +31,7 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 1. Update the plugin — run `claude plugin update claude-code-hermit`.
 2. Add `"model": "haiku"` to the `heartbeat` block in `.claude-code-hermit/config.json`. Open the file and insert `"model": "haiku"` alongside the existing `heartbeat` fields (e.g. after `"clean_recheck_cooldown"`). This cuts EVALUATE subagent cost ~70% on sonnet sessions. To keep prior behavior (session model), set `"model": null` or omit the field. To use richer evaluation, set `"model": "sonnet"` or `"model": "opus"`.
+3. **Reap stray timestamped report stubs.** In `.claude-code-hermit/sessions/`, glob `S-*-REPORT-*.md` — the timestamped-suffix variants only. Delete each match with `rm` (no `-f`). Report the count removed; if none matched, report "0 stray report stubs".
 
 ## [1.2.6] - 2026-06-17
 
