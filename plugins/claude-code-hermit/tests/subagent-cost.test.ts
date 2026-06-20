@@ -2,7 +2,15 @@
 // async-dispatched subagent token cost.
 //
 // Each test runs the hook as a subprocess (same pattern as cost-tracker.test.ts)
-// with a synthetic SubagentStop payload and validates cost-log.jsonl output.
+// with a SubagentStop payload and validates cost-log.jsonl output.
+//
+// The payload shape mirrors what real Claude Code sends on SubagentStop (verified live
+// on CC 2.1.183):
+//   { session_id, transcript_path: "<parent>.jsonl", agent_id,
+//     agent_type, agent_transcript_path: ".../subagents/agent-<agent_id>.jsonl",
+//     last_assistant_message, hook_event_name: "SubagentStop", stop_hook_active }
+// Critically: transcript_path is the PARENT transcript; the SUBAGENT transcript is at
+// agent_transcript_path. The hook must sum agent_transcript_path, not transcript_path.
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import fs from 'node:fs';
@@ -29,7 +37,8 @@ function triggerPrompt(text: string): string {
   return JSON.stringify({ type: 'user', message: { content: text } });
 }
 
-// Async-launch dispatch result (what appears in the main transcript on dispatch)
+// Async-launch dispatch result — written to the PARENT transcript at launch time
+// (matches the real shape: { isAsync:true, status:"async_launched", agentId, ... }).
 function asyncLaunchEntry(agentId: string, resolvedModel: string): string {
   return JSON.stringify({
     type: 'user',
@@ -38,7 +47,10 @@ function asyncLaunchEntry(agentId: string, resolvedModel: string): string {
   });
 }
 
-// Sync-completion dispatch result (status:"completed" with usage — already handled by cost-tracker.ts)
+// Sync-completion dispatch result (status:"completed" with usage). cost-tracker.ts logs
+// these at Stop; this hook must NOT (no async marker). Note: in reality this entry is only
+// written to the parent AFTER SubagentStop fires — the positive-async check is what makes
+// the hook robust to that ordering, so its presence here must still yield zero rows.
 function syncCompleteEntry(agentId: string): string {
   return JSON.stringify({
     type: 'user',
@@ -54,8 +66,9 @@ function syncCompleteEntry(agentId: string): string {
 // Build a minimal hermit project layout that subagent-cost.ts can resolve:
 //   <root>/.claude/cost-log.jsonl              (written by the hook)
 //   <root>/.claude-code-hermit/state/runtime.json
-//   <root>/.claude/projects/<proj>/<sessionUuid>.jsonl  (parent transcript)
+//   <root>/.claude/projects/<proj>/<sessionUuid>.jsonl  (PARENT transcript → transcript_path)
 //   <root>/.claude/projects/<proj>/<sessionUuid>/subagents/agent-<agentId>.jsonl
+//                                                       (SUBAGENT → agent_transcript_path)
 interface Layout {
   root: string;
   logPath: string;
@@ -90,25 +103,21 @@ function buildLayout(rootSuffix = 'hermit-subagent-cost-'): Layout {
   return { root, logPath, agentId, subagentTranscriptPath, parentTranscriptPath, sessionUuid };
 }
 
+// Real SubagentStop payload shape: transcript_path = PARENT, agent_transcript_path = SUBAGENT.
 function makePayload(layout: Layout, agentType = 'claude-code-hermit:skill-eval-runner'): string {
   return JSON.stringify({
     session_id: 'hook-session',
-    transcript_path: layout.subagentTranscriptPath,
+    transcript_path: layout.parentTranscriptPath,
+    agent_transcript_path: layout.subagentTranscriptPath,
+    agent_id: layout.agentId,
     agent_type: agentType,
+    hook_event_name: 'SubagentStop',
+    stop_hook_active: false,
   });
 }
 
-// ---------------------------------------------------------------------------
-// Helper: run the hook and read the resulting cost-log rows
-// ---------------------------------------------------------------------------
-
-async function runHook(stdin: string, cwd: string): Promise<{ exitCode: number; rows: any[] }> {
-  const r = await runScript('subagent-cost.ts', { stdin, cwd, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT } });
-  return { exitCode: r.exitCode, rows: [] };
-}
-
 async function runHookAndReadLog(layout: Layout): Promise<any[]> {
-  const r = await runScript('subagent-cost.ts', {
+  await runScript('subagent-cost.ts', {
     stdin: makePayload(layout),
     cwd: layout.root,
     env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
@@ -132,7 +141,7 @@ describe('subagent-cost: happy path — async heartbeat dispatch', () => {
       assistantEntry('claude-haiku-4-5-20251001', 1000, 400),
       assistantEntry('claude-haiku-4-5-20251001', 200, 80),
     ].join('\n') + '\n');
-    // Parent transcript: heartbeat trigger → async dispatch
+    // Parent transcript: heartbeat trigger → async dispatch (different model/tokens than subagent)
     fs.writeFileSync(layout.parentTranscriptPath, [
       triggerPrompt('HEARTBEAT_EVALUATE'),
       assistantEntry('claude-sonnet-4-6', 500, 100),
@@ -160,7 +169,39 @@ describe('subagent-cost: happy path — async heartbeat dispatch', () => {
   test('row session_id comes from payload', () => expect(rows[0].session_id).toBe('hook-session'));
 });
 
-describe('subagent-cost: sync dispatch dedup — skip if cost-tracker already handled', () => {
+// Regression guard for the original ship-blocker: the hook summed payload.transcript_path
+// (the PARENT) instead of agent_transcript_path (the subagent). Give the two transcripts
+// unmistakably different usage and assert the row reflects the SUBAGENT.
+describe('subagent-cost: reads the subagent transcript, not the parent', () => {
+  let layout: Layout;
+  let rows: any[];
+
+  beforeAll(async () => {
+    layout = buildLayout();
+    // Subagent: small haiku usage
+    fs.writeFileSync(layout.subagentTranscriptPath, [
+      assistantEntry('claude-haiku-4-5-20251001', 7, 3),
+    ].join('\n') + '\n');
+    // Parent: huge opus usage — must NOT leak into the row
+    fs.writeFileSync(layout.parentTranscriptPath, [
+      triggerPrompt('HEARTBEAT_EVALUATE'),
+      assistantEntry('claude-opus-4-6', 999999, 888888),
+      asyncLaunchEntry(layout.agentId, 'claude-haiku-4-5-20251001'),
+    ].join('\n') + '\n');
+    rows = await runHookAndReadLog(layout);
+  });
+
+  afterAll(() => fs.rmSync(layout.root, { recursive: true }));
+
+  test('emits one row', () => expect(rows).toHaveLength(1));
+  test('row reflects subagent tokens (not parent)', () => {
+    expect(rows[0].input_tokens).toBe(7);
+    expect(rows[0].output_tokens).toBe(3);
+  });
+  test('row model is the subagent model (haiku, not opus)', () => expect(rows[0].model).toBe('haiku'));
+});
+
+describe('subagent-cost: sync dispatch — skip (no async marker, cost-tracker owns it)', () => {
   let layout: Layout;
   let rows: any[];
 
@@ -169,7 +210,7 @@ describe('subagent-cost: sync dispatch dedup — skip if cost-tracker already ha
     fs.writeFileSync(layout.subagentTranscriptPath, [
       assistantEntry('claude-haiku-4-5-20251001', 1000, 400),
     ].join('\n') + '\n');
-    // Parent shows sync completion (status:"completed" + usage) — cost-tracker already logged
+    // Parent shows a sync completion (no async-launch marker) — must not be logged here.
     fs.writeFileSync(layout.parentTranscriptPath, [
       triggerPrompt('HEARTBEAT_EVALUATE'),
       syncCompleteEntry(layout.agentId),
@@ -180,11 +221,11 @@ describe('subagent-cost: sync dispatch dedup — skip if cost-tracker already ha
 
   afterAll(() => fs.rmSync(layout.root, { recursive: true }));
 
-  test('emits no rows (dedup: sync dispatch already captured by cost-tracker.ts)', () =>
+  test('emits no rows (no async-launch marker → cost-tracker.ts owns sync dispatches)', () =>
     expect(rows).toHaveLength(0));
 });
 
-describe('subagent-cost: agentId not found in parent — source fallback to other', () => {
+describe('subagent-cost: async launch only for a different agent — no row for ours', () => {
   let layout: Layout;
   let rows: any[];
 
@@ -193,10 +234,10 @@ describe('subagent-cost: agentId not found in parent — source fallback to othe
     fs.writeFileSync(layout.subagentTranscriptPath, [
       assistantEntry('claude-haiku-4-5-20251001', 500, 200),
     ].join('\n') + '\n');
-    // Parent transcript does not mention this agentId
+    // Parent has an async launch, but for a DIFFERENT agentId — ours can't be confirmed async.
     fs.writeFileSync(layout.parentTranscriptPath, [
-      triggerPrompt('some prompt'),
-      asyncLaunchEntry('different-agent-id', 'claude-haiku-4-5-20251001'),
+      triggerPrompt('HEARTBEAT_EVALUATE'),
+      asyncLaunchEntry('some-other-agent-id', 'claude-haiku-4-5-20251001'),
       assistantEntry('claude-sonnet-4-6', 10, 5),
     ].join('\n') + '\n');
     rows = await runHookAndReadLog(layout);
@@ -204,7 +245,30 @@ describe('subagent-cost: agentId not found in parent — source fallback to othe
 
   afterAll(() => fs.rmSync(layout.root, { recursive: true }));
 
-  test('still emits one row', () => expect(rows).toHaveLength(1));
+  test('emits no rows', () => expect(rows).toHaveLength(0));
+});
+
+describe('subagent-cost: async launch with unrecognized trigger — source falls back to other', () => {
+  let layout: Layout;
+  let rows: any[];
+
+  beforeAll(async () => {
+    layout = buildLayout();
+    fs.writeFileSync(layout.subagentTranscriptPath, [
+      assistantEntry('claude-haiku-4-5-20251001', 500, 200),
+    ].join('\n') + '\n');
+    // Async launch present for our agent, but the trigger isn't a heartbeat/routine marker.
+    fs.writeFileSync(layout.parentTranscriptPath, [
+      triggerPrompt('some unrelated prompt'),
+      asyncLaunchEntry(layout.agentId, 'claude-haiku-4-5-20251001'),
+      assistantEntry('claude-sonnet-4-6', 10, 5),
+    ].join('\n') + '\n');
+    rows = await runHookAndReadLog(layout);
+  });
+
+  afterAll(() => fs.rmSync(layout.root, { recursive: true }));
+
+  test('emits one row', () => expect(rows).toHaveLength(1));
   test('source falls back to other', () => expect(rows[0].source).toBe('other'));
   test('model still haiku', () => expect(rows[0].model).toBe('haiku'));
 });
@@ -215,7 +279,7 @@ describe('subagent-cost: unreadable subagent transcript — fail open, no row', 
 
   beforeAll(async () => {
     layout = buildLayout();
-    // Do NOT write the subagent transcript
+    // Do NOT write the subagent transcript; parent confirms async so we get past that gate.
     fs.writeFileSync(layout.parentTranscriptPath, [
       triggerPrompt('HEARTBEAT_EVALUATE'),
       asyncLaunchEntry(layout.agentId, 'claude-haiku-4-5-20251001'),
@@ -243,7 +307,7 @@ describe('subagent-cost: empty payload — fail open, no row', () => {
 
   test('exits 0 on stop_hook_active guard', async () => {
     const r = await runScript('subagent-cost.ts', {
-      stdin: JSON.stringify({ stop_hook_active: true, transcript_path: layout.subagentTranscriptPath }),
+      stdin: JSON.stringify({ stop_hook_active: true, agent_transcript_path: layout.subagentTranscriptPath, agent_id: layout.agentId }),
       cwd: layout.root,
       env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
     });

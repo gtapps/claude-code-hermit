@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- **SubagentStop hook: capture async-dispatched subagent costs** (#435) — new `scripts/subagent-cost.ts` on `SubagentStop` logs `subagent:true` cost rows for async agent dispatches (heartbeat eval runner, routine dispatchers). Async completions arrive as XML task-notifications with no usage in the main transcript; Stop-time cost-tracker never saw them. Verified on 3 live haiku hermits: zero heartbeat rows since v1.2.7's async dispatch. Dedup: skips if parent transcript shows a sync completion (cost-tracker already logged it). Requires CC >= v2.1.143. Past losses not backfilled.
+- **SubagentStop hook: capture async-dispatched subagent costs** (#435) — new `scripts/subagent-cost.ts` on `SubagentStop` logs `subagent:true` cost rows for async agent dispatches (heartbeat eval runner, routine dispatchers). Async completions arrive as XML task-notifications with no usage in the main transcript; Stop-time cost-tracker never saw them. Verified on 3 live haiku hermits: zero heartbeat rows since v1.2.7's async dispatch. Reads the subagent transcript from `agent_transcript_path` and logs only when the parent transcript carries an `async_launched` marker for the `agent_id` — sync dispatches lack it and stay owned by cost-tracker, so no double-count. Requires CC >= v2.1.143. Past losses not backfilled.
 
 ## [1.2.7] - 2026-06-19
 

@@ -83,6 +83,31 @@ function transcriptPath(payload: Json): string | null {
 }
 
 /**
+ * Extract the SUBAGENT transcript path from a SubagentStop hook payload.
+ * Distinct from transcript_path, which on SubagentStop is the PARENT transcript.
+ * @param {object} payload
+ * @returns {string|null}
+ */
+function agentTranscriptPath(payload: Json): string | null {
+  if (!payload || typeof payload !== 'object') return null;
+  return payload.agent_transcript_path != null ? payload.agent_transcript_path : null;
+}
+
+/**
+ * Extract the subagent id from a SubagentStop hook payload.
+ * Matches toolUseResult.agentId in the parent transcript and the
+ * subagents/agent-<id>.jsonl filename.
+ * @param {object} payload
+ * @returns {string|null}
+ */
+function agentId(payload: Json): string | null {
+  if (!payload || typeof payload !== 'object') return null;
+  return payload.agent_id != null ? payload.agent_id
+    : payload.agentId != null ? payload.agentId
+    : null;
+}
+
+/**
  * Extract session_crons with tri-state presence semantics.
  *
  * The tri-state is critical:
@@ -238,6 +263,8 @@ export {
   // Hook-payload accessors
   sessionId,
   transcriptPath,
+  agentTranscriptPath,
+  agentId,
   sessionCrons,
   backgroundTasks,
   // Transcript parsing
