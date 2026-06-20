@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **CLAUDE-APPEND: background-session worktree clarifier** — §Git Safety in both templates now tells background (`--bg`/agent-view) dev agents to let the harness auto-isolate on first edit instead of proactively calling `EnterWorktree` (which fails in daemon-spawned pinned-cwd sessions and stalled #435).
+
 ## [0.4.2] - 2026-06-16
 
 ### Changed
