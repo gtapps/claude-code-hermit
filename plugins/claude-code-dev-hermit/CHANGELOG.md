@@ -1,10 +1,26 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.3] - 2026-06-20
 
 ### Fixed
 
-- **CLAUDE-APPEND: background-session worktree clarifier** — §Git Safety in both templates now tells background (`--bg`/agent-view) dev agents to let the harness auto-isolate on first edit instead of proactively calling `EnterWorktree` (which fails in daemon-spawned pinned-cwd sessions and stalled #435).
+- **CLAUDE-APPEND: background-session worktree clarifier** — §Git Safety in both templates appends a note to "Stay in your worktree": background dev agents should let the harness auto-isolate on first edit instead of proactively calling `EnterWorktree`, which fails in daemon-spawned pinned-cwd sessions.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/CLAUDE-APPEND.md` | Append background-session auto-isolate note to §Git Safety "Stay in your worktree" rule |
+| `state-templates/CLAUDE-APPEND-SAFETY.md` | Same |
+| `.claude-plugin/hermit-meta.json` | Bump `required_core_version` to `>=1.2.8` |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Update §Git Safety "Stay in your worktree" rule** — in `CLAUDE.local.md` (or `CLAUDE.md`), find the line ending with `The \`worktree-boundary-guard\` hook hard-blocks edits that escape the worktree.` and append: ` In a **background** session the harness moves you into a worktree automatically on your first edit, so don't proactively call \`EnterWorktree\`, and don't treat an "isolate first" message as a rule violation or a reason to stop and ask: just re-attempt the edit.`
+
+No `config.json` changes required.
 
 ## [0.4.2] - 2026-06-16
 
