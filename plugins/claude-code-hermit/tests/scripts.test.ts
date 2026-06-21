@@ -558,6 +558,129 @@ describe('archive-raw', () => {
 });
 
 // -------------------------------------------------------
+// update-alert-state.ts (subprocess — stdin payload + file-write CLI contract)
+// -------------------------------------------------------
+
+describe('update-alert-state', () => {
+  async function updateAlertState(dir: string, payload: string) {
+    const stateFile = hermit(dir, 'state', 'alert-state.json');
+    const r = await runScript('update-alert-state.ts', { args: [stateFile], stdin: payload });
+    expect(r.exitCode).toBe(0);
+    return readJson(stateFile);
+  }
+
+  test('update-alert-state (new_entries merged into alerts)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'),
+      '{"alerts":{},"self_eval":{},"total_ticks":5}');
+    const d = await updateAlertState(dir,
+      '{"new_entries":{"stale-session":{"severity":"low"}},"updated_entries":{},"resolved_keys":[],"last_clean_eval_at":null,"self_eval_updates":{}}');
+    expect(d.alerts['stale-session']).toEqual({ severity: 'low' });
+    expect(d.total_ticks).toBe(5); // precheck-owned — must survive untouched
+  }));
+
+  test('update-alert-state (updated_entries overlays existing alerts)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'),
+      '{"alerts":{"stale-session":{"severity":"low","count":1}},"self_eval":{},"total_ticks":10}');
+    const d = await updateAlertState(dir,
+      '{"new_entries":{},"updated_entries":{"stale-session":{"severity":"low","count":2}},"resolved_keys":[],"last_clean_eval_at":null,"self_eval_updates":{}}');
+    expect(d.alerts['stale-session'].count).toBe(2);
+    expect(d.total_ticks).toBe(10);
+  }));
+
+  test('update-alert-state (resolved_keys deleted from alerts)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'),
+      '{"alerts":{"stale-session":{"severity":"low"},"other-alert":{"severity":"high"}},"self_eval":{},"total_ticks":3}');
+    const d = await updateAlertState(dir,
+      '{"new_entries":{},"updated_entries":{},"resolved_keys":["stale-session"],"last_clean_eval_at":null,"self_eval_updates":{}}');
+    expect(d.alerts).not.toHaveProperty('stale-session');
+    expect(d.alerts['other-alert']).toBeDefined();
+  }));
+
+  test('update-alert-state (self_eval_updates overlays self_eval)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'),
+      '{"alerts":{},"self_eval":{"existing-key":"old-value"},"total_ticks":1}');
+    const d = await updateAlertState(dir,
+      '{"new_entries":{},"updated_entries":{},"resolved_keys":[],"last_clean_eval_at":null,"self_eval_updates":{"new-key":"new-value"}}');
+    expect(d.self_eval['existing-key']).toBe('old-value');
+    expect(d.self_eval['new-key']).toBe('new-value');
+  }));
+
+  test('update-alert-state (last_clean_eval_at set from payload)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'),
+      '{"alerts":{},"self_eval":{},"last_clean_eval_at":null,"total_ticks":2}');
+    const d = await updateAlertState(dir,
+      '{"new_entries":{},"updated_entries":{},"resolved_keys":[],"last_clean_eval_at":"2026-06-21T22:00:00.000Z","self_eval_updates":{}}');
+    expect(d.last_clean_eval_at).toBe('2026-06-21T22:00:00.000Z');
+  }));
+
+  test('update-alert-state (null last_clean_eval_at payload value honored)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'),
+      '{"alerts":{},"self_eval":{},"last_clean_eval_at":"2026-06-20T10:00:00.000Z","total_ticks":1}');
+    const d = await updateAlertState(dir,
+      '{"new_entries":{},"updated_entries":{},"resolved_keys":[],"last_clean_eval_at":null,"self_eval_updates":{}}');
+    expect(d.last_clean_eval_at).toBeNull();
+  }));
+
+  test('update-alert-state (total_ticks, last_stale_wake_at, last_digest_date preserved)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'),
+      '{"alerts":{},"self_eval":{},"total_ticks":42,"last_stale_wake_at":"2026-06-21T20:00:00.000Z","last_digest_date":"2026-06-21","last_clean_eval_at":null}');
+    const d = await updateAlertState(dir,
+      '{"new_entries":{},"updated_entries":{},"resolved_keys":[],"last_clean_eval_at":null,"self_eval_updates":{}}');
+    expect(d.total_ticks).toBe(42);
+    expect(d.last_stale_wake_at).toBe('2026-06-21T20:00:00.000Z');
+    expect(d.last_digest_date).toBe('2026-06-21');
+  }));
+
+  test('update-alert-state (missing state file — fail-open, exits 0)', withDir(async (dir) => {
+    const stateFile = hermit(dir, 'state', 'alert-state.json');
+    const r = await runScript('update-alert-state.ts', {
+      args: [stateFile],
+      stdin: '{"new_entries":{"k":{"severity":"low"}},"updated_entries":{},"resolved_keys":[],"last_clean_eval_at":null,"self_eval_updates":{}}',
+    });
+    expect(r.exitCode).toBe(0);
+    const d = readJson(stateFile);
+    expect(d.alerts['k']).toBeDefined();
+  }));
+
+  test('update-alert-state (bad JSON payload — exits 1, no write)', withDir(async (dir) => {
+    const stateFile = hermit(dir, 'state', 'alert-state.json');
+    const r = await runScript('update-alert-state.ts', { args: [stateFile], stdin: 'not-json' });
+    expect(r.exitCode).toBe(1);
+    expect(fs.existsSync(stateFile)).toBe(false);
+  }));
+
+  test('update-alert-state (apostrophe in free-text value round-trips intact)', withDir(async (dir) => {
+    // Regression: apostrophes broke single-quoted argv passing.
+    write(hermit(dir, 'state', 'alert-state.json'),
+      '{"alerts":{},"self_eval":{},"total_ticks":7}');
+    const d = await updateAlertState(dir, JSON.stringify({
+      new_entries: { 'stale-session': { severity: 'low', note: "the session's been idle" } },
+      updated_entries: {},
+      resolved_keys: [],
+      last_clean_eval_at: null,
+      self_eval_updates: { 'last-note': "prod's disk > 80%" },
+    }));
+    expect(d.alerts['stale-session'].note).toBe("the session's been idle");
+    expect(d.self_eval['last-note']).toBe("prod's disk > 80%");
+    expect(d.total_ticks).toBe(7);
+  }));
+
+  test('update-alert-state (embedded double-quote and newline round-trip intact)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'),
+      '{"alerts":{},"self_eval":{},"total_ticks":1}');
+    const note = 'said "hi"\nthen left';
+    const d = await updateAlertState(dir, JSON.stringify({
+      new_entries: { 'k': { note } },
+      updated_entries: {},
+      resolved_keys: [],
+      last_clean_eval_at: null,
+      self_eval_updates: {},
+    }));
+    expect(d.alerts['k'].note).toBe(note);
+  }));
+});
+
+// -------------------------------------------------------
 // update-reflection-state.ts (subprocess — argv + file-write CLI contract)
 // -------------------------------------------------------
 
