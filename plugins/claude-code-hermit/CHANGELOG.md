@@ -1,5 +1,52 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **docker-entrypoint: marketplace registration via `list --json`, not dir existence** — `marketplace_registered()` helper reads `known_marketplaces.json`; fixes "No marketplaces configured" when dir exists but isn't registered (partial add, fresh named volume, bind-mount). Decoupled hermit install from marketplace-add so prior install failures self-heal on next boot.
+
+### Upgrade Instructions
+
+**Docker entrypoint — marketplace registration fix.** Existing Docker hermits must refresh their **on-disk** `docker-entrypoint.hermit.sh` before the fix takes effect, because `hermit-docker update` rebuilds the image from the on-disk entrypoint, not the template.
+
+**Step 1 — Existence check.** Check for `docker-entrypoint.hermit.sh` at the project root. If it does not exist, skip — Docker not set up.
+
+**Step 2 — Already patched?** If `docker-entrypoint.hermit.sh` already contains `marketplace_registered()`, skip to Step 4.
+
+**Step 3 — Refresh on-disk entrypoint.** Copy the updated template into place:
+
+```
+cp "${CLAUDE_PLUGIN_ROOT}/state-templates/docker/docker-entrypoint.hermit.sh.template" docker-entrypoint.hermit.sh
+```
+
+If `${CLAUDE_PLUGIN_ROOT}` is not set (non-Docker session), derive from `claude plugin list --json` to locate the hermit plugin root.
+
+**Step 4 — Re-record the entrypoint baseline** so the drift detector clears:
+
+```
+bun -e '
+  const fs=require("node:fs"), c=require("node:crypto");
+  const [tmpl, ver]=process.argv.slice(2);
+  const mp=".claude-code-hermit/state/template-manifest.json";
+  if(!fs.existsSync(mp)) process.exit(0);
+  const m=JSON.parse(fs.readFileSync(mp,"utf8")); m.files ??= {};
+  const h=c.createHash("sha256").update(fs.readFileSync(tmpl)).digest("hex");
+  m.files["docker/docker-entrypoint.hermit.sh"]={sha256:h, plugin_version:ver};
+  fs.writeFileSync(mp, JSON.stringify(m,null,2)+"\n");
+' "${CLAUDE_PLUGIN_ROOT}/state-templates/docker/docker-entrypoint.hermit.sh.template" "<to>"
+```
+
+Replace `<to>` with the current plugin version.
+
+**Step 5 — Rebuild the image** (only if Docker hermit is running):
+
+```
+.claude-code-hermit/bin/hermit-docker update
+```
+
+Non-Docker hermits: nothing to do.
+
 ## [1.2.9] - 2026-06-22
 
 ### Added
