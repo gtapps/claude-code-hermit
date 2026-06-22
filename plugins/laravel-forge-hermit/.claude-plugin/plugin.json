@@ -1,0 +1,11 @@
+{
+  "name": "laravel-forge-hermit",
+  "version": "0.0.1",
+  "description": "Laravel Forge layer for claude-code-hermit — deploy, logs, server/site skills over the official Laravel Forge PHP SDK",
+  "author": { "name": "gtapps", "url": "https://github.com/gtapps" },
+  "repository": "https://github.com/gtapps/claude-code-hermit",
+  "homepage": "https://github.com/gtapps/claude-code-hermit/tree/main/plugins/laravel-forge-hermit",
+  "license": "MIT",
+  "keywords": ["laravel", "forge", "deployment", "devops", "php", "gtapps"],
+  "dependencies": [{ "name": "claude-code-hermit", "version": "^1.1.1" }]
+}
