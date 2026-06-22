@@ -1,0 +1,12 @@
+{
+    "name": "gtapps/laravel-forge-hermit",
+    "description": "Laravel Forge PHP SDK runtime for laravel-forge-hermit",
+    "type": "project",
+    "require": {
+        "php": "^8.5",
+        "laravel/forge-sdk": "^4.0"
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
+}
