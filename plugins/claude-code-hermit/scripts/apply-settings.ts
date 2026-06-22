@@ -67,6 +67,30 @@ function readJson(filePath: string): Json {
   }
 }
 
+// Strict read for the operator's target settings file: an existing-but-malformed
+// file must abort, never fall through to {} — otherwise the additive merge below
+// would overwrite the whole file with only hermit's subset, silently discarding
+// the operator's settings.
+function readTargetJson(filePath: string): Json {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(filePath, 'utf8');
+  } catch (err: any) {
+    if (err.code === 'ENOENT') return {};
+    throw err;
+  }
+  if (raw.trim() === '') return {};
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error(
+      `Refusing to overwrite ${filePath}: file exists but is not valid JSON ` +
+        `(${(err as Error).message}). Fix or remove it, then re-run.`,
+    );
+    process.exit(1);
+  }
+}
+
 function writeJson(filePath: string, data: Json): void {
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -111,7 +135,7 @@ if (!targetFile || !op) {
   process.exit(1);
 }
 
-const settings = readJson(targetFile);
+const settings = readTargetJson(targetFile);
 
 switch (op) {
   case 'task-id': {
