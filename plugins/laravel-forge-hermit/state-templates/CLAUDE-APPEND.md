@@ -19,38 +19,26 @@ A wrong reboot causes an outage. A wrong deploy targets the wrong site. The `wri
 
 ---
 
-### Skills
-
-| Skill | Trigger | Purpose |
-|---|---|---|
-| `/laravel-forge-hermit:hatch` | setup | one-time install wizard |
-| `/laravel-forge-hermit:forge-servers` | "list servers", "reboot server" | server list, detail, reboot flow |
-| `/laravel-forge-hermit:forge-sites` | "list sites", "show site" | site list and detail |
-| `/laravel-forge-hermit:forge-deploy` | "deploy", "trigger deployment" | preview → approve → deploy; failure → deploy-incident |
-| `/laravel-forge-hermit:forge-logs` | "show logs", "triage site" | deployment + server logs, triage mode |
-| `/laravel-forge-hermit:forge-failed-deploys` | (scheduled, 1d) | estate scan, analysis-only |
-
----
-
 ### Tools
 
-The curated `php forge.php` commands cover the hot paths. For any other SDK read — server jobs, daemons, firewall rules, certificates, database users, etc. — use read-only generic dispatch:
+Skills self-advertise through their own `SKILL.md` descriptions — they are not catalogued here. The curated `php forge.php` commands cover the hot paths. For any other SDK read — server events, firewall rules, databases, scheduled jobs, certificates, etc. — use read-only generic dispatch:
 
 ```bash
-# Args as JSON array on stdin; org slug is prepended automatically.
-echo '["<server-id>"]' | php ${CLAUDE_PLUGIN_ROOT}/php/forge.php call jobs
-echo '["<server-id>", "<site-id>"]' | php ${CLAUDE_PLUGIN_ROOT}/php/forge.php call certificates
+# Args as JSON array on stdin; the org slug is prepended automatically
+# (except global methods like `organizations` and `sites`).
+echo '["<server-id>"]' | php ${CLAUDE_PLUGIN_ROOT}/php/forge.php call databases
+echo '["<server-id>", "<site-id>"]' | php ${CLAUDE_PLUGIN_ROOT}/php/forge.php call deployments
 ```
 
 Only read methods on the closed allowlist are accepted — this path cannot mutate anything.
 
 ---
 
-### Scheduled checks
+### Scheduled checks & notifications
 
-| Check | Cadence | Type |
-|---|---|---|
-| `forge-failed-deploys` | daily | analysis-only, routes to `[reliability]` proposals |
+The `forge-failed-deploys` scheduled check is analysis-only: it surfaces sites whose latest deployment failed and routes findings through the normal proposal pipeline as `[reliability]` proposals. It sends no channel messages itself.
+
+Anything operator-facing (deploy success/failure, escalations) is relayed via the **Operator Notification protocol in CLAUDE.md** — do not build a separate notification path.
 
 ---
 
@@ -58,7 +46,7 @@ Only read methods on the closed allowlist are accepted — this path cannot muta
 
 `FORGE_API_TOKEN` lives in the gitignored `.env` at the project root.
 
-- **Never `cat`, `echo`, `grep`, or Read `.env`** to check the token — run `php ${CLAUDE_PLUGIN_ROOT}/php/forge.php check` instead. It self-reports `missing`/`invalid`/`ok` without revealing the value.
+- **Never `cat`, `echo`, `grep`, or Read `.env`** to check the token — run `php ${CLAUDE_PLUGIN_ROOT}/php/forge.php check` instead. It self-reports `missing`/`invalid`/`unreachable`/`ok` without revealing the value.
 - `TOKEN` appears in the key name: the base hermit's deny-pattern hook blocks any Bash arg containing the literal string `TOKEN`.
 
 ---

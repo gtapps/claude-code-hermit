@@ -17,7 +17,7 @@ Then run `/laravel-forge-hermit:hatch` in your project (requires `claude-code-he
 |---|---|
 | `/laravel-forge-hermit:forge-servers` | List servers, show detail, reboot (with preview → approve flow) |
 | `/laravel-forge-hermit:forge-sites` | List and inspect sites |
-| `/laravel-forge-hermit:forge-deploy` | Preview → approve → deploy; `--watch` polls to completion; failure writes a scrubbed `deploy-incident` |
+| `/laravel-forge-hermit:forge-deploy` | Preview → approve → deploy; a hermit `/watch` monitors to completion; failure writes a scrubbed `deploy-incident` |
 | `/laravel-forge-hermit:forge-logs` | Latest deployment log, specific deployment log, server log, triage mode |
 | `/laravel-forge-hermit:forge-failed-deploys` | Daily estate scan — surfaces sites with failed latest deployments as `[reliability]` proposals |
 

@@ -33,7 +33,7 @@ The vendor tree is **not committed to this repo** — hatch installs `laravel/fo
 
 - **Surface-then-approve on every write.** Preview first, relay canonical target, wait for explicit approval, re-run with `--confirm`. No exceptions.
 - The write-confirm-gate hook and the in-PHP `--confirm` gate are two independent layers. Neither is optional.
-- **Never echo, cat, or Read `.env`** — check credential state with `forge.php check` (self-reports `missing`/`invalid`/`ok`). The `TOKEN` substring in `FORGE_API_TOKEN` triggers the base hermit deny-pattern hook.
+- **Never echo, cat, or Read `.env`** — check credential state with `forge.php check` (self-reports `missing`/`invalid`/`unreachable`/`ok`). The `TOKEN` substring in `FORGE_API_TOKEN` triggers the base hermit deny-pattern hook.
 - **Deployment and server logs may contain secrets.** Scrub before relay and before persistence — see CLAUDE-APPEND secret-hygiene rule.
 - Generic dispatch (`forge.php call <method>`) is read-only by design (closed allowlist). Write ops only go through the curated `deploy` / `server-reboot` commands.
 

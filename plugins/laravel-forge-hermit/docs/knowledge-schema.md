@@ -4,7 +4,7 @@
 
 Work products live in `.claude-code-hermit/compiled/`. All artifacts are flat (no subdirectories).
 
-- `deploy-incident`: per-failure deployment record with scrubbed log tail and resolution notes. **Producer**: `forge-deploy` skill on a `--watch` failure. **Location**: `compiled/deploy-incident-<site-name>-<YYYY-MM-DD>.md`. **Tags**: `[deploy, failure, <site-name>]`. **Retention**: indefinite (read by `[reliability]` proposals to identify patterns). **Secret hygiene**: log tail must be scrubbed of credentials before writing — see `forge-deploy` SKILL.md.
+- `deploy-incident`: per-failure deployment record with scrubbed log tail and resolution notes. **Producer**: `forge-deploy` skill on a failed terminal deploy status (detected by the watch Monitor). **Location**: `compiled/deploy-incident-<site-name>-<YYYY-MM-DD>.md`. **Tags**: `[deploy, failure, <site-name>]`. **Retention**: indefinite (read by `[reliability]` proposals to identify patterns). **Secret hygiene**: log tail must be scrubbed of credentials before writing — see `forge-deploy` SKILL.md.
 
 ## Raw Captures
 

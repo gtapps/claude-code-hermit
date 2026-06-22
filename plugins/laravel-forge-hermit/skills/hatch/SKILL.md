@@ -120,6 +120,7 @@ Run: `php ${CLAUDE_PLUGIN_ROOT}/php/forge.php check`
 
 - **`missing`** → tell the operator to add `FORGE_API_TOKEN` to `.env` and re-run Step 4.
 - **`invalid`** → token found but API rejected it; tell the operator to check the token at https://forge.laravel.com/user-profile/api.
+- **`unreachable`** → token present but the API could not be reached (network/egress blocked). In Docker, verify the DNS allowlist in DOCKER.md (`forge.laravel.com`). Re-run once connectivity is confirmed.
 - **`ok`** → continue.
 
 If `php` is not found at this point: re-run Step 3.
@@ -147,7 +148,7 @@ Read `.claude-code-hermit/knowledge-schema.md`.
 Check for `deploy-incident:` in the file. If absent, append under `## Work Products`:
 
 ```
-- deploy-incident: per-failure deployment record with scrubbed log tail and resolution. Producer: forge-deploy skill on --watch failure. location: compiled/deploy-incident-<site>-<YYYY-MM-DD>.md
+- deploy-incident: per-failure deployment record with scrubbed log tail and resolution. Producer: forge-deploy skill on a failed terminal deploy status. location: compiled/deploy-incident-<site>-<YYYY-MM-DD>.md
 ```
 
 Use Edit. Skip if already present (idempotent).

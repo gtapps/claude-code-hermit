@@ -10,11 +10,15 @@
 // unconditionally (they are read-only). The in-PHP --confirm refusal is the
 // authoritative gate; this hook is defense-in-depth.
 //
-// Fail-closed: malformed stdin or a parse error blocks the call.
+// Fail-open on transient/unexpected input (per the hermit hook rule: a hook
+// must never block Claude Code on a parse glitch). We exit non-zero (block)
+// ONLY when we positively identify a write command lacking --confirm; if we
+// can't parse or classify the call, we pass through and let the authoritative
+// in-PHP gate handle it.
 
 import { readFileSync, writeSync } from 'node:fs';
 
-function fail(message: string): never {
+function block(message: string): never {
   try { writeSync(2, `${message}\n`); } catch {}
   process.exit(2);
 }
@@ -24,11 +28,11 @@ function main(): void {
   try {
     payload = JSON.parse(readFileSync(0, 'utf8'));
   } catch {
-    fail('write-confirm-gate: failed to parse hook input');
+    process.exit(0); // unparseable input — fail open, in-PHP gate is authoritative
   }
 
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
-    fail('write-confirm-gate: invalid hook payload');
+    process.exit(0); // unexpected payload shape — fail open
   }
 
   const p = payload as Record<string, unknown>;
@@ -55,7 +59,7 @@ function main(): void {
 
   const SAFE_SUBCOMMANDS = [
     'check', 'servers', 'server', 'sites', 'site', 'logs',
-    'server-log', 'deploy-history', 'deploy-log',
+    'server-log', 'deploy-history', 'deploy-log', 'deploy-status',
     'preview-deploy', 'preview-reboot',
     'failed-deploys', 'call',
     'help', '--help',
@@ -70,12 +74,12 @@ function main(): void {
     process.exit(0);
   }
 
-  if (command.includes('--confirm')) {
+  if (tokens.includes('--confirm')) { // exact token, matching the in-PHP in_array() check
     process.exit(0);
   }
 
   const preview = subcommand === 'deploy' ? 'preview-deploy' : 'preview-reboot';
-  fail(`forge.php ${subcommand} requires --confirm. Run ${preview} first to review the canonical target, then re-run with --confirm.`);
+  block(`forge.php ${subcommand} requires --confirm. Run ${preview} first to review the canonical target, then re-run with --confirm.`);
 }
 
 if (import.meta.main) {

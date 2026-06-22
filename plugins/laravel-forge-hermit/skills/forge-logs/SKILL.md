@@ -59,4 +59,4 @@ When the operator says something like "what's wrong with myapp.com" or "triage t
 ## Notes
 
 - `<server>` and `<site>` accept name, hostname, or numeric ID.
-- For reading logs for a failed deployment that you triggered via `forge-deploy --watch`, the `deploy-incident` artifact (written by `forge-deploy`) already contains the scrubbed log tail — check `compiled/deploy-incident-<site>-<date>.md` before re-fetching.
+- For a failed deployment you triggered via `forge-deploy`, the `deploy-incident` artifact (written by `forge-deploy` when its watch Monitor sees a failed terminal status) already contains the scrubbed log tail — check `compiled/deploy-incident-<site>-<date>.md` before re-fetching.

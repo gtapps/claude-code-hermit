@@ -57,6 +57,11 @@ describe('write-confirm-gate: pass-through cases', () => {
     expect(r.exitCode).toBe(0);
   });
 
+  test('deploy-status passes (read-only poll, not a write)', () => {
+    const r = runHook({ tool_name: 'Bash', tool_input: { command: 'php /plugin/php/forge.php deploy-status 12 34 8821' } });
+    expect(r.exitCode).toBe(0);
+  });
+
   test('call method passes', () => {
     const r = runHook({ tool_name: 'Bash', tool_input: { command: 'echo \'["s1"]\' | php /plugin/php/forge.php call servers' } });
     expect(r.exitCode).toBe(0);
@@ -70,8 +75,8 @@ describe('write-confirm-gate: blocked cases', () => {
     expect(r.stderr).toContain('--confirm');
   });
 
-  test('deploy with --watch but no --confirm is blocked', () => {
-    const r = runHook({ tool_name: 'Bash', tool_input: { command: 'php /plugin/php/forge.php deploy prod-web myapp.com --watch' } });
+  test('deploy with an unknown trailing flag but no --confirm is blocked', () => {
+    const r = runHook({ tool_name: 'Bash', tool_input: { command: 'php /plugin/php/forge.php deploy prod-web myapp.com --json' } });
     expect(r.exitCode).toBe(2);
   });
 
@@ -79,6 +84,11 @@ describe('write-confirm-gate: blocked cases', () => {
     const r = runHook({ tool_name: 'Bash', tool_input: { command: 'php /plugin/php/forge.php server-reboot prod-web' } });
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toContain('--confirm');
+  });
+
+  test('a --confirm substring (e.g. --confirm-later) does NOT satisfy the gate', () => {
+    const r = runHook({ tool_name: 'Bash', tool_input: { command: 'php /plugin/php/forge.php deploy prod-web myapp.com --confirm-later' } });
+    expect(r.exitCode).toBe(2);
   });
 });
 
@@ -88,8 +98,8 @@ describe('write-confirm-gate: allowed write cases', () => {
     expect(r.exitCode).toBe(0);
   });
 
-  test('deploy --confirm --watch passes', () => {
-    const r = runHook({ tool_name: 'Bash', tool_input: { command: 'php /plugin/php/forge.php deploy prod-web myapp.com --confirm --watch' } });
+  test('deploy with --confirm anywhere in the args passes', () => {
+    const r = runHook({ tool_name: 'Bash', tool_input: { command: 'php /plugin/php/forge.php deploy prod-web myapp.com --json --confirm' } });
     expect(r.exitCode).toBe(0);
   });
 
@@ -117,22 +127,24 @@ describe('write-confirm-gate: env-var prefix + path variants', () => {
   });
 });
 
-describe('write-confirm-gate: fail-closed on bad input', () => {
-  test('malformed JSON input blocks', () => {
+describe('write-confirm-gate: fail-open on bad input', () => {
+  // A hook must never block Claude Code on a parse glitch — unparseable or
+  // empty stdin passes through; the authoritative in-PHP --confirm gate remains.
+  test('malformed JSON input passes through', () => {
     const result = spawnSync('bun', [HOOK], {
       input: 'not json',
       encoding: 'utf8',
       timeout: 5000,
     });
-    expect(result.status).toBe(2);
+    expect(result.status).toBe(0);
   });
 
-  test('empty stdin blocks', () => {
+  test('empty stdin passes through', () => {
     const result = spawnSync('bun', [HOOK], {
       input: '',
       encoding: 'utf8',
       timeout: 5000,
     });
-    expect(result.status).toBe(2);
+    expect(result.status).toBe(0);
   });
 });
