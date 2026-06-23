@@ -8,7 +8,7 @@ Generate Docker scaffolding for running hermit as an always-on autonomous agent 
 
 **Tone:** Friendly guided wizard. Celebrate progress. When something fails, help fix it.
 
-**Important:** Step 0's container check is a hard short-circuit — run it first and abort on `container` before anything else. After confirming host execution, batch the remaining read-only **shell** probes (Step 1's `docker --version` / config.json existence / WSL-path / existing-file checks, and the `~/.gitconfig` existence check) into a single Bash call to save round-trips. Step 2's project-dependency scan stays normal file reads (Read tool) plus analysis — do not cram it into the Bash batch. Everything that mutates state or drives the container (file backups, `docker compose`, `tmux`, `mkdir`/`touch` setup-mode, status polls, channel `send-keys`) must run strictly sequentially in its documented order — never batch those.
+**Important:** Step 0's container check is a hard short-circuit — run it first and abort on `container` before anything else. After confirming host execution, run `docker-preflight.ts` once (Step 1) — it gathers all the read-only signals (docker presence, config existence, WSL path, existing docker files, host `~/.gitconfig`, auto-memory seed) as a single JSON blob, so don't fan those probes out into separate Bash calls. Reuse its result for the git-identity (Step 4) and auto-memory (Step 5) decisions rather than re-probing. Step 2's project-dependency scan stays normal file reads (Read tool) plus analysis. Everything that mutates state or drives the container (file backups, `docker compose`, `tmux`, `mkdir`/`touch` setup-mode, status polls, channel `send-keys`) must run strictly sequentially in its documented order — never batch those.
 
 Templates live in `${CLAUDE_SKILL_DIR}/../../state-templates/docker/`.
 
@@ -26,10 +26,12 @@ If the output is `container`, **stop immediately** — do not proceed to step 1.
 
 ### 1. Prerequisites
 
-1. Run `docker --version`. If missing: "Docker isn't installed — grab it from https://docs.docker.com/get-docker/ and come back!"
-2. Verify `.claude-code-hermit/config.json` exists. If missing: "Run `/claude-code-hermit:hatch` first, then come back."
-3. If working dir starts with `/mnt/c/` or `/mnt/d/`: abort — "Clone inside WSL2 (e.g. `/home/you/project`) and run from there."
-4. Check for existing `Dockerfile.hermit`, `docker-entrypoint.hermit.sh`, `docker-compose.hermit.yml` at project root. If any found:
+Run the pre-flight probe once and parse its JSON: `bun ${CLAUDE_PLUGIN_ROOT}/scripts/docker-preflight.ts "$(pwd)"` — pass `"$(pwd)"` so the auto-memory path key is keyed off the shell's logical path, matching Claude Code even through a symlinked project root. It returns `{ dockerVersion, configExists, isWSL, existing: {dockerfile, entrypoint, compose}, gitconfigExists, memory: {pathKey, seedExists} }`. Hold the result — Steps 4 and 5 reuse `gitconfigExists` and `memory` instead of re-probing. Apply these gates:
+
+1. If `dockerVersion` is null: "Docker isn't installed — grab it from https://docs.docker.com/get-docker/ and come back!"
+2. If `configExists` is false: "Run `/claude-code-hermit:hatch` first, then come back."
+3. If `isWSL` is true: abort — "Clone inside WSL2 (e.g. `/home/you/project`) and run from there."
+4. If any of `existing.dockerfile` / `existing.entrypoint` / `existing.compose` is true:
    - List them, then ask with `AskUserQuestion` (header: "Docker files"): **No — keep existing** (abort; remove or rename manually, then re-run) / **Yes — back up** (move to docker-backup/ and regenerate).
    - "Yes — back up" → move to `docker-backup/`, continue
    - "No — keep existing" → abort
@@ -146,16 +148,14 @@ The three templates live in `${CLAUDE_SKILL_DIR}/../../state-templates/docker/`.
 - `{{AGENT_HOOK_PROFILE}}` — always `strict` for Docker (enforces `always_on` deny patterns inside the container)
 - `{{TMUX_SESSION_NAME}}` — resolved session name
 - `{{NETWORK_MODE_LINE}}` — If `docker.network_mode` is `"host"`: replace with `    # WARNING: host networking exposes all host-local services to the container.\n    network_mode: host`. If `"bridge"` (default): remove the line entirely (bridge is Docker's default — no directive needed).
-- **Git identity:** Check if `~/.gitconfig` exists on the host. If it does not exist, remove the `.gitconfig` bind-mount line from the rendered file and add a note in the summary: "No ~/.gitconfig found — git commits inside the container will have no author identity. Create one on the host and re-run docker-setup, or set git config manually inside the container."
+- **Git identity:** Use `gitconfigExists` from the Step 1 preflight. If false, remove the `.gitconfig` bind-mount line from the rendered file and add a note in the summary: "No ~/.gitconfig found — git commits inside the container will have no author identity. Create one on the host and re-run docker-setup, or set git config manually inside the container."
 
 ### 5. Auto-memory seed
 
-Resolve the path key: `pwd | sed 's|/|-|g'` (keeps leading dash — matches Claude Code's format, e.g. `-home-user-myproject`).
+The Step 1 preflight already resolved `memory.pathKey` (`pwd | sed 's|/|-|g'` — keeps leading dash, matches Claude Code's format, e.g. `-home-user-myproject`) and `memory.seedExists` (whether `~/.claude/projects/<pathKey>/memory/MEMORY.md` exists). Reuse those:
 
-Check if `~/.claude/projects/<path-key>/memory/MEMORY.md` exists on the host:
-
-- **If it exists:** Copy to `.claude-code-hermit/MEMORY-SEED.md`. Tell the operator: "Found existing Claude Code memory for this project — seeding it into the container so your hermit starts with full context." Then ensure `.claude-code-hermit/MEMORY-SEED.md` is in `.gitignore` (append if missing).
-- **If it doesn't exist:** Do nothing. No message, no prompt.
+- **If `memory.seedExists` is true:** Copy `~/.claude/projects/<memory.pathKey>/memory/MEMORY.md` to `.claude-code-hermit/MEMORY-SEED.md`. Tell the operator: "Found existing Claude Code memory for this project — seeding it into the container so your hermit starts with full context." Then ensure `.claude-code-hermit/MEMORY-SEED.md` is in `.gitignore` (append if missing).
+- **If false:** Do nothing. No message, no prompt.
 
 Only the top-level project memory is seeded — not agent-scoped memories at `<path-key>/<agent-name>/`.
 
@@ -333,7 +333,7 @@ After plugin selection is finalized, union the two sources of apt package candid
 Now that `docker.packages` (Step 7b.packages), `docker.recommended_plugins` (Step 7b), channel state dirs (Step 7), and the auth/network choices (Step 2) are all finalized, perform the template rendering described in Step 4 above. Write the three rendered files to project root:
 
 - `Dockerfile.hermit` — substitute `{{PACKAGES_BLOCK}}` with the finalized `docker.packages`.
-- `docker-entrypoint.hermit.sh` — copy verbatim; no placeholder substitution (session name is resolved from `config.json` at container startup).
+- `docker-entrypoint.hermit.sh` — **copy with `cp`, do not regenerate it by hand** (it is a large static file with no placeholders; the session name is resolved from `config.json` at container startup). Run: `cp "${CLAUDE_SKILL_DIR}/../../state-templates/docker/docker-entrypoint.hermit.sh.template" <PROJECT_ROOT>/docker-entrypoint.hermit.sh`. The copied bytes are correct without any edits.
 - `docker-compose.hermit.yml` — substitute `{{AUTH_ENV_LINE}}`, `{{CHANNEL_ENV_LINES}}`, `{{CHANNEL_VOLUME_LINES}}`, `{{AGENT_HOOK_PROFILE}}`, `{{TMUX_SESSION_NAME}}`, `{{NETWORK_MODE_LINE}}`, plus the git-identity bind-mount handling.
 
 Use the placeholder rules from Step 4 verbatim.

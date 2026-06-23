@@ -5,6 +5,15 @@
 ### Added
 - **hatch: idle_behavior choice in Quick** — Quick Turn 3 now asks proactive (`discover`) vs reactive (`wait`) instead of silently defaulting to `discover`, so operators pick deliberately.
 - **cost-reflect: per-model cost breakdown** — adds a "Cost by model" section so mixed-model (Sonnet main + Haiku subagent) operators can attribute spend per model without reading raw logs. Section is omitted for single-model windows.
+- **scripts/docker-preflight.ts** — single-call probe for docker-setup Step 1 (docker presence, config/WSL/existing-file checks, host gitconfig, auto-memory seed) returned as one JSON blob, replacing fanned-out Bash round-trips.
+- **scripts/hatch-scaffold.ts** — deterministic state-tree scaffolder for hatch Step 2 (dirs, templates, `bin/` chmod, state files with a live `reflection-state.since`). Mode-aware: `--reinit=true` refreshes hermit-owned pristine files only and never clobbers operator/state artifacts.
+
+### Changed
+- **docker-setup: copy the static entrypoint with `cp`** — `docker-entrypoint.hermit.sh` (26 KB, no placeholders) is copied verbatim from the template instead of regenerated line-by-line through the model — cuts the slowest step of every docker-setup with zero transcription risk. Manifest baseline unchanged (cp is byte-identical).
+- **docker-setup: Step 1 prerequisites via docker-preflight.ts** — one probe call; Steps 4/5 reuse its `gitconfig`/`memory` fields instead of re-probing.
+- **hatch: Step 2 state tree via hatch-scaffold.ts** — replaces the enumerated mkdir/cp/chmod/init prose with one scaffold call; reasoned artifacts (config.json, OPERATOR.md content, CLAUDE block) keep their own steps.
+- **hatch: append the session-discipline block with `cat`** — the placeholder-free CLAUDE-APPEND template is appended/created via `cat` instead of LLM regeneration (the replace path still removes the prior block first).
+- **hatch: Phase 3/5 question specs as tables** — the verbose `questions: [...]` JSON examples collapse to compact, content-identical tables, trimming the resident SKILL.md. Verified a live Haiku run still builds the batched AskUserQuestion correctly from the table form.
 
 ### Fixed
 - **hatch: domain auto-resume** — domain hatch writes a state marker before delegating to core; core terminus reads, deletes, and invokes the pending domain hatch via the Skill tool. Removes the dead printed-command return hop and the competing-signal freeze. Adds the domain hatch continuation protocol doc.

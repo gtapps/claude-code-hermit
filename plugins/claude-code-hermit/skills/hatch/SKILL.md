@@ -106,42 +106,22 @@ Create the following directories and files:
 └── knowledge-schema.md
 ```
 
-Initialize state files (inline — shape-insensitive or append-only):
+Run the scaffold script once — it builds the directory tree above and seeds every static file deterministically (this is pure mechanical I/O; the *reasoned* artifacts are written by their own steps):
 
-- `.claude-code-hermit/state/reflection-state.json`: initialize with the schema below. Use the current ISO timestamp (with offset) for `counters.since`.
-  ```json
-  {
-    "last_reflection": null,
-    "counters": {
-      "total_runs": 0,
-      "empty_runs": 0,
-      "runs_with_candidates": 0,
-      "judge_accept": 0,
-      "judge_downgrade": 0,
-      "judge_suppress": 0,
-      "proposals_created": 0,
-      "micro_proposals_queued": 0,
-      "last_run_at": null,
-      "last_output_at": null,
-      "since": "<current-iso-timestamp>"
-    }
-  }
-  ```
-- `.claude-code-hermit/state/proposal-metrics.jsonl`: empty file — append-only, not schema-sensitive JSON state
-- `.claude-code-hermit/state/observations.jsonl`: empty file — append-only sub-threshold observation ledger (`{ts, pattern, session_id, source}`; read by `reflect` for recurrence graduation, pruned by `scripts/prune-observations.ts`)
-- `.claude-code-hermit/state/routine-metrics.jsonl`: empty file — append-only routine fire log (`fired` events written by `scripts/log-routine-event.sh` from CronCreate prompts)
-- `.claude-code-hermit/state/update-history.jsonl`: empty file — append-only log of `hermit-docker update` and `hermit-update` runs
-- `.claude-code-hermit/state/channel-replies.jsonl`: empty file — append-only channel reply log (routine-ROI join source; written by `channel-hook.ts`)
-- `.claude-code-hermit/state/pending-close.json`: do NOT initialize — created lazily by the `daily-auto-close` skill when the midnight routine fires while the operator is currently active. Deleted by `session-close --auto` after the archive succeeds.
+```
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/hatch-scaffold.ts <PROJECT_ROOT> --reinit=<is_reinit>
+```
 
-- Read the template files from `${CLAUDE_SKILL_DIR}/../../state-templates/`
-- Copy `alert-state.json.template` → `.claude-code-hermit/state/alert-state.json`
-- Copy `micro-proposals.json.template` → `.claude-code-hermit/state/micro-proposals.json`
-- Copy `SHELL.md.template`, `SESSION-REPORT.md.template`, `PROPOSAL.md.template` into `templates/`
-- **OPERATOR.md guard:** If `.claude-code-hermit/OPERATOR.md` already exists, do NOT copy the template over it. Remember this fact as `operator_existed = true` for use in step 5a. If it does not exist, copy `OPERATOR.md` from the templates into the state directory root.
-- Copy `HEARTBEAT.md.template` → `.claude-code-hermit/HEARTBEAT.md` (the operator's editable checklist)
-- **Enumerate** all files under `${CLAUDE_SKILL_DIR}/../../state-templates/bin/` (do not hardcode the list). Copy each one into `.claude-code-hermit/bin/`. Ensure all are executable (`chmod +x`). Current set: hermit-attach, hermit-docker, hermit-run, hermit-start, hermit-status, hermit-stop, hermit-update, hermit-watchdog.
-- Copy `knowledge-schema.md.template` → `.claude-code-hermit/knowledge-schema.md` (the operator's behavioral schema for domain outputs).
+Pass `--reinit=true` only when Step 1 recorded `is_reinit = true`; otherwise `--reinit=false`. The script:
+
+- Seeds `state/reflection-state.json` (with a live ISO `counters.since`), the empty append-only ledgers `state/routine-metrics.jsonl`, `state/proposal-metrics.jsonl`, `state/observations.jsonl`, `state/update-history.jsonl`, `state/channel-replies.jsonl`, plus `state/alert-state.json`, `state/micro-proposals.json`, the `templates/` files, `HEARTBEAT.md`, `knowledge-schema.md`, `OPERATOR.md`, and copies + `chmod +x` every file under `state-templates/bin/` (enumerated, not hardcoded).
+- **Preserves operator/state artifacts** — `OPERATOR.md`, `HEARTBEAT.md`, `knowledge-schema.md`, and every `state/*` file are created only if absent (in both modes), so re-init never clobbers accumulated learning/proposal state or operator edits. `--reinit=true` only refreshes the hermit-owned pristine files (`templates/*`, `bin/*`).
+- Never creates `state/pending-close.json` (lazily created by `daily-auto-close` when the midnight routine fires while the operator is active).
+
+Parse the JSON it prints — `{ created, overwritten, preserved, operator_existed }` — and **remember `operator_existed` for Step 5a** (the OPERATOR.md guard).
+
+The reasoned artifacts are NOT scaffolded here: `config.json` (Step 5), the OPERATOR.md *content* draft (Step 5a), and the CLAUDE.local.md / CLAUDE.md block (Step 6) keep their own steps.
+
 - **Seed `state/template-manifest.json`** via `manifest-seed.ts` — records the sha256 pristine-baseline the `hermit-evolve` drift signals depend on. **Deferred to the end of Step 8** (see the seeding sub-step there): the call needs the `bun */scripts/manifest-seed.ts*` permission that Step 8 merges. The source template files are stable, so running it after the permission merge records the same hashes it would record now. Do not run it here.
 
 ### 3. Hermit activation prompt (Advanced branch only)
@@ -183,37 +163,13 @@ Step 1.5 already ran the language/timezone detection silently. Reuse those value
 
 #### Phase 3 — Behavior (AskUserQuestion batch, 3 questions)
 
-Ask all three in a single `AskUserQuestion` call:
+Ask all three in a single `AskUserQuestion` call (the option marked `(default)` is the Recommended pre-selection):
 
-```
-questions: [
-  {
-    header: "Autonomy",
-    question: "How autonomous should your assistant be?",
-    options: [
-      { label: "Balanced", description: "Act on routine tasks, escalate significant changes (default)" },
-      { label: "Conservative", description: "Ask before most non-trivial actions" },
-      { label: "Autonomous", description: "Proceed unless blocked, minimize interruptions" }
-    ]
-  },
-  {
-    header: "Remote ctrl",
-    question: "Enable remote control via claude.ai/code?",
-    options: [
-      { label: "Yes", description: "Connect from claude.ai/code or phone (default)" },
-      { label: "No", description: "Local terminal only" }
-    ]
-  },
-  {
-    header: "Idle",
-    question: "What should hermit do when idle between tasks?",
-    options: [
-      { label: "Discover", description: "Maintenance and reflection (default)" },
-      { label: "Wait", description: "Passive — only check for new tasks and messages" }
-    ]
-  }
-]
-```
+| Header | Question | Options (`label`: description) |
+|---|---|---|
+| Autonomy | How autonomous should your assistant be? | `Balanced`: act on routine tasks, escalate significant changes (default) / `Conservative`: ask before most non-trivial actions / `Autonomous`: proceed unless blocked, minimize interruptions |
+| Remote ctrl | Enable remote control via claude.ai/code? | `Yes`: connect from claude.ai/code or phone (default) / `No`: local terminal only |
+| Idle | What should hermit do when idle between tasks? | `Discover`: maintenance and reflection (default) / `Wait`: passive, only check for new tasks and messages |
 
 Record: `escalation` (conservative/balanced/autonomous), `remote` (true/false), `idle_behavior` (wait/discover).
 
@@ -299,28 +255,12 @@ questions: [
   > - **Interactive (just trying it):** run `/claude-code-hermit:channel-setup` for token + pairing, then restart with `claude --channels plugin:<channel>@claude-plugins-official` so the channel is active in your session.
   > - Full guide: https://code.claude.com/docs/en/channels
 
-**Channel follow-ups (only if Discord or Telegram was selected above — AskUserQuestion batch, 2 questions):**
+**Channel follow-ups (only if Discord or Telegram was selected above — AskUserQuestion batch, 2 questions; the option marked `(default)` is the Recommended pre-selection):**
 
-```
-questions: [
-  {
-    header: "Access ctrl",
-    question: "Restrict who can send commands via this channel?",
-    options: [
-      { label: "Allow everyone", description: "No restrictions on who can message (default)" },
-      { label: "Restrict", description: "Type your Discord/Telegram user ID via Other" }
-    ]
-  },
-  {
-    header: "Brief",
-    question: "Enable morning brief delivery via channel?",
-    options: [
-      { label: "Yes — 07:00", description: "Daily summary delivered each morning" },
-      { label: "No", description: "No automated brief delivery (default)" }
-    ]
-  }
-]
-```
+| Header | Question | Options (`label`: description) |
+|---|---|---|
+| Access ctrl | Restrict who can send commands via this channel? | `Allow everyone`: no restrictions on who can message (default) / `Restrict`: type your Discord/Telegram user ID via Other |
+| Brief | Enable morning brief delivery via channel? | `Yes — 07:00`: daily summary delivered each morning / `No`: no automated brief delivery (default) |
 
 - **Access control:** If "Restrict" and a numeric ID was typed via Other, record in `channels.<channel>.allowed_users` as `["<id>"]`. If "Allow everyone" or no ID provided, omit the key (absent = accept all). Note: "Add more user IDs later with `/claude-code-hermit:hermit-settings channels`. An empty array [] blocks all messages."
 - **Morning brief:** If "Yes — 07:00", record as `channels.<channel>.morning_brief: { "enabled": true, "time": "07:00" }`. If "No", omit the key (or set to `null`).
@@ -544,13 +484,13 @@ The target file is determined by `hatch_target` (computed in Step 1.5):
 
 Perform the idempotency check across both files first: if the marker `claude-code-hermit: Session Discipline` exists in the non-target file, surface a conflict — ask operator: **Move to target file** (diff-and-confirm) / **Keep both** (warn that both load) / **Skip conflict**. Never silently leave duplicate markers.
 
-For the target file:
+For the target file (the block is static — **copy it with `cat`, never regenerate it by hand**):
 - If it exists: check if it already contains `claude-code-hermit: Session Discipline`
   - If yes: ask with `AskUserQuestion` (header: "CLAUDE block") — options: **Yes — replace** (update to latest) / **No — keep** (preserve current, default)
-    - If "Yes — replace": remove everything between `<!-- claude-code-hermit: Session Discipline -->` and `<!-- /claude-code-hermit: Session Discipline -->` (inclusive), then append the fresh contents of `${CLAUDE_SKILL_DIR}/../../state-templates/CLAUDE-APPEND.md`
+    - If "Yes — replace": remove the existing hermit block (from its `<!-- claude-code-hermit: Session Discipline -->` marker — and any blank line / `---` separator immediately above it — through the end of that block; the template carries no closing marker, so identify the block end by content), then re-append the fresh template: `cat "${CLAUDE_SKILL_DIR}/../../state-templates/CLAUDE-APPEND.md" >> <target>`
     - If "No — keep": skip
-  - If no: read `${CLAUDE_SKILL_DIR}/../../state-templates/CLAUDE-APPEND.md` and append its contents to the end of the target file
-- If the target file doesn't exist: create it with the append block as the initial content
+  - If no: `cat "${CLAUDE_SKILL_DIR}/../../state-templates/CLAUDE-APPEND.md" >> <target>`
+- If the target file doesn't exist: `cat "${CLAUDE_SKILL_DIR}/../../state-templates/CLAUDE-APPEND.md" > <target>`
 
 If a hermit was activated in step 3, also append `<activated_hermit.installPath>/state-templates/CLAUDE-APPEND.md` to the same target file (using the same skip/overwrite logic if its marker already exists).
 
