@@ -157,6 +157,22 @@ else
   audit_install() { :; }
 fi
 
+# Enable a plugin, suppressing only the benign "already enabled" non-zero exit
+# (`claude plugin install --scope` auto-enables, so the self-heal enable usually
+# hits that). Any other failure is logged — visible in `docker compose logs` —
+# but non-fatal. `claude plugin list` shows disabled plugins too, so a presence
+# grep can't catch a failed enable; this warning is the actual signal.
+enable_plugin() {
+  local out
+  if out=$(claude plugin enable "$1" --scope "$2" 2>&1); then
+    return 0
+  fi
+  case "$out" in
+    *"already enabled"*) return 0 ;;
+    *) echo "[docker-entrypoint] Warning: failed to enable ${1} (scope ${2}): ${out}" ;;
+  esac
+}
+
 # --- 1. Bypass onboarding, pre-approve MCP servers, patch permission_mode ---
 CLAUDE_JSON="${CLAUDE_CONFIG_DIR}/.claude.json"
 CC_VERSION=$(claude --version 2>/dev/null | grep -oP '[\d.]+' | head -1 || echo "0.0.0")
@@ -257,16 +273,29 @@ for var_name in DISCORD_STATE_DIR TELEGRAM_STATE_DIR; do
 done
 
 # --- 3. Install plugins (named volume starts empty on first run) ---
-# Marketplace directory check is used only for "has the marketplace been added yet?"
-# Plugin installation is verified via `claude plugin list` — the marketplace catalog
-# populates external_plugins/ for ALL plugins on add, so directory checks can't
-# distinguish "cataloged" from "installed".
+# Registration is checked via `marketplace list --json` (reads known_marketplaces.json),
+# not by directory existence. A dir can exist while the marketplace is unregistered:
+# partial add, a bind-mount, or a prior install that cloned the dir but didn't write
+# the registration. Directory existence ≠ registered state.
 MARKETPLACE_DIR="${CLAUDE_CONFIG_DIR}/plugins/marketplaces"
 
-# Hermit marketplace + plugin
-if [ ! -d "${MARKETPLACE_DIR}/claude-code-hermit" ]; then
+# Fetch registered marketplace names once; reused for all checks this boot.
+MARKETPLACE_LIST_JSON=$(claude plugin marketplace list --json 2>/dev/null || echo '[]')
+
+# Returns 0 if the marketplace whose canonical name matches $1 is already registered.
+marketplace_registered() {
+  echo "$MARKETPLACE_LIST_JSON" \
+    | jq -e --arg n "$1" 'any(.[]?; .name == $n)' >/dev/null 2>&1
+}
+
+# Hermit marketplace + plugin (checks are independent so a prior install failure self-heals)
+if ! marketplace_registered claude-code-hermit; then
   echo "[docker-entrypoint] Adding hermit marketplace..."
-  claude plugin marketplace add gtapps/claude-code-hermit || true
+  if ! claude plugin marketplace add gtapps/claude-code-hermit; then
+    echo "[docker-entrypoint] ERROR: failed to add hermit marketplace — plugin install will fail."
+  fi
+fi
+if ! claude plugin list 2>/dev/null | grep -qF 'claude-code-hermit@claude-code-hermit'; then
   echo "[docker-entrypoint] Installing hermit plugin..."
   if claude plugin install claude-code-hermit@claude-code-hermit --scope project; then
     audit_install "gtapps/claude-code-hermit" "claude-code-hermit" "project"
@@ -276,12 +305,12 @@ if [ ! -d "${MARKETPLACE_DIR}/claude-code-hermit" ]; then
 fi
 
 # Idempotent enable — runs every boot to self-heal if plugin was disabled.
-claude plugin enable claude-code-hermit@claude-code-hermit --scope project 2>/dev/null || true
+enable_plugin claude-code-hermit@claude-code-hermit project
 
 # Official marketplace (needed by channel plugins)
 NEEDS_OFFICIAL=false
 [ -n "$CHANNELS" ] && NEEDS_OFFICIAL=true
-if [ "$NEEDS_OFFICIAL" = true ] && [ ! -d "${MARKETPLACE_DIR}/claude-plugins-official" ]; then
+if [ "$NEEDS_OFFICIAL" = true ] && ! marketplace_registered claude-plugins-official; then
   echo "[docker-entrypoint] Adding official plugins marketplace..."
   if ! claude plugin marketplace add anthropics/claude-plugins-official; then
     echo "[docker-entrypoint] ERROR: failed to add claude-plugins-official marketplace."
@@ -306,7 +335,7 @@ if [ "$NEEDS_OFFICIAL" = true ] && [ -n "$CHANNELS" ]; then
     target="${plugin}@claude-plugins-official"
     if echo "$INSTALLED_PLUGINS" | grep -qF "$target"; then
       # Idempotent re-enable covers the "listed but disabled" case.
-      claude plugin enable "$target" --scope local || true
+      enable_plugin "$target" local
       continue
     fi
     echo "[docker-entrypoint] Installing channel plugin: ${plugin}"
@@ -315,10 +344,8 @@ if [ "$NEEDS_OFFICIAL" = true ] && [ -n "$CHANNELS" ]; then
       continue
     fi
     audit_install "claude-plugins-official" "$plugin" "local"
-    if ! claude plugin enable "$target" --scope local; then
-      echo "[docker-entrypoint] ERROR: 'claude plugin enable ${target}' failed — see stderr above."
-      continue
-    fi
+    # Self-heal enable; warns only on a genuine failure (see enable_plugin).
+    enable_plugin "$target" local
     # Post-install verification — re-query list and confirm the entry landed.
     # Catches the "CLI exits 0 but nothing was fetched" silent-failure mode.
     if ! claude plugin list | grep -qF "$target"; then
@@ -442,13 +469,17 @@ for (const entry of plugins) {
     continue;
   }
   audit(marketplace, plugin, scope);
-  result = spawnSync("claude", ["plugin", "enable", installTarget, "--scope", scope], INHERIT);
+  // Self-heal enable — mirrors shell enable_plugin(): suppress the benign "already enabled"
+  // exit, warn on a genuine failure. Output captured (stdin still ignored) to match the message.
+  result = spawnSync("claude", ["plugin", "enable", installTarget, "--scope", scope],
+    { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" });
   if (result.error) {
     console.log(`[docker-entrypoint] Warning: claude not found enabling ${plugin} — plugin installed but enable skipped; will self-heal on next restart`);
-    continue;
-  }
-  if (result.status !== 0) {
-    console.log(`[docker-entrypoint] Warning: failed to enable ${plugin} — run: claude plugin enable ${installTarget}`);
+  } else if (result.status !== 0) {
+    const enableOut = (result.stdout ?? "") + (result.stderr ?? "");
+    if (!enableOut.includes("already enabled")) {
+      console.log(`[docker-entrypoint] Warning: failed to enable ${plugin} — run: claude plugin enable ${installTarget}`);
+    }
   }
 }
 JSEOF

@@ -219,3 +219,27 @@ describe('Entrypoint: Python retired, PATH covers bun', () => {
     expect(entrypoint).toContain('npm install -g @anthropic-ai/claude-code');
   });
 });
+
+describe('Entrypoint: marketplace registration uses list --json, not dir existence', () => {
+  test('entrypoint: marketplace_registered helper present', () => {
+    expect(entrypoint).toContain('marketplace_registered()');
+    expect(entrypoint).toContain('marketplace list --json');
+    expect(entrypoint).toContain('.name == $n');
+  });
+
+  test('entrypoint: no [ -d MARKETPLACE_DIR ] registration checks remain', () => {
+    expect(entrypoint).not.toMatch(/\[ ! -d "\$\{MARKETPLACE_DIR\}/);
+  });
+
+  test('entrypoint: hermit install decoupled from marketplace add', () => {
+    expect(entrypoint).toContain("grep -qF 'claude-code-hermit@claude-code-hermit'");
+  });
+
+  test('entrypoint: enable failures distinguish benign "already enabled" from genuine', () => {
+    // Shared shell helper suppresses only the benign case and warns otherwise.
+    expect(entrypoint).toContain('enable_plugin()');
+    expect(entrypoint).toContain('already enabled');
+    // No enable site silently swallows failures via `|| true` anymore.
+    expect(entrypoint).not.toMatch(/plugin enable[^\n]*\|\| true/);
+  });
+});
