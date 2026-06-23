@@ -19,7 +19,7 @@ If the file does not exist or `_hermit_versions["claude-code-hermit"]` is absent
 
 Use `AskUserQuestion`: "Would you like to run `/claude-code-hermit:hatch` now? (yes / no)"
 
-- **yes** → invoke `/claude-code-hermit:hatch`, wait for completion, then continue to Step 2.
+- **yes** → print: "Core setup will run next. When it finishes, re-run `/laravel-forge-hermit:hatch` to complete Forge hermit setup." Then invoke `/claude-code-hermit:hatch` as the terminal action and stop.
 - **no** → stop.
 
 If present but below `1.1.1` (compare major.minor.patch numerically):

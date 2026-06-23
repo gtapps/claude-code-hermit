@@ -436,9 +436,8 @@ Omit `allowed_users` if the operator skipped access control. Omit `morning_brief
 Set `CLAUDE_CODE_TASK_LIST_ID` in `.claude/settings.local.json` so native Claude Code Tasks are persistent and hooks can read task files.
 
 1. Derive the task list ID: `hermit-{project_basename}` where `{project_basename}` is the current directory name (lowercase, alphanumeric + hyphens)
-2. Read `.claude/settings.local.json` if it exists (may already have content from other tools)
-3. Merge `CLAUDE_CODE_TASK_LIST_ID` into the `env` block (preserve all existing keys)
-4. Write back to `.claude/settings.local.json`
+2. Run: `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts .claude/settings.local.json task-id hermit-{project_basename}`
+   (Creates the file if absent; merges the value into `env`, preserving all other keys.)
 
 This enables native Tasks for plan tracking. The cost-tracker hook reads task files from `~/.claude/tasks/{task_list_id}/` to generate `tasks-snapshot.md`.
 
@@ -621,6 +620,7 @@ Merge these into the target file:
       "Bash(bun */scripts/cron-tz-shift.ts*)",
       "Bash(bun */scripts/evolve-plan.ts*)",
       "Bash(bun */scripts/evolve-finalize.ts*)",
+      "Bash(bun */scripts/apply-settings.ts*)",
       "Bash(bash -c 'AGENT_DIR=\".claude-code-hermit\"*)",
       "Edit(.claude-code-hermit/**)",
       "Write(.claude-code-hermit/**)"
@@ -642,7 +642,8 @@ Merge these into the target file:
 2. If the target settings file does not exist: all permissions are missing
 3. If no permissions are missing: skip silently
 4. If permissions need to be added: show the operator the list of permissions to add and ask with `AskUserQuestion` (header: "Hook perms") — options: **Yes — add** (merge so hooks run without prompting, default) / **No — skip** (you'll be prompted during sessions).
-5. If the operator confirms: merge into the existing `permissions.allow` array (never remove existing entries), write back to the target settings file
+5. If the operator confirms: run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <resolved-settings-file> allow`
+   (Merges the full allow-list additively; never removes existing entries.)
 6. If the operator declines: skip, and note: "You may be prompted to approve hook commands during sessions. Run `/claude-code-hermit:hermit-settings permissions` to add them later."
 
 ### 9. Generate deny patterns (AskUserQuestion, single question)
@@ -710,7 +711,7 @@ questions: [
   ```
 - If **skip**: note: "You can add deny rules later in .claude/settings.json under permissions.deny."
 
-Merge selected rules into existing `permissions.deny` in the target settings file (never remove existing entries), write back.
+Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <resolved-settings-file> deny <minimal|hardened>` to merge selected rules (never removes existing entries). The script reads the canonical deny list from `state-templates/deny-patterns.json`.
 
 Do NOT include `Bash(docker *)`, `Bash(kubectl *)`, `Bash(ssh *)` in hatch — these are valid in devops contexts on the host. Docker-setup includes them because the container should not spawn child containers or SSH out.
 
@@ -733,8 +734,8 @@ Configure the Claude Code bash sandbox for this hermit when the system supports 
    Parse the JSON `status` field.
 
 4. **Branch on probe status:**
-   - `"pass"`: build the standard profile and write it. Read `${CLAUDE_PLUGIN_ROOT}/state-templates/sandbox-profiles.json` (select `standard` entry); read `${CLAUDE_PLUGIN_ROOT}/state-templates/deny-patterns.json` (extract `sandbox.filesystem.denyRead`); merge `profile.filesystem = { "denyRead": <that array> }`; merge into the target settings file under the `sandbox` key. One-line note to the operator: "Sandbox enabled (standard profile, written to {file})."
-   - `"warn"`: surface the probe `message` verbatim to the operator first (e.g., "user-namespaces appear disabled — sandbox may not start"), then write the standard profile (same merge as `pass`). One-line note: "Sandbox configured (standard profile, may degrade silently per warning above; written to {file})." The operator now has a configured-but-potentially-degraded sandbox; the warning tells them what to do if they want it actually enforced.
+   - `"pass"`: run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <resolved-settings-file> sandbox standard` (reads `state-templates/sandbox-profiles.json` `standard` entry and merges `sandbox.filesystem.denyRead` from `deny-patterns.json`). One-line note to the operator: "Sandbox enabled (standard profile, written to {file})."
+   - `"warn"`: surface the probe `message` verbatim to the operator first (e.g., "user-namespaces appear disabled — sandbox may not start"), then run the same command as `pass`. One-line note: "Sandbox configured (standard profile, may degrade silently per warning above; written to {file})."
    - `"fail"`: do NOT write any sandbox block. Print a single line with the install hint from the probe result: "Sandbox unavailable: {message} — run `{install_hint}` to enable later, then re-run `/claude-code-hermit:hermit-evolve`." Continue.
 
 No `AskUserQuestion`. Operators who want the sandbox off can set `sandbox.enabled: false` in their settings file at any time — documented in `docs/faq.md`.

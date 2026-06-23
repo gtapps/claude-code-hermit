@@ -989,9 +989,12 @@ describe('heartbeat-precheck', () => {
     expect(await precheckOut(dir)).toMatch(/^SKIP\|/);
   }));
 
-  // 14. SKIP — outside active hours (window 00:00–00:01, always past it)
+  // 14. SKIP — outside active hours. Zero-width window (start==end "00:00") is
+  // outside at every wall-clock time: the precheck SKIPs when hhmm < start OR
+  // hhmm >= end, and one of those always holds. (A "00:00–00:01" window instead
+  // flaked when CI ran during the 00:00 minute.)
   test('heartbeat-precheck (SKIP: outside active hours)', withDir(async (dir) => {
-    seedHeartbeat(dir, { end: '00:01', checklist: '# Heartbeat\n- Check something\n' });
+    seedHeartbeat(dir, { end: '00:00', checklist: '# Heartbeat\n- Check something\n' });
     expect(await precheckOut(dir)).toMatch(/^SKIP\|/);
   }));
 

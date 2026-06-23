@@ -171,13 +171,14 @@ Only the top-level project memory is seeded — not agent-scoped memories at `<p
    **If oauth:** No auth var needed in `.env`. Check whether `ANTHROPIC_API_KEY` is set (non-empty) in `.env`. If so, warn and ask with `AskUserQuestion` (header: "API key"): **Yes — comment out** (prefix with # to disable it) / **No — keep** (container will run in API key mode).
    Also check for and offer to remove any `CLAUDE_CODE_OAUTH_TOKEN` — this env var is not used in the new flow.
 3. Ensure `.env` is listed in both `.gitignore` and `.dockerignore` (create the files if needed, append if missing).
-4. **Deny patterns:** Write the `default` set from `state-templates/deny-patterns.json` into the target settings file's `permissions.deny`.
+4. **Deny patterns:** Merge the `default` deny set into the target settings file.
 
    **Resolve `hatch_target`** using the same fallback chain as `hermit-evolve` SKILL.md §2a (`.claude-code-hermit/state/hatch-options.json` `"target"` field → marker scan of `CLAUDE.local.md` / `CLAUDE.md` → `claude plugin list --json` scope detection). Do not silently default to committed when the state file is absent — that can leak operator-personal hardening into the repo. Map: `hatch_target == "local"` → `.claude/settings.local.json`; `hatch_target == "committed"` → `.claude/settings.json`.
 
-   Do NOT include the `always_on` set — those patterns (docker, ssh, kubectl, git push --force, etc.) are enforced by the `enforce-deny-patterns.ts` hook when `AGENT_HOOK_PROFILE=strict`, which the container runs with. Writing them to settings would block docker commands needed by later steps in this skill.
+   Run: `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <resolved-settings-file> deny minimal`
+   (Reads canonical default set from `state-templates/deny-patterns.json`; never removes existing entries. Does NOT include `always_on` patterns — docker/ssh/kubectl are valid for later steps and are enforced at runtime by the hook under strict profile.)
 
-   If the target settings file already has `permissions.deny`, merge (never remove existing entries). Tell the operator: "Added safety deny rules for always-on operation — protects against destructive commands and credential exposure. Container-specific rules (docker, ssh, kubectl) are enforced by the hook at runtime. Written to {.claude/settings.local.json | .claude/settings.json}."
+   Tell the operator: "Added safety deny rules for always-on operation — protects against destructive commands and credential exposure. Container-specific rules (docker, ssh, kubectl) are enforced by the hook at runtime. Written to {.claude/settings.local.json | .claude/settings.json}."
 
 5. **Sandbox note:** The hermit Docker base image ships `bubblewrap` and `socat` (added in v1.1.2), so the Claude Code sandbox can run inside the container. `hermit-start.ts` automatically writes `sandbox.enableWeakerNestedSandbox: true` to `.claude/settings.local.json` on every Docker boot — this is required for bwrap to start inside an unprivileged container. The sandbox profile itself (enabled/disabled, filesystem denies) is set at `/hatch` time and lives in the operator's settings file; docker-setup does not modify it.
 

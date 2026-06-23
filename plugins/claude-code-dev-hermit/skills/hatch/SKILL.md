@@ -15,7 +15,7 @@ The plugin's identity in v0.3.0+: a thin wrapper around (a) `git-push-guard` str
 
 Check if `.claude-code-hermit/` exists in the current project.
 
-- Missing: ask the operator (`AskUserQuestion`) "Core hermit isn't set up yet. Run `/claude-code-hermit:hatch` now?" with options `Yes — run now` / `No — I'll do it later`. If yes, invoke `/claude-code-hermit:hatch`, then continue. If no, stop.
+- Missing: ask the operator (`AskUserQuestion`) "Core hermit isn't set up yet. Run `/claude-code-hermit:hatch` now?" with options `Yes — run now` / `No — I'll do it later`. If yes, print: "Core setup will run next. When it finishes, re-run `/claude-code-dev-hermit:hatch` to complete dev hermit setup." Then invoke `/claude-code-hermit:hatch` as the terminal action and stop. If no, stop.
 - Present: read `.claude-code-hermit/config.json` and the plugin's `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/hermit-meta.json`. Verify `_hermit_versions["claude-code-hermit"]` from config satisfies `required_core_version` from hermit-meta (e.g. `">=1.0.22"`). If absent or below the floor, ask whether to run `/claude-code-hermit:hermit-evolve` first; allow opt-out with a warning. (Reading the floor from hermit-meta — never hardcoding it in skill prose — keeps this skill in sync with the plugin's declared requirement.)
 
 **Capture `prior_hatch_mode`.** While reading `config.json`, also record `claude-code-dev-hermit.hatch_mode` as `prior_hatch_mode` (or `null` if unset). Step 3's skip-vs-replace decision compares against this value, and Step 5 overwrites `hatch_mode` with Step 2's answer — capturing the prior value here keeps it intact across the wizard.

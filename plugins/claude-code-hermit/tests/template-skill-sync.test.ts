@@ -111,6 +111,36 @@ describe('.worktreeinclude template', () => {
 });
 
 // -------------------------------------------------------
+// apply-settings.ts HERMIT_ALLOW <-> hatch/SKILL.md Step 8 allow-list
+// -------------------------------------------------------
+describe('hatch allow-list sync', () => {
+  const SCRIPT_PATH = path.join(PLUGIN_ROOT, 'scripts', 'apply-settings.ts');
+
+  function extractHermitAllow(): string[] {
+    const src = fs.readFileSync(SCRIPT_PATH, 'utf-8');
+    const m = src.match(/const HERMIT_ALLOW\s*=\s*(\[[\s\S]*?\]);/);
+    if (!m) throw new Error('HERMIT_ALLOW not found in apply-settings.ts');
+    return eval(m[1]) as string[];
+  }
+
+  function extractSkillAllow(): string[] {
+    for (const block of skillContent.matchAll(/```json\n([\s\S]*?)```/g)) {
+      try {
+        const parsed = JSON.parse(block[1]);
+        if (parsed?.permissions?.allow) return parsed.permissions.allow as string[];
+      } catch {
+        // non-JSON or unrelated JSON block — keep scanning
+      }
+    }
+    throw new Error('Step 8 allow-list JSON block not found in hatch/SKILL.md');
+  }
+
+  test('HERMIT_ALLOW matches hatch/SKILL.md Step 8 allow-list', () => {
+    expect(extractHermitAllow()).toEqual(extractSkillAllow());
+  });
+});
+
+// -------------------------------------------------------
 // Routine model defaults
 // -------------------------------------------------------
 describe('routine model defaults', () => {

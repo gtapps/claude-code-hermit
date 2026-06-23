@@ -15,7 +15,7 @@ Read `.claude-code-hermit/config.json`.
 
 - If the file is missing or `_hermit_versions["claude-code-hermit"]` is absent or less than `1.0.16`:
   - `AskUserQuestion`: "Core hermit is not initialized. Run `/claude-code-hermit:hatch` now?"
-  - Yes → invoke `/claude-code-hermit:hatch`, then continue.
+  - Yes → print: "Core setup will run next. When it finishes, re-run `/claude-code-homeassistant-hermit:hatch` to complete HA setup." Then invoke `/claude-code-hermit:hatch` as the terminal action and stop.
   - No → stop and explain what is required.
 
 ### 2. Idempotency check

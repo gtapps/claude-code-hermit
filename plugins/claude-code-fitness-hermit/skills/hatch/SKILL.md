@@ -19,7 +19,7 @@ If the file does not exist or `_hermit_versions["claude-code-hermit"]` is absent
 
 Use `AskUserQuestion`: "Would you like to run `/claude-code-hermit:hatch` now? (yes / no)"
 
-- **yes** → invoke `/claude-code-hermit:hatch`, wait for completion, then continue to Step 2.
+- **yes** → print: "Core setup will run next. When it finishes, re-run `/claude-code-fitness-hermit:hatch` to complete fitness hermit setup." Then invoke `/claude-code-hermit:hatch` as the terminal action and stop.
 - **no** → stop.
 
 If `_hermit_versions["claude-code-hermit"]` is present but the version string is earlier than `1.0.26` (compare major.minor.patch numerically), warn:
