@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- **hatch: idle_behavior choice in Quick** — Quick Turn 3 now asks proactive (`discover`) vs reactive (`wait`) instead of silently defaulting to `discover`, so operators pick deliberately.
 - **cost-reflect: per-model cost breakdown** — adds a "Cost by model" section so mixed-model (Sonnet main + Haiku subagent) operators can attribute spend per model without reading raw logs. Section is omitted for single-model windows.
 
 ### Fixed

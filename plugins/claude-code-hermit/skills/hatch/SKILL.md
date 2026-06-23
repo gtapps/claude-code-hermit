@@ -964,6 +964,7 @@ Quick replaces Step 4 entirely and applies these defaults silently at the shared
 | Advanced Phase 4 equivalent | plugins + scheduled_checks | install all 4; write 3 scheduled_checks entries per Phase 4 mapping |
 | Advanced Phase 4b equivalent | `.baseline-pending` marker | same eligibility check as Advanced |
 | Advanced Phase 5 equivalent | channels.<name>.* | state_dir + enabled + dm_channel_id=null; omit allowed_users + morning_brief |
+| Quick Turn 3 idle choice | idle_behavior | set to answer (`discover` / `wait`) |
 | Quick Turn 3 channel choice | push_notifications | template default (true) — don't override |
 | Advanced Phase 6 equivalent | permission_mode, routines | permission_mode = `auto`; routines = morning 08:30 + evening 22:30 + (template) heartbeat 04:00 |
 | Step 6 | CLAUDE.md / CLAUDE.local.md append | apply silently to `hatch_target` file (default "keep" if marker already present) |
