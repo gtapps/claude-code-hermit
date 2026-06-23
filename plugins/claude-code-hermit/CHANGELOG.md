@@ -1,37 +1,65 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.10] - 2026-06-23
 
 ### Added
 
-- **scripts/manifest-seed.ts** — shared script that writes the `template-manifest.json` sha256 baselines for `hatch`, `docker-setup`, and `hermit-evolve`. Replaces model-hand-computed hashes (an LLM cannot sha256 reliably), fixing silent `hermit-evolve` drift mis-classification. Fail-loud, refuses to overwrite a present-but-corrupt manifest, preserves foreign keys; enumerates source `state-templates/bin/`, never the project destination.
+- **scripts/manifest-seed.ts** — deterministic sha256-baseline writer for `template-manifest.json`; used by `hatch`, `docker-setup`, and `hermit-evolve`. Replaces model-computed hashes (LLM sha256 is unreliable), fixing silent drift misclassification. Fail-loud; refuses to overwrite a present-but-corrupt manifest; preserves foreign keys.
+- **scripts/apply-settings.ts** — fixed-operation settings helper; hatch and docker-setup write settings via Bash (not Edit/Write tools), letting both succeed inside a running strict-profile hermit. Operations: `task-id`, `allow`, `deny`, `sandbox`.
 
 ### Changed
 
-- **docker-setup: batch read-only prerequisite probes** — the blanket "run everything sequentially" rule now batches the read-only shell probes (docker version, config/WSL/file checks, gitconfig) into one Bash call while keeping the Step 0 container short-circuit, container-state, and tmux operations strictly sequential.
+- **hatch: settings operations via apply-settings.ts** — Steps 5-task, 8, 9, 9a and docker-setup Step 6.4 call `apply-settings.ts` instead of the Edit/Write tools directly; the `always_on` guard on `.claude/settings.json` is intentionally left intact.
+- **hatch: manifest-seed call deferred to Step 8** — seeding runs after the permission merge so `Bash(bun */scripts/manifest-seed.ts*)` is in the allow-list before the script executes.
+- **docker-setup: batch read-only prerequisite probes** — Step 1's read-only shell checks (docker version, config/WSL checks, gitconfig) batched into one Bash call; write-paths remain sequential.
 
 ### Fixed
 
-- **docker-entrypoint: marketplace registration via `list --json`, not dir existence** — `marketplace_registered()` helper reads `known_marketplaces.json`; fixes "No marketplaces configured" when dir exists but isn't registered (partial add, fresh named volume, bind-mount). Decoupled hermit install from marketplace-add so prior install failures self-heal on next boot.
-- **docker-entrypoint: genuine plugin-enable failures are logged** — boot-time enable goes through an `enable_plugin` helper that suppresses only the benign "already enabled" exit and warns on any other failure. Previously `|| true` swallowed every non-zero enable, and the post-install check greps `plugin list` for presence (which includes disabled plugins), so a failed enable left a plugin present-but-disabled with no signal.
+- **docker-entrypoint: marketplace registration via `list --json`** — `marketplace_registered()` reads `known_marketplaces.json`; fixes "No marketplaces configured" on a fresh named volume or partial prior add where the dir exists but isn't registered.
+- **docker-entrypoint: plugin-enable failures now logged** — `enable_plugin()` suppresses only the benign "already enabled" exit; any other non-zero exit surfaces as a warning in `docker compose logs`. Previously `|| true` swallowed all failures.
+- **hatch: apply-settings.ts aborts on malformed target settings file** — strict read prevents silent data-loss if the operator's settings file is present-but-corrupt.
+- **docker-setup: manifest-seed call anchored to absolute PROJECT_ROOT path** — was cwd-relative; cwd can drift after `docker compose`/`tmux` calls earlier in the skill.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/manifest-seed.ts` | New: deterministic template-manifest.json seeder |
+| `scripts/apply-settings.ts` | New: fixed-op settings helper (task-id, allow, deny, sandbox) |
+| `skills/hatch/SKILL.md` | apply-settings.ts integration; manifest-seed deferred to Step 8 |
+| `skills/docker-setup/SKILL.md` | apply-settings.ts deny call; cwd-safe manifest-seed path |
+| `skills/hermit-evolve/SKILL.md` | Delegates manifest write to manifest-seed.ts; adds manifest-seed.ts to required allow-list |
+| `state-templates/docker/docker-entrypoint.hermit.sh.template` | `marketplace_registered()` + `enable_plugin()` helpers |
+| `tests/manifest-seed.test.ts` | New: manifest-seed.ts tests |
+| `tests/scripts.test.ts` | Tests for apply-settings.ts malformed-file abort |
 
 ### Upgrade Instructions
 
-**Docker entrypoint — marketplace registration fix.** Existing Docker hermits must refresh their **on-disk** `docker-entrypoint.hermit.sh` before the fix takes effect, because `hermit-docker update` rebuilds the image from the on-disk entrypoint, not the template.
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
-**Step 1 — Existence check.** Check for `docker-entrypoint.hermit.sh` at the project root. If it does not exist, skip — Docker not set up.
+**Step 1 — Add apply-settings.ts allow entry.** Read `.claude-code-hermit/state/hatch-options.json` (key `"target"`: `"local"` → `.claude/settings.local.json`, else `.claude/settings.json`). Edit that file: merge `"Bash(bun */scripts/apply-settings.ts*)"` into `permissions.allow` (additive; skip if already present). `hermit-evolve` Step 8 adds `manifest-seed.ts` automatically.
 
-**Step 2 — Already patched?** If `docker-entrypoint.hermit.sh` already contains `marketplace_registered()`, skip to Step 4.
+**Step 2 — Re-seed template-manifest.json (after Step 8).** If `.claude-code-hermit/state/template-manifest.json` does not exist, skip. Otherwise run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/manifest-seed.ts .claude-code-hermit` with this JSON on stdin:
 
-**Step 3 — Refresh on-disk entrypoint.** Copy the updated template into place:
-
+```json
+{
+  "pluginVersion": "1.2.10",
+  "entries": [
+    { "key": "templates/SHELL.md.template", "file": "${CLAUDE_PLUGIN_ROOT}/state-templates/SHELL.md.template" },
+    { "key": "templates/SESSION-REPORT.md.template", "file": "${CLAUDE_PLUGIN_ROOT}/state-templates/SESSION-REPORT.md.template" },
+    { "key": "templates/PROPOSAL.md.template", "file": "${CLAUDE_PLUGIN_ROOT}/state-templates/PROPOSAL.md.template" },
+    { "keyPrefix": "bin", "dir": "${CLAUDE_PLUGIN_ROOT}/state-templates/bin" }
+  ]
+}
 ```
-cp "${CLAUDE_PLUGIN_ROOT}/state-templates/docker/docker-entrypoint.hermit.sh.template" docker-entrypoint.hermit.sh
-```
 
-If `${CLAUDE_PLUGIN_ROOT}` is not set (non-Docker session), derive from `claude plugin list --json` to locate the hermit plugin root.
+Preserves existing entries for add-on hermit files; re-hashes only the core set.
 
-**Step 4 — Re-record the entrypoint baseline** so the drift detector clears:
+**Step 3 — Docker entrypoint (Docker hermits only).** Check for `docker-entrypoint.hermit.sh` at the project root. Skip if absent. Skip if it already contains `marketplace_registered()`.
+
+Refresh: copy `${CLAUDE_PLUGIN_ROOT}/state-templates/docker/docker-entrypoint.hermit.sh.template` → `docker-entrypoint.hermit.sh`.
+
+Re-record the entrypoint baseline:
 
 ```
 bun -e '
@@ -43,26 +71,12 @@ bun -e '
   const h=c.createHash("sha256").update(fs.readFileSync(tmpl)).digest("hex");
   m.files["docker/docker-entrypoint.hermit.sh"]={sha256:h, plugin_version:ver};
   fs.writeFileSync(mp, JSON.stringify(m,null,2)+"\n");
-' "${CLAUDE_PLUGIN_ROOT}/state-templates/docker/docker-entrypoint.hermit.sh.template" "<to>"
+' "${CLAUDE_PLUGIN_ROOT}/state-templates/docker/docker-entrypoint.hermit.sh.template" "1.2.10"
 ```
 
-Replace `<to>` with the current plugin version.
+Rebuild (if Docker hermit is running): `.claude-code-hermit/bin/hermit-docker update`.
 
-**Step 5 — Rebuild the image** (only if Docker hermit is running):
-
-```
-.claude-code-hermit/bin/hermit-docker update
-```
-
-Non-Docker hermits: nothing to do.
-### Added
-
-- **hatch: apply-settings.ts** — new fixed-operation settings helper; hatch/docker-setup call it via Bash instead of using the Edit/Write tools directly. Writes via fs so it's not matched by the `always_on` deny patterns, letting hatch succeed inside a running strict-profile hermit.
-
-### Changed
-
-- **hatch: settings writes use apply-settings.ts** — Steps 5-task, 8, 9, 9a and docker-setup Step 6.4 route through `apply-settings.ts` (additive, non-weakening). The `always_on` guard on `.claude/settings.json` is intentionally left intact.
-- **hatch: apply-settings.ts in allow-list** — Step 8 allow-list includes `Bash(bun */scripts/apply-settings.ts*)` so future re-hatch and docker-setup runs don't prompt.
+No `config.json` changes required.
 
 ## [1.2.9] - 2026-06-22
 
