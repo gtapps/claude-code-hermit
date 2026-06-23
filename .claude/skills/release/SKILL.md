@@ -14,6 +14,7 @@ Examples:
 - `/release claude-code-hermit` — release the core plugin
 - `/release claude-code-dev-hermit` — release the dev hermit
 - `/release claude-code-homeassistant-hermit` — release the HA hermit
+- `/release laravel-forge-hermit` — release the Laravel Forge hermit
 
 If invoked without a slug, list all `plugins/<name>/` directories that contain `.claude-plugin/plugin.json` and ask the operator which one via AskUserQuestion before proceeding.
 
@@ -167,6 +168,7 @@ Update the version string in:
 | `](plugins/claude-code-dev-hermit/`              | `](../claude-code-dev-hermit/`                 |
 | `](plugins/claude-code-homeassistant-hermit/`    | `](../claude-code-homeassistant-hermit/`       |
 | `](plugins/claude-code-fitness-hermit/`          | `](../claude-code-fitness-hermit/`             |
+| `](plugins/laravel-forge-hermit/`                | `](../laravel-forge-hermit/`                   |
 
 Write the result to `plugins/claude-code-hermit/README.md`.
 
