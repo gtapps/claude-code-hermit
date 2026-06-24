@@ -57,7 +57,7 @@ Need a different cadence or a new routine? Just ask — hermit sets it up.
 
 ## Quick Start
 
-> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.150+, a paid Claude plan (Pro, Max, Teams, or Enterprise), Node.js (for `npx` to launch the Strava MCP server), and a [Strava developer app](https://www.strava.com/settings/api) with four OAuth credentials — `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_ACCESS_TOKEN`, `STRAVA_REFRESH_TOKEN` — and scopes `read,activity:read_all,profile:read_all`. The default `read` scope alone is not enough; activity and stream reads will return 401. See the [Strava OAuth guide](https://developers.strava.com/docs/authentication/) for the full flow.
+> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.172+, a paid Claude plan (Pro, Max, Teams, or Enterprise), Node.js (for `npx` to launch the Strava MCP server), and a [Strava developer app](https://www.strava.com/settings/api) with four OAuth credentials — `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_ACCESS_TOKEN`, `STRAVA_REFRESH_TOKEN` — and scopes `read,activity:read_all,profile:read_all`. The default `read` scope alone is not enough; activity and stream reads will return 401. See the [Strava OAuth guide](https://developers.strava.com/docs/authentication/) for the full flow.
 
 ### 1. Install
 
@@ -105,6 +105,21 @@ claude plugin update claude-code-fitness-hermit@claude-code-hermit --scope local
 - **Credentials stay local** — `.env` and `.mcp.json` are gitignored. The four Strava credentials in `.env` are written as literal values into `.mcp.json` (required for the MCP server's child process) and never committed.
 - **No token leakage** — never logs, prints, or writes token values to session files, proposals, or memory.
 - **TOKEN-pattern guard** — the base hermit's deny-patterns hook blocks any Bash command whose argument string contains the literal `TOKEN`. Hatch reads `.env` via the `Read` tool, not shell commands.
+
+---
+
+## Configure it
+
+Strava credentials live in the gitignored `.env` (read-only; scopes `read,activity:read_all,profile:read_all`):
+
+| Key | Description |
+|-----|-------------|
+| `STRAVA_CLIENT_ID` | Strava OAuth app client ID |
+| `STRAVA_CLIENT_SECRET` | Strava OAuth app secret |
+| `STRAVA_ACCESS_TOKEN` | OAuth access token |
+| `STRAVA_REFRESH_TOKEN` | OAuth refresh token |
+
+Everything else — model, heartbeat, idle behavior, per-routine model — is core, tuned with `/hermit-settings`: see core's [Configure it](https://github.com/gtapps/claude-code-hermit/blob/main/plugins/claude-code-hermit/README.md#configure-it) and [Tips & tuning](https://github.com/gtapps/claude-code-hermit/blob/main/plugins/claude-code-hermit/README.md#tips--tuning).
 
 ---
 

@@ -169,7 +169,7 @@ Ask all three in a single `AskUserQuestion` call (the option marked `(default)` 
 |---|---|---|
 | Autonomy | How autonomous should your assistant be? | `Balanced`: act on routine tasks, escalate significant changes (default) / `Conservative`: ask before most non-trivial actions / `Autonomous`: proceed unless blocked, minimize interruptions |
 | Remote ctrl | Enable remote control via claude.ai/code? | `Yes`: connect from claude.ai/code or phone (default) / `No`: local terminal only |
-| Idle | What should hermit do when idle between tasks? | `Discover`: maintenance and reflection (default) / `Wait`: passive, only check for new tasks and messages |
+| Idle | What should hermit do when idle between tasks? | `Discover`: proactively surface priority/maintenance work (default) / `Wait`: passive, only check for new tasks and messages |
 
 Record: `escalation` (conservative/balanced/autonomous), `remote` (true/false), `idle_behavior` (wait/discover).
 
@@ -836,7 +836,7 @@ questions: [
     header: "Idle",
     question: "What should hermit do when idle between tasks?",
     options: [
-      { label: "Discover", description: "Maintenance and reflection (default)" },
+      { label: "Discover", description: "Proactively surface priority/maintenance work (default)" },
       { label: "Wait", description: "Passive — only check for new tasks and messages" }
     ]
   }

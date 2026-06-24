@@ -46,7 +46,7 @@ That's it. One hook + one template, with optional workflow skills on top. Whatev
 
 ## Quick Start
 
-> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.150+, a Claude plan (Pro, Max, Teams, or Enterprise), Node.js 24+ (for the `git-push-guard` hook at strict profile), and `gh` (GitHub) or `glab` (GitLab) for `/dev-pr`. Bitbucket and other forges accept a custom command at `/hatch`.
+> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.172+, a Claude plan (Pro, Max, Teams, or Enterprise), Node.js 24+ (for the `git-push-guard` hook at strict profile), and `gh` (GitHub) or `glab` (GitLab) for `/dev-pr`. Bitbucket and other forges accept a custom command at `/hatch`.
 
 ### 1. Install
 
@@ -82,6 +82,25 @@ Boots the hermit in a tmux session — sessions, routines, heartbeat, and the le
 claude plugin update claude-code-dev-hermit@claude-code-hermit --scope local
 /claude-code-hermit:hermit-evolve
 ```
+
+---
+
+## Configure it
+
+Set by `/hatch`; keys live under `claude-code-dev-hermit` in `.claude-code-hermit/config.json` (except `AGENT_HOOK_PROFILE`, which is in `env`).
+
+| Key | Default / options (default **bold**) |
+|-----|--------------------------------------|
+| `protected_branches` | branches the push guard blocks — **`["main","master"]`** (globs ok) |
+| `AGENT_HOOK_PROFILE` | gates `git-push-guard` — `minimal` / `standard` / **`strict`** |
+| `hatch_mode` | `safety` (rules only) / `standard` (rules + workflow skills) |
+| `commands.test` | test command (required for the workflow skills) |
+| `commands.lint`, `commands.format` | optional lint / format commands |
+| `commands.pr_create` | PR-creation command — `gh` / `glab` / custom |
+| `pr_template_path` | optional PR body template |
+| `pr_base_branch` | optional PR base branch (else auto-detected) |
+
+Full safety model in [Git Safety](#git-safety). Everything else — model, heartbeat, idle behavior, per-routine model — is core, tuned with `/hermit-settings`: see core's [Configure it](https://github.com/gtapps/claude-code-hermit/blob/main/plugins/claude-code-hermit/README.md#configure-it) and [Tips & tuning](https://github.com/gtapps/claude-code-hermit/blob/main/plugins/claude-code-hermit/README.md#tips--tuning).
 
 ---
 

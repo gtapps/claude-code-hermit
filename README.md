@@ -132,14 +132,64 @@ claude plugin update claude-code-hermit@claude-code-hermit --scope local
 
 ## Configure it
 
-Set up interactively by `/hatch`, then tunable live with `/hermit-settings` (or just by asking the hermit). Principal `config.json` keys (default in **bold**, or noted inline) — full schema in the [Config Reference](plugins/claude-code-hermit/docs/config-reference.md):
+Tune via `/hermit-settings` (or just by asking the hermit). Some of the settings available:
 
-- **`agent_name`, `timezone`, `escalation`** — identity (`timezone` defaults `UTC`), plus how much it does before asking (`conservative` / **`balanced`** / `autonomous`).
-- **`channels`** — `channels.<discord|telegram|imessage>` with per-channel `enabled` (default `true`) + `allowed_users`, and `channels.primary` for outbound pings.
-- **`permission_mode`, `AGENT_HOOK_PROFILE`** — how freely the unattended agent acts (default `auto`; hook profiles `minimal` / **`standard`** / `strict`).
-- **`push_notifications`, `model`, `quality_gate.tier`** — notifications (default `true`), model override, and cleanup spend (**`budget`** / `balanced` / `quality`).
-- **`heartbeat.every`, `active_hours`, `idle_behavior`** — idle cadence (default `2h`), active window (default `08:00`–`23:00`), and what it does when idle (`wait` / **`discover`**).
-- **Routines & watches** — managed by `/hermit-routines` and `/watch`; both default to none.
+| Key | Default / options (default **bold**) |
+|-----|--------------------------------------|
+| `agent_name` | your assistant's name |
+| `timezone` | **`UTC`** |
+| `language` | **`en`** |
+| `escalation` | how much it does before asking — `conservative` / **`balanced`** / `autonomous` |
+| `sign_off` | optional sign-off on channel messages |
+| `model` | session model — **`sonnet`** |
+| `permission_mode` | how freely the unattended agent acts — **`auto`** |
+| `AGENT_HOOK_PROFILE` | guardrail profile — `minimal` / **`standard`** / `strict` |
+| `channels` | Discord / Telegram / iMessage (+ `allowed_users`) |
+| `channels.primary` | which channel gets outbound pings |
+| `push_notifications` | native/mobile push on alerts — **`true`** |
+| `remote` | remote control via claude.ai/code — **`true`** |
+| `idle_behavior` | **`discover`** (proactive) / `wait` (passive) |
+| `heartbeat.enabled` | timed idle sweeps — **`true`** |
+| `heartbeat.every` | idle sweep cadence — **`2h`** |
+| `active_hours` | active window — **`08:00`–`23:00`** |
+| `heartbeat.stale_threshold` | alert if no progress for — **`2h`** |
+| `heartbeat.waiting_timeout` | auto `waiting`→`idle` after — **`null`** (off) |
+| `routines` | persistent routines managed via `/hermit-routines` |
+| `monitors` | persistent background watches managed via `/watch` |
+| `scheduled_checks` | periodic skill invocations |
+| `reflection.graduation_min_sessions` | proposal recurrence bar — **`1`** |
+| `quality_gate.tier` | post-change cleanup spend — **`budget`** / `balanced` / `quality` |
+| `knowledge.compiled_budget_chars` | catalog injected at session start — **`2500`** |
+| `knowledge.raw_retention_days` | `raw/` retention — **`14`** |
+| `knowledge.working_set_warn` | warn above N compiled docs — **`20`** |
+| `auto_session` | auto-start session on boot — **`true`** |
+| `boot_skill` / `shutdown_skill` | custom boot / teardown skill |
+| `post_close_clear` | clear context after midnight close — **`true`** |
+| `COMPACT_THRESHOLD` | tool-count compact hint — **`75`** |
+| `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | auto-compact at % of context — **`65`** |
+| `MAX_THINKING_TOKENS` | thinking-token cap per turn — **`10000`** |
+| `watchdog.enabled` | external dead-session recovery — **`false`** |
+
+
+Full schema in the [Config Reference](plugins/claude-code-hermit/docs/config-reference.md)
+
+---
+
+## Tips & tuning
+
+All live-editable with `/hermit-settings` (or just ask the hermit) — no reboot.
+
+- **Model.** Defaults to Sonnet — a good balance of reasoning and cost that also preserves the default `auto` permission mode's security classifier (it won't run on Haiku). Switch to `opus` for heavier reasoning. A Haiku *session* needs `permission_mode: "bypassPermissions"` (no classifier), so reserve it for sandboxed setups; per-routine `model: "haiku"` stays safe (the shipped auto-close already uses it).
+
+- **Heartbeat.** `heartbeat.every` sets the idle sweep (default `2h`; `1h` tighter, `4h`+ fewer wakes); `active_hours` bounds the window (`08:00`–`23:00`). `heartbeat.enabled: false` stops timed wakes entirely — channels and routines still fire.
+
+- **Idle behavior.** `discover` (default) adds a priority-alignment pass against `OPERATOR.md` + cost log; `wait` is passive (tasks/channels only). Either way the daily `reflect` routine still runs — `wait` only silences between-schedule discovery, not the learning loop.
+
+- **Routines.** Each routine takes an optional `model`: run lightweight ones on `haiku` to save cost or heavier ones on `opus` for more reasoning, in an isolated subagent. Omit `model` to keep it inline in the main session context — use that when the routine's value is its chat/transcript output, not just a status line.
+
+- **Quiet & cheap:** `idle_behavior: "wait"` + a longer `heartbeat.every` + `quality_gate.tier: "budget"` (the default). Idle cost is already near-zero; these trim the rest.
+
+Full reference: [Config Reference](plugins/claude-code-hermit/docs/config-reference.md).
 
 ---
 
@@ -197,8 +247,6 @@ Join the [`claude-code-hermit` Discord community](https://discord.gg/54sJqAxhUh)
 
 ## Credits
 
-- **[OpenClaw](https://github.com/openclaw/openclaw)** — Inspiration for autonomous agent ergonomics
-- **[Everything Claude Code](https://github.com/affaan-m/everything-claude-code)** — Hook patterns and lifecycle architecture
 - **[Andrej Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)** — Inspiration for the raw/compiled knowledge system
 
 ## License

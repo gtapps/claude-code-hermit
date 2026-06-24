@@ -48,7 +48,7 @@ claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scop
 
 ## Quick Start
 
-> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.150+, a paid Claude plan (Pro, Max, Teams, or Enterprise), [Bun](https://bun.sh) 1.3+ (Python 3 is still needed for the safety hooks), and a running [Home Assistant](https://www.home-assistant.io/) instance with the official [MCP Server](https://www.home-assistant.io/integrations/mcp_server/) integration enabled and a Long-Lived Access Token (create one under `/profile/security` on your HA instance).
+> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.172+, a paid Claude plan (Pro, Max, Teams, or Enterprise), [Bun](https://bun.sh) 1.3+ (Python 3 is still needed for the safety hooks), and a running [Home Assistant](https://www.home-assistant.io/) instance with the official [MCP Server](https://www.home-assistant.io/integrations/mcp_server/) integration enabled and a Long-Lived Access Token (create one under `/profile/security` on your HA instance).
 
 ### 1. Install
 
@@ -110,6 +110,26 @@ Every actuation call is pre-screened by a safety hook before it reaches Home Ass
 - **Blocked ≠ silent** — every block becomes a proposal for human review
 
 Policy overrides (allow-lists, extra sensitive domains/keywords) are configured through `.env`. See [SAFETY.md](SAFETY.md) for the full policy and override reference.
+
+---
+
+## Configure it
+
+| Key | Default / options (default **bold**) |
+|-----|--------------------------------------|
+| `HOMEASSISTANT_URL` | `.env` — HA instance URL (required) |
+| `HOMEASSISTANT_LOCAL_URL` | `.env` — optional LAN URL |
+| `HOMEASSISTANT_REMOTE_URL` | `.env` — optional remote URL (e.g. Nabu Casa) |
+| `HOMEASSISTANT_TOKEN` | `.env` — Long-Lived Access Token (required) |
+| `HOMEASSISTANT_TIMEOUT_SECONDS` | `.env` — request timeout — **`15`** |
+| `HOMEASSISTANT_RETRY_COUNT` | `.env` — request retries — **`2`** |
+| `HOMEASSISTANT_USER_AGENT` | `.env` — optional custom User-Agent |
+| `ha_safety_mode` | actuation gate (`config.json`) — **`strict`** (never actuate autonomously; blocked work becomes a proposal) / `ask` (prompt before any sensitive actuation) |
+| `HA_SAFE_ENTITIES` | `.env` — per-entity allow-list, exact IDs (always allowed) |
+| `HA_EXTRA_SENSITIVE_DOMAINS` | `.env` — block additional domains entirely |
+| `HA_EXTRA_SENSITIVE_KEYWORDS` | `.env` — block extra keywords in conditionally-sensitive domains |
+
+Full policy in [SAFETY.md](SAFETY.md). Everything else — model, heartbeat, idle behavior, per-routine model — is core, tuned with `/hermit-settings`: see core's [Configure it](https://github.com/gtapps/claude-code-hermit/blob/main/plugins/claude-code-hermit/README.md#configure-it) and [Tips & tuning](https://github.com/gtapps/claude-code-hermit/blob/main/plugins/claude-code-hermit/README.md#tips--tuning).
 
 ---
 

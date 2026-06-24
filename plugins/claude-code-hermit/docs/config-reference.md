@@ -135,7 +135,7 @@ Modify with `/hermit-settings watchdog`.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `idle_behavior` | string | `"discover"` | What to do when idle: `"wait"` (check tasks/channels only) or `"discover"` (also run reflection and priority alignment). |
+| `idle_behavior` | string | `"discover"` | What to do when idle: `"wait"` (check tasks/channels only) or `"discover"` (also run a priority-alignment pass against `OPERATOR.md` + cost log). Does **not** gate the `reflect` routine — reflection runs on its own cron schedule regardless of this setting. |
 | `routines` | array | `[]` | Scheduled routines. Each entry: `{id, schedule, skill, run_during_waiting?, reflect_after?, model?, enabled}`. `schedule` is a 5-field cron expression (`minute hour dom month dow`) interpreted in `config.timezone`. `model` (optional, one of `opus`/`sonnet`/`haiku`) runs the skill in a subagent at that model to save cost on lightweight routines; omit to use the session model. Subagents run in isolated context and return only a one-line status — only use `model` on stateless routines (not ones whose primary value is chat/transcript output). Ignored on `heartbeat-restart`. |
 | `monitors` | array | `[]` | Declared background watches. Each entry: `{id, description, command, class?, persistent?, enabled, timeout_ms?}`. Auto-registered at session start via `/watch start`. `class` is `"stream"` or `"poll"` (documentation label only). Runtime state in `state/monitors.runtime.json`. |
 
