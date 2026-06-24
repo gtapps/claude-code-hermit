@@ -599,58 +599,27 @@ describe('writeSettingsEnv sandbox overlay', () => {
     expect(out).toBe('');
   });
 
-  test('in-container boot adds enableWeakerNestedSandbox without clobbering other sandbox keys', () => {
+  test('in-container boot strips obsolete enableWeakerNestedSandbox but never touches enabled', () => {
     process.env.container = 'docker';
-    writeSettings({ sandbox: { enabled: true, allowUnsandboxedCommands: true } });
+    writeSettings({ sandbox: { enabled: true, enableWeakerNestedSandbox: true, allowUnsandboxedCommands: true } });
     writeConfig({});
-    seedProbeCache({ status: 'pass', message: 'ok' }); // probe must be seeded — container branch now calls it
     const config = loadConfig();
     captureLog(() => writeSettingsEnv(config));
     const settings = readSettings();
-    expect(settings.sandbox.enableWeakerNestedSandbox).toBe(true);
-    expect(settings.sandbox.enabled).toBe(true);
-    expect(settings.sandbox.allowUnsandboxedCommands).toBe(true);
-  });
-
-  test('in-container boot with blocked userns auto-disables sandbox and removes weaker-nest', () => {
-    process.env.container = 'docker';
-    writeSettings({ sandbox: { enabled: true, allowUnsandboxedCommands: true } });
-    writeConfig({});
-    seedProbeCache({ status: 'warn', message: 'user-namespaces blocked (AppArmor).', install_hint: 'install profile' });
-    const config = loadConfig();
-    const { out } = captureLog(() => writeSettingsEnv(config));
-    const settings = readSettings();
-    expect(settings.sandbox.enabled).toBe(false);
+    expect(settings.sandbox.enabled).toBe(true); // operator/hatch intent untouched
     expect(settings.sandbox).not.toContainKey('enableWeakerNestedSandbox');
     expect(settings.sandbox.allowUnsandboxedCommands).toBe(true); // operator keys preserved
-    expect(out).toContain('[hermit] Sandbox disabled');
-    expect(out).toContain('https://code.claude.com/docs/en/sandboxing');
   });
 
-  test('in-container boot with fail probe also auto-disables sandbox', () => {
-    process.env.container = 'docker';
-    writeSettings({ sandbox: { enabled: true } });
-    writeConfig({});
-    seedProbeCache({ status: 'fail', message: 'bwrap missing.', install_hint: 'apt install bubblewrap' });
-    const config = loadConfig();
-    const { out } = captureLog(() => writeSettingsEnv(config));
-    const settings = readSettings();
-    expect(settings.sandbox.enabled).toBe(false);
-    expect(settings.sandbox).not.toContainKey('enableWeakerNestedSandbox');
-    expect(out).toContain('[hermit] Sandbox disabled');
-  });
-
-  test('in-container boot with blocked userns is a no-op when sandbox already disabled', () => {
+  test('in-container boot leaves an already-off sandbox off without re-adding weaker-nest', () => {
     process.env.container = 'docker';
     writeSettings({ sandbox: { enabled: false } });
     writeConfig({});
-    seedProbeCache({ status: 'warn', message: 'user-namespaces blocked.', install_hint: 'X' });
     const config = loadConfig();
-    const { out } = captureLog(() => writeSettingsEnv(config));
+    writeSettingsEnv(config);
     const settings = readSettings();
     expect(settings.sandbox.enabled).toBe(false);
     expect(settings.sandbox).not.toContainKey('enableWeakerNestedSandbox');
-    expect(out).not.toContain('[hermit] Sandbox disabled'); // no log — already off
   });
 
   test.skipIf(IN_CONTAINER)('non-container boot removes enableWeakerNestedSandbox and preserves other sandbox keys', () => {

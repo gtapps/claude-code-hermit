@@ -52,7 +52,7 @@ If the output is `container`, **stop immediately** — do not proceed to step 1.
 
    Sandbox (bash tool isolation, from v1.1.2):
      profile: standard  (or: off / not configured)
-     nested-sandbox: auto (hermit-start writes enableWeakerNestedSandbox in container)
+     in-container: sandbox off (the container is the isolation boundary)
    ```
 
    Derive `profile` by checking `sandbox.enabled` in the settings file: `true` → `standard` (or the profile name if you can infer it from `filesystem.denyRead`), `false` → `off`, absent → `not configured`.

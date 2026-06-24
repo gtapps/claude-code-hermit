@@ -16,11 +16,20 @@
 - **hatch: Phase 3/5 question specs as tables** — the verbose `questions: [...]` JSON examples collapse to compact, content-identical tables, trimming the resident SKILL.md. Verified a live Haiku run still builds the batched AskUserQuestion correctly from the table form.
 
 ### Fixed
-- **docker: heartbeat/monitors silently fail on Ubuntu 24.04+ hosts** — host AppArmor userns restriction (`kernel.apparmor_restrict_unprivileged_userns=1`) blocks `bwrap` in-container; `hermit-start` now auto-disables the nested sandbox at boot when userns is provably blocked (container is the isolation boundary per Anthropic recommendation), and `/hatch` defaults Docker and tmux-warn installs to sandbox-off. Rebuild/restart the container (`hermit-docker update`) to pick up the new boot behavior — on next boot the sandbox is auto-disabled if bwrap is blocked and heartbeat/`/watch` Monitors register. No `config.json` change required. (https://code.claude.com/docs/en/sandboxing)
+- **docker: bash sandbox set off in containers** — `/hatch` and `/docker-setup` set `sandbox.enabled:false` for container deployments. The container is the isolation boundary Anthropic recommends for unattended runs; the nested bwrap sandbox is optional and, on Ubuntu 24.04+ hosts, can't start in-container and silently kills the heartbeat and `/watch` Monitors. `hermit-start` no longer manages the key at runtime; `/hermit-evolve` migrates existing installs. (https://code.claude.com/docs/en/sandbox-environments)
 - **hatch: domain auto-resume** — domain hatch writes a state marker before delegating to core; core terminus reads, deletes, and invokes the pending domain hatch via the Skill tool. Removes the dead printed-command return hop and the competing-signal freeze. Adds the domain hatch continuation protocol doc.
 - **hermit-docker login: re-authenticate on expired token** — gate the "already authenticated" short-circuit on credential freshness (`claudeAiOauth.expiresAt < Date.now()`), not just presence; an expired OAuth token now opens the login REPL instead of falsely reporting success.
 - **hatch: init gate keys on `config.json`** — Step 1 now treats `config.json` (not bare directory content) as the "already initialized" signal, so a pre-core resume marker, an empty `state/` tree, or a half-written aborted run no longer trips the reinit prompt on a genuine first hatch.
 - **hatch: Quick auto-chain vs resume** — the Quick auto-chain is suppressed when a resume marker is present, so it and the resume terminus can't both fire and drop each other. Resume marker no longer carries an unused `requested_at` field.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+**Step 1 — Docker sandbox posture (Docker hermits only).** Check for `docker-entrypoint.hermit.sh` at the project root — skip this step entirely if absent (non-Docker deployment). Otherwise determine the effective `sandbox.enabled`: read `.claude/settings.json` then `.claude/settings.local.json`, the last file to declare it wins (Claude Code's merge order). If it is not `true`, skip (already off). If it is `true`, this overrides an operator-set key with no safe default, so **defer to the step-10 operator prompt**:
+
+- **question:** "This hermit runs in Docker with the bash sandbox on. Inside a container the container itself is the isolation boundary (Anthropic's recommended posture for unattended runs), and on Ubuntu 24.04+ hosts the nested sandbox can't start and silently kills the heartbeat and `/watch` monitors. Set `sandbox.enabled:false`?"
+- **options:** `Set sandbox off (recommended)` → resolve the target settings file (`.claude-code-hermit/state/hatch-options.json` key `"target"`: `"local"` → `.claude/settings.local.json`, else `.claude/settings.json`) and run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <target-file> sandbox off`, then note "Rebuild to apply: `.claude-code-hermit/bin/hermit-docker update`." · `Keep sandbox on` → no change.
 
 ## [1.2.10] - 2026-06-23
 

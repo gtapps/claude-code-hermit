@@ -679,7 +679,7 @@ Configure the Claude Code bash sandbox for this hermit when the system supports 
 
 2. **Skip if operator already has sandbox config.** Check if the target settings file already has any of these *operator-intent* keys under `sandbox`: `enabled`, `filesystem`, `network`, `failIfUnavailable`, `autoAllowBashIfSandboxed`, `allowUnsandboxedCommands`. If any are present, skip silently — tell the operator once: "Existing sandbox config preserved." Continue to Step 9b.
 
-   **Important:** `sandbox.enableWeakerNestedSandbox` does NOT count as operator config — it's hermit-managed (auto-written by `hermit-start` inside Docker). Ignore it when deciding whether to skip.
+   **Important:** `sandbox.enableWeakerNestedSandbox` does NOT count as operator config — it's a legacy hermit-managed key (`hermit-start` strips it on boot). Ignore it when deciding whether to skip.
 
 3. **Probe capability**:
    ```bash

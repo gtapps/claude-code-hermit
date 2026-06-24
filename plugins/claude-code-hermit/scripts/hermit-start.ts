@@ -327,11 +327,8 @@ function sandboxProbeCached(): Json | null {
 /**
  * Warn to stdout if sandbox is enabled but deps are unavailable.
  *
- * Skipped inside containers: the container boot path in writeSettingsEnv
- * probes userns capability and auto-disables the sandbox when it is blocked
- * (AppArmor / kernel.apparmor_restrict_unprivileged_userns). Running the
- * probe here too would always warn in unprivileged containers and produce
- * a spurious message before the fix has been applied.
+ * Skipped inside containers: the container is the isolation boundary, so there is
+ * nothing to warn about (and probing would always fail in unprivileged containers).
  */
 function checkSandboxCapability(): void {
   if (!isSandboxEnabled()) return;
@@ -696,44 +693,16 @@ function writeSettingsEnv(config: Json): void {
     console.log(`[hermit] Cleaned stale token vars from settings.local.json: ${staleKeys.join(', ')}`);
   }
 
-  // Sandbox: in containers, probe userns capability and auto-disable if blocked.
-  // All operator-intent sandbox.* keys are hatch/operator territory except when
-  // userns is provably broken — in that case we write enabled:false to
-  // settings.local.json (which wins the merge over settings.json).
-  // On the host (else branch) we touch only enableWeakerNestedSandbox.
-  // Use `|| {}` so a literal null or non-dict value (corrupted file, jq edit)
-  // doesn't crash downstream.
+  // hermit-start does not own sandbox.enabled — that's a hatch/operator decision;
+  // hermit-evolve migrates existing installs. Here we only strip the obsolete
+  // enableWeakerNestedSandbox key that older versions wrote on container boot.
   let sandbox = settings.sandbox || {};
   if (!isDict(sandbox)) sandbox = {};
-  if (isContainer()) {
-    const probe = sandboxProbeCached();
-    const broken = !!probe && probe.status !== 'pass'; // 'warn' or 'fail' — userns actually failed
-    const sandboxWasEnabled = isSandboxEnabled();
-    if (broken && sandboxWasEnabled) {
-      sandbox.enabled = false;
-      console.log(
-        '[hermit] Sandbox disabled: host kernel blocks unprivileged user-namespaces in this ' +
-          'container (AppArmor). The container is the isolation boundary; heartbeat/watch Monitors ' +
-          'need this. To re-enable after fixing the host bwrap AppArmor profile: set ' +
-          'sandbox.enabled:true and delete .claude-code-hermit/state/sandbox-probe.json. ' +
-          'See https://code.claude.com/docs/en/sandboxing',
-      );
-    }
-    // weaker-nest only applies when the sandbox will actually run
-    const sandboxOn = sandbox.enabled === false ? false : sandboxWasEnabled;
-    if (sandboxOn) {
-      sandbox.enableWeakerNestedSandbox = true;
-    } else {
-      delete sandbox.enableWeakerNestedSandbox;
-    }
+  delete sandbox.enableWeakerNestedSandbox;
+  if (pyTruthy(sandbox)) {
     settings.sandbox = sandbox;
   } else {
-    delete sandbox.enableWeakerNestedSandbox;
-    if (pyTruthy(sandbox)) {
-      settings.sandbox = sandbox;
-    } else {
-      delete settings.sandbox;
-    }
+    delete settings.sandbox;
   }
 
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');

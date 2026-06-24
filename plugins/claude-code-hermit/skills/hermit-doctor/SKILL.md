@@ -31,8 +31,10 @@ summary. Safe to run at any time. Produces no side effects beyond writing
 
    Determine the sandbox enabled state: read `.claude/settings.json` and `.claude/settings.local.json`; the last file that explicitly declares `sandbox.enabled` wins (Claude Code's merge order). Treat non-bool values as undeclared.
 
+   - **If running inside a container** (`/.dockerenv` or `/run/.containerenv` exists): do not run the probe (`unshare --user --pid true` fails unconditionally in unprivileged containers, producing a spurious WARN). Branch on the enabled state read above:
+     - enabled `true`: emit `⚠ sandbox — enabled inside container; recommended off. The container is the isolation boundary; on Ubuntu 24.04+ hosts bwrap can't start in-container and heartbeat/watch monitors fail. Run /claude-code-hermit:hermit-evolve or set sandbox.enabled:false.`
+     - otherwise: emit `✓ sandbox — off in container (the container is the isolation boundary)`.
    - If sandbox is **not enabled** (no declaration, or last declaration is `false`): emit `✓ sandbox — disabled (not configured)`. Do not run the probe.
-   - **If running inside a container** (`/.dockerenv` or `/run/.containerenv` exists): emit `✓ sandbox — enabled, in container (enableWeakerNestedSandbox auto-managed by hermit-start)`. Do not run the probe — `unshare --user --pid true` fails unconditionally in unprivileged containers, producing a spurious WARN. Hermit-start writes `enableWeakerNestedSandbox: true` to settings.local.json for this case, which sidesteps the kernel restriction.
    - Otherwise, run:
      ```bash
      bun ${CLAUDE_PLUGIN_ROOT}/scripts/sandbox-probe.ts
