@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.5] - 2026-06-24
 
 ### Fixed
 - **hatch: domain auto-resume** — writes a state marker before delegating to core; core terminus invokes this skill via the Skill tool automatically. Removes the manual re-run. Requires `claude-code-hermit` ≥1.2.11.

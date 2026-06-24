@@ -31,7 +31,7 @@
       "name": "claude-code-dev-hermit",
       "source": "./plugins/claude-code-dev-hermit",
       "description": "Strict git-push-guard hook + optional dev conventions for any Claude Code agent — blocks force-push, --no-verify, and direct push to protected branches",
-      "version": "0.4.4",
+      "version": "0.4.5",
       "category": "development",
       "author": {
         "name": "gtapps"
@@ -50,7 +50,7 @@
       "name": "claude-code-homeassistant-hermit",
       "source": "./plugins/claude-code-homeassistant-hermit",
       "description": "Home Assistant layer for claude-code-hermit — skills, subagents, safety hook, and bun-powered CLI for an autonomous HA assistant",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "category": "home-automation",
       "author": {
         "name": "gtapps",
@@ -70,7 +70,7 @@
       "name": "claude-code-fitness-hermit",
       "source": "./plugins/claude-code-fitness-hermit",
       "description": "Fitness/training layer for claude-code-hermit — Strava MCP integration, activity analysis skills, and routine templates for an autonomous training assistant",
-      "version": "0.0.9",
+      "version": "0.0.10",
       "category": "fitness",
       "author": {
         "name": "gtapps",
@@ -91,7 +91,7 @@
       "name": "laravel-forge-hermit",
       "source": "./plugins/laravel-forge-hermit",
       "description": "Laravel Forge layer for claude-code-hermit — deployment, logs, server/site skills, and daily estate scan via the official Forge PHP SDK",
-      "version": "0.0.2",
+      "version": "0.0.3",
       "category": "development",
       "author": {
         "name": "gtapps",
