@@ -4,7 +4,7 @@
 // The eval JSON is read from stdin (not argv) so free-text alert content can't break shell quoting.
 // Usage: bun update-alert-state.ts <state-file-path>   # eval-json on stdin
 
-import fs from 'node:fs';
+import { readAlertState, defaultAlertState, quarantineAlertState, writeAlertState } from './lib/alert-state';
 
 type Json = any;
 
@@ -24,12 +24,21 @@ function apply(payloadJson: string): void {
     process.exit(1);
   }
 
-  let state: Json = {};
-  try {
-    state = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
-  } catch {
-    // first run or unreadable — seed with the precheck's default shape
-    state = { alerts: {}, last_digest_date: null, self_eval: {}, total_ticks: 0 };
+  // Split read from parse: a transient read error (ioerror) must not clobber a healthy
+  // file. ENOENT = first run → seed default. corrupt = bytes read but unparseable →
+  // quarantine for forensics, then merge onto a default. ioerror = bail without writing.
+  let state: Json;
+  const r = readAlertState(stateFile);
+  if (r.kind === 'ok') {
+    state = r.value;
+  } else if (r.kind === 'missing') {
+    state = defaultAlertState();
+  } else if (r.kind === 'corrupt') {
+    quarantineAlertState(stateFile, Date.now());
+    state = defaultAlertState();
+  } else {
+    console.error(`update-alert-state: read failed (${r.code ?? 'unknown'}); skipping write`);
+    process.exit(0);
   }
 
   const alerts: Json = {
@@ -61,11 +70,7 @@ function apply(payloadJson: string): void {
     last_clean_eval_at,
   };
 
-  try {
-    fs.writeFileSync(stateFile, JSON.stringify(updated, null, 2) + '\n', 'utf-8');
-  } catch (err: any) {
-    console.error(`update-alert-state: write failed: ${err.message}`);
-  }
+  writeAlertState(stateFile, updated);
 
   process.exit(0);
 }

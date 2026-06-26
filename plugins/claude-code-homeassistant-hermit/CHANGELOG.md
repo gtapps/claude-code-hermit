@@ -9,6 +9,14 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 - **ha automation-diff** — change memory across sessions: reports automations added/removed/edited/enabled/disabled since the last snapshot, including UI edits that bypass the plugin. Read-only; complements `ha-safety-audit` (policy drift vs. change drift). (#472)
 - **ha snapshot-states / ha restore-states** — capture an entity set's state to a named artifact and restore it via `scene.apply`. Restore is the plugin's first device-actuation path, gated by the existing `ha_safety_mode` policy: sensitive entities block under strict and require `--confirm` under ask. (#472)
 - **skills: ha-automation-diff, ha-snapshot-restore** — thin wrappers over the new CLI subcommands.
+- **CLI: `scene` config domain** — `validate-apply --reload scene`, plus scene create/remove, via the existing REST config path (`/api/config/scene/config/{id}` + `scene.reload`). (#466)
+- **WebSocket client (`src/ha-ws.ts`)** — single-shot `wss://<host>/api/websocket` client reusing the REST URL selection and token; auth handshake + id-correlated commands. Reaches HA surfaces REST cannot. (#466)
+- **CLI: helpers, areas, registries** — `list/create/delete-helper` (8 helper types), `list/create/delete-area`, `list-entities --registry`, `rename-entity`, `set-entity-area`, `set-entity-enabled`, `list-devices`, `set-device-area`, `rename-device`. (#466)
+- **Safety: WS mutations gated by `ha_safety_mode`** — reads always allowed; under `strict` writes are blocked (surface as proposal), under `ask` writes require `--confirm`. Each mutation writes an `audit-ha-ws-*` report. (#466)
+
+### Fixed
+
+- **safety-gate: cover script-derived MCP tools** — widened the PreToolUse matcher from `mcp__homeassistant__Hass.*` to `mcp__homeassistant__.*` so exposed HA scripts (which surface as MCP tools with no `Hass` prefix and no `entity_id`) reach the gate instead of actuating ungated (#469). Read-only `GetLiveContext`/`GetDateTime` are allowlisted in-gate; bare-named script tools with no classifiable target block under `strict` and prompt under `ask`; unresolvable selectors and `Hass*` intent tools that target by `name`/`area` still hard-block in every mode.
 
 ## [0.2.3] - 2026-06-24
 

@@ -49,7 +49,7 @@ Your private memory is invisible to the operator. Do not quote it in verdict lin
 
 ## For Each Candidate
 
-Reason carefully about each candidate's evidence and tier before emitting its verdict — this batch gates what reaches the proposal pipeline.
+Reason carefully about each candidate's evidence and tier in your thinking before emitting its verdict — keep that reasoning out of the response. This batch gates what reaches the proposal pipeline.
 
 ### 0. Evidence Source dispatch
 
@@ -154,6 +154,8 @@ SUPPRESS (current-session): <title> — no-evidence: <reason>
 ```
 
 One line per candidate. Nothing else.
+
+Your final message is read verbatim into the caller's long-lived main-session context and re-read from cache on every subsequent turn. Emit **only** one verdict line per candidate — never your three-condition evaluation or any other analysis. Do your reasoning in thinking; it must not appear in the response.
 
 ## Memory curation
 

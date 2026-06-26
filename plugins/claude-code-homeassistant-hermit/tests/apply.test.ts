@@ -49,6 +49,13 @@ alias: Safe script
 sequence:
   - delay: "00:00:01"`;
 
+const SCENE_YAML = `id: my_scene
+name: Movie Night
+entities:
+  light.living_room:
+    state: "on"
+    brightness: 80`;
+
 const safeRoot = () => makeHaRoot();
 
 /** post handler that pops a queue; entries may be values or thrown errors. */
@@ -171,6 +178,27 @@ test('pushes script config via rest', async () => {
     '/api/config/script/config/my_script',
     { id: 'my_script', alias: 'Safe script', sequence: [{ delay: '00:00:01' }] },
   ]);
+});
+
+test('pushes scene config via rest', async () => {
+  const root = safeRoot();
+  const artifact = writeArtifact(root, SCENE_YAML);
+  const client = fakeClient({
+    post: () => ({ result: 'ok' }),
+    get: () => ({ id: 'my_scene', name: 'Movie Night' }),
+  });
+
+  const result = await validateAndApply(root, client, artifact, 'scene');
+
+  expect(result.ok).toBe(true);
+  expect(result.creationAttempted).toBe(true);
+  expect(result.creationOk).toBe(true);
+  expect(client.calls.post).toContainEqual([
+    '/api/config/scene/config/my_scene',
+    { id: 'my_scene', name: 'Movie Night', entities: { 'light.living_room': { state: 'on', brightness: 80 } } },
+  ]);
+  // reload service call uses the scene domain
+  expect(client.calls.post).toContainEqual(['/api/services/scene/reload', {}]);
 });
 
 test('id extracted from yaml id field', async () => {
@@ -321,6 +349,16 @@ test('remove script ok', async () => {
 
   expect(result.ok).toBe(true);
   expect(client.calls.delete).toEqual(['/api/config/script/config/my_script']);
+});
+
+test('remove scene ok', async () => {
+  const root = safeRoot();
+  const client = fakeClient({ del: () => ({ result: 'ok' }) });
+
+  const result = await removeConfig(root, client, 'scene', 'my_scene');
+
+  expect(result.ok).toBe(true);
+  expect(client.calls.delete).toEqual(['/api/config/scene/config/my_scene']);
 });
 
 test('remove returns 400 with resource not found', async () => {

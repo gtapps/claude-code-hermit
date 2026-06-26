@@ -29,7 +29,7 @@ export const SENSITIVE_KEYWORDS = new Set([
   'access',
 ]);
 
-export const SAFE_RELOAD_DOMAINS = new Set(['automation', 'script']);
+export const SAFE_RELOAD_DOMAINS = new Set(['automation', 'script', 'scene']);
 
 export const Severity = {
   BLOCK: 'block',
@@ -102,6 +102,45 @@ function loadSafetyMode(root: string): string {
 /** Read ha_safety_mode from .claude-code-hermit/config.json. Fail-closed: returns 'strict'. */
 export function safetyMode(root?: string | null): string {
   return loadSafetyMode(resolve(root ?? process.cwd()));
+}
+
+export interface MutationGate {
+  allowed: boolean;
+  requiresConfirm: boolean;
+  mode: string;
+  reason: string;
+}
+
+/**
+ * Gate for structural WebSocket mutations (helpers, areas, entity/device
+ * registries). Reads are never gated — only call this for writes.
+ *
+ *   strict (default): blocked — surface the work as a proposal.
+ *   ask: allowed only with operator confirmation. The CLI is non-interactive,
+ *        so the caller passes `confirmed` (the `--confirm` flag) after the main
+ *        session has prompted the operator; without it the gate asks for it.
+ */
+export function gateStructuralMutation(root?: string | null, confirmed = false): MutationGate {
+  const mode = safetyMode(root);
+  if (mode === 'strict') {
+    return {
+      allowed: false,
+      requiresConfirm: false,
+      mode,
+      reason:
+        'Blocked under strict ha_safety_mode — surface this as a proposal for the operator to approve.',
+    };
+  }
+  if (confirmed) {
+    return { allowed: true, requiresConfirm: false, mode, reason: 'Approved via --confirm.' };
+  }
+  return {
+    allowed: false,
+    requiresConfirm: true,
+    mode,
+    reason:
+      'Requires operator confirmation under ask ha_safety_mode — re-run with --confirm once the operator approves.',
+  };
 }
 
 export interface PolicyDecision {

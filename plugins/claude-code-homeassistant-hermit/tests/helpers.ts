@@ -109,6 +109,16 @@ export function fakeClient(handlers: FakeClientHandlers = {}) {
 
 export type FakeClient = ReturnType<typeof fakeClient>;
 
+/** Minimal subprocess env for hook-runner tests — keeps only PATH/HOME/TMPDIR/LANG/LC_ALL. */
+export function cleanEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const key of ['PATH', 'HOME', 'TMPDIR', 'LANG', 'LC_ALL']) {
+    const v = process.env[key];
+    if (v !== undefined) env[key] = v;
+  }
+  return env;
+}
+
 export interface CapturedRun {
   code: number;
   out: string;

@@ -4,13 +4,14 @@ This plugin controls real home devices. The safety model is layered — the agen
 
 ## How Actuation Is Gated
 
-Every MCP call matching `mcp__homeassistant__Hass*` is pre-screened by `hooks/mcp-safety-gate.ts` (importing the policy from `src/policy.ts` directly) before it reaches Home Assistant. The hook fails closed — if the policy check errors, the input can't be parsed, or the target can't be resolved to a concrete entity, the call is blocked (exit 2).
+Every MCP call to the Home Assistant server (`mcp__homeassistant__*`) is pre-screened by `hooks/mcp-safety-gate.ts` (importing the policy from `src/policy.ts` directly) before it reaches Home Assistant. The matcher covers **all** HA MCP tools — including script-derived tools (an exposed HA script becomes a tool named by its bare object_id, with no `Hass` prefix and no `entity_id` parameter), which would otherwise bypass the gate entirely. The read-only `GetLiveContext` / `GetDateTime` tools are allowlisted inside the gate (they carry no target and never actuate). The hook fails closed — if the policy check errors, the input can't be parsed, or the target can't be resolved to a concrete entity, the call is blocked (exit 2).
 
 ## What's Blocked by Default
 
 - **Sensitive domains**: `lock`, `alarm_control_panel`
 - **Security-tagged devices**: `cover`, `button`, `switch` entities matching security-related keywords (door, gate, garage, etc.)
 - **Unresolvable targets**: any call carrying an `area_id`/`floor_id`/`label_id`/`device_id` selector that does not resolve to a concrete, well-formed `entity_id` — blocked even when a safe concrete `entity_id` is also present (the selector fans out server-side to entities the gate cannot enumerate). Domain matching is case-insensitive (`LOCK.front_door` is treated as `lock`); malformed ids with an empty domain (e.g. `.lock`) are rejected as unresolvable.
+- **Opaque (script-derived) tools**: a call that carries no `entity_id` and no targeting selector — the canonical case is an exposed HA script, which has no classifiable target. Blocked under `strict` (becomes a proposal); under `ask`, the operator is prompted. (An unnamed/garbage call with no `tool_name` always hard-blocks. A `Hass*` intent tool that targets by `name`/`area` is **not** opaque in this sense — it fans out server-side like an `area_id` selector, so it hard-blocks in every mode.)
 - **Anything explicitly listed** in the sensitive-domain or sensitive-keyword policy
 
 Blocked operations do not silently fail — they become proposals for human review.
@@ -26,7 +27,7 @@ The safety gate has a two-tier configurable mode stored in `.claude-code-hermit/
 
 Both tiers enforce confirmation through the runtime; there is no "operator-owns-the-risk" mode by design — actuation of locks and alarms has no software undo.
 
-The mode dial does **not** relax the fail-closed branch: if the hook cannot resolve the target to a concrete `entity_id`, it still blocks regardless of mode. The `HA_SAFE_ENTITIES` per-entity allowlist still takes precedence over both modes — a listed entity is always allowed.
+The mode dial does **not** relax the hard fail-closed branch: an unresolvable `area_id`/`floor_id`/`label_id`/`device_id` fan-out, a `Hass*` intent tool that targets by `name`/`area`, a malformed `entity_id`, or an unnamed/garbage call all still block regardless of mode (the target set can't be enumerated, so it could hit a sensitive entity). The one mode-dependent case is an **opaque named script tool** (a bare-`object_id` call with no concrete target and no fan-out selector): `strict` blocks it, `ask` prompts the operator — same as it does for a concrete sensitive entity. The `HA_SAFE_ENTITIES` per-entity allowlist still takes precedence over both modes — a listed entity is always allowed.
 
 Change the mode by editing `ha_safety_mode` in `.claude-code-hermit/config.json` or re-running `/claude-code-homeassistant-hermit:hatch`.
 

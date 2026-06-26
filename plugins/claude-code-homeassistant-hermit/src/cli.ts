@@ -30,16 +30,33 @@ import { automationDiff, formatAutomationDiff } from './automation-diff';
 import { bootStatus, saveBootPreferences } from './boot';
 import { AppConfig, loadConfig, normalizedContextPath, projectRoot } from './config';
 import { HomeAssistantClient, HomeAssistantError } from './ha-api';
+import { HomeAssistantWsClient } from './ha-ws';
 import { fetchHistorySnapshot } from './history';
 import {
   computeDegradedDomains,
   formatIntegrationHealthStdout,
   writeDegradedDomainsArtifact,
 } from './integration-health';
-import { checkEntity, normalizeEntityIndex } from './policy';
+import { checkEntity, gateStructuralMutation, normalizeEntityIndex } from './policy';
 import { evaluateYamlPolicy, simulateArtifact } from './simulate';
 import { computeSilenceSummary } from './silence';
 import { captureStates, restoreStates, DEFAULT_DOMAINS } from './snapshot-restore';
+import {
+  HELPER_TYPES,
+  type WsCommandClient,
+  type WsMutationResult,
+  type WsReadResult,
+  createArea,
+  createHelper,
+  deleteArea,
+  deleteHelper,
+  listAreas,
+  listDevices,
+  listEntities,
+  listHelpers,
+  updateDevice,
+  updateEntity,
+} from './structure';
 
 // ---------------------------------------------------------------------------
 // JSON output helpers — Python json.dumps parity
@@ -96,6 +113,7 @@ export interface CliClient {
 export interface CliDeps {
   loadConfig: (root?: string | null) => AppConfig;
   createClient: (config: AppConfig) => Promise<CliClient>;
+  createWsClient: (config: AppConfig) => Promise<WsCommandClient>;
   refreshContext: (root: string, client: CliClient) => Promise<Record<string, any>>;
 }
 
@@ -103,6 +121,7 @@ function resolveDeps(overrides: Partial<CliDeps>): CliDeps {
   return {
     loadConfig: overrides.loadConfig ?? loadConfig,
     createClient: overrides.createClient ?? ((config) => HomeAssistantClient.create(config)),
+    createWsClient: overrides.createWsClient ?? ((config) => HomeAssistantWsClient.create(config)),
     refreshContext: overrides.refreshContext ?? refreshContext,
   };
 }
@@ -138,6 +157,19 @@ const HA_COMMANDS = [
   'automation-diff',
   'snapshot-states',
   'restore-states',
+  'list-helpers',
+  'create-helper',
+  'delete-helper',
+  'list-areas',
+  'create-area',
+  'delete-area',
+  'list-entities',
+  'rename-entity',
+  'set-entity-area',
+  'set-entity-enabled',
+  'list-devices',
+  'set-device-area',
+  'rename-device',
 ] as const;
 const HA_USAGE = [
   'usage: ha_agent_lab ha [-h]',
@@ -188,6 +220,20 @@ positional arguments:
                         restore.
     restore-states      Restore captured entity states via scene.apply
                         (gated by ha_safety_mode).
+    list-helpers        List helpers (input_*, timer, counter, schedule) via
+                        WebSocket. Optional --type to scope to one.
+    create-helper       Create a helper from JSON via WebSocket (gated write).
+    delete-helper       Delete a helper by id via WebSocket (gated write).
+    list-areas          List areas via WebSocket.
+    create-area         Create an area by name via WebSocket (gated write).
+    delete-area         Delete an area by id via WebSocket (gated write).
+    list-entities       List the entity registry via WebSocket (--registry).
+    rename-entity       Set an entity's friendly name (gated write).
+    set-entity-area     Assign an entity to an area (gated write).
+    set-entity-enabled  Enable/disable an entity (gated write).
+    list-devices        List the device registry via WebSocket.
+    set-device-area     Assign a device to an area (gated write).
+    rename-device       Set a device's user name (gated write).
 
 options:
   -h, --help            show this help message and exit`;
@@ -339,10 +385,10 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
   'ha validate-apply': {
     prog: 'ha_agent_lab ha validate-apply',
     usage:
-      'usage: ha_agent_lab ha validate-apply [-h] [--reload {automation,script}]\n' +
+      'usage: ha_agent_lab ha validate-apply [-h] [--reload {automation,script,scene}]\n' +
       '                                      artifact',
     positionals: ['artifact'],
-    flags: { '--reload': { kind: 'value', choices: ['automation', 'script'] } },
+    flags: { '--reload': { kind: 'value', choices: ['automation', 'script', 'scene'] } },
   },
   'ha policy-check': {
     prog: 'ha_agent_lab ha policy-check',
@@ -447,6 +493,84 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
     usage: 'usage: ha_agent_lab ha restore-states [-h] [--confirm] artifact',
     positionals: ['artifact'],
     flags: { '--confirm': { kind: 'store_true' } },
+  },
+  'ha list-helpers': {
+    prog: 'ha_agent_lab ha list-helpers',
+    usage: `usage: ha_agent_lab ha list-helpers [-h] [--type {${HELPER_TYPES.join(',')}}]`,
+    positionals: [],
+    flags: { '--type': { kind: 'value', choices: HELPER_TYPES } },
+  },
+  'ha create-helper': {
+    prog: 'ha_agent_lab ha create-helper',
+    usage: `usage: ha_agent_lab ha create-helper [-h] [--confirm] {${HELPER_TYPES.join(',')}} json`,
+    positionals: ['type', 'json'],
+    flags: { '--confirm': { kind: 'store_true' } },
+  },
+  'ha delete-helper': {
+    prog: 'ha_agent_lab ha delete-helper',
+    usage: `usage: ha_agent_lab ha delete-helper [-h] [--confirm] {${HELPER_TYPES.join(',')}} id`,
+    positionals: ['type', 'id'],
+    flags: { '--confirm': { kind: 'store_true' } },
+  },
+  'ha list-areas': {
+    prog: 'ha_agent_lab ha list-areas',
+    usage: 'usage: ha_agent_lab ha list-areas [-h]',
+    positionals: [],
+    flags: {},
+  },
+  'ha create-area': {
+    prog: 'ha_agent_lab ha create-area',
+    usage: 'usage: ha_agent_lab ha create-area [-h] [--confirm] name',
+    positionals: ['name'],
+    flags: { '--confirm': { kind: 'store_true' } },
+  },
+  'ha delete-area': {
+    prog: 'ha_agent_lab ha delete-area',
+    usage: 'usage: ha_agent_lab ha delete-area [-h] [--confirm] id',
+    positionals: ['id'],
+    flags: { '--confirm': { kind: 'store_true' } },
+  },
+  'ha list-entities': {
+    prog: 'ha_agent_lab ha list-entities',
+    usage: 'usage: ha_agent_lab ha list-entities [-h] --registry',
+    positionals: [],
+    flags: { '--registry': { kind: 'store_true' } },
+  },
+  'ha rename-entity': {
+    prog: 'ha_agent_lab ha rename-entity',
+    usage: 'usage: ha_agent_lab ha rename-entity [-h] [--confirm] --name NAME entity_id',
+    positionals: ['entity_id'],
+    flags: { '--name': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+  },
+  'ha set-entity-area': {
+    prog: 'ha_agent_lab ha set-entity-area',
+    usage: 'usage: ha_agent_lab ha set-entity-area [-h] [--confirm] --area AREA entity_id',
+    positionals: ['entity_id'],
+    flags: { '--area': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+  },
+  'ha set-entity-enabled': {
+    prog: 'ha_agent_lab ha set-entity-enabled',
+    usage: 'usage: ha_agent_lab ha set-entity-enabled [-h] [--confirm] --enabled {true,false} entity_id',
+    positionals: ['entity_id'],
+    flags: { '--enabled': { kind: 'value', choices: ['true', 'false'] }, '--confirm': { kind: 'store_true' } },
+  },
+  'ha list-devices': {
+    prog: 'ha_agent_lab ha list-devices',
+    usage: 'usage: ha_agent_lab ha list-devices [-h]',
+    positionals: [],
+    flags: {},
+  },
+  'ha set-device-area': {
+    prog: 'ha_agent_lab ha set-device-area',
+    usage: 'usage: ha_agent_lab ha set-device-area [-h] [--confirm] --area AREA device_id',
+    positionals: ['device_id'],
+    flags: { '--area': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+  },
+  'ha rename-device': {
+    prog: 'ha_agent_lab ha rename-device',
+    usage: 'usage: ha_agent_lab ha rename-device [-h] [--confirm] --name NAME device_id',
+    positionals: ['device_id'],
+    flags: { '--name': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
   },
 };
 
@@ -793,9 +917,180 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
     }
   }
 
+  // --- WebSocket structural commands (helpers, areas, registries) ---
+
+  if (args.command === 'ha' && args.sub === 'list-helpers') {
+    return runWsRead(deps, config, (ws) => listHelpers(ws, args.flags['--type'] as string | undefined));
+  }
+  if (args.command === 'ha' && args.sub === 'create-helper') {
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      createHelper(root, ws, args.positionals[0]!, args.positionals[1]!),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'delete-helper') {
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      deleteHelper(root, ws, args.positionals[0]!, args.positionals[1]!),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'list-areas') {
+    return runWsRead(deps, config, listAreas);
+  }
+  if (args.command === 'ha' && args.sub === 'create-area') {
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      createArea(root, ws, args.positionals[0]!),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'delete-area') {
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      deleteArea(root, ws, args.positionals[0]!),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'list-entities') {
+    if (!args.flags['--registry']) {
+      console.log(jsonDumps({ ok: false, message: 'Only registry mode is supported; pass --registry.' }));
+      return 1;
+    }
+    return runWsRead(deps, config, listEntities);
+  }
+  if (args.command === 'ha' && args.sub === 'rename-entity') {
+    const name = requireFlag(args.flags['--name'], '--name');
+    if (name === null) return 1;
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      updateEntity(root, ws, args.positionals[0]!, { name }, 'rename-entity'),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'set-entity-area') {
+    const area = requireFlag(args.flags['--area'], '--area');
+    if (area === null) return 1;
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      updateEntity(root, ws, args.positionals[0]!, { area_id: area }, 'set-entity-area'),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'set-entity-enabled') {
+    const enabled = requireFlag(args.flags['--enabled'], '--enabled');
+    if (enabled === null) return 1;
+    const disabledBy = enabled === 'true' ? null : 'user';
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      updateEntity(root, ws, args.positionals[0]!, { disabled_by: disabledBy }, 'set-entity-enabled'),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'list-devices') {
+    return runWsRead(deps, config, listDevices);
+  }
+  if (args.command === 'ha' && args.sub === 'set-device-area') {
+    const area = requireFlag(args.flags['--area'], '--area');
+    if (area === null) return 1;
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      updateDevice(root, ws, args.positionals[0]!, { area_id: area }, 'set-device-area'),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'rename-device') {
+    const name = requireFlag(args.flags['--name'], '--name');
+    if (name === null) return 1;
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      updateDevice(root, ws, args.positionals[0]!, { name_by_user: name }, 'rename-device'),
+    );
+  }
+
   // Unreachable: every subcommand is handled above (argparse parity guard).
   console.error(`${TOP_USAGE}\nha_agent_lab: error: Unsupported command.`);
   return 2;
+}
+
+/** A value flag the handler needs but argparse treats as optional. Prints and returns null when absent. */
+function requireFlag(value: unknown, name: string): string | null {
+  if (typeof value === 'string') return value;
+  console.log(jsonDumps({ ok: false, message: `${name} is required.` }));
+  return null;
+}
+
+/** Acquire a WS client, run a read, print {ok,data,message}, then close. */
+async function runWsRead(
+  deps: CliDeps,
+  config: AppConfig,
+  run: (ws: WsCommandClient) => Promise<WsReadResult>,
+): Promise<number> {
+  let ws: WsCommandClient;
+  try {
+    ws = await deps.createWsClient(config);
+  } catch (exc) {
+    if (!(exc instanceof HomeAssistantError)) throw exc;
+    console.log(exc.message);
+    return 1;
+  }
+  try {
+    const result = await run(ws);
+    console.log(jsonDumps({ ok: result.ok, data: result.data, message: result.message }, { ensureAscii: false }));
+    return result.ok ? 0 : 1;
+  } catch (exc) {
+    if (!(exc instanceof HomeAssistantError)) throw exc;
+    console.log(exc.message);
+    return 1;
+  } finally {
+    ws.close();
+  }
+}
+
+/**
+ * Apply the safety gate *before* opening a connection. If blocked, print the
+ * verdict and return without touching the network. Otherwise connect, run the
+ * mutation, print, and close.
+ */
+async function runWsMutation(
+  deps: CliDeps,
+  config: AppConfig,
+  root: string,
+  confirmed: boolean,
+  run: (ws: WsCommandClient) => Promise<WsMutationResult>,
+): Promise<number> {
+  const gate = gateStructuralMutation(root, confirmed);
+  if (!gate.allowed) {
+    console.log(
+      jsonDumps({
+        ok: false,
+        blocked: true,
+        requires_confirm: gate.requiresConfirm,
+        mode: gate.mode,
+        data: null,
+        message: gate.reason,
+        report_path: null,
+      }),
+    );
+    return 1;
+  }
+
+  let ws: WsCommandClient;
+  try {
+    ws = await deps.createWsClient(config);
+  } catch (exc) {
+    if (!(exc instanceof HomeAssistantError)) throw exc;
+    console.log(exc.message);
+    return 1;
+  }
+  try {
+    const r = await run(ws);
+    console.log(
+      jsonDumps(
+        {
+          ok: r.ok,
+          blocked: false,
+          requires_confirm: false,
+          mode: gate.mode,
+          data: r.data,
+          message: r.message,
+          report_path: r.reportPath ? relative(root, r.reportPath) : null,
+        },
+        { ensureAscii: false },
+      ),
+    );
+    return r.ok ? 0 : 1;
+  } catch (exc) {
+    if (!(exc instanceof HomeAssistantError)) throw exc;
+    console.log(exc.message);
+    return 1;
+  } finally {
+    ws.close();
+  }
 }
 
 // ---------------------------------------------------------------------------

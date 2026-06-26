@@ -60,7 +60,7 @@ MCP tool IDs follow `mcp__homeassistant__*`. If you registered the HA MCP Server
 ```
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha refresh-context [--incremental]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha simulate <artifact>
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha validate-apply <artifact> [--reload automation|script]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha validate-apply <artifact> [--reload automation|script|scene]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <entity_id_or_yaml>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-automations
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-scripts
@@ -73,6 +73,20 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-script-config <id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha integration-health
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha fetch-history [--window-days N] [--entities <glob> …] [--include-transitions]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha probe <path>
+# WebSocket structural commands (helpers/areas/registries); writes gated by ha_safety_mode (strict→proposal, ask→--confirm)
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-helpers [--type <helper_type>]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-helper <type> <json> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-helper <type> <id> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-areas
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-area <name> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-area <id> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-entities --registry
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha rename-entity <entity_id> --name <name> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-area <entity_id> --area <area_id> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-enabled <entity_id> --enabled true|false [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-devices
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-device-area <device_id> --area <area_id> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha rename-device <device_id> --name <name> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status [--probe]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url> [--token <token>]
 ```

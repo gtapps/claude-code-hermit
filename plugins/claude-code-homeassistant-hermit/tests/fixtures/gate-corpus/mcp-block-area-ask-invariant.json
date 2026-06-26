@@ -1,0 +1,7 @@
+{
+  "gate": "mcp",
+  "stdin": "{\"tool_input\":{\"area_id\":\"kitchen\"}}",
+  "config_mode": "ask",
+  "verdict": "block",
+  "note": "Invariant guard after the fail-closed split: an area_id fan-out is unverifiable and must hard-block in EVERY mode, including ask. Only opaque tools with no targeting selector are mode-dependent."
+}

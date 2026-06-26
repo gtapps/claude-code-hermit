@@ -24,6 +24,7 @@ import {
   classifyEntity,
   clearPolicyCaches,
   evaluateReferences,
+  gateStructuralMutation,
   isSensitiveEntity,
   safetyMode,
 } from '../src/policy';
@@ -142,6 +143,24 @@ test('safety mode invalid value defaults to strict', () => {
 test('safety mode permissive no longer valid', () => {
   // `permissive` was removed in favour of two-tier strict/ask. Falls back to strict.
   expect(safetyMode(makeHaConfig('permissive'))).toBe('strict');
+});
+
+test('gate blocks structural mutation under strict (default)', () => {
+  const gate = gateStructuralMutation(tmpPath());
+  expect(gate.allowed).toBe(false);
+  expect(gate.requiresConfirm).toBe(false);
+  expect(gate.mode).toBe('strict');
+  expect(gate.reason).toContain('proposal');
+});
+
+test('gate under ask requires confirmation', () => {
+  const root = makeHaConfig('ask');
+  const unconfirmed = gateStructuralMutation(root, false);
+  expect(unconfirmed.allowed).toBe(false);
+  expect(unconfirmed.requiresConfirm).toBe(true);
+  const confirmed = gateStructuralMutation(root, true);
+  expect(confirmed.allowed).toBe(true);
+  expect(confirmed.requiresConfirm).toBe(false);
 });
 
 test('classify strict blocks sensitive', () => {

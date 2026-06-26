@@ -24,7 +24,7 @@ import { canReloadDomain } from './policy';
 import { SimulationResult, simulateArtifact } from './simulate';
 import { parseYaml } from './yaml';
 
-const CONFIG_DOMAINS = new Set(['automation', 'script']);
+const CONFIG_DOMAINS = new Set(['automation', 'script', 'scene']);
 
 /** The slice of HomeAssistantClient the apply path needs (tests inject a fake). */
 export interface ApplyClient {
