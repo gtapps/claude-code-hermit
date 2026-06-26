@@ -286,6 +286,11 @@ Prefer to test interactively first?
 
 The always-on runtime does both of these automatically — the interactive
 steps are only for a test drive before handing over to the runtime.
+
+Ready to organize your house?
+  /claude-code-homeassistant-hermit:ha-setup-house
+       — create areas, assign entities and devices, provision helpers,
+         and scaffold starter automations.
 ```
 
 ---
