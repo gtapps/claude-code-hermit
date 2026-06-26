@@ -9,6 +9,17 @@ import { parseSchema } from '../knowledge-lint';
 export function findStorageDrift(hermitDir: string): string[] {
   const KNOWN_DIRS = new Set(['raw', 'compiled', 'sessions', 'proposals', 'state', 'templates',
     'memory', 'bin', 'docker']);
+
+  // Fail-open: any parse error → no exemptions applied.
+  let ignoreDirs = new Set<string>();
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(hermitDir, 'config.json'), 'utf-8'));
+    const listed = cfg?.storage_drift?.ignore;
+    if (Array.isArray(listed)) {
+      ignoreDirs = new Set(listed.filter((d: unknown) => typeof d === 'string'));
+    }
+  } catch {}
+
   const hits: string[] = [];
 
   function countEntries(dir: string): number {
@@ -19,7 +30,7 @@ export function findStorageDrift(hermitDir: string): string[] {
   try {
     for (const entry of fs.readdirSync(hermitDir, { withFileTypes: true })) {
       if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-      if (!KNOWN_DIRS.has(entry.name)) {
+      if (!KNOWN_DIRS.has(entry.name) && !ignoreDirs.has(entry.name)) {
         const n = countEntries(path.join(hermitDir, entry.name));
         hits.push(`.claude-code-hermit/${entry.name}/ (${n} file${n !== 1 ? 's' : ''})`);
       }

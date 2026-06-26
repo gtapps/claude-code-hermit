@@ -5,11 +5,31 @@ Plugin hermits must store all domain artifacts in exactly two directories:
 - `.claude-code-hermit/raw/` — ephemeral inputs (fetched content, snapshots, logs, API dumps).
 - `.claude-code-hermit/compiled/` — durable outputs (briefings, digests, assessments, audit results).
 
-Everything else is infra managed by the base hermit (`state/`, `sessions/`, `proposals/`, `templates/`, operator-curated docs). Plugins don't add new directories.
+Everything else is infra managed by the base hermit (`state/`, `sessions/`, `proposals/`, `templates/`, operator-curated docs). Domain plugins must not add top-level directories for knowledge artifacts — the one exception is a hermit-owned runtime directory declared in `config.storage_drift.ignore` (see below).
 
 ## Why these two and nothing else
 
 The `compiled/` directory is scanned at session start to inject foundational context. `scripts/archive-raw.ts` and the weekly review run retention against `raw/`, covering both dated `.md` and `.json` artifacts. Fixed-name `-latest.*` aliases are never archived. Anything outside these two paths is invisible to both mechanisms — your audits won't surface at session start, and your snapshots will never be archived.
+
+## Runtime dirs (`storage_drift.ignore`)
+
+Some domain plugins install a hermit-owned runtime tree that is **not** a knowledge artifact — for example, `laravel-forge-hermit` puts a Composer vendor tree at `.claude-code-hermit/forge-runtime/`. These dirs should not live in `raw/` or `compiled/` (they're not archivable content), but they're also legitimate, so the storage-drift check must not flag them.
+
+Declare such dirs in `config.json`:
+
+```json
+"storage_drift": {
+  "ignore": ["forge-runtime"]
+}
+```
+
+When a domain plugin calls hatch, its Step 8 (config.json rewrite) appends its runtime dir name to `storage_drift.ignore` idempotently. The drift check (`scripts/lib/drift.ts`) reads this list at runtime and skips declared dirs — in both the session-start Storage Drift block and the reflect observations ledger.
+
+Rules for a compliant runtime dir:
+- One per domain plugin (keep it scoped).
+- Hermit-owned only — not the application's own `vendor/` or `node_modules/`.
+- Never write archivable knowledge content into it; use `raw/` or `compiled/` for that.
+- Register it in `storage_drift.ignore` during hatch — never rely on it being silently ignored.
 
 This mirrors the Karpathy raw-vs-compiled split: raw is the immutable ground truth, compiled is the LLM-maintained derivative. The filesystem layout is fixed; the `type` field in frontmatter is what differentiates work products within each directory.
 
@@ -76,6 +96,7 @@ If a hermit produces many artifacts of the same type (per-room audits, per-accou
 | `audits/` (repo root) | ❌ | completely outside hermit state |
 | `reports/` (repo root) | ❌ | same — outside hermit state |
 | `memory/` (inside `.claude-code-hermit/`) | ❌ | base hermit infra — plugins don't add top-level dirs |
+| `.claude-code-hermit/forge-runtime/` (with `storage_drift.ignore: ["forge-runtime"]`) | ✅ | hermit-owned runtime dir, registered in config, not a knowledge artifact |
 
 ## Declare your types in knowledge-schema.md
 

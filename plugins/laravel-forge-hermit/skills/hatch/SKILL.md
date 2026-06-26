@@ -172,6 +172,8 @@ Use the `config.json` content loaded in Step 1.
 
 If present: skip (do not clobber).
 
+**Register runtime dir**: ensure `config.storage_drift` exists and `config.storage_drift.ignore` is an array that includes `"forge-runtime"`. If the key is absent, add `"storage_drift": {"ignore": ["forge-runtime"]}`. If the array exists but does not include `"forge-runtime"`, append it. Skip if already present.
+
 Write the updated `config.json` via Write tool (full file replacement for valid JSON).
 
 ---

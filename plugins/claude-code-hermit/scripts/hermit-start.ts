@@ -102,6 +102,9 @@ const DEFAULT_CONFIG: Json = {
   reflection: {
     graduation_min_sessions: 1,
   },
+  storage_drift: {
+    ignore: [],
+  },
   post_close_clear: true,
 };
 

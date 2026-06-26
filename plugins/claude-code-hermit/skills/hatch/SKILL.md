@@ -346,7 +346,7 @@ For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, 
 
 **Re-initialization merge**: read the existing `.claude-code-hermit/config.json`, then overlay only the fields the wizard asked about. Never strip unknown keys (operators may have added custom fields). Don't re-default fields the operator didn't touch this run.
 
-**Template-only fields** (the wizard never asks about these — they come straight from `config.json.template` and the operator can tune them via `/hermit-settings` later): `model`, `auto_session`, `always_on`, `chrome`, `monitors`, `compact`, `heartbeat`, `knowledge`, `env`, `quality_gate`, `watchdog`, `reflection`, `post_close_clear`. The Quick branch and Advanced wizard both leave these at template defaults.
+**Template-only fields** (the wizard never asks about these — they come straight from `config.json.template` and the operator can tune them via `/hermit-settings` later): `model`, `auto_session`, `always_on`, `chrome`, `monitors`, `compact`, `heartbeat`, `knowledge`, `env`, `quality_gate`, `watchdog`, `reflection`, `storage_drift`, `post_close_clear`. The Quick branch and Advanced wizard both leave these at template defaults.
 
 If channels were configured in Phase 5, populate each channel's entry in the `channels` object using a **relative path** (relative to the project root):
 

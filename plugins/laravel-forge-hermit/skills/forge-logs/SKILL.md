@@ -31,7 +31,7 @@ Use `deploy-history` first to find the deployment ID.
 php ${CLAUDE_PLUGIN_ROOT}/php/forge.php server-log <server> <key>
 ```
 
-Common keys: `php`, `nginx`, `mysql`, `cron`, `daemon`. Key list depends on the server's installed services.
+Common keys: `php`, `mysql`, `cron`, `daemon`, `nginx-error`, `nginx-access`. Nginx keys are hyphenated; `nginx_error` (underscored) returns a 404. Key list depends on the server's installed services.
 
 ---
 

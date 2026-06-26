@@ -8,6 +8,8 @@ echo "=== laravel-forge-hermit test suite ==="
 
 EXIT=0
 
+composer install --no-dev --no-interaction --quiet --working-dir=php
+
 echo ""
 echo "--- PHP tests (php/tests/run.php) ---"
 if ! php php/tests/run.php; then
