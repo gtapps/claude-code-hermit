@@ -79,3 +79,18 @@ test('unresolvable area_id selector hard-blocks even under ask', () => {
   expect(r.exit).toBe(2);
   expect(r.stdout).toBe('');
 });
+
+// A Hass* intent tool targets by name/area, which HA fans out server-side to
+// an entity set the gate cannot enumerate. It must hard-block in EVERY mode
+// (the old Hass.* matcher did; the widened matcher must not downgrade it to a
+// prompt). Only bare-named script tools are mode-dependent.
+test('Hass* intent tool with name/area target hard-blocks even under ask', () => {
+  for (const input of [{ name: 'front gate' }, { area: 'garage' }]) {
+    const r = runGate(
+      JSON.stringify({ tool_name: 'mcp__homeassistant__HassTurnOff', tool_input: input }),
+      'ask',
+    );
+    expect(r.exit).toBe(2);
+    expect(r.stdout).toBe('');
+  }
+});

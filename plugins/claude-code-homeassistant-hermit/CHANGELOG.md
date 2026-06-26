@@ -6,7 +6,7 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ### Fixed
 
-- **safety-gate: cover script-derived MCP tools** — widened the PreToolUse matcher from `mcp__homeassistant__Hass.*` to `mcp__homeassistant__.*` so exposed HA scripts (which surface as MCP tools with no `Hass` prefix and no `entity_id`) reach the gate instead of actuating ungated (#469). Read-only `GetLiveContext`/`GetDateTime` are allowlisted in-gate; opaque tools with no classifiable target block under `strict` and prompt under `ask`; unresolvable selectors still hard-block in every mode.
+- **safety-gate: cover script-derived MCP tools** — widened the PreToolUse matcher from `mcp__homeassistant__Hass.*` to `mcp__homeassistant__.*` so exposed HA scripts (which surface as MCP tools with no `Hass` prefix and no `entity_id`) reach the gate instead of actuating ungated (#469). Read-only `GetLiveContext`/`GetDateTime` are allowlisted in-gate; bare-named script tools with no classifiable target block under `strict` and prompt under `ask`; unresolvable selectors and `Hass*` intent tools that target by `name`/`area` still hard-block in every mode.
 
 ## [0.2.3] - 2026-06-24
 
