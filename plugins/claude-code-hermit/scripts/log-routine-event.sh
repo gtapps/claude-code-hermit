@@ -6,7 +6,6 @@ set -euo pipefail
 
 id="$1"
 event="$2"
-ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # CronCreate prompts fire with $PWD set to the session's primary working
 # directory, which may be a subdirectory of the hermit project root. Walk up
@@ -22,6 +21,19 @@ if [[ "$dir" == "/" ]]; then
   exit 1
 fi
 
+metrics="$dir/.claude-code-hermit/state/routine-metrics.jsonl"
+
+# Dedup guard (issue #464): heartbeat-restart re-invokes `hermit-routines load`
+# at its own prompt tail, which can re-trigger the cron and emit a second
+# `fired` with no intervening `started`. The prompt always logs `started`
+# immediately before `fired`, so a `fired` whose latest same-routine event is
+# already `fired` can only be the spurious re-trigger. Portable; no date math.
+if [[ "$event" == "fired" && -f "$metrics" ]]; then
+  last="$(grep -F "\"routine_id\":\"$id\"" "$metrics" | tail -n 1 || true)"
+  [[ "$last" == *'"event":"fired"'* ]] && exit 0
+fi
+
+ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 printf '{"ts":"%s","routine_id":"%s","event":"%s","delivery":"cron-create"}\n' \
   "$ts" "$id" "$event" \
-  >> "$dir/.claude-code-hermit/state/routine-metrics.jsonl"
+  >> "$metrics"
