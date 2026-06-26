@@ -2,7 +2,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "mcp__homeassistant__Hass.*",
+        "matcher": "mcp__homeassistant__.*",
         "hooks": [
           {
             "type": "command",
@@ -10,7 +10,7 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/mcp-safety-gate.ts"]
           }
         ],
-        "description": "Block MCP actuation calls targeting sensitive HA entities. Tool IDs assume the HA MCP Server is registered in Claude Code as 'homeassistant'."
+        "description": "Default-deny chokepoint for the whole homeassistant MCP server: gates every mcp__homeassistant__* call. Read-only tools (GetLiveContext/GetDateTime) are allow-listed in the gate; sensitive entities are blocked or asked per ha_safety_mode; any unverifiable target fails closed. Tool IDs assume the HA MCP Server is registered in Claude Code as 'homeassistant'."
       },
       {
         "matcher": "Bash",

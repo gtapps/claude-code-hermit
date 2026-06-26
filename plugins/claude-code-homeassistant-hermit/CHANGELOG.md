@@ -2,6 +2,15 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Added
+- **House assistant via Discord/voice (`ha-command-router` + `ha resolve-entity`)** — natural-language house control: `ha resolve-entity` maps a phrase to a concrete `entity_id` (accent/article-insensitive, never-guess disambiguation) and the router maps the verb to an MCP intent tool. Routing is declared in the HA `CLAUDE-APPEND` block — no core plugin change. Closes #467.
+- **Channel-native sensitive confirmation** — sim/não over the channel, bridged to the gate by a one-shot, exact-scope, ~30s-TTL token (`state/ha-confirm-token.json`). Only upgrades the `ask` tier; never relaxes `strict`.
+
+### Security
+- **mcp-safety-gate: widened to the whole `mcp__homeassistant__.*` namespace** — the matcher previously covered only `Hass*`, so script-derived actuation tools (e.g. `armar_alarme`) bypassed the gate entirely. Read-only tools (`GetLiveContext`/`GetDateTime`) are allow-listed by explicit name; every other non-entity tool fails closed. (G4)
+
 ## [0.2.3] - 2026-06-24
 
 ### Fixed

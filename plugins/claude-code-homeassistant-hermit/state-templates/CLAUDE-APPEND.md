@@ -30,6 +30,7 @@ This project has the `claude-code-homeassistant-hermit` plugin installed. The ru
 | `/claude-code-homeassistant-hermit:ha-apply-change` | Validate and apply YAML with safety checks |
 | `/claude-code-homeassistant-hermit:ha-analyze-patterns` | Identify patterns and automation opportunities |
 | `/claude-code-homeassistant-hermit:ha-house-status` | Live house status via MCP |
+| `/claude-code-homeassistant-hermit:ha-command-router` | Route a natural-language house command to a safe HA actuation (control verbs) |
 | `/claude-code-homeassistant-hermit:ha-morning-brief` | Morning brief — live status, overnight anomalies, recommendations |
 | `/claude-code-homeassistant-hermit:ha-safety-audit` | Re-audit live automations against the safety policy (weekly scheduled_check) |
 | `/claude-code-homeassistant-hermit:ha-integration-health` | Detect dropped integrations via per-domain unavailable ratios (daily scheduled_check) |
@@ -38,6 +39,26 @@ This project has the `claude-code-homeassistant-hermit` plugin installed. The ru
 | `/claude-code-homeassistant-hermit:ha-evening-brief` | End-of-day security check: locks, alarm, open covers, device status, energy |
 | `/claude-code-homeassistant-hermit:ha-presence-report` | Presence history, tracker health, and arrival/departure diagnostics |
 | `/claude-code-homeassistant-hermit:domain-brainstorm` | On-demand capability-gap brainstorm — surfaces missing automations/coverage as proposals (operator-invoked) |
+
+### Channel Command Routing
+
+When an inbound channel message (Discord/Telegram/voice, handled by
+`/claude-code-hermit:channel-responder`) is about the house, route it before the
+generic categories:
+
+- **Control utterance** — an imperative naming a device or routine ("acende a luz da
+  sala", "fecha o estore", "bom dia"): dispatch to
+  `/claude-code-homeassistant-hermit:ha-command-router`.
+- **State question** — asks about house state ("o que está ligado?", "a porta está
+  trancada?"): dispatch to `/claude-code-homeassistant-hermit:ha-house-status`.
+- **Affirmative/negative with a pending HA action** — a bare "sim"/"não" (or
+  yes/no) while `.claude-code-hermit/state/pending-ha-actions.json` has a `pending`
+  entry: dispatch to `ha-command-router` in `--resolve` mode to execute (or cancel)
+  the held action. Check this **before** the core micro-approval branch.
+
+This routing is declarative — `channel-responder` is not modified; it reads these
+rules. Sensitive actuations still follow the gated confirmation flow in
+`ha-command-router`.
 
 ### Subagents
 

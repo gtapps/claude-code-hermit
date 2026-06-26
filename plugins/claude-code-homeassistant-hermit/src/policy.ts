@@ -31,6 +31,25 @@ export const SENSITIVE_KEYWORDS = new Set([
 
 export const SAFE_RELOAD_DOMAINS = new Set(['automation', 'script']);
 
+// Read-only MCP tools on the `homeassistant` server. The safety gate matches the
+// whole `mcp__homeassistant__.*` namespace (default-deny chokepoint), so these
+// query tools — which carry no entity_id and would otherwise hit the fail-closed
+// branch and be blocked — must be short-circuited to allow. Explicit names, NOT a
+// `*Get*` pattern: a permissive regex could silently grant a future mutating tool
+// whose name happens to contain "Get". Extend this set against the live server's
+// tool inventory if it exposes more read-only tools.
+export const READ_ONLY_TOOLS = new Set(['GetLiveContext', 'GetDateTime']);
+
+const MCP_TOOL_PREFIX = 'mcp__homeassistant__';
+
+/** True if `toolName` is a known read-only tool on the homeassistant MCP server. */
+export function isReadOnlyTool(toolName: string): boolean {
+  const bare = toolName.startsWith(MCP_TOOL_PREFIX)
+    ? toolName.slice(MCP_TOOL_PREFIX.length)
+    : toolName;
+  return READ_ONLY_TOOLS.has(bare);
+}
+
 export const Severity = {
   BLOCK: 'block',
   ASK: 'ask',

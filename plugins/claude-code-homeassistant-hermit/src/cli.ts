@@ -36,6 +36,7 @@ import {
   writeDegradedDomainsArtifact,
 } from './integration-health';
 import { checkEntity, normalizeEntityIndex } from './policy';
+import { resolveEntity } from './resolve';
 import { evaluateYamlPolicy, simulateArtifact } from './simulate';
 import { computeSilenceSummary } from './silence';
 
@@ -129,6 +130,7 @@ const HA_COMMANDS = [
   'fetch-history',
   'list-automations',
   'list-scripts',
+  'resolve-entity',
   'delete-automation',
   'delete-script',
   'get-automation-config',
@@ -172,6 +174,9 @@ positional arguments:
                         \`refresh-context\` first if none exists.
     list-automations    List all automation entity IDs and config IDs.
     list-scripts        List all script entity IDs and config IDs.
+    resolve-entity      Resolve a natural-language phrase to an entity_id using
+                        the local snapshot's friendly names. Prints
+                        {match} | {candidates} | {none}.
     delete-automation   Delete an automation config by ID.
     delete-script       Delete a script config by ID.
     get-automation-config
@@ -388,6 +393,18 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
     positionals: [],
     flags: {},
   },
+  'ha resolve-entity': {
+    prog: 'ha_agent_lab ha resolve-entity',
+    usage:
+      'usage: ha_agent_lab ha resolve-entity [-h] [--domain DOMAIN]\n' +
+      '                                      [--include-scripts]\n' +
+      '                                      phrase',
+    positionals: ['phrase'],
+    flags: {
+      '--domain': { kind: 'value' },
+      '--include-scripts': { kind: 'store_true' },
+    },
+  },
   'ha delete-automation': {
     prog: 'ha_agent_lab ha delete-automation',
     usage: 'usage: ha_agent_lab ha delete-automation [-h] id',
@@ -478,6 +495,13 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
 
   if (args.command === 'ha' && args.sub === 'policy-check') {
     return handlePolicyCheck(args.positionals[0]!, root);
+  }
+
+  if (args.command === 'ha' && args.sub === 'resolve-entity') {
+    return handleResolveEntity(args.positionals[0]!, root, {
+      domain: (args.flags['--domain'] as string | undefined) ?? null,
+      includeScripts: Boolean(args.flags['--include-scripts']),
+    });
   }
 
   if (args.command === 'boot' && args.sub === 'status') {
@@ -833,6 +857,26 @@ function printSafetyAuditSummary(summary: Record<string, any>, domain = 'automat
   if (acknowledged.length > 0) console.log(`Acknowledged (suppressed): ${acknowledged.length}`);
   if (unmanaged.length > 0) console.log(`Skipped (no numeric id): ${unmanaged.length}`);
   if (fetchFailures.length > 0) console.log(`Skipped (404 on config fetch): ${fetchFailures.length}`);
+}
+
+function handleResolveEntity(
+  phrase: string,
+  root: string,
+  opts: { domain: string | null; includeScripts: boolean },
+): number {
+  const snapshotPath = normalizedContextPath(root);
+  let index: Record<string, Record<string, unknown>>;
+  try {
+    const snapshot = JSON.parse(readFileSync(snapshotPath, 'utf8'));
+    index = (snapshot?.entity_index ?? {}) as Record<string, Record<string, unknown>>;
+  } catch {
+    // Missing or unreadable snapshot — the caller should suggest refresh-context.
+    console.log(jsonDumps({ none: true, reason: 'no_snapshot' }, { ensureAscii: false }));
+    return 0;
+  }
+  const result = resolveEntity(index, phrase, opts);
+  console.log(jsonDumps(result, { ensureAscii: false }));
+  return 0;
 }
 
 function handlePolicyCheck(target: string, root: string): number {

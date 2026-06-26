@@ -27,9 +27,10 @@
 // is not an object (e.g. `[]`, `"x"`, `42`, `null`) crashed Python with an
 // uncaught AttributeError (exit 1 → fail-open); here it blocks (exit 2).
 
-import { readFileSync, writeSync } from 'node:fs';
+import { readFileSync, renameSync, writeSync } from 'node:fs';
+import { join } from 'node:path';
 
-import { Severity, classifyEntity } from '../src/policy';
+import { Severity, classifyEntity, isReadOnlyTool } from '../src/policy';
 import { projectRoot } from '../src/config';
 
 /** Pull entity_id values from MCP tool parameters. */
@@ -117,6 +118,50 @@ export function pyJsonString(s: string): string {
   return out + '"';
 }
 
+// Channel-native confirmation bridge. ha-command-router writes a one-shot token
+// after the operator confirms a sensitive action over a channel — where the
+// terminal "ask" prompt cannot be answered (verified: a headless session returns
+// the ask reason to the model instead of executing). This token ONLY upgrades an
+// otherwise-"ask" verdict to allow. It is never consulted for a "block"/strict
+// verdict or the fail-closed unresolvable-target branch (both resolved earlier).
+// It is exact-scope-bound (same tool, same entity set), single-use (consumed by
+// atomic rename before validation), and short-lived. Any doubt => no allow.
+//
+// SECURITY NOTE: because the agent itself writes this token, channel confirmation
+// is an agent-asserted approval, strictly weaker than a harness-enforced terminal
+// "ask". It only relaxes the ask tier the operator opted into — strict is untouched.
+const TOKEN_TTL_MS = 30_000;
+
+function consumeConfirmationToken(toolName: unknown, entityIds: string[], root: string): boolean {
+  if (typeof toolName !== 'string') return false;
+  const path = join(root, '.claude-code-hermit', 'state', 'ha-confirm-token.json');
+  const consumed = `${path}.consumed`;
+  try {
+    // Atomic single-use: rename before reading so two concurrent gate runs cannot
+    // both honor one token. ENOENT (no token) -> fall through to the ask path.
+    renameSync(path, consumed);
+  } catch {
+    return false;
+  }
+  try {
+    const tok = JSON.parse(readFileSync(consumed, 'utf8')) as Record<string, unknown>;
+    if (typeof tok !== 'object' || tok === null) return false;
+    if (tok['tool'] !== toolName) return false;
+    const want = [...entityIds].sort();
+    const raw = tok['entity_ids'];
+    const got = Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string').sort() : [];
+    if (want.length !== got.length || want.some((v, i) => v !== got[i])) return false;
+    const expiry = tok['expiry'];
+    if (typeof expiry !== 'number') return false;
+    const now = Date.now();
+    // Expired, or an absurd far-future expiry — reject either way.
+    if (now >= expiry || expiry - now > TOKEN_TTL_MS * 4) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function fail(message: string): never {
   // The exit code IS the fail-closed contract. A stderr write can itself throw
   // (closed fd / broken pipe = EPIPE/EBADF) — if that escaped, the process
@@ -150,6 +195,17 @@ function main(): void {
     let toolInput = (payload as Record<string, unknown>)['tool_input'];
     if (typeof toolInput !== 'object' || toolInput === null || Array.isArray(toolInput)) {
       toolInput = {};
+    }
+
+    // Read-only short-circuit: the matcher covers the whole mcp__homeassistant__.*
+    // namespace, so query tools (GetLiveContext / GetDateTime) — which carry no
+    // entity_id — reach this hook and would otherwise hit the fail-closed branch
+    // below and be blocked, breaking ha-boot and every read-using skill. Allow the
+    // explicit read-only set before any entity resolution. A non-string tool_name
+    // falls through to the fail-closed path. tool_name is a top-level payload key.
+    const toolName = (payload as Record<string, unknown>)['tool_name'];
+    if (typeof toolName === 'string' && isReadOnlyTool(toolName)) {
+      process.exit(0);
     }
 
     const entityIds = extractEntityIds(toolInput as Record<string, unknown>);
@@ -188,6 +244,12 @@ function main(): void {
 
     if (currentSev === Severity.BLOCK) {
       fail(`Blocked sensitive entities: ${names}. Use a proposal instead.`);
+    }
+
+    // A fresh, exact-scope, single-use channel-confirmation token upgrades this
+    // ask to an allow. Consulted only on the ask tier, never on block/strict.
+    if (consumeConfirmationToken(toolName, entityIds, root)) {
+      process.exit(0);
     }
 
     // Byte-identical to Python's json.dumps(...) of the same dict: `, ` / `: `
