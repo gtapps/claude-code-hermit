@@ -191,7 +191,7 @@ if ($cmd === '' || $cmd === '--help' || $cmd === 'help') {
       sites <server>              List sites on a server
       site <server> <site>        Show site detail
       logs <server> <site>        Show latest deployment log for a site
-      server-log <server> <key>   Read a server log by key
+      server-log <server> <key>   Read a server log by key (keys are hyphenated: nginx-error, nginx-access)
       deploy-history <server> <site>          List recent deployments
       deploy-log <server> <site> <deploy-id>  Fetch a specific deployment log
       deploy-status <server-id> <site-id> <deploy-id>  Print a deployment's status (raw IDs)

@@ -8,6 +8,7 @@
 ### Upgrade Instructions
 
 Read `.claude-code-hermit/config.json`. Check `storage_drift.ignore`: if the key is absent or not an array, add `"storage_drift": {"ignore": ["forge-runtime"]}` at the top level. If it is already an array but does not contain `"forge-runtime"`, append it. Write the updated file.
+- **forge-logs: server-log key format** — nginx log keys are hyphenated (`nginx-error`, `nginx-access`); underscored variants return a 404.
 
 ## [0.0.3] - 2026-06-24
 
