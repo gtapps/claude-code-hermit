@@ -1591,6 +1591,35 @@ describe('log-routine-event', () => {
     });
   });
 
+  describe('duplicate fired guard (#464)', () => {
+    let wd: Workdir;
+    const metrics = () => hermit(wd.dir, 'state', 'routine-metrics.jsonl');
+    const firedCount = () =>
+      fs
+        .readFileSync(metrics(), 'utf-8')
+        .split('\n')
+        .filter((l) => l.includes('"routine_id":"heartbeat-restart","event":"fired"')).length;
+
+    beforeAll(() => {
+      wd = setupWorkdir();
+    });
+    afterAll(() => wd.cleanup());
+
+    test('suppresses a fired that immediately follows another fired', async () => {
+      await runBash(SCRIPT, { args: ['heartbeat-restart', 'started'], cwd: wd.dir });
+      await runBash(SCRIPT, { args: ['heartbeat-restart', 'fired'], cwd: wd.dir });
+      await runBash(SCRIPT, { args: ['heartbeat-restart', 'fired'], cwd: wd.dir });
+      expect(firedCount()).toBe(1);
+    });
+
+    test('allows the next legitimate started→fired cycle', async () => {
+      const before = firedCount();
+      await runBash(SCRIPT, { args: ['heartbeat-restart', 'started'], cwd: wd.dir });
+      await runBash(SCRIPT, { args: ['heartbeat-restart', 'fired'], cwd: wd.dir });
+      expect(firedCount()).toBe(before + 1);
+    });
+  });
+
   describe('no hermit ancestor', () => {
     // No .claude-code-hermit/ ancestor → non-zero exit with a clear diagnostic
     let exitCode = 0;

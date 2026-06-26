@@ -4,6 +4,13 @@
 
 ### Fixed
 - **heartbeat/alert-state: atomic writes + corrupt-file quarantine** — `heartbeat-precheck.ts` and `update-alert-state.ts` write `alert-state.json` via temp+rename and quarantine an unparseable existing file to `alert-state.json.corrupt-<ts>` instead of reinitializing skill-owned `alerts`/`self_eval` to empty. Reads split the file read from the JSON parse (shared `scripts/lib/alert-state.ts`), so a transient read error (EACCES/EMFILE/EIO) on a healthy file is never mistaken for corruption and never quarantined or reset. Stops silent loss of accumulated alert/self-eval telemetry on an interrupted or partial write (#463).
+- **hermit-settings: reconcile the heartbeat monitor on change** — after writing a `heartbeat` change, auto-runs `/heartbeat start` (if enabled) or `/heartbeat stop` (if disabled) so the live Monitor's cadence and `config.json` can't silently desync. (#452)
+### Changed
+- **judge subagents: state terse-output rationale explicitly** — `proposal-triage`, `reflection-judge`, and `quality-gate-judge` now say their final message lands verbatim in the caller's long-lived context and re-read from cache each turn, so reasoning belongs in thinking, not the response (#468).
+### Added
+- **session-close: Completed-vs-Artifacts closeout check** — a quality-check item flags when `## Completed` claims a deliverable a skill persists to `compiled/` but it's absent from `## Artifacts`, catching silently-dropped outputs at close instead of in a later session. Report template now labels `## Completed` as narrative. (#465)
+### Fixed
+- **routines: suppress duplicate `fired` metric** — heartbeat-restart's self-re-arm (`hermit-routines load` at its own prompt tail) could log a second `fired` with no intervening `started` (#464); `log-routine-event.sh` now skips a `fired` that immediately follows another `fired` for the same routine.
 
 ## [1.2.11] - 2026-06-24
 

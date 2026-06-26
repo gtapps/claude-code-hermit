@@ -123,6 +123,8 @@ Rules:
 
 Your response is not complete without the verdict line. If you have finished reading files and have not yet emitted a verdict, emit it now before stopping.
 
+Your final message is read verbatim into the caller's long-lived main-session context and re-read from cache on every subsequent turn. Emit **only** the verdict line and any applicable metadata lines — never your step-by-step analysis or a narration of Steps 1–5. Do your reasoning in thinking; it must not appear in the response.
+
 ## Memory curation
 
 After returning your verdict: if you suppressed a candidate and the suppression shape generalizes (the same structural kind of candidate keeps failing the same condition), record or update one terse heuristic in your private `MEMORY.md`. Keep entries short and grounded in the three-condition test. Prune entries that no longer match current conditions.

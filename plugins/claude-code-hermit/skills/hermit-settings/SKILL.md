@@ -198,7 +198,10 @@ Update `permission_mode` in config.json.
   ```
   Then ask each field in sequence.
 - Update `heartbeat` object in config.json.
-  - Note: "Heartbeat changes take effect on next `/claude-code-hermit:heartbeat start` or `hermit-start.ts` run."
+- **After the change is written**, reconcile the live Monitor with the new state via the Skill tool. The monitor's poll interval is baked in at `start` time from `heartbeat.every`, so a config-only change otherwise leaves the running monitor on the old cadence (and `/hermit-doctor` would flag the mismatch). Surface the result inline:
+  - If heartbeat is now **enabled**: invoke `/claude-code-hermit:heartbeat start` (idempotent — stops the old monitor and re-registers at the new interval). Success: "Heartbeat monitor restarted at new interval (`<every>`). Active immediately."
+  - If heartbeat is now **disabled**: invoke `/claude-code-hermit:heartbeat stop`. Success: "Heartbeat monitor stopped."
+  - Failure (either): "Settings saved to config.json, but `/claude-code-hermit:heartbeat <start|stop>` failed: <reason>. Run it manually to apply."
 
 **If argument is "watchdog":**
 - Show current watchdog config from `config.json`:

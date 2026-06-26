@@ -90,6 +90,8 @@ RUN: <≤15 words explaining why>
 SKIP: <≤15 words explaining why>
 ```
 
+Your final message is read verbatim into the caller's long-lived main-session context and re-read from cache on every subsequent turn. Emit **only** the verdict line with its ≤15-word reason — never your step-by-step analysis. Do your reasoning in thinking; it must not appear in the response.
+
 Examples:
 - `RUN: bug fix touched hooks/precheck.js and added a near-duplicate guard block`
 - `RUN: capability proposal created a new SKILL.md with overlapping instruction paragraphs`
