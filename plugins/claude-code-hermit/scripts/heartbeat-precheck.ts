@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { currentHHMM, todayYMD, parseDuration } from './lib/time';
+import { readAlertState, defaultAlertState, quarantineAlertState, writeAlertState } from './lib/alert-state';
 
 type Json = any;
 
@@ -26,11 +27,6 @@ if (!stateDir) emit('EVALUATE');
 const readJSON = (p: string): Json => {
   try { return JSON.parse(fs.readFileSync(p, 'utf-8')); }
   catch { return null; }
-};
-
-const writeJSON = (p: string, obj: Json): void => {
-  try { fs.writeFileSync(p, JSON.stringify(obj, null, 2) + '\n', 'utf-8'); }
-  catch { /* fail-open */ }
 };
 
 // Normalises a HEARTBEAT.md checklist item to its dedup key.
@@ -108,13 +104,28 @@ if (activeHours?.start && activeHours?.end) {
 }
 
 const alertStatePath = path.join(stateDir, 'state', 'alert-state.json');
-const alertState = readJSON(alertStatePath) ?? { alerts: {}, last_digest_date: null, self_eval: {}, total_ticks: 0 };
+// Split read from parse so a transient read error never destroys a healthy file:
+// only a genuine parse failure (corrupt) quarantines and rebuilds. ioerror
+// (EACCES/EMFILE/EIO) leaves the file untouched and re-evaluates next tick.
+const r = readAlertState(alertStatePath);
+let alertState: Json;
+if (r.kind === 'ok') {
+  alertState = r.value;
+} else if (r.kind === 'missing') {
+  alertState = defaultAlertState();
+} else if (r.kind === 'corrupt') {
+  if (!peek) quarantineAlertState(alertStatePath, now);
+  emit('EVALUATE');
+} else {
+  // ioerror — never reinit skill-owned alerts/self_eval over a file we couldn't read.
+  emit('EVALUATE');
+}
 if (typeof alertState.total_ticks !== 'number' || !Number.isFinite(alertState.total_ticks)) {
   alertState.total_ticks = 0;
 }
 if (!peek) {
   alertState.total_ticks += 1;
-  writeJSON(alertStatePath, alertState);
+  writeAlertState(alertStatePath, alertState);
 }
 
 // peek fires one tick early; the subsequent mutating call lands on the multiple-of-20
@@ -173,7 +184,7 @@ if (sessionState === 'in_progress') {
     if (wakeDue) {
       if (!peek) {
         alertState.last_stale_wake_at = new Date(now).toISOString();
-        writeJSON(alertStatePath, alertState);
+        writeAlertState(alertStatePath, alertState);
       }
       emit('EVALUATE');
     }
