@@ -18,7 +18,7 @@ import {
   writeJsonArtifact,
   writeMarkdownArtifact,
 } from './artifacts';
-import { Severity, evaluateReferences } from './policy';
+import { Severity, evaluateReferences, isSensitiveEntity } from './policy';
 
 /** The client slice this module needs (HomeAssistantClient / fakeClient satisfy it). */
 export interface SnapshotClient {
@@ -34,7 +34,7 @@ export const DEFAULT_DOMAINS = ['light', 'cover', 'climate', 'switch'];
 const RESTORE_ATTRS: Record<string, string[]> = {
   light: ['brightness', 'color_temp', 'color_temp_kelvin', 'rgb_color', 'hs_color', 'xy_color', 'effect'],
   cover: ['current_position', 'current_tilt_position'],
-  climate: ['temperature', 'target_temp_high', 'target_temp_low', 'hvac_mode', 'fan_mode', 'humidity'],
+  climate: ['temperature', 'target_temp_high', 'target_temp_low', 'fan_mode', 'humidity'],
   switch: [],
 };
 
@@ -160,7 +160,7 @@ export async function restoreStates(
   }
 
   const decision = evaluateReferences(entityIds, ['scene.apply'], root);
-  const sensitive = entityIds.filter((id) => decision.reasons.some((r) => r.includes(id)));
+  const sensitive = entityIds.filter((id) => isSensitiveEntity(id, root));
 
   if (decision.severity === Severity.BLOCK) {
     return {

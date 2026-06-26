@@ -114,6 +114,7 @@ async function buildSnapshot(client: ApplyClient): Promise<AutomationSnapshot> {
   const states: Array<Record<string, any>> = await client.get('/api/states');
   const automations: Record<string, AutomationEntry> = {};
   const untracked: AutomationSnapshot['untracked'] = [];
+  const tracked: Array<Omit<AutomationEntry, 'hash'> & { configId: string }> = [];
 
   for (const s of states) {
     if (!(s && typeof s === 'object' && String(s.entity_id ?? '').startsWith('automation.'))) {
@@ -127,16 +128,24 @@ async function buildSnapshot(client: ApplyClient): Promise<AutomationSnapshot> {
       untracked.push({ entity_id: s.entity_id, friendly_name: friendlyName, state });
       continue;
     }
-    const read = await readConfig(client, 'automation', String(configId));
-    automations[String(configId)] = {
-      entity_id: s.entity_id,
-      friendly_name: friendlyName,
-      state,
-      // A failed config fetch still records the entity; hash of "" flags it as
-      // edited next run if the fetch later succeeds, never silently dropped.
-      hash: read.ok ? hashConfig(read.config) : '',
-    };
+    tracked.push({ configId: String(configId), entity_id: s.entity_id, friendly_name: friendlyName, state });
   }
+
+  // Config fetches are independent — run concurrently.
+  await Promise.all(
+    tracked.map(async (t) => {
+      const read = await readConfig(client, 'automation', t.configId);
+      automations[t.configId] = {
+        entity_id: t.entity_id,
+        friendly_name: t.friendly_name,
+        state: t.state,
+        // A failed config fetch still records the entity; hash of "" flags it as
+        // edited next run if the fetch later succeeds, never silently dropped.
+        hash: read.ok ? hashConfig(read.config) : '',
+      };
+    }),
+  );
+
   untracked.sort((a, b) => (a.entity_id < b.entity_id ? -1 : 1));
   return { generated: utcTimestamp(), automations, untracked };
 }
