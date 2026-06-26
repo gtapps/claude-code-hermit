@@ -43,11 +43,13 @@ export interface CapturedEntity {
   attributes: Record<string, unknown>;
 }
 
-export interface StateSnapshot {
+// `type` (not `interface`) so it carries an implicit index signature and stays
+// assignable to writeJsonArtifact's `Record<string, unknown>` payload param.
+export type StateSnapshot = {
   name: string;
   generated: string;
   entities: Record<string, CapturedEntity>;
-}
+};
 
 export interface CaptureResult {
   ok: boolean;

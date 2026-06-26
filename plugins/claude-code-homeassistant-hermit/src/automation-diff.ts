@@ -32,7 +32,9 @@ export interface AutomationEntry {
   hash: string;
 }
 
-export interface AutomationSnapshot {
+// `type` (not `interface`) so it carries an implicit index signature and stays
+// assignable to writeJsonArtifact's `Record<string, unknown>` payload param.
+export type AutomationSnapshot = {
   generated: string;
   /** Keyed by config id (the REST-addressable automation id). */
   automations: Record<string, AutomationEntry>;
