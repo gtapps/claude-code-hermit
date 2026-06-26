@@ -1,6 +1,6 @@
 {
   "name": "laravel-forge-hermit",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Laravel Forge layer for claude-code-hermit — deploy, logs, server/site skills over the official Laravel Forge PHP SDK",
   "author": {
     "name": "gtapps",
