@@ -29,8 +29,18 @@
 
 import { readFileSync, writeSync } from 'node:fs';
 
-import { Severity, classifyEntity } from '../src/policy';
+import { Severity, classifyEntity, safetyMode } from '../src/policy';
 import { projectRoot } from '../src/config';
+
+// Read-only HA MCP tools: they carry no entity_id and never actuate. The
+// widened matcher (mcp__homeassistant__.*) now routes them here, so they must
+// be allowed outright — otherwise the boot-time context fetch would fail
+// closed. The retired Python gate never saw these (its matcher was Hass.*), so
+// gate-corpus marks the allow verdicts as documented divergences.
+const READONLY_TOOLS = new Set([
+  'mcp__homeassistant__GetLiveContext',
+  'mcp__homeassistant__GetDateTime',
+]);
 
 /** Pull entity_id values from MCP tool parameters. */
 export function extractEntityIds(toolInput: Record<string, unknown>): string[] {
@@ -128,6 +138,20 @@ function fail(message: string): never {
   process.exit(2);
 }
 
+// Emit a PreToolUse "ask" decision. Byte-identical to the Python gate's
+// json.dumps(...) of the same dict: `, ` / `: ` separators + ensure_ascii.
+// Called inside main()'s try so a writeSync EPIPE is caught and fails closed.
+function emitAsk(reason: string): never {
+  const encoded = pyJsonString(reason);
+  writeSync(
+    1,
+    '{"hookSpecificOutput": {"hookEventName": "PreToolUse", ' +
+      '"permissionDecision": "ask", ' +
+      `"permissionDecisionReason": ${encoded}}}\n`,
+  );
+  process.exit(0);
+}
+
 function main(): void {
   let payload: unknown;
   try {
@@ -147,6 +171,13 @@ function main(): void {
   // ENOENT) would exit 1 — which Claude Code treats as NON-blocking. A safety
   // gate must never fail open on an internal error.
   try {
+    const toolName = (payload as Record<string, unknown>)['tool_name'];
+
+    // Read-only tools never actuate — allow before any target evaluation.
+    if (typeof toolName === 'string' && READONLY_TOOLS.has(toolName)) {
+      process.exit(0);
+    }
+
     let toolInput = (payload as Record<string, unknown>)['tool_input'];
     if (typeof toolInput !== 'object' || toolInput === null || Array.isArray(toolInput)) {
       toolInput = {};
@@ -155,12 +186,11 @@ function main(): void {
     const entityIds = extractEntityIds(toolInput as Record<string, unknown>);
     const resolved = entityIds.filter(isWellFormedEntityId);
 
-    // Fail closed when we cannot fully verify the call's target set:
-    //   - no well-formed entity_id at all, OR
-    //   - a malformed entity_id slipped through extraction (e.g. `.lock`), OR
-    //   - an area/floor/label/device selector that didn't resolve to one.
+    // Hard fail-closed, every mode: a malformed entity_id slipped through
+    // (e.g. `.lock`), or an area/floor/label/device selector fanned out to an
+    // entity set we cannot enumerate here. The mode dial deliberately does not
+    // relax this — an unverifiable fan-out could hit a sensitive entity.
     if (
-      resolved.length === 0 ||
       resolved.length !== entityIds.length ||
       hasUnresolvableTarget(toolInput as Record<string, unknown>, new Set(resolved))
     ) {
@@ -171,6 +201,23 @@ function main(): void {
     }
 
     const root = projectRoot();
+
+    // Opaque tool: no targeting selector and no concrete entity_id (e.g. a
+    // script-derived MCP tool, which carries only its own fields). We can't
+    // classify it by entity. Prompt only when this is an identifiable (named)
+    // tool AND the operator opted into ask mode; otherwise hard-block. Garbage
+    // with no tool_name, and strict mode, both fail closed — the invariant
+    // holds for everything we cannot even name.
+    if (resolved.length === 0) {
+      if (typeof toolName === 'string' && safetyMode(root) === 'ask') {
+        emitAsk(`Unverified tool call: ${toolName} (no concrete entity target)`);
+      }
+      fail(
+        'Cannot verify target safety: no resolvable entity IDs found ' +
+          '(area_id / device_id targets are not evaluated). Use a proposal instead.',
+      );
+    }
+
     const hits: Array<[string, Severity]> = [];
     for (const eid of entityIds) {
       const [sev] = classifyEntity(eid, root);
@@ -190,16 +237,7 @@ function main(): void {
       fail(`Blocked sensitive entities: ${names}. Use a proposal instead.`);
     }
 
-    // Byte-identical to Python's json.dumps(...) of the same dict: `, ` / `: `
-    // separators and ensure_ascii string escaping.
-    const reason = pyJsonString(`Sensitive entities: ${names}`);
-    writeSync(
-      1,
-      '{"hookSpecificOutput": {"hookEventName": "PreToolUse", ' +
-        '"permissionDecision": "ask", ' +
-        `"permissionDecisionReason": ${reason}}}\n`,
-    );
-    process.exit(0);
+    emitAsk(`Sensitive entities: ${names}`);
   } catch (e: any) {
     fail(`Cannot verify target safety: internal error (${e?.code ?? 'unknown'}). Use a proposal instead.`);
   }
