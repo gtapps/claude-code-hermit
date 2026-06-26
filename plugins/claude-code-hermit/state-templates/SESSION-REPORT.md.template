@@ -18,7 +18,7 @@ closed_via: operator  # operator | auto
 <!-- One-line task description -->
 
 ## Completed
-<!-- What was accomplished -->
+<!-- What was accomplished (narrative). Durable outputs must also be listed under ## Artifacts. -->
 
 ## Changed
 <!-- Files modified/created/deleted -->

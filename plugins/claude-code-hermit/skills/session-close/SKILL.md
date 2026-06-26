@@ -103,6 +103,7 @@ Verify these before proceeding with close (applies to both modes):
 - [ ] All changed files are listed in the Changed section
 - [ ] Blockers are described with enough context for a cold start
 - [ ] Cost data is recorded (if available from the cost-tracker hook)
+- [ ] If `## Completed` claims a deliverable that a skill persists to `compiled/` (e.g. a deep-dive, briefing, or decision doc), confirm it appears in `## Artifacts`. If it doesn't, the deliverable was dropped: record it in `## Blockers` rather than leaving `## Completed` asserting success.
 - [ ] If status is `blocked`: have you run `/debug` to check for tool/hook failures? Include diagnosis in blockers if relevant
 
 **Full shutdown only:**

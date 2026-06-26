@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **session-close: Completed-vs-Artifacts closeout check** — a quality-check item flags when `## Completed` claims a deliverable a skill persists to `compiled/` but it's absent from `## Artifacts`, catching silently-dropped outputs at close instead of in a later session. Report template now labels `## Completed` as narrative. (#465)
+
 ## [1.2.11] - 2026-06-24
 
 ### Added
