@@ -83,8 +83,22 @@ bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
 
 - Triage `CREATE` → classify tier. Tier 1/2: queue micro-approval (§ Micro-approval queuing). Tier 3: call `/claude-code-hermit:proposal-create` directly.
 - Triage `SUPPRESS` or `DUPLICATE` → drop silently; note in SHELL.md Progress Log.
+- **Unrecognized triage line 1** (agent errored, returned malformed/empty output, or was terminated before emitting a verdict): fail closed — skip the triage-verdict append. Append:
+  ```bash
+  bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
+    .claude-code-hermit/state/proposal-metrics.jsonl \
+    '{"ts":"<now ISO>","type":"gate-failed","agent":"proposal-triage","title":"<title>"}'
+  ```
+  Note `gate-failed: proposal-triage — <title>` in the SHELL.md Progress Log. The candidate re-surfaces on the next scheduled-checks run.
 
 On SUPPRESS from reflection-judge → drop silently.
+On **unrecognized verdict from reflection-judge** (malformed/empty output): fail closed — treat as SUPPRESS. Append:
+```bash
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
+  .claude-code-hermit/state/proposal-metrics.jsonl \
+  '{"ts":"<now ISO>","type":"gate-failed","agent":"reflection-judge","title":"<title>"}'
+```
+Note `gate-failed: reflection-judge — <title>` in the SHELL.md Progress Log. The candidate re-surfaces on the next scheduled-checks run.
 
 **`empty`:**
 

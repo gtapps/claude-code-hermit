@@ -3,7 +3,6 @@ name: proposal-triage
 description: "Pre-creation gate for proposals — deduplicates, cross-references sessions/OPERATOR.md/compiled, and applies the three-condition rule. Returns CREATE | SUPPRESS — <code>: <reason> (\"<excerpt>\") | DUPLICATE:<id> — <reason>, plus additive metadata lines. Call before proposal-create and before queuing micro-proposals in reflect."
 model: haiku
 effort: low
-maxTurns: 14
 tools:
   - Read
   - Write

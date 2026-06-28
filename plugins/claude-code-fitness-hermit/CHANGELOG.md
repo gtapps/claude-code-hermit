@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Changed
+- **strava-data-cruncher: removed `maxTurns` cap** — the agent already self-limits via an internal 30-API-call governor; the turn cap was redundant and risked silently truncating analysis on long activity histories.
+
 ## [0.0.10] - 2026-06-24
 
 ### Fixed

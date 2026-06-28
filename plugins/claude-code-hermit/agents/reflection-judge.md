@@ -3,7 +3,6 @@ name: reflection-judge
 description: Post-processes reflect candidates — validates that cross-session evidence citations actually exist in S-NNN-REPORT.md before proposals or micro-approvals are queued. Returns ACCEPT | DOWNGRADE:<new-tier> | SUPPRESS per observation.
 model: sonnet
 effort: medium
-maxTurns: 8
 tools:
   - Read
   - Write

@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **proposal-triage, reflection-judge, skill-eval-runner: removed `maxTurns` cap** — fixed caps caused turn-exhaustion failures on mature deployments where proposals, sessions, and memory accumulate over time; any static number eventually becomes too small. Empirically confirmed: omitting the cap gives generous harness-default headroom rather than a trap.
+
+### Fixed
+- **proposal-triage, reflection-judge: gates now fail closed on missing verdict** — a no-verdict result (cap hit, error, or malformed output) previously failed open, letting candidates bypass dedup/suppression. All callers (`proposal-create`, `reflect`, `reflect-scheduled-checks`) now fail closed and append a `gate-failed` row to `state/proposal-metrics.jsonl` plus a Progress Log note. The candidate re-surfaces on the next reflect cycle.
+
 ## [1.2.12] - 2026-06-26
 
 ### Added
