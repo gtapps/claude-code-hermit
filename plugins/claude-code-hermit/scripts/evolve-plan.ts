@@ -4,11 +4,19 @@
 // CLAUDE-APPEND block diff — and emits one JSON "plan" to stdout. The skill
 // acts on the plan instead of reading and diffing whole files itself.
 //
+// Also computes sibling hermit plans (registry-driven from _hermit_versions)
+// so Step 7 doesn't rely on in-context LLM detection.
+//
 // Pure analyzer: never writes or copies. Fail-open: always exits 0; problems
 // are recorded in the `errors` array (objects of {code, message}), never
 // thrown. No stdin (skill-invoked, like doctor-check.ts / resolve-outbound-channel.ts).
 //
 // Usage: bun evolve-plan.ts [hermit-dir] --hatch-target=<local|committed>
+//                           [--plugin-list-json=<path>]
+//
+// --plugin-list-json: inject claude plugin list --json output from a file (for
+//   tests / when the main loop pre-resolves it). When absent, the script spawns
+//   `claude plugin list --json` itself.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,6 +27,19 @@ type Json = any;
 
 type FileClass = 'missing' | 'unmodified' | 'customized-kept' | 'conflict';
 interface ClassifiedFile { name: string; class: FileClass; boot_critical?: boolean; bootstrap?: boolean; }
+
+interface SiblingPlanEntry {
+  name: string;
+  install_path: string;
+  from: string;
+  to: string;
+  up_to_date: boolean;
+  changelog_slice?: string;
+  changelog_versions?: string[];
+  claude_append_changed?: boolean;
+  claude_append_old_block?: string;
+  marker?: string;
+}
 
 const MARKER = '<!-- claude-code-hermit: Session Discipline -->';
 const TEMPLATE_FILES = [
@@ -285,12 +306,14 @@ function classifyDockerTemplates(
   return out;
 }
 
-// Marker-onward block: from the MARKER line to EOF or the next standalone
+// Marker-onward block: from the marker line to EOF or the next standalone
 // "---" line. Returns null if the marker is absent. Used on both the template
 // (which skips its own leading "---") and the target CLAUDE file, so the two
 // are compared apples-to-apples.
-function markerOnward(text: string): string | null {
-  const idx = text.indexOf(MARKER);
+// When marker is omitted, defaults to the core MARKER constant.
+function markerOnward(text: string, marker?: string): string | null {
+  const m = marker ?? MARKER;
+  const idx = text.indexOf(m);
   if (idx === -1) return null;
   const block = text.slice(idx);
   const lines = block.split('\n');
@@ -302,6 +325,60 @@ function markerOnward(text: string): string | null {
   return block;
 }
 
+// Extract the first HTML comment line from a CLAUDE-APPEND.md template.
+// Used to determine a sibling hermit's CLAUDE-APPEND marker.
+// Returns null if no HTML comment line is found.
+function extractSiblingMarker(text: string): string | null {
+  for (const line of text.split('\n')) {
+    const t = line.trim();
+    if (t.startsWith('<!--') && t.endsWith('-->')) return t;
+  }
+  return null;
+}
+
+// Safe realpath: returns p unchanged if the path can't be resolved (ENOENT etc.)
+function safeRealpath(p: string): string {
+  try { return fs.realpathSync(p); } catch { return p; }
+}
+
+// Internal: diff a CLAUDE-APPEND block against what's in the target file.
+// tmplText: the template file content (already read by caller).
+// marker: the HTML-comment marker line.
+// targetFile: path to CLAUDE.local.md or CLAUDE.md.
+// Returns null on error (error pushed); {changed, old_block?} on success.
+function _diffClaudeAppendByText(
+  tmplText: string,
+  marker: string,
+  targetFile: string,
+  errors: Json[],
+  codes: { markerMissing: string; targetUnreadable: string },
+): { changed: boolean; old_block?: string } | null {
+  const tmplBlock = markerOnward(tmplText, marker);
+  if (tmplBlock === null) {
+    errors.push({ code: codes.markerMissing, message: `marker "${marker}" not found in template` });
+    return null;
+  }
+
+  let targetBlock: string | null = null;
+  try {
+    targetBlock = markerOnward(fs.readFileSync(targetFile, 'utf8'), marker);
+  } catch (e: any) {
+    if (e && e.code !== 'ENOENT') {
+      errors.push({ code: codes.targetUnreadable, message: `${targetFile} unreadable: ${e.message}` });
+      return null;
+    }
+    // file missing -> append case (targetBlock stays null)
+  }
+
+  if (targetBlock === null) {
+    return { changed: true }; // file missing or marker absent — append case, no old_block
+  }
+  const changed = normTrailing(targetBlock) !== normTrailing(tmplBlock);
+  const result: { changed: boolean; old_block?: string } = { changed };
+  if (changed) result.old_block = targetBlock;
+  return result;
+}
+
 function computeClaudeAppend(plan: Json, pluginRoot: string, hermitDir: string, hatchTarget: string, errors: Json[]) {
   let tmplText: string;
   try {
@@ -310,35 +387,209 @@ function computeClaudeAppend(plan: Json, pluginRoot: string, hermitDir: string, 
     errors.push({ code: 'claude_append_template_unreadable', message: e.message });
     return;
   }
-  const tmplBlock = markerOnward(tmplText);
-  if (tmplBlock === null) {
-    errors.push({ code: 'claude_append_marker_missing', message: 'marker not found in template' });
-    return;
-  }
 
   const projectRoot = path.resolve(hermitDir, '..');
   const targetFile = path.join(projectRoot, hatchTarget === 'local' ? 'CLAUDE.local.md' : 'CLAUDE.md');
-  let targetBlock: string | null = null;
-  try {
-    targetBlock = markerOnward(fs.readFileSync(targetFile, 'utf8'));
-  } catch (e: any) {
-    if (e && e.code !== 'ENOENT') {
-      errors.push({ code: 'claude_target_unreadable', message: `${targetFile} unreadable: ${e.message}` });
-      return;
-    }
-    // file missing -> append case
-  }
 
-  if (targetBlock === null) {
-    plan.claude_append_changed = true; // marker absent -> append full template (skill handles)
-    return;
+  const result = _diffClaudeAppendByText(tmplText, MARKER, targetFile, errors, {
+    markerMissing: 'claude_append_marker_missing',
+    targetUnreadable: 'claude_target_unreadable',
+  });
+  if (result === null) return;
+  plan.claude_append_changed = result.changed;
+  if (result.changed && result.old_block !== undefined) {
+    plan.claude_append_old_block = result.old_block;
   }
-  const changed = normTrailing(targetBlock) !== normTrailing(tmplBlock);
-  plan.claude_append_changed = changed;
-  if (changed) plan.claude_append_old_block = targetBlock; // exact current text for a targeted Edit
 }
 
-function buildPlan({ hermitDir, pluginRoot, hatchTarget }: { hermitDir: string; pluginRoot: string; hatchTarget: string | null }): Json {
+// Load the claude plugin list --json inventory.
+// pluginListJsonPath: read from file when provided (tests / main-loop injection).
+// When absent, spawns `claude plugin list --json` directly.
+// Returns {list, error} — list is [] and error is set on any failure.
+function loadPluginList(pluginListJsonPath: string | null): { list: any[]; error?: string } {
+  if (pluginListJsonPath) {
+    try {
+      const text = fs.readFileSync(pluginListJsonPath, 'utf8');
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) return { list: [], error: 'plugin-list-json is not a JSON array' };
+      return { list: parsed };
+    } catch (e: any) {
+      return { list: [], error: `failed to read --plugin-list-json: ${e.message}` };
+    }
+  }
+
+  try {
+    const proc = Bun.spawnSync(['claude', 'plugin', 'list', '--json'], {
+      env: process.env as Record<string, string>,
+    });
+    if (proc.exitCode !== 0) {
+      const stderr = proc.stderr ? proc.stderr.toString().trim() : '';
+      return { list: [], error: `claude plugin list exited ${proc.exitCode}${stderr ? ': ' + stderr : ''}` };
+    }
+    const text = proc.stdout.toString();
+    let parsed: any;
+    try { parsed = JSON.parse(text); } catch (e: any) {
+      return { list: [], error: `claude plugin list output not valid JSON: ${e.message}` };
+    }
+    if (!Array.isArray(parsed)) return { list: [], error: 'claude plugin list output is not a JSON array' };
+    return { list: parsed };
+  } catch (e: any) {
+    return { list: [], error: `failed to spawn claude plugin list: ${e.message}` };
+  }
+}
+
+// Extract the plugin name from a plugin id (format: "name@marketplace").
+function _pluginName(id: string): string {
+  return id.split('@')[0];
+}
+
+// Find the project-effective entry for `name` in a pre-filtered plugin slice.
+// Scope precedence: project > local.
+function resolveProjectEffectivePlugin(projectEffective: any[], name: string): any | null {
+  const candidates = projectEffective.filter(e => _pluginName(String(e.id || '')) === name);
+  const byScope = (scope: string) => candidates.find(e => e.scope === scope);
+  return byScope('project') ?? byScope('local') ?? null;
+}
+
+// Compute per-sibling plan entries from _hermit_versions and the plugin list.
+// Registered siblings (keys in _hermit_versions minus 'claude-code-hermit') are
+// the authoritative membership set. The plugin list is used for path resolution only.
+function computeSiblings(
+  config: Json,
+  pluginList: any[],
+  hermitDir: string,
+  hatchTarget: string,
+  projectRoot: string,
+  siblingWarnings: string[],
+): { siblings: SiblingPlanEntry[]; siblings_path_unresolved: string[]; siblings_detected_unregistered: string[] } {
+  const siblings: SiblingPlanEntry[] = [];
+  const siblings_path_unresolved: string[] = [];
+  const siblings_detected_unregistered: string[] = [];
+
+  const versions: Record<string, string> = isPlainObject(config._hermit_versions)
+    ? { ...config._hermit_versions }
+    : {};
+  const registeredNames = Object.keys(versions).filter(n => n !== 'claude-code-hermit');
+  // CHANGELOG 1623 guard: pre-filter once to enabled project/local entries for this project.
+  const realRoot = safeRealpath(projectRoot);
+  const projectEffective = pluginList.filter(e =>
+    e.enabled === true &&
+    (e.scope === 'project' || e.scope === 'local') &&
+    safeRealpath(String(e.projectPath || '')) === realRoot
+  );
+
+  const targetFile = path.join(projectRoot, hatchTarget === 'local' ? 'CLAUDE.local.md' : 'CLAUDE.md');
+
+  for (const name of registeredNames) {
+    const entry = resolveProjectEffectivePlugin(projectEffective, name);
+    if (!entry) {
+      siblings_path_unresolved.push(name);
+      continue;
+    }
+
+    const installPath: string = String(entry.installPath || '');
+    if (!installPath) {
+      siblings_path_unresolved.push(name);
+      continue;
+    }
+
+    const from = String(versions[name] || '0.0.0');
+
+    // Read sibling's installed version from its plugin.json
+    let to: string | null = null;
+    try {
+      const pj = readJSON(path.join(installPath, '.claude-plugin', 'plugin.json'));
+      to = typeof pj.version === 'string' ? pj.version : null;
+    } catch {
+      siblings_path_unresolved.push(name);
+      continue;
+    }
+
+    if (to === null) {
+      siblings_path_unresolved.push(name);
+      continue;
+    }
+
+    // Downgrade guard: from > to. Treat as no-gap (don't bump), surface as warning.
+    const gap = cmpSemver(from, to);
+    const upToDate = gap >= 0; // from >= to -> nothing to upgrade
+    if (gap > 0) {
+      siblingWarnings.push(`${name}: installed=${to} < config=${from} (downgrade — skipping bump)`);
+    }
+
+    const sibling: SiblingPlanEntry = { name, install_path: installPath, from, to, up_to_date: upToDate };
+
+    // CHANGELOG slice — only needed when there's a version gap
+    if (!upToDate) {
+      try {
+        const cl = fs.readFileSync(path.join(installPath, 'CHANGELOG.md'), 'utf8');
+        const { slice, versions: vers } = changelogSlice(cl, from, to);
+        sibling.changelog_slice = slice;
+        sibling.changelog_versions = vers;
+      } catch {
+        siblingWarnings.push(`${name}: CHANGELOG.md unreadable at ${installPath}`);
+      }
+    }
+
+    // CLAUDE-APPEND drift — computed for all siblings so no-gap drift can be
+    // reported as advisory (block-drifted). Edit is only applied on a version gap.
+    const claudeAppendPath = path.join(installPath, 'state-templates', 'CLAUDE-APPEND.md');
+    let tmplText: string | null = null;
+    try {
+      tmplText = fs.readFileSync(claudeAppendPath, 'utf8');
+    } catch {
+      // No CLAUDE-APPEND.md for this sibling — skip block comparison
+    }
+
+    if (tmplText !== null) {
+      const marker = extractSiblingMarker(tmplText);
+      if (marker !== null) {
+        sibling.marker = marker;
+        const localErrors: Json[] = [];
+        const diffResult = _diffClaudeAppendByText(tmplText, marker, targetFile, localErrors, {
+          markerMissing: `sibling_${name}_marker_missing`,
+          targetUnreadable: `sibling_${name}_target_unreadable`,
+        });
+        if (localErrors.length > 0) {
+          siblingWarnings.push(...localErrors.map((e: Json) => `${name}: ${e.message}`));
+        }
+        if (diffResult !== null) {
+          sibling.claude_append_changed = diffResult.changed;
+          if (diffResult.changed && diffResult.old_block !== undefined) {
+            sibling.claude_append_old_block = diffResult.old_block;
+          }
+        }
+      }
+    }
+
+    siblings.push(sibling);
+  }
+
+  // Detect project-effective hermit plugins not in the registry (opt-in opportunity).
+  // "Hermit" = name contains "hermit" but is NOT "claude-code-hermit".
+  const registeredSet = new Set(registeredNames);
+  const effectiveHermitNames = new Set<string>();
+  for (const e of projectEffective) {
+    const n = _pluginName(String(e.id || ''));
+    if (n !== 'claude-code-hermit' && n.includes('hermit')) {
+      effectiveHermitNames.add(n);
+    }
+  }
+  for (const n of effectiveHermitNames) {
+    if (!registeredSet.has(n)) {
+      siblings_detected_unregistered.push(n);
+    }
+  }
+
+  return { siblings, siblings_path_unresolved, siblings_detected_unregistered };
+}
+
+function buildPlan({ hermitDir, pluginRoot, hatchTarget, pluginListJsonPath }: {
+  hermitDir: string;
+  pluginRoot: string;
+  hatchTarget: string | null;
+  pluginListJsonPath?: string | null;
+}): Json {
   const errors: Json[] = [];
   const plan: Json = { errors };
 
@@ -438,28 +689,52 @@ function buildPlan({ hermitDir, pluginRoot, hatchTarget }: { hermitDir: string; 
 
   computeClaudeAppend(plan, pluginRoot, hermitDir, hatchTarget, errors);
 
+  // Sibling hermit plans — registry-driven from _hermit_versions.
+  // Plugin list load failures are non-fatal: core upgrade proceeds; siblings[] will be empty.
+  const siblingWarnings: string[] = [];
+  const { list: pluginList, error: pluginListError } = loadPluginList(pluginListJsonPath ?? null);
+  if (pluginListError) {
+    siblingWarnings.push(`plugin-list unavailable: ${pluginListError}`);
+  }
+
+  const siblingResult = computeSiblings(config, pluginList, hermitDir, hatchTarget, projectRoot, siblingWarnings);
+  plan.siblings = siblingResult.siblings;
+  plan.siblings_path_unresolved = siblingResult.siblings_path_unresolved;
+  plan.siblings_detected_unregistered = siblingResult.siblings_detected_unregistered;
+  if (siblingWarnings.length > 0) plan.siblings_warnings = siblingWarnings;
+
+  // work_pending: true when core or any sibling needs attention (version gap or
+  // CLAUDE-APPEND drift). Drives the short-circuit in SKILL.md Step 1 —
+  // "already up to date" only when nothing to do for core OR any registered sibling.
+  const siblingWorkNeeded = plan.siblings.some(
+    (s: SiblingPlanEntry) => !s.up_to_date || s.claude_append_changed
+  );
+  plan.work_pending = !plan.up_to_date || siblingWorkNeeded;
+
   return plan;
 }
 
 function parseArgs(argv: string[]) {
   let hermitDir: string | null = null;
   let hatchTarget: string | null = null;
+  let pluginListJsonPath: string | null = null;
   for (const a of argv) {
     if (a.startsWith('--hatch-target=')) hatchTarget = a.slice('--hatch-target='.length);
+    else if (a.startsWith('--plugin-list-json=')) pluginListJsonPath = a.slice('--plugin-list-json='.length);
     else if (!a.startsWith('--') && hermitDir === null) hermitDir = a;
   }
-  return { hermitDir: hermitDir || '.claude-code-hermit', hatchTarget };
+  return { hermitDir: hermitDir || '.claude-code-hermit', hatchTarget, pluginListJsonPath };
 }
 
 export { buildPlan, cmpSemver, changelogSlice, newConfigKeys, markerOnward, classifyFiles, classifyDockerEntrypoint, classifyDockerTemplates };
 export type { ClassifiedFile, FileClass };
 
 if (import.meta.main) {
-  const { hermitDir, hatchTarget } = parseArgs(process.argv.slice(2));
+  const { hermitDir, hatchTarget, pluginListJsonPath } = parseArgs(process.argv.slice(2));
   const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || path.resolve(import.meta.dir, '..');
   let plan: Json;
   try {
-    plan = buildPlan({ hermitDir: path.resolve(hermitDir), pluginRoot, hatchTarget });
+    plan = buildPlan({ hermitDir: path.resolve(hermitDir), pluginRoot, hatchTarget, pluginListJsonPath });
   } catch (e: any) {
     plan = { errors: [{ code: 'fatal', message: e.message }] };
   }

@@ -66,14 +66,21 @@ Return only this structured report. It is the single thing that re-enters the ma
 tight — do not paste changelog text, diffs, or file bodies.
 
 ```
-Upgrade: vOLD -> vNEW | already up to date | blocked: <reason>
+Upgrade: vOLD -> vNEW | core current vNEW | blocked: <reason>
 Settings added: <keys | none>
 Templates: <refreshed/restored/kept-N/conflicts-parked-N | none>
 Bin wrappers: <restored/replaced(.bak) | none>
 Docker entrypoint: <refreshed | conflict-replaced(<backup path>) | n/a>
 Docker rebuild: <needed + order | base-patched | no>
 CLAUDE-APPEND: <updated | unchanged>
-Sibling hermits: <name vOLD->vNEW ... | none>
+Sibling hermits: <one or more of the following per sibling, space-separated, or "none">
+  <name vOLD->vNEW>           (confirmed by finalizer — only from siblings_confirmed)
+  <name current>              (no version gap)
+  <name block-drifted>        (no gap but CLAUDE-APPEND differs from template — advisory only, not edited)
+  <name path-unresolved>      (in _hermit_versions but no project-effective plugin-list match)
+  <name SKIPPED-by-finalizer> (finalizer's siblings_skipped — never report as upgraded)
+Siblings detected but not activated: <name ... | none>
+Siblings warnings: <one line per siblings_warnings entry | none>
 Permissions added: <entries | none>
 Deferred for operator: <none | one or more verbatim blocks, each:>
   --- deferred-migration ---
@@ -86,5 +93,7 @@ Deferred for operator: <none | one or more verbatim blocks, each:>
 ```
 
 If a hard gate (step 0 CLI version, step 0b bun) stops the upgrade, return `Upgrade: blocked: <reason>`
-with the gate's exact message and omit the rest. If already current, return `Upgrade: already up to
-date` alone.
+with the gate's exact message and omit the rest. If `plan.work_pending` is `false` (core current AND
+no sibling gap AND no CLAUDE-APPEND drift), return `Upgrade: already up to date` alone.
+When core is current but `work_pending` is `true` (sibling-only work), use `Upgrade: core current v<to>`
+and still process Steps 3, 4, 7, 8, 9.

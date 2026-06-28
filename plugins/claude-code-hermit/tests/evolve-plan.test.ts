@@ -3,6 +3,8 @@
 // fixture project trees. Covers version gap, bounded CHANGELOG slice, deep
 // config-key diff, template/bin byte-compare, separator-aware CLAUDE-APPEND
 // diff, the no_config vs 0.0.0 distinction, and operator-value preservation.
+// Also covers registry-driven sibling hermit plans (work_pending, gap, no-gap
+// CLAUDE-APPEND drift, path-unresolved, detected-but-unregistered, leak guard).
 //
 // Usage: bun test tests/evolve-plan.test.ts   (from the plugin root)
 
@@ -14,9 +16,15 @@ import path from 'node:path';
 import { runScript } from './helpers/run';
 
 const MARKER = '<!-- claude-code-hermit: Session Discipline -->';
+const SIBLING_MARKER = '<!-- claude-code-dev-hermit: Dev Workflow -->';
 
 // Fake plugin root with plugin version 1.1.7 (shared, read-only across tests).
 let PR: string;
+// Fake sibling plugin root (claude-code-dev-hermit at v0.4.3).
+let SP: string;
+// Path to a file containing `[]` — passed as --plugin-list-json to keep existing
+// tests hermetic (no live `claude plugin list` spawn needed for non-sibling tests).
+let EMPTY_PLUGIN_LIST: string;
 
 beforeAll(() => {
   PR = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-evolve-pr-'));
@@ -58,10 +66,44 @@ Run the evolve skill.
   fs.writeFileSync(path.join(PR, 'state-templates', 'docker', 'docker-entrypoint.hermit.sh.template'), 'ENTRYPOINT UPSTREAM\n');
   fs.writeFileSync(path.join(PR, 'state-templates', 'docker', 'docker-compose.hermit.yml.template'), 'COMPOSE UPSTREAM {{X}}\n');
   fs.writeFileSync(path.join(PR, 'state-templates', 'docker', 'Dockerfile.hermit.template'), 'DOCKERFILE UPSTREAM {{Y}}\n');
+
+  // Sibling plugin root: claude-code-dev-hermit at v0.4.3.
+  SP = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-evolve-sp-'));
+  fs.mkdirSync(path.join(SP, '.claude-plugin'), { recursive: true });
+  fs.mkdirSync(path.join(SP, 'state-templates'), { recursive: true });
+  fs.writeFileSync(path.join(SP, '.claude-plugin', 'plugin.json'), '{"version":"0.4.3"}\n');
+  fs.writeFileSync(path.join(SP, 'CHANGELOG.md'), `# Changelog
+
+## [0.4.3] - 2026-06-01
+### Fixed
+- sibling fix C
+
+## [0.4.2] - 2026-05-20
+### Added
+- sibling add B
+
+## [0.4.1] - 2026-05-10
+### Fixed
+- sibling fix A
+
+## [0.4.0] - 2026-05-01
+### Added
+- initial sibling release
+`);
+  fs.writeFileSync(
+    path.join(SP, 'state-templates', 'CLAUDE-APPEND.md'),
+    `---\n\n${SIBLING_MARKER}\n## Dev Workflow\n\ndev body line\n`,
+  );
+
+  // Empty plugin list fixture — used by existing tests to avoid spawning claude.
+  EMPTY_PLUGIN_LIST = path.join(os.tmpdir(), 'hermit-empty-plugin-list.json');
+  fs.writeFileSync(EMPTY_PLUGIN_LIST, '[]\n');
 });
 
 afterAll(() => {
   try { fs.rmSync(PR, { recursive: true, force: true }); } catch {}
+  try { fs.rmSync(SP, { recursive: true, force: true }); } catch {}
+  try { fs.rmSync(EMPTY_PLUGIN_LIST); } catch {}
 });
 
 /** Run a test body against a throwaway project tree, always cleaning up. */
@@ -79,10 +121,13 @@ const hermitDir = (proj: string) => path.join(proj, '.claude-code-hermit');
 const writeConfig = (proj: string, content: string) =>
   fs.writeFileSync(path.join(hermitDir(proj), 'config.json'), content);
 
-/** Run evolve-plan and return the parsed plan. Omit hatchTarget to drop the flag. */
-async function runPlan(proj: string, hatchTarget?: string): Promise<any> {
+/** Run evolve-plan and return the parsed plan.
+ *  pluginListPath defaults to the empty-list fixture so tests don't spawn claude.
+ *  Pass an explicit path for sibling tests that need a populated plugin list. */
+async function runPlan(proj: string, hatchTarget?: string, pluginListPath?: string): Promise<any> {
   const args = [hermitDir(proj)];
   if (hatchTarget !== undefined) args.push(`--hatch-target=${hatchTarget}`);
+  args.push(`--plugin-list-json=${pluginListPath ?? EMPTY_PLUGIN_LIST}`);
   const r = await runScript('evolve-plan.ts', { args, env: { CLAUDE_PLUGIN_ROOT: PR } });
   expect(r.exitCode).toBe(0);
   return JSON.parse(r.stdout);
@@ -487,4 +532,218 @@ test('docker entrypoint conflict: operator edited AND upstream moved', withProj(
   expect(d.docker_entrypoint.class).toBe('conflict');
   expect(d.docker_entrypoint.boot_critical).toBe(true);
   expect(d.docker_entrypoint.bootstrap).toBeUndefined(); // baseline present -> not a bootstrap
+}));
+
+// -------------------------------------------------------
+// 12. Sibling hermit plans — registry-driven from _hermit_versions
+// -------------------------------------------------------
+
+/** Write a plugin-list fixture JSON to a temp file and return its path. */
+function writePluginList(entries: any[]): string {
+  const p = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-pl-')) + '/list.json';
+  fs.writeFileSync(p, JSON.stringify(entries, null, 2));
+  return p;
+}
+
+/** Build a plugin-list entry pointing sibling installPath to SP. */
+function siblingEntry(projectPath: string, opts: { scope?: string; enabled?: boolean; name?: string } = {}): any {
+  return {
+    id: `${opts.name ?? 'claude-code-dev-hermit'}@claude-code-hermit`,
+    version: '0.4.3',
+    scope: opts.scope ?? 'local',
+    enabled: opts.enabled ?? true,
+    installPath: SP,
+    projectPath,
+  };
+}
+
+test('sibling with gap: siblings[] entry has up_to_date=false and changelog_slice', withProj(async (proj) => {
+  // sibling registered at 0.4.1; installed at 0.4.3 -> gap
+  writeConfig(proj, JSON.stringify({
+    _hermit_versions: { 'claude-code-hermit': '1.1.7', 'claude-code-dev-hermit': '0.4.1' },
+  }));
+  const pl = writePluginList([siblingEntry(proj)]);
+  const d = await runPlan(proj, 'local', pl);
+  expect(d.errors).toEqual([]);
+  expect(d.siblings).toHaveLength(1);
+  const s = d.siblings[0];
+  expect(s.name).toBe('claude-code-dev-hermit');
+  expect(s.from).toBe('0.4.1');
+  expect(s.to).toBe('0.4.3');
+  expect(s.up_to_date).toBe(false);
+  expect(s.changelog_slice).toContain('sibling fix C');
+  expect(s.changelog_slice).toContain('sibling add B');
+  expect(s.changelog_slice).not.toContain('initial sibling release'); // 0.4.0 excluded (from=0.4.1)
+  expect(d.work_pending).toBe(true); // sibling has gap -> work_pending=true even when core is up_to_date
+}));
+
+// Note: the assertion above already covers the Finding 2 regression.
+// work_pending must be true when a sibling has a gap, even if core is up_to_date.
+test('REGRESSION Finding 2: core current + sibling behind -> work_pending=true', withProj(async (proj) => {
+  writeConfig(proj, JSON.stringify({
+    _hermit_versions: { 'claude-code-hermit': '1.1.7', 'claude-code-dev-hermit': '0.4.1' },
+  }));
+  const pl = writePluginList([siblingEntry(proj)]);
+  const d = await runPlan(proj, 'local', pl);
+  expect(d.up_to_date).toBe(true);         // core is current
+  expect(d.siblings[0].up_to_date).toBe(false); // sibling is not
+  expect(d.work_pending).toBe(true);        // must be true so skill does NOT short-circuit
+}));
+
+test('sibling no-gap: up_to_date=true, no changelog_slice, work_pending reflects core', withProj(async (proj) => {
+  writeConfig(proj, JSON.stringify({
+    _hermit_versions: { 'claude-code-hermit': '1.1.6', 'claude-code-dev-hermit': '0.4.3' },
+  }));
+  const pl = writePluginList([siblingEntry(proj)]);
+  const d = await runPlan(proj, 'local', pl);
+  const s = d.siblings[0];
+  expect(s.up_to_date).toBe(true);
+  expect('changelog_slice' in s).toBe(false);
+  // core has a gap (1.1.6 < 1.1.7), so work_pending stays true
+  expect(d.work_pending).toBe(true);
+}));
+
+test('no-gap + changed CLAUDE-APPEND block -> claude_append_changed=true, no Edit intent implied', withProj(async (proj) => {
+  writeConfig(proj, JSON.stringify({
+    _hermit_versions: { 'claude-code-hermit': '1.1.7', 'claude-code-dev-hermit': '0.4.3' },
+  }));
+  // Write a stale sibling block in the target CLAUDE.local.md
+  fs.writeFileSync(path.join(proj, 'CLAUDE.local.md'),
+    `# Project\n\n---\n\n${SIBLING_MARKER}\n## Dev Workflow\n\nSTALE dev body\n`);
+  const pl = writePluginList([siblingEntry(proj)]);
+  const d = await runPlan(proj, 'local', pl);
+  const s = d.siblings[0];
+  expect(s.up_to_date).toBe(true);             // no version gap
+  expect(s.claude_append_changed).toBe(true);  // but block is stale
+  // old_block is present so the skill can report what drifted (advisory only, no Edit for no-gap)
+  expect(s.claude_append_old_block).toContain('STALE dev body');
+  expect(d.work_pending).toBe(true);           // drift alone triggers work_pending
+}));
+
+test('gap + changed CLAUDE-APPEND block -> both up_to_date=false and claude_append_changed=true', withProj(async (proj) => {
+  writeConfig(proj, JSON.stringify({
+    _hermit_versions: { 'claude-code-hermit': '1.1.7', 'claude-code-dev-hermit': '0.4.1' },
+  }));
+  fs.writeFileSync(path.join(proj, 'CLAUDE.local.md'),
+    `# Project\n\n---\n\n${SIBLING_MARKER}\n## Dev Workflow\n\nOLD dev body\n`);
+  const pl = writePluginList([siblingEntry(proj)]);
+  const d = await runPlan(proj, 'local', pl);
+  const s = d.siblings[0];
+  expect(s.up_to_date).toBe(false);
+  expect(s.claude_append_changed).toBe(true);
+  expect(s.claude_append_old_block).toContain('OLD dev body');
+}));
+
+test('siblings_path_unresolved: registered sibling not found in plugin list', withProj(async (proj) => {
+  writeConfig(proj, JSON.stringify({
+    _hermit_versions: { 'claude-code-hermit': '1.1.7', 'claude-code-dev-hermit': '0.4.1' },
+  }));
+  // Empty plugin list -> sibling can't be path-resolved
+  const d = await runPlan(proj, 'local');
+  expect(d.siblings).toHaveLength(0);
+  expect(d.siblings_path_unresolved).toContain('claude-code-dev-hermit');
+}));
+
+test('siblings_detected_unregistered: project-effective hermit not in _hermit_versions', withProj(async (proj) => {
+  writeConfig(proj, JSON.stringify({
+    _hermit_versions: { 'claude-code-hermit': '1.1.7' },
+  }));
+  // Plugin list has a hermit entry for this project, but it's not in _hermit_versions
+  const pl = writePluginList([siblingEntry(proj)]);
+  const d = await runPlan(proj, 'local', pl);
+  expect(d.siblings).toHaveLength(0); // not in registry -> not in siblings[]
+  expect(d.siblings_detected_unregistered).toContain('claude-code-dev-hermit');
+}));
+
+test('leak guard: duplicate hermit names in plugin list — only project-effective entry selected', withProj(async (proj) => {
+  writeConfig(proj, JSON.stringify({
+    _hermit_versions: { 'claude-code-hermit': '1.1.7', 'claude-code-dev-hermit': '0.4.1' },
+  }));
+  // Two entries for the same sibling: one for this project, one for another project.
+  const otherProjectPath = '/tmp/other-project-entirely';
+  const otherSP = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-other-sp-'));
+  try {
+    fs.mkdirSync(path.join(otherSP, '.claude-plugin'), { recursive: true });
+    fs.writeFileSync(path.join(otherSP, '.claude-plugin', 'plugin.json'), '{"version":"9.9.9"}\n');
+    const pl = writePluginList([
+      { id: 'claude-code-dev-hermit@claude-code-hermit', version: '9.9.9', scope: 'local', enabled: true, installPath: otherSP, projectPath: otherProjectPath },
+      siblingEntry(proj), // project-effective entry for this project at SP (v0.4.3)
+    ]);
+    const d = await runPlan(proj, 'local', pl);
+    expect(d.siblings).toHaveLength(1);
+    expect(d.siblings[0].install_path).toBe(SP);  // selected THIS project's entry
+    expect(d.siblings[0].to).toBe('0.4.3');       // NOT 9.9.9 from the other project
+  } finally {
+    try { fs.rmSync(otherSP, { recursive: true, force: true }); } catch {}
+  }
+}));
+
+test('leak guard: scope precedence — project scope wins over local when both match', withProj(async (proj) => {
+  writeConfig(proj, JSON.stringify({
+    _hermit_versions: { 'claude-code-hermit': '1.1.7', 'claude-code-dev-hermit': '0.4.1' },
+  }));
+  // Two entries for same sibling at same projectPath: one local, one project scope.
+  // Project scope should win (and SP is at 0.4.3).
+  const localSP = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-local-sp-'));
+  try {
+    fs.mkdirSync(path.join(localSP, '.claude-plugin'), { recursive: true });
+    fs.writeFileSync(path.join(localSP, '.claude-plugin', 'plugin.json'), '{"version":"0.4.2"}\n');
+    const pl = writePluginList([
+      { id: 'claude-code-dev-hermit@claude-code-hermit', version: '0.4.2', scope: 'local', enabled: true, installPath: localSP, projectPath: proj },
+      { id: 'claude-code-dev-hermit@claude-code-hermit', version: '0.4.3', scope: 'project', enabled: true, installPath: SP, projectPath: proj },
+    ]);
+    const d = await runPlan(proj, 'local', pl);
+    expect(d.siblings[0].install_path).toBe(SP);
+    expect(d.siblings[0].to).toBe('0.4.3');
+  } finally {
+    try { fs.rmSync(localSP, { recursive: true, force: true }); } catch {}
+  }
+}));
+
+test('invalid --plugin-list-json: siblings empty, siblings_warnings set, core proceeds', withProj(async (proj) => {
+  writeConfig(proj, JSON.stringify({
+    _hermit_versions: { 'claude-code-hermit': '1.1.6', 'claude-code-dev-hermit': '0.4.1' },
+  }));
+  const badPath = path.join(os.tmpdir(), 'hermit-bad-pl-' + Date.now() + '.json');
+  fs.writeFileSync(badPath, 'NOT JSON {{');
+  try {
+    const d = await runPlan(proj, 'local', badPath);
+    expect(d.errors).toEqual([]); // core errors must be clean
+    expect(d.siblings).toHaveLength(0); // sibling resolution skipped
+    expect(d.siblings_warnings).toBeDefined();
+    expect(d.siblings_warnings[0]).toContain('plugin-list unavailable');
+    // Core analysis still ran
+    expect(d.from).toBe('1.1.6');
+    expect(d.up_to_date).toBe(false);
+  } finally {
+    try { fs.rmSync(badPath); } catch {}
+  }
+}));
+
+test('from > to (downgrade): treated as no-gap, warning emitted', withProj(async (proj) => {
+  // Config claims 0.4.5 but installed is 0.4.3 — a rollback scenario.
+  writeConfig(proj, JSON.stringify({
+    _hermit_versions: { 'claude-code-hermit': '1.1.7', 'claude-code-dev-hermit': '0.4.5' },
+  }));
+  const pl = writePluginList([siblingEntry(proj)]);
+  const d = await runPlan(proj, 'local', pl);
+  const s = d.siblings[0];
+  expect(s.up_to_date).toBe(true);   // from(0.4.5) > to(0.4.3) -> no bump
+  expect('changelog_slice' in s).toBe(false);
+  expect(d.siblings_warnings?.some((w: string) => w.includes('downgrade'))).toBe(true);
+}));
+
+test('work_pending: all current + no drift -> false', withProj(async (proj) => {
+  writeConfig(proj, JSON.stringify({
+    _hermit_versions: { 'claude-code-hermit': '1.1.7', 'claude-code-dev-hermit': '0.4.3' },
+  }));
+  // Write correct sibling block so drift=false
+  fs.writeFileSync(path.join(proj, 'CLAUDE.local.md'),
+    `# Project\n\n---\n\n${SIBLING_MARKER}\n## Dev Workflow\n\ndev body line\n`);
+  const pl = writePluginList([siblingEntry(proj)]);
+  const d = await runPlan(proj, 'local', pl);
+  expect(d.up_to_date).toBe(true);
+  expect(d.siblings[0].up_to_date).toBe(true);
+  expect(d.siblings[0].claude_append_changed).toBe(false);
+  expect(d.work_pending).toBe(false);
 }));

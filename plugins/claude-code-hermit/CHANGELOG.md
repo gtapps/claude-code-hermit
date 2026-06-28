@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **hermit-evolve: domain (sibling) hermits now upgrade reliably** — `evolve-plan.ts` is registry-driven: membership is read from `config._hermit_versions`, path is resolved via `claude plugin list --json` with the project-scope + realpath filter (retains the CHANGELOG 1623 leak guard). Sibling detection, version-gap compare, CHANGELOG slicing, and CLAUDE-APPEND diffing are now deterministic pre-pass computations, not in-context LLM work. Step 7 consumes `plan.siblings[]` directly. `plan.work_pending` replaces the core-only `up_to_date` short-circuit so a sibling-only gap still runs the skill. `evolve-runner` report uses outcome-typed sibling entries from finalizer truth (`siblings_confirmed`, `siblings_skipped`). `hermit-update` and `hermit-docker update` widen their evolve-chain gate to any registered hermit gap (not core-only), so a sibling-only wrapper update now chains `/hermit-evolve unattended` automatically. (Finding 5 — `check-upgrade.sh` SessionStart nudge — deferred; covers native-update-without-always-on users only.)
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The `bin/hermit-update` and `bin/hermit-docker` wrappers in `.claude-code-hermit/bin/` ship new logic to detect sibling gaps. The evolve skill replaces them automatically via the standard bin-wrapper refresh (Step 5b).
+
 ## [1.2.12] - 2026-06-26
 
 ### Added
