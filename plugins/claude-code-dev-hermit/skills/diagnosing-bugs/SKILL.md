@@ -7,9 +7,9 @@ description: "Diagnosis loop for hard bugs and performance regressions. Builds a
 
 A discipline for hard bugs. Skip phases only when explicitly justified.
 
-When exploring the codebase, consult `compiled/` (hermit knowledge base — architecture decisions and codebase health assessments) to build a mental model of relevant modules before reading source. Check any ADRs in the area you're touching.
+When exploring the codebase, consult `.claude-code-hermit/compiled/` (hermit knowledge base — architecture decisions and codebase health assessments) to build a mental model of relevant modules before reading source. Check any ADRs in the area you're touching.
 
-Diagnostic byproducts (failing-test output, stack traces, repro snapshots, instrumentation logs) go in `raw/` — ephemeral inputs under analysis, not `compiled/`. Reusable lessons from the diagnosis go to auto-memory.
+Diagnostic byproducts (failing-test output, stack traces, repro snapshots, instrumentation logs) go in `.claude-code-hermit/raw/` — ephemeral inputs under analysis, not `.claude-code-hermit/compiled/`. Reusable lessons from the diagnosis go to auto-memory.
 
 ## Phase 1 — Build a feedback loop
 
@@ -23,7 +23,7 @@ Spend disproportionate effort here. **Be aggressive. Be creative. Refuse to give
 2. **Curl / HTTP script** against a running dev server.
 3. **CLI invocation** with a fixture input, diffing stdout against a known-good snapshot.
 4. **Headless browser script** (Playwright / Puppeteer) — drives the UI, asserts on DOM/console/network.
-5. **Replay a captured trace.** Save a real network request / payload / event log to disk (in `raw/`); replay it through the code path in isolation.
+5. **Replay a captured trace.** Save a real network request / payload / event log to disk (in `.claude-code-hermit/raw/`); replay it through the code path in isolation.
 6. **Throwaway harness.** Spin up a minimal subset of the system (one service, mocked deps) that exercises the bug code path with a single function call.
 7. **Property / fuzz loop.** If the bug is "sometimes wrong output", run 1000 random inputs and look for the failure mode.
 8. **Bisection harness.** If the bug appeared between two known states (commit, dataset, version), automate "boot at state X, check, repeat" so you can `git bisect run` it.
@@ -131,12 +131,12 @@ Required before declaring done:
 - [ ] Regression test passes (or absence of seam is documented)
 - [ ] All `[DEBUG-...]` instrumentation removed (`grep` the prefix)
 - [ ] Throwaway prototypes deleted (or moved to a clearly-marked debug location)
-- [ ] Repro artifacts in `raw/` cleaned up (or retained with a note if reusable as a fixture)
+- [ ] Repro artifacts in `.claude-code-hermit/raw/` cleaned up (or retained with a note if reusable as a fixture)
 - [ ] The hypothesis that turned out correct is stated in the commit / PR message — so the next debugger learns
 
 **Then ask: what would have prevented this bug?** If the answer involves architectural change (no good test seam, tangled callers, hidden coupling), raise an `[architecture]` dev proposal with the specifics. Make the recommendation **after** the fix is in, not before — you have more information now than when you started.
 
-If the lesson is reusable across sessions (a recurring pattern, a hidden invariant, a class of bug that will recur), save it to auto-memory — not to `compiled/`.
+If the lesson is reusable across sessions (a recurring pattern, a hidden invariant, a class of bug that will recur), save it to auto-memory — not to `.claude-code-hermit/compiled/`.
 
 ---
 

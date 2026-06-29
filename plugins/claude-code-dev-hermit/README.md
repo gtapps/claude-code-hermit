@@ -145,7 +145,7 @@ See [docs/GIT-SAFETY.md](docs/GIT-SAFETY.md) for the full safety model and the t
 
 **Engineering discipline skills** (autonomous — no user prompts required):
 
-- **`diagnosing-bugs` skill** — Diagnosis loop for hard bugs and performance regressions. Builds a tight, red-capable feedback loop before hypothesising. Reads `compiled/` for architectural context; drops diagnostic artifacts (logs, repro snapshots) in `raw/`. Complements `feature-dev:code-reviewer` (static read) — neither runs repros; this one does.
+- **`diagnosing-bugs` skill** — Diagnosis loop for hard bugs and performance regressions. Builds a tight, red-capable feedback loop before hypothesising. Reads `.claude-code-hermit/compiled/` for architectural context; drops diagnostic artifacts (logs, repro snapshots) in `.claude-code-hermit/raw/`. Complements `feature-dev:code-reviewer` (static read) — neither runs repros; this one does.
 - **`resolving-merge-conflicts` skill** — Resolves in-progress git merge/rebase conflicts in 5 steps. Never `--abort`; runs project automated checks (typecheck, tests, format) after resolving; stages and commits to finish.
 
 ---

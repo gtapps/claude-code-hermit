@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Added
-- **diagnosing-bugs skill: build a red-capable feedback loop before hypothesising** — adapted from mattpocock/skills (MIT); fills the gap between static code review (`feature-dev:code-reviewer`) and running actual repros. Reads `compiled/` for architectural context; drops diagnostic artifacts in `raw/`.
+- **diagnosing-bugs skill: build a red-capable feedback loop before hypothesising** — adapted from mattpocock/skills (MIT); fills the gap between static code review (`feature-dev:code-reviewer`) and running actual repros. Reads `.claude-code-hermit/compiled/` for architectural context; drops diagnostic artifacts in `.claude-code-hermit/raw/`.
 - **resolving-merge-conflicts skill: autonomous 5-step conflict resolution** — adapted from mattpocock/skills (MIT); unattended rebase/PR work had no conflict guardrail.
 
 ### Fixed
