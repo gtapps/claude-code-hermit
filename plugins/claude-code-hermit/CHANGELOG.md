@@ -1,15 +1,10 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.13] - 2026-06-29
 
 ### Added
 - **proposal template: optional `## References` section** — backward-looking sources for agent-authored proposals. Placed after `## Verification`; required — cite real sources, or write `n/a — <reason>` for operator-requested or qualitative proposals. `proposal-create` is updated to fill it.
 
-### Upgrade Instructions
-
-Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
-
-1. **Refresh PROPOSAL.md template** — copy `${CLAUDE_PLUGIN_ROOT}/state-templates/PROPOSAL.md.template` to `.claude-code-hermit/templates/PROPOSAL.md.template` so the new `## References` section reaches the next generated proposal. Past PROP-NNN files are not retroactively rewritten.
 ### Changed
 - **proposal-triage, reflection-judge, skill-eval-runner: removed `maxTurns` cap** — fixed caps caused turn-exhaustion failures on mature deployments where proposals, sessions, and memory accumulate over time; any static number eventually becomes too small. Empirically confirmed: omitting the cap gives generous harness-default headroom rather than a trap.
 
@@ -19,7 +14,10 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-evolve`. The `bin/hermit-update` and `bin/hermit-docker` wrappers in `.claude-code-hermit/bin/` ship new logic to detect sibling gaps. The evolve skill replaces them automatically via the standard bin-wrapper refresh (Step 5b).
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Refresh PROPOSAL.md template** — copy `${CLAUDE_PLUGIN_ROOT}/state-templates/PROPOSAL.md.template` to `.claude-code-hermit/templates/PROPOSAL.md.template` so the new `## References` section reaches the next generated proposal. Past PROP-NNN files are not retroactively rewritten.
+2. **Refresh bin wrappers** — `bin/hermit-update` and `bin/hermit-docker` in `.claude-code-hermit/bin/` ship new sibling-gap detection logic. The evolve skill replaces them automatically via the standard bin-wrapper refresh (Step 5b).
 
 ## [1.2.12] - 2026-06-26
 
