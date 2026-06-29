@@ -142,7 +142,6 @@ UPDATE_ROWS_AFTER=$(printf '%s\n' "$ROWS_AFTER" | grep '^UPDATE	' || true)
 # --- Apply in the running tmux session if one exists (host tmux, no docker exec). ---
 RELOAD_PLUGINS_SENT=false
 EVOLVE_SENT=false
-NEW_HERMIT_VER=""; CONFIG_HERMIT_VER=""
 
 # Match the rendered REPL input box: the prompt char ❯ plus any structural marker
 # (── rule, older ╭─/╰─ corners, or the always-present mode/shortcuts hint). See the
@@ -171,16 +170,33 @@ if [ ${#PLUGINS_OK_IDS[@]} -gt 0 ] && tmux has-session -t "$TMUX_SESSION" 2>/dev
     tmux send-keys -t "$TMUX_SESSION:0.0" Enter 2>/dev/null || true
     RELOAD_PLUGINS_SENT=true
 
-    NEW_HERMIT_VER=$(printf '%s\n' "$UPDATE_ROWS_AFTER" | awk -F'\t' '$2 ~ /^claude-code-hermit@/ {print $4; exit}')
-    CONFIG_HERMIT_VER=$(bun -e 'try { const c = JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); console.log((c._hermit_versions ?? {})["claude-code-hermit"] ?? ""); } catch { console.log(""); }' \
-      "$PROJECT_DIR/.claude-code-hermit/config.json" 2>/dev/null || echo "")
+    # Check whether any registered hermit (core or sibling) has a version gap.
+    # UPDATE_ROWS_AFTER is a TSV where $2=name@marketplace and $4=new version.
+    # We compare each installed hermit version against config._hermit_versions.
+    # This detects sibling-only bumps as well as core bumps (Finding 5 fix).
+    HERMIT_GAP=$(bun -e '
+      const rows = process.argv[1];
+      const configPath = process.argv[2];
+      try {
+        const c = JSON.parse(require("fs").readFileSync(configPath, "utf8"));
+        const vers = c._hermit_versions ?? {};
+        for (const line of rows.split("\n").filter(Boolean)) {
+          const cols = line.split("\t");
+          const id = cols[1] ?? ""; const newVer = cols[3] ?? "";
+          const name = id.split("@")[0];
+          if (!name.includes("hermit") || !newVer) continue;
+          const configVer = vers[name];
+          if (configVer && configVer !== newVer) { process.stdout.write("1\n"); process.exit(0); }
+        }
+        process.stdout.write("0\n");
+      } catch { process.stdout.write("0\n"); }
+    ' "$UPDATE_ROWS_AFTER" "$PROJECT_DIR/.claude-code-hermit/config.json" 2>/dev/null || echo "0")
     CORE_FAILED=false
     for _fid in "${PLUGINS_FAIL_IDS[@]:-}"; do
       case "$_fid" in claude-code-hermit@*) CORE_FAILED=true ;; esac
     done
-    if [ -n "$NEW_HERMIT_VER" ] && [ -n "$CONFIG_HERMIT_VER" ] && \
-       [ "$NEW_HERMIT_VER" != "$CONFIG_HERMIT_VER" ] && [ "$CORE_FAILED" = false ]; then
-      echo "[hermit] Hermit gap: config v${CONFIG_HERMIT_VER} -> plugin v${NEW_HERMIT_VER}. Chaining hermit-evolve (unattended)..."
+    if [ "$HERMIT_GAP" = "1" ] && [ "$CORE_FAILED" = false ]; then
+      echo "[hermit] Hermit gap detected (core or sibling). Chaining hermit-evolve (unattended)..."
       if _wait_for_claude_prompt_host; then
         tmux send-keys -t "$TMUX_SESSION:0.0" "/claude-code-hermit:hermit-evolve unattended" 2>/dev/null || true
         sleep 0.5
@@ -261,6 +277,4 @@ if [ -n "$UPDATE_ROWS" ]; then
 fi
 if [ "$EVOLVE_SENT" = true ]; then
   echo "  hermit-evolve auto-started (unattended) — hermit config is upgrading."
-elif [ -n "$NEW_HERMIT_VER" ] && [ -n "$CONFIG_HERMIT_VER" ] && [ "$NEW_HERMIT_VER" != "$CONFIG_HERMIT_VER" ]; then
-  echo "  Hermit plugin version bumped — run: /claude-code-hermit:hermit-evolve"
 fi

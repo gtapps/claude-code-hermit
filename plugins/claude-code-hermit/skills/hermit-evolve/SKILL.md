@@ -93,7 +93,7 @@ Parse stdout as JSON (the "plan"). The plan's `errors` array is the **sole error
 - If `errors` contains an entry with `code == "no_config"` → report "No config found. Run `/claude-code-hermit:hatch` first." and stop.
 - Else if `errors` is non-empty (any other code, e.g. `no_hatch_target`) **or** stdout is not valid JSON → report "evolve-plan failed: <joined messages> — re-run or report." and stop. Do not fall back to reading and diffing the files by hand.
 
-**Version check:** the plan reports `from`, `to`, and `up_to_date`. If `up_to_date` is `true`, report "You're up to date (v<to>). Nothing to upgrade." and stop. Otherwise announce: "Upgrading from v<from> to v<to>."
+**Version check:** the plan reports `from`, `to`, `up_to_date`, and `work_pending`. If `work_pending` is `false` (core current AND no sibling gap, drift, path-unresolved, or warnings), report "You're up to date (v<to>). Nothing to upgrade." and stop. If `up_to_date` is `true` but `work_pending` is `true` (sibling-only work), announce: "Core is current (v<to>); processing sibling hermits." and run only Steps 7, 8, 9, and 10 — the core-content steps (2 through 6) have no pending work when core is current. (Sibling migrations and CLAUDE-APPEND sync happen inside Step 7.) Otherwise (core has a gap) announce: "Upgrading from v<from> to v<to>." and run all steps.
 
 ### 2. Present the changelog
 
@@ -223,25 +223,27 @@ If the plan's `claude_append_changed` is `false`, skip this step. If `true`, rea
 
 ### 7. Hermit upgrades
 
-- Detect installed hermits: run `claude plugin list --json`, then apply the **project-or-local + enabled filter**:
-  - Keep `enabled == true` AND (`scope == "project"` OR `scope == "local"`) AND `projectPath` equals the current project root.
-  - Drop user-scope, managed-scope, disabled, and cross-project entries.
+The plan's `siblings[]` array is the authoritative list (registry-driven from `_hermit_versions`; path-resolved by `evolve-plan.ts` with the project-scope + realpath filter). Do not re-run `claude plugin list --json` here.
 
-  Then keep entries whose plugin name (substring of `id` left of `@`) contains "hermit" but is NOT "claude-code-hermit". Use `installPath` for each entry as the source of `plugin.json`, `CHANGELOG.md`, and `state-templates/CLAUDE-APPEND.md`.
-- **Gate on `_hermit_versions` key existence** — only consider a hermit for upgrade when its name is *already* a key in `_hermit_versions`. Without this gate the skill would execute uninstalled hermits' Upgrade Instructions and append their CLAUDE-APPEND blocks. Initial activation is owned by the hermit's own `hatch` skill, which is what writes the key.
-- For each gated hermit:
-  - Read `<installPath>/.claude-plugin/plugin.json` for the current version
-  - Compare against `_hermit_versions[hermit_name]`
-  - If version gap exists:
-    - Read `<installPath>/CHANGELOG.md` if it exists and extract version entries between the config version (exclusive) and the current version (inclusive)
-    - Present a summary: "{hermit_name}: upgrading from vOLD to vNEW. Here's what changed:" followed by only the relevant changelog sections
-    - **Execute migrations in version order** — For each extracted version entry (oldest first), look for a `### Upgrade Instructions` section. If found, execute every instruction in that section — do not skip or merely display them.
-    - **Sync hermit's CLAUDE-APPEND block** — Same procedure as step 6 (write to the `hatch_target` file), using:
-      - Source template: `<installPath>/state-templates/CLAUDE-APPEND.md`. If it doesn't exist, skip.
-      - Marker: the first HTML comment line in that template (e.g. `<!-- hermit-name: Section Title -->`)
-    - Update `_hermit_versions[hermit_name]` to the current hermit version
-  - If no gap: skip silently
-- For hermits detected on disk but **not** present in `_hermit_versions`: skip silently. The operator opted in to core only; sibling activation belongs to that sibling's own `hatch`.
+For each entry in `plan.siblings`:
+
+- **Version gap (`up_to_date == false`):**
+  - Present: "{name}: upgrading from v{from} to v{to}. Here's what changed:" followed by `changelog_slice` (already bounded to the gap range, oldest-first).
+  - **Execute migrations** — within `changelog_slice`, find each version's `### Upgrade Instructions` section and execute every instruction in version order. Same rules as Step 2b: non-interactive default on ambiguous steps; defer if no safe default.
+  - **Sync CLAUDE-APPEND block** — same procedure as Step 6, using `sibling.marker` and `sibling.claude_append_old_block` (replace case) or append case when `old_block` is absent. Apply the Edit **only here, on a version gap**.
+  - Collect the sibling name for the `--sibling=<name>=<to>` flag in Step 9.
+
+- **No version gap (`up_to_date == true`) + `claude_append_changed == true`:**
+  - **Do NOT apply a CLAUDE-APPEND Edit.** We cannot distinguish a deliberate operator edit from a missed sync at this diff level; auto-writing would clobber operator changes.
+  - Report as `<name> block-drifted` — advisory note for the operator to review manually.
+
+- **No version gap + `claude_append_changed == false` (or absent):** report `<name> current`, skip.
+
+If `plan.siblings_path_unresolved` is non-empty, report each as `<name> path-unresolved` (registered in `_hermit_versions` but not found in the project-effective plugin list).
+
+If `plan.siblings_detected_unregistered` is non-empty, report each as "detected but not activated: <name> — run `/<name>:hatch` to register." Never auto-activate; the opt-in gate stays.
+
+If `plan.siblings_warnings` is non-empty, surface each warning (e.g. plugin-list unavailable, CHANGELOG unreadable).
 
 ### 8. Ensure plugin permissions in settings file
 
@@ -264,7 +266,8 @@ Check the target settings file for the plugin's required permissions (`git diff/
   bun ${CLAUDE_PLUGIN_ROOT}/scripts/evolve-finalize.ts .claude-code-hermit --core=<to> --plugin-root=${CLAUDE_PLUGIN_ROOT} [--sibling=<name>=<vNEW> ...]
   ```
 
-  - `<to>` is the plan's `to`. Add one `--sibling=<name>=<vNEW>` for each sibling hermit upgraded in Step 7 (where `name` is the sibling's plugin name and `vNEW` is its new version). Omit `--sibling` entirely if no siblings were upgraded.
+  - `<to>` is the plan's `to`. Add one `--sibling=<name>=<vNEW>` for each sibling hermit with a **version gap** that was upgraded in Step 7 (where `name` is the sibling's plugin name and `vNEW` is its `sibling.to`). Omit `--sibling` for no-gap siblings (no version to bump). Omit `--sibling` entirely if no siblings had a gap.
+  - **When `plan.up_to_date` is `true` (core current, sibling-only run):** the plan's `to` is still used as `--core=<to>`. evolve-finalize will bump the core key to `to`, which is a no-op (core was already at that version). This keeps the finalizer as the single atomic writer.
   - Parse stdout as JSON. The finalizer's `core.confirmed` is the **authoritative on-disk version** — use it as `vNEW` in the Step 10 report, NOT `plan.to`.
   - If `core.matched` is `false` or `errors` is non-empty, the bump did not land: set the `Upgrade:` line in the Step 10 report to `blocked: config version bump failed (<joined errors>)` and stop.
 
@@ -275,14 +278,21 @@ Check the target settings file for the plugin's required permissions (`git diff/
 **Report contract** — the subagent's final message is exactly this; non-deferred runs carry no deferred block, so the common payload is tiny:
 
 ```
-Upgrade: vOLD -> vNEW | already up to date | blocked: <reason>
+Upgrade: vOLD -> vNEW | core current vNEW | blocked: <reason>
 Settings added: <keys | none>
 Templates: <refreshed/restored/kept-N/conflicts-parked-N | none>
 Bin wrappers: <restored/replaced(.bak) | none>
 Docker entrypoint: <refreshed | conflict-replaced(<backup path>) | n/a>
 Docker rebuild: <needed + order | base-patched | no>
 CLAUDE-APPEND: <updated | unchanged>
-Sibling hermits: <name vOLD->vNEW ... | none>
+Sibling hermits: <one or more of the following per sibling, space-separated, or "none">
+  <name vOLD->vNEW>           (confirmed by finalizer — only from siblings_confirmed)
+  <name current>              (no version gap)
+  <name block-drifted>        (no gap but CLAUDE-APPEND differs from template — advisory only, not edited)
+  <name path-unresolved>      (in _hermit_versions but no project-effective plugin-list match)
+  <name SKIPPED-by-finalizer> (finalizer's siblings_skipped — never report as upgraded)
+Siblings detected but not activated: <name ... | none>
+Siblings warnings: <one line per siblings_warnings entry | none>
 Permissions added: <entries | none>
 Deferred for operator: <none | one or more verbatim blocks, each:>
   --- deferred-migration ---
@@ -293,6 +303,8 @@ Deferred for operator: <none | one or more verbatim blocks, each:>
   skipped: <the safe/no-op branch taken, or "skipped pending operator">
   --- end ---
 ```
+
+**Sibling report integrity:** parse the finalizer JSON `siblings_confirmed` and `siblings_skipped`. Only names in `siblings_confirmed` may be reported as `vOLD->vNEW`. Any name in `siblings_skipped` must be reported as `SKIPPED-by-finalizer` — never as upgraded, even if Step 7 said it ran.
 
 **Failure fallback.** If the Agent call returned null/empty (subagent died — same partial-state risk as an in-loop failure), report "evolve delegation failed — run `/claude-code-hermit:hermit-evolve` manually" and fire that as the channel notification. Stop.
 

@@ -3,7 +3,6 @@ name: ha-pattern-analyst
 description: Analyzes HA history artifacts and entity data to identify patterns, anomalies, and automation opportunities. Cheap and fast — read-only.
 model: haiku
 effort: low
-maxTurns: 15
 tools:
   - Read
   - Bash

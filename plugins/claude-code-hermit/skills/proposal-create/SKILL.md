@@ -45,6 +45,13 @@ bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
 - `CREATE` — proceed with the steps below
 - `DUPLICATE:<PROP-ID> — <reason>`: stop, report to the caller: "Proposal already exists as <PROP-ID>"
 - `SUPPRESS — <code>: <reason>`: stop, report the suppression reason to the caller
+- **Unrecognized line 1** (agent errored, returned malformed/empty output, or was terminated before emitting a verdict): fail closed — do not create the proposal; skip the triage-verdict append above. Append:
+  ```bash
+  bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
+    .claude-code-hermit/state/proposal-metrics.jsonl \
+    '{"ts":"<now ISO>","type":"gate-failed","agent":"proposal-triage","title":"<title>"}'
+  ```
+  Note `gate-failed: proposal-triage — <title>` in the SHELL.md Progress Log. The candidate re-surfaces on the next reflect cycle.
 
 ## How to Create
 

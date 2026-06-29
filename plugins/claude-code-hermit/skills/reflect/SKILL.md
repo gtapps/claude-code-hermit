@@ -22,7 +22,7 @@ If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --qu
   HERMIT_METRICS_JSON
   ```
   so the signal survives session archival and can graduate by recurrence (§ Outcomes). **Exception:** a `current-session` candidate with `Evidence Origin: external-content` (see § Proposal Tier Classification) is **not** deferred — send it to the judge and let the Tier-3 escalation route it to `proposal-create`.
-- For each candidate that passes the evidence integrity rule, run `claude-code-hermit:proposal-triage`. Collect candidates where triage returned CREATE, then make a single `claude-code-hermit:reflection-judge` call for those candidates (see § Evidence Validation for input/output format). Route each ACCEPT/DOWNGRADE verdict through the standard Outcomes path (micro-approval queue for Tier 1/2, `/claude-code-hermit:proposal-create` for Tier 3).
+- For each candidate that passes the evidence integrity rule, run `claude-code-hermit:proposal-triage`. Collect candidates where triage returned CREATE, then make a single `claude-code-hermit:reflection-judge` call for those candidates (see § Evidence Validation for input/output format). Route each ACCEPT/DOWNGRADE verdict through the standard Outcomes path (micro-approval queue for Tier 1/2, `/claude-code-hermit:proposal-create` for Tier 3). An unrecognized triage or judge verdict (empty/malformed output) is treated as a SUPPRESS — drop the candidate and apply the gate-failed metric and Progress Log note (see § Proposal triage gate and § Evidence Validation for the append commands).
 - Append one Progress Log line: `[HH:MM] reflect (quick, post-routine) — N candidates; verdicts: accept=A downgrade=D suppress=S; outcomes: <list or "none">`. When suppress>0, append the same `; suppressed: [<slug>: <code>, ...]` suffix the scheduled path uses (see § Progress Log Entry) so quick-run suppressions reach the weekly digest.
 - **Do not call `update-reflection-state.ts`** — quick runs are event-driven, not cadence ticks. Mutating `last_run_at` would suppress the next scheduled reflect. Consequence: judge verdicts from quick runs do not accumulate into the Component Health counters (`judge_accept` / `judge_suppress`); on daemons with frequent `reflect_after` use, those counters will under-represent total judge activity. This is intentional — cadence preservation wins.
 - Then stop. Do not continue to the scheduled-reflect steps below.
@@ -281,6 +281,13 @@ The judge returns one verdict line per candidate, matched by `<title>`. Apply th
 - **ACCEPT** or **ACCEPT (<source>)** — proceed with the candidate at its original tier
 - **DOWNGRADE:<new-tier>** or **DOWNGRADE:<new-tier> (<source>)** — proceed at the revised tier. When the reason contains `quarantine: external origin`, the revised tier is 3 regardless of apparent reversibility — route to `proposal-create` and pass `Evidence Origin: external-content` through so proposal-create can write the operator-visible provenance line in the PROP body. reflect does not write the PROP body itself.
 - **SUPPRESS** — if suppressed with code `no-sessions`, note the candidate in SHELL.md Findings for future revisit. Otherwise drop silently.
+- **Unrecognized line** for a candidate (agent errored, returned malformed/empty output, or was terminated mid-batch): fail closed — treat as SUPPRESS. Append:
+  ```bash
+  bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
+    .claude-code-hermit/state/proposal-metrics.jsonl \
+    '{"ts":"<now ISO>","type":"gate-failed","agent":"reflection-judge","title":"<title>"}'
+  ```
+  Note `gate-failed: reflection-judge — <title>` in the SHELL.md Progress Log. The candidate re-surfaces on the next reflect cycle.
 
 Only act on ACCEPT and DOWNGRADE verdicts. `proposal-triage` (the gate in § Proposal Tier Classification) is single-candidate — invoke it per-candidate, not as a batch.
 
@@ -345,6 +352,13 @@ Evidence: <one-paragraph evidence summary>
 - `CREATE` — proceed
 - `DUPLICATE:<PROP-ID>` — link to existing proposal in SHELL.md Findings instead, do not create
 - `SUPPRESS` — drop silently
+- **Unrecognized line 1** (agent errored, returned malformed/empty output, or was terminated before emitting a verdict): fail closed — do not create or queue the candidate; skip the triage-verdict append. Append:
+  ```bash
+  bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
+    .claude-code-hermit/state/proposal-metrics.jsonl \
+    '{"ts":"<now ISO>","type":"gate-failed","agent":"proposal-triage","title":"<title>"}'
+  ```
+  Note `gate-failed: proposal-triage — <title>` in the SHELL.md Progress Log. The candidate re-surfaces on the next reflect cycle.
 
 Parse line 1 as the verdict. Lines 2+ are additive metadata (`closest_prop`, `aligned`, `operator_excerpt`, `overlap_compiled`, `prior_discussion`, `failed_condition`) — read for context if useful, but do not treat as part of the verdict for branching.
 

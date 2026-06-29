@@ -360,22 +360,35 @@ case "$CMD" in
       fi
     fi
 
-    # Auto-chain hermit-evolve when the core plugin version moved past the config baseline.
-    # Both sides are reachable without guessing: NEW from the post-update enumeration, the
-    # baseline from the bind-mounted config.json the in-container evolve will itself update.
+    # Auto-chain hermit-evolve when any registered hermit (core or sibling) has a version gap.
+    # PLUGIN_ROWS_AFTER is a TSV where $1=name@marketplace and $3=version (different from
+    # hermit-update's $2/$4 layout). Detects sibling-only bumps as well as core bumps.
     EVOLVE_SENT=false
-    NEW_HERMIT_VER=""; CONFIG_HERMIT_VER=""
     if [ "$CC_ONLY" = false ] && [ "$RELOAD_PLUGINS_SENT" = true ]; then
-      NEW_HERMIT_VER=$(printf '%s\n' "$PLUGIN_ROWS_AFTER" | awk -F'\t' '$1 ~ /^claude-code-hermit@/ {print $3; exit}')
-      CONFIG_HERMIT_VER=$(bun -e 'try { const c = JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); console.log((c._hermit_versions ?? {})["claude-code-hermit"] ?? ""); } catch { console.log(""); }' \
-        "$PROJECT_DIR/.claude-code-hermit/config.json" 2>/dev/null || echo "")
+      # Check whether any registered hermit has a version gap (core or sibling).
+      HERMIT_GAP=$(bun -e '
+        const rows = process.argv[1];
+        const configPath = process.argv[2];
+        try {
+          const c = JSON.parse(require("fs").readFileSync(configPath, "utf8"));
+          const vers = c._hermit_versions ?? {};
+          for (const line of rows.split("\n").filter(Boolean)) {
+            const cols = line.split("\t");
+            const id = cols[0] ?? ""; const newVer = cols[2] ?? "";
+            const name = id.split("@")[0];
+            if (!name.includes("hermit") || !newVer) continue;
+            const configVer = vers[name];
+            if (configVer && configVer !== newVer) { process.stdout.write("1\n"); process.exit(0); }
+          }
+          process.stdout.write("0\n");
+        } catch { process.stdout.write("0\n"); }
+      ' "$PLUGIN_ROWS_AFTER" "$PROJECT_DIR/.claude-code-hermit/config.json" 2>/dev/null || echo "0")
       CORE_FAILED=false
       for _fid in "${PLUGINS_FAIL_IDS[@]:-}"; do
         case "$_fid" in claude-code-hermit@*) CORE_FAILED=true ;; esac
       done
-      if [ -n "$NEW_HERMIT_VER" ] && [ -n "$CONFIG_HERMIT_VER" ] && \
-         [ "$NEW_HERMIT_VER" != "$CONFIG_HERMIT_VER" ] && [ "$CORE_FAILED" = false ]; then
-        echo "[hermit] Hermit gap: config v${CONFIG_HERMIT_VER} → plugin v${NEW_HERMIT_VER}. Chaining hermit-evolve (unattended)..."
+      if [ "$HERMIT_GAP" = "1" ] && [ "$CORE_FAILED" = false ]; then
+        echo "[hermit] Hermit gap detected (core or sibling). Chaining hermit-evolve (unattended)..."
         if _wait_for_claude_prompt; then
           cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
             tmux send-keys -t "$TMUX_SESSION:0.0" "/claude-code-hermit:hermit-evolve unattended" 2>/dev/null || true
@@ -469,8 +482,6 @@ JSEOF
       fi
       if [ "$EVOLVE_SENT" = true ]; then
         echo "  hermit-evolve auto-started (unattended) — hermit config is upgrading."
-      elif [ -n "$NEW_HERMIT_VER" ] && [ -n "$CONFIG_HERMIT_VER" ] && [ "$NEW_HERMIT_VER" != "$CONFIG_HERMIT_VER" ]; then
-        echo "  Hermit plugin version bumped — run: /claude-code-hermit:hermit-evolve"
       fi
     fi
     echo ""
