@@ -9,6 +9,8 @@ Language-agnostic safety layer for any agent doing dev work in a hermit project.
 - `skills/dev-quality/` — pre-wrap quality gate: runs `/claude-code-hermit:simplify` on the working tree (cleanup pass) and re-runs `commands.test` if configured. Surfaces failures; suggests native `/code-review` for a deeper correctness review.
 - `skills/dev-test/` — run the configured test suite and record the result to `state/last-test.json`. Useful for mid-task verification and warming the `/dev-pr` test cache.
 - `skills/domain-brainstorm/` — on-demand codebase friction brainstorm: reads git churn, last test signal, manifest drift, and README coverage to surface at most 2 `[prefix]`-tagged improvement proposals. Operator-invoked only. Kill criteria: retire if triage-survival < 25% or PROP-acceptance < 30% after ≥8 runs.
+- `skills/diagnosing-bugs/` — diagnosis loop for hard bugs and performance regressions. Builds a red-capable feedback loop and runs it before hypothesising. Complements `feature-dev:code-reviewer` (static read) by running actual repros. Adapted from mattpocock/skills (MIT).
+- `skills/resolving-merge-conflicts/` — autonomous 5-step conflict resolution for in-progress git merge/rebase. Never `--abort`; runs project checks after resolving. Adapted from mattpocock/skills (MIT).
 - `scripts/git-push-guard.ts` — strict-profile-only `PreToolUse` hook for Bash. Blocks `--no-verify`, `--force`/`-f` (always), `--force-with-lease` on protected branches or without an explicit refspec, `--mirror`/`--all`, and direct push to any branch in `claude-code-dev-hermit.protected_branches`.
 - `scripts/worktree-boundary-guard.ts` — `PreToolUse` hook for `Edit`/`Write`. In a linked git worktree, blocks edits that escape into the main checkout (`.claude-code-hermit/` carved out). Self-limiting (no profile gate — inert outside worktrees); `WORKTREE_GUARD=off` disables it.
 - `hooks/hooks.json` — registers `git-push-guard.ts` and `worktree-boundary-guard.ts`.
@@ -21,7 +23,7 @@ Language-agnostic safety layer for any agent doing dev work in a hermit project.
 
 ## Constraints
 
-- Before implementing any new capability, check Claude Code docs (https://code.claude.com/docs) and plugins (https://claude.com/plugins) for native features that already cover it. If overlap exists, delegate — don't build. Specifically: built-in skills (`/code-review`, `/batch`, `/debug`) and the plugin-owned `/claude-code-hermit:simplify` cleanup pass already cover common surfaces; link to them from CLAUDE-APPEND or this README rather than reimplementing.
+- Before implementing any new capability, check Claude Code docs (https://code.claude.com/docs) and plugins (https://claude.com/plugins) for native features that already cover it. If overlap exists, delegate — don't build. Specifically: built-in skills (`/code-review`, `/batch`) and the plugin-owned `/claude-code-hermit:simplify` cleanup pass already cover common surfaces; link to them from CLAUDE-APPEND or this README rather than reimplementing. (Note: `/debug` enables Claude Code session debug logging — it is not a code-debugging surface.)
 
 ## Hook Profiles
 

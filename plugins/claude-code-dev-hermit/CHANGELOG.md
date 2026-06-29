@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **diagnosing-bugs skill: build a red-capable feedback loop before hypothesising** — adapted from mattpocock/skills (MIT); fills the gap between static code review (`feature-dev:code-reviewer`) and running actual repros. Reads `compiled/` for architectural context; drops diagnostic artifacts in `raw/`.
+- **resolving-merge-conflicts skill: autonomous 5-step conflict resolution** — adapted from mattpocock/skills (MIT); unattended rebase/PR work had no conflict guardrail.
+
+### Fixed
+- **CLAUDE.md constraints: remove /debug from the code-dev delegate-don't-build list** — `/debug` enables Claude Code session debug logging, not code diagnostics; listing it alongside `/code-review` and `/batch` was misleading.
+
 ## [0.4.5] - 2026-06-24
 
 ### Fixed

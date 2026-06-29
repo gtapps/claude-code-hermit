@@ -40,7 +40,9 @@ claude plugin install claude-code-dev-hermit@claude-code-hermit --scope local
 
 **Optional workflow scaffolding.** For greenfield projects without their own commit/PR/release conventions: `/dev-pr` pushes the branch and opens a PR assembled from commits + last test result + screenshots (`gh pr create` for GitHub, `glab mr create` for GitLab, or a custom command). `/dev-quality` runs `/claude-code-hermit:simplify` for a cleanup pass on the working tree and re-runs `commands.test` before you commit. `/dev-test` runs the configured suite and records the result so `/dev-pr` only opens PRs after tests pass at the current commit. If your project already has its own `/commit`, `/create-pr`, or `/release` skills, skip these — `/hatch` detects them and defaults to safety mode.
 
-That's it. One hook + one template, with optional workflow skills on top. Whatever you don't need — gone.
+**Engineering discipline skills.** Two autonomous skills for recurring dev situations: `diagnosing-bugs` builds a tight, red-capable feedback loop before hypothesising (complements `feature-dev:code-reviewer`'s static reading — neither runs repros); `resolving-merge-conflicts` resolves in-progress git conflicts autonomously in 5 steps — never `--abort`, always runs project checks after.
+
+That's it. One hook + one template, with optional workflow and engineering skills on top. Whatever you don't need — gone.
 
 ---
 
@@ -141,6 +143,11 @@ See [docs/GIT-SAFETY.md](docs/GIT-SAFETY.md) for the full safety model and the t
 - **`dev-quality` skill** — Pre-wrap quality gate. Runs `/claude-code-hermit:simplify` (cleanup pass) on the working tree, re-runs `commands.test`, and reports pass/fail. Suggests the native `/code-review` for a deeper correctness review — never invokes it.
 - **`dev-test` skill** — Run the configured test suite and record the result to `last-test.json`. Useful for mid-task verification and warming the `/dev-pr` cache.
 
+**Engineering discipline skills** (autonomous — no user prompts required):
+
+- **`diagnosing-bugs` skill** — Diagnosis loop for hard bugs and performance regressions. Builds a tight, red-capable feedback loop before hypothesising. Reads `compiled/` for architectural context; drops diagnostic artifacts (logs, repro snapshots) in `raw/`. Complements `feature-dev:code-reviewer` (static read) — neither runs repros; this one does.
+- **`resolving-merge-conflicts` skill** — Resolves in-progress git merge/rebase conflicts in 5 steps. Never `--abort`; runs project automated checks (typecheck, tests, format) after resolving; stages and commits to finish.
+
 ---
 
 ## Built-in Skills Used
@@ -149,7 +156,7 @@ These are Claude Code built-ins — no installation needed:
 
 - `/code-review` — read-only correctness review (built-in; available for explicit use, not invoked by `/dev-quality`).
 - `/batch` — same change across many files in parallel
-- `/debug` — diagnostics when something's stuck
+- `/debug` — enables Claude Code session debug logging (for diagnosing the agent/harness itself, not your code)
 
 The CLAUDE-APPEND.md `§Implementation Flow` points to `/dev-quality` as the pre-commit quality gate — it runs `/claude-code-hermit:simplify` (cleanup pass), re-runs `commands.test`, and records the result so `/dev-pr` can hit the cache at the current HEAD.
 
@@ -176,6 +183,7 @@ Bug fixes, doc improvements, sharper rules in CLAUDE-APPEND.md — all welcome. 
 - **[claude-code-hermit](https://github.com/gtapps/claude-code-hermit)** — the core plugin this extends
 - **[Claude Code plugins](https://github.com/anthropics/claude-code)** — the platform that makes this possible
 - The `git-push-guard` hook is adapted from [Everything Claude Code](https://github.com/affaan-m/everything-claude-code) (MIT)
+- The `diagnosing-bugs` and `resolving-merge-conflicts` skills are adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT)
 
 ## License
 
