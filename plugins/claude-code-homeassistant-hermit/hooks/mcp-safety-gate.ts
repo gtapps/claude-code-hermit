@@ -29,7 +29,16 @@
 
 import { readFileSync, writeSync } from 'node:fs';
 
-import { Severity, assistControl, classifyEntity, isReadOnlyTool, safetyMode } from '../src/policy';
+import {
+  Severity,
+  assistControl,
+  classifyEntity,
+  extractEntityIds,
+  hasUnresolvableTarget,
+  isReadOnlyTool,
+  isWellFormedEntityId,
+  safetyMode,
+} from '../src/policy';
 import { projectRoot } from '../src/config';
 
 // Emitted on both fail-closed branches (hard unresolvable target + opaque
@@ -38,63 +47,6 @@ import { projectRoot } from '../src/config';
 const NO_RESOLVABLE_TARGET_MSG =
   'Cannot verify target safety: no resolvable entity IDs found ' +
   '(area_id / device_id targets are not evaluated). Use a proposal instead.';
-
-/** Pull entity_id values from MCP tool parameters. */
-export function extractEntityIds(toolInput: Record<string, unknown>): string[] {
-  const ids: string[] = [];
-  for (const key of ['entity_id', 'device_id']) {
-    const val = toolInput[key];
-    if (typeof val === 'string' && val.includes('.')) {
-      ids.push(val);
-    } else if (Array.isArray(val)) {
-      ids.push(...val.filter((v): v is string => typeof v === 'string' && v.includes('.')));
-    }
-  }
-  const target = toolInput['target'];
-  if (typeof target === 'object' && target !== null && !Array.isArray(target)) {
-    const eid = (target as Record<string, unknown>)['entity_id'];
-    if (typeof eid === 'string' && eid.includes('.')) {
-      ids.push(eid);
-    } else if (Array.isArray(eid)) {
-      ids.push(...eid.filter((v): v is string => typeof v === 'string' && v.includes('.')));
-    }
-  }
-  return ids;
-}
-
-// Targeting selectors that fan a service call out to an entity set we cannot
-// enumerate here (HA resolves area/floor/label/device → entities server-side).
-// A call carrying any of these with a value that did NOT resolve to an
-// extracted, well-formed entity_id is unverifiable → fail closed, even when a
-// safe concrete entity_id is also present in the same call.
-const TARGETING_KEYS = ['area_id', 'floor_id', 'label_id', 'device_id'];
-
-export function hasUnresolvableTarget(
-  toolInput: Record<string, unknown>,
-  resolved: Set<string>,
-): boolean {
-  const scopes: Record<string, unknown>[] = [toolInput];
-  const target = toolInput['target'];
-  if (typeof target === 'object' && target !== null && !Array.isArray(target)) {
-    scopes.push(target as Record<string, unknown>);
-  }
-  for (const scope of scopes) {
-    for (const key of TARGETING_KEYS) {
-      const v = scope[key];
-      const values =
-        typeof v === 'string' ? (v ? [v] : []) : Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
-      // A device_id whose value was extracted as a dotted entity ref is
-      // resolvable; every other present targeting value is not.
-      if (values.some((val) => !resolved.has(val))) return true;
-    }
-  }
-  return false;
-}
-
-/** An entity_id is well-formed only with a non-empty domain segment (rejects `.lock`). */
-export function isWellFormedEntityId(id: string): boolean {
-  return id.split('.', 1)[0] !== '';
-}
 
 /** Encode a string exactly like CPython json.dumps (ensure_ascii=True). */
 export function pyJsonString(s: string): string {

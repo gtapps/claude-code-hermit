@@ -281,19 +281,27 @@ function invalidPayload(message: string): WsMutationResult {
   return { ok: false, data: null, message, reportPath: null };
 }
 
+/** Parse `json` as a JSON object, or a validation-error fragment (e.g. "is not valid JSON"). */
+export function parseJsonObject(
+  json: string,
+): { ok: true; payload: Record<string, unknown> } | { ok: false; message: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return { ok: false, message: 'is not valid JSON' };
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { ok: false, message: 'must be a JSON object' };
+  }
+  return { ok: true, payload: parsed as Record<string, unknown> };
+}
+
 /** Parse `json` as a JSON object payload, or an invalidPayload result labeled with `kind`. */
 function parseJsonObjectPayload(
   kind: string,
   json: string,
 ): { ok: true; payload: Record<string, unknown> } | { ok: false; error: WsMutationResult } {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(json);
-  } catch {
-    return { ok: false, error: invalidPayload(`${kind} JSON is not valid JSON`) };
-  }
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return { ok: false, error: invalidPayload(`${kind} JSON must be a JSON object`) };
-  }
-  return { ok: true, payload: parsed as Record<string, unknown> };
+  const result = parseJsonObject(json);
+  return result.ok ? result : { ok: false, error: invalidPayload(`${kind} JSON ${result.message}`) };
 }

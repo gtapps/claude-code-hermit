@@ -8,9 +8,12 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 - **`ha list-dashboards` / `ha get-dashboard [--url-path]`** — read Lovelace dashboards via WebSocket (`lovelace/dashboards/list`, `lovelace/config`). First slice of the dashboard build/maintain surface; writes (apply/create/delete) land in a follow-up once their WS payload shapes are live-verified.
 - **`ha apply-dashboard` / `ha create-dashboard` / `ha delete-dashboard`** — gated dashboard writes via WebSocket (`lovelace/config/save`, `lovelace/dashboards/create|delete`). Payload shapes cross-checked against `home-assistant/core`'s generic storage-collection handler (same pattern as areas/helpers); gated by `ha_safety_mode` like every other structural mutation. Completes the Phase 1 dashboard build surface.
 - **`ha render-template <file|->` / `ha check-config`** — render a Jinja2 template against live state (`POST /api/template`) and validate the HA config (`POST /api/config/core/check_config`). Not gated (read-only against HA's engines). First slice of Phase 2's dev/test/maintain loop primitives.
+- **`ha call-service <domain.service> [--data json]`** — call any HA service (`POST /api/services/...`). A new `gateServiceCall` policy gate (in `policy.ts`) classifies the target `domain.service` and any `entity_id`/`device_id`/`target` references in `--data` via the existing per-entity policy: sensitive domains (lock/alarm) block as a proposal under strict and require `--confirm` under ask; non-sensitive calls (reloads, `notify.*`, `recorder.purge`) proceed in both modes, since gating every call would defeat call-service's maintenance purpose. Malformed or unresolvable targeting (wrong-shaped `target`, non-string `entity_id`, an `area_id`/`floor_id`/`label_id`/`device_id` selector) fails closed regardless of mode. Completes Phase 2's control-vector item.
 
 ### Changed
 - **`HomeAssistantClient.postText()`** — new raw-response POST variant; `/api/template` returns plain text, not JSON, which the existing `post()`'s unconditional `JSON.parse` would reject as malformed.
+- **`extractEntityIds`/`hasUnresolvableTarget`/`isWellFormedEntityId` relocated to `policy.ts`** — moved out of the MCP safety hook so `call-service` can reuse the same fail-closed entity-resolution logic. Hook behavior is unchanged (`tests/gate-corpus.test.ts`/`tests/gate-fuzz.test.ts` verify byte-identical output).
+- **`check-config` reuses `apply.ts`'s `isConfigCheckOk`** instead of a narrower inline check.
 
 ## [0.3.1] - 2026-06-29
 

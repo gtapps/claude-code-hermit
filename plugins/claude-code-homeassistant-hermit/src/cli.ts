@@ -20,6 +20,7 @@ import { relative, resolve } from 'node:path';
 import { isConfigCheckOk, readConfig, removeConfig, validateAndApply } from './apply';
 import {
   currentSessionId,
+  slugify,
   standardMetadata,
   utcTimestamp,
   writeJsonArtifact,
@@ -37,7 +38,7 @@ import {
   formatIntegrationHealthStdout,
   writeDegradedDomainsArtifact,
 } from './integration-health';
-import { checkEntity, gateStructuralMutation, normalizeEntityIndex } from './policy';
+import { checkEntity, gateServiceCall, gateStructuralMutation, normalizeEntityIndex } from './policy';
 import { evaluateYamlPolicy, simulateArtifact } from './simulate';
 import { computeSilenceSummary } from './silence';
 import { captureStates, restoreStates, DEFAULT_DOMAINS } from './snapshot-restore';
@@ -58,6 +59,7 @@ import {
   listDevices,
   listEntities,
   listHelpers,
+  parseJsonObject,
   saveDashboard,
   updateDevice,
   updateEntity,
@@ -185,6 +187,7 @@ const HA_COMMANDS = [
   'delete-dashboard',
   'render-template',
   'check-config',
+  'call-service',
   'trigger-automation',
 ] as const;
 const HA_USAGE = [
@@ -263,6 +266,9 @@ positional arguments:
                         HA's template engine).
     check-config        Validate the HA configuration
                         (POST /api/config/core/check_config). Not gated.
+    call-service        Call any HA service (POST /api/services/...).
+                        Sensitive domains/entities gated by ha_safety_mode;
+                        non-sensitive calls proceed in both modes.
     trigger-automation  Fire an automation by entity_id via automation.trigger.
 
 options:
@@ -646,6 +652,12 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
     usage: 'usage: ha_agent_lab ha check-config [-h]',
     positionals: [],
     flags: {},
+  },
+  'ha call-service': {
+    prog: 'ha_agent_lab ha call-service',
+    usage: 'usage: ha_agent_lab ha call-service [-h] [--data DATA] [--confirm] domain.service',
+    positionals: ['domain.service'],
+    flags: { '--data': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
   },
   'ha trigger-automation': {
     prog: 'ha_agent_lab ha trigger-automation',
@@ -1125,6 +1137,17 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
     }
   }
 
+  if (args.command === 'ha' && args.sub === 'call-service') {
+    return handleCallService(
+      args.positionals[0]!,
+      args.flags['--data'] as string | undefined,
+      Boolean(args.flags['--confirm']),
+      root,
+      config,
+      deps,
+    );
+  }
+
   if (args.command === 'ha' && args.sub === 'trigger-automation') {
     return handleTriggerAutomation(args.positionals[0]!, config, deps);
   }
@@ -1375,6 +1398,104 @@ function printSafetyAuditSummary(summary: Record<string, any>, domain = 'automat
   if (acknowledged.length > 0) console.log(`Acknowledged (suppressed): ${acknowledged.length}`);
   if (unmanaged.length > 0) console.log(`Skipped (no numeric id): ${unmanaged.length}`);
   if (fetchFailures.length > 0) console.log(`Skipped (404 on config fetch): ${fetchFailures.length}`);
+}
+
+/** Every gated call-service that actually reaches HA writes an audit report — matches restoreStates. */
+function writeCallServiceReport(root: string, domainService: string, data: Record<string, unknown>): string {
+  const metadata = standardMetadata('call-service', `Call-Service Report — ${domainService}`, {
+    session: currentSessionId(root),
+    tags: ['ha-call-service'],
+    extra: { domain_service: domainService, data },
+  });
+  const body = [`# Call-Service Report for \`${domainService}\``, '', `- data: ${JSON.stringify(data)}`].join(
+    '\n',
+  );
+  return writeMarkdownArtifact(
+    root,
+    '.claude-code-hermit/raw',
+    `audit-ha-call-service-${slugify(domainService)}`,
+    metadata,
+    body,
+    'audit-ha-call-service-latest.md',
+  );
+}
+
+async function handleCallService(
+  target: string,
+  rawData: string | undefined,
+  confirmed: boolean,
+  root: string,
+  config: AppConfig,
+  deps: CliDeps,
+): Promise<number> {
+  const dot = target.indexOf('.');
+  if (dot === -1) {
+    console.log(jsonDumps({ ok: false, message: `domain.service must contain a '.', got: '${target}'` }));
+    return 2;
+  }
+  const domain = target.slice(0, dot);
+  const service = target.slice(dot + 1);
+
+  let data: Record<string, unknown> = {};
+  if (rawData !== undefined) {
+    const parsedData = parseJsonObject(rawData);
+    if (!parsedData.ok) {
+      console.log(jsonDumps({ ok: false, message: `--data ${parsedData.message}` }));
+      return 1;
+    }
+    data = parsedData.payload;
+  }
+
+  const gate = gateServiceCall(root, domain, service, data, confirmed);
+  if (!gate.allowed) {
+    console.log(
+      jsonDumps({
+        ok: false,
+        blocked: true,
+        requires_confirm: gate.requiresConfirm,
+        mode: gate.mode,
+        data: null,
+        message: gate.reason,
+        report_path: null,
+      }),
+    );
+    return 1;
+  }
+
+  try {
+    const client = await deps.createClient(config);
+    const result = await client.callService(domain, service, data);
+    const reportPath = writeCallServiceReport(root, target, data);
+    console.log(
+      jsonDumps(
+        {
+          ok: true,
+          blocked: false,
+          requires_confirm: false,
+          mode: gate.mode,
+          data: result,
+          message: 'ok',
+          report_path: relative(root, reportPath),
+        },
+        { ensureAscii: false },
+      ),
+    );
+    return 0;
+  } catch (exc) {
+    if (!(exc instanceof HomeAssistantError)) throw exc;
+    console.log(
+      jsonDumps({
+        ok: false,
+        blocked: false,
+        requires_confirm: false,
+        mode: gate.mode,
+        data: null,
+        message: extractHaErrorMessage(exc),
+        report_path: null,
+      }),
+    );
+    return 1;
+  }
 }
 
 async function handleTriggerAutomation(

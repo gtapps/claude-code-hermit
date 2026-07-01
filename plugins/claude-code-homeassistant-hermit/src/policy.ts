@@ -204,6 +204,106 @@ export function evaluateReferences(
   return { severity: maxSev, blocked: maxSev === Severity.BLOCK, reasons };
 }
 
+const TARGET_SHAPE_KEYS = ['entity_id', 'device_id', 'area_id', 'floor_id', 'label_id'];
+
+/**
+ * True if `data` carries a known targeting key (top-level or nested under
+ * `target`) in a shape extractEntityIds/hasUnresolvableTarget can't see — a
+ * value that isn't a string or an array of strings, or a `target` that isn't
+ * a plain object. Without this, a payload like `--data
+ * '{"target":["lock.front_door"]}'` (target as an array) or `{"entity_id":
+ * 123}` extracts zero entity IDs and trips no unresolvable-target check,
+ * silently passing as ALLOW when the domain.service itself isn't sensitive.
+ * Scoped to gateServiceCall only — the shared hook-facing extractors below
+ * stay untouched (pinned by tests/gate-corpus.test.ts / gate-fuzz.test.ts).
+ */
+function hasMalformedTargetShape(data: Record<string, unknown>): boolean {
+  const isStringOrStringArray = (value: unknown): boolean =>
+    value === undefined ||
+    typeof value === 'string' ||
+    (Array.isArray(value) && value.every((v) => typeof v === 'string'));
+
+  if (TARGET_SHAPE_KEYS.some((key) => !isStringOrStringArray(data[key]))) return true;
+
+  const target = data['target'];
+  if (target === undefined) return false;
+  if (target === null || typeof target !== 'object' || Array.isArray(target)) return true;
+  return TARGET_SHAPE_KEYS.some((key) => !isStringOrStringArray((target as Record<string, unknown>)[key]));
+}
+
+/**
+ * Gate for `ha call-service` — classifies the target `domain.service` and any
+ * entity_id/device_id/target references in `data` via the same per-entity
+ * policy used for MCP tool calls. Unlike gateStructuralMutation, a call with
+ * nothing sensitive proceeds in both modes: call-service exists for
+ * maintenance (reloads, recorder.purge, notify.*), and gating every call
+ * unconditionally would defeat that purpose.
+ *
+ * Unresolvable targets (a malformed entity_id, a malformed targeting field
+ * shape, or an area_id/floor_id/label_id/device_id selector that doesn't
+ * resolve to a concrete entity) fail closed regardless of mode or --confirm —
+ * same fail-closed rule as the MCP safety hook, because HA resolves those
+ * selectors server-side and we cannot enumerate the entity set they fan out
+ * to.
+ */
+export function gateServiceCall(
+  root: string | null | undefined,
+  domain: string,
+  service: string,
+  data: Record<string, unknown>,
+  confirmed = false,
+): MutationGate {
+  const mode = safetyMode(root);
+  if (hasMalformedTargetShape(data)) {
+    return {
+      allowed: false,
+      requiresConfirm: false,
+      mode,
+      reason:
+        'Cannot verify target safety: malformed targeting field ' +
+        '(expected a string or array of strings). Use a proposal instead.',
+    };
+  }
+  const entityIds = extractEntityIds(data);
+  const resolved = entityIds.filter(isWellFormedEntityId);
+  if (resolved.length !== entityIds.length || hasUnresolvableTarget(data, new Set(resolved))) {
+    return {
+      allowed: false,
+      requiresConfirm: false,
+      mode,
+      reason:
+        'Cannot verify target safety: no resolvable entity IDs found ' +
+        '(area_id/floor_id/label_id/device_id targets are not evaluated). Use a proposal instead.',
+    };
+  }
+
+  const decision = evaluateReferences(entityIds, [`${domain}.${service}`], root);
+  if (decision.severity === Severity.ALLOW) {
+    return { allowed: true, requiresConfirm: false, mode, reason: 'ok' };
+  }
+  if (decision.blocked) {
+    return {
+      allowed: false,
+      requiresConfirm: false,
+      mode,
+      reason:
+        `Blocked under strict ha_safety_mode (${decision.reasons.join('; ')}) — ` +
+        'surface this as a proposal for the operator to approve.',
+    };
+  }
+  if (confirmed) {
+    return { allowed: true, requiresConfirm: false, mode, reason: 'Approved via --confirm.' };
+  }
+  return {
+    allowed: false,
+    requiresConfirm: true,
+    mode,
+    reason:
+      `Requires operator confirmation under ask ha_safety_mode (${decision.reasons.join('; ')}) — ` +
+      're-run with --confirm once the operator approves.',
+  };
+}
+
 export function canReloadDomain(domain: string): boolean {
   return SAFE_RELOAD_DOMAINS.has(domain);
 }
@@ -224,6 +324,69 @@ export function checkEntity(entityId: string): EntityCheck {
     severity: sev,
     reasons,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Entity-reference extraction (shared by the MCP safety hook and `ha
+// call-service`) — fail-closed resolution of entity_id/device_id/target
+// selectors out of a tool-call or service-call payload.
+// ---------------------------------------------------------------------------
+
+/** Pull entity_id values from a tool/service call's parameters. */
+export function extractEntityIds(toolInput: Record<string, unknown>): string[] {
+  const ids: string[] = [];
+  for (const key of ['entity_id', 'device_id']) {
+    const val = toolInput[key];
+    if (typeof val === 'string' && val.includes('.')) {
+      ids.push(val);
+    } else if (Array.isArray(val)) {
+      ids.push(...val.filter((v): v is string => typeof v === 'string' && v.includes('.')));
+    }
+  }
+  const target = toolInput['target'];
+  if (typeof target === 'object' && target !== null && !Array.isArray(target)) {
+    const eid = (target as Record<string, unknown>)['entity_id'];
+    if (typeof eid === 'string' && eid.includes('.')) {
+      ids.push(eid);
+    } else if (Array.isArray(eid)) {
+      ids.push(...eid.filter((v): v is string => typeof v === 'string' && v.includes('.')));
+    }
+  }
+  return ids;
+}
+
+// Targeting selectors that fan a call out to an entity set we cannot
+// enumerate here (HA resolves area/floor/label/device → entities server-side).
+// A call carrying any of these with a value that did NOT resolve to an
+// extracted, well-formed entity_id is unverifiable → fail closed, even when a
+// safe concrete entity_id is also present in the same call.
+const TARGETING_KEYS = ['area_id', 'floor_id', 'label_id', 'device_id'];
+
+export function hasUnresolvableTarget(
+  toolInput: Record<string, unknown>,
+  resolved: Set<string>,
+): boolean {
+  const scopes: Record<string, unknown>[] = [toolInput];
+  const target = toolInput['target'];
+  if (typeof target === 'object' && target !== null && !Array.isArray(target)) {
+    scopes.push(target as Record<string, unknown>);
+  }
+  for (const scope of scopes) {
+    for (const key of TARGETING_KEYS) {
+      const v = scope[key];
+      const values =
+        typeof v === 'string' ? (v ? [v] : []) : Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+      // A device_id whose value was extracted as a dotted entity ref is
+      // resolvable; every other present targeting value is not.
+      if (values.some((val) => !resolved.has(val))) return true;
+    }
+  }
+  return false;
+}
+
+/** An entity_id is well-formed only with a non-empty domain segment (rejects `.lock`). */
+export function isWellFormedEntityId(id: string): boolean {
+  return id.split('.', 1)[0] !== '';
 }
 
 export function normalizeEntityIndex(
