@@ -44,7 +44,21 @@ test('get script config ok', async () => {
   expect(client.calls.get).toEqual(['/api/config/script/config/garage_gate']);
 });
 
-for (const command of ['get-automation-config', 'get-script-config']) {
+test('get scene config ok', async () => {
+  const configPayload = { id: 'movie_night', name: 'Movie Night', entities: {} };
+  const client = fakeClient({ get: () => configPayload });
+  const { code, out } = await runCli(['ha', 'get-scene-config', 'movie_night'], client);
+
+  expect(code).toBe(0);
+  const parsed = JSON.parse(out);
+  expect(parsed.ok).toBe(true);
+  expect(parsed.domain).toBe('scene');
+  expect(parsed.config_id).toBe('movie_night');
+  expect(parsed.config).toEqual(configPayload);
+  expect(client.calls.get).toEqual(['/api/config/scene/config/movie_night']);
+});
+
+for (const command of ['get-automation-config', 'get-script-config', 'get-scene-config']) {
   test(`${command} not found exits nonzero`, async () => {
     const client = fakeClient({
       get: () => {

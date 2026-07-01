@@ -58,10 +58,13 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-automations
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-scripts
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-automations
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-scripts
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-scenes
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-automation <id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-script <id>
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-scene <id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-automation-config <id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-script-config <id>
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-scene-config <id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha automation-diff
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha snapshot-states [--name <label>] [--domains light,cover,climate,switch] [--entities <id> …]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha restore-states <artifact> [--confirm]

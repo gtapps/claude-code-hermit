@@ -175,10 +175,13 @@ const HA_COMMANDS = [
   'fetch-history',
   'list-automations',
   'list-scripts',
+  'list-scenes',
   'delete-automation',
   'delete-script',
+  'delete-scene',
   'get-automation-config',
   'get-script-config',
+  'get-scene-config',
   'automation-diff',
   'snapshot-states',
   'restore-states',
@@ -266,11 +269,14 @@ positional arguments:
                         \`refresh-context\` first if none exists.
     list-automations    List all automation entity IDs and config IDs.
     list-scripts        List all script entity IDs and config IDs.
+    list-scenes         List all scene entity IDs and config IDs.
     delete-automation   Delete an automation config by ID.
     delete-script       Delete a script config by ID.
+    delete-scene        Delete a scene config by ID.
     get-automation-config
                         Read an automation's stored config from HA.
     get-script-config   Read a script's stored config from HA.
+    get-scene-config    Read a scene's stored config from HA.
     automation-diff     Report automations added/removed/edited/disabled since
                         the last snapshot (change memory across sessions).
     snapshot-states     Capture entity states to a named artifact for later
@@ -553,6 +559,12 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
     positionals: [],
     flags: {},
   },
+  'ha list-scenes': {
+    prog: 'ha_agent_lab ha list-scenes',
+    usage: 'usage: ha_agent_lab ha list-scenes [-h]',
+    positionals: [],
+    flags: {},
+  },
   'ha delete-automation': {
     prog: 'ha_agent_lab ha delete-automation',
     usage: 'usage: ha_agent_lab ha delete-automation [-h] id',
@@ -565,9 +577,21 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
     positionals: ['id'],
     flags: {},
   },
+  'ha delete-scene': {
+    prog: 'ha_agent_lab ha delete-scene',
+    usage: 'usage: ha_agent_lab ha delete-scene [-h] id',
+    positionals: ['id'],
+    flags: {},
+  },
   'ha get-automation-config': {
     prog: 'ha_agent_lab ha get-automation-config',
     usage: 'usage: ha_agent_lab ha get-automation-config [-h] id',
+    positionals: ['id'],
+    flags: {},
+  },
+  'ha get-scene-config': {
+    prog: 'ha_agent_lab ha get-scene-config',
+    usage: 'usage: ha_agent_lab ha get-scene-config [-h] id',
     positionals: ['id'],
     flags: {},
   },
@@ -1140,11 +1164,45 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
     }
   }
 
+  if (args.command === 'ha' && args.sub === 'list-scenes') {
+    try {
+      const client = await deps.createClient(config);
+      const items = await listDomain(client, 'scene');
+      console.log(jsonDumps(items, { ensureAscii: false }));
+      return 0;
+    } catch (exc) {
+      if (!(exc instanceof HomeAssistantError)) throw exc;
+      console.log(exc.message);
+      return 1;
+    }
+  }
+
   if (args.command === 'ha' && (args.sub === 'delete-automation' || args.sub === 'delete-script')) {
     try {
       const client = await deps.createClient(config);
       const domain = args.sub === 'delete-automation' ? 'automation' : 'script';
       const result = await removeConfig(root, client, domain, args.positionals[0]!);
+      console.log(
+        jsonDumps({
+          ok: result.ok,
+          domain: result.domain,
+          config_id: result.configId,
+          message: result.message,
+          report_path: relative(root, result.reportPath),
+        }),
+      );
+      return result.ok ? 0 : 1;
+    } catch (exc) {
+      if (!(exc instanceof HomeAssistantError)) throw exc;
+      console.log(exc.message);
+      return 1;
+    }
+  }
+
+  if (args.command === 'ha' && args.sub === 'delete-scene') {
+    try {
+      const client = await deps.createClient(config);
+      const result = await removeConfig(root, client, 'scene', args.positionals[0]!);
       console.log(
         jsonDumps({
           ok: result.ok,
@@ -1170,6 +1228,30 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
       const client = await deps.createClient(config);
       const domain = args.sub === 'get-automation-config' ? 'automation' : 'script';
       const result = await readConfig(client, domain, args.positionals[0]!);
+      console.log(
+        jsonDumps(
+          {
+            ok: result.ok,
+            domain: result.domain,
+            config_id: result.configId,
+            config: result.config,
+            message: result.message,
+          },
+          { ensureAscii: false },
+        ),
+      );
+      return result.ok ? 0 : 1;
+    } catch (exc) {
+      if (!(exc instanceof HomeAssistantError)) throw exc;
+      console.log(exc.message);
+      return 1;
+    }
+  }
+
+  if (args.command === 'ha' && args.sub === 'get-scene-config') {
+    try {
+      const client = await deps.createClient(config);
+      const result = await readConfig(client, 'scene', args.positionals[0]!);
       console.log(
         jsonDumps(
           {
