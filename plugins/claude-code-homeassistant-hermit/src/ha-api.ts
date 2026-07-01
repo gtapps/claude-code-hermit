@@ -115,6 +115,16 @@ export class HomeAssistantClient {
     return this.request('DELETE', path, null);
   }
 
+  /** POST returning the raw response body — some endpoints (e.g. /api/template) return plain text, not JSON. */
+  postText(path: string, payload: Record<string, unknown> | null = null): Promise<string> {
+    return this.request('POST', path, payload, { raw: true });
+  }
+
+  /** GET returning the raw response body — /api/error_log serves the raw log file, not JSON. */
+  getText(path: string): Promise<string> {
+    return this.request('GET', path, null, { raw: true });
+  }
+
   getStates(): Promise<Array<Record<string, any>>> {
     return this.get('/api/states');
   }
@@ -205,6 +215,7 @@ export class HomeAssistantClient {
     method: string,
     path: string,
     payload: Record<string, unknown> | null,
+    options: { raw?: boolean } = {},
   ): Promise<any> {
     if (!this.config.haToken) {
       throw new HomeAssistantError('HOMEASSISTANT_TOKEN is not configured.');
@@ -253,6 +264,7 @@ export class HomeAssistantClient {
         // it a HomeAssistantError carrying the status, not a raw TypeError.
         throw new HomeAssistantError('Failed to read Home Assistant response.', response.status, String(exc));
       }
+      if (options.raw) return text;
       if (!text.trim()) return {};
       try {
         return JSON.parse(text);

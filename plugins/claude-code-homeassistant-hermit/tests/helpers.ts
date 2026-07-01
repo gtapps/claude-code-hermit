@@ -76,6 +76,8 @@ export interface FakeClientHandlers {
   get?: (path: string) => any;
   post?: (path: string, payload: unknown) => any;
   del?: (path: string) => any;
+  postText?: (path: string, payload: unknown) => string;
+  getText?: (path: string) => string;
   getStates?: () => any;
   getHistory?: (entityIds: string[], start: Date, end: Date) => any;
 }
@@ -100,6 +102,14 @@ export function fakeClient(handlers: FakeClientHandlers = {}) {
     async delete(path: string): Promise<any> {
       calls.delete.push(path);
       return handlers.del ? handlers.del(path) : {};
+    },
+    async getText(path: string): Promise<string> {
+      calls.get.push(path);
+      return handlers.getText ? handlers.getText(path) : '';
+    },
+    async postText(path: string, payload: Record<string, unknown> | null = null): Promise<string> {
+      calls.post.push([path, payload]);
+      return handlers.postText ? handlers.postText(path, payload) : '';
     },
     async getStates(): Promise<Array<Record<string, any>>> {
       if (handlers.getStates) return handlers.getStates();

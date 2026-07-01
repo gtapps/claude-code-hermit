@@ -2,6 +2,30 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Added
+- **`ha list-dashboards` / `get-dashboard` / `apply-dashboard` / `create-dashboard` / `delete-dashboard`** — read and gated-write Lovelace dashboards via WebSocket (`lovelace/dashboards/*`, `lovelace/config`, `lovelace/config/save`). Completes Phase 1.
+- **`ha render-template <file|->` / `ha check-config`** — render a Jinja2 template (`POST /api/template`) and validate the HA config (`POST /api/config/core/check_config`). Read-only, not gated.
+- **`ha call-service <domain.service> [--data json]`** — call any HA service (`POST /api/services/...`), gated per-entity/service by the new `gateServiceCall` (in `policy.ts`). Sensitive domains/entities follow strict/ask; non-sensitive calls proceed in both modes. Sensitive entities are detected even in service-specific fields (e.g. `scene.apply`'s `entities` map), and malformed/unresolvable targets fail closed.
+- **`ha set-core-config`** — partial update of HA's core config (location, unit system, currency, timezone, country) via WebSocket (`config/core/update`, gated); only provided fields are sent.
+- **`ha error-log` / `ha logbook [--window-days N] [--entity <id>]` / `ha system-log`** — raw error log (`GET /api/error_log`), logbook entries (`GET /api/logbook/<ts>`), and structured system log (WS `system_log/list`). All read-only, not gated. Completes Phase 3.
+- **`ha list-floors` / `create-floor` / `delete-floor` and `ha list-labels` / `create-label` / `delete-label`** — WebSocket registry CRUD (`config/floor_registry/*`, `config/label_registry/*`), gated by `ha_safety_mode` like areas/helpers. First slice of Phase 4's organization primitives.
+- **`ha rename-area` / `set-area-icon` / `set-area-floor` / `set-area-labels`** — a new generic `updateArea` (mirroring `updateEntity`/`updateDevice`) over `config/area_registry/update`, gated. `--labels` accepts multiple values (`--labels a b c`).
+- **`ha set-entity-icon` / `set-entity-hidden` / `set-entity-labels` / `set-entity-categories` / `set-entity-aliases`** — extends the existing `updateEntity` (no new function, just new callers) over `config/entity_registry/update`'s remaining fields. `set-entity-hidden true|false` maps to `hidden_by` `"user"`/`null`, mirroring `set-entity-enabled`'s `disabled_by` convention; `set-entity-categories` takes a JSON scoped mapping (`--categories '{"automation":"config"}'`).
+- **`ha list-exposed-entities` / `expose-entity`** — read and set HA's expose-to-Assist boundary (WS `homeassistant/expose_entity/list`, `homeassistant/expose_entity`), gated. Config, not control — directly supports the "runtime control defers to HA Assist" boundary from `SAFETY.md`. Completes Phase 4.
+- **`ha list-backups` / `create-backup`** — list backups and generate a new one (WS `backup/info`, `backup/generate`), gated. `create-backup` exposes the full schema (`--agent-ids`, `--name`, `--password`, `--include-addons`, `--include-all-addons`, `--include-database`, `--include-folders`, `--include-homeassistant`). Completes Phase 5.
+- **`ha list-scenes` / `get-scene-config` / `delete-scene`** — scene CRUD parity with the automation/script commands (`/api/states`, `/api/config/scene/config/{id}`), reusing the domain-generic `listDomain`/`readConfig`/`removeConfig`. First slice of Phase 6.
+- **`ha list-blueprints <domain>` / `import-blueprint <domain> <url>`** — list blueprints and import+save one from a URL (WS `blueprint/list`, `blueprint/import` then `blueprint/save`), gated. Stops after import without saving if HA reports validation errors.
+- **`ha get-energy-prefs` / `set-energy-prefs <json>`** — read/replace the energy dashboard configuration (WS `energy/get_prefs`, `energy/save_prefs`), gated. Takes the full nested preferences object as JSON.
+- **`ha reload-entry <entry_id>` / `disable-entry <entry_id> --disabled true|false`** — config-entry actions (REST reload, WS `config_entries/disable`), gated. Completes Phase 6 (config-entry helpers are deferred — see Boundary in the roadmap doc).
+
+### Changed
+- **`HomeAssistantClient.postText()` / `getText()`** — new raw-response GET/POST variants; `/api/template` and `/api/error_log` return plain text, not JSON, which the existing `post()`/`get()`'s unconditional `JSON.parse` would reject as malformed.
+- **`extractEntityIds`/`hasUnresolvableTarget`/`isWellFormedEntityId` relocated to `policy.ts`** — moved out of the MCP safety hook so `call-service` can reuse the same fail-closed entity-resolution logic. Hook behavior is unchanged (`tests/gate-corpus.test.ts`/`tests/gate-fuzz.test.ts` verify byte-identical output).
+- **`check-config` reuses `apply.ts`'s `isConfigCheckOk`** instead of a narrower inline check.
+- **`time-utils.daysAgo()`** — extracted shared "N days before now" arithmetic, reused by `logbook`'s window-start computation.
+
 ## [0.3.1] - 2026-06-29
 
 ### Changed

@@ -365,7 +365,7 @@ function writeRemoveReport(
 // Interprets the HA config/core/check_config response as a boolean.
 // bool -> itself; dict with "result" -> "valid" means pass; other dict ->
 // passes unless any value is literally false; else -> Boolean coerce.
-function isConfigCheckOk(checkResult: unknown): boolean {
+export function isConfigCheckOk(checkResult: unknown): boolean {
   if (typeof checkResult === 'boolean') return checkResult;
   if (Array.isArray(checkResult)) return checkResult.length > 0; // Python bool(list)
   if (checkResult !== null && typeof checkResult === 'object') {

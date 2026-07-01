@@ -58,16 +58,26 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-automations
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-scripts
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-automations
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-scripts
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-scenes
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-automation <id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-script <id>
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-scene <id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-automation-config <id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-script-config <id>
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-scene-config <id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha automation-diff
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha snapshot-states [--name <label>] [--domains light,cover,climate,switch] [--entities <id> …]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha restore-states <artifact> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha integration-health
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha fetch-history [--window-days N] [--entities <glob> …] [--include-transitions]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha probe <path>
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha render-template <file|->
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha check-config
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha call-service <domain.service> [--data <json>] [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-core-config [--latitude N] [--longitude N] [--elevation N] [--unit-system metric|us_customary] [--currency CODE] [--time-zone TZ] [--country CODE] [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha error-log
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha logbook [--window-days N] [--entity <entity_id>]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha system-log
 # WebSocket-backed structural commands (helpers, areas, registries). Writes are gated by ha_safety_mode.
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-helpers [--type <helper_type>]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-helper <type> <json> [--confirm]
@@ -75,13 +85,43 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-helper <type> <id> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-areas
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-area <name> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-area <id> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha rename-area <area_id> --name <name> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-area-icon <area_id> --icon <icon> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-area-floor <area_id> --floor <floor_id> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-area-labels <area_id> --labels <label> [<label> ...] [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-floors
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-floor <name> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-floor <id> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-labels
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-label <name> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-label <id> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-entities --registry
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha rename-entity <entity_id> --name <name> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-area <entity_id> --area <area_id> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-enabled <entity_id> --enabled true|false [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-icon <entity_id> --icon <icon> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-hidden <entity_id> --hidden true|false [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-labels <entity_id> --labels <label> [<label> ...] [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-categories <entity_id> --categories <json> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-aliases <entity_id> --aliases <alias> [<alias> ...] [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-devices
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-device-area <device_id> --area <area_id> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha rename-device <device_id> --name <name> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-dashboards
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-dashboard [--url-path <url_path>]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha apply-dashboard <artifact> [--url-path <url_path>] [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-dashboard <json> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-dashboard <dashboard_id> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-exposed-entities
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha expose-entity --entity-ids <id> [<id> ...] --assistants <assistant> [<assistant> ...] --expose true|false [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-backups
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-backup --agent-ids <id> [<id> ...] [--name <name>] [--password <password>] [--include-addons <slug> [<slug> ...]] [--include-all-addons] [--include-database true|false] [--include-folders <folder> [<folder> ...]] [--include-homeassistant true|false] [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-blueprints <domain>
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha import-blueprint <domain> <url> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-energy-prefs
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-energy-prefs <json> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha reload-entry <entry_id> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha disable-entry <entry_id> --disabled true|false [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha trigger-automation <automation_id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status [--probe]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url> [--token <token>]
@@ -102,11 +142,15 @@ Before changing HA endpoint usage, verify against upstream (WebFetch or the `fin
 - `DELETE /api/config/{automation|script}/config/{id}` — remove config. **A missing id returns 400** (not 404) with `{"message":"Resource not found"}` — do not special-case 404. All HA error responses carry `{"message":"..."}` — surface it verbatim.
 - After `POST`, `GET` reflects the change synchronously (verified against HA 2026.x). No retry or delay needed for verify calls.
 - `--reload {automation|script|scene}` in `ha validate-apply` is overloaded: it controls both the REST push endpoint and the reload service call. There is no push-only mode; add `--no-reload` if that use case arises. Scenes use the same REST config API (`/api/config/scene/config/{id}`) and `scene.reload` service as automation/script — no special path.
+- `POST /api/template` returns the rendered template as a **raw plain-text body**, not JSON (confirmed against HA core source and live) — `client.post()`'s unconditional `JSON.parse` would throw `Malformed JSON` on any non-JSON-looking render (e.g. `idle`). `GET /api/error_log` is the same: HA serves the raw log file, not JSON. Use `client.postText()`/`client.getText()` (raw-response variants) for endpoints like these.
+- **`ha call-service` is gated per-entity/service (`gateServiceCall` in `policy.ts`), not by the structural gate.** Sensitive domains (lock/alarm) or entity/device/target references block as a proposal under strict, need `--confirm` under ask; non-sensitive calls proceed in both modes since call-service exists for maintenance (reloads, `recorder.purge`, `notify.*`). Reuses the same fail-closed entity-extraction logic as the MCP safety hook (`extractEntityIds`/`hasUnresolvableTarget`/`isWellFormedEntityId`, relocated to `policy.ts`) plus a `call-service`-only `hasMalformedTargetShape` guard for wrong-shaped `--data` (target as an array, non-string entity_id) that the shared extractors can't see. When touching this gate, keep `tests/gate-corpus.test.ts`/`tests/gate-fuzz.test.ts` green — they pin the MCP hook's byte-identical output.
+- **`GET /api/error_log` 404s unless HA registered `DATA_LOGGING`** (HA core only wires up the view `if DATA_LOGGING in hass.data`) — a deployment characteristic, not a bug; the command surfaces the 404 verbatim. Confirmed 404 on paulinho (2026.6.4); `ha logbook`/`ha system-log` don't have this dependency and work on the same instance.
+- `GET /api/logbook/<timestamp>` only supports filtering by **one** entity via `?entity=<id>` (not comma-separated or glob, unlike `filter_entity_id` on `/api/history/period/`) — `ha logbook --entity` is singular for this reason.
 
 ### WebSocket commands (`src/ha-ws.ts` + `src/structure.ts`)
 
 - Helpers, areas, and entity/device registries have **no REST endpoint** — they are reachable only over `wss://<host>/api/websocket`. `HomeAssistantWsClient` opens a single-shot connection per CLI invocation (auth handshake → commands → close), reusing the same URL selection and token as the REST client.
-- Command types: helpers `<type>/create|list|delete` (8 types: `input_boolean|input_number|input_text|input_select|input_datetime|timer|counter|schedule`); areas `config/area_registry/create|list|delete`; registries `config/entity_registry/list|update` and `config/device_registry/list|update`.
+- Command types: helpers `<type>/create|list|delete` (8 types: `input_boolean|input_number|input_text|input_select|input_datetime|timer|counter|schedule`); areas `config/area_registry/create|list|delete`; registries `config/entity_registry/list|update` and `config/device_registry/list|update`; dashboards `lovelace/dashboards/list|create|delete`, `lovelace/config`, `lovelace/config/save` (shapes cross-checked against `home-assistant/core`'s `DictStorageCollectionWebsocket` generic collection handler — the same pattern as areas/helpers).
 - **Confirm the exact command `type` and payload fields against a live instance before relying on them** (the docs index documents only the auth/result envelope). Probe pattern: run the new commands against a real HA and read the responses.
 - **All WS mutations are gated by `ha_safety_mode`** (`gateStructuralMutation` in `policy.ts`). Reads are never gated. Under `strict` (default) a mutation is refused (`blocked: true`) — surface it as a proposal. Under `ask` it requires `--confirm`, which the main session passes after prompting the operator (the CLI is non-interactive). Every mutation writes an audit report to `.claude-code-hermit/raw/` (`audit-ha-ws-*`).
 

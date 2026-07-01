@@ -43,6 +43,18 @@ test('delete script ok', async () => {
   expect(client.calls.delete).toEqual(['/api/config/script/config/my_script']);
 });
 
+test('delete scene ok', async () => {
+  const client = fakeClient({ del: () => ({ result: 'ok' }) });
+  const { code, out } = await runCli(['ha', 'delete-scene', 'my_scene'], client);
+
+  expect(code).toBe(0);
+  const parsed = JSON.parse(out);
+  expect(parsed.ok).toBe(true);
+  expect(parsed.config_id).toBe('my_scene');
+  expect(parsed.domain).toBe('scene');
+  expect(client.calls.delete).toEqual(['/api/config/scene/config/my_scene']);
+});
+
 test('delete automation not found exits nonzero', async () => {
   const client = fakeClient({
     del: () => {
@@ -110,6 +122,30 @@ test('list scripts filters correctly', async () => {
   const items = JSON.parse(out);
   expect(items.length).toBe(1);
   expect(items[0].entity_id).toBe('script.welcome');
+});
+
+test('list scenes filters correctly', async () => {
+  const states = [
+    {
+      entity_id: 'scene.movie_night',
+      attributes: { id: 'movie_night', friendly_name: 'Movie Night' },
+      state: '2026-05-05T10:00:00Z',
+      last_changed: '2026-05-05T10:00:00Z',
+    },
+    {
+      entity_id: 'automation.lights_on',
+      attributes: { id: 'lights_on', friendly_name: 'Lights On' },
+      state: 'on',
+      last_changed: '2026-05-05T10:00:00Z',
+    },
+  ];
+  const client = fakeClient({ get: () => states });
+  const { code, out } = await runCli(['ha', 'list-scenes'], client);
+
+  expect(code).toBe(0);
+  const items = JSON.parse(out);
+  expect(items.length).toBe(1);
+  expect(items[0].entity_id).toBe('scene.movie_night');
 });
 
 test('list automations marks yaml-packaged as not deletable', async () => {

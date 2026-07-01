@@ -144,17 +144,9 @@ export async function createHelper(
   json: string,
 ): Promise<WsMutationResult> {
   if (!isHelperType(type)) return invalidPayload(unknownHelperType(type));
-  let payload: Record<string, unknown>;
-  try {
-    const parsed = JSON.parse(json);
-    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return invalidPayload('helper JSON must be a JSON object');
-    }
-    payload = parsed as Record<string, unknown>;
-  } catch {
-    return invalidPayload('helper JSON is not valid JSON');
-  }
-  return runMutation(root, client, `create-${type}`, `${type}/create`, payload);
+  const parsed = parseJsonObjectPayload('helper', json);
+  if (!parsed.ok) return parsed.error;
+  return runMutation(root, client, `create-${type}`, `${type}/create`, parsed.payload);
 }
 
 export async function deleteHelper(
@@ -189,13 +181,27 @@ export async function deleteArea(
   return runMutation(root, client, 'delete-area', 'config/area_registry/delete', { area_id: areaId });
 }
 
+/** Generic area_registry/update: rename, set icon, assign a floor, or set labels. */
+export async function updateArea(
+  root: string,
+  client: WsCommandClient,
+  areaId: string,
+  fields: Record<string, unknown>,
+  label: string,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, label, 'config/area_registry/update', {
+    area_id: areaId,
+    ...fields,
+  });
+}
+
 // --- Entity registry -----------------------------------------------------
 
 export async function listEntities(client: WsCommandClient): Promise<WsReadResult> {
   return { ok: true, data: await client.command('config/entity_registry/list'), message: 'ok' };
 }
 
-/** Generic entity_registry/update: rename, set area, or enable/disable. */
+/** Generic entity_registry/update: rename, set area, enable/disable, icon, hidden, labels, categories, or aliases. */
 export async function updateEntity(
   root: string,
   client: WsCommandClient,
@@ -228,6 +234,229 @@ export async function updateDevice(
   });
 }
 
+// --- Dashboards (Lovelace) ------------------------------------------------
+
+export async function listDashboards(client: WsCommandClient): Promise<WsReadResult> {
+  return { ok: true, data: await client.command('lovelace/dashboards/list'), message: 'ok' };
+}
+
+/** Read a dashboard config. urlPath null reads the default (auto-generated) dashboard. */
+export async function getDashboard(
+  client: WsCommandClient,
+  urlPath: string | null,
+): Promise<WsReadResult> {
+  return {
+    ok: true,
+    data: await client.command('lovelace/config', { url_path: urlPath }),
+    message: 'ok',
+  };
+}
+
+/** Save/replace a dashboard's view/card config. urlPath null targets the default dashboard. */
+export async function saveDashboard(
+  root: string,
+  client: WsCommandClient,
+  urlPath: string | null,
+  config: unknown,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'apply-dashboard', 'lovelace/config/save', {
+    url_path: urlPath,
+    config,
+  });
+}
+
+export async function createDashboard(
+  root: string,
+  client: WsCommandClient,
+  json: string,
+): Promise<WsMutationResult> {
+  const parsed = parseJsonObjectPayload('dashboard', json);
+  if (!parsed.ok) return parsed.error;
+  return runMutation(root, client, 'create-dashboard', 'lovelace/dashboards/create', parsed.payload);
+}
+
+export async function deleteDashboard(
+  root: string,
+  client: WsCommandClient,
+  dashboardId: string,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'delete-dashboard', 'lovelace/dashboards/delete', {
+    dashboard_id: dashboardId,
+  });
+}
+
+// --- Core config -----------------------------------------------------------
+
+/** Partial update of HA's core config (location, unit system, currency, timezone, country). */
+export async function setCoreConfig(
+  root: string,
+  client: WsCommandClient,
+  fields: Record<string, unknown>,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'set-core-config', 'config/core/update', fields);
+}
+
+// --- Floors ----------------------------------------------------------------
+
+export async function listFloors(client: WsCommandClient): Promise<WsReadResult> {
+  return { ok: true, data: await client.command('config/floor_registry/list'), message: 'ok' };
+}
+
+export async function createFloor(
+  root: string,
+  client: WsCommandClient,
+  name: string,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'create-floor', 'config/floor_registry/create', { name });
+}
+
+export async function deleteFloor(
+  root: string,
+  client: WsCommandClient,
+  floorId: string,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'delete-floor', 'config/floor_registry/delete', {
+    floor_id: floorId,
+  });
+}
+
+// --- Labels ------------------------------------------------------------
+
+export async function listLabels(client: WsCommandClient): Promise<WsReadResult> {
+  return { ok: true, data: await client.command('config/label_registry/list'), message: 'ok' };
+}
+
+export async function createLabel(
+  root: string,
+  client: WsCommandClient,
+  name: string,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'create-label', 'config/label_registry/create', { name });
+}
+
+export async function deleteLabel(
+  root: string,
+  client: WsCommandClient,
+  labelId: string,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'delete-label', 'config/label_registry/delete', {
+    label_id: labelId,
+  });
+}
+
+// --- System log --------------------------------------------------------
+
+export async function listSystemLog(client: WsCommandClient): Promise<WsReadResult> {
+  return { ok: true, data: await client.command('system_log/list'), message: 'ok' };
+}
+
+// --- Assist exposure -----------------------------------------------------
+
+export async function listExposedEntities(client: WsCommandClient): Promise<WsReadResult> {
+  return { ok: true, data: await client.command('homeassistant/expose_entity/list'), message: 'ok' };
+}
+
+/** Set whether entities are exposed to one or more Assist assistants (conversation, cloud.alexa, cloud.google_assistant). */
+export async function exposeEntity(
+  root: string,
+  client: WsCommandClient,
+  entityIds: string[],
+  assistants: string[],
+  shouldExpose: boolean,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'expose-entity', 'homeassistant/expose_entity', {
+    entity_ids: entityIds,
+    assistants,
+    should_expose: shouldExpose,
+  });
+}
+
+// --- Backups ---------------------------------------------------------------
+
+export async function listBackups(client: WsCommandClient): Promise<WsReadResult> {
+  return { ok: true, data: await client.command('backup/info'), message: 'ok' };
+}
+
+export async function createBackup(
+  root: string,
+  client: WsCommandClient,
+  fields: Record<string, unknown>,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'create-backup', 'backup/generate', fields);
+}
+
+// --- Blueprints --------------------------------------------------------
+
+export async function listBlueprints(client: WsCommandClient, domain: string): Promise<WsReadResult> {
+  return { ok: true, data: await client.command('blueprint/list', { domain }), message: 'ok' };
+}
+
+/**
+ * Import a blueprint from a URL and save it under the given domain. Two WS
+ * calls (import, then save), each independently audited via runMutation —
+ * mirrors the HA UI's own import-then-save flow. Stops after import if HA
+ * reports validation errors, without attempting the save.
+ */
+export async function importBlueprint(
+  root: string,
+  client: WsCommandClient,
+  domain: string,
+  url: string,
+): Promise<WsMutationResult> {
+  const imported = await runMutation(root, client, 'import-blueprint', 'blueprint/import', { url });
+  if (!imported.ok) return imported;
+
+  const data = imported.data as { suggested_filename?: string; raw_data?: string; validation_errors?: unknown };
+  if (Array.isArray(data.validation_errors) && data.validation_errors.length > 0) {
+    // HA may return structured (non-string) error entries — stringify those as
+    // JSON so they don't collapse to '[object Object]'.
+    const errors = data.validation_errors
+      .map((e) => (typeof e === 'string' ? e : JSON.stringify(e)))
+      .join('; ');
+    return {
+      ok: false,
+      data,
+      message: `Blueprint validation failed: ${errors}`,
+      reportPath: imported.reportPath,
+    };
+  }
+
+  return runMutation(root, client, 'save-blueprint', 'blueprint/save', {
+    domain,
+    path: data.suggested_filename,
+    yaml: data.raw_data,
+    source_url: url,
+  });
+}
+
+// --- Energy preferences --------------------------------------------------
+
+export async function getEnergyPrefs(client: WsCommandClient): Promise<WsReadResult> {
+  return { ok: true, data: await client.command('energy/get_prefs'), message: 'ok' };
+}
+
+export async function setEnergyPrefs(
+  root: string,
+  client: WsCommandClient,
+  prefs: Record<string, unknown>,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'set-energy-prefs', 'energy/save_prefs', prefs);
+}
+
+// --- Config entries --------------------------------------------------------
+
+export async function disableConfigEntry(
+  root: string,
+  client: WsCommandClient,
+  entryId: string,
+  disabled: boolean,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'disable-entry', 'config_entries/disable', {
+    entry_id: entryId,
+    disabled_by: disabled ? 'user' : null,
+  });
+}
+
 // --- shared error shapes -------------------------------------------------
 
 function unknownHelperType(type: string): string {
@@ -236,4 +465,29 @@ function unknownHelperType(type: string): string {
 
 function invalidPayload(message: string): WsMutationResult {
   return { ok: false, data: null, message, reportPath: null };
+}
+
+/** Parse `json` as a JSON object, or a validation-error fragment (e.g. "is not valid JSON"). */
+export function parseJsonObject(
+  json: string,
+): { ok: true; payload: Record<string, unknown> } | { ok: false; message: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return { ok: false, message: 'is not valid JSON' };
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { ok: false, message: 'must be a JSON object' };
+  }
+  return { ok: true, payload: parsed as Record<string, unknown> };
+}
+
+/** Parse `json` as a JSON object payload, or an invalidPayload result labeled with `kind`. */
+function parseJsonObjectPayload(
+  kind: string,
+  json: string,
+): { ok: true; payload: Record<string, unknown> } | { ok: false; error: WsMutationResult } {
+  const result = parseJsonObject(json);
+  return result.ok ? result : { ok: false, error: invalidPayload(`${kind} JSON ${result.message}`) };
 }

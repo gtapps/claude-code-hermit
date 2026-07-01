@@ -41,3 +41,8 @@ export function isoUtc(date: Date): string {
     ? `${base.slice(0, 19)}+00:00`
     : `${base.slice(0, 23)}000+00:00`;
 }
+
+/** Timestamp `days` full days before `now` (default: current time) — shared window-start arithmetic for history/logbook style queries. */
+export function daysAgo(days: number, now: Date = new Date()): Date {
+  return new Date(now.getTime() - days * 86_400_000);
+}
