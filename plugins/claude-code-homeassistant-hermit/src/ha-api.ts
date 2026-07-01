@@ -120,6 +120,11 @@ export class HomeAssistantClient {
     return this.request('POST', path, payload, { raw: true });
   }
 
+  /** GET returning the raw response body — /api/error_log serves the raw log file, not JSON. */
+  getText(path: string): Promise<string> {
+    return this.request('GET', path, null, { raw: true });
+  }
+
   getStates(): Promise<Array<Record<string, any>>> {
     return this.get('/api/states');
   }

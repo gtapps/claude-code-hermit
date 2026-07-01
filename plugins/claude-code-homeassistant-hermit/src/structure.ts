@@ -282,6 +282,12 @@ export async function setCoreConfig(
   return runMutation(root, client, 'set-core-config', 'config/core/update', fields);
 }
 
+// --- System log --------------------------------------------------------
+
+export async function listSystemLog(client: WsCommandClient): Promise<WsReadResult> {
+  return { ok: true, data: await client.command('system_log/list'), message: 'ok' };
+}
+
 // --- shared error shapes -------------------------------------------------
 
 function unknownHelperType(type: string): string {

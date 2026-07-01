@@ -10,11 +10,13 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 - **`ha render-template <file|->` / `ha check-config`** — render a Jinja2 template against live state (`POST /api/template`) and validate the HA config (`POST /api/config/core/check_config`). Not gated (read-only against HA's engines). First slice of Phase 2's dev/test/maintain loop primitives.
 - **`ha call-service <domain.service> [--data json]`** — call any HA service (`POST /api/services/...`). A new `gateServiceCall` policy gate (in `policy.ts`) classifies the target `domain.service` and any `entity_id`/`device_id`/`target` references in `--data` via the existing per-entity policy: sensitive domains (lock/alarm) block as a proposal under strict and require `--confirm` under ask; non-sensitive calls (reloads, `notify.*`, `recorder.purge`) proceed in both modes, since gating every call would defeat call-service's maintenance purpose. Malformed or unresolvable targeting (wrong-shaped `target`, non-string `entity_id`, an `area_id`/`floor_id`/`label_id`/`device_id` selector) fails closed regardless of mode.
 - **`ha set-core-config`** — partial update of HA's core config (`--latitude`, `--longitude`, `--elevation`, `--unit-system`, `--currency`, `--time-zone`, `--country`) via WebSocket (`config/core/update`, gated write, only the provided fields are sent). Completes Phase 2's dev/test/maintain loop primitives.
+- **`ha error-log` / `ha logbook [--window-days N] [--entity <id>]` / `ha system-log`** — the maintenance/observability half: raw error log (`GET /api/error_log`, plain text — deployment-dependent, 404s if HA hasn't registered `DATA_LOGGING`), logbook entries (`GET /api/logbook/<ts>`, single-entity filter only per the upstream API), and structured system log with levels (WS `system_log/list`). All read-only, not gated. Completes Phase 3.
 
 ### Changed
-- **`HomeAssistantClient.postText()`** — new raw-response POST variant; `/api/template` returns plain text, not JSON, which the existing `post()`'s unconditional `JSON.parse` would reject as malformed.
+- **`HomeAssistantClient.postText()` / `getText()`** — new raw-response GET/POST variants; `/api/template` and `/api/error_log` return plain text, not JSON, which the existing `post()`/`get()`'s unconditional `JSON.parse` would reject as malformed.
 - **`extractEntityIds`/`hasUnresolvableTarget`/`isWellFormedEntityId` relocated to `policy.ts`** — moved out of the MCP safety hook so `call-service` can reuse the same fail-closed entity-resolution logic. Hook behavior is unchanged (`tests/gate-corpus.test.ts`/`tests/gate-fuzz.test.ts` verify byte-identical output).
 - **`check-config` reuses `apply.ts`'s `isConfigCheckOk`** instead of a narrower inline check.
+- **`time-utils.daysAgo()`** — extracted shared "N days before now" arithmetic, reused by `logbook`'s window-start computation.
 
 ## [0.3.1] - 2026-06-29
 

@@ -59,12 +59,14 @@ import {
   listDevices,
   listEntities,
   listHelpers,
+  listSystemLog,
   parseJsonObject,
   saveDashboard,
   setCoreConfig,
   updateDevice,
   updateEntity,
 } from './structure';
+import { daysAgo, isoUtc } from './time-utils';
 import { parseYaml } from './yaml';
 
 // ---------------------------------------------------------------------------
@@ -112,6 +114,7 @@ export interface CliClient {
   post(path: string, payload?: Record<string, unknown> | null): Promise<any>;
   delete(path: string): Promise<any>;
   postText(path: string, payload?: Record<string, unknown> | null): Promise<string>;
+  getText(path: string): Promise<string>;
   callService(domain: string, service: string, data: Record<string, unknown>): Promise<any>;
   getStates(): Promise<Array<Record<string, any>>>;
   getHistory(
@@ -190,6 +193,9 @@ const HA_COMMANDS = [
   'check-config',
   'call-service',
   'set-core-config',
+  'error-log',
+  'logbook',
+  'system-log',
   'trigger-automation',
 ] as const;
 const HA_USAGE = [
@@ -273,6 +279,11 @@ positional arguments:
                         non-sensitive calls proceed in both modes.
     set-core-config     Partial update of location/unit system/currency/
                         timezone/country via WebSocket (gated write).
+    error-log           Print the current-session HA error log
+                        (GET /api/error_log, plaintext).
+    logbook             Fetch the HA logbook (GET /api/logbook/<ts>).
+    system-log          List structured system log entries, with levels,
+                        via WebSocket (system_log/list).
     trigger-automation  Fire an automation by entity_id via automation.trigger.
 
 options:
@@ -684,6 +695,26 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
       '--country': { kind: 'value' },
       '--confirm': { kind: 'store_true' },
     },
+  },
+  'ha error-log': {
+    prog: 'ha_agent_lab ha error-log',
+    usage: 'usage: ha_agent_lab ha error-log [-h]',
+    positionals: [],
+    flags: {},
+  },
+  'ha logbook': {
+    prog: 'ha_agent_lab ha logbook',
+    usage:
+      'usage: ha_agent_lab ha logbook [-h] [--window-days WINDOW_DAYS]\n' +
+      '                               [--entity ENTITY]',
+    positionals: [],
+    flags: { '--window-days': { kind: 'value', int: true }, '--entity': { kind: 'value' } },
+  },
+  'ha system-log': {
+    prog: 'ha_agent_lab ha system-log',
+    usage: 'usage: ha_agent_lab ha system-log [-h]',
+    positionals: [],
+    flags: {},
   },
   'ha trigger-automation': {
     prog: 'ha_agent_lab ha trigger-automation',
@@ -1195,6 +1226,39 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
     return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
       setCoreConfig(root, ws, fields),
     );
+  }
+
+  if (args.command === 'ha' && args.sub === 'error-log') {
+    try {
+      const client = await deps.createClient(config);
+      console.log(await client.getText('/api/error_log'));
+      return 0;
+    } catch (exc) {
+      if (!(exc instanceof HomeAssistantError)) throw exc;
+      console.log(exc.message);
+      return 1;
+    }
+  }
+
+  if (args.command === 'ha' && args.sub === 'logbook') {
+    try {
+      const client = await deps.createClient(config);
+      const windowDays = (args.flags['--window-days'] as number | undefined) ?? 1;
+      const windowStart = daysAgo(windowDays);
+      const entity = args.flags['--entity'] as string | undefined;
+      const path = `/api/logbook/${encodeURIComponent(isoUtc(windowStart))}${entity ? `?entity=${encodeURIComponent(entity)}` : ''}`;
+      const result = await client.get(path);
+      console.log(jsonDumps(result, { ensureAscii: false }));
+      return 0;
+    } catch (exc) {
+      if (!(exc instanceof HomeAssistantError)) throw exc;
+      console.log(exc.message);
+      return 1;
+    }
+  }
+
+  if (args.command === 'ha' && args.sub === 'system-log') {
+    return runWsRead(deps, config, listSystemLog);
   }
 
   if (args.command === 'ha' && args.sub === 'trigger-automation') {
