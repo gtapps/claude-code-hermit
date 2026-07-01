@@ -50,7 +50,9 @@ import {
   createHelper,
   deleteArea,
   deleteHelper,
+  getDashboard,
   listAreas,
+  listDashboards,
   listDevices,
   listEntities,
   listHelpers,
@@ -171,6 +173,8 @@ const HA_COMMANDS = [
   'list-devices',
   'set-device-area',
   'rename-device',
+  'list-dashboards',
+  'get-dashboard',
   'trigger-automation',
 ] as const;
 const HA_USAGE = [
@@ -236,6 +240,9 @@ positional arguments:
     list-devices        List the device registry via WebSocket.
     set-device-area     Assign a device to an area (gated write).
     rename-device       Set a device's user name (gated write).
+    list-dashboards     List Lovelace dashboards via WebSocket.
+    get-dashboard       Read a dashboard's config via WebSocket (--url-path;
+                        default dashboard if omitted).
     trigger-automation  Fire an automation by entity_id via automation.trigger.
 
 options:
@@ -574,6 +581,18 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
     usage: 'usage: ha_agent_lab ha rename-device [-h] [--confirm] --name NAME device_id',
     positionals: ['device_id'],
     flags: { '--name': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+  },
+  'ha list-dashboards': {
+    prog: 'ha_agent_lab ha list-dashboards',
+    usage: 'usage: ha_agent_lab ha list-dashboards [-h]',
+    positionals: [],
+    flags: {},
+  },
+  'ha get-dashboard': {
+    prog: 'ha_agent_lab ha get-dashboard',
+    usage: 'usage: ha_agent_lab ha get-dashboard [-h] [--url-path URL_PATH]',
+    positionals: [],
+    flags: { '--url-path': { kind: 'value' } },
   },
   'ha trigger-automation': {
     prog: 'ha_agent_lab ha trigger-automation',
@@ -999,6 +1018,13 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
     return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
       updateDevice(root, ws, args.positionals[0]!, { name_by_user: name }, 'rename-device'),
     );
+  }
+  if (args.command === 'ha' && args.sub === 'list-dashboards') {
+    return runWsRead(deps, config, listDashboards);
+  }
+  if (args.command === 'ha' && args.sub === 'get-dashboard') {
+    const urlPath = (args.flags['--url-path'] as string | undefined) ?? null;
+    return runWsRead(deps, config, (ws) => getDashboard(ws, urlPath));
   }
 
   if (args.command === 'ha' && args.sub === 'trigger-automation') {

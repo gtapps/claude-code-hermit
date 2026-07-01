@@ -228,6 +228,24 @@ export async function updateDevice(
   });
 }
 
+// --- Dashboards (Lovelace) ------------------------------------------------
+
+export async function listDashboards(client: WsCommandClient): Promise<WsReadResult> {
+  return { ok: true, data: await client.command('lovelace/dashboards/list'), message: 'ok' };
+}
+
+/** Read a dashboard config. urlPath null reads the default (auto-generated) dashboard. */
+export async function getDashboard(
+  client: WsCommandClient,
+  urlPath: string | null,
+): Promise<WsReadResult> {
+  return {
+    ok: true,
+    data: await client.command('lovelace/config', { url_path: urlPath }),
+    message: 'ok',
+  };
+}
+
 // --- shared error shapes -------------------------------------------------
 
 function unknownHelperType(type: string): string {

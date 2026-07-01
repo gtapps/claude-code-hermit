@@ -2,6 +2,11 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Added
+- **`ha list-dashboards` / `ha get-dashboard [--url-path]`** — read Lovelace dashboards via WebSocket (`lovelace/dashboards/list`, `lovelace/config`). First slice of the dashboard build/maintain surface; writes (apply/create/delete) land in a follow-up once their WS payload shapes are live-verified.
+
 ## [0.3.1] - 2026-06-29
 
 ### Changed

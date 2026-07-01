@@ -93,6 +93,33 @@ test('list-entities --registry reads entity registry', async () => {
   expect(ws.calls).toEqual([{ type: 'config/entity_registry/list', payload: {} }]);
 });
 
+// --- dashboards ------------------------------------------------------------
+
+test('list-dashboards reads via WS and closes', async () => {
+  const ws = fakeWs(() => [{ url_path: 'lovelace-home', id: 'd1', title: 'Home' }]);
+  const { code, out } = await runCli(['ha', 'list-dashboards'], ws, cfg());
+  expect(code).toBe(0);
+  const parsed = JSON.parse(out);
+  expect(parsed.ok).toBe(true);
+  expect(parsed.data).toEqual([{ url_path: 'lovelace-home', id: 'd1', title: 'Home' }]);
+  expect(ws.calls).toEqual([{ type: 'lovelace/dashboards/list', payload: {} }]);
+  expect(ws.closed).toBe(true);
+});
+
+test('get-dashboard defaults to null url_path', async () => {
+  const ws = fakeWs(() => ({ title: 'Home', views: [] }));
+  const { code } = await runCli(['ha', 'get-dashboard'], ws, cfg());
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([{ type: 'lovelace/config', payload: { url_path: null } }]);
+});
+
+test('get-dashboard --url-path passes the named dashboard', async () => {
+  const ws = fakeWs(() => ({ title: 'Home', views: [] }));
+  const { code } = await runCli(['ha', 'get-dashboard', '--url-path', 'lovelace-home'], ws, cfg());
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([{ type: 'lovelace/config', payload: { url_path: 'lovelace-home' } }]);
+});
+
 // --- gate ----------------------------------------------------------------
 
 test('mutation blocked under strict, no WS command sent', async () => {
