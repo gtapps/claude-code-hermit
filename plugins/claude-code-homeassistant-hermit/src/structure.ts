@@ -408,10 +408,15 @@ export async function importBlueprint(
 
   const data = imported.data as { suggested_filename?: string; raw_data?: string; validation_errors?: unknown };
   if (Array.isArray(data.validation_errors) && data.validation_errors.length > 0) {
+    // HA may return structured (non-string) error entries — stringify those as
+    // JSON so they don't collapse to '[object Object]'.
+    const errors = data.validation_errors
+      .map((e) => (typeof e === 'string' ? e : JSON.stringify(e)))
+      .join('; ');
     return {
       ok: false,
       data,
-      message: `Blueprint validation failed: ${data.validation_errors.join('; ')}`,
+      message: `Blueprint validation failed: ${errors}`,
       reportPath: imported.reportPath,
     };
   }

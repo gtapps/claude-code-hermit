@@ -36,6 +36,8 @@ claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scop
 
 **Drive it from anywhere.** Ask what's on, draft an automation, or ask why the porch light fired at 3am. Reach it from the Claude app or claude.ai/code on your phone (handy if you run several hermits), and optionally DM it on Discord or Telegram. Replies are conversational; YAML drafts get isolated, simulated, and only applied after you approve.
 
+**Builds and maintains — not just drafts.** Beyond automations, the hermit works the whole structural side of your setup so you rarely need the HA UI: dashboards, scripts, scenes, helpers, areas/floors/labels, entity metadata and Assist exposure, blueprints, energy preferences, core config, backups, and config-entry reloads. It also runs the dev/maintain loop — render a template, check config, tail the error log and logbook — to test and troubleshoot changes. Every structural write is gated by your safety mode; runtime device control stays with HA Assist.
+
 **It watches the house for you.** Daily integration health, silence detection (dead automations, sensors that stopped triggering, long-unavailable entities), and automation error checks; weekly pattern analysis, history-backed automation suggestions, and safety re-audit. Anomalies surface as proposals you can act on — never silent edits.
 
 **Safety is the default.** `lock`, `alarm_control_panel`, and security-tagged `cover`/`button`/`switch` domains are blocked outright. Vague targets (an area or device with no resolvable entity) fail closed. Every block becomes a proposal — never a surprise.
@@ -147,7 +149,7 @@ claude-code-hermit (core, required ≥ 1.1.1)
   └── Session lifecycle, proposals, reflect, memory, cost tracking
 ```
 
-**MCP vs CLI.** MCP handles live ops — light/cover/fan control, live context queries. The CLI (`bin/ha-agent-lab`) handles bulk work — context refresh, YAML simulation, policy checks, audits, apply.
+**MCP vs CLI.** MCP handles live ops — light/cover/fan control, live context queries. The CLI (`bin/ha-agent-lab`) handles bulk and structural work — context refresh, YAML simulation, policy checks, audits, apply, plus dashboards, scenes, helpers, areas/floors/labels, blueprints, backups, energy prefs, core config, config-entry reloads, and the render/check/log dev-maintain loop. See [CLAUDE.md](CLAUDE.md#cli-commands) for the full command list.
 
 ---
 

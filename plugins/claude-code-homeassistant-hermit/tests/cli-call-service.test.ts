@@ -161,3 +161,42 @@ test('HA error surfaces verbatim', async () => {
   expect(parsed.ok).toBe(false);
   expect(parsed.message).toBe('Service not found. (status=400)');
 });
+
+test('sensitive entity hidden in scene.apply entities map is blocked under strict', async () => {
+  const client = fakeClient({ post: () => ({ status: 'ok' }) });
+  const { code, out } = await runCli(
+    ['ha', 'call-service', 'scene.apply', '--data', '{"entities":{"lock.front_door":"unlocked"}}'],
+    client,
+    cfg('strict'),
+  );
+  expect(code).toBe(1);
+  const parsed = JSON.parse(out);
+  expect(parsed.blocked).toBe(true);
+  expect(client.calls.post.length).toBe(0);
+});
+
+test('sensitive entity in scene.apply entities map needs --confirm under ask', async () => {
+  const client = fakeClient({ post: () => ({ status: 'ok' }) });
+  const { code, out } = await runCli(
+    ['ha', 'call-service', 'scene.apply', '--data', '{"entities":{"lock.front_door":"unlocked"}}'],
+    client,
+    cfg('ask'),
+  );
+  expect(code).toBe(1);
+  expect(JSON.parse(out).requires_confirm).toBe(true);
+  expect(client.calls.post.length).toBe(0);
+});
+
+test('non-sensitive entities in scene.apply map still proceed under strict', async () => {
+  const client = fakeClient({ post: () => ({ status: 'ok' }) });
+  const { code, out } = await runCli(
+    ['ha', 'call-service', 'scene.apply', '--data', '{"entities":{"light.living_room":"on"}}'],
+    client,
+    cfg('strict'),
+  );
+  expect(code).toBe(0);
+  expect(JSON.parse(out).ok).toBe(true);
+  expect(client.calls.post).toEqual([
+    ['/api/services/scene/apply', { entities: { 'light.living_room': 'on' } }],
+  ]);
+});

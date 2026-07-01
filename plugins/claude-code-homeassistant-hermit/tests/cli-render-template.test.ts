@@ -27,6 +27,14 @@ test('render-template reads a file and posts its contents', async () => {
   expect(client.calls.post).toEqual([['/api/template', { template: '{{ 1 + 1 }}' }]]);
 });
 
+test('render-template reports a missing file cleanly (no uncaught throw)', async () => {
+  const client = fakeClient();
+  const { code, out } = await runCli(['ha', 'render-template', '/no/such/template.jinja'], client);
+  expect(code).toBe(1);
+  expect(JSON.parse(out).message).toContain('Template file not found');
+  expect(client.calls.post.length).toBe(0);
+});
+
 test('render-template surfaces HA error', async () => {
   const path = writeArtifact(tmpPath(), '{{ bad', 'template.jinja');
   const client = fakeClient({

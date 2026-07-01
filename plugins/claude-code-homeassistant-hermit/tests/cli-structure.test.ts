@@ -201,6 +201,18 @@ test('apply-dashboard reads the artifact and sends url_path + config', async () 
   ]);
 });
 
+test('apply-dashboard reports a missing artifact cleanly, without opening the WS', async () => {
+  const ws = fakeWs(() => ({ result: 'ok' }));
+  const { code, out } = await runCli(
+    ['ha', 'apply-dashboard', '/no/such/dashboard.json', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(1);
+  expect(JSON.parse(out).message).toContain('Dashboard artifact not found');
+  expect(ws.calls.length).toBe(0);
+});
+
 test('apply-dashboard defaults to null url_path', async () => {
   const artifactPath = writeArtifact(tmpPath(), '{"title":"Home","views":[]}', 'dashboard.json');
   const ws = fakeWs(() => ({ result: 'ok' }));
@@ -973,6 +985,18 @@ test('set-core-config sends only the provided fields, coercing numerics', async 
       },
     },
   ]);
+});
+
+test('set-core-config rejects a non-numeric latitude before any WS call', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(
+    ['ha', 'set-core-config', '--latitude', '40,7', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(1);
+  expect(JSON.parse(out).message).toContain('--latitude must be a number');
+  expect(ws.calls.length).toBe(0);
 });
 
 // --- HA failure surfaces verbatim ---------------------------------------

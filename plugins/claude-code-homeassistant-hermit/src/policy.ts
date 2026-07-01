@@ -231,10 +231,39 @@ function hasMalformedTargetShape(data: Record<string, unknown>): boolean {
   return TARGET_SHAPE_KEYS.some((key) => !isStringOrStringArray((target as Record<string, unknown>)[key]));
 }
 
+// Entity ids can ride in service-specific fields the standard extractor never
+// looks at: scene.apply keys its `entities` map by entity_id, scene.create
+// takes `snapshot_entities`, etc. Deep-scan the whole payload for entity-id-
+// shaped strings (as object keys or string values) so gateServiceCall can
+// classify them too. Strict shape (domain.object_id) avoids matching prose in
+// message/title fields; case-insensitive so a mis-formed `LOCK.x` can't slip.
+const ENTITY_ID_RE = /^[a-z_][a-z0-9_]*\.[a-z0-9_]+$/i;
+
+function deepEntityRefs(value: unknown): string[] {
+  const out: string[] = [];
+  const visit = (v: unknown): void => {
+    if (typeof v === 'string') {
+      if (ENTITY_ID_RE.test(v)) out.push(v);
+    } else if (Array.isArray(v)) {
+      for (const el of v) visit(el);
+    } else if (v !== null && typeof v === 'object') {
+      for (const [key, val] of Object.entries(v)) {
+        if (ENTITY_ID_RE.test(key)) out.push(key);
+        visit(val);
+      }
+    }
+  };
+  visit(value);
+  return out;
+}
+
 /**
  * Gate for `ha call-service` — classifies the target `domain.service` and any
- * entity_id/device_id/target references in `data` via the same per-entity
- * policy used for MCP tool calls. Unlike gateStructuralMutation, a call with
+ * entity references in `data` via the same per-entity policy used for MCP tool
+ * calls. References are pulled both from the standard entity_id/device_id/target
+ * fields and, via a deep scan, from service-specific fields (e.g. scene.apply's
+ * `entities` map keys) so a sensitive entity can't hide in a bespoke field.
+ * Unlike gateStructuralMutation, a call with
  * nothing sensitive proceeds in both modes: call-service exists for
  * maintenance (reloads, recorder.purge, notify.*), and gating every call
  * unconditionally would defeat that purpose.
@@ -277,7 +306,11 @@ export function gateServiceCall(
     };
   }
 
-  const decision = evaluateReferences(entityIds, [`${domain}.${service}`], root);
+  const decision = evaluateReferences(
+    [...entityIds, ...deepEntityRefs(data)],
+    [`${domain}.${service}`],
+    root,
+  );
   if (decision.severity === Severity.ALLOW) {
     return { allowed: true, requiresConfirm: false, mode, reason: 'ok' };
   }

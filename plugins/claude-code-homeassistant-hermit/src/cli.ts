@@ -39,6 +39,7 @@ import {
   writeDegradedDomainsArtifact,
 } from './integration-health';
 import { checkEntity, gateServiceCall, gateStructuralMutation, normalizeEntityIndex } from './policy';
+import type { MutationGate } from './policy';
 import { evaluateYamlPolicy, simulateArtifact } from './simulate';
 import { computeSilenceSummary } from './silence';
 import { captureStates, restoreStates, DEFAULT_DOMAINS } from './snapshot-restore';
@@ -1477,11 +1478,8 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
     );
   }
   if (args.command === 'ha' && args.sub === 'set-entity-labels') {
-    const labels = args.flags['--labels'] as string[] | undefined;
-    if (labels === undefined) {
-      console.log(jsonDumps({ ok: false, message: '--labels is required.' }));
-      return 1;
-    }
+    const labels = requirePlusFlag(args.flags['--labels'], '--labels');
+    if (labels === null) return 1;
     return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
       updateEntity(root, ws, args.positionals[0]!, { labels }, 'set-entity-labels'),
     );
@@ -1499,11 +1497,8 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
     );
   }
   if (args.command === 'ha' && args.sub === 'set-entity-aliases') {
-    const aliases = args.flags['--aliases'] as string[] | undefined;
-    if (aliases === undefined) {
-      console.log(jsonDumps({ ok: false, message: '--aliases is required.' }));
-      return 1;
-    }
+    const aliases = requirePlusFlag(args.flags['--aliases'], '--aliases');
+    if (aliases === null) return 1;
     return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
       updateEntity(root, ws, args.positionals[0]!, { aliases }, 'set-entity-aliases'),
     );
@@ -1535,8 +1530,24 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
   if (args.command === 'ha' && args.sub === 'apply-dashboard') {
     const urlPath = (args.flags['--url-path'] as string | undefined) ?? null;
     const artifactPath = resolve(args.positionals[0]!);
+    // Read+parse before opening the WS: a missing/malformed artifact must
+    // surface a clean {ok:false} (not an uncaught throw past runWsMutation's
+    // HomeAssistantError-only catch), and without wasting a WS connection.
+    if (!existsSync(artifactPath)) {
+      console.log(jsonDumps({ ok: false, message: `Dashboard artifact not found: ${args.positionals[0]}` }));
+      return 1;
+    }
+    let dashboardConfig: unknown;
+    try {
+      dashboardConfig = parseYaml(readFileSync(artifactPath, 'utf8'));
+    } catch (exc) {
+      console.log(
+        jsonDumps({ ok: false, message: `Failed to parse dashboard artifact: ${exc instanceof Error ? exc.message : String(exc)}` }),
+      );
+      return 1;
+    }
     return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
-      saveDashboard(root, ws, urlPath, parseYaml(readFileSync(artifactPath, 'utf8'))),
+      saveDashboard(root, ws, urlPath, dashboardConfig),
     );
   }
   if (args.command === 'ha' && args.sub === 'create-dashboard') {
@@ -1551,9 +1562,13 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
   }
 
   if (args.command === 'ha' && args.sub === 'render-template') {
+    const source = args.positionals[0]!;
+    if (source !== '-' && !existsSync(resolve(source))) {
+      console.log(jsonDumps({ ok: false, message: `Template file not found: ${source}` }));
+      return 1;
+    }
     try {
       const client = await deps.createClient(config);
-      const source = args.positionals[0]!;
       const template = source === '-' ? await Bun.stdin.text() : readFileSync(resolve(source), 'utf8');
       const rendered = await client.postText('/api/template', { template });
       console.log(rendered);
@@ -1591,12 +1606,26 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
 
   if (args.command === 'ha' && args.sub === 'set-core-config') {
     const fields: Record<string, unknown> = {};
-    const setIfPresent = (flag: string, key: string, transform: (v: unknown) => unknown = (v) => v) => {
+    // Reject a non-numeric latitude/longitude up front: Number('40,7') is NaN,
+    // which JSON.stringify serializes as null, silently blanking the stored
+    // coordinate instead of erroring.
+    for (const [flag, key] of [
+      ['--latitude', 'latitude'],
+      ['--longitude', 'longitude'],
+    ] as const) {
+      const raw = args.flags[flag];
+      if (raw === undefined) continue;
+      const num = Number(raw);
+      if (!Number.isFinite(num)) {
+        console.log(jsonDumps({ ok: false, message: `${flag} must be a number, got: '${raw}'` }));
+        return 1;
+      }
+      fields[key] = num;
+    }
+    const setIfPresent = (flag: string, key: string) => {
       const value = args.flags[flag];
-      if (value !== undefined) fields[key] = transform(value);
+      if (value !== undefined) fields[key] = value;
     };
-    setIfPresent('--latitude', 'latitude', Number);
-    setIfPresent('--longitude', 'longitude', Number);
     setIfPresent('--elevation', 'elevation');
     setIfPresent('--unit-system', 'unit_system');
     setIfPresent('--currency', 'currency');
@@ -1694,11 +1723,8 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
     );
   }
   if (args.command === 'ha' && args.sub === 'set-area-labels') {
-    const labels = args.flags['--labels'] as string[] | undefined;
-    if (labels === undefined) {
-      console.log(jsonDumps({ ok: false, message: '--labels is required.' }));
-      return 1;
-    }
+    const labels = requirePlusFlag(args.flags['--labels'], '--labels');
+    if (labels === null) return 1;
     return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
       updateArea(root, ws, args.positionals[0]!, { labels }, 'set-area-labels'),
     );
@@ -1708,16 +1734,10 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
     return runWsRead(deps, config, listExposedEntities);
   }
   if (args.command === 'ha' && args.sub === 'expose-entity') {
-    const entityIds = args.flags['--entity-ids'] as string[] | undefined;
-    if (entityIds === undefined) {
-      console.log(jsonDumps({ ok: false, message: '--entity-ids is required.' }));
-      return 1;
-    }
-    const assistants = args.flags['--assistants'] as string[] | undefined;
-    if (assistants === undefined) {
-      console.log(jsonDumps({ ok: false, message: '--assistants is required.' }));
-      return 1;
-    }
+    const entityIds = requirePlusFlag(args.flags['--entity-ids'], '--entity-ids');
+    if (entityIds === null) return 1;
+    const assistants = requirePlusFlag(args.flags['--assistants'], '--assistants');
+    if (assistants === null) return 1;
     const expose = requireFlag(args.flags['--expose'], '--expose');
     if (expose === null) return 1;
     return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
@@ -1729,11 +1749,8 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
     return runWsRead(deps, config, listBackups);
   }
   if (args.command === 'ha' && args.sub === 'create-backup') {
-    const agentIds = args.flags['--agent-ids'] as string[] | undefined;
-    if (agentIds === undefined) {
-      console.log(jsonDumps({ ok: false, message: '--agent-ids is required.' }));
-      return 1;
-    }
+    const agentIds = requirePlusFlag(args.flags['--agent-ids'], '--agent-ids');
+    if (agentIds === null) return 1;
     const fields: Record<string, unknown> = { agent_ids: agentIds };
     const setIfPresent = (flag: string, key: string, transform: (v: unknown) => unknown = (v) => v) => {
       const value = args.flags[flag];
@@ -1796,6 +1813,13 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
 /** A value flag the handler needs but argparse treats as optional. Prints and returns null when absent. */
 function requireFlag(value: unknown, name: string): string | null {
   if (typeof value === 'string') return value;
+  console.log(jsonDumps({ ok: false, message: `${name} is required.` }));
+  return null;
+}
+
+/** A plus (nargs='+') flag the handler needs but argparse treats as optional. Prints and returns null when absent. */
+function requirePlusFlag(value: unknown, name: string): string[] | null {
+  if (Array.isArray(value)) return value as string[];
   console.log(jsonDumps({ ok: false, message: `${name} is required.` }));
   return null;
 }
@@ -2036,24 +2060,104 @@ function printSafetyAuditSummary(summary: Record<string, any>, domain = 'automat
   if (fetchFailures.length > 0) console.log(`Skipped (404 on config fetch): ${fetchFailures.length}`);
 }
 
-/** Every gated call-service that actually reaches HA writes an audit report — matches restoreStates. */
-function writeCallServiceReport(root: string, domainService: string, data: Record<string, unknown>): string {
-  const metadata = standardMetadata('call-service', `Call-Service Report — ${domainService}`, {
+interface GatedRestReportSpec {
+  type: string;
+  title: string;
+  idKey: string;
+}
+const CALL_SERVICE_REPORT: GatedRestReportSpec = {
+  type: 'call-service',
+  title: 'Call-Service Report',
+  idKey: 'domain_service',
+};
+const RELOAD_ENTRY_REPORT: GatedRestReportSpec = {
+  type: 'reload-entry',
+  title: 'Reload-Entry Report',
+  idKey: 'entry_id',
+};
+
+/** Every gated REST write that actually reaches HA writes an audit report — matches restoreStates. */
+function writeGatedRestReport(root: string, spec: GatedRestReportSpec, id: string, data: unknown): string {
+  const tag = `ha-${spec.type}`;
+  const prefix = `audit-${tag}`;
+  const metadata = standardMetadata(spec.type, `${spec.title} — ${id}`, {
     session: currentSessionId(root),
-    tags: ['ha-call-service'],
-    extra: { domain_service: domainService, data },
+    tags: [tag],
+    extra: { [spec.idKey]: id, data },
   });
-  const body = [`# Call-Service Report for \`${domainService}\``, '', `- data: ${JSON.stringify(data)}`].join(
-    '\n',
-  );
+  const body = [`# ${spec.title} for \`${id}\``, '', `- data: ${JSON.stringify(data)}`].join('\n');
   return writeMarkdownArtifact(
     root,
     '.claude-code-hermit/raw',
-    `audit-ha-call-service-${slugify(domainService)}`,
+    `${prefix}-${slugify(id)}`,
     metadata,
     body,
-    'audit-ha-call-service-latest.md',
+    `${prefix}-latest.md`,
   );
+}
+
+/**
+ * Shared driver for the two REST-based gated writes (call-service, reload-entry):
+ * emit the blocked JSON if the gate refuses, otherwise run the call, write an
+ * audit report, and emit the standard {ok,blocked,requires_confirm,mode,data,
+ * message,report_path} envelope — mirrors runWsMutation for the WS path.
+ */
+async function runGatedRestWrite(
+  deps: CliDeps,
+  config: AppConfig,
+  root: string,
+  gate: MutationGate,
+  doCall: (client: CliClient) => Promise<unknown>,
+  writeReport: (result: unknown) => string,
+): Promise<number> {
+  if (!gate.allowed) {
+    console.log(
+      jsonDumps({
+        ok: false,
+        blocked: true,
+        requires_confirm: gate.requiresConfirm,
+        mode: gate.mode,
+        data: null,
+        message: gate.reason,
+        report_path: null,
+      }),
+    );
+    return 1;
+  }
+  try {
+    const client = await deps.createClient(config);
+    const result = await doCall(client);
+    const reportPath = writeReport(result);
+    console.log(
+      jsonDumps(
+        {
+          ok: true,
+          blocked: false,
+          requires_confirm: false,
+          mode: gate.mode,
+          data: result,
+          message: 'ok',
+          report_path: relative(root, reportPath),
+        },
+        { ensureAscii: false },
+      ),
+    );
+    return 0;
+  } catch (exc) {
+    if (!(exc instanceof HomeAssistantError)) throw exc;
+    console.log(
+      jsonDumps({
+        ok: false,
+        blocked: false,
+        requires_confirm: false,
+        mode: gate.mode,
+        data: null,
+        message: extractHaErrorMessage(exc),
+        report_path: null,
+      }),
+    );
+    return 1;
+  }
 }
 
 async function handleCallService(
@@ -2083,72 +2187,13 @@ async function handleCallService(
   }
 
   const gate = gateServiceCall(root, domain, service, data, confirmed);
-  if (!gate.allowed) {
-    console.log(
-      jsonDumps({
-        ok: false,
-        blocked: true,
-        requires_confirm: gate.requiresConfirm,
-        mode: gate.mode,
-        data: null,
-        message: gate.reason,
-        report_path: null,
-      }),
-    );
-    return 1;
-  }
-
-  try {
-    const client = await deps.createClient(config);
-    const result = await client.callService(domain, service, data);
-    const reportPath = writeCallServiceReport(root, target, data);
-    console.log(
-      jsonDumps(
-        {
-          ok: true,
-          blocked: false,
-          requires_confirm: false,
-          mode: gate.mode,
-          data: result,
-          message: 'ok',
-          report_path: relative(root, reportPath),
-        },
-        { ensureAscii: false },
-      ),
-    );
-    return 0;
-  } catch (exc) {
-    if (!(exc instanceof HomeAssistantError)) throw exc;
-    console.log(
-      jsonDumps({
-        ok: false,
-        blocked: false,
-        requires_confirm: false,
-        mode: gate.mode,
-        data: null,
-        message: extractHaErrorMessage(exc),
-        report_path: null,
-      }),
-    );
-    return 1;
-  }
-}
-
-/** Every gated reload-entry that actually reaches HA writes an audit report — matches writeCallServiceReport. */
-function writeReloadEntryReport(root: string, entryId: string, data: unknown): string {
-  const metadata = standardMetadata('reload-entry', `Reload-Entry Report — ${entryId}`, {
-    session: currentSessionId(root),
-    tags: ['ha-reload-entry'],
-    extra: { entry_id: entryId, data },
-  });
-  const body = [`# Reload-Entry Report for \`${entryId}\``, '', `- data: ${JSON.stringify(data)}`].join('\n');
-  return writeMarkdownArtifact(
+  return runGatedRestWrite(
+    deps,
+    config,
     root,
-    '.claude-code-hermit/raw',
-    `audit-ha-reload-entry-${slugify(entryId)}`,
-    metadata,
-    body,
-    'audit-ha-reload-entry-latest.md',
+    gate,
+    (client) => client.callService(domain, service, data),
+    () => writeGatedRestReport(root, CALL_SERVICE_REPORT, target, data),
   );
 }
 
@@ -2160,54 +2205,14 @@ async function handleReloadEntry(
   deps: CliDeps,
 ): Promise<number> {
   const gate = gateStructuralMutation(root, confirmed);
-  if (!gate.allowed) {
-    console.log(
-      jsonDumps({
-        ok: false,
-        blocked: true,
-        requires_confirm: gate.requiresConfirm,
-        mode: gate.mode,
-        data: null,
-        message: gate.reason,
-        report_path: null,
-      }),
-    );
-    return 1;
-  }
-  try {
-    const client = await deps.createClient(config);
-    const result = await client.post(`/api/config/config_entries/entry/${entryId}/reload`);
-    const reportPath = writeReloadEntryReport(root, entryId, result);
-    console.log(
-      jsonDumps(
-        {
-          ok: true,
-          blocked: false,
-          requires_confirm: false,
-          mode: gate.mode,
-          data: result,
-          message: 'ok',
-          report_path: relative(root, reportPath),
-        },
-        { ensureAscii: false },
-      ),
-    );
-    return 0;
-  } catch (exc) {
-    if (!(exc instanceof HomeAssistantError)) throw exc;
-    console.log(
-      jsonDumps({
-        ok: false,
-        blocked: false,
-        requires_confirm: false,
-        mode: gate.mode,
-        data: null,
-        message: extractHaErrorMessage(exc),
-        report_path: null,
-      }),
-    );
-    return 1;
-  }
+  return runGatedRestWrite(
+    deps,
+    config,
+    root,
+    gate,
+    (client) => client.post(`/api/config/config_entries/entry/${entryId}/reload`),
+    (result) => writeGatedRestReport(root, RELOAD_ENTRY_REPORT, entryId, result),
+  );
 }
 
 async function handleTriggerAutomation(
