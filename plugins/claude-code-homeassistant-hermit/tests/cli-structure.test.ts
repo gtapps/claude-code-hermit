@@ -416,6 +416,138 @@ test('delete-label sends label_id payload', async () => {
   expect(ws.calls).toEqual([{ type: 'config/label_registry/delete', payload: { label_id: 'security' } }]);
 });
 
+// --- blueprints --------------------------------------------------------------
+
+test('list-blueprints reads via WS with domain', async () => {
+  const ws = fakeWs(() => ({ 'my_blueprint.yaml': { metadata: { name: 'My Blueprint' } } }));
+  const { code, out } = await runCli(['ha', 'list-blueprints', 'automation'], ws, cfg());
+  expect(code).toBe(0);
+  expect(JSON.parse(out).data).toEqual({ 'my_blueprint.yaml': { metadata: { name: 'My Blueprint' } } });
+  expect(ws.calls).toEqual([{ type: 'blueprint/list', payload: { domain: 'automation' } }]);
+});
+
+test('import-blueprint imports then saves', async () => {
+  const ws = fakeWs((type) => {
+    if (type === 'blueprint/import') {
+      return { suggested_filename: 'my_blueprint.yaml', raw_data: 'blueprint: {}', validation_errors: [] };
+    }
+    return { overrides_existing: false };
+  });
+  const { code, out } = await runCli(
+    ['ha', 'import-blueprint', 'automation', 'https://example.com/bp.yaml', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(JSON.parse(out).ok).toBe(true);
+  expect(ws.calls).toEqual([
+    { type: 'blueprint/import', payload: { url: 'https://example.com/bp.yaml' } },
+    {
+      type: 'blueprint/save',
+      payload: {
+        domain: 'automation',
+        path: 'my_blueprint.yaml',
+        yaml: 'blueprint: {}',
+        source_url: 'https://example.com/bp.yaml',
+      },
+    },
+  ]);
+});
+
+test('import-blueprint stops after import on validation errors, does not save', async () => {
+  const ws = fakeWs(() => ({
+    suggested_filename: 'bad.yaml',
+    raw_data: 'bad: yaml',
+    validation_errors: ['missing required input'],
+  }));
+  const { code, out } = await runCli(
+    ['ha', 'import-blueprint', 'automation', 'https://example.com/bad.yaml', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(1);
+  expect(JSON.parse(out).message).toContain('validation failed');
+  expect(ws.calls.length).toBe(1);
+  expect(ws.calls[0]!.type).toBe('blueprint/import');
+});
+
+test('import-blueprint blocked under strict, no WS command sent', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(
+    ['ha', 'import-blueprint', 'automation', 'https://example.com/bp.yaml'],
+    ws,
+    cfg('strict'),
+  );
+  expect(code).toBe(1);
+  expect(JSON.parse(out).blocked).toBe(true);
+  expect(ws.calls.length).toBe(0);
+});
+
+// --- energy prefs --------------------------------------------------------------
+
+test('get-energy-prefs reads via WS', async () => {
+  const ws = fakeWs(() => ({ energy_sources: [], device_consumption: [] }));
+  const { code, out } = await runCli(['ha', 'get-energy-prefs'], ws, cfg());
+  expect(code).toBe(0);
+  expect(JSON.parse(out).data).toEqual({ energy_sources: [], device_consumption: [] });
+  expect(ws.calls).toEqual([{ type: 'energy/get_prefs', payload: {} }]);
+});
+
+test('set-energy-prefs rejects invalid JSON', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(['ha', 'set-energy-prefs', 'not-json', '--confirm'], ws, cfg('ask'));
+  expect(code).toBe(1);
+  expect(JSON.parse(out).message).toContain('valid JSON');
+  expect(ws.calls.length).toBe(0);
+});
+
+test('set-energy-prefs sends the parsed prefs object', async () => {
+  const ws = fakeWs(() => null);
+  const { code } = await runCli(
+    ['ha', 'set-energy-prefs', '{"energy_sources":[]}', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([{ type: 'energy/save_prefs', payload: { energy_sources: [] } }]);
+});
+
+// --- config entries --------------------------------------------------------------
+
+test('disable-entry requires --disabled', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(['ha', 'disable-entry', 'entry1', '--confirm'], ws, cfg('ask'));
+  expect(code).toBe(1);
+  expect(JSON.parse(out).message).toContain('--disabled');
+  expect(ws.calls.length).toBe(0);
+});
+
+test('disable-entry true maps to disabled_by user', async () => {
+  const ws = fakeWs(() => ({ require_restart: true }));
+  const { code } = await runCli(
+    ['ha', 'disable-entry', 'entry1', '--disabled', 'true', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    { type: 'config_entries/disable', payload: { entry_id: 'entry1', disabled_by: 'user' } },
+  ]);
+});
+
+test('disable-entry false maps to disabled_by null', async () => {
+  const ws = fakeWs(() => ({ require_restart: false }));
+  const { code } = await runCli(
+    ['ha', 'disable-entry', 'entry1', '--disabled', 'false', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    { type: 'config_entries/disable', payload: { entry_id: 'entry1', disabled_by: null } },
+  ]);
+});
+
 // --- backups -----------------------------------------------------------------
 
 test('list-backups reads via WS', async () => {

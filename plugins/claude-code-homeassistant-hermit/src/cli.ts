@@ -58,10 +58,14 @@ import {
   deleteFloor,
   deleteHelper,
   deleteLabel,
+  disableConfigEntry,
   exposeEntity,
   getDashboard,
+  getEnergyPrefs,
+  importBlueprint,
   listAreas,
   listBackups,
+  listBlueprints,
   listDashboards,
   listDevices,
   listEntities,
@@ -73,6 +77,7 @@ import {
   parseJsonObject,
   saveDashboard,
   setCoreConfig,
+  setEnergyPrefs,
   updateArea,
   updateDevice,
   updateEntity,
@@ -229,6 +234,12 @@ const HA_COMMANDS = [
   'expose-entity',
   'list-backups',
   'create-backup',
+  'list-blueprints',
+  'import-blueprint',
+  'get-energy-prefs',
+  'set-energy-prefs',
+  'reload-entry',
+  'disable-entry',
   'trigger-automation',
 ] as const;
 const HA_USAGE = [
@@ -347,6 +358,17 @@ positional arguments:
     list-backups        List backups via WebSocket (backup/info).
     create-backup       Generate a backup via WebSocket (backup/generate,
                         gated write).
+    list-blueprints     List blueprints for a domain via WebSocket
+                        (blueprint/list).
+    import-blueprint    Import a blueprint from a URL and save it under a
+                        domain via WebSocket (gated write).
+    get-energy-prefs    Read energy dashboard preferences via WebSocket
+                        (energy/get_prefs).
+    set-energy-prefs    Replace energy dashboard preferences from JSON via
+                        WebSocket (energy/save_prefs, gated write).
+    reload-entry        Reload a config entry (REST, gated write).
+    disable-entry       Enable/disable a config entry via WebSocket
+                        (config_entries/disable, gated write).
     trigger-automation  Fire an automation by entity_id via automation.trigger.
 
 options:
@@ -936,6 +958,42 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
       '--include-homeassistant': { kind: 'value', choices: ['true', 'false'] },
       '--confirm': { kind: 'store_true' },
     },
+  },
+  'ha list-blueprints': {
+    prog: 'ha_agent_lab ha list-blueprints',
+    usage: 'usage: ha_agent_lab ha list-blueprints [-h] domain',
+    positionals: ['domain'],
+    flags: {},
+  },
+  'ha import-blueprint': {
+    prog: 'ha_agent_lab ha import-blueprint',
+    usage: 'usage: ha_agent_lab ha import-blueprint [-h] [--confirm] domain url',
+    positionals: ['domain', 'url'],
+    flags: { '--confirm': { kind: 'store_true' } },
+  },
+  'ha get-energy-prefs': {
+    prog: 'ha_agent_lab ha get-energy-prefs',
+    usage: 'usage: ha_agent_lab ha get-energy-prefs [-h]',
+    positionals: [],
+    flags: {},
+  },
+  'ha set-energy-prefs': {
+    prog: 'ha_agent_lab ha set-energy-prefs',
+    usage: 'usage: ha_agent_lab ha set-energy-prefs [-h] [--confirm] json',
+    positionals: ['json'],
+    flags: { '--confirm': { kind: 'store_true' } },
+  },
+  'ha reload-entry': {
+    prog: 'ha_agent_lab ha reload-entry',
+    usage: 'usage: ha_agent_lab ha reload-entry [-h] [--confirm] entry_id',
+    positionals: ['entry_id'],
+    flags: { '--confirm': { kind: 'store_true' } },
+  },
+  'ha disable-entry': {
+    prog: 'ha_agent_lab ha disable-entry',
+    usage: 'usage: ha_agent_lab ha disable-entry [-h] [--confirm] --disabled {true,false} entry_id',
+    positionals: ['entry_id'],
+    flags: { '--disabled': { kind: 'value', choices: ['true', 'false'] }, '--confirm': { kind: 'store_true' } },
   },
   'ha trigger-automation': {
     prog: 'ha_agent_lab ha trigger-automation',
@@ -1694,6 +1752,38 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
     );
   }
 
+  if (args.command === 'ha' && args.sub === 'list-blueprints') {
+    return runWsRead(deps, config, (ws) => listBlueprints(ws, args.positionals[0]!));
+  }
+  if (args.command === 'ha' && args.sub === 'import-blueprint') {
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      importBlueprint(root, ws, args.positionals[0]!, args.positionals[1]!),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'get-energy-prefs') {
+    return runWsRead(deps, config, getEnergyPrefs);
+  }
+  if (args.command === 'ha' && args.sub === 'set-energy-prefs') {
+    const parsed = parseJsonObject(args.positionals[0]!);
+    if (!parsed.ok) {
+      console.log(jsonDumps({ ok: false, message: `energy prefs JSON ${parsed.message}` }));
+      return 1;
+    }
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      setEnergyPrefs(root, ws, parsed.payload),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'reload-entry') {
+    return handleReloadEntry(args.positionals[0]!, Boolean(args.flags['--confirm']), root, config, deps);
+  }
+  if (args.command === 'ha' && args.sub === 'disable-entry') {
+    const disabled = requireFlag(args.flags['--disabled'], '--disabled');
+    if (disabled === null) return 1;
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      disableConfigEntry(root, ws, args.positionals[0]!, disabled === 'true'),
+    );
+  }
+
   if (args.command === 'ha' && args.sub === 'trigger-automation') {
     return handleTriggerAutomation(args.positionals[0]!, config, deps);
   }
@@ -2012,6 +2102,82 @@ async function handleCallService(
     const client = await deps.createClient(config);
     const result = await client.callService(domain, service, data);
     const reportPath = writeCallServiceReport(root, target, data);
+    console.log(
+      jsonDumps(
+        {
+          ok: true,
+          blocked: false,
+          requires_confirm: false,
+          mode: gate.mode,
+          data: result,
+          message: 'ok',
+          report_path: relative(root, reportPath),
+        },
+        { ensureAscii: false },
+      ),
+    );
+    return 0;
+  } catch (exc) {
+    if (!(exc instanceof HomeAssistantError)) throw exc;
+    console.log(
+      jsonDumps({
+        ok: false,
+        blocked: false,
+        requires_confirm: false,
+        mode: gate.mode,
+        data: null,
+        message: extractHaErrorMessage(exc),
+        report_path: null,
+      }),
+    );
+    return 1;
+  }
+}
+
+/** Every gated reload-entry that actually reaches HA writes an audit report — matches writeCallServiceReport. */
+function writeReloadEntryReport(root: string, entryId: string, data: unknown): string {
+  const metadata = standardMetadata('reload-entry', `Reload-Entry Report — ${entryId}`, {
+    session: currentSessionId(root),
+    tags: ['ha-reload-entry'],
+    extra: { entry_id: entryId, data },
+  });
+  const body = [`# Reload-Entry Report for \`${entryId}\``, '', `- data: ${JSON.stringify(data)}`].join('\n');
+  return writeMarkdownArtifact(
+    root,
+    '.claude-code-hermit/raw',
+    `audit-ha-reload-entry-${slugify(entryId)}`,
+    metadata,
+    body,
+    'audit-ha-reload-entry-latest.md',
+  );
+}
+
+async function handleReloadEntry(
+  entryId: string,
+  confirmed: boolean,
+  root: string,
+  config: AppConfig,
+  deps: CliDeps,
+): Promise<number> {
+  const gate = gateStructuralMutation(root, confirmed);
+  if (!gate.allowed) {
+    console.log(
+      jsonDumps({
+        ok: false,
+        blocked: true,
+        requires_confirm: gate.requiresConfirm,
+        mode: gate.mode,
+        data: null,
+        message: gate.reason,
+        report_path: null,
+      }),
+    );
+    return 1;
+  }
+  try {
+    const client = await deps.createClient(config);
+    const result = await client.post(`/api/config/config_entries/entry/${entryId}/reload`);
+    const reportPath = writeReloadEntryReport(root, entryId, result);
     console.log(
       jsonDumps(
         {

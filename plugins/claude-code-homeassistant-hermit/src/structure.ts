@@ -385,6 +385,73 @@ export async function createBackup(
   return runMutation(root, client, 'create-backup', 'backup/generate', fields);
 }
 
+// --- Blueprints --------------------------------------------------------
+
+export async function listBlueprints(client: WsCommandClient, domain: string): Promise<WsReadResult> {
+  return { ok: true, data: await client.command('blueprint/list', { domain }), message: 'ok' };
+}
+
+/**
+ * Import a blueprint from a URL and save it under the given domain. Two WS
+ * calls (import, then save), each independently audited via runMutation —
+ * mirrors the HA UI's own import-then-save flow. Stops after import if HA
+ * reports validation errors, without attempting the save.
+ */
+export async function importBlueprint(
+  root: string,
+  client: WsCommandClient,
+  domain: string,
+  url: string,
+): Promise<WsMutationResult> {
+  const imported = await runMutation(root, client, 'import-blueprint', 'blueprint/import', { url });
+  if (!imported.ok) return imported;
+
+  const data = imported.data as { suggested_filename?: string; raw_data?: string; validation_errors?: unknown };
+  if (Array.isArray(data.validation_errors) && data.validation_errors.length > 0) {
+    return {
+      ok: false,
+      data,
+      message: `Blueprint validation failed: ${data.validation_errors.join('; ')}`,
+      reportPath: imported.reportPath,
+    };
+  }
+
+  return runMutation(root, client, 'save-blueprint', 'blueprint/save', {
+    domain,
+    path: data.suggested_filename,
+    yaml: data.raw_data,
+    source_url: url,
+  });
+}
+
+// --- Energy preferences --------------------------------------------------
+
+export async function getEnergyPrefs(client: WsCommandClient): Promise<WsReadResult> {
+  return { ok: true, data: await client.command('energy/get_prefs'), message: 'ok' };
+}
+
+export async function setEnergyPrefs(
+  root: string,
+  client: WsCommandClient,
+  prefs: Record<string, unknown>,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'set-energy-prefs', 'energy/save_prefs', prefs);
+}
+
+// --- Config entries --------------------------------------------------------
+
+export async function disableConfigEntry(
+  root: string,
+  client: WsCommandClient,
+  entryId: string,
+  disabled: boolean,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'disable-entry', 'config_entries/disable', {
+    entry_id: entryId,
+    disabled_by: disabled ? 'user' : null,
+  });
+}
+
 // --- shared error shapes -------------------------------------------------
 
 function unknownHelperType(type: string): string {

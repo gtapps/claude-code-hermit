@@ -116,6 +116,12 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-exposed-entities
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha expose-entity --entity-ids <id> [<id> ...] --assistants <assistant> [<assistant> ...] --expose true|false [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-backups
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-backup --agent-ids <id> [<id> ...] [--name <name>] [--password <password>] [--include-addons <slug> [<slug> ...]] [--include-all-addons] [--include-database true|false] [--include-folders <folder> [<folder> ...]] [--include-homeassistant true|false] [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-blueprints <domain>
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha import-blueprint <domain> <url> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-energy-prefs
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-energy-prefs <json> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha reload-entry <entry_id> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha disable-entry <entry_id> --disabled true|false [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha trigger-automation <automation_id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status [--probe]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url> [--token <token>]
