@@ -82,6 +82,10 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-helper <type> <id> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-areas
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-area <name> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-area <id> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha rename-area <area_id> --name <name> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-area-icon <area_id> --icon <icon> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-area-floor <area_id> --floor <floor_id> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-area-labels <area_id> --labels <label> [<label> ...] [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-floors
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-floor <name> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-floor <id> [--confirm]

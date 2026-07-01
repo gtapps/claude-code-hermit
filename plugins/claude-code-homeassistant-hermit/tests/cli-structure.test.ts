@@ -416,6 +416,79 @@ test('delete-label sends label_id payload', async () => {
   expect(ws.calls).toEqual([{ type: 'config/label_registry/delete', payload: { label_id: 'security' } }]);
 });
 
+// --- area metadata ---------------------------------------------------------
+
+test('rename-area requires --name', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(['ha', 'rename-area', 'a1', '--confirm'], ws, cfg('ask'));
+  expect(code).toBe(1);
+  expect(JSON.parse(out).message).toContain('--name');
+  expect(ws.calls.length).toBe(0);
+});
+
+test('rename-area updates the area registry', async () => {
+  const ws = fakeWs();
+  const { code } = await runCli(
+    ['ha', 'rename-area', 'a1', '--name', 'Living Room', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    { type: 'config/area_registry/update', payload: { area_id: 'a1', name: 'Living Room' } },
+  ]);
+});
+
+test('set-area-icon updates the area registry', async () => {
+  const ws = fakeWs();
+  const { code } = await runCli(
+    ['ha', 'set-area-icon', 'a1', '--icon', 'mdi:sofa', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    { type: 'config/area_registry/update', payload: { area_id: 'a1', icon: 'mdi:sofa' } },
+  ]);
+});
+
+test('set-area-floor updates the area registry', async () => {
+  const ws = fakeWs();
+  const { code } = await runCli(
+    ['ha', 'set-area-floor', 'a1', '--floor', 'ground', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    { type: 'config/area_registry/update', payload: { area_id: 'a1', floor_id: 'ground' } },
+  ]);
+});
+
+test('set-area-labels requires --labels', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(['ha', 'set-area-labels', 'a1', '--confirm'], ws, cfg('ask'));
+  expect(code).toBe(1);
+  expect(JSON.parse(out).message).toContain('--labels');
+  expect(ws.calls.length).toBe(0);
+});
+
+test('set-area-labels updates the area registry with multiple labels', async () => {
+  const ws = fakeWs();
+  const { code } = await runCli(
+    ['ha', 'set-area-labels', 'a1', '--labels', 'security', 'main-floor', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    {
+      type: 'config/area_registry/update',
+      payload: { area_id: 'a1', labels: ['security', 'main-floor'] },
+    },
+  ]);
+});
+
 // --- core config -----------------------------------------------------------
 
 test('set-core-config requires at least one field flag', async () => {

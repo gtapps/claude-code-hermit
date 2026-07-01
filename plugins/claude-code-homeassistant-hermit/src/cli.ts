@@ -69,6 +69,7 @@ import {
   parseJsonObject,
   saveDashboard,
   setCoreConfig,
+  updateArea,
   updateDevice,
   updateEntity,
 } from './structure';
@@ -208,6 +209,10 @@ const HA_COMMANDS = [
   'list-labels',
   'create-label',
   'delete-label',
+  'rename-area',
+  'set-area-icon',
+  'set-area-floor',
+  'set-area-labels',
   'trigger-automation',
 ] as const;
 const HA_USAGE = [
@@ -302,6 +307,10 @@ positional arguments:
     list-labels         List labels via WebSocket.
     create-label        Create a label by name via WebSocket (gated write).
     delete-label        Delete a label by id via WebSocket (gated write).
+    rename-area         Set an area's friendly name (gated write).
+    set-area-icon       Set an area's icon (gated write).
+    set-area-floor      Assign an area to a floor (gated write).
+    set-area-labels     Set an area's labels (gated write).
     trigger-automation  Fire an automation by entity_id via automation.trigger.
 
 options:
@@ -769,6 +778,30 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
     usage: 'usage: ha_agent_lab ha delete-label [-h] [--confirm] id',
     positionals: ['id'],
     flags: { '--confirm': { kind: 'store_true' } },
+  },
+  'ha rename-area': {
+    prog: 'ha_agent_lab ha rename-area',
+    usage: 'usage: ha_agent_lab ha rename-area [-h] [--confirm] --name NAME area_id',
+    positionals: ['area_id'],
+    flags: { '--name': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+  },
+  'ha set-area-icon': {
+    prog: 'ha_agent_lab ha set-area-icon',
+    usage: 'usage: ha_agent_lab ha set-area-icon [-h] [--confirm] --icon ICON area_id',
+    positionals: ['area_id'],
+    flags: { '--icon': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+  },
+  'ha set-area-floor': {
+    prog: 'ha_agent_lab ha set-area-floor',
+    usage: 'usage: ha_agent_lab ha set-area-floor [-h] [--confirm] --floor FLOOR area_id',
+    positionals: ['area_id'],
+    flags: { '--floor': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+  },
+  'ha set-area-labels': {
+    prog: 'ha_agent_lab ha set-area-labels',
+    usage: 'usage: ha_agent_lab ha set-area-labels [-h] [--confirm] --labels LABEL [LABEL ...] area_id',
+    positionals: ['area_id'],
+    flags: { '--labels': { kind: 'plus' }, '--confirm': { kind: 'store_true' } },
   },
   'ha trigger-automation': {
     prog: 'ha_agent_lab ha trigger-automation',
@@ -1339,6 +1372,38 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
   if (args.command === 'ha' && args.sub === 'delete-label') {
     return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
       deleteLabel(root, ws, args.positionals[0]!),
+    );
+  }
+
+  if (args.command === 'ha' && args.sub === 'rename-area') {
+    const name = requireFlag(args.flags['--name'], '--name');
+    if (name === null) return 1;
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      updateArea(root, ws, args.positionals[0]!, { name }, 'rename-area'),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'set-area-icon') {
+    const icon = requireFlag(args.flags['--icon'], '--icon');
+    if (icon === null) return 1;
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      updateArea(root, ws, args.positionals[0]!, { icon }, 'set-area-icon'),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'set-area-floor') {
+    const floor = requireFlag(args.flags['--floor'], '--floor');
+    if (floor === null) return 1;
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      updateArea(root, ws, args.positionals[0]!, { floor_id: floor }, 'set-area-floor'),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'set-area-labels') {
+    const labels = args.flags['--labels'] as string[] | undefined;
+    if (labels === undefined) {
+      console.log(jsonDumps({ ok: false, message: '--labels is required.' }));
+      return 1;
+    }
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      updateArea(root, ws, args.positionals[0]!, { labels }, 'set-area-labels'),
     );
   }
 

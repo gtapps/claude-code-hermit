@@ -181,6 +181,20 @@ export async function deleteArea(
   return runMutation(root, client, 'delete-area', 'config/area_registry/delete', { area_id: areaId });
 }
 
+/** Generic area_registry/update: rename, set icon, assign a floor, or set labels. */
+export async function updateArea(
+  root: string,
+  client: WsCommandClient,
+  areaId: string,
+  fields: Record<string, unknown>,
+  label: string,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, label, 'config/area_registry/update', {
+    area_id: areaId,
+    ...fields,
+  });
+}
+
 // --- Entity registry -----------------------------------------------------
 
 export async function listEntities(client: WsCommandClient): Promise<WsReadResult> {
