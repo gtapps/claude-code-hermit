@@ -49,16 +49,22 @@ import {
   type WsReadResult,
   createArea,
   createDashboard,
+  createFloor,
   createHelper,
+  createLabel,
   deleteArea,
   deleteDashboard,
+  deleteFloor,
   deleteHelper,
+  deleteLabel,
   getDashboard,
   listAreas,
   listDashboards,
   listDevices,
   listEntities,
+  listFloors,
   listHelpers,
+  listLabels,
   listSystemLog,
   parseJsonObject,
   saveDashboard,
@@ -196,6 +202,12 @@ const HA_COMMANDS = [
   'error-log',
   'logbook',
   'system-log',
+  'list-floors',
+  'create-floor',
+  'delete-floor',
+  'list-labels',
+  'create-label',
+  'delete-label',
   'trigger-automation',
 ] as const;
 const HA_USAGE = [
@@ -284,6 +296,12 @@ positional arguments:
     logbook             Fetch the HA logbook (GET /api/logbook/<ts>).
     system-log          List structured system log entries, with levels,
                         via WebSocket (system_log/list).
+    list-floors         List floors via WebSocket.
+    create-floor        Create a floor by name via WebSocket (gated write).
+    delete-floor        Delete a floor by id via WebSocket (gated write).
+    list-labels         List labels via WebSocket.
+    create-label        Create a label by name via WebSocket (gated write).
+    delete-label        Delete a label by id via WebSocket (gated write).
     trigger-automation  Fire an automation by entity_id via automation.trigger.
 
 options:
@@ -715,6 +733,42 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
     usage: 'usage: ha_agent_lab ha system-log [-h]',
     positionals: [],
     flags: {},
+  },
+  'ha list-floors': {
+    prog: 'ha_agent_lab ha list-floors',
+    usage: 'usage: ha_agent_lab ha list-floors [-h]',
+    positionals: [],
+    flags: {},
+  },
+  'ha create-floor': {
+    prog: 'ha_agent_lab ha create-floor',
+    usage: 'usage: ha_agent_lab ha create-floor [-h] [--confirm] name',
+    positionals: ['name'],
+    flags: { '--confirm': { kind: 'store_true' } },
+  },
+  'ha delete-floor': {
+    prog: 'ha_agent_lab ha delete-floor',
+    usage: 'usage: ha_agent_lab ha delete-floor [-h] [--confirm] id',
+    positionals: ['id'],
+    flags: { '--confirm': { kind: 'store_true' } },
+  },
+  'ha list-labels': {
+    prog: 'ha_agent_lab ha list-labels',
+    usage: 'usage: ha_agent_lab ha list-labels [-h]',
+    positionals: [],
+    flags: {},
+  },
+  'ha create-label': {
+    prog: 'ha_agent_lab ha create-label',
+    usage: 'usage: ha_agent_lab ha create-label [-h] [--confirm] name',
+    positionals: ['name'],
+    flags: { '--confirm': { kind: 'store_true' } },
+  },
+  'ha delete-label': {
+    prog: 'ha_agent_lab ha delete-label',
+    usage: 'usage: ha_agent_lab ha delete-label [-h] [--confirm] id',
+    positionals: ['id'],
+    flags: { '--confirm': { kind: 'store_true' } },
   },
   'ha trigger-automation': {
     prog: 'ha_agent_lab ha trigger-automation',
@@ -1259,6 +1313,33 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
 
   if (args.command === 'ha' && args.sub === 'system-log') {
     return runWsRead(deps, config, listSystemLog);
+  }
+
+  if (args.command === 'ha' && args.sub === 'list-floors') {
+    return runWsRead(deps, config, listFloors);
+  }
+  if (args.command === 'ha' && args.sub === 'create-floor') {
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      createFloor(root, ws, args.positionals[0]!),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'delete-floor') {
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      deleteFloor(root, ws, args.positionals[0]!),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'list-labels') {
+    return runWsRead(deps, config, listLabels);
+  }
+  if (args.command === 'ha' && args.sub === 'create-label') {
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      createLabel(root, ws, args.positionals[0]!),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'delete-label') {
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      deleteLabel(root, ws, args.positionals[0]!),
+    );
   }
 
   if (args.command === 'ha' && args.sub === 'trigger-automation') {

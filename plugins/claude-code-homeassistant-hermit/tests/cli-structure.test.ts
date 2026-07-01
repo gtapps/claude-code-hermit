@@ -358,6 +358,64 @@ test('set-device-area updates the device registry', async () => {
   ]);
 });
 
+// --- floors --------------------------------------------------------------
+
+test('list-floors reads via WS and closes', async () => {
+  const ws = fakeWs(() => [{ floor_id: 'ground', name: 'Ground Floor', level: 0 }]);
+  const { code, out } = await runCli(['ha', 'list-floors'], ws, cfg());
+  expect(code).toBe(0);
+  const parsed = JSON.parse(out);
+  expect(parsed.data).toEqual([{ floor_id: 'ground', name: 'Ground Floor', level: 0 }]);
+  expect(ws.calls).toEqual([{ type: 'config/floor_registry/list', payload: {} }]);
+  expect(ws.closed).toBe(true);
+});
+
+test('create-floor blocked under strict, no WS command sent', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(['ha', 'create-floor', 'Attic'], ws, cfg('strict'));
+  expect(code).toBe(1);
+  expect(JSON.parse(out).blocked).toBe(true);
+  expect(ws.calls.length).toBe(0);
+});
+
+test('create-floor sends name payload', async () => {
+  const ws = fakeWs(() => ({ floor_id: 'attic' }));
+  const { code } = await runCli(['ha', 'create-floor', 'Attic', '--confirm'], ws, cfg('ask'));
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([{ type: 'config/floor_registry/create', payload: { name: 'Attic' } }]);
+});
+
+test('delete-floor sends floor_id payload', async () => {
+  const ws = fakeWs();
+  const { code } = await runCli(['ha', 'delete-floor', 'attic', '--confirm'], ws, cfg('ask'));
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([{ type: 'config/floor_registry/delete', payload: { floor_id: 'attic' } }]);
+});
+
+// --- labels --------------------------------------------------------------
+
+test('list-labels reads via WS and closes', async () => {
+  const ws = fakeWs(() => [{ label_id: 'security', name: 'Security' }]);
+  const { code, out } = await runCli(['ha', 'list-labels'], ws, cfg());
+  expect(code).toBe(0);
+  expect(JSON.parse(out).data).toEqual([{ label_id: 'security', name: 'Security' }]);
+  expect(ws.calls).toEqual([{ type: 'config/label_registry/list', payload: {} }]);
+});
+
+test('create-label sends name payload', async () => {
+  const ws = fakeWs(() => ({ label_id: 'security' }));
+  const { code } = await runCli(['ha', 'create-label', 'Security', '--confirm'], ws, cfg('ask'));
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([{ type: 'config/label_registry/create', payload: { name: 'Security' } }]);
+});
+
+test('delete-label sends label_id payload', async () => {
+  const ws = fakeWs();
+  const { code } = await runCli(['ha', 'delete-label', 'security', '--confirm'], ws, cfg('ask'));
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([{ type: 'config/label_registry/delete', payload: { label_id: 'security' } }]);
+});
+
 // --- core config -----------------------------------------------------------
 
 test('set-core-config requires at least one field flag', async () => {

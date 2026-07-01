@@ -282,6 +282,54 @@ export async function setCoreConfig(
   return runMutation(root, client, 'set-core-config', 'config/core/update', fields);
 }
 
+// --- Floors ----------------------------------------------------------------
+
+export async function listFloors(client: WsCommandClient): Promise<WsReadResult> {
+  return { ok: true, data: await client.command('config/floor_registry/list'), message: 'ok' };
+}
+
+export async function createFloor(
+  root: string,
+  client: WsCommandClient,
+  name: string,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'create-floor', 'config/floor_registry/create', { name });
+}
+
+export async function deleteFloor(
+  root: string,
+  client: WsCommandClient,
+  floorId: string,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'delete-floor', 'config/floor_registry/delete', {
+    floor_id: floorId,
+  });
+}
+
+// --- Labels ------------------------------------------------------------
+
+export async function listLabels(client: WsCommandClient): Promise<WsReadResult> {
+  return { ok: true, data: await client.command('config/label_registry/list'), message: 'ok' };
+}
+
+export async function createLabel(
+  root: string,
+  client: WsCommandClient,
+  name: string,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'create-label', 'config/label_registry/create', { name });
+}
+
+export async function deleteLabel(
+  root: string,
+  client: WsCommandClient,
+  labelId: string,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'delete-label', 'config/label_registry/delete', {
+    label_id: labelId,
+  });
+}
+
 // --- System log --------------------------------------------------------
 
 export async function listSystemLog(client: WsCommandClient): Promise<WsReadResult> {
