@@ -188,6 +188,11 @@ const HA_COMMANDS = [
   'rename-entity',
   'set-entity-area',
   'set-entity-enabled',
+  'set-entity-icon',
+  'set-entity-hidden',
+  'set-entity-labels',
+  'set-entity-categories',
+  'set-entity-aliases',
   'list-devices',
   'set-device-area',
   'rename-device',
@@ -275,6 +280,13 @@ positional arguments:
     rename-entity       Set an entity's friendly name (gated write).
     set-entity-area     Assign an entity to an area (gated write).
     set-entity-enabled  Enable/disable an entity (gated write).
+    set-entity-icon     Set an entity's icon (gated write).
+    set-entity-hidden   Hide/show an entity in the UI (gated write).
+    set-entity-labels   Set an entity's labels (gated write).
+    set-entity-categories
+                        Set an entity's per-scope categories from JSON
+                        (gated write).
+    set-entity-aliases  Set an entity's Assist aliases (gated write).
     list-devices        List the device registry via WebSocket.
     set-device-area     Assign a device to an area (gated write).
     rename-device       Set a device's user name (gated write).
@@ -631,6 +643,36 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
     usage: 'usage: ha_agent_lab ha set-entity-enabled [-h] [--confirm] --enabled {true,false} entity_id',
     positionals: ['entity_id'],
     flags: { '--enabled': { kind: 'value', choices: ['true', 'false'] }, '--confirm': { kind: 'store_true' } },
+  },
+  'ha set-entity-icon': {
+    prog: 'ha_agent_lab ha set-entity-icon',
+    usage: 'usage: ha_agent_lab ha set-entity-icon [-h] [--confirm] --icon ICON entity_id',
+    positionals: ['entity_id'],
+    flags: { '--icon': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+  },
+  'ha set-entity-hidden': {
+    prog: 'ha_agent_lab ha set-entity-hidden',
+    usage: 'usage: ha_agent_lab ha set-entity-hidden [-h] [--confirm] --hidden {true,false} entity_id',
+    positionals: ['entity_id'],
+    flags: { '--hidden': { kind: 'value', choices: ['true', 'false'] }, '--confirm': { kind: 'store_true' } },
+  },
+  'ha set-entity-labels': {
+    prog: 'ha_agent_lab ha set-entity-labels',
+    usage: 'usage: ha_agent_lab ha set-entity-labels [-h] [--confirm] --labels LABEL [LABEL ...] entity_id',
+    positionals: ['entity_id'],
+    flags: { '--labels': { kind: 'plus' }, '--confirm': { kind: 'store_true' } },
+  },
+  'ha set-entity-categories': {
+    prog: 'ha_agent_lab ha set-entity-categories',
+    usage: 'usage: ha_agent_lab ha set-entity-categories [-h] [--confirm] --categories JSON entity_id',
+    positionals: ['entity_id'],
+    flags: { '--categories': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+  },
+  'ha set-entity-aliases': {
+    prog: 'ha_agent_lab ha set-entity-aliases',
+    usage: 'usage: ha_agent_lab ha set-entity-aliases [-h] [--confirm] --aliases ALIAS [ALIAS ...] entity_id',
+    positionals: ['entity_id'],
+    flags: { '--aliases': { kind: 'plus' }, '--confirm': { kind: 'store_true' } },
   },
   'ha list-devices': {
     prog: 'ha_agent_lab ha list-devices',
@@ -1209,6 +1251,53 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
     const disabledBy = enabled === 'true' ? null : 'user';
     return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
       updateEntity(root, ws, args.positionals[0]!, { disabled_by: disabledBy }, 'set-entity-enabled'),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'set-entity-icon') {
+    const icon = requireFlag(args.flags['--icon'], '--icon');
+    if (icon === null) return 1;
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      updateEntity(root, ws, args.positionals[0]!, { icon }, 'set-entity-icon'),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'set-entity-hidden') {
+    const hidden = requireFlag(args.flags['--hidden'], '--hidden');
+    if (hidden === null) return 1;
+    const hiddenBy = hidden === 'true' ? 'user' : null;
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      updateEntity(root, ws, args.positionals[0]!, { hidden_by: hiddenBy }, 'set-entity-hidden'),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'set-entity-labels') {
+    const labels = args.flags['--labels'] as string[] | undefined;
+    if (labels === undefined) {
+      console.log(jsonDumps({ ok: false, message: '--labels is required.' }));
+      return 1;
+    }
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      updateEntity(root, ws, args.positionals[0]!, { labels }, 'set-entity-labels'),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'set-entity-categories') {
+    const raw = requireFlag(args.flags['--categories'], '--categories');
+    if (raw === null) return 1;
+    const parsed = parseJsonObject(raw);
+    if (!parsed.ok) {
+      console.log(jsonDumps({ ok: false, message: `--categories ${parsed.message}` }));
+      return 1;
+    }
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      updateEntity(root, ws, args.positionals[0]!, { categories: parsed.payload }, 'set-entity-categories'),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'set-entity-aliases') {
+    const aliases = args.flags['--aliases'] as string[] | undefined;
+    if (aliases === undefined) {
+      console.log(jsonDumps({ ok: false, message: '--aliases is required.' }));
+      return 1;
+    }
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      updateEntity(root, ws, args.positionals[0]!, { aliases }, 'set-entity-aliases'),
     );
   }
   if (args.command === 'ha' && args.sub === 'list-devices') {

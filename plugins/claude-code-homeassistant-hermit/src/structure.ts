@@ -201,7 +201,7 @@ export async function listEntities(client: WsCommandClient): Promise<WsReadResul
   return { ok: true, data: await client.command('config/entity_registry/list'), message: 'ok' };
 }
 
-/** Generic entity_registry/update: rename, set area, or enable/disable. */
+/** Generic entity_registry/update: rename, set area, enable/disable, icon, hidden, labels, categories, or aliases. */
 export async function updateEntity(
   root: string,
   client: WsCommandClient,

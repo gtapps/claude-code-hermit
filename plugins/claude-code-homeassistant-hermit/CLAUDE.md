@@ -96,6 +96,11 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-entities --registry
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha rename-entity <entity_id> --name <name> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-area <entity_id> --area <area_id> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-enabled <entity_id> --enabled true|false [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-icon <entity_id> --icon <icon> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-hidden <entity_id> --hidden true|false [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-labels <entity_id> --labels <label> [<label> ...] [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-categories <entity_id> --categories <json> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-aliases <entity_id> --aliases <alias> [<alias> ...] [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-devices
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-device-area <device_id> --area <area_id> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha rename-device <device_id> --name <name> [--confirm]

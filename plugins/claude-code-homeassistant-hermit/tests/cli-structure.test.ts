@@ -416,6 +416,123 @@ test('delete-label sends label_id payload', async () => {
   expect(ws.calls).toEqual([{ type: 'config/label_registry/delete', payload: { label_id: 'security' } }]);
 });
 
+// --- entity metadata extensions ---------------------------------------------
+
+test('set-entity-icon updates the entity registry', async () => {
+  const ws = fakeWs();
+  const { code } = await runCli(
+    ['ha', 'set-entity-icon', 'light.x', '--icon', 'mdi:lamp', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    { type: 'config/entity_registry/update', payload: { entity_id: 'light.x', icon: 'mdi:lamp' } },
+  ]);
+});
+
+test('set-entity-hidden true maps to hidden_by user', async () => {
+  const ws = fakeWs();
+  const { code } = await runCli(
+    ['ha', 'set-entity-hidden', 'light.x', '--hidden', 'true', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    { type: 'config/entity_registry/update', payload: { entity_id: 'light.x', hidden_by: 'user' } },
+  ]);
+});
+
+test('set-entity-hidden false maps to hidden_by null', async () => {
+  const ws = fakeWs();
+  const { code } = await runCli(
+    ['ha', 'set-entity-hidden', 'light.x', '--hidden', 'false', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    { type: 'config/entity_registry/update', payload: { entity_id: 'light.x', hidden_by: null } },
+  ]);
+});
+
+test('set-entity-labels requires --labels', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(['ha', 'set-entity-labels', 'light.x', '--confirm'], ws, cfg('ask'));
+  expect(code).toBe(1);
+  expect(JSON.parse(out).message).toContain('--labels');
+  expect(ws.calls.length).toBe(0);
+});
+
+test('set-entity-labels sends multiple labels', async () => {
+  const ws = fakeWs();
+  const { code } = await runCli(
+    ['ha', 'set-entity-labels', 'light.x', '--labels', 'security', 'main-floor', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    {
+      type: 'config/entity_registry/update',
+      payload: { entity_id: 'light.x', labels: ['security', 'main-floor'] },
+    },
+  ]);
+});
+
+test('set-entity-categories rejects invalid JSON', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(
+    ['ha', 'set-entity-categories', 'light.x', '--categories', 'not-json', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(1);
+  expect(JSON.parse(out).message).toContain('valid JSON');
+  expect(ws.calls.length).toBe(0);
+});
+
+test('set-entity-categories sends the parsed scoped mapping', async () => {
+  const ws = fakeWs();
+  const { code } = await runCli(
+    ['ha', 'set-entity-categories', 'light.x', '--categories', '{"automation":"config"}', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    {
+      type: 'config/entity_registry/update',
+      payload: { entity_id: 'light.x', categories: { automation: 'config' } },
+    },
+  ]);
+});
+
+test('set-entity-aliases requires --aliases', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(['ha', 'set-entity-aliases', 'light.x', '--confirm'], ws, cfg('ask'));
+  expect(code).toBe(1);
+  expect(JSON.parse(out).message).toContain('--aliases');
+  expect(ws.calls.length).toBe(0);
+});
+
+test('set-entity-aliases sends multiple aliases', async () => {
+  const ws = fakeWs();
+  const { code } = await runCli(
+    ['ha', 'set-entity-aliases', 'light.x', '--aliases', 'lamp', 'reading light', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    {
+      type: 'config/entity_registry/update',
+      payload: { entity_id: 'light.x', aliases: ['lamp', 'reading light'] },
+    },
+  ]);
+});
+
 // --- area metadata ---------------------------------------------------------
 
 test('rename-area requires --name', async () => {
