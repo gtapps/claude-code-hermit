@@ -350,6 +350,27 @@ export async function listSystemLog(client: WsCommandClient): Promise<WsReadResu
   return { ok: true, data: await client.command('system_log/list'), message: 'ok' };
 }
 
+// --- Assist exposure -----------------------------------------------------
+
+export async function listExposedEntities(client: WsCommandClient): Promise<WsReadResult> {
+  return { ok: true, data: await client.command('homeassistant/expose_entity/list'), message: 'ok' };
+}
+
+/** Set whether entities are exposed to one or more Assist assistants (conversation, cloud.alexa, cloud.google_assistant). */
+export async function exposeEntity(
+  root: string,
+  client: WsCommandClient,
+  entityIds: string[],
+  assistants: string[],
+  shouldExpose: boolean,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'expose-entity', 'homeassistant/expose_entity', {
+    entity_ids: entityIds,
+    assistants,
+    should_expose: shouldExpose,
+  });
+}
+
 // --- shared error shapes -------------------------------------------------
 
 function unknownHelperType(type: string): string {

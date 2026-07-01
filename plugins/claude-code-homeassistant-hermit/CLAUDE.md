@@ -109,6 +109,8 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-dashboard [--url-path <url_path>]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha apply-dashboard <artifact> [--url-path <url_path>] [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-dashboard <json> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-dashboard <dashboard_id> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-exposed-entities
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha expose-entity --entity-ids <id> [<id> ...] --assistants <assistant> [<assistant> ...] --expose true|false [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha trigger-automation <automation_id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status [--probe]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url> [--token <token>]

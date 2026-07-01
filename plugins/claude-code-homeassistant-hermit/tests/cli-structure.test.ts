@@ -416,6 +416,96 @@ test('delete-label sends label_id payload', async () => {
   expect(ws.calls).toEqual([{ type: 'config/label_registry/delete', payload: { label_id: 'security' } }]);
 });
 
+// --- Assist exposure ---------------------------------------------------------
+
+test('list-exposed-entities reads via WS', async () => {
+  const ws = fakeWs(() => ({ conversation: { 'light.x': { should_expose: true } } }));
+  const { code, out } = await runCli(['ha', 'list-exposed-entities'], ws, cfg());
+  expect(code).toBe(0);
+  expect(JSON.parse(out).data).toEqual({ conversation: { 'light.x': { should_expose: true } } });
+  expect(ws.calls).toEqual([{ type: 'homeassistant/expose_entity/list', payload: {} }]);
+});
+
+test('expose-entity requires --entity-ids', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(
+    ['ha', 'expose-entity', '--assistants', 'conversation', '--expose', 'true', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(1);
+  expect(JSON.parse(out).message).toContain('--entity-ids');
+  expect(ws.calls.length).toBe(0);
+});
+
+test('expose-entity requires --assistants', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(
+    ['ha', 'expose-entity', '--entity-ids', 'light.x', '--expose', 'true', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(1);
+  expect(JSON.parse(out).message).toContain('--assistants');
+  expect(ws.calls.length).toBe(0);
+});
+
+test('expose-entity requires --expose', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(
+    ['ha', 'expose-entity', '--entity-ids', 'light.x', '--assistants', 'conversation', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(1);
+  expect(JSON.parse(out).message).toContain('--expose');
+  expect(ws.calls.length).toBe(0);
+});
+
+test('expose-entity sends entity_ids, assistants, and should_expose', async () => {
+  const ws = fakeWs(() => ({ result: 'ok' }));
+  const { code } = await runCli(
+    [
+      'ha',
+      'expose-entity',
+      '--entity-ids',
+      'light.x',
+      'light.y',
+      '--assistants',
+      'conversation',
+      'cloud.alexa',
+      '--expose',
+      'true',
+      '--confirm',
+    ],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    {
+      type: 'homeassistant/expose_entity',
+      payload: {
+        entity_ids: ['light.x', 'light.y'],
+        assistants: ['conversation', 'cloud.alexa'],
+        should_expose: true,
+      },
+    },
+  ]);
+});
+
+test('expose-entity blocked under strict', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(
+    ['ha', 'expose-entity', '--entity-ids', 'light.x', '--assistants', 'conversation', '--expose', 'false'],
+    ws,
+    cfg('strict'),
+  );
+  expect(code).toBe(1);
+  expect(JSON.parse(out).blocked).toBe(true);
+  expect(ws.calls.length).toBe(0);
+});
+
 // --- entity metadata extensions ---------------------------------------------
 
 test('set-entity-icon updates the entity registry', async () => {

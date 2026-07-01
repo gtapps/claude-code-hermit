@@ -57,11 +57,13 @@ import {
   deleteFloor,
   deleteHelper,
   deleteLabel,
+  exposeEntity,
   getDashboard,
   listAreas,
   listDashboards,
   listDevices,
   listEntities,
+  listExposedEntities,
   listFloors,
   listHelpers,
   listLabels,
@@ -218,6 +220,8 @@ const HA_COMMANDS = [
   'set-area-icon',
   'set-area-floor',
   'set-area-labels',
+  'list-exposed-entities',
+  'expose-entity',
   'trigger-automation',
 ] as const;
 const HA_USAGE = [
@@ -323,6 +327,13 @@ positional arguments:
     set-area-icon       Set an area's icon (gated write).
     set-area-floor      Assign an area to a floor (gated write).
     set-area-labels     Set an area's labels (gated write).
+    list-exposed-entities
+                        List entities exposed to each Assist assistant via
+                        WebSocket.
+    expose-entity       Expose/unexpose entities to one or more Assist
+                        assistants (gated write). Sets HA's expose-to-
+                        Assist boundary; config, not control (see
+                        SAFETY.md's Assist Control section).
     trigger-automation  Fire an automation by entity_id via automation.trigger.
 
 options:
@@ -844,6 +855,26 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
     usage: 'usage: ha_agent_lab ha set-area-labels [-h] [--confirm] --labels LABEL [LABEL ...] area_id',
     positionals: ['area_id'],
     flags: { '--labels': { kind: 'plus' }, '--confirm': { kind: 'store_true' } },
+  },
+  'ha list-exposed-entities': {
+    prog: 'ha_agent_lab ha list-exposed-entities',
+    usage: 'usage: ha_agent_lab ha list-exposed-entities [-h]',
+    positionals: [],
+    flags: {},
+  },
+  'ha expose-entity': {
+    prog: 'ha_agent_lab ha expose-entity',
+    usage:
+      'usage: ha_agent_lab ha expose-entity [-h] --entity-ids ENTITY [ENTITY ...]\n' +
+      '                                     --assistants ASSISTANT [ASSISTANT ...]\n' +
+      '                                     --expose {true,false} [--confirm]',
+    positionals: [],
+    flags: {
+      '--entity-ids': { kind: 'plus' },
+      '--assistants': { kind: 'plus' },
+      '--expose': { kind: 'value', choices: ['true', 'false'] },
+      '--confirm': { kind: 'store_true' },
+    },
   },
   'ha trigger-automation': {
     prog: 'ha_agent_lab ha trigger-automation',
@@ -1493,6 +1524,27 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
     }
     return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
       updateArea(root, ws, args.positionals[0]!, { labels }, 'set-area-labels'),
+    );
+  }
+
+  if (args.command === 'ha' && args.sub === 'list-exposed-entities') {
+    return runWsRead(deps, config, listExposedEntities);
+  }
+  if (args.command === 'ha' && args.sub === 'expose-entity') {
+    const entityIds = args.flags['--entity-ids'] as string[] | undefined;
+    if (entityIds === undefined) {
+      console.log(jsonDumps({ ok: false, message: '--entity-ids is required.' }));
+      return 1;
+    }
+    const assistants = args.flags['--assistants'] as string[] | undefined;
+    if (assistants === undefined) {
+      console.log(jsonDumps({ ok: false, message: '--assistants is required.' }));
+      return 1;
+    }
+    const expose = requireFlag(args.flags['--expose'], '--expose');
+    if (expose === null) return 1;
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      exposeEntity(root, ws, entityIds, assistants, expose === 'true'),
     );
   }
 
