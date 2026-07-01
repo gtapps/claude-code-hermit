@@ -7,7 +7,7 @@ import { main } from '../src/cli';
 import { AppConfig } from '../src/config';
 import { HomeAssistantError } from '../src/ha-api';
 import { clearPolicyCaches } from '../src/policy';
-import { captureOutput, cleanupTmp, makeHaConfig, tmpPath } from './helpers';
+import { captureOutput, cleanupTmp, makeHaConfig, tmpPath, writeArtifact } from './helpers';
 
 afterEach(() => {
   cleanupTmp();
@@ -118,6 +118,116 @@ test('get-dashboard --url-path passes the named dashboard', async () => {
   const { code } = await runCli(['ha', 'get-dashboard', '--url-path', 'lovelace-home'], ws, cfg());
   expect(code).toBe(0);
   expect(ws.calls).toEqual([{ type: 'lovelace/config', payload: { url_path: 'lovelace-home' } }]);
+});
+
+// --- dashboard writes ------------------------------------------------------
+
+test('delete-dashboard blocked under strict, no WS command sent', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(['ha', 'delete-dashboard', 'dashboard_cameras'], ws, cfg('strict'));
+  expect(code).toBe(1);
+  const parsed = JSON.parse(out);
+  expect(parsed.blocked).toBe(true);
+  expect(parsed.requires_confirm).toBe(false);
+  expect(ws.calls.length).toBe(0);
+});
+
+test('delete-dashboard under ask needs --confirm', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(['ha', 'delete-dashboard', 'dashboard_cameras'], ws, cfg('ask'));
+  expect(code).toBe(1);
+  expect(JSON.parse(out).requires_confirm).toBe(true);
+  expect(ws.calls.length).toBe(0);
+});
+
+test('delete-dashboard sends dashboard_id payload', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(
+    ['ha', 'delete-dashboard', 'dashboard_cameras', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  const parsed = JSON.parse(out);
+  expect(parsed.ok).toBe(true);
+  expect(parsed.report_path).toBeTruthy();
+  expect(ws.calls).toEqual([
+    { type: 'lovelace/dashboards/delete', payload: { dashboard_id: 'dashboard_cameras' } },
+  ]);
+});
+
+test('create-dashboard rejects invalid JSON', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(
+    ['ha', 'create-dashboard', 'not-json', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(1);
+  expect(JSON.parse(out).message).toContain('valid JSON');
+  expect(ws.calls.length).toBe(0);
+});
+
+test('create-dashboard sends parsed payload', async () => {
+  const ws = fakeWs(() => ({ id: 'd9', url_path: 'hermit-test' }));
+  const { code } = await runCli(
+    ['ha', 'create-dashboard', '{"url_path":"hermit-test","title":"Hermit Test"}', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    {
+      type: 'lovelace/dashboards/create',
+      payload: { url_path: 'hermit-test', title: 'Hermit Test' },
+    },
+  ]);
+});
+
+test('apply-dashboard reads the artifact and sends url_path + config', async () => {
+  const artifactPath = writeArtifact(tmpPath(), '{"title":"Hermit Test","views":[]}', 'dashboard.json');
+  const ws = fakeWs(() => ({ result: 'ok' }));
+  const { code } = await runCli(
+    ['ha', 'apply-dashboard', artifactPath, '--url-path', 'hermit-test', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    {
+      type: 'lovelace/config/save',
+      payload: { url_path: 'hermit-test', config: { title: 'Hermit Test', views: [] } },
+    },
+  ]);
+});
+
+test('apply-dashboard defaults to null url_path', async () => {
+  const artifactPath = writeArtifact(tmpPath(), '{"title":"Home","views":[]}', 'dashboard.json');
+  const ws = fakeWs(() => ({ result: 'ok' }));
+  const { code } = await runCli(['ha', 'apply-dashboard', artifactPath, '--confirm'], ws, cfg('ask'));
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    {
+      type: 'lovelace/config/save',
+      payload: { url_path: null, config: { title: 'Home', views: [] } },
+    },
+  ]);
+});
+
+test('dashboard write failure surfaces HA message and writes report', async () => {
+  const ws = fakeWs(() => {
+    throw new HomeAssistantError('Dashboard not found.');
+  });
+  const { code, out } = await runCli(
+    ['ha', 'delete-dashboard', 'nope', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(1);
+  const parsed = JSON.parse(out);
+  expect(parsed.ok).toBe(false);
+  expect(parsed.message).toBe('Dashboard not found.');
+  expect(parsed.report_path).toBeTruthy();
 });
 
 // --- gate ----------------------------------------------------------------

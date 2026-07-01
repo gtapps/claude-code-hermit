@@ -144,17 +144,9 @@ export async function createHelper(
   json: string,
 ): Promise<WsMutationResult> {
   if (!isHelperType(type)) return invalidPayload(unknownHelperType(type));
-  let payload: Record<string, unknown>;
-  try {
-    const parsed = JSON.parse(json);
-    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return invalidPayload('helper JSON must be a JSON object');
-    }
-    payload = parsed as Record<string, unknown>;
-  } catch {
-    return invalidPayload('helper JSON is not valid JSON');
-  }
-  return runMutation(root, client, `create-${type}`, `${type}/create`, payload);
+  const parsed = parseJsonObjectPayload('helper', json);
+  if (!parsed.ok) return parsed.error;
+  return runMutation(root, client, `create-${type}`, `${type}/create`, parsed.payload);
 }
 
 export async function deleteHelper(
@@ -246,6 +238,39 @@ export async function getDashboard(
   };
 }
 
+/** Save/replace a dashboard's view/card config. urlPath null targets the default dashboard. */
+export async function saveDashboard(
+  root: string,
+  client: WsCommandClient,
+  urlPath: string | null,
+  config: unknown,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'apply-dashboard', 'lovelace/config/save', {
+    url_path: urlPath,
+    config,
+  });
+}
+
+export async function createDashboard(
+  root: string,
+  client: WsCommandClient,
+  json: string,
+): Promise<WsMutationResult> {
+  const parsed = parseJsonObjectPayload('dashboard', json);
+  if (!parsed.ok) return parsed.error;
+  return runMutation(root, client, 'create-dashboard', 'lovelace/dashboards/create', parsed.payload);
+}
+
+export async function deleteDashboard(
+  root: string,
+  client: WsCommandClient,
+  dashboardId: string,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'delete-dashboard', 'lovelace/dashboards/delete', {
+    dashboard_id: dashboardId,
+  });
+}
+
 // --- shared error shapes -------------------------------------------------
 
 function unknownHelperType(type: string): string {
@@ -254,4 +279,21 @@ function unknownHelperType(type: string): string {
 
 function invalidPayload(message: string): WsMutationResult {
   return { ok: false, data: null, message, reportPath: null };
+}
+
+/** Parse `json` as a JSON object payload, or an invalidPayload result labeled with `kind`. */
+function parseJsonObjectPayload(
+  kind: string,
+  json: string,
+): { ok: true; payload: Record<string, unknown> } | { ok: false; error: WsMutationResult } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return { ok: false, error: invalidPayload(`${kind} JSON is not valid JSON`) };
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { ok: false, error: invalidPayload(`${kind} JSON must be a JSON object`) };
+  }
+  return { ok: true, payload: parsed as Record<string, unknown> };
 }

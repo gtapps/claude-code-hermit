@@ -47,8 +47,10 @@ import {
   type WsMutationResult,
   type WsReadResult,
   createArea,
+  createDashboard,
   createHelper,
   deleteArea,
+  deleteDashboard,
   deleteHelper,
   getDashboard,
   listAreas,
@@ -56,9 +58,11 @@ import {
   listDevices,
   listEntities,
   listHelpers,
+  saveDashboard,
   updateDevice,
   updateEntity,
 } from './structure';
+import { parseYaml } from './yaml';
 
 // ---------------------------------------------------------------------------
 // JSON output helpers — Python json.dumps parity
@@ -175,6 +179,9 @@ const HA_COMMANDS = [
   'rename-device',
   'list-dashboards',
   'get-dashboard',
+  'apply-dashboard',
+  'create-dashboard',
+  'delete-dashboard',
   'trigger-automation',
 ] as const;
 const HA_USAGE = [
@@ -243,6 +250,11 @@ positional arguments:
     list-dashboards     List Lovelace dashboards via WebSocket.
     get-dashboard       Read a dashboard's config via WebSocket (--url-path;
                         default dashboard if omitted).
+    apply-dashboard     Save/replace a dashboard's config from an artifact
+                        via WebSocket (gated write).
+    create-dashboard    Create a dashboard from JSON via WebSocket (gated
+                        write).
+    delete-dashboard    Delete a dashboard by id via WebSocket (gated write).
     trigger-automation  Fire an automation by entity_id via automation.trigger.
 
 options:
@@ -593,6 +605,27 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
     usage: 'usage: ha_agent_lab ha get-dashboard [-h] [--url-path URL_PATH]',
     positionals: [],
     flags: { '--url-path': { kind: 'value' } },
+  },
+  'ha apply-dashboard': {
+    prog: 'ha_agent_lab ha apply-dashboard',
+    usage:
+      'usage: ha_agent_lab ha apply-dashboard [-h] [--url-path URL_PATH]\n' +
+      '                                       [--confirm]\n' +
+      '                                       artifact',
+    positionals: ['artifact'],
+    flags: { '--url-path': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+  },
+  'ha create-dashboard': {
+    prog: 'ha_agent_lab ha create-dashboard',
+    usage: 'usage: ha_agent_lab ha create-dashboard [-h] [--confirm] json',
+    positionals: ['json'],
+    flags: { '--confirm': { kind: 'store_true' } },
+  },
+  'ha delete-dashboard': {
+    prog: 'ha_agent_lab ha delete-dashboard',
+    usage: 'usage: ha_agent_lab ha delete-dashboard [-h] [--confirm] dashboard_id',
+    positionals: ['dashboard_id'],
+    flags: { '--confirm': { kind: 'store_true' } },
   },
   'ha trigger-automation': {
     prog: 'ha_agent_lab ha trigger-automation',
@@ -1025,6 +1058,23 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
   if (args.command === 'ha' && args.sub === 'get-dashboard') {
     const urlPath = (args.flags['--url-path'] as string | undefined) ?? null;
     return runWsRead(deps, config, (ws) => getDashboard(ws, urlPath));
+  }
+  if (args.command === 'ha' && args.sub === 'apply-dashboard') {
+    const urlPath = (args.flags['--url-path'] as string | undefined) ?? null;
+    const artifactPath = resolve(args.positionals[0]!);
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      saveDashboard(root, ws, urlPath, parseYaml(readFileSync(artifactPath, 'utf8'))),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'create-dashboard') {
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      createDashboard(root, ws, args.positionals[0]!),
+    );
+  }
+  if (args.command === 'ha' && args.sub === 'delete-dashboard') {
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      deleteDashboard(root, ws, args.positionals[0]!),
+    );
   }
 
   if (args.command === 'ha' && args.sub === 'trigger-automation') {

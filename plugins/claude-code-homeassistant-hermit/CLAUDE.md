@@ -84,6 +84,9 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-device-area <device_id> --area <ar
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha rename-device <device_id> --name <name> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-dashboards
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-dashboard [--url-path <url_path>]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha apply-dashboard <artifact> [--url-path <url_path>] [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-dashboard <json> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-dashboard <dashboard_id> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha trigger-automation <automation_id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status [--probe]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url> [--token <token>]
@@ -108,7 +111,7 @@ Before changing HA endpoint usage, verify against upstream (WebFetch or the `fin
 ### WebSocket commands (`src/ha-ws.ts` + `src/structure.ts`)
 
 - Helpers, areas, and entity/device registries have **no REST endpoint** — they are reachable only over `wss://<host>/api/websocket`. `HomeAssistantWsClient` opens a single-shot connection per CLI invocation (auth handshake → commands → close), reusing the same URL selection and token as the REST client.
-- Command types: helpers `<type>/create|list|delete` (8 types: `input_boolean|input_number|input_text|input_select|input_datetime|timer|counter|schedule`); areas `config/area_registry/create|list|delete`; registries `config/entity_registry/list|update` and `config/device_registry/list|update`; dashboards `lovelace/dashboards/list`, `lovelace/config` (reads only so far — writes pending shape verification).
+- Command types: helpers `<type>/create|list|delete` (8 types: `input_boolean|input_number|input_text|input_select|input_datetime|timer|counter|schedule`); areas `config/area_registry/create|list|delete`; registries `config/entity_registry/list|update` and `config/device_registry/list|update`; dashboards `lovelace/dashboards/list|create|delete`, `lovelace/config`, `lovelace/config/save` (shapes cross-checked against `home-assistant/core`'s `DictStorageCollectionWebsocket` generic collection handler — the same pattern as areas/helpers).
 - **Confirm the exact command `type` and payload fields against a live instance before relying on them** (the docs index documents only the auth/result envelope). Probe pattern: run the new commands against a real HA and read the responses.
 - **All WS mutations are gated by `ha_safety_mode`** (`gateStructuralMutation` in `policy.ts`). Reads are never gated. Under `strict` (default) a mutation is refused (`blocked: true`) — surface it as a proposal. Under `ask` it requires `--confirm`, which the main session passes after prompting the operator (the CLI is non-interactive). Every mutation writes an audit report to `.claude-code-hermit/raw/` (`audit-ha-ws-*`).
 
