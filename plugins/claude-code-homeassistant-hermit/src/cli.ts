@@ -48,6 +48,7 @@ import {
   type WsMutationResult,
   type WsReadResult,
   createArea,
+  createBackup,
   createDashboard,
   createFloor,
   createHelper,
@@ -60,6 +61,7 @@ import {
   exposeEntity,
   getDashboard,
   listAreas,
+  listBackups,
   listDashboards,
   listDevices,
   listEntities,
@@ -222,6 +224,8 @@ const HA_COMMANDS = [
   'set-area-labels',
   'list-exposed-entities',
   'expose-entity',
+  'list-backups',
+  'create-backup',
   'trigger-automation',
 ] as const;
 const HA_USAGE = [
@@ -334,6 +338,9 @@ positional arguments:
                         assistants (gated write). Sets HA's expose-to-
                         Assist boundary; config, not control (see
                         SAFETY.md's Assist Control section).
+    list-backups        List backups via WebSocket (backup/info).
+    create-backup       Generate a backup via WebSocket (backup/generate,
+                        gated write).
     trigger-automation  Fire an automation by entity_id via automation.trigger.
 
 options:
@@ -873,6 +880,36 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
       '--entity-ids': { kind: 'plus' },
       '--assistants': { kind: 'plus' },
       '--expose': { kind: 'value', choices: ['true', 'false'] },
+      '--confirm': { kind: 'store_true' },
+    },
+  },
+  'ha list-backups': {
+    prog: 'ha_agent_lab ha list-backups',
+    usage: 'usage: ha_agent_lab ha list-backups [-h]',
+    positionals: [],
+    flags: {},
+  },
+  'ha create-backup': {
+    prog: 'ha_agent_lab ha create-backup',
+    usage:
+      'usage: ha_agent_lab ha create-backup [-h] --agent-ids AGENT [AGENT ...]\n' +
+      '                                     [--name NAME] [--password PASSWORD]\n' +
+      '                                     [--include-addons SLUG [SLUG ...]]\n' +
+      '                                     [--include-all-addons]\n' +
+      '                                     [--include-database {true,false}]\n' +
+      '                                     [--include-folders FOLDER [FOLDER ...]]\n' +
+      '                                     [--include-homeassistant {true,false}]\n' +
+      '                                     [--confirm]',
+    positionals: [],
+    flags: {
+      '--agent-ids': { kind: 'plus' },
+      '--name': { kind: 'value' },
+      '--password': { kind: 'value' },
+      '--include-addons': { kind: 'plus' },
+      '--include-all-addons': { kind: 'store_true' },
+      '--include-database': { kind: 'value', choices: ['true', 'false'] },
+      '--include-folders': { kind: 'plus' },
+      '--include-homeassistant': { kind: 'value', choices: ['true', 'false'] },
       '--confirm': { kind: 'store_true' },
     },
   },
@@ -1545,6 +1582,33 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
     if (expose === null) return 1;
     return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
       exposeEntity(root, ws, entityIds, assistants, expose === 'true'),
+    );
+  }
+
+  if (args.command === 'ha' && args.sub === 'list-backups') {
+    return runWsRead(deps, config, listBackups);
+  }
+  if (args.command === 'ha' && args.sub === 'create-backup') {
+    const agentIds = args.flags['--agent-ids'] as string[] | undefined;
+    if (agentIds === undefined) {
+      console.log(jsonDumps({ ok: false, message: '--agent-ids is required.' }));
+      return 1;
+    }
+    const fields: Record<string, unknown> = { agent_ids: agentIds };
+    const setIfPresent = (flag: string, key: string, transform: (v: unknown) => unknown = (v) => v) => {
+      const value = args.flags[flag];
+      if (value !== undefined) fields[key] = transform(value);
+    };
+    setIfPresent('--name', 'name');
+    setIfPresent('--password', 'password');
+    setIfPresent('--include-addons', 'include_addons');
+    setIfPresent('--include-all-addons', 'include_all_addons');
+    setIfPresent('--include-database', 'include_database', (v) => v === 'true');
+    setIfPresent('--include-folders', 'include_folders');
+    setIfPresent('--include-homeassistant', 'include_homeassistant', (v) => v === 'true');
+
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      createBackup(root, ws, fields),
     );
   }
 

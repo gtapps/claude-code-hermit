@@ -371,6 +371,20 @@ export async function exposeEntity(
   });
 }
 
+// --- Backups ---------------------------------------------------------------
+
+export async function listBackups(client: WsCommandClient): Promise<WsReadResult> {
+  return { ok: true, data: await client.command('backup/info'), message: 'ok' };
+}
+
+export async function createBackup(
+  root: string,
+  client: WsCommandClient,
+  fields: Record<string, unknown>,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'create-backup', 'backup/generate', fields);
+}
+
 // --- shared error shapes -------------------------------------------------
 
 function unknownHelperType(type: string): string {

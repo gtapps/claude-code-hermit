@@ -416,6 +416,93 @@ test('delete-label sends label_id payload', async () => {
   expect(ws.calls).toEqual([{ type: 'config/label_registry/delete', payload: { label_id: 'security' } }]);
 });
 
+// --- backups -----------------------------------------------------------------
+
+test('list-backups reads via WS', async () => {
+  const ws = fakeWs(() => ({ backups: [{ backup_id: 'abc123', name: 'test' }], agent_errors: {} }));
+  const { code, out } = await runCli(['ha', 'list-backups'], ws, cfg());
+  expect(code).toBe(0);
+  expect(JSON.parse(out).data).toEqual({ backups: [{ backup_id: 'abc123', name: 'test' }], agent_errors: {} });
+  expect(ws.calls).toEqual([{ type: 'backup/info', payload: {} }]);
+});
+
+test('create-backup requires --agent-ids', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(['ha', 'create-backup', '--confirm'], ws, cfg('ask'));
+  expect(code).toBe(1);
+  expect(JSON.parse(out).message).toContain('--agent-ids');
+  expect(ws.calls.length).toBe(0);
+});
+
+test('create-backup blocked under strict', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(
+    ['ha', 'create-backup', '--agent-ids', 'hassio.local'],
+    ws,
+    cfg('strict'),
+  );
+  expect(code).toBe(1);
+  expect(JSON.parse(out).blocked).toBe(true);
+  expect(ws.calls.length).toBe(0);
+});
+
+test('create-backup sends only agent_ids when no other flags given', async () => {
+  const ws = fakeWs(() => ({ backup_job_id: 'job1' }));
+  const { code } = await runCli(
+    ['ha', 'create-backup', '--agent-ids', 'hassio.local', '--confirm'],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    { type: 'backup/generate', payload: { agent_ids: ['hassio.local'] } },
+  ]);
+});
+
+test('create-backup sends all provided fields with correct types', async () => {
+  const ws = fakeWs(() => ({ backup_job_id: 'job1' }));
+  const { code } = await runCli(
+    [
+      'ha',
+      'create-backup',
+      '--agent-ids',
+      'hassio.local',
+      '--name',
+      'Hermit Test Backup',
+      '--password',
+      'secret',
+      '--include-addons',
+      'core_mosquitto',
+      '--include-all-addons',
+      '--include-database',
+      'false',
+      '--include-folders',
+      'ssl',
+      '--include-homeassistant',
+      'true',
+      '--confirm',
+    ],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    {
+      type: 'backup/generate',
+      payload: {
+        agent_ids: ['hassio.local'],
+        name: 'Hermit Test Backup',
+        password: 'secret',
+        include_addons: ['core_mosquitto'],
+        include_all_addons: true,
+        include_database: false,
+        include_folders: ['ssl'],
+        include_homeassistant: true,
+      },
+    },
+  ]);
+});
+
 // --- Assist exposure ---------------------------------------------------------
 
 test('list-exposed-entities reads via WS', async () => {
