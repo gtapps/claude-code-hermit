@@ -61,6 +61,7 @@ import {
   listHelpers,
   parseJsonObject,
   saveDashboard,
+  setCoreConfig,
   updateDevice,
   updateEntity,
 } from './structure';
@@ -188,6 +189,7 @@ const HA_COMMANDS = [
   'render-template',
   'check-config',
   'call-service',
+  'set-core-config',
   'trigger-automation',
 ] as const;
 const HA_USAGE = [
@@ -269,6 +271,8 @@ positional arguments:
     call-service        Call any HA service (POST /api/services/...).
                         Sensitive domains/entities gated by ha_safety_mode;
                         non-sensitive calls proceed in both modes.
+    set-core-config     Partial update of location/unit system/currency/
+                        timezone/country via WebSocket (gated write).
     trigger-automation  Fire an automation by entity_id via automation.trigger.
 
 options:
@@ -658,6 +662,28 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
     usage: 'usage: ha_agent_lab ha call-service [-h] [--data DATA] [--confirm] domain.service',
     positionals: ['domain.service'],
     flags: { '--data': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+  },
+  'ha set-core-config': {
+    prog: 'ha_agent_lab ha set-core-config',
+    usage:
+      'usage: ha_agent_lab ha set-core-config [-h] [--latitude LATITUDE]\n' +
+      '                                       [--longitude LONGITUDE]\n' +
+      '                                       [--elevation ELEVATION]\n' +
+      '                                       [--unit-system {metric,us_customary}]\n' +
+      '                                       [--currency CURRENCY]\n' +
+      '                                       [--time-zone TIME_ZONE] [--country COUNTRY]\n' +
+      '                                       [--confirm]',
+    positionals: [],
+    flags: {
+      '--latitude': { kind: 'value' },
+      '--longitude': { kind: 'value' },
+      '--elevation': { kind: 'value', int: true },
+      '--unit-system': { kind: 'value', choices: ['metric', 'us_customary'] },
+      '--currency': { kind: 'value' },
+      '--time-zone': { kind: 'value' },
+      '--country': { kind: 'value' },
+      '--confirm': { kind: 'store_true' },
+    },
   },
   'ha trigger-automation': {
     prog: 'ha_agent_lab ha trigger-automation',
@@ -1145,6 +1171,29 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
       root,
       config,
       deps,
+    );
+  }
+
+  if (args.command === 'ha' && args.sub === 'set-core-config') {
+    const fields: Record<string, unknown> = {};
+    const setIfPresent = (flag: string, key: string, transform: (v: unknown) => unknown = (v) => v) => {
+      const value = args.flags[flag];
+      if (value !== undefined) fields[key] = transform(value);
+    };
+    setIfPresent('--latitude', 'latitude', Number);
+    setIfPresent('--longitude', 'longitude', Number);
+    setIfPresent('--elevation', 'elevation');
+    setIfPresent('--unit-system', 'unit_system');
+    setIfPresent('--currency', 'currency');
+    setIfPresent('--time-zone', 'time_zone');
+    setIfPresent('--country', 'country');
+
+    if (Object.keys(fields).length === 0) {
+      console.log(jsonDumps({ ok: false, message: 'At least one config field flag is required.' }));
+      return 1;
+    }
+    return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      setCoreConfig(root, ws, fields),
     );
   }
 

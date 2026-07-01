@@ -358,6 +358,66 @@ test('set-device-area updates the device registry', async () => {
   ]);
 });
 
+// --- core config -----------------------------------------------------------
+
+test('set-core-config requires at least one field flag', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(['ha', 'set-core-config'], ws, cfg('ask'));
+  expect(code).toBe(1);
+  expect(JSON.parse(out).message).toContain('At least one config field flag');
+  expect(ws.calls.length).toBe(0);
+});
+
+test('set-core-config blocked under strict', async () => {
+  const ws = fakeWs();
+  const { code, out } = await runCli(['ha', 'set-core-config', '--currency', 'EUR'], ws, cfg('strict'));
+  expect(code).toBe(1);
+  expect(JSON.parse(out).blocked).toBe(true);
+  expect(ws.calls.length).toBe(0);
+});
+
+test('set-core-config sends only the provided fields, coercing numerics', async () => {
+  const ws = fakeWs();
+  const { code } = await runCli(
+    [
+      'ha',
+      'set-core-config',
+      '--latitude',
+      '38.7223',
+      '--longitude',
+      '-9.1393',
+      '--elevation',
+      '10',
+      '--unit-system',
+      'metric',
+      '--currency',
+      'EUR',
+      '--time-zone',
+      'Europe/Lisbon',
+      '--country',
+      'PT',
+      '--confirm',
+    ],
+    ws,
+    cfg('ask'),
+  );
+  expect(code).toBe(0);
+  expect(ws.calls).toEqual([
+    {
+      type: 'config/core/update',
+      payload: {
+        latitude: 38.7223,
+        longitude: -9.1393,
+        elevation: 10,
+        unit_system: 'metric',
+        currency: 'EUR',
+        time_zone: 'Europe/Lisbon',
+        country: 'PT',
+      },
+    },
+  ]);
+});
+
 // --- HA failure surfaces verbatim ---------------------------------------
 
 test('WS command failure surfaces HA message and writes report', async () => {

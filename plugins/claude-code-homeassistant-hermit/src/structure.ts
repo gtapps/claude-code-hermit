@@ -271,6 +271,17 @@ export async function deleteDashboard(
   });
 }
 
+// --- Core config -----------------------------------------------------------
+
+/** Partial update of HA's core config (location, unit system, currency, timezone, country). */
+export async function setCoreConfig(
+  root: string,
+  client: WsCommandClient,
+  fields: Record<string, unknown>,
+): Promise<WsMutationResult> {
+  return runMutation(root, client, 'set-core-config', 'config/core/update', fields);
+}
+
 // --- shared error shapes -------------------------------------------------
 
 function unknownHelperType(type: string): string {

@@ -70,6 +70,7 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha fetch-history [--window-days N] [--ent
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha probe <path>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha render-template <file|->
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha check-config
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha call-service <domain.service> [--data <json>] [--confirm]
 # WebSocket-backed structural commands (helpers, areas, registries). Writes are gated by ha_safety_mode.
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-helpers [--type <helper_type>]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-helper <type> <json> [--confirm]
@@ -110,6 +111,7 @@ Before changing HA endpoint usage, verify against upstream (WebFetch or the `fin
 - After `POST`, `GET` reflects the change synchronously (verified against HA 2026.x). No retry or delay needed for verify calls.
 - `--reload {automation|script|scene}` in `ha validate-apply` is overloaded: it controls both the REST push endpoint and the reload service call. There is no push-only mode; add `--no-reload` if that use case arises. Scenes use the same REST config API (`/api/config/scene/config/{id}`) and `scene.reload` service as automation/script — no special path.
 - `POST /api/template` returns the rendered template as a **raw plain-text body**, not JSON (confirmed against HA core source and live) — `client.post()`'s unconditional `JSON.parse` would throw `Malformed JSON` on any non-JSON-looking render (e.g. `idle`). Use `client.postText()` (raw-response variant) for this and any other endpoint that returns plain text, like `/api/error_log` (a `getText()` GET counterpart will be needed when that command lands).
+- **`ha call-service` is gated per-entity/service (`gateServiceCall` in `policy.ts`), not by the structural gate.** Sensitive domains (lock/alarm) or entity/device/target references block as a proposal under strict, need `--confirm` under ask; non-sensitive calls proceed in both modes since call-service exists for maintenance (reloads, `recorder.purge`, `notify.*`). Reuses the same fail-closed entity-extraction logic as the MCP safety hook (`extractEntityIds`/`hasUnresolvableTarget`/`isWellFormedEntityId`, relocated to `policy.ts`) plus a `call-service`-only `hasMalformedTargetShape` guard for wrong-shaped `--data` (target as an array, non-string entity_id) that the shared extractors can't see. When touching this gate, keep `tests/gate-corpus.test.ts`/`tests/gate-fuzz.test.ts` green — they pin the MCP hook's byte-identical output.
 
 ### WebSocket commands (`src/ha-ws.ts` + `src/structure.ts`)
 
