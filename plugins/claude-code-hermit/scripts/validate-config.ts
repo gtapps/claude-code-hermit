@@ -27,6 +27,7 @@ const REQUIRED_KEYS: Record<string, string[]> = {
 const VALID_ESCALATION = ['conservative', 'balanced', 'autonomous'];
 const VALID_QUALITY_GATE_TIER = ['budget', 'balanced', 'quality'];
 const VALID_ROUTINE_MODEL = ['opus', 'sonnet', 'haiku'];
+const VALID_IDLE_BEHAVIOR = ['wait', 'discover'];
 const TIME_RE = /^\d{2}:\d{2}$/;
 
 // --- Cron validation (5-field: minute hour dom month dow) ---
@@ -101,6 +102,25 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
 
   if (config.escalation && !VALID_ESCALATION.includes(config.escalation)) {
     errors.push(`escalation: "${config.escalation}" not in [${VALID_ESCALATION.join(', ')}]`);
+  }
+
+  if (config.remote !== undefined && typeof config.remote !== 'boolean') {
+    errors.push(`remote: expected boolean, got ${typeof config.remote}`);
+  }
+
+  if (config.idle_behavior !== undefined && config.idle_behavior !== null) {
+    if (!VALID_IDLE_BEHAVIOR.includes(config.idle_behavior)) {
+      errors.push(`idle_behavior: "${config.idle_behavior}" not in [${VALID_IDLE_BEHAVIOR.join(', ')}]`);
+    }
+  }
+
+  // permission_mode's valid set is Claude Code's, not the hermit's — hermit-start.ts
+  // warns-and-falls-back on unknown values at runtime rather than hard-failing, so
+  // only type-check here; an enum would reject values Claude Code adds later.
+  if (config.permission_mode !== undefined && config.permission_mode !== null) {
+    if (typeof config.permission_mode !== 'string') {
+      errors.push(`permission_mode: expected string, got ${typeof config.permission_mode}`);
+    }
   }
 
   if (config.quality_gate && typeof config.quality_gate === 'object' && config.quality_gate.tier !== undefined) {

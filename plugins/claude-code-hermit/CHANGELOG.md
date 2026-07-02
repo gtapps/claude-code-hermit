@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **hatch: config.json assembly is now deterministic (`hatch-config.ts`)** — Step 5's ~40-line hand-merge of the template with wizard answers is now a single script call; the model builds an answers payload instead of hand-transcribing cron strings, `scheduled_checks` entries, and channel objects. Re-init merges by id (routines, `scheduled_checks`) and per-field (channels), never advances `_hermit_versions`, and preserves any key the payload doesn't mention. Fixes a pre-existing bug where Step 3/Quick Turn 1 read `hermit.boot_skill` from a sibling's `plugin.json` instead of `hermit-meta.json` (always resolved to `null`). `validate-config.ts` gained `remote` (boolean) and `idle_behavior` (`wait`/`discover`) checks it was missing.
+
 ## [1.2.13] - 2026-06-29
 
 ### Added
