@@ -1254,8 +1254,10 @@ test('marketplace.json and plugin dirs are in sync (name + version, bidirectiona
   const listed = new Set<string>();
 
   for (const entry of marketplace.plugins) {
-    listed.add(entry.name);
-    const pjPath = path.join(pluginsDir, entry.name, '.claude-plugin', 'plugin.json');
+    // The source path is the canonical dir pointer; entry.name need not equal it.
+    const dir = path.basename(entry.source);
+    listed.add(dir);
+    const pjPath = path.join(pluginsDir, dir, '.claude-plugin', 'plugin.json');
     expect({ name: entry.name, hasManifest: fs.existsSync(pjPath) })
       .toEqual({ name: entry.name, hasManifest: true });
     const pj = readJson(pjPath);
