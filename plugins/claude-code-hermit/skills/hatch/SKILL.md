@@ -134,7 +134,8 @@ If the list is non-empty:
 - Present the candidates and ask: "Activate a hermit for this project?"
 - If the operator selects one: record the full entry from `detected_hermits` as `activated_hermit` (carries `plugin`, `id`, `marketplace_name`, `installPath`).
   - Read `<activated_hermit.installPath>/state-templates/CLAUDE-APPEND.md` and append it to the target project's CLAUDE.md (after the core append in step 5).
-  - Read `<activated_hermit.installPath>/.claude-plugin/plugin.json`: if it declares a `hermit.boot_skill` field (e.g. `"/claude-code-homeassistant-hermit:ha-boot"`), record it for step 5 to write as `boot_skill` in `config.json`. This replaces the default `/claude-code-hermit:session` bootstrap so the domain hermit's custom boot logic fires on every always-on launch. If the field is absent, leave `boot_skill` unset (core behavior).
+  - Read `<activated_hermit.installPath>/.claude-plugin/hermit-meta.json`: if it declares a `hermit.boot_skill` field (e.g. `"/claude-code-homeassistant-hermit:ha-boot"`), record it for step 5 to write as `boot_skill` in `config.json`. This replaces the default `/claude-code-hermit:session` bootstrap so the domain hermit's custom boot logic fires on every always-on launch. If the field is absent, leave `boot_skill` unset (core behavior).
+  - Read `<activated_hermit.installPath>/.claude-plugin/plugin.json` for its `version` field — this, together with `activated_hermit.plugin` (as `slug`) and the `boot_skill` above, is what Step 5 sends as `activated_hermit` in the `hatch-config.ts` answers payload.
 - If the list is empty or the operator declines: skip.
 
 ### 4. Setup wizard
@@ -327,44 +328,43 @@ For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, 
 
 ### 5. Write config.json
 
-**Source of truth: `${CLAUDE_SKILL_DIR}/../../state-templates/config.json.template`.** Read this file as the base — it encodes every default field shipped by the current plugin version (including `model`, `always_on`, `chrome`, `monitors`, `compact`, `knowledge`, etc.). Do NOT maintain a parallel inline default object here — anything written inline in this skill drifts the moment a field is added to the template.
+**Source of truth: `${CLAUDE_SKILL_DIR}/../../state-templates/config.json.template`.** `hatch-config.ts` reads it as the base — it encodes every default field shipped by the current plugin version (including `model`, `always_on`, `chrome`, `monitors`, `compact`, `knowledge`, etc.). Do NOT maintain a parallel inline default object here — anything written inline in this skill drifts the moment a field is added to the template.
 
-**Algorithm:**
+**config.json assembly is a single deterministic script call — do not hand-assemble the merge.** Build an **answers payload** from the wizard's collected answers, then run:
 
-1. **Read the template** at `state-templates/config.json.template`.
-2. **Substitute scaffold variables**: replace `{project_name}` in `tmux_session_name` with the actual project directory name (e.g. `hermit-my-project`).
-3. **Stamp `_hermit_versions`**: read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` for the core version and write it to `_hermit_versions["claude-code-hermit"]`. If a hermit was activated in step 3, also stamp its version under its slug.
-4. **Set `boot_skill`**: if a hermit was activated and declared `hermit.boot_skill` in its `plugin.json`, write that value here. Otherwise leave as `null`.
-   **Set `shutdown_skill`**: leave as `null` — operator sets it via config edit if they run always-on services that need stopping on full close.
-5. **Overlay operator choices** from the wizard:
-   - From Phase 2: `agent_name`, `language`, `timezone`, `sign_off`.
-   - From Phase 3: `escalation`, `remote`, `idle_behavior`.
-   - From Phase 5: `channels.<name>` populated per Phase 5 rules (state_dir, allowed_users, morning_brief). Do **not** derive `push_notifications` from the channel choice — leave it at the template default (`true`) on fresh hatch. The runtime channel-first/push-fallback guard in CLAUDE-APPEND.md already prevents double-notification (push only fires when a channel is unreachable or absent). On re-init (`is_reinit == true`), leave the existing `push_notifications` value untouched, same as any field the wizard didn't ask about, preserving a manual `/hermit-settings push-notifications` toggle across re-inits.
-   - From Phase 6: `permission_mode`; append routines (morning, evening) if enabled — heartbeat-restart is already in the template.
-   - From Phase 4: append `scheduled_checks` entries per the per-plugin mapping in Phase 4 (only `claude-code-setup` and `claude-md-management` contribute — 3 entries total when both selected; `skill-creator` and `feature-dev` add zero entries).
-6. **Write merged object** as `.claude-code-hermit/config.json`.
+```
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/hatch-config.ts <PROJECT_ROOT> [--reinit]
+```
 
-**Re-initialization merge**: read the existing `.claude-code-hermit/config.json`, then overlay only the fields the wizard asked about. Never strip unknown keys (operators may have added custom fields). Don't re-default fields the operator didn't touch this run.
+with the answers payload as JSON on stdin. The script reads the template (or, on `--reinit`, the existing `.claude-code-hermit/config.json`), overlays the answers, validates the result, and writes `.claude-code-hermit/config.json` — the model never hand-transcribes the merge, cron strings, `scheduled_checks` entries, or channel objects.
 
-**Template-only fields** (the wizard never asks about these — they come straight from `config.json.template` and the operator can tune them via `/hermit-settings` later): `model`, `auto_session`, `always_on`, `chrome`, `monitors`, `compact`, `heartbeat`, `knowledge`, `env`, `quality_gate`, `watchdog`, `reflection`, `storage_drift`, `post_close_clear`. The Quick branch and Advanced wizard both leave these at template defaults.
-
-If channels were configured in Phase 5, populate each channel's entry in the `channels` object using a **relative path** (relative to the project root):
+**Answers payload** — include a key only when the wizard actually collected that answer (the script overlays by presence, so an omitted key leaves the existing/template value untouched):
 
 ```json
-"channels": {
-  "discord": {
-    "enabled": true,
-    "allowed_users": ["<user-id-if-provided>"],
-    "dm_channel_id": null,
-    "state_dir": ".claude.local/channels/discord",
-    "morning_brief": { "enabled": true, "time": "07:00" }
-  }
+{
+  "project_name": "<project directory name, fresh hatch only>",
+  "activated_hermit": { "slug": "<plugin>", "version": "<sibling's plugin.json version>", "boot_skill": "<hermit.boot_skill from hermit-meta.json, or null>" },
+  "agent_name": "...", "language": "...", "timezone": "...", "sign_off": "...",
+  "escalation": "...", "remote": true, "idle_behavior": "...",
+  "permission_mode": "...",
+  "routines": { "enabled": true, "morning_time": "08:30", "evening_time": "22:30" },
+  "scheduled_checks_plugins": ["claude-code-setup", "claude-md-management"],
+  "channels": { "discord": { "enabled": true, "allowed_users": ["<id>"], "morning_brief_time": "07:00" } }
 }
 ```
 
-Omit `allowed_users` if the operator skipped access control. Omit `morning_brief` (or set to `null`) if the operator declined. `dm_channel_id` always starts as `null` — it is learned from the first inbound message.
+- **Phase 2** → `agent_name`, `language`, `timezone`, `sign_off`.
+- **Phase 3** → `escalation`, `remote`, `idle_behavior`.
+- **Phase 4** → `scheduled_checks_plugins`: only `claude-code-setup` and `claude-md-management` contribute entries (3 total when both selected); `skill-creator` and `feature-dev` contribute none — omit them from the list.
+- **Phase 5** → `channels.<name>`: `enabled`, `allowed_users` (omit if the operator skipped access control), `morning_brief_time` (omit if declined; on re-init, send it as `null` to turn off a brief the operator previously enabled). The script fills in `dm_channel_id: null` and `state_dir: .claude.local/channels/<name>` on first creation and preserves both (plus any other channel it doesn't recognize, `channels.primary`, and third-party `marketplace` channels) on re-init merge. Do **not** include `push_notifications` in the payload — the script never touches it; it stays at the template default (`true`) or, on re-init, whatever value is already on disk. The runtime channel-first/push-fallback guard in CLAUDE-APPEND.md already prevents double-notification.
+- **Phase 6** → `permission_mode`, `routines` (morning/evening only — `heartbeat-restart` and the other infrastructure routines are already in the template and are never touched by this payload).
+- **Step 3 hermit activation** → `activated_hermit`. `version` is read from `<activated_hermit.installPath>/.claude-plugin/plugin.json`; `boot_skill` is read from `<activated_hermit.installPath>/.claude-plugin/hermit-meta.json`'s `hermit.boot_skill` field (or `null` if absent).
 
-`state_dir` is the path (relative to project root, or absolute) where the channel plugin writes its token (`.env`) and access config (`access.json`). `hermit-start` resolves relative paths against `cwd` and derives the `*_STATE_DIR` env var from this field at boot — no need to duplicate it in `env`. Without `state_dir`, the plugin defaults to `~/.claude/channels/<plugin>/`, which is lost on Docker container restart.
+**Re-initialization** is `--reinit` on the same call — the script reads the existing config as its base (never the template), so any field the payload doesn't mention (custom operator keys, `push_notifications`, `docker`, `monitors`, ...) survives untouched, `_hermit_versions` entries are never advanced (only added if a slug is newly absent), and `scheduled_checks`/`channels`/`routines` are reconciled/merged by id rather than replaced wholesale. `shutdown_skill` is never written by this script — leave it `null`; the operator sets it via config edit if they run always-on services that need stopping on full close.
+
+**Template-only fields** (the wizard never asks about these — they come straight from `config.json.template`, and `hatch-config.ts` never touches them; the operator can tune them via `/hermit-settings` later): `model`, `auto_session`, `always_on`, `chrome`, `monitors`, `compact`, `heartbeat`, `knowledge`, `env`, `quality_gate`, `watchdog`, `reflection`, `storage_drift`, `post_close_clear`. The Quick branch and Advanced wizard both leave these at template defaults.
+
+`tmux_session_name` is derived from `project_name` on fresh hatch only (`hermit-<project_name>`) — re-init never re-substitutes it.
 
 ### 5-task. Write task list ID to settings.local.json
 
@@ -762,7 +762,7 @@ Replaces Steps 3-4 with batched turns + confirm; resumes shared Steps 5-9 after 
 
 Only fires if `detected_hermits` from Step 1.5 is non-empty. Same prompt shape as Step 3 of the Advanced branch — uses the cached candidate list, does not re-glob. If multiple hermits detected, list all + Skip. If none, this turn is skipped entirely.
 
-If a hermit is selected: record the full entry from `detected_hermits` as `activated_hermit` (carries `plugin`, `id`, `marketplace_name`, `installPath`). Read `<activated_hermit.installPath>/state-templates/CLAUDE-APPEND.md` and stash for Step 6's CLAUDE.md append. Read `<activated_hermit.installPath>/.claude-plugin/plugin.json` for the `hermit.boot_skill` field and stash for Step 5's config write.
+If a hermit is selected: record the full entry from `detected_hermits` as `activated_hermit` (carries `plugin`, `id`, `marketplace_name`, `installPath`). Read `<activated_hermit.installPath>/state-templates/CLAUDE-APPEND.md` and stash for Step 6's CLAUDE.md append. Read `<activated_hermit.installPath>/.claude-plugin/hermit-meta.json` for the `hermit.boot_skill` field and `<activated_hermit.installPath>/.claude-plugin/plugin.json` for its `version`; stash both for Step 5's `hatch-config.ts` answers payload.
 
 ### Quick Turn 2 — Identity batch (one `AskUserQuestion`, 3 questions)
 
