@@ -2,7 +2,7 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
-## [Unreleased]
+## [0.4.0] - 2026-07-02
 
 ### Added
 - **`ha list-dashboards` / `get-dashboard` / `apply-dashboard` / `create-dashboard` / `delete-dashboard`** — read and gated-write Lovelace dashboards via WebSocket (`lovelace/dashboards/*`, `lovelace/config`, `lovelace/config/save`). Completes Phase 1.
@@ -25,6 +25,34 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 - **`extractEntityIds`/`hasUnresolvableTarget`/`isWellFormedEntityId` relocated to `policy.ts`** — moved out of the MCP safety hook so `call-service` can reuse the same fail-closed entity-resolution logic. Hook behavior is unchanged (`tests/gate-corpus.test.ts`/`tests/gate-fuzz.test.ts` verify byte-identical output).
 - **`check-config` reuses `apply.ts`'s `isConfigCheckOk`** instead of a narrower inline check.
 - **`time-utils.daysAgo()`** — extracted shared "N days before now" arithmetic, reused by `logbook`'s window-start computation.
+
+### Security
+- **`gateServiceCall` deep-scans `--data`** — a sensitive entity hidden in a service-specific field (e.g. `scene.apply`'s `entities` map) could previously slip past classification; the gate now walks the full payload.
+
+### Fixed
+- **`set-core-config` rejects non-numeric lat/long** instead of silently sending `null`.
+- **`apply-dashboard` / `render-template` report missing or malformed input files cleanly** instead of throwing past the `HomeAssistantError`-only catch (and no longer open a WebSocket connection before validating input).
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `src/cli.ts` | New subcommands: dashboards, render-template, check-config, call-service, set-core-config, error-log/logbook/system-log, floors, labels, area/entity metadata, expose-entity, backups, scenes, blueprints, energy-prefs, reload-entry/disable-entry |
+| `src/policy.ts` | `gateServiceCall` deep-scan for service-data entity references; entity-resolution helpers relocated from the MCP hook |
+| `src/structure.ts` | WS handlers for floors, labels, area/entity/device metadata, dashboards, backups, blueprints, energy prefs |
+| `src/ha-api.ts` | Scene REST config path |
+| `src/apply.ts` | `isConfigCheckOk` reused by `check-config` |
+| `src/ha-ws.ts` | New WS command types for the above surfaces |
+| `src/time-utils.ts` | `daysAgo()` extracted for `logbook` window computation |
+| `hooks/mcp-safety-gate.ts` | Entity-resolution helpers relocated to `policy.ts`; behavior unchanged |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Refresh the HA hermit plugin** — `/claude-code-hermit:hermit-evolve` pulls the updated CLI and skills.
+
+No `config.json` changes required.
 
 ## [0.3.1] - 2026-06-29
 
