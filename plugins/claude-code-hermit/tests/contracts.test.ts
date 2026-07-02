@@ -420,6 +420,61 @@ describe('monitors validation', () => {
   });
 });
 
+describe('remote validation', () => {
+  test('remote: true and false are both valid', () => {
+    for (const val of [true, false]) {
+      const out = runValidate({ remote: val });
+      expect(out.errors.some((e: string) => e.includes('remote'))).toBe(false);
+    }
+  });
+
+  test('remote must be a boolean — strings are rejected', () => {
+    const out = runValidate({ remote: 'yes' });
+    expect(out.errors.some((e: string) => e.includes('remote'))).toBe(true);
+  });
+
+  test('remote absent produces no error (falls through to template default)', () => {
+    const out = runValidate({});
+    expect(out.errors.some((e: string) => e.includes('remote'))).toBe(false);
+  });
+});
+
+describe('idle_behavior validation', () => {
+  test('wait and discover are both valid', () => {
+    for (const val of ['wait', 'discover']) {
+      const out = runValidate({ idle_behavior: val });
+      expect(out.errors.some((e: string) => e.includes('idle_behavior'))).toBe(false);
+    }
+  });
+
+  test('idle_behavior: bogus is an error', () => {
+    const out = runValidate({ idle_behavior: 'bogus' });
+    expect(out.errors.some((e: string) => e.includes('idle_behavior'))).toBe(true);
+  });
+
+  test('idle_behavior: null is treated as absent — no error', () => {
+    const out = runValidate({ idle_behavior: null });
+    expect(out.errors.some((e: string) => e.includes('idle_behavior'))).toBe(false);
+  });
+});
+
+describe('permission_mode validation (type-only — no enum, Claude Code owns the set)', () => {
+  test('any string value produces no error, including values the hermit does not recognize', () => {
+    const out = runValidate({ permission_mode: 'bogus' });
+    expect(out.errors.some((e: string) => e.includes('permission_mode'))).toBe(false);
+  });
+
+  test('non-string permission_mode is an error', () => {
+    const out = runValidate({ permission_mode: 5 });
+    expect(out.errors.some((e: string) => e.includes('permission_mode'))).toBe(true);
+  });
+
+  test('permission_mode absent or null produces no error', () => {
+    expect(runValidate({}).errors.some((e: string) => e.includes('permission_mode'))).toBe(false);
+    expect(runValidate({ permission_mode: null }).errors.some((e: string) => e.includes('permission_mode'))).toBe(false);
+  });
+});
+
 describe('push_notifications validation', () => {
   test('push_notifications: true and false are both valid', () => {
     for (const val of [true, false]) {
