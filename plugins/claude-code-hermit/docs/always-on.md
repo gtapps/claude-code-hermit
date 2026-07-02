@@ -199,7 +199,7 @@ On either trigger:
 3. The report is archived with frontmatter `closed_via: auto`.
 4. `state/pending-close.json` (if present) is removed after archive success.
 
-All auto-archived sessions count as evidence in `reflect`, `weekly-review`, `hermit-brain`, and `hermit-evolution` — the prior `closed_via: auto` skip filter was removed so daily-midnight archives (with real operator content) reach those surfaces. The 12h-inactivity trigger and the 10-min lull threshold are not configurable in v1.
+All auto-archived sessions count as evidence in `reflect`, `weekly-review`, `hermit-health`, and `hermit-evolution` — the prior `closed_via: auto` skip filter was removed so daily-midnight archives (with real operator content) reach those surfaces. The 12h-inactivity trigger and the 10-min lull threshold are not configurable in v1.
 
 ## Crash Recovery
 

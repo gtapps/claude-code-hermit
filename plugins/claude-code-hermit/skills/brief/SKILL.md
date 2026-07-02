@@ -1,6 +1,6 @@
 ---
 name: brief
-description: Returns a 5-line executive summary of recent work. Checks active session first, falls back to latest report. Activates on messages like "brief", "what happened", "morning update", "overnight summary".
+description: Returns a 5-line executive summary of recent work. Checks active session first, falls back to latest report. Activates on messages like "brief", "what happened", "morning update", "overnight summary", "status", "progress", "what are you working on", "how's it going".
 ---
 # Session Brief
 
@@ -82,7 +82,7 @@ Emphasize backward-looking content. Compose from runner JSON (see Dispatch above
 - **Today's cost:** run `bun "${CLAUDE_PLUGIN_ROOT}/scripts/today-cost.ts"` (live, in main) — do not use `cost-summary.md` for today's figure; it is only updated once per day and will be stale in always-on deployments.
 - **Key findings:** use `runner.findings`
 - **Tomorrow:** use `runner.tomorrow`
-- After generating summary: if `runtime.json session_state` is `in_progress` or SHELL.md has progress entries since last report, note it in the brief (e.g., "Session still open — run /session-close to archive.") and let the operator close explicitly. Exception: if `config.always_on` is `true` AND `config.routines` contains an enabled entry with skill containing `daily-auto-close`, suppress the note — the auto-close routine archives it at midnight. Idle transitions are owned by the `session` skill and `session-mgr`; brief does not trigger them.
+- After generating summary: if `runtime.json session_state` is `in_progress` or SHELL.md has progress entries since last report, note it in the brief (e.g., "Session still open — run /session-close to archive.") and let the operator close explicitly. Exception: if `config.always_on` is `true` AND `config.routines` contains an enabled entry with `id` `daily-auto-close` (the midnight routine, which invokes `/claude-code-hermit:session-close --scheduled`), suppress the note — the auto-close routine archives it at midnight. Idle transitions are owned by the `session` skill and `session-mgr`; brief does not trigger them.
 
 ### No flag (default)
 
@@ -91,7 +91,7 @@ Current behavior — general purpose summary as described below.
 ## Plan
 
 1. Use `session_state` already read in the Dispatch step:
-   - **1a. `in_progress` (no dispatch):** read `.claude-code-hermit/sessions/SHELL.md` **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**. Summarize the active task using TaskList for Done/Next lines; produce the standard 5-line output.
+   - **1a. `in_progress` (no dispatch):** read `.claude-code-hermit/sessions/SHELL.md` **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**. Summarize the active task using TaskList for Done/Next lines; produce the standard 5-line output. For the cost line, read `cost_usd` and `tokens` from `.claude-code-hermit/sessions/.status.json` (live per-session totals; fall back to `0`/`0` if missing) rather than the once-daily `cost-summary.md`. Then read `.claude-code-hermit/state/alert-state.json`; if its `active` array is non-empty, append one line: `⚠ N alert(s) active — run /claude-code-hermit:hermit-health`.
    - **1b. `idle` (no dispatch):** read SHELL.md **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**. Format as:
      ```
      [Brief] YYYY-MM-DD | idle | N tasks completed

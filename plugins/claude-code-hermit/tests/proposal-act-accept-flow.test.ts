@@ -12,7 +12,6 @@ import path from 'node:path';
 import { PLUGIN_ROOT } from './helpers/run';
 
 const SKILL_PATH = path.join(PLUGIN_ROOT, 'skills', 'proposal-act', 'SKILL.md');
-const JUDGE_PATH = path.join(PLUGIN_ROOT, 'agents', 'quality-gate-judge.md');
 const TEMPLATE_PATH = path.join(PLUGIN_ROOT, 'state-templates', 'PROPOSAL.md.template');
 
 const skill = fs.readFileSync(SKILL_PATH, 'utf-8');
@@ -67,8 +66,10 @@ describe('proposal-act accept flow', () => {
     expect(skill).toContain('quality_gate.tier');
   });
 
-  test('step (e.5) invokes claude-code-hermit:quality-gate-judge in balanced branch', () => {
-    expect(skill).toContain('claude-code-hermit:quality-gate-judge');
+  test('step (e.5) decides the balanced branch inline (no quality-gate-judge subagent)', () => {
+    expect(skill).toContain('decide RUN vs SKIP **inline**');
+    expect(skill).toContain('Bias toward RUN when uncertain');
+    expect(skill).not.toContain('quality-gate-judge');
   });
 
   test('step (e.5) has explicit budget branch (skip)', () => {
@@ -91,23 +92,6 @@ describe('proposal-act accept flow', () => {
 
   test('NEXT-TASK template /claude-code-hermit:simplify bullet present', () => {
     expect(skill).toContain('Run /claude-code-hermit:simplify on the touched files');
-  });
-});
-
-// Quality-gate-judge subagent: file existence + frontmatter.
-describe('quality-gate-judge subagent', () => {
-  test('quality-gate-judge subagent file exists', () => {
-    expect(fs.existsSync(JUDGE_PATH)).toBe(true);
-  });
-
-  const judgeFrontmatter = frontmatterOf(fs.readFileSync(JUDGE_PATH, 'utf-8'));
-
-  test('quality-gate-judge name field', () => {
-    expect(judgeFrontmatter).toMatch(/^name: quality-gate-judge/m);
-  });
-
-  test('quality-gate-judge uses haiku model', () => {
-    expect(judgeFrontmatter).toMatch(/^model: haiku/m);
   });
 });
 

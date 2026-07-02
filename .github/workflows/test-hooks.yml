@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'plugins/claude-code-hermit/**'
+      - '.claude/skills/simplify/**'
       - '.github/workflows/test-hooks.yml'
       - 'package.json'
       - 'bun.lock'
@@ -12,6 +13,7 @@ on:
   pull_request:
     paths:
       - 'plugins/claude-code-hermit/**'
+      - '.claude/skills/simplify/**'
       - '.github/workflows/test-hooks.yml'
       - 'package.json'
       - 'bun.lock'
@@ -40,5 +42,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.3.11'
+      # The repo-internal /simplify mirror must stay byte-identical to the shipped skill.
+      - name: Guard .claude/skills/simplify mirror
+        run: diff -r .claude/skills/simplify plugins/claude-code-hermit/skills/simplify
       - run: bun test
         working-directory: plugins/claude-code-hermit

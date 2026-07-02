@@ -27,6 +27,53 @@ If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --qu
 - **Do not call `update-reflection-state.ts`** — quick runs are event-driven, not cadence ticks. Mutating `last_run_at` would suppress the next scheduled reflect. Consequence: judge verdicts from quick runs do not accumulate into the Component Health counters (`judge_accept` / `judge_suppress`); on daemons with frequent `reflect_after` use, those counters will under-represent total judge activity. This is intentional — cadence preservation wins.
 - Then stop. Do not continue to the scheduled-reflect steps below.
 
+## Scheduled-checks mode
+
+If `$ARGUMENTS` contains `--scheduled-checks` (invoked as `/claude-code-hermit:reflect --scheduled-checks` by the `scheduled-checks` routine — daily, offset from the main reflect): run at most one due interval-triggered scheduled check, route any finding through reflect's normal gates, persist per-check state, append a Progress Log line, then **stop** — do not run the precheck or the numbered steps below.
+
+**Scheduled-check contract.** A scheduled check is any skill registered in `config.scheduled_checks` that is idempotent (safe to run twice), returns findings or nothing, does not self-schedule (cadence is owned by `scheduled_checks.interval_days`), and is short-running/read-mostly (no blocking, no side effects on success).
+
+1. **Load.** Read `config.json → scheduled_checks` (filter to `enabled: true`, `trigger: "interval"`). Read `state/reflection-state.json → scheduled_checks` (per-check `last_run`, `last_unavailable_at`, `last_error_at`, `consecutive_empty`).
+2. **Filter due.** Keep enabled interval entries where: `last_run` is null or older than `interval_days` days, AND `last_unavailable_at` is null or older than **4 hours** (transient cooldown), AND `last_error_at` is null or older than `interval_days` days (persistent back-off for true errors).
+3. **Pick one.** Select the entry with the oldest `last_run` (null sorts first). If none are due → skip to the Progress Log (step 8) with outcome `skipped`.
+4. **Invoke.** Invoke the `skill` command string as-is via the `Skill` tool. Do not "verify installation" first — the harness's loaded-skills list (system-reminders) is authoritative. **Never grep `~/.claude/plugins/cache/` or any plugin directory** — the cache layout is `cache/<marketplace>/<plugin>/`, not `cache/<plugin>/`, and assumption-based path checks produce false-negative `unavailable` outcomes. Classify: skill absent from the available-skills list or rejected as unknown → `unavailable`; runs but errors/times out → `error`; runs to completion → evaluate (step 5).
+5. **Evaluate.** Actionable improvement found → `actionable` (summarize finding); context improvement (e.g. a CLAUDE.md fix) → `contextual` (summarize; apply directly if trivial); nothing found → `empty`.
+6. **Act on outcome.**
+   - **`actionable` / `contextual`:** build one candidate and route it through reflect's standard gates:
+     ```
+     Candidate: <title derived from finding>
+     Tier: 1
+     Evidence Source: scheduled-check/<id>
+     Evidence: <one-paragraph summary>
+     Sessions: none
+     ```
+     Pass it to § Evidence Validation (`claude-code-hermit:reflection-judge`). On ACCEPT/DOWNGRADE, gate with § Proposal triage gate (`claude-code-hermit:proposal-triage`) — when appending the `triage-verdict` metric there, set `"caller":"scheduled-checks"`. On triage `CREATE`: Tier 1/2 → § Micro-approval queuing; Tier 3 → `/claude-code-hermit:proposal-create`. SUPPRESS/DUPLICATE from triage, or SUPPRESS from the judge → drop silently (note in the Progress Log). An unrecognized judge or triage verdict → fail closed exactly as those sections specify (gate-failed metric + Progress Log note); the candidate re-surfaces on the next scheduled-checks run.
+   - **`empty`:** no candidate. `consecutive_empty += 1` (persisted in step 7). Check the interval-adjustment rule below.
+   - **`unavailable`:** note in SHELL.md `## Findings`: `Scheduled check skipped: <id> — skill unavailable (cooldown 4h)`. No candidate.
+   - **`error`:** note in SHELL.md `## Findings`: `Scheduled check error: <id> — retrying after interval_days`. No candidate.
+   - **`skipped`:** no action beyond the Progress Log.
+
+   **Interval adjustment.** `empty` → `consecutive_empty += 1`; `actionable`/`contextual` → reset to 0; an interval-increase proposal accepted or dismissed → reset to 0. On **3+ consecutive empty runs**, create a standard Three-Condition proposal (not tagged `scheduled-check`) to increase `interval_days` (e.g. 7 → 14), gated through `claude-code-hermit:proposal-triage` first. This mode never auto-adjusts — adjustments always go through PROP-NNN.
+7. **Persist per-check state.** Write the delta directly to `state/reflection-state.json → scheduled_checks.<id>` (fail-open — a failed write logs to stderr only, never aborts). Set only the fields the current outcome changes: `unavailable` → `last_unavailable_at` (leave `last_run`); `error` → `last_error_at` (leave `last_run`); `empty` → `last_run` + `consecutive_empty = prior+1`; `actionable`/`contextual` → `last_run` + `consecutive_empty = 0`.
+   ```bash
+   bun -e "
+   const fs=require('fs');
+   const f='.claude-code-hermit/state/reflection-state.json';
+   try {
+     const s=JSON.parse(fs.readFileSync(f,'utf-8'));
+     if(!s.scheduled_checks) s.scheduled_checks={};
+     const id='<check-id>';
+     if(!s.scheduled_checks[id]) s.scheduled_checks[id]={};
+     const c=s.scheduled_checks[id];
+     // Set fields per outcome (see above); substitute id, ISO timestamp, assignments before running.
+     fs.writeFileSync(f, JSON.stringify(s,null,2)+'\n','utf-8');
+   } catch(e){ process.stderr.write('scheduled-checks state: '+e.message+'\n'); }
+   "
+   ```
+8. **Progress Log (always).** Append one line to SHELL.md `## Progress Log`: `[HH:MM] scheduled-checks — <id>: <outcome>; verdicts: accept=A downgrade=D suppress=S; outcome: <none|micro-queued|proposal-created|interval-proposal>`. Use `skipped` for both the id and outcome fields when no check was due.
+
+Then stop. Do not run the precheck or the scheduled-reflect steps below.
+
 1. Run the precheck to determine whether a full reflect run is warranted:
    ```
    bun ${CLAUDE_PLUGIN_ROOT}/scripts/reflect-precheck.ts .claude-code-hermit ${CLAUDE_PLUGIN_ROOT}
@@ -362,7 +409,7 @@ Evidence: <one-paragraph evidence summary>
 
 Parse line 1 as the verdict. Lines 2+ are additive metadata (`closest_prop`, `aligned`, `operator_excerpt`, `overlap_compiled`, `prior_discussion`, `failed_condition`) — read for context if useful, but do not treat as part of the verdict for branching.
 
-After receiving the verdict, append one event to `state/proposal-metrics.jsonl`:
+After receiving the verdict, append one event to `state/proposal-metrics.jsonl`. Use `"caller":"reflect"` on a normal reflect run, or `"caller":"scheduled-checks"` when invoked via § Scheduled-checks mode:
 ```bash
 bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
   .claude-code-hermit/state/proposal-metrics.jsonl \

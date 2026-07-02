@@ -51,7 +51,7 @@ Need a different cadence or a new routine? Just ask — hermit sets it up.
 
 **Tracks how it felt.** After each synced activity, reply with your RPE (1–10) in the channel — `capture-activity-rpe` binds it to the activity. Use `/claude-code-fitness-hermit:set-rpe` for manual or retroactive entries. Subjective load surfaces in `activity-deep-dive` output and weekly summaries.
 
-**Everything is searchable.** Activity notes, weekly summaries, and load baselines land in your hermit's compiled knowledge and auto-memory — accessible across sessions and surfaceable on demand via `/hermit-brain` and `/hermit-health`.
+**Everything is searchable.** Activity notes, weekly summaries, and load baselines land in your hermit's compiled knowledge and auto-memory — accessible across sessions and surfaceable on demand via `/hermit-health`.
 
 ---
 

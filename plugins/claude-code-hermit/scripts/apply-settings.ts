@@ -31,7 +31,6 @@ const HERMIT_ALLOW = [
   'Bash(bun */scripts/heartbeat-precheck.ts*)',
   'Bash(bun */scripts/reflect-precheck.ts*)',
   'Bash(bun */scripts/archive-shell.ts*)',
-  'Bash(bun */scripts/run-with-profile.ts*)',
   'Bash(bun */scripts/evaluate-session.ts*)',
   'Bash(bun */scripts/append-metrics.ts*)',
   'Bash(bun */scripts/generate-summary.ts*)',

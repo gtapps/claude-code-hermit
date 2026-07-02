@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Changed
+- **README: `/hermit-brain` → `/hermit-health`** — the core `hermit-brain` skill merged into `hermit-health`; the docs now point at the surviving skill.
+
 ## [0.0.11] - 2026-06-29
 
 ### Changed

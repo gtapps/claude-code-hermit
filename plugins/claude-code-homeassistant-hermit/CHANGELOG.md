@@ -2,6 +2,11 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Changed
+- **README: `/hermit-brain` → `/hermit-health`** — the core `hermit-brain` skill merged into `hermit-health`; the docs now point at the surviving skill.
+
 ## [0.4.0] - 2026-07-02
 
 ### Added

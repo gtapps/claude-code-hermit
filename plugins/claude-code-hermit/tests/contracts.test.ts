@@ -491,7 +491,7 @@ describe('push_notifications validation', () => {
 
 describe('routine model validation', () => {
   const BASE_ROUTINE = {
-    id: 'check', schedule: '0 9 * * *', skill: 'claude-code-hermit:knowledge', enabled: true,
+    id: 'check', schedule: '0 9 * * *', skill: 'claude-code-hermit:recall', enabled: true,
   };
   const HB_ROUTINE = {
     id: 'heartbeat-restart', schedule: '0 4 * * *',
@@ -751,7 +751,7 @@ describe('proposal-id scheme', () => {
 // ============================================================
 
 describe('analytics skills contract', () => {
-  const ANALYTICS_SKILLS = ['hermit-brain', 'hermit-evolution', 'hermit-health'];
+  const ANALYTICS_SKILLS = ['hermit-evolution', 'hermit-health'];
 
   function readSkill(slug: string): string {
     const p = path.join(SKILLS, slug, 'SKILL.md');
@@ -1460,32 +1460,6 @@ describe('brief delegation contract', () => {
 });
 
 // ============================================================
-// hermit-brain delegation contract (TestHermitBrainDelegationContract)
-//
-// hermit-brain dispatches the session-report / proposal / reflection-state reads
-// to skill-eval-runner to keep those full-body reads off the main session.
-// Guards against: losing the fully-qualified agent reference and
-// producer/consumer schema drift between reference.md and SKILL.md.
-// Generic skill-eval-runner invariants (stays generic, no memory/model override)
-// are already covered by the reflect delegation contract above.
-// ============================================================
-
-describe('hermit-brain delegation contract', () => {
-  const skill = read(path.join(SKILLS, 'hermit-brain', 'SKILL.md'));
-  const refFile = read(path.join(SKILLS, 'hermit-brain', 'reference.md'));
-
-  test('SKILL.md dispatches skill-eval-runner fully-qualified with reference.md', () => {
-    expect(skill).toContain('claude-code-hermit:skill-eval-runner');
-    expect(skill).toContain('skills/hermit-brain/reference.md');
-  });
-
-  test('schema block is byte-identical in reference.md and SKILL.md', () => {
-    const block = (text: string) => extractBlock(text, '<!-- hermit-brain-eval-schema:start -->', '<!-- hermit-brain-eval-schema:end -->');
-    expect(block(refFile)).toBe(block(skill));
-  });
-});
-
-// ============================================================
 // hermit-evolution delegation contract (TestHermitEvolutionDelegationContract)
 //
 // hermit-evolution dispatches the weekly-review / session-report / proposal-metrics
@@ -1607,7 +1581,8 @@ describe('proposal-act dispatch contract', () => {
     expect(skill).toContain('then run its quality gate and verification');
     expect(skill).toContain('quality_gate.tier');
     expect(skill).toContain('/claude-code-hermit:simplify');
-    expect(skill).toContain('claude-code-hermit:quality-gate-judge');
+    // balanced tier is decided inline (no quality-gate-judge subagent)
+    expect(skill).toContain('decide RUN vs SKIP yourself');
   });
 
   test('verification failure is handled inside the subagent with a bounded retry', () => {

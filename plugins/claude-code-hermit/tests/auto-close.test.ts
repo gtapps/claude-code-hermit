@@ -287,16 +287,16 @@ describe('last-operator-action.json signal', () => {
     expect(fs.existsSync(lastOp(dir))).toBe(false);
   }));
 
-  // j. hook smoke: bare /loop re-fire of /pulse → file NOT written
-  test('hook smoke: bare /claude-code-hermit:pulse (loop re-fire) → file NOT written', withTmp(async (dir) => {
-    await recordHook(dir, '{"prompt":"/claude-code-hermit:pulse"}');
+  // j. hook smoke: bare /loop re-fire of /brief → file NOT written
+  test('hook smoke: bare /claude-code-hermit:brief (loop re-fire) → file NOT written', withTmp(async (dir) => {
+    await recordHook(dir, '{"prompt":"/claude-code-hermit:brief"}');
     expect(fs.existsSync(lastOp(dir))).toBe(false);
   }));
 
-  // k. hook smoke: operator-typed /pulse (command-message wrapper) → file IS written
-  test('hook smoke: operator-typed /pulse (command-message wrapper) → file IS written', withTmp(async (dir) => {
+  // k. hook smoke: operator-typed /brief (command-message wrapper) → file IS written
+  test('hook smoke: operator-typed /brief (command-message wrapper) → file IS written', withTmp(async (dir) => {
     await recordHook(dir, JSON.stringify({
-      prompt: '<command-message>claude-code-hermit:pulse</command-message>\n<command-name>/claude-code-hermit:pulse</command-name>',
+      prompt: '<command-message>claude-code-hermit:brief</command-message>\n<command-name>/claude-code-hermit:brief</command-name>',
     }));
     expect(fs.existsSync(lastOp(dir))).toBe(true);
   }));
@@ -415,7 +415,7 @@ describe('daily-auto-close lull + pending-close drain', () => {
   // (proves the routine fire doesn't poison the very clock it reads)
   test('hook smoke: [hermit-routine:daily-auto-close prefix → file NOT written', withTmp(async (dir) => {
     await runScript('record-operator-action.ts', {
-      stdin: '{"prompt":"[hermit-routine:daily-auto-close] Invoke /claude-code-hermit:daily-auto-close."}',
+      stdin: '{"prompt":"[hermit-routine:daily-auto-close] Invoke /claude-code-hermit:session-close --scheduled."}',
       cwd: dir,
     });
     expect(fs.existsSync(hermit(dir, 'state', 'last-operator-action.json'))).toBe(false);

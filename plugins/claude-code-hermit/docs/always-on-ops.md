@@ -2,8 +2,6 @@
 
 tmux-based setup for running your hermit without Docker, plus the lifecycle reference that applies to all always-on modes. For Docker setup, see [Always-On Setup](always-on.md).
 
-For skill details, see [Skills Reference](skills.md).
-
 ---
 
 ## Prerequisites

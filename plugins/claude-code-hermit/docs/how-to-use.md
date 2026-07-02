@@ -239,13 +239,11 @@ Most common actions auto-trigger from natural language — just say what you mea
 | Category       | Skills                                                             |
 | -------------- | ------------------------------------------------------------------ |
 | **Session**    | `session`, `session-start`, `session-close`                        |
-| **Status**     | `pulse`, `brief`                                                   |
+| **Status**     | `brief`                                                            |
 | **Monitoring** | `watch`, `heartbeat`                                               |
 | **Learning**   | `proposal-create`, `proposal-list`, `proposal-act`, `reflect`      |
 | **Config**     | `hermit-settings`, `hatch`, `hermit-evolve`                        |
 | **Docker**     | `docker-setup`                                                     |
 | **Channels**   | `channel-responder`                                                |
-| **Summaries**  | `hermit-brain`, `hermit-evolution`, `hermit-health`, `weekly-review` |
-| **Testing**    | `smoke-test`, `test-run`                                           |
-
-Full reference: [Skills Reference](skills.md).
+| **Summaries**  | `hermit-evolution`, `hermit-health`, `weekly-review`              |
+| **Testing**    | `smoke-test`                                                      |
