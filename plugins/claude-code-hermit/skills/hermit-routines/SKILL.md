@@ -73,6 +73,12 @@ Replace `<pluginRoot>` with the resolved absolute path from step 1, `<id>` with 
 
 **`reflect_after: true`:** when a routine config entry has `reflect_after: true`, append ` Then, only if the skill actually fired (not skipped-waiting), invoke /claude-code-hermit:reflect --quick.` to the prompt (after the trailing `fired` log line, and after the `heartbeat-restart` append if both apply). **Skip this append when the routine's `skill` is `claude-code-hermit:reflect`** — chaining reflect after reflect is wasteful and a config foot-gun.
 
+**Special case — the routine's `skill` is exactly `claude-code-hermit:reflect`** (the scheduled full-reflect routine; not `--quick`/`--scheduled-checks` variants): reflect's 42KB body should not load on days with nothing to reflect on, so gate it in the prompt. In both templates, replace the `invoke /<skill>` / `Invoke /<skill>` clause with:
+```
+run <pluginRoot>/scripts/reflect-precheck.ts .claude-code-hermit <pluginRoot>. If its first output line is exactly `EMPTY`, do not invoke reflect — the precheck already updated reflection-state.json and appended the Progress Log line; fall through to the `fired` log line. Otherwise (a `RUN|<phases-json>` line) invoke /claude-code-hermit:reflect --precheck-verdict '<that full line>'.
+```
+This runs the precheck exactly once (in bash), so an EMPTY day never loads the reflect skill body, and a RUN day passes the verdict through so reflect does not re-run the precheck. When a `model` override is set, the precheck clause stays in the session turn and only the reflect invocation is dispatched (identical to the model-override split above). This special case does not apply to `--quick` or `--scheduled-checks` invocations — those never run the cadence precheck.
+
 ### list
 
 Show configured routines from `config.json` (not from CronList — this is the config view, not the live view).

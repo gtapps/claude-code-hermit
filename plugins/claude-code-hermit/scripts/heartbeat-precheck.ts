@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { currentHHMM, todayYMD, parseDuration } from './lib/time';
 import { readAlertState, defaultAlertState, quarantineAlertState, writeAlertState } from './lib/alert-state';
+import { readFrontmatter, globDir } from './lib/frontmatter';
 
 type Json = any;
 
@@ -38,6 +39,48 @@ function normalizeItemKey(itemText: string): string | null {
     .replace(/[^a-z0-9]/g, '')
     .slice(0, 8);
   return text ? `checklist:${text}` : null;
+}
+
+// The default HEARTBEAT.md checklist item scans `proposals/` for review-worthy
+// proposals. Its alerts are keyed `proposal-pending:<PROP-NNN>`, NOT the generic
+// `checklist:<hash>` key the item loop below uses — so the generic rule can never
+// satisfy it and the item always forces EVALUATE (the bug this resolves). Detect
+// it by its `proposals/` reference and resolve it against the real proposal
+// frontmatter + proposal-pending alerts instead.
+function isProposalScanItem(itemText: string): boolean {
+  return /proposals\//i.test(itemText);
+}
+
+// 'clean' → item satisfied, continue the loop. 'evaluate' → dispatch the LLM.
+// Fail-open in every ambiguous case (unreadable dir/file, legacy no-frontmatter,
+// lingering alerts that need LLM-owned resolution detection): never a false OK.
+// Read-only — writes nothing, so it is identical under --peek.
+function resolveProposalScanItem(dir: string, alertMap: Json): 'clean' | 'evaluate' {
+  const files = globDir(path.join(dir, 'proposals'), /^PROP-.*\.md$/);
+  const proposedIds: string[] = [];
+  for (const f of files) {
+    const fm = readFrontmatter(f);
+    if (!fm || typeof fm.status !== 'string') return 'evaluate'; // legacy/unreadable/malformed
+    if (fm.status === 'proposed') {
+      const m = path.basename(f).match(/^(PROP-\d+)/);
+      if (!m) return 'evaluate';
+      proposedIds.push(m[1]);
+    }
+  }
+  const hasPendingAlert = Object.keys(alertMap).some(k => /^proposal-pending:/.test(k));
+  if (proposedIds.length === 0) {
+    // Nothing to review. A lingering proposal-pending alert means a proposal was
+    // resolved/accepted since it fired; resolution detection + consecutive_clean
+    // cleanup are SKILL.md-owned (this script never writes alerts{}), so defer.
+    return hasPendingAlert ? 'evaluate' : 'clean';
+  }
+  // Some proposals are awaiting review — each needs a suppressed, non-resolving
+  // alert entry, the same predicate the generic item loop applies.
+  for (const id of proposedIds) {
+    const entry = alertMap[`proposal-pending:${id}`];
+    if (!entry || !entry.suppressed || (entry.consecutive_clean ?? 0) > 0) return 'evaluate';
+  }
+  return 'clean';
 }
 
 // Resolve "now" once: real wall-clock, overridable by HERMIT_NOW for deterministic
@@ -217,11 +260,16 @@ if (hbConfig.clean_recheck_cooldown !== null) {
   }
 }
 
-// OK fires only when every item in HEARTBEAT.md has a matching entry in alerts{}
-// that is suppressed (count > 5) and not approaching resolution (consecutive_clean === 0).
-// The default template ships a freeform item that will rarely appear suppressed,
-// so OK fires primarily for operators who curate structural-only checklist items.
+// OK fires only when every item in HEARTBEAT.md is satisfied. The default
+// proposals-scan item is resolved against real proposal frontmatter (so a hermit
+// with no proposals awaiting review reaches OK without an LLM wake); every other
+// item needs a matching entry in alerts{} that is suppressed (count > 5) and not
+// approaching resolution (consecutive_clean === 0).
 for (const item of checklistItems) {
+  if (isProposalScanItem(item)) {
+    if (resolveProposalScanItem(stateDir, alerts) === 'evaluate') emit('EVALUATE');
+    continue;
+  }
   const key = normalizeItemKey(item);
   if (!key) emit('EVALUATE');
   const entry = alerts[key];
