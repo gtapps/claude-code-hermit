@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - 'plugins/claude-code-hermit/**'
+      # Cross-plugin invariants in hooks.contract.test.ts walk every plugin's
+      # manifest and the marketplace, so those paths must trigger this suite too.
+      - 'plugins/*/.claude-plugin/**'
+      - '.claude-plugin/marketplace.json'
       - '.github/workflows/test-hooks.yml'
       - 'package.json'
       - 'bun.lock'
@@ -12,6 +16,10 @@ on:
   pull_request:
     paths:
       - 'plugins/claude-code-hermit/**'
+      # Cross-plugin invariants in hooks.contract.test.ts walk every plugin's
+      # manifest and the marketplace, so those paths must trigger this suite too.
+      - 'plugins/*/.claude-plugin/**'
+      - '.claude-plugin/marketplace.json'
       - '.github/workflows/test-hooks.yml'
       - 'package.json'
       - 'bun.lock'

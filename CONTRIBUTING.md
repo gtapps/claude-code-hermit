@@ -46,7 +46,7 @@ The `@claude-code-hermit` suffix disambiguates when both a user-scoped and a pro
 For HA-hermit changes:
 
 ```bash
-( cd plugins/claude-code-homeassistant-hermit && pytest tests/ -v )
+( cd plugins/claude-code-homeassistant-hermit && bun test )
 ```
 
 See [Testing](docs/testing.md) for hook test details, fixtures, manual testing, and how to write new tests.
@@ -64,7 +64,7 @@ See [Testing](docs/testing.md) for hook test details, fixtures, manual testing, 
 1. Create a feature branch off `main` (`fix/<N>-<slug>`, `feat/<N>-<slug>`, or `chore/<slug>`)
 2. Run `/release-status` for a read-only pipeline snapshot (flags stale `required_core_version`, shows what's awaiting tag)
 3. Make changes
-4. Run `( cd plugins/claude-code-hermit && bun test )` locally (and the HA pytest suite if HA code changed)
+4. Run `( cd plugins/claude-code-hermit && bun test )` locally (and the HA `bun test` suite if HA code changed)
 5. Add a bullet to the affected plugin's `CHANGELOG.md` under `## [Unreleased]` — the maintainer promotes it to a real version at release time. (If you're using Claude Code with the repo's local skills, `/commit` does this automatically.)
 6. Push — CI runs the same tests
 7. Keep commits focused — one concern per PR
@@ -105,9 +105,9 @@ When releasing core and a domain plugin together, use `/fleet-release` — it up
 
 ## Per-Plugin Test Runner Pattern
 
-Each plugin owns its own test entry point. Examples:
+Each plugin owns its own test entry point. Two conventions ship:
 
-- `plugins/claude-code-hermit/` — pure `bun test` from the plugin dir (auto-discovers `tests/*.test.ts`; no runner script). See [`docs/testing.md`](plugins/claude-code-hermit/docs/testing.md) for fixtures and how to write new tests.
-- `plugins/claude-code-homeassistant-hermit/tests/` — pytest suite; run via `.venv/bin/pytest tests/ -v`.
+- **`bun test`** (core and HA) — run from the plugin dir; auto-discovers `tests/*.test.ts`, no runner script. `plugins/claude-code-hermit/` and `plugins/claude-code-homeassistant-hermit/`. See [`docs/testing.md`](plugins/claude-code-hermit/docs/testing.md) for fixtures and how to write new tests.
+- **`bash tests/run-all.sh`** (dev, fitness, scribe, forge) — a bash entry point that returns non-zero on any failure. Forge's runner also installs the PHP/composer deps its suite needs.
 
-CI runs each plugin's suite from its own directory (paths-filtered so unrelated plugin edits don't trigger every workflow). New plugins should follow the same pattern: a `run-all.sh` (or equivalent entry point) that returns non-zero on any failure, plus a paths-filtered GitHub Actions workflow under `.github/workflows/`.
+CI runs each plugin's suite from its own directory (paths-filtered so unrelated plugin edits don't trigger every workflow). New plugins should follow one of the two conventions above, plus a paths-filtered GitHub Actions workflow under `.github/workflows/`.

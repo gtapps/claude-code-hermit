@@ -1,7 +1,7 @@
 # claude-code-hermit (monorepo)
 
-This repo is a multi-plugin Claude Code marketplace. Four plugins ship from `plugins/<slug>/`:
-`claude-code-hermit` (core), `claude-code-dev-hermit`, `claude-code-homeassistant-hermit`, `claude-code-fitness-hermit`.
+This repo is a multi-plugin Claude Code marketplace. Six plugins ship from `plugins/<slug>/`:
+`claude-code-hermit` (core), `claude-code-dev-hermit`, `claude-code-homeassistant-hermit`, `claude-code-fitness-hermit`, `hermit-scribe`, `laravel-forge-hermit`.
 Each plugin has its own `CLAUDE.md`, `CHANGELOG.md`, and `tests/` — read those for plugin-specific context.
 
 The top-level `.claude-plugin/marketplace.json` is the only marketplace. The README at the repo root is the canonical hermit pitch.
@@ -11,7 +11,7 @@ Always launch Claude Code from this repo's root, not from inside a plugin dir. A
 ## Conventions
 
 - **Per-plugin paths**: every plugin lives at `plugins/<slug>/`. Tests, scripts, skills, agents, hooks, state-templates, docs, CHANGELOG, CLAUDE.md all live inside that dir.
-- **Tests run from inside the plugin dir**: core is pure `bun test` (auto-discovers `tests/*.test.ts`); HA is pytest (plus `bun test` for the TS tree); dev/fitness/scribe use `bash tests/run-all.sh`. Helpers use CWD-relative paths and break if invoked from repo root.
+- **Tests run from inside the plugin dir**: core and HA are pure `bun test` (auto-discovers `tests/*.test.ts`; HA keeps Python only as a test fixture, nothing shipped runs it); dev/fitness/scribe/forge use `bash tests/run-all.sh` (forge also needs a composer/PHP step). Helpers use CWD-relative paths and break if invoked from repo root.
 - **Tag format**: `<slug>--v<X.Y.Z>` (double-dash, e.g. `claude-code-hermit--v1.0.20`).
 - **Independent versioning**: each plugin's `plugin.json` bumps on its own cadence. Domain plugins declare core compat via `required_core_version: ">=X.Y.Z"` (semver range, not pin).
 - **Dependency fields**: `required_core_version` and `requires` live in `.claude-plugin/hermit-meta.json` (hermit-internal, validator-invisible). `dependencies` is the native Claude Code resolver field in `plugin.json`. `required_core_version` is authoritative — read by `plugins/claude-code-hermit/scripts/doctor-check.ts` from `hermit-meta.json`. `requires` mirrors it for documentation. Update all three when the core version requirement changes. All hermit-internal manifest extensions (`hermit.*`, etc.) belong in hermit-meta.json. When a domain hatch depends on new core terminus behavior (e.g. the domain hatch continuation protocol), bump `required_core_version` to the new core version and follow the protocol doc in `plugins/claude-code-hermit/skills/hatch/SKILL.md`.
@@ -21,7 +21,7 @@ Always launch Claude Code from this repo's root, not from inside a plugin dir. A
 
 - Root-scope edits (CI, root README, `.claude/`, `.claude-plugin/marketplace.json`) skip the CHANGELOG step entirely — they don't ship to operators. `/commit` handles that automatically.
 - Releases still go through `/release <slug>`, which promotes a plugin's `[Unreleased]` section to a real version. `/commit` accumulates those entries during day-to-day work.
-- **Where these skills live**: `/commit`, `/release`, `/release-status`, `/fleet-release`, `/test-run`, `/tackle-issue` are repo-internal skills under `.claude/skills/` — they're not shipped to operators, only used during monorepo dev. Use `/release-status` for a read-only pipeline snapshot before any release session; use `/fleet-release` when multiple plugins change together on one branch (handles dep ordering and `required_core_version` sync automatically).
+- **Where these skills live**: `/commit`, `/release`, `/release-status`, `/fleet-release`, `/bump-core-req`, `/test-run`, `/tackle-issue` are repo-internal skills under `.claude/skills/` — they're not shipped to operators, only used during monorepo dev. Use `/release-status` for a read-only pipeline snapshot before any release session; use `/fleet-release` when multiple plugins change together on one branch (handles dep ordering and `required_core_version` sync automatically).
 - **Changelog style: terse like [Claude Code's CHANGELOG](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md).** Each `### Added / Changed / Fixed` bullet is 1–3 lines, `- **component: what changed** — short rationale if non-obvious.` Rationale, debugging context, and design tradeoffs go in the commit message and PR description, not the bullet. The verbose form is reserved for `### Upgrade Instructions`, which `hermit-evolve` reads imperative-step-by-step. The `/commit` and `/release` skills enforce this; the convention lives here for any agent that bypasses them.
 - **`/release` is operator-initiated — don't auto-suggest it.** Don't propose `/release <slug>` or `/fleet-release` in plans, summaries, or "next steps." Wait for an explicit ship/release/version request. `/release-status` is read-only and fine to suggest when checking pipeline state.
 
@@ -43,7 +43,7 @@ Always launch Claude Code from this repo's root, not from inside a plugin dir. A
 - **Docker paths mirror the host** (`${PWD}:${PWD}` mount) — absolute paths are identical inside the container despite the container user being `claude`.
 - **`rm -rf` is blocked** by the `enforce-deny-patterns` hook. Use `rm -r` (no `-f`) for scratch cleanup.
 - **Subtree imports are unsquashed**: `git log --first-parent` for the monorepo-only view; full upstream commits live under each subtree merge.
-- **CI is not path-filtered yet**: every plugin's tests run on every PR. Don't assume a HA-test failure on a core-only PR is your fault.
+- **CI is path-filtered per plugin**: every plugin has a paths-filtered workflow under `.github/workflows/` (`test-hooks` core, `test-ha`, `test-dev`, `test-fitness`, `test-scribe`, `test-forge`), so a PR touching one plugin runs only that plugin's suite. Root-file changes (`package.json`, `bun.lock`, `tsconfig.json`) trigger all of them.
 - **Shell `cd` persists across Bash calls.** Any `cd` in a Bash call leaves CWD pinned for subsequent Bash calls in the session — affects CWD-relative scripts like `heartbeat-precheck.ts .claude-code-hermit` (silently `SKIP|HEARTBEAT.md missing`) and commands like `git add`. Plugin test runners (`bun test` or `bash plugins/<slug>/tests/run-all.sh` run from inside the plugin dir) end inside `plugins/<slug>/`. Use absolute paths or prefix `cd "$(git rev-parse --show-toplevel)" && …` (resolves to the current tree root — the worktree under `claude --worktree`, the main checkout otherwise — never a hardcoded path).
 
 ## Verification

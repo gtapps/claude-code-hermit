@@ -28,16 +28,11 @@ Examples:
 
 Plugins ship one of two test conventions. Detect and dispatch:
 
-- **Bun entrypoint** — if `plugins/<slug>/tests/*.test.ts` exist with no `run-all.sh`: `cd plugins/<slug> && bun test 2>&1` (core hermit convention).
-- **Bash entrypoint** — if `plugins/<slug>/tests/run-all.sh` exists:
+- **Bash entrypoint** — if `plugins/<slug>/tests/run-all.sh` exists (dev/fitness/scribe/forge convention):
   ```bash
   bash plugins/<slug>/tests/run-all.sh 2>&1
   ```
-- **Pytest** — else if `plugins/<slug>/tests/conftest.py` or any `plugins/<slug>/tests/test_*.py` exists:
-  ```bash
-  cd plugins/<slug> && .venv/bin/pytest tests/ -v 2>&1
-  ```
-  If `.venv/bin/pytest` is missing, mark this plugin as `SKIP — venv missing` and continue to the next plugin (don't abort the whole run).
+- **Bun entrypoint** — else if any `plugins/<slug>/tests/*.test.ts` exists (core/HA convention): `cd plugins/<slug> && bun test 2>&1`.
 - **Neither marker** — mark `no tests configured` and continue.
 
 Capture full output. Extract pass/fail counts from each suite's summary line.
@@ -51,7 +46,7 @@ Per-plugin block:
 Hook tests:     X passed, Y failed         (bash convention only)
 Contract tests: X passed, Y failed         (bash convention only)
 Script tests:   X passed, Y failed         (bash convention only)
-Pytest:         X passed, Y failed         (pytest convention only)
+Bun tests:      X passed, Y failed         (bun convention only)
 Plugin result:  PASS / FAIL / SKIP
 ```
 
