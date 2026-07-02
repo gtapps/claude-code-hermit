@@ -1,7 +1,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.13-green.svg" alt="Version 1.2.13" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.14-green.svg" alt="Version 1.2.14" /></a>
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/_gh_traffic_stats/.github/badges/clones.json" alt="Downloads" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
   <a href="https://discord.gg/54sJqAxhUh"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Join" /></a>
@@ -44,7 +44,6 @@ Just Claude Code and everything is yours to shape: channels (Discord/Telegram), 
 - **Auto-memory + knowledge** Two layers. Claude Code's native auto-memory holds operator facts and preferences (how to work with you); on top, the hermit adds a `raw/` → `compiled/` knowledge base — domain outputs and living topic pages updated in place — re-injected as a catalog within a context budget at session start. `/recall` searches both.
 - **Task snapshots** persist native `Tasks` past session end, so the plan survives archives.
 - **Profile-gated guardrails** scope `deny patterns + sandbox` per profile, locking the unattended agent down harder than the one you're watching.
-- **One runtime.** Everything is TypeScript running on [Bun](https://bun.sh) — zero npm packages, zero Python, across the whole fleet. Install Bun, done.
 
 **Sessions self-manage.** Daemons auto-archive at 12h idle and at midnight when you're away, so evidence reaches the learning loop without a manual close. An external watchdog restarts dead sessions, nudges wedged ones, re-arms missed schedules, and clears stale context after a midnight close — recovery never depends on the session being conscious.
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.14] - 2026-07-02
 
 ### Added
 - **channel-log: episodic DM capture (PROP-010)** — hook-level capture of Discord/Telegram DM text into `state/channel-log.sqlite` (FTS5), gated by the existing operator allowlist and `knowledge.channel_log_enabled`. Feature-detected: inert until a channel delivers a message.
@@ -8,11 +8,39 @@
 - **weekly-review: channel-log consolidation step** — distills durable decisions from the week's DM log into memory/compiled via a read-only skill-eval-runner dispatch; prunes only already-consolidated rows past `knowledge.channel_log_retention_days`.
 - **startup-context: post-compaction state pointers (PROP-011)** — a new capped section injects `runtime.json` session_state/waiting_reason, pending micro-approvals, and outbound channel routing on every `SessionStart` with `source: "compact"`, so both native and driver-sent compaction stop silently dropping hermit state.
 - **watchdog: routine-hygiene context compaction (PROP-011)** — `context_hygiene.compact` (on by default, 150k/4h) sends `/compact` at a much lower threshold than the existing 700k emergency `/clear`, so cold-cache wakes stop re-paying the full accumulated context. A boundary marker (`state/compact-requested.json`, written by `session` and `proposal-act` at arc-end moments) waives the interval cooldown but never the 60k token floor.
+
 ### Changed
 - **hatch: config.json assembly is now deterministic (`hatch-config.ts`)** — Step 5's ~40-line hand-merge of the template with wizard answers is now a single script call; the model builds an answers payload instead of hand-transcribing cron strings, `scheduled_checks` entries, and channel objects. Re-init merges by id (routines, `scheduled_checks`) and per-field (channels), never advances `_hermit_versions`, and preserves any key the payload doesn't mention. Fixes a pre-existing bug where Step 3/Quick Turn 1 read `hermit.boot_skill` from a sibling's `plugin.json` instead of `hermit-meta.json` (always resolved to `null`). `validate-config.ts` gained `remote` (boolean) and `idle_behavior` (`wait`/`discover`) checks it was missing. Hardened payload handling: a malformed `activated_hermit` (missing slug/version) is refused rather than stamping a phantom `_hermit_versions` entry; null `channels`/`scheduled_checks_plugins` payloads fail cleanly instead of crashing; a duplicate plugin in `scheduled_checks_plugins` no longer produces duplicate ids; and `morning_brief_time: null` disables an existing channel brief on re-init.
 
 ### Fixed
 - **suggest-compact: removed dead `context_usage` branch (PROP-011)** — the Stop hook never receives a `context_usage` field, so the 60%-based suggestion has never fired. The tool-call counter is now the sole suggestion path; docs no longer describe it as a fallback.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/channel-log.ts`, `scripts/lib/channel-log.ts` | New: episodic DM capture into `state/channel-log.sqlite` (FTS5) |
+| `scripts/channel-hook.ts`, `scripts/channel-reply-reminder.ts` | Wire channel-log capture into the inbound hook path |
+| `scripts/search.ts`, `scripts/lib/search.ts` | Add channel log as a fourth `/recall` source |
+| `skills/weekly-review/SKILL.md`, `skills/weekly-review/consolidation-reference.md` | Add channel-log consolidation step |
+| `scripts/startup-context.ts` | Post-compaction state pointers section |
+| `scripts/hermit-watchdog.ts` | Routine-hygiene `context_hygiene.compact` |
+| `skills/session/SKILL.md`, `skills/session-start/SKILL.md`, `skills/proposal-act/SKILL.md` | Write/clear `state/compact-requested.json` boundary marker |
+| `scripts/suggest-compact.ts` | Remove dead `context_usage` branch |
+| `scripts/hatch-config.ts` | New: deterministic config.json assembly |
+| `scripts/hermit-start.ts`, `scripts/validate-config.ts` | Wire in `hatch-config.ts`; add `remote`/`idle_behavior` validation |
+| `skills/hatch/SKILL.md`, `skills/hermit-settings/SKILL.md`, `skills/recall/SKILL.md` | Doc updates for the above |
+| `state-templates/config.json.template` | Add `knowledge.channel_log_enabled`, `knowledge.channel_log_retention_days`, `context_hygiene` defaults |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Merge new config keys** — `knowledge.channel_log_enabled`, `knowledge.channel_log_retention_days`, and the `context_hygiene` block are added to `.claude-code-hermit/config.json` via the standard `new_config_keys` merge (missing-only, never overwrites an operator-set value).
+
+No other file refresh required — skills and scripts load live from the installed plugin.
+
+**Note:** both new features (channel-log capture, routine-hygiene compaction) ship enabled by default per the research-preview convention. Disable via `/hermit-settings` (`knowledge.channel_log_enabled: false`, `context_hygiene.compact.enabled: false`) if not wanted.
 
 ## [1.2.13] - 2026-06-29
 
