@@ -62,6 +62,26 @@ function dbExists(hermitDir: string): boolean {
   }
 }
 
+// Busy-wait budgets. Capture runs inside hooks with their own enforced timeouts
+// (channel-reply-reminder.ts: 3s, channel-hook.ts: 5s in hooks.json), and
+// bun:sqlite blocks synchronously — so the hook path must fail fast rather than
+// stall past its budget and get killed. The weekly-review CLI writers aren't
+// timeout-bound, so they can wait out real contention.
+const HOOK_BUSY_TIMEOUT_MS = 500;
+const CLI_BUSY_TIMEOUT_MS = 5000;
+
+/**
+ * Open the channel-log DB with a busy_timeout so a concurrent writer waits for
+ * the lock instead of immediately failing with SQLITE_BUSY and dropping a
+ * capture. Defaults to the short hook budget; CLI write paths pass the longer
+ * one explicitly.
+ */
+function openDb(hermitDir: string, opts?: { readonly?: boolean; busyTimeoutMs?: number }): Database {
+  const db = new Database(dbPath(hermitDir), opts?.readonly ? { readonly: true } : undefined);
+  db.run(`PRAGMA busy_timeout = ${opts?.busyTimeoutMs ?? HOOK_BUSY_TIMEOUT_MS}`);
+  return db;
+}
+
 /**
  * Default-on gate for episodic capture: config.knowledge.channel_log_enabled.
  * Shared by channel-hook.ts (outbound) and channel-reply-reminder.ts (inbound)
@@ -115,7 +135,7 @@ function logMessage(hermitDir: string, input: LogInput): { ok: boolean; error?: 
     const stateDir = path.join(hermitDir, 'state');
     fs.mkdirSync(stateDir, { recursive: true });
 
-    const db = new Database(dbPath(hermitDir));
+    const db = openDb(hermitDir);
     try {
       ensureSchema(db);
       const text = String(input.text ?? '').slice(0, MAX_TEXT_LEN);
@@ -169,26 +189,29 @@ function searchLog(hermitDir: string, terms: string[], opts?: Json): ChannelRow[
   if (!dbExists(hermitDir)) return [];
 
   try {
-    const db = new Database(dbPath(hermitDir), { readonly: true });
+    const db = openDb(hermitDir, { readonly: true });
     try {
       const matchExpr = buildMatchExpr(terms);
       const limit = typeof o.limit === 'number' ? o.limit : DEFAULT_CANDIDATE_LIMIT;
-      const sinceMs = o.since ? Date.parse(o.since) : null;
+      // Filter `since` in SQL, before LIMIT — filtering after the rank-ordered
+      // limit would drop in-window rows ranked past the candidate cap on a busy
+      // channel. ts is stored ISO-8601 UTC, so lexical `>=` is chronological.
+      const sinceDate = o.since ? new Date(o.since) : null;
+      const sinceIso = sinceDate && !Number.isNaN(sinceDate.getTime()) ? sinceDate.toISOString() : null;
 
-      const rows = db
+      // Params mirror the SQL fragment's `since` branch — push in bind order.
+      const params: (string | number)[] = [matchExpr];
+      if (sinceIso) params.push(sinceIso);
+      params.push(limit);
+
+      return db
         .query(
           `SELECT m.id, m.ts, m.source, m.chat_id, m.direction, m.sender, m.message_id, m.text, m.consolidated_at
            FROM messages_fts f JOIN messages m ON m.id = f.rowid
-           WHERE messages_fts MATCH ?
+           WHERE messages_fts MATCH ?${sinceIso ? ' AND m.ts >= ?' : ''}
            ORDER BY rank LIMIT ?`
         )
-        .all(matchExpr, limit) as ChannelRow[];
-
-      if (!sinceMs) return rows;
-      return rows.filter((r) => {
-        const ms = Date.parse(r.ts);
-        return !ms || ms >= sinceMs;
-      });
+        .all(...params) as ChannelRow[];
     } finally {
       db.close();
     }
@@ -206,7 +229,7 @@ function searchLog(hermitDir: string, terms: string[], opts?: Json): ChannelRow[
 function unconsolidated(hermitDir: string, beforeTs?: string): { ok: boolean; rows: ChannelRow[]; error?: string } {
   if (!dbExists(hermitDir)) return { ok: true, rows: [] };
   try {
-    const db = new Database(dbPath(hermitDir), { readonly: true });
+    const db = openDb(hermitDir, { readonly: true });
     try {
       const rows = beforeTs
         ? (db
@@ -234,7 +257,7 @@ function markConsolidated(hermitDir: string, ids: number[]): { ok: boolean; erro
   if (!ids || ids.length === 0) return { ok: true };
   if (!dbExists(hermitDir)) return { ok: true };
   try {
-    const db = new Database(dbPath(hermitDir));
+    const db = openDb(hermitDir, { busyTimeoutMs: CLI_BUSY_TIMEOUT_MS });
     try {
       const ts = new Date().toISOString();
       const placeholders = ids.map(() => '?').join(',');
@@ -258,7 +281,7 @@ function markConsolidated(hermitDir: string, ids: number[]): { ok: boolean; erro
 function prune(hermitDir: string, retentionDays: number): { ok: boolean; deleted: number; error?: string } {
   if (!dbExists(hermitDir)) return { ok: true, deleted: 0 };
   try {
-    const db = new Database(dbPath(hermitDir));
+    const db = openDb(hermitDir, { busyTimeoutMs: CLI_BUSY_TIMEOUT_MS });
     try {
       const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
       // Count first: DELETE's .changes is inflated by the AFTER DELETE trigger's

@@ -2571,6 +2571,19 @@ describe('search', () => {
       expect(r.stdout).toContain('foo-bar');
     }));
 
+    // Regression: FTS5 matches a hyphenated query against space-separated text
+    // ("foo-bar" phrase → tokens foo,bar → matches "foo bar"), but the substring
+    // countHits can't re-find "foo-bar" in "foo bar" → rawScore 0. The row must
+    // still surface (FTS is authoritative) rather than being silently dropped.
+    test('search (FTS-matched channel row is not dropped when substring countHits is 0)', withDir(async (dir) => {
+      fs.mkdirSync(hermit(dir, 'compiled'), { recursive: true });
+      write(hermit(dir, 'config.json'), '{}');
+      logMessage(hermit(dir), { source: 'discord', chat_id: 'C1', direction: 'in', text: 'the foo bar dashboard ships next week', ts: '2026-06-01T00:00:00.000Z' });
+      const out = await runSearch(dir, 'foo-bar');
+      expect(out).toContain('[channel]');
+      expect(out).toContain('foo bar');
+    }));
+
     // Regression: recalled channel text must pass through the same
     // safeForLLM defusal as the envelope fields channel-reply-reminder.ts
     // already sanitizes — a raw <system-reminder> tag in a DM must not reach

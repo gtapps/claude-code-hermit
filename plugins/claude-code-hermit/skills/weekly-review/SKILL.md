@@ -40,11 +40,13 @@ Generates the weekly review for the current ISO week.
 ```
 <!-- weekly-review-consolidation-schema:end -->
 
-   **You apply the writes**, not the runner (per `agents/skill-eval-runner.md` — it defers all side effects to its caller): for each candidate, file it through the normal governance path — `kind:"memory"` → the usual auto-memory write (dedupe against `MEMORY.md`); `kind:"compiled"` → update or create the matching `compiled/topic-<slug>.md`. Only after every candidate has been applied successfully, mark the run's `reviewed_ids` consolidated:
+   **You apply the writes**, not the runner (per `agents/skill-eval-runner.md` — it defers all side effects to its caller): for each candidate, file it through the normal governance path — `kind:"memory"` → the usual auto-memory write (dedupe against `MEMORY.md`); `kind:"compiled"` → update or create the matching `compiled/topic-<slug>.md`.
+
+   Then compute the ids to mark: start from `reviewed_ids` and **remove the `row_ids` of every candidate that failed to apply**. Marking a failed candidate's row consolidated would drop it from next week's `list-unconsolidated` and let `prune` delete it before it was ever distilled — permanent data loss. A row that produced no candidate is not a failure: it stays in the set (it was reviewed, nothing to file). Pass only that computed set:
    ```
-   bun ${CLAUDE_PLUGIN_ROOT}/scripts/channel-log.ts .claude-code-hermit mark-consolidated <comma-separated ids>
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/channel-log.ts .claude-code-hermit mark-consolidated <reviewed_ids minus failed candidates' row_ids, comma-separated>
    ```
-   If applying a candidate fails, leave its `row_ids` out of the mark-consolidated call — they stay unconsolidated for next week's pass. Rows that produced no candidate still belong in `reviewed_ids` (nothing to fail — mark them).
+   The excluded rows stay unconsolidated for next week's pass. If every candidate applied cleanly, the set is exactly `reviewed_ids`.
 
    **Failure policy:** if the runner returns null/malformed JSON, or `channel-log.ts` exits nonzero (a genuine DB error — not the normal "no DB yet" empty-result case), fail-open: skip consolidation for this run and continue to step 5. An empty `reviewed_ids` (no unconsolidated rows) is the ordinary no-channel-activity case, not a failure.
 

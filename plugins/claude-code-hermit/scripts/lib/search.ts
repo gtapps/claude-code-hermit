@@ -222,10 +222,12 @@ function search(hermitDir: string, query: string, opts?: Json): Json[] {
   if (!typeFilter || typeFilter === 'channel') {
     const rows = searchLog(hermitDir, terms, { since: o.since, limit: CHANNEL_CANDIDATE_LIMIT });
     for (const row of rows) {
-      const rawScore = countHits(row.text, terms);
-      if (rawScore === 0) continue;
-
-      const score = rawScore * recencyBoost(row.ts);
+      // searchLog already matched this row via FTS5 (token/phrase/diacritic-fold
+      // semantics), so keep it even when our substring countHits can't re-find
+      // the term — e.g. query "foo-bar" matching stored "foo bar", or "cafe"
+      // matching "café". Floor the score at 1 so an FTS-only hit still ranks,
+      // and let excerptAround fall back to a leading slice.
+      const score = Math.max(1, countHits(row.text, terms)) * recencyBoost(row.ts);
       const excerpt = safeForLLM(excerptAround(row.text, terms, CHANNEL_EXCERPT_MAX_CHARS));
 
       results.push({
