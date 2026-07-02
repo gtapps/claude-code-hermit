@@ -21,7 +21,7 @@ Tests live in `tests/`:
 
 | File                   | Used by                                     | Format                                                                            |
 | ---------------------- | ------------------------------------------- | --------------------------------------------------------------------------------- |
-| `stop-hook-input.json` | cost-tracker, suggest-compact, session-diff | JSON with `session_id`, `model`, `input_tokens`, `output_tokens`, `context_usage` |
+| `stop-hook-input.json` | cost-tracker, suggest-compact, session-diff | JSON with `session_id`, `model`, `input_tokens`, `output_tokens` |
 | `shell-session.md`     | evaluate-session                            | SHELL.md format (copy of a live session)                                          |
 
 ---

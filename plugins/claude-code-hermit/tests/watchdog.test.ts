@@ -13,7 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { runScript, SCRIPTS_DIR } from './helpers/run';
-import { inActiveHours } from '../scripts/hermit-watchdog';
+import { inActiveHours, isNearDailyAutoClose } from '../scripts/hermit-watchdog';
 
 // The one line to flip when hermit-watchdog is ported to TypeScript.
 // (Absolute bun path via process.execPath: Bun.spawn resolves the executable
@@ -89,7 +89,7 @@ function writeFakeTmux(h: Hermit, sessionAlive: 0 | 1, paneContent = 'tmux pane 
   const stub = path.join(h.fakeBin, 'tmux');
   const runtimePath = state(h, 'runtime.json');
   const sendKeysExtra = runtimeSnapshotPath
-    ? `[[ "$*" == *"/clear"* ]] && cat "${runtimePath}" > "${runtimeSnapshotPath}"`
+    ? `[[ "$*" == *"/clear"* || "$*" == *"/compact"* ]] && cat "${runtimePath}" > "${runtimeSnapshotPath}"`
     : 'true';
   fs.writeFileSync(stub, `#!/usr/bin/env bash
 case "$1" in
@@ -928,6 +928,260 @@ test('context_clear: idempotence — same entry not re-cleared on subsequent tic
     expect(r.exitCode).toBe(0);
     expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
   }));
+
+// -------------------------------------------------------
+// context-compact tests (PROP-011 commit 3: maybeContextCompact)
+// -------------------------------------------------------
+
+/** Write config with context_hygiene.compact enabled and watchdog.enabled: false (pre-enabled gate). */
+function writeContextCompactConfig(h: Hermit, opts: {
+  minContextTokens?: number; minInterval?: string; clearTokens?: number;
+  routines?: unknown[]; timezone?: string;
+} = {}): void {
+  fs.writeFileSync(path.join(h.dir, '.claude-code-hermit', 'config.json'), JSON.stringify({
+    watchdog: { enabled: false, ...(opts.clearTokens ? { context_clear_tokens: opts.clearTokens } : {}) },
+    context_hygiene: {
+      compact: {
+        enabled: true,
+        min_context_tokens: opts.minContextTokens ?? 150000,
+        min_interval: opts.minInterval ?? '4h',
+      },
+    },
+    heartbeat: { enabled: true, every: '2h', active_hours: { start: '00:00', end: '23:59' } },
+    routines: opts.routines ?? [],
+    timezone: opts.timezone ?? 'UTC',
+  }, null, 2) + '\n');
+}
+
+function writeCompactMarker(h: Hermit, ageSeconds = 0): void {
+  fs.writeFileSync(state(h, 'compact-requested.json'), JSON.stringify({
+    requested_at: new Date(Date.now() - ageSeconds * 1000).toISOString(), reason: 'test',
+  }) + '\n');
+}
+
+/** Write watchdog-state with a specific last_pane_hash_compact (simulates second tick for the compact tracker). */
+function primeCompactHash(h: Hermit, hash: string): void {
+  const p = state(h, 'watchdog-state.json');
+  const existing = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf-8')) : {};
+  fs.writeFileSync(p, JSON.stringify({ ...existing, last_pane_hash_compact: hash }) + '\n');
+}
+
+const STATIC_HASH = crypto.createHash('sha256').update('static pane content\n').digest('hex');
+
+test('context_compact: bloated idle + quiescent + operator silent → /compact sent on 2nd tick, context_cleared never set',
+  withHermit(async (h) => {
+    writeContextCompactConfig(h);
+    writeAlwaysOnRuntime(h, 'idle');
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 200000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    const snapshotPath = path.join(h.dir, 'runtime-at-compact.json');
+    writeFakeTmux(h, 0, 'static pane content', snapshotPath);
+    writeFakePgrep(h, 1);
+
+    const r1 = await watchdog(h, 'run'); // tick 1: hash recorded, no compact yet
+    expect(r1.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+
+    const r2 = await watchdog(h, 'run'); // tick 2: same hash → /compact fires
+    expect(r2.exitCode).toBe(0);
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog).toContain('/compact');
+    expect(fs.readFileSync(eventsFile(h), 'utf-8')).toContain('context-compact');
+    // context_cleared is context_clear's marker only — compact must never touch it.
+    const runtimeAtCompact = readJson(snapshotPath);
+    expect(runtimeAtCompact.context_cleared).not.toBe(true);
+  }));
+
+test('context_compact: under threshold → no compact', withHermit(async (h) => {
+  writeContextCompactConfig(h, { minContextTokens: 150000 });
+  writeAlwaysOnRuntime(h, 'idle');
+  writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 50000 }]);
+  fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+  writeFakeTmux(h, 0, 'static pane content');
+  writeFakePgrep(h, 1);
+  primeCompactHash(h, STATIC_HASH);
+
+  const r = await watchdog(h, 'run');
+  expect(r.exitCode).toBe(0);
+  expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+}));
+
+test('context_compact: disabled (no context_hygiene block) → no-op even if bloated', withHermit(async (h) => {
+  writeContextClearConfig(h, 0); // watchdog.enabled:false, no context_hygiene block at all
+  writeAlwaysOnRuntime(h, 'idle');
+  writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 800000 }]);
+  fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+  writeFakeTmux(h, 0, 'static pane content');
+  writeFakePgrep(h, 1);
+  primeCompactHash(h, STATIC_HASH);
+
+  const r = await watchdog(h, 'run');
+  expect(r.exitCode).toBe(0);
+  expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+}));
+
+test('context_compact: interactive mode → no compact', withHermit(async (h) => {
+  writeContextCompactConfig(h);
+  patchRuntime(h, { session_state: 'idle', runtime_mode: 'interactive', session_id: SESSION_ID });
+  writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 200000 }]);
+  fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+  writeFakeTmux(h, 0, 'static pane content');
+  writeFakePgrep(h, 1);
+  primeCompactHash(h, STATIC_HASH);
+
+  const r = await watchdog(h, 'run');
+  expect(r.exitCode).toBe(0);
+  expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+}));
+
+test('context_clear takes precedence over compact on the same tick (both thresholds crossed)',
+  withHermit(async (h) => {
+    writeContextCompactConfig(h, { minContextTokens: 150000, clearTokens: 700000 });
+    writeAlwaysOnRuntime(h, 'idle');
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 800000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    await watchdog(h, 'run'); // tick 1: both trackers prime their hashes
+    const r2 = await watchdog(h, 'run'); // tick 2: clear fires first and exits before compact runs
+    expect(r2.exitCode).toBe(0);
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog).toContain('/clear');
+    expect(tmuxLog).not.toContain('/compact');
+    const events = fs.readFileSync(eventsFile(h), 'utf-8');
+    expect(events).toContain('context-clear');
+    expect(events).not.toContain('context-compact');
+  }));
+
+test('context_compact: boundary marker waives min_interval but not the 60k floor',
+  withHermit(async (h) => {
+    // Threshold low enough that 40K tokens clears it, but the absolute 60K floor still blocks.
+    writeContextCompactConfig(h, { minContextTokens: 10000 });
+    writeAlwaysOnRuntime(h, 'idle');
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 20000, cache_write_tokens: 0, cache_read_tokens: 20000 }]); // 40K total
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+    primeCompactHash(h, STATIC_HASH);
+    writeCompactMarker(h); // fresh marker — would waive min_interval, but floor is absolute
+
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+    // A fresh marker is preserved (not wasted) when the floor blocks the compact —
+    // it keeps its interval-cooldown waiver until the compact it enables actually
+    // fires or it goes stale. Consuming it here would drop the waiver a tick early.
+    expect(fs.existsSync(state(h, 'compact-requested.json'))).toBe(true);
+  }));
+
+test('context_compact: min_interval suppresses a second compact inside the window (no marker)',
+  withHermit(async (h) => {
+    writeContextCompactConfig(h, { minContextTokens: 150000, minInterval: '4h' });
+    writeAlwaysOnRuntime(h, 'idle');
+    const ts1 = new Date(Date.now() - 3600_000).toISOString();
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 200000, timestamp: ts1 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    await watchdog(h, 'run'); // tick 1: prime hash
+    await watchdog(h, 'run'); // tick 2: fires — sets last_compacted_at to now
+
+    // New (larger) turn — different cost-log timestamp so idempotence wouldn't be the
+    // reason a re-fire is blocked; isolates min_interval as the actual blocker.
+    const ts2 = new Date().toISOString();
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 100000, cache_write_tokens: 0, cache_read_tokens: 200000, timestamp: ts2 }]);
+
+    await watchdog(h, 'run'); // tick 3: hash reset to null after firing → re-primes
+    await watchdog(h, 'run'); // tick 4: hash matches again, but min_interval (4h) blocks
+
+    const events = fs.readFileSync(eventsFile(h), 'utf-8').split('\n').filter(l => l.includes('context-compact'));
+    expect(events.length).toBe(1); // only the tick-2 fire, not a second one
+  }));
+
+test('context_compact: fresh boundary marker waives min_interval and fires again',
+  withHermit(async (h) => {
+    writeContextCompactConfig(h, { minContextTokens: 150000, minInterval: '4h' });
+    writeAlwaysOnRuntime(h, 'idle');
+    const ts1 = new Date(Date.now() - 3600_000).toISOString();
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 200000, timestamp: ts1 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    await watchdog(h, 'run'); // tick 1: prime hash
+    await watchdog(h, 'run'); // tick 2: fires — sets last_compacted_at to now
+
+    const ts2 = new Date().toISOString();
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 100000, cache_write_tokens: 0, cache_read_tokens: 200000, timestamp: ts2 }]);
+    await watchdog(h, 'run'); // tick 3: re-primes hash after reset
+
+    writeCompactMarker(h); // fresh boundary marker — waives the still-open min_interval
+    await watchdog(h, 'run'); // tick 4: hash matches, marker waives interval → fires again
+
+    const events = fs.readFileSync(eventsFile(h), 'utf-8').split('\n').filter(l => l.includes('context-compact'));
+    expect(events.length).toBe(2);
+    expect(fs.existsSync(state(h, 'compact-requested.json'))).toBe(false); // consumed
+  }));
+
+test('context_compact: fresh boundary marker survives the two-tick quiescence wait under an active interval cooldown',
+  withHermit(async (h) => {
+    // Regression: the marker used to be consumed on read (tick 1), a full tick before
+    // the quiescence gate confirms the pane is stable (tick 2) — so under an active
+    // interval cooldown the waiver was gone by the time the compact could fire, and
+    // the compact the boundary requested never happened. The hash is deliberately NOT
+    // pre-primed here, mirroring a real boundary where work just churned the pane.
+    writeContextCompactConfig(h, { minContextTokens: 150000, minInterval: '4h' });
+    writeAlwaysOnRuntime(h, 'idle');
+    // Interval cooldown active: compacted 1h ago, on a *different* cost entry so
+    // idempotence isn't the blocker — this isolates min_interval as the thing the
+    // marker must waive.
+    fs.writeFileSync(state(h, 'watchdog-state.json'), JSON.stringify({
+      last_compacted_at: new Date(Date.now() - 3600_000).toISOString(),
+      last_compacted_cost_ts: 'earlier-entry',
+    }) + '\n');
+    const ts = new Date().toISOString();
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 200000, timestamp: ts }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+    writeCompactMarker(h); // fresh marker, hash not pre-primed
+
+    const r1 = await watchdog(h, 'run'); // tick 1: records hash, not yet stable → no compact, marker preserved
+    expect(r1.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+    expect(fs.existsSync(state(h, 'compact-requested.json'))).toBe(true); // waiver survives to the next tick
+
+    const r2 = await watchdog(h, 'run'); // tick 2: pane stable, marker still waives the cooldown → fires
+    expect(r2.exitCode).toBe(0);
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog).toContain('/compact');
+    expect(fs.existsSync(state(h, 'compact-requested.json'))).toBe(false); // consumed on fire
+  }));
+
+describe('isNearDailyAutoClose (midnight-adjacency, unit)', () => {
+  const REF_2359 = new Date('2026-06-11T23:59:00Z'); // 1 min before UTC midnight
+  const REF_NOON = new Date('2026-06-11T12:00:00Z');
+  const routines = [{ id: 'daily-auto-close', schedule: '0 0 * * *', enabled: true }];
+
+  test('within window before midnight → suppresses', () => {
+    expect(isNearDailyAutoClose({ routines, timezone: 'UTC' }, 2 * 3600, REF_2359)).toBe(true);
+  });
+
+  test('far from the routine → does not suppress', () => {
+    expect(isNearDailyAutoClose({ routines, timezone: 'UTC' }, 2 * 3600, REF_NOON)).toBe(false);
+  });
+
+  test('routine disabled → does not suppress (fail-open)', () => {
+    const disabled = [{ id: 'daily-auto-close', schedule: '0 0 * * *', enabled: false }];
+    expect(isNearDailyAutoClose({ routines: disabled, timezone: 'UTC' }, 2 * 3600, REF_2359)).toBe(false);
+  });
+
+  test('no daily-auto-close routine configured → does not suppress', () => {
+    expect(isNearDailyAutoClose({ routines: [], timezone: 'UTC' }, 2 * 3600, REF_2359)).toBe(false);
+  });
+});
 
 // ---------- inActiveHours unit tests ----------
 // 2026-06-11T03:00:00Z → 12:00 Asia/Tokyo (inside 09:00-17:00), 23:00 America/New_York (outside)

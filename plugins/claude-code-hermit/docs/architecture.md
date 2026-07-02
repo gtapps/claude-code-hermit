@@ -111,7 +111,7 @@ See [Skills Reference](skills.md) for the full list.
 | Config validator    | PostToolUse  | strict    | Validates config.json after mutations                  |
 | Context loader      | SessionStart | all       | Loads OPERATOR.md, SHELL.md, latest report, cost data  |
 | Cost tracker        | Stop         | all       | Logs tokens/cost                                       |
-| Compact suggestion  | Stop         | standard+ | Suggests `/compact` at 60% context usage               |
+| Compact suggestion  | Stop         | standard+ | Suggests `/compact` by tool-call count                 |
 | Session diff        | Stop         | standard+ | Auto-populates `## Changed` from `git diff`            |
 | Session evaluator   | Stop         | standard+ | Validates SHELL.md quality, detects zombie/stale/bloat |
 | Stop pipeline       | Stop         | all       | Cost tracking, compact suggestion, session diff, evaluation, heartbeat |
@@ -319,9 +319,21 @@ Four mechanisms handle background work — each owns a distinct axis:
 - **hermit-routines** — the only place for time-based semantic work (reflect, scheduled-checks, weekly-review, daily-auto-close). Implemented as idle-gated `CronCreate` registrations; each cron fire wakes the model for a scheduled task turn.
 - **heartbeat** — health/checklist/idle-wake gate only. Polls via `--peek` in a bash subprocess (zero model cost when quiet); wakes the model only on `EVALUATE` or `AUTO_CLOSE` verdicts. Must not be merged into routines — doing so would lose the zero-token quiet path because `CronCreate` fires unconditionally on every tick with no precheck filter.
 - **watch** — session-scoped external event streams via the `Monitor` tool. Dies with the session; not a scheduler.
-- **watchdog** — out-of-session process recovery (restart, wedge-nudge, re-arm). `post_close_clear` and `context_clear_tokens` run on every scheduler tick **independent of `watchdog.enabled`**; they are scheduler-owned context-hygiene co-located in the watchdog script, not watchdog features. Setting `enabled: false` disables restart/nudge only.
+- **watchdog** — out-of-session process recovery (restart, wedge-nudge, re-arm). `post_close_clear`, `context_clear_tokens`, and `context_hygiene.compact` run on every scheduler tick **independent of `watchdog.enabled`**; they are scheduler-owned context-hygiene co-located in the watchdog script, not watchdog features. Setting `enabled: false` disables restart/nudge only.
 
 New periodic semantic work belongs in hermit-routines. Heartbeat, watchdog, and watch must not become general schedulers.
+
+### Context Hygiene
+
+Three context-reset mechanisms live in the watchdog script, each owning a distinct timing:
+
+1. **`post_close_clear`** — fires right after `daily-auto-close` archives the session. `/clear` is free here because the archive that just ran externalized everything; there is nothing left to preserve.
+2. **`watchdog.context_clear_tokens`** (700k default) — an emergency `/clear` for a context that grew far past routine hygiene. Destructive and conservative by design: it can fire mid-arc, with only `SHELL.md`'s task ledger (not the live reasoning thread) surviving.
+3. **`context_hygiene.compact`** (150k default) — routine hygiene. Always-on hermits wake on events ≥2 min apart, past the 5-minute prompt-cache TTL, so every wake re-pays the full accumulated context from cold. A `/compact` at a low, frequent threshold keeps that cost bounded; `startup-context.ts`'s post-compaction pointer section (`source === "compact"`, see Layer 4/5 above) re-seeds `runtime.json` state, pending micro-approvals, and outbound channel routing on the next `SessionStart`, which is what makes a threshold this low safe — nothing operationally load-bearing survives only in the discarded conversation.
+
+Mechanism 3 also has a secondary effect on mechanism-independent native/proactive auto-compaction (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`): by keeping context low at quiescent moments, it reduces how often native auto-compaction gets the chance to fire mid-task in the first place.
+
+A boundary marker (`state/compact-requested.json`), written by the `session` and `proposal-act` skills at arc-end moments, lets mechanism 3 waive its `min_interval` cooldown for one tick — never its 60k token floor. See `config-reference.md` § `context_hygiene` for the full guard list and config keys.
 
 ---
 
@@ -360,7 +372,7 @@ config.json "env"  →  hermit-start.ts  →  .claude/settings.local.json "env" 
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | `65`       | Auto-compact at 65% context                        |
 | `MAX_THINKING_TOKENS`             | `10000`    | Cap thinking budget                                |
 | `AGENT_HOOK_PROFILE`              | `standard` | Active hook profile                                |
-| `COMPACT_THRESHOLD`               | `75`       | Tool-call-count fallback for compact suggestion    |
+| `COMPACT_THRESHOLD`               | `75`       | Tool-call-count threshold for compact suggestion   |
 | `DISCORD_STATE_DIR`               | (derived)  | Derived from `channels.discord.state_dir` at boot  |
 | `TELEGRAM_STATE_DIR`              | (derived)  | Derived from `channels.telegram.state_dir` at boot |
 

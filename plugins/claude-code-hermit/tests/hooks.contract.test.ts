@@ -187,6 +187,18 @@ describe('suggest-compact', () => {
     const r = await runScript('suggest-compact.ts', { stdin: '', cwd: dir });
     expect(r.exitCode).toBe(0);
   }));
+
+  // Regression for the removed context_usage branch: a payload claiming 90% context
+  // usage must NOT produce a percentage-based suggestion. Only the tool-call counter
+  // (COMPACT_THRESHOLD calls in one session) may trigger a suggestion.
+  test('suggest-compact (context_usage present but ignored)', withDir(async (dir) => {
+    const base = JSON.parse(fs.readFileSync(path.join(fixturesDir, 'stop-hook-input.json'), 'utf-8'));
+    const stdin = JSON.stringify({ ...base, session_id: 'test-session-ctxusage', context_usage: 0.9 });
+    const r = await runScript('suggest-compact.ts', { stdin, cwd: dir });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).not.toContain('context usage');
+    expect(r.stdout.trim()).toBe('');
+  }));
 });
 
 describe('evaluate-session', () => {
@@ -722,6 +734,85 @@ Rota body.
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toContain('topic-rota [topic] (2026-06-10)');
     expect(r.stdout).not.toContain('(2025-01-01)');
+  }));
+
+  // ---- PROP-011 compaction pointers: gated on SessionStart source === "compact" ----
+
+  test('startup-context (source=compact, only default SHELL.md → pointers with task only)', withDir(async (dir) => {
+    // No runtime.json/micro-proposals.json/config.json — only the default fixture
+    // SHELL.md that setupWorkdir seeds. The task line still surfaces on its own.
+    const r = await runScript('startup-context.ts', {
+      cwd: dir, env: ENV, stdin: JSON.stringify({ source: 'compact', session_id: 'x' }),
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toContain('---Compaction Pointers---');
+    expect(r.stdout).toContain('task: Test task for hook validation');
+    expect(r.stdout).not.toContain('session_state:');
+    expect(r.stdout).not.toContain('pending micro-proposals:');
+    expect(r.stdout).not.toContain('outbound channel:');
+  }));
+
+  test('startup-context (source=startup → pointer section never emitted, even with state present)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"waiting","waiting_reason":"operator_input"}');
+    const r = await runScript('startup-context.ts', {
+      cwd: dir, env: ENV, stdin: JSON.stringify({ source: 'startup', session_id: 'x' }),
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).not.toContain('---Compaction Pointers---');
+  }));
+
+  test('startup-context (no stdin at all → pointer section never emitted)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"waiting"}');
+    const r = await runScript('startup-context.ts', { cwd: dir, env: ENV });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).not.toContain('---Compaction Pointers---');
+  }));
+
+  test('startup-context (source=compact, full state → pointers with runtime/task/MPs/channel)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'runtime.json'),
+      '{"session_state":"waiting","waiting_reason":"operator_input"}');
+    write(hermit(dir, 'state', 'micro-proposals.json'),
+      '{"pending":[{"id":"MP-20260701-0","status":"pending"},{"id":"MP-20260701-1","status":"resolved"}]}');
+    write(hermit(dir, 'config.json'),
+      '{"channels":{"primary":"discord","discord":{"enabled":true,"dm_channel_id":"999888"}}}');
+    const r = await runScript('startup-context.ts', {
+      cwd: dir, env: ENV, stdin: JSON.stringify({ source: 'compact', session_id: 'x' }),
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toContain('---Compaction Pointers---');
+    expect(r.stdout).toContain('session_state: waiting (waiting_reason: operator_input)');
+    expect(r.stdout).toContain('task: Test task for hook validation');
+    // Only the pending entry surfaces — the resolved sibling stays out.
+    expect(r.stdout).toContain('pending micro-proposals: MP-20260701-0');
+    expect(r.stdout).not.toContain('MP-20260701-1');
+    expect(r.stdout).toContain('outbound channel: discord (chat_id: 999888)');
+  }));
+
+  test('startup-context (source=compact, malformed runtime/MP/config → fail-open per field)', withDir(async (dir) => {
+    // SHELL.md (from setupWorkdir's fixture) is intact, so the task line still
+    // surfaces — the other three fields must each fail open independently
+    // rather than blanking the whole section.
+    write(hermit(dir, 'state', 'runtime.json'), 'not json');
+    write(hermit(dir, 'state', 'micro-proposals.json'), '{ broken');
+    write(hermit(dir, 'config.json'), 'also not json');
+    const r = await runScript('startup-context.ts', {
+      cwd: dir, env: ENV, stdin: JSON.stringify({ source: 'compact', session_id: 'x' }),
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toContain('---Compaction Pointers---');
+    expect(r.stdout).toContain('task: Test task for hook validation');
+    expect(r.stdout).not.toContain('session_state:');
+    expect(r.stdout).not.toContain('pending micro-proposals:');
+    expect(r.stdout).not.toContain('outbound channel:');
+  }));
+
+  test('startup-context (source=compact, no state at all → total fail-open, no section)', withDir(async (dir) => {
+    fs.rmSync(hermit(dir, 'sessions', 'SHELL.md'));
+    const r = await runScript('startup-context.ts', {
+      cwd: dir, env: ENV, stdin: JSON.stringify({ source: 'compact', session_id: 'x' }),
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).not.toContain('---Compaction Pointers---');
   }));
 });
 

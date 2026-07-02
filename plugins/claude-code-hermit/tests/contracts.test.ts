@@ -533,6 +533,61 @@ describe('routine model validation', () => {
 });
 
 // ============================================================
+// context_hygiene.compact validation (PROP-011 commit 3)
+// ============================================================
+
+describe('context_hygiene validation', () => {
+  test('a fully valid compact block produces no errors or warnings', () => {
+    const out = runValidate({ context_hygiene: { compact: {
+      enabled: true, min_context_tokens: 150000, min_interval: '4h',
+    } } });
+    expect(out.errors).toEqual([]);
+    expect(out.warnings).toEqual([]);
+  });
+
+  test('context_hygiene must be an object — non-object value is an error', () => {
+    const out = runValidate({ context_hygiene: 'bad' });
+    expect(out.errors.some((e: string) => e.includes('context_hygiene: must be an object'))).toBe(true);
+  });
+
+  test('context_hygiene.compact must be an object — non-object value is an error', () => {
+    const out = runValidate({ context_hygiene: { compact: 'bad' } });
+    expect(out.errors.some((e: string) => e.includes('context_hygiene.compact: must be an object'))).toBe(true);
+  });
+
+  test('compact.enabled non-boolean is an error', () => {
+    const out = runValidate({ context_hygiene: { compact: { enabled: 'yes' } } });
+    expect(out.errors.some((e: string) => e.includes('context_hygiene.compact.enabled: must be a boolean'))).toBe(true);
+  });
+
+  test('compact.min_context_tokens non-positive is an error', () => {
+    const out = runValidate({ context_hygiene: { compact: { min_context_tokens: 0 } } });
+    expect(out.errors.some((e: string) => e.includes('min_context_tokens: must be a positive number'))).toBe(true);
+  });
+
+  test('compact.min_context_tokens non-number is an error', () => {
+    const out = runValidate({ context_hygiene: { compact: { min_context_tokens: '150000' } } });
+    expect(out.errors.some((e: string) => e.includes('min_context_tokens: must be a positive number'))).toBe(true);
+  });
+
+  test('compact.min_interval non-string is a warning, not an error', () => {
+    const out = runValidate({ context_hygiene: { compact: { min_interval: 4 } } });
+    expect(out.errors).toEqual([]);
+    expect(out.warnings.some((w: string) => w.includes('min_interval: should be a duration string'))).toBe(true);
+  });
+
+  test('context_hygiene without compact key produces no errors', () => {
+    const out = runValidate({ context_hygiene: {} });
+    expect(out.errors).toEqual([]);
+  });
+
+  test('absent context_hygiene block produces no errors', () => {
+    const out = runValidate({});
+    expect(out.errors.filter((e: string) => e.includes('context_hygiene'))).toEqual([]);
+  });
+});
+
+// ============================================================
 // Outbound channel resolver (TestChannelResolverContract)
 //
 // Verifies resolution order, primary override, eligibility gates, and the

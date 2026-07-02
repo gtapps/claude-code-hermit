@@ -26,6 +26,7 @@ import { utcISOStamp as utcStamp, currentHHMM } from './lib/time';
 import { writeRuntimeJson, readRuntimeJson, STATE_DIR, LIFECYCLE_LOCK } from './lib/runtime';
 import { tmuxSessionAlive, getSessionName as deriveSessionName } from './lib/tmux';
 import { costLogPath } from './lib/cc-compat';
+import { wallMinutes } from './cron-tz-shift';
 
 type Json = any;
 
@@ -36,6 +37,7 @@ const HEARTBEAT_FILE = path.join(STATE_DIR, '.heartbeat');
 const ROUTINE_METRICS_JSONL = path.join(STATE_DIR, 'routine-metrics.jsonl');
 const LAST_OPERATOR_ACTION = path.join(STATE_DIR, 'last-operator-action.json');
 const CLEAR_REQUESTED_JSON = path.join(STATE_DIR, 'clear-requested.json');
+const COMPACT_REQUESTED_JSON = path.join(STATE_DIR, 'compact-requested.json');
 
 // --- Utilities ---
 
@@ -179,6 +181,43 @@ function checkProcessRunning(pattern: string): boolean {
   return spawnSync('pgrep', ['-f', pattern], { stdio: 'ignore' }).status === 0;
 }
 
+/** Parse the minute/hour fields of a simple numeric 5-field cron schedule (e.g. "0 0 * * *"). */
+function parseSimpleCronTime(schedule: string): { hour: number; minute: number } | null {
+  const parts = String(schedule).trim().split(/\s+/);
+  if (parts.length < 2) return null;
+  const minute = parseInt(parts[0], 10);
+  const hour = parseInt(parts[1], 10);
+  if (isNaN(minute) || isNaN(hour) || minute < 0 || minute > 59 || hour < 0 || hour > 23) return null;
+  return { hour, minute };
+}
+
+/**
+ * True if the `daily-auto-close` routine's next fire is within `windowSecs` of now.
+ * The post-close /clear (maybePostCloseClear) already resets context for free right
+ * after that routine archives the session — a routine-hygiene compact just before it
+ * would spend a summarization call on a context about to be wiped anyway.
+ * Pass `ref` to override the reference instant (tests only — mirrors inActiveHours).
+ */
+export function isNearDailyAutoClose(config: Json, windowSecs: number, ref?: Date): boolean {
+  try {
+    const routines = Array.isArray(config.routines) ? config.routines : [];
+    const routine = routines.find((r: Json) => r && r.id === 'daily-auto-close' && r.enabled !== false);
+    if (!routine || typeof routine.schedule !== 'string') return false;
+    const fireTime = parseSimpleCronTime(routine.schedule);
+    if (!fireTime) return false;
+
+    const nowMinutes = wallMinutes(config.timezone ?? 'UTC', ref ?? new Date());
+    if (nowMinutes === null) return false;
+    const fireMinutes = fireTime.hour * 60 + fireTime.minute;
+
+    let deltaMinutes = fireMinutes - nowMinutes;
+    if (deltaMinutes < 0) deltaMinutes += 24 * 60; // wraps to tomorrow
+    return deltaMinutes * 60 <= windowSecs;
+  } catch {
+    return false; // fail-open — never let a parse error suppress hygiene compaction
+  }
+}
+
 function readWatchdogState(): Json {
   const data = readJson(WATCHDOG_STATE_JSON);
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
@@ -285,6 +324,62 @@ function maybePostCloseClear(config: Json): void {
   process.exit(0);
 }
 
+// --- Shared lifecycle/token guards (maybeContextClear + maybeContextCompact) ---
+
+/**
+ * Common lifecycle gates for the two auto-compaction mechanisms: always-on only,
+ * no in-flight transition, no watchdog-internal suspect state, no shutdown in
+ * progress, a live tmux session, and operator silence ≥10 min. Returns the live
+ * session name when every gate passes, or null when the caller should bail.
+ */
+function passesLifecycleGuards(runtime: Json): string | null {
+  if (runtime.runtime_mode === 'interactive') return null; // interactive sessions must never be auto-managed
+  if (runtime.transition) return null; // archiving/cleaning recovery is mid-flight — never interfere
+  const sessionState: string = runtime.session_state ?? '';
+  if (sessionState === 'suspect_process') return null; // exclusion model: only bail on watchdog-internal state
+
+  if (runtime.shutdown_requested_at || runtime.shutdown_completed_at) return null;
+
+  const sessionName: string = runtime.tmux_session ?? '';
+  if (!sessionName || !tmuxSessionAlive(sessionName)) return null;
+
+  const opAge = getOperatorLastActionAgeSecs();
+  if (opAge !== null && opAge < 10 * 60) return null; // operator-recency backoff
+
+  return sessionName;
+}
+
+// Shared between maybeContextClear and maybeContextCompact — both need "the last
+// cost-log entry for this session" on every tick. Memoized per invocation (this
+// script is single-shot, one process per scheduler tick) so the two mechanisms
+// don't each re-read and re-parse the full (append-only, unbounded-growth) cost
+// log JSONL in the same tick.
+let costLogEntryCache: { sessionId: string; entry: Json } | undefined;
+function getLastCostLogEntry(sessionId: string): Json {
+  if (costLogEntryCache && costLogEntryCache.sessionId === sessionId) return costLogEntryCache.entry;
+  let lastEntry: Json = null;
+  try {
+    const lines = fs.readFileSync(costLogPath(), 'utf-8').split('\n');
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      try {
+        const e = JSON.parse(line);
+        if (e && e.session_id === sessionId) lastEntry = e;
+      } catch {}
+    }
+  } catch {
+    lastEntry = null; // cost-log absent — fail safe
+  }
+  costLogEntryCache = { sessionId, entry: lastEntry };
+  return lastEntry;
+}
+
+/** Prompt-side token total (input + cache write + cache read) for a cost-log entry. */
+function promptTokens(entry: Json): number {
+  return (entry.input_tokens ?? 0) + (entry.cache_write_tokens ?? 0) + (entry.cache_read_tokens ?? 0);
+}
+
 // --- Context-size clear ---
 
 /**
@@ -300,52 +395,17 @@ function maybeContextClear(config: Json): void {
   const runtime = readRuntimeJson();
   if (!runtime) return;
 
-  // Always-on gate: interactive sessions must never be auto-cleared
-  if (runtime.runtime_mode === 'interactive') return;
-
-  // Transition gate: archiving/cleaning recovery is mid-flight — never interfere
-  if (runtime.transition) return;
-
-  // State gate (exclusion model): only bail on watchdog-internal suspect_process
-  const sessionState: string = runtime.session_state ?? '';
-  if (sessionState === 'suspect_process') return;
-
-  // Shutdown gate
-  if (runtime.shutdown_requested_at || runtime.shutdown_completed_at) return;
-
-  const sessionName: string = runtime.tmux_session ?? '';
+  const sessionName = passesLifecycleGuards(runtime);
   if (!sessionName) return;
-  if (!tmuxSessionAlive(sessionName)) return;
-
-  // Operator-recency backoff: if operator was active < 10 min, skip
-  const opAge = getOperatorLastActionAgeSecs();
-  if (opAge !== null && opAge < 10 * 60) return;
 
   // Token check: find the last cost-log entry for this hermit session
   const sessionId: string = runtime.session_id ?? '';
   if (!sessionId) return;
 
-  const logPath = costLogPath();
-  let lastEntry: Json = null;
-  try {
-    const lines = fs.readFileSync(logPath, 'utf-8').split('\n');
-    for (const raw of lines) {
-      const line = raw.trim();
-      if (!line) continue;
-      try {
-        const e = JSON.parse(line);
-        if (e && e.session_id === sessionId) lastEntry = e;
-      } catch {}
-    }
-  } catch {
-    return; // cost-log absent — fail safe
-  }
+  const lastEntry = getLastCostLogEntry(sessionId);
   if (!lastEntry) return;
 
-  const prompt =
-    (lastEntry.input_tokens ?? 0) +
-    (lastEntry.cache_write_tokens ?? 0) +
-    (lastEntry.cache_read_tokens ?? 0);
+  const prompt = promptTokens(lastEntry);
   if (prompt <= threshold) return;
 
   // Idempotence: bail if this entry was already cleared
@@ -378,6 +438,126 @@ function maybeContextClear(config: Json): void {
   process.exit(0);
 }
 
+// --- Routine-hygiene compaction ---
+
+// Never compact away a context this small, even if a boundary marker waives the
+// interval cooldown — summarizing a small context loses fidelity for nothing.
+const MIN_COMPACT_FLOOR_TOKENS = 60_000;
+// A boundary marker older than this is stale — a boundary is a moment, not a
+// standing request. Consumed either way so it never survives into a new arc.
+const COMPACT_MARKER_TTL_SECS = 3600;
+
+/**
+ * Routine-hygiene compaction — separate mechanism from maybeContextClear (destructive
+ * /clear, 700k emergency backstop) and maybePostCloseClear (archived boundary /clear).
+ * Fires arc-preserving /compact at a low threshold (default 150k) so cold-cache wakes
+ * (heartbeat/routines/channel messages, always ≥5min apart — past the prompt cache TTL)
+ * pay a small prompt instead of the full accumulated context. Sends no pointer payload
+ * itself — pointers survive via startup-context.ts's SessionStart source==="compact"
+ * section (PROP-011 commit 2), which fires on every compaction including this one.
+ *
+ * Guards mirror maybeContextClear (always-on/transition/shutdown/operator-recency/
+ * cost-log token read/two-tick pane quiescence) plus three compact-specific additions:
+ * its own min_interval cooldown (waivable by a fresh boundary marker, never by an
+ * absolute floor), a midnight-adjacency suppression (skip right before the post-close
+ * /clear would wipe the context anyway), and its own quiescence/idempotence state keys
+ * so the two mechanisms' trackers don't interfere with each other.
+ */
+function maybeContextCompact(config: Json): void {
+  const compactCfg = config.context_hygiene?.compact;
+  if (!compactCfg || compactCfg.enabled !== true) return;
+
+  const threshold = compactCfg.min_context_tokens;
+  if (typeof threshold !== 'number' || threshold <= 0) return;
+
+  const minIntervalSecs = parseDuration(compactCfg.min_interval ?? '4h');
+
+  const runtime = readRuntimeJson();
+  if (!runtime) return;
+
+  const sessionName = passesLifecycleGuards(runtime);
+  if (!sessionName) return;
+
+  // Boundary marker: a fresh marker keeps its interval-cooldown waiver until the
+  // compact it enables actually fires (deleted in the success block below). The
+  // two-tick quiescence gate lands a full tick after this read, so a fresh marker
+  // consumed here would be gone before the pane is confirmed stable — wasting the
+  // waiver in exactly the interval-cooldown case it exists for. A stale marker is
+  // consumed on read so it can never linger into a later tick/arc.
+  let boundaryWaive = false;
+  const marker = readJson(COMPACT_REQUESTED_JSON);
+  if (marker && typeof marker.requested_at === 'string') {
+    const markerAge = ageSecs(marker.requested_at);
+    if (markerAge !== null && markerAge <= COMPACT_MARKER_TTL_SECS) {
+      boundaryWaive = true; // fresh — leave on disk until the compact fires or it goes stale
+    } else {
+      try { fs.rmSync(COMPACT_REQUESTED_JSON); } catch {} // stale — never let it linger
+    }
+  }
+
+  // Midnight-adjacency suppression: the post-close /clear wipes context for free
+  // right after daily-auto-close archives — a compact just before it is wasted spend.
+  if (isNearDailyAutoClose(config, 2 * 3600)) return;
+
+  // Token check: find the last cost-log entry for this hermit session
+  const sessionId: string = runtime.session_id ?? '';
+  if (!sessionId) return;
+
+  const lastEntry = getLastCostLogEntry(sessionId);
+  if (!lastEntry) return;
+
+  const prompt = promptTokens(lastEntry);
+
+  // Token floor: never compact a small context, even with a boundary marker in play
+  if (prompt < MIN_COMPACT_FLOOR_TOKENS) return;
+  if (prompt <= threshold) return;
+
+  const watchdogState = readWatchdogState();
+
+  // Quiescence tracking: record the pane hash on every qualifying tick, independent
+  // of whether interval/idempotence will end up blocking. If recording were gated
+  // behind those checks, a single interval-blocked tick would erase the "pane
+  // observed stable" progress and cost an extra tick once the interval reopened
+  // (e.g. via a boundary marker) — even though the pane never actually moved.
+  // Own hash key (last_pane_hash_compact) so this tracker never collides with
+  // maybeContextClear's (last_pane_hash_ctx) — both can be mid-cycle at once.
+  const currentHash = getPaneHash(sessionName);
+  const prevHash = watchdogState.last_pane_hash_compact ?? null;
+  const paneStable = currentHash !== null && currentHash === prevHash;
+  if (currentHash !== prevHash) {
+    watchdogState.last_pane_hash_compact = currentHash;
+    writeWatchdogState(watchdogState);
+  }
+
+  // Interval cooldown — waived only by a fresh boundary marker
+  if (!boundaryWaive && watchdogState.last_compacted_at) {
+    const sinceLast = ageSecs(watchdogState.last_compacted_at);
+    if (sinceLast !== null && sinceLast < minIntervalSecs) return;
+  }
+
+  // Idempotence: bail if this cost-log entry was already compacted
+  if (watchdogState.last_compacted_cost_ts && watchdogState.last_compacted_cost_ts === lastEntry.timestamp) return;
+
+  if (!paneStable) return;
+
+  // Pane stable across two ticks — safe to compact
+  if (!tryAcquireLifecycleLock()) return;
+  try {
+    sendKeys(sessionName, '/compact focus on unfinished work, pending operator items, and in-flight decisions');
+    watchdogState.last_compacted_cost_ts = lastEntry.timestamp;
+    watchdogState.last_compacted_at = utcStamp();
+    watchdogState.last_pane_hash_compact = null; // reset so next bloat cycle re-arms
+    writeWatchdogState(watchdogState);
+    try { fs.rmSync(COMPACT_REQUESTED_JSON); } catch {} // consume the boundary waiver now that it fired
+    // Prompt-token count travels in the event so the next cost-log entry gives a
+    // before/after for free — feeds /hermit-evolution and threshold calibration.
+    appendEvent('context-compact', `prompt tokens ${prompt} over threshold ${threshold}`);
+  } finally {
+    releaseLock(LIFECYCLE_LOCK);
+  }
+  process.exit(0);
+}
+
 // --- Main decision loop ---
 
 function main(): void {
@@ -403,6 +583,11 @@ function main(): void {
 
   // 0b. Context-size clear — independent of watchdog.enabled; runs on any always-on hermit
   maybeContextClear(config);
+
+  // 0c. Routine-hygiene compact — independent of watchdog.enabled; runs on any always-on
+  // hermit. Evaluated after the emergency clear so a 700k context takes the /clear path,
+  // not compact, on the same tick.
+  maybeContextCompact(config);
 
   // 1. Config gate
   const watchdogCfg = config?.watchdog ?? {};

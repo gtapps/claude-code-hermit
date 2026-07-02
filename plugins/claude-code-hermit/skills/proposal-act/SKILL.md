@@ -255,6 +255,7 @@ Used when reflect has surfaced a sparse-cadence proposal as a resolution candida
    Resolved on 2026-04-06T14:30:00+01:00.
    ```
    If the resolve was triggered by reflect's auto-resolve flow (pattern absent from recent sessions), the caller may append "Pattern confirmed absent." but this is no longer the default — resolve also covers implementation completion via the Start-now branch.
-5. Respond: "PROP-NNN resolved."
+5. **Compaction boundary marker.** Write `state/compact-requested.json` with `{"requested_at": "<now ISO>", "reason": "proposal-resolve"}` (singleton — overwrite unconditionally). A resolved proposal's implementation is fully committed, so this is a safe moment for the watchdog's routine-hygiene compactor (`maybeContextCompact`) to waive its interval cooldown on the next tick. Both the dispatched-path post-return handling and the in-main path (f) route through this Resolve Flow, so one write here covers both; batch accepts each overwrite the same singleton and coalesce into a single compaction (existing operator-silence + quiescence guards).
+6. Respond: "PROP-NNN resolved."
 
 No first-response tracking on resolve — the proposal was already accepted and that event was already logged.

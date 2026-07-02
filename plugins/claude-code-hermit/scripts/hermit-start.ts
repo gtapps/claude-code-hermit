@@ -101,6 +101,13 @@ const DEFAULT_CONFIG: Json = {
     operator_grace: '15m',
     context_clear_tokens: 700000,
   },
+  context_hygiene: {
+    compact: {
+      enabled: true,
+      min_context_tokens: 150000,
+      min_interval: '4h',
+    },
+  },
   reflection: {
     graduation_min_sessions: 1,
   },

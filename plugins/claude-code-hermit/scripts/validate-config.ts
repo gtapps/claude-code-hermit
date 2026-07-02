@@ -239,6 +239,29 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
     }
   }
 
+  if (config.context_hygiene !== undefined) {
+    if (typeof config.context_hygiene !== 'object' || config.context_hygiene === null) {
+      errors.push('context_hygiene: must be an object');
+    } else if (config.context_hygiene.compact !== undefined) {
+      const c = config.context_hygiene.compact;
+      if (typeof c !== 'object' || c === null) {
+        errors.push('context_hygiene.compact: must be an object');
+      } else {
+        if (c.enabled !== undefined && typeof c.enabled !== 'boolean') {
+          errors.push('context_hygiene.compact.enabled: must be a boolean');
+        }
+        if (c.min_context_tokens !== undefined) {
+          if (typeof c.min_context_tokens !== 'number' || c.min_context_tokens <= 0) {
+            errors.push('context_hygiene.compact.min_context_tokens: must be a positive number');
+          }
+        }
+        if (c.min_interval !== undefined && typeof c.min_interval !== 'string') {
+          warnings.push('context_hygiene.compact.min_interval: should be a duration string (e.g. "4h")');
+        }
+      }
+    }
+  }
+
   if (config.env && typeof config.env === 'object') {
     for (const [k, v] of Object.entries(config.env)) {
       if (typeof v !== 'string') {

@@ -173,7 +173,7 @@ function main() {
   if (warn) process.stderr.write(`WARN: ${warn}\n`);
 }
 
-export { shiftCron };
+export { shiftCron, wallMinutes };
 
 if (import.meta.main) {
   main();

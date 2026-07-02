@@ -22,7 +22,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings brief          — configure morning brief
 /claude-code-hermit:hermit-settings permissions    — configure unattended mode
 /claude-code-hermit:hermit-settings heartbeat      — enable/disable, interval, quiet mode, active hours
-/claude-code-hermit:hermit-settings watchdog       — enable/disable, stale_factor, escalate_after, operator_grace
+/claude-code-hermit:hermit-settings watchdog       — enable/disable, stale_factor, escalate_after, operator_grace, context hygiene compaction
 /claude-code-hermit:hermit-settings routines        — manage scheduled routines (add/edit/remove/enable/disable)
 /claude-code-hermit:hermit-settings idle             — set idle behavior (wait or discover)
 /claude-code-hermit:hermit-settings env              — view/edit environment variables
@@ -213,6 +213,12 @@ Update `permission_mode` in config.json.
     escalate_after         3
     operator_grace         15m
     context_clear_tokens   700000
+
+  Context hygiene compact (config.json context_hygiene.compact)
+
+    enabled                true
+    min_context_tokens     150000
+    min_interval           4h
   ```
 - Ask: "Enable watchdog? (yes / no) [current: <value>]"
 - If yes: show the configurable sub-fields before asking each one:
@@ -221,11 +227,18 @@ Update `permission_mode` in config.json.
     stale_factor           — missed-cycle tolerance multiplier (e.g. 2)                   [current]
     escalate_after         — consecutive stale cycles before escalation (e.g. 3)          [current]
     operator_grace         — silence window before alert fires (e.g. 15m, 1h)             [current]
-    context_clear_tokens   — auto-clear context when prompt tokens exceed this (e.g. 700000, 0=off) [current]
+    context_clear_tokens   — emergency /clear when prompt tokens exceed this (e.g. 700000, 0=off) [current]
   ```
   Then ask each field in sequence.
 - Update `watchdog` object in config.json.
   - Note: "Changes take effect on the next watchdog run. To register or remove the OS timer: `bin/hermit-watchdog install` / `bin/hermit-watchdog uninstall`. Docker hermits run the watchdog from the entrypoint loop — no install step needed."
+- **Context hygiene compact** (`context_hygiene.compact` — runs independently of the "Enable watchdog?" answer above, same as `context_clear_tokens`): ask "Enable routine-hygiene compaction? (yes / no) [current: <value>]". If yes, show the sub-fields:
+  ```
+  Context hygiene compact sub-fields (press Enter to keep current value):
+    min_context_tokens     — routine-hygiene /compact when prompt tokens exceed this (e.g. 150000) [current]
+    min_interval           — minimum time between compacts, avoids summary-of-summary loss (e.g. 4h) [current]
+  ```
+  Then ask each field in sequence. Update `context_hygiene.compact` object in config.json. No restart/reconcile step needed — the watchdog reads config.json fresh on every scheduler tick.
 
 **If argument is "routines":**
 - Show current routines from `config.routines` array:

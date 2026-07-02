@@ -14,7 +14,6 @@ const MAX_STDIN = 1024 * 1024; // 1MB safety limit
 const COMPACT_THRESHOLD = parseInt(process.env.COMPACT_THRESHOLD || '75', 10) || 75;
 const SUBSEQUENT_INTERVAL = 25;
 const MAX_COUNTER = 1_000_000;
-const CONTEXT_USAGE_THRESHOLD = 0.6; // 60%
 
 const COUNTER_DIR = path.join(os.tmpdir(), `claude-agent-compact-${process.getuid?.() ?? 'win'}`);
 let counterDirCreated = false;
@@ -52,15 +51,6 @@ function writeCounter(counterPath: string, value: number): void {
 async function run(data: Json): Promise<{ additionalContext: string } | null> {
   try {
     const sessionId = ccSessionId(data) || 'default';
-
-    // Check context usage if provided
-    const contextUsage = data.context_usage || data.contextUsage || 0;
-    if (contextUsage > CONTEXT_USAGE_THRESHOLD) {
-      const pct = Math.round(contextUsage * 100);
-      return {
-        additionalContext: `Context window is at ${pct}%. Consider running /compact to maintain response quality.`,
-      };
-    }
 
     // Tool-call counter approach
     const counterPath = getCounterPath(sessionId);

@@ -12,6 +12,8 @@ import { execSync } from 'node:child_process';
 import { readFrontmatter, readFileWithFrontmatter, globDir } from './lib/frontmatter';
 import { hermitDir } from './lib/cc-compat';
 import { findStorageDrift, findSchemaDrift } from './lib/drift';
+import { safe } from './lib/sanitize';
+import { resolve as resolveOutboundChannel } from './resolve-outbound-channel';
 
 type Json = any;
 
@@ -25,6 +27,7 @@ const HARD_CAP = 9000;
 const BUDGETS = {
   operator:      2000,
   session:       3000,
+  pointers:       800, // compaction pointers — only emitted when source === "compact"
   knowledge:     2500, // compiled/ artifacts — read from config, 2500 default
   schemaDrift:    400, // only emitted when compiled/ types are undeclared in knowledge-schema.md
   storageDrift:   500, // only emitted when misplaced files are found
@@ -75,7 +78,56 @@ function lastLines(text: string, n: number): string {
   return lines.slice(-n).join('\n');
 }
 
-function main() {
+// Build the post-compaction pointer block: the state that native/driver-sent
+// compaction drops and startup-context's other sections don't already cover
+// (Active Session re-injects SHELL.md's Task/Progress/Blockers, but not
+// runtime.json's session_state/waiting_reason, pending micro-approvals, or
+// outbound channel routing). Fail-open per-field — one missing/malformed
+// state file must not blank the rest. Returns "" if nothing is available.
+function buildCompactionPointers(agentDir: string): string {
+  const parts: string[] = [];
+
+  try {
+    const runtime = JSON.parse(fs.readFileSync(path.resolve(agentDir, 'state', 'runtime.json'), 'utf-8'));
+    const sessionState = typeof runtime.session_state === 'string' ? runtime.session_state : null;
+    const waitingReason = typeof runtime.waiting_reason === 'string' ? runtime.waiting_reason : null;
+    if (sessionState) {
+      parts.push(`session_state: ${safe(sessionState)}` + (waitingReason ? ` (waiting_reason: ${safe(waitingReason)})` : ''));
+    }
+  } catch {}
+
+  try {
+    const shellContent = fs.readFileSync(path.resolve(agentDir, 'sessions', 'SHELL.md'), 'utf-8');
+    const task = extractSection(shellContent, 'Task');
+    const firstLine = task
+      ? task.split('\n').map(l => l.trim()).find(l => l && !l.startsWith('<!--'))
+      : null;
+    if (firstLine) parts.push(`task: ${safe(firstLine).slice(0, 300)}`);
+  } catch {}
+
+  try {
+    const mp = JSON.parse(fs.readFileSync(path.resolve(agentDir, 'state', 'micro-proposals.json'), 'utf-8'));
+    const pending = (Array.isArray(mp.pending) ? mp.pending : []).filter((p: Json) => p && p.status === 'pending');
+    if (pending.length > 0) {
+      const ids = pending.slice(0, 10).map((p: Json) => safe(p.id ?? '?'));
+      const overflow = pending.length > ids.length ? ` (+${pending.length - ids.length} more)` : '';
+      parts.push(`pending micro-proposals: ${ids.join(', ')}${overflow}`);
+    }
+  } catch {}
+
+  try {
+    const config = JSON.parse(fs.readFileSync(path.resolve(agentDir, 'config.json'), 'utf-8'));
+    const route = resolveOutboundChannel(config.channels);
+    if (route) parts.push(`outbound channel: ${safe(route.id)} (chat_id: ${safe(route.chat_id)})`);
+  } catch {}
+
+  if (parts.length === 0) return '';
+
+  parts.push('Full state: SHELL.md + runtime.json. Task list: native Tasks. Don\'t re-read large files to reconstruct context.');
+  return parts.join('\n');
+}
+
+function main(source: string | null) {
   let totalChars = 0;
 
   function emit(label: string, content: string): void {
@@ -153,6 +205,18 @@ function main() {
       emit('Active Session', sessionOutput.slice(0, BUDGETS.session));
     } else {
       emit('Active Session', 'Session file exists but has no actionable content');
+    }
+  }
+
+  // -------------------------------------------------------
+  // 3b. Compaction pointers (priority 2.2, budget 800) — only on source === "compact"
+  // -------------------------------------------------------
+  if (source === 'compact' && totalChars < HARD_CAP) {
+    try {
+      const pointers = buildCompactionPointers(AGENT_DIR);
+      if (pointers) emit('Compaction Pointers', pointers.slice(0, BUDGETS.pointers));
+    } catch {
+      // Non-fatal — never let pointer injection block ordinary startup context
     }
   }
 
@@ -346,5 +410,32 @@ function main() {
 }
 
 if (import.meta.main) {
-  main();
+  // main() must run exactly once. It runs when stdin reaches EOF (the normal hook
+  // path, carrying the `source` field) — but if stdin never closes (TTY, unpiped
+  // invocation, a held-open pipe), a short fallback still emits the source-less
+  // startup context rather than silently injecting nothing at all.
+  let ran = false;
+  const runOnce = (source: string | null): void => {
+    if (ran) return;
+    ran = true;
+    try { main(source); } catch { /* fail-open */ }
+  };
+  try {
+    let buf = '';
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', chunk => { buf += chunk; });
+    process.stdin.on('error', () => {});
+    const fallback = setTimeout(() => runOnce(null), 2000);
+    process.stdin.on('end', () => {
+      clearTimeout(fallback); // normal path — no need to wait out the fallback
+      let source: string | null = null;
+      try {
+        const payload = JSON.parse(buf);
+        if (payload && typeof payload.source === 'string') source = payload.source;
+      } catch { /* empty/non-JSON stdin — treat as unknown source */ }
+      runOnce(source);
+    });
+  } catch {
+    runOnce(null);
+  }
 }

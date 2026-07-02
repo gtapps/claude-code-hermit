@@ -35,7 +35,7 @@ Written to `.claude/settings.local.json` at boot by `hermit-start`. Exported to 
 | Key | Default | Purpose |
 |-----|---------|---------|
 | `AGENT_HOOK_PROFILE` | `"standard"` | Hook profile: `minimal`, `standard`, `strict`. Protected in always-on mode. |
-| `COMPACT_THRESHOLD` | `"75"` | Tool-call-count threshold for compact suggestion (fallback when `context_usage` is unavailable). |
+| `COMPACT_THRESHOLD` | `"75"` | Tool-call-count threshold for compact suggestion. |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | `"65"` | Auto-compact at this % of context window. |
 | `MAX_THINKING_TOKENS` | `"10000"` | Cap on thinking tokens per turn. |
 Modify with `/hermit-settings env`.
@@ -104,7 +104,7 @@ Out-of-session supervisor that detects dead or wedged sessions and restarts them
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `enabled` | boolean | `false` | Enable restart/nudge/re-arm machinery. `enabled: false` disables the wedge-detection and restart path only. `context_clear_tokens` and `post_close_clear` are scheduler-owned context-hygiene (see below) — they run on every scheduler tick regardless of this flag. |
+| `enabled` | boolean | `false` | Enable restart/nudge/re-arm machinery. `enabled: false` disables the wedge-detection and restart path only. `context_clear_tokens`, `post_close_clear`, and `context_hygiene.compact` (see below) are scheduler-owned context-hygiene — they run on every scheduler tick regardless of this flag. |
 | `stale_factor` | number | `2` | Heartbeat staleness multiplier. Session is considered stale when `now - mtime(state/.heartbeat) > stale_factor × heartbeat.every`. |
 | `escalate_after` | integer | `3` | Number of consecutive stale watchdog cycles before escalating from nudge to restart. |
 | `operator_grace` | string | `"15m"` | If `last-operator-action.json` shows activity within this window, the watchdog backs off (operator is mid-conversation). Duration format: `"15m"`, `"1h"`. |
@@ -113,21 +113,50 @@ Out-of-session supervisor that detects dead or wedged sessions and restarts them
 **Decision flow (one `run` cycle):**
 0. Stamp `last_run` (current UTC) into `state/watchdog-state.json` — before any gate or early exit, so it records that the scheduler/loop fired the script even when `enabled: false`. `hermit-doctor` reads this as the watchdog liveness signal (stale/missing ⇒ "enabled but not firing").
 
-Steps 1–2 are **scheduler-owned context-hygiene** — the watchdog script runs them unconditionally, before the `enabled` gate at step 3.
+Steps 1–3 are **scheduler-owned context-hygiene** — the watchdog script runs them unconditionally, before the `enabled` gate at step 4.
 
 1. If `post_close_clear: true` and session-close marker present → send `/clear`, exit.
-2. If context-clear conditions met (prompt tokens over threshold, always-on, quiescent, operator silent) → send `/clear`, exit.
-3. If `enabled: false` → exit (restart/nudge machinery disabled).
-4. Read `runtime.json` shutdown fields. If operator stopped the hermit intentionally (`shutdown_requested_at`/`shutdown_completed_at` set or `session_state == idle`) → exit.
-5. If the tmux session is gone → restart.
-6. If the heartbeat is stale and the operator is quiet and the pane is frozen for `escalate_after` cycles → restart. Before that threshold: nudge (`/claude-code-hermit:heartbeat run`).
-7. If the in-session 4am `heartbeat-restart` routine missed its fire (last fired > 26h ago) → send-keys re-arm fallback.
+2. If context-clear conditions met (prompt tokens over `watchdog.context_clear_tokens`, always-on, quiescent, operator silent) → send `/clear`, exit.
+3. If routine-hygiene compact conditions met (see `context_hygiene.compact` below) → send `/compact`, exit.
+4. If `enabled: false` → exit (restart/nudge machinery disabled).
+5. Read `runtime.json` shutdown fields. If operator stopped the hermit intentionally (`shutdown_requested_at`/`shutdown_completed_at` set or `session_state == idle`) → exit.
+6. If the tmux session is gone → restart.
+7. If the heartbeat is stale and the operator is quiet and the pane is frozen for `escalate_after` cycles → restart. Before that threshold: nudge (`/claude-code-hermit:heartbeat run`).
+8. If the in-session 4am `heartbeat-restart` routine missed its fire (last fired > 26h ago) → send-keys re-arm fallback.
 
-Every context-clear, post-close-clear, nudge, restart, and re-arm is appended to `state/watchdog-events.jsonl`. Restarts also set `runtime.json.watchdog_restart_reason`; `session-start` announces the restart to the operator channel.
+Every context-clear, context-compact, post-close-clear, nudge, restart, and re-arm is appended to `state/watchdog-events.jsonl`. Restarts also set `runtime.json.watchdog_restart_reason`; `session-start` announces the restart to the operator channel.
 
 **Install:** `bin/hermit-watchdog install` — systemd user timer on Linux/WSL2, LaunchAgent on macOS, cron line printed as fallback. Docker hermits don't need `install` — the entrypoint already runs the watchdog on its own ~5 min cycle.
 
 Modify with `/hermit-settings watchdog`.
+
+---
+
+## `context_hygiene`
+
+Three context-reset mechanisms, three timings — none of them overlap:
+
+| Mechanism | Trigger | Action | Fidelity |
+|-----------|---------|--------|----------|
+| `post_close_clear` | Daily-auto-close archived the session | `/clear` | Free — the archive ran immediately before, so nothing is lost. |
+| `watchdog.context_clear_tokens` (700k default) | Emergency: context grew far past the routine threshold | `/clear` | Destructive — conservative threshold because it can fire mid-arc. |
+| `context_hygiene.compact` (this block, 150k default) | Routine hygiene: any always-on wake where context has grown past a low threshold | `/compact` | Arc-preserving — a summarization call, not a wipe. |
+
+**Why a low threshold, and why `/compact` instead of `/clear`:** always-on hermits wake on heartbeat/routine/channel events that are typically ≥2 min apart — well past the 5-minute prompt-cache TTL — so every wake re-pays the *entire* accumulated context from a cold cache. A hermit sitting at 200k tokens by mid-morning carries that cost into every subsequent wake for the rest of the day. One `/compact` of a 200k context costs roughly one 200k-token summarization call and drops the next wake's cost to ~15–25k — break-even after a single wake. `/clear` achieves the same savings for free, but destroys the live reasoning arc (SHELL.md holds the task ledger, not the reasoning thread), which is why `/clear`'s threshold stays conservative. `/compact` at a much lower threshold is safe because [pointer injection](architecture.md) (`startup-context.ts`'s `source === "compact"` section) re-seeds `runtime.json` state, pending micro-approvals, and outbound channel routing on the very next `SessionStart` — so nothing operationally load-bearing is actually lost.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `compact.enabled` | boolean | `true` | Enable routine-hygiene compaction. Set `false` to opt out (native auto-compact and the two `/clear` mechanisms above still apply). |
+| `compact.min_context_tokens` | number | `150000` | Send `/compact` when the last hermit-owned turn's prompt-side tokens exceed this. Must sit below wherever native/proactive auto-compaction kicks in for your model, or this trigger never gets the chance to fire first — see [`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`](#env-environment-variables) above. |
+| `compact.min_interval` | string | `"4h"` | Minimum time between routine-hygiene compacts, to avoid summary-of-summary fidelity loss. Duration format: `"4h"`, `"30m"`. |
+
+**Guards** (same shape as `watchdog.context_clear_tokens`): always-on only (never interactive sessions), no in-flight transition, operator silent ≥ 10 min, session quiescent (pane unchanged across two consecutive scheduler ticks — tracked independently of the `/clear` mechanism's quiescence state), and never within the same tick as an emergency `/clear` (the 700k path takes precedence). A hard floor of 60,000 tokens applies regardless of configuration — a context that small is never worth summarizing.
+
+**Boundary marker (`state/compact-requested.json`):** written by the `session` skill (after a work-done idle transition) and `proposal-act` (after resolving a proposal) — arc-end moments where everything just archived to disk. Presence of a fresh marker (age ≤ 1h) waives `min_interval` for that tick only, letting a hygiene compact follow immediately rather than waiting out the cooldown. It never waives the 60k floor. The marker is consumed (deleted) on the next qualifying watchdog tick regardless of outcome, and `session-start` also clears it unconditionally — a boundary is a moment, not a standing request, and must never survive into a different session's arc. Multiple boundary writes in quick succession (e.g. accepting several proposals in a row) collapse into a single compact once the pane goes quiet, via the existing operator-silence and quiescence guards.
+
+A midnight-adjacency guard suppresses compaction when the `daily-auto-close` routine is due to fire within 2 hours — the post-close `/clear` will reset the context for free shortly after, so a compact right before it would be a wasted summarization call.
+
+Modify with `/hermit-settings watchdog` (same command surfaces both `watchdog` and `context_hygiene`).
 
 ---
 

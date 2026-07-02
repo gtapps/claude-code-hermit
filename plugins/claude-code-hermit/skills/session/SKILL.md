@@ -74,6 +74,7 @@ When the work is done, or the operator decides to move on (even if partial or bl
    ```
    Also include the task table (if native Tasks were created).
 7. If `heartbeat.enabled` is true in config and heartbeat is not already running: start it (`/claude-code-hermit:heartbeat start`)
+7b. **Compaction boundary marker.** After the idle transition (step 6) succeeds: write `state/compact-requested.json` with `{"requested_at": "<now ISO>", "reason": "session-work-done"}` (singleton — overwrite unconditionally). The arc that just archived is fully on disk, so this is a safe moment for the watchdog's routine-hygiene compactor (`maybeContextCompact`) to waive its interval cooldown on the next tick. Skip if step 6 failed.
 8. After the session-mgr idle transition (step 6) succeeds: notify the operator: "Archived as S-NNN. Task: [summary]. Status: [outcome]. Ready for what's next."
 9. Once the operator says what's next: go to step 4 (plan the work)
 
