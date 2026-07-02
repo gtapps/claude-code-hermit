@@ -1,5 +1,6 @@
 ---
 name: hermit-health
+model: haiku
 description: "Show alert state, proposal queue depth, routine engagement, knowledge state, channel availability, plus fragile zones, stale accepted proposals, and recent learnings. Activates on messages like 'health check', 'how's the hermit', 'is anything broken', 'hermit health', 'system health', 'anything wrong', 'hermit status', 'are routines running', 'what's stuck', 'any fragile zones', 'show me what's blocked', 'recent learnings', 'what have you learned lately', 'where are the weak spots', 'check knowledge', 'lint knowledge', 'knowledge health'."
 ---
 # Hermit Health

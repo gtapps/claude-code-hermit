@@ -167,7 +167,7 @@ Before changing HA endpoint usage, verify against upstream (WebFetch or the `fin
 `hatch` registers entries in `.claude-code-hermit/config.json`:
 
 - **Routines**: `daily-ha-context` (08:30 daily, enabled), `morning-brief` (unified mode: 08:30, enabled, replaces core `morning`; legacy mode: 09:00, disabled — determined at hatch time), `evening-brief` (22:30 daily, enabled, run_during_waiting; subsumes core `evening`).
-- **Scheduled checks** (driven by the core `scheduled-checks` routine via `reflect-scheduled-checks`, proposal-producing): `ha-patterns` (weekly), `ha-safety-audit` (weekly), `ha-integration-health` (daily).
+- **Scheduled checks** (driven by the core `scheduled-checks` routine via `reflect --scheduled-checks`, proposal-producing): `ha-patterns` (weekly), `ha-safety-audit` (weekly), `ha-integration-health` (daily).
 
 In interactive sessions, run `/claude-code-hermit:hermit-routines load` once to activate scheduled routines. In always-on deployments they load automatically.
 

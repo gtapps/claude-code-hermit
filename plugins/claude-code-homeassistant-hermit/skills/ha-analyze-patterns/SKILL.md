@@ -44,7 +44,7 @@ allowed-tools:
 
 6. **Write findings**: Save pattern data to `.claude-code-hermit/raw/snapshot-ha-pattern-analysis-<YYYY-MM-DD>.json` and update `snapshot-ha-pattern-analysis-latest.json`. Write the curated Markdown summary (when non-trivial findings exist) to `.claude-code-hermit/raw/patterns-<YYYY-MM-DD>.md` with frontmatter `type: analysis`, `title: "HA Pattern Analysis — <YYYY-MM-DD>"`, `created: <ISO8601>`, `session: <session_id or null>`, `tags: [ha-patterns, analysis]`. Also write `patterns-latest.md` pointing to the same content. The Markdown body should include the richer breakdown: `inactive_candidates_by_domain` summary table, `suppressed_entity_domains` note, time-pattern table from history, and `state_durations` summary for `climate.*` entities (showing heating/cooling hours over the 7d window).
 7. **Update memory**: Update your auto memory with key findings from this analysis.
-8. **Emit summary for reflect-scheduled-checks**: Always output a plain-text findings block to stdout. reflect-scheduled-checks routes actionable items through the proposal pipeline. The stdout shape is fixed — do not add new top-level sections:
+8. **Emit summary for reflect --scheduled-checks**: Always output a plain-text findings block to stdout. reflect --scheduled-checks routes actionable items through the proposal pipeline. The stdout shape is fixed — do not add new top-level sections:
 
    ```
    ha-analyze-patterns findings — <date>

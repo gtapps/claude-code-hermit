@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - **README: `/hermit-brain` → `/hermit-health`** — the core `hermit-brain` skill merged into `hermit-health`; the docs now point at the surviving skill.
+- **`weekly-coaching-patterns` prose: `reflect-scheduled-checks` → `reflect --scheduled-checks`** — the core scheduled-check runner merged into `reflect`; the skill now names the surviving invocation (no behavior change — the `scheduled-checks` routine still consumes its stdout).
 
 ## [0.0.11] - 2026-06-29
 

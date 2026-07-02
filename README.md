@@ -78,13 +78,11 @@ What it proposes: improvements, routines, new capabilities (skills, agents, hear
 On-demand skills — pullable from the Claude app, your terminal, or a DM:
 
 - **`/recall`** — full-text search over past sessions, compiled knowledge, and proposals ("what did I decide about X?")
-- **`/hermit-brain`** — open loops, fragile zones, and key learnings from recent sessions
 - **`/hermit-evolution`** — cost trend and behavior drift over weeks
-- **`/hermit-health`** — alerts, routines, channels, heartbeat state
+- **`/hermit-health`** — alerts, routines, channels, heartbeat state, plus fragile zones, stale proposals, and recent learnings
 - **`/hermit-doctor`** — fifteen-check install diagnostic, from hook registration to heartbeat liveness
 - **`/cost-reflect`** — structural cost audit: which token types and trigger sources drive spend
-- **`/pulse`** — what it's doing right now
-- **`/brief`** — summary of recent work
+- **`/brief`** — current status and a summary of recent work
 
 ---
 

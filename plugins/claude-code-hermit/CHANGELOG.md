@@ -9,15 +9,15 @@
 - **docs/skills.md** — hand-maintained skill listing that had drifted out of date; the plugin `CLAUDE.md` is the canonical skill list.
 
 ### Changed
-- **brief absorbs pulse** — the no-flag path now serves live session status (per-session cost from `sessions/.status.json`, active-alert pointer) and gains pulse's `status`/`progress`/`what are you working on` triggers.
-- **hermit-health absorbs hermit-brain and the knowledge lint** — health now reports fragile zones, stale accepted proposals, and recent learnings alongside infra (runner-free), and runs `knowledge-lint.ts` on demand under the `check knowledge`/`lint knowledge` triggers.
+- **brief absorbs pulse** — the no-flag path now serves live session status (per-session cost from `sessions/.status.json`, active-alert pointer) and gains pulse's `status`/`progress`/`what are you working on` triggers. Preserves pulse's blocked-session `/debug` hint and idle cumulative-cost source (`cost-summary.md`).
+- **hermit-health absorbs hermit-brain and the knowledge lint** — health now reports fragile zones, stale accepted proposals, and recent learnings alongside infra (runner-free), and runs `knowledge-lint.ts` on demand under the `check knowledge`/`lint knowledge` triggers. Runs on `model: haiku` (restoring the tier the absorbed `knowledge` skill used) — the report is mechanical aggregation, so the cheaper model holds for the `check knowledge` path.
 - **session-close gains `--scheduled`** — the midnight close-now/queue/noop decision formerly in `daily-auto-close`; the `daily-auto-close` routine now invokes `/claude-code-hermit:session-close --scheduled` (routine `id` unchanged).
 - **reflect gains `--scheduled-checks`** — the interval-check runner formerly in `reflect-scheduled-checks`, reusing reflect's evidence/triage/micro-approval gates; the `scheduled-checks` routine now invokes `/claude-code-hermit:reflect --scheduled-checks`.
 - **proposal-act balanced quality gate is inline** — the RUN/SKIP decision (formerly the `quality-gate-judge` agent) is now made in-skill at step e.5 and in the dispatched subagent.
 - **hermit-exec.sh drops the `.py` fallback** — no Python scripts ship.
 
 ### Changed (repo, not shipped)
-- **README + CLAUDE.md** — list `laravel-forge-hermit` in the pre-built hermits.
+- **README + CLAUDE.md** — list `laravel-forge-hermit` in the pre-built hermits; drop the removed `/hermit-brain` and `/pulse` from the on-demand skills list (their scope now reads under `/hermit-health` and `/brief`).
 - **CI** — new `test-scribe.yml` runs hermit-scribe's suite; `test-hooks.yml` gains a guard that the repo-internal `/simplify` mirror stays byte-identical to the shipped skill.
 
 ### Upgrade Instructions

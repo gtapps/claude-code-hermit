@@ -6,6 +6,7 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ### Changed
 - **README: `/hermit-brain` → `/hermit-health`** — the core `hermit-brain` skill merged into `hermit-health`; the docs now point at the surviving skill.
+- **scheduled-check skill prose: `reflect-scheduled-checks` → `reflect --scheduled-checks`** — the core scheduled-check runner merged into `reflect`; the HA scheduled-check skills and `CLAUDE.md` now name the surviving invocation (no behavior change — the `scheduled-checks` routine still consumes their stdout).
 
 ## [0.4.0] - 2026-07-02
 

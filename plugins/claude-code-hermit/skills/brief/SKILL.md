@@ -92,7 +92,7 @@ Current behavior — general purpose summary as described below.
 
 1. Use `session_state` already read in the Dispatch step:
    - **1a. `in_progress` (no dispatch):** read `.claude-code-hermit/sessions/SHELL.md` **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**. Summarize the active task using TaskList for Done/Next lines; produce the standard 5-line output. For the cost line, read `cost_usd` and `tokens` from `.claude-code-hermit/sessions/.status.json` (live per-session totals; fall back to `0`/`0` if missing) rather than the once-daily `cost-summary.md`. Then read `.claude-code-hermit/state/alert-state.json`; if its `active` array is non-empty, append one line: `⚠ N alert(s) active — run /claude-code-hermit:hermit-health`.
-   - **1b. `idle` (no dispatch):** read SHELL.md **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**. Format as:
+   - **1b. `idle` (no dispatch):** read SHELL.md **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**. For the `Cumulative:` line, read `total_cost_usd` and `total_tokens` from `.claude-code-hermit/cost-summary.md` frontmatter (fall back to `0`/`0` if missing). Format as:
      ```
      [Brief] YYYY-MM-DD | idle | N tasks completed
      Session: since [start date]
@@ -122,7 +122,7 @@ Next: description of next action (or "Session complete" if all done)
 - Use the session's date, not today's date
 - Include tags in the header only if they exist
 - For the "Done" line: list completed task subjects from `TaskList`, comma-separated. If too many, show first 3 and "+ N more"
-- For the "Next" line: show the first pending or in_progress task from `TaskList`. If blocked, show "Blocked: reason"
+- For the "Next" line: show the first pending or in_progress task from `TaskList`. If blocked, show "Blocked: reason — run /debug to diagnose" (keeps the actionable pointer on the existing line, no extra line)
 - If summarizing a completed report: "Next" becomes the report's "Next Start Point" content
 - After composing the 5-line output: scan `.claude-code-hermit/proposals/` for files with `source: auto-detected` and `status: proposed` (read `status:` and `source:` from the **leading `---` YAML frontmatter block only** — do not count files where those phrases appear in the proposal body text; fall back to bullet metadata for pre-frontmatter proposals). **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction).** If any exist, append a 6th line: `Proposals: N auto-detected proposal(s) pending review`
 
