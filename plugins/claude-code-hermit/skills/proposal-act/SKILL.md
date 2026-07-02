@@ -113,7 +113,7 @@ When the operator accepts a proposal:
         >
         > 1. Read the proposal file. The `## Operator Decision` section contains a `PROCEED` line from the falsification gate with the authoritative file list — use that list as your scope (over any files mentioned in the proposal body).
         > 2. Do the edits and any test/fix loops yourself. You may spawn a nested Explore subagent if the proposal warrants a search.
-        > 3. **Quality gate.** Read `.claude-code-hermit/config.json` → `quality_gate.tier` (treat missing/invalid as `budget`). `budget` → skip cleanup. `quality` → invoke `/claude-code-hermit:simplify` focused on the files you touched. `balanced` → delegate to the `claude-code-hermit:quality-gate-judge` subagent (pass the proposal path + touched files); on `RUN:` invoke `/claude-code-hermit:simplify` as for `quality`, on `SKIP:` skip. Capture `/simplify`'s totals line (`applied N · deduped M · principle-rejected K · …`). Best-effort: if the judge or `/simplify` errors, note it and continue — never block on this step.
+        > 3. **Quality gate.** Read `.claude-code-hermit/config.json` → `quality_gate.tier` (treat missing/invalid as `budget`). `budget` → skip cleanup. `quality` → invoke `/claude-code-hermit:simplify` focused on the files you touched. `balanced` → decide RUN vs SKIP yourself from the touched files and the proposal's `category`: lean SKIP for `constraint`/`routine`, lean RUN for `bug`/`capability`, judge `improvement` by scope; RUN if any code (`.ts/.js/.sh/.py/.go/.rs`), `SKILL.md`/`agents/*.md`, or structural `.json/.yml` changed with new logic; SKIP if only prose/docs/declarative config or OPERATOR.md; bias toward RUN when uncertain (cleanup is cheap). On RUN invoke `/claude-code-hermit:simplify` as for `quality`; on SKIP skip. Capture `/simplify`'s totals line (`applied N · deduped M · principle-rejected K · …`). Best-effort: if `/simplify` errors, note it and continue — never block on this step.
         > 4. **Verification.** Read the proposal's `## Verification` section. If it has real steps (more than the HTML-comment placeholder), perform them. If a step fails, attempt **one** fix and re-verify; if it still fails, set `Verification: failed` with the output and stop (do not loop further). If the section is empty or placeholder-only, set `Verification: none defined`.
         > 5. You cannot prompt the operator — if you hit an ambiguous spec or an undecidable/destructive choice at any step, **stop and return an escalation block** rather than guessing.
         >
@@ -164,14 +164,16 @@ When the operator accepts a proposal:
            The skill runs three parallel reviewers (reuse, quality, efficiency), applies the edits it picks itself, and ends with a totals line: `applied N · deduped M · principle-rejected K · stale-anchor skips L · parse failures P`. Capture that line and pass through.
 
            Resolution notification: "PROP-NNN implemented and resolved. /simplify applied N edits (M deduped, K rejected on principle)." When `N == 0`: "PROP-NNN implemented and resolved. /simplify made no changes." If the totals line is missing or unparseable, fall back to "PROP-NNN implemented and resolved. /simplify completed (totals unavailable)." — never block resolution.
-         - **`balanced`**: delegate to `claude-code-hermit:quality-gate-judge` with:
-           ```
-           Proposal: <absolute path to PROP-NNN-*.md>
-           Touched-Files: <space-separated relative paths>   (omit this line if not reliably enumerable)
-           ```
-           Parse line-1 verdict:
-           - `RUN: <reason>` → invoke `/claude-code-hermit:simplify` per the `quality` tier above. Notification: "PROP-NNN implemented and resolved. Judge: <reason>. /simplify applied N edits (M deduped, K rejected on principle)." When `N == 0` use "… /simplify made no changes." Same totals-missing fallback as the `quality` tier.
-           - `SKIP: <reason>` → skip `/claude-code-hermit:simplify`. Notification: "PROP-NNN implemented and resolved. Judge skipped /simplify: <reason>."
+         - **`balanced`**: decide RUN vs SKIP **inline** (no subagent) using this rubric, then act as below.
+           - **Scope:** use the touched-files list if enumerable; otherwise run `git diff --name-only HEAD` and drop session-bookkeeping paths (`sessions/SHELL.md`, `state/runtime.json`, `state/monitors.runtime.json`, `state/state-summary.md`, `state/*.jsonl`, `HEARTBEAT.md`, `tasks-snapshot.md`, `proposals/PROP-*.md`).
+           - **Category prior** (PROP frontmatter `category`): `constraint`/`routine` → lean SKIP; `bug`/`capability` → lean RUN; `improvement` → judge by scope.
+           - **RUN** if any remaining path is code (`.ts/.js/.sh/.py/.go/.rs`) with new logic, a `SKILL.md`/`agents/*.md` with new instruction text, or a `.json/.yml` with new structure — or the Proposed Solution describes new branching, loops, helpers, or near-duplicate blocks.
+           - **SKIP** if all remaining paths are pure prose (`CHANGELOG.md`, `README.md`, `docs/**`), purely declarative config (`.gitignore`, value-only bumps), OPERATOR.md-only, or the candidate set is empty after filtering.
+           - **Bias toward RUN when uncertain** — a false RUN wastes ~$0.25; a false SKIP misses a cleanup no one notices.
+
+           Then act on the ≤15-word reason you settled on:
+           - **RUN** → invoke `/claude-code-hermit:simplify` per the `quality` tier above. Notification: "PROP-NNN implemented and resolved. Cleanup: <reason>. /simplify applied N edits (M deduped, K rejected on principle)." When `N == 0` use "… /simplify made no changes." Same totals-missing fallback as the `quality` tier.
+           - **SKIP** → skip `/claude-code-hermit:simplify`. Notification: "PROP-NNN implemented and resolved. Skipped cleanup: <reason>."
 
          **The quality gate is cleanup, not correctness** — `/simplify` does not check that the proposal works. Correctness is verified by the `## Verification` gate in step (e.6); proposals with no defined verification still resolve, but the skip is recorded.
 

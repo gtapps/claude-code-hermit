@@ -382,7 +382,7 @@ Prompt: *"Quality-gate tier for accepted-proposal auto-implementations. Controls
 
 Options:
 - **Budget** (default; recommended): `/claude-code-hermit:simplify` never runs. Cheapest. No post-implementation cleanup.
-- **Balanced**: delegate the decision to the `quality-gate-judge` haiku subagent on each implementation; judge reads the proposal + touched files and decides `RUN` or `SKIP`. Costs ~$0.005 per judge call plus an occasional ~$0.25 `/claude-code-hermit:simplify` run when the judge says RUN.
+- **Balanced**: make an inline RUN/SKIP decision on each implementation from the proposal category and touched files (no subagent) — RUN triggers `/claude-code-hermit:simplify`, SKIP doesn't. Costs an occasional ~$0.25 `/claude-code-hermit:simplify` run when the decision is RUN.
 - **Quality**: `/claude-code-hermit:simplify` runs on every implementation, no judgment. ~$0.25-$0.35 per implementation in Sonnet pricing.
 
 Write the chosen value to `quality_gate.tier` in config.json. If the `quality_gate` object is missing, create it as `{ "tier": "<chosen>" }`. If a legacy `enabled` key is present, leave it in place (skill behavior reads `tier` only; legacy `enabled` is ignored).

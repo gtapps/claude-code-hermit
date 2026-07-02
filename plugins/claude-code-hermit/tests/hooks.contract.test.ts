@@ -173,7 +173,7 @@ describe('cost-tracker getCumulativeCost (in-process)', () => {
 });
 
 // -------------------------------------------------------
-// suggest-compact / evaluate-session / run-with-profile
+// suggest-compact / evaluate-session
 // -------------------------------------------------------
 
 describe('suggest-compact', () => {
@@ -210,42 +210,21 @@ describe('evaluate-session', () => {
   }));
 });
 
-describe('run-with-profile', () => {
-  test('run-with-profile (match)', withDir(async (dir) => {
-    const r = await runScript('run-with-profile.ts', {
-      stdin: '{}', cwd: dir, env: PIPE_ENV,
-      args: ['standard,strict', 'scripts/evaluate-session.ts'],
-    });
-    expect(r.exitCode).toBe(0);
-  }));
-
-  test('run-with-profile (no match)', withDir(async (dir) => {
-    const r = await runScript('run-with-profile.ts', {
-      stdin: '{}', cwd: dir,
-      env: { AGENT_HOOK_PROFILE: 'minimal', CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
-      args: ['standard,strict', 'scripts/evaluate-session.ts'],
-    });
-    expect(r.exitCode).toBe(0);
-  }));
-});
-
 // -------------------------------------------------------
-// session-diff (direct, via run-with-profile)
+// session-diff (self-gated on AGENT_HOOK_PROFILE)
 // -------------------------------------------------------
 
 describe('session-diff', () => {
   test('session-diff', withGitDir(async (dir) => {
-    const r = await runScript('run-with-profile.ts', {
+    const r = await runScript('session-diff.ts', {
       stdin: '{}', cwd: dir, env: PIPE_ENV,
-      args: ['standard,strict', 'scripts/session-diff.ts'],
     });
     expect(r.exitCode).toBe(0);
   }));
 
   test('session-diff sidecar', withGitDir(async (dir) => {
-    const r = await runScript('run-with-profile.ts', {
+    const r = await runScript('session-diff.ts', {
       stdin: '{}', cwd: dir, env: PIPE_ENV,
-      args: ['standard,strict', 'scripts/session-diff.ts'],
     });
     expect(r.exitCode).toBe(0);
     const sidecar = hermit(dir, 'state', 'session-diff.json');
@@ -254,9 +233,8 @@ describe('session-diff', () => {
   }));
 
   test('session-diff (empty stdin)', withGitDir(async (dir) => {
-    const r = await runScript('run-with-profile.ts', {
+    const r = await runScript('session-diff.ts', {
       stdin: '', cwd: dir, env: PIPE_ENV,
-      args: ['standard,strict', 'scripts/session-diff.ts'],
     });
     expect(r.exitCode).toBe(0);
   }));

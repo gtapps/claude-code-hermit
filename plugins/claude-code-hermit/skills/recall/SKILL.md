@@ -6,7 +6,7 @@ description: "Full-text retrieval over session reports, compiled artifacts, and 
 
 Retrieve relevant history from session reports, compiled artifacts, and proposals by keyword search.
 
-**Not `/hermit-brain`** — that synthesizes a snapshot of the hermit's current state (fragile zones, stale proposals, recent learnings). **Not `/knowledge`** — that lints knowledge directory structure for stale or missing-type artifacts. This skill does full-text retrieval: you give it a query, it returns matching history with `file:line` snippets.
+**Not `/hermit-health`** — that synthesizes a snapshot of the hermit's current state (alerts, routines, fragile zones, stale proposals, recent learnings). This skill does full-text retrieval: you give it a query, it returns matching history with `file:line` snippets.
 
 ## Step 0 — Channel reply
 

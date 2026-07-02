@@ -1,6 +1,6 @@
 ---
 name: ha-safety-audit
-description: Audit all live Home Assistant automations and scripts against the safety policy. Catches policy drift from entities added via the HA UI that bypassed this plugin's safety gate. Runs weekly as a scheduled check via reflect-scheduled-checks.
+description: Audit all live Home Assistant automations and scripts against the safety policy. Catches policy drift from entities added via the HA UI that bypassed this plugin's safety gate. Runs weekly as a scheduled check via reflect --scheduled-checks.
 allowed-tools:
   - Bash
   - Read
@@ -19,7 +19,7 @@ Violations listed in `.claude-code-hermit/compiled/acknowledged-violations.md` (
 1. Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-automations`.
 2. Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-scripts`.
 3. Each command writes JSON + markdown artifacts under `.claude-code-hermit/raw/audit-ha-safety-*` and `.claude-code-hermit/raw/audit-ha-script-safety-*` and prints a stdout findings block.
-4. Concatenate the two stdout blocks with a blank separator line and pass the result through unchanged — reflect-scheduled-checks consumes it as the scheduled check output.
+4. Concatenate the two stdout blocks with a blank separator line and pass the result through unchanged — reflect --scheduled-checks consumes it as the scheduled check output.
 
 ## Output contract
 
@@ -39,5 +39,5 @@ If no violations: `No actionable findings. (N automations scanned)` or `No actio
 
 ## Failure modes
 
-- HA unreachable → CLI exits non-zero with an error message. Treat that as "skipped, cannot audit" in reflect-scheduled-checks context; do not retry automatically.
+- HA unreachable → CLI exits non-zero with an error message. Treat that as "skipped, cannot audit" in reflect --scheduled-checks context; do not retry automatically.
 - No automations or scripts configured → `No actionable findings. (0 automations/scripts scanned)` — not an error.

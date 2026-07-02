@@ -238,7 +238,7 @@ The skill name format is `/<plugin-id>:<skill-id>`. Parse the plugin-id as the t
 
 After adding or updating any entries, remind the operator: "Run `/claude-code-hermit:hermit-routines load` to activate routines in the current session."
 
-**Scheduled checks registration**: `config.scheduled_checks` is an array of periodic skill entries that the `scheduled-checks` routine (via `reflect-scheduled-checks`) invokes on a cadence and funnels through the proposal pipeline. For each entry below, check whether an existing record has the same `id`. If not, append it — no prompt needed, all three are safe read-only analyses.
+**Scheduled checks registration**: `config.scheduled_checks` is an array of periodic skill entries that the `scheduled-checks` routine (via `reflect --scheduled-checks`) invokes on a cadence and funnels through the proposal pipeline. For each entry below, check whether an existing record has the same `id`. If not, append it — no prompt needed, all three are safe read-only analyses.
 
 ```json
 {"id": "ha-patterns",            "plugin": "claude-code-homeassistant-hermit", "skill": "claude-code-homeassistant-hermit:ha-analyze-patterns",        "enabled": true, "trigger": "interval", "interval_days": 7}

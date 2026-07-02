@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'plugins/claude-code-hermit/**'
+      - '.claude/skills/simplify/**'
       # Cross-plugin invariants in hooks.contract.test.ts walk every plugin's
       # manifest and the marketplace, so those paths must trigger this suite too.
       - 'plugins/*/.claude-plugin/**'
@@ -16,6 +17,7 @@ on:
   pull_request:
     paths:
       - 'plugins/claude-code-hermit/**'
+      - '.claude/skills/simplify/**'
       # Cross-plugin invariants in hooks.contract.test.ts walk every plugin's
       # manifest and the marketplace, so those paths must trigger this suite too.
       - 'plugins/*/.claude-plugin/**'
@@ -48,5 +50,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.3.11'
+      # The repo-internal /simplify mirror must stay byte-identical to the shipped skill.
+      - name: Guard .claude/skills/simplify mirror
+        run: diff -r .claude/skills/simplify plugins/claude-code-hermit/skills/simplify
       - run: bun test
         working-directory: plugins/claude-code-hermit

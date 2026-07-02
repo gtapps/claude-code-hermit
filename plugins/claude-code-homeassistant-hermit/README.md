@@ -44,7 +44,7 @@ claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scop
 
 **Routines that respect your day.** Morning and evening briefs (morning off until you confirm the house profile; evening confirms security before night), daily context refresh, weekly safety audit, daily integration-health and automation-error checks. Need a different cadence or a new routine? Just ask — hermit sets it up.
 
-**Everything is searchable.** HA sessions, proposals, pattern findings, and cost tracking land in your hermit's compiled knowledge and auto-memory — surfaceable on demand via `/hermit-brain` and `/hermit-health`, greppable from the state tree.
+**Everything is searchable.** HA sessions, proposals, pattern findings, and cost tracking land in your hermit's compiled knowledge and auto-memory — surfaceable on demand via `/hermit-health`, greppable from the state tree.
 
 ---
 

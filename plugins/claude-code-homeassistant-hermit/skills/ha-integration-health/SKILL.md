@@ -1,6 +1,6 @@
 ---
 name: ha-integration-health
-description: Detect dropped HA integrations by computing per-domain unavailable-entity ratios from the latest context snapshot. Flags domains where most entities are unavailable, suggesting the integration lost its connection. Runs daily as a scheduled check via reflect-scheduled-checks.
+description: Detect dropped HA integrations by computing per-domain unavailable-entity ratios from the latest context snapshot. Flags domains where most entities are unavailable, suggesting the integration lost its connection. Runs daily as a scheduled check via reflect --scheduled-checks.
 allowed-tools:
   - Bash
 ---
@@ -27,7 +27,7 @@ The CLI:
 
 ## Output contract
 
-reflect-scheduled-checks routes the findings block through the proposal pipeline. The stdout shape is fixed:
+reflect --scheduled-checks routes the findings block through the proposal pipeline. The stdout shape is fixed:
 
 ```
 ha-integration-health findings — <date>

@@ -1,6 +1,6 @@
 ---
 name: session-close
-description: Closes the current work session with a structured handoff. Archives the session report and prepares for the next session. Activates on messages like "I'm done", "wrap it up", "that's it for now", "done for today", "close the session".
+description: Closes the current work session with a structured handoff. Archives the session report and prepares for the next session. Activates on messages like "I'm done", "wrap it up", "that's it for now", "done for today", "close the session". Also runs the midnight `--scheduled` decision (close now, queue, or noop) fired by the `daily-auto-close` routine.
 ---
 # Session Close
 
@@ -42,6 +42,19 @@ Next Start Point: Fresh start.
 Write `Auto-closed by heartbeat.` as the first line of `## Overview` in the session report.
 
 If the archive in step 8 fails, leave `pending-close.json` in place so the next heartbeat tick retries the drain — skip step 9.
+
+### Scheduled decision path (`--scheduled`)
+
+Invoked by the `daily-auto-close` routine at `0 0 * * *` (local) — the midnight decision layer that decides whether to close now, queue, or do nothing. The routine prompt is prefixed `[hermit-routine:daily-auto-close]` so `scripts/record-operator-action.ts` does not bump `state/last-operator-action.json` (load-bearing: this path reads that clock to decide whether to close now or queue).
+
+1. Read `state/runtime.json` (`session_state`), `state/last-operator-action.json` (`at`), and whether `state/pending-close.json` exists.
+2. Branch:
+   - **a. `session_state` not in `{in_progress, idle}`** — nothing to close. If `pending-close.json` exists, delete it (`rm -f .claude-code-hermit/state/pending-close.json` — stale flag from a prior session that already closed). Stop: do not notify the operator, do not write to `routine-metrics.jsonl`.
+   - **b. `session_state` in `{in_progress, idle}` AND `now - last_operator_action > 10min`** — safe lull; close directly by proceeding through the Auto-close path (`--auto`) above (steps 6–10, `Closed Via: auto`). Stop.
+   - **c. `session_state` in `{in_progress, idle}` AND `now - last_operator_action ≤ 10min`** — operator is currently active; queue. Write `state/pending-close.json` with `{"queued_at":"<now ISO>","queued_by":"daily-auto-close"}` (singleton; overwrite unconditionally). Stop. The heartbeat-precheck drain block emits `AUTO_CLOSE` on the next tick where the operator has been idle >10 minutes.
+3. If `last-operator-action.json` is absent, unreadable, or has no valid `at` timestamp: treat as "operator idle indefinitely" → take branch (b). Fail-open — better to close an arguably-active session than to leak the routine into perpetual noop.
+
+This path is intentionally silent: no operator notification on queue or drain — the `Auto-closed S-NNN` signal from the `--auto` archive is the only operator-facing output. The 10-minute lull threshold is hardcoded here and in `scripts/heartbeat-precheck.ts`.
 
 ---
 

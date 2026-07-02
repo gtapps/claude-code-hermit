@@ -15,8 +15,8 @@ After install, run `/claude-code-hermit:hatch` in the target project to create t
 
 ## Plugin Structure
 
-- `agents/` — subagent definitions (session-mgr, hermit-config-validator, proposal-triage, reflection-judge, quality-gate-judge, evolve-runner, skill-eval-runner; hermit plugins add more subagents)
-- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, pulse, brief, watch, heartbeat, daily-auto-close, hermit-routines, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, reflect-scheduled-checks, capability-brainstorm, channel-responder, channel-setup, hatch, hermit-evolve, docker-setup, docker-security, simplify, smoke-test, test-run, hermit-brain, hermit-evolution, cost-reflect, hermit-health, weekly-review, migrate, knowledge, hermit-doctor, recall
+- `agents/` — subagent definitions (session-mgr, proposal-triage, reflection-judge, evolve-runner, skill-eval-runner; hermit plugins add more subagents)
+- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, brief, watch, heartbeat, hermit-routines, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, capability-brainstorm, channel-responder, channel-setup, hatch, hermit-evolve, docker-setup, docker-security, simplify, smoke-test, hermit-evolution, cost-reflect, hermit-health, weekly-review, migrate, hermit-doctor, recall
 - `hooks/hooks.json` — hook registrations
 - `scripts/` — hook implementation scripts + boot scripts (hermit-start.ts, hermit-stop.ts)
 - `state-templates/` — templates copied into target projects by the `hatch` skill
@@ -30,7 +30,7 @@ After install, run `/claude-code-hermit:hatch` in the target project to create t
 
 ## Subagent delegation
 
-The shipped hermit applies a **main-as-orchestrator** pattern: the long-lived main session delegates heavy sub-steps to isolated-context subagents and keeps only the verdict. Delegate a sub-step when its intermediate context dwarfs its conclusion, it needs no operator contact mid-flight, and main needs the result, not the artifact. Subagents inherit `CLAUDE.md`/`CLAUDE.local.md` (a fixed re-seed cost per dispatch), so it's a net win only above that noise threshold, not a blanket rule. A delegated sub-step returns a verdict/`operator_message`; main owns `AskUserQuestion` and operator notification. Illustrative dispatchers (not exhaustive): `heartbeat`/`reflect`/`brief`/`weekly-review`/`hermit-brain`/`hermit-evolution` → `skill-eval-runner`; `hermit-evolve` → `evolve-runner`; `proposal-act` → `general-purpose` for the accept-flow tail. The operator-facing version is in `state-templates/CLAUDE-APPEND.md` § Rules.
+The shipped hermit applies a **main-as-orchestrator** pattern: the long-lived main session delegates heavy sub-steps to isolated-context subagents and keeps only the verdict. Delegate a sub-step when its intermediate context dwarfs its conclusion, it needs no operator contact mid-flight, and main needs the result, not the artifact. Subagents inherit `CLAUDE.md`/`CLAUDE.local.md` (a fixed re-seed cost per dispatch), so it's a net win only above that noise threshold, not a blanket rule. A delegated sub-step returns a verdict/`operator_message`; main owns `AskUserQuestion` and operator notification. Illustrative dispatchers (not exhaustive): `heartbeat`/`reflect`/`brief`/`weekly-review`/`hermit-evolution` → `skill-eval-runner`; `hermit-evolve` → `evolve-runner`; `proposal-act` → `general-purpose` for the accept-flow tail. The operator-facing version is in `state-templates/CLAUDE-APPEND.md` § Rules.
 
 ## Per-Project State
 

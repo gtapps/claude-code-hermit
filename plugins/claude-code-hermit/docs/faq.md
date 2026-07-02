@@ -118,8 +118,6 @@ Rule of thumb: *what the project is* → OPERATOR.md. *What Claude should do* �
 
 **Watch** (`/watch`) is a session-scoped background watcher you set up for specific concerns (e.g., "watch for CI failures every 5 minutes"). Watches are task-specific and stop when the session closes.
 
-See [Skills Reference](skills.md) for the heartbeat/watch comparison table.
-
 ---
 
 ## How does memory work?
@@ -149,7 +147,7 @@ Both modes run the heartbeat if enabled. Change with `/hermit-settings idle`.
 
 ## What are scheduled checks?
 
-Automatic invocations of skills on a cadence — either from installed plugins (e.g., `claude-md-management:claude-md-improver`) or from your own hermit. They run during idle reflection at configurable intervals and must conform to the [scheduled-check contract](../skills/reflect-scheduled-checks/SKILL.md) (idempotent, returns findings or nothing, no self-scheduling). Configure with `/hermit-settings scheduled-checks`. See [Config Reference](config-reference.md#scheduled_checks) for the schema.
+Automatic invocations of skills on a cadence — either from installed plugins (e.g., `claude-md-management:claude-md-improver`) or from your own hermit. They run during idle reflection at configurable intervals and must conform to the [scheduled-check contract](../skills/reflect/SKILL.md) (idempotent, returns findings or nothing, no self-scheduling). Configure with `/hermit-settings scheduled-checks`. See [Config Reference](config-reference.md#scheduled_checks) for the schema.
 
 ---
 

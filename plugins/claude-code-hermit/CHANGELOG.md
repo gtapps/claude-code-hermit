@@ -2,6 +2,38 @@
 
 ## [Unreleased]
 
+### Removed
+- **skills: `pulse`, `hermit-brain`, `daily-auto-close`, `reflect-scheduled-checks`, `knowledge`, `test-run`** — folded into surviving skills or dropped (see Changed); the core skill surface goes 34 → 28.
+- **agents: `hermit-config-validator`, `quality-gate-judge`** — config validation is already covered by the `validate-config.ts` PostToolUse hook and `hermit-doctor`; the balanced quality-gate RUN/SKIP decision is now inline in `proposal-act`. 7 → 5 agents.
+- **scripts/run-with-profile.ts** — vestigial hook wrapper; no hook invoked it, and profile-gated hooks already self-gate on `AGENT_HOOK_PROFILE`.
+- **docs/skills.md** — hand-maintained skill listing that had drifted out of date; the plugin `CLAUDE.md` is the canonical skill list.
+
+### Changed
+- **brief absorbs pulse** — the no-flag path now serves live session status (per-session cost from `sessions/.status.json`, active-alert pointer) and gains pulse's `status`/`progress`/`what are you working on` triggers. Preserves pulse's blocked-session `/debug` hint and idle cumulative-cost source (`cost-summary.md`).
+- **hermit-health absorbs hermit-brain and the knowledge lint** — health now reports fragile zones, stale accepted proposals, and recent learnings alongside infra (runner-free), and runs `knowledge-lint.ts` on demand under the `check knowledge`/`lint knowledge` triggers. Runs on `model: haiku` (restoring the tier the absorbed `knowledge` skill used) — the report is mechanical aggregation, so the cheaper model holds for the `check knowledge` path.
+- **session-close gains `--scheduled`** — the midnight close-now/queue/noop decision formerly in `daily-auto-close`; the `daily-auto-close` routine now invokes `/claude-code-hermit:session-close --scheduled` (routine `id` unchanged).
+- **reflect gains `--scheduled-checks`** — the interval-check runner formerly in `reflect-scheduled-checks`, reusing reflect's evidence/triage/micro-approval gates; the `scheduled-checks` routine now invokes `/claude-code-hermit:reflect --scheduled-checks`.
+- **proposal-act balanced quality gate is inline** — the RUN/SKIP decision (formerly the `quality-gate-judge` agent) is now made in-skill at step e.5 and in the dispatched subagent.
+- **hermit-exec.sh drops the `.py` fallback** — no Python scripts ship.
+
+### Changed (repo, not shipped)
+- **README + CLAUDE.md** — list `laravel-forge-hermit` in the pre-built hermits; drop the removed `/hermit-brain` and `/pulse` from the on-demand skills list (their scope now reads under `/hermit-health` and `/brief`).
+- **CI** — new `test-scribe.yml` runs hermit-scribe's suite; `test-hooks.yml` gains a guard that the repo-internal `/simplify` mirror stays byte-identical to the shipped skill.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Migrate merged/renamed routine skills.** In `.claude-code-hermit/config.json`, for every entry in `routines` (and any `scheduled_checks` entry that names a skill), rewrite the `skill` field if it references a removed skill — keep the entry's `id`, `schedule`, `model`, and flags unchanged:
+   - `claude-code-hermit:daily-auto-close` → `claude-code-hermit:session-close --scheduled`
+   - `claude-code-hermit:reflect-scheduled-checks` → `claude-code-hermit:reflect --scheduled-checks`
+   - `claude-code-hermit:pulse` → `claude-code-hermit:brief`
+   - `claude-code-hermit:hermit-brain` → `claude-code-hermit:hermit-health`
+   - `claude-code-hermit:knowledge` → `claude-code-hermit:hermit-health`
+2. **Scrub the stale permission.** Remove `Bash(bun */scripts/run-with-profile.ts*)` from the target settings file's `permissions.allow` if present (Step 8 already lists this removal). No new permissions are required.
+3. **No config-key additions** this release.
+
+Operators who don't want the merged behavior can keep using the old natural-language triggers — `status`/`progress` reach `brief`; `what's stuck`/`recent learnings` reach `hermit-health`; `check knowledge` reaches `hermit-health`.
 ### Added
 - **contract tests: version-triad and marketplace sync** — the sibling manifest walk in `hooks.contract.test.ts` now also asserts each domain plugin's `plugin.json` `dependencies[claude-code-hermit]` base version matches its `hermit-meta.json` `required_core_version`, and a new test enforces `marketplace.json` ↔ `plugin.json` name/version parity in both directions. Runs under `test-hooks.yml`.
 

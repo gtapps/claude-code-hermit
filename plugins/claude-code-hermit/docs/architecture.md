@@ -85,8 +85,6 @@ SHELL.md tasks,  status,   S-NNN-REPORT.md,
 | `evolve-runner`          | Sonnet | 50        | Runs the hermit-evolve upgrade in isolation                                       |
 | `proposal-triage`        | Haiku  | —         | Pre-creation gate: deduplicates proposals, applies three-condition rule           |
 | `reflection-judge`       | Sonnet | —         | Post-reflect validator: verifies cross-session evidence citations before queuing  |
-| `hermit-config-validator`| Haiku  | —         | Lightweight config.json validator: keys, types, routine times, channel structure  |
-| `quality-gate-judge`     | Haiku  | —         | Decides whether `/simplify` runs at step e.5 of the proposal-act accept flow     |
 
 Tools: Read, Write, Edit, Bash, Glob, Grep. No web access. Uses `memory: project` for accumulated knowledge across sessions.
 
@@ -96,9 +94,9 @@ Hermits extend this layer with specialized agents when they ship them; the activ
 
 ## Layer 4: Skills and Hooks
 
-### Skills (26)
+### Skills
 
-See [Skills Reference](skills.md) for the full list.
+Skills are namespaced `/claude-code-hermit:*`; the full set is listed in the plugin's `CLAUDE.md` (Plugin Structure).
 
 ### Hooks
 
@@ -116,7 +114,7 @@ See [Skills Reference](skills.md) for the full list.
 | Session evaluator   | Stop         | standard+ | Validates SHELL.md quality, detects zombie/stale/bloat |
 | Stop pipeline       | Stop         | all       | Cost tracking, compact suggestion, session diff, evaluation, heartbeat |
 
-Hermits may add hooks at `strict` (e.g., git-push-guard). Use `run-with-profile.ts` for profile-gated execution.
+Hermits may add hooks at `strict` (e.g., git-push-guard). Profile-gated hooks check `AGENT_HOOK_PROFILE` internally and return early when the active profile doesn't match.
 
 ---
 

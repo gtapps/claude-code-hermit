@@ -69,7 +69,7 @@ test('step-9 keys preserved: other keys untouched after bump', withProj(async (d
     _hermit_versions: { 'claude-code-hermit': '1.2.5' },
     model: 'sonnet',
     reflection: { graduation_min_sessions: 1 },
-    routines: [{ id: 'pulse' }],
+    routines: [{ id: 'brief' }],
   }, null, 2));
 
   finalize({ hermitDir: dir, core: '1.2.6', pluginRoot: PR, siblings: [] });
@@ -78,7 +78,7 @@ test('step-9 keys preserved: other keys untouched after bump', withProj(async (d
   expect(onDisk._hermit_versions['claude-code-hermit']).toBe('1.2.6');
   expect(onDisk.model).toBe('sonnet');
   expect(onDisk.reflection).toEqual({ graduation_min_sessions: 1 });
-  expect(onDisk.routines).toEqual([{ id: 'pulse' }]);
+  expect(onDisk.routines).toEqual([{ id: 'brief' }]);
 }));
 
 // -------------------------------------------------------
