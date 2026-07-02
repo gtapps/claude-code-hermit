@@ -41,16 +41,16 @@ Run before anything else. Abort the release if any step fails.
    Abort on any error other than `Unrecognized keys` — that one means an incomplete hermit-meta.json migration; fix the migration elsewhere, then resume. Background on the migration lives in each plugin's `CONTRIBUTING.md`.
 
 2. **Run test suites for the target plugin.** Detect the convention and dispatch:
-   - If `plugins/<slug>/tests/run-all.sh` exists (bash entrypoint, used by core hermit):
+   - If `plugins/<slug>/tests/run-all.sh` exists (bash entrypoint, used by dev/fitness/scribe/forge):
      ```bash
      bash plugins/<slug>/tests/run-all.sh 2>&1
      ```
-   - Else if `plugins/<slug>/tests/conftest.py` or any `plugins/<slug>/tests/test_*.py` exists (pytest convention, used by HA hermit):
+   - Else if any `plugins/<slug>/tests/*.test.ts` exists (bun entrypoint, used by core/HA):
      ```bash
-     cd plugins/<slug> && .venv/bin/pytest tests/ -v 2>&1
+     cd plugins/<slug> && bun test 2>&1
      ```
-     If `.venv/bin/pytest` is missing, abort the release with: `Plugin uses pytest but plugins/<slug>/.venv/bin/pytest is missing — run plugin's hatch/install first.` Do not silently skip — releases must run the suite.
-   - Else: no recognized test convention → skip this step and note it in the release report.
+   - Else if a `plugins/<slug>/tests/` dir exists but neither marker matched: abort the release with `Plugin '<slug>' has a tests/ dir but no recognized convention (run-all.sh or *.test.ts) — fix the dispatch before releasing.` Do not silently skip.
+   - Else (no `tests/` dir at all): skip this step and note it in the release report.
 
    If any test fails, stop and fix before releasing.
 

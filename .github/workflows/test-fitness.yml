@@ -1,18 +1,18 @@
-name: Test Forge
+name: Test Fitness Hermit
 
 on:
   push:
     branches: [main]
     paths:
-      - 'plugins/laravel-forge-hermit/**'
-      - '.github/workflows/test-forge.yml'
+      - 'plugins/claude-code-fitness-hermit/**'
+      - '.github/workflows/test-fitness.yml'
       - 'package.json'
       - 'bun.lock'
       - 'tsconfig.json'
   pull_request:
     paths:
-      - 'plugins/laravel-forge-hermit/**'
-      - '.github/workflows/test-forge.yml'
+      - 'plugins/claude-code-fitness-hermit/**'
+      - '.github/workflows/test-fitness.yml'
       - 'package.json'
       - 'bun.lock'
       - 'tsconfig.json'
@@ -32,18 +32,11 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: plugins/laravel-forge-hermit
+        working-directory: plugins/claude-code-fitness-hermit
     steps:
       - uses: actions/checkout@v4
-      # Plugin pins php ^8.5 (composer.json platform) — the runner must match.
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.5'
-          extensions: json, curl
-      - name: Install Forge SDK (composer)
-        run: composer install --no-dev --no-interaction --no-progress --working-dir=php
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.3.11'
-      - name: Run test suite (PHP unit + hook + skill-structure)
+      - name: Run test suite
         run: bash tests/run-all.sh

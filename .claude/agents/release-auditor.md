@@ -82,17 +82,20 @@ Abort with: `Plugin 'plugins/<slug>/' not found. Available: <comma-separated slu
 
 ### 7. Dependency version triad
 
-For domain plugins, the three core-version fields (`required_core_version`, `requires["claude-code-hermit"]`, `dependencies[].version` for `claude-code-hermit`) must reference the same base SemVer. Operators may differ (`>=` for the runtime check in `doctor-check.js`, `^` for the resolver) — but the underlying version number must match. CLAUDE.md requires all three be updated together; this check enforces it.
+For domain plugins, the three core-version fields (`required_core_version`, `requires["claude-code-hermit"]`, `dependencies[].version` for `claude-code-hermit`) must reference the same base SemVer. Operators may differ (`>=` for the runtime check in `doctor-check.ts`, `^` for the resolver) — but the underlying version number must match. CLAUDE.md requires all three be updated together; this check enforces it.
 
 - **Skip silently** if `<slug> == "claude-code-hermit"` (core has no self-dependency).
-- Read all three values in one `jq` call:
+- The three values live in two files: `required_core_version` and `requires` are in `hermit-meta.json`; `dependencies` is in `plugin.json`. Read them with two `jq` calls:
   ```bash
-  read -r REQ_CORE REQUIRES DEPS < <(jq -r '[
+  META=plugins/<slug>/.claude-plugin/hermit-meta.json
+  PJ=plugins/<slug>/.claude-plugin/plugin.json
+  read -r REQ_CORE REQUIRES < <(jq -r '[
     (.required_core_version // ""),
-    (.requires["claude-code-hermit"] // ""),
-    (.dependencies[]? | select(.name=="claude-code-hermit") | .version)
-  ] | @tsv' plugins/<slug>/.claude-plugin/plugin.json)
+    (.requires["claude-code-hermit"] // "")
+  ] | @tsv' "$META")
+  DEPS=$(jq -r '.dependencies[]? | select(.name=="claude-code-hermit") | .version' "$PJ")
   ```
+  If `$META` does not exist, FAIL with `dep triad: hermit-meta.json missing for domain plugin '<slug>'`.
 - If any of the three is empty: FAIL with `dep triad: missing field — required_core_version='<v>', requires.claude-code-hermit='<v>', dependencies.claude-code-hermit='<v>'`.
 - Strip leading operator characters character-by-class from each to get the base version (e.g., `^1.0.18` → `1.0.18`). `sed 's/^[<>=^~!]*//'` covers all SemVer range prefixes including `!=`.
 - If the three base versions are not identical: FAIL printing all three values verbatim (operator + version) so the human can see which field drifted.

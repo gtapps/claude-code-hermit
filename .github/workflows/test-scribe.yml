@@ -1,4 +1,4 @@
-name: Test Scribe
+name: Test Scribe Hermit
 
 on:
   push:
@@ -6,12 +6,28 @@ on:
     paths:
       - 'plugins/hermit-scribe/**'
       - '.github/workflows/test-scribe.yml'
+      - 'package.json'
+      - 'bun.lock'
+      - 'tsconfig.json'
   pull_request:
     paths:
       - 'plugins/hermit-scribe/**'
       - '.github/workflows/test-scribe.yml'
+      - 'package.json'
+      - 'bun.lock'
+      - 'tsconfig.json'
 
 jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.11'
+      - run: bun install --frozen-lockfile
+      - run: bunx tsc
+
   test:
     runs-on: ubuntu-latest
     defaults:
@@ -22,5 +38,5 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.3.11'
-      - name: Run test suite (CLI contract)
+      - name: Run test suite
         run: bash tests/run-all.sh

@@ -1190,6 +1190,8 @@ describe('doctor-check', () => {
 // Sibling manifest invariant (live monorepo walk)
 // -------------------------------------------------------
 
+const stripOp = (v: string) => v.replace(/^[<>=^~!]+/, '');
+
 test('sibling manifests: required_core_version vs requires consistency', () => {
   const pluginsDir = path.join(MONOREPO_ROOT, 'plugins');
   for (const slug of fs.readdirSync(pluginsDir)) {
@@ -1203,6 +1205,48 @@ test('sibling manifests: required_core_version vs requires consistency', () => {
       expect({ slug, required_core_version: rcv })
         .toEqual({ slug, required_core_version: req });
     }
+  }
+});
+
+// The version triad spans two files: required_core_version lives in
+// hermit-meta.json, the resolver dependency in plugin.json. The auditor's
+// check 7 enforces this at release time; this pins it in CI so drift reddens.
+test('sibling manifests: hermit-meta required_core_version vs plugin.json dependency base', () => {
+  const pluginsDir = path.join(MONOREPO_ROOT, 'plugins');
+  for (const slug of fs.readdirSync(pluginsDir)) {
+    const metaPath = path.join(pluginsDir, slug, '.claude-plugin', 'hermit-meta.json');
+    if (!fs.existsSync(metaPath)) continue;
+    const rcv = readJson(metaPath).required_core_version;
+    if (!rcv) continue;
+    const pj = readJson(path.join(pluginsDir, slug, '.claude-plugin', 'plugin.json'));
+    const dep = (pj.dependencies ?? []).find((d: { name: string }) => d.name === 'claude-code-hermit');
+    expect({ slug, dependency: dep?.version }).not.toEqual({ slug, dependency: undefined });
+    expect({ slug, base: stripOp(dep.version) }).toEqual({ slug, base: stripOp(rcv) });
+  }
+});
+
+test('marketplace.json and plugin dirs are in sync (name + version, bidirectional)', () => {
+  const root = MONOREPO_ROOT;
+  const pluginsDir = path.join(root, 'plugins');
+  const marketplace = readJson(path.join(root, '.claude-plugin', 'marketplace.json'));
+  const listed = new Set<string>();
+
+  for (const entry of marketplace.plugins) {
+    // The source path is the canonical dir pointer; entry.name need not equal it.
+    const dir = path.basename(entry.source);
+    listed.add(dir);
+    const pjPath = path.join(pluginsDir, dir, '.claude-plugin', 'plugin.json');
+    expect({ name: entry.name, hasManifest: fs.existsSync(pjPath) })
+      .toEqual({ name: entry.name, hasManifest: true });
+    const pj = readJson(pjPath);
+    expect({ name: entry.name, version: entry.version })
+      .toEqual({ name: pj.name, version: pj.version });
+  }
+
+  for (const slug of fs.readdirSync(pluginsDir)) {
+    if (!fs.existsSync(path.join(pluginsDir, slug, '.claude-plugin', 'plugin.json'))) continue;
+    expect({ slug, listedInMarketplace: listed.has(slug) })
+      .toEqual({ slug, listedInMarketplace: true });
   }
 });
 

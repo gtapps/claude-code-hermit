@@ -17,7 +17,7 @@ Update a fleet plugin's minimum core version in all three canonical locations.
 ## Background: why three places?
 
 Per this monorepo's conventions (`CLAUDE.md` → Conventions), the core version requirement lives in:
-1. `plugins/<slug>/.claude-plugin/hermit-meta.json` → `required_core_version` — **authoritative**, read by `doctor-check.js` at runtime to detect incompatible siblings
+1. `plugins/<slug>/.claude-plugin/hermit-meta.json` → `required_core_version` — **authoritative**, read by `doctor-check.ts` at runtime to detect incompatible siblings
 2. `plugins/<slug>/.claude-plugin/hermit-meta.json` → `requires["claude-code-hermit"]` — documentation mirror
 3. `plugins/<slug>/.claude-plugin/plugin.json` → `dependencies[name=claude-code-hermit].version` — native Claude Code resolver field
 

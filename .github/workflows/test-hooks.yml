@@ -6,6 +6,10 @@ on:
     paths:
       - 'plugins/claude-code-hermit/**'
       - '.claude/skills/simplify/**'
+      # Cross-plugin invariants in hooks.contract.test.ts walk every plugin's
+      # manifest and the marketplace, so those paths must trigger this suite too.
+      - 'plugins/*/.claude-plugin/**'
+      - '.claude-plugin/marketplace.json'
       - '.github/workflows/test-hooks.yml'
       - 'package.json'
       - 'bun.lock'
@@ -14,6 +18,10 @@ on:
     paths:
       - 'plugins/claude-code-hermit/**'
       - '.claude/skills/simplify/**'
+      # Cross-plugin invariants in hooks.contract.test.ts walk every plugin's
+      # manifest and the marketplace, so those paths must trigger this suite too.
+      - 'plugins/*/.claude-plugin/**'
+      - '.claude-plugin/marketplace.json'
       - '.github/workflows/test-hooks.yml'
       - 'package.json'
       - 'bun.lock'

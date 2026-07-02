@@ -34,17 +34,11 @@ Abort with: `Plugin '<slug>' has no tests/ directory — nothing to run.`
 
 Plugins in this monorepo ship one of two test conventions. Detect and dispatch:
 
-- **Bun entrypoint**: if `plugins/<slug>/tests/*.test.ts` files exist with no `run-all.sh`, run `cd plugins/<slug> && bun test` (core hermit convention).
-- **Bash entrypoint**: if `plugins/<slug>/tests/run-all.sh` exists, run it (dev/fitness/scribe convention).
+- **Bash entrypoint**: if `plugins/<slug>/tests/run-all.sh` exists, run it (dev/fitness/scribe/forge convention).
   ```bash
   bash plugins/<slug>/tests/run-all.sh 2>&1
   ```
-
-- **Pytest**: if no `run-all.sh` but `plugins/<slug>/tests/conftest.py` or any `plugins/<slug>/tests/test_*.py` exists, use the plugin's local virtualenv (HA hermit convention).
-  ```bash
-  cd plugins/<slug> && .venv/bin/pytest tests/ -v 2>&1
-  ```
-  If `.venv/bin/pytest` does not exist, abort with: `Plugin '<slug>' uses pytest but .venv/bin/pytest is missing — run plugin's hatch/install first.`
+- **Bun entrypoint**: else if any `plugins/<slug>/tests/*.test.ts` exists, run `cd plugins/<slug> && bun test` (core/HA convention).
 
 - **Neither marker**: report `no recognized test convention` and exit with SKIP.
 
