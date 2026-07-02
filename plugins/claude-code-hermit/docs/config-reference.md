@@ -174,12 +174,16 @@ Optional. Controls domain knowledge retention and startup injection.
 | `raw_retention_days` | integer | `14` | Days before raw artifacts are archived to `raw/.archive/` by the weekly review |
 | `compiled_budget_chars` | integer | `2500` | Character budget for compiled knowledge injection at session start (range: 500–6000) |
 | `working_set_warn` | integer | `20` | Warn in weekly review when unsuperseded compiled artifact count exceeds this |
+| `channel_log_enabled` | boolean | `true` | Episodic channel-log capture (PROP-010) — set `false` to disable both capture hooks. No effect on an already-populated log; existing rows are untouched, just no new ones are added |
+| `channel_log_retention_days` | integer | `90` | Days before **already-consolidated** rows are pruned from `state/channel-log.sqlite`. Unreviewed rows are never pruned by age — only weekly-review consolidation removes them from the "unreviewed" set |
 
 ```json
 "knowledge": {
   "raw_retention_days": 14,
   "compiled_budget_chars": 2500,
-  "working_set_warn": 20
+  "working_set_warn": 20,
+  "channel_log_enabled": true,
+  "channel_log_retention_days": 90
 }
 ```
 

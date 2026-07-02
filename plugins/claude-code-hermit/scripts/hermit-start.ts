@@ -91,6 +91,8 @@ const DEFAULT_CONFIG: Json = {
     compiled_budget_chars: 2500,
     working_set_warn: 20,
     archive_retention_days: null,
+    channel_log_enabled: true,
+    channel_log_retention_days: 90,
   },
   watchdog: {
     enabled: false,

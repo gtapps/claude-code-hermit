@@ -153,6 +153,7 @@ Beyond the always-on baseline above, `/claude-code-hermit:docker-security` is an
 - **Egress filtering is opt-in.** Bridge networking isolates from localhost but the container can still reach the internet by default. A successful prompt injection can exfiltrate data to external hosts. **Mitigation available**: `/claude-code-hermit:docker-security` adds LAN containment + DNS policy via a firewall sidecar with kernel-level port-53 redirect for real enforcement. **Remaining gap**: direct public-IP egress (hardcoded IPs, no DNS) is not blocked even with the wizard — v1.1 may add nftset-driven IP allowlisting. See [Docker Security](docker-security.md).
 - **No input sanitization.** Content fetched from external APIs enters Claude's context unsanitized. Deny patterns cannot catch injection via fetched content — that's an instruction-following boundary, not a mechanical one. Future: pre-processing hook that strips known injection patterns.
 - **Deny patterns are a blocklist.** They catch commands you anticipated. Equivalent commands not on the list execute normally. Bind mount scope and network isolation are stronger defenses for novel attacks.
+- **Episodic channel-log (PROP-010) stores raw DM text locally.** `state/channel-log.sqlite` holds the operator's Discord/Telegram DM text verbatim — capture is gated by the same `channels.<source>.allowed_users` allowlist channel-responder enforces (unauthorized senders are never logged), but authorized senders' full message text is retained until weekly-review consolidation and its retention window prune it. Storage is deliberately unsanitized (fidelity for consolidation), but the `/recall` read path (`search.ts`) runs recalled text through `safeForLLM` — the same control-char/tag-impersonation defusal `channel-reply-reminder.ts` already applies to the envelope's `source`/`chat_id` — before it reaches model context. Treat it as untrusted external input regardless: it's the operator's own words, but unreviewed. The file is local-only, covered by the standard `state/` gitignore, and never committed. Disable capture with `knowledge.channel_log_enabled: false` if this tradeoff isn't wanted.
 
 ---
 
@@ -172,7 +173,7 @@ Beyond the always-on baseline above, `/claude-code-hermit:docker-security` is an
 - [ ] Heartbeat enabled
 - [ ] OPERATOR.md includes approval constraints and hard rules
 - [ ] Session reports reviewed before pushing
-- [ ] `state/` directory gitignored (contains runtime observations, not config)
+- [ ] `state/` directory gitignored (contains runtime observations, not config; also holds `channel-log.sqlite` if the episodic channel-log tier is enabled)
 - [ ] Only trusted marketplaces in `docker.recommended_plugins` (review entries periodically via `/hermit-settings docker`)
 
 ## Plugin Security

@@ -16,6 +16,7 @@ import path from 'node:path';
 import { runScript, PLUGIN_ROOT, MONOREPO_ROOT } from './helpers/run';
 import { setupWorkdir, setupGitWorkdir, fixturesDir, type Workdir } from './helpers/workdir';
 import { cidrOverlap, checkHeartbeat } from '../scripts/doctor-check';
+import { unconsolidated, dbExists } from '../scripts/lib/channel-log';
 
 // ---------- small local helpers ----------
 
@@ -398,6 +399,36 @@ describe('channel-hook', () => {
     });
     expect(r.exitCode).toBe(0);
     expect(fs.existsSync(hermit(dir, 'state', 'channel-replies.jsonl'))).toBe(false);
+  }));
+
+  // ---- Episodic capture (PROP-010) ----
+
+  test('channel-hook (capture: outbound text logged even when the channel is not yet configured)', withDir(async (dir) => {
+    write(hermit(dir, 'config.json'), '{"channels":{}}');
+    const r = await runScript('channel-hook.ts', {
+      stdin: '{"tool_name":"mcp__discord__reply","tool_input":{"chat_id":"999","text":"hi from bot"}}', cwd: dir,
+    });
+    expect(r.exitCode).toBe(0);
+    const rows = unconsolidated(hermit(dir)).rows;
+    expect(rows.length).toBe(1);
+    expect(rows[0]).toMatchObject({ source: 'discord', chat_id: '999', direction: 'out', text: 'hi from bot' });
+  }));
+
+  test('channel-hook (capture: channel_log_enabled:false -> no DB created)', withDir(async (dir) => {
+    write(hermit(dir, 'config.json'), '{"knowledge":{"channel_log_enabled":false}}');
+    await runScript('channel-hook.ts', {
+      stdin: '{"tool_name":"mcp__discord__reply","tool_input":{"chat_id":"999","text":"hi"}}', cwd: dir,
+    });
+    expect(dbExists(hermit(dir))).toBe(false);
+  }));
+
+  test('channel-hook (capture: missing text field -> no crash, no capture)', withDir(async (dir) => {
+    write(hermit(dir, 'config.json'), '{"channels":{}}');
+    const r = await runScript('channel-hook.ts', {
+      stdin: '{"tool_name":"mcp__discord__reply","tool_input":{}}', cwd: dir,
+    });
+    expect(r.exitCode).toBe(0);
+    expect(dbExists(hermit(dir))).toBe(false);
   }));
 });
 
@@ -839,6 +870,52 @@ describe('channel-reply-reminder', () => {
     expect(r.stdout.trim()).not.toBe('');
     expect(r.stdout).not.toContain('<system-reminder>');
     expect(r.stdout).toContain('[system-reminder]');
+  }));
+
+  // ---- Episodic capture (PROP-010) ----
+
+  test('channel-reply-reminder (capture: no config -> accept-all, message logged with full fields)', withDir(async (dir) => {
+    const r = await run('<channel source="discord" chat_id="123" message_id="M1" user="U1" ts="2024-01-01T00:00:00.000Z">hello world</channel>', dir);
+    expect(r.stdout).toContain('mcp__plugin_discord_discord__reply'); // reminder still fires
+    const rows = unconsolidated(hermit(dir)).rows;
+    expect(rows.length).toBe(1);
+    expect(rows[0]).toMatchObject({
+      source: 'discord', chat_id: '123', direction: 'in', sender: 'U1', message_id: 'M1',
+      text: 'hello world', ts: '2024-01-01T00:00:00.000Z',
+    });
+  }));
+
+  test('channel-reply-reminder (capture: allowed_users set, sender not listed -> reminder fires, no log)', withDir(async (dir) => {
+    write(hermit(dir, 'config.json'), '{"channels":{"discord":{"allowed_users":["ALLOWED_ID"]}}}');
+    const r = await run('<channel source="discord" chat_id="123" user="INTRUDER">nope</channel>', dir);
+    expect(r.stdout).toContain('mcp__plugin_discord_discord__reply');
+    expect(unconsolidated(hermit(dir)).rows.length).toBe(0);
+  }));
+
+  test('channel-reply-reminder (capture: allowed_users set, sender listed -> logged)', withDir(async (dir) => {
+    write(hermit(dir, 'config.json'), '{"channels":{"discord":{"allowed_users":["ALLOWED_ID"]}}}');
+    await run('<channel source="discord" chat_id="123" user="ALLOWED_ID">yep</channel>', dir);
+    expect(unconsolidated(hermit(dir)).rows.length).toBe(1);
+  }));
+
+  test('channel-reply-reminder (capture: allowed_users=[] lockdown -> never logged, even with a user id)', withDir(async (dir) => {
+    write(hermit(dir, 'config.json'), '{"channels":{"discord":{"allowed_users":[]}}}');
+    await run('<channel source="discord" chat_id="123" user="ANYONE">no</channel>', dir);
+    expect(unconsolidated(hermit(dir)).rows.length).toBe(0);
+  }));
+
+  test('channel-reply-reminder (capture: channel_log_enabled:false -> no DB created at all)', withDir(async (dir) => {
+    write(hermit(dir, 'config.json'), '{"knowledge":{"channel_log_enabled":false}}');
+    await run('<channel source="discord" chat_id="123" user="U1">no</channel>', dir);
+    expect(dbExists(hermit(dir))).toBe(false);
+  }));
+
+  test('channel-reply-reminder (capture: malformed envelope -> reminder skipped, exit 0, no throw)', withDir(async (dir) => {
+    const r = await runScript('channel-reply-reminder.ts', {
+      stdin: JSON.stringify({ prompt: 'not a channel envelope at all' }), cwd: dir,
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout.trim()).toBe('');
   }));
 });
 

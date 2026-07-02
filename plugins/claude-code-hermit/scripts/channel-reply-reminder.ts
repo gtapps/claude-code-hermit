@@ -5,8 +5,17 @@ process.stdout.on('error', () => {});
 // envelope, injects an additionalContext reminder naming the exact reply tool
 // and chat_id. Operators on Discord/Telegram read the channel, not the
 // transcript; this reminder fires right before the model's next turn.
+//
+// Also captures the inbound message into the episodic channel log (PROP-010)
+// — see scripts/lib/channel-log.ts. Capture is best-effort and strictly
+// secondary to the reminder: it runs after the reminder is written, in its
+// own try/catch, and a logging failure never affects the reminder.
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { safeForLLM } from './lib/sanitize';
+import { hermitDir } from './lib/cc-compat';
+import { logMessage, isLoggingEnabled } from './lib/channel-log';
 
 type Json = any;
 
@@ -21,6 +30,27 @@ const REPLY_TOOLS: Record<string, string> = {
 
 const MAX_SOURCE_LEN = 32;
 const MAX_CHAT_ID_LEN = 128;
+
+function loadConfig(dir: string): Json | null {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Mirrors channel-responder/SKILL.md 1c: absent allowed_users → accept all
+ * (backwards compatible); [] → lockdown; otherwise the sender's user id must
+ * be present in the list. Unlike the skill's runtime check, this hook can't
+ * respond to the operator on failure — it can only choose not to log.
+ */
+function isAllowedSender(config: Json, source: string, userId: string | null): boolean {
+  const allowedUsers = config?.channels?.[source]?.allowed_users;
+  if (!Array.isArray(allowedUsers)) return true; // absent/malformed -> accept all
+  if (userId === null) return false; // can't verify identity against a configured allowlist
+  return allowedUsers.includes(userId);
+}
 
 function main(raw: string): void {
   let payload: Json;
@@ -45,10 +75,11 @@ function main(raw: string): void {
   const chatIdMatch = attrs.match(/\bchat_id="([^"]*)"/);
   if (!chatIdMatch) return;
 
-  const source = safeForLLM(
-    (sourceMatch ? sourceMatch[1] : '').slice(0, MAX_SOURCE_LEN)
-  );
-  const chatId = safeForLLM(chatIdMatch[1].slice(0, MAX_CHAT_ID_LEN));
+  const sourceRaw = sourceMatch ? sourceMatch[1] : '';
+  const chatIdRaw = chatIdMatch[1];
+
+  const source = safeForLLM(sourceRaw.slice(0, MAX_SOURCE_LEN));
+  const chatId = safeForLLM(chatIdRaw.slice(0, MAX_CHAT_ID_LEN));
 
   const tool = REPLY_TOOLS[source];
   const toolLine = tool
@@ -60,6 +91,41 @@ function main(raw: string): void {
     ` (chat_id=\`${chatId}\`). Substantive reply must go through ${toolLine}.` +
     ` Transcript/terminal output does not reach the operator.\n`
   );
+
+  // Episodic capture — best-effort, never affects the reminder above.
+  try {
+    const userMatch = attrs.match(/\buser="([^"]*)"/);
+    const messageIdMatch = attrs.match(/\bmessage_id="([^"]*)"/);
+    const tsMatch = attrs.match(/\bts="([^"]*)"/);
+
+    let body = prompt.slice(tagMatch[0].length);
+    const closeIdx = body.indexOf('</channel>');
+    if (closeIdx !== -1) body = body.slice(0, closeIdx);
+    body = body.trim();
+    if (!body) return;
+
+    const dir = hermitDir();
+    const config = loadConfig(dir);
+    if (!isLoggingEnabled(config)) return;
+
+    const userId = userMatch ? userMatch[1] : null;
+    if (!isAllowedSender(config, sourceRaw, userId)) return;
+
+    const result = logMessage(dir, {
+      source: sourceRaw,
+      chat_id: chatIdRaw,
+      direction: 'in',
+      sender: userId,
+      message_id: messageIdMatch ? messageIdMatch[1] : null,
+      text: body,
+      ts: tsMatch ? tsMatch[1] : undefined,
+    });
+    if (!result.ok) {
+      process.stderr.write(`[channel-log] inbound capture failed: ${result.error}\n`);
+    }
+  } catch (e: any) {
+    process.stderr.write(`[channel-log] inbound capture failed: ${e?.message || e}\n`);
+  }
 }
 
 try {

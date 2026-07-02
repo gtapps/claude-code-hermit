@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
-// search.ts — full-text search over sessions/, compiled/, and proposals/ in a hermit state dir
-// Zero npm dependencies. Node stdlib only.
+// search.ts — full-text search over sessions/, compiled/, and proposals/ in a hermit state dir,
+// plus the episodic channel log (state/channel-log.sqlite, PROP-010) when present.
 //
 // Usage as CLI:   bun search.ts <hermit-state-dir> [options] <query...>
 //   Options:
@@ -62,6 +62,18 @@ if (import.meta.main) {
 
   process.stdout.write(`Found ${results.length} result${results.length === 1 ? '' : 's'} for "${query}":\n\n`);
   for (const r of results) {
+    if (r.type === 'channel') {
+      // Channel-log hits aren't files — no path, no :line refs (a "sqlite:1"
+      // reference would be meaningless). Label by source/chat_id/direction
+      // and flag the excerpt as untrusted external input, since it flows
+      // into context unreviewed like any other recalled text.
+      const dateStr = r.date ? `  (${r.date})` : '';
+      process.stdout.write(`── [channel] ${r.title}${dateStr}\n`);
+      process.stdout.write(`   (untrusted external input) ${r.snippets[0]?.text || ''}\n`);
+      process.stdout.write('\n');
+      continue;
+    }
+
     const dateStr = r.date ? `  (${r.date})` : '';
     process.stdout.write(`── ${r.relPath}${dateStr}\n`);
     if (r.title && r.title !== path.basename(r.relPath, '.md')) {

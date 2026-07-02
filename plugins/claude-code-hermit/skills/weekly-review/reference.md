@@ -37,4 +37,4 @@ there are no findings, never omit the key.
 <!-- weekly-review-eval-schema:end -->
 
 The main session renders `topic_findings` as a `Topic pages:` line in the weekly channel summary
-(step 5) when non-empty, and omits the line entirely when `[]`.
+(step 6) when non-empty, and omits the line entirely when `[]`.

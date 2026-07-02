@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { safe } from './lib/sanitize';
 import { hermitDir } from './lib/cc-compat';
+import { logMessage, isLoggingEnabled } from './lib/channel-log';
 
 type Json = any;
 
@@ -9,11 +10,15 @@ type Json = any;
  * PostToolUse hook for channel reply tools (Discord, Telegram, etc.).
  *
  * Runs after any channel MCP reply tool call. Handles:
+ * - Episodic capture of the outbound reply text (PROP-010, best-effort — see
+ *   scripts/lib/channel-log.ts). Runs before the "channel configured" gate
+ *   below so replies on not-yet-configured channels are still captured.
  * - Persisting dm_channel_id from chat_id in tool input (config.json)
  * - Updating last_reply_at timestamp (state/channel-activity.json)
  * - Appending a reply event to state/channel-replies.jsonl (routine-ROI source)
  *
- * Only acts when the channel is already configured in config.json.
+ * The config-persistence steps below only act once the channel is already
+ * configured in config.json — episodic capture is the one exception.
  */
 
 const HERMIT_DIR = hermitDir();
@@ -101,6 +106,27 @@ function main() {
       if (!channelKey) return;
 
       const config = readConfig();
+
+      // Episodic capture (PROP-010) — deliberately before the "channel
+      // configured" gate below, so replies on not-yet-configured channels
+      // are still captured. Best-effort; never throws past this block.
+      try {
+        const text = input.text;
+        if (isLoggingEnabled(config) && typeof text === 'string' && text) {
+          const result = logMessage(HERMIT_DIR, {
+            source: channelKey,
+            chat_id: input.chat_id != null ? String(input.chat_id) : '',
+            direction: 'out',
+            text,
+          });
+          if (!result.ok) {
+            process.stderr.write(`[channel-log] outbound capture failed: ${result.error}\n`);
+          }
+        }
+      } catch (e: any) {
+        process.stderr.write(`[channel-log] outbound capture failed: ${e?.message || e}\n`);
+      }
+
       if (!config || !config.channels || !config.channels[channelKey]) return;
 
       let dirty = false;

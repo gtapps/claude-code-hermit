@@ -1,18 +1,24 @@
 /**
- * search.ts — full-text search lib over hermit state (sessions/, compiled/, proposals/)
- * Zero npm dependencies. Node stdlib only.
+ * search.ts — full-text search lib over hermit state: sessions/, compiled/,
+ * proposals/ (files, Node stdlib only) plus the episodic channel log
+ * (state/channel-log.sqlite, PROP-010) as a fourth source when present.
  *
  * Usage as lib:   require('./search').search(hermitDir, query, opts) => results[]
  *
- * results: Array<{ path, relPath, type, title, date, score, snippets }>
+ * results: Array<{ path, relPath, type, title, date, score, snippets, channel? }>
  *   snippets: Array<{ line, startLine, text }>: matching line plus surrounding context.
  *     line/startLine are file-relative (frontmatter offset included), so file:line resolves.
+ *     Channel-log hits (type:'channel') carry a bounded excerpt instead and set
+ *     `channel: { source, chat_id, direction, sender }` — untrusted, operator-authored
+ *     external input, not a file the printer should render a `:line` ref for.
  *
  * opts: { type?: string, since?: string (ISO date), limit?: number }
  */
 
 import path from 'node:path';
 import { globDirRecursive, readFileWithFrontmatter } from './frontmatter';
+import { searchLog } from './channel-log';
+import { safeForLLM } from './sanitize';
 
 type Json = any;
 
@@ -24,6 +30,10 @@ const MAX_SNIPPETS_PER_FILE = 3;
 const SNIPPET_MAX_CHARS = 200;
 // Soft recency half-life in days (0 days → 1.0; this many days → ~0.5)
 const RECENCY_HALF_LIFE_DAYS = 180;
+// Candidate rows pulled from the channel log before scoring/sorting
+const CHANNEL_CANDIDATE_LIMIT = 200;
+// Max chars per channel excerpt (channel text has no lines to snip around)
+const CHANNEL_EXCERPT_MAX_CHARS = 200;
 
 /**
  * Extract the best available date string from a frontmatter object.
@@ -107,6 +117,24 @@ function extractSnippets(body: string, terms: string[], lineOffset: number): Arr
 }
 
 /**
+ * Bounded excerpt centered on the first matching term, so a long channel
+ * message doesn't dump its full text (capped elsewhere at 8KB) into a result.
+ * Falls back to the leading chars when no term substring is found (FTS5
+ * tokenization can match a row our own substring scan doesn't hit exactly).
+ */
+function excerptAround(text: string, terms: string[], maxChars: number): string {
+  const lower = text.toLowerCase();
+  let idx = -1;
+  for (const t of terms) {
+    const i = lower.indexOf(t);
+    if (i !== -1 && (idx === -1 || i < idx)) idx = i;
+  }
+  if (idx === -1) return text.slice(0, maxChars).trim();
+  const start = Math.max(0, idx - Math.floor(maxChars / 2));
+  return text.slice(start, start + maxChars).trim();
+}
+
+/**
  * Full-text search over sessions/, compiled/, and proposals/ in hermitDir.
  *
  * @param {string} hermitDir - hermit state directory (e.g. .claude-code-hermit)
@@ -182,6 +210,40 @@ function search(hermitDir: string, query: string, opts?: Json): Json[] {
         date: dateStr ? dateStr.slice(0, 10) : null,
         score,
         snippets,
+      });
+    }
+  }
+
+  // Channel log — fourth source (episodic tier, PROP-010). searchLog()
+  // feature-detects the DB: no channel traffic yet → [] → this contributes
+  // nothing, matching the "inert until a channel first delivers a message"
+  // guarantee. A type filter that isn't 'channel' excludes this source
+  // entirely, same as the dirs loop above excludes non-matching fm.type.
+  if (!typeFilter || typeFilter === 'channel') {
+    const rows = searchLog(hermitDir, terms, { since: o.since, limit: CHANNEL_CANDIDATE_LIMIT });
+    for (const row of rows) {
+      // searchLog already matched this row via FTS5 (token/phrase/diacritic-fold
+      // semantics), so keep it even when our substring countHits can't re-find
+      // the term — e.g. query "foo-bar" matching stored "foo bar", or "cafe"
+      // matching "café". Floor the score at 1 so an FTS-only hit still ranks,
+      // and let excerptAround fall back to a leading slice.
+      const score = Math.max(1, countHits(row.text, terms)) * recencyBoost(row.ts);
+      const excerpt = safeForLLM(excerptAround(row.text, terms, CHANNEL_EXCERPT_MAX_CHARS));
+
+      results.push({
+        path: null,
+        relPath: `channel:${row.source}:${row.chat_id}`,
+        type: 'channel',
+        title: safeForLLM(`${row.direction === 'in' ? 'from' : 'to'} ${row.source} (${row.chat_id})`),
+        date: row.ts ? row.ts.slice(0, 10) : null,
+        score,
+        snippets: [{ line: null, startLine: null, text: excerpt }],
+        channel: {
+          source: row.source,
+          chat_id: row.chat_id,
+          direction: row.direction,
+          sender: row.sender,
+        },
       });
     }
   }

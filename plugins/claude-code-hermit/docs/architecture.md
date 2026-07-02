@@ -151,6 +151,7 @@ your-project/
 │   │   ├── reflection-state.json     # Last reflection timestamp (reflect-owned)
 │   │   ├── channel-activity.json     # Last channel interaction timestamp (channel-hook-owned)
 │   │   ├── channel-replies.jsonl     # Append-only channel reply log (channel-hook-owned)
+│   │   ├── channel-log.sqlite        # Episodic DM log + FTS5 index (PROP-010); created lazily, absent until first message
 │   │   ├── session-diff.json         # Uncommitted file tracking (session-diff-owned)
 │   │   ├── proposal-metrics.jsonl    # Append-only event log (proposal-create + proposal-act)
 │   │   ├── micro-proposals.json      # Pending micro-approvals list (reflect + channel-responder)
@@ -178,6 +179,7 @@ One writer per state file. No shared mutation bus.
 | `state/reflection-state.json`  | reflect + session (non-overlapping phases)          | heartbeat (debounce), hermit-settings (scheduled-checks display) |
 | `state/channel-activity.json`  | channel-hook.ts only                                | channel-responder, heartbeat                                  |
 | `state/channel-replies.jsonl`  | channel-hook.ts (append only)                       | reflect (routine-ROI engagement join)                         |
+| `state/channel-log.sqlite`     | channel-reply-reminder.ts + channel-hook.ts (append, via `lib/channel-log.ts`); weekly-review marks/prunes | search.ts (recall, fourth source); weekly-review consolidation |
 | `state/session-diff.json`      | session-diff.ts only                                | session-close (display)                                       |
 | `state/observations.jsonl`     | reflect + reflect-precheck + session-close (append only; `source` values: `cost-spike`, `quick-deferral`, `reflect-noticed`, `startup-drift`, `skill-correction`) | reflect (step 3b graduation), reflection-judge (§1.4 ledger verification) |
 | `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only)        | generate-summary.ts, proposal-metrics-report.ts (read-only)   |
@@ -231,9 +233,16 @@ Per-file update policies for managed files under `.claude-code-hermit/`:
 |  Owner: Agent. Lifetime: permanent.          |
 |  Archived journals. Cold-start safety net.   |
 +----------------------------------------------+
+|  state/channel-log.sqlite (PROP-010)         |
+|  Owner: Agent (hooks). Lifetime: substrate.  |
+|  Forward-only DM log — the conversational    |
+|  layer above didn't capture. Consolidated    |
+|  weekly into memory/compiled; raw rows       |
+|  pruned only after consolidation.            |
++----------------------------------------------+
 ```
 
-OPERATOR.md is human-curated — your hermit reads it but never modifies it. Auto-memory is Claude Code's built-in [persistent memory](https://code.claude.com/docs/en/sub-agents) and the primary input to learning. `compiled/` is for durable domain outputs the operator wants surfaced across sessions — distinct from auto-memory, which handles operational lessons. SHELL.md is the live working document. Reports are the journal and cold-start safety net — not the input to learning.
+OPERATOR.md is human-curated — your hermit reads it but never modifies it. Auto-memory is Claude Code's built-in [persistent memory](https://code.claude.com/docs/en/sub-agents) and the primary input to learning. `compiled/` is for durable domain outputs the operator wants surfaced across sessions — distinct from auto-memory, which handles operational lessons. SHELL.md is the live working document. Reports are the journal and cold-start safety net — not the input to learning. `channel-log.sqlite` is the episodic substrate below all of the above: it captures the operator's actual DM text (deterministically, at hook level) so a concluded channel thread survives context compaction even before anything from it gets promoted. It's feature-detected everywhere it's read — a hermit with no channel traffic never creates the file, and recall/consolidation simply see nothing from this source.
 
 The `proposal-triage` and `reflection-judge` gate agents each carry their own private `memory: project` store (at `.claude/agent-memory/<agent-name>/MEMORY.md`). These are **isolated from the operator's memory** — triage accumulates suppression-pattern heuristics, judge accumulates hollow-evidence shapes. Private memory sharpens judgment but is never the sole basis for a suppress verdict. Over-suppression is bounded by the reflect Component Health check (`state/reflection-state.json` and `state/proposal-metrics.jsonl` counters).
 

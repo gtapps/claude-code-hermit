@@ -272,6 +272,16 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
           errors.push('knowledge.archive_retention_days: must be a positive integer or null');
         }
       }
+      if (k.channel_log_enabled !== undefined) {
+        if (typeof k.channel_log_enabled !== 'boolean') {
+          errors.push('knowledge.channel_log_enabled: must be a boolean');
+        }
+      }
+      if (k.channel_log_retention_days !== undefined) {
+        if (!Number.isInteger(k.channel_log_retention_days) || k.channel_log_retention_days <= 0) {
+          errors.push('knowledge.channel_log_retention_days: must be a positive integer');
+        }
+      }
     }
   }
 

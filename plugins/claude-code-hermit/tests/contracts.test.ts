@@ -1197,6 +1197,36 @@ describe('weekly-review delegation contract', () => {
 });
 
 // ============================================================
+// weekly-review consolidation delegation contract (PROP-010)
+//
+// weekly-review dispatches the channel-log consolidation step (Step 4) to
+// skill-eval-runner, read-only — it must never write memory/compiled/the log
+// itself (agents/skill-eval-runner.md contract). Guards against: losing the
+// fully-qualified agent reference, and producer/consumer schema drift between
+// consolidation-reference.md and SKILL.md.
+// ============================================================
+
+describe('weekly-review consolidation delegation contract', () => {
+  const skill = read(path.join(SKILLS, 'weekly-review', 'SKILL.md'));
+  const refFile = read(path.join(SKILLS, 'weekly-review', 'consolidation-reference.md'));
+
+  test('SKILL.md dispatches skill-eval-runner fully-qualified with consolidation-reference.md', () => {
+    expect(skill).toContain('claude-code-hermit:skill-eval-runner');
+    expect(skill).toContain('skills/weekly-review/consolidation-reference.md');
+  });
+
+  test('schema block is byte-identical in consolidation-reference.md and SKILL.md', () => {
+    const block = (text: string) => extractBlock(text, '<!-- weekly-review-consolidation-schema:start -->', '<!-- weekly-review-consolidation-schema:end -->');
+    expect(block(refFile)).toBe(block(skill));
+  });
+
+  test('consolidation-reference.md states the runner never writes (defers to caller)', () => {
+    expect(refFile).toContain('read-only');
+    expect(refFile.toLowerCase()).toContain('never write');
+  });
+});
+
+// ============================================================
 // External-origin quarantine contract (TestExternalOriginQuarantineContract)
 //
 // Guards against the ROP-001 class of drift where a security rule is added to
