@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.16] - 2026-07-03
 
 ### Fixed
 - **brief: `cost_context.yesterday` mislabeled token magnitude (K vs M)** — a ~532M-token day rendered as `532.4K`. `reference.md` now copies the trend row's cells verbatim instead of re-deriving them. (#511)
