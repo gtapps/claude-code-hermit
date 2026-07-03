@@ -12,7 +12,7 @@ This project has the `claude-code-fitness-hermit` plugin installed. The rules be
 - Never commit real Strava tokens or credentials.
 - Never write tokens, credentials, or raw Strava user IDs to session files, proposals, or memory.
 - Never call `star-segment`, `connect-strava`, or `disconnect-strava` without explicit operator instruction.
-- Per-activity and weekly load analysis goes through `scripts/fitness-lab.ts` (via the `activity-deep-dive`, `weekly-coaching-patterns`, and `strava-data-cruncher` paths): it fetches and reduces the streams so raw time-series never enter context and the metrics stay reproducible. The MCP stream/detail tools are for ad-hoc questions only, not the standard load pipeline.
+- Per-activity and weekly load analysis goes through `scripts/fitness-lab.ts`: it fetches and reduces the streams so raw time-series never enter context and metrics stay reproducible. The MCP stream/detail tools are for ad-hoc questions only, not the standard load pipeline.
 - HR zone boundaries come from `mcp__strava__get-athlete-zones` — never hardcode numeric thresholds.
 - Records, PBs, all-time totals, counts, and cross-block comparisons depend on older activities that context or compaction may drop. Ground them in a full-history Strava query — `mcp__strava__get-athlete-stats` for all-time/YTD totals (the single authoritative call; don't sum `get-all-activities` client-side), `mcp__strava__get-all-activities` for per-activity history — or flag the number as unverified and offer to check. Recent-activity questions are fine from live context.
 
