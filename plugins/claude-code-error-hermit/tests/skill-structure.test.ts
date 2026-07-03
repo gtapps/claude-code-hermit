@@ -7,9 +7,10 @@ import { parseFrontmatter, makeReporter } from './test-utils';
 
 const SKILL_DIR = path.join(import.meta.dir, '..', 'skills');
 
-// Grows across phases: hatch (P1) → +error-triage (P2)
-// → +error-reproduce, +error-draft-fix (P3) → +error-incident-summary, +error-digest (P4).
-const SKILLS = [{ name: 'hatch', gates: 0 }];
+const SKILLS = [
+  { name: 'hatch', gates: 0 },
+  { name: 'error-triage', gates: 0 },
+];
 
 const { ok, summary } = makeReporter();
 

@@ -7,7 +7,7 @@
 // GlitchTip implements the Sentry `/api/0/` API shape, so one client covers
 // both backends. Endpoints used are the minimal set both support.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
 export interface ErrorHermitConfig {
@@ -49,24 +49,15 @@ export interface EventSummary {
 // else cwd. Mirrors forge.php projectRoot() so .env resolves the same way.
 export function projectRoot(): string {
   const proj = process.env.CLAUDE_PROJECT_DIR;
-  if (proj && safeExists(join(proj, '.claude-code-hermit'))) return proj;
+  if (proj && existsSync(join(proj, '.claude-code-hermit'))) return proj;
   let dir = process.cwd();
   for (let i = 0; i < 8; i++) {
-    if (safeExists(join(dir, '.claude-code-hermit', 'config.json'))) return dir;
+    if (existsSync(join(dir, '.claude-code-hermit', 'config.json'))) return dir;
     const parent = dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
   return process.cwd();
-}
-
-function safeExists(p: string): boolean {
-  try {
-    readFileSync(p);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 // Parse a project-root .env into a plain map. Real process.env takes precedence

@@ -15,8 +15,8 @@ if ! bun tests/skill-structure.test.ts; then
 fi
 
 echo ""
-echo "--- bun tests (hook + api client) ---"
-if ! bun test tests/hook.test.ts tests/error-api.test.ts; then
+echo "--- bun tests (hook + api client + precheck) ---"
+if ! bun test tests/hook.test.ts tests/error-api.test.ts tests/precheck.test.ts; then
   EXIT=1
 fi
 

@@ -100,9 +100,9 @@ Do not proceed until `check` reports `ok`.
 
 ## Step 5 — Drop state templates
 
-Copy any routine/ledger templates the plugin ships from `${CLAUDE_PLUGIN_ROOT}/state-templates/compiled/` into the consumer's `.claude-code-hermit/compiled/`.
+Copy the templates the plugin ships from `${CLAUDE_PLUGIN_ROOT}/state-templates/compiled/` into the consumer's `.claude-code-hermit/compiled/`. Currently: `error-noise-ledger.md` (the classification memory the `error-triage` skill maintains).
 
-For each `*.md` file present in that source directory (in v0.0.1 none ship yet — the noise ledger arrives in a later phase; this step is a no-op until then):
+For each `*.md` file present in that source directory:
 - Read the source (Read tool), check if `.claude-code-hermit/compiled/<filename>` exists.
 - **Does not exist** → write it (Write tool). Report `✓ dropped <filename>`.
 - **Already exists** → skip (never overwrite operator edits). Report `⊘ skipped <filename> (already present)`.
@@ -159,11 +159,27 @@ If already present: skip (idempotent). Use Edit.
 
 Use the `config.json` content already loaded in Step 1 (do not re-read).
 
+### 8a — Stamp version
+
 Set `_hermit_versions["claude-code-error-hermit"]` to the plugin version from Step 2 (update if present, add alongside the existing core entry if absent).
 
-Write the updated `config.json` using the Write tool (full-file replacement to guarantee valid JSON).
+### 8b — Register the watch routine
 
-> The watch routine (`error-triage`) is registered here in a later phase; v0.0.1 ships the API client and hatch only.
+In the `routines` array, check for an entry with `id: "error-triage"`. If **absent**, add it. If **present** (by `id`), skip — do not clobber operator edits (they may have retuned the schedule).
+
+```json
+{
+  "id": "error-triage",
+  "schedule": "0 * * * *",
+  "skill": "claude-code-error-hermit:error-triage",
+  "enabled": true,
+  "run_during_waiting": true
+}
+```
+
+Hourly is the default poll; the operator can retune `schedule` via `/claude-code-hermit:hermit-settings`. No `model` field — triage reads the ledger, writes state, and DMs, so it runs in-session (the precheck script, not a cheaper model, is the cost gate). No `prompt_file` — that field is not consumed by core.
+
+Write the updated `config.json` using the Write tool (full-file replacement to guarantee valid JSON).
 
 ---
 
@@ -179,15 +195,28 @@ Installation summary:
   ✓ .env: all four credentials present
   ✓ Live check: connected to {org}/{project}
   ✓ .gitignore: .env covered
+  ✓ compiled/error-noise-ledger.md: {dropped | already present}
   ✓ CLAUDE.md: Error Watch block injected (or was already present)
   ✓ knowledge-schema.md: error types added (or were already present)
-  ✓ config.json: _hermit_versions stamped
+  ✓ config.json: _hermit_versions stamped, error-triage routine registered
 
-What v0.0.1 ships:
-  bun ${CLAUDE_PLUGIN_ROOT}/scripts/error-api.ts check     — verify connectivity
-  bun ${CLAUDE_PLUGIN_ROOT}/scripts/error-api.ts issues     — list error groups
-  bun ${CLAUDE_PLUGIN_ROOT}/scripts/error-api.ts issue <id> — group detail
-  (resolve / mute are approval-gated — surface first, then --confirm)
+The watch loop:
+  Routine `error-triage` (hourly by default) runs a zero-cost precheck and
+  triages only when new error groups appear. Retune the schedule via
+  /claude-code-hermit:hermit-settings.
+
+Skills:
+  /claude-code-error-hermit:error-triage           — classify new groups (routine-driven)
+  /claude-code-error-hermit:error-reproduce        — worktree repro + failing test + bisect
+  /claude-code-error-hermit:error-draft-fix        — draft a fix on a branch (PR is approval-gated)
+  /claude-code-error-hermit:error-incident-summary — post-incident writeup
+  /claude-code-error-hermit:error-digest           — overnight digest (optional routine)
+  (resolve / mute via error-api.ts are approval-gated — surface first, then --confirm)
+
+Go always-on (recommended):
+  - Docker:     /claude-code-hermit:docker-setup
+  - Bare tmux:  .claude-code-hermit/bin/hermit-start
+  Or test the routine now: /claude-code-hermit:hermit-routines load
 
 Security reminder: .env holds a real tracker token. It is gitignored — verify before any git push.
 ```
