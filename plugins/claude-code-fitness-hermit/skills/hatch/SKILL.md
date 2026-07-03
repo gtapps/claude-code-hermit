@@ -88,6 +88,15 @@ If any value is missing or still set to `replace_me`, report which ones and loop
 
 ## Step 4 — MCP registration
 
+**Step 4.0 — Detect an ambient Strava MCP server.** The operator may already run a Strava MCP server (user-scoped, or configured by another tool). Run `claude mcp list` (Bash) and scan for a server that talks to Strava — a name containing `strava`, or an entry whose command/args reference a Strava MCP package (e.g. `strava-mcp-server`). 
+
+- **None found** → proceed to install the bundled server below (the default path).
+- **One found** → ask with `AskUserQuestion` (header: "Strava MCP"): **Reuse the existing `<name>` server** (recommended — no duplicate) / **Install the bundled `@r-huijts/strava-mcp-server`**. 
+  - **Reuse** → skip the `.mcp.json` write entirely. Record which server key the skills should target (if it is not `strava`, note in the final report that skill/settings matchers assume the key `strava`, so the operator should either rename their server to `strava` or accept that the fitness skills call `mcp__strava__*`). Continue to Step 5.
+  - **Install bundled** → proceed below.
+
+This is a local reuse-vs-install choice only — do not attempt to reconcile or edit the operator's other MCP configs.
+
 Using the four values you parsed from `.env` in Step 3 (held in working context — do not re-read .env), write the Strava MCP server entry into the project's `.mcp.json`.
 
 **Do not embed `${VAR}` placeholders — substitute literal values.** Claude Code passes MCP `env` blocks as literal environment variables to the child process; it does not expand shell variable syntax.

@@ -1,6 +1,8 @@
 ---
 name: weekly-coaching-patterns
 description: "Interval scheduled check — detects multi-session cardiac-drift trends across recent compiled activity notes. Runs weekly via the scheduled-checks routine; findings are routed through the proposal pipeline as Evidence Source: scheduled-check/weekly-coaching-patterns."
+allowed-tools:
+  - Bash(bun *fitness-lab.ts*)
 ---
 
 # Weekly Coaching Patterns
@@ -11,31 +13,33 @@ Scheduled-check skill: reads the last 4 `compiled/activity-*.md` artifacts for s
 
 ## Steps
 
-1. **Glob activity notes.** Use `Glob` on `.claude-code-hermit/compiled/activity-*.md`. If no files match, output the zero-findings block (Step 5, no-trend path) and stop.
+1. **Run the trend check.** Issue a single Bash call:
 
-2. **Read and filter.** For each matched file, Read it. Keep only entries where the YAML frontmatter has `type: activity-note` AND `session_kind: steady`. Sort by `created` date descending (most recent first). Take the 4 most recent steady sessions.
+   ```
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/fitness-lab.ts weekly-patterns
+   ```
 
-   If fewer than 4 steady sessions exist across all artifacts, output the zero-findings block and stop. This is expected on weeks with predominantly interval or strength training — insufficient data is not an error.
+   The script does the whole deterministic pass — filesystem only, no Strava token: globs `.claude-code-hermit/compiled/activity-*.md`, keeps entries whose frontmatter has `type: activity-note` AND `session_kind: steady`, takes the 4 most recent by `created`, extracts the **signed** integer from each body's `Cardiac drift:` line (missing line → excluded; a negative value compares as smaller than any positive — the sign is never stripped), and evaluates a strict oldest-to-newest monotonic rise across all 3 adjacent pairs. It emits:
 
-3. **Extract cardiac-drift values.** Working oldest-to-newest (reverse the most-recent-first list), for each of the 4 steady sessions parse the body for a line starting with `Cardiac drift:`. Extract the **signed** integer bpm value, preserving the sign (`+12` → `+12`, `-5` → `-5`). A negative value means HR fell over the session (an improving signal) and must compare as less than any positive value — never strip the sign to magnitude. Treat a missing line as no data and exclude that session from the series.
+   ```json
+   {"steady_sessions_found": <int>, "series": [{"file": "…", "date": "…", "drift": <signed int>}], "trend": "upward" | "none" | "insufficient-data"}
+   ```
 
-   If fewer than 4 values are extractable after exclusions, output the zero-findings block and stop.
+   `series` is ordered oldest-to-newest. `trend: "upward"` means the 4-value bpm series is strictly increasing (the deliberately strict v1 bar — avoids false positives from noisy week-to-week variation). `"none"` = 4 values but not monotonic; `"insufficient-data"` = fewer than 4 drift values (expected on interval/strength-heavy weeks — not an error).
 
-4. **Evaluate the drift trend.** A trend **holds** when the 4 values are strictly increasing oldest-to-newest — every value greater than the one immediately before it (all 3 adjacent pairs rising). A single flat or falling pair breaks the trend. This is a deliberately strict bar for v1: a clean monotonic rise is unambiguous and avoids false positives from noisy week-to-week variation.
+   **Anti-duplication guard:** emit a finding ONLY on `trend: "upward"` (the quantitative numeric rise). Do NOT emit on label recurrence alone.
 
-   **Anti-duplication guard:** emit a finding ONLY for this quantitative upward numeric trend across the 4-session bpm series. Do NOT emit on label recurrence alone.
+2. **Output the findings block.** Always output a plain-text findings block to stdout, regardless of outcome. `reflect --scheduled-checks` classifies the result from this block.
 
-5. **Output the findings block.** Always output a plain-text findings block to stdout, regardless of outcome. `reflect --scheduled-checks` classifies the result from this block.
-
-   **Trend holds (4 values strictly rising):**
+   **`trend: "upward"`:**
    ```
    weekly-coaching-patterns findings — <YYYY-MM-DD>
    Coaching patterns: 1
    - Coaching pattern detected [cardiac-drift-high]: cardiac drift rising across 4 consecutive steady sessions (<V1>→<V2>→<V3>→<V4> bpm) — check pacing strategy and hydration; consider an easy recovery run next session
    ```
-   Replace `<V1>`…`<V4>` with the four drift values oldest-to-newest (each rendered with its sign, e.g. `+6`), and `<YYYY-MM-DD>` with today's date.
+   Replace `<V1>`…`<V4>` with the four `series[].drift` values in order (oldest-to-newest, each rendered with its sign, e.g. `+6`), and `<YYYY-MM-DD>` with today's date.
 
-   **No trend (including insufficient data):**
+   **`trend: "none"` or `"insufficient-data"`:**
    ```
    weekly-coaching-patterns findings — <YYYY-MM-DD>
    No actionable findings.

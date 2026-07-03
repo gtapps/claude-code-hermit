@@ -3,7 +3,7 @@ name: capture-activity-rpe
 description: Captures RPE (1-10) and subjective notes when the operator replies to a strava-sync notification on any configured channel. Triggers on inbound channel messages matching RPE grammar while state/strava-pending-rpe.json has a sync from the last 24h. Channel-agnostic.
 allowed-tools:
   - Read
-  - Write
+  - Bash(bun *fitness-lab.ts*)
   - Bash(rm .claude-code-hermit/state/strava-pending-rpe.json)
   - mcp__plugin_discord_discord__reply
 ---
@@ -35,17 +35,13 @@ Self-triggers on RPE-shaped replies while `state/strava-pending-rpe.json` is fre
    - Validate `rpe` is an integer from 1 to 10 inclusive.
    - If parse fails or validation fails: exit silently. (Bare `yes`/`no`/`y`/`n` cannot match `\d{1,2}` so they are naturally excluded; the micro-approval branch in `channel-responder` handles them.)
 
-4. Read `.claude-code-hermit/state/activity-notes.json`, or use `{}` if absent. Set the entry for `<pending.activity_id>` (overwrite if it already exists, silently), then write the file back:
-   ```json
-   {
-     "<pending.activity_id>": {
-       "rpe": <int>,
-       "notes": <string|null>,
-       "recorded_at": "<ISO 8601 with offset>"
-     }
-   }
+4. Persist the entry via the script (atomic upsert into `state/activity-notes.json`, keyed by `<pending.activity_id>`, overwriting silently):
+
    ```
-   The `notes` field is always present: `null` when no notes were captured, never missing.
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/fitness-lab.ts rpe <pending.activity_id> <rpe> [notes...]
+   ```
+
+   Pass the parsed `rpe`; append the notes words only when group 2 matched (omit entirely when notes are null). The script writes `{rpe, notes, recorded_at}` — `notes` is always present, `null` when none were captured — and stamps `recorded_at` itself. No Strava call is made (the activity ID is supplied, not `latest`), so this never touches the network.
 
 5. Run `rm .claude-code-hermit/state/strava-pending-rpe.json` so the same sync cannot bind twice.
 

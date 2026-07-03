@@ -4,6 +4,7 @@
       "Bash(git status)",
       "Bash(git log *)",
       "Bash(git diff *)",
+      "Bash(bun *fitness-lab.ts*)",
       "mcp__strava__check-strava-connection",
       "mcp__strava__get-athlete-profile",
       "mcp__strava__get-athlete-stats",

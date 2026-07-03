@@ -110,45 +110,24 @@ Read `.claude-code-hermit/config.json` and extract:
 - `agent_name`
 - Detect project path from `pwd`
 
-Do NOT set `AGENT_HOOK_PROFILE` in `config.json` `env` — it stays as `standard` (the host default). The strict profile is rendered into the docker-compose environment block in step 4 via `{{AGENT_HOOK_PROFILE}}`.
+Do NOT set `AGENT_HOOK_PROFILE` in `config.json` `env` — it stays as `standard` (the host default). The strict profile is rendered into the docker-compose environment block at Step 7b.6 via the `agentHookProfile` render input.
 
-### 4. Template placeholder reference (rendering deferred to Step 7b.6)
+### 4. Template inputs (rendering deferred to Step 7b.6)
 
-> **Execution moved.** Template rendering is now performed at Step 7b.6 — AFTER plugin resolution (Step 7b) and apt-package union (Step 7b.packages) have finalized `docker.packages`. The placeholder definitions are documented here for reference; the actual `Read` + `Write` calls happen later, with all values resolved.
->
-> Why: `{{PACKAGES_BLOCK}}` substitution depends on `docker.packages`, which isn't finalized until Step 7b.packages. Rendering at Step 4 (the original position) consumed an empty/pre-resolution package list. Channel placeholders (`{{CHANNEL_ENV_LINES}}`, `{{CHANNEL_VOLUME_LINES}}`) similarly depend on Step 7 channel-token configuration.
+> **Execution moved.** `scripts/render-docker-templates.ts` renders the three base files at Step 7b.6 — AFTER plugin resolution (Step 7b) and apt-package union (Step 7b.packages) have finalized `docker.packages`, and Step 7 has configured channels. Rendering earlier consumed an empty package list. Do NOT read or write template files here; just collect the semantic inputs the render call needs.
 
-The three templates live in `${CLAUDE_SKILL_DIR}/../../state-templates/docker/`. Placeholder substitution rules per file (do NOT read or write here — all file I/O happens at Step 7b.6):
+The render script derives every `{{PLACEHOLDER}}` internally and fails loud (writes nothing) if any survives. Assemble this input object as choices resolve, to be piped on stdin at Step 7b.6:
 
-**Dockerfile.hermit** (from `Dockerfile.hermit.template`):
-- `{{PACKAGES_BLOCK}}` — if `docker.packages` is non-empty, replace with:
-  ```
-  # Project-specific packages (from config.json docker.packages)
-  # To modify: /hermit-settings docker, then rebuild
-  RUN apt-get update && apt-get install -y --no-install-recommends \
-        <space-separated packages> && \
-      rm -rf /var/lib/apt/lists/*
-  ```
-  If empty, remove the `{{PACKAGES_BLOCK}}` line entirely. The block is placed after the npm install layer so changing project packages doesn't bust the npm cache.
-
-**docker-entrypoint.hermit.sh** (from `docker-entrypoint.hermit.sh.template`):
-- No placeholder substitution needed — the entrypoint resolves the tmux session name from
-  `config.json` at runtime. Copy verbatim; the resulting file is correct without any edits.
-
-**docker-compose.hermit.yml** (from `docker-compose.hermit.yml.template`):
-- `{{AUTH_ENV_LINE}}` — If apikey: `      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}\n`. If oauth: empty string (remove the line entirely — OAuth credentials live in `.credentials.json` inside the named volume, written by `claude /login`).
-- `{{CHANNEL_ENV_LINES}}` — for each enabled channel, derive the `*_STATE_DIR` value from `channels.<name>.state_dir` in config.json and add an indented environment line:
-  - `      - DISCORD_STATE_DIR=${PWD}/.claude.local/channels/discord`
-  - `      - TELEGRAM_STATE_DIR=${PWD}/.claude.local/channels/telegram`
-  Remove `{{CHANNEL_ENV_LINES}}` entirely if no channels configured.
-- `{{CHANNEL_VOLUME_LINES}}` — for each configured channel, add an indented volume bind-mount that maps the project-local state dir into the container's `~/.claude/channels/` path. This ensures channel plugin writes stay inside the project tree (no permission prompts with `bypassPermissions`):
-  - `      - ${PWD}/.claude.local/channels/discord:/home/claude/.claude/channels/discord`
-  - `      - ${PWD}/.claude.local/channels/telegram:/home/claude/.claude/channels/telegram`
-  Remove `{{CHANNEL_VOLUME_LINES}}` entirely if no channels configured.
-- `{{AGENT_HOOK_PROFILE}}` — always `strict` for Docker (enforces `always_on` deny patterns inside the container)
-- `{{TMUX_SESSION_NAME}}` — resolved session name
-- `{{NETWORK_MODE_LINE}}` — If `docker.network_mode` is `"host"`: replace with `    # WARNING: host networking exposes all host-local services to the container.\n    network_mode: host`. If `"bridge"` (default): remove the line entirely (bridge is Docker's default — no directive needed).
-- **Git identity:** Use `gitconfigExists` from the Step 1 preflight. If false, remove the `.gitconfig` bind-mount line from the rendered file and add a note in the summary: "No ~/.gitconfig found — git commits inside the container will have no author identity. Create one on the host and re-run docker-setup, or set git config manually inside the container."
+- `packages` — the finalized `docker.packages` array (Step 7b.packages). Empty array → no project-package layer.
+- `auth` — `"api-key"` or `"oauth-token"` (Step 2). OAuth adds no auth env line; credentials live in `.credentials.json` in the named volume, written by `claude /login`.
+- `channels` — `{ envLines: [...], volumeLines: [...] }`, one entry per enabled channel (Step 7). Pass the line **bodies** (the script owns the `      - ` indent):
+  - env body: `<VAR>_STATE_DIR=${PWD}/.claude.local/channels/<plugin>` (VAR = `DISCORD` / `TELEGRAM`)
+  - volume body: `${PWD}/.claude.local/channels/<plugin>:/home/claude/.claude/channels/<plugin>` (keeps channel writes inside the project tree — no permission prompts under `bypassPermissions`)
+  - No channels → both arrays empty.
+- `agentHookProfile` — always `"strict"` for Docker (enforces `always_on` deny patterns inside the container).
+- `tmuxSessionName` — the session name resolved in Step 3.
+- `networkMode` — `docker.network_mode` (`"bridge"` or `"host"`, Step 2).
+- `gitIdentityMount` — the Step 1 preflight `gitconfigExists`. When **false**, the `.gitconfig` bind-mount is dropped and you must add to the summary: "No ~/.gitconfig found — git commits inside the container will have no author identity. Create one on the host and re-run docker-setup, or set git config manually inside the container."
 
 ### 5. Auto-memory seed
 
@@ -324,32 +303,33 @@ After plugin selection is finalized, union the two sources of apt package candid
 
 ### 7b.6. Render templates (deferred from Step 4)
 
-Now that `docker.packages` (Step 7b.packages), `docker.recommended_plugins` (Step 7b), channel state dirs (Step 7), and the auth/network choices (Step 2) are all finalized, perform the template rendering described in Step 4 above. Write the three rendered files to project root:
+Now that `docker.packages` (Step 7b.packages), channel state dirs (Step 7), and the auth/network choices (Step 2) are finalized, render the three base files in **one** call. `render-docker-templates.ts` derives every `{{PLACEHOLDER}}`, renders `Dockerfile.hermit` + `docker-compose.hermit.yml`, `cp`-copies the entrypoint verbatim, and fails loud (exit 1, nothing written) if any placeholder survives. Anchor the argv to the **absolute** `<PROJECT_ROOT>` (Step 1) — cwd can drift after earlier `docker compose` / `tmux` calls. Pipe the Step 4 input object on stdin:
 
-- `Dockerfile.hermit` — substitute `{{PACKAGES_BLOCK}}` with the finalized `docker.packages`.
-- `docker-entrypoint.hermit.sh` — **copy with `cp`, do not regenerate it by hand** (it is a large static file with no placeholders; the session name is resolved from `config.json` at container startup). Run: `cp "${CLAUDE_SKILL_DIR}/../../state-templates/docker/docker-entrypoint.hermit.sh.template" <PROJECT_ROOT>/docker-entrypoint.hermit.sh`. The copied bytes are correct without any edits.
-- `docker-compose.hermit.yml` — substitute `{{AUTH_ENV_LINE}}`, `{{CHANNEL_ENV_LINES}}`, `{{CHANNEL_VOLUME_LINES}}`, `{{AGENT_HOOK_PROFILE}}`, `{{TMUX_SESSION_NAME}}`, `{{NETWORK_MODE_LINE}}`, plus the git-identity bind-mount handling.
-
-Use the placeholder rules from Step 4 verbatim.
-
-**Record docker template baselines in the manifest** (arms the `hermit-evolve` drift signals) via `manifest-seed.ts` — **do not hand-compute the hashes**. Read the current plugin version from `${CLAUDE_SKILL_DIR}/../../.claude-plugin/plugin.json`. Anchor the state-dir argv and the entrypoint file path to the **absolute project root** (verified in Step 1), not a cwd-relative path — cwd can drift after the `docker compose` / `tmux` calls earlier in this skill. Using `<PROJECT_ROOT>` for that absolute path, run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/manifest-seed.ts <PROJECT_ROOT>/.claude-code-hermit` with this JSON on stdin:
-
-```json
+```bash
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/render-docker-templates.ts <PROJECT_ROOT> <<'HERMIT_RENDER_JSON'
 {
-  "pluginVersion": "<version>",
-  "entries": [
-    { "key": "docker/docker-entrypoint.hermit.sh", "file": "<PROJECT_ROOT>/docker-entrypoint.hermit.sh" },
-    { "key": "docker/docker-compose.hermit.yml.template", "file": "${CLAUDE_PLUGIN_ROOT}/state-templates/docker/docker-compose.hermit.yml.template" },
-    { "key": "docker/Dockerfile.hermit.template", "file": "${CLAUDE_PLUGIN_ROOT}/state-templates/docker/Dockerfile.hermit.template" }
-  ]
+  "packages": [...],
+  "auth": "oauth-token" | "api-key",
+  "channels": { "envLines": [...], "volumeLines": [...] },
+  "agentHookProfile": "strict",
+  "tmuxSessionName": "<resolved>",
+  "networkMode": "bridge" | "host",
+  "gitIdentityMount": true | false
 }
+HERMIT_RENDER_JSON
 ```
 
-The **file each key hashes is deliberate**:
-- `docker/docker-entrypoint.hermit.sh` hashes the **on-disk rendered** entrypoint at the project root — it is copied verbatim, so its hash equals the upstream template's. It is anchored to `<PROJECT_ROOT>` (absolute) so it resolves correctly regardless of the current working directory. This baseline lets `hermit-evolve` Step 5c manage the entrypoint as a boot-critical file (keep operator edits, refresh when upstream moves).
-- The two `.template` keys hash the **upstream templates**, never the rendered output — they render with placeholder substitution, so rendered ≠ upstream forever. This lets `hermit-evolve` Step 10 report upstream drift (`status: changed`) without false positives from substitution.
+The script prints `{ "written": [...], "entrypointCopied": true, "manifestSeed": {...} }`. If `gitIdentityMount` was false, surface the summary note from Step 4.
 
-The script preserves every other manifest key (the `templates/`/`bin/` baselines `hatch` seeded, sibling-hermit keys) and refuses to overwrite a present-but-corrupt manifest.
+**Record the template baselines in the manifest** (arms the `hermit-evolve` drift signals) by piping `report.manifestSeed` — emitted with absolute paths and the current plugin version — straight into `manifest-seed.ts`. **Do not hand-compute the hashes.**
+
+Pipe **only the value of the `manifestSeed` field** (the `{ "pluginVersion", "entries" }` object): NOT the whole render stdout envelope. `manifest-seed.ts` expects a top-level `{pluginVersion, entries}`; handing it the full `{written, entrypointCopied, manifestSeed}` object seeds no baselines (the drift signals silently never arm).
+
+```bash
+echo '<the manifestSeed object only: {"pluginVersion":...,"entries":[...]}>' | bun ${CLAUDE_PLUGIN_ROOT}/scripts/manifest-seed.ts <PROJECT_ROOT>/.claude-code-hermit
+```
+
+The `manifestSeed` payload deliberately hashes the **on-disk rendered** entrypoint (copied verbatim, so its hash equals the upstream template's — lets `hermit-evolve` Step 5c manage it as a boot-critical file) and the two **upstream** `.template` files (never the rendered output, which differs from upstream forever due to substitution — lets Step 10 report upstream drift without false positives). `manifest-seed.ts` preserves every other manifest key (`templates/`/`bin/` baselines, sibling-hermit keys) and refuses to overwrite a present-but-corrupt manifest.
 
 ### 7c. Write Docker settings to config.json
 
