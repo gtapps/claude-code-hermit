@@ -1,6 +1,6 @@
 ---
 name: cost-reflect
-description: "Use when the user asks about cost structure or composition: which token types cost the most, how cache reads compare to output costs, which sessions are draining budget, or what cold starts add up to. This is the 'why is my bill high' skill. It audits where spend goes across token categories (cache_read, cache_write, output, input) and per-session attribution. Invoke for questions like 'cost breakdown', 'which sessions are expensive', 'what's driving spend', or 'cold start costs'. Not for week-over-week trend lines (use hermit-evolution) or simple total-spend summaries."
+description: "The 'why is my bill high' skill: audits where spend goes across token categories (cache_read, cache_write, output, input) and per-session attribution. Invoke for questions like 'cost breakdown', 'which sessions are expensive', 'what's driving spend', or 'cold start costs'. Not for week-over-week trend lines (use hermit-evolution) or simple total-spend summaries."
 ---
 # Cost Reflect
 

@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-[Claude Code](https://code.claude.com) v2.1.172+ and a paid Claude plan (Pro, Max, Teams, or Enterprise). Node.js 22+ for hooks. Optional: **tmux** for always-on mode, **Bun** for phone channels (Discord, Telegram).
+[Claude Code](https://code.claude.com) v2.1.172+ and a paid Claude plan (Pro, Max, Teams, or Enterprise). **Bun** ≥1.3 — the hooks and scripts are TypeScript run directly by `bun`. Optional: **tmux** for always-on mode.
 
 ---
 
@@ -211,7 +211,7 @@ See [Security](security.md) for the full deny list and defense-in-depth model.
 
 ## Permissions
 
-The init wizard adds required permissions to `.claude/settings.json` automatically. To set up manually:
+The init wizard adds the required permissions to `.claude/settings.json` automatically — including a `Bash(bun */scripts/*.ts*)` entry per hermit script. A representative subset:
 
 ```json
 {
@@ -220,8 +220,7 @@ The init wizard adds required permissions to `.claude/settings.json` automatical
       "Bash(git diff:*)",
       "Bash(git status:*)",
       "Bash(git log:*)",
-      "Bash(python3:*)",
-      "Bash(node:*)",
+      "Bash(bun */scripts/cost-tracker.ts*)",
       "Bash(bash -c 'AGENT_DIR=\".claude-code-hermit\"*)"
     ]
   }

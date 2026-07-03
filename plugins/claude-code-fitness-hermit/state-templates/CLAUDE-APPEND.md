@@ -14,45 +14,13 @@ This project has the `claude-code-fitness-hermit` plugin installed. The rules be
 - Never call `star-segment`, `connect-strava`, or `disconnect-strava` without explicit operator instruction.
 - Per-activity and weekly load analysis goes through `scripts/fitness-lab.ts` (via the `activity-deep-dive`, `weekly-coaching-patterns`, and `strava-data-cruncher` paths): it fetches and reduces the streams so raw time-series never enter context and the metrics stay reproducible. The MCP stream/detail tools are for ad-hoc questions only, not the standard load pipeline.
 - HR zone boundaries come from `mcp__strava__get-athlete-zones` — never hardcode numeric thresholds.
-- Records, PBs, all-time totals, counts, and cross-block comparisons depend on older activities that context or compaction may drop. Ground them in a full-history Strava query (see the Strava MCP Tools table), or flag the number as unverified and offer to check. Recent-activity questions are fine from live context.
+- Records, PBs, all-time totals, counts, and cross-block comparisons depend on older activities that context or compaction may drop. Ground them in a full-history Strava query — `mcp__strava__get-athlete-stats` for all-time/YTD totals (the single authoritative call; don't sum `get-all-activities` client-side), `mcp__strava__get-all-activities` for per-activity history — or flag the number as unverified and offer to check. Recent-activity questions are fine from live context.
 
-### Skills
+Fitness skills and subagents self-advertise through their own SKILL.md / agent descriptions — no catalog is kept here. Entry point: `/claude-code-fitness-hermit:hatch` for setup.
 
-| Skill | Purpose |
-|-------|---------|
-| `/claude-code-fitness-hermit:hatch` | One-time setup — Strava MCP, routines, CLAUDE.md injection |
-| `/claude-code-fitness-hermit:activity-deep-dive` | Per-activity coaching analysis (zone breakdown, cardiac drift, recovery estimate) |
-| `/claude-code-fitness-hermit:capture-activity-rpe` | Auto-captures RPE from channel replies to strava-sync notifications |
-| `/claude-code-fitness-hermit:set-rpe` | Manually record RPE for any activity (backfill, correction, non-latest activities) |
-| `/claude-code-fitness-hermit:weekly-coaching-patterns` | Scheduled check — detects upward cardiac-drift trends across recent steady-session activity notes |
-| `/claude-code-fitness-hermit:domain-brainstorm` | On-demand brainstorm — surfaces goal-coverage gaps and training imbalances as proposals |
+### Strava MCP
 
-### Subagents
-
-| Agent | Purpose |
-|-------|---------|
-| `@claude-code-fitness-hermit:strava-data-cruncher` | Bulk Strava data aggregation — runs `scripts/fitness-lab.ts weekly-load` for weekly load tables + zone distributions; MCP tools only for shapes the script doesn't emit (Haiku, cheap) |
-
-### Strava MCP Tools
-
-Deterministic load analysis runs through `scripts/fitness-lab.ts` (see the streams Core Rule above) — the tools below are for ad-hoc lookups the script doesn't cover.
-
-MCP server `strava` is configured in `.mcp.json` (written by `hatch`). Tool IDs follow `mcp__strava__*`.
-
-| Tool | Use for |
-|------|---------|
-| `check-strava-connection` | Connectivity check — always call first |
-| `get-athlete-profile` | Identity, location, weight, FTP |
-| `get-athlete-stats` | Totals: YTD, recent, all-time distance/time/elevation |
-| `get-athlete-zones` | HR zones, power zones |
-| `get-recent-activities` | Last N activities (default 30) |
-| `get-all-activities` | Full history with pagination |
-| `get-activity-details` | Full detail on a single activity |
-| `get-activity-streams` | Raw time-series: watts, HR, cadence, pace, altitude |
-| `get-activity-laps` | Lap splits |
-| `list-athlete-routes` | Saved routes |
-| `explore-segments` | Find segments near a location |
-| `list-starred-segments` | Favourite segments |
+MCP server `strava` is configured in `.mcp.json` (written by `hatch`); tool IDs follow `mcp__strava__*` and their schemas are already in context — do not re-document them here. `check-strava-connection` is always called first; full history comes from `get-all-activities`.
 
 ### Routines
 

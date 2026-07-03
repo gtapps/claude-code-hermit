@@ -7,6 +7,10 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 ### Changed
 - **README: `/hermit-brain` → `/hermit-health`** — the core `hermit-brain` skill merged into `hermit-health`; the docs now point at the surviving skill.
 - **scheduled-check skill prose: `reflect-scheduled-checks` → `reflect --scheduled-checks`** — the core scheduled-check runner merged into `reflect`; the HA scheduled-check skills and `CLAUDE.md` now name the surviving invocation (no behavior change — the `scheduled-checks` routine still consumes their stdout).
+- **CLAUDE-APPEND slimmed 9.6KB → ~5.1KB** — the Skills table, Subagents table, and inline CLI-command catalog were removed; skills and subagents already self-advertise through their SKILL.md/agent descriptions, and the full CLI catalog moved to `docs/cli-reference.md` (`ha-agent-lab --help` / `src/cli.ts` remain the source of truth). The block is re-paid on every session load and subagent dispatch, so this cuts recurring context cost.
+
+### Upgrade Instructions
+- No manual steps. The HA CLAUDE-APPEND block is synced automatically via `hermit-evolve` Step 7's sibling-upgrade flow when this version's gap is processed.
 
 ## [0.4.0] - 2026-07-02
 

@@ -40,6 +40,8 @@ if (import.meta.main) {
     process.stderr.write(`render-append: unknown mode "${mode ?? ''}" (expected: standard|safety)\n`);
     process.exit(1);
   }
+  // No process.exit() here: process.stdout.write() to a pipe is async in Bun,
+  // and exiting before it drains truncates output at the pipe buffer (~64 KB).
+  // Letting the module return exits 0 naturally once stdout has flushed.
   process.stdout.write(render(mode, fs.readFileSync(TEMPLATE, 'utf-8')));
-  process.exit(0);
 }

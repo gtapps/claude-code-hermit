@@ -1599,3 +1599,19 @@ describe('proposal-act dispatch contract', () => {
     expect(skill).toContain('(autonomous)');
   });
 });
+
+describe('reflect routine gating contract (token efficiency)', () => {
+  // The reflect routine's CronCreate prompt must run the precheck in bash and
+  // hand the verdict to reflect via --precheck-verdict, so EMPTY days never load
+  // reflect's body. Both sides of that handoff must stay wired.
+  test('hermit-routines documents the reflect precheck-gated prompt', () => {
+    const routines = read(path.join(SKILLS, 'hermit-routines', 'SKILL.md'));
+    expect(routines).toContain('reflect-precheck.ts');
+    expect(routines).toContain('--precheck-verdict');
+  });
+
+  test('reflect accepts the --precheck-verdict handoff', () => {
+    const reflect = read(path.join(SKILLS, 'reflect', 'SKILL.md'));
+    expect(reflect).toContain('--precheck-verdict');
+  });
+});

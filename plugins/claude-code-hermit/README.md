@@ -9,7 +9,7 @@
 
 # claude-code-hermit
 
-Claude Code plugin that turns a instance into a 24/7 AI assistant. **Orchestrates**, **Self-improves**, **Pro-Active**, **Cost-aware**, **Observable**, **One Claude subscription, multiple hermits**.
+Claude Code plugin that turns a Claude Code instance into a 24/7 AI assistant. **Orchestrates**, **Self-improves**, **Pro-Active**, **Cost-aware**, **Observable**, **One Claude subscription, multiple hermits**.
 
 <p align="center">
   <img src="assets/cover.png" alt="Always-on Claude Code Agent" />
@@ -80,7 +80,7 @@ On-demand skills — pullable from the Claude app, your terminal, or a DM:
 - **`/recall`** — full-text search over past sessions, compiled knowledge, and proposals ("what did I decide about X?")
 - **`/hermit-evolution`** — cost trend and behavior drift over weeks
 - **`/hermit-health`** — alerts, routines, channels, heartbeat state, plus fragile zones, stale proposals, and recent learnings
-- **`/hermit-doctor`** — fifteen-check install diagnostic, from hook registration to heartbeat liveness
+- **`/hermit-doctor`** — install diagnostic, from hook registration to heartbeat liveness
 - **`/cost-reflect`** — structural cost audit: which token types and trigger sources drive spend
 - **`/brief`** — summary of recent work, or what it's doing right now
 

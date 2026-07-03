@@ -92,6 +92,30 @@ function seedFakePlugins(
   return path.join(dir, 'plugins', 'claude-code-hermit');
 }
 
+/**
+ * Scaffold a versioned marketplace cache tree
+ * (.claude/plugins/cache/<mp>/<plugin>/<version>/) and return the fake core
+ * version-root. `siblingVersions` maps each seeded sibling version dir to its
+ * required_core_version range, so a test can prove the newest version is read.
+ */
+function seedVersionedCache(
+  dir: string,
+  opts: { coreVersion?: string; siblingVersions?: Record<string, string> } = {},
+): string {
+  const mp = path.join(dir, '.claude', 'plugins', 'cache', 'hermit-mp');
+  const coreVer = opts.coreVersion ?? '1.2.14';
+  const coreDir = path.join(mp, 'claude-code-hermit', coreVer, '.claude-plugin');
+  fs.mkdirSync(coreDir, { recursive: true });
+  write(path.join(coreDir, 'plugin.json'), `{"name":"claude-code-hermit","version":"${coreVer}"}`);
+  for (const [ver, range] of Object.entries(opts.siblingVersions ?? {})) {
+    const sib = path.join(mp, 'example-sibling', ver, '.claude-plugin');
+    fs.mkdirSync(sib, { recursive: true });
+    write(path.join(sib, 'plugin.json'), `{"name":"example-sibling","version":"${ver}"}`);
+    write(path.join(sib, 'hermit-meta.json'), `{"required_core_version":"${range}"}`);
+  }
+  return path.join(mp, 'claude-code-hermit', coreVer);
+}
+
 const DOCKER_SEC_CONFIG =
   '{"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[],"docker":{"security":{"network":{"enabled":true,"subnet":"172.28.0.0/24","gateway":"172.28.0.1","netguard_ip":"172.28.0.2"}}}}';
 
@@ -296,6 +320,82 @@ describe('enforce-deny-patterns', () => {
   test('enforce-deny-patterns (empty stdin)', withDir(async (dir) => {
     const r = await runScript('enforce-deny-patterns.ts', {
       stdin: '', cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(0);
+  }));
+
+  // Compound-command segmentation: a deny pattern anchored to a leading command
+  // must still fire when that command hides behind `cd …`, `;`, or a pipe.
+  test('enforce-deny-patterns (block rm -rf behind &&)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Bash","tool_input":{"command":"cd /tmp && rm -rf x"}}',
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(2);
+  }));
+
+  test('enforce-deny-patterns (block chmod 777 behind ;)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Bash","tool_input":{"command":"true; chmod 777 /tmp/f"}}',
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(2);
+  }));
+
+  test('enforce-deny-patterns (block printenv in a pipe)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Bash","tool_input":{"command":"id | printenv"}}',
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(2);
+  }));
+
+  test('enforce-deny-patterns (allow safe compound)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Bash","tool_input":{"command":"ls -la && echo done"}}',
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(0);
+  }));
+
+  test('enforce-deny-patterns (allow safe pipeline)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Bash","tool_input":{"command":"cat notes.md | grep todo"}}',
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(0);
+  }));
+
+  test('enforce-deny-patterns (block always-on git push --force behind &&)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Bash","tool_input":{"command":"cd repo && git push --force origin x"}}',
+      cwd: dir, env: { AGENT_HOOK_PROFILE: 'strict', CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(2);
+  }));
+
+  test('enforce-deny-patterns (same compound allowed when not strict)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Bash","tool_input":{"command":"cd repo && git push --force origin x"}}',
+      cwd: dir, env: { AGENT_HOOK_PROFILE: 'standard', CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(0);
+  }));
+
+  // A separator inside a quoted string must NOT fragment the command — a plain
+  // echo/commit that merely mentions `rm -rf` after a `;` is not a real bypass.
+  test('enforce-deny-patterns (quoted separator does not fragment command)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Bash","tool_input":{"command":"echo \\"step 1; rm -rf build\\""}}',
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(0);
+  }));
+
+  test('enforce-deny-patterns (Edit path containing | is not split)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Edit","tool_input":{"file_path":"/home/u/project/weird|name.ts"}}',
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
     });
     expect(r.exitCode).toBe(0);
   }));
@@ -1051,6 +1151,26 @@ describe('doctor-check', () => {
     expect(c.status).toBe('warn');
   }));
 
+  test('doctor-check (cost-log resolved from hermit dir arg, not cwd)', withDir(async (dir) => {
+    seedDoctor(dir);
+    const today = new Date().toISOString().slice(0, 10);
+    write(path.join(dir, '.claude', 'cost-log.jsonl'),
+      `{"timestamp":"${today}T10:00:00.000Z","model":"claude-sonnet-4-6","input_tokens":100,"output_tokens":50,"cache_read_tokens":200,"total_tokens":350,"estimated_cost_usd":0.0012}\n`);
+    // Run doctor from an UNRELATED cwd; the cost log must still be found via the
+    // argv hermit dir (regression: it used to resolve .claude relative to cwd).
+    const foreign = fs.mkdtempSync(path.join(os.tmpdir(), 'doctor-cwd-'));
+    try {
+      const r = await runScript('doctor-check.ts', {
+        args: [hermit(dir)], cwd: foreign, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+      });
+      expect(r.exitCode).toBe(0);
+      const report = readJson(hermit(dir, 'state', 'doctor-report.json'));
+      expect(checkById(report, 'cost').status).toBe('ok');
+    } finally {
+      fs.rmSync(foreign, { recursive: true, force: true });
+    }
+  }));
+
   test('doctor-check (corrupt state → fail)', withDir(async (dir) => {
     seedDoctor(dir);
     write(hermit(dir, 'state', 'alert-state.json'), 'not json');
@@ -1317,6 +1437,28 @@ describe('checkDependencies', () => {
     const d = await depsCheck(dir, root);
     expect(d.status).toBe('ok');
     expect(d.detail).toContain('within');
+  }));
+
+  // Versioned marketplace cache: siblings live two levels up under their own
+  // version dirs. Regression: the old one-level scan saw only other core
+  // versions → checked=0 → false "no siblings" all-clear.
+  test('checkDependencies (versioned cache — out-of-range sibling → warn, not false ok)', withDir(async (dir) => {
+    const root = seedVersionedCache(dir, { coreVersion: '1.2.14', siblingVersions: { '0.4.0': '>=2.0.0' } });
+    const d = await depsCheck(dir, root);
+    expect(d.status).toBe('warn');
+    expect(d.detail).toContain('outside');
+  }));
+
+  test('checkDependencies (versioned cache — reads newest sibling version)', withDir(async (dir) => {
+    // Older version satisfies core; newest does not. A warn proves the newest
+    // version's meta (>=2.0.0) was the one read, not the older 0.3.0 (>=1.0.0).
+    const root = seedVersionedCache(dir, {
+      coreVersion: '1.2.14',
+      siblingVersions: { '0.3.0': '>=1.0.0', '0.4.0': '>=2.0.0' },
+    });
+    const d = await depsCheck(dir, root);
+    expect(d.status).toBe('warn');
+    expect(d.detail).toContain('>=2.0.0');
   }));
 });
 

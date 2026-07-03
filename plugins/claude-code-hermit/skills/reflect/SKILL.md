@@ -74,11 +74,13 @@ If `$ARGUMENTS` contains `--scheduled-checks` (invoked as `/claude-code-hermit:r
 
 Then stop. Do not run the precheck or the scheduled-reflect steps below.
 
-1. Run the precheck to determine whether a full reflect run is warranted:
-   ```
-   bun ${CLAUDE_PLUGIN_ROOT}/scripts/reflect-precheck.ts .claude-code-hermit ${CLAUDE_PLUGIN_ROOT}
-   ```
-   Read the verdict (first line of output):
+1. Determine whether a full reflect run is warranted:
+   - **If `$ARGUMENTS` contains `--precheck-verdict '<verdict>'`**: the reflect routine's CronCreate prompt already ran the precheck in bash and passed its verdict here. Use `<verdict>` directly and do **not** re-run the precheck. It is always a `RUN|<phases-json>` line — the routine stops on `EMPTY` without invoking this skill, so an EMPTY day never loads this file. Skip to reading the verdict below.
+   - **Otherwise** (manual `/reflect`, or any invocation without the flag), run the precheck yourself:
+     ```
+     bun ${CLAUDE_PLUGIN_ROOT}/scripts/reflect-precheck.ts .claude-code-hermit ${CLAUDE_PLUGIN_ROOT}
+     ```
+   Read the verdict (the passed `<verdict>` or the first line of precheck output):
    - `EMPTY` → the precheck found no due phases and no compute activity. It has already updated `reflection-state.json` and appended the mandatory Progress Log line to SHELL.md. Emit `reflect: no candidates` and stop.
    - `RUN|<phases-json>` → continue to step 2. The JSON object lists which phases are due (`cost_spike`, `resolution_check`, `compute`, `digest`, `newborn`, `observations_fresh`). Skip evaluation sections for phases not listed — they are not due this run. `observations_fresh` means the ledger has rows newer than `last_run_at` and step 3b should run even if `compute` is absent.
 2. Read SHELL.md for current context. **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**

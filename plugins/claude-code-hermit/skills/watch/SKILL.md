@@ -142,6 +142,8 @@ harmless. The next session start clears the registry unconditionally.
   registration time. `$PWD` is the project root in the subprocess.
 - **`grep --line-buffered` is required in pipes.** Without it, pipe buffering can
   delay events by minutes.
+- **Add `|| true` after API calls in poll loops.** One failed request shouldn't kill the watch.
+- **Be selective with stdout.** Noisy watches are auto-stopped by CC — emit only on genuine change/event.
 - **Filesystem events in Docker:** Use `inotifywait` (from `inotify-tools`, included in the hermit base image) instead of `fswatch` (macOS-only). Example stream command: `inotifywait -m -r --format '%w%f %e' -e modify,create,delete src/`.
 - **Config hot-reload:** Config watches do NOT hot-reload during a session.
   Changes to `config.json` monitors only apply at the next session start

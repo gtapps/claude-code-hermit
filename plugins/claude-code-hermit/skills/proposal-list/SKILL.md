@@ -8,24 +8,21 @@ Lists all proposals with status, source, and age. Auto-detected proposals (from 
 
 ## Plan
 
-### 1. Read all proposals
+### 1. Read the proposals index
 
-Read all files matching `.claude-code-hermit/proposals/PROP-*.md`. **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**
+Read `.claude-code-hermit/state/proposals-index.json` — a derived cache of every proposal's frontmatter (`id`, `status`, `source`, `category`, `title`, `created`, `session`, `responded`, plus a `legacy` flag), refreshed on every proposal write by the `generate-summary` PostToolUse hook. **(fresh read — re-read the file now; do not reuse a value cached in context from before compaction.)**
 
-If no proposals exist: respond "No proposals found." and stop.
+Rebuild the index first, then read it:
+```
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposals-index.ts .claude-code-hermit
+```
+The rebuild reads frontmatter off disk — idempotent, no LLM/token cost — so run it unconditionally rather than trusting an mtime heuristic: it also catches out-of-band proposal writes and **deletions** that the `generate-summary` hook (which fires only on `Edit`/`Write` tool payloads) never sees. The script prints `SKIP|no proposals dir` when there are no proposals — in that case respond "No proposals found." and stop. If the index's `count` is 0, also respond "No proposals found." and stop.
 
-### 2. Parse metadata
+**Do not read proposal bodies.** Every field the table needs is in the index row; this is the whole point of the index (reading a dozen full bodies costs ~22K tokens for a table that needs only frontmatter). Read a specific body only if the operator asks to see one proposal's detail.
 
-For each proposal, extract metadata. If the file starts with `---` (YAML frontmatter), read fields from frontmatter: `id`, `status`, `source`, `session`, `created`, `related_sessions`, `category`. Extract the title from the `# Proposal: PROP-NNN — [Title]` heading.
+### 2. (metadata is already parsed)
 
-If the file does not start with `---` (pre-Observatory format), fall back to parsing markdown bullet metadata:
-- **ID:** from filename (PROP-NNN)
-- **Status:** from `**Status:**` line
-- **Source:** from `**Source:**` line (default `manual` if missing — older proposals may not have this field)
-- **Created:** from `**Created:**` line
-- **Session:** from `**Session:**` line
-- **Related Sessions:** from `**Related Sessions:**` line (if present)
-- **Title:** from the `# Proposal: PROP-NNN — [Title]` heading
+The index rows are the parsed metadata — use them directly. Legacy pre-frontmatter proposals appear with `legacy: true` and whatever fields could be recovered (`source` defaults to `manual`).
 
 ### 3. Calculate age
 

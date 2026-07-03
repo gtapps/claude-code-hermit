@@ -121,6 +121,14 @@ describe('settings-edit.ts CLI', () => {
     expect(readConfig(file).sign_off).toBeNull();
   });
 
+  test('set writes the literal string "default" (not null) — for permission_mode', async () => {
+    const dir = freshDir();
+    const file = seedConfig(dir, { permission_mode: 'auto' });
+    await runScript('settings-edit.ts', { args: [file, 'set', 'permission_mode', 'default'] });
+    // "default" is a real Claude Code permission_mode enum value, distinct from null.
+    expect(readConfig(file).permission_mode).toBe('default');
+  });
+
   test('set creates nested parents when absent', async () => {
     const dir = freshDir();
     const file = seedConfig(dir, { agent_name: 'Atlas' });

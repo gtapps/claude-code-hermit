@@ -1,6 +1,6 @@
 ---
 name: hermit-doctor
-description: Returns a fifteen-check health report on the hermit installation — runtime (bun presence/version), config validity, hook registration, state file integrity, cost visibility, proposal health, sibling dependency ranges, file permissions, docker-security overlay drift, archival health, reflect loop health, scheduler/background-task health, watchdog health, heartbeat liveness, sandbox capability. Use when diagnosing an install, before a release, or after suspicious behavior. Activates on messages like "/hermit-doctor", "health check", "diagnose the hermit", "what's wrong", "run diagnostic".
+description: Returns a fifteen-check health report on the hermit installation (runtime, config, hooks, state-file integrity, cost, proposals, deps, permissions, docker/sandbox, archival, reflect loop, scheduler, watchdog, heartbeat). Use when diagnosing an install, before a release, or after suspicious behavior. Activates on messages like "/hermit-doctor", "health check", "diagnose the hermit", "what's wrong", "run diagnostic".
 ---
 
 # Hermit Doctor

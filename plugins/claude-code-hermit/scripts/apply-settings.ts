@@ -36,6 +36,7 @@ const HERMIT_ALLOW = [
   'Bash(bun */scripts/evaluate-session.ts*)',
   'Bash(bun */scripts/append-metrics.ts*)',
   'Bash(bun */scripts/generate-summary.ts*)',
+  'Bash(bun */scripts/proposals-index.ts*)',
   'Bash(bun */scripts/update-reflection-state.ts*)',
   'Bash(bun */scripts/cron-tz-shift.ts*)',
   'Bash(bun */scripts/evolve-plan.ts*)',
