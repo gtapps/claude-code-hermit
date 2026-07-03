@@ -110,6 +110,28 @@
       ]
     },
     {
+      "name": "claude-code-error-hermit",
+      "source": "./plugins/claude-code-error-hermit",
+      "description": "Production-error watcher for Sentry/GlitchTip — triage new error groups against a noise ledger, correlate regressions with releases, approval-gated resolve/mute",
+      "version": "0.0.1",
+      "category": "development",
+      "author": {
+        "name": "gtapps",
+        "url": "https://github.com/gtapps"
+      },
+      "license": "MIT",
+      "homepage": "https://github.com/gtapps/claude-code-hermit",
+      "repository": "https://github.com/gtapps/claude-code-hermit",
+      "keywords": [
+        "sentry",
+        "glitchtip",
+        "errors",
+        "observability",
+        "triage",
+        "gtapps"
+      ]
+    },
+    {
       "name": "hermit-scribe",
       "source": "./plugins/hermit-scribe",
       "description": "Maintainer tool: file GitHub issues via a configured GitHub App bot identity.",

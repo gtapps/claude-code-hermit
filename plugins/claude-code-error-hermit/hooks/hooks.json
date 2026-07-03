@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "profile": "standard,strict",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/write-confirm-gate.ts"],
+            "timeout": 5
+          }
+        ],
+        "description": "Block error-api.ts resolve/mute calls lacking --confirm. Read subcommands (check, issues, issue, latest-event) pass through unconditionally."
+      }
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "id": "1",
+  "slug": "acme",
+  "name": "Acme",
+  "status": { "id": "active", "name": "active" }
+}

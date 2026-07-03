@@ -1,7 +1,7 @@
 # claude-code-hermit (monorepo)
 
-This repo is a multi-plugin Claude Code marketplace. Six plugins ship from `plugins/<slug>/`:
-`claude-code-hermit` (core), `claude-code-dev-hermit`, `claude-code-homeassistant-hermit`, `claude-code-fitness-hermit`, `hermit-scribe`, `laravel-forge-hermit`.
+This repo is a multi-plugin Claude Code marketplace. Seven plugins ship from `plugins/<slug>/`:
+`claude-code-hermit` (core), `claude-code-dev-hermit`, `claude-code-homeassistant-hermit`, `claude-code-fitness-hermit`, `hermit-scribe`, `laravel-forge-hermit`, `claude-code-error-hermit`.
 Each plugin has its own `CLAUDE.md`, `CHANGELOG.md`, and `tests/` — read those for plugin-specific context.
 
 The top-level `.claude-plugin/marketplace.json` is the only marketplace. The README at the repo root is the canonical hermit pitch.
