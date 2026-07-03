@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **`hermit-docker update` / `hermit-update`: domain (sibling) hermits now update, not just core** — the per-plugin loop moved pins straight from the local marketplace cache, which is never refreshed after first boot (auto-update is off by default for third-party/local marketplaces), so siblings silently resolved as "already up to date." Both wrappers now run `claude plugin marketplace update <name>` before the loop and process core first so `^core`-dependent siblings re-resolve cleanly. A plugin left `unchanged` with a live CLI error (e.g. `dependency-version-unsatisfied`) is now reported as `blocked` with the reason, instead of silently looking up to date, in both the terminal summary and `update-history.jsonl`.
+
+### Upgrade Instructions
+- Existing hermits run a stale on-disk copy of `bin/hermit-docker` and `bin/hermit-update` — `hermit-evolve`'s Step 5b bin-wrapper refresh replaces both from the current template, so a normal `/claude-code-hermit:hermit-evolve` picks up this fix. Until that runs, `hermit-docker update` / `hermit-update` on an un-evolved hermit keeps the old core-only behavior.
+
 ## [1.2.15] - 2026-07-03
 
 ### Removed

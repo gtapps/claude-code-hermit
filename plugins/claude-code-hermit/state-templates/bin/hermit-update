@@ -64,21 +64,48 @@ const name = config.tmux_session_name ?? 'hermit-{project_name}';
 console.log(name.replaceAll('{project_name}', require('path').basename(process.argv[2])));
 " "$CONFIG" "$PROJECT_DIR" 2>/dev/null || echo "hermit")
 
-# Enumerate plugins. Project/local entries scoped to THIS project move pins; user-scope
-# entries are skipped (moving a shared pin from a project wrapper would hit every project).
-# Emits class-tagged TAB rows: "UPDATE<TAB>id<TAB>scope<TAB>version" or "SKIPUSER<TAB>id<TAB>...".
+# Enumerate plugins, core first. Project/local entries scoped to THIS project move pins;
+# user-scope entries are skipped (moving a shared pin from a project wrapper would hit every
+# project). Emits class-tagged TAB rows: "UPDATE<TAB>id<TAB>scope<TAB>version" or
+# "SKIPUSER<TAB>id<TAB>...". Core-first ordering matters: sibling hermits declare a `^core`
+# dependency, so updating core first lets them re-resolve against the new version instead of
+# hitting a stale-core version block in the same pass.
 _enumerate_host() {
   claude plugin list --json 2>/dev/null \
     | bun -e '
       const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
       const proj = process.argv[1];
+      const rows = [];
       for (const p of (Array.isArray(d) ? d : [])) {
         if (p.enabled !== true || !p.id) continue;
         if ((p.scope === "project" || p.scope === "local") && p.projectPath === proj) {
-          console.log(["UPDATE", p.id, p.scope, p.version ?? ""].join("\t"));
+          rows.push(["UPDATE", p]);
         } else if (p.scope === "user") {
-          console.log(["SKIPUSER", p.id, p.scope, p.version ?? ""].join("\t"));
+          rows.push(["SKIPUSER", p]);
         }
+      }
+      rows.sort((a, b) => (a[1].id.startsWith("claude-code-hermit@") ? 0 : 1) - (b[1].id.startsWith("claude-code-hermit@") ? 0 : 1));
+      for (const [cls, p] of rows) {
+        console.log([cls, p.id, p.scope, p.version ?? ""].join("\t"));
+      }
+    ' "$PROJECT_DIR" 2>/dev/null || true
+}
+
+# Emits id<TAB>errors for enumerated plugins currently reporting CLI errors (e.g.
+# dependency-version-unsatisfied, no-matching-tag). Read-only annotation — never drives
+# update logic, only explains an "unchanged" result in the summary/history.
+_enumerate_host_errors() {
+  claude plugin list --json 2>/dev/null \
+    | bun -e '
+      const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
+      const proj = process.argv[1];
+      for (const p of (Array.isArray(d) ? d : [])) {
+        if (!p.id) continue;
+        const inProj = (p.scope === "project" || p.scope === "local") && p.projectPath === proj;
+        if (!inProj && p.scope !== "user") continue;
+        if (!Array.isArray(p.errors) || p.errors.length === 0) continue;
+        const errs = p.errors.map(e => typeof e === "string" ? e : (e.code || e.message || JSON.stringify(e))).join(";");
+        console.log([p.id, errs].join("\t"));
       }
     ' "$PROJECT_DIR" 2>/dev/null || true
 }
@@ -121,6 +148,26 @@ if [ "$ASSUME_YES" = false ]; then
   case "$ANS" in [yY]|[yY][eE][sS]) ;; *) echo "[hermit] Aborted."; exit 0 ;; esac
 fi
 
+# Refresh each backing marketplace's catalog first. `claude plugin update` moves the pin
+# against whatever is already in the local cache — it does not git-pull. A third-party/local
+# marketplace like this one has auto-update off by default, so without this refresh the
+# cache stays frozen and every sibling silently resolves as "already up to date".
+echo "[hermit] Refreshing plugin marketplaces..."
+MARKETPLACES=$(printf '%s\n' "$UPDATE_ROWS" | bun -e '
+  const lines = require("fs").readFileSync(0, "utf8").split("\n").filter(Boolean);
+  const seen = new Set();
+  for (const line of lines) {
+    const mp = (line.split("\t")[1] || "").split("@")[1];
+    if (mp) seen.add(mp);
+  }
+  console.log([...seen].join("\n"));
+')
+while IFS= read -r mp; do
+  [ -z "$mp" ] && continue
+  claude plugin marketplace update "$mp" 2>/dev/null || \
+    echo "[hermit] Warning: could not refresh marketplace $mp — updates may resolve against a stale catalog" >&2
+done <<< "$MARKETPLACES"
+
 PLUGINS_OK_IDS=()
 PLUGINS_FAIL_IDS=()
 while IFS=$'\t' read -r _cls pid pscope pver; do
@@ -138,6 +185,7 @@ done <<< "$UPDATE_ROWS"
 # Re-read pins now (pin moves at CLI-update time, before any reload).
 ROWS_AFTER=$(_enumerate_host)
 UPDATE_ROWS_AFTER=$(printf '%s\n' "$ROWS_AFTER" | grep '^UPDATE	' || true)
+PLUGIN_ERRORS_AFTER=$(_enumerate_host_errors)
 
 # --- Apply in the running tmux session if one exists (host tmux, no docker exec). ---
 RELOAD_PLUGINS_SENT=false
@@ -228,9 +276,9 @@ fi
 BEFORE_TSV=$(printf '%s\n' "$UPDATE_ROWS" | cut -f2-)
 AFTER_TSV=$(printf '%s\n' "$UPDATE_ROWS_AFTER" | cut -f2-)
 bun - "$BEFORE_TSV" "$AFTER_TSV" "$FAIL_IDS_JSON" "$LOG_FILE" \
-      "$RELOAD_PLUGINS_SENT" "$EVOLVE_SENT" <<'JSEOF' || \
+      "$RELOAD_PLUGINS_SENT" "$EVOLVE_SENT" "$PLUGIN_ERRORS_AFTER" <<'JSEOF' || \
   echo "[hermit] Warning: could not write update log" >&2
-const [beforeTsv, afterTsv, failJson, logFile, reloadSent, evolveSent] = process.argv.slice(2);
+const [beforeTsv, afterTsv, failJson, logFile, reloadSent, evolveSent, errorsTsv] = process.argv.slice(2);
 const parseRows = (tsv) => {
   const m = new Map();
   for (const line of (tsv || '').split('\n')) {
@@ -240,15 +288,32 @@ const parseRows = (tsv) => {
   }
   return m;
 };
+const parseErrors = (tsv) => {
+  const m = new Map();
+  for (const line of (tsv || '').split('\n')) {
+    if (!line.trim()) continue;
+    const [id, errors] = line.split('\t');
+    if (id) m.set(id, errors || '');
+  }
+  return m;
+};
 const before = parseRows(beforeTsv);
 const after = parseRows(afterTsv);
+const errors = parseErrors(errorsTsv);
 const failed = new Set(JSON.parse(failJson));
 const plugins = [];
 for (const [id, { scope, version }] of before) {
   const a = after.get(id);
   const afterVer = a ? a.version : version;
-  const status = failed.has(id) ? 'failed' : (afterVer !== version ? 'updated' : 'unchanged');
-  plugins.push({ id, scope, before: version, after: afterVer, status });
+  const err = errors.get(id);
+  const unchanged = afterVer === version;
+  let status;
+  if (failed.has(id)) status = 'failed';
+  else if (!unchanged) status = 'updated';
+  else status = err ? 'blocked' : 'unchanged';
+  const entry = { id, scope, before: version, after: afterVer, status };
+  if (err) entry.error = err;
+  plugins.push(entry);
 }
 const entry = {
   ts: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
@@ -267,13 +332,18 @@ if [ -n "$UPDATE_ROWS" ]; then
   echo "  Plugins:"
   bun -e '
     const parse = (t) => { const m = new Map(); for (const l of (t||"").split("\n")) { if(!l.trim()) continue; const [id,scope,version]=l.split("\t"); if(id) m.set(id,{scope,version}); } return m; };
-    const before = parse(process.argv[1]); const after = parse(process.argv[2]); const failed = new Set(JSON.parse(process.argv[3]));
+    const parseErrors = (t) => { const m = new Map(); for (const l of (t||"").split("\n")) { if(!l.trim()) continue; const [id,errors]=l.split("\t"); if(id) m.set(id,errors||""); } return m; };
+    const before = parse(process.argv[1]); const after = parse(process.argv[2]); const failed = new Set(JSON.parse(process.argv[3])); const errors = parseErrors(process.argv[4]);
     for (const [id,{version}] of before) {
       const a = after.get(id); const av = a ? a.version : version;
-      const tag = failed.has(id) ? " (FAILED — run manually)" : (av !== version ? "" : " (unchanged)");
+      const err = errors.get(id);
+      let tag;
+      if (failed.has(id)) tag = " (FAILED — run manually)";
+      else if (av !== version) tag = "";
+      else tag = err ? ` (blocked — ${err})` : " (unchanged)";
       console.log("    " + id + ": v" + version + " -> v" + av + tag);
     }
-  ' "$BEFORE_TSV" "$AFTER_TSV" "$FAIL_IDS_JSON" 2>/dev/null || true
+  ' "$BEFORE_TSV" "$AFTER_TSV" "$FAIL_IDS_JSON" "$PLUGIN_ERRORS_AFTER" 2>/dev/null || true
 fi
 if [ "$EVOLVE_SENT" = true ]; then
   echo "  hermit-evolve auto-started (unattended) — hermit config is upgrading."
