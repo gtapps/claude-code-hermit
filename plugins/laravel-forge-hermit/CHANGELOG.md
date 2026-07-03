@@ -1,6 +1,6 @@
 # Changelog — laravel-forge-hermit
 
-## [Unreleased]
+## [0.0.5] - 2026-07-03
 
 ### Changed
 - **`forge-failed-deploys` prose: `reflect-scheduled-checks` → `reflect --scheduled-checks`** — the core scheduled-check runner merged into `reflect`; the skill now names the surviving invocation (no behavior change — the `scheduled-checks` routine still consumes its stdout).
