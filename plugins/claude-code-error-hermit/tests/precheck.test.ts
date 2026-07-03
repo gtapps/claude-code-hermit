@@ -86,6 +86,26 @@ describe('error-precheck verdicts', () => {
     expect(r.verdict).toBe('EVALUATE|2 new groups');
   });
 
+  test('all returned groups already in seen_ids → SKIP (boundary does not re-trigger)', async () => {
+    const dir = makeProjectDir({
+      last_seen_first_seen: '2026-07-03T00:20:00Z',
+      seen_ids: ['1001', '1002'],
+    });
+    const r = await runPrecheck(dir, 'web');
+    expect(r.code).toBe(0);
+    expect(r.verdict).toBe('SKIP|no new error groups');
+  });
+
+  test('seen_ids covers only some groups → EVALUATE counts the fresh ones', async () => {
+    const dir = makeProjectDir({
+      last_seen_first_seen: '2026-07-03T00:20:00Z',
+      seen_ids: ['1001'],
+    });
+    const r = await runPrecheck(dir, 'web');
+    expect(r.code).toBe(0);
+    expect(r.verdict).toBe('EVALUATE|1 new groups');
+  });
+
   test('missing config → ERROR, exit 0 (verdict is the protocol)', async () => {
     const dir = makeProjectDir({ last_seen_first_seen: '2026-07-01T00:00:00Z' });
     const r = await runPrecheck(dir, 'web', { ERROR_HERMIT_TOKEN: '' });

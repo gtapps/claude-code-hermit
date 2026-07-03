@@ -9,6 +9,7 @@ import {
   summarizeIssue,
   summarizeEvent,
   buildIssueQuery,
+  isoMinus,
   redact,
 } from '../scripts/error-api-lib';
 import { loadFixture, jsonResponse } from './test-utils';
@@ -18,7 +19,7 @@ const load = loadFixture;
 
 const GOOD_TOKEN = 'good-secret-token-value-xyz';
 
-type Recorded = { method: string; path: string; body: string };
+type Recorded = { method: string; path: string; search: string; body: string };
 const requests: Recorded[] = [];
 
 let server: ReturnType<typeof Bun.serve> | undefined;
@@ -30,7 +31,7 @@ beforeAll(() => {
     async fetch(req) {
       const url = new URL(req.url);
       const body = req.method === 'GET' ? '' : await req.text();
-      requests.push({ method: req.method, path: url.pathname, body });
+      requests.push({ method: req.method, path: url.pathname, search: url.search, body });
 
       const auth = req.headers.get('authorization') ?? '';
       if (!auth.includes(GOOD_TOKEN)) {
@@ -104,6 +105,11 @@ describe('lib parsers', () => {
     expect(buildIssueQuery({})).toBe('');
   });
 
+  test('isoMinus subtracts the lookback and leaves bad input untouched', () => {
+    expect(isoMinus('2026-07-03T06:00:00Z', 6 * 60 * 60 * 1000)).toBe('2026-07-03T00:00:00.000Z');
+    expect(isoMinus('not-a-date', 1000)).toBe('not-a-date');
+  });
+
   test('redact scrubs the token and bearer-shaped substrings', () => {
     const scrubbed = redact(`Authorization: Bearer ${GOOD_TOKEN}`, GOOD_TOKEN);
     expect(scrubbed).not.toContain(GOOD_TOKEN);
@@ -153,7 +159,8 @@ describe('CLI: issues', () => {
     await runCli(['issues', '--since', '2026-07-03T00:00:00Z']);
     const listReq = requests.filter((q) => q.path === '/api/0/projects/acme/web/issues/').pop();
     expect(listReq).toBeDefined();
-    expect(listReq!.path).toBe('/api/0/projects/acme/web/issues/');
+    const query = new URLSearchParams(listReq!.search).get('query');
+    expect(query).toBe('firstSeen:>=2026-07-03T00:00:00Z');
   });
 });
 

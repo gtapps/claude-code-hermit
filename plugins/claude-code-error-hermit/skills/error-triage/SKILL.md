@@ -82,7 +82,14 @@ Append a scrubbed record to `raw/error-triage-<YYYY-MM-DD>.md`: each group's sho
 
 ## Step 7 — Advance the cursor
 
-Write `state/error-cursor.json` with `last_check` = now, `last_seen_first_seen` = the max `firstSeen` across the groups processed this run, and `consecutive_failures` = 0. This is the **only** place the cursor advances — a failed run in Step 1 never reaches here.
+Write `state/error-cursor.json` with:
+
+- `last_check` = now.
+- `last_seen_first_seen` = the max `firstSeen` across the groups processed this run.
+- `seen_ids` = the issue ids you processed whose `firstSeen` falls within the precheck lookback of the new watermark (a stable window of ~6h back from `last_seen_first_seen`; drop older ids so the list stays bounded). The precheck reads this set to dedup the inclusive `firstSeen:>=` boundary — without it the boundary group re-triggers EVALUATE every run and the loop never reaches SKIP.
+- `consecutive_failures` = 0.
+
+This is the **only** place the cursor advances — a failed run in Step 1 never reaches here.
 
 ---
 

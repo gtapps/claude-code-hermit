@@ -175,10 +175,21 @@ function str(v: unknown): string {
   return String(v);
 }
 
+// Subtract `ms` from an ISO timestamp, returning a new ISO string. Used by the
+// precheck to widen the `firstSeen:>=` window by a lookback so a group that
+// arrives with a slightly-backdated firstSeen (clock skew, delayed grouping) is
+// still seen; the precheck then dedups by issue id so the overlap costs nothing.
+export function isoMinus(iso: string, ms: number): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return iso;
+  return new Date(t - ms).toISOString();
+}
+
 // Build the Sentry issue-search `query` string. Combines an optional free-form
 // query with a `firstSeen:>=<iso>` bound so the watch loop sees only groups
-// that first appeared at or after the cursor (>= handles boundary ties; the
-// triage skill dedups against ids already recorded that day).
+// that first appeared at or after the cursor. The bound is inclusive; the
+// precheck dedups the returned groups against the cursor's `seen_ids` so the
+// boundary group does not re-trigger EVALUATE forever.
 export function buildIssueQuery(opts: { since?: string; query?: string }): string {
   const parts: string[] = [];
   if (opts.query) parts.push(opts.query.trim());
