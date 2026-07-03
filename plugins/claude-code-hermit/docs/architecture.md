@@ -297,7 +297,7 @@ Reflection fires -> three-outcome decision:
 
 Reflection uses auto-memory as primary input. Your hermit reflects on what it remembers: recurring blockers, repeated workarounds, cost patterns, workflow friction. Evidence is conversational ("I've hit this repeatedly") rather than citation-based.
 
-**Three-condition gate:** Every proposal candidate must satisfy three conditions: (1) repeated pattern observed across sessions, (2) meaningful consequence if left unaddressed, and (3) an operator-actionable change. This prevents trivial or one-off observations from cluttering the proposal pipeline.
+**Three-condition gate:** Every proposal candidate must satisfy the three conditions defined canonically in `skills/proposal-create/SKILL.md` §Three-Condition Rule: repeated pattern across sessions, meaningful consequence if left unaddressed, and an operator-actionable change. This prevents trivial or one-off observations from cluttering the proposal pipeline.
 
 **Micro-proposals (tier 1/2):** For changes that are reversible or non-critical, reflect queues a micro-proposal — a yes/no question sent via channel. Multiple pending micro-proposals can coexist (`state/micro-proposals.json → pending[]`); operator answers by ID. Ignored micro-proposals expire after 2 morning briefs.
 

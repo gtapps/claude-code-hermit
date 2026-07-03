@@ -122,16 +122,7 @@ The plan's `new_config_keys` array lists every key in the current `config.json.t
 
 Special-default keys (apply the noted default when the key is in `new_config_keys`):
 - `language` (0.0.1) / `timezone` (0.0.1): when missing, the subagent **auto-detects** the value (`$LANG` / system timezone via `date +%Z`/`timedatectl`) and writes that, rather than the static plan default. (These are 0.0.1 keys, set at hatch, so they are almost never missing at evolve time.)
-- `remote` (0.0.1): `true` · `agent_name` (0.0.1) / `sign_off` (0.0.1) / `escalation` (0.0.1) / `idle_behavior` (0.0.9): plan default (operator tunes via `/hermit-settings`).
-- `always_on` (0.0.1): `false` | `auto_session` (0.0.1): `true` | `model` (0.0.1): `"sonnet"` | `permission_mode` (0.0.1): `"auto"`
-- `tmux_session_name` (0.0.1): `"hermit-{project_name}"` | `chrome` (0.0.1): `false` | `push_notifications` (1.1.2): `true`
-- `channels` (0.0.1): `{}` | `monitors` (0.3.14): `[]`
-- `heartbeat.waiting_timeout` (0.3.0): `null` | `heartbeat.stale_threshold` (0.0.9): `"2h"`
-- `routines` (0.0.9): `[]` | `scheduled_checks` (0.3.1): `[]`
-- `env` (0.0.7): `{"AGENT_HOOK_PROFILE":"standard","COMPACT_THRESHOLD":"75","CLAUDE_AUTOCOMPACT_PCT_OVERRIDE":"65","MAX_THINKING_TOKENS":"10000"}`
-- `docker` (0.0.7): `{"packages":[],"recommended_plugins":[]}`
-- `compact` (0.0.7): `{"monitoring_threshold":30,"monitoring_keep":20,"summary_threshold":30,"summary_keep":15}`
-- `knowledge` (0.4.0): `{"raw_retention_days":14,"compiled_budget_chars":2500,"working_set_warn":20}`
+- All other keys: apply the plan's `default` verbatim (operator tunes via `/hermit-settings` afterward). The canonical defaults live in `state-templates/config.json.template`; `evolve-plan.ts` derives each `new_config_keys[].default` from it, so there is no separate default list to maintain here.
 
 The actual write happens in step 9 (merge into config, missing-only); this step just records which keys to set.
 

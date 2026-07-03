@@ -619,50 +619,7 @@ questions: [
 ```
 
 - If **hardened** (always-on): default + always-on additions (excluding docker/kubectl/ssh — valid in devops contexts on host). Canonical source: `state-templates/deny-patterns.json`.
-  ```json
-  "deny": [
-    "Bash(rm -rf *)",
-    "Bash(chmod 777*)",
-    "Bash(*sudo *)",
-    "Bash(*> /etc/*)",
-    "Bash(curl * | bash*)",
-    "Bash(wget * | bash*)",
-    "Bash(env)",
-    "Bash(printenv)",
-    "Bash(cat .env*)",
-    "Bash(cat */.env*)",
-    "Bash(cat ~/.ssh/*)",
-    "Bash(cat ~/.aws/*)",
-    "Bash(*API_KEY*)",
-    "Bash(*SECRET*)",
-    "Bash(*TOKEN*)",
-    "Bash(npm publish*)",
-    "Bash(git push --force*)",
-    "Bash(git push origin main*)",
-    "Bash(git reset --hard*)",
-    "Bash(*--no-verify*)"
-  ]
-  ```
-- If **minimal** (default): default set only.
-  ```json
-  "deny": [
-    "Bash(rm -rf *)",
-    "Bash(chmod 777*)",
-    "Bash(*sudo *)",
-    "Bash(*> /etc/*)",
-    "Bash(curl * | bash*)",
-    "Bash(wget * | bash*)",
-    "Bash(env)",
-    "Bash(printenv)",
-    "Bash(cat .env*)",
-    "Bash(cat */.env*)",
-    "Bash(cat ~/.ssh/*)",
-    "Bash(cat ~/.aws/*)",
-    "Bash(*API_KEY*)",
-    "Bash(*SECRET*)",
-    "Bash(*TOKEN*)"
-  ]
-  ```
+- If **minimal** (default): default set only. Same canonical source: `state-templates/deny-patterns.json`.
 - If **skip**: note: "You can add deny rules later in .claude/settings.json under permissions.deny."
 
 Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <resolved-settings-file> deny <minimal|hardened>` to merge selected rules (never removes existing entries). The script reads the canonical deny list from `state-templates/deny-patterns.json`.
