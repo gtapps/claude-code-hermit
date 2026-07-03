@@ -58,12 +58,89 @@ function runWithConfig(command: string, protectedBranches: string[], env: Json =
   }
 }
 
+// Like runRaw but returns the full result so tests can assert on stderr.
+function runCapture(command: string, env: Json = {}) {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-test-'));
+  try {
+    return spawnSync(process.execPath, [GUARD], {
+      input: makeInput(command),
+      env: { ...process.env, ...env },
+      encoding: 'utf-8',
+      cwd: tmpDir,
+    });
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+// Build a throwaway git repo on `branch` (default main) and run the guard
+// against it. `detach` checks out a detached HEAD; `guardCwd` runs the guard
+// from a different directory (for `git -C <repo>` cases); `protectedBranches`
+// seeds a hermit config inside the repo.
+function runInGitRepo(
+  command: string,
+  opts: { branch?: string; detach?: boolean; guardCwd?: string; protectedBranches?: string[]; env?: Json } = {}
+) {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-repo-'));
+  const extraDir = opts.guardCwd === 'other' ? fs.mkdtempSync(path.join(os.tmpdir(), 'guard-cwd-')) : null;
+  const gitEnv = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' };
+  const git = (args: string[]) => spawnSync('git', args, { cwd: repo, encoding: 'utf-8', env: gitEnv });
+  try {
+    git(['init']);
+    // Version-independent branch selection: works on an unborn HEAD.
+    git(['symbolic-ref', 'HEAD', `refs/heads/${opts.branch || 'main'}`]);
+    if (opts.detach) {
+      git(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '--allow-empty', '-m', 'x']);
+      git(['checkout', '--detach']);
+    }
+    if (opts.protectedBranches) {
+      const hermitDir = path.join(repo, '.claude-code-hermit');
+      fs.mkdirSync(hermitDir);
+      fs.writeFileSync(
+        path.join(hermitDir, 'config.json'),
+        JSON.stringify({ 'claude-code-dev-hermit': { protected_branches: opts.protectedBranches } })
+      );
+    }
+    const runCommand = command.replace(/__REPO__/g, repo);
+    const result = spawnSync(process.execPath, [GUARD], {
+      input: makeInput(runCommand),
+      env: { ...process.env, AGENT_HOOK_PROFILE: 'strict', ...(opts.env || {}) },
+      encoding: 'utf-8',
+      cwd: extraDir || repo,
+    });
+    return result.status;
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+    if (extraDir) fs.rmSync(extraDir, { recursive: true, force: true });
+  }
+}
+
 function assert(description: string, actual: number | null, expected: number) {
   if (actual === expected) {
     console.log(`  ✓ ${description}`);
     passed++;
   } else {
     console.error(`  ✗ ${description} — expected exit ${expected}, got ${actual}`);
+    failed++;
+  }
+}
+
+function assertContains(description: string, haystack: string, needle: string) {
+  if (haystack.includes(needle)) {
+    console.log(`  ✓ ${description}`);
+    passed++;
+  } else {
+    console.error(`  ✗ ${description} — expected stderr to contain "${needle}", got: ${JSON.stringify(haystack)}`);
+    failed++;
+  }
+}
+
+function assertEmpty(description: string, haystack: string) {
+  if (!haystack) {
+    console.log(`  ✓ ${description}`);
+    passed++;
+  } else {
+    console.error(`  ✗ ${description} — expected empty stderr, got: ${JSON.stringify(haystack)}`);
     failed++;
   }
 }
@@ -162,6 +239,33 @@ assert('release/1.2 allowed with default config', run('git push origin release/1
 assert('staging blocked when staging is in config', runWithConfig('git push origin staging', ['main', 'staging']), 2);
 assert('feature/x allowed with custom config', runWithConfig('git push origin feature/x', ['main', 'staging']), 0);
 assert('config still blocks main', runWithConfig('git push origin main', ['main', 'staging']), 2);
+
+// --- Current-branch resolution (bare push / HEAD) ---
+console.log('\nCurrent-branch resolution:');
+assert('bare push on main is blocked', runInGitRepo('git push', { branch: 'main' }), 2);
+assert('bare push origin on master is blocked', runInGitRepo('git push origin', { branch: 'master' }), 2);
+assert('bare push on feature branch is allowed', runInGitRepo('git push', { branch: 'feature/x' }), 0);
+assert('push origin HEAD on main is blocked', runInGitRepo('git push origin HEAD', { branch: 'main' }), 2);
+assert('push origin HEAD on feature branch is allowed', runInGitRepo('git push origin HEAD', { branch: 'feature/x' }), 0);
+assert('HEAD:main refspec from feature branch is still blocked', runInGitRepo('git push origin HEAD:main', { branch: 'feature/x' }), 2);
+assert('HEAD:feature/y refspec from main is allowed (dest not protected)', runInGitRepo('git push origin HEAD:feature/y', { branch: 'main' }), 0);
+assert('bare push on detached HEAD is allowed (fail open)', runInGitRepo('git push', { branch: 'main', detach: true }), 0);
+assert('git -C <repo-on-main> push from elsewhere is blocked', runInGitRepo('git -C __REPO__ push', { branch: 'main', guardCwd: 'other' }), 2);
+assert('bare push on staging blocked when staging is protected', runInGitRepo('git push', { branch: 'staging', protectedBranches: ['main', 'staging'] }), 2);
+assert('bare push on feature allowed with custom protected config', runInGitRepo('git push', { branch: 'feature/x', protectedBranches: ['main', 'staging'] }), 0);
+
+// --- Inactive-profile notice ---
+console.log('\nInactive-profile notice:');
+{
+  const r = runCapture('git push origin main', { AGENT_HOOK_PROFILE: 'standard' });
+  assert('non-strict push exits 0', r.status, 0);
+  assertContains('non-strict push warns guard is inactive', r.stderr || '', 'inactive');
+}
+{
+  const r = runCapture('npm test', { AGENT_HOOK_PROFILE: 'standard' });
+  assert('non-strict non-push exits 0', r.status, 0);
+  assertEmpty('non-strict non-push emits no notice', r.stderr || '');
+}
 
 // --- Summary ---
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
