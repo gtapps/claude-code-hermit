@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.15] - 2026-07-03
 
 ### Removed
 - **skills: `pulse`, `hermit-brain`, `daily-auto-close`, `reflect-scheduled-checks`, `knowledge`, `test-run`** — folded into surviving skills or dropped (see Changed); the core skill surface goes 34 → 28.

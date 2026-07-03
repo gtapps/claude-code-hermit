@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="plugins/claude-code-hermit/CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.14-green.svg" alt="Version 1.2.14" /></a>
+  <a href="plugins/claude-code-hermit/CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.15-green.svg" alt="Version 1.2.15" /></a>
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/_gh_traffic_stats/.github/badges/clones.json" alt="Downloads" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
   <a href="https://discord.gg/54sJqAxhUh"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Join" /></a>
@@ -237,7 +237,6 @@ Join the [`claude-code-hermit` Discord community](https://discord.gg/54sJqAxhUh)
 - [Plugin Hermit Storage](plugins/claude-code-hermit/docs/plugin-hermit-storage.md)
 - [Recommended Plugins](plugins/claude-code-hermit/docs/recommended-plugins.md)
 - [Security](plugins/claude-code-hermit/docs/security.md)
-- [Skills Reference](plugins/claude-code-hermit/docs/skills.md)
 - [Testing](plugins/claude-code-hermit/docs/testing.md)
 - [Troubleshooting](plugins/claude-code-hermit/docs/troubleshooting.md)
 - [Upgrading](plugins/claude-code-hermit/docs/upgrading.md)

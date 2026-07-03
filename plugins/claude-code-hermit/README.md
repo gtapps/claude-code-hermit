@@ -1,7 +1,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.14-green.svg" alt="Version 1.2.14" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.15-green.svg" alt="Version 1.2.15" /></a>
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/_gh_traffic_stats/.github/badges/clones.json" alt="Downloads" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
   <a href="https://discord.gg/54sJqAxhUh"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Join" /></a>
@@ -82,7 +82,7 @@ On-demand skills — pullable from the Claude app, your terminal, or a DM:
 - **`/hermit-health`** — alerts, routines, channels, heartbeat state, plus fragile zones, stale proposals, and recent learnings
 - **`/hermit-doctor`** — install diagnostic, from hook registration to heartbeat liveness
 - **`/cost-reflect`** — structural cost audit: which token types and trigger sources drive spend
-- **`/brief`** — summary of recent work, or what it's doing right now
+- **`/brief`** — current status and a summary of recent work
 
 ---
 
@@ -210,6 +210,8 @@ Domain plugins you stack on top of any hermit you've hatched.
 - [**`dev-hermit`**](../claude-code-dev-hermit/README.md) — *For software builders.* Safety layer for code-writing agents: push guard, branch discipline, gated PRs.
 - [**`homeassistant-hermit`**](../claude-code-homeassistant-hermit/README.md) — *For Home Assistant users.* HA skills, safety hook, automation builder, zero-dependency CLI.
 - [**`fitness-hermit`**](../claude-code-fitness-hermit/README.md) — *Fitness focused.* Strava MCP wiring, activity deep-dives, weekly-load routines.
+- [**`laravel-forge-hermit`**](../laravel-forge-hermit/README.md) — *For Laravel Forge operators.* Deploy, logs, and server/site skills over the official Forge PHP SDK.
+- [**`hermit-scribe`**](../hermit-scribe/README.md) — *For maintainers.* Files GitHub issues and comments from proposals via a bot identity.
 
 Many operators run several hermits in parallel — one per domain. Each one is a `/hatch` away. They share nothing but the protocol; their memory, cost history, and routines are independent, and a single Claude subscription covers them all. See [Creating Your Own Hermit](docs/creating-your-own-hermit.md).
 
