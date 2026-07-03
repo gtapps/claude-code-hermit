@@ -164,7 +164,7 @@ Ask: "Claude model to use?
   haiku  → claude-haiku-4-5-20251001
   none   → use Claude Code default (inherit from user config)
 [current: <value or 'default'>]"
-Run `settings-edit ... set model <value>` ("none"/"default"/"clear" → null).
+Run `settings-edit ... set model <value>`. To clear (operator says "none", "default", or "clear" → inherit Claude Code default), pass the `none` sentinel: `settings-edit ... set model none` (the script maps `none`/`clear` → null; do NOT pass the literal word `default`, which would be stored as a string).
 Note: "Model changes take effect on next `hermit-start` run."
 
 **If argument is "brief":**
@@ -180,7 +180,7 @@ Ask: "Boot skill to invoke on always-on launch? This runs after heartbeat/routin
   <skill>  — any namespaced skill (e.g. `/claude-code-foo-hermit:foo-boot`)
   none     — clear (falls back to `/claude-code-hermit:session`)
 [current: <value or 'default'>]"
-Run `settings-edit ... set boot_skill <value>` ("none"/"default"/"clear" → null). The domain boot skill is responsible for calling `/claude-code-hermit:session-start` itself — this setting just controls the single bootstrap command `hermit-start.ts` fires into the REPL.
+Run `settings-edit ... set boot_skill <value>`. To clear (operator says "none", "default", or "clear" → fall back to `/claude-code-hermit:session`), pass the `none` sentinel: `settings-edit ... set boot_skill none` (the script maps `none`/`clear` → null; do NOT pass the literal word `default`, which would be stored as a string). The domain boot skill is responsible for calling `/claude-code-hermit:session-start` itself — this setting just controls the single bootstrap command `hermit-start.ts` fires into the REPL.
 Note: "Boot skill changes take effect on next `hermit-start` run."
 
 **If argument is "permissions":**
