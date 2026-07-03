@@ -5,10 +5,12 @@
 // incremental, so it cannot drift). Also exported as rebuildIndex() for the
 // generate-summary PostToolUse hook to call on every proposal write.
 //
-// Why this exists: proposal-list and heartbeat's default scan otherwise read
-// every PROP-*.md body in full (~22K tokens for a dozen proposals) just to
-// render a table from frontmatter. The index is the single source of proposal
-// counts, killing the state-summary/reflection-state/disk three-way drift.
+// Why this exists: proposal-list otherwise reads every PROP-*.md body in full
+// (~22K tokens for a dozen proposals) just to render a table from frontmatter.
+// It also carries proposal counts for proposal-list. (Note: state-summary.md and
+// reflection-state.json still tally proposal events independently from
+// proposal-metrics.jsonl — those are event counters, a different quantity, and
+// were not migrated onto this index.)
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -54,14 +56,13 @@ function parseLegacy(idFromFile: string, body: string): ProposalRow {
     const m = body.match(new RegExp(`\\*\\*${label}:\\*\\*\\s*(.+)`));
     return m ? m[1].trim() : null;
   };
-  const heading = body.match(/^#\s+Proposal:\s+\S+\s+[—-]\s+(.+)$/m);
   return {
     id: idFromFile,
     file: '',
     status: grab('Status'),
     source: grab('Source') ?? 'manual',
     category: grab('Category'),
-    title: heading ? heading[1].trim() : null,
+    title: extractTitle(null, body),
     created: grab('Created'),
     session: grab('Session'),
     responded: false,
@@ -82,10 +83,23 @@ export function rebuildIndex(stateDir: string): ProposalsIndex | null {
 
   for (const file of files) {
     const base = path.basename(file);
-    const idMatch = base.match(/^(PROP-\d+(?:-[a-z0-9-]+-\d+)?)/i);
     const idStem = base.replace(/\.md$/, '');
     const parsed = readFileWithFrontmatter(file);
-    if (!parsed) continue; // unreadable — skip rather than crash the whole rebuild
+    if (!parsed) {
+      // Truly unreadable file (fs error, not malformed frontmatter — that falls
+      // to the legacy branch below). Don't silently drop it: it would vanish from
+      // proposal-list while heartbeat, which reads disk directly, still wakes on
+      // it, so the two surfaces would disagree about whether it exists. Emit a
+      // minimal placeholder row so it still shows up (status null → counts as
+      // 'unknown').
+      proposals.push({
+        id: idStem, file: base, status: null, source: null, category: null,
+        title: null, created: null, session: null, responded: false,
+        accepted_date: null, resolved_date: null, tags: [], self_eval_key: null,
+        legacy: true,
+      });
+      continue;
+    }
 
     if (parsed.fm && typeof parsed.fm === 'object') {
       const fm = parsed.fm;
@@ -106,6 +120,7 @@ export function rebuildIndex(stateDir: string): ProposalsIndex | null {
         legacy: false,
       });
     } else {
+      const idMatch = base.match(/^(PROP-\d+(?:-[a-z0-9-]+-\d+)?)/i);
       const row = parseLegacy(idMatch ? idMatch[1] : idStem, parsed.body);
       row.file = base;
       proposals.push(row);
@@ -126,8 +141,10 @@ export function rebuildIndex(stateDir: string): ProposalsIndex | null {
   };
 
   try {
+    const stateSubdir = path.join(stateDir, 'state');
+    fs.mkdirSync(stateSubdir, { recursive: true }); // state/ may be absent on a partial layout
     fs.writeFileSync(
-      path.join(stateDir, 'state', 'proposals-index.json'),
+      path.join(stateSubdir, 'proposals-index.json'),
       JSON.stringify(index, null, 2) + '\n',
       'utf8',
     );

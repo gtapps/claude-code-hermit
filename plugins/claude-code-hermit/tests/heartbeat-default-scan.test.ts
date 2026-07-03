@@ -16,7 +16,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { runScript } from './helpers/run';
+import { runScript, PLUGIN_ROOT } from './helpers/run';
+import { isProposalScanItem } from '../scripts/lib/heartbeat-items';
 
 const hermit = (dir: string, ...p: string[]) => path.join(dir, '.claude-code-hermit', ...p);
 
@@ -156,5 +157,23 @@ describe('default proposal-scan resolution', () => {
   test('empty proposals dir with no alerts → OK', async () => {
     const dir = build({});
     expect(await verdict(dir)).toBe('OK');
+  });
+});
+
+// Coherence guard: the whole optimization hinges on isProposalScanItem matching
+// the item shipped in HEARTBEAT.md.template. If a future template reword drops the
+// `proposed` keyword (or the `proposals/` reference), the classifier stops matching
+// the default, the item silently falls back to the generic alert path, and the
+// wasted-dispatch bug returns with only the 6h damper capping it. Pin them together
+// so a template edit that breaks the match fails here instead of shipping silently.
+describe('shipped HEARTBEAT.md.template ↔ classifier coherence', () => {
+  test('the shipped default proposal-scan item matches isProposalScanItem', () => {
+    const tpl = fs.readFileSync(
+      path.join(PLUGIN_ROOT, 'state-templates', 'HEARTBEAT.md.template'), 'utf8',
+    );
+    const bullets = tpl.split('\n').map(l => l.trim()).filter(l => /^[-*+]\s/.test(l));
+    const proposalItem = bullets.find(l => /proposals/i.test(l));
+    expect(proposalItem).toBeDefined();
+    expect(isProposalScanItem(proposalItem!)).toBe(true);
   });
 });

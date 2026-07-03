@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - **README: `/hermit-brain` → `/hermit-health`** — the core `hermit-brain` skill merged into `hermit-health`; the docs now point at the surviving skill.
 - **`weekly-coaching-patterns` prose: `reflect-scheduled-checks` → `reflect --scheduled-checks`** — the core scheduled-check runner merged into `reflect`; the skill now names the surviving invocation (no behavior change — the `scheduled-checks` routine still consumes its stdout).
-- **CLAUDE-APPEND slimmed 5.3KB → ~3.9KB** — the Skills, Subagents, and Strava-MCP-tool catalog tables were removed; skill descriptions and the already-in-context MCP tool schemas carry that content. The block is re-paid on every session load and subagent dispatch, so this cuts recurring context cost.
+- **CLAUDE-APPEND slimmed 5.3KB → ~3.9KB** — the Skills, Subagents, and Strava-MCP-tool catalog tables were removed; skill descriptions and the already-in-context MCP tool schemas carry that content. The `get-athlete-stats` all-time-totals steer is kept inline (don't sum `get-all-activities` client-side). The block is re-paid on every session load and subagent dispatch, so this cuts recurring context cost.
 
 ### Upgrade Instructions
 - No manual steps. The Fitness CLAUDE-APPEND block is synced automatically via `hermit-evolve` Step 7's sibling-upgrade flow when this version's gap is processed.

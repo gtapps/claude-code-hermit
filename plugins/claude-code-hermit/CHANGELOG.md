@@ -10,7 +10,7 @@
 
 ### Added
 - **contract tests: version-triad and marketplace sync** — the sibling manifest walk in `hooks.contract.test.ts` now also asserts each domain plugin's `plugin.json` `dependencies[claude-code-hermit]` base version matches its `hermit-meta.json` `required_core_version`, and a new test enforces `marketplace.json` ↔ `plugin.json` name/version parity in both directions. Runs under `test-hooks.yml`.
-- **`state/proposals-index.json` — derived proposal frontmatter cache (token efficiency)** — `proposals-index.ts` mirrors every proposal's frontmatter (id/status/source/category/title/created/session/responded), rebuilt on every proposal write by the `generate-summary` PostToolUse hook. `proposal-list` now renders from the index instead of reading every `PROP-*.md` body (~22K tokens → ~1K for a dozen proposals), and the index is the single source of proposal counts. Legacy pre-frontmatter proposals are parsed with a `legacy: true` flag; the cache is safe to delete and rebuilds on demand.
+- **`state/proposals-index.json` — derived proposal frontmatter cache (token efficiency)** — `proposals-index.ts` mirrors every proposal's frontmatter (id/status/source/category/title/created/session/responded), rebuilt on every proposal write by the `generate-summary` PostToolUse hook. `proposal-list` now renders from the index instead of reading every `PROP-*.md` body (~22K tokens → ~1K for a dozen proposals) and rebuilds it unconditionally so out-of-band writes/deletions can't leave a stale count. Legacy pre-frontmatter proposals are parsed with a `legacy: true` flag; the cache is safe to delete and rebuilds on demand.
 
 ### Changed
 - **brief absorbs pulse** — the no-flag path now serves live session status (per-session cost from `sessions/.status.json`, active-alert pointer) and gains pulse's `status`/`progress`/`what are you working on` triggers. Preserves pulse's blocked-session `/debug` hint and idle cumulative-cost source (`cost-summary.md`).
@@ -30,6 +30,8 @@
 
 ### Fixed
 - **heartbeat: default proposal-scan item now matches the real status vocabulary (token efficiency)** — the eval spec scanned `status: pending`, but proposals are written `status: proposed`, so the default checklist item could never fire and the 6h clean-recheck damper was the only thing capping wasted heartbeat dispatches. `heartbeat-precheck.ts` now resolves the default item filesystem-side, so a clean proposal queue reaches `OK` without an LLM wake.
+- **heartbeat: unreadable `proposals/` dir no longer produces a false `OK`** — the scan resolver distinguishes a missing dir (nothing to review) from an existing-but-unreadable one (EACCES/EIO/EMFILE) and fails open to `EVALUATE` on the latter, honoring its stated "never a false OK" invariant. A coherence test pins the shipped `HEARTBEAT.md.template` against the scan-item classifier so a template reword can't silently disable the fast path.
+- **proposals-index: `mkdir`s `state/` before writing and keeps unreadable proposals as placeholder rows** — a partial layout no longer yields an `OK`-with-no-write, and an fs-unreadable proposal stays visible in `proposal-list` instead of silently vanishing (heartbeat still wakes on it).
 
 ### Upgrade Instructions
 

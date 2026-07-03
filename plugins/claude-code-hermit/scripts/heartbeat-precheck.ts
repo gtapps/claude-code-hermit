@@ -12,7 +12,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { currentHHMM, todayYMD, parseDuration } from './lib/time';
 import { readAlertState, defaultAlertState, quarantineAlertState, writeAlertState } from './lib/alert-state';
-import { readFrontmatter, globDir } from './lib/frontmatter';
+import { readFrontmatter } from './lib/frontmatter';
+import { isProposalScanItem } from './lib/heartbeat-items';
 
 type Json = any;
 
@@ -45,23 +46,31 @@ function normalizeItemKey(itemText: string): string | null {
 // proposals. Its alerts are keyed `proposal-pending:<PROP-NNN>`, NOT the generic
 // `checklist:<hash>` key the item loop below uses — so the generic rule can never
 // satisfy it and the item always forces EVALUATE (the bug this resolves). Resolve
-// it against real proposal frontmatter + proposal-pending alerts instead.
-//
-// Match the shipped default item ("Review `proposals/` for any with
-// `status: proposed` …") specifically: it references proposals AND the
-// `proposed` status it scans for. A custom item that merely mentions proposals
-// without that status keyword falls through to the generic alert-based rule
-// (unchanged, conservative — EVALUATE until the operator's alert is suppressed).
-function isProposalScanItem(itemText: string): boolean {
-  return /proposals?[\/\s]/i.test(itemText) && /\bproposed\b/i.test(itemText);
-}
+// it against real proposal frontmatter + proposal-pending alerts instead. The
+// `isProposalScanItem` classifier lives in ./lib/heartbeat-items (shared with its
+// coherence test).
 
 // 'clean' → item satisfied, continue the loop. 'evaluate' → dispatch the LLM.
 // Fail-open in every ambiguous case (unreadable dir/file, legacy no-frontmatter,
 // lingering alerts that need LLM-owned resolution detection): never a false OK.
 // Read-only — writes nothing, so it is identical under --peek.
 function resolveProposalScanItem(dir: string, alertMap: Json): 'clean' | 'evaluate' {
-  const files = globDir(path.join(dir, 'proposals'), /^PROP-.*\.md$/);
+  const proposalsDir = path.join(dir, 'proposals');
+  let files: string[];
+  try {
+    files = fs.readdirSync(proposalsDir)
+      .filter(f => /^PROP-.*\.md$/.test(f))
+      .map(f => path.join(proposalsDir, f))
+      .sort();
+  } catch (e: any) {
+    // ENOENT (dir absent) → nothing to review; fall through to the empty-scan
+    // branch (which still honors a lingering alert). Any other error on an
+    // existing dir (EACCES/EIO/EMFILE — realistic under the Docker runtime) is
+    // ambiguous → fail-open, never a false OK. globDir would swallow all of these
+    // as [], silently defeating the invariant above (the bug this guards).
+    if (e?.code !== 'ENOENT') return 'evaluate';
+    files = [];
+  }
   const proposedIds: string[] = [];
   for (const f of files) {
     const fm = readFrontmatter(f);
