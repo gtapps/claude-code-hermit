@@ -100,6 +100,16 @@ describe("broken-link lifecycle", () => {
     expect(c.resolved).toContain("https://example.com/dead");
     expect(l.links.broken["https://example.com/dead"]).toBeUndefined();
   });
+
+  test("a broken link not re-checked this run is NOT falsely resolved", () => {
+    const l = seededLedger();
+    diffLedger(l, snapshot({ date: "2026-07-06", links: [link("https://example.com/dead", 404)] }), ISO);
+
+    // Next run checks a different slice of the sitemap — /dead is out of budget, never verified.
+    const c = diffLedger(l, snapshot({ date: "2026-07-13", links: [link("https://example.com/other", 200)] }), ISO);
+    expect(c.resolved).not.toContain("https://example.com/dead");
+    expect(l.links.broken["https://example.com/dead"]).toBeDefined();
+  });
 });
 
 describe("CWV verdict transition", () => {
@@ -108,6 +118,14 @@ describe("CWV verdict transition", () => {
     diffLedger(l, snapshot({ date: "d1", cwv: [{ url: "https://example.com/", strategy: "mobile", lcp_ms: 2000, inp_ms: 100, cls: 0.05, perf_score: 0.9 }] }), ISO);
     const c = diffLedger(l, snapshot({ date: "d2", cwv: [{ url: "https://example.com/", strategy: "mobile", lcp_ms: 5000, inp_ms: 100, cls: 0.05, perf_score: 0.4 }] }), ISO);
     expect(c.regressions.some((r) => r.includes("CWV"))).toBe(true);
+  });
+
+  test("poor → needs-improvement is an improvement, not a regression", () => {
+    const l = seededLedger();
+    diffLedger(l, snapshot({ date: "d1", cwv: [{ url: "https://example.com/", strategy: "mobile", lcp_ms: 5000, inp_ms: 100, cls: 0.05, perf_score: 0.3 }] }), ISO);
+    const c = diffLedger(l, snapshot({ date: "d2", cwv: [{ url: "https://example.com/", strategy: "mobile", lcp_ms: 3000, inp_ms: 100, cls: 0.05, perf_score: 0.6 }] }), ISO);
+    expect(c.improvements.some((r) => r.includes("CWV"))).toBe(true);
+    expect(c.regressions).toHaveLength(0);
   });
 });
 
@@ -118,6 +136,18 @@ describe("index verdict flip", () => {
     diffLedger(l, snapshot({ index: [indexEntry("https://example.com/u", "PASS")], sitemap_count: 5 }), ISO);
     const c = diffLedger(l, snapshot({ index: [indexEntry("https://example.com/u", "FAIL")], sitemap_count: 5 }), ISO);
     expect(c.regressions.some((r) => r.includes("index"))).toBe(true);
+  });
+
+  test("a flip between two non-PASS verdicts is neither a regression nor an improvement", () => {
+    const l = seededLedger();
+    l.search.history.push({ week_end: "w0", clicks: 1, impressions: 1, ctr: 1, position: 1 });
+    diffLedger(l, snapshot({ index: [indexEntry("https://example.com/u", "FAIL")], sitemap_count: 5 }), ISO);
+    const c = diffLedger(l, snapshot({ index: [indexEntry("https://example.com/u", "NEUTRAL")], sitemap_count: 5 }), ISO);
+    expect(c.regressions.some((r) => r.includes("index"))).toBe(false);
+    expect(c.improvements.some((r) => r.includes("index"))).toBe(false);
+    // Directionless, but still a real change — surfaced as a note, so the week isn't quiet.
+    expect(c.notes.some((r) => r.includes("index"))).toBe(true);
+    expect(c.quiet).toBe(false);
   });
 });
 

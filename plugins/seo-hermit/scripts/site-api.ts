@@ -327,7 +327,10 @@ async function checkOneLink(url: string, fetchImpl: FetchImpl): Promise<LinkResu
   };
   try {
     let res = await attempt("HEAD");
-    if (res.status === 405 || res.status === 501) res = await attempt("GET");
+    // Some servers/CDNs reject HEAD (405/501) or wall it behind a WAF (403/400) while serving
+    // GET fine. Re-check with GET so those don't surface as false broken links; a page that is
+    // genuinely 4xx will return the same on GET and stay broken.
+    if ([405, 501, 403, 400].includes(res.status)) res = await attempt("GET");
     return { url, status: res.status, ok: res.ok, final_url: res.url || url };
   } catch {
     return { url, status: 0, ok: false, final_url: url };
@@ -398,15 +401,18 @@ export async function psiFetch(
   return shapePsi(url, strategy, (await res.json()) as PsiApiResponse);
 }
 
+// Ordinal severity of a Core Web Vitals verdict — lower is better. Shared by the verdict
+// computation and the ledger transition diff so improvements aren't misread as regressions.
+const CWV_RANK: Record<string, number> = { good: 0, "needs-improvement": 1, poor: 2 };
+
 // Core Web Vitals verdict per Google thresholds; overall = worst metric present.
 export function cwvVerdict(r: Pick<CwvResult, "lcp_ms" | "inp_ms" | "cls">): "good" | "needs-improvement" | "poor" {
-  const rank = { good: 0, "needs-improvement": 1, poor: 2 } as const;
-  const scores: (keyof typeof rank)[] = [];
+  const scores: ("good" | "needs-improvement" | "poor")[] = [];
   if (r.lcp_ms != null) scores.push(r.lcp_ms <= 2500 ? "good" : r.lcp_ms > 4000 ? "poor" : "needs-improvement");
   if (r.inp_ms != null) scores.push(r.inp_ms <= 200 ? "good" : r.inp_ms > 500 ? "poor" : "needs-improvement");
   if (r.cls != null) scores.push(r.cls <= 0.1 ? "good" : r.cls > 0.25 ? "poor" : "needs-improvement");
   if (scores.length === 0) return "good";
-  return scores.reduce((worst, s) => (rank[s] > rank[worst] ? s : worst), "good");
+  return scores.reduce((worst, s) => (CWV_RANK[s] > CWV_RANK[worst] ? s : worst), "good");
 }
 
 // ---- URL Inspection (budgeted index status) ----
@@ -560,7 +566,9 @@ export function diffLedger(ledger: Ledger, snap: Snapshot, nowIso: string): Ledg
 
   // --- links ---
   const brokenNow = new Set<string>();
+  const checkedNow = new Set<string>();
   for (const link of snap.links) {
+    checkedNow.add(link.url);
     if (link.ok) continue;
     brokenNow.add(link.url);
     const existing = ledger.links.broken[link.url];
@@ -572,8 +580,10 @@ export function diffLedger(ledger: Ledger, snap: Snapshot, nowIso: string): Ledg
       changes.new_broken.push(`${link.url} (${link.status || "unreachable"})`);
     }
   }
+  // Only resolve links we actually re-checked this run — a link outside the link-check
+  // budget/set was not verified, so it must stay broken rather than be falsely cleared.
   for (const url of Object.keys(ledger.links.broken)) {
-    if (!brokenNow.has(url) && snap.links.length > 0) {
+    if (checkedNow.has(url) && !brokenNow.has(url)) {
       changes.resolved.push(url);
       delete ledger.links.broken[url];
     }
@@ -586,7 +596,10 @@ export function diffLedger(ledger: Ledger, snap: Snapshot, nowIso: string): Ledg
     const bucket = (ledger.cwv[c.url] ??= { history: [] });
     const prev = bucket.history.at(-1);
     if (prev && prev.verdict !== verdict && !firstRun) {
-      changes[verdict === "good" ? "improvements" : "regressions"].push(
+      // ?? 0 ranks an unknown/stale persisted verdict as "good" so a corrupt ledger entry
+      // can never fabricate a regression.
+      const improved = (CWV_RANK[verdict] ?? 0) < (CWV_RANK[prev.verdict] ?? 0);
+      changes[improved ? "improvements" : "regressions"].push(
         `CWV ${c.url} ${prev.verdict}→${verdict}`,
       );
     }
@@ -606,9 +619,13 @@ export function diffLedger(ledger: Ledger, snap: Snapshot, nowIso: string): Ledg
   for (const ins of snap.index) {
     const prev = ledger.index[ins.url];
     if (prev && prev.verdict !== ins.verdict && !firstRun) {
-      changes[ins.verdict === "PASS" ? "improvements" : "regressions"].push(
-        `index ${ins.url} ${prev.verdict}→${ins.verdict}`,
-      );
+      // PASS is the only unambiguous index state: entering it is an improvement, leaving it a
+      // regression. A flip between two non-PASS states (e.g. FAIL→NEUTRAL) has no clear direction,
+      // so it goes to notes — still surfaced in the report, just not scored as a regression.
+      const label = `index ${ins.url} ${prev.verdict}→${ins.verdict}`;
+      if (ins.verdict === "PASS") changes.improvements.push(label);
+      else if (prev.verdict === "PASS") changes.regressions.push(label);
+      else changes.notes.push(label);
     }
     ledger.index[ins.url] = {
       verdict: ins.verdict,
@@ -632,7 +649,8 @@ export function diffLedger(ledger: Ledger, snap: Snapshot, nowIso: string): Ledg
       changes.regressions.length === 0 &&
       changes.improvements.length === 0 &&
       changes.new_broken.length === 0 &&
-      changes.resolved.length === 0;
+      changes.resolved.length === 0 &&
+      changes.notes.length === 0;
   }
   return changes;
 }

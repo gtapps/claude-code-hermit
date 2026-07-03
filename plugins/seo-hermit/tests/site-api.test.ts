@@ -293,6 +293,7 @@ describe("link check", () => {
     const method = init?.method ?? "GET";
     if (url.endsWith("/dead")) return new Response("", { status: 404 });
     if (url.endsWith("/head405")) return new Response("", { status: method === "HEAD" ? 405 : 200 });
+    if (url.endsWith("/head403")) return new Response("", { status: method === "HEAD" ? 403 : 200 });
     if (url.endsWith("/boom")) throw new Error("network down");
     return new Response("", { status: 200 });
   }) as unknown as FetchImpl;
@@ -311,6 +312,12 @@ describe("link check", () => {
     expect(byUrl["https://x/head405"].ok).toBe(true); // GET fallback returned 200
     expect(byUrl["https://x/boom"].ok).toBe(false);
     expect(byUrl["https://x/boom"].status).toBe(0);
+  });
+
+  test("a HEAD-hostile 403 is re-checked with GET before being called broken", async () => {
+    const results = await linkCheck(["https://x/head403"], 200, 4, linkFetch);
+    expect(results[0].ok).toBe(true); // GET fallback returned 200
+    expect(results[0].status).toBe(200);
   });
 
   test("respects the budget cap", async () => {
