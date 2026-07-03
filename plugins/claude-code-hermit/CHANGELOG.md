@@ -21,7 +21,7 @@
 - **hermit-exec.sh drops the `.py` fallback** — no Python scripts ship.
 
 - **CLAUDE-APPEND slimmed 10.6KB → ~6.8KB (token efficiency)** — the operator-notification branch matrix moved to `channel-responder` § Outbound notification protocol, watch-authoring rules to the `watch` skill, and knowledge-storage detail to `docs/plugin-hermit-storage.md`. The block is re-paid on every session load and every subagent dispatch, so this cuts recurring context cost across the fleet. Load-bearing anchors and the `resolve-outbound-channel.ts` invocation are retained (guarded by `tests/claude-append-budget.test.ts`).
-- **Five verbose skill descriptions trimmed (token efficiency)** — hermit-doctor, cost-reflect, docker-security, capability-brainstorm, hermit-evolution dropped inline check/trigger enumerations. Every distinctive trigger phrase was preserved, so auto-invocation recall is unchanged.
+- **Five verbose skill descriptions trimmed (token efficiency)** — hermit-doctor, cost-reflect, docker-security, capability-brainstorm, hermit-evolution dropped inline check/trigger enumerations. Trigger phrases were preserved, except hermit-evolution, which also shed five redundant `Activates on` variants; its remaining seven cover the skill's intent.
 - **reflect no-op gating (token efficiency)** — reflect accepts a `--precheck-verdict` handoff so the reflect routine's CronCreate prompt runs `reflect-precheck.ts` in bash and only loads reflect's 42KB body on a `RUN` verdict; EMPTY days never load it. Manual `/reflect` keeps its in-body precheck.
 
 ### Changed (repo, not shipped)
