@@ -10,6 +10,8 @@ const SKILL_DIR = path.join(import.meta.dir, '..', 'skills');
 const SKILLS = [
   { name: 'hatch', gates: 0 },
   { name: 'error-triage', gates: 0 },
+  { name: 'error-reproduce', gates: 0 },
+  { name: 'error-draft-fix', gates: 0 },
 ];
 
 const { ok, summary } = makeReporter();
