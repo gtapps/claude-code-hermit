@@ -4,11 +4,11 @@
 # `network_mode: "service:hermit-netguard"`, so every rule here applies
 # to hermit's outbound traffic.
 #
-# {{LAN_ALLOWLIST_RULES}} is rendered at overlay-render time from
+# LAN_ALLOWLIST_RULES is rendered at overlay-render time from
 # docker.security.network.lan_allowlist (merged with fleet-plugin LAN
 # suggestions confirmed by the operator during /docker-security).
 #
-# {{DNSMASQ_UID}} is hardcoded to 100 by the wizard (Alpine's dnsmasq
+# DNSMASQ_UID is hardcoded to 100 by the wizard (Alpine's dnsmasq
 # package's static UID). CRITICAL: this exempts dnsmasq's OWN upstream
 # queries from the port-53 redirect — without it, dnsmasq would receive
 # its own outbound queries in a loop and DNS would stop working.

@@ -8,7 +8,13 @@
 - **scripts/run-with-profile.ts** — vestigial hook wrapper; no hook invoked it, and profile-gated hooks already self-gate on `AGENT_HOOK_PROFILE`.
 - **docs/skills.md** — hand-maintained skill listing that had drifted out of date; the plugin `CLAUDE.md` is the canonical skill list.
 
+### Added
+- **scripts: `render-docker-templates.ts`, `render-security-overlay.ts`, `lib/render-template.ts`** — the deterministic Docker template rendering (placeholder substitution, subnet collision-detection) extracted from the docker skills into fail-loud, tested scripts. `lib/render-template.ts` is the shared `{{PLACEHOLDER}}` engine; it writes nothing if any placeholder survives.
+- **state-templates/docker/security/verify-security.sh** — the `/docker-security` Step 8 live-posture verification heredoc, extracted verbatim into a static file the skill streams via `exec -T hermit sh -s < verify-security.sh`.
+
 ### Changed
+- **docker-setup / docker-security skills delegate rendering** — Steps that hand-substituted `{{...}}` (docker-setup Step 4/7b.6; docker-security subnet detection + overlay/nftables/dnsmasq render) now call the render scripts; the conversational prompts, gates, and operational steps stay in the skills. Rendered output is functionally equivalent to the prior prose substitution — no operator-visible change (the rendered `Dockerfile.hermit` / compose files are not manifest-hashed, so no `hermit-evolve` drift fires).
+- **nftables.conf.template comment** — removed brace-wrapping from the `LAN_ALLOWLIST_RULES` / `DNSMASQ_UID` references in the header comment so the render engine doesn't substitute documentation prose (comment-only; no rendered-output change).
 - **brief absorbs pulse** — the no-flag path now serves live session status (per-session cost from `sessions/.status.json`, active-alert pointer) and gains pulse's `status`/`progress`/`what are you working on` triggers. Preserves pulse's blocked-session `/debug` hint and idle cumulative-cost source (`cost-summary.md`).
 - **hermit-health absorbs hermit-brain and the knowledge lint** — health now reports fragile zones, stale accepted proposals, and recent learnings alongside infra (runner-free), and runs `knowledge-lint.ts` on demand under the `check knowledge`/`lint knowledge` triggers. Runs on `model: haiku` (restoring the tier the absorbed `knowledge` skill used) — the report is mechanical aggregation, so the cheaper model holds for the `check knowledge` path.
 - **session-close gains `--scheduled`** — the midnight close-now/queue/noop decision formerly in `daily-auto-close`; the `daily-auto-close` routine now invokes `/claude-code-hermit:session-close --scheduled` (routine `id` unchanged).

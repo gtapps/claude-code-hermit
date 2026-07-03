@@ -253,42 +253,22 @@ If `persisted_publish_ports` is empty: proceed directly to deletion without the 
 
 **Subnet auto-detection (only if LAN containment is enabled):**
 
-Run the following to enumerate occupied subnets across **all** Docker networks (not filtered to bridge — overlap is address-space-based):
+Run `pick-subnet` — it enumerates occupied Docker subnets, excludes this project's own `hermit-net`, integer-range-checks overlap, walks the 8 fixed /24 candidates, and always exits 0 (probe pattern):
 
 ```bash
-timeout 10s docker network ls --format '{{.Name}}' 2>/dev/null | while read net; do
-  timeout 5s docker network inspect "$net" \
-    --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}|||{{json .Labels}}' 2>/dev/null
-done
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/render-security-overlay.ts pick-subnet <PROJECT_ROOT>
 ```
 
-Parse each output line into a subnet string and a Labels JSON object. Skip lines without IPv4 subnets.
+It prints `{ "chosen": { "subnet", "gateway", "netguardIp" } | null, "allCandidatesCollide": bool, "occupied": [...] }`.
 
-**Exclude** networks belonging to this project's own `hermit-net` from the collision list. Identify these by labels:
-- `com.docker.compose.project == <our project name>` AND `com.docker.compose.network == "hermit-net"`
+- If `chosen` is non-null, use it.
+- If `allCandidatesCollide` is true, `AskUserQuestion` (header: `"Custom subnet"`) with an Other field for an IPv4 /24 CIDR. Validate each answer with one cheap re-run:
+  ```bash
+  bun ${CLAUDE_PLUGIN_ROOT}/scripts/render-security-overlay.ts pick-subnet <PROJECT_ROOT> --candidate <cidr>
+  ```
+  `chosen: null` means still colliding or not a /24 — re-prompt. `chosen` set means accepted.
 
-Derive `<our project name>` from `timeout 10s docker compose -f docker-compose.hermit.yml config --format json 2>/dev/null | bun -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8")).name ?? "")'` — fall back to `basename "$PROJECT_DIR"` if the command fails.
-
-Check subnet overlap with a `bun -e` snippet (convert each /24 candidate and occupied CIDR to an integer range and compare). Walk candidate /24 subnets in order: `172.28.0.0/24`, `172.29.0.0/24`, `172.30.0.0/24`, `172.31.0.0/24`, `10.244.0.0/24`, `10.245.0.0/24`, `10.246.0.0/24`, `10.247.0.0/24`. Pick the first that doesn't overlap any occupied subnet. Treat parse failures as "subnet unknown, skip."
-
-If all candidates collide, `AskUserQuestion` (header: `"Custom subnet"`) with Other field accepting an IPv4 /24 CIDR (reject if prefix != 24; re-prompt on invalid or still-colliding).
-
-Compute `chosen_gateway = <base>.0.1`, `chosen_netguard_ip = <base>.0.2`. Persist to `docker.security.network`:
-
-```json
-{
-  "enabled": true,
-  "dns_mode": "log-only" | "enforce",
-  "subnet": "172.28.0.0/24",
-  "gateway": "172.28.0.1",
-  "netguard_ip": "172.28.0.2",
-  "lan_allowlist": [...],
-  "additional_domains": [...],
-  "publish_ports": [...]
-}
-```
-
-If LAN containment is not enabled, omit `subnet`, `gateway`, `netguard_ip` from the `docker.security.network` object.
+Persist the chosen values to `docker.security.network` (`subnet`, `gateway`, `netguard_ip` from `chosen`), alongside `enabled`, `dns_mode`, `lan_allowlist`, `additional_domains`, `publish_ports`. If LAN containment is not enabled, omit `subnet`, `gateway`, `netguard_ip`.
 
 If at least one toggle is enabled, render the overlay. Otherwise (all-off): handled in the all-off branch above.
 
@@ -298,109 +278,40 @@ Render `100` directly into `nftables.conf` as the dnsmasq UID — no probe step.
 
 After the netguard files are rendered (step 6c), the wizard runs an explicit `--no-cache` build of `hermit-netguard` to prevent stale Docker cache artifacts from surviving a hermit upgrade. Do not rely on `hermit-docker up` to trigger a rebuild.
 
-#### 6b. Write the overlay
+#### 6b. Render the overlay + nftables + dnsmasq
 
-Render `docker-compose.security.yml` from `state-templates/docker/security/docker-compose.security.yml.template` by substituting the placeholder blocks. The template has placeholders:
+`render-security-overlay.ts render` derives every `{{PLACEHOLDER}}` (networks block, netguard service with cap_add/healthcheck, `DNS_LOG_ONLY` from `dns_mode`, per-toggle hermit blocks, sysctls placement, ports, LAN rules at the chain-body indent, `DNSMASQ_UID=100`, `server=` domain lines) and fails loud (exit 1, nothing written) if any survives. It writes `docker-compose.security.yml` to the project root, and — only when LAN containment is on — `nftables.conf` + `dnsmasq.allowlist` into `.claude-code-hermit/docker/`. Pipe the resolved selections:
 
-- `{{NETWORKS_BLOCK}}` — empty unless Prompt 1 enabled. When enabled, substitute `chosen_subnet` and `chosen_gateway` from the subnet auto-detection step above:
-  ```yaml
-  networks:
-    hermit-net:
-      driver: bridge
-      ipam:
-        config:
-          - subnet: <chosen_subnet>
-            gateway: <chosen_gateway>
-  ```
-- `{{HERMIT_NETGUARD_SERVICE}}` — empty unless Prompt 1 enabled. When enabled, substitute `chosen_netguard_ip` and `dns_log_only`. Also render `{{NETGUARD_PORTS_BLOCK}}` (see below):
-  ```yaml
-    hermit-netguard:
-      build:
-        context: ./.claude-code-hermit/docker
-        dockerfile: Dockerfile.hermit-netguard
-      # NET_BIND_SERVICE: dnsmasq retains it post-bind-drop. SETUID+SETGID:
-      # drops to UID/GID 100 (Alpine's `dnsmasq` user).
-      cap_add: [NET_ADMIN, NET_BIND_SERVICE, SETUID, SETGID]
-      cap_drop: [ALL]
-      security_opt:
-        - no-new-privileges:true
-      pids_limit: 256
-      networks:
-        hermit-net:
-          ipv4_address: <chosen_netguard_ip>
-      volumes:
-        - ./.claude-code-hermit/docker/nftables.conf:/etc/nftables.conf:ro
-        - ./.claude-code-hermit/docker/dnsmasq.allowlist:/etc/dnsmasq.allowlist:ro
-      environment:
-        - DNS_LOG_ONLY=<dns_log_only>
-      restart: unless-stopped
-      {{NETGUARD_SYSCTLS}}
-      {{NETGUARD_PORTS_BLOCK}}
-      healthcheck:
-        test: ["CMD-SHELL", "nft list ruleset | grep -q 'table inet firewall' && (! [ -f /etc/dnsmasq.allowlist ] || pgrep dnsmasq)"]
-        interval: 10s
-        timeout: 5s
-        retries: 3
-        start_period: 5s
-  ```
-  Where `<dns_log_only>` = `"1"` if `dns_mode == "log-only"` else `"0"`. `{{NETGUARD_SYSCTLS}}` is the sysctls block from below if Prompt 2 enabled AND Prompt 1 enabled (sysctls live on netguard, the netns owner).
-
-  **`{{NETGUARD_PORTS_BLOCK}}`** — empty unless `persisted_publish_ports` is non-empty AND Prompt 1 is enabled. When non-empty, render as long-form YAML using the parsed port objects (`target`, `published`, `host_ip`, `protocol`, `mode`). Omit `host_ip` if `"0.0.0.0"` (Compose default). Omit `mode` if `"ingress"` (Compose default for non-swarm). Example for two ports:
-  ```yaml
-      ports:
-        - target: 3000
-          published: "3000"
-          protocol: tcp
-        - target: 8080
-          published: "8080"
-          protocol: tcp
-  ```
-  If the ports were detected via grep fallback (`detected_hermit_ports_unparsed=true`) and no parsed shape is available, leave `{{NETGUARD_PORTS_BLOCK}}` empty and tell the operator: "Could not parse port shapes from the compose config — manually add your `ports:` block to `hermit-netguard` in the rendered overlay and delete it from the base file."
-- `{{HERMIT_NETWORK_MODE}}` — empty unless Prompt 1 enabled. When enabled:
-  ```yaml
-      network_mode: "service:hermit-netguard"
-      depends_on:
-        hermit-netguard:
-          condition: service_healthy
-  ```
-- `{{HERMIT_RESOURCE_BOUNDS}}` — empty unless Prompt 2 enabled. When enabled:
-  ```yaml
-      mem_limit: 4g
-      memswap_limit: 4g
-      cpus: 2.0
-  ```
-  (Custom values substituted if operator provided them.)
-- `{{HERMIT_SYSCTLS_ON_HERMIT}}` — sysctls block from below ONLY if Prompt 2 enabled, `sysctls_enabled` is true, AND Prompt 1 is OFF. (When Prompt 1 is on, sysctls go on netguard via `{{NETGUARD_SYSCTLS}}`.)
-- `{{HERMIT_AUDIT_ENV}}` — empty unless Prompt 3 enabled. When enabled:
-  ```yaml
-      environment:
-        - HERMIT_PLUGIN_INSTALL_AUDIT=1
-  ```
-
-The shared sysctls block (used in either `{{NETGUARD_SYSCTLS}}` or `{{HERMIT_SYSCTLS_ON_HERMIT}}`):
-
-```yaml
-      sysctls:
-        - net.ipv4.conf.all.accept_redirects=0
-        - net.ipv4.conf.all.send_redirects=0
-        - net.ipv4.conf.all.accept_source_route=0
-        - net.ipv4.conf.default.accept_redirects=0
+```bash
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/render-security-overlay.ts render <PROJECT_ROOT> <<'HERMIT_SEC_JSON'
+{
+  "network": { "subnet": "...", "gateway": "...", "netguardIp": "..." },
+  "toggles": {
+    "lan":       { "enabled": true, "dnsMode": "log-only" | "enforce" },
+    "resources": { "enabled": true, "memLimit": "4g", "memswapLimit": "4g", "cpus": 2.0, "sysctlsEnabled": true },
+    "audit":     { "enabled": true }
+  },
+  "publishPorts": [ { "target": 3000, "published": "3000", "protocol": "tcp", "host_ip": "0.0.0.0", "mode": "ingress" } ],
+  "lanAllowlist": [...],
+  "fleetDomains": [...],
+  "additionalDomains": [...]
+}
+HERMIT_SEC_JSON
 ```
 
-#### 6c. Write Dockerfile + entrypoint + nftables + dnsmasq files (only if Prompt 1 enabled)
+Notes:
+- `network` is required only when `toggles.lan.enabled`. The script places sysctls on netguard when LAN is on, on hermit when LAN is off (Prompt 2 only). `host_ip: "0.0.0.0"` and `mode: "ingress"` (Compose defaults) are omitted from rendered port entries.
+- If base ports were detected via the grep fallback (`detected_hermit_ports_unparsed=true`) with no parsed shape, pass `publishPorts: []` and tell the operator: "Could not parse port shapes from the compose config — manually add your `ports:` block to `hermit-netguard` in the rendered overlay and delete it from the base file."
+- The script prints `{ "written": [...] }`.
 
-Copy from `state-templates/docker/security/` into `.claude-code-hermit/docker/`:
+#### 6c. Copy the netguard Dockerfile + entrypoint (only if Prompt 1 enabled)
+
+`render` (6b) already wrote `nftables.conf` + `dnsmasq.allowlist`. Copy the two static netguard files from `state-templates/docker/security/` into `.claude-code-hermit/docker/`:
 
 - `Dockerfile.hermit-netguard.template` → `Dockerfile.hermit-netguard`
 - `netguard-entrypoint.sh.template` → `netguard-entrypoint.sh` (chmod +x)
-- `nftables.conf.template` → `nftables.conf`, substituting:
-  - `{{LAN_ALLOWLIST_RULES}}` → for each entry in `lan_allowlist`, render `        ip daddr <entry> accept` (8-space indent matching the chain body). Empty string if no entries.
-  - `{{DNSMASQ_UID}}` → the literal string `100` (Alpine dnsmasq's static UID — see step 6a).
-- `dnsmasq.allowlist.template` → `dnsmasq.allowlist`, substituting:
-  - `{{FLEET_DOMAINS}}` → for each fleet domain, render `server=/<domain>/1.1.1.1` with a comment line above grouping by source plugin. Empty string if no entries.
-  - `{{ADDITIONAL_DOMAINS}}` → for each operator-added domain, render `server=/<domain>/1.1.1.1`. Empty string if no entries.
 
-After all files are copied, force a fresh netguard image build:
+After both are copied, force a fresh netguard image build:
 
 ```bash
 timeout 180s docker compose -f docker-compose.hermit.yml -f docker-compose.security.yml build --no-cache hermit-netguard
@@ -449,83 +360,11 @@ If operator chose to restart now AND container was running before this skill (an
    Then stop.
 ### 8. Verify
 
-Run the verification block via `docker exec hermit sh -c '...'`. The hermit base image has `bun`, `jq`, `curl`, and glibc (`getent`) — no `python3`, `nc`, or `nslookup`. Use bun and getent.
+Stream the static verification script into the live container. It is placeholder-free (hardcoded probe values) and uses only tools the hermit base image ships — `bun`, `jq`, `curl`, glibc `getent` (no `python3`, `nc`, or `nslookup`):
 
 ```bash
 docker compose -f docker-compose.hermit.yml -f docker-compose.security.yml \
-  exec -T hermit sh -s <<'VERIFY_EOF'
-set +e
-echo "=== Baseline (v1.0.26 — should always be on) ==="
-grep -E '^Cap(Eff|Bnd)' /proc/self/status
-grep NoNewPrivs /proc/self/status
-echo "pids.max: $(cat /sys/fs/cgroup/pids.max)"
-
-echo
-echo "=== LAN containment ==="
-bun -e '
-const s = require("net").connect({ host: "192.168.1.1", port: 22, timeout: 2000 });
-s.on("connect", () => { console.error("connected"); process.exit(0); });
-s.on("timeout", () => { console.error("timed out"); process.exit(1); });
-s.on("error", (e) => {
-  console.error(e.code === "ECONNREFUSED" ? "refused"
-    : e.code === "ENETUNREACH" || e.code === "EHOSTUNREACH" ? "Network is unreachable"
-    : String(e));
-  process.exit(1);
-});
-' 2>&1 \
-  | grep -qE 'timed out|refused|Network is unreachable' \
-  && echo "  LAN-block:    OK (192.168.1.1:22 unreachable)" \
-  || echo "  LAN-block:    NOT BLOCKED (compromised hermit could reach LAN)"
-
-echo
-echo "=== DNS policy ==="
-getent hosts api.anthropic.com >/dev/null \
-  && echo "  DNS-allow:    OK (api.anthropic.com resolves)" \
-  || echo "  DNS-allow:    FAIL (allowlisted domain does not resolve)"
-_dns_err=$(mktemp)
-trap 'rm -f "$_dns_err"' EXIT
-timeout 2s bun -e 'require("dns").lookup("example.com", (e) => { if (e) { console.error(e.code === "ENOTFOUND" ? "Name or service not known" : String(e)); process.exit(1); } console.log("resolved"); });' >/dev/null 2>"$_dns_err"
-dns_rc=$?
-if [ $dns_rc -eq 124 ]; then
-  echo "  DNS-block:    FAIL — query timed out (likely DNS leak; no-resolv missing or upstream unreachable)"
-elif grep -qE 'Name or service not known|nodename nor servname' "$_dns_err"; then
-  echo "  DNS-block:    OK (example.com NXDOMAIN — policy applies)"
-else
-  echo "  DNS-block:    FAIL — example.com resolved or unexpected error"
-fi
-bun -e '
-const sock = require("dgram").createSocket("udp4");
-// Hand-crafted DNS query for example.com type A. Using Buffer.from(hex) avoids
-// escape-processing pitfalls when this SKILL travels through model -> shell -> bun.
-// Layout: header(12B: id=1234 flags=0100 qdcount=1 the rest 0) + qname(7example3com0) + qtype 0001 + qclass 0001
-const q = Buffer.from("123401000001000000000000076578616d706c6503636f6d0000010001", "hex");
-const timer = setTimeout(() => { console.log("no-response (timeout)"); sock.close(); }, 2000);
-sock.on("message", (resp) => {
-  clearTimeout(timer);
-  const rcode = resp[3] & 0x0f;
-  console.log(rcode === 3 ? "NXDOMAIN" : "rcode=" + rcode);
-  sock.close();
-});
-sock.on("error", (e) => { clearTimeout(timer); console.log("no-response (" + e + ")"); sock.close(); });
-sock.send(q, 53, "8.8.8.8");
-' | grep -q NXDOMAIN \
-  && echo "  DNS-redirect: OK (port-53 redirected even with explicit upstream)" \
-  || echo "  DNS-redirect: NOT ENFORCED (or in log-only mode — expected)"
-
-echo
-echo "=== Resource bounds + sysctls ==="
-echo "  memory.max:   $(cat /sys/fs/cgroup/memory.max 2>/dev/null || echo 'unset')"
-[ -r /proc/sys/net/ipv4/conf/all/accept_redirects ] \
-  && [ "$(cat /proc/sys/net/ipv4/conf/all/accept_redirects)" = "0" ] \
-  && echo "  sysctls:      OK (ICMP redirects disabled)" \
-  || echo "  sysctls:      not active (host mode, or Prompt 2 off)"
-
-echo
-echo "=== Audit log ==="
-test -f "${AGENT_DIR:-/home/claude/project/.claude-code-hermit}/state/plugin-installs.jsonl" \
-  && echo "  Audit log:    OK ($(wc -l < ${AGENT_DIR:-/home/claude/project/.claude-code-hermit}/state/plugin-installs.jsonl) entries)" \
-  || echo "  Audit log:    not yet written (no plugin installs since last boot)"
-VERIFY_EOF
+  exec -T hermit sh -s < "${CLAUDE_PLUGIN_ROOT}/state-templates/docker/security/verify-security.sh"
 ```
 
 Surface the output to the operator. Suggest: "Run `/claude-code-hermit:hermit-doctor` to also verify the docker-security check shows green."

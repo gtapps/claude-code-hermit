@@ -170,11 +170,24 @@ describe('manifest-seed: skill-call source-path contract', () => {
     expect(hatch).toContain('state-templates/bin');
   });
 
-  test('docker-setup hashes the upstream .template files for the two substituted keys', () => {
+  test('docker-setup delegates rendering + pipes the emitted manifestSeed', () => {
+    // The upstream-.template-vs-on-disk-entrypoint source-path contract now lives
+    // in render-docker-templates.ts, which emits the manifestSeed payload; it is
+    // asserted behaviorally in tests/render-docker-templates.test.ts. Here we only
+    // check the skill still routes rendering + manifest seeding through the scripts.
     const docker = read('skills/docker-setup/SKILL.md');
+    expect(docker).toContain('render-docker-templates.ts');
     expect(docker).toContain('manifest-seed.ts');
-    expect(docker).toContain('state-templates/docker/docker-compose.hermit.yml.template');
-    expect(docker).toContain('state-templates/docker/Dockerfile.hermit.template');
+  });
+
+  test('render-docker-templates emits upstream .template files for the two substituted keys', () => {
+    const script = read('scripts/render-docker-templates.ts');
+    // Keys ending in .template map to plugin-root upstream templates (never rendered output).
+    expect(script).toContain("'docker/docker-compose.hermit.yml.template'");
+    expect(script).toContain("'docker/Dockerfile.hermit.template'");
+    // The entrypoint key hashes the ON-DISK rendered copy at the project root.
+    expect(script).toContain("'docker/docker-entrypoint.hermit.sh'");
+    expect(script).toContain('entrypointPath');
   });
 
   test('hermit-evolve routes its manifest write through the script', () => {

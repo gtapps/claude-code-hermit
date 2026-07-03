@@ -21,6 +21,10 @@ const entrypoint = read('state-templates', 'docker', 'security', 'netguard-entry
 const skill = read('skills', 'docker-security', 'SKILL.md');
 const allowlist = read('state-templates', 'docker', 'security', 'dnsmasq.allowlist.template');
 const docs = read('docs', 'docker-security.md');
+// Step 8's verification heredoc was extracted verbatim into a static file the
+// skill streams via `exec -T hermit sh -s < verify-security.sh`. The runtime
+// probe assertions moved here with it.
+const verify = read('state-templates', 'docker', 'security', 'verify-security.sh');
 
 // -------------------------------------------------------
 // Entrypoint: no tee-piping, no DNSMASQ_PID=$! capture
@@ -58,27 +62,12 @@ describe('netguard-entrypoint.sh.template', () => {
 // SKILL.md contract assertions
 // -------------------------------------------------------
 describe('docker-security SKILL.md', () => {
-  // cap_add list (exact match — fails loud if any cap is missing,
-  // reordered, or extras are added without test coverage)
-  test('SKILL.md: cap_add list is [NET_ADMIN, NET_BIND_SERVICE, SETUID, SETGID]', () => {
-    expect(skill).toContain('cap_add: [NET_ADMIN, NET_BIND_SERVICE, SETUID, SETGID]');
-  });
-
-  test('SKILL.md: healthcheck has start_period', () => {
-    expect(skill).toContain('start_period:');
-  });
+  // cap_add / start_period moved out of the SKILL into the rendered overlay when
+  // template rendering was extracted to render-security-overlay.ts — those two
+  // assertions now live in tests/render-security-overlay.test.ts.
 
   test("SKILL.md: no 'state:/var/log/netguard' bind mount (regression: rootless)", () => {
     expect(skill).not.toContain('state:/var/log/netguard');
-  });
-
-  // Hardened DNS-block verifier
-  test("SKILL.md: DNS-block check uses 'timeout 2s' (catches timeout vs NXDOMAIN)", () => {
-    expect(skill).toContain('timeout 2s bun -e');
-  });
-
-  test('SKILL.md: DNS-block check classifies timeout explicitly (not just grep-on-stderr)', () => {
-    expect(skill).toContain('query timed out');
   });
 
   // Python retired from the Docker layer (bun migration WP9) — the base image
@@ -88,15 +77,37 @@ describe('docker-security SKILL.md', () => {
     expect(invocations).toEqual([]);
   });
 
-  test('SKILL.md: verification block uses bun for LAN/DNS checks', () => {
-    expect(skill).toContain('require("net").connect');
-    expect(skill).toContain('require("dns").lookup');
-    expect(skill).toContain('require("dgram").createSocket');
-  });
-
-  // --no-cache netguard rebuild
+  // --no-cache netguard rebuild (operational step 6c — stays in the skill)
   test('SKILL.md: step 6c forces --no-cache netguard build (prevents stale image on upgrade)', () => {
     expect(skill).toContain('build --no-cache hermit-netguard');
+  });
+});
+
+// -------------------------------------------------------
+// verify-security.sh: the extracted Step 8 verification heredoc.
+// Assertions retargeted here from the in-SKILL block.
+// -------------------------------------------------------
+describe('verify-security.sh', () => {
+  test('verify: placeholder-free (streamed verbatim, never rendered)', () => {
+    expect(verify).not.toMatch(/\{\{[A-Z][A-Z0-9_]*\}\}/);
+  });
+
+  // Hardened DNS-block verifier
+  test("verify: DNS-block check uses 'timeout 2s' (catches timeout vs NXDOMAIN)", () => {
+    expect(verify).toContain('timeout 2s bun -e');
+  });
+
+  test('verify: DNS-block check classifies timeout explicitly (not just grep-on-stderr)', () => {
+    expect(verify).toContain('query timed out');
+  });
+
+  test('verify: uses bun for LAN/DNS checks (no nc / nslookup invocations)', () => {
+    expect(verify).toContain('require("net").connect');
+    expect(verify).toContain('require("dns").lookup');
+    expect(verify).toContain('require("dgram").createSocket');
+    // python3 appears only in the header note; assert no invocation of it.
+    const py = verify.split('\n').filter((l) => l.includes('python3') && !l.includes('no python3'));
+    expect(py).toEqual([]);
   });
 });
 
