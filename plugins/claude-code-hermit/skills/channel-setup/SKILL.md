@@ -46,10 +46,7 @@ bun --version 2>/dev/null; uname -s
 
 ### 3. Install plugin
 
-Run `claude plugin list --json` and apply the **project-or-local + enabled filter**:
-
-- Keep `enabled == true` AND (`scope == "project"` OR `scope == "local"`) AND `projectPath` equals the current project root.
-- Drop user-scope, managed-scope, disabled, and cross-project entries.
+Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-siblings.ts "$(pwd)"` to get the project-or-local + enabled plugin list (JSON array; user-scope, managed, disabled, and cross-project entries already dropped). Each entry carries `plugin`, `marketplace_name`, `scope`, `enabled`.
 
 Resolve the expected marketplace for this channel:
 
@@ -109,10 +106,11 @@ Operator pastes the token via Other, or selects Skip.
 3. `chmod 600 <state_dir>/.env`
 4. Ensure `.claude.local/` is in `.gitignore`: check if `.gitignore` exists and contains `.claude.local/`; if missing, append `.claude.local/`.
 5. If `channels.<channel>.state_dir` was not set in config.json, write it now as a relative path (e.g. `.claude.local/channels/<channel>`).
-6. Update `.claude/settings.local.json` in a single read-modify-write (create `{}` if missing):
-   - Remove any stale `*_BOT_TOKEN` from the `env` block (tokens must only live in `.env`).
-   - Compute the absolute path of `state_dir`. Set `env.<CHANNEL_UPPERCASE>_STATE_DIR = <absolute_state_dir>` if not already correct. Same naming convention as token vars (step 4) — suffix `_STATE_DIR` instead of `_BOT_TOKEN`.
-   - Write the file. Confirm: "Wired `<CHANNEL_UPPERCASE>_STATE_DIR` → `<absolute_state_dir>` in `.claude/settings.local.json` (takes effect on next restart)."
+6. Wire `<CHANNEL_UPPERCASE>_STATE_DIR` into `.claude/settings.local.json`. Compute the absolute path of `state_dir`, then run:
+   ```bash
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts .claude/settings.local.json channel-env <CHANNEL_UPPERCASE> <absolute_state_dir>
+   ```
+   This sets `env.<CHANNEL_UPPERCASE>_STATE_DIR` (creating the file if missing) and strips any stale `*_BOT_TOKEN` from the `env` block — tokens must live only in `.env`. Same naming convention as token vars (step 4), suffix `_STATE_DIR` instead of `_BOT_TOKEN`. Confirm: "Wired `<CHANNEL_UPPERCASE>_STATE_DIR` → `<absolute_state_dir>` in `.claude/settings.local.json` (takes effect on next restart)."
 
 **If token already configured:** also run step 6 before proceeding to step 5.
 

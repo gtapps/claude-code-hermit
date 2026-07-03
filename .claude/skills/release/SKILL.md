@@ -115,7 +115,7 @@ No `config.json` changes required.
 
 **Template constraints (enforce these):**
 
-1. **Narrative bullets (Added / Changed / Fixed)** — one-line summary in the shape `- **component: what changed** — short rationale if non-obvious.` Target 1–3 lines, ~40 words max. If a bullet wants to grow longer, the surplus belongs in the PR description, not here.
+1. **Narrative bullets (Added / Changed / Fixed)** — canonical format lives in root `CLAUDE.md` §Commits; enforce it here: one-line summary in the shape `- **component: what changed** — short rationale if non-obvious.` Target 1–3 lines, ~40 words max. If a bullet wants to grow longer, the surplus belongs in the PR description, not here.
    - Lead with the component or subsystem (`reflect:`, `session-mgr:`, `hermit-docker:`).
    - Do NOT list internal refactors, helper extractions, test scaffolding, or renamed variables — those are visible in `git diff`.
    - Do NOT repeat what `Files affected` already shows.

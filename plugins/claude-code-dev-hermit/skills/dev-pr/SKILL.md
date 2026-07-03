@@ -40,19 +40,15 @@ Run all checks in order. FAIL on the first failure, name it, give the exact comm
 
 *0a. `commands.pr_create` configured?* If the cached value is absent or empty: FAIL `"commands.pr_create not configured — run /claude-code-dev-hermit:hatch to set it"`.
 
-*0b. Forge/tool coherence.* Derive the tool discriminator: `TOOL=$(basename $(echo "$PR_CREATE" | awk '{print $1}'))`. Classify `git remote get-url origin 2>/dev/null` using the same map as hatch:
-- `github.com` or `github.` → `FORGE=github`
-- `gitlab.com` or `gitlab.` → `FORGE=gitlab`
-- `bitbucket.org` → `FORGE=bitbucket`
-- anything else → `FORGE=custom`
+*0b. Forge/tool coherence.* Run the classifier (it derives `TOOL` as the basename of `commands.pr_create`'s first word, maps `git remote get-url origin` to a `FORGE` — `github.com`/`github.` → github, `gitlab.com`/`gitlab.` → gitlab, `bitbucket.org` → bitbucket, else custom — and only flags the two known-bad pairings):
 
-Fail **only** when both forge and tool are in the recognized set and they form a known-bad pairing:
-- `FORGE=github` AND `TOOL != gh` → FAIL
-- `FORGE=gitlab` AND `TOOL != glab` → FAIL
+```bash
+bun "${CLAUDE_PLUGIN_ROOT}/scripts/dev-pr-transforms.ts" classify-forge "$PR_CREATE"
+```
 
-All other combinations (FORGE=bitbucket, FORGE=custom, TOOL not in {gh,glab}, no remote) → warn-and-proceed (custom wrappers on known hosts must not be blocked).
-
-Fail message: `"commands.pr_create ('<configured>') doesn't match origin host (<forge>) — re-run /claude-code-dev-hermit:hatch or update commands.pr_create in .claude-code-hermit/config.json"`.
+Parse the JSON `{tool, forge, verdict, reason}`. Keep `tool` as `$TOOL` and `forge` as `$FORGE` — Gate 1's SSH fallback and Gate 3's dispatch both key off them. Then act on `verdict`:
+- `fail` (github origin without `gh`, or gitlab origin without `glab`): FAIL `"commands.pr_create ('<configured>') doesn't match origin host (<forge>) — re-run /claude-code-dev-hermit:hatch or update commands.pr_create in .claude-code-hermit/config.json"`.
+- `warn` or `ok`: proceed. A `warn` is a custom wrapper or an unrecognized host — never blocked.
 
 **1. Protected-branch check.** Materialize the cached `protected_branches` config value as a bash array, then compare the current branch against each pattern using bash glob semantics:
 
@@ -131,27 +127,39 @@ BEHIND=$(git rev-list --count "HEAD..$REMOTE_SHA")
 - If stderr contains `cannot run ssh`: the container has no SSH binary. Dispatch on `FORGE`
   (from Gate 0 step 0b):
 
-  - **`FORGE=github`**: derive the HTTPS URL from `git remote get-url origin`:
-    `git@github.com:OWNER/REPO(.git)?` → `https://github.com/OWNER/REPO.git`; for a
-    `github.`-alias host (e.g. `git@github.work:OWNER/REPO.git`, matching Gate 0's `github.`
-    rule), take the `OWNER/REPO` tail and prefix `https://github.com/`. Retry:
+  - **`FORGE=github`**: derive the canonical HTTPS URL — `rewrite-ssh` normalizes both
+    `git@github.com:OWNER/REPO(.git)?` and any `github.`-alias host (e.g.
+    `git@github.work:OWNER/REPO.git`) to `https://github.com/OWNER/REPO.git`:
+
+    ```bash
+    URL=$(bun "${CLAUDE_PLUGIN_ROOT}/scripts/dev-pr-transforms.ts" \
+      rewrite-ssh github "$(git remote get-url origin)")   # → {"url":"https://github.com/…"}
+    ```
+
+    Then retry with the `url` from that JSON:
 
     ```bash
     git -c "credential.helper=!gh auth git-credential" \
-      push https://github.com/<owner>/<repo>.git "$CURRENT_BRANCH:$CURRENT_BRANCH"
+      push <url> "$CURRENT_BRANCH:$CURRENT_BRANCH"
     ```
 
     - Success: record `push: HTTPS fallback (SSH unavailable)` and continue to Gate 2.
     - Failure (or `gh` not found): FAIL `"SSH unavailable and HTTPS fallback failed; ensure gh is authenticated (gh auth login)"`.
 
-  - **`FORGE=gitlab`**: derive the HTTPS URL from `git remote get-url origin`:
-    `git@gitlab.com:OWNER/REPO(.git)?` → `https://gitlab.com/OWNER/REPO.git`; for a
-    `gitlab.`-alias host (e.g. `git@gitlab.work:OWNER/REPO.git`, matching Gate 0's `gitlab.`
-    rule), take the `OWNER/REPO` tail and prefix `https://gitlab.com/`. Retry:
+  - **`FORGE=gitlab`**: derive the canonical HTTPS URL — `rewrite-ssh` normalizes both
+    `git@gitlab.com:OWNER/REPO(.git)?` and any `gitlab.`-alias host (e.g.
+    `git@gitlab.work:OWNER/REPO.git`) to `https://gitlab.com/OWNER/REPO.git`:
+
+    ```bash
+    URL=$(bun "${CLAUDE_PLUGIN_ROOT}/scripts/dev-pr-transforms.ts" \
+      rewrite-ssh gitlab "$(git remote get-url origin)")   # → {"url":"https://gitlab.com/…"}
+    ```
+
+    Then retry with the `url` from that JSON:
 
     ```bash
     git -c "credential.helper=!glab auth git-credential" \
-      push https://gitlab.com/<owner>/<repo>.git "$CURRENT_BRANCH:$CURRENT_BRANCH"
+      push <url> "$CURRENT_BRANCH:$CURRENT_BRANCH"
     ```
 
     - Success: record `push: HTTPS fallback (SSH unavailable)` and continue to Gate 2.
@@ -171,14 +179,11 @@ BEHIND=$(git rev-list --count "HEAD..$REMOTE_SHA")
 
 Build the title and body inline, no helper script.
 
-**Title.** Try in order:
-1. If `state/bindings.json` has `bindings[branch].external.id` (e.g. `PROJ-123`) and `external.title`, format as `PROJ-123: <first-commit-subject>`.
-2. Else: use the first commit's subject, with any conventional-commit prefix (`feat:`, `fix(scope):`, `chore:`, etc.) stripped.
-3. Else: use the branch name with `/` replaced by `-`.
+**Title.** Run `bun "${CLAUDE_PLUGIN_ROOT}/scripts/dev-pr-transforms.ts" build-title "$BASE"` → `{title}`, and use `title` as `$TITLE`. It applies the priority chain: (1) if `state/bindings.json` has `bindings[branch].external.id` and `external.title`, `PROJ-123: <first-commit-subject>` (subject left verbatim); (2) else the first commit's subject with any conventional-commit prefix (`feat:`, `fix(scope):`, etc.) stripped; (3) else the branch name with `/` replaced by `-`.
 
 **Body.** Assemble the following sections in order (skip any whose source data is empty):
 
-1. **Summary** — bullet list of commit subjects from `git log --first-parent <BASE>..HEAD --pretty=format:'%s'`. Strip conventional-commit prefixes first (`/^(feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert)(\([^)]+\))?!?:\s*/i`), THEN deduplicate by exact post-strip string preserving first occurrence order. Heading `## Summary`, then `- <subject>` per line.
+1. **Summary** — run `bun "${CLAUDE_PLUGIN_ROOT}/scripts/dev-pr-transforms.ts" build-summary "$BASE"` → `{bullets}`. It reads `git log --first-parent <BASE>..HEAD`, strips conventional-commit prefixes, and dedups by exact post-strip string preserving first-occurrence order. Emit `## Summary`, then `- <bullet>` per entry. Skip the section if `bullets` is empty.
 
 2. **Context** — if `state/bindings.json` has `bindings[branch].external = { source, id, url, title }`, emit a `## Context` heading followed by a single line containing a markdown link. The link text is the bold-wrapped string `<source> <id>` (e.g. `**Linear PROJ-123**`), the link target is `url`, and the line ends with ` — <title>`. Concrete example for `{source: "Linear", id: "PROJ-123", url: "https://linear.app/...", title: "fix login redirect"}` produces a single line beginning with `**` then the bold-bracketed link then ` — fix login redirect`. If `external.title` is missing, drop the ` — <title>` suffix. If `external.url` is missing, skip the section entirely.
 

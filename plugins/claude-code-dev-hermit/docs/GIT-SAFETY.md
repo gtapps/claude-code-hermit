@@ -6,12 +6,7 @@ Two layers of protection: prose rules in `state-templates/CLAUDE-APPEND.md` (alw
 
 ## Prose Rules (Always Active)
 
-Injected into the project's `CLAUDE.md` by `/hatch`. The §Git Safety section reads:
-
-- Never `git push` from agent context. Stop and ask the operator. The sanctioned answer is `/claude-code-dev-hermit:dev-pr`, which runs Gate 0 checks then pushes + opens a PR. This forbids *improvised* pushes, not the push performed by that skill itself: while executing it, its Gate 1 push is the sanctioned action — run it, don't stop to ask.
-- Never use `--no-verify` on any git command (commit, push, merge, rebase).
-- Never commit to a branch in `claude-code-dev-hermit.protected_branches`. Always work on a feature branch.
-- Never force-push from agent context. No bare `--force` or `-f`. `--force-with-lease` is allowed only to a non-protected branch with an explicit refspec (the safe rebase-recovery case); ambiguous-target leases and leases to protected branches are blocked. When in doubt, surface the divergence and let the operator resolve.
+Injected into the project's `CLAUDE.md` by `/hatch`. The §Git Safety section is the single source for the four rules: never `git push` from agent context (the sanctioned path is `/claude-code-dev-hermit:dev-pr`), never `--no-verify`, never commit to a `claude-code-dev-hermit.protected_branches` branch, and never force-push (with the narrow `--force-with-lease` carve-out). For the authoritative wording, including the `/dev-pr` push carve-out and the lease nuance, see `state-templates/CLAUDE-APPEND.md` §Git Safety.
 
 These apply to whatever agent the operator uses — native `Agent` tool, `feature-dev`'s research/architect agents, custom subagents, the main session. They depend on the agent reading and following the rules; LLMs sometimes ignore prose. That's what the hook is for.
 

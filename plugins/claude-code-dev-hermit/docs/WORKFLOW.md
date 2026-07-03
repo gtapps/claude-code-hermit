@@ -33,12 +33,7 @@ Per `§Branch Discipline`:
 
 ### Step 3 — Implement
 
-Agent writes code on the feature branch. The `§Git Safety` rules apply throughout:
-
-- No `git push` from agent context. Stop and ask the operator. The sanctioned answer is `/claude-code-dev-hermit:dev-pr` — and executing that skill's own Gate 1 push is the sanctioned action, not a violation.
-- No `--no-verify` on any git command.
-- No commits to a branch in `protected_branches`.
-- No force-push (any flavor).
+Agent writes code on the feature branch. The `§Git Safety` rules apply throughout (no `git push` from agent context except via `/claude-code-dev-hermit:dev-pr`, no `--no-verify`, no commits to a `protected_branches` branch, no force-push in any flavor). The authoritative wording lives in `state-templates/CLAUDE-APPEND.md` §Git Safety.
 
 At strict hook profile (`AGENT_HOOK_PROFILE=strict`), `git-push-guard` enforces these at `bash` time. At lower profiles, the prose is the only enforcement — agents may or may not weight it. `/hatch` defaults to strict for that reason.
 

@@ -3,6 +3,7 @@
 import { createSign } from "node:crypto";
 import https from "node:https";
 import { readFileSync } from "node:fs";
+import path from "node:path";
 
 type Json = any;
 
@@ -164,6 +165,104 @@ function buildLabels(extra: string[] = []): string[] {
   return [...new Set(["hermit-filed", ...extra])];
 }
 
+// --- classify: pure derivation helpers (proposal-backed issues only) ---
+
+// Conventional-Commits type from proposal category.
+function deriveType(category: string): string {
+  switch (category) {
+    case "bug":
+      return "fix";
+    case "infrastructure":
+    case "investigation":
+      return "chore";
+    default:
+      return "feat"; // improvement/capability/routine/constraint/unknown
+  }
+}
+
+// Strip the fleet-wide `claude-code-` prefix from a slug.
+function stripSlug(slug: string): string {
+  return slug.replace(/^claude-code-/, "");
+}
+
+// Resolve a single scope token from raw (pre-translation) text, or null.
+// slugSet is the keys of `_hermit_versions`. Returns the stripped scope.
+function resolveScope(rawText: string, slugSet: string[]): string | null {
+  const matched = new Set<string>();
+  for (const slug of slugSet) {
+    const esc = slug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const wholeWord = new RegExp(`(?<![\\w-])${esc}(?![\\w-])`);
+    const pathRef = new RegExp(`plugins/${esc}/`);
+    if (wholeWord.test(rawText) || pathRef.test(rawText)) matched.add(slug);
+  }
+  if (matched.size === 1) return stripSlug([...matched][0]);
+  if (matched.size > 1) return null; // ambiguous: signal present but unresolved — stop
+  const fleet = slugSet.filter((s) => /^claude-code-.+-hermit$/.test(s) && s !== "claude-code-hermit");
+  if (fleet.length === 1) return stripSlug(fleet[0]);
+  return null;
+}
+
+// Type label from category, plus the scope token as an extra label when present.
+// `hermit-filed` is added later by buildLabels — not included here.
+function deriveLabels(category: string, scope: string | null): string[] {
+  const typeLabel =
+    category === "bug"
+      ? "bug"
+      : category === "infrastructure" || category === "investigation"
+        ? "chore"
+        : "enhancement";
+  return scope ? [typeLabel, scope] : [typeLabel];
+}
+
+function buildTitleLine(type: string, scope: string | null, title: string): string {
+  return scope ? `${type}(${scope}): ${title}` : `${type}: ${title}`;
+}
+
+// Walk up from cwd to the nearest `.claude-code-hermit/config.json` and return
+// the keys of `_hermit_versions` (the recognized slug set). Empty if unreadable.
+function readSlugSet(): string[] {
+  let dir = process.cwd();
+  while (true) {
+    try {
+      const cfg = JSON.parse(readFileSync(path.join(dir, ".claude-code-hermit", "config.json"), "utf8"));
+      const versions = cfg._hermit_versions;
+      return versions && typeof versions === "object" ? Object.keys(versions) : [];
+    } catch {}
+    const parent = path.dirname(dir);
+    if (parent === dir) return [];
+    dir = parent;
+  }
+}
+
+function classifyMode() {
+  const category = process.argv[3];
+  const titleFile = process.argv[4];
+  const bodyFile = process.argv[5];
+  if (!category || !titleFile || !bodyFile) {
+    process.stderr.write("Usage: bun file-issue.ts classify <category> <title-file> <body-file>\n");
+    process.exit(1);
+  }
+
+  const { title, body } = readTitleAndBody(titleFile, bodyFile);
+
+  const type = deriveType(category);
+  const scope = resolveScope(`${title}\n${body}`, readSlugSet());
+  const labels = deriveLabels(category, scope);
+  const title_line = buildTitleLine(type, scope, title);
+
+  process.stdout.write(JSON.stringify({ type, scope, labels, title_line }) + "\n");
+}
+
+function readTitleAndBody(titleFile: string, bodyFile: string): { title: string; body: string } {
+  const title = readFileSync(titleFile, "utf8").trim();
+  const body = readFileSync(bodyFile, "utf8");
+  if (!title) {
+    process.stderr.write(`Title file is empty: ${titleFile}\n`);
+    process.exit(1);
+  }
+  return { title, body };
+}
+
 async function main() {
   if (process.argv[2] === "--check") {
     await checkMode();
@@ -172,6 +271,11 @@ async function main() {
 
   if (process.argv[2] === "--comment") {
     await commentMode();
+    return;
+  }
+
+  if (process.argv[2] === "classify") {
+    classifyMode();
     return;
   }
 
@@ -186,12 +290,7 @@ async function main() {
 
   const env = loadEnv();
 
-  const title = readFileSync(titleFile, "utf8").trim();
-  const issueBody = readFileSync(bodyFile, "utf8");
-  if (!title) {
-    process.stderr.write(`Title file is empty: ${titleFile}\n`);
-    process.exit(1);
-  }
+  const { title, body: issueBody } = readTitleAndBody(titleFile, bodyFile);
 
   const token = await getInstallToken(env);
   const { owner, repo } = env;
@@ -206,7 +305,7 @@ async function main() {
   process.stdout.write(issue.html_url + "\n");
 }
 
-export { buildLabels };
+export { buildLabels, deriveType, resolveScope, deriveLabels, buildTitleLine };
 
 if (import.meta.main) {
   main().catch((err: any) => {

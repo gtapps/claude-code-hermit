@@ -25,16 +25,9 @@ Before the setup-mode gate or any file writes, gather context silently. Run all 
    - Timezone: `cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value 2>/dev/null || date +%Z` (fallback: `UTC`)
 
 2. **Silent hermit detection + core scope detection** (split out so it's available before the mode gate without an operator prompt):
-   - Run: `claude plugin list --json`
-   - **Core scope detection:** From the full output, find all entries where the plugin name (substring of `id` left of `@`) is exactly `claude-code-hermit`, `enabled == true`, and `projectPath` equals the current project root. Apply precedence: if any has `scope == "local"` → `core_install_scope = "local"`; else if any has `scope == "project"` → `core_install_scope = "project"`; else if a user-scope entry exists for this plugin (any `projectPath`) → `core_install_scope = "user"`; else → `core_install_scope = null`. Map to `hatch_target`:
-     - `core_install_scope == "project"` → `hatch_target = "committed"`
-     - `core_install_scope == "local"` → `hatch_target = "local"`
-     - `core_install_scope == "user"` or `null` → `hatch_target = "local"` (safer default; operator can override in Advanced)
-   - **Sibling hermit detection:** Apply the **project-or-local + enabled filter**:
-     - Keep `enabled == true` AND (`scope == "project"` OR `scope == "local"`) AND `projectPath` equals the current project root.
-     - Drop user-scope, managed-scope, disabled, and cross-project entries.
-   - For each surviving sibling entry, parse the plugin name from `id` (substring left of `@`). Keep entries whose plugin name contains "hermit" but is NOT "claude-code-hermit".
-   - Stash the resulting list as `detected_hermits`. Each entry must carry: `plugin` (id left of `@`), `id` (full JSON field), `marketplace_name` (id right of `@`), `installPath` (JSON `installPath` field — Step 3 reads `state-templates/CLAUDE-APPEND.md` and `plugin.json` from this path directly).
+   - **Core scope detection:** run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-siblings.ts "$(pwd)" --role core-scope`. It emits `{ "core_scope": "local"|"project"|"user"|null, "target": "committed"|"local" }` — set `core_install_scope` from `core_scope` and `hatch_target` from `target`. (project → committed; local/user/null → local, the safer default the operator can override in Advanced.)
+   - **Sibling hermit detection:** run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-siblings.ts "$(pwd)" --role siblings`. It emits a JSON array of the project-or-local + enabled hermit siblings (each carrying `plugin`, `id`, `marketplace_name`, `installPath`), already excluding user-scope, disabled, cross-project, and `claude-code-hermit` itself.
+   - Stash the array as `detected_hermits`. Step 3 reads `state-templates/CLAUDE-APPEND.md` and `plugin.json` from each entry's `installPath` directly.
    - Note: sibling detection is intentionally restrictive. A hermit installed at user scope does NOT auto-detect — operator can install it at project scope and re-run, or activate via `/hermit-settings`.
 
 3. **Detect git-init eligibility** — run in parallel with items 1–2. Set `git_init_eligible = true` if and only if all three hold:
@@ -620,50 +613,7 @@ questions: [
 ```
 
 - If **hardened** (always-on): default + always-on additions (excluding docker/kubectl/ssh — valid in devops contexts on host). Canonical source: `state-templates/deny-patterns.json`.
-  ```json
-  "deny": [
-    "Bash(rm -rf *)",
-    "Bash(chmod 777*)",
-    "Bash(*sudo *)",
-    "Bash(*> /etc/*)",
-    "Bash(curl * | bash*)",
-    "Bash(wget * | bash*)",
-    "Bash(env)",
-    "Bash(printenv)",
-    "Bash(cat .env*)",
-    "Bash(cat */.env*)",
-    "Bash(cat ~/.ssh/*)",
-    "Bash(cat ~/.aws/*)",
-    "Bash(*API_KEY*)",
-    "Bash(*SECRET*)",
-    "Bash(*TOKEN*)",
-    "Bash(npm publish*)",
-    "Bash(git push --force*)",
-    "Bash(git push origin main*)",
-    "Bash(git reset --hard*)",
-    "Bash(*--no-verify*)"
-  ]
-  ```
-- If **minimal** (default): default set only.
-  ```json
-  "deny": [
-    "Bash(rm -rf *)",
-    "Bash(chmod 777*)",
-    "Bash(*sudo *)",
-    "Bash(*> /etc/*)",
-    "Bash(curl * | bash*)",
-    "Bash(wget * | bash*)",
-    "Bash(env)",
-    "Bash(printenv)",
-    "Bash(cat .env*)",
-    "Bash(cat */.env*)",
-    "Bash(cat ~/.ssh/*)",
-    "Bash(cat ~/.aws/*)",
-    "Bash(*API_KEY*)",
-    "Bash(*SECRET*)",
-    "Bash(*TOKEN*)"
-  ]
-  ```
+- If **minimal** (default): default set only. Same canonical source: `state-templates/deny-patterns.json`.
 - If **skip**: note: "You can add deny rules later in .claude/settings.json under permissions.deny."
 
 Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <resolved-settings-file> deny <minimal|hardened>` to merge selected rules (never removes existing entries). The script reads the canonical deny list from `state-templates/deny-patterns.json`.

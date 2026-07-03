@@ -1,11 +1,17 @@
 #!/usr/bin/env bun
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { generateKeyPairSync } from "node:crypto";
 import path from "node:path";
-import { buildLabels } from "../skills/hermit-scribe/file-issue";
+import {
+  buildLabels,
+  deriveType,
+  resolveScope,
+  deriveLabels,
+  buildTitleLine,
+} from "../skills/hermit-scribe/file-issue";
 
 type Json = any;
 
@@ -201,6 +207,126 @@ test("trailing label args do not break arg parsing (reaches token acquisition)",
     [titleFile, bodyFile, "bug", "homeassistant-hermit"],
     /HERMIT_GH_APP_KEY_FILE=.*does not exist/
   );
+});
+
+// --- classify: deriveType ---
+
+test("deriveType: bug -> fix", () => assertEqual(deriveType("bug"), "fix", "type"));
+test("deriveType: infrastructure -> chore", () =>
+  assertEqual(deriveType("infrastructure"), "chore", "type"));
+test("deriveType: investigation -> chore", () =>
+  assertEqual(deriveType("investigation"), "chore", "type"));
+test("deriveType: improvement -> feat", () => assertEqual(deriveType("improvement"), "feat", "type"));
+test("deriveType: capability -> feat", () => assertEqual(deriveType("capability"), "feat", "type"));
+test("deriveType: routine -> feat", () => assertEqual(deriveType("routine"), "feat", "type"));
+test("deriveType: constraint -> feat", () => assertEqual(deriveType("constraint"), "feat", "type"));
+test("deriveType: unknown -> feat", () => assertEqual(deriveType("whatever"), "feat", "type"));
+
+// --- classify: resolveScope ---
+
+const slugSet = [
+  "claude-code-hermit",
+  "claude-code-dev-hermit",
+  "claude-code-homeassistant-hermit",
+  "hermit-scribe",
+];
+
+test("resolveScope priority 2: single whole-word match", () => {
+  assertEqual(resolveScope("touches hermit-scribe today", slugSet), "hermit-scribe", "scope");
+});
+
+test("resolveScope priority 2: plugins/<slug>/ path match", () => {
+  assertEqual(
+    resolveScope("edit plugins/claude-code-homeassistant-hermit/foo.ts", slugSet),
+    "homeassistant-hermit",
+    "scope"
+  );
+});
+
+test("resolveScope priority 2: strips claude-code- prefix", () => {
+  assertEqual(resolveScope("about claude-code-dev-hermit", slugSet), "dev-hermit", "scope");
+});
+
+test("resolveScope priority 2: substring of longer identifier is not a match", () => {
+  // "hermit-scribe" appears only inside "my-hermit-scribe-thing" -> no whole-word match.
+  // Falls through to priority 3 (single fleet hermit among the two-slug set below).
+  assertEqual(resolveScope("my-hermit-scribe-thing", ["hermit-scribe"]), null, "scope");
+});
+
+test("resolveScope priority 2: multiple matches -> omit (null)", () => {
+  assertEqual(resolveScope("hermit-scribe and claude-code-dev-hermit", slugSet), null, "scope");
+});
+
+test("resolveScope priority 3: zero matches, single fleet hermit -> use it", () => {
+  assertEqual(
+    resolveScope("nothing named here", ["claude-code-hermit", "claude-code-dev-hermit"]),
+    "dev-hermit",
+    "scope"
+  );
+});
+
+test("resolveScope priority 4: zero matches, multiple fleet hermits -> omit", () => {
+  assertEqual(resolveScope("nothing named here", slugSet), null, "scope");
+});
+
+test("resolveScope priority 4: zero matches, no fleet hermits -> omit", () => {
+  assertEqual(resolveScope("nothing named here", ["claude-code-hermit"]), null, "scope");
+});
+
+test("resolveScope: empty slug set (config absent) -> omit", () => {
+  assertEqual(resolveScope("mentions hermit-scribe", []), null, "scope");
+});
+
+// --- classify: deriveLabels ---
+
+test("deriveLabels: bug + scope", () =>
+  assertDeepEqual(deriveLabels("bug", "hermit-scribe"), ["bug", "hermit-scribe"], "labels"));
+test("deriveLabels: infrastructure -> chore, no scope", () =>
+  assertDeepEqual(deriveLabels("infrastructure", null), ["chore"], "labels"));
+test("deriveLabels: investigation -> chore", () =>
+  assertDeepEqual(deriveLabels("investigation", null), ["chore"], "labels"));
+test("deriveLabels: capability -> enhancement + scope", () =>
+  assertDeepEqual(deriveLabels("capability", "dev-hermit"), ["enhancement", "dev-hermit"], "labels"));
+test("deriveLabels: unknown -> enhancement, no scope", () =>
+  assertDeepEqual(deriveLabels("mystery", null), ["enhancement"], "labels"));
+
+// --- classify: buildTitleLine ---
+
+test("buildTitleLine: with scope", () =>
+  assertEqual(buildTitleLine("feat", "hermit-scribe", "add thing"), "feat(hermit-scribe): add thing", "line"));
+test("buildTitleLine: without scope", () =>
+  assertEqual(buildTitleLine("fix", null, "squash bug"), "fix: squash bug", "line"));
+
+// --- classify: CLI subcommand (config reader + JSON emission) ---
+
+test("classify with no args prints usage and exits 1", () => {
+  assertFails({}, ["classify"], /Usage: bun file-issue\.ts classify/);
+});
+
+test("classify emits JSON derived from config _hermit_versions", () => {
+  const cfgDir = mkdtempSync(path.join(tmpdir(), "hermit-scribe-cfg-"));
+  const stateDir = path.join(cfgDir, ".claude-code-hermit");
+  mkdirSync(stateDir, { recursive: true });
+  writeFileSync(
+    path.join(stateDir, "config.json"),
+    JSON.stringify({ _hermit_versions: { "claude-code-hermit": "1.0.0", "hermit-scribe": "1.0.0" } })
+  );
+  const t = path.join(cfgDir, "title");
+  const b = path.join(cfgDir, "body.md");
+  writeFileSync(t, "make scribe classify\n");
+  writeFileSync(b, "this touches hermit-scribe internals\n");
+
+  const r = spawnSync(process.execPath, [SCRIPT, "classify", "capability", t, b], {
+    env: { PATH: process.env.PATH },
+    cwd: cfgDir,
+    encoding: "utf8",
+  });
+  assertEqual(r.status, 0, "exit code");
+  const out = JSON.parse(r.stdout);
+  assertEqual(out.type, "feat", "type");
+  assertEqual(out.scope, "hermit-scribe", "scope");
+  assertDeepEqual(out.labels, ["enhancement", "hermit-scribe"], "labels");
+  assertEqual(out.title_line, "feat(hermit-scribe): make scribe classify", "title_line");
 });
 
 console.log("");

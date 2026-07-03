@@ -106,15 +106,12 @@ Options:
 Scan installed fleet plugins. From the host:
 
 ```bash
-claude plugin list --json 2>/dev/null
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-siblings.ts "$(pwd)" --role siblings
 ```
 
-Apply the **project-or-local + enabled filter**:
+It emits a JSON array of the project-or-local + enabled hermit siblings (each carrying `plugin`, `installPath`), already excluding user-scope, disabled, cross-project, and `claude-code-hermit` itself.
 
-- Keep `enabled == true` AND (`scope == "project"` OR `scope == "local"`) AND `projectPath` equals the current project root.
-- Drop user-scope, managed-scope, disabled, and cross-project entries.
-
-For each surviving entry whose plugin name (substring of `id` left of `@`) matches `*-hermit*` and is NOT `claude-code-hermit`:
+For each entry:
 
 1. Locate the plugin's installed root using the `installPath` field from the JSON.
 2. Read `<plugin>/skills/hatch/SKILL.md` and look for a `## Docker network requirements` heading. Also check `<plugin>/DOCKER.md`. Stop at the next `##` heading.

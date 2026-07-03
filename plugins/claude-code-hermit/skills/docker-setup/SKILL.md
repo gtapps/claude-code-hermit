@@ -212,13 +212,7 @@ Mirror host-installed plugins into the container so the container starts with th
 
 > **SECURITY-CRITICAL STEP.** Every plugin written here is auto-installed on container boot with whatever `permission_mode` the operator chose — for `bypassPermissions` hermits, this means full unrestricted execution. Do not shortcut the safelist, validation, or deselection rules below. If you find yourself about to skip one, stop and re-read this section.
 
-1. Run `claude plugin list --json` to enumerate plugins. Each entry includes `id` (form `<plugin>@<marketplace_name>`), `scope`, `enabled`, `projectPath`, and `installPath`. Apply the **project-or-local + enabled filter**:
-   - Keep `enabled == true` AND (`scope == "project"` OR `scope == "local"`) AND `projectPath` equals the current project root.
-   - Drop user-scope, managed-scope, disabled, and cross-project entries entirely.
-
-   `claude plugin list --json` lists across the operator's full config — local-scope plugins from sibling repos carry their own `projectPath` and must be excluded.
-
-   **Dedupe rule.** After filtering, dedupe surviving entries by `(plugin, marketplace_name)`. If both a `project` and a `local` scope entry survive for the same `(plugin, marketplace_name)`, keep the `local` entry only — local is the override scope in Claude Code's overlay model. Different marketplaces remain distinct entries.
+1. Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-siblings.ts "$(pwd)" --dedupe` to enumerate plugins. It emits a JSON array of the project-or-local + enabled entries (each carrying `plugin`, `id`, `marketplace_name`, `scope`, `installPath`), with user-scope, managed, disabled, and cross-project entries already dropped, and deduped by `(plugin, marketplace_name)` keeping the `local` entry over `project` (local is the override scope in Claude Code's overlay model). Different marketplaces remain distinct entries.
 
    If the operator wants a user-scope plugin in the container, they install it at `project` scope on the host first and re-run this skill.
 2. Filter out additionally:

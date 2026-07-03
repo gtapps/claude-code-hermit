@@ -8,9 +8,11 @@
  *   allow                    Merge hermit's fixed permissions.allow list
  *   deny <minimal|hardened>  Merge deny-patterns from state-templates/deny-patterns.json
  *   sandbox <standard|off>   Merge sandbox profile from state-templates/sandbox-profiles.json
+ *   channel-env <CH> <dir>   Set env.<CH>_STATE_DIR and strip any stale env.*_BOT_TOKEN
  *
  * Rules:
- * - Never removes existing keys or array entries.
+ * - Never removes existing keys or array entries — except channel-env, which strips
+ *   any *_BOT_TOKEN from the env block (tokens must live only in .env, never settings).
  * - Permission sets are read from state-templates — callers cannot inject arbitrary JSON.
  * - Safe to call under AGENT_HOOK_PROFILE=strict: writes via fs, not the Edit/Write tools.
  */
@@ -193,8 +195,24 @@ switch (op) {
     break;
   }
 
+  case 'channel-env': {
+    const channel = rest[0];
+    const stateDir = rest[1];
+    if (!channel || !stateDir) {
+      console.error('channel-env requires <CHANNEL_UPPER> and <abs_state_dir> arguments');
+      process.exit(1);
+    }
+    settings.env ??= {};
+    // Tokens must live only in .env — strip any stale *_BOT_TOKEN from settings.
+    for (const key of Object.keys(settings.env)) {
+      if (/_BOT_TOKEN$/.test(key)) delete settings.env[key];
+    }
+    settings.env[`${channel}_STATE_DIR`] = stateDir;
+    break;
+  }
+
   default: {
-    console.error(`Unknown operation: ${op}. Valid ops: task-id, allow, deny, sandbox`);
+    console.error(`Unknown operation: ${op}. Valid ops: task-id, allow, deny, sandbox, channel-env`);
     process.exit(1);
   }
 }

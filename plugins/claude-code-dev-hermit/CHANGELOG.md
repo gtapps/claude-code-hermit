@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **git-push-guard: block bare `git push` and `git push origin HEAD` on protected branches** — the guard now resolves the current branch via `git symbolic-ref` when a push carries no destination ref, closing the hole where a bare push to `main` slipped through (only explicit refspecs were checked before). Handles `git -C <path> push`; a bare push behind `cd … &&` remains a documented fail-open limit.
+- **git-push-guard: notice when the guard is inactive** — emit one stderr line on a `git push` when `AGENT_HOOK_PROFILE` is not `strict`, so a non-strict session no longer silently runs with the guard disabled.
+
 ## [0.4.6] - 2026-06-29
 
 ### Added

@@ -41,10 +41,18 @@ View or modify the hermit configuration for this project.
 
 Read `.claude-code-hermit/config.json`. If it doesn't exist, inform the operator: "No config found. Run `/claude-code-hermit:hatch` first."
 
+Scalar and enum edits below are written through `scripts/settings-edit.ts`, which read-modify-writes the whole config (preserving every sibling key) and refuses a malformed file. Shorthand used in this skill:
+
+```bash
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/settings-edit.ts .claude-code-hermit/config.json get [dotted.path]      # dump whole config, or one value
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/settings-edit.ts .claude-code-hermit/config.json set <dotted.path> <value>   # 'none'/'clear' → null; value is JSON-parsed then falls back to raw string
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/settings-edit.ts .claude-code-hermit/config.json toggle <dotted.path>       # boolean flip (absent → true)
+```
+
 ### 2. Show or modify
 
 **If no argument** (or argument is "all"):
-Display all current settings in a readable format:
+Dump the current config with `settings-edit ... get` (no path), then display all current settings in a readable format:
 
 ```
 Hermit Settings (.claude-code-hermit/config.json)
@@ -96,17 +104,17 @@ Docker:
 
 **If argument is "name":**
 Ask: "Agent name? (e.g., Atlas, Hermit, Scout, or 'none' to clear) [current value or skip]"
-Update `agent_name` in config.json. Set to `null` if operator says "none" or "clear".
+Run `settings-edit ... set agent_name <value>` ("none"/"clear" → null).
 
 **If argument is "language":**
 Auto-detect the system locale via Bash as a default suggestion.
 Ask: "Preferred language? (e.g., pt, en, es, fr) [current value or auto-detected]"
-Update `language` in config.json.
+Run `settings-edit ... set language <value>`.
 
 **If argument is "timezone":**
 Auto-detect the system timezone via Bash as a default suggestion.
 Ask: "Timezone? (e.g., Europe/Lisbon, America/New_York, UTC) [current value or auto-detected]"
-Update `timezone` in config.json.
+Run `settings-edit ... set timezone <value>`.
 
 **If argument is "escalation":**
 Ask: "How autonomous should your assistant be?
@@ -115,11 +123,11 @@ Ask: "How autonomous should your assistant be?
   3. Autonomous — proceed unless blocked, minimize interruptions
 
 Choose 1-3: [current value]"
-Update `escalation` in config.json with `"conservative"` / `"balanced"` / `"autonomous"`.
+Run `settings-edit ... set escalation <conservative|balanced|autonomous>`.
 
 **If argument is "sign-off":**
 Ask: "Sign-off line for channel messages and briefs? (e.g., 'Atlas out.', '— A.', or 'none' to clear) [current value or skip]"
-Update `sign_off` in config.json. Set to `null` if operator says "none" or "clear".
+Run `settings-edit ... set sign_off <value>` ("none"/"clear" → null).
 
 **If argument is "channels":**
 Show current channel configuration from `config.json` → `channels` object. The `channels.primary` key (if set) is a magic pointer to the preferred outbound channel, not a channel itself — display it on its own line above the channel list:
@@ -146,7 +154,7 @@ Ask: "Enable remote control? Connect from a browser or phone via claude.ai/code.
   yes — enable remote control
   no  — disable remote control
 [current: <value>]"
-Update `remote` in config.json.
+Run `settings-edit ... set remote <true|false>` (or `toggle remote` if the operator just wants to flip it).
 Note: "Remote control changes take effect on next `hermit-start` run."
 
 **If argument is "model":**
@@ -156,7 +164,7 @@ Ask: "Claude model to use?
   haiku  → claude-haiku-4-5-20251001
   none   → use Claude Code default (inherit from user config)
 [current: <value or 'default'>]"
-Update `model` in config.json. Set to `null` if operator says "none", "default", or "clear".
+Run `settings-edit ... set model <value>` ("none"/"default"/"clear" → null).
 Note: "Model changes take effect on next `hermit-start` run."
 
 **If argument is "brief":**
@@ -172,7 +180,7 @@ Ask: "Boot skill to invoke on always-on launch? This runs after heartbeat/routin
   <skill>  — any namespaced skill (e.g. `/claude-code-foo-hermit:foo-boot`)
   none     — clear (falls back to `/claude-code-hermit:session`)
 [current: <value or 'default'>]"
-Update `boot_skill` in config.json. Set to `null` if operator says "none", "default", or "clear". The domain boot skill is responsible for calling `/claude-code-hermit:session-start` itself — this setting just controls the single bootstrap command `hermit-start.ts` fires into the REPL.
+Run `settings-edit ... set boot_skill <value>` ("none"/"default"/"clear" → null). The domain boot skill is responsible for calling `/claude-code-hermit:session-start` itself — this setting just controls the single bootstrap command `hermit-start.ts` fires into the REPL.
 Note: "Boot skill changes take effect on next `hermit-start` run."
 
 **If argument is "permissions":**
@@ -184,7 +192,7 @@ Ask: "Permission mode for Claude Code? (auto / acceptEdits / default / plan / do
 - `dontAsk` — denies all tools not in `permissions.allow`; requires a curated allowlist in `settings.json`
 - `bypassPermissions` — no checks; isolated containers/VMs only
 - Note: `auto` may report "unavailable" at launch if your plan/model/provider doesn't qualify — see [Permission Modes](https://code.claude.com/docs/en/permission-modes)
-Update `permission_mode` in config.json.
+Run `settings-edit ... set permission_mode <value>`.
 
 **If argument is "heartbeat":**
 - Show current heartbeat config (including `stale_threshold`)
@@ -197,7 +205,7 @@ Update `permission_mode` in config.json.
     stale     — alert if no session progress for (e.g. 2h, 30m) [current]
   ```
   Then ask each field in sequence.
-- Update `heartbeat` object in config.json.
+- Write each changed field through `settings-edit ... set heartbeat.<field> <value>` (`heartbeat.enabled`, `heartbeat.every`, `heartbeat.active_hours.start`, `heartbeat.active_hours.end`, `heartbeat.stale_threshold`). Per-field dotted sets preserve the untouched siblings (`waiting_timeout`, `clean_recheck_cooldown`, `model`).
 - **After the change is written**, reconcile the live Monitor with the new state via the Skill tool. The monitor's poll interval is baked in at `start` time from `heartbeat.every`, so a config-only change otherwise leaves the running monitor on the old cadence (and `/hermit-doctor` would flag the mismatch). Surface the result inline:
   - If heartbeat is now **enabled**: invoke `/claude-code-hermit:heartbeat start` (idempotent — stops the old monitor and re-registers at the new interval). Success: "Heartbeat monitor restarted at new interval (`<every>`). Active immediately."
   - If heartbeat is now **disabled**: invoke `/claude-code-hermit:heartbeat stop`. Success: "Heartbeat monitor stopped."
@@ -230,7 +238,7 @@ Update `permission_mode` in config.json.
     context_clear_tokens   — emergency /clear when prompt tokens exceed this (e.g. 700000, 0=off) [current]
   ```
   Then ask each field in sequence.
-- Update `watchdog` object in config.json.
+- Write each changed field through `settings-edit ... set watchdog.<field> <value>` (`watchdog.enabled`, `watchdog.stale_factor`, `watchdog.escalate_after`, `watchdog.operator_grace`, `watchdog.context_clear_tokens`). Per-field dotted sets preserve any untouched siblings.
   - Note: "Changes take effect on the next watchdog run. To register or remove the OS timer: `bin/hermit-watchdog install` / `bin/hermit-watchdog uninstall`. Docker hermits run the watchdog from the entrypoint loop — no install step needed."
 - **Context hygiene compact** (`context_hygiene.compact` — runs independently of the "Enable watchdog?" answer above, same as `context_clear_tokens`): ask "Enable routine-hygiene compaction? (yes / no) [current: <value>]". If yes, show the sub-fields:
   ```
@@ -238,7 +246,7 @@ Update `permission_mode` in config.json.
     min_context_tokens     — routine-hygiene /compact when prompt tokens exceed this (e.g. 150000) [current]
     min_interval           — minimum time between compacts, avoids summary-of-summary loss (e.g. 4h) [current]
   ```
-  Then ask each field in sequence. Update `context_hygiene.compact` object in config.json. No restart/reconcile step needed — the watchdog reads config.json fresh on every scheduler tick.
+  Then ask each field in sequence. Write each changed field through `settings-edit ... set context_hygiene.compact.<field> <value>` (`context_hygiene.compact.enabled`, `context_hygiene.compact.min_context_tokens`, `context_hygiene.compact.min_interval`). No restart/reconcile step needed — the watchdog reads config.json fresh on every scheduler tick.
 
 **If argument is "routines":**
 - Show current routines from `config.routines` array:
@@ -279,7 +287,7 @@ Update `permission_mode` in config.json.
     1. Discover — run reflection and priority alignment (default)
     2. Wait — only check for new tasks and channel messages
   Choose 1-2: [current value]"
-- Update `idle_behavior` in config.json with `"wait"` or `"discover"`.
+- Run `settings-edit ... set idle_behavior <wait|discover>`.
 
 **If argument is "env":**
 - Show current `env` values from config.json in a table:
@@ -385,7 +393,7 @@ Options:
 - **Balanced**: make an inline RUN/SKIP decision on each implementation from the proposal category and touched files (no subagent) — RUN triggers `/claude-code-hermit:simplify`, SKIP doesn't. Costs an occasional ~$0.25 `/claude-code-hermit:simplify` run when the decision is RUN.
 - **Quality**: `/claude-code-hermit:simplify` runs on every implementation, no judgment. ~$0.25-$0.35 per implementation in Sonnet pricing.
 
-Write the chosen value to `quality_gate.tier` in config.json. If the `quality_gate` object is missing, create it as `{ "tier": "<chosen>" }`. If a legacy `enabled` key is present, leave it in place (skill behavior reads `tier` only; legacy `enabled` is ignored).
+Run `settings-edit ... set quality_gate.tier <chosen>` (creates the `quality_gate` object if missing; a legacy `enabled` sibling is preserved untouched — skill behavior reads `tier` only).
 
 Note: if you have `claude-code-dev-hermit:dev-quality` installed and you commit autonomous-implementation diffs through it, consider **Budget** — `/dev-quality` already runs `/claude-code-hermit:simplify` before commit, and any non-Budget tier here would double-fire the cleanup pass (~$0.40-$0.70 of duplicated spend per committed implementation).
 
@@ -398,7 +406,7 @@ Note: if you have `claude-code-dev-hermit:dev-quality` installed and you commit 
   ```
   (substitute the actual value; show 1 if absent)
 - Ask: "Minimum distinct sessions before a pattern graduates? 1 = surfaces after first session (default, ships enabled); 2 = requires recurrence across two sessions (pre-v1.2.6 behavior). [current: <value>]"
-- Accept a positive integer (≥1) as input. Update `reflection.graduation_min_sessions` in config.json. If the `reflection` object is missing, create it.
+- Accept a positive integer (≥1) as input. Run `settings-edit ... set reflection.graduation_min_sessions <int>` (creates the `reflection` object if missing).
 - Note: "Takes effect on the next reflect run. Set to 1 for fast feedback on fresh hermits; dial to 2 if the operator channel gets noisy."
 
 **If argument is "push-notifications":**
@@ -406,9 +414,9 @@ Ask: "Send a PushNotification (desktop notification in your terminal app, plus m
   on  — enable push notifications
   off — disable push notifications
 [current: <value>]"
-Update `push_notifications` in config.json (`true` for on, `false` for off).
+Run `settings-edit ... set push_notifications <true|false>` ("on" → true, "off" → false; or `toggle push_notifications` to flip).
 
 ### 3. Write config
 
-Write the updated config back to `.claude-code-hermit/config.json`.
+Scalar/enum branches already persisted their change via `settings-edit` (see step 2). For the branches that manipulate arrays or delete keys (`channels`, `routines`, `env`, `compact`, `docker`, `scheduled-checks`, `brief`) — which `settings-edit` can't express — write the updated config back to `.claude-code-hermit/config.json` directly.
 Confirm the change to the operator.
