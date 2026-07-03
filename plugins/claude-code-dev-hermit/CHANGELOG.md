@@ -4,7 +4,7 @@
 
 ### Changed
 
-- **CLAUDE-APPEND: collapse two mode templates into one source** — `CLAUDE-APPEND-SAFETY.md` is deleted; `CLAUDE-APPEND.md` carries mode markers and is rendered per mode by the new `scripts/render-append.ts` (both renderings byte-identical to the pre-collapse files, golden-tested). `/hatch` now captures the render script's stdout instead of picking a file.
+- **CLAUDE-APPEND: collapse two mode templates into one source** — `CLAUDE-APPEND-SAFETY.md` is deleted; `CLAUDE-APPEND.md` carries mode markers and is rendered per mode by the new `scripts/render-append.ts` (both renderings byte-identical to the pre-collapse files, golden-tested). `/hatch` now captures the render script's stdout instead of picking a file. The render CLI writes to stdout and returns without an early `process.exit(0)`, so large renders can't be truncated at the pipe buffer.
 
 ### Files affected
 
