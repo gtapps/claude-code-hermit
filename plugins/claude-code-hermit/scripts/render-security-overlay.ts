@@ -76,10 +76,14 @@ export interface Chosen {
   netguardIp: string;
 }
 
+// derive is only ever called with a /24 (CANDIDATES are /24; validateCandidate
+// enforces /24). Normalize to the network address so an operator-supplied CIDR
+// with host bits set (e.g. 192.168.5.10/24) renders as 192.168.5.0/24: Docker
+// rejects a subnet whose address has host bits ("it should be 192.168.5.0/24").
 function derive(subnet: string): Chosen {
-  const base = subnet.split('/')[0];
-  const o = base.split('.');
-  return { subnet, gateway: `${o[0]}.${o[1]}.${o[2]}.1`, netguardIp: `${o[0]}.${o[1]}.${o[2]}.2` };
+  const o = subnet.split('/')[0].split('.');
+  const base = `${o[0]}.${o[1]}.${o[2]}`;
+  return { subnet: `${base}.0/24`, gateway: `${base}.1`, netguardIp: `${base}.2` };
 }
 
 export interface PickResult {
@@ -117,6 +121,16 @@ export function validateCandidate(candidate: string, occupied: string[]): PickRe
   return { chosen: derive(candidate.trim()), allCandidatesCollide: false, occupied };
 }
 
+/**
+ * Extract the parseable IPv4 subnets from a `docker network inspect` subnet
+ * field (space-separated when a network is dual-stack). Drops IPv6 / unparseable
+ * entries but keeps the IPv4 range (dropping the whole net on an unparseable
+ * IPv6 half would hide its real IPv4 range from the overlap check).
+ */
+export function ipv4SubnetsFromInspect(subnetField: string): string[] {
+  return (subnetField ?? '').trim().split(/\s+/).filter((s) => cidrToRange(s) !== null);
+}
+
 // ---------------------------------------------------------------------------
 // Impure docker enumeration (mirrors docker-preflight's spawnSync + timeouts).
 // ---------------------------------------------------------------------------
@@ -149,16 +163,17 @@ export function gatherOccupied(projectRoot: string): string[] {
   for (const net of nets) {
     try {
       const insp = spawnSync('docker', ['network', 'inspect', net,
-        '--format', '{{range .IPAM.Config}}{{.Subnet}}{{end}}|||{{json .Labels}}'],
+        '--format', '{{range .IPAM.Config}}{{.Subnet}} {{end}}|||{{json .Labels}}'],
         { timeout: 5000, encoding: 'utf8' });
       if (insp.status !== 0 || !insp.stdout) continue;
       const [subnetPart, labelsPart] = insp.stdout.trim().split('|||');
-      if (!subnetPart || !cidrToRange(subnetPart)) continue; // skip non-IPv4 nets
+      const subnets = ipv4SubnetsFromInspect(subnetPart);
+      if (subnets.length === 0) continue; // no IPv4 subnet on this net
       let labels: any = {};
       try { labels = JSON.parse(labelsPart || '{}') || {}; } catch {}
       if (labels['com.docker.compose.project'] === projectName
         && labels['com.docker.compose.network'] === 'hermit-net') continue;
-      occupied.push(subnetPart);
+      occupied.push(...subnets);
     } catch { /* skip this network */ }
   }
   return occupied;

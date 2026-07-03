@@ -138,10 +138,13 @@ if (import.meta.main) {
     try {
       const inputs = JSON.parse(raw) as Inputs;
 
-      // Render + validate everything before any write.
+      // Render + validate everything before any write. pluginVersion() reads +
+      // parses plugin.json; resolve it here too so a missing/corrupt manifest
+      // throws BEFORE any file is written (honours the "nothing written" contract).
       const { dockerfile, compose } = render(inputs);
       const entrypointSrc = path.join(TEMPLATES_DIR, 'docker-entrypoint.hermit.sh.template');
       if (!fs.existsSync(entrypointSrc)) throw new Error(`missing entrypoint template: ${entrypointSrc}`);
+      const version = pluginVersion();
 
       const dockerfilePath = path.join(projectRoot, 'Dockerfile.hermit');
       const composePath = path.join(projectRoot, 'docker-compose.hermit.yml');
@@ -152,7 +155,7 @@ if (import.meta.main) {
       fs.copyFileSync(entrypointSrc, entrypointPath);
 
       const manifestSeed = {
-        pluginVersion: pluginVersion(),
+        pluginVersion: version,
         entries: [
           { key: 'docker/docker-entrypoint.hermit.sh', file: entrypointPath },
           {

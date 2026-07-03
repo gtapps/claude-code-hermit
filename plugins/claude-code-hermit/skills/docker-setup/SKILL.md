@@ -323,8 +323,10 @@ The script prints `{ "written": [...], "entrypointCopied": true, "manifestSeed":
 
 **Record the template baselines in the manifest** (arms the `hermit-evolve` drift signals) by piping `report.manifestSeed` — emitted with absolute paths and the current plugin version — straight into `manifest-seed.ts`. **Do not hand-compute the hashes.**
 
+Pipe **only the value of the `manifestSeed` field** (the `{ "pluginVersion", "entries" }` object): NOT the whole render stdout envelope. `manifest-seed.ts` expects a top-level `{pluginVersion, entries}`; handing it the full `{written, entrypointCopied, manifestSeed}` object seeds no baselines (the drift signals silently never arm).
+
 ```bash
-echo '<report.manifestSeed>' | bun ${CLAUDE_PLUGIN_ROOT}/scripts/manifest-seed.ts <PROJECT_ROOT>/.claude-code-hermit
+echo '<the manifestSeed object only: {"pluginVersion":...,"entries":[...]}>' | bun ${CLAUDE_PLUGIN_ROOT}/scripts/manifest-seed.ts <PROJECT_ROOT>/.claude-code-hermit
 ```
 
 The `manifestSeed` payload deliberately hashes the **on-disk rendered** entrypoint (copied verbatim, so its hash equals the upstream template's — lets `hermit-evolve` Step 5c manage it as a boot-critical file) and the two **upstream** `.template` files (never the rendered output, which differs from upstream forever due to substitution — lets Step 10 report upstream drift without false positives). `manifest-seed.ts` preserves every other manifest key (`templates/`/`bin/` baselines, sibling-hermit keys) and refuses to overwrite a present-but-corrupt manifest.

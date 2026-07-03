@@ -14,7 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { runScript } from './helpers/run';
 import {
-  cidrToRange, overlaps, pickSubnet, validateCandidate,
+  cidrToRange, overlaps, pickSubnet, validateCandidate, ipv4SubnetsFromInspect,
 } from '../scripts/render-security-overlay';
 
 const tmpdirs: string[] = [];
@@ -86,6 +86,23 @@ describe('subnet overlap logic', () => {
   test('validateCandidate rejects a colliding /24', () => {
     const r = validateCandidate('172.17.5.0/24', ['172.17.0.0/16']);
     expect(r.chosen).toBeNull();
+  });
+
+  test('validateCandidate normalizes an operator /24 with host bits to its network address', () => {
+    // Docker rejects a subnet whose address has host bits set; the wizard must
+    // persist/render the canonical network address, not the raw operator input.
+    const r = validateCandidate('192.168.5.10/24', ['172.17.0.0/16']);
+    expect(r.chosen).toEqual({ subnet: '192.168.5.0/24', gateway: '192.168.5.1', netguardIp: '192.168.5.2' });
+  });
+
+  test('ipv4SubnetsFromInspect keeps the IPv4 range of a dual-stack network', () => {
+    // `{{range .IPAM.Config}}{{.Subnet}} {{end}}` space-joins every subnet; a
+    // dual-stack net emits IPv4 + IPv6. The IPv4 half must survive so pickSubnet
+    // can't hand back a /24 that overlaps it.
+    expect(ipv4SubnetsFromInspect('172.20.0.0/16 fc00::/64')).toEqual(['172.20.0.0/16']);
+    expect(ipv4SubnetsFromInspect('172.20.0.0/16 172.21.0.0/16')).toEqual(['172.20.0.0/16', '172.21.0.0/16']);
+    expect(ipv4SubnetsFromInspect('fc00::/64')).toEqual([]); // IPv6-only → nothing occupied
+    expect(ipv4SubnetsFromInspect('')).toEqual([]);
   });
 });
 
