@@ -10,6 +10,7 @@ import { globDir, readFrontmatter } from './lib/frontmatter';
 import { validate } from './validate-config';
 import { kStr } from './lib/format';
 import { costIndexPath, readCostIndex, scanAutomatedOpus } from './lib/cost-log';
+import { costLogPath } from './lib/cc-compat';
 
 type Json = any;
 
@@ -21,7 +22,9 @@ const reportPath = path.join(stateDir, 'doctor-report.json');
 
 const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || path.resolve(import.meta.dir, '..');
 const hooksPath = path.join(pluginRoot, 'hooks', 'hooks.json');
-const costLog = path.resolve('.claude', 'cost-log.jsonl');
+// Resolve the cost log relative to the hermit dir (from argv), not the CWD —
+// doctor is often run from a different directory than the project root.
+const costLog = costLogPath(hermitDir);
 
 // State files expected to exist after a healthy hatch.
 const EXPECTED_STATE_FILES = [
@@ -256,46 +259,85 @@ function satisfiesRange(version: any, range: any): boolean {
   return Bun.semver.satisfies(version, range);
 }
 
+// Enumerate the directories that directly contain a sibling plugin's
+// .claude-plugin/. Handles both layouts core actually ships in:
+//   - monorepo / legacy flat cache: siblings are one level up (plugins/<name>/).
+//   - versioned marketplace cache: .claude/plugins/cache/<mp>/<plugin>/<version>/,
+//     where pluginRoot's parent is core's OWN name dir and real siblings live two
+//     levels up under <mp>/<other-plugin>/<max-version>/. The old one-level scan
+//     saw only other versions of core there, so `checked` was always 0 — a false
+//     all-clear for exactly the operators the check exists to protect.
+function siblingPluginDirs(coreName: string): string[] {
+  const parent = path.resolve(pluginRoot, '..');
+  const dirs: string[] = [];
+  if (path.basename(parent) === coreName) {
+    // Versioned cache: walk the marketplace root, pick each sibling's newest version.
+    const marketplaceRoot = path.resolve(parent, '..');
+    let entries: fs.Dirent[] = [];
+    try { entries = fs.readdirSync(marketplaceRoot, { withFileTypes: true }); } catch {}
+    for (const ent of entries) {
+      if (!ent.isDirectory()) continue;
+      const pluginDir = path.join(marketplaceRoot, ent.name);
+      if (pluginDir === parent) continue; // skip core's own name dir
+      let versions: fs.Dirent[] = [];
+      try { versions = fs.readdirSync(pluginDir, { withFileTypes: true }); } catch { continue; }
+      // Pick the newest cached version deliberately, not the currently-pinned
+      // one (we don't read installed_plugins.json): this check is forward-
+      // looking — a `/plugin update` pulls the newest — so warning when the
+      // newest sibling demands a core the operator lacks is the conservative,
+      // warn-favoring direction. A false warn is cheaper than the false
+      // all-clear this function exists to prevent.
+      const newest = versions
+        .filter(v => v.isDirectory() && fs.existsSync(path.join(pluginDir, v.name, '.claude-plugin', 'plugin.json')))
+        .map(v => v.name)
+        .sort((a, b) => Bun.semver.order(b, a))[0];
+      if (newest) dirs.push(path.join(pluginDir, newest));
+    }
+  } else {
+    let entries: fs.Dirent[] = [];
+    try { entries = fs.readdirSync(parent, { withFileTypes: true }); } catch {}
+    for (const ent of entries) {
+      if (!ent.isDirectory()) continue;
+      const dir = path.join(parent, ent.name);
+      if (dir === pluginRoot) continue; // skip self
+      if (fs.existsSync(path.join(dir, '.claude-plugin', 'plugin.json'))) dirs.push(dir);
+    }
+  }
+  return dirs;
+}
+
 function checkDependencies() {
   try {
-    // Scan sibling plugins under plugins/<name>/.claude-plugin/plugin.json (monorepo)
-    // or ${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json (legacy flat cache).
-    // Read core version from this plugin's own manifest.
+    // Read core version + name from this plugin's own manifest.
     const corePj = path.join(pluginRoot, '.claude-plugin', 'plugin.json');
     if (!fs.existsSync(corePj)) {
       return { id: 'dependencies', status: 'ok', detail: 'core manifest absent — skipping range check' };
     }
-    let coreVersion: string;
+    let coreManifest: Json;
     try {
-      coreVersion = JSON.parse(fs.readFileSync(corePj, 'utf8')).version;
+      coreManifest = JSON.parse(fs.readFileSync(corePj, 'utf8'));
     } catch {
       return { id: 'dependencies', status: 'warn', detail: 'core plugin.json unreadable' };
     }
+    const coreVersion: string = coreManifest.version;
     if (!coreVersion) {
       return { id: 'dependencies', status: 'ok', detail: 'core version not set — skipping range check' };
     }
 
-    const siblingsRoot = path.resolve(pluginRoot, '..');
-    let siblingDirs: fs.Dirent[] = [];
-    try { siblingDirs = fs.readdirSync(siblingsRoot, { withFileTypes: true }); } catch {}
-
     const mismatches: string[] = [];
     let checked = 0;
-    for (const ent of siblingDirs) {
-      if (!ent.isDirectory()) continue;
-      if (path.join(siblingsRoot, ent.name) === pluginRoot) continue; // skip self
-      const pj = path.join(siblingsRoot, ent.name, '.claude-plugin', 'plugin.json');
-      if (!fs.existsSync(pj)) continue;
+    for (const dir of siblingPluginDirs(coreManifest.name || '')) {
+      const pj = path.join(dir, '.claude-plugin', 'plugin.json');
       let manifest: Json;
       try { manifest = JSON.parse(fs.readFileSync(pj, 'utf8')); } catch { continue; }
-      const metaPath = path.join(siblingsRoot, ent.name, '.claude-plugin', 'hermit-meta.json');
+      const metaPath = path.join(dir, '.claude-plugin', 'hermit-meta.json');
       let meta: Json = {};
       try { if (fs.existsSync(metaPath)) meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); } catch {}
       const range = meta.required_core_version;
       if (!range) continue;
       checked++;
       if (!satisfiesRange(coreVersion, range)) {
-        mismatches.push(`${manifest.name || ent.name} requires ${range} (core is ${coreVersion})`);
+        mismatches.push(`${manifest.name || path.basename(dir)} requires ${range} (core is ${coreVersion})`);
       }
     }
 

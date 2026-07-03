@@ -20,6 +20,12 @@
 - **README + CLAUDE.md** — list `laravel-forge-hermit` in the pre-built hermits; drop the removed `/hermit-brain` and `/pulse` from the on-demand skills list (their scope now reads under `/hermit-health` and `/brief`).
 - **CI** — new `test-scribe.yml` runs hermit-scribe's suite; `test-hooks.yml` gains a guard that the repo-internal `/simplify` mirror stays byte-identical to the shipped skill.
 
+### Fixed
+- **enforce-deny-patterns: match compound commands** — each `&&`/`;`/`|` segment is now tested against the deny globs, so a pattern anchored to a leading command (e.g. `Bash(rm -rf *)`) fires inside `cd /tmp && rm -rf x` instead of being bypassed. Splitting is quote-aware, so a separator inside a quoted string (e.g. `echo "step 1; rm -rf build"`) does not fragment the command into a spurious match.
+- **hermit-doctor: cost-log path honors the hermit-dir argument** — resolved via `cc-compat.costLogPath()` rather than a CWD-relative path, so the cost and Opus-wake checks no longer report a false `ok` when doctor runs from a different directory.
+- **hermit-doctor: dependency check handles the versioned plugin-cache layout** — when the plugin root sits under `cache/<mp>/<plugin>/<version>/` (the same layout `cache-edit-guard` assumes), the sibling scan now walks up to the marketplace root and picks each sibling's newest version, rather than seeing only other core versions one level up and reporting a false "no siblings" all-clear. The monorepo/flat-cache one-level scan is unchanged.
+- **docs: correct prerequisites and stale samples** — `how-to-use.md` now states Bun (not Node.js 22+) as the hooks/scripts runtime and drops the `python3`/`node` permission samples the wizard never writes; README and `architecture.md` drop hand-written check/skill counts that had drifted.
+
 ### Upgrade Instructions
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:

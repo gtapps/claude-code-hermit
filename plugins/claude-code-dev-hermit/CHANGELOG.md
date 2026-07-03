@@ -28,6 +28,9 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 1. **Re-render the dev CLAUDE-APPEND block from the single source.** Read `claude-code-dev-hermit.hatch_mode` from `.claude-code-hermit/config.json` (default `standard`). Capture the stdout of `bun ${plugin_root}/scripts/render-append.ts <hatch_mode>`. In the operator's dev CLAUDE target file (`CLAUDE.md` or `CLAUDE.local.md` per `hatch-options.json` `target`), replace the block delimited by the `<!-- claude-code-dev-hermit: Development Workflow -->` marker with that rendered output. The rendering is byte-identical to the operator's existing block for their mode, so this is a no-op refresh — safety-mode operators see no visible change. If the marker is absent, leave the file untouched.
 
 No `config.json` changes required.
+### Fixed
+- **git-push-guard: block bare `git push` and `git push origin HEAD` on protected branches** — the guard now resolves the current branch via `git symbolic-ref` when a push carries no destination ref, closing the hole where a bare push to `main` slipped through (only explicit refspecs were checked before). Handles `git -C <path> push`; a bare push behind `cd … &&` remains a documented fail-open limit.
+- **git-push-guard: notice when the guard is inactive** — emit one stderr line on a `git push` when `AGENT_HOOK_PROFILE` is not `strict`, so a non-strict session no longer silently runs with the guard disabled.
 
 ## [0.4.6] - 2026-06-29
 

@@ -28,27 +28,64 @@ function globToRegex(glob: string): RegExp {
   return new RegExp(`^${escaped}$`);
 }
 
-function matchesPattern(toolCall: { tool: string; content: string }, pattern: string): boolean {
+function matchesPattern(toolCall: { tool: string; candidates: string[] }, pattern: string): boolean {
   const m = pattern.match(/^(\w+)\((.+)\)$/);
   if (!m) return false;
 
   const [, patternTool, patternGlob] = m;
   if (toolCall.tool !== patternTool) return false;
 
-  return globToRegex(patternGlob).test(toolCall.content);
+  const rx = globToRegex(patternGlob);
+  return toolCall.candidates.some(c => rx.test(c));
 }
 
-function buildToolCall(event: Json): { tool: string; content: string } {
+// Split a command into compound segments on &&, ||, ;, and | — but only when
+// the separator sits OUTSIDE single/double quotes. A separator inside a quoted
+// string (e.g. `echo "step 1; rm -rf build"`) must not fragment the command,
+// or the trailing fragment would spuriously match a leading-anchored deny glob.
+function splitSegments(command: string): string[] {
+  const out: string[] = [];
+  let buf = '';
+  let quote: string | null = null;
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i];
+    if (quote) {
+      buf += c;
+      if (c === quote) quote = null;
+      continue;
+    }
+    if (c === '"' || c === "'") { quote = c; buf += c; continue; }
+    if ((c === '&' && command[i + 1] === '&') || (c === '|' && command[i + 1] === '|')) {
+      out.push(buf); buf = ''; i++; continue;
+    }
+    if (c === ';' || c === '|') { out.push(buf); buf = ''; continue; }
+    buf += c;
+  }
+  out.push(buf);
+  return out;
+}
+
+function buildToolCall(event: Json): { tool: string; content: string; candidates: string[] } {
   const name = event.tool_name || '';
   const input = event.tool_input || {};
 
   if (name === 'Bash') {
-    return { tool: 'Bash', content: input.command || '' };
+    const command = input.command || '';
+    // Match the whole command AND each compound segment, so a deny pattern
+    // anchored to a leading command (e.g. `Bash(rm -rf *)`) still fires inside
+    // `cd /tmp && rm -rf x`. Splitting is quote-aware (see splitSegments) so a
+    // separator inside a quoted string does not fragment the command. Dedup —
+    // a non-compound command otherwise appears twice (whole + its one segment).
+    const segments = splitSegments(command).map((s: string) => s.trim());
+    const candidates = [...new Set([command, ...segments])].filter(Boolean);
+    return { tool: 'Bash', content: command, candidates };
   }
   if (name === 'Edit' || name === 'Write') {
-    return { tool: name, content: input.file_path || input.path || '' };
+    // File paths are never segmented — a `|` in a filename must not fragment it.
+    const content = input.file_path || input.path || '';
+    return { tool: name, content, candidates: [content] };
   }
-  return { tool: name, content: '' };
+  return { tool: name, content: '', candidates: [] };
 }
 
 function main() {

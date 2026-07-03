@@ -28,7 +28,7 @@ A Claude Code plugin that turns any Claude Code instance into a self-improving p
                                  |
  +-------------------------------v----------------------------------+
  |                    LAYER 4: SKILLS + HOOKS                       |
- |   30 skills    3 hook phases    3 profiles (minimal/standard/strict)   |
+ |   skills       3 hook phases    3 profiles (minimal/standard/strict)   |
  +-------------------------------|----------------------------------+
                                  |
  +-------------------------------v----------------------------------+
@@ -129,7 +129,7 @@ claude-code-hermit/
 ├── agents/session-mgr.md
 ├── hooks/hooks.json
 ├── scripts/               # Hook implementations + boot scripts
-├── skills/                 # 26 skill directories
+├── skills/                 # skill definitions
 ├── state-templates/        # Copied into projects by init
 └── .claude-plugin/plugin.json
 ```
