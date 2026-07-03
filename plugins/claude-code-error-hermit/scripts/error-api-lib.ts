@@ -190,6 +190,21 @@ export function issuesPath(org: string, project: string): string {
   return `/api/0/projects/${encodeURIComponent(org)}/${encodeURIComponent(project)}/issues/`;
 }
 
+// Build the full issues-list URL: query composition + limit default + path.
+// Shared by error-api.ts (cmdIssues, args-sourced since/query/limit) and
+// error-precheck.ts (cursor-sourced since only) so both build the exact same
+// request the watch loop and the CLI depend on.
+export function buildIssuesUrl(
+  config: ErrorHermitConfig,
+  opts: { since?: string; query?: string; limit?: string } = {},
+): string {
+  const query = buildIssueQuery({ since: opts.since, query: opts.query });
+  const params = new URLSearchParams();
+  if (query) params.set('query', query);
+  params.set('limit', opts.limit ?? '25');
+  return apiUrl(config.baseUrl, `${issuesPath(config.org, config.project)}?${params.toString()}`);
+}
+
 export function orgPath(org: string): string {
   return `/api/0/organizations/${encodeURIComponent(org)}/`;
 }

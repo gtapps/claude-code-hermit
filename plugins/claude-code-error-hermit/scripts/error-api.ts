@@ -20,7 +20,7 @@
 import {
   apiRequest,
   apiUrl,
-  buildIssueQuery,
+  buildIssuesUrl,
   issuePath,
   issuesPath,
   latestEventPath,
@@ -39,6 +39,10 @@ function out(line: string): void {
 
 function err(line: string): void {
   process.stderr.write(`${line}\n`);
+}
+
+function errHttp(res: { status: number; error?: string }): void {
+  err(`error: HTTP ${res.status}${res.error ? ' — ' + res.error : ''}`);
 }
 
 function flagValue(args: string[], name: string): string | undefined {
@@ -115,18 +119,14 @@ async function cmdIssues(args: string[]): Promise<number> {
   const config = loadConfigOrReport();
   if (!config) return 1;
   const json = args.includes('--json');
-  const query = buildIssueQuery({
+  const url = buildIssuesUrl(config, {
     since: flagValue(args, '--since'),
     query: flagValue(args, '--query'),
+    limit: flagValue(args, '--limit'),
   });
-  const limit = flagValue(args, '--limit') ?? '25';
-  const params = new URLSearchParams();
-  if (query) params.set('query', query);
-  params.set('limit', limit);
-  const url = apiUrl(config.baseUrl, `${issuesPath(config.org, config.project)}?${params.toString()}`);
   const res = await apiRequest<Array<Record<string, unknown>>>(url, config.token);
   if (!res.ok) {
-    err(`error: HTTP ${res.status}${res.error ? ' — ' + res.error : ''}`);
+    errHttp(res);
     return 1;
   }
   const issues = (res.data ?? []).map(summarizeIssue);
@@ -147,7 +147,7 @@ async function cmdIssue(args: string[]): Promise<number> {
     config.token,
   );
   if (!res.ok) {
-    err(`error: HTTP ${res.status}${res.error ? ' — ' + res.error : ''}`);
+    errHttp(res);
     return 1;
   }
   const summary = summarizeIssue(res.data ?? {});
@@ -174,7 +174,7 @@ async function cmdLatestEvent(args: string[]): Promise<number> {
     config.token,
   );
   if (!res.ok) {
-    err(`error: HTTP ${res.status}${res.error ? ' — ' + res.error : ''}`);
+    errHttp(res);
     return 1;
   }
   const summary = summarizeEvent(res.data ?? {});
@@ -213,7 +213,7 @@ async function cmdWrite(kind: 'resolve' | 'mute', args: string[]): Promise<numbe
     { method: 'PUT', body: { status } },
   );
   if (!res.ok) {
-    err(`error: HTTP ${res.status}${res.error ? ' — ' + res.error : ''}`);
+    errHttp(res);
     return 1;
   }
   out(`ok: issue ${id} set to ${status}`);

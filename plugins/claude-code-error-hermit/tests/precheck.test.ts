@@ -6,17 +6,13 @@ import { test, expect, describe, beforeAll, afterAll } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { loadFixture, jsonResponse } from './test-utils';
 
 const PRECHECK = path.join(import.meta.dir, '..', 'scripts', 'error-precheck.ts');
-const FIX = path.join(import.meta.dir, 'fixtures');
-const load = (f: string) => JSON.parse(fs.readFileSync(path.join(FIX, f), 'utf8'));
+const load = loadFixture;
 
 let server: ReturnType<typeof Bun.serve> | undefined;
 let baseUrl = '';
-
-function jsonResponse(obj: unknown): Response {
-  return new Response(JSON.stringify(obj), { status: 200, headers: { 'content-type': 'application/json' } });
-}
 
 beforeAll(() => {
   server = Bun.serve({

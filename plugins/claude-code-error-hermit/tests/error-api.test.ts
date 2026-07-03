@@ -5,17 +5,16 @@
 
 import { test, expect, describe, beforeAll, afterAll } from 'bun:test';
 import path from 'node:path';
-import fs from 'node:fs';
 import {
   summarizeIssue,
   summarizeEvent,
   buildIssueQuery,
   redact,
 } from '../scripts/error-api-lib';
+import { loadFixture, jsonResponse } from './test-utils';
 
 const CLI = path.join(import.meta.dir, '..', 'scripts', 'error-api.ts');
-const FIX = path.join(import.meta.dir, 'fixtures');
-const load = (f: string) => JSON.parse(fs.readFileSync(path.join(FIX, f), 'utf8'));
+const load = loadFixture;
 
 const GOOD_TOKEN = 'good-secret-token-value-xyz';
 
@@ -24,13 +23,6 @@ const requests: Recorded[] = [];
 
 let server: ReturnType<typeof Bun.serve> | undefined;
 let baseUrl = '';
-
-function jsonResponse(obj: unknown, status = 200): Response {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
-}
 
 beforeAll(() => {
   server = Bun.serve({
@@ -208,8 +200,10 @@ describe('CLI: write gating', () => {
 
 describe('CLI: token never leaks', () => {
   test('token absent from all output across read commands', async () => {
-    for (const args of [['check'], ['issues'], ['issue', '1001'], ['latest-event', '1001']]) {
-      const r = await runCli(args);
+    const results = await Promise.all(
+      [['check'], ['issues'], ['issue', '1001'], ['latest-event', '1001']].map((args) => runCli(args)),
+    );
+    for (const r of results) {
       expect(r.stdout).not.toContain(GOOD_TOKEN);
       expect(r.stderr).not.toContain(GOOD_TOKEN);
     }

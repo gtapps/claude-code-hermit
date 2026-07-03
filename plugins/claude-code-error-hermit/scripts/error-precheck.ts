@@ -18,9 +18,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   apiRequest,
-  apiUrl,
-  buildIssueQuery,
-  issuesPath,
+  buildIssuesUrl,
   projectRoot,
   resolveConfig,
 } from './error-api-lib';
@@ -46,12 +44,7 @@ async function main(): Promise<void> {
 
   if (!cursor) emit('EVALUATE|no cursor — bootstrap');
 
-  const params = new URLSearchParams();
-  const query = buildIssueQuery({ since: cursor });
-  if (query) params.set('query', query);
-  params.set('limit', '25');
-  const url = apiUrl(config.baseUrl, `${issuesPath(config.org, config.project)}?${params.toString()}`);
-
+  const url = buildIssuesUrl(config, { since: cursor });
   const res = await apiRequest<unknown[]>(url, config.token);
   if (!res.ok) emit(`ERROR|HTTP ${res.status}${res.error ? ' — ' + res.error : ''}`);
 

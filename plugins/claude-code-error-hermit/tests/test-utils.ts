@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 function parseFrontmatter(text: string) {
   const m = text.match(/^---\n([\s\S]*?)\n---\n/);
   if (!m) return null;
@@ -28,4 +31,20 @@ function makeReporter() {
   return { ok, summary };
 }
 
-export { parseFrontmatter, makeReporter };
+// Load a JSON fixture from tests/fixtures/. Shared by error-api.test.ts and
+// precheck.test.ts so both spawn the CLI/precheck against identical canned
+// responses.
+function loadFixture<T = any>(name: string): T {
+  return JSON.parse(fs.readFileSync(path.join(import.meta.dir, 'fixtures', name), 'utf8'));
+}
+
+// Minimal JSON Response builder for the Bun.serve fixture servers in
+// error-api.test.ts and precheck.test.ts.
+function jsonResponse(obj: unknown, status = 200): Response {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+export { parseFrontmatter, makeReporter, loadFixture, jsonResponse };
