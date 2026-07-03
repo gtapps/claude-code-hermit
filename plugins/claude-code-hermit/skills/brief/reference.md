@@ -24,7 +24,9 @@ The calling skill passes the following scalars in the dispatch prompt (do not re
 
 1. Read `.claude-code-hermit/cost-summary.md`. Find the trend table row whose Date column matches
    the day before `today`. Populate `cost_context.yesterday` as
-   `"Yesterday: $X.XX (N.NK tokens) across N sessions"`. Set `cost_context.week` and
+   `"Yesterday: <Cost> (<Tokens>) across <Sessions> sessions"`, copying the Cost, Tokens, and
+   Sessions cells from that row **verbatim** (e.g. `"Yesterday: $1189.14 (532M tokens) across
+   44 sessions"`) — do not reformat the token count. Set `cost_context.week` and
    `cost_context.all_time` to `null`.
 2. Scan `.claude-code-hermit/proposals/PROP-*.md` — read the leading `---` YAML block only for
    each file. Collect files where `status: proposed` AND `source: auto-detected`. Populate

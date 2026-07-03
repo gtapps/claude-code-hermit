@@ -14,6 +14,7 @@ import { hermitDir } from './lib/cc-compat';
 import { findStorageDrift, findSchemaDrift } from './lib/drift';
 import { safe } from './lib/sanitize';
 import { resolve as resolveOutboundChannel } from './resolve-outbound-channel';
+import { formatTokens } from './lib/format';
 
 type Json = any;
 
@@ -351,7 +352,7 @@ function main(source: string | null) {
     let out = 'No cost data';
     try {
       const d = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
-      out = `$${d.cost_usd.toFixed(4)} (${Math.round(d.tokens / 1000)}K tokens)`;
+      out = `$${d.cost_usd.toFixed(4)} (${formatTokens(d.tokens)})`;
     } catch {
       // missing/malformed status — keep the placeholder, same as read-cost.py did
     }
