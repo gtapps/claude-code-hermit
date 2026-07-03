@@ -281,6 +281,12 @@ function siblingPluginDirs(coreName: string): string[] {
       if (pluginDir === parent) continue; // skip core's own name dir
       let versions: fs.Dirent[] = [];
       try { versions = fs.readdirSync(pluginDir, { withFileTypes: true }); } catch { continue; }
+      // Pick the newest cached version deliberately, not the currently-pinned
+      // one (we don't read installed_plugins.json): this check is forward-
+      // looking — a `/plugin update` pulls the newest — so warning when the
+      // newest sibling demands a core the operator lacks is the conservative,
+      // warn-favoring direction. A false warn is cheaper than the false
+      // all-clear this function exists to prevent.
       const newest = versions
         .filter(v => v.isDirectory() && fs.existsSync(path.join(pluginDir, v.name, '.claude-plugin', 'plugin.json')))
         .map(v => v.name)

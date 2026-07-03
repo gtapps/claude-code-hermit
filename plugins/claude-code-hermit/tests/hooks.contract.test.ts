@@ -382,6 +382,16 @@ describe('enforce-deny-patterns', () => {
     expect(r.exitCode).toBe(0);
   }));
 
+  // A separator inside a quoted string must NOT fragment the command — a plain
+  // echo/commit that merely mentions `rm -rf` after a `;` is not a real bypass.
+  test('enforce-deny-patterns (quoted separator does not fragment command)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Bash","tool_input":{"command":"echo \\"step 1; rm -rf build\\""}}',
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(0);
+  }));
+
   test('enforce-deny-patterns (Edit path containing | is not split)', withDir(async (dir) => {
     const r = await runScript('enforce-deny-patterns.ts', {
       stdin: '{"tool_name":"Edit","tool_input":{"file_path":"/home/u/project/weird|name.ts"}}',

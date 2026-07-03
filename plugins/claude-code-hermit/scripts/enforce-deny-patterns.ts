@@ -39,6 +39,32 @@ function matchesPattern(toolCall: { tool: string; candidates: string[] }, patter
   return toolCall.candidates.some(c => rx.test(c));
 }
 
+// Split a command into compound segments on &&, ||, ;, and | — but only when
+// the separator sits OUTSIDE single/double quotes. A separator inside a quoted
+// string (e.g. `echo "step 1; rm -rf build"`) must not fragment the command,
+// or the trailing fragment would spuriously match a leading-anchored deny glob.
+function splitSegments(command: string): string[] {
+  const out: string[] = [];
+  let buf = '';
+  let quote: string | null = null;
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i];
+    if (quote) {
+      buf += c;
+      if (c === quote) quote = null;
+      continue;
+    }
+    if (c === '"' || c === "'") { quote = c; buf += c; continue; }
+    if ((c === '&' && command[i + 1] === '&') || (c === '|' && command[i + 1] === '|')) {
+      out.push(buf); buf = ''; i++; continue;
+    }
+    if (c === ';' || c === '|') { out.push(buf); buf = ''; continue; }
+    buf += c;
+  }
+  out.push(buf);
+  return out;
+}
+
 function buildToolCall(event: Json): { tool: string; content: string; candidates: string[] } {
   const name = event.tool_name || '';
   const input = event.tool_input || {};
@@ -47,9 +73,10 @@ function buildToolCall(event: Json): { tool: string; content: string; candidates
     const command = input.command || '';
     // Match the whole command AND each compound segment, so a deny pattern
     // anchored to a leading command (e.g. `Bash(rm -rf *)`) still fires inside
-    // `cd /tmp && rm -rf x`. Same separator set as git-push-guard.ts. Dedup —
+    // `cd /tmp && rm -rf x`. Splitting is quote-aware (see splitSegments) so a
+    // separator inside a quoted string does not fragment the command. Dedup —
     // a non-compound command otherwise appears twice (whole + its one segment).
-    const segments = command.split(/(?:&&|\|\||;|\|)/).map((s: string) => s.trim());
+    const segments = splitSegments(command).map((s: string) => s.trim());
     const candidates = [...new Set([command, ...segments])].filter(Boolean);
     return { tool: 'Bash', content: command, candidates };
   }
