@@ -157,14 +157,33 @@ describe('static file checks', () => {
     }
   });
 
-  test('hermit-docker update moves the pin, not the marketplace', () => {
+  test('hermit-docker update refreshes marketplaces (core first), then moves the pin', () => {
     const src = fs.readFileSync(path.join(PLUGIN_ROOT, 'state-templates', 'bin', 'hermit-docker'), 'utf8');
-    // The whole point of the fix: durable `plugin update` per plugin with explicit scope...
+    // Durable `plugin update` per plugin with explicit scope...
     expect(src).toContain('claude plugin update');
     expect(src).toContain('--scope');
     expect(src).toContain('hermit-evolve unattended');
-    // ...and NOT the old ephemeral marketplace-refresh loop.
-    expect(src).not.toContain('claude plugin marketplace update');
+    // ...preceded by a marketplace refresh — `plugin update` only moves the pin against
+    // whatever is already in the local cache, it does not git-pull the catalog itself.
+    const marketplaceIdx = src.indexOf('claude plugin marketplace update');
+    const updateLoopIdx = src.indexOf('claude plugin update "$pid"');
+    expect(marketplaceIdx).toBeGreaterThan(-1);
+    expect(updateLoopIdx).toBeGreaterThan(-1);
+    expect(marketplaceIdx).toBeLessThan(updateLoopIdx);
+    // Core-first ordering so `^core`-dependent siblings re-resolve against the new core.
+    expect(src).toContain('.sort((a, b) =>');
+  });
+
+  test('hermit-update refreshes marketplaces (core first), then moves the pin', () => {
+    const src = fs.readFileSync(path.join(PLUGIN_ROOT, 'state-templates', 'bin', 'hermit-update'), 'utf8');
+    expect(src).toContain('claude plugin update');
+    expect(src).toContain('--scope');
+    const marketplaceIdx = src.indexOf('claude plugin marketplace update');
+    const updateLoopIdx = src.indexOf('claude plugin update "$pid"');
+    expect(marketplaceIdx).toBeGreaterThan(-1);
+    expect(updateLoopIdx).toBeGreaterThan(-1);
+    expect(marketplaceIdx).toBeLessThan(updateLoopIdx);
+    expect(src).toContain('.sort((a, b) =>');
   });
 });
 
@@ -191,18 +210,20 @@ describe('hermit-update host path', () => {
     fs.mkdirSync(stub, { recursive: true });
     const listFile = path.join(stub, 'list.json');
     const recFile = path.join(stub, 'rec.txt');
+    const mpRecFile = path.join(stub, 'mp-rec.txt');
     write(listFile, opts.listJson(proj));
     write(path.join(stub, 'claude'),
       `#!/usr/bin/env bash\n` +
       `if [ "$1" = "plugin" ] && [ "$2" = "list" ]; then cat "${listFile}"; exit 0; fi\n` +
       `if [ "$1" = "plugin" ] && [ "$2" = "update" ]; then echo "$@" >> "${recFile}"; exit 0; fi\n` +
+      `if [ "$1" = "plugin" ] && [ "$2" = "marketplace" ] && [ "$3" = "update" ]; then echo "$4" >> "${mpRecFile}"; exit 0; fi\n` +
       `exit 0\n`);
     write(path.join(stub, 'tmux'),
       `#!/usr/bin/env bash\n[ "$1" = "has-session" ] && exit 1\nexit 0\n`);
     fs.chmodSync(path.join(stub, 'claude'), 0o755);
     fs.chmodSync(path.join(stub, 'tmux'), 0o755);
 
-    return { wd, proj, recFile, env: { PATH: `${stub}:${process.env.PATH}` } };
+    return { wd, proj, recFile, mpRecFile, env: { PATH: `${stub}:${process.env.PATH}` } };
   }
 
   const listThreeScopes = (proj: string) => JSON.stringify([
@@ -231,6 +252,10 @@ describe('hermit-update host path', () => {
       expect(entry.mode).toBe('host-plugins');
       expect(Array.isArray(entry.plugins)).toBe(true);
       expect(entry.plugins[0].id).toBe('claude-code-hermit@claude-code-hermit');
+      // marketplace refreshed before the pin move (the bug this fixes: `plugin update`
+      // only moves the pin against whatever is already in the local cache)
+      const mpRec = fs.existsSync(f.mpRecFile) ? fs.readFileSync(f.mpRecFile, 'utf8') : '';
+      expect(mpRec).toContain('claude-code-hermit');
     } finally { f.wd.cleanup(); }
   });
 
@@ -239,6 +264,42 @@ describe('hermit-update host path', () => {
     try {
       await runBash(hermit(f.proj, 'bin', 'hermit-update'), { args: ['--dry-run'], cwd: f.proj, env: f.env });
       expect(fs.existsSync(f.recFile)).toBe(false);
+    } finally { f.wd.cleanup(); }
+  });
+
+  // Regression: siblings (dev-hermit, hermit-scribe, ...) previously never moved past
+  // core because the source list here is intentionally NOT core-first — the wrapper
+  // must reorder it itself.
+  const listMultiSibling = (proj: string) => JSON.stringify([
+    { id: 'hermit-scribe@claude-code-hermit', scope: 'project', enabled: true, version: '0.0.5', projectPath: proj },
+    { id: 'claude-code-dev-hermit@claude-code-hermit', scope: 'project', enabled: true, version: '0.4.6', projectPath: proj },
+    { id: 'claude-code-hermit@claude-code-hermit', scope: 'project', enabled: true, version: '1.2.14', projectPath: proj },
+  ]);
+
+  test('multi-sibling: every hermit updates, core first, all recorded in history', async () => {
+    const f = fixture({ listJson: listMultiSibling });
+    try {
+      await runBash(hermit(f.proj, 'bin', 'hermit-update'), { args: ['--yes'], cwd: f.proj, env: f.env });
+      const rec = fs.existsSync(f.recFile) ? fs.readFileSync(f.recFile, 'utf8').trim().split('\n') : [];
+      // every sibling gets a durable pin move with its own id and scope
+      expect(rec.some(l => l === 'plugin update claude-code-hermit@claude-code-hermit --scope project')).toBe(true);
+      expect(rec.some(l => l === 'plugin update claude-code-dev-hermit@claude-code-hermit --scope project')).toBe(true);
+      expect(rec.some(l => l === 'plugin update hermit-scribe@claude-code-hermit --scope project')).toBe(true);
+      // core is updated before either sibling, regardless of source list order
+      const coreIdx = rec.findIndex(l => l.includes('claude-code-hermit@claude-code-hermit'));
+      const devIdx = rec.findIndex(l => l.includes('claude-code-dev-hermit@claude-code-hermit'));
+      const scribeIdx = rec.findIndex(l => l.includes('hermit-scribe@claude-code-hermit'));
+      expect(coreIdx).toBeGreaterThanOrEqual(0);
+      expect(coreIdx).toBeLessThan(devIdx);
+      expect(coreIdx).toBeLessThan(scribeIdx);
+      // history entry records all three, not just core
+      const hist = fs.readFileSync(hermit(f.proj, 'state', 'update-history.jsonl'), 'utf8').trim();
+      const entry = JSON.parse(hist);
+      expect(entry.plugins.map((p: any) => p.id).sort()).toEqual([
+        'claude-code-dev-hermit@claude-code-hermit',
+        'claude-code-hermit@claude-code-hermit',
+        'hermit-scribe@claude-code-hermit',
+      ]);
     } finally { f.wd.cleanup(); }
   });
 });

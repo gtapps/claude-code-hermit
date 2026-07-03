@@ -23,13 +23,19 @@ Always-on hermits do this on their own: the session-start upgrade banner trigger
 
 If you'd rather drive it by hand:
 
-**1. Move the plugin pin (durable).** Refreshing the marketplace alone does NOT update the installed version — it only stages it; the pin reverts on the next restart. Use `plugin update` with the full marketplace-qualified id and your install scope (a bare plugin name fails with "not found"):
+**1. Refresh the marketplace catalog first.** `plugin update` moves the pin against whatever version is already in the local cache — it does not git-pull the catalog itself. Auto-refresh is off by default for third-party/local marketplaces like this one, so a new upstream release stays invisible until you refresh:
+
+```bash
+claude plugin marketplace update claude-code-hermit
+```
+
+**2. Move the plugin pin (durable).** Refreshing the marketplace alone does NOT update the installed version — it only stages it; the pin reverts on the next restart. Use `plugin update` with the full marketplace-qualified id and your install scope (a bare plugin name fails with "not found"):
 
 ```bash
 claude plugin update claude-code-hermit@claude-code-hermit --scope local
 ```
 
-**2. Run the upgrade skill.** Inside Claude Code, in each project that uses the plugin:
+**3. Run the upgrade skill.** Inside Claude Code, in each project that uses the plugin:
 
 ```
 /claude-code-hermit:hermit-evolve
@@ -37,7 +43,7 @@ claude plugin update claude-code-hermit@claude-code-hermit --scope local
 
 This detects the version gap, shows what changed, prompts for new settings, refreshes templates and the Docker entrypoint, and updates the CLAUDE.md session discipline block.
 
-### 3. What if I don't upgrade?
+### 4. What if I don't upgrade?
 
 `hermit-start.ts` merges missing config keys from defaults at runtime. Session start shows a soft nudge: "A hermit upgrade is available."
 

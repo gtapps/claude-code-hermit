@@ -90,20 +90,48 @@ _get_plugin_count() {
 }
 
 # Enumerate updatable plugins inside the container as TAB-separated id<TAB>scope<TAB>version
-# rows. The container's claude-config volume is single-tenant, so user-scope entries are
-# safe to include; project/local entries are filtered to this project (projectPath equals
-# the host PROJECT_DIR via the ${PWD}:${PWD} mount). `id` is already <name>@<marketplace>.
+# rows, core first. The container's claude-config volume is single-tenant, so user-scope
+# entries are safe to include; project/local entries are filtered to this project
+# (projectPath equals the host PROJECT_DIR via the ${PWD}:${PWD} mount). `id` is already
+# <name>@<marketplace>. Core-first ordering matters: sibling hermits declare a `^core`
+# dependency, so updating core first lets them re-resolve against the new version instead
+# of hitting a stale-core version block in the same pass.
 _enumerate_plugins() {
   cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
     claude plugin list --json 2>/dev/null \
     | bun -e '
       const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
       const proj = process.argv[1];
+      const rows = [];
       for (const p of (Array.isArray(d) ? d : [])) {
         if (p.enabled !== true || !p.id) continue;
         const inProj = (p.scope === "project" || p.scope === "local") && p.projectPath === proj;
         if (!inProj && p.scope !== "user") continue;
+        rows.push(p);
+      }
+      rows.sort((a, b) => (a.id.startsWith("claude-code-hermit@") ? 0 : 1) - (b.id.startsWith("claude-code-hermit@") ? 0 : 1));
+      for (const p of rows) {
         console.log([p.id, p.scope ?? "", p.version ?? ""].join("\t"));
+      }
+    ' "$PROJECT_DIR" 2>/dev/null || true
+}
+
+# Emits id<TAB>errors for enumerated plugins currently reporting CLI errors (e.g.
+# dependency-version-unsatisfied, no-matching-tag). Read-only annotation — never drives
+# update logic, only explains an "unchanged" result in the summary/history.
+_enumerate_plugin_errors() {
+  cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+    claude plugin list --json 2>/dev/null \
+    | bun -e '
+      const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
+      const proj = process.argv[1];
+      for (const p of (Array.isArray(d) ? d : [])) {
+        if (!p.id) continue;
+        const inProj = (p.scope === "project" || p.scope === "local") && p.projectPath === proj;
+        if (!inProj && p.scope !== "user") continue;
+        if (!Array.isArray(p.errors) || p.errors.length === 0) continue;
+        const errs = p.errors.map(e => typeof e === "string" ? e : (e.code || e.message || JSON.stringify(e))).join(";");
+        console.log([p.id, errs].join("\t"));
       }
     ' "$PROJECT_DIR" 2>/dev/null || true
 }
@@ -269,7 +297,7 @@ case "$CMD" in
           echo "    - $pid ($pscope, v$pver)"
         done
       fi
-      echo "  Apply method: claude plugin update per plugin, then /reload-plugins + hermit-evolve via tmux"
+      echo "  Apply method: refresh marketplaces, then claude plugin update per plugin (core first), then /reload-plugins + hermit-evolve via tmux"
     fi
 
     if [ "$DRY_RUN" = true ]; then
@@ -322,7 +350,29 @@ case "$CMD" in
     PLUGINS_OK_IDS=()
     PLUGINS_FAIL_IDS=()
     PLUGIN_ROWS_AFTER=""
+    PLUGIN_ERRORS_AFTER=""
     if [ "$CC_ONLY" = false ] && [ -n "$PLUGIN_ROWS" ]; then
+      # Refresh each backing marketplace's catalog first. `claude plugin update` moves the
+      # pin against whatever is already in the local cache — it does not git-pull. A
+      # third-party/local marketplace like this one has auto-update off by default, and the
+      # container only registers it on first boot, so without this refresh the cache stays
+      # frozen and every sibling silently resolves as "already up to date".
+      echo "[hermit] Refreshing plugin marketplaces..."
+      MARKETPLACES=$(printf '%s\n' "$PLUGIN_ROWS" | bun -e '
+        const lines = require("fs").readFileSync(0, "utf8").split("\n").filter(Boolean);
+        const seen = new Set();
+        for (const line of lines) {
+          const mp = (line.split("\t")[0] || "").split("@")[1];
+          if (mp) seen.add(mp);
+        }
+        console.log([...seen].join("\n"));
+      ')
+      while IFS= read -r mp; do
+        [ -z "$mp" ] && continue
+        cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" claude plugin marketplace update "$mp" 2>/dev/null || \
+          echo "[hermit] Warning: could not refresh marketplace $mp — updates may resolve against a stale catalog" >&2
+      done <<< "$MARKETPLACES"
+
       while IFS=$'\t' read -r pid pscope pver; do
         [ -z "$pid" ] && continue
         echo "[hermit] Updating $pid (scope $pscope)..."
@@ -339,6 +389,7 @@ case "$CMD" in
       # Re-read pinned versions NOW — the pin moves at CLI-update time, before reload, so
       # this read is reliable (reading after /reload-plugins risks list/session view lag).
       PLUGIN_ROWS_AFTER=$(_enumerate_plugins)
+      PLUGIN_ERRORS_AFTER=$(_enumerate_plugin_errors)
 
       # Apply in the running session — tmux send-keys on a pane that hasn't reached the
       # REPL yet goes to bash, not the skill queue, so wait for the prompt box first.
@@ -423,9 +474,9 @@ case "$CMD" in
     bun - "$UPDATE_MODE" "$CC_BEFORE" "$CC_AFTER" \
           "$PLUGIN_ROWS" "$PLUGIN_ROWS_AFTER" "$FAIL_IDS_JSON" \
           "$PLUGINS_COUNT_BEFORE" "$PLUGINS_COUNT_AFTER" "$LOG_FILE" \
-          "$RELOAD_PLUGINS_SENT" "$EVOLVE_SENT" <<'JSEOF' || \
+          "$RELOAD_PLUGINS_SENT" "$EVOLVE_SENT" "$PLUGIN_ERRORS_AFTER" <<'JSEOF' || \
       echo "[hermit] Warning: could not write update log" >&2
-const [mode, ccBefore, ccAfter, beforeTsv, afterTsv, failJson, pbCount, paCount, logFile, reloadSent, evolveSent] = process.argv.slice(2);
+const [mode, ccBefore, ccAfter, beforeTsv, afterTsv, failJson, pbCount, paCount, logFile, reloadSent, evolveSent, errorsTsv] = process.argv.slice(2);
 const parseRows = (tsv) => {
   const m = new Map();
   for (const line of (tsv || '').split('\n')) {
@@ -435,15 +486,32 @@ const parseRows = (tsv) => {
   }
   return m;
 };
+const parseErrors = (tsv) => {
+  const m = new Map();
+  for (const line of (tsv || '').split('\n')) {
+    if (!line.trim()) continue;
+    const [id, errors] = line.split('\t');
+    if (id) m.set(id, errors || '');
+  }
+  return m;
+};
 const before = parseRows(beforeTsv);
 const after = parseRows(afterTsv);
+const errors = parseErrors(errorsTsv);
 const failed = new Set(JSON.parse(failJson));
 const plugins = [];
 for (const [id, { scope, version }] of before) {
   const a = after.get(id);
   const afterVer = a ? a.version : version;
-  const status = failed.has(id) ? 'failed' : (afterVer !== version ? 'updated' : 'unchanged');
-  plugins.push({ id, scope, before: version, after: afterVer, status });
+  const err = errors.get(id);
+  const unchanged = afterVer === version;
+  let status;
+  if (failed.has(id)) status = 'failed';
+  else if (!unchanged) status = 'updated';
+  else status = err ? 'blocked' : 'unchanged';
+  const entry = { id, scope, before: version, after: afterVer, status };
+  if (err) entry.error = err;
+  plugins.push(entry);
 }
 const entry = {
   ts: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
@@ -466,13 +534,18 @@ JSEOF
       echo "  Plugins:"
       bun -e '
         const parse = (t) => { const m = new Map(); for (const l of (t||"").split("\n")) { if(!l.trim()) continue; const [id,scope,version]=l.split("\t"); if(id) m.set(id,{scope,version}); } return m; };
-        const before = parse(process.argv[1]); const after = parse(process.argv[2]); const failed = new Set(JSON.parse(process.argv[3]));
+        const parseErrors = (t) => { const m = new Map(); for (const l of (t||"").split("\n")) { if(!l.trim()) continue; const [id,errors]=l.split("\t"); if(id) m.set(id,errors||""); } return m; };
+        const before = parse(process.argv[1]); const after = parse(process.argv[2]); const failed = new Set(JSON.parse(process.argv[3])); const errors = parseErrors(process.argv[4]);
         for (const [id,{version}] of before) {
           const a = after.get(id); const av = a ? a.version : version;
-          const tag = failed.has(id) ? " (FAILED — run manually)" : (av !== version ? "" : " (unchanged)");
+          const err = errors.get(id);
+          let tag;
+          if (failed.has(id)) tag = " (FAILED — run manually)";
+          else if (av !== version) tag = "";
+          else tag = err ? ` (blocked — ${err})` : " (unchanged)";
           console.log("    " + id + ": v" + version + " -> v" + av + tag);
         }
-      ' "$PLUGIN_ROWS" "$PLUGIN_ROWS_AFTER" "$FAIL_IDS_JSON" 2>/dev/null || true
+      ' "$PLUGIN_ROWS" "$PLUGIN_ROWS_AFTER" "$FAIL_IDS_JSON" "$PLUGIN_ERRORS_AFTER" 2>/dev/null || true
     fi
     if [ "$CC_ONLY" = false ]; then
       if [ "$RELOAD_PLUGINS_SENT" = true ]; then
