@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [0.0.12] - 2026-07-03
 
 ### Added
 - **`scripts/fitness-lab.ts`: deterministic stats + CRUD engine (first shipped code)** — one Bun/TypeScript script with `analyze`, `weekly-load`, `weekly-patterns`, and `rpe` subcommands. Fetches and reduces Strava streams itself (`STRAVA_API_BASE` test seam, token parsed read-only from `.env`), so raw time-series never enter model context and the metrics are reproducible. Emits an echoed `THRESHOLDS` block. Any auth failure — including a partial-scope 401 on a single call like `/athlete/zones` — emits `{"error":"strava_auth"}` with the verbatim health-check recovery message and exits 1 (never silently degrades the recovery band). `analyze` also reduces the trail HR-vs-altitude coupling to `hr_altitude` (Pearson r) and exposes `session_detail.work_segment_hrs` so the interval `I1→IN` progression renders even on lap-sparse activities; `weekly-load` fetches ~30 activities/week of headroom so busy weeks don't render as phantom rest. Covered by `scripts/fitness-lab.test.ts` (pure-function + Bun.serve contract layers).
