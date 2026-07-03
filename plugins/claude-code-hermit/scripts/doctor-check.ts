@@ -290,6 +290,9 @@ function siblingPluginDirs(coreName: string): string[] {
       const newest = versions
         .filter(v => v.isDirectory() && fs.existsSync(path.join(pluginDir, v.name, '.claude-plugin', 'plugin.json')))
         .map(v => v.name)
+        // Guard the comparator: Bun.semver.order throws on a non-semver-named dir
+        // (e.g. a `backup/` copy), which would degrade the whole dependency check.
+        .filter(name => /^\d+\.\d+\.\d+/.test(name))
         .sort((a, b) => Bun.semver.order(b, a))[0];
       if (newest) dirs.push(path.join(pluginDir, newest));
     }

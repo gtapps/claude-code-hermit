@@ -175,8 +175,14 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
         errors.push(`channels.${name}: must be an object`);
         continue;
       }
-      if (ch.allowed_users !== undefined && !Array.isArray(ch.allowed_users)) {
-        errors.push(`channels.${name}.allowed_users: must be an array`);
+      if (ch.allowed_users !== undefined) {
+        if (!Array.isArray(ch.allowed_users)) {
+          errors.push(`channels.${name}.allowed_users: must be an array`);
+        } else if (!ch.allowed_users.every((u: unknown) => typeof u === 'string')) {
+          errors.push(
+            `channels.${name}.allowed_users: every entry must be a string (a numeric ID breaks the string-based sender allow-list check)`,
+          );
+        }
       }
       if (ch.dm_channel_id !== undefined && ch.dm_channel_id !== null && typeof ch.dm_channel_id !== 'string') {
         errors.push(`channels.${name}.dm_channel_id: must be string or null`);

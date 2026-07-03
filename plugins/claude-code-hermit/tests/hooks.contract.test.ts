@@ -382,6 +382,24 @@ describe('enforce-deny-patterns', () => {
     expect(r.exitCode).toBe(0);
   }));
 
+  // An escaped quote (`\'`) is a literal to bash and must not open a quoted run
+  // that swallows the following `&&`, or the trailing `rm -rf` segment escapes.
+  test('enforce-deny-patterns (block rm -rf behind escaped-quote separator)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: JSON.stringify({ tool_name: 'Bash', tool_input: { command: "echo it\\'s done && rm -rf x" } }),
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(2);
+  }));
+
+  test('enforce-deny-patterns (block rm -rf on a newline-separated command)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: JSON.stringify({ tool_name: 'Bash', tool_input: { command: "cd /tmp\nrm -rf x" } }),
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(2);
+  }));
+
   // A separator inside a quoted string must NOT fragment the command — a plain
   // echo/commit that merely mentions `rm -rf` after a `;` is not a real bypass.
   test('enforce-deny-patterns (quoted separator does not fragment command)', withDir(async (dir) => {

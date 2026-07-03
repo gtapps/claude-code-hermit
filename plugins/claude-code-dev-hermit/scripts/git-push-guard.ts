@@ -133,7 +133,10 @@ async function main() {
     if (!/\bgit\b[\s\S]*\bpush\b/.test(subcmd)) continue;
 
     const hasForceWithLease = /(?:^|\s)--force-with-lease\b/.test(subcmd);
-    const hasBareForce = /(?:^|\s)(?:--force(?!-with-lease)\b|-f\b)/.test(subcmd);
+    // `-f` may appear inside a stacked short-flag cluster (e.g. `-fu` = force +
+    // set-upstream), so match `f` anywhere in a single-dash cluster, not just a
+    // standalone `-f`.
+    const hasBareForce = /(?:^|\s)(?:--force(?!-with-lease)\b|-[a-zA-Z]*f[a-zA-Z]*\b)/.test(subcmd);
 
     if (hasBareForce) {
       block('Bare force push is not allowed (--force, -f). Use --force-with-lease on a non-protected branch with an explicit refspec if you must overwrite.');

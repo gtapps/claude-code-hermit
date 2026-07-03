@@ -55,15 +55,20 @@ function writeConfig(config: Json): void {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + '\n');
 }
 
-function persistDmChannelId(config: Json, channelKey: string, chatId: Json): boolean {
+export function persistDmChannelId(config: Json, channelKey: string, chatId: Json): boolean {
   if (!chatId) return false;
 
+  // Coerce to string (mirrors the log path's String() at the outbound-capture
+  // block): a channel plugin delivering a numeric chat_id must not write a
+  // number into config.json — the sender allow-list gate compares IDs as
+  // strings, and a numeric dm_channel_id also fails validate-config.
+  const id = String(chatId);
   const channel = config.channels[channelKey];
-  if (channel.dm_channel_id === chatId) return false;
+  if (channel.dm_channel_id === id) return false;
 
-  channel.dm_channel_id = chatId;
+  channel.dm_channel_id = id;
   process.stderr.write(
-    `[channel-hook] saved ${channelKey}.dm_channel_id = ${safe(chatId)}\n`
+    `[channel-hook] saved ${channelKey}.dm_channel_id = ${safe(id)}\n`
   );
   return true;
 }
@@ -143,4 +148,6 @@ function main() {
   });
 }
 
-main();
+// Guard so importing this module (e.g. a unit test of persistDmChannelId)
+// doesn't run the hook. Direct execution as a hook keeps import.meta.main true.
+if (import.meta.main) main();

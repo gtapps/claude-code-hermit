@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **hermit-scribe: fold issue classifier into `file-issue.ts`** — type/scope/label derivation and the Conventional-Commits title line moved out of SKILL.md prose into a deterministic, unit-tested `classify` subcommand (emits `{type, scope, labels, title_line}`), so filing no longer relies on model-derived labels.
+
 ## [0.0.5] - 2026-06-12
 
 ### Added

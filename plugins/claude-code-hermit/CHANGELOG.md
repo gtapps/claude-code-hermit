@@ -40,6 +40,11 @@
 - **hermit-doctor: cost-log path honors the hermit-dir argument** — resolved via `cc-compat.costLogPath()` rather than a CWD-relative path, so the cost and Opus-wake checks no longer report a false `ok` when doctor runs from a different directory.
 - **hermit-doctor: dependency check handles the versioned plugin-cache layout** — when the plugin root sits under `cache/<mp>/<plugin>/<version>/` (the same layout `cache-edit-guard` assumes), the sibling scan now walks up to the marketplace root and picks each sibling's newest version, rather than seeing only other core versions one level up and reporting a false "no siblings" all-clear. The monorepo/flat-cache one-level scan is unchanged.
 - **docs: correct prerequisites and stale samples** — `how-to-use.md` now states Bun (not Node.js 22+) as the hooks/scripts runtime and drops the `python3`/`node` permission samples the wizard never writes; README and `architecture.md` drop hand-written check/skill counts that had drifted.
+- **settings-edit / proposals-index: atomic writes** — both write via tmp+rename. A torn `config.json` no longer makes the strict reader `exit(1)` on every later run (operator locked out of config edits), and a torn `proposals-index.json` no longer makes `proposal-list` throw under concurrent proposal writes.
+- **enforce-deny-patterns: also split on newlines and skip escaped quotes** — a newline-separated command and an escaped quote (`\'`) before a separator no longer hide a dangerous segment (e.g. `rm -rf`) from the leading-anchored deny globs.
+- **hermit-doctor: guard the versioned-cache sibling scan against non-semver dir names** — `Bun.semver.order` throws on a non-semver dir (e.g. a `backup/` copy), which degraded the whole dependency check to a generic warn; non-semver names are filtered before the sort.
+- **brief / hermit-health: preserve folded skills' triggers and pointers** — restore the `hermit brain` activation phrase on `hermit-health`, and pulse's `/claude-code-hermit:session-start` (idle) and `/claude-code-hermit:session` (blocked) recovery pointers on `brief`, all dropped during the fold.
+- **channels: enforce string sender IDs** — `validate-config` now rejects a non-string `allowed_users` entry, and `channel-hook` coerces `dm_channel_id` to a string when persisting a live `chat_id`. A numeric channel ID silently fails the string-based sender allow-list gate (`channel-reply-reminder.ts`), locking out an authorized operator; the type is now enforced at both entry points.
 
 ### Upgrade Instructions
 
@@ -51,6 +56,7 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
    - `claude-code-hermit:pulse` → `claude-code-hermit:brief`
    - `claude-code-hermit:hermit-brain` → `claude-code-hermit:hermit-health`
    - `claude-code-hermit:knowledge` → `claude-code-hermit:hermit-health`
+   - `claude-code-hermit:test-run` → removed with no replacement; delete any `routines`/`scheduled_checks` entry that references it (it was a manual, on-demand skill, so a reference here is unusual but would otherwise dangle to a skill-not-found no-op).
 2. **Scrub the stale permission.** Remove `Bash(bun */scripts/run-with-profile.ts*)` from the target settings file's `permissions.allow` if present (Step 8 already lists this removal). No new permissions are required.
 3. **No config-key additions** this release.
 4. **CLAUDE-APPEND block (token efficiency).** The hermit-managed block in `CLAUDE.md`/`CLAUDE.local.md` is replaced automatically by Step 6; if you customized text inside it, re-apply it afterward (the replaced block is shown in the evolve report). `HEARTBEAT.md` is not touched, and no new config keys are added.

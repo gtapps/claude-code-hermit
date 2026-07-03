@@ -48,7 +48,11 @@ function readTargetJson(filePath: string): Json {
 function writeJson(filePath: string, data: Json): void {
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n', 'utf8');
+  // Atomic write: a torn config.json would make readTargetJson (strict) exit(1)
+  // on every later run, locking the operator out of config edits.
+  const tmp = filePath + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + '\n', 'utf8');
+  fs.renameSync(tmp, filePath);
 }
 
 function parseValue(raw: string): Json {

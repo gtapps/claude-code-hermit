@@ -49,6 +49,12 @@ function splitSegments(command: string): string[] {
   let quote: string | null = null;
   for (let i = 0; i < command.length; i++) {
     const c = command[i];
+    // Backslash escapes the next char outside single quotes (bash processes no
+    // escapes inside single quotes), so an escaped quote (`\'`) can't spuriously
+    // open a quoted run and swallow a following separator.
+    if (c === '\\' && quote !== "'" && i + 1 < command.length) {
+      buf += c + command[i + 1]; i++; continue;
+    }
     if (quote) {
       buf += c;
       if (c === quote) quote = null;
@@ -58,7 +64,9 @@ function splitSegments(command: string): string[] {
     if ((c === '&' && command[i + 1] === '&') || (c === '|' && command[i + 1] === '|')) {
       out.push(buf); buf = ''; i++; continue;
     }
-    if (c === ';' || c === '|') { out.push(buf); buf = ''; continue; }
+    // Newline separates commands like `;`. (Single `&` is intentionally not a
+    // separator here — splitting it would fragment redirects like `2>&1`/`&>`.)
+    if (c === ';' || c === '|' || c === '\n') { out.push(buf); buf = ''; continue; }
     buf += c;
   }
   out.push(buf);

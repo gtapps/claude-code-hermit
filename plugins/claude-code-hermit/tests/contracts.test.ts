@@ -712,6 +712,18 @@ describe('channel resolver contract', () => {
       (result.errors ?? []).some((e: string) => e.includes('primary') && e.includes('string')),
     ).toBe(true);
   });
+
+  test('validator rejects a numeric allowed_users entry (would break the string sender gate)', () => {
+    const result = validate({ channels: { discord: { dm_channel_id: 'D1', allowed_users: [123456789012345678] } } });
+    expect(
+      (result.errors ?? []).some((e: string) => e.includes('allowed_users') && e.includes('string')),
+    ).toBe(true);
+  });
+
+  test('validator accepts string allowed_users entries', () => {
+    const result = validate({ channels: { discord: { dm_channel_id: 'D1', allowed_users: ['123456789012345678'] } } });
+    expect((result.errors ?? []).filter((e: string) => e.includes('allowed_users'))).toEqual([]);
+  });
 });
 
 // ============================================================

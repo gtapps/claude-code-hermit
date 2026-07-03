@@ -98,7 +98,7 @@ Current behavior — general purpose summary as described below.
      Session: since [start date]
      Last: [latest Session Summary entry] — [status]
      Cumulative: $X.XX (12.3K tokens) across N tasks
-     Status: Idle — ready for what's next
+     Status: Idle — ready for what's next (run /claude-code-hermit:session-start to begin)
      ```
      Then check for auto-detected proposals (step after Output Format) and return.
    - **1c. No active session (dispatch):** runner JSON is already available (mode: `default-no-session`). Use `runner.report_summary` for the brief. If `report_summary` is null (runner failed), fall back to reading the most recent archived report directly in main.
@@ -122,7 +122,7 @@ Next: description of next action (or "Session complete" if all done)
 - Use the session's date, not today's date
 - Include tags in the header only if they exist
 - For the "Done" line: list completed task subjects from `TaskList`, comma-separated. If too many, show first 3 and "+ N more"
-- For the "Next" line: show the first pending or in_progress task from `TaskList`. If blocked, show "Blocked: reason — run /debug to diagnose" (keeps the actionable pointer on the existing line, no extra line)
+- For the "Next" line: show the first pending or in_progress task from `TaskList`. If blocked, show "Blocked: reason — run /debug to diagnose, or /claude-code-hermit:session for a fresh session" (keeps the actionable pointers on the existing line, no extra line)
 - If summarizing a completed report: "Next" becomes the report's "Next Start Point" content
 - After composing the 5-line output: scan `.claude-code-hermit/proposals/` for files with `source: auto-detected` and `status: proposed` (read `status:` and `source:` from the **leading `---` YAML frontmatter block only** — do not count files where those phrases appear in the proposal body text; fall back to bullet metadata for pre-frontmatter proposals). **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction).** If any exist, append a 6th line: `Proposals: N auto-detected proposal(s) pending review`
 

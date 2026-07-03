@@ -143,11 +143,12 @@ export function rebuildIndex(stateDir: string): ProposalsIndex | null {
   try {
     const stateSubdir = path.join(stateDir, 'state');
     fs.mkdirSync(stateSubdir, { recursive: true }); // state/ may be absent on a partial layout
-    fs.writeFileSync(
-      path.join(stateSubdir, 'proposals-index.json'),
-      JSON.stringify(index, null, 2) + '\n',
-      'utf8',
-    );
+    // Atomic write: this runs from a PostToolUse hook that can overlap concurrent
+    // proposal writes; a torn index would make proposal-list's JSON.parse throw.
+    const target = path.join(stateSubdir, 'proposals-index.json');
+    const tmp = target + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(index, null, 2) + '\n', 'utf8');
+    fs.renameSync(tmp, target);
   } catch { /* fail-open: a failed write just means a reader rebuilds next time */ }
 
   return index;

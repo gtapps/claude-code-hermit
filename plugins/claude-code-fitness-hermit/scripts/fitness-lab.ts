@@ -469,7 +469,7 @@ export function recoveryWindow(
     const h = baseHours as number;
     if (!trail_extended) window = `${h}h`;
     else {
-      const extLow = extension_days === '1-2' ? 24 : 24;
+      const extLow = 24;
       const extHigh = extension_days === '1-2' ? 48 : 24;
       const lowDays = (h + extLow) / 24;
       const highDays = (h + extHigh) / 24;
@@ -578,8 +578,10 @@ export async function analyze(token: string, activityId: number): Promise<any> {
   const warnings: string[] = [];
   const streamKeys = 'heartrate,velocity_smooth,altitude,cadence,watts';
 
-  const details = await stravaGet(token, `/activities/${activityId}`);
-  const [laps, streams, zonesResp, summaries] = await Promise.all([
+  // `details` is essential (no fallback) but independent of the other four, so it
+  // joins the batch rather than serialising an extra round-trip ahead of it.
+  const [details, laps, streams, zonesResp, summaries] = await Promise.all([
+    stravaGet(token, `/activities/${activityId}`),
     optionalFetch(stravaGet(token, `/activities/${activityId}/laps`), warnings, 'laps unavailable', []),
     optionalFetch(
       stravaGet(token, `/activities/${activityId}/streams`, { keys: streamKeys, key_by_type: 'true' }),
@@ -831,8 +833,11 @@ export async function weeklyLoad(token: string, weeks: number): Promise<any> {
   try {
     const z = await stravaGet(token, '/athlete/zones');
     if (z && z.heart_rate && Array.isArray(z.heart_rate.zones)) zoneBounds = z.heart_rate.zones;
-  } catch {
-    // zone_pct degrades to null; method still documents the approximation.
+  } catch (e) {
+    // A hard auth failure must surface (exit-1 strava_auth contract), same as
+    // analyze's optionalFetch — swallowing it would silently understate load.
+    if (e instanceof StravaAuthError) throw e;
+    // Any other failure: zone_pct degrades to null; method documents the approximation.
   }
   return aggregateWeeklyLoad(Array.isArray(activities) ? activities : [], zoneBounds, weeks);
 }
@@ -914,7 +919,7 @@ async function main() {
       const token = getAccessToken(projectRoot);
       if (!token) emitAuth();
       const weeks = flags['weeks'] ? parseInt(flags['weeks'], 10) : 4;
-      console.log(JSON.stringify(await weeklyLoad(token, Number.isFinite(weeks) ? weeks : 4)));
+      console.log(JSON.stringify(await weeklyLoad(token, Number.isFinite(weeks) && weeks >= 1 ? weeks : 4)));
       process.exit(0);
     } else if (cmd === 'weekly-patterns') {
       console.log(JSON.stringify(weeklyPatterns(projectRoot)));

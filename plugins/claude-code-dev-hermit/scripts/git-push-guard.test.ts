@@ -166,6 +166,8 @@ assert('push to main is blocked', run('git push origin main', { AGENT_HOOK_PROFI
 assert('push to master is blocked', run('git push origin master', { AGENT_HOOK_PROFILE: 'strict' }), 2);
 assert('--force push to feature branch is blocked', run('git push --force origin feature/x', { AGENT_HOOK_PROFILE: 'strict' }), 2);
 assert('-f push to feature branch is blocked', run('git push -f origin feature/x', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('stacked -fu (force+set-upstream) push is blocked', run('git push -fu origin feature/x', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('stacked -uf push is blocked', run('git push -uf origin feature/x', { AGENT_HOOK_PROFILE: 'strict' }), 2);
 assert('--force-with-lease to main is blocked', run('git push --force-with-lease origin main', { AGENT_HOOK_PROFILE: 'strict' }), 2);
 assert('--force-with-lease to master is blocked', run('git push --force-with-lease origin master', { AGENT_HOOK_PROFILE: 'strict' }), 2);
 
