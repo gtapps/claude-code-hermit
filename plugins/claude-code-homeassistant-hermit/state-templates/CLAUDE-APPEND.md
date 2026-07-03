@@ -20,27 +20,7 @@ This project has the `claude-code-homeassistant-hermit` plugin installed. The ru
 2. Work using skills and subagents (below)
 3. `/claude-code-hermit:session-close` — archive session with structured report
 
-### Skills
-
-| Skill | Purpose |
-|-------|---------|
-| `/claude-code-homeassistant-hermit:ha-boot` | Start hermit session + check HA connectivity and context freshness |
-| `/claude-code-homeassistant-hermit:ha-refresh-context` | Fetch and normalize full HA state |
-| `/claude-code-homeassistant-hermit:ha-build-automation` | Draft automation YAML with validation |
-| `/claude-code-homeassistant-hermit:ha-apply-change` | Validate and apply YAML with safety checks |
-| `/claude-code-homeassistant-hermit:ha-analyze-patterns` | Identify patterns and automation opportunities |
-| `/claude-code-homeassistant-hermit:ha-house-status` | Live house status via MCP |
-| `/claude-code-homeassistant-hermit:ha-morning-brief` | Morning brief — live status, overnight anomalies, recommendations |
-| `/claude-code-homeassistant-hermit:ha-safety-audit` | Re-audit live automations against the safety policy (weekly scheduled_check) |
-| `/claude-code-homeassistant-hermit:ha-integration-health` | Detect dropped integrations via per-domain unavailable ratios (daily scheduled_check) |
-| `/claude-code-homeassistant-hermit:ha-delete-config` | Discover and delete an automation/script config from HA |
-| `/claude-code-homeassistant-hermit:ha-automation-explorer` | Browse and explain active automations by topic, keyword, or last-fired |
-| `/claude-code-homeassistant-hermit:ha-evening-brief` | End-of-day security check: locks, alarm, open covers, device status, energy |
-| `/claude-code-homeassistant-hermit:ha-presence-report` | Presence history, tracker health, and arrival/departure diagnostics |
-| `/claude-code-homeassistant-hermit:ha-automation-diff` | Report automations added/removed/edited since the last snapshot (change drift) |
-| `/claude-code-homeassistant-hermit:ha-snapshot-restore` | Capture entity state to a named artifact and restore it via scene.apply |
-| `/claude-code-homeassistant-hermit:ha-setup-house` | Guided house build-out: create areas, assign entities/devices, provision helpers, scaffold automations |
-| `/claude-code-homeassistant-hermit:domain-brainstorm` | On-demand capability-gap brainstorm — surfaces missing automations/coverage as proposals (operator-invoked) |
+HA skills and subagents self-advertise through their own SKILL.md / agent descriptions — no catalog is kept here. Entry point: `/claude-code-homeassistant-hermit:ha-boot`.
 
 ### Channel Command Routing
 
@@ -56,14 +36,6 @@ generic categories:
 - **State question** — asks about house state ("what's on?", "is the door
   locked?"): dispatch to `/claude-code-homeassistant-hermit:ha-house-status`.
 
-### Subagents
-
-| Agent | Purpose |
-|-------|---------|
-| `@claude-code-homeassistant-hermit:ha-safety-reviewer` | Review YAML for safety policy compliance (read-only) |
-| `@claude-code-homeassistant-hermit:ha-automation-builder` | Build automation YAML in an isolated worktree |
-| `@claude-code-homeassistant-hermit:ha-pattern-analyst` | Analyze history data for patterns (haiku, cheap) |
-
 ### MCP vs CLI
 
 - **MCP (`homeassistant`)**: read-only by default (`GetLiveContext`, `GetDateTime`). When `ha_assist_control_enabled: true` is set, HA Assist intent tools (`HassTurnOn`, `HassLightSet`, etc.) are allowed — HA's expose-to-Assist setting is the control boundary.
@@ -71,41 +43,9 @@ generic categories:
 
 MCP tool IDs follow `mcp__homeassistant__*`. If you registered the HA MCP Server under a different name, update `hooks/hooks.json` accordingly.
 
-### CLI Commands
+### CLI
 
-```
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha refresh-context [--incremental]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha simulate <artifact>
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha validate-apply <artifact> [--reload automation|script|scene]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <entity_id_or_yaml>
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-automations
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-scripts
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-automations
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-scripts
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-automation <id>
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-script <id>
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-automation-config <id>
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-script-config <id>
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha integration-health
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha fetch-history [--window-days N] [--entities <glob> …] [--include-transitions]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha probe <path>
-# WebSocket structural commands (helpers/areas/registries); writes gated by ha_safety_mode (strict→proposal, ask→--confirm)
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-helpers [--type <helper_type>]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-helper <type> <json> [--confirm]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-helper <type> <id> [--confirm]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-areas
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-area <name> [--confirm]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-area <id> [--confirm]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-entities --registry
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha rename-entity <entity_id> --name <name> [--confirm]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-area <entity_id> --area <area_id> [--confirm]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-enabled <entity_id> --enabled true|false [--confirm]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-devices
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-device-area <device_id> --area <area_id> [--confirm]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha rename-device <device_id> --name <name> [--confirm]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status [--probe]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url> [--token <token>]
-```
+`${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab <domain> <command>` — full command catalog: run `ha-agent-lab --help` or see `docs/cli-reference.md` in the plugin (`src/cli.ts` is the source of truth). Structural writes (helpers/areas/registries) are gated by `ha_safety_mode` (strict → proposal, ask → `--confirm`).
 
 ### Environment
 

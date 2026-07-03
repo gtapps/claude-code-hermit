@@ -8,6 +8,10 @@
 - **scripts/run-with-profile.ts** — vestigial hook wrapper; no hook invoked it, and profile-gated hooks already self-gate on `AGENT_HOOK_PROFILE`.
 - **docs/skills.md** — hand-maintained skill listing that had drifted out of date; the plugin `CLAUDE.md` is the canonical skill list.
 
+### Added
+- **contract tests: version-triad and marketplace sync** — the sibling manifest walk in `hooks.contract.test.ts` now also asserts each domain plugin's `plugin.json` `dependencies[claude-code-hermit]` base version matches its `hermit-meta.json` `required_core_version`, and a new test enforces `marketplace.json` ↔ `plugin.json` name/version parity in both directions. Runs under `test-hooks.yml`.
+- **`state/proposals-index.json` — derived proposal frontmatter cache (token efficiency)** — `proposals-index.ts` mirrors every proposal's frontmatter (id/status/source/category/title/created/session/responded), rebuilt on every proposal write by the `generate-summary` PostToolUse hook. `proposal-list` now renders from the index instead of reading every `PROP-*.md` body (~22K tokens → ~1K for a dozen proposals) and rebuilds it unconditionally so out-of-band writes/deletions can't leave a stale count. Legacy pre-frontmatter proposals are parsed with a `legacy: true` flag; the cache is safe to delete and rebuilds on demand.
+
 ### Changed
 - **brief absorbs pulse** — the no-flag path now serves live session status (per-session cost from `sessions/.status.json`, active-alert pointer) and gains pulse's `status`/`progress`/`what are you working on` triggers. Preserves pulse's blocked-session `/debug` hint and idle cumulative-cost source (`cost-summary.md`).
 - **hermit-health absorbs hermit-brain and the knowledge lint** — health now reports fragile zones, stale accepted proposals, and recent learnings alongside infra (runner-free), and runs `knowledge-lint.ts` on demand under the `check knowledge`/`lint knowledge` triggers. Runs on `model: haiku` (restoring the tier the absorbed `knowledge` skill used) — the report is mechanical aggregation, so the cheaper model holds for the `check knowledge` path.
@@ -16,11 +20,18 @@
 - **proposal-act balanced quality gate is inline** — the RUN/SKIP decision (formerly the `quality-gate-judge` agent) is now made in-skill at step e.5 and in the dispatched subagent.
 - **hermit-exec.sh drops the `.py` fallback** — no Python scripts ship.
 
+- **CLAUDE-APPEND slimmed 10.6KB → ~6.8KB (token efficiency)** — the operator-notification branch matrix moved to `channel-responder` § Outbound notification protocol, watch-authoring rules to the `watch` skill, and knowledge-storage detail to `docs/plugin-hermit-storage.md`. The block is re-paid on every session load and every subagent dispatch, so this cuts recurring context cost across the fleet. Load-bearing anchors and the `resolve-outbound-channel.ts` invocation are retained (guarded by `tests/claude-append-budget.test.ts`).
+- **Five verbose skill descriptions trimmed (token efficiency)** — hermit-doctor, cost-reflect, docker-security, capability-brainstorm, hermit-evolution dropped inline check/trigger enumerations. Trigger phrases were preserved, except hermit-evolution, which also shed five redundant `Activates on` variants; its remaining seven cover the skill's intent.
+- **reflect no-op gating (token efficiency)** — reflect accepts a `--precheck-verdict` handoff so the reflect routine's CronCreate prompt runs `reflect-precheck.ts` in bash and only loads reflect's 42KB body on a `RUN` verdict; EMPTY days never load it. Manual `/reflect` keeps its in-body precheck.
+
 ### Changed (repo, not shipped)
 - **README + CLAUDE.md** — list `laravel-forge-hermit` in the pre-built hermits; drop the removed `/hermit-brain` and `/pulse` from the on-demand skills list (their scope now reads under `/hermit-health` and `/brief`).
 - **CI** — new `test-scribe.yml` runs hermit-scribe's suite; `test-hooks.yml` gains a guard that the repo-internal `/simplify` mirror stays byte-identical to the shipped skill.
 
 ### Fixed
+- **heartbeat: default proposal-scan item now matches the real status vocabulary (token efficiency)** — the eval spec scanned `status: pending`, but proposals are written `status: proposed`, so the default checklist item could never fire and the 6h clean-recheck damper was the only thing capping wasted heartbeat dispatches. `heartbeat-precheck.ts` now resolves the default item filesystem-side, so a clean proposal queue reaches `OK` without an LLM wake.
+- **heartbeat: unreadable `proposals/` dir no longer produces a false `OK`** — the scan resolver distinguishes a missing dir (nothing to review) from an existing-but-unreadable one (EACCES/EIO/EMFILE) and fails open to `EVALUATE` on the latter, honoring its stated "never a false OK" invariant. A coherence test pins the shipped `HEARTBEAT.md.template` against the scan-item classifier so a template reword can't silently disable the fast path.
+- **proposals-index: `mkdir`s `state/` before writing and keeps unreadable proposals as placeholder rows** — a partial layout no longer yields an `OK`-with-no-write, and an fs-unreadable proposal stays visible in `proposal-list` instead of silently vanishing (heartbeat still wakes on it).
 - **enforce-deny-patterns: match compound commands** — each `&&`/`;`/`|` segment is now tested against the deny globs, so a pattern anchored to a leading command (e.g. `Bash(rm -rf *)`) fires inside `cd /tmp && rm -rf x` instead of being bypassed. Splitting is quote-aware, so a separator inside a quoted string (e.g. `echo "step 1; rm -rf build"`) does not fragment the command into a spurious match.
 - **hermit-doctor: cost-log path honors the hermit-dir argument** — resolved via `cc-compat.costLogPath()` rather than a CWD-relative path, so the cost and Opus-wake checks no longer report a false `ok` when doctor runs from a different directory.
 - **hermit-doctor: dependency check handles the versioned plugin-cache layout** — when the plugin root sits under `cache/<mp>/<plugin>/<version>/` (the same layout `cache-edit-guard` assumes), the sibling scan now walks up to the marketplace root and picks each sibling's newest version, rather than seeing only other core versions one level up and reporting a false "no siblings" all-clear. The monorepo/flat-cache one-level scan is unchanged.
@@ -38,10 +49,10 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
    - `claude-code-hermit:knowledge` → `claude-code-hermit:hermit-health`
 2. **Scrub the stale permission.** Remove `Bash(bun */scripts/run-with-profile.ts*)` from the target settings file's `permissions.allow` if present (Step 8 already lists this removal). No new permissions are required.
 3. **No config-key additions** this release.
+4. **CLAUDE-APPEND block (token efficiency).** The hermit-managed block in `CLAUDE.md`/`CLAUDE.local.md` is replaced automatically by Step 6; if you customized text inside it, re-apply it afterward (the replaced block is shown in the evolve report). `HEARTBEAT.md` is not touched, and no new config keys are added.
+5. **Build the proposals index (token efficiency).** Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposals-index.ts .claude-code-hermit` once to create `state/proposals-index.json` (derived state — safe to delete and rebuild anytime; the `generate-summary` hook refreshes it on every subsequent proposal write). Step 8 already adds the `Bash(bun */scripts/proposals-index.ts*)` permission.
 
 Operators who don't want the merged behavior can keep using the old natural-language triggers — `status`/`progress` reach `brief`; `what's stuck`/`recent learnings` reach `hermit-health`; `check knowledge` reaches `hermit-health`.
-### Added
-- **contract tests: version-triad and marketplace sync** — the sibling manifest walk in `hooks.contract.test.ts` now also asserts each domain plugin's `plugin.json` `dependencies[claude-code-hermit]` base version matches its `hermit-meta.json` `required_core_version`, and a new test enforces `marketplace.json` ↔ `plugin.json` name/version parity in both directions. Runs under `test-hooks.yml`.
 
 ## [1.2.14] - 2026-07-02
 

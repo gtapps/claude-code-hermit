@@ -173,6 +173,22 @@ Under the common single-operator config, `allowed_users` has exactly one entry a
 
 Do not classify tier, tag Evidence Source, or decide memory-vs-proposal. Reflect reads this line as `current-session` evidence (`Evidence Source: current-session`, `Sessions: current`) and uses the `[origin: external]` marker (if present) to set `Evidence Origin: external-content` when passing to the judge.
 
+## 5. Outbound notification protocol
+
+Canonical protocol for proactively notifying the operator (referenced from `CLAUDE-APPEND.md` § Operator Notification). Main owns the outbound send and any `AskUserQuestion`; a delegated sub-step returns the message and main runs this protocol.
+
+- **If no channel is enabled** (channels block absent, `channels === {}`, or every channel-config entry has `enabled === false` — exclude the `primary` string pointer when iterating):
+  - If `push_notifications === true` in `config.json`, fire `PushNotification(message="<condensed one-line ≤200 chars, no markdown, actionable detail first>", status="proactive")`. Push is best-effort; do not retry on failure and do not log a `channel-send-unavailable` issue for this branch — the operator's empty-channels config is intentional.
+  - Respond in conversation either way (the conversation response is the durable record).
+- **If at least one channel is enabled**, resolve the outbound target by running:
+  ```
+  bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit
+  ```
+  Parse stdout as JSON. A channel is eligible if `enabled !== false`, `allowed_users` is not `[]`, and `dm_channel_id` is set. Resolution order: `channels.primary` (if set and eligible), then the first eligible entry in `channels` (operator's config order — no hardcoded slug list, so newly added channel plugins are picked up automatically).
+  - **On success** (`"id"` and `"chat_id"` in result): call `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text: <message> }`. If the reply call itself fails (token expired, plugin crashed, network blip) and `push_notifications === true`, fire `PushNotification(message="<...>", status="proactive")` as a last-resort signal, then log + dedup as below.
+  - **On miss** (non-zero exit or `{"error":"no_reachable_channel"}` — a channel is configured but unreachable: missing `dm_channel_id`, empty `allowed_users`, or `config_read_failed`): if `push_notifications === true`, fire `PushNotification(message="<...>", status="proactive")`. Then log the unsent content to SHELL.md Findings and record a deduped `channel-send-unavailable` issue regardless of push state — the configured channel is broken and the operator should see the signal. Do not use the user ID as a substitute (it will fail for Discord DMs).
+- If outbound send fails after a successful resolve (covered above): log + dedup; do not retry.
+
 ## Note
 
 This skill is a stub for the Channels research preview (Claude Code v2.1.110+). As Channels matures, extend this skill with:

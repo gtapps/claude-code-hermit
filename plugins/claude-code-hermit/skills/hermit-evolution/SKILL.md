@@ -1,6 +1,6 @@
 ---
 name: hermit-evolution
-description: "Show how this hermit has evolved: cost trend and source split, routines and watches, top things produced, and what grew since hatch. Activates on messages like 'how am I trending', 'cost trend', 'autonomy', 'hermit evolution', 'show me my trajectory', 'am I improving', 'proposal velocity', 'weekly trends', 'evolution report', 'monthly report', 'how have I grown', 'what did I produce last month'."
+description: "Show how this hermit has evolved: cost trend and source split, routines and watches, top things produced, and what grew since hatch. Activates on messages like 'how am I trending', 'cost trend', 'evolution report', 'am I improving', 'proposal velocity', 'monthly report', 'what did I produce last month'."
 ---
 # Hermit Evolution
 

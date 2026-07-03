@@ -1,6 +1,6 @@
 ---
 name: capability-brainstorm
-description: On-demand hermit-voice brainstorm — synthesizes memory, available capabilities, recent compiled artifacts, and codebase shape into at most 2 capability ideas, each gated by proposal-triage before becoming a PROP. Invoke when the operator explicitly asks the hermit to brainstorm capabilities or ideate, e.g. "brainstorm capabilities", "what could you be doing for me?", "any capability ideas?". Never runs autonomously.
+description: On-demand hermit-voice brainstorm — synthesizes memory, capabilities, recent artifacts, and codebase shape into at most 2 capability ideas, each gated by proposal-triage before becoming a PROP. Invoke when the operator explicitly asks to brainstorm capabilities or ideate, e.g. "brainstorm capabilities", "what could you be doing for me?", "any capability ideas?". Never runs autonomously.
 ---
 
 # Capability Brainstorm

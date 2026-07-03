@@ -25,7 +25,7 @@ This file is read only on the EVALUATE path, once the precheck determines a full
 
 **3. Per-item evaluation.** For each item in HEARTBEAT.md:
 - Determine whether the described condition is currently true.
-- Default proposals item (text references pending proposals): scan `proposals/` for any `PROP-NNN-*.md` file whose frontmatter contains `status: pending`. Alert if any found; use key `proposal-pending:<PROP-NNN>` per proposal.
+- Default proposals item (text references `proposals/` and `status: proposed`): normally resolved by `heartbeat-precheck.ts` filesystem-side, so a clean queue never reaches this EVALUATE. When it does: scan `proposals/` for any `PROP-NNN-*.md` file whose frontmatter contains `status: proposed`; alert if any found, keyed `proposal-pending:<PROP-NNN>` per proposal. Also run resolution detection — for any existing `proposal-pending:<PROP-NNN>` alert whose proposal is no longer `status: proposed` (accepted/resolved/deferred/dismissed, or the file is gone), advance its `consecutive_clean` toward resolution. (The precheck never writes `alerts{}`; this suppression/resolution bookkeeping is skill-owned.)
 - Custom items (disk thresholds, SQL checks, file patterns, etc.): apply LLM judgment using available project files and context needed to evaluate the condition. Produce a semantic key per the taxonomy table below.
 - Collect all firing items with their keys. Items with no matching condition produce no alert.
 

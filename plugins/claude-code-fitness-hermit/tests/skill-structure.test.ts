@@ -76,4 +76,20 @@ for (const { name, gates } of SKILLS) {
   ok(`internal links resolve (${linksChecked} checked)`, linksBad === 0, `${linksBad} bad`);
 }
 
+// CLAUDE-APPEND token-efficiency trim guard.
+// The block is re-paid on every session load and subagent dispatch; the skills
+// and Strava-tool catalogs were removed in favor of self-advertise pointers
+// (the descriptions and MCP schemas already carry that content). Keep them out.
+console.log('\nstate-templates/CLAUDE-APPEND.md:');
+const appendPath = path.join(import.meta.dir, '..', 'state-templates', 'CLAUDE-APPEND.md');
+ok('CLAUDE-APPEND exists', fs.existsSync(appendPath), appendPath);
+if (fs.existsSync(appendPath)) {
+  const append = fs.readFileSync(appendPath, 'utf-8');
+  ok('no Skill catalog table', !/^\|\s*Skill\s*\|/m.test(append));
+  ok('no Tool catalog table', !/^\|\s*Tool\s*\|/m.test(append));
+  ok('no Agent catalog table', !/^\|\s*Agent\s*\|/m.test(append));
+  ok('self-advertises instead of cataloging', append.includes('self-advertise through their own SKILL.md'));
+  ok('under post-trim ceiling (~3852 B)', Buffer.byteLength(append, 'utf-8') <= 4300, `${Buffer.byteLength(append, 'utf-8')} B`);
+}
+
 process.exit(summary() === 0 ? 0 : 1);

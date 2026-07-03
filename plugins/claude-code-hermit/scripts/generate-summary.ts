@@ -4,11 +4,14 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { rebuildIndex } from './proposals-index';
 
 type Json = any;
 
 const MAX_STDIN = 64 * 1024;
 const STATE_SUBDIR = '.claude-code-hermit/state';
+const PROPOSALS_SUBDIR = '.claude-code-hermit/proposals';
+const HERMIT_SUBDIR = '.claude-code-hermit';
 
 function run(stateDir: string): void {
 
@@ -195,13 +198,16 @@ process.stdin.on('data', chunk => {
 });
 process.stdin.on('end', () => {
   try {
-    if (!raw.includes(STATE_SUBDIR)) process.exit(0);
+    if (!raw.includes(STATE_SUBDIR) && !raw.includes(PROPOSALS_SUBDIR)) process.exit(0);
     const event = JSON.parse(raw);
     const filePath = (event.tool_input || {}).file_path || (event.tool_input || {}).path || '';
     // Anchor on the absolute path from the payload — immune to cwd drift (#384)
-    const idx = filePath.indexOf(STATE_SUBDIR);
-    if (idx === -1) process.exit(0);
-    run(filePath.slice(0, idx + STATE_SUBDIR.length));
+    // Proposal write → rebuild the derived proposals index (any writer: create/act/reflect).
+    const pIdx = filePath.indexOf(PROPOSALS_SUBDIR);
+    if (pIdx !== -1) rebuildIndex(filePath.slice(0, pIdx) + HERMIT_SUBDIR);
+    // State write → regenerate state-summary.md.
+    const sIdx = filePath.indexOf(STATE_SUBDIR);
+    if (sIdx !== -1) run(filePath.slice(0, sIdx + STATE_SUBDIR.length));
   } catch {
     // Never block the agent
   }
