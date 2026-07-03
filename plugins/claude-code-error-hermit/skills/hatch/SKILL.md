@@ -179,6 +179,23 @@ In the `routines` array, check for an entry with `id: "error-triage"`. If **abse
 
 Hourly is the default poll; the operator can retune `schedule` via `/claude-code-hermit:hermit-settings`. No `model` field — triage reads the ledger, writes state, and DMs, so it runs in-session (the precheck script, not a cheaper model, is the cost gate). No `prompt_file` — that field is not consumed by core.
 
+### 8c — Offer the optional digest routine
+
+Some operators want an overnight digest; others prefer digest-on-demand. Ask with `AskUserQuestion` (header: "Digest"): **Morning digest routine (recommended)** / **On demand only**.
+
+- **Morning digest** → add an `error-digest` routine by id if absent:
+
+  ```json
+  {
+    "id": "error-digest",
+    "schedule": "30 7 * * *",
+    "skill": "claude-code-error-hermit:error-digest",
+    "enabled": true,
+    "run_during_waiting": true
+  }
+  ```
+- **On demand only** → skip; the operator runs `/claude-code-error-hermit:error-digest` when they want it.
+
 Write the updated `config.json` using the Write tool (full-file replacement to guarantee valid JSON).
 
 ---

@@ -12,6 +12,8 @@ const SKILLS = [
   { name: 'error-triage', gates: 0 },
   { name: 'error-reproduce', gates: 0 },
   { name: 'error-draft-fix', gates: 0 },
+  { name: 'error-incident-summary', gates: 0 },
+  { name: 'error-digest', gates: 0 },
 ];
 
 const { ok, summary } = makeReporter();

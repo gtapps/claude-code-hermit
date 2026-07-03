@@ -1,6 +1,6 @@
 # claude-code-error-hermit
 
-A production-error watcher for [Sentry](https://sentry.io) and [GlitchTip](https://glitchtip.com), built on `claude-code-hermit`. It watches a project's error stream, classifies new groups against a known-noise ledger, correlates regressions with your releases, and — in later phases — reproduces the failure locally, bisects it against recent commits, and drafts a fix on a branch with the failing case as a test.
+A production-error watcher for [Sentry](https://sentry.io) and [GlitchTip](https://glitchtip.com), built on `claude-code-hermit`. It watches a project's error stream, classifies new groups against a known-noise ledger, correlates regressions with your releases, reproduces the failure locally, bisects it against recent commits, and drafts a fix on a branch with the failing case as a test.
 
 > **What this is not.** Reacting to a single error event — "an error fired, open an issue, run a workflow" — is [GitHub Actions](https://docs.github.com/actions) territory, and a Sentry-webhook → GitHub-issue → Actions pipeline does it well. This plugin deliberately concedes that half. It earns its place on the *stateful* work no cloud pipeline holds at once: the new-vs-regression-vs-noise ledger that remembers across weeks, a repo checkout for local repro and bisect, and a draft fix with a reproducing test — reachable from your phone via the hermit's approval channel.
 
@@ -8,7 +8,7 @@ A production-error watcher for [Sentry](https://sentry.io) and [GlitchTip](https
 
 - `claude-code-hermit` ≥ 1.2.14, installed and hatched in the project.
 - A Sentry or GlitchTip auth token. GlitchTip works because it implements the Sentry `/api/0/` API; one client covers both.
-- **Run it inside the repo of the application you are watching.** Phases 3–4 (repro, bisect, draft fix) operate on that repo's own git history; if the tracker project doesn't map to the current repo, those skills stop and say so.
+- **Run it inside the repo of the application you are watching.** The repro, bisect, and draft-fix skills operate on that repo's own git history; if the tracker project doesn't map to the current repo, those skills stop and say so.
 
 ## Install
 
@@ -42,14 +42,14 @@ Four values in a gitignored `.env` at the project root (copy `.env.example`):
 - **The hermit never pushes.** Draft fixes (Phase 3) stop at a local branch and hand off to `/claude-code-dev-hermit:dev-pr` for the sanctioned push.
 - **Secrets stay out.** The token is never printed, and event payloads are scrubbed before any channel relay or file write.
 
-## Roadmap
+## What it does (all shipping in 0.0.1)
 
-| Phase | Ships | Status |
-|---|---|---|
-| 1 | Scaffold, hatch, API client (`check` / `issues` / `issue` / `latest-event` / `resolve` / `mute`) | this release (0.0.1) |
-| 2 | Watch loop: zero-cost precheck + `error-triage` skill + noise ledger | planned |
-| 3 | `error-reproduce` (worktree + failing test + bisect) + `error-draft-fix` | planned |
-| 4 | `error-incident-summary` + overnight `error-digest` | planned |
+| Capability | How |
+|---|---|
+| **API client** | `check` / `issues` / `issue` / `latest-event` / approval-gated `resolve` / `mute` over the Sentry `/api/0/` API |
+| **Watch loop** | zero-cost precheck + hourly `error-triage` routine, classifying new vs regression vs known-noise against a ledger |
+| **Repro + fix** | `error-reproduce` (worktree checkout + failing test + `git bisect`) and `error-draft-fix` (fix on a branch, PR handed to dev-hermit) |
+| **Incident memory** | `error-incident-summary` writeups linked from the ledger, plus an optional overnight `error-digest` |
 
 ## GlitchTip note
 

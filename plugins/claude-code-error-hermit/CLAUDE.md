@@ -16,10 +16,17 @@ After install, run `/claude-code-error-hermit:hatch`. The core hermit (`claude-c
 ## Plugin Structure
 
 - `skills/hatch/` — one-time setup wizard (`/claude-code-error-hermit:hatch`)
-- `scripts/error-api-lib.ts` — pure helpers: `resolveConfig`, `apiRequest`, `redact`, `summarizeIssue`/`summarizeEvent`, query/path builders. Imported by the CLI and the tests so both exercise the same code.
+- `skills/error-triage/` — watch-loop triage (routine-driven): classify new/regression/noise, correlate releases, DM or queue
+- `skills/error-reproduce/` — worktree checkout at the offending SHA, failing test from the stack, `git bisect`
+- `skills/error-draft-fix/` — fix on an `error-fix/<shortId>` branch; push/PR delegated to dev-hermit, never improvised
+- `skills/error-incident-summary/` — post-incident writeup linked from the noise ledger
+- `skills/error-digest/` — overnight digest draining the triage queue into one channel message
+- `scripts/error-api-lib.ts` — pure helpers: `resolveConfig`, `apiRequest`, `redact`, `summarizeIssue`/`summarizeEvent`, query/path builders. Imported by the CLI, the precheck, and the tests so all exercise the same code.
 - `scripts/error-api.ts` — CLI: `check`, `issues`, `issue`, `latest-event`, `resolve --confirm`, `mute --confirm`
+- `scripts/error-precheck.ts` — zero-token watch gate: reads the cursor, prints `SKIP`/`EVALUATE`/`ERROR`, never writes
 - `hooks/write-confirm-gate.ts` — PreToolUse Bash hook: blocks `resolve`/`mute` without `--confirm`
 - `state-templates/CLAUDE-APPEND.md` — Error Watch block injected by hatch
+- `state-templates/compiled/error-noise-ledger.md` — the classification-memory template hatch drops
 - `docs/knowledge-schema.md` — work-product types and retention
 - `.claude-plugin/plugin.json` — plugin manifest
 - `.claude-plugin/hermit-meta.json` — hermit-internal fields (`required_core_version`, `requires`)
@@ -32,7 +39,7 @@ The agent calls `bun ${CLAUDE_PLUGIN_ROOT}/scripts/error-api.ts <command>` via B
 
 **Write gating is two independent layers.** The in-CLI `--confirm` refusal (authoritative — sends no request without it) and the `write-confirm-gate.ts` PreToolUse hook (defense-in-depth, fail-open). Neither is optional.
 
-**Cursor rule (Phase 2+).** `state/error-cursor.json` is read by `error-precheck.ts` and written only by the `error-triage` skill after a successful run. The precheck never mutates it — a broken precheck must never silently advance the cursor.
+**Cursor rule.** `state/error-cursor.json` is read by `error-precheck.ts` and written only by the `error-triage` skill after a successful run. The precheck never mutates it — a broken precheck must never silently advance the cursor.
 
 ## Core Rules
 
