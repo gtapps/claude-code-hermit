@@ -24,7 +24,9 @@ The calling skill passes the following scalars in the dispatch prompt (do not re
 
 1. Read `.claude-code-hermit/cost-summary.md`. Find the trend table row whose Date column matches
    the day before `today`. Populate `cost_context.yesterday` as
-   `"Yesterday: $X.XX (N.NK tokens) across N sessions"`. Set `cost_context.week` and
+   `"Yesterday: <Cost> (<Tokens>) across <Sessions> sessions"`, copying the Cost, Tokens, and
+   Sessions cells from that row **verbatim** (e.g. `"Yesterday: $1189.14 (532M tokens) across
+   44 sessions"`) — do not reformat the token count. Set `cost_context.week` and
    `cost_context.all_time` to `null`.
 2. Scan `.claude-code-hermit/proposals/PROP-*.md` — read the leading `---` YAML block only for
    each file. Collect files where `status: proposed` AND `source: auto-detected`. Populate
@@ -58,9 +60,12 @@ The calling skill passes the following scalars in the dispatch prompt (do not re
 
 1. Same report collection as evening (steps 1–4): collect reports with `date:` matching `today`,
    read full bodies, populate `sessions_today`, `findings`, `tomorrow`.
-2. Read `.claude-code-hermit/cost-summary.md`. Extract the week aggregate and all-time aggregate.
-   Populate `cost_context.week` and `cost_context.all_time`. Set `cost_context.yesterday` to
-   `null` (today's live cost runs in the calling main session via `today-cost.ts`).
+2. Read `.claude-code-hermit/cost-summary.md`. Populate `cost_context.week` and
+   `cost_context.all_time` as `"$X.XX (<Tokens> tokens) across N sessions"`, copying the Cost and
+   Sessions values and the already magnitude-suffixed Tokens figure from the `## This Week` and
+   `## All Time` sections **verbatim** (e.g. `"$1189.14 (532M tokens) across 44 sessions"`) — do
+   not reformat or rescale the token count. Set `cost_context.yesterday` to `null` (today's live
+   cost runs in the calling main session via `today-cost.ts`).
 3. Set `report_summary: null`, `pending_proposals: []`, `operator_priorities: []`, `queued_work: []`.
 
 ### default-no-session
@@ -82,7 +87,7 @@ Return a single JSON object — no prose, no markdown wrapping. Every field is r
 ```json
 {
   "report_summary": { "date": "<ISO>", "tags": ["<tag>"], "working_on": "<one-line>",
-                       "status": "<completed|partial|blocked>", "cost_line": "<$X.XX (NK tokens)>",
+                       "status": "<completed|partial|blocked>", "cost_line": "<$X.XX (N tokens)>",
                        "next_start_point": "<text>" }|null,
   "sessions_today": [ { "session": "S-NNN", "summary": "<one-line>" } ],
   "findings": ["<text>"],

@@ -32,5 +32,5 @@ try {
     `$${cost.toFixed(2)} (${formatTokens(tokens)}) across ${sessions.size} session(s)\n`
   );
 } catch {
-  process.stdout.write('$0.00 (0K tokens) across 0 session(s)\n');
+  process.stdout.write('$0.00 (0 tokens) across 0 session(s)\n');
 }

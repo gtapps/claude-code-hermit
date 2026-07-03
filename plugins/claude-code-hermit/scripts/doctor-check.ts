@@ -199,7 +199,7 @@ function checkCost() {
         }
       } catch {}
     }
-    const detail = `today $${todayTotal.toFixed(4)} · ${kStr(todayTokens)}K tokens, ${kStr(todayCacheRead)}K cached`;
+    const detail = `today $${todayTotal.toFixed(4)} · ${kStr(todayTokens)} tokens, ${kStr(todayCacheRead)} cached`;
 
     try {
       const idx = readCostIndex(costIndexPath(hermitDir));

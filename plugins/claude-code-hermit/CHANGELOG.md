@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### Fixed
+- **brief: `cost_context.yesterday` mislabeled token magnitude (K vs M)** — a ~532M-token day rendered as `532.4K`. `reference.md` now copies the trend row's cells verbatim instead of re-deriving them. (#511)
+- **lib/format.ts: `kStr`/`formatTokens` auto-select K/M/B by magnitude** — was K-only, rendering large totals as `532431K tokens`. Fixes `cost-summary.md`, `today-cost.ts`, `weekly-review.ts`, `doctor-check.ts`, and `startup-context.ts`. Tier thresholds also account for rounding, so values just under a boundary (e.g. `999999`) promote to the next suffix instead of overflowing (`1.0M`, not `1000K`).
 - **`hermit-docker update` / `hermit-update`: domain (sibling) hermits now update, not just core** — the per-plugin loop moved pins straight from the local marketplace cache, which is never refreshed after first boot (auto-update is off by default for third-party/local marketplaces), so siblings silently resolved as "already up to date." Both wrappers now run `claude plugin marketplace update <name>` before the loop and process core first so `^core`-dependent siblings re-resolve cleanly. A plugin left `unchanged` with a live CLI error (e.g. `dependency-version-unsatisfied`) is now reported as `blocked` with the reason, instead of silently looking up to date, in both the terminal summary and `update-history.jsonl`.
 
 ### Upgrade Instructions

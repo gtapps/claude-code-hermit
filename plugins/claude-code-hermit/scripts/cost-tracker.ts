@@ -408,18 +408,18 @@ avg_session_tokens: ${Math.round(avgSessionTokens)}
 ## Today
 - Sessions: ${todaySessions}
 - Cost: $${todayCost.toFixed(2)}
-- Tokens: ${kStr(todayTokens)}K
+- Tokens: ${kStr(todayTokens)}
 
 ## This Week
 - Sessions: ${weekSessionCount}
 - Cost: $${weekCost.toFixed(2)}
-- Tokens: ${kStr(weekTokens)}K
+- Tokens: ${kStr(weekTokens)}
 - Avg per session: $${weekAvg.toFixed(2)}${opusWakeLine}
 
 ## All Time
 - Sessions: ${totalSessions}
 - Cost: $${totalCost.toFixed(2)}
-- Tokens: ${kStr(totalTokens)}K
+- Tokens: ${kStr(totalTokens)}
 - Avg per session: $${avgCost.toFixed(2)}
 
 ## Cost Trend (Last 7 Days)
@@ -548,7 +548,7 @@ async function run(data: Json): Promise<string | null> {
     writeCostSummary(costIdx);
 
     // Return brief summary (pipeline writes this to stderr)
-    return `[cost-tracker] ${model}: ${kStr(totalTokens)}K tokens (${kStr(cacheReadTokens)}K cached), $${cost.toFixed(4)} (cumulative: ${costStr})`;
+    return `[cost-tracker] ${model}: ${kStr(totalTokens)} tokens (${kStr(cacheReadTokens)} cached), $${cost.toFixed(4)} (cumulative: ${costStr})`;
   } catch (err: any) {
     // Non-fatal — never block on cost tracking failure
     console.error(`[cost-tracker] Error: ${err.message}`);

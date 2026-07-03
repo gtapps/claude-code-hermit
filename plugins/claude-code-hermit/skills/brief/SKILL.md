@@ -37,7 +37,7 @@ For dispatching modes: invoke `claude-code-hermit:skill-eval-runner` pointed at 
 ```json
 {
   "report_summary": { "date": "<ISO>", "tags": ["<tag>"], "working_on": "<one-line>",
-                       "status": "<completed|partial|blocked>", "cost_line": "<$X.XX (NK tokens)>",
+                       "status": "<completed|partial|blocked>", "cost_line": "<$X.XX (N tokens)>",
                        "next_start_point": "<text>" }|null,
   "sessions_today": [ { "session": "S-NNN", "summary": "<one-line>" } ],
   "findings": ["<text>"],
@@ -91,13 +91,13 @@ Current behavior — general purpose summary as described below.
 ## Plan
 
 1. Use `session_state` already read in the Dispatch step:
-   - **1a. `in_progress` (no dispatch):** read `.claude-code-hermit/sessions/SHELL.md` **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**. Summarize the active task using TaskList for Done/Next lines; produce the standard 5-line output. For the cost line, read `cost_usd` and `tokens` from `.claude-code-hermit/sessions/.status.json` (live per-session totals; fall back to `0`/`0` if missing) rather than the once-daily `cost-summary.md`. Then read `.claude-code-hermit/state/alert-state.json`; if its `active` array is non-empty, append one line: `⚠ N alert(s) active — run /claude-code-hermit:hermit-health`.
-   - **1b. `idle` (no dispatch):** read SHELL.md **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**. For the `Cumulative:` line, read `total_cost_usd` and `total_tokens` from `.claude-code-hermit/cost-summary.md` frontmatter (fall back to `0`/`0` if missing). Format as:
+   - **1a. `in_progress` (no dispatch):** read `.claude-code-hermit/sessions/SHELL.md` **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**. Summarize the active task using TaskList for Done/Next lines; produce the standard 5-line output. For the cost line, read `cost_usd` and `tokens` from `.claude-code-hermit/sessions/.status.json` (live per-session totals; fall back to `0`/`0` if missing) rather than the once-daily `cost-summary.md`. Scale the token suffix by magnitude — the same K/M/B convention as `scripts/lib/format.ts`'s `formatTokens` (raw integer under 1K, `K` under 1M, `M` under 1B, `B` beyond, promoting to the next tier when rounding would otherwise overflow to 1000 — e.g. 999999 tokens is `1.0M`, not `1000K`; one decimal place if the scaled value is under 100, otherwise round) — never assume `K`. Then read `.claude-code-hermit/state/alert-state.json`; if its `active` array is non-empty, append one line: `⚠ N alert(s) active — run /claude-code-hermit:hermit-health`.
+   - **1b. `idle` (no dispatch):** read SHELL.md **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**. For the `Cumulative:` line, read `total_cost_usd` and `total_tokens` from `.claude-code-hermit/cost-summary.md` frontmatter (fall back to `0`/`0` if missing), scaling the token suffix by magnitude as above. Format as:
      ```
      [Brief] YYYY-MM-DD | idle | N tasks completed
      Session: since [start date]
      Last: [latest Session Summary entry] — [status]
-     Cumulative: $X.XX (12.3K tokens) across N tasks
+     Cumulative: $X.XX (N tokens) across N tasks
      Status: Idle — ready for what's next (run /claude-code-hermit:session-start to begin)
      ```
      Then check for auto-detected proposals (step after Output Format) and return.
@@ -111,7 +111,7 @@ Keep the output to 5 lines, plus an optional 6th line for pending proposals (see
 ```
 [Brief] YYYY-MM-DD | [tags if present]
 Working on: one-line description
-Status: completed/partial/blocked (X/Y tasks) | $cost spent (12.3K tokens)
+Status: completed/partial/blocked (X/Y tasks) | $cost spent (N tokens)
 Done: step1, step2, step3
 Next: description of next action (or "Session complete" if all done)
 ```
