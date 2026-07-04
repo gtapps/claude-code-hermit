@@ -1627,3 +1627,287 @@ describe('reflect routine gating contract (token efficiency)', () => {
     expect(reflect).toContain('--precheck-verdict');
   });
 });
+
+// ============================================================
+// PROP-018: proactive doctor — report shape, doc-count sync, new checks
+// ============================================================
+
+const DOCTOR_CHECK_IDS = [
+  'runtime', 'config', 'hooks', 'state', 'cost', 'proposals', 'dependencies',
+  'permissions', 'docker-security', 'archive', 'reflect', 'scheduler', 'watchdog',
+  'opus-wake', 'heartbeat', 'raw-size', 'credential-expiry', 'model-pricing-known',
+  'channel-liveness',
+];
+
+describe('doctor report contract (PROP-018 count pin)', () => {
+  test('report emits exactly the 19 pinned check ids, in order', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    const report = await runDoctorCheck(dir);
+    expect((report.checks ?? []).map((c: any) => c.id)).toEqual(DOCTOR_CHECK_IDS);
+  }), 20000);
+});
+
+describe('hermit-doctor SKILL.md doc-sync (no drift between JSON checks and docs)', () => {
+  const skill = read(path.join(SKILLS, 'hermit-doctor', 'SKILL.md'));
+
+  test('every JSON check id (plus sandbox) appears as a table row', () => {
+    const missing = [...DOCTOR_CHECK_IDS, 'sandbox'].filter(id => !skill.includes(`| \`${id}\` |`));
+    expect(missing).toEqual([]);
+  });
+
+  test('step 2 enumerates every JSON check id', () => {
+    const missing = DOCTOR_CHECK_IDS.filter(id => !skill.includes(`\`${id}\``));
+    expect(missing).toEqual([]);
+  });
+
+  test('counts read twenty, not fifteen', () => {
+    expect(skill).not.toContain('fifteen');
+    expect(skill.toLowerCase()).toContain('twenty');
+  });
+});
+
+describe('doctor credential-expiry check', () => {
+  const credCheck = (report: any) => (report.checks ?? []).find((c: any) => c.id === 'credential-expiry');
+
+  test('no credentials file, no API key → ok', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    const credDir = path.join(dir, 'no-such-cred-dir');
+    const r = await runScript('doctor-check.ts', {
+      args: ['.claude-code-hermit'], cwd: dir,
+      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_CONFIG_DIR: credDir, ANTHROPIC_API_KEY: '' },
+    });
+    const report = JSON.parse(r.stdout);
+    expect(credCheck(report).status).toBe('ok');
+  }), 20000);
+
+  test('no credentials file, API key set → ok, API-key mode', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    const credDir = path.join(dir, 'no-such-cred-dir');
+    const r = await runScript('doctor-check.ts', {
+      args: ['.claude-code-hermit'], cwd: dir,
+      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_CONFIG_DIR: credDir, ANTHROPIC_API_KEY: 'sk-test' },
+    });
+    const report = JSON.parse(r.stdout);
+    const c = credCheck(report);
+    expect(c.status).toBe('ok');
+    expect(c.detail).toContain('API-key mode');
+  }), 20000);
+
+  test('malformed credentials JSON → warn', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    const credDir = path.join(dir, 'creds');
+    fs.mkdirSync(credDir, { recursive: true });
+    fs.writeFileSync(path.join(credDir, '.credentials.json'), '{not json');
+    const r = await runScript('doctor-check.ts', {
+      args: ['.claude-code-hermit'], cwd: dir,
+      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_CONFIG_DIR: credDir, ANTHROPIC_API_KEY: '' },
+    });
+    const report = JSON.parse(r.stdout);
+    expect(credCheck(report).status).toBe('warn');
+  }), 20000);
+
+  test('fresh token (+24h) → ok', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    const credDir = path.join(dir, 'creds');
+    fs.mkdirSync(credDir, { recursive: true });
+    fs.writeFileSync(path.join(credDir, '.credentials.json'), JSON.stringify({
+      claudeAiOauth: { expiresAt: Date.now() + 24 * 3600000 },
+    }));
+    const r = await runScript('doctor-check.ts', {
+      args: ['.claude-code-hermit'], cwd: dir,
+      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_CONFIG_DIR: credDir, ANTHROPIC_API_KEY: '' },
+    });
+    const report = JSON.parse(r.stdout);
+    expect(credCheck(report).status).toBe('ok');
+  }), 20000);
+
+  test('near-expiry token (+30m) → warn', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    const credDir = path.join(dir, 'creds');
+    fs.mkdirSync(credDir, { recursive: true });
+    fs.writeFileSync(path.join(credDir, '.credentials.json'), JSON.stringify({
+      claudeAiOauth: { expiresAt: Date.now() + 30 * 60000 },
+    }));
+    const r = await runScript('doctor-check.ts', {
+      args: ['.claude-code-hermit'], cwd: dir,
+      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_CONFIG_DIR: credDir, ANTHROPIC_API_KEY: '' },
+    });
+    const report = JSON.parse(r.stdout);
+    expect(credCheck(report).status).toBe('warn');
+  }), 20000);
+
+  test('expired token (-1h) → warn, detail mentions login', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    const credDir = path.join(dir, 'creds');
+    fs.mkdirSync(credDir, { recursive: true });
+    fs.writeFileSync(path.join(credDir, '.credentials.json'), JSON.stringify({
+      claudeAiOauth: { expiresAt: Date.now() - 3600000 },
+    }));
+    const r = await runScript('doctor-check.ts', {
+      args: ['.claude-code-hermit'], cwd: dir,
+      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_CONFIG_DIR: credDir, ANTHROPIC_API_KEY: '' },
+    });
+    const report = JSON.parse(r.stdout);
+    const c = credCheck(report);
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('/login');
+  }), 20000);
+});
+
+describe('doctor model-pricing-known check', () => {
+  const priceCheck = (report: any) => (report.checks ?? []).find((c: any) => c.id === 'model-pricing-known');
+
+  test('default template models → ok', withTmpdir(async (dir) => {
+    const template = readJson(path.join(TEMPLATES, 'config.json.template'));
+    writeConfig(dir, template);
+    const report = await runDoctorCheck(dir);
+    expect(priceCheck(report).status).toBe('ok');
+  }), 20000);
+
+  test('unknown config.model → warn naming config.model', withTmpdir(async (dir) => {
+    writeConfig(dir, { ...BASE_CONFIG, model: 'gpt-mini' });
+    const report = await runDoctorCheck(dir);
+    const c = priceCheck(report);
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('config.model');
+  }), 20000);
+
+  test('full Claude model id (detectModel-priced) → ok, not a false warn', withTmpdir(async (dir) => {
+    // "claude-opus-4-8" is priced correctly (detectModel substring-maps it to
+    // opus), so it must not be flagged as unpriced. Guards the fix for the
+    // alias-only false positive.
+    writeConfig(dir, { ...BASE_CONFIG, model: 'claude-opus-4-8' });
+    const report = await runDoctorCheck(dir);
+    expect(priceCheck(report).status).toBe('ok');
+  }), 20000);
+
+  test('unknown routine model → warn naming the routine', withTmpdir(async (dir) => {
+    writeConfig(dir, {
+      ...BASE_CONFIG,
+      routines: [{ id: 'my-routine', schedule: '0 9 * * *', skill: 'x:y', model: 'gpt-mini', enabled: true }],
+    });
+    const report = await runDoctorCheck(dir);
+    const c = priceCheck(report);
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('routines[my-routine].model');
+  }), 20000);
+
+  test('unknown heartbeat.model → warn naming heartbeat.model', withTmpdir(async (dir) => {
+    writeConfig(dir, { ...BASE_CONFIG, heartbeat: { ...BASE_CONFIG.heartbeat, model: 'gpt-mini' } });
+    const report = await runDoctorCheck(dir);
+    const c = priceCheck(report);
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('heartbeat.model');
+  }), 20000);
+
+  test('unknown model in cost-log within last 7d → warn naming cost-log', withTmpdir(async (dir) => {
+    writeConfig(dir, BASE_CONFIG);
+    const costLog = path.join(dir, '.claude', 'cost-log.jsonl');
+    fs.writeFileSync(costLog, JSON.stringify({
+      timestamp: new Date().toISOString(), model: 'mystery-model', estimated_cost_usd: 0.01, total_tokens: 100,
+    }) + '\n');
+    const report = await runDoctorCheck(dir);
+    const c = priceCheck(report);
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('cost-log');
+  }), 20000);
+});
+
+describe('doctor channel-liveness check', () => {
+  const liveCheck = (report: any) => (report.checks ?? []).find((c: any) => c.id === 'channel-liveness');
+
+  function seedChannel(dir: string, port: number | undefined, tokenLine = 'TELEGRAM_BOT_TOKEN=dummy') {
+    writeConfig(dir, {
+      ...BASE_CONFIG,
+      channels: { telegram: { enabled: true, dm_channel_id: '1', state_dir: 'chan' } },
+    });
+    const chanDir = path.join(dir, 'chan');
+    fs.mkdirSync(chanDir, { recursive: true });
+    if (tokenLine) fs.writeFileSync(path.join(chanDir, '.env'), tokenLine + '\n');
+    return { HERMIT_DOCTOR_TELEGRAM_API: `http://127.0.0.1:${port}` };
+  }
+
+  test('no channels configured → ok, skipped', withTmpdir(async (dir) => {
+    writeConfig(dir, BASE_CONFIG);
+    const report = await runDoctorCheck(dir);
+    const c = liveCheck(report);
+    expect(c.status).toBe('ok');
+    expect(c.detail).toContain('skipped');
+  }), 20000);
+
+  test('missing .env → warn, no token configured', withTmpdir(async (dir) => {
+    const env = seedChannel(dir, 0, '');
+    const r = await runScript('doctor-check.ts', {
+      args: ['.claude-code-hermit'], cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, ...env },
+    });
+    const report = JSON.parse(r.stdout);
+    const c = liveCheck(report);
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('no token configured');
+  }), 20000);
+
+  test('200 response → ok, reachable', withTmpdir(async (dir) => {
+    const server = Bun.serve({ port: 0, fetch: () => new Response('{"ok":true}', { status: 200 }) });
+    try {
+      const env = seedChannel(dir, server.port);
+      const r = await runScript('doctor-check.ts', {
+        args: ['.claude-code-hermit'], cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, ...env },
+      });
+      const report = JSON.parse(r.stdout);
+      const c = liveCheck(report);
+      expect(c.status).toBe('ok');
+      expect(c.detail).toContain('reachable');
+    } finally {
+      server.stop(true);
+    }
+  }), 20000);
+
+  test('401 response → fail, auth rejected, token never echoed', withTmpdir(async (dir) => {
+    const server = Bun.serve({ port: 0, fetch: () => new Response('unauthorized', { status: 401 }) });
+    try {
+      const env = seedChannel(dir, server.port);
+      const r = await runScript('doctor-check.ts', {
+        args: ['.claude-code-hermit'], cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, ...env },
+      });
+      const report = JSON.parse(r.stdout);
+      const c = liveCheck(report);
+      expect(c.status).toBe('fail');
+      expect(c.detail).toContain('auth rejected');
+      expect(c.detail).not.toContain('dummy');
+    } finally {
+      server.stop(true);
+    }
+  }), 20000);
+
+  test('timeout → warn, unreachable', withTmpdir(async (dir) => {
+    const server = Bun.serve({ port: 0, fetch: () => new Promise(() => {}) });
+    try {
+      const env = seedChannel(dir, server.port);
+      const r = await runScript('doctor-check.ts', {
+        args: ['.claude-code-hermit'], cwd: dir,
+        env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, ...env, HERMIT_DOCTOR_LIVENESS_TIMEOUT_MS: '250' },
+      });
+      const report = JSON.parse(r.stdout);
+      const c = liveCheck(report);
+      expect(c.status).toBe('warn');
+      expect(c.detail).toContain('unreachable');
+    } finally {
+      server.stop(true);
+    }
+  }), 20000);
+});
+
+describe('doctor routine template contract', () => {
+  test('template config validates cleanly with the doctor routine present', () => {
+    const template = readJson(path.join(TEMPLATES, 'config.json.template'));
+    const routine = template.routines.find((r: any) => r.id === 'doctor');
+    expect(routine).toBeDefined();
+    expect(routine.schedule).toBe('0 10 * * 1');
+    expect(routine.skill).toBe('claude-code-hermit:hermit-doctor');
+    expect(routine.enabled).toBe(true);
+
+    const { errors, warnings } = validate(template);
+    expect(errors).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+});

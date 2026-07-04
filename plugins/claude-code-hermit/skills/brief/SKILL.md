@@ -68,8 +68,8 @@ Emphasize forward-looking content. Compose from runner JSON (see Dispatch above)
 
 <!-- keep in sync with plugins/claude-code-homeassistant-hermit/skills/ha-morning-brief/SKILL.md step 9a — same MP lifecycle protocol -->
 After composing the morning brief, check `state/micro-proposals.json → pending` for entries with `status: "pending"` **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**:
-- If **one or more** pending entries with `follow_up_count` of 0: append each as a final line: `MP-YYYYMMDD-N (tier N): [question]` — Reply `"MP-YYYYMMDD-N yes"` or `"MP-YYYYMMDD-N no"`. (Bare `yes`/`no` accepted when only one pending.)
-- For any entry with `follow_up_count` of 1: append with softer framing: "Still waiting on MP-YYYYMMDD-N: [question] — ignore again to drop it". Increment `follow_up_count` to 2.
+- If **one or more** pending entries with `follow_up_count` of 0: append each as a final line. Entries without `options`: `MP-YYYYMMDD-N (tier N): [question]` — Reply `"MP-YYYYMMDD-N yes"` or `"MP-YYYYMMDD-N no"`. (Bare `yes`/`no` accepted when only one pending.) Entries with `options`: render them numbered under the question and reply hint `Reply "MP-YYYYMMDD-N <number or label>"` (bare accepted when only one pending).
+- For any entry with `follow_up_count` of 1: append with softer framing: "Still waiting on MP-YYYYMMDD-N: [question] — ignore again to drop it" (if the entry has `options`, re-render them numbered beneath it so the choices aren't lost on the re-nudge). Increment `follow_up_count` to 2.
 - For any entry with `follow_up_count` >= 2: read `question` first, then set `status: "expired"`, remove from `pending`. Append `micro-resolved` event via stdin heredoc (question may contain apostrophes): `{"ts":"<now ISO>","type":"micro-resolved","micro_id":"<id>","action":"expired","question":"<question>"}`. Do not resurrect unless fresh evidence accumulates from scratch.
 - If no pending entries: brief ends without a decision prompt.
 

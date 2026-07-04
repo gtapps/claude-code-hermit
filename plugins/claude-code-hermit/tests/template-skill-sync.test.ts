@@ -155,8 +155,15 @@ describe('routine model defaults', () => {
     expect(entry.model).toBe('haiku');
   });
 
+  test('doctor has model: haiku', () => {
+    const entry = routines.find((r: any) => r.id === 'doctor');
+    expect(entry).toBeTruthy();
+    expect(entry.model).toBe('haiku');
+  });
+
   test('no other default routine carries a model field', () => {
-    const withModel = routines.filter((r: any) => r.id !== 'daily-auto-close' && r.model !== undefined);
+    const ALLOWED_WITH_MODEL = new Set(['daily-auto-close', 'doctor']);
+    const withModel = routines.filter((r: any) => !ALLOWED_WITH_MODEL.has(r.id) && r.model !== undefined);
     expect(withModel).toEqual([]);
   });
 });

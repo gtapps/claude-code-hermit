@@ -44,3 +44,18 @@ test('channel-reply-reminder.ts exists and is non-empty', () => {
   expect(fs.existsSync(SCRIPT_PATH)).toBe(true);
   expect(fs.statSync(SCRIPT_PATH).size).toBeGreaterThan(0);
 });
+
+// PROP-017: channel-safe approvals — resolver extension + bridge section.
+test('resolver accepts numbered and label replies', () => {
+  expect(skill).toContain('options[k-1]');
+  expect(skill).toContain('case-insensitive prefix match');
+});
+
+test('channel-safe ask bridge section present', () => {
+  expect(skill).toContain('Channel-safe ask bridge');
+});
+
+test('on_resolve resolution path present', () => {
+  expect(skill).toContain('on_resolve');
+  expect(skill).toContain('"action":"answered"');
+});

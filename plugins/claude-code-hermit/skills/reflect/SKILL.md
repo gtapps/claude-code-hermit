@@ -420,7 +420,7 @@ bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
 
 ### Micro-approval queuing
 
-Every micro-proposal question must include: **[observed pattern + duration] + [consequence] + [exact proposed change] + "Yes / No"**
+Every micro-proposal question must include: **[observed pattern + duration] + [consequence] + [exact proposed change] + "Yes / No"** (or the exact option labels, for an `options` entry)
 
 Do not queue vague questions like "Found a pattern. Want me to improve it?" — all three components must be present.
 
@@ -430,13 +430,18 @@ Dedup: do not re-append the same candidate if an entry with the same title/id al
 
 1. Generate ID: `MP-YYYYMMDD-N` where N increments within the same day (0, 1, 2). Check existing `micro-queued` events in `proposal-metrics.jsonl` for today to determine N.
 2. Read `state/micro-proposals.json`. Append a new entry to `pending` with `id: "MP-YYYYMMDD-N"`, `tier: <1|2>`, `status: "pending"`, `follow_up_count: 0`, `ts: "<now ISO>"`, `question: "<full question text>"`. Write the file.
+
+   Entries MAY also carry two optional fields, used by channel-bridged asks from other skills (see `channel-responder` § Channel-safe ask bridge) as well as reflect's own future N-way candidates:
+   - `options: ["<label>", ...]` — 2-4 short labels. Absent means a plain yes/no entry (fully backward compatible).
+   - `on_resolve: "<full skill invocation with an {answer} placeholder>"` — when present, resolving the entry substitutes the chosen label into `{answer}` (the resolver quotes it, so multi-word labels stay one argument) and invokes the resulting command, superseding the tier-based yes/no handling below. Bridge entries always set `tier: 1` regardless of the asking skill's own tiering, so tier-1 readers (e.g. heartbeat) keep working unchanged.
 3. Append `micro-queued` event to `proposal-metrics.jsonl` via stdin heredoc (question is free text and may contain apostrophes):
    ```bash
    bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl <<'HERMIT_METRICS_JSON'
    {"ts":"<now ISO>","type":"micro-queued","micro_id":"MP-YYYYMMDD-N","tier":1,"question":"<full question text>"}
    HERMIT_METRICS_JSON
    ```
-4. Notify the operator with the question in the form: `MP-YYYYMMDD-N (tier <N>): <question>` — Reply `"MP-YYYYMMDD-N yes"` or `"MP-YYYYMMDD-N no"` (bare `yes`/`no` accepted when only one entry is pending).
+   For a channel-bridged ask (the entry carries `on_resolve`), add `"kind":"ask"` to this event. It still fires — so step 1's per-day `N` counter stays correct — but the marker tells the approval-rate readers (`generate-summary.ts`, `weekly-review.ts`) to exclude it: a bounded ask is not a yes/no approval. Its eventual `micro-resolved`/`answered` event is audit-only and, being neither `approved` nor `rejected`, is already outside those rates.
+4. Notify the operator with the question. Entries without `options`: `MP-YYYYMMDD-N (tier <N>): <question>` — Reply `"MP-YYYYMMDD-N yes"` or `"MP-YYYYMMDD-N no"` (bare `yes`/`no` accepted when only one entry is pending). Entries with `options`: render them numbered (`1. <label>`, `2. <label>`, ...) under the question and hint `Reply "MP-YYYYMMDD-N <number or label>"` (bare number/label accepted when only one entry is pending).
 
 ## State Update
 

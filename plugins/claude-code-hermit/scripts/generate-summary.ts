@@ -65,6 +65,7 @@ let proposalsResponded = 0;
 let proposalsResolved = 0;
 let microQueued = 0;
 let microApproved = 0;
+let microAnswered = 0;
 const proposalSource: Record<string, string> = {}; // proposal_id -> source (for cross-referencing accepts by source)
 const createdBySource: Record<string, number> = {}; // source -> count
 const acceptedBySource: Record<string, number> = {}; // source -> count
@@ -87,8 +88,12 @@ try {
         }
       }
       if (event.type === 'resolved') proposalsResolved++;
-      if (event.type === 'micro-queued') microQueued++;
+      // Bridged asks (kind:"ask") are bounded 2-4-way asks, not yes/no approval
+      // decisions — exclude them from the approval-rate denominator. They still
+      // emit micro-queued so reflect's per-day ID counter stays correct.
+      if (event.type === 'micro-queued' && event.kind !== 'ask') microQueued++;
       if (event.type === 'micro-resolved' && event.action === 'approved') microApproved++;
+      if (event.type === 'micro-resolved' && event.action === 'answered') microAnswered++;
     } catch {}
   }
 } catch (err: any) {
@@ -167,6 +172,7 @@ Manual accept rate: ${fmtRateStr(manualAcceptRate)}
 Pending: ${microPendingCount}
 Question: ${microQuestion || (microPendingCount > 1 ? `${microPendingCount} questions pending` : 'none')}
 Approval rate: ${microApprovalRateStr}
+Bridged asks answered: ${microAnswered}
 
 ## Reflection
 Last: ${lastReflectionStr}

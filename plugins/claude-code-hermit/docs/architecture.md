@@ -152,7 +152,7 @@ your-project/
 │   │   ├── channel-log.sqlite        # Episodic DM log + FTS5 index (PROP-010); created lazily, absent until first message
 │   │   ├── session-diff.json         # Uncommitted file tracking (session-diff-owned)
 │   │   ├── proposal-metrics.jsonl    # Append-only event log (proposal-create + proposal-act)
-│   │   ├── micro-proposals.json      # Pending micro-approvals list (reflect + channel-responder)
+│   │   ├── micro-proposals.json      # Pending micro-approvals list (reflect + channel-bridged asks + channel-responder)
 │   │   ├── state-summary.md          # Auto-generated health snapshot (generate-summary.ts)
 │   │   ├── monitors.runtime.json     # Active watch registry, cleared on session start (watch-owned)
 │   │   ├── .heartbeat                # Activity marker (heartbeat-touch-owned)
@@ -168,7 +168,7 @@ No `package.json`, no `node_modules`, no build step.
 
 #### state/ ownership model
 
-One writer per state file. No shared mutation bus.
+One writer per state file. No shared mutation bus. (Exception: `state/micro-proposals.json` has several writers — reflect and the channel-bridged asking skills queue entries, channel-responder/brief resolve them — but the hermit runs as a single sequential session, so these never overlap; the "one writer" rule is about avoiding concurrent mutation, which single-session execution already guarantees here.)
 
 | File                           | Owner (sole writer)                                 | Readers                                                       |
 | ------------------------------ | --------------------------------------------------- | ------------------------------------------------------------- |
@@ -181,7 +181,7 @@ One writer per state file. No shared mutation bus.
 | `state/session-diff.json`      | session-diff.ts only                                | session-close (display)                                       |
 | `state/observations.jsonl`     | reflect + reflect-precheck + session-close (append only; `source` values: `cost-spike`, `quick-deferral`, `reflect-noticed`, `startup-drift`, `skill-correction`) | reflect (step 3b graduation), reflection-judge (§1.4 ledger verification) |
 | `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only)        | generate-summary.ts, proposal-metrics-report.ts (read-only)   |
-| `state/micro-proposals.json`   | reflect (queue) + channel-responder/brief (resolve) | brief, generate-summary.ts                                    |
+| `state/micro-proposals.json`   | reflect + channel-bridged skills (queue, schema owned by reflect § Queuing procedure) + channel-responder/brief (resolve) | brief, generate-summary.ts |
 | `state/state-summary.md`       | generate-summary.ts only                            | humans                                                        |
 | `state/monitors.runtime.json`  | watch skill only                                    | session-start (clear on start), session-close (stop all)      |
 | `state/heartbeat-monitor.runtime.json` | heartbeat skill only                        | heartbeat-start (write), heartbeat-stop (clear), heartbeat-restart (rewrite) |
@@ -299,7 +299,7 @@ Reflection uses auto-memory as primary input. Your hermit reflects on what it re
 
 **Three-condition gate:** Every proposal candidate must satisfy the three conditions defined canonically in `skills/proposal-create/SKILL.md` §Three-Condition Rule: repeated pattern across sessions, meaningful consequence if left unaddressed, and an operator-actionable change. This prevents trivial or one-off observations from cluttering the proposal pipeline.
 
-**Micro-proposals (tier 1/2):** For changes that are reversible or non-critical, reflect queues a micro-proposal — a yes/no question sent via channel. Multiple pending micro-proposals can coexist (`state/micro-proposals.json → pending[]`); operator answers by ID. Ignored micro-proposals expire after 2 morning briefs.
+**Micro-proposals (tier 1/2):** For changes that are reversible or non-critical, reflect queues a micro-proposal — a yes/no, or 2-4-option, question sent via channel. Multiple pending micro-proposals can coexist (`state/micro-proposals.json → pending[]`); operator answers by ID. On channel-tagged turns, other skills' bounded asks (e.g. `proposal-act accept`'s 3-way ask, `hermit-settings quality-gate`) queue entries through the same bridge (channel-responder § Channel-safe ask bridge) so the question survives compaction or a session restart. Ignored micro-proposals expire after 2 morning briefs.
 
 Hermit provides the **timing infrastructure** (when to reflect), the **proposal pipeline** (structured proposals with an operator gate), and the **tier classification** (which proposals need what level of approval). Claude handles the intelligence — noticing patterns, assessing confidence, formulating proposals.
 

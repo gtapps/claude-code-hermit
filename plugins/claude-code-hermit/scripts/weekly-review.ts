@@ -225,6 +225,8 @@ for (const s of weekSessions) {
 // carry no reflect-distinguishing field (the `source` enum value `auto-detected`
 // is shared), so Tier-3 reflect proposals routing through them are deliberately
 // excluded — undercount, never over-claim non-reflect activity as reflect's.
+// Bridged asks (kind:"ask") ride the same micro-queued event for ID sequencing
+// but are other skills' bounded asks, not reflect candidates — exclude them.
 let reflectSurfaced = 0;
 let reflectAccepted = 0;
 try {
@@ -235,7 +237,7 @@ try {
       const e = JSON.parse(line);
       const d = new Date(e.ts);
       if (!(d >= weekStart && d < weekEnd)) continue;
-      if (e.type === 'micro-queued') reflectSurfaced++;
+      if (e.type === 'micro-queued' && e.kind !== 'ask') reflectSurfaced++;
       if (e.type === 'micro-resolved' && e.action === 'approved') reflectAccepted++;
     } catch {}
   }

@@ -2,6 +2,7 @@
 // never crashes and the process always exits 0.
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
@@ -11,6 +12,8 @@ import { validate } from './validate-config';
 import { kStr } from './lib/format';
 import { costIndexPath, readCostIndex, scanAutomatedOpus } from './lib/cost-log';
 import { costLogPath } from './lib/cc-compat';
+import { PRICING } from './lib/pricing';
+import { getEnabledChannels } from './hermit-start';
 
 type Json = any;
 
@@ -883,9 +886,225 @@ function checkRawSize() {
   }
 }
 
+// ----------------- Credential expiry -----------------
+
+// Shape (claudeAiOauth.expiresAt, epoch ms) confirmed by the existing
+// hermit-docker login-verification probe (state-templates/bin/hermit-docker).
+// Unrecognized shape degrades to 'ok' by design — no false alarms on format
+// drift, at the cost of the check silently going dark if the shape changes.
+function checkCredentialExpiry() {
+  try {
+    const credDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
+    const credPath = path.join(credDir, '.credentials.json');
+    if (!fs.existsSync(credPath)) {
+      if (process.env.ANTHROPIC_API_KEY) {
+        return { id: 'credential-expiry', status: 'ok', detail: 'API-key mode (no OAuth credentials file)' };
+      }
+      return { id: 'credential-expiry', status: 'ok', detail: 'no OAuth credentials file (keychain or API-key auth)' };
+    }
+    let creds: Json;
+    try {
+      creds = JSON.parse(fs.readFileSync(credPath, 'utf8'));
+    } catch {
+      return { id: 'credential-expiry', status: 'warn', detail: 'credentials file unreadable (malformed JSON)' };
+    }
+    const expiresAt = creds?.claudeAiOauth?.expiresAt;
+    if (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt)) {
+      return { id: 'credential-expiry', status: 'ok', detail: 'credentials present, no recognizable expiry field' };
+    }
+    const msLeft = expiresAt - Date.now();
+    if (msLeft <= 0) {
+      const hoursAgo = Math.abs(msLeft) / 3600000;
+      return {
+        id: 'credential-expiry', status: 'warn',
+        detail: `OAuth token expired ${hoursAgo.toFixed(1)}h ago — run \`claude /login\` (the ~8h re-login trap)`,
+      };
+    }
+    if (msLeft < 2 * 3600000) {
+      return {
+        id: 'credential-expiry', status: 'warn',
+        detail: `OAuth token expires in ${(msLeft / 60000).toFixed(0)}m — re-login soon`,
+      };
+    }
+    return { id: 'credential-expiry', status: 'ok', detail: `OAuth token valid (expires in ${(msLeft / 3600000).toFixed(1)}h)` };
+  } catch (e: any) {
+    return { id: 'credential-expiry', status: 'fail', detail: `check failed: ${e.message}` };
+  }
+}
+
+// ----------------- Model pricing known -----------------
+
+// Shared by the two config-reading checks below: config.json's own validity is
+// checkConfig()'s job, so a missing/unreadable file here is 'ok', not a second
+// failure for the same root cause.
+function readConfigOrCovered(id: string): { config: Json } | { covered: { id: string; status: string; detail: string } } {
+  if (!fs.existsSync(configPath)) {
+    return { covered: { id, status: 'ok', detail: 'config.json absent (covered by config check)' } };
+  }
+  try {
+    return { config: JSON.parse(fs.readFileSync(configPath, 'utf8')) };
+  } catch {
+    return { covered: { id, status: 'ok', detail: 'config.json unreadable (covered by config check)' } };
+  }
+}
+
+function checkModelPricingKnown() {
+  try {
+    const read = readConfigOrCovered('model-pricing-known');
+    if ('covered' in read) return read.covered;
+    const config = read.config;
+
+    const known = new Set(Object.keys(PRICING));
+    // A model is priced correctly iff cost-tracker's detectModel() maps it to a
+    // real tier before pricing (cost-tracker.ts → calculateCost). detectModel
+    // substring-matches haiku/opus/sonnet, so full ids like "claude-opus-4-8"
+    // ARE priced — only a name with no tier substring silently falls back to
+    // sonnet. Mirror that predicate here rather than comparing against the
+    // alias-only PRICING keys, which would false-warn on every full model id.
+    const isPriced = (m: string) => {
+      const lower = m.toLowerCase();
+      return known.has(m) || lower.includes('haiku') || lower.includes('opus') || lower.includes('sonnet');
+    };
+    const unknown: string[] = [];
+    const seen = new Set<string>();
+    const consider = (m: unknown, where: string) => {
+      if (typeof m !== 'string' || !m || isPriced(m)) return;
+      const key = `${m}|${where}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      unknown.push(`"${m}" (${where})`);
+    };
+
+    consider(config.model, 'config.model');
+    for (const r of Array.isArray(config.routines) ? config.routines : []) {
+      consider(r?.model, `routines[${r?.id ?? '?'}].model`);
+    }
+    consider(config.heartbeat?.model, 'heartbeat.model');
+
+    // Secondary signal: cost-log `model` field, last 7d. Inert today —
+    // detectModel() (cost-tracker.ts) collapses every raw model string to
+    // haiku|sonnet|opus before logging, so this can't find an unknown yet.
+    // Kept so it activates automatically once raw model ids ever persist
+    // (e.g. PROP-016), rather than adding it as a second migration later.
+    if (fs.existsSync(costLog)) {
+      const since = new Date(Date.now() - 7 * MS_PER_DAY).toISOString().slice(0, 10);
+      for (const line of fs.readFileSync(costLog, 'utf8').split('\n')) {
+        if (!line.trim()) continue;
+        try {
+          const entry = JSON.parse(line);
+          if ((entry.timestamp || '').slice(0, 10) >= since) consider(entry.model, 'cost-log');
+        } catch {}
+      }
+    }
+
+    if (unknown.length > 0) {
+      return {
+        id: 'model-pricing-known', status: 'warn',
+        detail: `unpriced model(s): ${unknown.join(', ')} — cost tracking silently falls back to sonnet pricing`,
+      };
+    }
+    return { id: 'model-pricing-known', status: 'ok', detail: 'all configured models known to the pricing table' };
+  } catch (e: any) {
+    return { id: 'model-pricing-known', status: 'fail', detail: `check failed: ${e.message}` };
+  }
+}
+
+// ----------------- Channel liveness -----------------
+// Core's first direct outward egress: one token-authed liveness call per
+// enabled channel. Never surface fetch error messages or probe URLs in
+// `detail` — Telegram embeds the bot token in the request URL.
+
+const LIVENESS_TIMEOUT_MS = Number(process.env.HERMIT_DOCTOR_LIVENESS_TIMEOUT_MS) || 5000;
+
+type LivenessProbe = { url: string; headers?: Record<string, string> };
+
+const LIVENESS_PROBES: Record<string, (token: string) => LivenessProbe> = {
+  telegram: (token) => ({
+    url: `${process.env.HERMIT_DOCTOR_TELEGRAM_API || 'https://api.telegram.org'}/bot${token}/getMe`,
+  }),
+  discord: (token) => ({
+    url: `${process.env.HERMIT_DOCTOR_DISCORD_API || 'https://discord.com/api/v10'}/users/@me`,
+    headers: { Authorization: `Bot ${token}` },
+  }),
+};
+
+function readChannelToken(name: string, ch: Json): string | null {
+  const stateDirEnv = process.env[`${name.toUpperCase()}_STATE_DIR`];
+  let channelStateDir = stateDirEnv || ch?.state_dir || `.claude.local/channels/${name}`;
+  if (!path.isAbsolute(channelStateDir)) {
+    channelStateDir = path.join(hermitDir, '..', channelStateDir);
+  }
+  const envPath = path.join(channelStateDir, '.env');
+  if (!fs.existsSync(envPath)) return null;
+  const tokenVar = `${name.toUpperCase()}_BOT_TOKEN`;
+  const content = fs.readFileSync(envPath, 'utf8');
+  const re = new RegExp(`^${tokenVar}=(.*)$`, 'm');
+  const m = content.match(re);
+  if (!m) return null;
+  const value = m[1].trim().replace(/^["']|["']$/g, '');
+  return value || null;
+}
+
+async function checkChannelLiveness() {
+  try {
+    const read = readConfigOrCovered('channel-liveness');
+    if ('covered' in read) return read.covered;
+    const config = read.config;
+
+    const channels = config.channels && typeof config.channels === 'object' ? config.channels : {};
+    // Reuse hermit-start's canonical enumeration: it iterates dict-valued
+    // channel entries only (so the `channels.primary` string pointer is skipped
+    // generically, no name hardcoding) and applies the same pyTruthy default-on
+    // `enabled` semantics used everywhere else.
+    const enabled = getEnabledChannels(config);
+
+    if (enabled.length === 0) {
+      return { id: 'channel-liveness', status: 'ok', detail: 'no channels configured — probe skipped' };
+    }
+
+    // Probe every channel concurrently — each fetch is independent (own token,
+    // own URL, own timeout), so serializing them would add up to N × timeout
+    // of dead wall-clock time to every doctor run for no correctness benefit.
+    const results = await Promise.all(enabled.map(async (name): Promise<{ note: string; severity: 'warn' | 'fail' | null }> => {
+      const buildProbe = LIVENESS_PROBES[name];
+      if (!buildProbe) {
+        return { note: `${name}: unknown platform, not probed`, severity: null };
+      }
+      const token = readChannelToken(name, channels[name]);
+      if (!token) {
+        return { note: `${name}: no token configured — run /channel-setup`, severity: 'warn' };
+      }
+      const probe = buildProbe(token);
+      try {
+        const resp = await fetch(probe.url, { headers: probe.headers, signal: AbortSignal.timeout(LIVENESS_TIMEOUT_MS) });
+        if (resp.ok) {
+          return { note: `${name}: reachable`, severity: null };
+        } else if (resp.status === 401 || resp.status === 403) {
+          return { note: `${name}: auth rejected (HTTP ${resp.status}) — bot token invalid or revoked`, severity: 'fail' };
+        } else {
+          return { note: `${name}: unexpected HTTP ${resp.status}`, severity: 'warn' };
+        }
+      } catch (e: any) {
+        const reason = e?.name === 'TimeoutError' ? 'timeout' : 'network error';
+        return { note: `${name}: unreachable (${reason})`, severity: 'warn' };
+      }
+    }));
+
+    let worst: 'ok' | 'warn' | 'fail' = 'ok';
+    for (const r of results) {
+      if (r.severity === 'fail') worst = 'fail';
+      else if (r.severity === 'warn' && worst !== 'fail') worst = 'warn';
+    }
+
+    return { id: 'channel-liveness', status: worst, detail: results.map(r => r.note).join('; ') };
+  } catch (e: any) {
+    return { id: 'channel-liveness', status: 'fail', detail: `check failed: ${e.message}` };
+  }
+}
+
 // ----------------- Orchestration -----------------
 
-function runAllChecks() {
+async function runAllChecks() {
   return [
     checkRuntime(),
     checkConfig(),
@@ -903,6 +1122,9 @@ function runAllChecks() {
     checkOpusWake(),
     checkHeartbeat(),
     checkRawSize(),
+    checkCredentialExpiry(),
+    checkModelPricingKnown(),
+    await checkChannelLiveness(),
   ];
 }
 
@@ -925,13 +1147,15 @@ export {
   checkCost, checkProposals, checkDependencies, checkPermissions,
   checkDockerSecurity, checkArchival, checkReflectLoop, checkScheduler,
   checkWatchdog, checkOpusWake, checkHeartbeat, checkRawSize,
+  checkCredentialExpiry, checkModelPricingKnown, checkChannelLiveness,
   satisfiesRange, cidrOverlap,
+  // runAllChecks is async (checkChannelLiveness performs network I/O) — callers must await it.
   runAllChecks, writeReport,
 };
 
 if (import.meta.main) {
   try {
-    const checks = runAllChecks();
+    const checks = await runAllChecks();
     const report = writeReport(checks);
     // Print the report JSON so skills/tests can capture it without re-reading.
     process.stdout.write(JSON.stringify(report, null, 2) + '\n');

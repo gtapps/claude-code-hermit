@@ -16,6 +16,10 @@ Background health checker that periodically evaluates a checklist and surfaces a
 /claude-code-hermit:heartbeat edit     — modify the checklist
 ```
 
+## Step 0 — Channel reply
+
+If this skill was invoked from a channel-arrived message (the inbound prompt contains a `<channel source="...">` tag), reply via that channel's reply tool. Otherwise emit to conversation. The only interactive ask here is the `edit` subcommand's free-form "what to add, remove, or change" — on a channel-tagged turn deliver it via the reply tool as an ordinary over-channel exchange (it's open-ended, so no micro-proposal entry is queued). **Never call `AskUserQuestion` on a channel-tagged turn** — it renders in the terminal, invisible to a remote operator.
+
 ## Subcommands
 
 ### run
