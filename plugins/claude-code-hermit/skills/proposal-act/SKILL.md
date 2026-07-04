@@ -6,6 +6,10 @@ description: 'Accept, defer, dismiss, or resolve a proposal. For accepted propos
 
 Take action on a proposal: accept, defer, dismiss, or resolve.
 
+## Step 0 — Channel reply
+
+If this skill was invoked from a channel-arrived message (the inbound prompt contains a `<channel source="...">` tag), reply via that channel's reply tool. Otherwise emit to conversation. On a channel-tagged turn, step 4's bounded ask (below) also queues a durable micro-proposal entry — see `channel-responder` § Channel-safe ask bridge (schema: `reflect` § Queuing procedure) — so it survives compaction or a session restart.
+
 ## Usage
 
 ```
@@ -13,7 +17,10 @@ Take action on a proposal: accept, defer, dismiss, or resolve.
 /claude-code-hermit:proposal-act defer PROP-015
 /claude-code-hermit:proposal-act dismiss PROP-012
 /claude-code-hermit:proposal-act resolve PROP-008
+/claude-code-hermit:proposal-act accept PROP-019 --answer "session task"
 ```
+
+The `--answer` form is not typed by an operator — it's how a channel-safe resolution re-enters step 4 after an out-of-band reply (see § Channel re-entry below).
 
 If no action or ID is provided, ask the operator which proposal and action.
 
@@ -81,6 +88,8 @@ When the operator accepts a proposal:
    - Never block accept regardless of outcome.
 
 4. Ask: **"How should this be implemented?"**
+
+   **Channel-tagged turn:** do not wait interactively for a reply in this turn. Send the question via the channel reply tool with the three options numbered, AND queue a pending micro-proposal entry per `reflect` § Queuing procedure: `question: "PROP-NNN accepted: <title>. How should it be implemented?"`, `options: ["implement now", "session task", "manual"]`, `tier: 1`, `on_resolve: "/claude-code-hermit:proposal-act accept PROP-NNN --answer {answer}"`. Then stop — steps 1-3c already ran, so `status: accepted` is a safe resting state until the operator answers (immediately in this same conversational turn, or later via the § Channel re-entry path below). The interactive terminal path below is unchanged.
 
    - **"Start implementing now"** (default, typical answer): run the falsification gate, then handle session lifecycle, then execute in this turn.
      **Falsification gate (runs first, before any session transition).** Verify the proposal is actionable as written with a read-only pass. Skip only when the body contains `## Skill Improvement` **and** `/skill-creator:skill-creator` is in the available-skills list (step (e) routes that to `/skill-creator:skill-creator`) — if `## Skill Improvement` is present but skill-creator is absent, the proposal becomes a code-edit implementation, so the gate runs to produce a `PROCEED` file list for the dispatch. Also skip if the body contains `## Skill Draft` — authoring is delegated to `/skill-creator:skill-creator` on accept, not a code-edit plan — but first check that the `source_artifact` path listed in `## Skill Draft` exists and is readable (if the file is missing or unreadable, REJECT with code `stale-paths` — the procedure brief was removed or archived; the operator should re-run reflect to generate a fresh brief).
@@ -212,6 +221,14 @@ When the operator accepts a proposal:
 5. Notify the operator: "PROP-NNN accepted: [title]"
 
 **Note:** There is no "Update OPERATOR.md" path. OPERATOR.md is operator-owned — the agent reads it but does not modify it. If the operator wants to update OPERATOR.md based on a proposal, they do it themselves.
+
+## Channel re-entry (`--answer`)
+
+When invoked as `accept PROP-NNN --answer "<label>"` (channel-responder resolving the micro-proposal entry queued by step 4's channel branch, either later in the same turn or in a fresh session): the proposal's frontmatter `status` is already `accepted` from the original turn, so skip steps 1-3c entirely — do not re-append a duplicate "Accepted on …" timestamp or re-fire the `responded` event. Match `<label>` case-insensitively by prefix against the three step-4 options and jump straight into the matching branch:
+
+- `implement now` → **"Start implementing now"** (falsification gate onward; the autonomous-mode channel notifies already present in that branch apply as usual).
+- `session task` → **"Create a session task"**.
+- `manual` → **"I'll handle it manually"**.
 
 ## Defer Flow
 

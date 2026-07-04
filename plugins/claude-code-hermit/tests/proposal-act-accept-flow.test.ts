@@ -95,6 +95,30 @@ describe('proposal-act accept flow', () => {
   });
 });
 
+// PROP-017: channel-safe approvals. Guards the Step-0 marker, the 3-option
+// channel-tagged branch on step 4, and the --answer re-entry path.
+describe('PROP-017 channel-safe approvals', () => {
+  test('Step 0 channel-reply marker present', () => {
+    expect(skill).toContain('Step 0 — Channel reply');
+  });
+
+  test('step 4 channel branch queues the three option labels', () => {
+    expect(skill).toContain('"implement now"');
+    expect(skill).toContain('"session task"');
+    expect(skill).toContain('"manual"');
+  });
+
+  test('channel re-entry section present', () => {
+    expect(skill).toContain('--answer');
+    expect(skill).toContain('Channel re-entry');
+  });
+
+  test('MP entry carries an on_resolve invocation with the {answer} placeholder', () => {
+    expect(skill).toContain('on_resolve');
+    expect(skill).toContain('{answer}');
+  });
+});
+
 // Frontmatter description specifically (between the opening --- and the second ---).
 test("frontmatter description mentions 'start implementing now'", () => {
   expect(frontmatterOf(skill)).toMatch(/^description:.*start implementing now/m);
