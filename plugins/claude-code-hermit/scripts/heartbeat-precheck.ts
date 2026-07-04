@@ -27,10 +27,32 @@ const peek = process.argv[2] === '--peek';
 const stateDir = peek ? process.argv[3] : process.argv[2];
 if (!stateDir) emit('EVALUATE');
 
+const alertStatePath = path.join(stateDir, 'state', 'alert-state.json');
+
 // Earliest gate (PROP-015) — ahead of the pending-close drain below, so a
 // paused hermit also suppresses AUTO_CLOSE, not just the checklist. Read-only:
 // identical under --peek since it writes nothing.
-if (isPaused(stateDir).paused) emit('SKIP|paused');
+const pauseStatus = isPaused(stateDir);
+if (pauseStatus.paused) {
+  // PROP-016: a budget-triggered pause is itself the enforcement action, so the
+  // plain SKIP|paused below would also silence the one wake needed to tell the
+  // operator why every tool is now denied and how to resume. Let exactly one
+  // EVALUATE escape when an un-notified budget alert is waiting — the pending-budget
+  // gate further down (after alert-state is loaded) is what actually emits it; the
+  // heartbeat skill announces and marks `notified:true`, and every subsequent tick
+  // falls back to the plain SKIP|paused here (no un-notified entry left to escape on).
+  if (pauseStatus.reason === 'budget') {
+    const peekAlerts = readAlertState(alertStatePath);
+    const pendingAlerts: Json = peekAlerts.kind === 'ok' && peekAlerts.value.alerts && typeof peekAlerts.value.alerts === 'object'
+      ? peekAlerts.value.alerts : {};
+    const budgetUnannounced = Object.values(pendingAlerts).some((e: Json) => e?.kind === 'budget' && e.notified === false);
+    if (!budgetUnannounced) emit('SKIP|paused');
+    // else fall through to the gates below, which will reach the pending-budget
+    // check and emit EVALUATE.
+  } else {
+    emit('SKIP|paused');
+  }
+}
 
 const readJSON = (p: string): Json => {
   try { return JSON.parse(fs.readFileSync(p, 'utf-8')); }
@@ -166,7 +188,6 @@ if (activeHours?.start && activeHours?.end) {
   }
 }
 
-const alertStatePath = path.join(stateDir, 'state', 'alert-state.json');
 // Split read from parse so a transient read error never destroys a healthy file:
 // only a genuine parse failure (corrupt) quarantines and rebuilds. ioerror
 // (EACCES/EMFILE/EIO) leaves the file untouched and re-evaluates next tick.
@@ -198,6 +219,15 @@ const microProposals = readJSON(path.join(stateDir, 'state', 'micro-proposals.js
 const hasPendingMicro = Array.isArray(microProposals.pending) &&
   microProposals.pending.some((p: Json) => p.status === 'pending' && p.tier === 1);
 if (hasPendingMicro) emit('EVALUATE');
+
+// PROP-016: an un-notified budget alert (cost-tracker.ts writes these directly,
+// bypassing the LLM-owned suppressed/digest dance the generic checklist alerts use)
+// forces an immediate EVALUATE — this is both how `action:"alert"` breaches surface
+// at all, and the mechanism the pause-escape gate above depends on to actually emit
+// EVALUATE rather than just falling through.
+const hasPendingBudgetAlert = Object.values(alertState.alerts ?? {}).some(
+  (e: Json) => e?.kind === 'budget' && e.notified === false);
+if (hasPendingBudgetAlert) emit('EVALUATE');
 
 const runtime = readJSON(path.join(stateDir, 'state', 'runtime.json')) ?? {};
 const sessionState = runtime.session_state ?? 'idle';

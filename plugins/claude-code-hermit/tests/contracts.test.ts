@@ -588,6 +588,52 @@ describe('context_hygiene validation', () => {
 });
 
 // ============================================================
+// budget validation (PROP-016)
+// ============================================================
+
+describe('budget validation', () => {
+  test('a fully valid budget block (all three caps) produces no errors', () => {
+    const out = runValidate({ budget: { daily_usd: 5, weekly_usd: 25, monthly_usd: 100, action: 'alert' } });
+    expect(out.errors).toEqual([]);
+  });
+
+  test('null caps are valid (disables that window)', () => {
+    const out = runValidate({ budget: { daily_usd: null, weekly_usd: null, monthly_usd: null, action: 'pause' } });
+    expect(out.errors).toEqual([]);
+  });
+
+  test('absent budget block produces no errors', () => {
+    const out = runValidate({});
+    expect(out.errors.filter((e: string) => e.includes('budget'))).toEqual([]);
+  });
+
+  test('negative daily_usd is an error', () => {
+    const out = runValidate({ budget: { daily_usd: -5 } });
+    expect(out.errors.some((e: string) => e.includes('budget.daily_usd: must be a positive number or null'))).toBe(true);
+  });
+
+  test('zero weekly_usd is an error', () => {
+    const out = runValidate({ budget: { weekly_usd: 0 } });
+    expect(out.errors.some((e: string) => e.includes('budget.weekly_usd: must be a positive number or null'))).toBe(true);
+  });
+
+  test('non-number monthly_usd is an error', () => {
+    const out = runValidate({ budget: { monthly_usd: '100' } });
+    expect(out.errors.some((e: string) => e.includes('budget.monthly_usd: must be a positive number or null'))).toBe(true);
+  });
+
+  test('invalid action is an error', () => {
+    const out = runValidate({ budget: { action: 'notify' } });
+    expect(out.errors.some((e: string) => e.includes('budget.action: "notify" not in [alert, pause]'))).toBe(true);
+  });
+
+  test('budget block with only one cap set is valid', () => {
+    const out = runValidate({ budget: { monthly_usd: 100 } });
+    expect(out.errors).toEqual([]);
+  });
+});
+
+// ============================================================
 // Outbound channel resolver (TestChannelResolverContract)
 //
 // Verifies resolution order, primary override, eligibility gates, and the

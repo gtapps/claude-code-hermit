@@ -101,6 +101,12 @@ const DEFAULT_CONFIG: Json = {
     operator_grace: '15m',
     context_clear_tokens: 700000,
   },
+  budget: {
+    daily_usd: null,
+    weekly_usd: null,
+    monthly_usd: null,
+    action: 'alert',
+  },
   context_hygiene: {
     compact: {
       enabled: true,

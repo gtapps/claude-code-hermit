@@ -17,13 +17,104 @@ function currentHHMM(timezone: string, ref?: Date): string | null {
   }
 }
 
-// Returns today as 'YYYY-MM-DD' in the given timezone.
-function todayYMD(timezone: string): string {
+// Returns today (or `ref`) as 'YYYY-MM-DD' in the given timezone.
+function todayYMD(timezone: string, ref: Date = new Date()): string {
   try {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date());
+    return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(ref);
   } catch {
-    return new Date().toISOString().slice(0, 10);
+    return ref.toISOString().slice(0, 10);
   }
+}
+
+// Returns the 'YYYY-MM' (year-month) for `ref` in the given timezone.
+function thisMonthYYYYMM(timezone: string, ref: Date = new Date()): string {
+  return todayYMD(timezone, ref).slice(0, 7);
+}
+
+// Extract {year, month, day} for `ref` as observed in `timezone`. Shared by
+// thisWeekKey and nextBoundaryISO so both start from the same local calendar
+// date. Falls back to UTC components on any Intl failure.
+function localYMDParts(timezone: string, ref: Date): { y: number; mo: number; d: number } {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone, hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(ref);
+    const get = (t: string) => parseInt(parts.find(p => p.type === t)!.value, 10);
+    return { y: get('year'), mo: get('month'), d: get('day') };
+  } catch {
+    return { y: ref.getUTCFullYear(), mo: ref.getUTCMonth() + 1, d: ref.getUTCDate() };
+  }
+}
+
+// Returns the ISO-8601 week key ('YYYY-Www') for `ref`'s local calendar date
+// in `timezone`. Uses the standard nearest-Thursday algorithm on the
+// tz-resolved Y-M-D — day-of-week/week-number arithmetic needs only the
+// calendar date, not a time-of-day, so this runs on a UTC-anchored Date
+// purely as a calendar-math scratch value (no further tz lookups needed).
+function thisWeekKey(timezone: string, ref: Date = new Date()): string {
+  const { y, mo, d } = localYMDParts(timezone, ref);
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  const dayNum = (date.getUTCDay() + 6) % 7; // Mon=0..Sun=6
+  date.setUTCDate(date.getUTCDate() - dayNum + 3); // nearest Thursday
+  const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+  const firstDayNum = (firstThursday.getUTCDay() + 6) % 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDayNum + 3);
+  const weekNum = 1 + Math.round((date.getTime() - firstThursday.getTime()) / (7 * 86400000));
+  return `${date.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+}
+
+// Resolves the UTC instant at which `timezone` reads the given local wall-clock
+// time (y-mo-d hh:mm:ss). Standard guess-and-correct approach (no tz database
+// library available — Bun-stdlib-only): treat the wall-clock values as if they
+// were already UTC, format that guess back through the real timezone, and
+// shift by the observed delta. Converges in one correction for every real
+// IANA zone (all of which have offsets constant across the correction window,
+// bar the exact DST-transition second — an accepted, rare edge case).
+function zonedTimeToUtcMs(y: number, mo: number, d: number, hh: number, mm: number, ss: number, timezone: string): number {
+  const asUTC = Date.UTC(y, mo - 1, d, hh, mm, ss);
+  let ms = asUTC;
+  for (let i = 0; i < 2; i++) {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone, hourCycle: 'h23',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      }).formatToParts(new Date(ms));
+      const get = (t: string) => parseInt(parts.find(p => p.type === t)!.value, 10);
+      const observedUTC = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second'));
+      const diff = asUTC - observedUTC;
+      if (diff === 0) break;
+      ms += diff;
+    } catch {
+      return asUTC;
+    }
+  }
+  return ms;
+}
+
+// Returns the ISO instant of the next calendar boundary (local midnight) after
+// `ref`, in `timezone`: 'day' -> tomorrow, 'week' -> next Monday (always a full
+// week ahead if `ref` itself is a Monday), 'month' -> the 1st of next month.
+// Used to compute a budget pause's auto-resume point.
+function nextBoundaryISO(timezone: string, unit: 'day' | 'week' | 'month', ref: Date = new Date()): string {
+  const { y, mo, d } = localYMDParts(timezone, ref);
+  let ny = y, nmo = mo, nd = d;
+  if (unit === 'day') {
+    nd += 1;
+  } else if (unit === 'week') {
+    const dow = new Date(Date.UTC(y, mo - 1, d)).getUTCDay(); // 0=Sun..6=Sat
+    const daysUntilMonday = ((1 - dow) + 7) % 7 || 7; // always strictly ahead, even if ref is Monday
+    nd += daysUntilMonday;
+  } else {
+    nmo += 1;
+    nd = 1;
+  }
+  // Normalize month/day overflow (e.g. nmo=13, or nd past the month's length)
+  // via a UTC Date — JS Date arithmetic auto-rolls these correctly.
+  const norm = new Date(Date.UTC(ny, nmo - 1, nd));
+  const ms = zonedTimeToUtcMs(norm.getUTCFullYear(), norm.getUTCMonth() + 1, norm.getUTCDate(), 0, 0, 0, timezone);
+  return new Date(ms).toISOString();
 }
 
 // Local timestamp in Python's time.strftime('%Y-%m-%dT%H:%M:%S%z') shape
@@ -55,4 +146,4 @@ function parseDuration(str: unknown, defaultMs: number): number {
   return parseInt(m[1], 10) * mult;
 }
 
-export { currentHHMM, todayYMD, localISOStamp, utcISOStamp, parseDuration };
+export { currentHHMM, todayYMD, thisWeekKey, thisMonthYYYYMM, nextBoundaryISO, localISOStamp, utcISOStamp, parseDuration };
