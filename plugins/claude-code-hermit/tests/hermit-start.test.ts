@@ -38,6 +38,7 @@ import {
   isSandboxEnabled,
   sandboxProbeCached,
   checkSandboxCapability,
+  applyAlwaysOnDoctorSchedule,
 } from '../scripts/hermit-start';
 
 const PLUGIN_ROOT = path.resolve(import.meta.dir, '..');
@@ -737,5 +738,39 @@ describe('negative paths', () => {
 
   test('non-dict channels does not crash iterChannelConfigs', () => {
     expect([...iterChannelConfigs({ channels: 'string' })]).toEqual([]);
+  });
+});
+
+// ============================================================
+// PROP-018: always-on doctor schedule ratchet
+// ============================================================
+
+describe('applyAlwaysOnDoctorSchedule', () => {
+  test('weekly template default ratchets to daily', () => {
+    const config = { routines: [{ id: 'doctor', schedule: '0 10 * * 1', enabled: true }] };
+    applyAlwaysOnDoctorSchedule(config);
+    expect(config.routines[0].schedule).toBe('0 10 * * *');
+  });
+
+  test('custom schedule is left untouched', () => {
+    const config = { routines: [{ id: 'doctor', schedule: '30 6 * * 3', enabled: true }] };
+    applyAlwaysOnDoctorSchedule(config);
+    expect(config.routines[0].schedule).toBe('30 6 * * 3');
+  });
+
+  test('idempotent — running twice keeps daily', () => {
+    const config = { routines: [{ id: 'doctor', schedule: '0 10 * * 1', enabled: true }] };
+    applyAlwaysOnDoctorSchedule(config);
+    applyAlwaysOnDoctorSchedule(config);
+    expect(config.routines[0].schedule).toBe('0 10 * * *');
+  });
+
+  test('no doctor routine present does not throw', () => {
+    const config = { routines: [{ id: 'reflect', schedule: '0 9 * * *', enabled: true }] };
+    expect(() => applyAlwaysOnDoctorSchedule(config)).not.toThrow();
+  });
+
+  test('no routines array does not throw', () => {
+    expect(() => applyAlwaysOnDoctorSchedule({})).not.toThrow();
   });
 });

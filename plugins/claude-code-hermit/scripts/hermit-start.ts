@@ -172,6 +172,23 @@ function loadConfig(): Json {
   return merged;
 }
 
+// One-way ratchet: an always-on boot upgrades the template-default weekly
+// doctor schedule to daily. Only touches the entry if it's still at the
+// template default — a custom schedule the operator set is left alone. Does
+// not downgrade back to weekly on stop; a box that reverts to interactive
+// keeps daily doctor, which is harmless.
+const DOCTOR_WEEKLY_SCHEDULE = '0 10 * * 1';
+const DOCTOR_DAILY_SCHEDULE = '0 10 * * *';
+
+function applyAlwaysOnDoctorSchedule(config: Json): void {
+  const routine = Array.isArray(config.routines)
+    ? config.routines.find((r: Json) => r?.id === 'doctor')
+    : null;
+  if (routine && routine.schedule === DOCTOR_WEEKLY_SCHEDULE) {
+    routine.schedule = DOCTOR_DAILY_SCHEDULE;
+  }
+}
+
 /** Print a notice if the plugin version is newer than config version. */
 function checkForUpgrade(config: Json): void {
   const pluginJson = path.join(PLUGIN_ROOT, '.claude-plugin', 'plugin.json');
@@ -921,6 +938,7 @@ async function main(): Promise<void> {
 
   // Mark as always-on mode in config
   config.always_on = true;
+  applyAlwaysOnDoctorSchedule(config);
   try {
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + '\n');
   } catch {}
@@ -969,6 +987,7 @@ export {
   DEFAULT_CONFIG,
   CHANNEL_PLUGINS,
   loadConfig,
+  applyAlwaysOnDoctorSchedule,
   checkForUpgrade,
   checkPrerequisites,
   isContainer,

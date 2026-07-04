@@ -1,12 +1,13 @@
 ---
 name: hermit-doctor
-description: Returns a fifteen-check health report on the hermit installation (runtime, config, hooks, state-file integrity, cost, proposals, deps, permissions, docker/sandbox, archival, reflect loop, scheduler, watchdog, heartbeat). Use when diagnosing an install, before a release, or after suspicious behavior. Activates on messages like "/hermit-doctor", "health check", "diagnose the hermit", "what's wrong", "run diagnostic".
+description: Returns a twenty-check health report on the hermit installation (runtime, config, hooks, state-file integrity, cost, proposals, deps, permissions, docker/sandbox, archival, reflect loop, scheduler, watchdog, opus-wake spend, heartbeat, raw storage size, credential expiry, model pricing, channel liveness). Use when diagnosing an install, before a release, or after suspicious behavior. Activates on messages like "/hermit-doctor", "health check", "diagnose the hermit", "what's wrong", "run diagnostic".
 ---
 
 # Hermit Doctor
 
-Runs fifteen read-only health checks against the current hermit install and surfaces the
-summary. Safe to run at any time. Produces no side effects beyond writing
+Runs nineteen read-only health checks against the current hermit install (`channel-liveness`
+is the only one that performs outbound API calls — see Notes) and surfaces the summary. Safe
+to run at any time. Produces no side effects beyond writing
 `.claude-code-hermit/state/doctor-report.json` and appending a summary block to SHELL.md.
 
 ## Steps
@@ -19,15 +20,16 @@ summary. Safe to run at any time. Produces no side effects beyond writing
    JSON to stdout. It exits 0 unconditionally — on any internal failure the failing
    check reports `status: "fail"` in its own entry rather than crashing the report.
 
-2. Parse the JSON. For each of the fourteen checks in the report (`runtime`, `config`, `hooks`, `state`, `cost`,
-   `proposals`, `dependencies`, `permissions`, `docker-security`, `archive`, `reflect`, `scheduler`, `watchdog`, `heartbeat`), emit one line using this format:
+2. Parse the JSON. For each of the nineteen checks in the report (`runtime`, `config`, `hooks`, `state`, `cost`,
+   `proposals`, `dependencies`, `permissions`, `docker-security`, `archive`, `reflect`, `scheduler`, `watchdog`,
+   `opus-wake`, `heartbeat`, `raw-size`, `credential-expiry`, `model-pricing-known`, `channel-liveness`), emit one line using this format:
    - `✓ <id> — <detail>` when `status: ok`
    - `⚠ <id> — <detail>` when `status: warn`
    - `✗ <id> — <detail>` when `status: fail`
 
-2.5. **Sandbox capability check** (fifteenth check, run after step 2):
+2.5. **Sandbox capability check** (twentieth check, run after step 2):
 
-   Architectural note: this check is computed by the skill orchestrator, not by `doctor-check.ts`. `state/doctor-report.json` therefore contains only the fourteen checks emitted in step 2; the sandbox line is appended to the rendered summary and to SHELL.md but is not present in the JSON report. Tools that consume `doctor-report.json` programmatically should call `scripts/sandbox-probe.ts` separately if they need the sandbox status.
+   Architectural note: this check is computed by the skill orchestrator, not by `doctor-check.ts`. `state/doctor-report.json` therefore contains only the nineteen checks emitted in step 2; the sandbox line is appended to the rendered summary and to SHELL.md but is not present in the JSON report. Tools that consume `doctor-report.json` programmatically should call `scripts/sandbox-probe.ts` separately if they need the sandbox status.
 
    Determine the sandbox enabled state: read `.claude/settings.json` and `.claude/settings.local.json`; the last file that explicitly declares `sandbox.enabled` wins (Claude Code's merge order). Treat non-bool values as undeclared.
 
@@ -44,22 +46,47 @@ summary. Safe to run at any time. Produces no side effects beyond writing
      - `warn`: emit `⚠ sandbox — enabled but: <message>`.
      - `fail`: emit `✗ sandbox — enabled but: <message>. Fix: <install_hint>`.
 
-   Add this as the fifteenth line to the summary.
+   Add this as the twentieth line to the summary.
 
 3. Append a summary section to `.claude-code-hermit/sessions/SHELL.md` under a new
-   `## Doctor Report (<ts>)` heading. Use the same fifteen lines from steps 2 and 2.5. Place it
+   `## Doctor Report (<ts>)` heading. Use the same twenty lines from steps 2 and 2.5. Place it
    above the `## Monitoring` section so it sits with session-level context, not
    with monitoring chatter.
 
-4. Return the fifteen lines to the caller. Cap total output at 30 lines.
+4. Return the twenty lines to the caller. Cap total output at 30 lines.
+
+5. **Escalation & dedup.** Build the failing set: every JSON check from step 2 with
+   `status: warn|fail`, plus the step-2.5 sandbox line when it rendered ⚠/✗ (id `sandbox`).
+
+   Read `.claude-code-hermit/state/alert-state.json` `alerts{}` and compute:
+   - `new_entries`: for each failing check whose `doctor:<id>` key is absent from `alerts{}` —
+     `{"doctor:<id>": {"first_seen": "<ISO now>", "status": "<warn|fail>", "detail": "<check detail>"}}`.
+   - `resolved_keys`: every existing `doctor:*` key in `alerts{}` whose check is now `ok` or no
+     longer present in the failing set.
+
+   Do not touch heartbeat-owned fields (`self_eval_updates`, `last_clean_eval_at`). If either
+   `new_entries` or `resolved_keys` is non-empty, persist via the same stdin API heartbeat uses:
+   ```bash
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/update-alert-state.ts .claude-code-hermit/state/alert-state.json <<'HERMIT_ALERT_JSON'
+   {"new_entries": {...}, "updated_entries": {}, "resolved_keys": [...]}
+   HERMIT_ALERT_JSON
+   ```
+
+   **Channel message — only when `new_entries` is non-empty.** Send one message covering all
+   newly-failing checks, in plain language with a named next action, no PROP-/S-NNN vocabulary,
+   no raw check ids. Example: "I can't reach Telegram — the bot token was rejected. Regenerate
+   it with @BotFather, then run /channel-setup." A check already alerted (its `doctor:<id>` key
+   still present) stays silent on subsequent runs until it resolves — resolving just deletes the
+   key, there is no "recovered" ping in v1.
 
 ## Silence policy
 
-- If every check is `ok`, return only: `All fifteen checks passed.` Do not notify via
-  channel (Tier 0). Still append to SHELL.md so the run is traceable.
-- If any check is `warn` or `fail`, return the full fifteen-line summary. Channel
-  notification follows the usual § Operator Notification policy in CLAUDE.md —
-  `fail` warrants a proactive ping; `warn` alone does not unless the operator asked.
+- If every check is `ok`, return only: `All twenty checks passed.` Do not notify via
+  channel (Tier 0). Still resolve any stale `doctor:*` alert-state keys (step 5) and still
+  append to SHELL.md so the run is traceable.
+- If any check is `warn` or `fail`, return the full twenty-line summary. Channel notification
+  is governed by step 5's escalation-and-dedup logic, not a blanket per-run ping: only newly
+  appearing findings message the channel, and only once until they resolve.
 
 ## What each check looks at
 
@@ -78,7 +105,12 @@ summary. Safe to run at any time. Produces no side effects beyond writing
 | `reflect` | Reads `state/reflection-state.json` counters. Flags an unproductive reflect loop. | `warn` if `total_runs ≥ 10` AND `empty_runs / total_runs > 0.80` AND `proposals_created == 0`. `ok` below 10 runs (insufficient sample) or when the loop produces output. |
 | `scheduler` | Reads `state/cc-stop-snapshot.json` (written by stop-pipeline.ts at each Stop). Reports armed cron count, background-task count, and snapshot age. | `ok` if snapshot present with counts and `captured_at`; `ok` (not yet captured) if snapshot absent (first run post-upgrade); `warn` if `session_crons` or `background_tasks` state is `unsupported_or_unreachable` (old CC build or registry unreachable — never reported as "0 crons"). |
 | `watchdog` | Reads `config.watchdog`, `state/watchdog-state.json` (`last_run` liveness + `consecutive_stale`), `state/runtime.json` (`runtime_mode`), and `state/watchdog-events.jsonl`. First checks liveness: the watchdog stamps `last_run` on every invocation before any gate, so a fresh stamp proves the scheduler/loop is firing. If stale (>20m) or missing, summarizes restarts/nudges/re-arms over the last 7 days otherwise. | `ok` when disabled, or firing and quiet (appends "last tick Nm ago"); `warn` if `last_run` is stale/missing — "enabled but not firing" with remediation keyed to `runtime_mode` (`tmux` → `bin/hermit-watchdog install`; `docker` → recreate the container; unknown → both hints) — or, when firing, if any restart in the last 7 days or a stale cycle is in progress. |
+| `opus-wake` | Scans `.claude/cost-log.jsonl` for the last 7 days for automated (heartbeat/routine) turns billed on Opus. | `warn` if any found — names the count and cost, since automated wakes are the usual source of tier-drift spend; `ok` otherwise. |
 | `heartbeat` | Reads `config.heartbeat`, `state/runtime.json`, `state/heartbeat-liveness.json`, and `state/heartbeat-monitor.runtime.json`. Verifies the monitor loop is actually running by checking the liveness timestamp written on every poll iteration. A tick older than the monitor's `started_at` is ignored (leftover from a prior session). | `ok` when disabled, no active session, the trusted tick is fresh, or the monitor is within a short startup grace (~2m); `fail` when a trusted tick is older than 3× the configured interval, or no trusted tick exists past the startup grace (Monitor subprocess spawn blocked). |
+| `raw-size` | Sums file sizes in `raw/` (plus `raw/.archive/`) and checks `runtime.json.last_raw_archive_at`. | `warn` if `raw/` exceeds 50 MB, or if raw files exist and the archive routine hasn't run in >14 days (or never); `ok` otherwise. |
+| `credential-expiry` | Reads `claudeAiOauth.expiresAt` from `$CLAUDE_CONFIG_DIR/.credentials.json` (fallback `~/.claude/.credentials.json`). | `ok` if the file is absent (API-key/keychain auth), the field is unrecognized, or expiry is >2h away; `warn` if expired (the ~8h re-login trap) or expiring within 2h, or if the file is unreadable. |
+| `model-pricing-known` | Compares `config.model`, each `routines[].model`, and `config.heartbeat.model` against the pricing table (`scripts/lib/pricing.ts`); also scans `.claude/cost-log.jsonl` for the last 7 days (inert today — cost-log model strings are pre-collapsed to `haiku\|sonnet\|opus` before logging, so this only activates once raw model ids persist). | `warn` naming every unpriced model and where it's configured — cost tracking silently falls back to sonnet pricing for unknowns; `ok` if every configured model is known. |
+| `channel-liveness` | For each enabled channel in `config.channels`, resolves its bot token from `<state_dir>/.env` and makes one token-authed liveness call (Telegram `getMe`, Discord `/users/@me`) with a 5s timeout. The only check that leaves the machine. | `ok` if reachable or no channels configured; `warn` if unreachable (timeout/network error) or no token configured; `fail` if the platform rejects the token (401/403 — bot token invalid or revoked). |
 | `sandbox` | Runs `scripts/sandbox-probe.ts` and cross-references with `sandbox.enabled` in settings files. | `fail` if sandbox enabled and deps (bwrap/socat) missing; `warn` if deps present but user-namespaces disabled; `ok` if disabled or fully operational. |
 
 No automatic fixes. Doctor reports; the operator acts.
@@ -88,5 +120,7 @@ No automatic fixes. Doctor reports; the operator acts.
 - The check logic lives in `scripts/doctor-check.ts` so it can be unit-tested without
   invoking the model.
 - Re-runs are cheap. No locking needed.
-- Doctor does not ping external APIs (Discord, Telegram, Anthropic). Everything is
-  local filesystem reads.
+- `channel-liveness` is the only check that leaves the machine: one token-authed liveness
+  call per already-configured, enabled channel, 5s timeout, fail-soft. Disabling a channel
+  disables its probe — there is no per-check opt-out in v1. Every other check is a local
+  filesystem read.
