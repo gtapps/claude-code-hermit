@@ -14,6 +14,7 @@ import { currentHHMM, todayYMD, parseDuration } from './lib/time';
 import { readAlertState, defaultAlertState, quarantineAlertState, writeAlertState } from './lib/alert-state';
 import { readFrontmatter } from './lib/frontmatter';
 import { isProposalScanItem } from './lib/heartbeat-items';
+import { isPaused } from './lib/pause';
 
 type Json = any;
 
@@ -25,6 +26,11 @@ function emit(verdict: string): never {
 const peek = process.argv[2] === '--peek';
 const stateDir = peek ? process.argv[3] : process.argv[2];
 if (!stateDir) emit('EVALUATE');
+
+// Earliest gate (PROP-015) — ahead of the pending-close drain below, so a
+// paused hermit also suppresses AUTO_CLOSE, not just the checklist. Read-only:
+// identical under --peek since it writes nothing.
+if (isPaused(stateDir).paused) emit('SKIP|paused');
 
 const readJSON = (p: string): Json => {
   try { return JSON.parse(fs.readFileSync(p, 'utf-8')); }

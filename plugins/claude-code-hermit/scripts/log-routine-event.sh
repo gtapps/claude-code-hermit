@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Append one event line to .claude-code-hermit/state/routine-metrics.jsonl
 # Usage: log-routine-event.sh <routine-id> <event>
-# Events: fired | skipped-waiting | started
+# Events: fired | skipped-waiting | skipped-paused | started
 set -euo pipefail
 
 id="$1"

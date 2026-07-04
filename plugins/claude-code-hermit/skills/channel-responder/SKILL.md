@@ -136,7 +136,12 @@ Before running any heavy sub-step — an archive traversal, a multi-file search,
   - Answer in the context of the current session
   - Reference specific files or decisions from SHELL.md when relevant
 
-- **Emergency** ("stop", "abort", "revert", "rollback")
+- **Pause / resume / snooze** (bare, exact-match "pause", "stop", "resume", or "snooze <duration>")
+  - These exact messages are intercepted by the `pause-keyword.ts` `UserPromptSubmit` hook (PROP-015) **before this skill ever runs** — `state/pause.json` is already set or cleared by the time you see the prompt. There is nothing left for you to do for the state change itself; if you want to acknowledge it, reply via the channel.
+  - A sentence that merely mentions "pause" or "stop" (not an exact match) is not intercepted — classify it under Emergency below instead.
+  - **Never attempt to resume yourself while paused.** The PreToolUse gate (`pause-gate.ts`) denies every tool call except the channel reply tool while paused — including a Bash call running `hermit-pause.ts off` — and returns the pause reason in the denial. Resume can only come from an exact "resume" message (the deterministic hook above) or the operator's own `.claude-code-hermit/bin/hermit-pause off`.
+
+- **Emergency** ("abort", "revert", "rollback", or a "stop" that is not a bare exact match — see Pause/resume/snooze above for the exact-match case)
   - Halt current work immediately
   - Set `runtime.json` `session_state` to `waiting` (`waiting_reason: "operator_input"`) and note the halt reason in SHELL.md `## Blockers`
   - Confirm the halt and ask for next steps

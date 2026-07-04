@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Pause/resume/snooze the hermit — the binding stop (PROP-015).
+# Run from project root: .claude-code-hermit/bin/hermit-pause on|off|snooze <dur>|status
+exec "$(dirname "$0")/hermit-run" hermit-pause "$@"

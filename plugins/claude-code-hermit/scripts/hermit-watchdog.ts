@@ -27,6 +27,7 @@ import { writeRuntimeJson, readRuntimeJson, STATE_DIR, LIFECYCLE_LOCK } from './
 import { tmuxSessionAlive, getSessionName as deriveSessionName } from './lib/tmux';
 import { costLogPath } from './lib/cc-compat';
 import { wallMinutes } from './cron-tz-shift';
+import { isPaused } from './lib/pause';
 
 type Json = any;
 
@@ -38,6 +39,7 @@ const ROUTINE_METRICS_JSONL = path.join(STATE_DIR, 'routine-metrics.jsonl');
 const LAST_OPERATOR_ACTION = path.join(STATE_DIR, 'last-operator-action.json');
 const CLEAR_REQUESTED_JSON = path.join(STATE_DIR, 'clear-requested.json');
 const COMPACT_REQUESTED_JSON = path.join(STATE_DIR, 'compact-requested.json');
+const HERMIT_ROOT = path.dirname(STATE_DIR); // '.claude-code-hermit' — isPaused() joins its own 'state/pause.json'
 
 // --- Utilities ---
 
@@ -268,6 +270,7 @@ function doRestart(sessionName: string, reason: string, runtime: Json): void {
 
 /** Send a heartbeat run nudge to a potentially wedged session. */
 function doNudge(sessionName: string, watchdogState: Json, consecutive: number, paneHash: string | null): void {
+  if (isPaused(HERMIT_ROOT).paused) return; // PROP-015 — no nudges while paused
   sendKeys(sessionName, '/claude-code-hermit:heartbeat run');
   watchdogState.consecutive_stale = consecutive;
   watchdogState.last_pane_hash = paneHash;
@@ -298,6 +301,7 @@ function doRearm(sessionName: string): void {
 function maybePostCloseClear(config: Json): void {
   if (config.post_close_clear !== true) return;
   if (!fs.existsSync(CLEAR_REQUESTED_JSON)) return;
+  if (isPaused(HERMIT_ROOT).paused) return; // PROP-015 — never clear while paused
 
   const runtime = readRuntimeJson();
   if (!runtime) return;
@@ -327,12 +331,14 @@ function maybePostCloseClear(config: Json): void {
 // --- Shared lifecycle/token guards (maybeContextClear + maybeContextCompact) ---
 
 /**
- * Common lifecycle gates for the two auto-compaction mechanisms: always-on only,
- * no in-flight transition, no watchdog-internal suspect state, no shutdown in
- * progress, a live tmux session, and operator silence ≥10 min. Returns the live
- * session name when every gate passes, or null when the caller should bail.
+ * Common lifecycle gates for the two auto-compaction mechanisms: not paused
+ * (PROP-015), always-on only, no in-flight transition, no watchdog-internal
+ * suspect state, no shutdown in progress, a live tmux session, and operator
+ * silence ≥10 min. Returns the live session name when every gate passes, or
+ * null when the caller should bail.
  */
 function passesLifecycleGuards(runtime: Json): string | null {
+  if (isPaused(HERMIT_ROOT).paused) return null; // PROP-015 — never auto-clear/compact while paused
   if (runtime.runtime_mode === 'interactive') return null; // interactive sessions must never be auto-managed
   if (runtime.transition) return null; // archiving/cleaning recovery is mid-flight — never interfere
   const sessionState: string = runtime.session_state ?? '';
@@ -558,6 +564,54 @@ function maybeContextCompact(config: Json): void {
   process.exit(0);
 }
 
+// --- Pause enforcement (PROP-015) ---
+
+/**
+ * Escape-to-pane while paused. The PreToolUse gate (pause-gate.ts) blocks the
+ * model's *next* tool call the instant state/pause.json is set, but the
+ * currently in-flight call (if any) runs to completion — tmux Escape kills it
+ * immediately (probe-verified: compiled/spike-channel-stop-probe-2026-07-03.md).
+ * Runs independent of watchdog.enabled, like 0a-0c — pause must interrupt
+ * whether or not wedge-detection/nudging is turned on.
+ *
+ * Deliberately does NOT reuse passesLifecycleGuards()'s operator-recency
+ * backoff: pause is an explicit override that must act immediately, not defer
+ * because the operator/sender was just active — recency is exactly what a
+ * "stop" is responding to.
+ *
+ * One-shot per pause episode: setPause() stamps a fresh `ts` on every call, so
+ * comparing against the last-escaped ts (persisted in watchdog-state.json)
+ * sends Escape once per pause, not every tick — repeat Escapes would also
+ * interrupt the reply the paused hermit is still allowed to send.
+ */
+function maybeEscapePausedSession(): void {
+  const status = isPaused(HERMIT_ROOT);
+  if (!status.paused) return;
+
+  const runtime = readRuntimeJson();
+  if (!runtime) return;
+  if (runtime.runtime_mode === 'interactive') return; // never auto-manage an attended session
+  if (runtime.transition) return; // archiving/cleaning recovery mid-flight
+  if (runtime.shutdown_requested_at || runtime.shutdown_completed_at) return;
+  if (runtime.session_state !== 'in_progress') return; // nothing plausibly in flight
+
+  const sessionName: string = runtime.tmux_session ?? '';
+  if (!sessionName || !tmuxSessionAlive(sessionName)) return;
+
+  const watchdogState = readWatchdogState();
+  // Dedup per pause episode by the flag's `ts`. Fall back to a fixed sentinel
+  // for a ts-less flag (hand-crafted/partial write) so the guard still fires
+  // exactly once — a bare `status.ts` comparison would read undefined === undefined
+  // as "already escaped" on the first tick and skip the interrupt entirely.
+  const episodeKey = status.ts ?? 'no-ts';
+  if (watchdogState.last_escaped_pause_ts === episodeKey) return; // already escaped this episode
+
+  spawnSync('tmux', ['send-keys', '-t', sessionName, 'Escape'], { stdio: 'ignore' });
+  watchdogState.last_escaped_pause_ts = episodeKey;
+  writeWatchdogState(watchdogState);
+  appendEvent('pause-enforced', status.reason ?? 'operator');
+}
+
 // --- Main decision loop ---
 
 function main(): void {
@@ -577,6 +631,11 @@ function main(): void {
   const liveness = readWatchdogState();
   liveness.last_run = utcStamp();
   writeWatchdogState(liveness);
+
+  // Pause enforcement (PROP-015) — independent of watchdog.enabled; see
+  // maybeEscapePausedSession for why this doesn't wait for the later
+  // config/runtime gates below.
+  maybeEscapePausedSession();
 
   // 0a. Post-close clear — independent of watchdog.enabled; runs on any hermit with a scheduler
   maybePostCloseClear(config);
@@ -613,6 +672,10 @@ function main(): void {
   const sessionState = runtime.session_state ?? '';
 
   // 3. Dead-session detection
+  // Deliberately NOT gated on isPaused() (PROP-015): the channel MCP plugin
+  // lives inside the session, so a dead+paused session can't hear "resume" —
+  // restart must stay live. The PreToolUse gate (pause-gate.ts) keeps the
+  // restarted session inert until resumed.
   if (['in_progress', 'waiting', 'suspect_process'].includes(sessionState)) {
     if (!tmuxSessionAlive(sessionName)) {
       doRestart(sessionName, 'dead-process', runtime);

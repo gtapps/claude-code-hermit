@@ -1173,6 +1173,49 @@ describe('heartbeat-precheck', () => {
   });
 });
 
+// heartbeat-precheck — pause gate (PROP-015)
+// ----------------------------------------------------------
+describe('heartbeat-precheck (PROP-015 pause gate)', () => {
+  test('heartbeat-precheck (SKIP: paused, indefinite)', withDir(async (dir) => {
+    seedHeartbeat(dir, { checklist: DEFAULT_CHECKLIST });
+    write(hermit(dir, 'state', 'pause.json'),
+      '{"paused":true,"paused_until":null,"reason":"operator","by":"test","ts":"2026-01-01T00:00:00.000Z"}');
+    expect(await precheckOut(dir)).toBe('SKIP|paused');
+  }));
+
+  // Precedence over pending-close: even a queued AUTO_CLOSE must not fire while paused.
+  test('heartbeat-precheck (SKIP: paused takes precedence over pending AUTO_CLOSE)', withDir(async (dir) => {
+    seedHeartbeat(dir, {
+      checklist: DEFAULT_CHECKLIST,
+      runtime: '{"session_state":"in_progress"}',
+    });
+    write(hermit(dir, 'state', 'pause.json'),
+      '{"paused":true,"paused_until":null,"reason":"operator","by":"test","ts":"2026-01-01T00:00:00.000Z"}');
+    write(hermit(dir, 'state', 'pending-close.json'), '{"queued_at":"2026-01-01T00:00:00.000Z"}');
+    write(hermit(dir, 'state', 'last-operator-action.json'), '{"at":"2020-01-01T00:00:00.000Z"}');
+    expect(await precheckOut(dir)).toBe('SKIP|paused');
+  }));
+
+  test('heartbeat-precheck (SKIP: paused, --peek mode identical)', withDir(async (dir) => {
+    seedHeartbeat(dir, { checklist: DEFAULT_CHECKLIST });
+    write(hermit(dir, 'state', 'pause.json'),
+      '{"paused":true,"paused_until":null,"reason":"operator","by":"test","ts":"2026-01-01T00:00:00.000Z"}');
+    expect(await precheckOut(dir, true)).toBe('SKIP|paused');
+  }));
+
+  test('heartbeat-precheck (EVALUATE: expired snooze reads as unpaused)', withDir(async (dir) => {
+    seedHeartbeat(dir, { checklist: DEFAULT_CHECKLIST });
+    write(hermit(dir, 'state', 'pause.json'),
+      '{"paused":true,"paused_until":"2000-01-01T00:00:00.000Z","reason":"operator","by":"test","ts":"2000-01-01T00:00:00.000Z"}');
+    expect(await precheckOut(dir)).toBe('EVALUATE');
+  }));
+
+  test('heartbeat-precheck (EVALUATE: no pause.json — normal flow unaffected)', withDir(async (dir) => {
+    seedHeartbeat(dir, { checklist: DEFAULT_CHECKLIST });
+    expect(await precheckOut(dir)).toBe('EVALUATE');
+  }));
+});
+
 // heartbeat-precheck — clean-recheck damper
 // ----------------------------------------------------------
 function seedDamper(dir: string, opts: {

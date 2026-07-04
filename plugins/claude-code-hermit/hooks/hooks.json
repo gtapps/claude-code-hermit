@@ -2,6 +2,18 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/pause-gate.ts"],
+            "timeout": 3
+          }
+        ],
+        "description": "Deny every tool call while state/pause.json is set (PROP-015), except a channel reply tool and PushNotification"
+      },
+      {
         "matcher": "Bash|Edit|Write",
         "hooks": [
           {
@@ -111,6 +123,18 @@
           }
         ],
         "description": "Record last operator-action timestamp; skips routine/loop/channel prompts"
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/pause-keyword.ts"],
+            "timeout": 3
+          }
+        ],
+        "description": "Deterministic pause/resume/snooze keyword writer (PROP-015) — writes state/pause.json before any model turn, gated by the channel's allowed_users"
       }
     ],
     "SessionStart": [

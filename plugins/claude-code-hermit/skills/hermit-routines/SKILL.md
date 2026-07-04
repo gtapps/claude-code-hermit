@@ -49,9 +49,19 @@ dispatch the skill via the Agent tool: subagent_type "general-purpose", model "<
 
 The Agent runs in isolated context (no live session conversation, but full filesystem access) and returns only a one-line status to the session. The waiting-check, `log-routine-event.sh` call, and any `heartbeat-restart`/`reflect_after` appends stay in the session turn and run at the session model.
 
+Both templates below consult the binding pause flag (PROP-015) before firing —
+`bun <pluginRoot>/scripts/hermit-pause.ts status --quiet` prints exactly
+`PAUSED` or `OK` (same deterministic-token convention as `reflect-precheck.ts`'s
+`EMPTY`/`RUN`). Registration itself stays unconditional — a registration-skip
+would leave routines dead after resume until the next daily re-arm.
+
 **rdw=true** — routine fires even when `session_state` is `waiting`:
 ```
 [hermit-routine:<id>] First run:
+bun <pluginRoot>/scripts/hermit-pause.ts status --quiet
+If the output is PAUSED, run:
+<pluginRoot>/scripts/log-routine-event.sh <id> skipped-paused
+and stop. Otherwise: run:
 <pluginRoot>/scripts/log-routine-event.sh <id> started
 Then Invoke /<skill>. After it completes, run:
 <pluginRoot>/scripts/log-routine-event.sh <id> fired
@@ -61,6 +71,10 @@ Then Invoke /<skill>. After it completes, run:
 ```
 [hermit-routine:<id>] Read .claude-code-hermit/state/runtime.json. If session_state is "waiting", run:
 <pluginRoot>/scripts/log-routine-event.sh <id> skipped-waiting
+and stop. Otherwise: run:
+bun <pluginRoot>/scripts/hermit-pause.ts status --quiet
+If the output is PAUSED, run:
+<pluginRoot>/scripts/log-routine-event.sh <id> skipped-paused
 and stop. Otherwise: first run:
 <pluginRoot>/scripts/log-routine-event.sh <id> started
 Then invoke /<skill>. After it completes, run:

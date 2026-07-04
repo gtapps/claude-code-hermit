@@ -1160,6 +1160,165 @@ test('context_compact: fresh boundary marker survives the two-tick quiescence wa
     expect(fs.existsSync(state(h, 'compact-requested.json'))).toBe(false); // consumed on fire
   }));
 
+// -------------------------------------------------------
+// pause enforcement tests (PROP-015)
+// -------------------------------------------------------
+
+function writePauseFlag(h: Hermit, opts: { until?: string | null; ts?: string } = {}): void {
+  fs.writeFileSync(state(h, 'pause.json'), JSON.stringify({
+    paused: true,
+    paused_until: opts.until ?? null,
+    reason: 'operator',
+    by: 'test',
+    ts: opts.ts ?? '2026-01-01T00:00:00.000Z',
+  }) + '\n');
+}
+
+describe('pause enforcement', () => {
+  test('dead session still restarts while paused (channel plugin lives inside the session)',
+    withHermit(async (h) => {
+      writeConfig(h);
+      writeFakeTmux(h, 1); // dead
+      writeFakePgrep(h, 1);
+      writePauseFlag(h);
+      const r = await watchdog(h, 'run');
+      expect(r.exitCode).toBe(0);
+      expect(fs.readFileSync(eventsFile(h), 'utf-8')).toContain('restart');
+    }));
+
+  test('nudge suppressed while paused (Escape enforcement supersedes it on the same tick)',
+    withHermit(async (h) => {
+      writeConfig(h);
+      touchAgo(state(h, '.heartbeat'), 6 * 3600);
+      writeFakeTmux(h, 0, 'some pane content');
+      writeFakePgrep(h, 1);
+      writePauseFlag(h);
+      const r = await watchdog(h, 'run');
+      expect(r.exitCode).toBe(0);
+      const events = fs.readFileSync(eventsFile(h), 'utf-8');
+      expect(events).not.toContain('nudge');
+      expect(events).toContain('pause-enforced');
+      const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+      expect(tmuxLog).not.toContain('heartbeat run');
+    }));
+
+  test('context_clear suppressed while paused (shared passesLifecycleGuards gate)',
+    withHermit(async (h) => {
+      writeContextClearConfig(h);
+      writeAlwaysOnRuntime(h, 'idle');
+      writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 800000 }]);
+      fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+      writeFakeTmux(h, 0, 'static pane content');
+      writeFakePgrep(h, 1);
+      writePauseFlag(h);
+      await watchdog(h, 'run'); // tick 1
+      const r2 = await watchdog(h, 'run'); // tick 2 — would normally fire /clear
+      expect(r2.exitCode).toBe(0);
+      expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+    }));
+
+  test('post_close_clear suppressed while paused, marker kept', withHermit(async (h) => {
+    writePostCloseClearConfig(h);
+    patchRuntime(h, { session_state: 'idle' });
+    writeClearMarker(h);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(0.5) }) + '\n');
+    writeFakeTmux(h, 0, 'tmux pane content');
+    writeFakePgrep(h, 1);
+    writePauseFlag(h);
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+    expect(fs.existsSync(state(h, 'clear-requested.json'))).toBe(true);
+  }));
+
+  test('Escape sent once when paused mid-turn (session in_progress, live tmux)', withHermit(async (h) => {
+    writeConfig(h);
+    writeFakeTmux(h, 0, 'busy pane');
+    writeFakePgrep(h, 1);
+    writePauseFlag(h, { ts: '2026-02-02T00:00:00.000Z' });
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog).toContain('Escape');
+    expect(readJson(state(h, 'watchdog-state.json')).last_escaped_pause_ts).toBe('2026-02-02T00:00:00.000Z');
+    expect(fs.readFileSync(eventsFile(h), 'utf-8')).toContain('pause-enforced');
+  }));
+
+  test('Escape still fires exactly once for a ts-less flag (sentinel dedup)', withHermit(async (h) => {
+    writeConfig(h);
+    writeFakeTmux(h, 0, 'busy pane');
+    writeFakePgrep(h, 1);
+    // Hand-crafted/partial flag with no `ts` — a bare `=== status.ts` compare
+    // would read undefined === undefined and skip the interrupt entirely.
+    fs.writeFileSync(state(h, 'pause.json'),
+      JSON.stringify({ paused: true, paused_until: null, reason: 'operator', by: 'test' }) + '\n');
+    await watchdog(h, 'run');
+    await watchdog(h, 'run');
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    const escapeCount = tmuxLog.split('\n').filter(l => l.includes('Escape')).length;
+    expect(escapeCount).toBe(1);
+    expect(readJson(state(h, 'watchdog-state.json')).last_escaped_pause_ts).toBe('no-ts');
+  }));
+
+  test('Escape not repeated on a second tick (same pause episode)', withHermit(async (h) => {
+    writeConfig(h);
+    writeFakeTmux(h, 0, 'busy pane');
+    writeFakePgrep(h, 1);
+    writePauseFlag(h, { ts: '2026-02-02T00:00:00.000Z' });
+    await watchdog(h, 'run');
+    await watchdog(h, 'run');
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    const escapeCount = tmuxLog.split('\n').filter(l => l.includes('Escape')).length;
+    expect(escapeCount).toBe(1);
+  }));
+
+  test('Escape sent again for a new pause episode (fresh ts) after a resume', withHermit(async (h) => {
+    writeConfig(h);
+    writeFakeTmux(h, 0, 'busy pane');
+    writeFakePgrep(h, 1);
+    writePauseFlag(h, { ts: '2026-02-02T00:00:00.000Z' });
+    await watchdog(h, 'run');
+    fs.rmSync(state(h, 'pause.json')); // resume
+    writePauseFlag(h, { ts: '2026-03-03T00:00:00.000Z' }); // new episode
+    await watchdog(h, 'run');
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    const escapeCount = tmuxLog.split('\n').filter(l => l.includes('Escape')).length;
+    expect(escapeCount).toBe(2);
+  }));
+
+  test('Escape not sent when session is idle (nothing plausibly in flight)', withHermit(async (h) => {
+    writeConfig(h);
+    patchRuntime(h, { session_state: 'idle' });
+    writeFakeTmux(h, 0, 'idle pane');
+    writeFakePgrep(h, 1);
+    writePauseFlag(h);
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+  }));
+
+  test('Escape not sent for an interactive session (never auto-managed)', withHermit(async (h) => {
+    writeConfig(h);
+    patchRuntime(h, { runtime_mode: 'interactive' });
+    writeFakeTmux(h, 0, 'interactive pane');
+    writeFakePgrep(h, 1);
+    writePauseFlag(h);
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+  }));
+
+  test('no pause.json — normal nudge flow unaffected', withHermit(async (h) => {
+    writeConfig(h);
+    touchAgo(state(h, '.heartbeat'), 6 * 3600);
+    writeFakeTmux(h, 0, 'some pane content');
+    writeFakePgrep(h, 1);
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.readFileSync(eventsFile(h), 'utf-8')).toContain('nudge');
+  }));
+});
+
 describe('isNearDailyAutoClose (midnight-adjacency, unit)', () => {
   const REF_2359 = new Date('2026-06-11T23:59:00Z'); // 1 min before UTC midnight
   const REF_NOON = new Date('2026-06-11T12:00:00Z');

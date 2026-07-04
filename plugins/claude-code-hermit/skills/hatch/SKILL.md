@@ -904,7 +904,7 @@ Created:
   .claude-code-hermit/templates/ (3 templates)
   .claude-code-hermit/OPERATOR.md (onboarded)
   .claude-code-hermit/HEARTBEAT.md
-  .claude-code-hermit/bin/ (hermit-attach, hermit-docker, hermit-run, hermit-start, hermit-status, hermit-stop, hermit-update, hermit-watchdog)
+  .claude-code-hermit/bin/ (hermit-attach, hermit-docker, hermit-pause, hermit-run, hermit-start, hermit-status, hermit-stop, hermit-update, hermit-watchdog)
   .claude-code-hermit/config.json
 
 Identity:
