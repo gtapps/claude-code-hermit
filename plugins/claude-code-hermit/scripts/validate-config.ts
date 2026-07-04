@@ -28,6 +28,7 @@ const VALID_ESCALATION = ['conservative', 'balanced', 'autonomous'];
 const VALID_QUALITY_GATE_TIER = ['budget', 'balanced', 'quality'];
 const VALID_ROUTINE_MODEL = ['opus', 'sonnet', 'haiku'];
 const VALID_IDLE_BEHAVIOR = ['wait', 'discover'];
+const VALID_BUDGET_ACTION = ['alert', 'pause'];
 const TIME_RE = /^\d{2}:\d{2}$/;
 
 // --- Cron validation (5-field: minute hour dom month dow) ---
@@ -242,6 +243,20 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
       if (typeof wd.context_clear_tokens !== 'number' || wd.context_clear_tokens < 0) {
         warnings.push('watchdog.context_clear_tokens: should be a non-negative number or null (0 or null disables)');
       }
+    }
+  }
+
+  if (config.budget && typeof config.budget === 'object') {
+    const b = config.budget;
+    for (const capKey of ['daily_usd', 'weekly_usd', 'monthly_usd']) {
+      if (b[capKey] !== undefined && b[capKey] !== null) {
+        if (typeof b[capKey] !== 'number' || b[capKey] <= 0) {
+          errors.push(`budget.${capKey}: must be a positive number or null (null disables that cap)`);
+        }
+      }
+    }
+    if (b.action !== undefined && !VALID_BUDGET_ACTION.includes(b.action)) {
+      errors.push(`budget.action: "${b.action}" not in [${VALID_BUDGET_ACTION.join(', ')}]`);
     }
   }
 

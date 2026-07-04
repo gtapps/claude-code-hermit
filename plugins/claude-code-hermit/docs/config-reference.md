@@ -132,6 +132,34 @@ Modify with `/hermit-settings watchdog`.
 
 ---
 
+## `budget`
+
+Optional daily/weekly/monthly USD spend caps with an enforcement action, checked at every Stop against `state/cost-index.json`. Ships inert (all caps `null`) — set at least one cap to activate. Windows are independent: set any subset. Boundaries are computed in `config.timezone` — a `daily_usd` cap resets at local midnight, `weekly_usd` at the next Monday, `monthly_usd` on the 1st.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `daily_usd` | number \| null | `null` | Daily spend cap in USD. `null` disables the daily window. |
+| `weekly_usd` | number \| null | `null` | Weekly (ISO Mon–Sun) spend cap in USD — mirrors Claude Code's own weekly usage-reset cadence, useful when the hermit runs on a Max/subscription plan. `null` disables the weekly window. |
+| `monthly_usd` | number \| null | `null` | Monthly spend cap in USD — aligns with a billing cycle, useful on an API-key client box where `estimated_cost_usd` is real money. `null` disables the monthly window. |
+| `action` | string | `"alert"` | `"alert"`: at 100% of any cap, write a deduped breach alert — no functional change, the operator is notified. `"pause"`: also set the PROP-015 pause flag (`reason: "budget"`), which blocks every tool except a channel reply and `PushNotification` until the breached window's boundary passes (auto-resume — no operator action needed to un-stick it). |
+
+At **80%** of any cap, a one-time warning alert is queued (separate from the 100% breach alert — both can fire independently for the same window). Alerts are deduped per period-instance (`budget-<warn\|breach>:<daily\|weekly\|monthly>:<period-key>`), so each window/level pair notifies exactly once. When several windows breach at once under `action: "pause"`, the pause resumes at the **longest** breached window's boundary (monthly > weekly > daily) — a monthly breach must not resume at tonight's midnight only to re-trip the monthly cap moments later.
+
+Under OAuth/subscription auth, `estimated_cost_usd` (and therefore this cap) is notional — Claude Code isn't billing per-token — but the cap still bounds a runaway loop (a misfiring routine gets stopped regardless of what the dollar figure means). On an API-key client box the figure is real money; pair `monthly_usd` with a provider-side hard limit for true belt-and-suspenders coverage — this cap is a fast, in-hermit backstop, not a replacement for one.
+
+```json
+"budget": {
+  "daily_usd": 5.0,
+  "weekly_usd": 25.0,
+  "monthly_usd": 100.0,
+  "action": "alert"
+}
+```
+
+Modify with `/hermit-settings`. Validated by `validate-config.ts`.
+
+---
+
 ## `context_hygiene`
 
 Three context-reset mechanisms, three timings — none of them overlap:
@@ -397,6 +425,12 @@ A realistic `config.json` for an always-on Docker hermit with Discord:
   },
   "quality_gate": {
     "tier": "budget"
+  },
+  "budget": {
+    "daily_usd": 5.0,
+    "weekly_usd": 25.0,
+    "monthly_usd": 100.0,
+    "action": "alert"
   }
 }
 ```

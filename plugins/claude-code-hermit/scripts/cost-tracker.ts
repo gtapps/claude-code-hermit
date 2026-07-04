@@ -12,7 +12,11 @@ import { calculateCost } from './lib/pricing';
 import { readTasks, taskProgress } from './lib/tasks';
 import { kStr, formatTokens } from './lib/format';
 import { sessionId as ccSessionId, transcriptPath as ccTranscriptPath, entryText, isToolResult, extractUsage, costLogPath, hermitDir } from './lib/cc-compat';
-import { costIndexPath, updateCostIndex, readCostIndex, scanAutomatedOpus } from './lib/cost-log';
+import { costIndexPath, updateCostIndex, readCostIndex, scanAutomatedOpus, scanUnpricedModels } from './lib/cost-log';
+import { todayYMD, thisWeekKey, thisMonthYYYYMM } from './lib/time';
+import { readAlertState, defaultAlertState, quarantineAlertState, writeAlertState } from './lib/alert-state';
+import { setPause } from './lib/pause';
+import { evaluateBudget, pauseBoundary } from './lib/budget';
 
 type Json = any;
 
@@ -27,6 +31,8 @@ const RUNTIME_JSON = path.join(HERMIT_DIR, 'state', 'runtime.json');
 const HEARTBEAT_FILE = path.join(HERMIT_DIR, 'state', '.heartbeat');
 const COST_SUMMARY = path.join(HERMIT_DIR, 'cost-summary.md');
 const TASK_SNAPSHOT = path.join(HERMIT_DIR, 'tasks-snapshot.md');
+const CONFIG_JSON = path.join(HERMIT_DIR, 'config.json');
+const ALERT_STATE_JSON = path.join(HERMIT_DIR, 'state', 'alert-state.json');
 
 let _runtimeCache: Json;
 function readRuntimeJsonCached(): Json {
@@ -335,13 +341,13 @@ function writeTaskSnapshot(tasks: Json[], progress: { done: number; total: numbe
   try { fs.writeFileSync(TASK_SNAPSHOT, content, 'utf-8'); } catch {}
 }
 
-function writeCostSummary(index: Json): void {
+function writeCostSummary(index: Json, timezone: string = 'UTC'): void {
   if (!index) return;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayYMD(timezone);
   try {
     const stat = fs.statSync(COST_SUMMARY);
-    if (stat.mtime.toISOString().slice(0, 10) === today) {
+    if (todayYMD(timezone, stat.mtime) === today) {
       const existing = fs.readFileSync(COST_SUMMARY, 'utf-8');
       if (/^total_tokens:/m.test(existing)) return;
     }
@@ -351,7 +357,7 @@ function writeCostSummary(index: Json): void {
 
   if (index.total_tokens === 0 && index.total_cost_usd === 0) return;
 
-  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  const weekAgo = todayYMD(timezone, new Date(Date.now() - 7 * 86400000));
   const byDate: Record<string, Json> = index.by_date || {};
 
   const totalCost = index.total_cost_usd || 0;
@@ -378,14 +384,19 @@ function writeCostSummary(index: Json): void {
   const weekSessionCount = weekSessionIds.size;
   const weekAvg = weekSessionCount > 0 ? weekCost / weekSessionCount : 0;
 
-  const opusWake = scanAutomatedOpus(COST_LOG, weekAgo);
+  const opusWake = scanAutomatedOpus(COST_LOG, weekAgo, timezone);
   const opusWakeLine = opusWake.count > 0
     ? `\n- ⚠ ${opusWake.count} automated wake(s) on Opus this week ($${opusWake.cost.toFixed(2)}) — consider a lower session model`
     : '';
 
+  const unpriced = scanUnpricedModels(COST_LOG, weekAgo, timezone);
+  const unpricedLine = unpriced.count > 0
+    ? `\n- ⚠ ${unpriced.count} turn(s) this week priced at the sonnet fallback for an unrecognized model string ($${unpriced.cost.toFixed(2)}) — pricing.ts may need a new model entry`
+    : '';
+
   let trendTable = '| Date | Sessions | Cost | Tokens |\n|------|----------|------|--------|\n';
   for (let i = 0; i < 7; i++) {
-    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    const d = todayYMD(timezone, new Date(Date.now() - i * 86400000));
     const entry = byDate[d] || { cost: 0, tokens: 0, session_ids: [] };
     const dCost = entry.cost || 0;
     const dTok = entry.tokens || 0;
@@ -414,7 +425,7 @@ avg_session_tokens: ${Math.round(avgSessionTokens)}
 - Sessions: ${weekSessionCount}
 - Cost: $${weekCost.toFixed(2)}
 - Tokens: ${kStr(weekTokens)}
-- Avg per session: $${weekAvg.toFixed(2)}${opusWakeLine}
+- Avg per session: $${weekAvg.toFixed(2)}${opusWakeLine}${unpricedLine}
 
 ## All Time
 - Sessions: ${totalSessions}
@@ -445,6 +456,74 @@ function updateShellSession(content: string, costStr: string, tokenStr: string):
   }
 
   return content;
+}
+
+// PROP-016 budget enforcement: compare this turn's freshly-updated index against
+// config.budget's caps and, on a breach/warn, write a deduped alert-state entry
+// (one per period per level — `budget-<level>:<period>:<period-key>`, create-only so
+// a re-detected breach later the same period never resets `notified` back to false)
+// and, for `action:"pause"`, set the PROP-015 pause flag with an auto-resume boundary.
+// Fail-open throughout — never throws, since run()'s caller must never be blocked by
+// this check.
+function applyBudgetCheck(costIdx: Json, timezone: string, budgetConfig: Json): void {
+  try {
+    if (!budgetConfig || typeof budgetConfig !== 'object') return;
+    const caps = {
+      daily_usd: typeof budgetConfig.daily_usd === 'number' ? budgetConfig.daily_usd : null,
+      weekly_usd: typeof budgetConfig.weekly_usd === 'number' ? budgetConfig.weekly_usd : null,
+      monthly_usd: typeof budgetConfig.monthly_usd === 'number' ? budgetConfig.monthly_usd : null,
+    };
+    if (caps.daily_usd === null && caps.weekly_usd === null && caps.monthly_usd === null) return; // inert
+    const action: 'alert' | 'pause' = budgetConfig.action === 'pause' ? 'pause' : 'alert';
+
+    const periodKey = { daily: todayYMD(timezone), weekly: thisWeekKey(timezone), monthly: thisMonthYYYYMM(timezone) };
+    const result = evaluateBudget({
+      dailySpend: costIdx?.by_date?.[periodKey.daily]?.cost || 0,
+      weeklySpend: costIdx?.by_week?.[periodKey.weekly]?.cost || 0,
+      monthlySpend: costIdx?.by_month?.[periodKey.monthly]?.cost || 0,
+      caps,
+      action,
+    });
+    if (result.level === 'none') return;
+
+    // Read-modify-write alert-state.json. Only ever touches alerts{} budget-* keys —
+    // never total_ticks/self_eval/last_digest_date (owned by precheck / the heartbeat
+    // skill respectively), so this can't collide with either writer.
+    const r = readAlertState(ALERT_STATE_JSON);
+    let state: Json;
+    if (r.kind === 'ok') state = r.value;
+    else if (r.kind === 'missing') state = defaultAlertState();
+    else if (r.kind === 'corrupt') { quarantineAlertState(ALERT_STATE_JSON, Date.now()); state = defaultAlertState(); }
+    else return; // ioerror — never clobber a healthy-but-transiently-unreadable file
+
+    const alerts: Json = { ...(state.alerts && typeof state.alerts === 'object' ? state.alerts : {}) };
+    let wrote = false;
+    for (const p of result.periods) {
+      const key = `budget-${p.level}:${p.period}:${periodKey[p.period]}`;
+      if (alerts[key]) continue; // dedup: one entry per period+level, create-only
+      alerts[key] = {
+        kind: 'budget',
+        level: p.level,
+        period: p.period,
+        action: result.action,
+        spend: Math.round(p.spend * 10000) / 10000,
+        cap: p.cap,
+        ratio: Math.round(p.ratio * 100) / 100,
+        notified: false,
+        ts: new Date().toISOString(),
+      };
+      wrote = true;
+    }
+    if (wrote) writeAlertState(ALERT_STATE_JSON, { ...state, alerts });
+
+    if (result.action === 'pause' && result.level === 'breach') {
+      const breachedPeriods = result.periods.filter(p => p.level === 'breach').map(p => p.period);
+      const until = pauseBoundary(breachedPeriods, timezone);
+      setPause(HERMIT_DIR, { reason: 'budget', by: 'cost-tracker', until });
+    }
+  } catch (err: any) {
+    console.error(`[cost-tracker] budget check error: ${err.message}`);
+  }
 }
 
 // Exported run() function for use by stop-pipeline.ts.
@@ -478,6 +557,17 @@ async function run(data: Json): Promise<string | null> {
     // Read session_id from runtime.json once per turn (used for log entry + writeStatusJson)
     const runtimeSessionId = readRuntimeSessionId();
 
+    // Read config once per turn — timezone drives by_date/by_week/by_month bucketing and
+    // budget-window boundaries (PROP-016); budgetConfig drives the breach check below.
+    let config: Json = {};
+    try { config = JSON.parse(fs.readFileSync(CONFIG_JSON, 'utf-8')); } catch {}
+    const timezone = typeof config.timezone === 'string' && config.timezone ? config.timezone : 'UTC';
+
+    // Unknown model string → still priced at sonnet rates (refusing would zero the log),
+    // but flagged so the drift is auditable instead of a silent mis-bill. A falsy/absent
+    // rawModel is a different, unflagged case (no model info at all, not an unrecognized one).
+    const modelUnpriced = !!rawModel && !/haiku|opus|sonnet/i.test(rawModel);
+
     // Log to JSONL
     const logEntry = {
       timestamp: new Date().toISOString(),
@@ -492,6 +582,7 @@ async function run(data: Json): Promise<string | null> {
       api_calls: apiCalls,
       context_usage: data.context_usage ?? data.contextUsage ?? null,
       estimated_cost_usd: roundedCost,
+      model_unpriced: modelUnpriced,
     };
 
     fs.appendFileSync(COST_LOG, JSON.stringify(logEntry) + '\n', 'utf-8');
@@ -530,7 +621,10 @@ async function run(data: Json): Promise<string | null> {
 
     // Update incremental index — O(1) in the common case; O(n) only on first run or log truncation.
     // Must happen before getCumulativeCost so the index fallback sees this turn's lines.
-    const costIdx = updateCostIndex(COST_LOG, COST_INDEX);
+    const costIdx = updateCostIndex(COST_LOG, COST_INDEX, timezone);
+
+    // PROP-016: compare the freshly-updated index against config.budget's caps.
+    applyBudgetCheck(costIdx, timezone, config.budget);
 
     // Running total from .status.json (O(1)), falls back to index (O(1)) on first run.
     // Include subagent spend so .status.json stays consistent with the index.
@@ -545,7 +639,7 @@ async function run(data: Json): Promise<string | null> {
       // Non-fatal — session file may not exist yet
     }
 
-    writeCostSummary(costIdx);
+    writeCostSummary(costIdx, timezone);
 
     // Return brief summary (pipeline writes this to stderr)
     return `[cost-tracker] ${model}: ${kStr(totalTokens)} tokens (${kStr(cacheReadTokens)} cached), $${cost.toFixed(4)} (cumulative: ${costStr})`;
