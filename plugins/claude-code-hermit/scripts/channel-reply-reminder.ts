@@ -11,11 +11,10 @@ process.stdout.on('error', () => {});
 // secondary to the reminder: it runs after the reminder is written, in its
 // own try/catch, and a logging failure never affects the reminder.
 
-import fs from 'node:fs';
-import path from 'node:path';
 import { safeForLLM } from './lib/sanitize';
 import { hermitDir } from './lib/cc-compat';
 import { logMessage, isLoggingEnabled } from './lib/channel-log';
+import { loadConfig, isAllowedSender } from './lib/channel-auth';
 
 type Json = any;
 
@@ -30,27 +29,6 @@ const REPLY_TOOLS: Record<string, string> = {
 
 const MAX_SOURCE_LEN = 32;
 const MAX_CHAT_ID_LEN = 128;
-
-function loadConfig(dir: string): Json | null {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Mirrors channel-responder/SKILL.md 1c: absent allowed_users → accept all
- * (backwards compatible); [] → lockdown; otherwise the sender's user id must
- * be present in the list. Unlike the skill's runtime check, this hook can't
- * respond to the operator on failure — it can only choose not to log.
- */
-function isAllowedSender(config: Json, source: string, userId: string | null): boolean {
-  const allowedUsers = config?.channels?.[source]?.allowed_users;
-  if (!Array.isArray(allowedUsers)) return true; // absent/malformed -> accept all
-  if (userId === null) return false; // can't verify identity against a configured allowlist
-  return allowedUsers.includes(userId);
-}
 
 function main(raw: string): void {
   let payload: Json;

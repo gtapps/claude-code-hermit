@@ -12,37 +12,20 @@ process.stdout.on('error', () => {});
 // interrupt is the watchdog's Escape-to-pane (scripts/hermit-watchdog.ts).
 //
 // Gated by the same allowed_users allowlist as channel-reply-reminder.ts
-// (isAllowedSender below mirrors that file's logic, and channel-responder/
-// SKILL.md 1c) — an unauthorized sender's message is a silent no-op: no state
-// change, no stdout, so the mechanism can't be probed by an unauthorized
-// prompt.
+// (lib/channel-auth.ts's isAllowedSender, shared by both; also see
+// channel-responder/SKILL.md 1c) — an unauthorized sender's message is a
+// silent no-op: no state change, no stdout, so the mechanism can't be probed
+// by an unauthorized prompt.
 
-import fs from 'node:fs';
-import path from 'node:path';
 import { safeForLLM } from './lib/sanitize';
 import { hermitDir } from './lib/cc-compat';
 import { setPause, clearPause, parseSnoozeDuration } from './lib/pause';
+import { loadConfig, isAllowedSender } from './lib/channel-auth';
 
 type Json = any;
 
 const MAX_BY_LEN = 64;
 const MAX_DURATION_LEN = 32;
-
-function loadConfig(dir: string): Json | null {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(dir, 'config.json'), 'utf8'));
-  } catch {
-    return null;
-  }
-}
-
-/** Mirrors channel-reply-reminder.ts isAllowedSender / channel-responder/SKILL.md 1c. */
-function isAllowedSender(config: Json, source: string, userId: string | null): boolean {
-  const allowedUsers = config?.channels?.[source]?.allowed_users;
-  if (!Array.isArray(allowedUsers)) return true; // absent/malformed -> accept all
-  if (userId === null) return false; // can't verify identity against a configured allowlist
-  return allowedUsers.includes(userId);
-}
 
 function main(raw: string): void {
   let payload: Json;
