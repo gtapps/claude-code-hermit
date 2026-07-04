@@ -10,8 +10,15 @@
  */
 
 import { setPause, clearPause, isPaused, parseSnoozeDuration } from './lib/pause';
+import { hermitDir } from './lib/cc-compat';
 
-const HERMIT_ROOT = '.claude-code-hermit';
+// Resolve the hermit root the same way the writer (pause-keyword.ts) does —
+// hermitDir() honors CLAUDE_PROJECT_DIR then walks up for config.json, so the
+// CLI targets the real flag even when run from a subdirectory. A hardcoded
+// relative '.claude-code-hermit' would resolve against the caller's cwd; run
+// from anywhere but the project root it would miss the flag, and clearPause's
+// force-rm would then print a false "resumed" while the hermit stayed paused.
+const HERMIT_ROOT = hermitDir();
 const BY = 'operator-cli';
 
 function usage(): never {

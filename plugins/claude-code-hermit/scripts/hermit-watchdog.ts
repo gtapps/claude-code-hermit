@@ -599,10 +599,15 @@ function maybeEscapePausedSession(): void {
   if (!sessionName || !tmuxSessionAlive(sessionName)) return;
 
   const watchdogState = readWatchdogState();
-  if (watchdogState.last_escaped_pause_ts === status.ts) return; // already escaped this episode
+  // Dedup per pause episode by the flag's `ts`. Fall back to a fixed sentinel
+  // for a ts-less flag (hand-crafted/partial write) so the guard still fires
+  // exactly once — a bare `status.ts` comparison would read undefined === undefined
+  // as "already escaped" on the first tick and skip the interrupt entirely.
+  const episodeKey = status.ts ?? 'no-ts';
+  if (watchdogState.last_escaped_pause_ts === episodeKey) return; // already escaped this episode
 
   spawnSync('tmux', ['send-keys', '-t', sessionName, 'Escape'], { stdio: 'ignore' });
-  watchdogState.last_escaped_pause_ts = status.ts;
+  watchdogState.last_escaped_pause_ts = episodeKey;
   writeWatchdogState(watchdogState);
   appendEvent('pause-enforced', status.reason ?? 'operator');
 }

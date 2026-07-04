@@ -16,7 +16,13 @@ process.stdout.on('error', () => {});
 import { hermitDir } from './lib/cc-compat';
 import { isPaused } from './lib/pause';
 
-const REPLY_TOOL_RE = /^mcp__plugin_[^_]+_[^_]+__reply$/;
+// Channel reply tools surface in several shapes across CC versions —
+// mcp__discord__reply, plugin_discord_discord_reply, mcp__plugin_discord_discord__reply
+// (see channel-hook.ts and the loose hooks.json PostToolUse matcher
+// "(discord|telegram|imessage).*reply"). Match all of them, not just one strict
+// form: a stricter regex would deny the reply tool in an alternate shape and
+// trap a paused hermit with no way to acknowledge the pause.
+const REPLY_TOOL_RE = /(discord|telegram|imessage).*reply$/i;
 
 function isExempt(toolName: string): boolean {
   return toolName === 'PushNotification' || REPLY_TOOL_RE.test(toolName);

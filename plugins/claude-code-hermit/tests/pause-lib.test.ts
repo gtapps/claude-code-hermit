@@ -114,6 +114,10 @@ describe('parseSnoozeDuration', () => {
     ['30x'],      // unknown unit
     ['-5m'],      // negative
     ['5 m extra'],
+    ['0m'],       // zero — would write a paused_until that reads as immediately expired
+    ['0s'],
+    ['0.0h'],
+    ['99999999999d'], // absurdly large — would overflow Date and throw on toISOString
   ])('rejects %j -> null', (input) => {
     expect(parseSnoozeDuration(input)).toBeNull();
   });

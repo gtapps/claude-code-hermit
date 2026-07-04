@@ -1244,6 +1244,22 @@ describe('pause enforcement', () => {
     expect(fs.readFileSync(eventsFile(h), 'utf-8')).toContain('pause-enforced');
   }));
 
+  test('Escape still fires exactly once for a ts-less flag (sentinel dedup)', withHermit(async (h) => {
+    writeConfig(h);
+    writeFakeTmux(h, 0, 'busy pane');
+    writeFakePgrep(h, 1);
+    // Hand-crafted/partial flag with no `ts` — a bare `=== status.ts` compare
+    // would read undefined === undefined and skip the interrupt entirely.
+    fs.writeFileSync(state(h, 'pause.json'),
+      JSON.stringify({ paused: true, paused_until: null, reason: 'operator', by: 'test' }) + '\n');
+    await watchdog(h, 'run');
+    await watchdog(h, 'run');
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    const escapeCount = tmuxLog.split('\n').filter(l => l.includes('Escape')).length;
+    expect(escapeCount).toBe(1);
+    expect(readJson(state(h, 'watchdog-state.json')).last_escaped_pause_ts).toBe('no-ts');
+  }));
+
   test('Escape not repeated on a second tick (same pause episode)', withHermit(async (h) => {
     writeConfig(h);
     writeFakeTmux(h, 0, 'busy pane');

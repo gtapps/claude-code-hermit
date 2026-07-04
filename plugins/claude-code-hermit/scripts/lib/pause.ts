@@ -104,15 +104,27 @@ export function clearPause(stateDir: string): void {
   try { fs.rmSync(pausePath(stateDir), { force: true }); } catch { /* fail-open */ }
 }
 
+// Upper bound on a snooze (10 years). Well below the max representable Date
+// offset (~8.64e15 ms), so `new Date(Date.now() + ms)` can never overflow to an
+// Invalid Date whose .toISOString() throws. A snooze is a short hold; use `on`
+// for an indefinite pause.
+const MS_PER_DAY = 86400000;
+const MAX_SNOOZE_MS = 10 * 365 * MS_PER_DAY;
+
 /**
- * Parses a snooze duration ("30m", "2h", "1d") to milliseconds. Returns null
- * on anything unparseable — callers must hard-reject, never silently fall
- * back to a default (a mistyped duration must never turn into an indefinite
- * pause or a no-op).
+ * Parses a snooze duration ("30m", "2h", "1d") to milliseconds. Returns null on
+ * anything unparseable, non-positive, or absurdly large — callers must
+ * hard-reject, never silently fall back to a default (a mistyped duration must
+ * never turn into an indefinite pause or a no-op). Rejecting zero/negative
+ * stops a "0m" snooze from writing a paused_until that reader-side expiry
+ * treats as unpaused on the next read (a confirmed-looking pause that never
+ * pauses); the upper bound stops a huge duration from overflowing Date.
  */
 export function parseSnoozeDuration(s: string): number | null {
   const m = /^(\d+(?:\.\d+)?)\s*(s|m|h|d)$/i.exec(String(s).trim());
   if (!m) return null;
-  const mult: Record<string, number> = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
-  return Math.round(parseFloat(m[1]) * mult[m[2].toLowerCase()]);
+  const mult: Record<string, number> = { s: 1000, m: 60000, h: 3600000, d: MS_PER_DAY };
+  const ms = Math.round(parseFloat(m[1]) * mult[m[2].toLowerCase()]);
+  if (ms <= 0 || ms > MAX_SNOOZE_MS) return null;
+  return ms;
 }

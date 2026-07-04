@@ -74,6 +74,20 @@ describe('pause-gate', () => {
     expect(r.exitCode).toBe(0);
   }));
 
+  // The reply tool surfaces in several shapes across CC versions (see
+  // channel-hook.ts) — all must stay exempt so a paused hermit can answer.
+  test('paused — reply tool exempt in the short mcp__<source>__reply shape', withDir(async (dir) => {
+    setPauseFile(dir);
+    const r = await run({ tool_name: 'mcp__discord__reply', tool_input: {} }, dir);
+    expect(r.exitCode).toBe(0);
+  }));
+
+  test('paused — reply tool exempt in the plugin_<source>_<source>_reply shape', withDir(async (dir) => {
+    setPauseFile(dir);
+    const r = await run({ tool_name: 'plugin_telegram_telegram_reply', tool_input: {} }, dir);
+    expect(r.exitCode).toBe(0);
+  }));
+
   test('paused — PushNotification is exempt', withDir(async (dir) => {
     setPauseFile(dir);
     const r = await run({ tool_name: 'PushNotification', tool_input: {} }, dir);
