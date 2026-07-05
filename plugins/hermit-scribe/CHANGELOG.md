@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Added
+- **`hatch` skill (first for this plugin)** — appends an Issue Filing block to the operator's `CLAUDE.md`/`CLAUDE.local.md` and seeds an `autoMode.environment` entry naming `api.github.com`, scoped to `HERMIT_GH_REPO`, as a service hermit-scribe posts to only with in-session operator confirmation. Context for Claude Code's auto-mode classifier, not a standing permission grant — filing still goes through the skill's own preview/confirm gate every time.
+
 ## [0.0.6] - 2026-07-03
 
 ### Changed

@@ -13,15 +13,22 @@ notification action, same as `CLAUDE-APPEND.md` § Operator Notification, and su
 `Artifact` tool availability is unverified.
 
 Unattended (non-interactive/channel) sessions cannot answer the first-publish
-permission ask — a headless "ask" is an effective deny. Two paths handle this:
-`permissions.allow: ["Artifact"]`, offered by `hatch`/`hermit-evolve` (a sealed
-`artifact-allow` operation in `apply-settings.ts`, kept separate from the hook
-permission allow-list so declining it doesn't couple to hook consent); or, if
-declined, **setup-time banking** — the attended hatch/evolve session publishes the
-first version of each enabled stable page inline, recording its URL in
-`state/artifacts.json` so every later refresh is a prompt-free same-URL republish. If
-neither is in place, unattended publishes silently no-op (step 5 below) — a
-deliberate choice, not a bug.
+permission ask — a headless "ask" is an effective deny — and on a `permission_mode:
+auto` hermit, a session can't even self-grant that permission, since the auto-mode
+classifier blocks a self-widened `permissions.allow` unless the operator's own live
+message asked for it (`docs/security.md` § Auto-mode Classifier). The
+`config.artifacts.publish_authorized` flag (`/hermit-settings artifact-authorization`,
+tri-state: `null`/`true`/`false`) records the decision — attended, `hatch`/
+`hermit-evolve` set it directly; unattended, `hermit-evolve` defers to the channel
+and the reply sets only the flag, nothing else. Two paths follow from it: **authorize**
+(`true`) — `permissions.allow: ["Artifact"]` plus a matching `autoMode.allow` exception
+are applied by `hermit-start`'s boot-time grant (a plain OS process, outside any
+session and outside the classifier), re-ensured every boot so a hand-wiped entry
+heals itself; or **decline** (`false` / `setup-time banking`) — the attended hatch/
+evolve session publishes the first version of each enabled stable page inline,
+recording its URL in `state/artifacts.json` so every later refresh is a prompt-free
+same-URL republish. With the flag `null`/`false` and no banked URL, unattended
+publishes silently no-op (step 5 below) — a deliberate choice, not a bug.
 
 ## Shared refresh procedure
 

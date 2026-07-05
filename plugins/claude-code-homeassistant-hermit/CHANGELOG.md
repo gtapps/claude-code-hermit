@@ -4,6 +4,8 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ## [Unreleased]
 
+### Added
+- **hatch: auto-mode environment seed** — new Step 7.7 runs `scripts/automode-env.ts`, naming the operator's Home Assistant instance (read from `.env`) as a trusted `autoMode.environment` entry in `.claude/settings.local.json`, so Claude Code's auto-mode classifier stops treating the hermit's nightly unattended reads (briefs, audits, context refresh) as unrecognized outbound calls. Environment-only — no `autoMode.allow` exception is seeded.
 ### Fixed
 - **CLAUDE-APPEND CLI pointer** — dropped the bare `docs/cli-reference.md` pointer (unresolvable from the operator's project cwd); `ha-agent-lab --help` is the resolvable catalog pointer, `src/cli.ts` the source of truth. The doc still ships under the plugin root.
 

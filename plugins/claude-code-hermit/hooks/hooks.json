@@ -50,6 +50,20 @@
         "description": "Deny AskUserQuestion on always-on channel-primary sessions with a redirect to the channel reply tool + micro-proposal bridge (binds the callers the static contract test cannot see)"
       }
     ],
+    "PermissionDenied": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/permission-denied-notify.ts"],
+            "timeout": 12
+          }
+        ],
+        "description": "Notify the channel (deterministic send, deduped) when the auto-mode classifier denies a tool call on the managed unattended session — denials stop being silent"
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "(discord|telegram|imessage).*reply",

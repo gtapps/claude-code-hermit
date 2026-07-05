@@ -120,6 +120,7 @@ const DEFAULT_CONFIG: Json = {
     dashboard: true,
     proposals: true,
     weekly_review: true,
+    publish_authorized: null,
   },
   context_hygiene: {
     compact: {
@@ -762,6 +763,29 @@ function writeSettingsEnv(config: Json): void {
 }
 
 /**
+ * Boot-time artifact publish grant. Runs pre-launch in the operator's shell —
+ * outside any Claude session, so the auto-mode classifier is not in play. This
+ * is the out-of-session executor for the decision a channel reply recorded in
+ * config.artifacts.publish_authorized (a channel reply may only flip hermit
+ * config, never permissions — this is where the permission write happens).
+ * Idempotent and self-healing: sealed set-merges, re-ensured every boot.
+ */
+function applyArtifactGrant(config: Json): void {
+  const artifacts = isDict(config.artifacts) ? config.artifacts : {};
+  const anyPage = ['dashboard', 'proposals', 'weekly_review'].some((k) => pyTruthy(artifacts[k]));
+  if (!anyPage || artifacts.publish_authorized !== true) return;
+  const script = path.join(PLUGIN_ROOT, 'scripts', 'apply-settings.ts');
+  for (const op of ['artifact-allow', 'automode-seed']) {
+    const r = spawnSync('bun', [script, '.claude/settings.local.json', op], { stdio: 'pipe', encoding: 'utf-8' });
+    if (r.status !== 0) {
+      console.log(`[hermit] WARNING: boot grant '${op}' failed: ${(r.stderr || '').trim()} — continuing boot.`);
+      return;
+    }
+  }
+  console.log('[hermit] Artifact publish grant ensured (permissions.allow + autoMode seed in .claude/settings.local.json)');
+}
+
+/**
  * os.execvp replacement: Bun cannot replace the process image, so spawn the
  * command with inherited stdio and exit with its status. The lifecycle lock
  * is released first — Python's flock fd was O_CLOEXEC and released on exec.
@@ -846,6 +870,7 @@ async function main(): Promise<void> {
   console.log(`[hermit] Permissions: ${config.permission_mode || 'auto'}`);
 
   writeSettingsEnv(config);
+  applyArtifactGrant(config);
 
   if (noTmuxFlag || !pyTruthy(tools.tmux)) {
     if (!noTmuxFlag && !pyTruthy(tools.tmux)) {
@@ -1031,6 +1056,7 @@ export {
   resolveStateDir,
   buildClaudeCommand,
   writeSettingsEnv,
+  applyArtifactGrant,
   shlexQuote,
   shlexJoin,
   main,
