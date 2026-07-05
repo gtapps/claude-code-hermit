@@ -108,6 +108,7 @@ const DEFAULT_CONFIG: Json = {
     action: 'alert',
   },
   telemetry_export: {
+    _note: 'Operator-directed health/cost export to your own webhook. Inert until you set destination.url. Never sent to plugin authors.',
     enabled: false,
     destination: { type: 'webhook', url: null, bearer_env: 'HERMIT_TELEMETRY_TOKEN' },
     interval_hours: 24,

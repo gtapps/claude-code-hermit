@@ -198,6 +198,8 @@ A source that's missing or unreadable on disk becomes `null` for its section —
 
 **Retry and failure handling:** on failure the bundle is spooled to `state/telemetry/spool/` (newest 7 retained) and retried on the next due tick; a run that's still failing waits at least 15 minutes between retries regardless of `interval_hours`, so a dead endpoint can't add a timeout to every scheduler tick. After 3 consecutive failures a deduped `telemetry:export-failed` alert is raised (cleared automatically on the next success, which also drains the spool oldest-first). None of this blocks anything else the watchdog does.
 
+**Privacy:** the destination is *your* endpoint — this is operator-directed egress (a fleet dashboard, your own monitoring), never a phone-home to the plugin authors. Even fully redacted, the bundle is behavioral metadata: spend, session cadence, when-active, health. If you run this hermit on a **client project** (consultant/agency), be aware that exported cost/session figures can reveal that client's billing patterns even with `redact_operator_text: true` — point the webhook only at an endpoint you control, and prefer keeping redaction on.
+
 Modify with `/hermit-settings`. Validated by `validate-config.ts`. Manual export/debugging: `bun scripts/report-export.ts [hermit-dir] [--print]` (`--print` builds the bundle to stdout without sending or stamping state).
 
 ---
