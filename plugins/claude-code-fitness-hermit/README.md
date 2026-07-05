@@ -75,7 +75,7 @@ claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope loca
 /claude-code-fitness-hermit:hatch
 ```
 
-The wizard triggers `claude-code-hermit:hatch` if the core hermit isn't ready, prompts you to fill in `.env` with your four Strava credentials, writes `.mcp.json` with the Strava MCP server entry, drops the four routine prompt templates into `.claude-code-hermit/compiled/`, injects the Fitness Workflow block into your `CLAUDE.md`, and registers the routines.
+The wizard triggers `claude-code-hermit:hatch` if the core hermit isn't ready, prompts you to fill in `.env` with your four Strava credentials, writes `.mcp.json` with the Strava MCP server entry, drops the four routine prompt templates into `.claude-code-hermit/compiled/`, injects the Fitness Workflow block into your `CLAUDE.md`, registers the routines, and trusts `www.strava.com` in `autoMode.environment` so the classifier doesn't flag the nightly `strava-sync` routine's fetches (no permission grant added).
 
 > **Just trying it?** After `hatch`, restart Claude Code (required to pick up the new `.mcp.json`), approve the `strava` MCP server, then run `.claude-code-hermit/bin/hermit-start --no-tmux` for sessions, routines, heartbeat, and the learning loop without 24/7 autonomy. Run `/claude-code-hermit:channel-setup` first if you want Discord or Telegram.
 

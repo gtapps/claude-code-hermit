@@ -45,6 +45,10 @@ mv ~/Downloads/<your-app>.*.pem .claude.local/hermit-scribe-key.pem
 
 Set them in your project `.env` (loaded by Docker hermit via `env_file:`) or in `.claude/settings.local.json` `env` block for interactive sessions.
 
+## Setup
+
+Run `/hermit-scribe:hatch` after configuring the env vars above. It appends an Issue Filing block to your `CLAUDE.md`/`CLAUDE.local.md` and seeds an `autoMode.environment` entry for `api.github.com` (context for the auto-mode classifier, not a standing permission grant — filing is always operator-confirmed regardless).
+
 ## Usage
 
 Trigger phrases:
@@ -97,6 +101,10 @@ The cleaned title and body are shown to the operator before filing as a single m
 hermit-scribe/
   ├── agents/
   │     └── issue-sanitizer.md  redacts non-hermit content from draft body
+  ├── scripts/
+  │     └── automode-env.ts     seeds autoMode.environment entry for api.github.com
+  ├── skills/hatch/
+  │     └── SKILL.md            one-time setup: Issue Filing block + autoMode seed
   └── skills/hermit-scribe/
         ├── SKILL.md            trigger phrases + filing flow
         └── file-issue.ts       stdlib: JWT → install token → POST /issues; --check flag
