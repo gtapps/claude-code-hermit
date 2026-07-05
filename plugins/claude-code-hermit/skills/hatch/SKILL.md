@@ -355,7 +355,7 @@ with the answers payload as JSON on stdin. The script reads the template (or, on
 
 **Re-initialization** is `--reinit` on the same call — the script reads the existing config as its base (never the template), so any field the payload doesn't mention (custom operator keys, `push_notifications`, `docker`, `monitors`, ...) survives untouched, `_hermit_versions` entries are never advanced (only added if a slug is newly absent), and `scheduled_checks`/`channels`/`routines` are reconciled/merged by id rather than replaced wholesale. `shutdown_skill` is never written by this script — leave it `null`; the operator sets it via config edit if they run always-on services that need stopping on full close.
 
-**Template-only fields** (the wizard never asks about these — they come straight from `config.json.template`, and `hatch-config.ts` never touches them; the operator can tune them via `/hermit-settings` later): `model`, `auto_session`, `always_on`, `chrome`, `monitors`, `compact`, `heartbeat`, `knowledge`, `env`, `quality_gate`, `watchdog`, `budget`, `telemetry_export`, `artifacts`, `context_hygiene`, `reflection`, `storage_drift`, `post_close_clear`, `ask_gate`. The Quick branch and Advanced wizard both leave these at template defaults. `budget` ships inert (all caps `null`, `action: "alert"`) — see [`docs/config-reference.md`](../../docs/config-reference.md#budget) for daily/weekly/monthly USD caps and the `alert`/`pause` enforcement action. `telemetry_export` ships disabled (`enabled: false`, `destination.url: null`) — opt-in webhook export of a sanitized health/cost bundle from the watchdog tick, see [`docs/config-reference.md`](../../docs/config-reference.md#telemetry_export). `artifacts.dashboard` ships disabled (`false`) — opt-in single-URL Hermit Dashboard artifact refreshed by `brief`/`weekly-review`/`proposal-create`/`proposal-act`, see [`docs/config-reference.md`](../../docs/config-reference.md#artifacts). `ask_gate` ships enabled (`true`) — on an `always_on` session with a reachable channel, it denies `AskUserQuestion` and redirects the model to the channel reply tool plus a durable micro-proposal entry; set to `false` to opt out, see [`docs/config-reference.md`](../../docs/config-reference.md#ask_gate).
+**Template-only fields** (the wizard never asks about these — they come straight from `config.json.template`, and `hatch-config.ts` never touches them; the operator can tune them via `/hermit-settings` later): `model`, `auto_session`, `always_on`, `chrome`, `monitors`, `compact`, `heartbeat`, `knowledge`, `env`, `quality_gate`, `watchdog`, `budget`, `telemetry_export`, `artifacts`, `context_hygiene`, `reflection`, `storage_drift`, `post_close_clear`, `ask_gate`. The Quick branch and Advanced wizard both leave these at template defaults. `budget` ships inert (all caps `null`, `action: "alert"`) — see [`docs/config-reference.md`](../../docs/config-reference.md#budget) for daily/weekly/monthly USD caps and the `alert`/`pause` enforcement action. `telemetry_export` ships disabled (`enabled: false`, `destination.url: null`) — opt-in webhook export of a sanitized health/cost bundle from the watchdog tick, see [`docs/config-reference.md`](../../docs/config-reference.md#telemetry_export). `artifacts.dashboard`/`artifacts.proposals`/`artifacts.weekly_review` ship enabled (`true`) — three script-rendered, hash-gated Artifact pages (dashboard, open-proposals, weekly-review), refreshed by `brief`/`weekly-review`/`proposal-create`/`proposal-act`; see [`docs/artifacts.md`](../../docs/artifacts.md) and [`docs/config-reference.md`](../../docs/config-reference.md#artifacts). Publish authorization for unattended sessions is Step 9c below. `ask_gate` ships enabled (`true`) — on an `always_on` session with a reachable channel, it denies `AskUserQuestion` and redirects the model to the channel reply tool plus a durable micro-proposal entry; set to `false` to opt out, see [`docs/config-reference.md`](../../docs/config-reference.md#ask_gate).
 
 `tmux_session_name` is derived from `project_name` on fresh hatch only (`hermit-<project_name>`) — re-init never re-substitutes it.
 
@@ -683,6 +683,27 @@ After Steps 6–9 complete, write `.claude-code-hermit/state/hatch-options.json`
 
 This file is read by `hermit-evolve`, `docker-setup`, and `claude-code-dev-hermit:hatch` to inherit the operator's target choice without re-running scope detection.
 
+### 9c. Artifact publish authorization (AskUserQuestion, single question)
+
+Skip this step entirely if `artifacts.dashboard`, `artifacts.proposals`, and `artifacts.weekly_review` are all `false` in the config just written (Step 5) — nothing to authorize. Otherwise, an unattended (non-interactive/channel) session cannot answer the first-publish permission ask for the `Artifact` tool — a headless "ask" is an effective deny — so this step resolves that up front rather than leaving every artifact refresh to silently no-op later.
+
+```
+questions: [
+  {
+    header: "Artifact publish",
+    question: "This hermit publishes status/proposal/weekly-review pages via Claude Code's Artifact tool. Unattended sessions can't answer a permission prompt, so authorize it now, or publish the first version of each page yourself right now instead?",
+    options: [
+      { label: "Yes — allow", description: "Adds \"Artifact\" to permissions.allow so refreshes never prompt (default)" },
+      { label: "No — publish first versions now", description: "Publish once, inline, in this attended session; every later refresh redeploys to the same URL without a prompt" }
+    ]
+  }
+]
+```
+
+- If **allow**: run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <resolved-settings-file> artifact-allow` (same target-file resolution as Step 8; additive merge, never removes existing entries). Note: "Artifact publishes authorized — refreshes from `/brief`, `/weekly-review`, `/proposal-create`, and `/proposal-act` will never prompt."
+- If **publish first versions now**: for each artifact type enabled in config (`dashboard`, `proposals`, `weekly_review`), run its render script per `docs/artifacts.md` and call `Artifact` once, recording the returned URL in `.claude-code-hermit/state/artifacts.json` exactly as the refresh protocol's step 4 describes. If a render script has nothing to publish yet (e.g. no weekly review exists on day one), skip that type silently — it publishes on its own first natural trigger instead. Note: "Published the first version of each ready page — later refreshes redeploy to the same URL without a prompt. Pages with nothing to show yet (e.g. weekly review) will publish on their first natural trigger."
+- Neither answer blocks hatch from completing: without the allow rule or banked URLs, unattended publishes silently no-op (per `docs/artifacts.md` step 5) with a one-line SHELL.md Findings entry — a deliberate choice, not a bug. Say so if the operator picks neither branch explicitly (e.g. via a future `/hermit-settings` toggle-off of all three artifact types after this step already ran).
+
 ---
 
 ### Domain hatch continuation protocol
@@ -853,7 +874,7 @@ questions: [
 
 ### Quick — silent defaults applied to shared steps
 
-Quick replaces Step 4 entirely and applies these defaults silently at the shared Steps 5-9 (no prompts):
+Quick replaces Step 4 entirely and applies these defaults silently at the shared Steps 5-9c (no prompts):
 
 | Source | Field | Quick value |
 |---|---|---|
@@ -870,6 +891,7 @@ Quick replaces Step 4 entirely and applies these defaults silently at the shared
 | Step 7.5 | git init (fresh dirs only) | run `git init` if `git_init_eligible`; omit otherwise |
 | Step 8 | plugin permissions (target settings file) | merge silently into `hatch_target` settings file |
 | Step 9 | deny patterns (target settings file) | derived profile silently (Docker → hardened, else → minimal); write to `hatch_target` settings file |
+| Step 9c | Artifact publish authorization | "allow" branch applied silently (skip entirely if all three `artifacts.*` are `false`, same skip condition as Advanced) |
 
 ### Quick — auto-chain at end of Step 10
 
