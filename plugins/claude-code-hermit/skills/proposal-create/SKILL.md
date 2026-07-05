@@ -104,6 +104,7 @@ bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
    ```
    bun ${CLAUDE_PLUGIN_ROOT}/scripts/generate-summary.ts .claude-code-hermit/state/
    ```
+6. Refresh the dashboard per docs/artifacts.md (silently — no URL re-post; the proposal queue changed).
 
 ## Do NOT Create Proposals For
 

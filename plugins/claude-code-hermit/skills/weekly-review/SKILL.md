@@ -71,7 +71,8 @@ Generates the weekly review for the current ISO week.
    - If the current-week file is missing (script failed): skip the evolution block entirely.
 
 6. Channel-send the combined weekly summary:
-   - Compose the message: one-line review headline (session count, cost, self-directed rate from frontmatter) followed by the evolution block from step 5, plus the `Topic pages:` findings from step 3 when present.
+   - Refresh the dashboard per docs/artifacts.md; if it returns a URL, note it for the message below.
+   - Compose the message: one-line review headline (session count, cost, self-directed rate from frontmatter) followed by the evolution block from step 5, plus the `Topic pages:` findings from step 3 when present, plus a final `📎 <dashboard url>` line when the refresh returned one.
    - Resolve the outbound channel:
      ```
      bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit

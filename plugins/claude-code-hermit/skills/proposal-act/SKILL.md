@@ -51,6 +51,10 @@ Before reading any proposal file, resolve the operator's input to a filename usi
 
 All timestamps in frontmatter and Operator Decision text use ISO 8601 with timezone offset (e.g., `2026-04-06T14:30:00+01:00`). Use the timezone from `config.json` if set, otherwise UTC.
 
+## Dashboard Refresh
+
+Every flow below (accept, defer, dismiss, resolve) changes a proposal's status. After its final "Respond" step, refresh the dashboard per docs/artifacts.md (silently — no URL re-post).
+
 ## Accept Flow
 
 When the operator accepts a proposal:

@@ -114,6 +114,9 @@ const DEFAULT_CONFIG: Json = {
     interval_hours: 24,
     redact_operator_text: true,
   },
+  artifacts: {
+    dashboard: false,
+  },
   context_hygiene: {
     compact: {
       enabled: true,

@@ -419,6 +419,14 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
     errors.push('push_notifications: must be a boolean');
   }
 
+  if (config.artifacts !== undefined) {
+    if (typeof config.artifacts !== 'object' || config.artifacts === null || Array.isArray(config.artifacts)) {
+      errors.push('artifacts: must be an object');
+    } else if (config.artifacts.dashboard !== undefined && typeof config.artifacts.dashboard !== 'boolean') {
+      errors.push('artifacts.dashboard: must be a boolean');
+    }
+  }
+
   if (config.reflection !== undefined) {
     if (typeof config.reflection !== 'object' || config.reflection === null) {
       errors.push('reflection: must be an object');
