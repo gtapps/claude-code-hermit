@@ -290,6 +290,89 @@ describe('dead session with channel configured', () => {
 });
 
 // -------------------------------------------------------
+// 5c. Stall-question detection (un-redirectable, PROP-024) — catches the
+//     remainder ask-gate.ts's PreToolUse deny can't reach: native permission
+//     dialogs, harness-rendered prompts. Fixtures from a real capture
+//     (compiled/spike-ask-gate-probe-2026-07-05.md): a pointer-marked
+//     numbered option plus an "Esc to cancel" footer.
+// -------------------------------------------------------
+
+const PENDING_QUESTION_PANE =
+  ' Which color do you prefer?\n\n❯ 1. Red\n  2. Green\n  3. Blue\n\nEnter to select · Esc to cancel';
+
+describe('stall-question detection', () => {
+  let h: Hermit;
+  let stub: Stub;
+  let exitCode: number;
+
+  beforeAll(async () => {
+    h = setupHermit();
+    writeConfig(h);
+    configureChannel(h);
+    writeFakeTmux(h, 0, PENDING_QUESTION_PANE);
+    writeFakePgrep(h, 1);
+    stub = startHttpStub();
+    ({ exitCode } = await watchdog(h, 'run', { env: { HERMIT_TELEGRAM_API_URL: stub.url } }));
+  });
+
+  afterAll(() => { stub.stop(); h.cleanup(); });
+
+  test('pending dialog on pane → stall-question-detected event', () => {
+    expect(exitCode).toBe(0);
+    expect(fs.readFileSync(eventsFile(h), 'utf-8')).toContain('stall-question-detected');
+  });
+
+  test('pending dialog → watchdog-state.json flags stall_question_notified', () => {
+    expect(readJson(state(h, 'watchdog-state.json')).stall_question_notified).toBe(true);
+  });
+
+  test('pending dialog → operator push reaches the configured channel', () => {
+    expect(stub.requests.length).toBe(1);
+    expect(stub.requests[0].body.text).toContain("can't ask over chat");
+  });
+});
+
+test('pending dialog, second tick → deduped, no second push', withHermit(async (h) => {
+  writeConfig(h);
+  configureChannel(h);
+  writeFakeTmux(h, 0, PENDING_QUESTION_PANE);
+  writeFakePgrep(h, 1);
+  fs.writeFileSync(state(h, 'watchdog-state.json'), JSON.stringify({ stall_question_notified: true }) + '\n');
+  const stub = startHttpStub();
+  try {
+    const r = await watchdog(h, 'run', { env: { HERMIT_TELEGRAM_API_URL: stub.url } });
+    expect(r.exitCode).toBe(0);
+    expect(stub.requests.length).toBe(0);
+    const events = fs.existsSync(eventsFile(h)) ? fs.readFileSync(eventsFile(h), 'utf-8') : '';
+    expect(events).not.toContain('stall-question-detected');
+  } finally {
+    stub.stop();
+  }
+}));
+
+test('pane clears after a flagged episode → re-arms (flag cleared, no new event)', withHermit(async (h) => {
+  writeConfig(h);
+  writeFakeTmux(h, 0, 'tmux pane content');
+  writeFakePgrep(h, 1);
+  fs.writeFileSync(state(h, 'watchdog-state.json'), JSON.stringify({ stall_question_notified: true }) + '\n');
+  const r = await watchdog(h, 'run');
+  expect(r.exitCode).toBe(0);
+  expect(readJson(state(h, 'watchdog-state.json')).stall_question_notified).toBe(false);
+  const events = fs.existsSync(eventsFile(h)) ? fs.readFileSync(eventsFile(h), 'utf-8') : '';
+  expect(events).not.toContain('stall-question-detected');
+}));
+
+test('ordinary busy pane content → no false-positive match', withHermit(async (h) => {
+  writeConfig(h);
+  writeFakeTmux(h, 0, 'tmux pane content');
+  writeFakePgrep(h, 1);
+  const r = await watchdog(h, 'run');
+  expect(r.exitCode).toBe(0);
+  const events = fs.existsSync(eventsFile(h)) ? fs.readFileSync(eventsFile(h), 'utf-8') : '';
+  expect(events).not.toContain('stall-question-detected');
+}));
+
+// -------------------------------------------------------
 // 6. Alive + operator recent → back off (no events)
 // -------------------------------------------------------
 

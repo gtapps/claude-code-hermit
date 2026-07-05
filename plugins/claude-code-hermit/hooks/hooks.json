@@ -36,6 +36,18 @@
           }
         ],
         "description": "Warn (or block, with HERMIT_CACHE_GUARD=block) when editing a marketplace cache copy whose runtime source is canonical"
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/ask-gate.ts"],
+            "timeout": 3
+          }
+        ],
+        "description": "Deny AskUserQuestion on always-on channel-primary sessions with a redirect to the channel reply tool + micro-proposal bridge (binds the callers PROP-017's static contract test cannot see)"
       }
     ],
     "PostToolUse": [

@@ -9,6 +9,8 @@
  *   1. Config gate    — exit if watchdog.enabled is false
  *   2. Shutdown gate  — exit if operator stopped the session intentionally
  *   3. Dead detection — restart when tmux session is gone
+ *   3b. Stall-question detection — notify once when the pane is stuck on an
+ *       un-redirectable dialog (native permission prompt, harness prompt)
  *   4. Wedge detection — nudge-then-escalate when heartbeat is stale
  *   5. Re-arm fallback — re-arm when heartbeat-restart routine missed its window
  *
@@ -126,6 +128,12 @@ export function composeWedgeMessage(timezone: string): string {
   return `Your hermit hasn't responded in a while — checking on it now (${hhmm}).`;
 }
 
+/** Operator-language message for an un-redirectable stalled question (PROP-024's fail-loud half). */
+export function composeStallQuestionMessage(timezone: string): string {
+  const hhmm = nowHHMM(timezone);
+  return `Your hermit is waiting on a question it can't ask over chat — open the terminal or Claude app to answer (${hhmm}).`;
+}
+
 /** Operator-language message for a forced pause enforcement (any reason). */
 export function composePauseMessage(reason: string, until: string | null, timezone: string): string {
   const label = pauseReasonLabel(reason);
@@ -145,18 +153,38 @@ function ageSecs(ts: string): number | null {
 
 // --- Tmux helpers ---
 
-/** Capture pane content and return its SHA-256 hash, or null on failure. */
-function getPaneHash(sessionName: string): string | null {
+/** Capture pane content as text, or null on failure. */
+function capturePane(sessionName: string): string | null {
   try {
     const r = spawnSync('tmux', ['capture-pane', '-p', '-t', sessionName], {
       encoding: 'utf-8',
       timeout: 5000,
     });
     if (r.error || r.status !== 0 || typeof r.stdout !== 'string') return null;
-    return crypto.createHash('sha256').update(r.stdout).digest('hex');
+    return r.stdout;
   } catch {
     return null;
   }
+}
+
+/** SHA-256 hash of the current pane content, or null on failure. */
+function getPaneHash(sessionName: string): string | null {
+  const content = capturePane(sessionName);
+  return content === null ? null : crypto.createHash('sha256').update(content).digest('hex');
+}
+
+// A blocking modal (AskUserQuestion widget or a native permission prompt) renders
+// a pointer-marked numbered option plus an "Esc to cancel" footer — verified against
+// real captures in compiled/spike-ask-gate-probe-2026-07-05.md. Neither token appears
+// in ordinary session output (tool calls, prose, status bar), so requiring both is a
+// conservative, low-false-positive signal that the pane is stalled on an unanswerable
+// dialog. Over-detection costs one deduped push; under-detection is a silent stall.
+const PENDING_OPTION_RE = /❯\s*\d+\./;
+const PENDING_FOOTER_RE = /Esc to cancel/;
+
+/** True when the pane looks stalled on an interactive dialog nobody can answer. */
+function hasPendingQuestion(paneContent: string): boolean {
+  return PENDING_OPTION_RE.test(paneContent) && PENDING_FOOTER_RE.test(paneContent);
 }
 
 /** Send text then Enter as two separate calls (avoids bracketed-paste submit bug). */
@@ -749,6 +777,27 @@ async function main(): Promise<void> {
     if (!tmuxSessionAlive(sessionName)) {
       doRestart(sessionName, 'dead-process', runtime, timezone);
       process.exit(0);
+    }
+  }
+
+  // 3b. Stall-question detection (PROP-024) — catches the un-redirectable remainder
+  // the AskUserQuestion PreToolUse gate (ask-gate.ts) can't reach: native permission
+  // dialogs and harness-rendered prompts below the tool layer. Notify only, once per
+  // episode (re-arms when the pane clears) — never auto-answer or send Escape, that's
+  // always the operator's call.
+  {
+    const watchdogState = readWatchdogState();
+    const paneContent = capturePane(sessionName);
+    if (paneContent !== null && hasPendingQuestion(paneContent)) {
+      if (!watchdogState.stall_question_notified) {
+        pushOperatorMessage(composeStallQuestionMessage(timezone));
+        appendEvent('stall-question-detected', 'pending dialog on pane, session alive');
+        watchdogState.stall_question_notified = true;
+        writeWatchdogState(watchdogState);
+      }
+    } else if (watchdogState.stall_question_notified) {
+      watchdogState.stall_question_notified = false;
+      writeWatchdogState(watchdogState);
     }
   }
 

@@ -43,6 +43,7 @@ const DEFAULT_CONFIG: Json = {
   always_on: false,
   chrome: false,
   push_notifications: true,
+  ask_gate: true,
   idle_behavior: 'discover',
   routines: [
     { id: 'heartbeat-restart', schedule: '0 4 * * *', skill: 'claude-code-hermit:heartbeat start', run_during_waiting: true, enabled: true },
