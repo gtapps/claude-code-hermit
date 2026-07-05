@@ -217,11 +217,22 @@ function loadLastBrief(hermitDir: string): LastBriefState | null {
 
 const COMPILED_INDEX_CAP = 20;
 
+function statMtimeMs(file: string): number {
+  try { return fs.statSync(file).mtimeMs; } catch { return 0; }
+}
+
 // Excludes review-weekly-*.md — those already have their own dedicated section
 // (renderWeekly) so listing them again here would just be confusing duplication.
+// Newest-first (by mtime) before the cap, so on a hermit with >20 compiled docs the
+// discovery surface shows the most recently compiled ones rather than an arbitrary
+// alphabetical slice that could hide a just-written doc.
 function loadCompiledIndex(hermitDir: string): { docs: CompiledDocRow[]; omitted: number } {
   const compiledDir = path.join(hermitDir, 'compiled');
-  const files = globDir(compiledDir, /\.md$/).filter(f => !/^review-weekly-.*\.md$/.test(path.basename(f)));
+  const files = globDir(compiledDir, /\.md$/)
+    .filter(f => !/^review-weekly-.*\.md$/.test(path.basename(f)))
+    .map(f => ({ f, mtime: statMtimeMs(f) })) // stat once per file, not O(n log n) times in the comparator
+    .sort((a, b) => b.mtime - a.mtime)
+    .map(({ f }) => f);
   const docs: CompiledDocRow[] = files.slice(0, COMPILED_INDEX_CAP).map(f => {
     const name = path.basename(f);
     const parsed = readFileWithFrontmatter(f);
@@ -509,9 +520,10 @@ function renderBrief(state: DashboardState): string {
   if (!b) {
     return `<section class="card"><h2>Latest brief</h2><p class="muted">No brief yet.</p></section>`;
   }
+  const when = b.generatedAt ? ` <span class="muted">· ${escapeHtml(b.generatedAt)}</span>` : '';
   return `
     <section class="card">
-      <h2>Latest brief <span class="muted">(${escapeHtml(b.kind)})</span></h2>
+      <h2>Latest brief <span class="muted">(${escapeHtml(b.kind)})</span>${when}</h2>
       ${mdToHtml(b.text)}
     </section>`;
 }

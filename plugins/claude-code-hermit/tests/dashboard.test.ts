@@ -270,6 +270,23 @@ describe('loadDashboardState', () => {
     expect(state.compiledIndex.docs.length).toBe(20);
     expect(state.compiledIndex.omitted).toBe(5);
   }));
+
+  test('compiledIndex is newest-first by mtime, so a recent doc is not hidden by an alphabetically-late name', withHermitDir((hermitDir) => {
+    // 20 older docs whose names sort BEFORE the newest, plus one recent doc whose
+    // name sorts LAST — under an alphabetical cap it would fall into the omitted bucket.
+    for (let i = 0; i < 20; i++) {
+      const f = path.join(hermitDir, 'compiled', `aaa-old-${String(i).padStart(2, '0')}.md`);
+      fs.writeFileSync(f, 'body\n');
+      fs.utimesSync(f, new Date('2026-01-01T00:00:00Z'), new Date('2026-01-01T00:00:00Z'));
+    }
+    const recent = path.join(hermitDir, 'compiled', 'zzz-newest.md');
+    fs.writeFileSync(recent, 'body\n');
+    fs.utimesSync(recent, new Date('2026-07-05T00:00:00Z'), new Date('2026-07-05T00:00:00Z'));
+
+    const state = loadDashboardState(hermitDir);
+    expect(state.compiledIndex.docs[0].name).toBe('zzz-newest.md');
+    expect(state.compiledIndex.omitted).toBe(1);
+  }));
 });
 
 // ---------- renderDashboard ----------
@@ -331,6 +348,12 @@ describe('renderDashboard', () => {
     expect(html).toContain('(morning)');
     expect(html).toContain('<strong>the hub</strong>');
     expect(html).not.toContain('<script>alert(1)</script>');
+  }));
+
+  test('brief section shows when it was generated, so a stale brief is not undated', withHermitDir((hermitDir) => {
+    writeLastBrief(hermitDir, 'morning', 'Brief body.', '2026-07-05T08:00:00Z');
+    const { html } = renderDashboard(loadDashboardState(hermitDir));
+    expect(html).toContain('2026-07-05T08:00:00Z');
   }));
 
   test('renders the compiled-docs index, capped, excluding weekly-review files', withHermitDir((hermitDir) => {
