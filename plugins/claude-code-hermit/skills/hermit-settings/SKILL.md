@@ -39,6 +39,7 @@ On a channel-tagged turn, every free-form `Ask:` prompt below is delivered via t
 /claude-code-hermit:hermit-settings quality-gate     — set post-implementation /claude-code-hermit:simplify gate tier (budget|balanced|quality)
 /claude-code-hermit:hermit-settings reflection       — tune graduation threshold (graduation_min_sessions)
 /claude-code-hermit:hermit-settings push-notifications — toggle PushNotification doorbell (fires when no channel is enabled or a configured channel is unreachable)
+/claude-code-hermit:hermit-settings artifact-dashboard — toggle the Hermit Dashboard artifact (single-URL status/proposals/weekly-evolution page)
 ```
 
 ## Plan
@@ -424,6 +425,13 @@ Ask: "Send a PushNotification (desktop notification in your terminal app, plus m
   off — disable push notifications
 [current: <value>]"
 Run `settings-edit ... set push_notifications <true|false>` ("on" → true, "off" → false; or `toggle push_notifications` to flip).
+
+**If argument is "artifact-dashboard":**
+Ask: "Publish a Hermit Dashboard artifact (status, proposal queue, weekly evolution) to a private claude.ai URL? Refreshed by `/brief`, `/weekly-review`, `/proposal-create`, and `/proposal-act` — no extra cost beyond those turns. Requires a `/login`-authenticated session with Artifacts entitled (Pro/Max/Team/Enterprise); on any other surface or without entitlement it silently falls back to the existing markdown-only delivery. Private to your account unless your org has Team/Enterprise Share.
+  on  — enable the dashboard artifact
+  off — disable (default)
+[current: <value>]"
+Run `settings-edit ... set artifacts.dashboard <true|false>` (creates the `artifacts` object if missing; "on" → true, "off" → false; or `toggle artifacts.dashboard` to flip).
 
 ### 3. Write config
 

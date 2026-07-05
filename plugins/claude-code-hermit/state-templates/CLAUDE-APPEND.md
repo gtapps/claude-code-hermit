@@ -30,6 +30,10 @@ Main owns outbound sends and `AskUserQuestion`; a delegated sub-step returns its
 
 Full eligibility rules, resolution order, and the per-branch matrix: `/claude-code-hermit:channel-responder` § Outbound notification protocol.
 
+## Dashboard Refresh
+
+Gated by `config.artifacts.dashboard` (default off, main-session only). Protocol: `docs/artifacts.md`.
+
 ## Knowledge Discipline
 
 Auto-memory handles all learning; `compiled/` is for durable domain outputs, not lessons. **Memory-first for suggestions:** before any suggestion-generating path (`brief`, `reflect`, `weekly-review`, `proposal-create`, `session-start`, and the `proposal-triage`/`reflection-judge` subagents) declares a finding novel, consult auto-memory and suppress with the canonical code `covered-by-memory` (quoting the matching memory line) if memory already covers the decision, preference, or pattern. Skills acting on a decided intent (`session-close`, `proposal-act`, `hermit-routines`, `hatch`) are exempt.

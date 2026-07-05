@@ -13,7 +13,7 @@ The `compiled/` directory is scanned at session start to inject foundational con
 
 ## Runtime dirs (`storage_drift.ignore`)
 
-Some domain plugins install a hermit-owned runtime tree that is **not** a knowledge artifact — for example, `laravel-forge-hermit` puts a Composer vendor tree at `.claude-code-hermit/forge-runtime/`. These dirs should not live in `raw/` or `compiled/` (they're not archivable content), but they're also legitimate, so the storage-drift check must not flag them.
+Some domain plugins install a hermit-owned runtime tree that is **not** a knowledge artifact — for example, `laravel-forge-hermit` puts a Composer vendor tree at `.claude-code-hermit/forge-runtime/`. The same applies to a downstream agent that overrides a core plugin script (e.g. keeping a project-specific `hermit-start.ts` wrapper at `.claude-code-hermit/scripts/`) — it's live code, not an artifact, and must not be moved into `raw/` or `compiled/`. These dirs are legitimate, so the storage-drift check must not flag them.
 
 Declare such dirs in `config.json`:
 
@@ -22,6 +22,8 @@ Declare such dirs in `config.json`:
   "ignore": ["forge-runtime"]
 }
 ```
+
+The entry must be the **bare directory name** (`"forge-runtime"`, `"scripts"`), not a path (`".claude-code-hermit/scripts/"` or `"scripts/"`) — the check matches against `entry.name` from a directory listing, so a path-form entry silently fails to match and the drift warning keeps recurring.
 
 When a domain plugin calls hatch, its Step 8 (config.json rewrite) appends its runtime dir name to `storage_drift.ignore` idempotently. The drift check (`scripts/lib/drift.ts`) reads this list at runtime and skips declared dirs — in both the session-start Storage Drift block and the reflect observations ledger.
 
@@ -97,6 +99,8 @@ If a hermit produces many artifacts of the same type (per-room audits, per-accou
 | `reports/` (repo root) | ❌ | same — outside hermit state |
 | `memory/` (inside `.claude-code-hermit/`) | ❌ | base hermit infra — plugins don't add top-level dirs |
 | `.claude-code-hermit/forge-runtime/` (with `storage_drift.ignore: ["forge-runtime"]`) | ✅ | hermit-owned runtime dir, registered in config, not a knowledge artifact |
+| `.claude-code-hermit/scripts/` (with `storage_drift.ignore: ["scripts"]`) | ✅ | downstream override of a core script (e.g. project-specific `hermit-start.ts`), not a knowledge artifact |
+| `.claude-code-hermit/scripts/` (with `storage_drift.ignore: [".claude-code-hermit/scripts/"]`) | ❌ | path-form entry doesn't match `entry.name` — still flagged as drift |
 
 ## Declare your types in knowledge-schema.md
 
