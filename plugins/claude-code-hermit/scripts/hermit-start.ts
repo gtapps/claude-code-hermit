@@ -50,7 +50,8 @@ const DEFAULT_CONFIG: Json = {
     { id: 'reflect', schedule: '0 9 * * *', skill: 'claude-code-hermit:reflect', enabled: true },
     { id: 'scheduled-checks', schedule: '5 9 * * *', skill: 'claude-code-hermit:reflect --scheduled-checks', run_during_waiting: true, enabled: true },
     { id: 'weekly-review', schedule: '0 23 * * 0', skill: 'claude-code-hermit:weekly-review', enabled: true },
-    { id: 'daily-auto-close', schedule: '0 0 * * *', skill: 'claude-code-hermit:session-close --scheduled', run_during_waiting: true, enabled: true },
+    { id: 'daily-auto-close', schedule: '0 0 * * *', skill: 'claude-code-hermit:session-close --scheduled', model: 'haiku', run_during_waiting: true, enabled: true },
+    { id: 'doctor', schedule: '0 10 * * 1', skill: 'claude-code-hermit:hermit-doctor', model: 'haiku', run_during_waiting: true, enabled: true },
   ],
   monitors: [],
   env: {

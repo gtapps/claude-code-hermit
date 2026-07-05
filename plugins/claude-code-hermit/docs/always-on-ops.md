@@ -30,6 +30,12 @@ This reads `config.json`, starts a tmux session with your configured channels an
 .claude-code-hermit/bin/hermit-stop --force # immediate kill
 ```
 
+To pause/resume the running session without stopping it (also triggerable from a channel via the `pause`/`resume`/`snooze <dur>` message keywords):
+
+```bash
+.claude-code-hermit/bin/hermit-pause on|off|snooze <dur>|status
+```
+
 **Config options:** If `remote: true`, adds `--remote-control` and names the session after `agent_name`. If `model` is set, passes it to Claude Code.
 
 ### Manual tmux (alternative)

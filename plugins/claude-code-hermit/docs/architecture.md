@@ -155,6 +155,11 @@ your-project/
 │   │   ├── micro-proposals.json      # Pending micro-approvals list (reflect + channel-bridged asks + channel-responder)
 │   │   ├── state-summary.md          # Auto-generated health snapshot (generate-summary.ts)
 │   │   ├── monitors.runtime.json     # Active watch registry, cleared on session start (watch-owned)
+│   │   ├── operator-pause.json       # Operator/watchdog pause (pause-keyword.ts/watchdog-owned)
+│   │   ├── auto-pause.json           # Budget-breach auto-pause (cost-tracker-owned)
+│   │   ├── budget-alerts.json        # Budget alert dedup (cost-tracker-owned)
+│   │   ├── telemetry-alert.json      # Telemetry export-failure alert dedup (telemetry-export-owned)
+│   │   ├── channel-health.json       # Advisory channel send-liveness (channel-send-owned)
 │   │   ├── .heartbeat                # Activity marker (heartbeat-touch-owned)
 │   │   └── .lifecycle.lock           # Always-on lifecycle lock (hermit-start-owned)
 │   ├── bin/hermit-start, hermit-stop
