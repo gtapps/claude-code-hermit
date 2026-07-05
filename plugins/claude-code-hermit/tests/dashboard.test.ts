@@ -48,6 +48,17 @@ function writeWeekly(hermitDir: string, week: string, fm: Record<string, string>
   fs.writeFileSync(path.join(hermitDir, 'compiled', `review-weekly-${week}.md`), `---\n${yaml}\n---\n${body}\n`);
 }
 
+function writeLastBrief(hermitDir: string, kind: string, text: string, generatedAt = '2026-07-05T08:00:00Z'): void {
+  writeJson(hermitDir, 'state/last-brief.json', { kind, text, generated_at: generatedAt });
+}
+
+function writeCompiledDoc(hermitDir: string, file: string, fm: Record<string, string> | null, body: string): void {
+  const content = fm
+    ? `---\n${Object.entries(fm).map(([k, v]) => `${k}: ${v}`).join('\n')}\n---\n${body}\n`
+    : `${body}\n`;
+  fs.writeFileSync(path.join(hermitDir, 'compiled', file), content);
+}
+
 // ---------- mdToHtml ----------
 
 describe('mdToHtml', () => {
@@ -214,6 +225,68 @@ describe('loadDashboardState', () => {
     expect(state.weekly!.hasPrior).toBe(false);
     expect(state.weekly!.priorCostUsd).toBeNull();
   }));
+
+  test('lastBrief is null when state/last-brief.json is absent', withHermitDir((hermitDir) => {
+    const state = loadDashboardState(hermitDir);
+    expect(state.lastBrief).toBeNull();
+  }));
+
+  test('lastBrief is null when text is blank', withHermitDir((hermitDir) => {
+    writeLastBrief(hermitDir, 'morning', '   ');
+    const state = loadDashboardState(hermitDir);
+    expect(state.lastBrief).toBeNull();
+  }));
+
+  test('reads lastBrief kind, text, and generated_at', withHermitDir((hermitDir) => {
+    writeLastBrief(hermitDir, 'evening', 'Working on the artifact hub. 3 proposals resolved.', '2026-07-05T22:00:00Z');
+    const state = loadDashboardState(hermitDir);
+    expect(state.lastBrief?.kind).toBe('evening');
+    expect(state.lastBrief?.text).toBe('Working on the artifact hub. 3 proposals resolved.');
+    expect(state.lastBrief?.generatedAt).toBe('2026-07-05T22:00:00Z');
+  }));
+
+  test('compiledIndex is empty when compiled/ has no docs', withHermitDir((hermitDir) => {
+    const state = loadDashboardState(hermitDir);
+    expect(state.compiledIndex.docs).toEqual([]);
+    expect(state.compiledIndex.omitted).toBe(0);
+  }));
+
+  test('compiledIndex excludes review-weekly files and uses frontmatter title when present', withHermitDir((hermitDir) => {
+    writeWeekly(hermitDir, '2026-W27', { week: '2026-W27' }, 'body');
+    writeCompiledDoc(hermitDir, 'architecture-decisions.md', { title: '"Architecture Decisions"' }, 'body');
+    writeCompiledDoc(hermitDir, 'no-frontmatter-doc.md', null, 'plain body, no frontmatter');
+    const state = loadDashboardState(hermitDir);
+    const names = state.compiledIndex.docs.map(d => d.name).sort();
+    expect(names).toEqual(['architecture-decisions.md', 'no-frontmatter-doc.md']);
+    expect(state.compiledIndex.docs.find(d => d.name === 'architecture-decisions.md')?.title).toBe('Architecture Decisions');
+    expect(state.compiledIndex.docs.find(d => d.name === 'no-frontmatter-doc.md')?.title).toBe('no-frontmatter-doc.md');
+  }));
+
+  test('compiledIndex caps at 20 and reports the omitted count', withHermitDir((hermitDir) => {
+    for (let i = 0; i < 25; i++) {
+      writeCompiledDoc(hermitDir, `doc-${String(i).padStart(2, '0')}.md`, null, 'body');
+    }
+    const state = loadDashboardState(hermitDir);
+    expect(state.compiledIndex.docs.length).toBe(20);
+    expect(state.compiledIndex.omitted).toBe(5);
+  }));
+
+  test('compiledIndex is newest-first by mtime, so a recent doc is not hidden by an alphabetically-late name', withHermitDir((hermitDir) => {
+    // 20 older docs whose names sort BEFORE the newest, plus one recent doc whose
+    // name sorts LAST — under an alphabetical cap it would fall into the omitted bucket.
+    for (let i = 0; i < 20; i++) {
+      const f = path.join(hermitDir, 'compiled', `aaa-old-${String(i).padStart(2, '0')}.md`);
+      fs.writeFileSync(f, 'body\n');
+      fs.utimesSync(f, new Date('2026-01-01T00:00:00Z'), new Date('2026-01-01T00:00:00Z'));
+    }
+    const recent = path.join(hermitDir, 'compiled', 'zzz-newest.md');
+    fs.writeFileSync(recent, 'body\n');
+    fs.utimesSync(recent, new Date('2026-07-05T00:00:00Z'), new Date('2026-07-05T00:00:00Z'));
+
+    const state = loadDashboardState(hermitDir);
+    expect(state.compiledIndex.docs[0].name).toBe('zzz-newest.md');
+    expect(state.compiledIndex.omitted).toBe(1);
+  }));
 });
 
 // ---------- renderDashboard ----------
@@ -255,6 +328,41 @@ describe('renderDashboard', () => {
     const { html } = renderDashboard(loadDashboardState(hermitDir));
     expect(html).not.toContain('super-secret-value-should-not-leak');
     expect(html).not.toContain('HERMIT_SECRET_TOKEN');
+  }));
+
+  test('still never embeds config env values when a brief is present', withHermitDir((hermitDir) => {
+    writeJson(hermitDir, 'config.json', {
+      agent_name: 'shelly',
+      env: { HERMIT_SECRET_TOKEN: 'super-secret-value-should-not-leak' },
+    });
+    writeLastBrief(hermitDir, 'morning', 'Brief text mentioning nothing sensitive.');
+    const { html } = renderDashboard(loadDashboardState(hermitDir));
+    expect(html).not.toContain('super-secret-value-should-not-leak');
+    expect(html).not.toContain('HERMIT_SECRET_TOKEN');
+  }));
+
+  test('renders the latest brief section, safely escaping markdown', withHermitDir((hermitDir) => {
+    writeLastBrief(hermitDir, 'morning', 'Working on **the hub**. <script>alert(1)</script>');
+    const { html } = renderDashboard(loadDashboardState(hermitDir));
+    expect(html).toContain('Latest brief');
+    expect(html).toContain('(morning)');
+    expect(html).toContain('<strong>the hub</strong>');
+    expect(html).not.toContain('<script>alert(1)</script>');
+  }));
+
+  test('brief section shows when it was generated, so a stale brief is not undated', withHermitDir((hermitDir) => {
+    writeLastBrief(hermitDir, 'morning', 'Brief body.', '2026-07-05T08:00:00Z');
+    const { html } = renderDashboard(loadDashboardState(hermitDir));
+    expect(html).toContain('2026-07-05T08:00:00Z');
+  }));
+
+  test('renders the compiled-docs index, capped, excluding weekly-review files', withHermitDir((hermitDir) => {
+    writeWeekly(hermitDir, '2026-W27', { week: '2026-W27' }, 'body');
+    writeCompiledDoc(hermitDir, 'architecture-decisions.md', { title: '"Architecture Decisions"' }, 'body');
+    const { html } = renderDashboard(loadDashboardState(hermitDir));
+    expect(html).toContain('Architecture Decisions');
+    expect(html).toContain('architecture-decisions.md');
+    expect(html).not.toContain('review-weekly-2026-W27.md');
   }));
 
   test('renders open proposals as expandable details and history as one-liners', withHermitDir((hermitDir) => {

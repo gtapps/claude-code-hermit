@@ -40,6 +40,8 @@ On a channel-tagged turn, every free-form `Ask:` prompt below is delivered via t
 /claude-code-hermit:hermit-settings reflection       — tune graduation threshold (graduation_min_sessions)
 /claude-code-hermit:hermit-settings push-notifications — toggle PushNotification doorbell (fires when no channel is enabled or a configured channel is unreachable)
 /claude-code-hermit:hermit-settings artifact-dashboard — toggle the Hermit Dashboard artifact (single-URL status/proposals/weekly-evolution page)
+/claude-code-hermit:hermit-settings artifact-proposals — toggle the Proposals-page artifact (full-text open-proposal page with deep-linked anchors)
+/claude-code-hermit:hermit-settings artifact-weekly-review — toggle the Weekly-review artifact (stable-URL passthrough of the compiled weekly report)
 ```
 
 ## Plan
@@ -428,10 +430,24 @@ Run `settings-edit ... set push_notifications <true|false>` ("on" → true, "off
 
 **If argument is "artifact-dashboard":**
 Ask: "Publish a Hermit Dashboard artifact (status, proposal queue, weekly evolution) to a private claude.ai URL? Refreshed by `/brief`, `/weekly-review`, `/proposal-create`, and `/proposal-act` — no extra cost beyond those turns. Requires a `/login`-authenticated session with Artifacts entitled (Pro/Max/Team/Enterprise); on any other surface or without entitlement it silently falls back to the existing markdown-only delivery. Private to your account unless your org has Team/Enterprise Share.
-  on  — enable the dashboard artifact
-  off — disable (default)
+  on  — enable the dashboard artifact (default)
+  off — disable
 [current: <value>]"
 Run `settings-edit ... set artifacts.dashboard <true|false>` (creates the `artifacts` object if missing; "on" → true, "off" → false; or `toggle artifacts.dashboard` to flip).
+
+**If argument is "artifact-proposals":**
+Ask: "Publish a Proposals-page artifact (full text of open proposals, deep-linked from new-proposal announcements) to a private claude.ai URL? Refreshed by `/proposal-create` and `/proposal-act` — no extra cost beyond those turns. Same entitlement/fallback/privacy notes as the dashboard artifact above.
+  on  — enable the proposals-page artifact (default)
+  off — disable
+[current: <value>]"
+Run `settings-edit ... set artifacts.proposals <true|false>` (creates the `artifacts` object if missing; "on" → true, "off" → false; or `toggle artifacts.proposals` to flip).
+
+**If argument is "artifact-weekly-review":**
+Ask: "Publish a Weekly-review artifact (the compiled weekly report as a stable-URL page) to a private claude.ai URL? Refreshed by `/weekly-review` — no extra cost beyond that turn. Same entitlement/fallback/privacy notes as the dashboard artifact above.
+  on  — enable the weekly-review artifact (default)
+  off — disable
+[current: <value>]"
+Run `settings-edit ... set artifacts.weekly_review <true|false>` (creates the `artifacts` object if missing; "on" → true, "off" → false; or `toggle artifacts.weekly_review` to flip).
 
 ### 3. Write config
 

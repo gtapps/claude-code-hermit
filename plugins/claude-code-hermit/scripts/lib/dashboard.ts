@@ -1,9 +1,13 @@
-// Deterministic renderer for the Hermit Dashboard artifact — no model authorship,
-// so a publish costs a render (pennies) instead of a generation (dollars). Reads only
-// state already on disk (runtime.json, cost-index.json, alert-state.json, proposals-index.json
-// + proposal bodies, latest compiled/review-weekly-*.md) and produces one self-contained
-// HTML fragment. The Artifact tool wraps the fragment in the page shell — this file must
-// not include <!DOCTYPE>/<html>/<head>/<body> (see https://code.claude.com/docs/en/artifacts,
+// Deterministic renderer for the Hermit Dashboard artifact — the render itself is
+// script-authored, not model-authored, so a publish costs a render (pennies) instead
+// of a generation (dollars). Reads only state already on disk (runtime.json,
+// cost-index.json, alert-state.json, proposals-index.json + proposal bodies, latest
+// compiled/review-weekly-*.md, state/last-brief.json, compiled/*.md) and produces one
+// self-contained HTML fragment. Note last-brief.json's `text` field is itself
+// model-composed (written by the brief skill) — the render step is deterministic given
+// that state, but the state is not exclusively machine-generated. The Artifact tool
+// wraps the fragment in the page shell — this file must not include
+// <!DOCTYPE>/<html>/<head>/<body> (see https://code.claude.com/docs/en/artifacts,
 // Page constraints).
 
 import fs from 'node:fs';
@@ -58,6 +62,17 @@ export interface WeeklyState {
   bodyHtml: string;
 }
 
+export interface LastBriefState {
+  kind: string;
+  text: string;
+  generatedAt: string | null;
+}
+
+export interface CompiledDocRow {
+  name: string;
+  title: string;
+}
+
 export interface DashboardState {
   agentName: string;
   sessionState: string | null;
@@ -71,6 +86,8 @@ export interface DashboardState {
     oldestOpenAccepted: OldestAccepted | null;
   };
   weekly: WeeklyState | null;
+  lastBrief: LastBriefState | null;
+  compiledIndex: { docs: CompiledDocRow[]; omitted: number };
 }
 
 // ---------- loading ----------
@@ -101,7 +118,7 @@ function ageDaysFrom(iso: string | null): number | null {
   return Math.max(0, Math.floor((Date.now() - t) / 86400000));
 }
 
-function loadProposals(hermitDir: string): DashboardState['proposals'] {
+export function loadProposals(hermitDir: string): DashboardState['proposals'] {
   const idxPath = path.join(hermitDir, 'state', 'proposals-index.json');
   let index: ProposalsIndex | null = readJsonSafe(idxPath);
   if (!index) index = rebuildIndex(hermitDir); // self-heal: missing/stale cache, or first run
@@ -188,6 +205,44 @@ function loadWeekly(hermitDir: string): WeeklyState | null {
   };
 }
 
+function loadLastBrief(hermitDir: string): LastBriefState | null {
+  const raw = readJsonSafe(path.join(hermitDir, 'state', 'last-brief.json'));
+  if (!raw || typeof raw.text !== 'string' || !raw.text.trim()) return null;
+  return {
+    kind: typeof raw.kind === 'string' && raw.kind ? raw.kind : 'brief',
+    text: raw.text,
+    generatedAt: typeof raw.generated_at === 'string' ? raw.generated_at : null,
+  };
+}
+
+const COMPILED_INDEX_CAP = 20;
+
+function statMtimeMs(file: string): number {
+  try { return fs.statSync(file).mtimeMs; } catch { return 0; }
+}
+
+// Excludes review-weekly-*.md — those already have their own dedicated section
+// (renderWeekly) so listing them again here would just be confusing duplication.
+// Newest-first (by mtime) before the cap, so on a hermit with >20 compiled docs the
+// discovery surface shows the most recently compiled ones rather than an arbitrary
+// alphabetical slice that could hide a just-written doc.
+function loadCompiledIndex(hermitDir: string): { docs: CompiledDocRow[]; omitted: number } {
+  const compiledDir = path.join(hermitDir, 'compiled');
+  const files = globDir(compiledDir, /\.md$/)
+    .filter(f => !/^review-weekly-.*\.md$/.test(path.basename(f)))
+    .map(f => ({ f, mtime: statMtimeMs(f) })) // stat once per file, not O(n log n) times in the comparator
+    .sort((a, b) => b.mtime - a.mtime)
+    .map(({ f }) => f);
+  const docs: CompiledDocRow[] = files.slice(0, COMPILED_INDEX_CAP).map(f => {
+    const name = path.basename(f);
+    const parsed = readFileWithFrontmatter(f);
+    const title = typeof parsed?.fm?.title === 'string' && parsed.fm.title.trim() ? parsed.fm.title : name;
+    return { name, title };
+  });
+  const omitted = Math.max(0, files.length - COMPILED_INDEX_CAP);
+  return { docs, omitted };
+}
+
 // Alert entries have no single schema: telemetry/checklist alerts carry a `message`
 // string, but budget alerts (the dominant type) store structured fields and no message.
 // Synthesize a readable line for those instead of falling back to the raw dedup key.
@@ -231,6 +286,8 @@ export function loadDashboardState(hermitDir: string): DashboardState {
     alerts,
     proposals: loadProposals(hermitDir),
     weekly: loadWeekly(hermitDir),
+    lastBrief: loadLastBrief(hermitDir),
+    compiledIndex: loadCompiledIndex(hermitDir),
   };
 }
 
@@ -335,7 +392,7 @@ export function mdToHtml(md: string): string {
 
 // ---------- rendering ----------
 
-function chip(status: string): string {
+export function chip(status: string): string {
   const cls = ['proposed', 'accepted', 'resolved', 'dismissed', 'deferred'].includes(status)
     ? status
     : 'unknown';
@@ -458,7 +515,35 @@ function renderWeekly(state: DashboardState): string {
     </section>`;
 }
 
-const CSS = `
+function renderBrief(state: DashboardState): string {
+  const b = state.lastBrief;
+  if (!b) {
+    return `<section class="card"><h2>Latest brief</h2><p class="muted">No brief yet.</p></section>`;
+  }
+  const when = b.generatedAt ? ` <span class="muted">· ${escapeHtml(b.generatedAt)}</span>` : '';
+  return `
+    <section class="card">
+      <h2>Latest brief <span class="muted">(${escapeHtml(b.kind)})</span>${when}</h2>
+      ${mdToHtml(b.text)}
+    </section>`;
+}
+
+function renderCompiledIndex(state: DashboardState): string {
+  const { docs, omitted } = state.compiledIndex;
+  if (!docs.length) {
+    return `<section class="card"><h2>Compiled docs</h2><p class="muted">Nothing compiled yet.</p></section>`;
+  }
+  const items = docs.map(d => `<li>${escapeHtml(d.title)} <span class="muted">(${escapeHtml(d.name)})</span></li>`).join('');
+  const omittedLine = omitted > 0 ? `<li class="muted">+${omitted} more not shown</li>` : '';
+  return `
+    <section class="card">
+      <h2>Compiled docs</h2>
+      <p class="muted">Ask to open any of these as a page.</p>
+      <ul class="proposal-history">${items}${omittedLine}</ul>
+    </section>`;
+}
+
+export const CSS = `
 :root {
   color-scheme: light dark;
   --bg: #ffffff; --fg: #1a1a1a; --muted: #6b7280; --border: #e5e7eb; --card-bg: #fafafa;
@@ -489,16 +574,16 @@ const CSS = `
   --bg: #0f1115; --fg: #e5e7eb; --muted: #9ca3af; --border: #2a2e37; --card-bg: #171a20; --code-bg: #1f2229;
 }
 * { box-sizing: border-box; }
-body, .hermit-dashboard { margin: 0; }
-.hermit-dashboard {
+body, .hermit-page { margin: 0; }
+.hermit-page {
   background: var(--bg); color: var(--fg);
   font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-variant-numeric: tabular-nums;
   max-width: 720px; margin: 0 auto; padding: 24px 20px 48px;
 }
-.hermit-dashboard header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px; }
-.hermit-dashboard header h1 { font-size: 18px; margin: 0; }
-.hermit-dashboard header .updated { color: var(--muted); font-size: 13px; }
+.hermit-page header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px; }
+.hermit-page header h1 { font-size: 18px; margin: 0; }
+.hermit-page header .updated { color: var(--muted); font-size: 13px; }
 .card { border: 1px solid var(--border); background: var(--card-bg); border-radius: 8px; padding: 16px 18px; margin-bottom: 16px; overflow-x: auto; }
 .card h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 12px; }
 .stat-row { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 8px; }
@@ -536,14 +621,16 @@ footer.hermit-footer { color: var(--muted); font-size: 12px; margin-top: 8px; }
 export function renderDashboard(state: DashboardState, opts?: { now?: string }): { html: string; hash: string } {
   const templated = `<title>Hermit Dashboard</title>
 <style>${CSS}</style>
-<div class="hermit-dashboard">
+<div class="hermit-page">
   <header>
     <h1>${escapeHtml(state.agentName)} — Hermit Dashboard</h1>
     <span class="updated">updated ${UPDATED_TOKEN}</span>
   </header>
   ${renderStatus(state)}
+  ${renderBrief(state)}
   ${renderProposals(state)}
   ${renderWeekly(state)}
+  ${renderCompiledIndex(state)}
   <footer class="hermit-footer">Rendered by claude-code-hermit — script-generated, not model-authored.</footer>
 </div>
 `;

@@ -30,9 +30,9 @@ Main owns outbound sends and `AskUserQuestion`; a delegated sub-step returns its
 
 Full eligibility rules, resolution order, and the per-branch matrix: `/claude-code-hermit:channel-responder` § Outbound notification protocol.
 
-## Dashboard Refresh
+## Artifact Pages
 
-Gated by `config.artifacts.dashboard` (default off, main-session only). Protocol: `docs/artifacts.md`.
+Dashboard/proposals/weekly-review, gated by `config.artifacts.*` (default on). On-demand publish needs no gate. Protocol: `docs/artifacts.md`.
 
 ## Knowledge Discipline
 

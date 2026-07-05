@@ -116,7 +116,9 @@ const DEFAULT_CONFIG: Json = {
     redact_operator_text: true,
   },
   artifacts: {
-    dashboard: false,
+    dashboard: true,
+    proposals: true,
+    weekly_review: true,
   },
   context_hygiene: {
     compact: {

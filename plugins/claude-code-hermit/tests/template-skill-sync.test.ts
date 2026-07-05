@@ -58,6 +58,42 @@ describe('hatch SKILL.md references every template key', () => {
 });
 
 // -------------------------------------------------------
+// Nested artifacts.* keys — the top-level-key check above only asserts
+// `artifacts` itself appears in hatch/SKILL.md (satisfied since it's a
+// template-only field), which does NOT catch a nested key like `proposals`
+// or `weekly_review` going unreferenced anywhere an operator would find it.
+// -------------------------------------------------------
+describe('nested artifacts.* keys are referenced in operator-facing docs', () => {
+  const HERMIT_SETTINGS_PATH = path.join(PLUGIN_ROOT, 'skills', 'hermit-settings', 'SKILL.md');
+  const ARTIFACTS_DOC_PATH = path.join(PLUGIN_ROOT, 'docs', 'artifacts.md');
+
+  let artifactsKeys: string[] = [];
+  try {
+    const tmpl = JSON.parse(fs.readFileSync(TEMPLATE_PATH, 'utf-8'));
+    artifactsKeys = Object.keys(tmpl.artifacts ?? {});
+  } catch {
+    // Leave empty — the guard test below fails loud.
+  }
+
+  test('could parse artifacts keys from template', () => {
+    expect(artifactsKeys.length).toBeGreaterThan(0);
+  });
+
+  const hermitSettingsContent = fs.readFileSync(HERMIT_SETTINGS_PATH, 'utf-8');
+  const artifactsDocContent = fs.readFileSync(ARTIFACTS_DOC_PATH, 'utf-8');
+
+  for (const key of artifactsKeys) {
+    test(`config.artifacts.${key} is referenced in hermit-settings/SKILL.md`, () => {
+      expect(hermitSettingsContent).toContain(`artifacts.${key}`);
+    });
+
+    test(`config.artifacts.${key} is referenced in docs/artifacts.md`, () => {
+      expect(artifactsDocContent).toContain(`artifacts.${key}`);
+    });
+  }
+});
+
+// -------------------------------------------------------
 // Sandbox template files referenced in hatch/SKILL.md
 // -------------------------------------------------------
 describe('sandbox templates', () => {

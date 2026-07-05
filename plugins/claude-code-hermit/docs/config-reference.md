@@ -219,25 +219,33 @@ Modify with `/hermit-settings`. Validated by `validate-config.ts`. Manual export
 
 ## `artifacts`
 
-Opt-in publishing of hermit-generated pages to Claude Code's [Artifacts](https://code.claude.com/docs/en/artifacts) feature — private `claude.ai/code/artifact/<uuid>` pages, refreshed in place from the main session. See `docs/artifacts.md` for the full refresh protocol; this section covers the config and privacy/entitlement surface.
+Publishing of hermit-generated pages to Claude Code's [Artifacts](https://code.claude.com/docs/en/artifacts) feature — private `claude.ai/code/artifact/<uuid>` pages, refreshed in place from the main session. Default **on** per the plugin's research-preview feature-defaults rule (publish rides Claude Code's own governed path — org admin toggle, RBAC, retention, audit log — not a hermit-authored egress). See `docs/artifacts.md` for the full refresh protocol; this section covers the config and privacy/entitlement surface.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `dashboard` | boolean | `false` | Publish the Hermit Dashboard (status, proposal queue, weekly evolution), refreshed by `brief`, `weekly-review`, `proposal-create`, and `proposal-act`. |
+| `dashboard` | boolean | `true` | Publish the Hermit Dashboard (status, latest brief, proposal queue, weekly evolution, compiled-docs index), refreshed by `brief`, `weekly-review`, `proposal-create`, and `proposal-act`. |
+| `proposals` | boolean | `true` | Publish the full text of open proposals, each anchored for deep-linking, refreshed by `proposal-create` and `proposal-act`. |
+| `weekly_review` | boolean | `true` | Publish the latest compiled weekly review as a stable-URL page, refreshed by `weekly-review`. |
 
 ```json
 "artifacts": {
-  "dashboard": true
+  "dashboard": true,
+  "proposals": true,
+  "weekly_review": true
 }
 ```
 
-**Requirements and fallback:** publishing needs a `/login`-authenticated session (API-key/gateway-token/cloud-provider sessions can't publish) with Artifacts entitled — available on Pro, Max, Team, and Enterprise plans, off by default in the Agent SDK/GitHub Action/MCP-server contexts and when `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` is set. There is no reliable pre-check, so the hermit just tries to publish and falls back silently to the existing markdown-only channel delivery on any failure — flip the flag on and off freely, nothing else changes.
+**Requirements and fallback:** publishing needs a `/login`-authenticated session (API-key/gateway-token/cloud-provider sessions can't publish) with Artifacts entitled — available on Pro, Max, Team, and Enterprise plans, off by default in the Agent SDK/GitHub Action/MCP-server contexts and when `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` is set. There is no reliable pre-check, so the hermit just tries to publish and falls back silently to the existing markdown-only channel delivery on any failure — flip a flag on and off freely, nothing else changes.
 
-**Privacy:** on Pro/Max, an artifact is private to your account — only you can view it, even in a shared channel. Team/Enterprise plans can additionally grant **Share** to specific org members or the whole org from the page header; sharing never crosses an organization boundary. The published page is a rendered snapshot of hermit state (cost, proposal titles/bodies, session status) — treat it like any other operator-facing report.
+**Unattended publish authorization:** an unattended session can't answer the first-publish permission ask (a headless "ask" is an effective deny). `hatch`/`hermit-evolve` offer to add `Artifact` to `permissions.allow` (a sealed op in `apply-settings.ts`, kept separate from the hook-permission allow-list) so refreshes never prompt; if declined, they instead **bank** the first publish of each enabled page inline during the attended setup session, so every later refresh is a prompt-free same-URL republish. Without either, unattended publishes silently no-op — a deliberate choice, not a bug.
 
-**Disabling artifacts at the Claude Code level** (independent of this flag) — any of: `"disableArtifact": true` in `settings.json`, `CLAUDE_CODE_DISABLE_ARTIFACT=1`, or adding `Artifact` to `permissions.deny`. With any of these set, publish attempts fail and the hermit falls back the same way as a missing entitlement. If you run the hermit in tmux/headless (the norm for `hermit-start`), also set `CLAUDE_CODE_ARTIFACT_AUTO_OPEN=0` in `config.env` — otherwise a successful publish tries to open a browser with nothing to receive it.
+**On-demand publish:** any compiled doc or open proposal can be published as a one-off page on operator request ("open <doc> as a page") — no config key gates this; it's operator-initiated by definition. The dashboard's compiled-docs index lists what's available to ask for.
 
-Modify with `/hermit-settings artifact-dashboard`. Validated by `validate-config.ts`. Renderer: `scripts/lib/dashboard.ts` (deterministic — no model authorship, so a refresh costs a render, not a generation).
+**Privacy:** on Pro/Max, an artifact is private to your account — only you can view it, even in a shared channel. Team/Enterprise plans can additionally grant **Share** to specific org members or the whole org from the page header; sharing never crosses an organization boundary. Each published page is a rendered snapshot of hermit state (cost, proposal titles/bodies, session status, and — for the dashboard's latest-brief section — the model-composed brief text) — treat it like any other operator-facing report.
+
+**Disabling artifacts at the Claude Code level** (independent of these flags) — any of: `"disableArtifact": true` in `settings.json`, `CLAUDE_CODE_DISABLE_ARTIFACT=1`, or adding `Artifact` to `permissions.deny`. With any of these set, publish attempts fail and the hermit falls back the same way as a missing entitlement. If you run the hermit in tmux/headless (the norm for `hermit-start`), also set `CLAUDE_CODE_ARTIFACT_AUTO_OPEN=0` in `config.env` — otherwise a successful publish tries to open a browser with nothing to receive it.
+
+Modify with `/hermit-settings artifact-dashboard`, `artifact-proposals`, or `artifact-weekly-review`. Validated by `validate-config.ts`. Renderers: `scripts/lib/dashboard.ts`, `scripts/lib/proposals-page.ts`, `scripts/render-weekly-artifact.ts` (all deterministic — no model authorship except the dashboard's embedded brief text — so a refresh costs a render, not a generation).
 
 ---
 
