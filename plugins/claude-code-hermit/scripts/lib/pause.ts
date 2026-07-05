@@ -22,6 +22,11 @@ import path from 'node:path';
 
 export type PauseReason = 'operator' | 'budget' | 'watchdog';
 
+/** Operator-language label for a pause reason — shared by the watchdog's pushes and the status responder. */
+export function pauseReasonLabel(reason: PauseReason | string | null | undefined): string {
+  return reason === 'budget' ? 'a budget cap' : reason === 'watchdog' ? 'the watchdog' : 'your request';
+}
+
 export interface PauseFlag {
   paused: boolean;
   paused_until: string | null; // ISO timestamp, or null = indefinite

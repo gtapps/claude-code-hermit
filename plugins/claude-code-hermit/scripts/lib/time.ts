@@ -146,4 +146,17 @@ function parseDuration(str: unknown, defaultMs: number): number {
   return parseInt(m[1], 10) * mult;
 }
 
-export { currentHHMM, todayYMD, thisWeekKey, thisMonthYYYYMM, nextBoundaryISO, localISOStamp, utcISOStamp, parseDuration };
+// Parse the minute/hour fields of a simple numeric 5-field cron schedule
+// (e.g. "0 0 * * *"). Shared by hermit-watchdog.ts (daily-auto-close proximity)
+// and channel-status-responder.ts (next-routine line) — both only need the
+// fixed-time case, not full cron range/step/list support.
+function parseSimpleCronTime(schedule: string): { hour: number; minute: number } | null {
+  const parts = String(schedule).trim().split(/\s+/);
+  if (parts.length < 2) return null;
+  const minute = parseInt(parts[0], 10);
+  const hour = parseInt(parts[1], 10);
+  if (isNaN(minute) || isNaN(hour) || minute < 0 || minute > 59 || hour < 0 || hour > 23) return null;
+  return { hour, minute };
+}
+
+export { currentHHMM, todayYMD, thisWeekKey, thisMonthYYYYMM, nextBoundaryISO, localISOStamp, utcISOStamp, parseDuration, parseSimpleCronTime };

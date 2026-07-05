@@ -13,10 +13,11 @@ import { readTasks, taskProgress } from './lib/tasks';
 import { kStr, formatTokens } from './lib/format';
 import { sessionId as ccSessionId, transcriptPath as ccTranscriptPath, entryText, isToolResult, extractUsage, costLogPath, hermitDir } from './lib/cc-compat';
 import { costIndexPath, updateCostIndex, readCostIndex, scanCostLogWarnings } from './lib/cost-log';
-import { todayYMD, thisWeekKey, thisMonthYYYYMM } from './lib/time';
+import { todayYMD, thisWeekKey, thisMonthYYYYMM, currentHHMM } from './lib/time';
 import { readAlertState, defaultAlertState, quarantineAlertState, writeAlertState } from './lib/alert-state';
 import { setPause, isPaused } from './lib/pause';
 import { evaluateBudget, pauseBoundary } from './lib/budget';
+import { sendToChannel } from './lib/channel-send';
 
 type Json = any;
 
@@ -457,14 +458,66 @@ function updateShellSession(content: string, costStr: string, tokenStr: string):
   return content;
 }
 
+// Friendly "YYYY-MM-DD HH:MM" rendering of an ISO boundary in `timezone` — plain
+// HH:MM would be ambiguous for a monthly resume days away.
+function friendlyBoundary(iso: string, timezone: string): string {
+  const d = new Date(iso);
+  const date = todayYMD(timezone, d);
+  const hhmm = currentHHMM(timezone, d) ?? '';
+  return `${date} ${hhmm}`.trim();
+}
+
+const PERIOD_LABEL: Record<string, string> = { daily: "today's", weekly: "this week's", monthly: "this month's" };
+
+// Bound on the budget push, kept well under the Stop pipeline's 15s hook budget
+// so a slow/hung platform API can't starve the pipeline's remaining stages.
+const BUDGET_PUSH_TIMEOUT_MS = 6000;
+
+// Operator-language push for the periods that just newly crossed a warn/breach
+// threshold this tick (never for periods whose alert already existed — see the
+// create-only dedup in applyBudgetCheck). Breached and warned periods are framed
+// separately so a warn batched with a breach isn't mislabeled "cap reached".
+// Exported for tests.
+function composeBudgetMessage(newPeriods: Json[], action: 'alert' | 'pause', until: string | null, timezone: string): string {
+  const clause = (p: Json) =>
+    `${PERIOD_LABEL[p.period] ?? p.period} spend is $${p.spend.toFixed(2)} of your $${p.cap.toFixed(2)} cap (${Math.round(p.ratio * 100)}%)`;
+  const breached = newPeriods.filter((p) => p.level === 'breach');
+  const warned = newPeriods.filter((p) => p.level === 'warn');
+  if (breached.length > 0) {
+    let msg = `Budget cap reached — ${breached.map(clause).join('; ')}`;
+    if (warned.length > 0) msg += `. Also approaching: ${warned.map(clause).join('; ')}`;
+    if (action === 'pause' && until) msg += `. I've paused until ${friendlyBoundary(until, timezone)}`;
+    return `${msg}.`;
+  }
+  return `Heads up — ${warned.map(clause).join('; ')}.`;
+}
+
+// Record `notified: true` on already-persisted budget alert entries via a fresh
+// read-modify-write, so the confirmation write reflects current on-disk state
+// rather than a snapshot taken before the (awaited) send. Fail-open.
+function markBudgetNotified(newPeriods: Json[], periodKey: Record<string, string>): void {
+  const r = readAlertState(ALERT_STATE_JSON);
+  if (r.kind !== 'ok' || !r.value?.alerts) return;
+  const state = r.value;
+  let changed = false;
+  for (const p of newPeriods) {
+    const entry = state.alerts[`budget-${p.level}:${p.period}:${periodKey[p.period]}`];
+    if (entry && !entry.notified) { entry.notified = true; changed = true; }
+  }
+  if (changed) writeAlertState(ALERT_STATE_JSON, state);
+}
+
 // PROP-016 budget enforcement: compare this turn's freshly-updated index against
 // config.budget's caps and, on a breach/warn, write a deduped alert-state entry
 // (one per period per level — `budget-<level>:<period>:<period-key>`, create-only so
 // a re-detected breach later the same period never resets `notified` back to false)
 // and, for `action:"pause"`, set the PROP-015 pause flag with an auto-resume boundary.
+// Newly-created entries also get a direct channel push; `notified` is only
+// flipped true on a confirmed send, so a failed send leaves the existing
+// heartbeat-precheck EVALUATE wake as the fallback announcement path.
 // Fail-open throughout — never throws, since run()'s caller must never be blocked by
 // this check.
-function applyBudgetCheck(costIdx: Json, timezone: string, budgetConfig: Json): void {
+async function applyBudgetCheck(costIdx: Json, timezone: string, budgetConfig: Json): Promise<void> {
   try {
     if (!budgetConfig || typeof budgetConfig !== 'object') return;
     const caps = {
@@ -497,6 +550,7 @@ function applyBudgetCheck(costIdx: Json, timezone: string, budgetConfig: Json): 
 
     const alerts: Json = { ...(state.alerts && typeof state.alerts === 'object' ? state.alerts : {}) };
     let wrote = false;
+    const newPeriods: Json[] = [];
     for (const p of result.periods) {
       const key = `budget-${p.level}:${p.period}:${periodKey[p.period]}`;
       if (alerts[key]) continue; // dedup: one entry per period+level, create-only
@@ -512,6 +566,7 @@ function applyBudgetCheck(costIdx: Json, timezone: string, budgetConfig: Json): 
         ts: new Date().toISOString(),
       };
       wrote = true;
+      newPeriods.push(alerts[key]);
     }
     // Reap budget-* entries from prior periods — they are created on breach/warn
     // but nothing else removes them, so alert-state.json would grow unbounded on a
@@ -523,19 +578,44 @@ function applyBudgetCheck(costIdx: Json, timezone: string, budgetConfig: Json): 
       const current = periodKey[e.period as keyof typeof periodKey];
       if (current && !key.endsWith(`:${current}`)) { delete alerts[key]; wrote = true; }
     }
-    if (wrote) writeAlertState(ALERT_STATE_JSON, { ...state, alerts });
 
+    // Decide the pause action. `until` (the auto-resume boundary) is set whenever
+    // the hermit is or will be budget-paused, so the operator message can name it.
+    // `willPause` gates the actual setPause write and is false when a budget pause
+    // is already in force at the same boundary — otherwise re-stamping pause.json's
+    // ts every breach tick would defeat the watchdog's once-per-episode Escape/notify
+    // dedup — or when a stronger operator/watchdog stop is in force (never downgrade
+    // an indefinite stop into an auto-resuming budget pause). isPaused applies
+    // reader-side expiry, so an already-lapsed pause counts as unpaused.
+    let willPause = false;
+    let until: string | null = null;
     if (result.action === 'pause' && result.level === 'breach') {
-      // Only assert the budget pause when unpaused (or already paused for budget) —
-      // never downgrade a stronger operator/watchdog stop (often indefinite) into an
-      // auto-resuming budget pause that silently lifts at the next boundary. isPaused
-      // applies reader-side expiry, so an already-lapsed pause counts as unpaused.
+      const breachedPeriods = result.periods.filter(p => p.level === 'breach').map(p => p.period);
+      const boundary = pauseBoundary(breachedPeriods, timezone);
       const existing = isPaused(HERMIT_DIR);
-      if (!existing.paused || existing.reason === 'budget') {
-        const breachedPeriods = result.periods.filter(p => p.level === 'breach').map(p => p.period);
-        const until = pauseBoundary(breachedPeriods, timezone);
-        setPause(HERMIT_DIR, { reason: 'budget', by: 'cost-tracker', until });
+      if (!existing.paused) {
+        willPause = true;
+        until = boundary;
+      } else if (existing.reason === 'budget') {
+        until = boundary; // already budget-paused until this boundary
+        willPause = existing.until !== boundary; // re-assert only if the boundary moved
       }
+    }
+
+    // Persist the alert entries and the pause synchronously first: recording the
+    // alert key here (create-only dedup) prevents a re-send next tick even if the
+    // push below fails, and keeping the read-modify-write window synchronous avoids
+    // clobbering a concurrent writer with a snapshot gone stale across the send's await.
+    if (wrote) writeAlertState(ALERT_STATE_JSON, { ...state, alerts });
+    if (willPause) setPause(HERMIT_DIR, { reason: 'budget', by: 'cost-tracker', until });
+
+    // Then push — bounded well under the Stop pipeline's 15s budget — and record
+    // `notified` via a fresh read-modify-write. On failure, notified stays false so
+    // heartbeat-precheck's EVALUATE wake remains the fallback announcement path.
+    if (newPeriods.length > 0) {
+      const message = composeBudgetMessage(newPeriods, result.action, until, timezone);
+      const sendResult = await sendToChannel(HERMIT_DIR, message, { timeoutMs: BUDGET_PUSH_TIMEOUT_MS });
+      if (sendResult.ok) markBudgetNotified(newPeriods, periodKey);
     }
   } catch (err: any) {
     console.error(`[cost-tracker] budget check error: ${err.message}`);
@@ -643,7 +723,7 @@ async function run(data: Json): Promise<string | null> {
     const costIdx = updateCostIndex(COST_LOG, COST_INDEX, timezone);
 
     // PROP-016: compare the freshly-updated index against config.budget's caps.
-    applyBudgetCheck(costIdx, timezone, config.budget);
+    await applyBudgetCheck(costIdx, timezone, config.budget);
 
     // Running total from .status.json (O(1)), falls back to index (O(1)) on first run.
     // Include subagent spend so .status.json stays consistent with the index.
@@ -669,7 +749,7 @@ async function run(data: Json): Promise<string | null> {
   }
 }
 
-export { run, getCumulativeCost, classifySource, scanTriggerMarkers, sumTurnUsage, collectSubagentUsage, detectModel };
+export { run, getCumulativeCost, classifySource, scanTriggerMarkers, sumTurnUsage, collectSubagentUsage, detectModel, composeBudgetMessage };
 
 if (import.meta.main) {
   (async () => {

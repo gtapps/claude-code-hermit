@@ -13,7 +13,8 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { runScript, SCRIPTS_DIR } from './helpers/run';
-import { inActiveHours, isNearDailyAutoClose } from '../scripts/hermit-watchdog';
+import { inActiveHours, isNearDailyAutoClose, composeRestartMessage, composeWedgeMessage, composePauseMessage } from '../scripts/hermit-watchdog';
+import { startHttpStub, type Stub } from './helpers/http-stub';
 
 // The one line to flip when hermit-watchdog is ported to TypeScript.
 // (Absolute bun path via process.execPath: Bun.spawn resolves the executable
@@ -122,13 +123,14 @@ const isoAgoSeconds = (hours: number) =>
   new Date(Date.now() - hours * 3600_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 /** Spawn the watchdog. restrictPath limits PATH to the fake bin dir (no systemctl). */
-async function watchdog(h: Hermit, sub: string, opts: { restrictPath?: boolean } = {}) {
+async function watchdog(h: Hermit, sub: string, opts: { restrictPath?: boolean; env?: Record<string, string> } = {}) {
   const proc = Bun.spawn({
     cmd: [...WATCHDOG_CMD, sub],
     cwd: h.dir,
     env: {
       ...process.env,
       PATH: opts.restrictPath ? h.fakeBin : `${h.fakeBin}:${process.env.PATH}`,
+      ...opts.env,
     },
     stdin: Buffer.from(''),
     stdout: 'pipe',
@@ -238,6 +240,52 @@ describe('dead session', () => {
     const d = readJson(state(h, 'runtime.json'));
     expect(d.last_error).toBe('unclean_shutdown');
     expect(d.watchdog_restart_reason).toBe('dead-process');
+  });
+});
+
+// -------------------------------------------------------
+// 5b. Dead session + channel configured → restart push actually reaches it
+//     (deterministic channel voice: the watchdog reaches channel-send via
+//     spawnSync with no cwd override, so this also proves HERMIT_ROOT — a
+//     relative path — resolves correctly through that child process boundary)
+// -------------------------------------------------------
+
+function configureChannel(h: Hermit): void {
+  const p = path.join(h.dir, '.claude-code-hermit', 'config.json');
+  const cfg = readJson(p);
+  cfg.timezone = 'UTC';
+  cfg.channels = { telegram: { enabled: true, dm_channel_id: '12345', state_dir: '.claude.local/channels/telegram' } };
+  fs.writeFileSync(p, JSON.stringify(cfg, null, 2) + '\n');
+  const stateDir = path.join(h.dir, '.claude.local', 'channels', 'telegram');
+  fs.mkdirSync(stateDir, { recursive: true });
+  fs.writeFileSync(path.join(stateDir, '.env'), 'TELEGRAM_BOT_TOKEN=test-token\n');
+}
+
+describe('dead session with channel configured', () => {
+  let h: Hermit;
+  let stub: Stub;
+  let exitCode: number;
+
+  beforeAll(async () => {
+    h = setupHermit();
+    writeConfig(h);
+    configureChannel(h);
+    writeFakeTmux(h, 1);
+    writeFakePgrep(h, 1);
+    stub = startHttpStub();
+    ({ exitCode } = await watchdog(h, 'run', { env: { HERMIT_TELEGRAM_API_URL: stub.url } }));
+  });
+
+  afterAll(() => { stub.stop(); h.cleanup(); });
+
+  test('restart still fires', () => {
+    expect(exitCode).toBe(0);
+    expect(fs.readFileSync(eventsFile(h), 'utf-8')).toContain('restart');
+  });
+
+  test('the restart push reaches the configured channel', () => {
+    expect(stub.requests.length).toBe(1);
+    expect(stub.requests[0].body.text).toContain("wasn't running");
   });
 });
 
@@ -1360,6 +1408,34 @@ describe('inActiveHours (timezone)', () => {
 
   test('fail-open on unparseable timezone', () => {
     expect(inActiveHours(ACTIVE_WINDOW, 'Not/AZone', REF)).toBe(true);
+  });
+});
+
+// ---------- deterministic channel voice: operator-language message composers ----------
+
+describe('composeRestartMessage / composeWedgeMessage / composePauseMessage', () => {
+  test('restart message distinguishes dead-process from pane-frozen', () => {
+    expect(composeRestartMessage('dead-process', 'UTC')).toContain("wasn't running");
+    expect(composeRestartMessage('pane-frozen', 'UTC')).toContain('had frozen');
+  });
+
+  test('wedge message names the check-in time', () => {
+    expect(composeWedgeMessage('UTC')).toContain('checking on it now');
+  });
+
+  test('pause message: indefinite pause has no boundary time', () => {
+    expect(composePauseMessage('operator', null, 'UTC')).toBe('Your hermit is paused (your request) until you resume it.');
+  });
+
+  test('pause message: budget/watchdog reasons render in operator language', () => {
+    expect(composePauseMessage('budget', null, 'UTC')).toContain('a budget cap');
+    expect(composePauseMessage('watchdog', null, 'UTC')).toContain('the watchdog');
+  });
+
+  test('pause message: a future boundary is rendered as HH:MM', () => {
+    const until = new Date(Date.now() + 3600_000).toISOString();
+    const msg = composePauseMessage('budget', until, 'UTC');
+    expect(msg).toMatch(/until \d{2}:\d{2}\.$/);
   });
 });
 

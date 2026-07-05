@@ -14,6 +14,7 @@ import { costIndexPath, readCostIndex, scanAutomatedOpus } from './lib/cost-log'
 import { costLogPath } from './lib/cc-compat';
 import { PRICING } from './lib/pricing';
 import { getEnabledChannels } from './hermit-start';
+import { readChannelToken } from './lib/channel-token';
 
 type Json = any;
 
@@ -1028,23 +1029,6 @@ const LIVENESS_PROBES: Record<string, (token: string) => LivenessProbe> = {
   }),
 };
 
-function readChannelToken(name: string, ch: Json): string | null {
-  const stateDirEnv = process.env[`${name.toUpperCase()}_STATE_DIR`];
-  let channelStateDir = stateDirEnv || ch?.state_dir || `.claude.local/channels/${name}`;
-  if (!path.isAbsolute(channelStateDir)) {
-    channelStateDir = path.join(hermitDir, '..', channelStateDir);
-  }
-  const envPath = path.join(channelStateDir, '.env');
-  if (!fs.existsSync(envPath)) return null;
-  const tokenVar = `${name.toUpperCase()}_BOT_TOKEN`;
-  const content = fs.readFileSync(envPath, 'utf8');
-  const re = new RegExp(`^${tokenVar}=(.*)$`, 'm');
-  const m = content.match(re);
-  if (!m) return null;
-  const value = m[1].trim().replace(/^["']|["']$/g, '');
-  return value || null;
-}
-
 async function checkChannelLiveness() {
   try {
     const read = readConfigOrCovered('channel-liveness');
@@ -1070,7 +1054,7 @@ async function checkChannelLiveness() {
       if (!buildProbe) {
         return { note: `${name}: unknown platform, not probed`, severity: null };
       }
-      const token = readChannelToken(name, channels[name]);
+      const token = readChannelToken(hermitDir, name, channels[name]);
       if (!token) {
         return { note: `${name}: no token configured — run /channel-setup`, severity: 'warn' };
       }

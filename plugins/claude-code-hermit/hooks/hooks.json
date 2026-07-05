@@ -135,6 +135,18 @@
           }
         ],
         "description": "Deterministic pause/resume/snooze keyword writer (PROP-015) — writes state/pause.json before any model turn, gated by the channel's allowed_users"
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/channel-status-responder.ts"],
+            "timeout": 12
+          }
+        ],
+        "description": "Deterministic status responder — send-then-block reply to an exact idle 'status' message, gated by the channel's allowed_users; never fires on a near-miss or mid-turn arrival"
       }
     ],
     "SessionStart": [

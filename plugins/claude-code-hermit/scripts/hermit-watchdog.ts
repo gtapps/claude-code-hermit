@@ -22,12 +22,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { acquireLock, releaseLock } from './lib/lockfile';
-import { utcISOStamp as utcStamp, currentHHMM } from './lib/time';
+import { utcISOStamp as utcStamp, currentHHMM, parseSimpleCronTime } from './lib/time';
 import { writeRuntimeJson, readRuntimeJson, STATE_DIR, LIFECYCLE_LOCK } from './lib/runtime';
 import { tmuxSessionAlive, getSessionName as deriveSessionName } from './lib/tmux';
 import { costLogPath } from './lib/cc-compat';
 import { wallMinutes } from './cron-tz-shift';
-import { isPaused } from './lib/pause';
+import { isPaused, pauseReasonLabel } from './lib/pause';
 import { runTelemetryExportIfDue } from './report-export';
 
 type Json = any;
@@ -80,6 +80,60 @@ function appendEvent(action: string, reason: string): void {
   } catch (e) {
     process.stderr.write(`[watchdog] append_event: ${e}\n`);
   }
+}
+
+// --- Deterministic operator pushes (channel voice) ---
+//
+// The watchdog is out-of-process and single-shot, so a direct import of the
+// async lib/channel-send.ts would require converting this whole file's
+// control flow (including several interleaved process.exit(0) calls) to
+// async. Instead it reaches the send through the channel-send.ts CLI via
+// spawnSync — one more external effect alongside the tmux/pgrep/systemctl
+// calls this file already shells out to, and spawnSync blocks until the
+// child exits so a slow send can never race a process.exit that would kill
+// it mid-flight.
+const CHANNEL_SEND_SCRIPT = path.join(import.meta.dir, 'channel-send.ts');
+
+/** Best-effort operator push. Failure is logged, never blocks the watchdog's real work. */
+function pushOperatorMessage(text: string): void {
+  try {
+    const r = spawnSync(process.execPath, [CHANNEL_SEND_SCRIPT, HERMIT_ROOT, '-'], {
+      input: text,
+      timeout: 12000,
+      stdio: ['pipe', 'ignore', 'ignore'],
+    });
+    if (r.status !== 0) appendEvent('push_failed', text.slice(0, 80));
+  } catch (e) {
+    appendEvent('push_failed', String(e).slice(0, 80));
+  }
+}
+
+/** Current time as "HH:MM" in `timezone`, falling back to the UTC clock if the zone is invalid. */
+function nowHHMM(timezone: string): string {
+  return currentHHMM(timezone) ?? new Date().toISOString().slice(11, 16);
+}
+
+/** Operator-language message for a watchdog restart. */
+export function composeRestartMessage(reason: string, timezone: string): string {
+  const hhmm = nowHHMM(timezone);
+  const cause = reason === 'dead-process' ? "it wasn't running" : 'it had frozen';
+  return `I restarted your hermit at ${hhmm} — ${cause}.`;
+}
+
+/** Operator-language message for the first tick of a wedge episode. */
+export function composeWedgeMessage(timezone: string): string {
+  const hhmm = nowHHMM(timezone);
+  return `Your hermit hasn't responded in a while — checking on it now (${hhmm}).`;
+}
+
+/** Operator-language message for a forced pause enforcement (any reason). */
+export function composePauseMessage(reason: string, until: string | null, timezone: string): string {
+  const label = pauseReasonLabel(reason);
+  // Fall back to the indefinite phrasing when `until` is absent or unparseable —
+  // a malformed timestamp shouldn't leak a raw ISO string to the operator.
+  const hhmm = until ? currentHHMM(timezone, new Date(until)) : null;
+  if (!hhmm) return `Your hermit is paused (${label}) until you resume it.`;
+  return `Your hermit is paused (${label}) until ${hhmm}.`;
 }
 
 /** Seconds elapsed since an ISO-8601 timestamp, or null when unparseable. */
@@ -184,16 +238,6 @@ function checkProcessRunning(pattern: string): boolean {
   return spawnSync('pgrep', ['-f', pattern], { stdio: 'ignore' }).status === 0;
 }
 
-/** Parse the minute/hour fields of a simple numeric 5-field cron schedule (e.g. "0 0 * * *"). */
-function parseSimpleCronTime(schedule: string): { hour: number; minute: number } | null {
-  const parts = String(schedule).trim().split(/\s+/);
-  if (parts.length < 2) return null;
-  const minute = parseInt(parts[0], 10);
-  const hour = parseInt(parts[1], 10);
-  if (isNaN(minute) || isNaN(hour) || minute < 0 || minute > 59 || hour < 0 || hour > 23) return null;
-  return { hour, minute };
-}
-
 /**
  * True if the `daily-auto-close` routine's next fire is within `windowSecs` of now.
  * The post-close /clear (maybePostCloseClear) already resets context for free right
@@ -237,7 +281,7 @@ function writeWatchdogState(state: Json): void {
 // --- Actions ---
 
 /** Try-acquire lock, mark runtime, kill session, spawn hermit-start. */
-function doRestart(sessionName: string, reason: string, runtime: Json): void {
+function doRestart(sessionName: string, reason: string, runtime: Json, timezone: string): void {
   if (!tryAcquireLifecycleLock()) {
     process.stderr.write('[watchdog] lifecycle lock held — backing off restart\n');
     return;
@@ -254,7 +298,8 @@ function doRestart(sessionName: string, reason: string, runtime: Json): void {
     // Release before spawning hermit-start (it re-acquires)
     releaseLock(LIFECYCLE_LOCK);
 
-    const child = spawn('.claude-code-hermit/bin/hermit-start', [], {
+    const startBin = '.claude-code-hermit/bin/hermit-start';
+    const child = spawn(startBin, [], {
       detached: true,
       stdio: 'ignore',
     });
@@ -262,6 +307,12 @@ function doRestart(sessionName: string, reason: string, runtime: Json): void {
     child.unref();
     appendEvent('restart', reason);
     process.stderr.write(`[watchdog] restarted "${sessionName}", reason: ${reason}\n`);
+    // Only claim a restart to the operator when the start binary is actually
+    // present — a missing/ENOENT binary makes spawn fail asynchronously via the
+    // 'error' handler above, after this synchronous path already returned, so
+    // guard the push on the binary existing rather than on spawn's async result.
+    // The lock is already released above, so a slow send never holds it.
+    if (fs.existsSync(startBin)) pushOperatorMessage(composeRestartMessage(reason, timezone));
   } catch (e) {
     process.stderr.write(`[watchdog] restart failed: ${e}\n`);
   } finally {
@@ -270,15 +321,22 @@ function doRestart(sessionName: string, reason: string, runtime: Json): void {
 }
 
 /** Send a heartbeat run nudge to a potentially wedged session. */
-function doNudge(sessionName: string, watchdogState: Json, consecutive: number, paneHash: string | null): void {
+function doNudge(sessionName: string, watchdogState: Json, consecutive: number, paneHash: string | null, timezone: string): void {
   if (isPaused(HERMIT_ROOT).paused) return; // PROP-015 — no nudges while paused
   sendKeys(sessionName, '/claude-code-hermit:heartbeat run');
+  // One push per wedge episode. Keying on `consecutive === 1` alone re-fires when
+  // the operator-recency guard resets consecutive_stale to 0 mid-episode (an
+  // operator poke isn't a heartbeat recovery); a sticky flag, cleared only when the
+  // heartbeat actually recovers (the fresh-heartbeat branch in main), fixes that.
+  const shouldNotify = !watchdogState.wedge_notified;
+  if (shouldNotify) watchdogState.wedge_notified = true;
   watchdogState.consecutive_stale = consecutive;
   watchdogState.last_pane_hash = paneHash;
   watchdogState.last_nudge_at = utcStamp();
   writeWatchdogState(watchdogState);
   appendEvent('nudge', `stale cycle ${consecutive}`);
   process.stderr.write(`[watchdog] nudged "${sessionName}" (stale cycle ${consecutive})\n`);
+  if (shouldNotify) pushOperatorMessage(composeWedgeMessage(timezone));
 }
 
 /** Re-arm heartbeat when the in-session routine missed its window. */
@@ -585,7 +643,7 @@ function maybeContextCompact(config: Json): void {
  * sends Escape once per pause, not every tick — repeat Escapes would also
  * interrupt the reply the paused hermit is still allowed to send.
  */
-function maybeEscapePausedSession(): void {
+function maybeEscapePausedSession(timezone: string): void {
   const status = isPaused(HERMIT_ROOT);
   if (!status.paused) return;
 
@@ -611,6 +669,7 @@ function maybeEscapePausedSession(): void {
   watchdogState.last_escaped_pause_ts = episodeKey;
   writeWatchdogState(watchdogState);
   appendEvent('pause-enforced', status.reason ?? 'operator');
+  pushOperatorMessage(composePauseMessage(status.reason ?? 'operator', status.until ?? null, timezone));
 }
 
 // --- Main decision loop ---
@@ -636,7 +695,8 @@ async function main(): Promise<void> {
   // Pause enforcement (PROP-015) — independent of watchdog.enabled; see
   // maybeEscapePausedSession for why this doesn't wait for the later
   // config/runtime gates below.
-  maybeEscapePausedSession();
+  const timezone = config.timezone ?? 'UTC';
+  maybeEscapePausedSession(timezone);
 
   // 0a. Post-close clear — independent of watchdog.enabled; runs on any hermit with a scheduler
   maybePostCloseClear(config);
@@ -687,7 +747,7 @@ async function main(): Promise<void> {
   // restarted session inert until resumed.
   if (['in_progress', 'waiting', 'suspect_process'].includes(sessionState)) {
     if (!tmuxSessionAlive(sessionName)) {
-      doRestart(sessionName, 'dead-process', runtime);
+      doRestart(sessionName, 'dead-process', runtime, timezone);
       process.exit(0);
     }
   }
@@ -731,12 +791,15 @@ async function main(): Promise<void> {
             watchdogState.consecutive_stale = consecutive;
             watchdogState.last_pane_hash = currentPaneHash;
             writeWatchdogState(watchdogState);
-            doRestart(sessionName, 'pane-frozen', runtime);
+            doRestart(sessionName, 'pane-frozen', runtime, timezone);
           } else {
-            doNudge(sessionName, watchdogState, consecutive, currentPaneHash);
+            doNudge(sessionName, watchdogState, consecutive, currentPaneHash, timezone);
           }
         } else {
+          // Heartbeat recovered — reset the episode and re-arm the wedge push so a
+          // genuinely new wedge later can notify again.
           watchdogState.consecutive_stale = 0;
+          watchdogState.wedge_notified = false;
           watchdogState.last_pane_hash = currentPaneHash;
           writeWatchdogState(watchdogState);
         }
