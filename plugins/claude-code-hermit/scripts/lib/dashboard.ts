@@ -1,6 +1,6 @@
 // Deterministic renderer for the Hermit Dashboard artifact — no model authorship,
 // so a publish costs a render (pennies) instead of a generation (dollars). Reads only
-// state already on disk (runtime.json, .status.json, alert-state.json, proposals-index.json
+// state already on disk (runtime.json, cost-index.json, alert-state.json, proposals-index.json
 // + proposal bodies, latest compiled/review-weekly-*.md) and produces one self-contained
 // HTML fragment. The Artifact tool wraps the fragment in the page shell — this file must
 // not include <!DOCTYPE>/<html>/<head>/<body> (see https://code.claude.com/docs/en/artifacts,
@@ -12,6 +12,8 @@ import { readFileWithFrontmatter, globDir } from './frontmatter';
 import { formatTokens } from './format';
 import { sha256 } from './hash';
 import { readAlertState } from './alert-state';
+import { todayYMD } from './time';
+import { costIndexPath, readCostIndex } from './cost-log';
 import { rebuildIndex, type ProposalsIndex } from '../proposals-index';
 
 type Json = any;
@@ -81,6 +83,17 @@ function readJsonSafe(p: string): Json | null {
   }
 }
 
+// "Today" = the timezone-aware daily bucket in cost-index.json (sums every session
+// that ran today), not .status.json's current-session running total.
+function loadTodayCost(hermitDir: string, timezone: string): { costUsd: number; tokens: number } {
+  const index = readCostIndex(costIndexPath(hermitDir));
+  const entry = index?.by_date?.[todayYMD(timezone)];
+  return {
+    costUsd: typeof entry?.cost === 'number' ? entry.cost : 0,
+    tokens: typeof entry?.tokens === 'number' ? entry.tokens : 0,
+  };
+}
+
 function ageDaysFrom(iso: string | null): number | null {
   if (!iso) return null;
   const t = Date.parse(iso);
@@ -112,8 +125,10 @@ function loadProposals(hermitDir: string): DashboardState['proposals'] {
     };
 
     if (status === 'accepted') {
-      if (!oldestOpenAccepted || (base.ageDays ?? -1) > (oldestOpenAccepted.ageDays ?? -1)) {
-        oldestOpenAccepted = { id: base.id, title: base.title, ageDays: base.ageDays };
+      // Age since acceptance (the "since accepted" label), not since creation.
+      const acceptedAge = ageDaysFrom(row.accepted_date ?? row.created);
+      if (!oldestOpenAccepted || (acceptedAge ?? -1) > (oldestOpenAccepted.ageDays ?? -1)) {
+        oldestOpenAccepted = { id: base.id, title: base.title, ageDays: acceptedAge };
       }
     }
 
@@ -173,18 +188,36 @@ function loadWeekly(hermitDir: string): WeeklyState | null {
   };
 }
 
+// Alert entries have no single schema: telemetry/checklist alerts carry a `message`
+// string, but budget alerts (the dominant type) store structured fields and no message.
+// Synthesize a readable line for those instead of falling back to the raw dedup key.
+function alertMessage(key: string, v: Json): string {
+  if (typeof v?.message === 'string') return v.message;
+  if (v?.kind === 'budget') {
+    const period = typeof v.period === 'string' ? v.period : 'budget';
+    const state = v.level === 'breach' ? 'breached' : 'warning';
+    const spend = typeof v.spend === 'number' ? `$${v.spend.toFixed(2)}` : null;
+    const cap = typeof v.cap === 'number' ? `$${v.cap.toFixed(2)}` : null;
+    const amounts = spend && cap ? ` (${spend} of ${cap})` : '';
+    return `${period} budget ${state}${amounts}`;
+  }
+  return key;
+}
+
 export function loadDashboardState(hermitDir: string): DashboardState {
   const config = readJsonSafe(path.join(hermitDir, 'config.json')) ?? {};
+  const timezone = typeof config.timezone === 'string' && config.timezone ? config.timezone : 'UTC';
   const runtime = readJsonSafe(path.join(hermitDir, 'state', 'runtime.json'));
-  const status = readJsonSafe(path.join(hermitDir, 'sessions', '.status.json'));
+  const today = loadTodayCost(hermitDir, timezone);
   const alertRead = readAlertState(path.join(hermitDir, 'state', 'alert-state.json'));
 
   const alerts: AlertRow[] = [];
   if (alertRead.kind === 'ok' && alertRead.value.alerts && typeof alertRead.value.alerts === 'object') {
     for (const [key, v] of Object.entries<Json>(alertRead.value.alerts)) {
+      if (v?.suppressed === true) continue; // dismissed/digested — not an active alert
       alerts.push({
         key,
-        message: typeof v?.message === 'string' ? v.message : key,
+        message: alertMessage(key, v),
         timestamp: typeof v?.timestamp === 'string' ? v.timestamp : null,
       });
     }
@@ -193,8 +226,8 @@ export function loadDashboardState(hermitDir: string): DashboardState {
   return {
     agentName: typeof config.agent_name === 'string' && config.agent_name.trim() ? config.agent_name : 'Hermit',
     sessionState: typeof runtime?.session_state === 'string' ? runtime.session_state : null,
-    todayCostUsd: typeof status?.cost_usd === 'number' ? status.cost_usd : 0,
-    todayTokens: typeof status?.tokens === 'number' ? status.tokens : 0,
+    todayCostUsd: today.costUsd,
+    todayTokens: today.tokens,
     alerts,
     proposals: loadProposals(hermitDir),
     weekly: loadWeekly(hermitDir),

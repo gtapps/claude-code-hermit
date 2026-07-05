@@ -31,6 +31,13 @@ function writeJson(hermitDir: string, rel: string, data: unknown): void {
   fs.writeFileSync(path.join(hermitDir, rel), JSON.stringify(data, null, 2));
 }
 
+// "Today" cost is sourced from cost-index.json's timezone-aware daily bucket.
+const TODAY_UTC = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' }).format(new Date());
+function writeTodayCost(hermitDir: string, cost: number, tokens: number): void {
+  // version must match cost-log.ts's INDEX_VERSION; readCostIndex null-gates on it.
+  writeJson(hermitDir, 'state/cost-index.json', { version: 3, by_date: { [TODAY_UTC]: { cost, tokens, session_ids: [] } } });
+}
+
 function writeProposal(hermitDir: string, file: string, fm: Record<string, string>, body: string): void {
   const yaml = Object.entries(fm).map(([k, v]) => `${k}: ${v}`).join('\n');
   fs.writeFileSync(path.join(hermitDir, 'proposals', file), `---\n${yaml}\n---\n${body}\n`);
@@ -108,7 +115,7 @@ describe('loadDashboardState', () => {
   test('reads agent name, session state, cost, and alerts', withHermitDir((hermitDir) => {
     writeJson(hermitDir, 'config.json', { agent_name: 'shelly' });
     writeJson(hermitDir, 'state/runtime.json', { session_state: 'in_progress' });
-    writeJson(hermitDir, 'sessions/.status.json', { cost_usd: 0.42, tokens: 125000 });
+    writeTodayCost(hermitDir, 0.42, 125000);
     writeJson(hermitDir, 'state/alert-state.json', {
       alerts: { 'budget-daily': { message: 'Daily budget at 92%', timestamp: '2026-07-05T08:00:00Z' } },
       self_eval: {}, total_ticks: 1, last_digest_date: null,
@@ -121,6 +128,32 @@ describe('loadDashboardState', () => {
     expect(state.todayTokens).toBe(125000);
     expect(state.alerts).toHaveLength(1);
     expect(state.alerts[0].message).toBe('Daily budget at 92%');
+  }));
+
+  test('skips suppressed alerts and reads a readable message for message-less budget alerts', withHermitDir((hermitDir) => {
+    writeJson(hermitDir, 'state/alert-state.json', {
+      alerts: {
+        'budget-breach:daily:2026-07-05': { kind: 'budget', level: 'breach', period: 'daily', spend: 5.2, cap: 5, notified: true, ts: '2026-07-05T08:00:00Z' },
+        'telemetry-export-failed': { message: 'telemetry export failing', count: 9, suppressed: true },
+      },
+      self_eval: {}, total_ticks: 1, last_digest_date: null,
+    });
+    const state = loadDashboardState(hermitDir);
+    expect(state.alerts).toHaveLength(1); // suppressed telemetry alert excluded
+    expect(state.alerts[0].message).toBe('daily budget breached ($5.20 of $5.00)');
+    expect(state.alerts[0].message).not.toContain('budget-breach:daily'); // not the raw dedup key
+  }));
+
+  test('oldest open accepted age is measured from accepted_date, not creation', withHermitDir((hermitDir) => {
+    const nowMs = Date.now();
+    const created = new Date(nowMs - 40 * 86400000).toISOString();  // created 40d ago
+    const accepted = new Date(nowMs - 3 * 86400000).toISOString();  // accepted 3d ago
+    writeProposal(hermitDir, 'PROP-010-accepted-100000.md',
+      { id: 'PROP-010-accepted-100000', title: '"Long-open accept"', status: 'accepted', created, accepted_date: accepted },
+      'body');
+    const state = loadDashboardState(hermitDir);
+    expect(state.proposals.oldestOpenAccepted?.id).toBe('PROP-010-accepted-100000');
+    expect(state.proposals.oldestOpenAccepted?.ageDays).toBe(3); // since accepted, not 40 since created
   }));
 
   test('splits proposed/accepted (open, with body) from resolved/dismissed (one-liners)', withHermitDir((hermitDir) => {
@@ -209,7 +242,7 @@ describe('renderDashboard', () => {
 
   test('hash changes when the underlying state changes', withHermitDir((hermitDir) => {
     const before = renderDashboard(loadDashboardState(hermitDir), { now: '2026-07-05T09:00:00Z' });
-    writeJson(hermitDir, 'sessions/.status.json', { cost_usd: 1.23, tokens: 5000 });
+    writeTodayCost(hermitDir, 1.23, 5000);
     const after = renderDashboard(loadDashboardState(hermitDir), { now: '2026-07-05T09:00:00Z' });
     expect(before.hash).not.toBe(after.hash);
   }));
