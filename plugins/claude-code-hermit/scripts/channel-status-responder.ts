@@ -50,8 +50,8 @@ function pauseLine(dir: string, timezone: string): string | null {
   const status = isPaused(dir);
   if (!status.paused) return null;
   const label = pauseReasonLabel(status.reason);
-  if (!status.until) return `Paused (${label}) until you resume it.`;
-  const hhmm = currentHHMM(timezone, new Date(status.until)) ?? status.until;
+  const hhmm = status.until ? currentHHMM(timezone, new Date(status.until)) : null;
+  if (!hhmm) return `Paused (${label}) until you resume it.`;
   return `Paused (${label}) until ${hhmm}.`;
 }
 
@@ -169,7 +169,16 @@ async function main(raw: string): Promise<void> {
   if (!isAllowedSender(config, envelope.source, envelope.userId)) return;
 
   const reply = composeStatusReply(dir, config);
-  const result = await sendToChannel(dir, reply);
+  // Reply to the chat the request arrived on — not the globally-resolved
+  // outbound channel — so a status asked in a group or a non-primary channel is
+  // answered where it was asked (the model reply path already targets the origin
+  // chat_id). This also keeps the destination aligned with the allowed_users gate
+  // above, which is checked against the inbound channel. A tight timeout bounds
+  // this hook's blocking; on any failure we emit nothing and the model answers.
+  const result = await sendToChannel(dir, reply, {
+    target: { id: envelope.source, chat_id: envelope.chatId },
+    timeoutMs: 6000,
+  });
   if (result.ok) {
     console.log(JSON.stringify({ decision: 'block', reason: 'status answered deterministically' }));
   }

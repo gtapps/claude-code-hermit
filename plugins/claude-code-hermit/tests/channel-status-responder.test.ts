@@ -68,6 +68,22 @@ describe('channel-status-responder', () => {
     expect(stub.requests[0].body.text).toContain('writing the plan');
   });
 
+  test('routes the reply to the chat it was asked on (group id), not dm_channel_id', async () => {
+    stub = startHttpStub();
+    wd = setupChannelWorkdir();
+    // Asked in a Telegram group: chat_id is the group id, distinct from dm_channel_id (12345).
+    const groupPayload = JSON.stringify({ prompt: envelope('status', 'u1', '-1001234567890') });
+    const r = await runScript('channel-status-responder.ts', {
+      stdin: groupPayload,
+      cwd: wd.dir,
+      env: { HERMIT_TELEGRAM_API_URL: stub.url },
+    });
+    expect(r.exitCode).toBe(0);
+    expect(JSON.parse(r.stdout.trim())).toMatchObject({ decision: 'block' });
+    expect(stub.requests.length).toBe(1);
+    expect(stub.requests[0].body.chat_id).toBe('-1001234567890');
+  });
+
   test('case-insensitive and surrounding whitespace still match exactly', async () => {
     stub = startHttpStub();
     wd = setupChannelWorkdir();

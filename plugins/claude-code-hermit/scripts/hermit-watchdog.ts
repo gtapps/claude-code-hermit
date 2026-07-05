@@ -128,8 +128,10 @@ export function composeWedgeMessage(timezone: string): string {
 /** Operator-language message for a forced pause enforcement (any reason). */
 export function composePauseMessage(reason: string, until: string | null, timezone: string): string {
   const label = pauseReasonLabel(reason);
-  if (!until) return `Your hermit is paused (${label}) until you resume it.`;
-  const hhmm = currentHHMM(timezone, new Date(until)) ?? until;
+  // Fall back to the indefinite phrasing when `until` is absent or unparseable —
+  // a malformed timestamp shouldn't leak a raw ISO string to the operator.
+  const hhmm = until ? currentHHMM(timezone, new Date(until)) : null;
+  if (!hhmm) return `Your hermit is paused (${label}) until you resume it.`;
   return `Your hermit is paused (${label}) until ${hhmm}.`;
 }
 
@@ -295,7 +297,8 @@ function doRestart(sessionName: string, reason: string, runtime: Json, timezone:
     // Release before spawning hermit-start (it re-acquires)
     releaseLock(LIFECYCLE_LOCK);
 
-    const child = spawn('.claude-code-hermit/bin/hermit-start', [], {
+    const startBin = '.claude-code-hermit/bin/hermit-start';
+    const child = spawn(startBin, [], {
       detached: true,
       stdio: 'ignore',
     });
@@ -303,9 +306,12 @@ function doRestart(sessionName: string, reason: string, runtime: Json, timezone:
     child.unref();
     appendEvent('restart', reason);
     process.stderr.write(`[watchdog] restarted "${sessionName}", reason: ${reason}\n`);
-    // Lock is already released above, so a slow send here never holds it —
-    // and this only runs on the success path, not the catch below.
-    pushOperatorMessage(composeRestartMessage(reason, timezone));
+    // Only claim a restart to the operator when the start binary is actually
+    // present — a missing/ENOENT binary makes spawn fail asynchronously via the
+    // 'error' handler above, after this synchronous path already returned, so
+    // guard the push on the binary existing rather than on spawn's async result.
+    // The lock is already released above, so a slow send never holds it.
+    if (fs.existsSync(startBin)) pushOperatorMessage(composeRestartMessage(reason, timezone));
   } catch (e) {
     process.stderr.write(`[watchdog] restart failed: ${e}\n`);
   } finally {
@@ -317,15 +323,19 @@ function doRestart(sessionName: string, reason: string, runtime: Json, timezone:
 function doNudge(sessionName: string, watchdogState: Json, consecutive: number, paneHash: string | null, timezone: string): void {
   if (isPaused(HERMIT_ROOT).paused) return; // PROP-015 — no nudges while paused
   sendKeys(sessionName, '/claude-code-hermit:heartbeat run');
+  // One push per wedge episode. Keying on `consecutive === 1` alone re-fires when
+  // the operator-recency guard resets consecutive_stale to 0 mid-episode (an
+  // operator poke isn't a heartbeat recovery); a sticky flag, cleared only when the
+  // heartbeat actually recovers (the fresh-heartbeat branch in main), fixes that.
+  const shouldNotify = !watchdogState.wedge_notified;
+  if (shouldNotify) watchdogState.wedge_notified = true;
   watchdogState.consecutive_stale = consecutive;
   watchdogState.last_pane_hash = paneHash;
   watchdogState.last_nudge_at = utcStamp();
   writeWatchdogState(watchdogState);
   appendEvent('nudge', `stale cycle ${consecutive}`);
   process.stderr.write(`[watchdog] nudged "${sessionName}" (stale cycle ${consecutive})\n`);
-  // One push per wedge episode, at the transition into a wedge state — not on
-  // every routine nudge tick (consecutive keeps incrementing while still < escalateAfter).
-  if (consecutive === 1) pushOperatorMessage(composeWedgeMessage(timezone));
+  if (shouldNotify) pushOperatorMessage(composeWedgeMessage(timezone));
 }
 
 /** Re-arm heartbeat when the in-session routine missed its window. */
@@ -777,7 +787,10 @@ function main(): void {
             doNudge(sessionName, watchdogState, consecutive, currentPaneHash, timezone);
           }
         } else {
+          // Heartbeat recovered — reset the episode and re-arm the wedge push so a
+          // genuinely new wedge later can notify again.
           watchdogState.consecutive_stale = 0;
+          watchdogState.wedge_notified = false;
           watchdogState.last_pane_hash = currentPaneHash;
           writeWatchdogState(watchdogState);
         }

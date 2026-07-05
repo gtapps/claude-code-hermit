@@ -13,13 +13,10 @@
 // hook, a single-shot watchdog tick, a fire-and-forget budget alert) can
 // decide what "failed to notify the operator" means for them.
 
-import fs from 'node:fs';
-import path from 'node:path';
-import http from 'node:http';
-import https from 'node:https';
 import { resolve as resolveOutboundChannel } from '../resolve-outbound-channel';
 import { logMessage, isLoggingEnabled } from './channel-log';
 import { loadConfig } from './channel-auth';
+import { readChannelToken } from './channel-token';
 
 type Json = any;
 
@@ -29,161 +26,91 @@ export interface SendResult {
   error?: string;
 }
 
+/** Where and how to send. `target` overrides outbound resolution (used to reply
+ * to the chat a message arrived on); `timeoutMs` bounds the HTTP round-trip. */
+export interface SendOptions {
+  target?: { id: string; chat_id: string };
+  timeoutMs?: number;
+}
+
 const REQUEST_TIMEOUT_MS = 10_000;
 const TELEGRAM_MAX_LEN = 4096;
 const DISCORD_MAX_LEN = 2000;
-
-const TOKEN_ENV_VAR: Record<string, string> = {
-  telegram: 'TELEGRAM_BOT_TOKEN',
-  discord: 'DISCORD_BOT_TOKEN',
-};
-
-/** Mirrors hermit-start.ts's resolveStateDir: absolute pass-through, relative against the project root (hermitDir's parent). */
-function resolveStateDir(hermitDir: string, stateDir: string): string {
-  if (path.isAbsolute(stateDir)) return stateDir;
-  const projectRoot = path.dirname(path.resolve(hermitDir));
-  return path.join(projectRoot, stateDir);
-}
-
-/** Parse `KEY=value` lines from a channel's .env file; returns null if the file or key is absent. */
-function readTokenFromEnvFile(envPath: string, varName: string): string | null {
-  let content: string;
-  try {
-    content = fs.readFileSync(envPath, 'utf8');
-  } catch {
-    return null;
-  }
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const eq = trimmed.indexOf('=');
-    if (eq === -1) continue;
-    const key = trimmed.slice(0, eq).trim();
-    if (key !== varName) continue;
-    let value = trimmed.slice(eq + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-    }
-    return value || null;
-  }
-  return null;
-}
-
-interface HttpResult {
-  status: number;
-  json: Json;
-}
-
-/** POST JSON over http: or https: (protocol picked from the URL) with an explicit timeout. */
-function postJson(urlStr: string, body: Json, extraHeaders: Record<string, string> = {}): Promise<HttpResult> {
-  return new Promise((resolve, reject) => {
-    let url: URL;
-    try {
-      url = new URL(urlStr);
-    } catch (e) {
-      reject(e);
-      return;
-    }
-    const mod = url.protocol === 'http:' ? http : https;
-    const data = JSON.stringify(body);
-    const req = mod.request(
-      {
-        hostname: url.hostname,
-        port: url.port || (url.protocol === 'http:' ? 80 : 443),
-        path: url.pathname + url.search,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(data),
-          ...extraHeaders,
-        },
-      },
-      (res) => {
-        let raw = '';
-        res.on('data', (c) => (raw += c));
-        res.on('end', () => {
-          let json: Json;
-          try {
-            json = JSON.parse(raw);
-          } catch {
-            json = { raw };
-          }
-          resolve({ status: res.statusCode || 0, json });
-        });
-      }
-    );
-    req.on('error', reject);
-    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
-      req.destroy(new Error('request timeout'));
-    });
-    req.write(data);
-    req.end();
-  });
-}
 
 interface PlatformSendResult extends SendResult {
   sentText?: string;
 }
 
-async function sendTelegram(token: string, chatId: string, text: string): Promise<PlatformSendResult> {
+/** Map a fetch rejection to a stable error string (timeouts read as 'request timeout'). */
+function fetchError(e: any): string {
+  return e?.name === 'TimeoutError' ? 'request timeout' : e?.message || String(e);
+}
+
+async function sendTelegram(token: string, chatId: string, text: string, timeoutMs: number): Promise<PlatformSendResult> {
   const base = process.env.HERMIT_TELEGRAM_API_URL || 'https://api.telegram.org';
   const sentText = text.slice(0, TELEGRAM_MAX_LEN);
   try {
-    const { status, json } = await postJson(`${base}/bot${token}/sendMessage`, { chat_id: chatId, text: sentText });
-    if (status >= 200 && status < 300) return { ok: true, status, sentText };
-    return { ok: false, status, error: json?.description || `telegram_http_${status}` };
+    const resp = await fetch(`${base}/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: sentText }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (resp.ok) return { ok: true, status: resp.status, sentText };
+    let description: string | undefined;
+    try { description = ((await resp.json()) as Json)?.description; } catch {}
+    return { ok: false, status: resp.status, error: description || `telegram_http_${resp.status}` };
   } catch (e: any) {
-    return { ok: false, error: e?.message || String(e) };
+    return { ok: false, error: fetchError(e) };
   }
 }
 
-async function sendDiscord(token: string, chatId: string, text: string): Promise<PlatformSendResult> {
+async function sendDiscord(token: string, chatId: string, text: string, timeoutMs: number): Promise<PlatformSendResult> {
   const base = process.env.HERMIT_DISCORD_API_URL || 'https://discord.com/api/v10';
   const sentText = text.slice(0, DISCORD_MAX_LEN);
   try {
-    const { status, json } = await postJson(
-      `${base}/channels/${chatId}/messages`,
-      { content: sentText },
-      { Authorization: `Bot ${token}` }
-    );
-    if (status >= 200 && status < 300) return { ok: true, status, sentText };
-    return { ok: false, status, error: json?.message || `discord_http_${status}` };
+    const resp = await fetch(`${base}/channels/${chatId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bot ${token}` },
+      body: JSON.stringify({ content: sentText }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (resp.ok) return { ok: true, status: resp.status, sentText };
+    let message: string | undefined;
+    try { message = ((await resp.json()) as Json)?.message; } catch {}
+    return { ok: false, status: resp.status, error: message || `discord_http_${resp.status}` };
   } catch (e: any) {
-    return { ok: false, error: e?.message || String(e) };
+    return { ok: false, error: fetchError(e) };
   }
 }
 
-const SENDERS: Record<string, (token: string, chatId: string, text: string) => Promise<PlatformSendResult>> = {
+const SENDERS: Record<string, (token: string, chatId: string, text: string, timeoutMs: number) => Promise<PlatformSendResult>> = {
   telegram: sendTelegram,
   discord: sendDiscord,
 };
 
 /**
- * Resolve the eligible outbound channel, POST `text` to it, and log the send
- * (direction:'out') on success. Never throws.
+ * POST `text` to a channel and log the send (direction:'out') on success. By
+ * default resolves the eligible outbound channel (for unsolicited pushes);
+ * pass `opts.target` to reply to a specific channel/chat (e.g. the one an
+ * inbound message arrived on). Never throws.
  */
-export async function sendToChannel(hermitDir: string, text: string): Promise<SendResult> {
+export async function sendToChannel(hermitDir: string, text: string, opts: SendOptions = {}): Promise<SendResult> {
   try {
     const config = loadConfig(hermitDir);
     if (!config) return { ok: false, error: 'config_read_failed' };
 
-    const target = resolveOutboundChannel(config.channels);
+    const target = opts.target ?? resolveOutboundChannel(config.channels);
     if (!target) return { ok: false, error: 'no_reachable_channel' };
     const { id: channelId, chat_id: chatId } = target;
 
     const send = SENDERS[channelId];
-    const varName = TOKEN_ENV_VAR[channelId];
-    if (!send || !varName) return { ok: false, error: 'unsupported_platform' };
+    if (!send) return { ok: false, error: 'unsupported_platform' };
 
-    const chCfg = config.channels[channelId] || {};
-    const stateDir = typeof chCfg.state_dir === 'string' && chCfg.state_dir
-      ? chCfg.state_dir
-      : path.join('.claude.local', 'channels', channelId);
-    const envPath = path.join(resolveStateDir(hermitDir, stateDir), '.env');
-    const token = readTokenFromEnvFile(envPath, varName);
+    const token = readChannelToken(hermitDir, channelId, config.channels?.[channelId] || {});
     if (!token) return { ok: false, error: 'missing_token' };
 
-    const result = await send(token, chatId, text);
+    const result = await send(token, chatId, text, opts.timeoutMs ?? REQUEST_TIMEOUT_MS);
     if (!result.ok) return result;
 
     if (isLoggingEnabled(config)) {

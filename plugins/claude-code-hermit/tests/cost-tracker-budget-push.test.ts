@@ -101,3 +101,30 @@ describe('cost-tracker: budget push on warn (send fails -> notified stays false)
     expect(state.alerts[keys[0]].notified).toBe(false);
   });
 });
+
+describe('cost-tracker: a repeat breach tick at the same boundary does not re-stamp or re-push', () => {
+  let dir: string; let cchDir: string; let stub: Stub;
+  let tsAfterFirst: string; let tsAfterSecond: string;
+
+  const pauseTs = (d: string) => JSON.parse(fs.readFileSync(path.join(d, 'state', 'pause.json'), 'utf-8')).ts;
+
+  beforeAll(async () => {
+    stub = startHttpStub();
+    ({ dir, cchDir } = setupWithChannel({ daily_usd: 1.0, weekly_usd: null, monthly_usd: null, action: 'pause' }));
+    // First tick: breach -> pauses and pushes.
+    await runTurn(dir, stub.url, 100000, 50000);
+    tsAfterFirst = pauseTs(cchDir);
+    // Second tick: still over the same daily cap, same auto-resume boundary.
+    await runTurn(dir, stub.url, 100000, 50000);
+    tsAfterSecond = pauseTs(cchDir);
+  });
+  afterAll(() => { stub.stop(); fs.rmSync(dir, { recursive: true }); });
+
+  test('only one push across both breach ticks (create-only alert dedup)', () => {
+    expect(stub.requests.length).toBe(1);
+  });
+
+  test('pause.json ts is unchanged on the second tick (no re-stamp -> watchdog dedup holds)', () => {
+    expect(tsAfterSecond).toBe(tsAfterFirst);
+  });
+});
