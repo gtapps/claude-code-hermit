@@ -124,7 +124,7 @@ After evaluating the checklist, if `runtime.json` `session_state` is `idle`:
 
 **The following only when `idle_behavior: "discover"`:**
 
-- **Priority alignment:** check OPERATOR.md + `.claude/cost-log.jsonl`. Alert if deadlines need attention.
+- **Priority alignment:** check OPERATOR.md + `state/cost-index.json` (`by_date`/`by_week` spend aggregates — never `Read` `.claude/cost-log.jsonl` directly; it grows without bound). Alert if deadlines need attention.
 
 All time comparisons use `timezone` from config.json.
 

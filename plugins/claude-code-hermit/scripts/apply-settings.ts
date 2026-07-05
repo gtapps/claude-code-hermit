@@ -6,6 +6,9 @@
  * Operations:
  *   task-id <id>             Merge env.CLAUDE_CODE_TASK_LIST_ID
  *   allow                    Merge hermit's fixed permissions.allow list
+ *   artifact-allow           Merge just ["Artifact"] into permissions.allow — kept as its
+ *                            own op (not folded into `allow`) so declining the Artifact
+ *                            publish-authorization ask never touches hook permissions.
  *   deny <minimal|hardened>  Merge deny-patterns from state-templates/deny-patterns.json
  *   sandbox <standard|off>   Merge sandbox profile from state-templates/sandbox-profiles.json
  *   channel-env <CH> <dir>   Set env.<CH>_STATE_DIR and strip any stale env.*_BOT_TOKEN
@@ -155,6 +158,11 @@ switch (op) {
     break;
   }
 
+  case 'artifact-allow': {
+    mergeAllow(settings, ['Artifact']);
+    break;
+  }
+
   case 'deny': {
     const profile = rest[0];
     if (profile !== 'minimal' && profile !== 'hardened') {
@@ -212,7 +220,7 @@ switch (op) {
   }
 
   default: {
-    console.error(`Unknown operation: ${op}. Valid ops: task-id, allow, deny, sandbox, channel-env`);
+    console.error(`Unknown operation: ${op}. Valid ops: task-id, allow, artifact-allow, deny, sandbox, channel-env`);
     process.exit(1);
   }
 }

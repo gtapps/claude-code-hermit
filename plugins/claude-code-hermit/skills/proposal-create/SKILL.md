@@ -104,7 +104,7 @@ bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
    ```
    bun ${CLAUDE_PLUGIN_ROOT}/scripts/generate-summary.ts .claude-code-hermit/state/
    ```
-6. Refresh the dashboard per docs/artifacts.md (silently — no URL re-post; the proposal queue changed).
+6. Refresh the dashboard per docs/artifacts.md (silently — no URL re-post; the proposal queue changed). Also refresh the proposals page (`config.artifacts.proposals`) per the same doc. Unlike the dashboard, when the proposals page returns a URL, surface a deep link for whatever flow announces this proposal to the operator to append to its message: `📎 <url>#prop-nnn ("PROP-NNN: <title>")` (lowercased `PROP-NNN` prefix as the anchor; include the section name in text since fragment auto-scroll in the artifact viewer is unconfirmed).
 
 ## Do NOT Create Proposals For
 

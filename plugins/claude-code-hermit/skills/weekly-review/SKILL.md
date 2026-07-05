@@ -72,7 +72,8 @@ Generates the weekly review for the current ISO week.
 
 6. Channel-send the combined weekly summary:
    - Refresh the dashboard per docs/artifacts.md; if it returns a URL, note it for the message below.
-   - Compose the message: one-line review headline (session count, cost, self-directed rate from frontmatter) followed by the evolution block from step 5, plus the `Topic pages:` findings from step 3 when present, plus a final `📎 <dashboard url>` line when the refresh returned one.
+   - Publish the weekly-review artifact (`config.artifacts.weekly_review`) per docs/artifacts.md; if it returns a URL, note it for the message below too.
+   - Compose the message: one-line review headline (session count, cost, self-directed rate from frontmatter) followed by the evolution block from step 5, plus the `Topic pages:` findings from step 3 when present, plus a final line listing whichever of the dashboard/weekly-review URLs were returned (e.g. `📎 <dashboard url> · 📎 <weekly-review url>` — omit either half that wasn't returned).
    - Resolve the outbound channel:
      ```
      bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit

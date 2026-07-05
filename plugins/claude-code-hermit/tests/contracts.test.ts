@@ -633,6 +633,38 @@ describe('budget validation', () => {
   });
 });
 
+describe('artifacts validation', () => {
+  test('a fully valid artifacts block (all three flags) produces no errors', () => {
+    const out = runValidate({ artifacts: { dashboard: true, proposals: true, weekly_review: false } });
+    expect(out.errors).toEqual([]);
+  });
+
+  test('absent artifacts block produces no errors', () => {
+    const out = runValidate({});
+    expect(out.errors.filter((e: string) => e.includes('artifacts'))).toEqual([]);
+  });
+
+  test('non-object artifacts is an error', () => {
+    const out = runValidate({ artifacts: 'bad' });
+    expect(out.errors.some((e: string) => e.includes('artifacts: must be an object'))).toBe(true);
+  });
+
+  test('non-boolean artifacts.dashboard is an error', () => {
+    const out = runValidate({ artifacts: { dashboard: 'yes' } });
+    expect(out.errors.some((e: string) => e.includes('artifacts.dashboard: must be a boolean'))).toBe(true);
+  });
+
+  test('non-boolean artifacts.proposals is an error', () => {
+    const out = runValidate({ artifacts: { proposals: 1 } });
+    expect(out.errors.some((e: string) => e.includes('artifacts.proposals: must be a boolean'))).toBe(true);
+  });
+
+  test('non-boolean artifacts.weekly_review is an error', () => {
+    const out = runValidate({ artifacts: { weekly_review: null } });
+    expect(out.errors.some((e: string) => e.includes('artifacts.weekly_review: must be a boolean'))).toBe(true);
+  });
+});
+
 // ============================================================
 // Outbound channel resolver (TestChannelResolverContract)
 //

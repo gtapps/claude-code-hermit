@@ -8,6 +8,7 @@ tools:
   - Write
   - Edit
   - Glob
+  - Grep
 disallowedTools:
   - Bash
   - WebSearch
@@ -93,7 +94,7 @@ A session "confirms" the pattern if:
 - **Verified** → this substitutes for the per-report pattern confirmation in §1; proceed to §1.5.
 - **Missing file, no matching pattern, or cited session missing from ledger** → `SUPPRESS: <title> — no-evidence: artifact does not confirm citation`.
 
-**Other machine-written artifacts (the §0.5 efficiency path).** When the `Artifact:` line cites `.claude/cost-log.jsonl` or `state/proposal-metrics.jsonl`, Read the cited file and confirm it contains the cited value or measurement (the specific entries, amounts, or counts the candidate claims — recurrence here means the same waste measured ≥2 times in the file). Verified → proceed to §1.5/§2 and emit a plain `ACCEPT: <title>` verdict (no source tag — this candidate carries no session evidence; the bare form is the closest grammar fit, not an archived-session claim). Missing file or cited value not found → `SUPPRESS: <title> — no-evidence: artifact does not contain cited value`.
+**Other machine-written artifacts (the §0.5 efficiency path).** When the `Artifact:` line cites `.claude/cost-log.jsonl` or `state/proposal-metrics.jsonl`, verify the citation with a bounded check — these files grow without bound, so never `Read` them whole. Use the Grep tool on the cited file to confirm it contains the cited value or measurement (the specific entries, amounts, or counts the candidate claims); a count-mode match ≥ 2 satisfies recurrence — the same waste measured ≥2 times in the file. For a claimed aggregate with no literal string to match, Grep for its components in content mode with `head_limit: 200` and confirm from those matches only. Verified → proceed to §1.5/§2 and emit a plain `ACCEPT: <title>` verdict (no source tag — this candidate carries no session evidence; the bare form is the closest grammar fit, not an archived-session claim). Missing file or cited value not found → `SUPPRESS: <title> — no-evidence: artifact does not contain cited value`.
 
 ### 1.5 Operator memory cross-check
 
