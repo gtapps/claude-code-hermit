@@ -13,7 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { runScript, SCRIPTS_DIR } from './helpers/run';
-import { inActiveHours, isNearDailyAutoClose, composeRestartMessage, composeWedgeMessage, composePauseMessage } from '../scripts/hermit-watchdog';
+import { inActiveHours, isNearDailyAutoClose, composeRestartMessage, composeWedgeMessage, composePauseMessage, hasPendingQuestion } from '../scripts/hermit-watchdog';
 import { startHttpStub, type Stub } from './helpers/http-stub';
 
 // The one line to flip when hermit-watchdog is ported to TypeScript.
@@ -299,6 +299,22 @@ describe('dead session with channel configured', () => {
 
 const PENDING_QUESTION_PANE =
   ' Which color do you prefer?\n\n❯ 1. Red\n  2. Green\n  3. Blue\n\nEnter to select · Esc to cancel';
+
+describe('hasPendingQuestion tail-scan (#8 false-positive guard)', () => {
+  test('a genuine modal at the bottom of the pane matches', () => {
+    expect(hasPendingQuestion(PENDING_QUESTION_PANE)).toBe(true);
+  });
+
+  test('the same tokens in scrollback, followed by clean output, do NOT match', () => {
+    // A menu / quoted output that scrolled up, then 20 lines of ordinary activity.
+    const scrollback = '❯ 1. Red\nEsc to cancel\n' + Array.from({ length: 20 }, (_, i) => `running step ${i}...`).join('\n');
+    expect(hasPendingQuestion(scrollback)).toBe(false);
+  });
+
+  test('ordinary output that merely quotes one token does not match', () => {
+    expect(hasPendingQuestion('the docs say to press Esc to cancel a running task\nall done')).toBe(false);
+  });
+});
 
 describe('stall-question detection', () => {
   let h: Hermit;
@@ -1545,10 +1561,12 @@ describe('composeRestartMessage / composeWedgeMessage / composePauseMessage', ()
     expect(composePauseMessage('watchdog', null, 'UTC')).toContain('the watchdog');
   });
 
-  test('pause message: a future boundary is rendered as HH:MM', () => {
+  test('pause message: a future boundary is rendered dated (YYYY-MM-DD HH:MM), not bare HH:MM', () => {
+    // A monthly/weekly auto-resume can be days or weeks out; bare HH:MM would read
+    // as minutes away, so the message carries the date.
     const until = new Date(Date.now() + 3600_000).toISOString();
     const msg = composePauseMessage('budget', until, 'UTC');
-    expect(msg).toMatch(/until \d{2}:\d{2}\.$/);
+    expect(msg).toMatch(/until \d{4}-\d{2}-\d{2} \d{2}:\d{2}\.$/);
   });
 });
 

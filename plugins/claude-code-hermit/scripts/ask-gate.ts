@@ -37,6 +37,7 @@ process.stdout.on('error', () => {});
 
 import { hermitDir } from './lib/cc-compat';
 import { loadConfig } from './lib/channel-auth';
+import { channelLikelyDown } from './lib/channel-health';
 import { resolve as resolveOutboundChannel } from './resolve-outbound-channel';
 
 const REDIRECT_REASON =
@@ -59,21 +60,29 @@ function main(raw: string): void {
   const toolName = payload && typeof payload.tool_name === 'string' ? payload.tool_name : '';
   if (toolName !== 'AskUserQuestion') return; // allow (defensive; matcher already scopes)
 
+  // Pure-env gates first — they exclude every attended session (where an
+  // interactive AskUserQuestion actually fires) without touching the disk.
+  if (process.env.HERMIT_ASK_GATE === 'off') return; // explicit per-session escape hatch
+  // Identity gate: only the managed unattended session carries HERMIT_MANAGED
+  // (stamped into its tmux env-file by hermit-start). Its absence means an
+  // attended `claude` — leave interactive AskUserQuestion flows alone.
+  if (process.env.HERMIT_MANAGED !== '1') return;
+
   const dir = hermitDir();
   const config = loadConfig(dir);
   if (!config || typeof config !== 'object') return; // allow, fail-open
 
   if (config.always_on !== true) return; // interactive/terminal session — untouched
   if (config.ask_gate === false) return; // explicit config escape hatch
-  if (process.env.HERMIT_ASK_GATE === 'off') return; // explicit per-session escape hatch
-
-  // Identity gate: only the managed unattended session carries HERMIT_MANAGED
-  // (stamped into its tmux env-file by hermit-start). Its absence means an
-  // attended `claude` — leave interactive AskUserQuestion flows alone.
-  if (process.env.HERMIT_MANAGED !== '1') return;
 
   const target = resolveOutboundChannel(config.channels);
   if (!target) return; // no redirect target — denying would strand the question
+
+  // "Configured" is not "reachable": if the channel's recent sends have been
+  // failing (e.g. a revoked bot token), don't deny toward a dead channel — allow
+  // the question to render in the pane, where the watchdog stall backstop catches
+  // it. Denying here would strand it (deny + undeliverable redirect = silence).
+  if (channelLikelyDown(dir, target.id)) return;
 
   process.stderr.write(`${REDIRECT_REASON}\n`);
   process.exit(2);

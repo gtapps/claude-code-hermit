@@ -11,7 +11,7 @@
             "timeout": 3
           }
         ],
-        "description": "Deny every tool call while state/pause.json is set (PROP-015), except a channel reply tool and PushNotification"
+        "description": "Deny every tool call while state/pause.json is set, except a channel reply tool and PushNotification"
       },
       {
         "matcher": "Bash|Edit|Write",
@@ -47,7 +47,7 @@
             "timeout": 3
           }
         ],
-        "description": "Deny AskUserQuestion on always-on channel-primary sessions with a redirect to the channel reply tool + micro-proposal bridge (binds the callers PROP-017's static contract test cannot see)"
+        "description": "Deny AskUserQuestion on always-on channel-primary sessions with a redirect to the channel reply tool + micro-proposal bridge (binds the callers the static contract test cannot see)"
       }
     ],
     "PostToolUse": [
@@ -146,7 +146,7 @@
             "timeout": 3
           }
         ],
-        "description": "Deterministic pause/resume/snooze keyword writer (PROP-015) — writes state/pause.json before any model turn, gated by the channel's allowed_users"
+        "description": "Deterministic pause/resume/snooze keyword writer — writes state/pause.json before any model turn, gated by the channel's allowed_users"
       },
       {
         "matcher": "",

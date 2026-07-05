@@ -13,8 +13,8 @@ import { readTasks, taskProgress } from './lib/tasks';
 import { kStr, formatTokens } from './lib/format';
 import { sessionId as ccSessionId, transcriptPath as ccTranscriptPath, entryText, isToolResult, extractUsage, costLogPath, hermitDir } from './lib/cc-compat';
 import { costIndexPath, updateCostIndex, readCostIndex, scanCostLogWarnings } from './lib/cost-log';
-import { todayYMD, thisWeekKey, thisMonthYYYYMM, currentHHMM } from './lib/time';
-import { readAlertState, defaultAlertState, quarantineAlertState, writeAlertState } from './lib/alert-state';
+import { todayYMD, thisWeekKey, thisMonthYYYYMM, friendlyBoundary } from './lib/time';
+import { mutateOwnedAlerts, budgetAlertsPath } from './lib/alert-state';
 import { setPause, isPaused } from './lib/pause';
 import { evaluateBudget, pauseBoundary } from './lib/budget';
 import { sendToChannel } from './lib/channel-send';
@@ -33,7 +33,7 @@ const HEARTBEAT_FILE = path.join(HERMIT_DIR, 'state', '.heartbeat');
 const COST_SUMMARY = path.join(HERMIT_DIR, 'cost-summary.md');
 const TASK_SNAPSHOT = path.join(HERMIT_DIR, 'tasks-snapshot.md');
 const CONFIG_JSON = path.join(HERMIT_DIR, 'config.json');
-const ALERT_STATE_JSON = path.join(HERMIT_DIR, 'state', 'alert-state.json');
+const BUDGET_ALERTS = budgetAlertsPath(HERMIT_DIR);
 
 let _runtimeCache: Json;
 function readRuntimeJsonCached(): Json {
@@ -458,15 +458,6 @@ function updateShellSession(content: string, costStr: string, tokenStr: string):
   return content;
 }
 
-// Friendly "YYYY-MM-DD HH:MM" rendering of an ISO boundary in `timezone` — plain
-// HH:MM would be ambiguous for a monthly resume days away.
-function friendlyBoundary(iso: string, timezone: string): string {
-  const d = new Date(iso);
-  const date = todayYMD(timezone, d);
-  const hhmm = currentHHMM(timezone, d) ?? '';
-  return `${date} ${hhmm}`.trim();
-}
-
 const PERIOD_LABEL: Record<string, string> = { daily: "today's", weekly: "this week's", monthly: "this month's" };
 
 // Bound on the budget push, kept well under the Stop pipeline's 15s hook budget
@@ -496,15 +487,12 @@ function composeBudgetMessage(newPeriods: Json[], action: 'alert' | 'pause', unt
 // read-modify-write, so the confirmation write reflects current on-disk state
 // rather than a snapshot taken before the (awaited) send. Fail-open.
 function markBudgetNotified(newPeriods: Json[], periodKey: Record<string, string>): void {
-  const r = readAlertState(ALERT_STATE_JSON);
-  if (r.kind !== 'ok' || !r.value?.alerts) return;
-  const state = r.value;
-  let changed = false;
-  for (const p of newPeriods) {
-    const entry = state.alerts[`budget-${p.level}:${p.period}:${periodKey[p.period]}`];
-    if (entry && !entry.notified) { entry.notified = true; changed = true; }
-  }
-  if (changed) writeAlertState(ALERT_STATE_JSON, state);
+  mutateOwnedAlerts(BUDGET_ALERTS, (alerts) => {
+    for (const p of newPeriods) {
+      const entry = alerts[`budget-${p.level}:${p.period}:${periodKey[p.period]}`];
+      if (entry && !entry.notified) entry.notified = true;
+    }
+  });
 }
 
 // PROP-016 budget enforcement: compare this turn's freshly-updated index against
@@ -538,46 +526,41 @@ async function applyBudgetCheck(costIdx: Json, timezone: string, budgetConfig: J
     });
     if (result.level === 'none') return;
 
-    // Read-modify-write alert-state.json. Only ever touches alerts{} budget-* keys —
-    // never total_ticks/self_eval/last_digest_date (owned by precheck / the heartbeat
-    // skill respectively), so this can't collide with either writer.
-    const r = readAlertState(ALERT_STATE_JSON);
-    let state: Json;
-    if (r.kind === 'ok') state = r.value;
-    else if (r.kind === 'missing') state = defaultAlertState();
-    else if (r.kind === 'corrupt') { quarantineAlertState(ALERT_STATE_JSON, Date.now()); state = defaultAlertState(); }
-    else return; // ioerror — never clobber a healthy-but-transiently-unreadable file
-
-    const alerts: Json = { ...(state.alerts && typeof state.alerts === 'object' ? state.alerts : {}) };
-    let wrote = false;
+    // Read-modify-write budget-alerts.json — cost-tracker's own file, so a plain
+    // atomic write needs no lock (the split from the shared alert-state.json is what
+    // removes the cross-process clobber with the watchdog's export-alert writer).
+    // mutateOwnedAlerts returns false on an ioerror read (healthy file we couldn't
+    // read) — in which case we act on nothing, as before.
     const newPeriods: Json[] = [];
-    for (const p of result.periods) {
-      const key = `budget-${p.level}:${p.period}:${periodKey[p.period]}`;
-      if (alerts[key]) continue; // dedup: one entry per period+level, create-only
-      alerts[key] = {
-        kind: 'budget',
-        level: p.level,
-        period: p.period,
-        action: result.action,
-        spend: Math.round(p.spend * 10000) / 10000,
-        cap: p.cap,
-        ratio: Math.round(p.ratio * 100) / 100,
-        notified: false,
-        ts: new Date().toISOString(),
-      };
-      wrote = true;
-      newPeriods.push(alerts[key]);
-    }
-    // Reap budget-* entries from prior periods — they are created on breach/warn
-    // but nothing else removes them, so alert-state.json would grow unbounded on a
-    // hermit that breaches regularly. A key is `budget-<level>:<period>:<period-key>`;
-    // any whose trailing period-key isn't the current one is a past period.
-    for (const key of Object.keys(alerts)) {
-      const e = alerts[key];
-      if (e?.kind !== 'budget') continue;
-      const current = periodKey[e.period as keyof typeof periodKey];
-      if (current && !key.endsWith(`:${current}`)) { delete alerts[key]; wrote = true; }
-    }
+    const applied = mutateOwnedAlerts(BUDGET_ALERTS, (alerts) => {
+      for (const p of result.periods) {
+        const key = `budget-${p.level}:${p.period}:${periodKey[p.period]}`;
+        if (alerts[key]) continue; // dedup: one entry per period+level, create-only
+        alerts[key] = {
+          kind: 'budget',
+          level: p.level,
+          period: p.period,
+          action: result.action,
+          spend: Math.round(p.spend * 10000) / 10000,
+          cap: p.cap,
+          ratio: Math.round(p.ratio * 100) / 100,
+          notified: false,
+          ts: new Date().toISOString(),
+        };
+        newPeriods.push(alerts[key]);
+      }
+      // Reap budget-* entries from prior periods — created on breach/warn but
+      // otherwise never removed, so the file would grow unbounded on a hermit that
+      // breaches regularly. A key is `budget-<level>:<period>:<period-key>`; any
+      // whose trailing period-key isn't the current one is a past period.
+      for (const key of Object.keys(alerts)) {
+        const e = alerts[key];
+        if (e?.kind !== 'budget') continue;
+        const current = periodKey[e.period as keyof typeof periodKey];
+        if (current && !key.endsWith(`:${current}`)) delete alerts[key];
+      }
+    });
+    if (!applied) return; // ioerror — never act on a state we couldn't read
 
     // Decide the pause action. `until` (the auto-resume boundary) is set whenever
     // the hermit is or will be budget-paused, so the operator message can name it.
@@ -602,11 +585,9 @@ async function applyBudgetCheck(costIdx: Json, timezone: string, budgetConfig: J
       }
     }
 
-    // Persist the alert entries and the pause synchronously first: recording the
-    // alert key here (create-only dedup) prevents a re-send next tick even if the
-    // push below fails, and keeping the read-modify-write window synchronous avoids
-    // clobbering a concurrent writer with a snapshot gone stale across the send's await.
-    if (wrote) writeAlertState(ALERT_STATE_JSON, { ...state, alerts });
+    // The alert entries were already persisted inside mutateOwnedAlerts above
+    // (create-only dedup), so a failed push below won't re-send next tick. Set the
+    // pause synchronously before the awaited send.
     if (willPause) setPause(HERMIT_DIR, { reason: 'budget', by: 'cost-tracker', until });
 
     // Then push — bounded well under the Stop pipeline's 15s budget — and record

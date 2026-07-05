@@ -70,6 +70,25 @@ describe('ask-gate', () => {
     expect(r.exitCode).toBe(0);
   }));
 
+  // #6: a configured channel whose recent sends have been failing (e.g. revoked
+  // token) must not be denied toward — that would strand the question. Allow it to
+  // render in the pane instead, where the watchdog stall backstop catches it.
+  test('channel configured but recently failing (likely down) — allow, do not strand', withDir(async (dir) => {
+    setConfig(dir);
+    fs.mkdirSync(hermit(dir, 'state'), { recursive: true });
+    write(hermit(dir, 'state', 'channel-health.json'), JSON.stringify({ telegram: { last_success_at: null, consecutive_failures: 3 } }));
+    const r = await run(ASK_PAYLOAD, dir);
+    expect(r.exitCode).toBe(0); // would be 2 (deny) if the channel looked healthy
+  }));
+
+  test('channel with only 1 recent failure — still denies (below the likely-down threshold)', withDir(async (dir) => {
+    setConfig(dir);
+    fs.mkdirSync(hermit(dir, 'state'), { recursive: true });
+    write(hermit(dir, 'state', 'channel-health.json'), JSON.stringify({ telegram: { last_success_at: null, consecutive_failures: 1 } }));
+    const r = await run(ASK_PAYLOAD, dir);
+    expect(r.exitCode).toBe(2);
+  }));
+
   test('always_on: true, channel ineligible (empty allowed_users) — allow', withDir(async (dir) => {
     setConfig(dir, {
       channels: { primary: 'telegram', telegram: { dm_channel_id: '12345', allowed_users: [] } },

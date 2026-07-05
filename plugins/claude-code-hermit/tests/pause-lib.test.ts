@@ -33,12 +33,12 @@ describe('isPaused', () => {
     expect(typeof status.ts).toBe('string');
   }));
 
-  test('after clearPause — unpaused, file removed', withTmpHermitRoot((dir) => {
+  test('after clearPause — unpaused, files removed', withTmpHermitRoot((dir) => {
     setPause(dir, { reason: 'operator', by: 'alice' });
-    expect(fs.existsSync(pausePath(dir))).toBe(true);
+    expect(isPaused(dir).paused).toBe(true);
     clearPause(dir);
-    expect(fs.existsSync(pausePath(dir))).toBe(false);
     expect(isPaused(dir)).toEqual({ paused: false });
+    expect(fs.readdirSync(path.join(dir, 'state'))).toEqual([]);
   }));
 
   test('clearPause on an already-absent flag is a no-op (idempotent)', withTmpHermitRoot((dir) => {
@@ -79,18 +79,60 @@ describe('isPaused', () => {
     expect(isPaused(dir)).toEqual({ paused: false });
   }));
 
-  test('setPause writes atomically — no leftover .tmp file', withTmpHermitRoot((dir) => {
+  test('setPause writes atomically — no leftover .tmp file (operator -> operator-pause.json)', withTmpHermitRoot((dir) => {
     setPause(dir, { reason: 'operator', by: 'alice' });
     const files = fs.readdirSync(path.join(dir, 'state'));
-    expect(files).toEqual(['pause.json']);
+    expect(files).toEqual(['operator-pause.json']);
   }));
 
-  test('setPause twice — second call overwrites (new reason/by)', withTmpHermitRoot((dir) => {
+  test('setPause twice same tier — second call overwrites (new reason/by)', withTmpHermitRoot((dir) => {
     setPause(dir, { reason: 'operator', by: 'alice' });
-    setPause(dir, { reason: 'watchdog', by: 'system' });
+    setPause(dir, { reason: 'watchdog', by: 'system' }); // same (manual) tier -> same file
     const status = isPaused(dir);
     expect(status.reason).toBe('watchdog');
     expect(status.by).toBe('system');
+  }));
+
+  // File-split precedence: a budget pause writes auto-pause.json and can NEVER touch
+  // the operator-pause.json file, so an operator "stop" is structurally safe from a
+  // concurrent budget-breach tick — the TOCTOU fix.
+  test('budget pause writes auto-pause.json, leaving an operator stop intact', withTmpHermitRoot((dir) => {
+    setPause(dir, { reason: 'operator', by: 'alice' }); // indefinite operator stop
+    setPause(dir, { reason: 'budget', by: 'cost-tracker', until: '2999-01-01T00:00:00Z' });
+    const files = fs.readdirSync(path.join(dir, 'state')).sort();
+    expect(files).toEqual(['auto-pause.json', 'operator-pause.json']);
+    const status = isPaused(dir);
+    expect(status.reason).toBe('operator'); // higher priority wins
+    expect(status.until).toBeNull();         // still the indefinite stop
+  }));
+
+  test('with only a budget pause, isPaused reports it', withTmpHermitRoot((dir) => {
+    setPause(dir, { reason: 'budget', by: 'cost-tracker', until: '2999-01-01T00:00:00Z' });
+    expect(isPaused(dir).reason).toBe('budget');
+  }));
+
+  test('an EXPIRED operator pause does not mask an active budget pause', withTmpHermitRoot((dir) => {
+    setPause(dir, { reason: 'operator', by: 'alice', until: '2000-01-01T00:00:00Z' }); // lapsed
+    setPause(dir, { reason: 'budget', by: 'cost-tracker', until: '2999-01-01T00:00:00Z' });
+    expect(isPaused(dir).reason).toBe('budget');
+  }));
+
+  test('clearPause removes every tier + the legacy file', withTmpHermitRoot((dir) => {
+    fs.mkdirSync(path.join(dir, 'state'), { recursive: true });
+    fs.writeFileSync(pausePath(dir), JSON.stringify({ paused: true, paused_until: null, reason: 'operator', by: 'legacy', ts: 'x' }));
+    setPause(dir, { reason: 'budget', by: 'cost-tracker', until: '2999-01-01T00:00:00Z' });
+    clearPause(dir);
+    expect(isPaused(dir)).toEqual({ paused: false });
+    expect(fs.readdirSync(path.join(dir, 'state'))).toEqual([]);
+  }));
+
+  // Migration: a pause in force in the legacy pause.json (written before the split)
+  // is still honored until the operator resumes.
+  test('legacy pause.json is still read (upgrade migration)', withTmpHermitRoot((dir) => {
+    fs.mkdirSync(path.join(dir, 'state'), { recursive: true });
+    fs.writeFileSync(pausePath(dir), JSON.stringify({ paused: true, paused_until: null, reason: 'operator', by: 'legacy', ts: 'x' }));
+    expect(isPaused(dir).paused).toBe(true);
+    expect(isPaused(dir).reason).toBe('operator');
   }));
 });
 

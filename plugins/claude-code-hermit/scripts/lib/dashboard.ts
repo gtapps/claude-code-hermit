@@ -15,7 +15,7 @@ import path from 'node:path';
 import { readFileWithFrontmatter, globDir } from './frontmatter';
 import { formatTokens } from './format';
 import { sha256 } from './hash';
-import { readAlertState } from './alert-state';
+import { readMergedAlerts } from './alert-state';
 import { todayYMD } from './time';
 import { costIndexPath, readCostIndex } from './cost-log';
 import { rebuildIndex, type ProposalsIndex } from '../proposals-index';
@@ -264,18 +264,15 @@ export function loadDashboardState(hermitDir: string): DashboardState {
   const timezone = typeof config.timezone === 'string' && config.timezone ? config.timezone : 'UTC';
   const runtime = readJsonSafe(path.join(hermitDir, 'state', 'runtime.json'));
   const today = loadTodayCost(hermitDir, timezone);
-  const alertRead = readAlertState(path.join(hermitDir, 'state', 'alert-state.json'));
-
+  // Union alerts across the per-writer files (skill/checklist + budget + telemetry).
   const alerts: AlertRow[] = [];
-  if (alertRead.kind === 'ok' && alertRead.value.alerts && typeof alertRead.value.alerts === 'object') {
-    for (const [key, v] of Object.entries<Json>(alertRead.value.alerts)) {
-      if (v?.suppressed === true) continue; // dismissed/digested — not an active alert
-      alerts.push({
-        key,
-        message: alertMessage(key, v),
-        timestamp: typeof v?.timestamp === 'string' ? v.timestamp : null,
-      });
-    }
+  for (const [key, v] of Object.entries<Json>(readMergedAlerts(hermitDir))) {
+    if (v?.suppressed === true) continue; // dismissed/digested — not an active alert
+    alerts.push({
+      key,
+      message: alertMessage(key, v),
+      timestamp: typeof v?.timestamp === 'string' ? v.timestamp : null,
+    });
   }
 
   return {

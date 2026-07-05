@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { currentHHMM, todayYMD, parseDuration } from './lib/time';
-import { readAlertState, defaultAlertState, quarantineAlertState, writeAlertState } from './lib/alert-state';
+import { readAlertState, defaultAlertState, quarantineAlertState, writeAlertState, readMergedAlerts } from './lib/alert-state';
 import { readFrontmatter } from './lib/frontmatter';
 import { isProposalScanItem } from './lib/heartbeat-items';
 import { isPaused } from './lib/pause';
@@ -42,10 +42,7 @@ if (pauseStatus.paused) {
   // heartbeat skill announces and marks `notified:true`, and every subsequent tick
   // falls back to the plain SKIP|paused here (no un-notified entry left to escape on).
   if (pauseStatus.reason === 'budget') {
-    const peekAlerts = readAlertState(alertStatePath);
-    const pendingAlerts: Json = peekAlerts.kind === 'ok' && peekAlerts.value.alerts && typeof peekAlerts.value.alerts === 'object'
-      ? peekAlerts.value.alerts : {};
-    const budgetUnannounced = Object.values(pendingAlerts).some((e: Json) => e?.kind === 'budget' && e.notified === false);
+    const budgetUnannounced = Object.values(readMergedAlerts(stateDir)).some((e: Json) => e?.kind === 'budget' && e.notified === false);
     if (!budgetUnannounced) emit('SKIP|paused');
     // else fall through to the gates below, which will reach the pending-budget
     // check and emit EVALUATE.
@@ -225,7 +222,7 @@ if (hasPendingMicro) emit('EVALUATE');
 // forces an immediate EVALUATE — this is both how `action:"alert"` breaches surface
 // at all, and the mechanism the pause-escape gate above depends on to actually emit
 // EVALUATE rather than just falling through.
-const hasPendingBudgetAlert = Object.values(alertState.alerts ?? {}).some(
+const hasPendingBudgetAlert = Object.values(readMergedAlerts(stateDir)).some(
   (e: Json) => e?.kind === 'budget' && e.notified === false);
 if (hasPendingBudgetAlert) emit('EVALUATE');
 

@@ -17,6 +17,7 @@ import { resolve as resolveOutboundChannel } from '../resolve-outbound-channel';
 import { logMessage, isLoggingEnabled } from './channel-log';
 import { loadConfig } from './channel-auth';
 import { readChannelToken } from './channel-token';
+import { recordChannelHealth } from './channel-health';
 
 type Json = any;
 
@@ -111,6 +112,8 @@ export async function sendToChannel(hermitDir: string, text: string, opts: SendO
     if (!token) return { ok: false, error: 'missing_token' };
 
     const result = await send(token, chatId, text, opts.timeoutMs ?? REQUEST_TIMEOUT_MS);
+    // Record reachability for ask-gate's redirect-target check (advisory, never throws).
+    recordChannelHealth(hermitDir, channelId, result.ok);
     if (!result.ok) return result;
 
     if (isLoggingEnabled(config)) {

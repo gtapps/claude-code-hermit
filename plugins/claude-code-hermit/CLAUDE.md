@@ -103,6 +103,18 @@ bun test
 - **Hermit `state-templates/CLAUDE-APPEND.md` blocks must not restate `config.json` contents** (routine schedules, Discord/Telegram user IDs, morning-brief times, `permission_mode`, `agent_name`, `sign_off`, `escalation`, `idle_behavior`). Those are loaded structurally from `config.json` on every session start. CLAUDE-APPEND describes behaviors, conventions, and workflow shape — not the wiring. Restating config values leaks them into `CLAUDE.md`, which the hatch's OPERATOR.md scan reads, tempting the model to mirror them again into OPERATOR.md prose. Naming routines by `id` and referencing `enabled` state is fine — those are stable; schedules and flags drift.
 - **Default `config.json` source of truth is `state-templates/config.json.template`.** Skills (especially `hatch`) must overlay operator choices onto the template — never re-declare a parallel inline default object in SKILL.md text. The `tests/template-skill-sync.test.ts` contract test catches drift between the template's top-level keys and `hatch/SKILL.md` references; if you add a field to the template, also reference it by name in hatch.
 - **SKILL.md size: trim before splitting.** Sibling files (e.g., `skills/<name>/EXTRA.md`) are not auto-loaded — only `SKILL.md` is. The model must explicitly `Read` siblings, which is unreliable for branch-conditional flow. When a SKILL.md grows large, prefer trimming verbose prose, collapsing redundant tables, and removing duplicated sections over splitting into multiple files.
+- **Token discipline: keep the script-mediation boundary.** State costs tokens only where
+  it crosses into context — hook stdout, skill-driven `Read`s, and helper-script output.
+  Hooks and helper scripts print verdict-sized digests, never raw logs or full state dumps
+  (everything a hook prints on success is injected into context). Skills must not `Read`
+  unbounded surfaces (`cost-log.jsonl`, `*.jsonl` event logs, the channel DB) directly —
+  front them with a script that returns a bounded summary (the `session-cost.ts` /
+  `heartbeat-precheck.ts` / `lib/search.ts` pattern); a bounded slice (e.g. reflect's
+  tail-20 of cost-log) is the ceiling, not the norm. Session-start injection
+  (`startup-context.ts`, `generate-summary.ts`) is the largest recurring cost — a new
+  section there must justify its per-session tokens against how often it changes behavior.
+  No numeric budgets: this is a boundary rule (where digestion happens), not a size quota.
+  (SKILL.md size has its own rule above.)
 
 ## Debugging gotchas
 

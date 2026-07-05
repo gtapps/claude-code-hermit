@@ -77,7 +77,7 @@ describe('cost-tracker: budget push on breach (send succeeds)', () => {
   });
 
   test('flips the alert entry to notified:true on a confirmed send', () => {
-    const state = JSON.parse(fs.readFileSync(path.join(cchDir, 'state', 'alert-state.json'), 'utf-8'));
+    const state = JSON.parse(fs.readFileSync(path.join(cchDir, 'state', 'budget-alerts.json'), 'utf-8'));
     const keys = Object.keys(state.alerts).filter((k) => k.startsWith('budget-breach:daily:'));
     expect(keys).toHaveLength(1);
     expect(state.alerts[keys[0]].notified).toBe(true);
@@ -95,7 +95,7 @@ describe('cost-tracker: budget push on warn (send fails -> notified stays false)
   afterAll(() => { fs.rmSync(dir, { recursive: true }); });
 
   test('a failed send leaves notified:false so the heartbeat-precheck fallback still fires', () => {
-    const state = JSON.parse(fs.readFileSync(path.join(cchDir, 'state', 'alert-state.json'), 'utf-8'));
+    const state = JSON.parse(fs.readFileSync(path.join(cchDir, 'state', 'budget-alerts.json'), 'utf-8'));
     const keys = Object.keys(state.alerts).filter((k) => k.startsWith('budget-warn:daily:'));
     expect(keys).toHaveLength(1);
     expect(state.alerts[keys[0]].notified).toBe(false);
@@ -106,7 +106,7 @@ describe('cost-tracker: a repeat breach tick at the same boundary does not re-st
   let dir: string; let cchDir: string; let stub: Stub;
   let tsAfterFirst: string; let tsAfterSecond: string;
 
-  const pauseTs = (d: string) => JSON.parse(fs.readFileSync(path.join(d, 'state', 'pause.json'), 'utf-8')).ts;
+  const pauseTs = (d: string) => JSON.parse(fs.readFileSync(path.join(d, 'state', 'auto-pause.json'), 'utf-8')).ts;
 
   beforeAll(async () => {
     stub = startHttpStub();
@@ -124,7 +124,7 @@ describe('cost-tracker: a repeat breach tick at the same boundary does not re-st
     expect(stub.requests.length).toBe(1);
   });
 
-  test('pause.json ts is unchanged on the second tick (no re-stamp -> watchdog dedup holds)', () => {
+  test('auto-pause.json ts is unchanged on the second tick (no re-stamp -> watchdog dedup holds)', () => {
     expect(tsAfterSecond).toBe(tsAfterFirst);
   });
 });

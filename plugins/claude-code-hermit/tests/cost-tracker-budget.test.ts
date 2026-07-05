@@ -96,7 +96,7 @@ describe('cost-tracker: budget breach with action:"pause"', () => {
   afterAll(() => { fs.rmSync(s.dir, { recursive: true }); });
 
   test('writes a budget-breach alert entry with notified:false', () => {
-    const state = JSON.parse(fs.readFileSync(path.join(s.cchDir, 'state', 'alert-state.json'), 'utf-8'));
+    const state = JSON.parse(fs.readFileSync(path.join(s.cchDir, 'state', 'budget-alerts.json'), 'utf-8'));
     const keys = Object.keys(state.alerts).filter(k => k.startsWith('budget-breach:daily:'));
     expect(keys).toHaveLength(1);
     const entry = state.alerts[keys[0]];
@@ -108,8 +108,8 @@ describe('cost-tracker: budget breach with action:"pause"', () => {
     expect(entry.cap).toBe(1.0);
   });
 
-  test('sets state/pause.json with reason:"budget" and a future paused_until', () => {
-    const pause = JSON.parse(fs.readFileSync(path.join(s.cchDir, 'state', 'pause.json'), 'utf-8'));
+  test('sets state/auto-pause.json with reason:"budget" and a future paused_until', () => {
+    const pause = JSON.parse(fs.readFileSync(path.join(s.cchDir, 'state', 'auto-pause.json'), 'utf-8'));
     expect(pause.paused).toBe(true);
     expect(pause.reason).toBe('budget');
     expect(pause.by).toBe('cost-tracker');
@@ -128,15 +128,15 @@ describe('cost-tracker: budget warn (80-99%) with action:"alert" does not pause'
   afterAll(() => { fs.rmSync(s.dir, { recursive: true }); });
 
   test('writes a budget-warn alert entry, not a breach', () => {
-    const state = JSON.parse(fs.readFileSync(path.join(s.cchDir, 'state', 'alert-state.json'), 'utf-8'));
+    const state = JSON.parse(fs.readFileSync(path.join(s.cchDir, 'state', 'budget-alerts.json'), 'utf-8'));
     const warnKeys = Object.keys(state.alerts).filter(k => k.startsWith('budget-warn:daily:'));
     const breachKeys = Object.keys(state.alerts).filter(k => k.startsWith('budget-breach:daily:'));
     expect(warnKeys).toHaveLength(1);
     expect(breachKeys).toHaveLength(0);
   });
 
-  test('does not write pause.json', () => {
-    expect(fs.existsSync(path.join(s.cchDir, 'state', 'pause.json'))).toBe(false);
+  test('does not write auto-pause.json', () => {
+    expect(fs.existsSync(path.join(s.cchDir, 'state', 'auto-pause.json'))).toBe(false);
   });
 });
 
@@ -147,7 +147,7 @@ describe('cost-tracker: dedup — a second Stop within the same day does not res
     s = setup({ timezone: null, budget: { daily_usd: 1.0, weekly_usd: null, monthly_usd: null, action: 'alert' } });
     await runTurn(s.dir, 'claude-sonnet-4-6', 100000, 50000); // breach #1
     // Simulate the heartbeat skill having already announced it.
-    const alertPath = path.join(s.cchDir, 'state', 'alert-state.json');
+    const alertPath = path.join(s.cchDir, 'state', 'budget-alerts.json');
     const state = JSON.parse(fs.readFileSync(alertPath, 'utf-8'));
     const key = Object.keys(state.alerts).find(k => k.startsWith('budget-breach:daily:'))!;
     state.alerts[key].notified = true;
@@ -157,7 +157,7 @@ describe('cost-tracker: dedup — a second Stop within the same day does not res
   afterAll(() => { fs.rmSync(s.dir, { recursive: true }); });
 
   test('the existing entry is left untouched (still notified:true, not overwritten)', () => {
-    const state = JSON.parse(fs.readFileSync(path.join(s.cchDir, 'state', 'alert-state.json'), 'utf-8'));
+    const state = JSON.parse(fs.readFileSync(path.join(s.cchDir, 'state', 'budget-alerts.json'), 'utf-8'));
     const keys = Object.keys(state.alerts).filter(k => k.startsWith('budget-breach:daily:'));
     expect(keys).toHaveLength(1); // still exactly one entry for the day — no duplicate key
     expect(state.alerts[keys[0]].notified).toBe(true);
@@ -173,8 +173,8 @@ describe('cost-tracker: inert budget block (all caps null) writes no alert', () 
   });
   afterAll(() => { fs.rmSync(s.dir, { recursive: true }); });
 
-  test('no alert-state.json is written at all', () => {
-    expect(fs.existsSync(path.join(s.cchDir, 'state', 'alert-state.json'))).toBe(false);
+  test('no budget-alerts.json is written at all', () => {
+    expect(fs.existsSync(path.join(s.cchDir, 'state', 'budget-alerts.json'))).toBe(false);
   });
 });
 
@@ -198,7 +198,7 @@ describe('cost-tracker: budget breach does not clobber a stronger operator pause
   });
 
   test('the breach is still recorded as an alert (so it can be announced)', () => {
-    const state = JSON.parse(fs.readFileSync(path.join(s.cchDir, 'state', 'alert-state.json'), 'utf-8'));
+    const state = JSON.parse(fs.readFileSync(path.join(s.cchDir, 'state', 'budget-alerts.json'), 'utf-8'));
     expect(Object.keys(state.alerts).filter(k => k.startsWith('budget-breach:daily:'))).toHaveLength(1);
   });
 });
@@ -209,7 +209,7 @@ describe('cost-tracker: stale budget alert entries from prior periods are reaped
   beforeAll(async () => {
     s = setup({ timezone: null, budget: { daily_usd: 1.0, weekly_usd: null, monthly_usd: null, action: 'alert' } });
     // Seed a leftover alert from a long-past day that nothing ever removed.
-    fs.writeFileSync(path.join(s.cchDir, 'state', 'alert-state.json'), JSON.stringify({
+    fs.writeFileSync(path.join(s.cchDir, 'state', 'budget-alerts.json'), JSON.stringify({
       alerts: {
         'budget-breach:daily:2020-01-01': { kind: 'budget', level: 'breach', period: 'daily', action: 'alert', spend: 9, cap: 1, ratio: 9, notified: true, ts: '2020-01-01T00:00:00Z' },
       },
@@ -220,7 +220,7 @@ describe('cost-tracker: stale budget alert entries from prior periods are reaped
   afterAll(() => { fs.rmSync(s.dir, { recursive: true }); });
 
   test('the past-period entry is dropped, today\'s entry remains', () => {
-    const state = JSON.parse(fs.readFileSync(path.join(s.cchDir, 'state', 'alert-state.json'), 'utf-8'));
+    const state = JSON.parse(fs.readFileSync(path.join(s.cchDir, 'state', 'budget-alerts.json'), 'utf-8'));
     const keys = Object.keys(state.alerts).filter(k => k.startsWith('budget-'));
     expect(keys.some(k => k.endsWith(':2020-01-01'))).toBe(false);
     expect(keys.filter(k => k.startsWith('budget-breach:daily:'))).toHaveLength(1);

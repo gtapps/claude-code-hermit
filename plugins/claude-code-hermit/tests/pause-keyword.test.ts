@@ -20,6 +20,10 @@ const write = (p: string, content: string) => fs.writeFileSync(p, content);
 function withDir(fn: (dir: string) => Promise<void> | void) {
   return async () => {
     const wd: Workdir = setupWorkdir();
+    // Default config: the operator's DM is chat_id "1" (matching the test envelopes).
+    // With no allowed_users set, that DM is the trusted controller — the allowlist
+    // tests below overwrite this config with their own.
+    write(hermit(wd.dir, 'config.json'), '{"channels":{"discord":{"dm_channel_id":"1"}}}');
     try { await fn(wd.dir); } finally { wd.cleanup(); }
   };
 }
@@ -28,7 +32,7 @@ const run = (prompt: string, dir: string) =>
   runScript('pause-keyword.ts', { stdin: JSON.stringify({ prompt }), cwd: dir });
 
 describe('pause-keyword', () => {
-  test('"pause" from an allowed sender (no allowlist configured) — sets flag, exit 0', withDir(async (dir) => {
+  test('"pause" from the operator DM (no allowlist, chat_id matches dm_channel_id) — sets flag, exit 0', withDir(async (dir) => {
     const r = await run('<channel source="discord" chat_id="1" user="U1">pause</channel>', dir);
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toContain('paused');
@@ -36,6 +40,15 @@ describe('pause-keyword', () => {
     expect(status.paused).toBe(true);
     expect(status.until).toBeNull();
     expect(status.by).toBe('U1');
+  }));
+
+  // #3 fix: with no allowlist, a sender from a DIFFERENT chat than the operator's
+  // DM can no longer freeze the hermit (previously accept-all let anyone stop it).
+  test('no allowlist, message from a non-DM chat — silent no-op (cannot freeze)', withDir(async (dir) => {
+    const r = await run('<channel source="discord" chat_id="99" user="STRANGER">stop</channel>', dir);
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout.trim()).toBe('');
+    expect(isPaused(hermit(dir)).paused).toBe(false);
   }));
 
   test('"stop" is a synonym for "pause"', withDir(async (dir) => {

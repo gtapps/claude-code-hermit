@@ -24,7 +24,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { acquireLock, releaseLock } from './lib/lockfile';
-import { utcISOStamp as utcStamp, currentHHMM, parseSimpleCronTime } from './lib/time';
+import { utcISOStamp as utcStamp, currentHHMM, parseSimpleCronTime, friendlyBoundary } from './lib/time';
 import { writeRuntimeJson, readRuntimeJson, STATE_DIR, LIFECYCLE_LOCK } from './lib/runtime';
 import { tmuxSessionAlive, getSessionName as deriveSessionName } from './lib/tmux';
 import { costLogPath } from './lib/cc-compat';
@@ -138,10 +138,11 @@ export function composeStallQuestionMessage(timezone: string): string {
 export function composePauseMessage(reason: string, until: string | null, timezone: string): string {
   const label = pauseReasonLabel(reason);
   // Fall back to the indefinite phrasing when `until` is absent or unparseable —
-  // a malformed timestamp shouldn't leak a raw ISO string to the operator.
-  const hhmm = until ? currentHHMM(timezone, new Date(until)) : null;
-  if (!hhmm) return `Your hermit is paused (${label}) until you resume it.`;
-  return `Your hermit is paused (${label}) until ${hhmm}.`;
+  // a malformed timestamp shouldn't leak a raw ISO string to the operator. Dated
+  // form (not bare HH:MM) so a resume days/weeks out isn't read as minutes away.
+  const valid = until != null && !isNaN(new Date(until).getTime());
+  if (!valid) return `Your hermit is paused (${label}) until you resume it.`;
+  return `Your hermit is paused (${label}) until ${friendlyBoundary(until as string, timezone)}.`;
 }
 
 /** Seconds elapsed since an ISO-8601 timestamp, or null when unparseable. */
@@ -182,9 +183,19 @@ function getPaneHash(sessionName: string): string | null {
 const PENDING_OPTION_RE = /❯\s*\d+\./;
 const PENDING_FOOTER_RE = /Esc to cancel/;
 
-/** True when the pane looks stalled on an interactive dialog nobody can answer. */
-function hasPendingQuestion(paneContent: string): boolean {
-  return PENDING_OPTION_RE.test(paneContent) && PENDING_FOOTER_RE.test(paneContent);
+// Only the pane TAIL counts: a live blocking modal renders at the bottom of the
+// pane, whereas the same tokens appearing in scrollback or quoted tool output
+// (a rendered menu, or output that echoes "Esc to cancel") sit higher up. Scanning
+// the whole capture would let such incidental text trip a false stall — and because
+// stall detection early-returns before wedge/restart, a false positive silently
+// *disables recovery* for as long as the text stays on screen. The tail window
+// keeps the genuine bottom-of-pane prompt while dropping that class.
+const PENDING_TAIL_LINES = 15;
+
+/** True when the pane TAIL looks stalled on an interactive dialog nobody can answer. */
+export function hasPendingQuestion(paneContent: string): boolean {
+  const tail = paneContent.split('\n').slice(-PENDING_TAIL_LINES).join('\n');
+  return PENDING_OPTION_RE.test(tail) && PENDING_FOOTER_RE.test(tail);
 }
 
 /** Send text then Enter as two separate calls (avoids bracketed-paste submit bug). */
@@ -740,7 +751,25 @@ async function main(): Promise<void> {
   // 0d. Telemetry export — independent of watchdog.enabled, like 0a-0c; opt-in via
   // config.telemetry_export. Self-gates on enabled + interval and always returns
   // (never process.exit(0)) so it can't skip steps 1-5 below.
-  const telemetryResult = await runTelemetryExportIfDue(config, HERMIT_ROOT);
+  //
+  // Wall-capped so a slow/hung endpoint can't delay dead-session recovery (steps
+  // 3-5) — recovery is the core promise; telemetry is a best-effort nicety. The
+  // cap equals one POST timeout, so the fresh bundle POST completes-or-times-out
+  // within it (recording its own state); only a multi-bundle spool drain can be
+  // cut short, and those bundles simply retry next tick. Left unawaited past the
+  // cap, so it doesn't block the tick further. (A full reorder is avoided because
+  // telemetry must run even when the watchdog is disabled, whereas recovery is
+  // gated on watchdog.enabled below.)
+  const TELEMETRY_WALL_MS = Number(process.env.HERMIT_TELEMETRY_TIMEOUT_MS) || 5000;
+  let wallTimer: ReturnType<typeof setTimeout> | undefined;
+  const telemetryResult = await Promise.race([
+    runTelemetryExportIfDue(config, HERMIT_ROOT).finally(() => { if (wallTimer) clearTimeout(wallTimer); }),
+    new Promise<{ ran: boolean; ok?: boolean; detail?: string }>((resolve) => {
+      wallTimer = setTimeout(() => resolve({ ran: false, detail: 'deferred (wall-cap)' }), TELEMETRY_WALL_MS);
+      // Don't let the cap timer itself hold the process open when telemetry isn't due.
+      if (typeof wallTimer.unref === 'function') wallTimer.unref();
+    }),
+  ]);
   if (telemetryResult.ran) {
     appendEvent('telemetry-export', telemetryResult.ok ? 'success' : (telemetryResult.detail ?? 'failed'));
   }

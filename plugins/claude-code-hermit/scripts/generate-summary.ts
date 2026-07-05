@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { rebuildIndex } from './proposals-index';
+import { readMergedAlerts } from './lib/alert-state';
 
 type Json = any;
 
@@ -35,13 +36,8 @@ try {
   // Output doesn't exist yet — continue to generate
 }
 
-// Read alert state
-let alertState: Json = { alerts: {}, last_digest_date: null, self_eval: {} };
-try {
-  alertState = JSON.parse(fs.readFileSync(ALERT_STATE, 'utf-8'));
-} catch {}
-
-const alerts = alertState.alerts || {};
+// Union alerts across the per-writer files (skill/checklist + budget + telemetry).
+const alerts = readMergedAlerts(path.dirname(stateDir));
 let activeAlerts = 0;
 let suppressedAlerts = 0;
 for (const key of Object.keys(alerts)) {

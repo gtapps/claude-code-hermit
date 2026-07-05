@@ -8,7 +8,7 @@ import { describe, test, expect } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { updateCostIndex, readCostIndex, scanUnpricedModels } from '../scripts/lib/cost-log';
+import { updateCostIndex, readCostIndex, computeIndex, scanUnpricedModels } from '../scripts/lib/cost-log';
 
 function withTmpdir(fn: (dir: string) => void) {
   return () => {
@@ -24,6 +24,40 @@ function writeLog(dir: string, entries: object[]): string {
 }
 
 const NY = 'America/New_York';
+
+describe('#10d — timezone change re-buckets the index', () => {
+  test('a config.timezone change triggers a rebuild under the new tz', withTmpdir((dir) => {
+    // 2026-07-05T02:00:00Z = 2026-07-04 in NY (EDT), but 2026-07-05 in UTC.
+    const logPath = writeLog(dir, [
+      { timestamp: '2026-07-05T02:00:00Z', session_id: 's1', source: 'other', model: 'sonnet', total_tokens: 100, estimated_cost_usd: 1.0 },
+    ]);
+    const idxPath = path.join(dir, 'cost-index.json');
+
+    const utc = updateCostIndex(logPath, idxPath, 'UTC');
+    expect(Object.keys(utc.by_date)).toEqual(['2026-07-05']);
+    expect(utc.timezone).toBe('UTC');
+
+    // Same log, new timezone — must re-bucket, not keep the stale UTC key.
+    const ny = updateCostIndex(logPath, idxPath, NY);
+    expect(ny.timezone).toBe(NY);
+    expect(Object.keys(ny.by_date)).toEqual(['2026-07-04']);
+    expect(ny.by_date['2026-07-05']).toBeUndefined();
+  }));
+});
+
+describe('#10c — computeIndex: read-only spend without writing the index', () => {
+  test('returns correct buckets and does NOT create/modify the index file', withTmpdir((dir) => {
+    const logPath = writeLog(dir, [
+      { timestamp: '2026-07-04T22:17:00Z', session_id: 's1', source: 'other', model: 'sonnet', total_tokens: 100, estimated_cost_usd: 1.5 },
+    ]);
+    const idxPath = path.join(dir, 'cost-index.json');
+
+    const idx = computeIndex(logPath, NY);
+    expect(idx.by_date['2026-07-04'].cost).toBe(1.5);
+    expect(idx.timezone).toBe(NY);
+    expect(fs.existsSync(idxPath)).toBe(false); // read-only — sole-writer invariant preserved
+  }));
+});
 
 describe('updateCostIndex — by_week/by_month tz-aware aggregation', () => {
   test('a UTC-late-night entry buckets into the prior NY calendar day/week/month', withTmpdir((dir) => {

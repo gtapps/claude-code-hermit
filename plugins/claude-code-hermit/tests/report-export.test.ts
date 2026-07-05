@@ -17,7 +17,35 @@ import {
   spoolList,
   drainSpool,
   runTelemetryExport,
+  postBundle,
 } from '../scripts/report-export';
+
+describe('postBundle: bearer scheme guard', () => {
+  test('refuses to send a bearer token over http to a non-loopback host', async () => {
+    process.env.HERMIT_TEST_TELE_TOKEN = 'secret';
+    try {
+      const r = await postBundle('http://collector.example.com/hook', 'HERMIT_TEST_TELE_TOKEN', { x: 1 });
+      expect(r.ok).toBe(false);
+      expect((r as any).classification).toContain('insecure');
+    } finally {
+      delete process.env.HERMIT_TEST_TELE_TOKEN;
+    }
+  });
+
+  test('allows a bearer token over http to loopback (local collector)', async () => {
+    process.env.HERMIT_TEST_TELE_TOKEN = 'secret';
+    const seen: any[] = [];
+    const server = Bun.serve({ port: 0, fetch: async (req) => { seen.push(req.headers.get('authorization')); return new Response('ok'); } });
+    try {
+      const r = await postBundle(`http://127.0.0.1:${server.port}/hook`, 'HERMIT_TEST_TELE_TOKEN', { x: 1 });
+      expect(r.ok).toBe(true);
+      expect(seen[0]).toBe('Bearer secret');
+    } finally {
+      server.stop(true);
+      delete process.env.HERMIT_TEST_TELE_TOKEN;
+    }
+  });
+});
 
 type Json = any;
 
@@ -283,13 +311,13 @@ describe('runTelemetryExport: spool + alert', () => {
 
       await runTelemetryExport(config, hermitDir);
       await runTelemetryExport(config, hermitDir);
-      // Below ALERT_THRESHOLD, alert-state.json may not even exist yet — that's fine.
-      let alerts = fs.existsSync(statePath(hermitDir, 'alert-state.json')) ? readState(hermitDir, 'alert-state.json').alerts : {};
+      // Below ALERT_THRESHOLD, telemetry-alert.json may not even exist yet — that's fine.
+      let alerts = fs.existsSync(statePath(hermitDir, 'telemetry-alert.json')) ? readState(hermitDir, 'telemetry-alert.json').alerts : {};
       expect(alerts['telemetry:export-failed']).toBeUndefined();
 
       const r3 = await runTelemetryExport(config, hermitDir);
       expect(r3.ok).toBe(false);
-      alerts = readState(hermitDir, 'alert-state.json').alerts;
+      alerts = readState(hermitDir, 'telemetry-alert.json').alerts;
       expect(alerts['telemetry:export-failed'].count).toBe(3);
       expect(spoolList(hermitDir).length).toBe(3);
     } finally {
@@ -299,9 +327,8 @@ describe('runTelemetryExport: spool + alert', () => {
 
   test('success resolves the alert and drains the spool oldest-first', withHermitDir(async (hermitDir) => {
     writeExportState(hermitDir, { version: 1, last_success_at: null, last_attempt_at: new Date().toISOString(), consecutive_failures: 3 });
-    fs.writeFileSync(statePath(hermitDir, 'alert-state.json'), JSON.stringify({
+    fs.writeFileSync(statePath(hermitDir, 'telemetry-alert.json'), JSON.stringify({
       alerts: { 'telemetry:export-failed': { first_seen: new Date().toISOString(), message: 'x', count: 3, suppressed: false } },
-      last_digest_date: null, self_eval: {}, total_ticks: 0,
     }));
     spoolWrite(hermitDir, { marker: 'first' }, new Date(Date.now() - 3000));
     spoolWrite(hermitDir, { marker: 'second' }, new Date(Date.now() - 2000));
@@ -323,7 +350,7 @@ describe('runTelemetryExport: spool + alert', () => {
       expect(seenBodies[2].marker).toBe('second');
       expect(seenBodies[3].marker).toBe('third');
 
-      const alerts = readState(hermitDir, 'alert-state.json').alerts;
+      const alerts = readState(hermitDir, 'telemetry-alert.json').alerts;
       expect(alerts['telemetry:export-failed']).toBeUndefined();
     } finally {
       server.stop(true);

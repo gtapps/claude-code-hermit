@@ -110,11 +110,17 @@ describe('channel-status-responder', () => {
     expect(stub.requests.length).toBe(0);
   });
 
-  test('failed send (dead listener) -> no block, model falls through', async () => {
+  // #10b: a failed deterministic send no longer falls through to a blind model turn —
+  // it injects the composed status via stdout (probe-verified to reach the model) for
+  // the model to relay verbatim, and does NOT block.
+  test('failed send -> injects composed status for the model to relay (not a blind fallthrough)', async () => {
     wd = setupChannelWorkdir();
-    const r = await run(wd, 'status', 'http://127.0.0.1:1');
+    const r = await run(wd, 'status', 'http://127.0.0.1:1'); // dead listener -> send fails
     expect(r.exitCode).toBe(0);
-    expect(r.stdout.trim()).toBe('');
+    expect(r.stdout).not.toContain('"decision":"block"'); // not blocked — model turn proceeds
+    expect(r.stdout).toContain('[status]');               // relay instruction emitted
+    expect(r.stdout).toContain('reply tool');             // tells the model to relay
+    expect(r.stdout).toContain('All quiet');              // carries the composed status text
   });
 
   test('non-channel prompt -> no-op', async () => {
@@ -178,5 +184,28 @@ describe('channel-status-responder', () => {
     wd = setupChannelWorkdir();
     await run(wd, 'status', stub.url);
     expect(stub.requests[0].body.text).toContain('All quiet');
+  });
+
+  // #10a: an accepted-but-untrusted sender (no allowlist configured, message from a
+  // chat that isn't the operator DM) gets a coarse reply — never spend, task, or IDs.
+  test('untrusted sender (no allowlist, non-DM chat) -> redacted coarse status', async () => {
+    stub = startHttpStub();
+    wd = setupChannelWorkdir({
+      channels: { telegram: { enabled: true, dm_channel_id: '12345', state_dir: '.claude.local/channels/telegram' } },
+      budget: { daily_usd: 5, weekly_usd: null, monthly_usd: null, action: 'alert' },
+    });
+    fs.mkdirSync(hermit(wd.dir, 'sessions'), { recursive: true });
+    fs.mkdirSync(hermit(wd.dir, 'state'), { recursive: true });
+    write(hermit(wd.dir, 'sessions', '.status.json'), JSON.stringify({ task: 'secret-migration', status: 'in_progress' }));
+    write(hermit(wd.dir, 'state', 'micro-proposals.json'), JSON.stringify({ pending: [{ id: 'MP-20260705-0', status: 'pending', tier: 1, question: 'ok?' }] }));
+
+    const stranger = JSON.stringify({ prompt: '<channel source="telegram" chat_id="999" user="stranger">status</channel>' });
+    const r = await runScript('channel-status-responder.ts', { stdin: stranger, cwd: wd.dir, env: { HERMIT_TELEGRAM_API_URL: stub.url } });
+    expect(r.exitCode).toBe(0);
+    const text = stub.requests[0].body.text;
+    expect(text).not.toContain('secret-migration'); // task text withheld
+    expect(text).not.toContain('$5.00');             // budget figure withheld
+    expect(text).not.toContain('MP-20260705-0');     // approval id withheld
+    expect(text).toContain('Working');               // coarse state only
   });
 });

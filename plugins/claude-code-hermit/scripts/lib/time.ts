@@ -159,4 +159,15 @@ function parseSimpleCronTime(schedule: string): { hour: number; minute: number }
   return { hour, minute };
 }
 
-export { currentHHMM, todayYMD, thisWeekKey, thisMonthYYYYMM, nextBoundaryISO, localISOStamp, utcISOStamp, parseDuration, parseSimpleCronTime };
+// Friendly "YYYY-MM-DD HH:MM" rendering of an ISO instant in `timezone`. Plain
+// HH:MM is ambiguous for a resume boundary that's days or weeks out ("until 00:00"
+// reads as minutes away), so pause/budget messages that print an auto-resume time
+// use this dated form.
+function friendlyBoundary(iso: string, timezone: string): string {
+  const d = new Date(iso);
+  const date = todayYMD(timezone, d);
+  const hhmm = currentHHMM(timezone, d) ?? '';
+  return `${date} ${hhmm}`.trim();
+}
+
+export { currentHHMM, todayYMD, thisWeekKey, thisMonthYYYYMM, nextBoundaryISO, localISOStamp, utcISOStamp, parseDuration, parseSimpleCronTime, friendlyBoundary };

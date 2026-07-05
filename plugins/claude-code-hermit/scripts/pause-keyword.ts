@@ -20,7 +20,8 @@ process.stdout.on('error', () => {});
 import { safeForLLM } from './lib/sanitize';
 import { hermitDir } from './lib/cc-compat';
 import { setPause, clearPause, parseSnoozeDuration } from './lib/pause';
-import { loadConfig, isAllowedSender } from './lib/channel-auth';
+import { loadConfig, isTrustedController } from './lib/channel-auth';
+import { parseChannelEnvelope } from './lib/channel-envelope';
 
 type Json = any;
 
@@ -38,21 +39,14 @@ function main(raw: string): void {
   const prompt = payload && typeof payload.prompt === 'string' ? payload.prompt : null;
   if (!prompt) return;
 
-  // Only fire when the prompt starts with a <channel ...> opening tag (mirrors
-  // channel-reply-reminder.ts's tolerant-of-quoted-'>' regex).
-  const tagMatch = prompt.match(/^\s*<channel\s+((?:"[^"]*"|[^>])*)\s*>/);
-  if (!tagMatch) return;
-
-  const attrs = tagMatch[1];
-  const sourceMatch = attrs.match(/\bsource="([^"]*)"/);
-  const userMatch = attrs.match(/\buser="([^"]*)"/);
-  const sourceRaw = sourceMatch ? sourceMatch[1] : '';
-  const userId = userMatch ? userMatch[1] : null;
-
-  let body = prompt.slice(tagMatch[0].length);
-  const closeIdx = body.indexOf('</channel>');
-  if (closeIdx !== -1) body = body.slice(0, closeIdx);
-  body = body.trim();
+  // Shared envelope parser (also used by channel-reply-reminder/status-responder),
+  // so the grammar can't drift. Requires a chat_id — which the DM-binding gate
+  // below needs anyway, and every real inbound envelope carries.
+  const env = parseChannelEnvelope(prompt);
+  if (!env) return;
+  const sourceRaw = env.source;
+  const userId = env.userId;
+  const body = env.body;
   if (!body) return;
 
   // Exact-match only — no fuzzy matching, so ordinary conversational text
@@ -70,7 +64,9 @@ function main(raw: string): void {
 
   const dir = hermitDir();
   const config = loadConfig(dir);
-  if (!isAllowedSender(config, sourceRaw, userId)) return; // unauthorized — silent no-op
+  // Stricter gate than a plain reply: pausing is state-mutating, so an unconfigured
+  // channel trusts only the operator's DM (chat_id === dm_channel_id), not accept-all.
+  if (!isTrustedController(config, sourceRaw, userId, env.chatId)) return; // unauthorized — silent no-op
 
   const by = safeForLLM((userId ?? sourceRaw ?? 'channel').slice(0, MAX_BY_LEN));
 

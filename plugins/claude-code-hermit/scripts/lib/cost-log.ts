@@ -72,7 +72,10 @@ function _emptyIndex(): Json {
 }
 
 function _writeIndex(indexPath: string, index: Json): Json {
-  const tmp = indexPath + '.tmp';
+  // pid-suffixed tmp so two overlapping writers (e.g. a manual cost-tracker run
+  // racing the live session's Stop hook) can't torn-promote each other's
+  // half-written tmp — matches lib/pause.ts and lib/alert-state.ts.
+  const tmp = `${indexPath}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(index, null, 2) + '\n', 'utf-8');
   fs.renameSync(tmp, indexPath);
   return index;
@@ -156,17 +159,11 @@ function _processLine(index: Json, line: string, timezone: string): void {
   }
 }
 
-// Full O(n) rebuild from scratch. Only called: first run, version mismatch, or log truncation.
-function rebuildCostIndex(logPath: string, indexPath: string, timezone: string = 'UTC'): Json {
-  const index = _emptyIndex();
-
-  let fileSize = 0;
-  try {
-    fileSize = fs.statSync(logPath).size;
-  } catch {
-    return _writeIndex(indexPath, index);
-  }
-
+// Read `logPath` and fold every line into `index` in-place, catching read errors
+// so a missing/partial log yields partial/empty totals rather than throwing.
+// Shared by rebuildCostIndex (writes the result) and computeIndex (read-only) so
+// the two loops can't drift apart.
+function _foldLogInto(index: Json, logPath: string, timezone: string): void {
   try {
     const content = fs.readFileSync(logPath, 'utf-8').trim();
     if (content) {
@@ -175,13 +172,42 @@ function rebuildCostIndex(logPath: string, indexPath: string, timezone: string =
       }
     }
   } catch {
-    // Non-fatal — partial read still gives partial totals
+    // Non-fatal — partial/absent log gives partial/empty totals
   }
+}
+
+// Full O(n) rebuild from scratch. Only called: first run, version mismatch, or log truncation.
+function rebuildCostIndex(logPath: string, indexPath: string, timezone: string = 'UTC'): Json {
+  const index = _emptyIndex();
+  index.timezone = timezone; // stamp so a later tz change can be detected and re-bucketed
+
+  let fileSize = 0;
+  try {
+    fileSize = fs.statSync(logPath).size;
+  } catch {
+    return _writeIndex(indexPath, index);
+  }
+
+  _foldLogInto(index, logPath, timezone);
 
   index.byte_offset = fileSize;
   _pruneBuckets(index, timezone);
   index.updated_at = new Date().toISOString();
   return _writeIndex(indexPath, index);
+}
+
+// Read-only, in-memory index build from the whole log — same bucketing as
+// rebuildCostIndex but WITHOUT writing. For readers (the channel status line) that
+// need a correct current-period spend when the on-disk index is stale/version-
+// mismatched/absent, but must not write it (cost-tracker is the sole index writer,
+// and a paused hermit runs no Stop turn to rebuild it). O(n) in the log size — only
+// used on the fallback path, so the steady state stays on the O(1) incremental read.
+function computeIndex(logPath: string, timezone: string = 'UTC'): Json {
+  const index = _emptyIndex();
+  index.timezone = timezone;
+  _foldLogInto(index, logPath, timezone);
+  _pruneBuckets(index, timezone);
+  return index;
 }
 
 // Incremental update: read only bytes appended since last call. O(1) in the common case.
@@ -202,8 +228,12 @@ function updateCostIndex(logPath: string, indexPath: string, timezone: string = 
 
   const index = readCostIndex(indexPath);
 
-  // Rebuild triggers
-  if (!index || index.byte_offset > fileSize) {
+  // Rebuild triggers: missing/version-stale index, truncated log, OR a timezone
+  // change — the by_date/by_week/by_month keys are tz-derived, so after a
+  // config.timezone edit the historical buckets are keyed under the old calendar
+  // and current-period spend would under-read (a cap could be silently under-enforced)
+  // until they refill. Re-bucket the whole log under the new tz, like a version bump.
+  if (!index || index.byte_offset > fileSize || index.timezone !== timezone) {
     return rebuildCostIndex(logPath, indexPath, timezone);
   }
 
@@ -319,4 +349,4 @@ function scanCostLogWarnings(costLogFile: string, sinceDateInclusive: string, ti
   return { opusWake, unpriced };
 }
 
-export { costIndexPath, readCostIndex, updateCostIndex, rebuildCostIndex, scanAutomatedOpus, scanUnpricedModels, scanCostLogWarnings };
+export { costIndexPath, readCostIndex, computeIndex, updateCostIndex, rebuildCostIndex, scanAutomatedOpus, scanUnpricedModels, scanCostLogWarnings };

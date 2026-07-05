@@ -20,8 +20,10 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { readCostIndex, costIndexPath } from './lib/cost-log';
-import { readAlertState, writeAlertState, quarantineAlertState, defaultAlertState } from './lib/alert-state';
+import { readAlertState, alertStatePath, telemetryAlertPath, readMergedAlerts, mutateOwnedAlerts } from './lib/alert-state';
 import { isPaused } from './lib/pause';
+import { acquireLock, releaseLock } from './lib/lockfile';
+import { isLoopbackUrl } from './validate-config';
 import { readFrontmatter, globDir } from './lib/frontmatter';
 import { safe } from './lib/sanitize';
 import { todayYMD, thisMonthYYYYMM } from './lib/time';
@@ -225,19 +227,16 @@ function buildBundle(hermitDir: string, config: Json, opts: BuildOpts = {}): Jso
     };
   }
 
-  let alerts: Json = null;
-  const alertRead = readAlertState(alertStatePath(hermitDir));
-  if (alertRead.kind === 'ok') {
-    const entries = Object.entries<Json>(alertRead.value.alerts ?? {});
-    alerts = {
-      active: entries.filter(([, v]) => v?.suppressed !== true).length,
-      suppressed: entries.filter(([, v]) => v?.suppressed === true).length,
-      total_ticks: typeof alertRead.value.total_ticks === 'number' ? alertRead.value.total_ticks : null,
-    };
-    if (!redact) alerts.keys = entries.map(([k]) => safe(k));
-  } else if (alertRead.kind === 'missing') {
-    alerts = { active: 0, suppressed: 0, total_ticks: 0 };
-  }
+  // Union alert entries across the per-writer files; total_ticks lives in alert-state.json.
+  const entries = Object.entries<Json>(readMergedAlerts(hermitDir));
+  const alertStateRead = readAlertState(alertStatePath(hermitDir));
+  const alerts: Json = {
+    active: entries.filter(([, v]) => v?.suppressed !== true).length,
+    suppressed: entries.filter(([, v]) => v?.suppressed === true).length,
+    total_ticks: alertStateRead.kind === 'ok' && typeof alertStateRead.value.total_ticks === 'number'
+      ? alertStateRead.value.total_ticks : 0,
+  };
+  if (!redact) alerts.keys = entries.map(([k]) => safe(k));
 
   let session: Json = null;
   const reportFiles = globDir(path.join(hermitDir, 'sessions'), /^S-\d+-REPORT\.md$/);
@@ -307,12 +306,35 @@ function buildBundle(hermitDir: string, config: Json, opts: BuildOpts = {}): Jso
 
 type PostResult = { ok: true } | { ok: false; classification: string };
 
+// A bearer token may only go over https, or over http to a loopback host (a local
+// collector/sidecar). Anything else would leak the token on the wire. Reuses
+// validate-config's isLoopbackUrl so the runtime guard and the config validator
+// enforce the exact same host list.
+function isSecureBearerTarget(url: string): boolean {
+  try {
+    const protocol = new URL(url).protocol;
+    if (protocol === 'https:') return true;
+    if (protocol === 'http:') return isLoopbackUrl(url);
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 /** POST the bundle. Never includes the URL or bearer token in any returned string. */
 async function postBundle(url: string, bearerEnv: string | null | undefined, bundle: Json): Promise<PostResult> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (bearerEnv) {
     const token = process.env[bearerEnv];
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (token) {
+      // Never transmit a bearer token over cleartext http to a non-loopback host —
+      // enforce it at the transport, not only in the advisory validate-config check.
+      // Fail loud (spool + eventual alert) rather than leak the token.
+      if (!isSecureBearerTarget(url)) {
+        return { ok: false, classification: 'refused: bearer token over insecure (non-https) url' };
+      }
+      headers['Authorization'] = `Bearer ${token}`;
+    }
   }
   try {
     const resp = await fetch(url, {
@@ -397,39 +419,25 @@ async function drainSpool(hermitDir: string, url: string, bearerEnv: string | nu
 
 // --- Alert-state integration (in-process, mirrors cost-tracker.ts's budget alerts) ---
 
-function alertStatePath(hermitDir: string): string {
-  return path.join(hermitDir, 'state', 'alert-state.json');
-}
-
 function raiseExportFailedAlert(hermitDir: string, classification: string, consecutiveFailures: number): void {
-  const p = alertStatePath(hermitDir);
-  const read = readAlertState(p);
-  let state: Json;
-  if (read.kind === 'ok') state = read.value;
-  else if (read.kind === 'missing') state = defaultAlertState();
-  else if (read.kind === 'corrupt') {
-    quarantineAlertState(p, Date.now());
-    state = defaultAlertState();
-  } else return; // ioerror — healthy file, don't touch it
-
-  if (!state.alerts || typeof state.alerts !== 'object') state.alerts = {};
-  const existing = state.alerts[ALERT_KEY];
-  state.alerts[ALERT_KEY] = {
-    first_seen: existing?.first_seen ?? new Date().toISOString(),
-    message: `telemetry export failing (${classification}, ${consecutiveFailures} consecutive) — bundles spooled in state/telemetry/spool/`,
-    count: consecutiveFailures,
-    suppressed: existing?.suppressed ?? false,
-  };
-  writeAlertState(p, state);
+  // report-export's own file (telemetry-alert.json) — sole writer, so no lock is
+  // needed; the split from the shared alert-state.json is what removes the
+  // cross-process clobber with the Stop-hook budget writer.
+  mutateOwnedAlerts(telemetryAlertPath(hermitDir), (alerts) => {
+    const existing = alerts[ALERT_KEY];
+    alerts[ALERT_KEY] = {
+      first_seen: existing?.first_seen ?? new Date().toISOString(),
+      message: `telemetry export failing (${classification}, ${consecutiveFailures} consecutive) — bundles spooled in state/telemetry/spool/`,
+      count: consecutiveFailures,
+      suppressed: existing?.suppressed ?? false,
+    };
+  });
 }
 
 function resolveExportFailedAlert(hermitDir: string): void {
-  const p = alertStatePath(hermitDir);
-  const read = readAlertState(p);
-  if (read.kind !== 'ok') return;
-  if (!read.value.alerts || !(ALERT_KEY in read.value.alerts)) return;
-  delete read.value.alerts[ALERT_KEY];
-  writeAlertState(p, read.value);
+  mutateOwnedAlerts(telemetryAlertPath(hermitDir), (alerts) => {
+    if (ALERT_KEY in alerts) delete alerts[ALERT_KEY];
+  });
 }
 
 // --- Orchestration ---
@@ -478,8 +486,24 @@ async function runTelemetryExportIfDue(
 ): Promise<{ ran: boolean; ok?: boolean; detail?: string }> {
   try {
     if (!telemetryDue(config, hermitDir, ref)) return { ran: false };
-    const result = await runTelemetryExport(config, hermitDir, ref);
-    return { ran: true, ok: result.ok, detail: result.detail };
+    // Single-instance guard. systemd blocks a second service instance, but the
+    // cron */5 fallback and the Docker entrypoint loop don't — two overlapping
+    // ticks would double-deliver the bundle and lose a consecutive_failures
+    // increment (unlocked RMW of last-export.json). Skip-if-held is the right
+    // semantics here (unlike the alert RMW): another exporter owns this window.
+    const lockPath = path.join(hermitDir, 'state', 'telemetry', '.export.lock');
+    let locked = false;
+    try {
+      fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+      locked = acquireLock(lockPath, 5 * 60 * 1000); // stale well above the ~40s worst-case run
+      if (!locked) return { ran: false }; // another export in flight this tick
+    } catch { /* lock infra error — proceed unlocked rather than drop telemetry */ }
+    try {
+      const result = await runTelemetryExport(config, hermitDir, ref);
+      return { ran: true, ok: result.ok, detail: result.detail };
+    } finally {
+      if (locked) releaseLock(lockPath);
+    }
   } catch (e: any) {
     return { ran: true, ok: false, detail: 'internal error' };
   }

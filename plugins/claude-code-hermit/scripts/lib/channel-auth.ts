@@ -28,3 +28,26 @@ export function isAllowedSender(config: Json, source: string, userId: string | n
   if (userId === null) return false; // can't verify identity against a configured allowlist
   return allowedUsers.includes(userId);
 }
+
+/**
+ * Stricter gate for state-mutating (pause/resume/snooze) and disclosure (status)
+ * paths. An explicit allowed_users list still wins — but when none is configured
+ * this does NOT fall back to accept-all (as isAllowedSender does). Instead it
+ * trusts only the operator's own DM chat (chat_id === channels[source].dm_channel_id),
+ * so on a no-allowlist channel a stranger in a group can't freeze the hermit or
+ * read its status, while the operator's DM keeps working with zero config.
+ *
+ * Caveat: if the operator's primary channel IS a group/server channel, its
+ * dm_channel_id equals the group chat_id and every member matches — those installs
+ * must set allowed_users. (Documented in docs/security.md + the CHANGELOG.)
+ */
+export function isTrustedController(
+  config: Json, source: string, userId: string | null, chatId: string | null,
+): boolean {
+  const ch = config?.channels?.[source];
+  if (Array.isArray(ch?.allowed_users)) {
+    return isAllowedSender(config, source, userId); // explicit list (incl. [] lockdown) wins
+  }
+  const dm = ch?.dm_channel_id; // no list configured -> operator-DM binding
+  return dm != null && chatId != null && String(dm) === String(chatId);
+}
