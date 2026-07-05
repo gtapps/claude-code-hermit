@@ -107,6 +107,12 @@ const DEFAULT_CONFIG: Json = {
     monthly_usd: null,
     action: 'alert',
   },
+  telemetry_export: {
+    enabled: false,
+    destination: { type: 'webhook', url: null, bearer_env: 'HERMIT_TELEMETRY_TOKEN' },
+    interval_hours: 24,
+    redact_operator_text: true,
+  },
   context_hygiene: {
     compact: {
       enabled: true,

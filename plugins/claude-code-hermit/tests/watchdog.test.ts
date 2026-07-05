@@ -1362,3 +1362,76 @@ describe('inActiveHours (timezone)', () => {
     expect(inActiveHours(ACTIVE_WINDOW, 'Not/AZone', REF)).toBe(true);
   });
 });
+
+// -------------------------------------------------------
+// telemetry export (step 0d: independent of watchdog.enabled, like 0a-0c)
+// -------------------------------------------------------
+
+/** Minimal config: watchdog disabled (so the process exits right after step 0d, with
+ *  no tmux dependency) plus an enabled telemetry_export block pointed at a mock webhook. */
+function writeTelemetryConfig(h: Hermit, url: string): void {
+  fs.writeFileSync(path.join(h.dir, '.claude-code-hermit', 'config.json'), JSON.stringify({
+    watchdog: { enabled: false },
+    telemetry_export: {
+      enabled: true,
+      destination: { type: 'webhook', url },
+      interval_hours: 24,
+      redact_operator_text: true,
+    },
+  }, null, 2) + '\n');
+}
+
+describe('telemetry export (step 0d)', () => {
+  test('fires with watchdog.enabled: false — one POST, state stamped, event logged', withHermit(async (h) => {
+    let calls = 0;
+    const server = Bun.serve({ port: 0, fetch: () => { calls++; return new Response('ok', { status: 200 }); } });
+    try {
+      writeTelemetryConfig(h, `http://127.0.0.1:${server.port}`);
+      const r = await watchdog(h, 'run');
+      expect(r.exitCode).toBe(0);
+      expect(calls).toBe(1);
+      const exportState = readJson(state(h, 'telemetry', 'last-export.json'));
+      expect(typeof exportState.last_success_at).toBe('string');
+      expect(exportState.consecutive_failures).toBe(0);
+      expect(fs.readFileSync(eventsFile(h), 'utf-8')).toContain('telemetry-export');
+    } finally {
+      server.stop(true);
+    }
+  }));
+
+  test('interval not yet due → no POST', withHermit(async (h) => {
+    let calls = 0;
+    const server = Bun.serve({ port: 0, fetch: () => { calls++; return new Response('ok', { status: 200 }); } });
+    try {
+      writeTelemetryConfig(h, `http://127.0.0.1:${server.port}`);
+      fs.mkdirSync(state(h, 'telemetry'), { recursive: true });
+      fs.writeFileSync(state(h, 'telemetry', 'last-export.json'), JSON.stringify({
+        version: 1,
+        last_success_at: new Date().toISOString(),
+        last_attempt_at: new Date().toISOString(),
+        consecutive_failures: 0,
+      }));
+      const r = await watchdog(h, 'run');
+      expect(r.exitCode).toBe(0);
+      expect(calls).toBe(0);
+    } finally {
+      server.stop(true);
+    }
+  }));
+
+  test('no telemetry_export block → nothing leaves the box', withHermit(async (h) => {
+    let calls = 0;
+    const server = Bun.serve({ port: 0, fetch: () => { calls++; return new Response('ok', { status: 200 }); } });
+    try {
+      fs.writeFileSync(path.join(h.dir, '.claude-code-hermit', 'config.json'), JSON.stringify({
+        watchdog: { enabled: false },
+      }, null, 2) + '\n');
+      const r = await watchdog(h, 'run');
+      expect(r.exitCode).toBe(0);
+      expect(calls).toBe(0);
+      expect(fs.existsSync(state(h, 'telemetry'))).toBe(false);
+    } finally {
+      server.stop(true);
+    }
+  }));
+});

@@ -29,7 +29,9 @@ const VALID_QUALITY_GATE_TIER = ['budget', 'balanced', 'quality'];
 const VALID_ROUTINE_MODEL = ['opus', 'sonnet', 'haiku'];
 const VALID_IDLE_BEHAVIOR = ['wait', 'discover'];
 const VALID_BUDGET_ACTION = ['alert', 'pause'];
+const VALID_TELEMETRY_DEST = ['webhook'];
 const TIME_RE = /^\d{2}:\d{2}$/;
+const ENV_VAR_RE = /^[A-Z_][A-Z0-9_]*$/;
 
 // --- Cron validation (5-field: minute hour dom month dow) ---
 function parseCronField(token: string, lo: number, hi: number): Set<number> {
@@ -279,6 +281,53 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
         if (c.min_interval !== undefined && typeof c.min_interval !== 'string') {
           warnings.push('context_hygiene.compact.min_interval: should be a duration string (e.g. "4h")');
         }
+      }
+    }
+  }
+
+  if (config.telemetry_export !== undefined) {
+    if (typeof config.telemetry_export !== 'object' || config.telemetry_export === null || Array.isArray(config.telemetry_export)) {
+      errors.push('telemetry_export: must be an object');
+    } else {
+      const t = config.telemetry_export;
+      if (t.enabled !== undefined && typeof t.enabled !== 'boolean') {
+        errors.push('telemetry_export.enabled: must be a boolean');
+      }
+      if (t.redact_operator_text !== undefined && typeof t.redact_operator_text !== 'boolean') {
+        errors.push('telemetry_export.redact_operator_text: must be a boolean');
+      }
+      if (t.interval_hours !== undefined) {
+        if (typeof t.interval_hours !== 'number' || t.interval_hours <= 0) {
+          errors.push('telemetry_export.interval_hours: must be a positive number');
+        }
+      }
+      const dest = t.destination;
+      if (dest !== undefined) {
+        if (typeof dest !== 'object' || dest === null || Array.isArray(dest)) {
+          errors.push('telemetry_export.destination: must be an object');
+        } else {
+          if (dest.type !== undefined && !VALID_TELEMETRY_DEST.includes(dest.type)) {
+            errors.push(`telemetry_export.destination.type: "${dest.type}" not in [${VALID_TELEMETRY_DEST.join(', ')}]`);
+          }
+          if (dest.url !== undefined && dest.url !== null && typeof dest.url !== 'string') {
+            errors.push('telemetry_export.destination.url: must be a string or null');
+          }
+          if (typeof dest.url === 'string' && !dest.url.startsWith('https://')) {
+            warnings.push('telemetry_export.destination.url: should be an https:// URL');
+          }
+          if (dest.bearer_env !== undefined && dest.bearer_env !== null) {
+            if (typeof dest.bearer_env !== 'string') {
+              errors.push('telemetry_export.destination.bearer_env: must be a string or null');
+            } else if (!ENV_VAR_RE.test(dest.bearer_env)) {
+              warnings.push('telemetry_export.destination.bearer_env: should look like an env var name (e.g. "HERMIT_TELEMETRY_TOKEN")');
+            }
+          }
+        }
+        if (t.enabled === true && (typeof dest?.url !== 'string' || !dest.url)) {
+          errors.push('telemetry_export.destination.url: required (non-empty string) when telemetry_export.enabled is true');
+        }
+      } else if (t.enabled === true) {
+        errors.push('telemetry_export.destination: required when telemetry_export.enabled is true');
       }
     }
   }

@@ -28,6 +28,7 @@ import { tmuxSessionAlive, getSessionName as deriveSessionName } from './lib/tmu
 import { costLogPath } from './lib/cc-compat';
 import { wallMinutes } from './cron-tz-shift';
 import { isPaused } from './lib/pause';
+import { runTelemetryExportIfDue } from './report-export';
 
 type Json = any;
 
@@ -614,7 +615,7 @@ function maybeEscapePausedSession(): void {
 
 // --- Main decision loop ---
 
-function main(): void {
+async function main(): Promise<void> {
   if (!fs.existsSync(CONFIG_PATH)) process.exit(0);
 
   let config: Json;
@@ -647,6 +648,14 @@ function main(): void {
   // hermit. Evaluated after the emergency clear so a 700k context takes the /clear path,
   // not compact, on the same tick.
   maybeContextCompact(config);
+
+  // 0d. Telemetry export — independent of watchdog.enabled, like 0a-0c; opt-in via
+  // config.telemetry_export. Self-gates on enabled + interval and always returns
+  // (never process.exit(0)) so it can't skip steps 1-5 below.
+  const telemetryResult = await runTelemetryExportIfDue(config, HERMIT_ROOT);
+  if (telemetryResult.ran) {
+    appendEvent('telemetry-export', telemetryResult.ok ? 'success' : (telemetryResult.detail ?? 'failed'));
+  }
 
   // 1. Config gate
   const watchdogCfg = config?.watchdog ?? {};
@@ -895,7 +904,7 @@ if (import.meta.main) {
   const subcommand = process.argv[2] ?? 'run';
   if (subcommand === 'run' || subcommand === '') {
     try {
-      main();
+      await main();
     } catch (e) {
       process.stderr.write(`[watchdog] fatal: ${e}\n`);
       process.exit(0); // fail-open: watchdog must never crash the calling shell

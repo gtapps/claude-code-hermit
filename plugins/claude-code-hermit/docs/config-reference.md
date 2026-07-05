@@ -160,6 +160,48 @@ Modify with `/hermit-settings`. Validated by `validate-config.ts`.
 
 ---
 
+## `telemetry_export`
+
+Opt-in periodic export of a sanitized health/cost bundle to a webhook, sent from the watchdog tick (not a routine — it still fires while the session is wedged or dead, which is the point). Ships inert (`enabled: false`, `destination.url: null`) — this is core's second direct outward egress after `hermit-doctor`'s `channel-liveness` check, so unlike most new features it defaults off; see [`docs/security.md`](security.md#known-limitations). Absent or disabled: nothing ever leaves the box.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | boolean | `false` | Turn the export on. Requires `destination.url` to be set. |
+| `destination.type` | string | `"webhook"` | Discriminated for future destinations (e.g. `"git"`); only `"webhook"` ships in v1. |
+| `destination.url` | string \| null | `null` | HTTPS endpoint to POST the bundle to. `http://` is accepted (warns) for local receivers/testing. |
+| `destination.bearer_env` | string \| null | `"HERMIT_TELEMETRY_TOKEN"` | Name of an environment variable holding the bearer token — the token itself is never read from `config.json`, only from `process.env` at send time (same convention as channel bot tokens). |
+| `interval_hours` | number | `24` | Minimum hours between successful exports. |
+| `redact_operator_text` | boolean | `true` | `true` (default): only numerics/enums/counts are sent. `false`: also includes named free-text fields (doctor check detail, session task/tags, alert keys, last error, pause reason, recent watchdog event reasons). |
+
+```json
+"telemetry_export": {
+  "enabled": true,
+  "destination": { "type": "webhook", "url": "https://example.com/hermit-telemetry", "bearer_env": "HERMIT_TELEMETRY_TOKEN" },
+  "interval_hours": 24,
+  "redact_operator_text": true
+}
+```
+
+**Bundle contract (`schema_version: 1`)** — this is the interface a future fleet-side receiver consumes, so the field list below is the actual data-flow answer, not just documentation:
+
+```
+schema_version, ts,
+hermit: { agent_name, versions },
+doctor: { ts, checks: [{ id, status }] } | null,
+cost: { today, this_month, all_time: { total_cost_usd, total_tokens, total_sessions }, by_source } | null,
+alerts: { active, suppressed, total_ticks } | null,
+session: { id, status, date, duration, cost_usd, tokens, escalation, operator_turns, closed_via, proposals_created_count } | null,
+runtime: { session_state, runtime_mode, paused, paused_until, watchdog: { last_run, events_last_24h } }
+```
+
+A source that's missing or unreadable on disk becomes `null` for its section — the bundle assembler never crashes on partial state.
+
+**Retry and failure handling:** on failure the bundle is spooled to `state/telemetry/spool/` (newest 7 retained) and retried on the next due tick; a run that's still failing waits at least 15 minutes between retries regardless of `interval_hours`, so a dead endpoint can't add a timeout to every scheduler tick. After 3 consecutive failures a deduped `telemetry:export-failed` alert is raised (cleared automatically on the next success, which also drains the spool oldest-first). None of this blocks anything else the watchdog does.
+
+Modify with `/hermit-settings`. Validated by `validate-config.ts`. Manual export/debugging: `bun scripts/report-export.ts [hermit-dir] [--print]` (`--print` builds the bundle to stdout without sending or stamping state).
+
+---
+
 ## `context_hygiene`
 
 Three context-reset mechanisms, three timings — none of them overlap:
