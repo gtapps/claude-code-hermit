@@ -33,6 +33,16 @@ const VALID_TELEMETRY_DEST = ['webhook'];
 const TIME_RE = /^\d{2}:\d{2}$/;
 const ENV_VAR_RE = /^[A-Z_][A-Z0-9_]*$/;
 
+/** True for loopback hosts (localhost/127.0.0.1/::1) where a plaintext bearer token stays on-box. */
+function isLoopbackUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname;
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+  } catch {
+    return false;
+  }
+}
+
 // --- Cron validation (5-field: minute hour dom month dow) ---
 function parseCronField(token: string, lo: number, hi: number): Set<number> {
   const values = new Set<number>();
@@ -312,8 +322,15 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
           if (dest.url !== undefined && dest.url !== null && typeof dest.url !== 'string') {
             errors.push('telemetry_export.destination.url: must be a string or null');
           }
-          if (typeof dest.url === 'string' && !dest.url.startsWith('https://')) {
-            warnings.push('telemetry_export.destination.url: should be an https:// URL');
+          if (typeof dest.url === 'string' && dest.url.trim() && !dest.url.startsWith('https://')) {
+            // A plaintext http:// endpoint would leak the bearer token in the clear. Hard-fail
+            // that combination for non-loopback hosts; http:// stays a warning for local receivers.
+            const hasBearer = typeof dest.bearer_env === 'string' && dest.bearer_env.length > 0;
+            if (hasBearer && !isLoopbackUrl(dest.url)) {
+              errors.push('telemetry_export.destination.url: must be https:// when destination.bearer_env is set — a plaintext http:// endpoint would leak the token (http:// is allowed only for loopback receivers)');
+            } else {
+              warnings.push('telemetry_export.destination.url: should be an https:// URL');
+            }
           }
           if (dest.bearer_env !== undefined && dest.bearer_env !== null) {
             if (typeof dest.bearer_env !== 'string') {
@@ -323,7 +340,7 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
             }
           }
         }
-        if (t.enabled === true && (typeof dest?.url !== 'string' || !dest.url)) {
+        if (t.enabled === true && (typeof dest?.url !== 'string' || !dest.url.trim())) {
           errors.push('telemetry_export.destination.url: required (non-empty string) when telemetry_export.enabled is true');
         }
       } else if (t.enabled === true) {

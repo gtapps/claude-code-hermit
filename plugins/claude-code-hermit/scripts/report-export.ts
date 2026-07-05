@@ -12,7 +12,8 @@
  *   bun scripts/report-export.ts [hermit-dir] [--print]
  * --print builds the bundle and writes it to stdout without posting or
  * stamping state — the redaction diff is inspectable this way. A plain
- * invocation forces an export now, ignoring the due-interval gate.
+ * invocation forces an export now, ignoring the due-interval gate, but still
+ * requires telemetry_export enabled with a destination url (exits 1 otherwise).
  */
 
 import crypto from 'node:crypto';
@@ -116,6 +117,21 @@ function telemetryDue(cfg: Json, hermitDir: string, ref: Date = new Date()): boo
   return true;
 }
 
+// `by_source` keys are enum-like except `routine:<id>`, where the id is operator-chosen.
+// Under redaction (the default), collapse every `routine:*` bucket into a single `routine`
+// bucket so operator-authored names never leave the box; verbatim otherwise.
+function redactBySource(bySource: Json, redact: boolean): Json {
+  if (!redact || !bySource || typeof bySource !== 'object') return bySource ?? {};
+  const out: Record<string, Json> = {};
+  for (const [key, v] of Object.entries<Json>(bySource)) {
+    const outKey = key.startsWith('routine:') ? 'routine' : key;
+    if (!out[outKey]) out[outKey] = { cost: 0, tokens: 0 };
+    out[outKey].cost += v?.cost ?? 0;
+    out[outKey].tokens += v?.tokens ?? 0;
+  }
+  return out;
+}
+
 // --- Watchdog event counts (tail-read; last 256KB is plenty for a 24h window) ---
 
 function countRecentWatchdogEvents(hermitDir: string, ref: Date): { counts: Record<string, number>; recent: Json[] } {
@@ -127,12 +143,15 @@ function countRecentWatchdogEvents(hermitDir: string, ref: Date): { counts: Reco
     const len = size - start;
     const buf = Buffer.alloc(len);
     const fd = fs.openSync(p, 'r');
+    let bytesRead = 0;
     try {
-      fs.readSync(fd, buf, 0, len, start);
+      // readSync may return a short read; slice to what was actually read so a
+      // zero-filled tail can't inject NUL bytes into the newest (freshest) lines.
+      bytesRead = fs.readSync(fd, buf, 0, len, start);
     } finally {
       fs.closeSync(fd);
     }
-    text = buf.toString('utf-8');
+    text = buf.subarray(0, bytesRead).toString('utf-8');
   } catch {
     return { counts: {}, recent: [] };
   }
@@ -202,7 +221,7 @@ function buildBundle(hermitDir: string, config: Json, opts: BuildOpts = {}): Jso
         total_tokens: index.total_tokens ?? 0,
         total_sessions: index.total_sessions ?? 0,
       },
-      by_source: index.by_source ?? {},
+      by_source: redactBySource(index.by_source ?? {}, redact),
     };
   }
 
@@ -263,7 +282,7 @@ function buildBundle(hermitDir: string, config: Json, opts: BuildOpts = {}): Jso
   };
   if (!redact) {
     runtime.last_error = runtimeData?.last_error != null ? safe(runtimeData.last_error) : null;
-    runtime.pause_reason = pauseStatus.reason ?? null;
+    runtime.pause_reason = pauseStatus.reason != null ? safe(pauseStatus.reason) : null;
     runtime.tmux_session = runtimeData?.tmux_session != null ? safe(runtimeData.tmux_session) : null;
     runtime.watchdog.recent_events = events.recent.map((e: Json) => ({
       ts: typeof e.ts === 'string' ? e.ts : null,
@@ -478,6 +497,18 @@ async function main(): Promise<void> {
   if (printOnly) {
     const redact = config?.telemetry_export?.redact_operator_text !== false;
     console.log(JSON.stringify(buildBundle(hermitDir, config, { redact }), null, 2));
+    return;
+  }
+
+  // A plain invocation forces a send now (bypassing the due-interval gate), but still
+  // requires the feature configured — otherwise postBundle would fetch an undefined URL,
+  // spool a junk bundle, and after 3 runs raise a spurious export-failed alert on a hermit
+  // that never opted in. Use --print to inspect the bundle without sending.
+  const t = config?.telemetry_export;
+  const url = t?.destination?.url;
+  if (t?.enabled !== true || typeof url !== 'string' || !url.trim()) {
+    process.stderr.write('[report-export] telemetry_export not enabled/configured (need enabled:true + destination.url). Use --print to inspect the bundle without sending.\n');
+    process.exitCode = 1;
     return;
   }
 

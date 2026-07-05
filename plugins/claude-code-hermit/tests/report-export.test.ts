@@ -211,6 +211,28 @@ describe('buildBundle: redaction', () => {
       expect(unredactedStr).toContain(marker);
     }
   }));
+
+  test('by_source routine ids collapse to a single "routine" bucket under redact', withHermitDir((hermitDir) => {
+    writeCostIndex(hermitDir, {
+      by_source: {
+        heartbeat: { cost: 1.5, tokens: 10 },
+        'routine:client-acme-audit': { cost: 2.0, tokens: 20 },
+        'routine:reflect': { cost: 0.5, tokens: 5 },
+      },
+    });
+
+    const redacted = buildBundle(hermitDir, {}, { redact: true });
+    // Default: operator-chosen routine ids never leave; their cost/tokens sum into one bucket.
+    expect(JSON.stringify(redacted)).not.toContain('client-acme-audit');
+    expect(redacted.cost.by_source).toEqual({
+      heartbeat: { cost: 1.5, tokens: 10 },
+      routine: { cost: 2.5, tokens: 25 },
+    });
+
+    // Opt-out (redact:false): per-routine keys are preserved verbatim.
+    const unredacted = buildBundle(hermitDir, {}, { redact: false });
+    expect(unredacted.cost.by_source['routine:client-acme-audit']).toEqual({ cost: 2.0, tokens: 20 });
+  }));
 });
 
 // ---------- telemetryDue ----------
@@ -398,5 +420,14 @@ describe('report-export CLI: transport', () => {
     const bundle = JSON.parse(r.stdout);
     expect(bundle.schema_version).toBe(1);
     expect(fs.existsSync(statePath(hermitDir, 'telemetry', 'last-export.json'))).toBe(false);
+  }), 20000);
+
+  test('not enabled/configured → exits 1 without spooling or raising an alert', withHermitDir(async (hermitDir) => {
+    fs.writeFileSync(path.join(hermitDir, 'config.json'), JSON.stringify({ telemetry_export: { enabled: false } }));
+    const r = await runScript('report-export.ts', { args: [hermitDir] });
+    expect(r.exitCode).toBe(1);
+    expect(r.stderr).toContain('not enabled/configured');
+    expect(fs.existsSync(statePath(hermitDir, 'telemetry'))).toBe(false);
+    expect(fs.existsSync(statePath(hermitDir, 'alert-state.json'))).toBe(false);
   }), 20000);
 });

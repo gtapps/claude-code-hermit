@@ -168,10 +168,10 @@ Opt-in periodic export of a sanitized health/cost bundle to a webhook, sent from
 |-----|------|---------|-------------|
 | `enabled` | boolean | `false` | Turn the export on. Requires `destination.url` to be set. |
 | `destination.type` | string | `"webhook"` | Discriminated for future destinations (e.g. `"git"`); only `"webhook"` ships in v1. |
-| `destination.url` | string \| null | `null` | HTTPS endpoint to POST the bundle to. `http://` is accepted (warns) for local receivers/testing. |
+| `destination.url` | string \| null | `null` | HTTPS endpoint to POST the bundle to. `http://` is accepted (warns) for loopback receivers/testing, but is rejected when `destination.bearer_env` is set and the host isn't loopback — a plaintext endpoint would leak the token. |
 | `destination.bearer_env` | string \| null | `"HERMIT_TELEMETRY_TOKEN"` | Name of an environment variable holding the bearer token — the token itself is never read from `config.json`, only from `process.env` at send time (same convention as channel bot tokens). |
 | `interval_hours` | number | `24` | Minimum hours between successful exports. |
-| `redact_operator_text` | boolean | `true` | `true` (default): only numerics/enums/counts are sent. `false`: also includes named free-text fields (doctor check detail, session task/tags, alert keys, last error, pause reason, recent watchdog event reasons). |
+| `redact_operator_text` | boolean | `true` | `true` (default): only numerics/enums/counts are sent — `cost.by_source` keys that embed an operator-chosen routine id (`routine:<id>`) are collapsed into a single `routine` bucket so no operator naming leaves the box. `false`: also includes named free-text fields (doctor check detail, session task/tags, alert keys, last error, pause reason, recent watchdog event reasons) and the per-routine `by_source` keys verbatim. |
 
 ```json
 "telemetry_export": {
