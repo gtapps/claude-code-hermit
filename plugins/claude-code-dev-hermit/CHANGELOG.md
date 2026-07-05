@@ -365,7 +365,7 @@ No `config.json` changes required.
 
 ### Changed
 
-- **CLAUDE-APPEND, GIT-SAFETY: name `/dev-pr` as sanctioned push path** — ends the "Never git push" rule with a pointer to `/claude-code-dev-hermit:dev-pr`; softens "The operator pushes" to "Stop and ask." Closes PROP-027.
+- **CLAUDE-APPEND, GIT-SAFETY: name `/dev-pr` as sanctioned push path** — ends the "Never git push" rule with a pointer to `/claude-code-dev-hermit:dev-pr`; softens "The operator pushes" to "Stop and ask."
 - **core requirement bumped to `>=1.0.40`** — aligns `required_core_version`, `requires`, and `dependencies` with the latest core release.
 
 ### Files affected
@@ -399,8 +399,8 @@ No `config.json` changes required.
 
 ### Fixed
 
-- **git-push-guard: protected-name path-segment false-positive fixed** — `git push origin feature/main` was blocked because `/` was not treated as a word boundary. Guard now extracts the destination ref per refspec and uses exact-match regexes for non-glob patterns. Resolves PROP-015 item 1.
-- **README, CLAUDE.md: `--force-with-lease` docs aligned with actual policy** — both previously claimed it was blocked unconditionally; code has allowed it on non-protected branches with an explicit refspec since v0.3.0. Resolves PROP-015 item 2.
+- **git-push-guard: protected-name path-segment false-positive fixed** — `git push origin feature/main` was blocked because `/` was not treated as a word boundary. Guard now extracts the destination ref per refspec and uses exact-match regexes for non-glob patterns.
+- **README, CLAUDE.md: `--force-with-lease` docs aligned with actual policy** — both previously claimed it was blocked unconditionally; code has allowed it on non-protected branches with an explicit refspec since v0.3.0.
 
 ### Files affected
 

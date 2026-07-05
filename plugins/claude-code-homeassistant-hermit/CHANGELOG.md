@@ -563,7 +563,7 @@ No `config.json` changes required.
 
 ### Added
 
-- **ha validate-apply: push config to HA via REST before reload** — fixes silent failure (PROP-005) where reload succeeded but automation was never pushed; derives `id` from alias/filename if absent.
+- **ha validate-apply: push config to HA via REST before reload** — fixes silent failure where reload succeeded but automation was never pushed; derives `id` from alias/filename if absent.
 - **ha delete-automation / delete-script: new CLI commands** — remove automation or script via `DELETE /api/config/{domain}/config/{id}`; output includes `ok`, `message`, report path.
 - **ha list-automations / list-scripts: new CLI commands** — enumerate live automations/scripts with `deletable` flag; sorted by entity_id; quick lookup before delete.
 - **ha-delete-config: new skill** — operator workflow for discovering, confirming, and deleting an automation/script config.

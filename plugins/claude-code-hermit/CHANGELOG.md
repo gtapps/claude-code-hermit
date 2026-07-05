@@ -3,15 +3,15 @@
 ## [Unreleased]
 
 ### Added
-- **Binding pause/stop/resume (PROP-015)** — `state/pause.json` (new `lib/pause.ts`) is the single source of truth for a hard stop, enforced by a `PreToolUse` gate (`pause-gate.ts`) that denies every tool call while paused except a channel reply and `PushNotification`. A `UserPromptSubmit` hook (`pause-keyword.ts`) sets/clears it from an exact `pause`/`stop`/`resume`/`snooze <dur>` channel message (gated by the same `allowed_users` allowlist as replies); heartbeat, routines, and the watchdog (which also sends `tmux Escape` to interrupt an in-flight call) consult it. New `bin/hermit-pause on|off|snooze <dur>|status` operator CLI. Inert until the flag is set.
-- **Budget enforcement (PROP-016)** — new `config.budget` block (`daily_usd`/`weekly_usd`/`monthly_usd`, all optional and `null` by default, plus `action: "alert"|"pause"`) checked at every Stop against a new tz-aware `by_week`/`by_month` aggregate in `state/cost-index.json` (`lib/cost-log.ts`, index version 2 → 3). At 80% of any cap, a one-time warning alert; at 100%, a breach alert, and under `action: "pause"` a PROP-015 pause (`reason: "budget"`) that auto-resumes at the breached window's next boundary (daily → midnight, weekly → next Monday, monthly → 1st) — no operator action needed to un-stick it. `heartbeat-precheck.ts` lets exactly one `EVALUATE` through an active budget pause so the breach can still be announced (reply tools are pause-exempt); every subsequent tick falls back to `SKIP|paused`. Drive-by: an unrecognized model string is still priced at sonnet rates but now flagged `model_unpriced: true` on its cost-log line, surfaced as a `cost-summary.md` warning.
+- **Binding pause/stop/resume** — `state/pause.json` (new `lib/pause.ts`) is the single source of truth for a hard stop, enforced by a `PreToolUse` gate (`pause-gate.ts`) that denies every tool call while paused except a channel reply and `PushNotification`. A `UserPromptSubmit` hook (`pause-keyword.ts`) sets/clears it from an exact `pause`/`stop`/`resume`/`snooze <dur>` channel message (gated by the same `allowed_users` allowlist as replies); heartbeat, routines, and the watchdog (which also sends `tmux Escape` to interrupt an in-flight call) consult it. New `bin/hermit-pause on|off|snooze <dur>|status` operator CLI. Inert until the flag is set.
+- **Budget enforcement** — new `config.budget` block (`daily_usd`/`weekly_usd`/`monthly_usd`, all optional and `null` by default, plus `action: "alert"|"pause"`) checked at every Stop against a new tz-aware `by_week`/`by_month` aggregate in `state/cost-index.json` (`lib/cost-log.ts`, index version 2 → 3). At 80% of any cap, a one-time warning alert; at 100%, a breach alert, and under `action: "pause"` a hard pause (`reason: "budget"`) that auto-resumes at the breached window's next boundary (daily → midnight, weekly → next Monday, monthly → 1st) — no operator action needed to un-stick it. `heartbeat-precheck.ts` lets exactly one `EVALUATE` through an active budget pause so the breach can still be announced (reply tools are pause-exempt); every subsequent tick falls back to `SKIP|paused`. Drive-by: an unrecognized model string is still priced at sonnet rates but now flagged `model_unpriced: true` on its cost-log line, surfaced as a `cost-summary.md` warning.
 
 ### Upgrade Instructions
 - The two new hooks (`pause-gate.ts`, `pause-keyword.ts`) ship in `hooks/hooks.json`, which Claude Code loads straight from the installed plugin package — a normal `/plugin update` picks them up with no per-project migration step. The new `bin/hermit-pause` CLI is copied into `.claude-code-hermit/bin/` by `hatch`/`hermit-evolve`'s existing bin-wrapper refresh (detected as a missing boot wrapper) — a normal `/claude-code-hermit:hermit-evolve` restores it for already-installed operators.
 - No config toggle: the pause mechanism is inert by construction (`state/pause.json` absent = fully unpaused, identical to pre-1.2.17 behavior) until an operator or an authorized channel sender invokes it — there is nothing to opt into or out of.
 - Existing hermits are missing the `budget` config block entirely (pre-1.2.17 template). No bespoke migration needed: `hermit-evolve`'s existing generic template-key sync (`evolve-plan.ts`'s `new_config_keys`, Step 9) already detects any top-level template key absent from the operator's `config.json` and adds it verbatim from `config.json.template` — a normal `/claude-code-hermit:hermit-evolve` adds `"budget": {"daily_usd": null, "weekly_usd": null, "monthly_usd": null, "action": "alert"}`, inert until the operator sets a cap via `/hermit-settings`. The `state/cost-index.json` schema version bump (2 → 3) is self-healing: the next Stop hook rebuilds it automatically from `cost-log.jsonl`, no manual step needed.
-- **Channel-safe approvals everywhere (PROP-017)** — micro-proposal entries gain optional `options`/`on_resolve` fields (plain yes/no entries unchanged); `channel-responder` resolves numbered/label replies and re-enters the asking skill via `on_resolve`. `proposal-act`'s accept-flow 3-way ask and `hermit-settings`' quality-gate ask are de-stranded on channel-tagged turns (conversational reply-tool question + a durable MP entry, whichever surface answers first wins). New `channel-ask-contract` static test fails the build the moment a skill adds an `AskUserQuestion`/`Ask:` prompt without the Step-0 channel marker.
-- **Proactive doctor (PROP-018)** — a weekly `doctor` routine now runs `hermit-doctor` on its own (`0 10 * * 1`; always-on hermits ratchet to daily `0 10 * * *` on boot) instead of waiting for the operator to ask. Three new checks (16 → 19): `credential-expiry` (local read of OAuth token expiry — the ~8h re-login trap, now caught before it strands the box), `model-pricing-known` (config/routine/heartbeat models checked against the pricing table), and `channel-liveness` (a token-authed liveness call per enabled channel — Telegram `getMe`, Discord `/users/@me` — core's first direct outward egress, 5s timeout, fail-soft). New escalation step: newly-appearing `warn`/`fail` findings message the channel once in plain language, deduped via `alert-state.json` (`doctor:<check-id>` keys) until resolved; all-ok stays silent. Doc-count drift fixed throughout `hermit-doctor/SKILL.md` (was "fifteen", JSON already emitted 16 — now twenty everywhere, nineteen scripted checks + the skill-computed sandbox check).
+- **Channel-safe approvals everywhere** — micro-proposal entries gain optional `options`/`on_resolve` fields (plain yes/no entries unchanged); `channel-responder` resolves numbered/label replies and re-enters the asking skill via `on_resolve`. `proposal-act`'s accept-flow 3-way ask and `hermit-settings`' quality-gate ask are de-stranded on channel-tagged turns (conversational reply-tool question + a durable MP entry, whichever surface answers first wins). New `channel-ask-contract` static test fails the build the moment a skill adds an `AskUserQuestion`/`Ask:` prompt without the Step-0 channel marker.
+- **Proactive doctor** — a weekly `doctor` routine now runs `hermit-doctor` on its own (`0 10 * * 1`; always-on hermits ratchet to daily `0 10 * * *` on boot) instead of waiting for the operator to ask. Three new checks (16 → 19): `credential-expiry` (local read of OAuth token expiry — the ~8h re-login trap, now caught before it strands the box), `model-pricing-known` (config/routine/heartbeat models checked against the pricing table), and `channel-liveness` (a token-authed liveness call per enabled channel — Telegram `getMe`, Discord `/users/@me` — core's first direct outward egress, 5s timeout, fail-soft). New escalation step: newly-appearing `warn`/`fail` findings message the channel once in plain language, deduped via `alert-state.json` (`doctor:<check-id>` keys) until resolved; all-ok stays silent. Doc-count drift fixed throughout `hermit-doctor/SKILL.md` (was "fifteen", JSON already emitted 16 — now twenty everywhere, nineteen scripted checks + the skill-computed sandbox check).
 
 ### Fixed
 - **cron-tz-shift: emit range+step (`8-23/6`) not bare `8/6`** — a shifted hour/minute/DOW field that formed an arithmetic sequence ending at the field max but starting above the field min collapsed to a bare `N/step` token, which `CronCreate` rejects as invalid syntax. Affected routines silently failed to register every load cycle. (#515)
@@ -20,7 +20,7 @@
 - The two new hooks (`pause-gate.ts`, `pause-keyword.ts`) ship in `hooks/hooks.json`, which Claude Code loads straight from the installed plugin package — a normal `/plugin update` picks them up with no per-project migration step. The new `bin/hermit-pause` CLI is copied into `.claude-code-hermit/bin/` by `hatch`/`hermit-evolve`'s existing bin-wrapper refresh (detected as a missing boot wrapper) — a normal `/claude-code-hermit:hermit-evolve` restores it for already-installed operators.
 - No config toggle: the mechanism is inert by construction (`state/pause.json` absent = fully unpaused, identical to pre-1.2.17 behavior) until an operator or an authorized channel sender invokes it — there is nothing to opt into or out of.
 - `cron-tz-shift.ts` is invoked fresh from the installed plugin script on every `hermit-routines load` — no per-project state to migrate, the fix applies on next `/plugin update`.
-- PROP-017 needs no state migration — `options`/`on_resolve` are optional fields and `state-templates/micro-proposals.json.template` is unchanged. The HA plugin's `ha-morning-brief` (step 9a) shares the MP-lifecycle sync comment with core `brief/SKILL.md` and should pick up the same `options` reply-hint wording in a follow-up change. `session`/`session-start` still have unbridged interactive asks (session-start already has its own `--task` non-interactive bypass) — out of scope here, allowlisted in the new contract test, tracked as a follow-up.
+- The channel-safe approvals change needs no state migration — `options`/`on_resolve` are optional fields and `state-templates/micro-proposals.json.template` is unchanged. The HA plugin's `ha-morning-brief` (step 9a) shares the MP-lifecycle sync comment with core `brief/SKILL.md` and should pick up the same `options` reply-hint wording in a follow-up change. `session`/`session-start` still have unbridged interactive asks (session-start already has its own `--task` non-interactive bypass) — out of scope here, allowlisted in the new contract test, tracked as a follow-up.
 - **Add the `doctor` routine to `config.json`.** Read `config.routines`. If any entry has `id: "doctor"`, skip. Otherwise tell the operator: "Adding a weekly self-diagnostic — /hermit-doctor runs Mondays 10:00 on haiku and messages you only when something is newly broken. Decline to keep it off." On accept (default), append `{"id": "doctor", "schedule": "0 10 * * *", "skill": "claude-code-hermit:hermit-doctor", "model": "haiku", "run_during_waiting": true, "enabled": true}` if `config.always_on` is `true`, else the same entry with `"schedule": "0 10 * * 1"`. On decline, append the same entry with `"enabled": false` — the id check makes the decline stick across future evolves. Then invoke `/claude-code-hermit:hermit-routines load` so the entry registers via CronCreate this session, and report: "Doctor now runs itself weekly (nineteen checks, up from sixteen — credential expiry, model pricing, channel liveness) and escalates new warn/fail findings to your channel once, in plain language. All-green weeks stay silent."
 
 ## [1.2.16] - 2026-07-03
@@ -100,17 +100,17 @@ Operators who don't want the merged behavior can keep using the old natural-lang
 ## [1.2.14] - 2026-07-02
 
 ### Added
-- **channel-log: episodic DM capture (PROP-010)** — hook-level capture of Discord/Telegram DM text into `state/channel-log.sqlite` (FTS5), gated by the existing operator allowlist and `knowledge.channel_log_enabled`. Feature-detected: inert until a channel delivers a message.
+- **channel-log: episodic DM capture** — hook-level capture of Discord/Telegram DM text into `state/channel-log.sqlite` (FTS5), gated by the existing operator allowlist and `knowledge.channel_log_enabled`. Feature-detected: inert until a channel delivers a message.
 - **recall: channel log as a fourth source** — `/recall` and `search.ts` now search past DM text alongside sessions/compiled/proposals, labelled `[channel]` and flagged as untrusted external input.
 - **weekly-review: channel-log consolidation step** — distills durable decisions from the week's DM log into memory/compiled via a read-only skill-eval-runner dispatch; prunes only already-consolidated rows past `knowledge.channel_log_retention_days`.
-- **startup-context: post-compaction state pointers (PROP-011)** — a new capped section injects `runtime.json` session_state/waiting_reason, pending micro-approvals, and outbound channel routing on every `SessionStart` with `source: "compact"`, so both native and driver-sent compaction stop silently dropping hermit state.
-- **watchdog: routine-hygiene context compaction (PROP-011)** — `context_hygiene.compact` (on by default, 150k/4h) sends `/compact` at a much lower threshold than the existing 700k emergency `/clear`, so cold-cache wakes stop re-paying the full accumulated context. A boundary marker (`state/compact-requested.json`, written by `session` and `proposal-act` at arc-end moments) waives the interval cooldown but never the 60k token floor.
+- **startup-context: post-compaction state pointers** — a new capped section injects `runtime.json` session_state/waiting_reason, pending micro-approvals, and outbound channel routing on every `SessionStart` with `source: "compact"`, so both native and driver-sent compaction stop silently dropping hermit state.
+- **watchdog: routine-hygiene context compaction** — `context_hygiene.compact` (on by default, 150k/4h) sends `/compact` at a much lower threshold than the existing 700k emergency `/clear`, so cold-cache wakes stop re-paying the full accumulated context. A boundary marker (`state/compact-requested.json`, written by `session` and `proposal-act` at arc-end moments) waives the interval cooldown but never the 60k token floor.
 
 ### Changed
 - **hatch: config.json assembly is now deterministic (`hatch-config.ts`)** — Step 5's ~40-line hand-merge of the template with wizard answers is now a single script call; the model builds an answers payload instead of hand-transcribing cron strings, `scheduled_checks` entries, and channel objects. Re-init merges by id (routines, `scheduled_checks`) and per-field (channels), never advances `_hermit_versions`, and preserves any key the payload doesn't mention. Fixes a pre-existing bug where Step 3/Quick Turn 1 read `hermit.boot_skill` from a sibling's `plugin.json` instead of `hermit-meta.json` (always resolved to `null`). `validate-config.ts` gained `remote` (boolean) and `idle_behavior` (`wait`/`discover`) checks it was missing. Hardened payload handling: a malformed `activated_hermit` (missing slug/version) is refused rather than stamping a phantom `_hermit_versions` entry; null `channels`/`scheduled_checks_plugins` payloads fail cleanly instead of crashing; a duplicate plugin in `scheduled_checks_plugins` no longer produces duplicate ids; and `morning_brief_time: null` disables an existing channel brief on re-init.
 
 ### Fixed
-- **suggest-compact: removed dead `context_usage` branch (PROP-011)** — the Stop hook never receives a `context_usage` field, so the 60%-based suggestion has never fired. The tool-call counter is now the sole suggestion path; docs no longer describe it as a fallback.
+- **suggest-compact: removed dead `context_usage` branch** — the Stop hook never receives a `context_usage` field, so the 60%-based suggestion has never fired. The tool-call counter is now the sole suggestion path; docs no longer describe it as a fallback.
 
 ### Files affected
 
@@ -1300,11 +1300,11 @@ No config.json changes required.
 
 ### Added
 
-- **`channels.primary`: operator-configurable primary outbound channel (PROP-041)** — adds `scripts/resolve-outbound-channel.js`; checks `channels.primary` first, then falls back to the first eligible entry in config order. No hardcoded slug list; any channel plugin with `dm_channel_id` set is eligible. `/hermit-settings channels` gains `primary <name>` and `primary clear` verbs.
+- **`channels.primary`: operator-configurable primary outbound channel** — adds `scripts/resolve-outbound-channel.js`; checks `channels.primary` first, then falls back to the first eligible entry in config order. No hardcoded slug list; any channel plugin with `dm_channel_id` set is eligible. `/hermit-settings channels` gains `primary <name>` and `primary clear` verbs.
 
 - **new skills: `/hermit-brain`, `/hermit-evolution`, `/hermit-health`** — on-demand analytics replacing the retired Cortex surface. `/brain`: fragile zones and learnings; `/evolution`: cost/autonomy trends; `/health`: alert state and channel availability. All emit ≤1500-char channel-optimised markdown.
-- **automatic session close (PROP-040)** — heartbeat archives sessions idle for 12h+ via a new `AUTO_CLOSE` verdict from `heartbeat-precheck.js`. Auto-closed reports carry `closed_via: auto`; reflect skips them; weekly-review excludes them from the autonomy denominator.
-- **channel-reply reminder (PROP-037)** — new `scripts/channel-reply-reminder.js` UserPromptSubmit hook injects a reminder with the exact reply tool and `chat_id` on every inbound channel message. No-op when no channel envelope is present. Addresses silent-stranding when MCP-level guidance alone was insufficient.
+- **automatic session close** — heartbeat archives sessions idle for 12h+ via a new `AUTO_CLOSE` verdict from `heartbeat-precheck.js`. Auto-closed reports carry `closed_via: auto`; reflect skips them; weekly-review excludes them from the autonomy denominator.
+- **channel-reply reminder** — new `scripts/channel-reply-reminder.js` UserPromptSubmit hook injects a reminder with the exact reply tool and `chat_id` on every inbound channel message. No-op when no channel envelope is present. Addresses silent-stranding when MCP-level guidance alone was insufficient.
 
 ### Fixed
 
@@ -1316,7 +1316,7 @@ No config.json changes required.
 - **`weekly-review`: appends a "This week's evolution" block** (cost, autonomy, proposal counts with week-over-week Δ) and sends via channel. Computed from `compiled/review-weekly-*.md` frontmatter.
 - **`weekly-review` routine default changed to `enabled: true`** for new installs. Existing operators retain their current setting; to receive the new channel-friendly weekly evolution summary, enable the `weekly-review` routine via `/claude-code-hermit:hermit-settings`.
 - **frontmatter contract: relaxed from strict enforcement to convention** — `validate-frontmatter.js` removed; include `title`, `created`, `tags`, `source`, `session` by convention. See `docs/frontmatter-contract.md`.
-- **`/reflect`: Tier 1 + `current-session` accepted at any hermit phase (PROP-036)** — previously only `newborn` allowed it; long-running daemons without archived sessions were left silent. Tier 1 + `archived-session` still requires 2+ archives; Tier 2/3 unchanged.
+- **`/reflect`: Tier 1 + `current-session` accepted at any hermit phase** — previously only `newborn` allowed it; long-running daemons without archived sessions were left silent. Tier 1 + `archived-session` still requires 2+ archives; Tier 2/3 unchanged.
 
 ### Fixed
 
@@ -1374,9 +1374,9 @@ No config.json changes required.
 
 - **cost reporting: show token counts alongside USD on all surfaces (GH #77)** — USD is noisy with caching; tokens give a stable, pricing-independent signal. Affects `pulse`, `brief`, `hermit-doctor`, `weekly-review`, and session frontmatter. `cost-tracker.js` accumulates `total_tokens`; pulse reads live cost from `.status.json`.
 
-- **Docker: `gh` CLI installed in baseline image (PROP-028, GH #82)** — anonymous by default (60 req/hr); set `HERMIT_GH_TOKEN` in `.env` for authenticated calls. Compose maps it to `GH_TOKEN` inside the container.
+- **Docker: `gh` CLI installed in baseline image (GH #82)** — anonymous by default (60 req/hr); set `HERMIT_GH_TOKEN` in `.env` for authenticated calls. Compose maps it to `GH_TOKEN` inside the container.
 
-- **CLAUDE-APPEND: calibration rule added** — new `Rules` bullet: verify or label specific claims (version-pinned behavior, API signatures, menu paths, prices/dates). General domain knowledge answerable directly. Resolves PROP-025.
+- **CLAUDE-APPEND: calibration rule added** — new `Rules` bullet: verify or label specific claims (version-pinned behavior, API signatures, menu paths, prices/dates). General domain knowledge answerable directly.
 
 ### Changed
 
@@ -1437,7 +1437,7 @@ Replace the continuation (the `rm -rf` line that follows it) with:
 - **Resolve Flow drops the hardcoded "Pattern confirmed absent" suffix.** `Resolved on <date>.` is now the default append. Reflect's auto-resolve path may still add the pattern-absence note in SHELL.md Findings (unchanged); the proposal file itself stays generic.
 - **`HEARTBEAT.md.template`: scope proposal review to `status: proposed`.** Accepted proposals were re-surfaced as actionable by the LLM-evaluated checklist item. New wording explicitly skips accepted, resolved, deferred, and dismissed.
 - **`/proposal-act` accept-flow wording tightened (review pass)** — step ordering, waiting-branch copy, and NEXT-TASK collision recovery path all clarified.
-- **`quality_gate.tier` config key + `quality-gate-judge` subagent (GH #66, PROP-019)** — three tiers: `budget` (default, `/simplify` never runs), `balanced` (judge decides per implementation), `quality` (`/simplify` always runs). Toggle via `/hermit-settings quality-gate`.
+- **`quality_gate.tier` config key + `quality-gate-judge` subagent (GH #66)** — three tiers: `budget` (default, `/simplify` never runs), `balanced` (judge decides per implementation), `quality` (`/simplify` always runs). Toggle via `/hermit-settings quality-gate`.
 - **NEXT-TASK numbered-bullet append simplified** — replaced brittle conditional numbering with sequential `4.` onwards with `(if ...)` prefixes.
 
 ### Files affected
@@ -1504,12 +1504,12 @@ If the Subagents section has been customised or reordered such that the anchor l
 
 ### Added
 
-- **`safeForLLM()` sanitizer for LLM-bound rejection text (PROP-008)** — wraps known Claude context-marker tags (e.g. `<system-reminder>` → `[system-reminder]`) so they can't be interpreted as injected system context.
+- **`safeForLLM()` sanitizer for LLM-bound rejection text** — wraps known Claude context-marker tags (e.g. `<system-reminder>` → `[system-reminder]`) so they can't be interpreted as injected system context.
 
 ### Changed
 
-- **`validate-config.js`: rejection text routed through `safeForLLM` (PROP-008)** — user-controlled fields (channel name, schedule, etc.) sanitized before reaching Claude's context to prevent `<system-reminder>` injection via `config.json`.
-- **`validate-config.js` hook: `continueOnBlock: true` (PROP-008)** — config validation failure previously halted the turn; now surfaces the error as feedback so Claude can fix the config without operator recovery.
+- **`validate-config.js`: rejection text routed through `safeForLLM`** — user-controlled fields (channel name, schedule, etc.) sanitized before reaching Claude's context to prevent `<system-reminder>` injection via `config.json`.
+- **`validate-config.js` hook: `continueOnBlock: true`** — config validation failure previously halted the turn; now surfaces the error as feedback so Claude can fix the config without operator recovery.
 - **`hermit-evolve`: `min_claude_code_version` gate at Step 0** — reads `hermit-meta.json` and aborts with an upgrade message if the CLI is below the declared minimum. First core-side `hermit-meta.json` added with `min_claude_code_version: ">=2.1.139"`.
 - **hooks: converted to exec form (`args: []`)** — fixes path-with-spaces fragility where `${CLAUDE_PLUGIN_ROOT}` expanded unquoted in shell form. All 8 convertible hook entries updated; dev-mode contract runner stays in shell form.
 - Added `tests/test-hook-registration-form.sh` contract test — guards against future regressions to naked shell-form interpolation across the plugin fleet. Also fails loudly when the path-resolution glob returns zero hook entries, so a future refactor that breaks `MONOREPO_ROOT` resolution cannot silently pass the test vacuously.
@@ -1596,17 +1596,17 @@ The on-disk `Dockerfile.hermit` and `docker-compose.hermit.yml` in the project r
 
 ### Added
 
-- **`capability-brainstorm` skill (PROP-007)** — on-demand brainstorm synthesizing memory, capabilities, and codebase shape into at most 2 ideas; each routed through `proposal-triage` before becoming a PROP. Writes `compiled/capability-brainstorm-*.md` on non-empty runs.
+- **`capability-brainstorm` skill** — on-demand brainstorm synthesizing memory, capabilities, and codebase shape into at most 2 ideas; each routed through `proposal-triage` before becoming a PROP. Writes `compiled/capability-brainstorm-*.md` on non-empty runs.
 
 ### Changed
 
-- **proposal IDs: collision-safe composite form (PROP-008)** — IDs now use `PROP-NNN-<slug>-HHMMSS` (ID = filename stem). Slug is up to 5 content words; `HHMMSS` prevents same-second collisions with an `a`/`b`/… suffix. Merge-safe: different machines produce different filenames.
+- **proposal IDs: collision-safe composite form** — IDs now use `PROP-NNN-<slug>-HHMMSS` (ID = filename stem). Slug is up to 5 content words; `HHMMSS` prevents same-second collisions with an `a`/`b`/… suffix. Merge-safe: different machines produce different filenames.
 - **`/proposal-act`: anchored prefix-glob resolution** — `accept PROP-009` resolves both legacy `PROP-009.md` and `PROP-009-*.md` without false positives. Disambiguation prompt shown on multi-match. Short-form `accept PROP-NNN` unchanged.
 - **Legacy `PROP-NNN.md` files continue to work** — no migration, no rename. All resolution, listing, and cortex scripts accept both the old and new filename forms.
 
 ### Fixed
 
-- **`knowledge-schema.md.template`: declare `review` type (PROP-011)** — `weekly-review` writes `type: review` artifacts but the template only declared `note`, causing a permanent Knowledge Health false positive on every freshly-hatched hermit.
+- **`knowledge-schema.md.template`: declare `review` type** — `weekly-review` writes `type: review` artifacts but the template only declared `note`, causing a permanent Knowledge Health false positive on every freshly-hatched hermit.
 
 ### Files affected
 
@@ -1648,7 +1648,7 @@ The on-disk `knowledge-schema.md` is operator-editable, so apply this as a surgi
 
 4. **Propose the patch.** Tell the operator what will be inserted and ask for confirmation:
 
-   > "Patching `.claude-code-hermit/knowledge-schema.md` to declare the `review` type under `## Work Products` (fixes PROP-011 — Knowledge Health false positive after every weekly-review). Apply? [Yes / Skip]"
+   > "Patching `.claude-code-hermit/knowledge-schema.md` to declare the `review` type under `## Work Products` (fixes the Knowledge Health false positive after every weekly-review). Apply? [Yes / Skip]"
 
 5. **On Yes — apply.** Use the Edit tool on `.claude-code-hermit/knowledge-schema.md` with:
 
@@ -1669,21 +1669,21 @@ The on-disk `knowledge-schema.md` is operator-editable, so apply this as a surgi
 
 - **`hermit-start`: third-party channel plugins via `channels.<name>.marketplace` (#47)** — previously any non-official channel name appended a bare token that killed the launch process. Now falls back to `channels.<name>.marketplace` from `config.json`.
 - **`cache-edit-guard.js`: warn on Edit/Write to marketplace cache (#48)** — edits to `.claude/plugins/cache/...` are no-ops at runtime. New PreToolUse hook warns with the canonical source path. Set `HERMIT_CACHE_GUARD=block` to hard-block instead.
-- **`hermit-start`: marketplace pre-flight for `--channels` (PROP-005)** — validates each channel's marketplace token at boot; drops unregistered channels with a `[hermit] WARNING` rather than silently booting with no active channels. Fail-soft if `claude` is missing.
+- **`hermit-start`: marketplace pre-flight for `--channels`** — validates each channel's marketplace token at boot; drops unregistered channels with a `[hermit] WARNING` rather than silently booting with no active channels. Fail-soft if `claude` is missing.
 - **`hermit-start`: refuse channel names starting with `-` as bare args** — defense-in-depth; keeps validation local to `hermit-start` rather than relying on downstream `claude` flag parsing.
 
 ### Fixed
 
-- **hook stderr: control-character sanitization (PROP-006)** — `tool_input`-derived values in `cache-edit-guard.js` and `channel-hook.js` could inject forged ANSI lines into terminal output. Added `scripts/lib/sanitize.js` (`safe()` replaces C0/DEL/C1 with `?`); routed all stderr interpolations through it.
+- **hook stderr: control-character sanitization** — `tool_input`-derived values in `cache-edit-guard.js` and `channel-hook.js` could inject forged ANSI lines into terminal output. Added `scripts/lib/sanitize.js` (`safe()` replaces C0/DEL/C1 with `?`); routed all stderr interpolations through it.
 
 ### Files affected
 
 | File | Change |
 |------|--------|
-| `scripts/hermit-start.py` | Marketplace pre-flight (PROP-005); third-party channel marketplace fallback (#47); reject bare args starting with `-` |
-| `scripts/cache-edit-guard.js` | New PreToolUse hook (#48); routed `safe()` over `tool_input`-derived stderr (PROP-006) |
-| `scripts/channel-hook.js` | Routed `safe()` over `chat_id` stderr interpolation (PROP-006) |
-| `scripts/lib/sanitize.js` | New helper — replaces C0/DEL/C1 control chars with `?` for stderr-bound strings (PROP-006) |
+| `scripts/hermit-start.py` | Marketplace pre-flight; third-party channel marketplace fallback (#47); reject bare args starting with `-` |
+| `scripts/cache-edit-guard.js` | New PreToolUse hook (#48); routed `safe()` over `tool_input`-derived stderr |
+| `scripts/channel-hook.js` | Routed `safe()` over `chat_id` stderr interpolation |
+| `scripts/lib/sanitize.js` | New helper — replaces C0/DEL/C1 control chars with `?` for stderr-bound strings |
 | `hooks/hooks.json` | Registers `cache-edit-guard.js` for Edit\|Write (#48) |
 | `skills/channel-setup/SKILL.md` | Install/enable/manual commands now resolve marketplace from config rather than hardcoding `claude-plugins-official` (#47) |
 | `docs/config-reference.md` | Documents the new `channels.<name>.marketplace` field (#47) |
@@ -1700,7 +1700,7 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 3. **Optional: enable cache-edit hard block.** Operators who want Edit/Write attempts on `.claude/plugins/cache/...` to fail rather than warn can export `HERMIT_CACHE_GUARD=block` in their shell environment. Default behaviour (warn-only) is the safer choice for most operators.
 
-**Note:** The PROP-005 marketplace pre-flight and PROP-006 stderr sanitization are silent on benign input — operators should see no behavioural difference unless they have a misconfigured channel marketplace or an adversarial tool_input value.
+**Note:** The marketplace pre-flight and stderr sanitization are silent on benign input — operators should see no behavioural difference unless they have a misconfigured channel marketplace or an adversarial tool_input value.
 
 ## [1.0.35] - 2026-05-09
 
