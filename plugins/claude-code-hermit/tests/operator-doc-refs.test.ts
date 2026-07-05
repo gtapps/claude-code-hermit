@@ -59,8 +59,14 @@ describe('operator surfaces have no bare docs/ refs', () => {
     });
   }
 
-  test('scripts/startup-context.ts emits no bare docs/ ref', () => {
-    const src = fs.readFileSync(path.join(PLUGIN_ROOT, 'scripts', 'startup-context.ts'), 'utf8');
-    expect(bareRefs(src)).toEqual([]);
-  });
+  // Scripts that print doc pointers to the operator's terminal from their
+  // project cwd, where a bare `docs/foo.md` dangles. Listed explicitly (not a
+  // blanket scripts/ walk) so code-comment refs in helper libs don't trip the
+  // guard — only strings the operator actually sees are in scope.
+  for (const script of ['startup-context.ts', 'hermit-start.ts']) {
+    test(`scripts/${script} emits no bare docs/ ref`, () => {
+      const src = fs.readFileSync(path.join(PLUGIN_ROOT, 'scripts', script), 'utf8');
+      expect(bareRefs(src)).toEqual([]);
+    });
+  }
 });
