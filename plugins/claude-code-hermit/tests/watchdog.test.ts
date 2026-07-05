@@ -372,6 +372,36 @@ test('ordinary busy pane content → no false-positive match', withHermit(async 
   expect(events).not.toContain('stall-question-detected');
 }));
 
+// Regression: a pending pane whose in-session heartbeat has ALSO gone stale must
+// NOT be nudged or restarted. Wedge detection (step 4) and the re-arm fallback
+// (step 5) both send keystrokes into the pane; on a focused prompt that would
+// auto-answer the operator's pending decision. The stall detector notifies and
+// stops — never keystrokes.
+test('pending dialog + stale heartbeat + operator silent → notify only, no send-keys, no restart', withHermit(async (h) => {
+  writeConfig(h);
+  configureChannel(h);
+  writeFakeTmux(h, 0, PENDING_QUESTION_PANE);
+  writeFakePgrep(h, 1);              // monitor down — the escalation/restart signal
+  touchAgo(state(h, '.heartbeat'), 6 * 3600); // stale (threshold 2h*2 = 4h)
+  // No last-operator-action.json → operator silent (recency guard would not save it)
+  const stub = startHttpStub();
+  try {
+    const r = await watchdog(h, 'run', { env: { HERMIT_TELEGRAM_API_URL: stub.url } });
+    expect(r.exitCode).toBe(0);
+    const events = fs.readFileSync(eventsFile(h), 'utf-8');
+    expect(events).toContain('stall-question-detected'); // fail-loud fired
+    expect(events).not.toContain('nudge');
+    expect(events).not.toContain('restart');
+    const tmuxCalls = fs.existsSync(path.join(h.dir, 'tmux-calls.log'))
+      ? fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8')
+      : '';
+    expect(tmuxCalls).not.toContain('send-keys');   // never keystroke the pane
+    expect(tmuxCalls).not.toContain('kill-session'); // never restart into it
+  } finally {
+    stub.stop();
+  }
+}));
+
 // -------------------------------------------------------
 // 6. Alive + operator recent → back off (no events)
 // -------------------------------------------------------

@@ -892,6 +892,13 @@ async function main(): Promise<void> {
   // CLAUDE_PLUGIN_ROOT is not injected into the tmux shell by the harness;
   // set it explicitly so Bash tool calls in skills work in cron-triggered sessions.
   let envContent = `export CLAUDE_PLUGIN_ROOT=${shlexQuote(PLUGIN_ROOT)}\n`;
+  // HERMIT_MANAGED marks this as THE unattended managed session — the one path
+  // ask-gate.ts denies AskUserQuestion on. It rides the process-scoped env-file
+  // only (sourced then rm'd by the tmux shell below), never settings.local.json
+  // or the docker-compose env block, so a hand-launched `claude` in the same
+  // always_on project — or a `docker exec` maintenance shell — never inherits it
+  // and is correctly treated as attended.
+  envContent += `export HERMIT_MANAGED=1\n`;
   for (const v of forwardVars) {
     const val = process.env[v];
     if (val !== undefined) {

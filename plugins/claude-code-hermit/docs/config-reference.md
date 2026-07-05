@@ -135,13 +135,13 @@ Modify with `/hermit-settings watchdog`.
 
 ## `ask_gate`
 
-Single boolean. When `true` (default) and the session is `always_on` with a reachable channel, a PreToolUse hook denies `AskUserQuestion` and redirects the model to send the question via the channel reply tool and queue a durable micro-proposal entry, so a spontaneous ask can't silently stall an unattended pane. A terminal session (`always_on: false`) is never touched, even with channels configured, and a session with no reachable channel is never denied either — there'd be nowhere to redirect the question. See [Unattended Asks](security.md#unattended-asks) for the full taxonomy, including the watchdog's separate fail-loud check for prompts that can't be redirected this way (native permission dialogs).
+Single boolean. When `true` (default), a PreToolUse hook denies `AskUserQuestion` and redirects the model to send the question via the channel reply tool and queue a durable micro-proposal entry, so a spontaneous ask can't silently stall an unattended pane. The deny fires only on the **managed unattended session** (an `always_on` boot with a reachable channel, identified per-session by the `HERMIT_MANAGED` env marker `hermit-start` sets). A terminal session (`always_on: false`), a session with no reachable channel, and — crucially — a hand-launched interactive `claude` (or `docker exec` shell) in the same project are all left untouched: without the marker they read as attended, so operator maintenance flows (`/hermit-evolve`, `/hermit-settings`, `/docker-setup`) still ask normally. See [Unattended Asks](security.md#unattended-asks) for the full taxonomy, including the watchdog's separate fail-loud check for prompts that can't be redirected this way (native permission dialogs).
 
 ```json
 "ask_gate": true
 ```
 
-Set to `false` to opt out entirely. Validated by `validate-config.ts`.
+Set to `false` to opt out entirely, or launch a one-off session with `HERMIT_ASK_GATE=off` to bypass the gate for that session only. Validated by `validate-config.ts`.
 
 ---
 

@@ -785,10 +785,11 @@ async function main(): Promise<void> {
   // dialogs and harness-rendered prompts below the tool layer. Notify only, once per
   // episode (re-arms when the pane clears) — never auto-answer or send Escape, that's
   // always the operator's call.
+  const paneContent = capturePane(sessionName);
+  const pendingQuestion = paneContent !== null && hasPendingQuestion(paneContent);
   {
     const watchdogState = readWatchdogState();
-    const paneContent = capturePane(sessionName);
-    if (paneContent !== null && hasPendingQuestion(paneContent)) {
+    if (pendingQuestion) {
       if (!watchdogState.stall_question_notified) {
         pushOperatorMessage(composeStallQuestionMessage(timezone));
         appendEvent('stall-question-detected', 'pending dialog on pane, session alive');
@@ -800,6 +801,15 @@ async function main(): Promise<void> {
       writeWatchdogState(watchdogState);
     }
   }
+
+  // A pane stalled on a pending prompt is not a wedge — the operator has just been
+  // notified above (once per episode). Stop here: never fall through to the wedge
+  // nudge (step 4) or the re-arm fallback (step 5), both of which send keystrokes
+  // into the pane. On a focused permission / AskUserQuestion modal those keystrokes
+  // (a command string then Enter) would confirm the highlighted default option, or
+  // the pane-frozen restart path would kill the session outright — either way
+  // auto-answering a decision that is always the operator's to make.
+  if (pendingQuestion) process.exit(0);
 
   // 4. Wedge detection (only when heartbeat is enabled + within active hours)
   const heartbeatCfg = config?.heartbeat ?? {};

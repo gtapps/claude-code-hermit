@@ -15,11 +15,22 @@ process.stdout.on('error', () => {});
 // tool or follow the reason into an alternate action — is probe-verified in
 // compiled/spike-ask-gate-probe-2026-07-05.md: it does not retry.
 //
-// Only denies when there's actually somewhere for the question to go:
-// always_on AND an eligible outbound channel AND the operator hasn't opted
-// out via ask_gate:false. A terminal operator (always_on:false) is never
-// touched, even with channels configured — and a deny with no eligible
-// channel would strand the question with no redirect target at all.
+// Only denies when there's actually somewhere for the question to go AND this
+// is genuinely the unattended surface: always_on config, an eligible outbound
+// channel, the operator hasn't opted out (ask_gate:false / HERMIT_ASK_GATE=off),
+// and the process carries the HERMIT_MANAGED marker. That marker is stamped into
+// the managed session's tmux env-file by hermit-start (never settings.local.json
+// or the docker-compose env block), so it identifies THIS process as the
+// background session rather than relying on the project-wide always_on flag —
+// which every `claude` in the dir reads alike. A hand-launched maintenance
+// `claude` (or a `docker exec` shell) lacks the marker and is left untouched, so
+// its interactive AskUserQuestion flows (/hermit-evolve, /hermit-settings,
+// /docker-setup, ...) are not denied out from under a present operator.
+//
+// Fail direction: lean allow. A false "attended" (allowed but nobody watching)
+// is backstopped by the watchdog's stall-question detector, which fail-loudly
+// notifies the operator. A false "unattended" (denied with a human present) has
+// no backstop — it just breaks the flow. So every ambiguity resolves to allow.
 //
 // Fail-open: any error here (bad stdin, missing/corrupt config) resolves to
 // exit 0 (allow) — a hook must never block Claude Code.
@@ -34,7 +45,8 @@ const REDIRECT_REASON =
   'a pending entry to .claude-code-hermit/state/micro-proposals.json (id: MP-YYYYMMDD-N, ' +
   'tier: 1, status: "pending", follow_up_count: 0, ts, question, and options[] for multiple ' +
   'choice) so the answer survives restart; (3) continue other work — the answer arrives as a ' +
-  'channel message.';
+  'channel message. If a human operator is in fact attending this terminal, they can relaunch ' +
+  'with HERMIT_ASK_GATE=off to disable this gate for that session.';
 
 function main(raw: string): void {
   let payload: any;
@@ -52,7 +64,13 @@ function main(raw: string): void {
   if (!config || typeof config !== 'object') return; // allow, fail-open
 
   if (config.always_on !== true) return; // interactive/terminal session — untouched
-  if (config.ask_gate === false) return; // explicit escape hatch
+  if (config.ask_gate === false) return; // explicit config escape hatch
+  if (process.env.HERMIT_ASK_GATE === 'off') return; // explicit per-session escape hatch
+
+  // Identity gate: only the managed unattended session carries HERMIT_MANAGED
+  // (stamped into its tmux env-file by hermit-start). Its absence means an
+  // attended `claude` — leave interactive AskUserQuestion flows alone.
+  if (process.env.HERMIT_MANAGED !== '1') return;
 
   const target = resolveOutboundChannel(config.channels);
   if (!target) return; // no redirect target — denying would strand the question

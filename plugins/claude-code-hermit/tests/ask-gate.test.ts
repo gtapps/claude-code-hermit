@@ -38,8 +38,16 @@ function setConfig(dir: string, over: Partial<Record<string, unknown>> = {}) {
 
 const ASK_PAYLOAD = { tool_name: 'AskUserQuestion', tool_input: { questions: [] } };
 
-const run = (payload: object, dir: string) =>
-  runScript('ask-gate.ts', { stdin: JSON.stringify(payload), cwd: dir });
+// Default env represents the managed unattended session (HERMIT_MANAGED=1),
+// the only surface the gate denies on. Individual tests override the marker
+// (or set HERMIT_ASK_GATE) to exercise the attended / opt-out paths. Explicit
+// values win over any HERMIT_MANAGED inherited from the outer environment.
+const run = (payload: object, dir: string, env: Record<string, string> = {}) =>
+  runScript('ask-gate.ts', {
+    stdin: JSON.stringify(payload),
+    cwd: dir,
+    env: { HERMIT_MANAGED: '1', ...env },
+  });
 
 describe('ask-gate', () => {
   test('always_on + eligible channel — deny with redirect reason', withDir(async (dir) => {
@@ -73,6 +81,18 @@ describe('ask-gate', () => {
   test('ask_gate: false — explicit escape hatch, allow', withDir(async (dir) => {
     setConfig(dir, { ask_gate: false });
     const r = await run(ASK_PAYLOAD, dir);
+    expect(r.exitCode).toBe(0);
+  }));
+
+  test('HERMIT_MANAGED absent — attended session (hand-launched claude), allow', withDir(async (dir) => {
+    setConfig(dir);
+    const r = await run(ASK_PAYLOAD, dir, { HERMIT_MANAGED: '' });
+    expect(r.exitCode).toBe(0);
+  }));
+
+  test('HERMIT_ASK_GATE=off — per-session env escape hatch, allow', withDir(async (dir) => {
+    setConfig(dir);
+    const r = await run(ASK_PAYLOAD, dir, { HERMIT_ASK_GATE: 'off' });
     expect(r.exitCode).toBe(0);
   }));
 
