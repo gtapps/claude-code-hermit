@@ -264,6 +264,10 @@ No prompt needed — this is a read-only analysis. The core daily `scheduled-che
 
 Write the updated `config.json` using Write tool (full file replacement to ensure valid JSON).
 
+### 8d — Auto-mode environment seed
+
+Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/automode-env.ts .claude/settings.local.json` — **always `.claude/settings.local.json`, regardless of `hatch_target`**: Claude Code's auto-mode classifier reads `autoMode` config only from local/user scope, never a committed project `.claude/settings.json`. This names `www.strava.com` as a trusted external service, so the classifier stops treating the nightly `strava-sync` routine's read-only fetches as unrecognized outbound calls. Additive and idempotent; safe to re-run on every hatch. No prompt needed.
+
 ---
 
 ## Step 9 — Final report

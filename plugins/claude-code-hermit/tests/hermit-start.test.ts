@@ -35,6 +35,7 @@ import {
   getEnabledChannels,
   iterChannelConfigs,
   writeSettingsEnv,
+  applyArtifactGrant,
   isSandboxEnabled,
   sandboxProbeCached,
   checkSandboxCapability,
@@ -550,6 +551,56 @@ describe('writeSettingsEnv', () => {
     const settings = readSettings();
     expect(settings.env).not.toContainKey('AGENT_HOOK_PROFILE');
     expect(settings.env.OTHER).toBe('keep');
+  });
+});
+
+describe('applyArtifactGrant', () => {
+  test('flag true + a page enabled writes Artifact allow + autoMode entries', () => {
+    writeSettings({});
+    captureLog(() => applyArtifactGrant({ artifacts: { dashboard: true, proposals: false, weekly_review: false, publish_authorized: true } }));
+    const settings = readSettings();
+    expect(settings.permissions.allow).toContain('Artifact');
+    expect(settings.autoMode.allow[0]).toBe('$defaults');
+    expect(settings.autoMode.allow.some((e: string) => e.includes('Operator policy, set at hatch'))).toBe(true);
+    expect(settings.autoMode.environment[0]).toBe('$defaults');
+  });
+
+  test('flag null does nothing', () => {
+    writeSettings({});
+    applyArtifactGrant({ artifacts: { dashboard: true, publish_authorized: null } });
+    expect(fs.readFileSync('.claude/settings.local.json', 'utf-8')).toBe('{}');
+  });
+
+  test('flag false does nothing', () => {
+    writeSettings({});
+    applyArtifactGrant({ artifacts: { dashboard: true, publish_authorized: false } });
+    expect(fs.readFileSync('.claude/settings.local.json', 'utf-8')).toBe('{}');
+  });
+
+  test('flag true but all pages disabled does nothing', () => {
+    writeSettings({});
+    applyArtifactGrant({ artifacts: { dashboard: false, proposals: false, weekly_review: false, publish_authorized: true } });
+    expect(fs.readFileSync('.claude/settings.local.json', 'utf-8')).toBe('{}');
+  });
+
+  test('is idempotent', () => {
+    writeSettings({});
+    const config = { artifacts: { dashboard: true, publish_authorized: true } };
+    captureLog(() => applyArtifactGrant(config));
+    const first = readSettings();
+    captureLog(() => applyArtifactGrant(config));
+    expect(readSettings()).toEqual(first);
+  });
+
+  test('heals after the settings file is wiped', () => {
+    writeSettings({});
+    const config = { artifacts: { dashboard: true, publish_authorized: true } };
+    captureLog(() => applyArtifactGrant(config));
+    fs.writeFileSync('.claude/settings.local.json', '{}');
+    captureLog(() => applyArtifactGrant(config));
+    const settings = readSettings();
+    expect(settings.permissions.allow).toContain('Artifact');
+    expect(settings.autoMode.allow.length).toBeGreaterThan(0);
   });
 });
 

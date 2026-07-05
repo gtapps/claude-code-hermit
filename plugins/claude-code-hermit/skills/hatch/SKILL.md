@@ -574,7 +574,8 @@ Merge these into the target file:
 4. If permissions need to be added: show the operator the list of permissions to add and ask with `AskUserQuestion` (header: "Hook perms") — options: **Yes — add** (merge so hooks run without prompting, default) / **No — skip** (you'll be prompted during sessions).
 5. If the operator confirms: run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <resolved-settings-file> allow`
    (Merges the full allow-list additively; never removes existing entries.)
-6. If the operator declines: skip, and note: "You may be prompted to approve hook commands during sessions. Run `/claude-code-hermit:hermit-settings permissions` to add them later."
+   Then run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts .claude/settings.local.json automode-seed` — **always `.claude/settings.local.json`, regardless of `hatch_target`**: the auto-mode classifier reads `autoMode` config only from local/user scope, never a committed project `.claude/settings.json`, so seeding anywhere else would be a silent no-op. Tell the operator in one line: "Also recorded an auto-mode exception and environment context in `.claude/settings.local.json` so unattended upgrade migrations can run the plugin's sealed settings ops."
+6. If the operator declines: skip (including the auto-mode seed above — an operator who wants prompts should not get a standing classifier exception), and note: "You may be prompted to approve hook commands during sessions. Run `/claude-code-hermit:hermit-settings permissions` to add them later."
 
 **Seed `state/template-manifest.json`** (deferred from Step 2 — now that the `bun */scripts/manifest-seed.ts*` permission is in place). It records the sha256 pristine-baseline that the `hermit-evolve` drift signals depend on. **Do not hand-compute the hashes** (an LLM cannot sha256 reliably; the script makes them correct by construction). Read the current plugin version from `${CLAUDE_SKILL_DIR}/../../.claude-plugin/plugin.json`, then run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/manifest-seed.ts .claude-code-hermit` with this JSON on stdin:
 
@@ -689,7 +690,9 @@ Skip this step entirely if `artifacts.dashboard`, `artifacts.proposals`, and `ar
 
 Otherwise, run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <resolved-settings-file> artifact-allow` (same target-file resolution as Step 8; additive merge, never removes existing entries). This adds `Artifact` to `permissions.allow` so unattended sessions never stall on the first-publish permission ask — a headless "ask" is an effective deny, which would otherwise silently no-op every artifact refresh. No prompt: it follows the same opt-out model as the feature itself (default-on, disable any page via `/hermit-settings`), and rides Claude Code's own governed Artifacts path (org toggle, RBAC, retention, audit log).
 
-Note to the operator: "Artifact publishing is on — added `Artifact` to `permissions.allow` so refreshes from `/brief`, `/weekly-review`, `/proposal-create`, and `/proposal-act` never prompt. Disable any page via `/hermit-settings artifact-dashboard|artifact-proposals|artifact-weekly-review`."
+Then run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/settings-edit.ts .claude-code-hermit/config.json set artifacts.publish_authorized true` — this arms `hermit-start`'s boot-time grant (`applyArtifactGrant`) so the permission stays in place even if the settings file is later wiped or migrated, without ever needing another unattended settings write.
+
+Note to the operator: "Artifact publishing is on — added `Artifact` to `permissions.allow` so refreshes from `/brief`, `/weekly-review`, `/proposal-create`, and `/proposal-act` never prompt. Re-ensured at every boot; revoke with `/hermit-settings artifact-authorization` (bank first publishes instead). Disable any page via `/hermit-settings artifact-dashboard|artifact-proposals|artifact-weekly-review`."
 
 ---
 
@@ -876,9 +879,9 @@ Quick replaces Step 4 entirely and applies these defaults silently at the shared
 | Step 7 | .gitignore append | apply silently (per-line idempotent) |
 | Step 7a | .worktreeinclude managed block | apply silently (marker-block idempotent — skip if marker already present) |
 | Step 7.5 | git init (fresh dirs only) | run `git init` if `git_init_eligible`; omit otherwise |
-| Step 8 | plugin permissions (target settings file) | merge silently into `hatch_target` settings file |
+| Step 8 | plugin permissions (target settings file) | merge silently into `hatch_target` settings file; also seeds the `automode-seed` auto-mode exception silently into `.claude/settings.local.json` (always local, regardless of `hatch_target`) |
 | Step 9 | deny patterns (target settings file) | derived profile silently (Docker → hardened, else → minimal); write to `hatch_target` settings file |
-| Step 9c | Artifact publish permission | same as Advanced — `artifact-allow` applied silently (skip entirely if all three `artifacts.*` are `false`) |
+| Step 9c | Artifact publish permission | same as Advanced — `artifact-allow` applied silently (skip entirely if all three `artifacts.*` are `false`) and `artifacts.publish_authorized` set to `true` in config |
 
 ### Quick — auto-chain at end of Step 10
 

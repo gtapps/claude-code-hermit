@@ -90,7 +90,8 @@
   "artifacts": {
     "dashboard": true,
     "proposals": true,
-    "weekly_review": true
+    "weekly_review": true,
+    "publish_authorized": null
   },
   "context_hygiene": {
     "compact": {

@@ -231,18 +231,20 @@ Publishing of hermit-generated pages to Claude Code's [Artifacts](https://code.c
 | `dashboard` | boolean | `true` | Publish the Hermit Dashboard (status, latest brief, proposal queue, weekly evolution, compiled-docs index), refreshed by `brief`, `weekly-review`, `proposal-create`, and `proposal-act`. |
 | `proposals` | boolean | `true` | Publish the full text of open proposals, each anchored for deep-linking, refreshed by `proposal-create` and `proposal-act`. |
 | `weekly_review` | boolean | `true` | Publish the latest compiled weekly review as a stable-URL page, refreshed by `weekly-review`. |
+| `publish_authorized` | boolean \| `null` | `null` | Whether unattended sessions may publish without a permission prompt. `null` = undecided, `true` = authorized (grant applied at next boot), `false` = declined (attended banking instead). See below. Set via `/hermit-settings artifact-authorization`, never edited directly. |
 
 ```json
 "artifacts": {
   "dashboard": true,
   "proposals": true,
-  "weekly_review": true
+  "weekly_review": true,
+  "publish_authorized": null
 }
 ```
 
 **Requirements and fallback:** publishing needs a `/login`-authenticated session (API-key/gateway-token/cloud-provider sessions can't publish) with Artifacts entitled — available on Pro, Max, Team, and Enterprise plans, off by default in the Agent SDK/GitHub Action/MCP-server contexts and when `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` is set. There is no reliable pre-check, so the hermit just tries to publish and falls back silently to the existing markdown-only channel delivery on any failure — flip a flag on and off freely, nothing else changes.
 
-**Unattended publish authorization:** an unattended session can't answer the first-publish permission ask (a headless "ask" is an effective deny). `hatch`/`hermit-evolve` offer to add `Artifact` to `permissions.allow` (a sealed op in `apply-settings.ts`, kept separate from the hook-permission allow-list) so refreshes never prompt; if declined, they instead **bank** the first publish of each enabled page inline during the attended setup session, so every later refresh is a prompt-free same-URL republish. Without either, unattended publishes silently no-op — a deliberate choice, not a bug.
+**Unattended publish authorization:** an unattended session can't answer the first-publish permission ask (a headless "ask" is an effective deny) — and on a `permission_mode: auto` hermit, an agent can't even grant that permission to itself in-session, because the auto-mode classifier's `[Self-Modification]` rule blocks a self-widened `permissions.allow` unless the operator's own live message requested it (see `docs/security.md` § Auto-mode Classifier). So `artifacts.publish_authorized` only ever records the *decision*: attended, `hatch`/`hermit-evolve` ask the operator and set it directly; unattended, `hermit-evolve` defers to the channel and the reply (via `/hermit-settings artifact-authorization`) sets the flag, nothing else. The actual `permissions.allow`/`autoMode.allow` write happens separately — attended, in the same breath as setting the flag; for a channel-resolved `true`, at `hermit-start`'s next boot, run as a plain OS process outside the classifier entirely. Re-ensured every boot while the flag is `true`, so a hand-wiped entry heals itself. Declining banks the first publish of each enabled page inline during the attended setup session instead, so every later refresh is a prompt-free same-URL republish. With the flag `null`/`false` and no banked URL, unattended publishes silently no-op — a deliberate choice, not a bug.
 
 **On-demand publish:** any compiled doc or open proposal can be published as a one-off page on operator request ("open <doc> as a page") — no config key gates this; it's operator-initiated by definition. The dashboard's compiled-docs index lists what's available to ask for.
 
@@ -250,7 +252,7 @@ Publishing of hermit-generated pages to Claude Code's [Artifacts](https://code.c
 
 **Disabling artifacts at the Claude Code level** (independent of these flags) — any of: `"disableArtifact": true` in `settings.json`, `CLAUDE_CODE_DISABLE_ARTIFACT=1`, or adding `Artifact` to `permissions.deny`. With any of these set, publish attempts fail and the hermit falls back the same way as a missing entitlement. If you run the hermit in tmux/headless (the norm for `hermit-start`), also set `CLAUDE_CODE_ARTIFACT_AUTO_OPEN=0` in `config.env` — otherwise a successful publish tries to open a browser with nothing to receive it.
 
-Modify with `/hermit-settings artifact-dashboard`, `artifact-proposals`, or `artifact-weekly-review`. Validated by `validate-config.ts`. Renderers: `scripts/lib/dashboard.ts`, `scripts/lib/proposals-page.ts`, `scripts/render-weekly-artifact.ts` (all deterministic — no model authorship except the dashboard's embedded brief text — so a refresh costs a render, not a generation).
+Modify with `/hermit-settings artifact-dashboard`, `artifact-proposals`, `artifact-weekly-review`, or `artifact-authorization`. Validated by `validate-config.ts`. Renderers: `scripts/lib/dashboard.ts`, `scripts/lib/proposals-page.ts`, `scripts/render-weekly-artifact.ts` (all deterministic — no model authorship except the dashboard's embedded brief text — so a refresh costs a render, not a generation).
 
 ---
 

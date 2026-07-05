@@ -436,6 +436,13 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
       if (config.artifacts.weekly_review !== undefined && typeof config.artifacts.weekly_review !== 'boolean') {
         errors.push('artifacts.weekly_review: must be a boolean');
       }
+      if (
+        config.artifacts.publish_authorized !== undefined &&
+        config.artifacts.publish_authorized !== null &&
+        typeof config.artifacts.publish_authorized !== 'boolean'
+      ) {
+        errors.push('artifacts.publish_authorized: must be a boolean or null');
+      }
     }
   }
 

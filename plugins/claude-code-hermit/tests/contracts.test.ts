@@ -663,6 +663,18 @@ describe('artifacts validation', () => {
     const out = runValidate({ artifacts: { weekly_review: null } });
     expect(out.errors.some((e: string) => e.includes('artifacts.weekly_review: must be a boolean'))).toBe(true);
   });
+
+  test('artifacts.publish_authorized accepts true, false, and null', () => {
+    for (const value of [true, false, null]) {
+      const out = runValidate({ artifacts: { publish_authorized: value } });
+      expect(out.errors.filter((e: string) => e.includes('publish_authorized'))).toEqual([]);
+    }
+  });
+
+  test('non-boolean, non-null artifacts.publish_authorized is an error', () => {
+    const out = runValidate({ artifacts: { publish_authorized: 'yes' } });
+    expect(out.errors.some((e: string) => e.includes('artifacts.publish_authorized: must be a boolean or null'))).toBe(true);
+  });
 });
 
 // ============================================================
