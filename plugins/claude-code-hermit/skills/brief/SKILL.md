@@ -54,7 +54,7 @@ For dispatching modes: invoke `claude-code-hermit:skill-eval-runner` pointed at 
 
 ### --morning (routine mode)
 
-**Delivery:** Write the full composed brief text (before any push-fallback single-line condensing) to `.claude-code-hermit/state/last-brief.json` as `{"kind":"morning","text":"<brief text>","generated_at":"<now, ISO>"}`, so the dashboard's "latest brief" section can pick it up. Then refresh the dashboard per docs/artifacts.md; if it returns a URL, append a final line `📎 <url>`. Then deliver the brief to the operator (see Always-On Delivery Rule above).
+**Delivery:** Write the full composed brief text (before any push-fallback single-line condensing) to `.claude-code-hermit/state/last-brief.json` as `{"kind":"morning","text":"<brief text>","generated_at":"<now, ISO>"}`, so the dashboard's "latest brief" section can pick it up. Then refresh the dashboard per `${CLAUDE_PLUGIN_ROOT}/docs/artifacts.md`; if it returns a URL, append a final line `📎 <url>`. Then deliver the brief to the operator (see Always-On Delivery Rule above).
 
 Emphasize forward-looking content. Compose from runner JSON (see Dispatch above) and live main-session data:
 - **Cost context:** use `runner.cost_context.yesterday`
@@ -75,7 +75,7 @@ After composing the morning brief, check `state/micro-proposals.json → pending
 
 ### --evening (routine mode)
 
-**Delivery:** Write the full composed brief text (before any push-fallback single-line condensing) to `.claude-code-hermit/state/last-brief.json` as `{"kind":"evening","text":"<brief text>","generated_at":"<now, ISO>"}`, so the dashboard's "latest brief" section can pick it up. Then refresh the dashboard per docs/artifacts.md; if it returns a URL, append a final line `📎 <url>`. Then deliver the brief to the operator (see Always-On Delivery Rule above).
+**Delivery:** Write the full composed brief text (before any push-fallback single-line condensing) to `.claude-code-hermit/state/last-brief.json` as `{"kind":"evening","text":"<brief text>","generated_at":"<now, ISO>"}`, so the dashboard's "latest brief" section can pick it up. Then refresh the dashboard per `${CLAUDE_PLUGIN_ROOT}/docs/artifacts.md`; if it returns a URL, append a final line `📎 <url>`. Then deliver the brief to the operator (see Always-On Delivery Rule above).
 
 Emphasize backward-looking content. Compose from runner JSON (see Dispatch above) and live main-session data:
 - **Sessions today:** use `runner.sessions_today`; also note any progress in the current SHELL.md progress log (read SHELL.md in main **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**).

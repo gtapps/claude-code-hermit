@@ -29,7 +29,7 @@ services:
       - GH_TOKEN=${HERMIT_GH_TOKEN:-}
 {{AUTH_ENV_LINE}}{{CHANNEL_ENV_LINES}}
 {{NETWORK_MODE_LINE}}
-    # Defense in depth — see docs/security.md#container-hardening for rationale and override path.
+    # Defense in depth — rationale and override path: run /claude-code-hermit:docker-security.
     cap_drop:
       - ALL
     # Load-bearing: blocks setuid escalation even from a planted binary in a compromised plugin.

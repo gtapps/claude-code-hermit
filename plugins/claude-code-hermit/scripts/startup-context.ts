@@ -324,7 +324,7 @@ function main(source: string | null) {
       if (hits.length > 0) {
         const lines = hits.slice(0, 5).map(h => `- ${h}`).join('\n');
         const suffix = hits.length > 5 ? `\n(${hits.length - 5} more)` : '';
-        const body = `${hits.length} path${hits.length !== 1 ? 's' : ''} invisible to session injection and archival:\n${lines}${suffix}\nMove files into .claude-code-hermit/raw/ or compiled/ (flat). See docs/plugin-hermit-storage.md.`;
+        const body = `${hits.length} path${hits.length !== 1 ? 's' : ''} invisible to session injection and archival:\n${lines}${suffix}\nMove files into .claude-code-hermit/raw/ or compiled/ (flat).`;
         emit('Storage Drift', body.slice(0, BUDGETS.storageDrift));
       }
     } catch {}

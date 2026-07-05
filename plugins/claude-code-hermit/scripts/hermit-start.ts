@@ -436,7 +436,7 @@ function checkStaleRuntime(config: Json, sessionName: string): void {
 /** Acquire exclusive lifecycle lock. Exits on contention. */
 function acquireLifecycleLock(): void {
   if (process.platform === 'win32') {
-    console.log('[hermit] Always-on mode requires Linux, macOS, or WSL2. See docs/faq.md.');
+    console.log('[hermit] Always-on mode requires Linux, macOS, or WSL2. See https://github.com/gtapps/claude-code-hermit/blob/main/plugins/claude-code-hermit/docs/faq.md.');
     process.exit(1);
   }
   fs.mkdirSync(STATE_DIR, { recursive: true });

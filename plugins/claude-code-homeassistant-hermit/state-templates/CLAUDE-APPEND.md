@@ -45,7 +45,7 @@ MCP tool IDs follow `mcp__homeassistant__*`. If you registered the HA MCP Server
 
 ### CLI
 
-`${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab <domain> <command>` — full command catalog: run `ha-agent-lab --help` or see `docs/cli-reference.md` in the plugin (`src/cli.ts` is the source of truth). Structural writes (helpers/areas/registries) are gated by `ha_safety_mode` (strict → proposal, ask → `--confirm`).
+`${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab <domain> <command>` — full command catalog: run `ha-agent-lab --help` (`src/cli.ts` is the source of truth). Structural writes (helpers/areas/registries) are gated by `ha_safety_mode` (strict → proposal, ask → `--confirm`).
 
 ### Environment
 

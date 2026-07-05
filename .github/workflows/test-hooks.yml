@@ -9,6 +9,9 @@ on:
       # Cross-plugin invariants in hooks.contract.test.ts walk every plugin's
       # manifest and the marketplace, so those paths must trigger this suite too.
       - 'plugins/*/.claude-plugin/**'
+      # operator-doc-refs.test.ts walks every plugin's state-templates for bare
+      # docs/ refs, so a sibling plugin's state-template edit must run this suite.
+      - 'plugins/*/state-templates/**'
       - '.claude-plugin/marketplace.json'
       - '.github/workflows/test-hooks.yml'
       - 'package.json'
@@ -21,6 +24,9 @@ on:
       # Cross-plugin invariants in hooks.contract.test.ts walk every plugin's
       # manifest and the marketplace, so those paths must trigger this suite too.
       - 'plugins/*/.claude-plugin/**'
+      # operator-doc-refs.test.ts walks every plugin's state-templates for bare
+      # docs/ refs, so a sibling plugin's state-template edit must run this suite.
+      - 'plugins/*/state-templates/**'
       - '.claude-plugin/marketplace.json'
       - '.github/workflows/test-hooks.yml'
       - 'package.json'

@@ -14,6 +14,8 @@
 - The `artifacts.publish_authorized` key is added by the generic `new_config_keys` template sync (Step 3/9) — no bespoke migration step.
 - **Auto-mode self-maintenance seed.** Attended: run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts .claude/settings.local.json automode-seed` and tell the operator in one line what was recorded (mirrors hatch Step 8). **Unattended: skip this step entirely — do not run it and do not defer it.** `hermit-start`'s boot-time grant seeds it once `artifacts.publish_authorized` is `true`; running the sealed op unattended is exactly the self-modification the classifier blocks.
 - The `PermissionDenied` hook ships in `hooks/hooks.json`, loaded straight from the installed plugin package — a normal `/plugin update` picks it up with no per-project migration step and no new config key.
+### Fixed
+- **operator doc pointers no longer dangle** — CLAUDE-APPEND, the SessionStart storage-drift line, and the docker-compose template stopped naming plugin-root docs by a bare `docs/…` path (unresolvable from the operator's project cwd, where the plugin's `docs/` doesn't exist); the artifact-refresh skill refs now use `${CLAUDE_PLUGIN_ROOT}/docs/`. New `operator-doc-refs` test fails the build on any bare `docs/…` ref in a state-template or SessionStart injection.
 
 ## [1.2.17] - 2026-07-05
 

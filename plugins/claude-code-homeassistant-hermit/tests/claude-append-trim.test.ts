@@ -4,7 +4,7 @@
 // re-paid on every session load and subagent dispatch. The skills/subagents/CLI
 // catalogs that used to live here duplicated content already carried by each
 // SKILL.md/agent description and by `ha-agent-lab --help`, so they were removed
-// in favor of a self-advertise pointer + docs/cli-reference.md. This test keeps
+// in favor of a self-advertise pointer + `ha-agent-lab --help`. This test keeps
 // the catalogs from creeping back and ensures the CLI reference doc exists.
 
 import { expect, test } from 'bun:test';
@@ -25,8 +25,13 @@ test('HA APPEND self-advertises instead of cataloging', () => {
   expect(APPEND.includes('ha-boot')).toBe(true);
 });
 
-test('HA APPEND points to the relocated CLI reference, which exists', () => {
-  expect(APPEND.includes('docs/cli-reference.md')).toBe(true);
+test('HA APPEND points to the resolvable CLI reference, and the doc exists', () => {
+  // The operator's CLAUDE.md must name a pointer that resolves from their
+  // project cwd: `ha-agent-lab --help`. A bare `docs/cli-reference.md` would
+  // resolve to <operator-project>/docs/... and not exist (the doc ships only
+  // under the plugin root, where it remains the written catalog).
+  expect(APPEND.includes('ha-agent-lab --help')).toBe(true);
+  expect(APPEND.includes('docs/cli-reference.md')).toBe(false);
   expect(existsSync(join(PLUGIN_ROOT, 'docs', 'cli-reference.md'))).toBe(true);
 });
 
