@@ -764,12 +764,49 @@ test('doctor checkWatchdog: last_hygiene_eval surfaces in the ok detail', withHe
   const p = state(h, 'watchdog-state.json');
   fs.writeFileSync(p, JSON.stringify({
     last_run: new Date().toISOString(),
-    last_hygiene_eval: { ts: new Date().toISOString(), mechanism: 'compact', outcome: 'fired', prompt_tokens: 250000 },
+    last_hygiene_eval: { compact: { ts: new Date().toISOString(), outcome: 'fired', prompt_tokens: 250000 } },
   }) + '\n');
   const w = await doctorWatchdogCheck(h);
   expect(w.status).toBe('ok');
   expect(w.detail).toContain('compact/fired');
 }));
+
+test('doctor checkWatchdog: per-mechanism last_hygiene_eval surfaces the most-recent tier',
+  withHermit(async (h) => {
+    writeDoctorConfig(h);
+    const older = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+    const newer = new Date().toISOString();
+    fs.writeFileSync(state(h, 'watchdog-state.json'), JSON.stringify({
+      last_run: new Date().toISOString(),
+      last_hygiene_eval: {
+        clear: { ts: older, outcome: 'skip:under-threshold', prompt_tokens: 300000 },
+        compact: { ts: newer, outcome: 'fired', prompt_tokens: 300000 },
+      },
+    }) + '\n');
+    const w = await doctorWatchdogCheck(h);
+    expect(w.detail).toContain('compact/fired'); // newer of the two wins
+  }));
+
+test('doctor checkWatchdog: stale scheduler + stuck shutdown stamp → not-firing wins',
+  withHermit(async (h) => {
+    writeDoctorConfig(h);
+    patchRuntime(h, { session_state: 'in_progress', shutdown_completed_at: isoAgo(72) });
+    setLastRun(h, isoAgo(1)); // scheduler dead — the higher-severity signal
+    const w = await doctorWatchdogCheck(h);
+    expect(w.status).toBe('warn');
+    expect(w.detail).toContain('not firing'); // liveness remediation, not the stamp warning
+  }));
+
+test('doctor checkWatchdog: fresh shutdown stamp on an alive session → no false positive',
+  withHermit(async (h) => {
+    writeDoctorConfig(h);
+    // A real in-flight hermit-stop stamps shutdown_requested_at seconds before
+    // /session-close flips session_state to idle — a fresh stamp is that window.
+    patchRuntime(h, { session_state: 'in_progress', shutdown_requested_at: new Date().toISOString() });
+    setLastRun(h, new Date().toISOString());
+    const w = await doctorWatchdogCheck(h);
+    expect(w.detail).not.toContain('shutdown stamp');
+  }));
 
 // -------------------------------------------------------
 // install / uninstall without systemctl (Linux-only path)
@@ -1450,7 +1487,7 @@ test('context_compact: no session_id anywhere (runtime null, no .status.json) �
     expect(r.exitCode).toBe(0);
     expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
     const ws = readJson(state(h, 'watchdog-state.json'));
-    expect(ws.last_hygiene_eval?.outcome).toBe('skip:no-session-id');
+    expect(ws.last_hygiene_eval?.compact?.outcome).toBe('skip:no-session-id');
   }));
 
 test('context_clear: legacy multi-call entry averages down — no destructive misfire; still compact-eligible',
@@ -1476,6 +1513,10 @@ test('context_clear: legacy multi-call entry averages down — no destructive mi
     const events = fs.readFileSync(eventsFile(h), 'utf-8');
     expect(events).not.toContain('context-clear');
     expect(events).toContain('context-compact');
+    // The destructive /clear declines the multi-call legacy estimate outright rather
+    // than acting on the per-call mean; the compact tier still uses it.
+    const ws = readJson(state(h, 'watchdog-state.json'));
+    expect(ws.last_hygiene_eval?.clear?.outcome).toBe('skip:estimate-only');
   }));
 
 test('context_clear: max_prompt_tokens field takes precedence over the per-turn sum',
@@ -1496,6 +1537,25 @@ test('context_clear: max_prompt_tokens field takes precedence over the per-turn 
     expect(tmuxLog).toContain('/clear');
   }));
 
+test('context_clear: a legacy multi-call entry over threshold on the estimate → skip:estimate-only, never fires /clear',
+  withHermit(async (h) => {
+    writeContextClearConfig(h, 700000);
+    writeAlwaysOnRuntime(h, 'idle');
+    // 5M summed / 5 calls = 1M mean, over the 700k threshold — but with no
+    // max_prompt_tokens the mean is an estimate, and the destructive tier must not
+    // act on it (the real peak is unknowable from sum+calls). Guarded before quiescence.
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 5000000, cache_write_tokens: 0, cache_read_tokens: 0, api_calls: 5 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+    const ws = readJson(state(h, 'watchdog-state.json'));
+    expect(ws.last_hygiene_eval?.clear?.outcome).toBe('skip:estimate-only');
+  }));
+
 test('context_compact: stale shutdown stamp on an alive session → skip:lifecycle:shutdown-stamp',
   withHermit(async (h) => {
     writeContextCompactConfig(h);
@@ -1514,7 +1574,7 @@ test('context_compact: stale shutdown stamp on an alive session → skip:lifecyc
     expect(r.exitCode).toBe(0);
     expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
     const ws = readJson(state(h, 'watchdog-state.json'));
-    expect(ws.last_hygiene_eval?.outcome).toBe('skip:lifecycle:shutdown-stamp');
+    expect(ws.last_hygiene_eval?.compact?.outcome).toBe('skip:lifecycle:shutdown-stamp');
   }));
 
 test('context_compact: last_hygiene_eval records the fire outcome and prompt token count',
@@ -1530,7 +1590,7 @@ test('context_compact: last_hygiene_eval records the fire outcome and prompt tok
     const r2 = await watchdog(h, 'run');
     expect(r2.exitCode).toBe(0);
     const ws = readJson(state(h, 'watchdog-state.json'));
-    expect(ws.last_hygiene_eval).toMatchObject({ mechanism: 'compact', outcome: 'fired', prompt_tokens: 250000 });
+    expect(ws.last_hygiene_eval?.compact).toMatchObject({ outcome: 'fired', prompt_tokens: 250000 });
   }));
 
 test('context_compact: below the 60k floor → skip:below-floor',
@@ -1546,7 +1606,7 @@ test('context_compact: below the 60k floor → skip:below-floor',
     expect(r.exitCode).toBe(0);
     expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
     const ws = readJson(state(h, 'watchdog-state.json'));
-    expect(ws.last_hygiene_eval?.outcome).toBe('skip:below-floor');
+    expect(ws.last_hygiene_eval?.compact?.outcome).toBe('skip:below-floor');
   }));
 
 test('context_compact: midnight-adjacent (daily-auto-close due within 2h) → skip:midnight-adjacent',
@@ -1566,7 +1626,7 @@ test('context_compact: midnight-adjacent (daily-auto-close due within 2h) → sk
     expect(r.exitCode).toBe(0);
     expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
     const ws = readJson(state(h, 'watchdog-state.json'));
-    expect(ws.last_hygiene_eval?.outcome).toBe('skip:midnight-adjacent');
+    expect(ws.last_hygiene_eval?.compact?.outcome).toBe('skip:midnight-adjacent');
   }));
 
 // -------------------------------------------------------

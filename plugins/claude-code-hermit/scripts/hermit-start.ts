@@ -447,6 +447,22 @@ function clearShutdownStampsOnBoot(existing: Json): void {
   existing.shutdown_completed_at = null;
 }
 
+/**
+ * Removes the sessions/.status.json cost cache on an always-on boot. cost-tracker
+ * writes the current harness session id there each turn, and the watchdog's idle-phase
+ * hygiene fallback (resolveHygieneSessionId) reads it when no S-NNN arc is open. Across
+ * a restart the harness session id changes, but the old file survives until the first
+ * post-boot turn rewrites it — a stale pointer that would make the watchdog resolve the
+ * DEFUNCT prior session's last (possibly bloated) cost entry and fire a spurious /compact
+ * or /clear into the fresh, near-empty context. Removing it here makes the fallback
+ * return "no session id" (a clean skip) until a real turn re-populates it. cost-tracker
+ * treats a missing file as first-run and rebuilds cumulative totals from the index, so
+ * nothing is lost.
+ */
+function clearStatusCacheOnBoot(): void {
+  try { fs.unlinkSync(path.join(STATE_DIR, '..', 'sessions', '.status.json')); } catch {}
+}
+
 /** Acquire exclusive lifecycle lock. Exits on contention. */
 function acquireLifecycleLock(): void {
   if (process.platform === 'win32') {
@@ -977,6 +993,10 @@ async function main(): Promise<void> {
   // Detect runtime mode
   const runtimeMode = isContainer() ? 'docker' : 'tmux';
 
+  // The prior process's harness session is over — drop its stale cost cache so the
+  // watchdog's idle-phase hygiene fallback can't resolve a defunct session (see helper).
+  clearStatusCacheOnBoot();
+
   // Create or update runtime.json as the single source of lifecycle truth
   const existing = readRuntimeJson();
   if (existing === null) {
@@ -1066,6 +1086,7 @@ export {
   readRuntimeJson,
   checkStaleRuntime,
   clearShutdownStampsOnBoot,
+  clearStatusCacheOnBoot,
   acquireLifecycleLock,
   fetchRegisteredMarketplaces,
   iterChannelConfigs,

@@ -682,23 +682,6 @@ function checkWatchdog() {
     let runtime: Json = null;
     try { runtime = JSON.parse(fs.readFileSync(path.join(stateDir, 'runtime.json'), 'utf-8')); } catch {}
 
-    // Pathology: a shutdown stamp on a session that's actually still alive silently
-    // bricks context hygiene AND watchdog restart recovery — passesLifecycleGuards
-    // treats any non-null shutdown_requested_at/shutdown_completed_at as "the hermit
-    // is stopping". hermit-start clears both stamps on boot, so surviving stamp here
-    // means a non-hermit-stop close planted it (a nightly auto-close reusing
-    // /session-close's "Full Shutdown" framing) and the hermit hasn't restarted since.
-    if (runtime && ['in_progress', 'waiting'].includes(runtime.session_state)) {
-      const stamp = runtime.shutdown_requested_at || runtime.shutdown_completed_at;
-      if (stamp) {
-        return {
-          id: 'watchdog',
-          status: 'warn',
-          detail: `watchdog: session alive (${runtime.session_state}) but runtime.json carries a shutdown stamp (${stamp}) — blocks context hygiene and watchdog restart until the next hermit-start clears it`,
-        };
-      }
-    }
-
     const statePath = path.join(stateDir, 'watchdog-state.json');
     let consecutive = 0;
     let lastRun: string | null = null;
@@ -734,6 +717,28 @@ function checkWatchdog() {
       return { id: 'watchdog', status: 'warn', detail: `watchdog: enabled but not firing (${ageNote}) — ${remedy}` };
     }
 
+    // Pathology: a shutdown stamp on a still-alive session silently bricks context
+    // hygiene AND watchdog restart recovery — passesLifecycleGuards treats any non-null
+    // shutdown_requested_at/shutdown_completed_at as "the hermit is stopping". hermit-start
+    // clears both stamps on boot, so a surviving stamp means a non-hermit-stop close
+    // planted it (a nightly auto-close reusing /session-close's "Full Shutdown" framing)
+    // and the hermit hasn't restarted since. Checked AFTER liveness: a dead scheduler is
+    // the higher-severity signal and its remedy differs, so it must win when both hold.
+    // Gated on stamp age: a real in-flight hermit-stop stamps shutdown_requested_at
+    // seconds before /session-close flips session_state to idle, so a fresh stamp on an
+    // in_progress/waiting session is that transient window, not the pathology.
+    if (runtime && ['in_progress', 'waiting'].includes(runtime.session_state)) {
+      const stamp = runtime.shutdown_requested_at || runtime.shutdown_completed_at;
+      const stampMs = stamp ? Date.parse(stamp) : NaN;
+      if (stamp && (!Number.isFinite(stampMs) || Date.now() - stampMs > STALE_MS)) {
+        return {
+          id: 'watchdog',
+          status: 'warn',
+          detail: `watchdog: session alive (${runtime.session_state}) but runtime.json carries a stale shutdown stamp (${stamp}) — blocks context hygiene and watchdog restart until the next hermit-start clears it`,
+        };
+      }
+    }
+
     const eventsPath = path.join(stateDir, 'watchdog-events.jsonl');
     const cutoff = new Date(Date.now() - 7 * MS_PER_DAY).toISOString();
     let restarts = 0;
@@ -759,10 +764,19 @@ function checkWatchdog() {
 
     const parts = [`restarts: ${restarts}`, `nudges: ${nudges}`, `re-arms: ${rearms}`, `clears: ${clears}`, `compacts: ${compacts}`];
     if (consecutive > 0) parts.push(`stale cycles in progress: ${consecutive}`);
-    if (lastHygieneEval && typeof lastHygieneEval.outcome === 'string') {
-      const evalMs = typeof lastHygieneEval.ts === 'string' ? Date.parse(lastHygieneEval.ts) : NaN;
-      const ageSuffix = Number.isFinite(evalMs) ? `, ${Math.round((Date.now() - evalMs) / 60000)}m ago` : '';
-      parts.push(`last hygiene eval: ${lastHygieneEval.mechanism}/${lastHygieneEval.outcome}${ageSuffix}`);
+    // last_hygiene_eval is keyed per mechanism ({ clear?, compact? }) so a tick where
+    // both tiers run keeps each tier's own record. Surface whichever ran most recently.
+    const evalMsOf = (r: Json) => { const t = typeof r?.ts === 'string' ? Date.parse(r.ts) : NaN; return Number.isFinite(t) ? t : 0; };
+    let mostRecentHygiene: { mech: string; rec: Json } | null = null;
+    for (const mech of ['clear', 'compact']) {
+      const rec = lastHygieneEval?.[mech];
+      if (!rec || typeof rec.outcome !== 'string') continue;
+      if (!mostRecentHygiene || evalMsOf(rec) > evalMsOf(mostRecentHygiene.rec)) mostRecentHygiene = { mech, rec };
+    }
+    if (mostRecentHygiene) {
+      const evalMs = evalMsOf(mostRecentHygiene.rec);
+      const ageSuffix = evalMs ? `, ${Math.round((Date.now() - evalMs) / 60000)}m ago` : '';
+      parts.push(`last hygiene eval: ${mostRecentHygiene.mech}/${mostRecentHygiene.rec.outcome}${ageSuffix}`);
     }
     const label = wCfg.enabled
       ? `enabled, last tick ${Math.round((Date.now() - lastRunMs) / 60000)}m ago`
