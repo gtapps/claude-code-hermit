@@ -42,16 +42,23 @@ const readJSON = (p: string): Json => {
   catch { return null; }
 };
 
-// Extract a top-level ## Section from SHELL.md, treating a placeholder-comment-only
-// body as empty. Same boundary convention as startup-context.ts's extractSection and
-// cost-tracker.ts's ## Blockers regex: a section ends at the next `\n## ` or EOF.
+// Extract a top-level ## Section from SHELL.md, dropping placeholder-comment and
+// blank lines so a real finding appended under a retained `<!-- ... -->` placeholder
+// still counts (per-line filter, same idiom as startup-context.ts's task scan — a
+// whole-body startsWith('<!--') check would mask content sitting below the comment).
+// Same boundary convention as startup-context.ts's extractSection and cost-tracker.ts's
+// ## Blockers regex: a section ends at the next `\n## ` or EOF.
 function extractQuickSection(md: string, name: string): string {
   const idx = md.indexOf(`## ${name}`);
   if (idx === -1) return '';
   const bodyStart = md.indexOf('\n', idx) + 1;
   const nextSection = md.indexOf('\n## ', bodyStart);
-  const body = (nextSection !== -1 ? md.slice(bodyStart, nextSection) : md.slice(bodyStart)).trim();
-  return body.startsWith('<!--') ? '' : body;
+  const raw = nextSection !== -1 ? md.slice(bodyStart, nextSection) : md.slice(bodyStart);
+  return raw
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l && !l.startsWith('<!--'))
+    .join('\n');
 }
 
 function logQuickEmpty(stateDir: string): void {
