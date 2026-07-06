@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [0.0.13] - 2026-07-06
 
 ### Added
 - **hatch: auto-mode environment seed** — new Step 8d runs `scripts/automode-env.ts`, naming `www.strava.com` as a trusted `autoMode.environment` entry in `.claude/settings.local.json`, so Claude Code's auto-mode classifier stops treating the nightly `strava-sync` routine's read-only fetches as unrecognized outbound calls. Environment-only — no `autoMode.allow` exception is seeded.
