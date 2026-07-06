@@ -2,13 +2,38 @@
 // sets last_reflection/last_run_at, preserves all other keys.
 // Zero npm dependencies, Node stdlib only. Always exits 0 on I/O failure (fail-open).
 // Usage: bun update-reflection-state.ts <state-file-path> '<json-payload>'
+//    or: bun update-reflection-state.ts <state-file-path> --quick-hash <hash>
+//
+// --quick-hash is a distinct write path for the reflect --quick cursor: it writes ONLY
+// the top-level last_quick_hash key and does not touch last_run_at/last_reflection/counters
+// below — mutating those would suppress the next scheduled reflect (see reflect/SKILL.md's
+// quick-mode note on why it never calls the counter-incrementing path below).
 
 import fs from 'node:fs';
 
 type Json = any;
 
 const stateFile = process.argv[2];
-const payloadJson = process.argv[3];
+const arg3 = process.argv[3];
+
+if (arg3 === '--quick-hash') {
+  const hash = process.argv[4];
+  if (!stateFile || !hash) {
+    console.error('Usage: bun update-reflection-state.ts <state-file-path> --quick-hash <hash>');
+    process.exit(1);
+  }
+  let state: Json = {};
+  try { state = JSON.parse(fs.readFileSync(stateFile, 'utf-8')); } catch { /* first run before state file exists */ }
+  state.last_quick_hash = hash;
+  try {
+    fs.writeFileSync(stateFile, JSON.stringify(state, null, 2) + '\n', 'utf-8');
+  } catch (err: any) {
+    console.error(`update-reflection-state: write failed: ${err.message}`);
+  }
+  process.exit(0);
+}
+
+const payloadJson = arg3;
 
 if (!stateFile || !payloadJson) {
   console.error('Usage: bun update-reflection-state.ts <state-file-path> \'<json-payload>\'');

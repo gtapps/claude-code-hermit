@@ -1,9 +1,16 @@
 // reflect-precheck.ts — determines which reflect phases are due before invoking LLM.
-// Usage: bun reflect-precheck.ts <hermit-state-dir> <plugin-root>
-// Output (stdout, one line): EMPTY  |  RUN|<phases-json>
+// Usage: bun reflect-precheck.ts <hermit-state-dir> <plugin-root> [--quick [--force]]
+// Output (stdout, one line): EMPTY  |  RUN|<phases-json>  |  RUN|<sha256-hash> (--quick)
 //
 // On EMPTY: this script owns the audit trail — it calls update-reflection-state.ts
 // and appends the mandatory Progress Log line to SHELL.md before exiting.
+//
+// --quick gates the event-driven `reflect --quick` chain (reflect_after routines) against
+// a content hash of SHELL.md's ## Findings + ## Blockers, isolated from the scheduled
+// cadence state above (never touches last_run_at/counters). --force (only meaningful with
+// --quick) skips the EMPTY decision entirely and always returns RUN|<hash> — used by manual
+// `/reflect --quick` invocations, which need a deterministic hash to commit after processing,
+// not a gating decision (the skill is already loaded by the time this runs).
 //
 // Exit 0 always.
 
@@ -13,6 +20,7 @@ import { execFileSync } from 'node:child_process';
 import { currentHHMM } from './lib/time';
 import { readFrontmatter, isEmptyAutoArchive } from './lib/frontmatter';
 import { findStorageDrift, findSchemaDrift } from './lib/drift';
+import { sha256 } from './lib/hash';
 
 type Json = any;
 
@@ -23,6 +31,9 @@ function emit(verdict: string): never {
 
 const stateDir = process.argv[2];
 const pluginRoot = process.argv[3];
+const flags = process.argv.slice(4);
+const quickMode = flags.includes('--quick');
+const forceMode = flags.includes('--force');
 
 if (!stateDir) emit('RUN|{}');
 
@@ -30,6 +41,65 @@ const readJSON = (p: string): Json => {
   try { return JSON.parse(fs.readFileSync(p, 'utf-8')); }
   catch { return null; }
 };
+
+// Extract a top-level ## Section from SHELL.md, dropping placeholder-comment and
+// blank lines so a real finding appended under a retained `<!-- ... -->` placeholder
+// still counts (per-line filter, same idiom as startup-context.ts's task scan — a
+// whole-body startsWith('<!--') check would mask content sitting below the comment).
+// Same boundary convention as startup-context.ts's extractSection and cost-tracker.ts's
+// ## Blockers regex: a section ends at the next `\n## ` or EOF.
+function extractQuickSection(md: string, name: string): string {
+  const idx = md.indexOf(`## ${name}`);
+  if (idx === -1) return '';
+  const bodyStart = md.indexOf('\n', idx) + 1;
+  const nextSection = md.indexOf('\n## ', bodyStart);
+  const raw = nextSection !== -1 ? md.slice(bodyStart, nextSection) : md.slice(bodyStart);
+  return raw
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l && !l.startsWith('<!--'))
+    .join('\n');
+}
+
+function logQuickEmpty(stateDir: string): void {
+  const timezone = (readJSON(path.join(stateDir, 'config.json')) ?? {}).timezone ?? 'UTC';
+  const hhmm = currentHHMM(timezone);
+  appendToProgressLog(
+    path.join(stateDir, 'sessions', 'SHELL.md'),
+    `- [${hhmm}] reflect (quick, post-routine) — no new candidates`,
+  );
+}
+
+function runQuickPrecheck(stateDir: string, force: boolean): never {
+  const shellPath = path.join(stateDir, 'sessions', 'SHELL.md');
+  let shellContent = '';
+  try { shellContent = fs.readFileSync(shellPath, 'utf-8'); } catch { /* missing SHELL.md → nothing to scan */ }
+
+  const findings = extractQuickSection(shellContent, 'Findings');
+  const blockers = extractQuickSection(shellContent, 'Blockers');
+  const hash = sha256(`${findings}\n---\n${blockers}`);
+
+  if (force) emit('RUN|' + hash);
+
+  if (!findings && !blockers) {
+    logQuickEmpty(stateDir);
+    emit('EMPTY');
+  }
+
+  const reflectionState = readJSON(path.join(stateDir, 'state', 'reflection-state.json')) ?? {};
+  const storedHash = reflectionState.last_quick_hash;
+
+  // No prior cursor (storedHash undefined) never equals a hex hash, so first-run
+  // correctly falls through to RUN below without a separate branch.
+  if (storedHash === hash) {
+    logQuickEmpty(stateDir);
+    emit('EMPTY');
+  }
+
+  emit('RUN|' + hash);
+}
+
+if (quickMode) runQuickPrecheck(stateDir, forceMode);
 
 function computePhase(since: string | null) {
   if (!since) return 'adult';

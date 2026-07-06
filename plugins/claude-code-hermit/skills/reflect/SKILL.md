@@ -12,7 +12,14 @@ This skill is **silent by default**. Only notify the operator (per the channel p
 
 If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --quick`):
 
-- **Skip the precheck** entirely — the cadence gate does not apply.
+- **Obtain the quick-hash verdict:**
+  - **If `$ARGUMENTS` contains `--precheck-verdict '<verdict>'`**: the `reflect_after` routine's CronCreate prompt already ran the hash-gate precheck in bash and passed its verdict here. `<verdict>` is always a `RUN|<hash>` line — the routine stops on `EMPTY` without invoking this skill, so a no-op fire never loads this file. Parse `<hash>` from the verdict and do **not** re-run the precheck.
+  - **Otherwise** (manual `/reflect --quick`, or any invocation without the flag): run the precheck yourself in force mode — there is no gate to skip once this skill is already loaded, only a hash to obtain:
+    ```
+    bun ${CLAUDE_PLUGIN_ROOT}/scripts/reflect-precheck.ts .claude-code-hermit ${CLAUDE_PLUGIN_ROOT} --quick --force
+    ```
+    This always returns `RUN|<hash>`. Parse `<hash>` from it.
+- **Skip the cadence precheck** entirely — the scheduled-reflect cadence gate (`RUN|<phases-json>`) does not apply to quick mode; the hash-gate above is a separate, narrower mechanism.
 - **Bind `$PHASE = adult`** — skip the compute phase eval.
 - **Skip the cost_spike read, proposal scan, Resolution Check, and Component Health section.** Only the live SHELL.md scan + judge + outcomes path runs.
 - Read SHELL.md `## Findings` and `## Blockers` for actionable patterns. **Only Tier-1 + `Evidence Source: current-session` candidates are eligible** — see § Three-Condition Rule, condition 1. Candidates that would need archived-session evidence or belong to Tier 2/3 are deferred to the next scheduled reflect — append one ledger entry per deferred candidate via stdin heredoc:
@@ -22,9 +29,14 @@ If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --qu
   HERMIT_METRICS_JSON
   ```
   so the signal survives session archival and can graduate by recurrence (§ Outcomes). **Exception:** a `current-session` candidate with `Evidence Origin: external-content` (see § Proposal Tier Classification) is **not** deferred — send it to the judge and let the Tier-3 escalation route it to `proposal-create`.
-- For each candidate that passes the evidence integrity rule, run `claude-code-hermit:proposal-triage`. Collect candidates where triage returned CREATE, then make a single `claude-code-hermit:reflection-judge` call for those candidates (see § Evidence Validation for input/output format). Route each ACCEPT/DOWNGRADE verdict through the standard Outcomes path (micro-approval queue for Tier 1/2, `/claude-code-hermit:proposal-create` for Tier 3). An unrecognized triage or judge verdict (empty/malformed output) is treated as a SUPPRESS — drop the candidate and apply the gate-failed metric and Progress Log note (see § Proposal triage gate and § Evidence Validation for the append commands).
+- For each candidate that passes the evidence integrity rule, run `claude-code-hermit:proposal-triage`. Collect candidates where triage returned CREATE, then make a single `claude-code-hermit:reflection-judge` call for those candidates (see § Evidence Validation for input/output format). Route each ACCEPT/DOWNGRADE verdict through the standard Outcomes path (micro-approval queue for Tier 1/2, `/claude-code-hermit:proposal-create` for Tier 3). An unrecognized triage or judge verdict (empty/malformed output) is treated as a SUPPRESS — drop the candidate and apply the gate-failed metric and Progress Log note (see § Proposal triage gate and § Evidence Validation for the append commands). **Track whether any candidate hit this gate-failed/SUPPRESS path this run** — it gates the cursor write below.
 - Append one Progress Log line: `[HH:MM] reflect (quick, post-routine) — N candidates; verdicts: accept=A downgrade=D suppress=S; outcomes: <list or "none">`. When suppress>0, append the same `; suppressed: [<slug>: <code>, ...]` suffix the scheduled path uses (see § Progress Log Entry) so quick-run suppressions reach the weekly digest.
-- **Do not call `update-reflection-state.ts`** — quick runs are event-driven, not cadence ticks. Mutating `last_run_at` would suppress the next scheduled reflect. Consequence: judge verdicts from quick runs do not accumulate into the Component Health counters (`judge_accept` / `judge_suppress`); on daemons with frequent `reflect_after` use, those counters will under-represent total judge activity. This is intentional — cadence preservation wins.
+- **Advance the quick-hash cursor, but only on a clean run.** If no candidate hit the gate-failed/SUPPRESS path this run, commit the hash obtained above so the next `reflect_after` fire can skip an unchanged scan:
+  ```
+  bun ${CLAUDE_PLUGIN_ROOT}/scripts/update-reflection-state.ts .claude-code-hermit/state/reflection-state.json --quick-hash '<hash>'
+  ```
+  **If any candidate hit gate-failed/SUPPRESS this run, skip this call** — leave `last_quick_hash` at its previous value so the next `reflect_after` fire re-reads the same Findings/Blockers, matching the "the candidate re-surfaces on the next reflect cycle" contract used elsewhere in this skill (§ Evidence Validation, § Proposal triage gate). Deferred candidates (the quick-deferral bullet above) do not need this protection — they are already durable in `observations.jsonl` independent of this cursor.
+- **Do not call the counter-incrementing `update-reflection-state.ts <path> '<json-payload>'` form** — quick runs are event-driven, not cadence ticks. Mutating `last_run_at` would suppress the next scheduled reflect. Consequence: judge verdicts from quick runs do not accumulate into the Component Health counters (`judge_accept` / `judge_suppress`); on daemons with frequent `reflect_after` use, those counters will under-represent total judge activity. This is intentional — cadence preservation wins. (The `--quick-hash` form above is a distinct, isolated write and does not touch `last_run_at`/counters.)
 - Then stop. Do not continue to the scheduled-reflect steps below.
 
 ## Scheduled-checks mode

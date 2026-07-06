@@ -42,7 +42,9 @@ describe('GITIGNORE-APPEND.txt', () => {
 // Producer + readers in core.
 const CORE_CONSUMERS = [
   'skills/hatch/SKILL.md',
-  'skills/hermit-evolve/SKILL.md',
+  // hermit-evolve's hatch-options read lives in reference.md (step 1), read only
+  // by the evolve-runner subagent — SKILL.md is a thin routing stub.
+  'skills/hermit-evolve/reference.md',
   'skills/docker-setup/SKILL.md',
   'skills/migrate/SKILL.md',
 ];

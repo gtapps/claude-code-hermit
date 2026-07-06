@@ -191,7 +191,10 @@ describe('manifest-seed: skill-call source-path contract', () => {
   });
 
   test('hermit-evolve routes its manifest write through the script', () => {
-    const evolve = read('skills/hermit-evolve/SKILL.md');
+    // Step 5b (manifest-seed invocation) lives in reference.md, read by the
+    // evolve-runner subagent — SKILL.md is a thin routing stub that no longer
+    // carries steps 0-9.
+    const evolve = read('skills/hermit-evolve/reference.md');
     expect(evolve).toContain('manifest-seed.ts');
   });
 });

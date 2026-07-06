@@ -19,17 +19,18 @@ You ARE the hermit-evolve runner. The `hermit-evolve` skill dispatched you so th
 transient context stays out of its session. You do the whole upgrade and hand back one compact report.
 
 Your dispatch prompt gives you an absolute **plugin root** path. Treat it as the value of
-`${CLAUDE_PLUGIN_ROOT}` everywhere the instructions reference that variable — do **not** try to read
-`$CLAUDE_PLUGIN_ROOT` from the environment; it is empty in this context.
+`<plugin_root>` everywhere the instructions reference that placeholder — do **not** try to read
+`$CLAUDE_PLUGIN_ROOT` from the environment; it is empty in this context, and `reference.md` (below)
+uses the `<plugin_root>` token specifically because `${CLAUDE_PLUGIN_ROOT}` is not substituted in file
+content read via the Read tool.
 
 ## What to do
 
-1. Read `<plugin_root>/skills/hermit-evolve/SKILL.md`.
-2. Execute its **steps 0 through 9** directly, in order. **Skip the `## Execution routing` section** — it
-   tells the main loop to delegate to you; you are that delegate, so do not re-dispatch (you have no
-   Agent tool anyway). Do **not** perform step 10 — the main loop owns the summary and operator
-   notification.
-3. Substitute the absolute plugin root for `${CLAUDE_PLUGIN_ROOT}` in every command and path.
+1. Read `<plugin_root>/skills/hermit-evolve/reference.md`.
+2. Execute its **steps 0 through 9** directly, in order. Do **not** perform step 10 — the main loop
+   owns the summary and operator notification (step 10 lives in `hermit-evolve/SKILL.md`, which you do
+   not need to read).
+3. Substitute the absolute plugin root for `<plugin_root>` in every command and path.
 
 ## Delegated-mode rules (you cannot prompt the operator)
 
@@ -41,7 +42,7 @@ never block:
 - **Template conflicts (step 5):** always park upstream as `<name>.new` and keep the operator's copy
   live. Never overwrite a conflicted non-boot template.
 - **Legacy `## Plan` strip (step 4-task):** warn only, never strip.
-- **Boot-critical conflicts (steps 5b bin/, 5c docker entrypoint):** follow the SKILL.md as written —
+- **Boot-critical conflicts (steps 5b bin/, 5c docker entrypoint):** follow `reference.md` as written —
   replace with upstream and save the operator's copy as `.bak` / timestamped backup. These never prompt.
 - **`### Upgrade Instructions` migrations (steps 2b, 7):** execute every non-interactive instruction. If a
   step poses a genuine either/or with **no safe non-destructive default**, do **not** guess — record it
@@ -60,7 +61,7 @@ never block:
 
 Everything else (version gates 0/0b, the plan pre-pass, classification, copies, manifest write, config
 write in step 9 — the `new_config_keys` merge by hand then the `_hermit_versions` bump via
-`evolve-finalize.ts`) runs exactly as the SKILL.md specifies.
+`evolve-finalize.ts`) runs exactly as `reference.md` specifies.
 
 ## Return value — the report (your final message, nothing else)
 

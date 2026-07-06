@@ -1274,6 +1274,26 @@ describe('hermit-evolve delegation contract', () => {
     const agent = read(path.join(AGENTS, 'evolve-runner.md'));
     expect(block(agent)).toBe(block(skill));
   });
+
+  test('evolve-runner reads reference.md, not SKILL.md, for steps 0-9', () => {
+    // Unlike the generic skill-eval-runner dispatchers (reflect/brief/weekly-review),
+    // evolve-runner is a dedicated agent that hard-codes the file it reads — so this
+    // guards the one place a stale "Read .../SKILL.md" instruction would silently
+    // leave the runner executing pre-split steps that no longer live there.
+    const agent = read(path.join(AGENTS, 'evolve-runner.md'));
+    expect(agent).toContain('hermit-evolve/reference.md');
+  });
+
+  test('hermit-evolve/reference.md exists', () => {
+    expect(fs.existsSync(path.join(SKILLS, 'hermit-evolve', 'reference.md'))).toBe(true);
+  });
+
+  test('SKILL.md guards both SKILL.md and reference.md before dispatch', () => {
+    // reference.md is load-bearing for evolve-runner post-split; a guard that only
+    // checks SKILL.md would dispatch into a broken read if reference.md were missing.
+    expect(skill).toContain('skills/hermit-evolve/SKILL.md');
+    expect(skill).toContain('skills/hermit-evolve/reference.md');
+  });
 });
 
 // ============================================================

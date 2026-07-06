@@ -7,6 +7,8 @@
 
 ### Changed
 - **hermit-routines: quiet success-path load log** — a clean `load` run now logs registration counts only; the full per-ID CronCreate list is reserved for runs with at least one failure. Cuts a recurring ~21-ID dump from SHELL.md on every session start and daily `heartbeat-restart` re-arm. (#533)
+- **reflect: `--quick` mode gains a precheck gate** — `reflect_after` routines now run a bash-only content-hash check against SHELL.md's `## Findings`/`## Blockers` before invoking `/reflect --quick`; an unchanged scan since the last processed quick run short-circuits to a one-line Progress Log note instead of loading the 49KB skill body. Manual `/reflect --quick` invocations are unaffected. (#531)
+- **hermit-evolve: split into a thin stub + `reference.md`** — steps 0-9 (the upgrade procedure) now live in a new `reference.md`, read only by the `evolve-runner` subagent; `SKILL.md` keeps only routing and step 10, matching the pattern already used by `reflect`/`brief`/`weekly-review`. No behavior change — same steps, same delegation. (#531)
 
 ### Fixed
 - **watchdog: context-hygiene thresholds measure real context size, not the per-turn billing sum** — a multi-call turn summed every API call, so a ~300k context could log ~1.5M tokens and misfire the 700k `/clear`. `cost-tracker.ts` records `max_prompt_tokens` (the largest single call) per turn; the destructive `/clear` requires that real metric and never fires on the per-call-average fallback used for legacy entries.
