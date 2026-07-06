@@ -18,6 +18,8 @@
 Run `/claude-code-hermit:hermit-evolve`. No new config keys this release; the evolve skill handles one state repair:
 
 1. **Clear a stuck shutdown stamp.** Read `.claude-code-hermit/state/runtime.json`. If `session_state` is `in_progress` or `waiting`, or a tmux/docker session for this hermit is currently alive, AND either `shutdown_requested_at` or `shutdown_completed_at` is non-null: set both fields to `null` and write the file back. This is the exact fleet pathology this release fixes — a nightly auto-close (or any close routed through `/session-close`'s "Full Shutdown" framing without a matching `hermit-stop.ts`-initiated `shutdown_requested_at`) leaves a stamp that silently disables watchdog restart recovery and both context-hygiene tiers (`maybeContextClear`/`maybeContextCompact`) until the hermit's next restart. Skip this step if the session is genuinely idle/stopped — a stamp on a stopped hermit is correct and must not be cleared.
+### Changed
+- **hermit-routines: quiet success-path load log** — a clean `load` run now logs registration counts only; the full per-ID CronCreate list is reserved for runs with at least one failure. Cuts a recurring ~21-ID dump from SHELL.md on every session start and daily `heartbeat-restart` re-arm. (#533)
 
 ## [1.2.18] - 2026-07-05
 
