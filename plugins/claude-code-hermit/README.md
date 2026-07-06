@@ -184,7 +184,7 @@ All live-editable with `/hermit-settings` (or just ask the hermit) — no reboot
 
 - **Idle behavior.** `discover` (default) adds a priority-alignment pass against `OPERATOR.md` + cost log; `wait` is passive (tasks/channels only). Either way the daily `reflect` routine still runs — `wait` only silences between-schedule discovery, not the learning loop.
 
-- **Routines.** Each routine takes an optional `model`: run lightweight ones on `haiku` to save cost or heavier ones on `opus` for more reasoning, in an isolated subagent. Omit `model` to keep it inline in the main session context — use that when the routine's value is its chat/transcript output, not just a status line.
+- **Routines.** Each routine takes an optional `model`: run lightweight ones on `haiku` to save cost or heavier ones on `opus` for more reasoning, in an isolated subagent. Omit `model` to keep it inline in the main session context — use that when the routine's value is its chat/transcript output, not just a status line. When several routines fire around the same time, offset them by a minute or two so the later ones reuse the warm prompt cache instead of hitting a cold one (see [Config Reference](docs/config-reference.md) for the full rule).
 
 - **Quiet & cheap:** `idle_behavior: "wait"` + a longer `heartbeat.every` + `quality_gate.tier: "budget"` (the default). Idle cost is already near-zero; these trim the rest.
 
