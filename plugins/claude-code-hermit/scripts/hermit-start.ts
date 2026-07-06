@@ -433,6 +433,20 @@ function checkStaleRuntime(config: Json, sessionName: string): void {
   }
 }
 
+/**
+ * Clears shutdown_requested_at/shutdown_completed_at on an existing runtime.json
+ * before a fresh hermit-start boot. A deliberate start supersedes any prior
+ * shutdown intent — a stamp left over from a non-hermit-stop close (a nightly
+ * auto-close reusing /session-close's "Full Shutdown" framing while the always-on
+ * process stays alive) otherwise bricks watchdog restart recovery AND
+ * context-hygiene compaction/clear forever, since passesLifecycleGuards treats any
+ * non-null stamp as "the hermit is stopping". Mutates `existing` in place.
+ */
+function clearShutdownStampsOnBoot(existing: Json): void {
+  existing.shutdown_requested_at = null;
+  existing.shutdown_completed_at = null;
+}
+
 /** Acquire exclusive lifecycle lock. Exits on contention. */
 function acquireLifecycleLock(): void {
   if (process.platform === 'win32') {
@@ -896,10 +910,11 @@ async function main(): Promise<void> {
         last_shell_snapshot_at: null,
       });
     } else {
-      // Preserve lifecycle fields for session-start recovery
+      // Preserve lifecycle fields for session-start recovery.
       existing.version = 1;
       existing.runtime_mode = 'interactive';
       existing.tmux_session = null;
+      clearShutdownStampsOnBoot(existing);
       writeRuntimeJson(existing);
     }
     console.log(`[hermit] Running: ${shlexJoin(cmd)}`);
@@ -981,10 +996,11 @@ async function main(): Promise<void> {
       last_shell_snapshot_at: null,
     });
   } else {
-    // Preserve lifecycle fields for session-start recovery
+    // Preserve lifecycle fields for session-start recovery.
     existing.version = 1;
     existing.runtime_mode = runtimeMode;
     existing.tmux_session = sessionName;
+    clearShutdownStampsOnBoot(existing);
     writeRuntimeJson(existing);
   }
 
@@ -1049,6 +1065,7 @@ export {
   writeRuntimeJson,
   readRuntimeJson,
   checkStaleRuntime,
+  clearShutdownStampsOnBoot,
   acquireLifecycleLock,
   fetchRegisteredMarketplaces,
   iterChannelConfigs,

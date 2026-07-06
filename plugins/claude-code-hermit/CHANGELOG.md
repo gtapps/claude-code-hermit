@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **watchdog: `last_hygiene_eval` telemetry** — every `maybeContextClear`/`maybeContextCompact` tick stamps `watchdog-state.json` with why it fired or skipped (`fired`, `skip:lifecycle:<reason>`, `skip:below-floor`, `skip:interval-cooldown`, etc.), surfaced in `hermit-doctor`'s `watchdog` check. Previously every gate was a silent `return`, so a starved hygiene tier was undiagnosable from state alone.
+
+### Fixed
+- **watchdog: context-hygiene thresholds now measure real context size, not the per-turn billing sum** — a multi-tool-call turn's cost-log entry summed every API call in the turn, so a ~300k context with 5 calls logged ~1.5M "prompt tokens" and could misfire the 700k emergency `/clear` on an ordinary session. `cost-tracker.ts` now records `max_prompt_tokens` (the largest single call's input+cache) per turn; the watchdog prefers it, falling back to the per-call average for pre-existing log entries.
+- **watchdog: a subagent's own cost-log line no longer masks its dispatching turn's token count** — `getLastCostLogEntry` skipped subagent-appended lines are the small, correct thing to skip; previously the literal last line (often a small subagent entry appended after the real turn) could read as under the compaction floor even when the dispatching turn was bloated.
+- **watchdog: idle-phase context accumulation is now visible to both hygiene tiers** — `maybeContextClear`/`maybeContextCompact` bailed whenever `runtime.session_id` was null, which is most of an always-on hermit's life between S-NNN work arcs (heartbeat/routine/channel wakes). Both now fall back to the harness session id `cost-tracker.ts` persists to `sessions/.status.json`, the same value already used to key those cost-log entries.
+- **hermit-start: a fresh boot clears stale `shutdown_requested_at`/`shutdown_completed_at`** — a deliberate `hermit-start` now supersedes any prior shutdown intent left in `runtime.json`. Previously a stamp from a non-hermit-stop close survived indefinitely, and `passesLifecycleGuards` treats any non-null stamp as "the hermit is stopping" — bricking watchdog restart recovery and both context-hygiene tiers until the next restart.
+- **session-mgr: `shutdown_completed_at` is only stamped when a real shutdown was requested** — `/session-close`'s "Full Shutdown" framing applies to every close (operator-invoked, `--auto`, `--scheduled`), including a nightly auto-close that leaves the always-on process running. session-mgr now only sets `shutdown_completed_at` when `shutdown_requested_at` is already non-null (set by `hermit-stop.ts` before it dispatches the close), the mechanical signal that this is an actual hermit-stop rather than a routine session archival.
+- **hermit-doctor: `watchdog` check covers the hygiene tier independent of `watchdog.enabled`** — steps 0a-0c (post-close clear, emergency clear, routine-hygiene compact) run regardless of the restart tier's enabled flag; the check previously reported a flat "disabled (opt-in)" `ok` whenever the restart tier was off, even with hygiene active and the scheduler not ticking. New pathology warning names a shutdown stamp stuck on a still-alive session.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. No new config keys this release; the evolve skill handles one state repair:
+
+1. **Clear a stuck shutdown stamp.** Read `.claude-code-hermit/state/runtime.json`. If `session_state` is `in_progress` or `waiting`, or a tmux/docker session for this hermit is currently alive, AND either `shutdown_requested_at` or `shutdown_completed_at` is non-null: set both fields to `null` and write the file back. This is the exact fleet pathology this release fixes — a nightly auto-close (or any close routed through `/session-close`'s "Full Shutdown" framing without a matching `hermit-stop.ts`-initiated `shutdown_requested_at`) leaves a stamp that silently disables watchdog restart recovery and both context-hygiene tiers (`maybeContextClear`/`maybeContextCompact`) until the hermit's next restart. Skip this step if the session is genuinely idle/stopped — a stamp on a stopped hermit is correct and must not be cleared.
+
 ## [1.2.18] - 2026-07-05
 
 ### Added

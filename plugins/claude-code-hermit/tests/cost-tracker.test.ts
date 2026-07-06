@@ -210,6 +210,14 @@ describe('cost-tracker subagent log lines', () => {
     expect(entry.model_resolved).toBe(true); // resolvedModel was present
   });
 
+  test('cost-tracker: main entry carries max_prompt_tokens; subagent entry does not', () => {
+    const lines = fs.readFileSync(logPath, 'utf-8').trim().split('\n');
+    const mainEntry = JSON.parse(lines[0]);
+    const subEntry = JSON.parse(lines[1]);
+    expect(typeof mainEntry.max_prompt_tokens).toBe('number');
+    expect(subEntry.max_prompt_tokens).toBeUndefined();
+  });
+
   test('cost-tracker: subagent entry inherits the dispatching source', () => {
     const lines = fs.readFileSync(logPath, 'utf-8').trim().split('\n');
     const subEntry = JSON.parse(lines[1]);
@@ -268,5 +276,48 @@ describe('cost-tracker subagent with no resolvedModel', () => {
     expect(subEntry.model_resolved).toBe(false);
     expect(subEntry.model).toBe('sonnet');
     expect(subEntry.input_tokens).toBe(1000);
+  });
+});
+
+// max_prompt_tokens is the real context-size signal watchdog's hygiene thresholds
+// key on (a multi-call turn's summed input_tokens is a multiple of its actual
+// context, not the context itself) — the largest single API call in the turn.
+describe('cost-tracker: max_prompt_tokens (real context size vs per-turn sum)', () => {
+  let dir: string;
+  let logPath: string;
+
+  beforeAll(async () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-cost-tracker-maxprompt-'));
+    fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
+    logPath = path.join(dir, '.claude', 'cost-log.jsonl');
+    const stateDir = path.join(dir, '.claude-code-hermit', 'state');
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(path.join(stateDir, 'runtime.json'), JSON.stringify({ session_id: 'test-session', session_state: 'active' }));
+
+    // Three API calls in one turn: 100k, 300k (the largest), 50k (billedIndex).
+    // Summed, the turn logs 450k prompt tokens; the real context peak was 300k.
+    const transcriptLines = [
+      triggerPrompt('[hermit-routine:demo] start'),
+      assistantEntry('claude-sonnet-4-6', 100000, 50),
+      assistantEntry('claude-sonnet-4-6', 300000, 60),
+      assistantEntry('claude-sonnet-4-6', 50000, 5),
+    ];
+    const transcriptPath = path.join(dir, 'transcript.jsonl');
+    fs.writeFileSync(transcriptPath, transcriptLines.join('\n') + '\n');
+
+    const stdin = JSON.stringify({ session_id: 'test-session', transcript_path: transcriptPath });
+    await runScript('cost-tracker.ts', { stdin, cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT } });
+  });
+
+  afterAll(() => {
+    if (dir) fs.rmSync(dir, { recursive: true });
+  });
+
+  test('main entry carries max_prompt_tokens equal to the single largest call, not the sum', () => {
+    const [firstLine] = fs.readFileSync(logPath, 'utf-8').trim().split('\n');
+    const entry = JSON.parse(firstLine);
+    expect(entry.input_tokens).toBe(450000); // the pre-existing per-turn sum, unchanged
+    expect(entry.max_prompt_tokens).toBe(300000); // the real context-size signal
+    expect(entry.api_calls).toBe(3);
   });
 });

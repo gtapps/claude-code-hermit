@@ -667,32 +667,59 @@ function checkWatchdog() {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     const wCfg = config.watchdog || {};
 
-    if (!wCfg.enabled) {
+    // Steps 0a-0c (post-close clear, emergency clear, routine-hygiene compact) run
+    // independent of watchdog.enabled — a hermit can have the restart tier off and
+    // still depend on the scheduler tick for hygiene. Only report the "disabled
+    // (opt-in)" all-clear when nothing at all needs that tick.
+    const hygieneActive = config.post_close_clear === true
+      || (typeof wCfg.context_clear_tokens === 'number' && wCfg.context_clear_tokens > 0)
+      || config.context_hygiene?.compact?.enabled === true;
+
+    if (!wCfg.enabled && !hygieneActive) {
       return { id: 'watchdog', status: 'ok', detail: 'watchdog: disabled (opt-in via config.watchdog.enabled)' };
+    }
+
+    let runtime: Json = null;
+    try { runtime = JSON.parse(fs.readFileSync(path.join(stateDir, 'runtime.json'), 'utf-8')); } catch {}
+
+    // Pathology: a shutdown stamp on a session that's actually still alive silently
+    // bricks context hygiene AND watchdog restart recovery — passesLifecycleGuards
+    // treats any non-null shutdown_requested_at/shutdown_completed_at as "the hermit
+    // is stopping". hermit-start clears both stamps on boot, so surviving stamp here
+    // means a non-hermit-stop close planted it (a nightly auto-close reusing
+    // /session-close's "Full Shutdown" framing) and the hermit hasn't restarted since.
+    if (runtime && ['in_progress', 'waiting'].includes(runtime.session_state)) {
+      const stamp = runtime.shutdown_requested_at || runtime.shutdown_completed_at;
+      if (stamp) {
+        return {
+          id: 'watchdog',
+          status: 'warn',
+          detail: `watchdog: session alive (${runtime.session_state}) but runtime.json carries a shutdown stamp (${stamp}) — blocks context hygiene and watchdog restart until the next hermit-start clears it`,
+        };
+      }
     }
 
     const statePath = path.join(stateDir, 'watchdog-state.json');
     let consecutive = 0;
     let lastRun: string | null = null;
+    let lastHygieneEval: Json = null;
     try {
       const ws = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
       consecutive = ws.consecutive_stale || 0;
       lastRun = typeof ws.last_run === 'string' ? ws.last_run : null;
+      lastHygieneEval = ws.last_hygiene_eval ?? null;
     } catch {}
 
     // Liveness: the watchdog stamps last_run on every invocation, before any gate. A
     // missing or stale last_run means the scheduler/loop isn't firing the script — a
-    // higher-severity signal than any past restart, so it takes precedence.
+    // higher-severity signal than any past restart, so it takes precedence. Checked
+    // even when the restart tier is off, since the hygiene tier needs the same tick.
     const STALE_MS = 20 * 60 * 1000; // ~4× the ~5 min tick interval
     const lastRunMs = lastRun ? Date.parse(lastRun) : NaN;
     const stale = !Number.isFinite(lastRunMs) || Date.now() - lastRunMs > STALE_MS;
 
     if (stale) {
-      let mode: string | undefined;
-      try {
-        const rt = JSON.parse(fs.readFileSync(path.join(stateDir, 'runtime.json'), 'utf-8'));
-        mode = rt.runtime_mode;
-      } catch {}
+      const mode = runtime?.runtime_mode;
       const ageNote = Number.isFinite(lastRunMs)
         ? `last ran ${Math.round((Date.now() - lastRunMs) / 60000)}m ago`
         : 'never ran';
@@ -712,6 +739,8 @@ function checkWatchdog() {
     let restarts = 0;
     let nudges = 0;
     let rearms = 0;
+    let clears = 0;
+    let compacts = 0;
     try {
       const lines = fs.readFileSync(eventsPath, 'utf-8').split('\n');
       for (const line of lines) {
@@ -722,14 +751,23 @@ function checkWatchdog() {
           if (e.action === 'restart') restarts++;
           else if (e.action === 'nudge') nudges++;
           else if (e.action === 're-arm-fallback') rearms++;
+          else if (e.action === 'context-clear') clears++;
+          else if (e.action === 'context-compact') compacts++;
         } catch {}
       }
     } catch {}
 
-    const parts = [`restarts: ${restarts}`, `nudges: ${nudges}`, `re-arms: ${rearms}`];
+    const parts = [`restarts: ${restarts}`, `nudges: ${nudges}`, `re-arms: ${rearms}`, `clears: ${clears}`, `compacts: ${compacts}`];
     if (consecutive > 0) parts.push(`stale cycles in progress: ${consecutive}`);
-    const tickNote = `last tick ${Math.round((Date.now() - lastRunMs) / 60000)}m ago`;
-    const detail = `watchdog: enabled, ${tickNote} — ${parts.join(', ')} (last 7d)`;
+    if (lastHygieneEval && typeof lastHygieneEval.outcome === 'string') {
+      const evalMs = typeof lastHygieneEval.ts === 'string' ? Date.parse(lastHygieneEval.ts) : NaN;
+      const ageSuffix = Number.isFinite(evalMs) ? `, ${Math.round((Date.now() - evalMs) / 60000)}m ago` : '';
+      parts.push(`last hygiene eval: ${lastHygieneEval.mechanism}/${lastHygieneEval.outcome}${ageSuffix}`);
+    }
+    const label = wCfg.enabled
+      ? `enabled, last tick ${Math.round((Date.now() - lastRunMs) / 60000)}m ago`
+      : 'restart tier disabled, hygiene tier active';
+    const detail = `watchdog: ${label} — ${parts.join(', ')} (last 7d)`;
 
     if (restarts > 0 || consecutive > 0) {
       return { id: 'watchdog', status: 'warn', detail };
