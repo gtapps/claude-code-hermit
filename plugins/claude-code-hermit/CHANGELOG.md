@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **hermit-routines: quiet success-path load log** — a clean `load` run now logs registration counts only; the full per-ID CronCreate list is reserved for runs with at least one failure. Cuts a recurring ~21-ID dump from SHELL.md on every session start and daily `heartbeat-restart` re-arm. (#533)
+
 ## [1.2.18] - 2026-07-05
 
 ### Added

@@ -35,7 +35,7 @@ Called automatically by `hermit-start.ts` on always-on launches. Can also be cal
    - `prompt`: the resolved prompt string
 
    **Per-routine error isolation:** if `CronCreate` throws for one routine (bad cron expression, hit the 50-task session limit, etc.), record the failure and continue with the next routine. Do not abort the loop — one bad config entry must not prevent unrelated routines from registering.
-5. Log one line summarizing outcomes: `Routines registered: <id1>, <id2> (<N> ok, <M> failed[, <K> tz-shifted, <W> tz-warned])`. If any failed, list each failed id with the error on its own line. If any warned, list each warned id with the WARN reason on its own line.
+5. Log one line summarizing outcomes. If `M == 0` (no failures), log counts only — no per-ID list: `Routines registered: <N> ok, 0 failed[, <K> tz-shifted, <W> tz-warned]`. If `M > 0`, log the full per-ID form: `Routines registered: <id1>, <id2> (<N> ok, <M> failed[, <K> tz-shifted, <W> tz-warned])`, then list each failed id with the error on its own line. Regardless of `M`, if any warned, list each warned id with the WARN reason on its own line.
 
 #### Prompt templates
 
