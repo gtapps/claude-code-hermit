@@ -2,8 +2,25 @@
 
 ## [Unreleased]
 
+### Added
+- **watchdog: `last_hygiene_eval` telemetry** — each `maybeContextClear`/`maybeContextCompact` tick records why it fired or skipped in `watchdog-state.json`, keyed per mechanism so the clear and compact tiers keep separate records, surfaced in `hermit-doctor`. Previously every gate was a silent `return`.
+
 ### Changed
 - **hermit-routines: quiet success-path load log** — a clean `load` run now logs registration counts only; the full per-ID CronCreate list is reserved for runs with at least one failure. Cuts a recurring ~21-ID dump from SHELL.md on every session start and daily `heartbeat-restart` re-arm. (#533)
+
+### Fixed
+- **watchdog: context-hygiene thresholds measure real context size, not the per-turn billing sum** — a multi-call turn summed every API call, so a ~300k context could log ~1.5M tokens and misfire the 700k `/clear`. `cost-tracker.ts` records `max_prompt_tokens` (the largest single call) per turn; the destructive `/clear` requires that real metric and never fires on the per-call-average fallback used for legacy entries.
+- **watchdog: a subagent's own cost-log line no longer masks its dispatching turn** — `getLastCostLogEntry` skips subagent-appended lines, which could otherwise read as under the compaction floor while the real turn was bloated.
+- **watchdog: idle-phase accumulation is visible to both hygiene tiers** — when `runtime.session_id` is null (heartbeat/routine/channel wakes between work arcs) both fall back to the harness session id in `sessions/.status.json`; `hermit-start` drops that cache on boot so a post-restart tick can't act on a defunct session's entry.
+- **hermit-start: a fresh boot clears stale `shutdown_requested_at`/`shutdown_completed_at`** — a deliberate start supersedes prior shutdown intent, which `passesLifecycleGuards` otherwise reads as "stopping" forever, bricking watchdog restart recovery and both hygiene tiers.
+- **session-mgr: `shutdown_completed_at` is stamped only when a shutdown was actually requested** — set it only when `shutdown_requested_at` is already non-null (`hermit-stop.ts`'s signal), so a nightly auto-close reusing the "Full Shutdown" framing no longer falsely marks the always-on process as stopping.
+- **hermit-doctor: `watchdog` check covers the hygiene tier independent of `watchdog.enabled`** — steps 0a-0c depend on the scheduler tick even when the restart tier is off. Adds a pathology warning for a shutdown stamp stuck on a still-alive session, checked after the liveness signal (which wins when both hold) and gated on stamp age so an in-flight `hermit-stop` doesn't false-positive.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. No new config keys this release; the evolve skill handles one state repair:
+
+1. **Clear a stuck shutdown stamp.** Read `.claude-code-hermit/state/runtime.json`. If `session_state` is `in_progress` or `waiting`, or a tmux/docker session for this hermit is currently alive, AND either `shutdown_requested_at` or `shutdown_completed_at` is non-null: set both fields to `null` and write the file back. This is the exact fleet pathology this release fixes — a nightly auto-close (or any close routed through `/session-close`'s "Full Shutdown" framing without a matching `hermit-stop.ts`-initiated `shutdown_requested_at`) leaves a stamp that silently disables watchdog restart recovery and both context-hygiene tiers (`maybeContextClear`/`maybeContextCompact`) until the hermit's next restart. Skip this step if the session is genuinely idle/stopped — a stamp on a stopped hermit is correct and must not be cleared.
 
 ## [1.2.18] - 2026-07-05
 

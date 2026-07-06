@@ -40,6 +40,8 @@ import {
   sandboxProbeCached,
   checkSandboxCapability,
   applyAlwaysOnDoctorSchedule,
+  clearShutdownStampsOnBoot,
+  clearStatusCacheOnBoot,
 } from '../scripts/hermit-start';
 
 const PLUGIN_ROOT = path.resolve(import.meta.dir, '..');
@@ -823,5 +825,77 @@ describe('applyAlwaysOnDoctorSchedule', () => {
 
   test('no routines array does not throw', () => {
     expect(() => applyAlwaysOnDoctorSchedule({})).not.toThrow();
+  });
+});
+
+// ============================================================
+// clearShutdownStampsOnBoot: a fresh hermit-start supersedes any prior
+// shutdown intent left in runtime.json (e.g. from a nightly auto-close that
+// isn't a real hermit-stop) — both preserve-branches in main() call this
+// before writeRuntimeJson so watchdog restart/hygiene aren't bricked forever.
+// ============================================================
+
+describe('clearShutdownStampsOnBoot', () => {
+  test('nulls both stamps when both were set', () => {
+    const runtime = { session_state: 'idle', shutdown_requested_at: '2026-07-03T23:30:00Z', shutdown_completed_at: '2026-07-04T00:30:00Z' };
+    clearShutdownStampsOnBoot(runtime);
+    expect(runtime.shutdown_requested_at).toBeNull();
+    expect(runtime.shutdown_completed_at).toBeNull();
+  });
+
+  test('nulls a lone shutdown_completed_at (the fleet pathology: auto-close without a matching request)', () => {
+    const runtime = { session_state: 'idle', shutdown_requested_at: null, shutdown_completed_at: '2026-07-04T00:30:00Z' };
+    clearShutdownStampsOnBoot(runtime);
+    expect(runtime.shutdown_requested_at).toBeNull();
+    expect(runtime.shutdown_completed_at).toBeNull();
+  });
+
+  test('leaves other fields untouched', () => {
+    const runtime = { session_state: 'idle', session_id: 'S-030', shutdown_requested_at: null, shutdown_completed_at: '2026-07-04T00:30:00Z' };
+    clearShutdownStampsOnBoot(runtime);
+    expect(runtime.session_state).toBe('idle');
+    expect(runtime.session_id).toBe('S-030');
+  });
+
+  test('no-op when both were already null', () => {
+    const runtime = { session_state: 'idle', shutdown_requested_at: null, shutdown_completed_at: null };
+    clearShutdownStampsOnBoot(runtime);
+    expect(runtime.shutdown_requested_at).toBeNull();
+    expect(runtime.shutdown_completed_at).toBeNull();
+  });
+});
+
+// ============================================================
+// clearStatusCacheOnBoot: an always-on boot drops the sessions/.status.json
+// cost cache so the watchdog's idle-phase hygiene fallback can't resolve the
+// defunct prior process's harness session (whose last cost entry predates the
+// restart) and fire a spurious /compact or /clear into the fresh context.
+// ============================================================
+
+describe('clearStatusCacheOnBoot', () => {
+  let dir: string;
+  let origCwd: string;
+  const statusPath = path.join('.claude-code-hermit', 'sessions', '.status.json');
+
+  beforeEach(() => {
+    origCwd = process.cwd();
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-status-cache-'));
+    process.chdir(dir);
+  });
+
+  afterEach(() => {
+    process.chdir(origCwd);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('removes an existing sessions/.status.json', () => {
+    fs.mkdirSync(path.dirname(statusPath), { recursive: true });
+    fs.writeFileSync(statusPath, JSON.stringify({ session_id: 'defunct-harness-uuid' }));
+    clearStatusCacheOnBoot();
+    expect(fs.existsSync(statusPath)).toBe(false);
+  });
+
+  test('no-op (no throw) when the cache does not exist', () => {
+    expect(() => clearStatusCacheOnBoot()).not.toThrow();
   });
 });

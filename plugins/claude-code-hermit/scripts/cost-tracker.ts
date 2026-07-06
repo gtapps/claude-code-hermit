@@ -153,11 +153,16 @@ function collectSubagentUsage(lines: string[], billedIndex: number): Array<{
 // Limitation: a turn spanning more than TAIL_BYTES is summed from buffer start, not the real boundary — same bleed as scanTriggerMarkers.
 function sumTurnUsage(lines: string[], billedIndex: number): {
   inputTokens: number; cacheWriteTokens: number; cacheReadTokens: number;
-  outputTokens: number; model: string; apiCalls: number;
+  outputTokens: number; model: string; apiCalls: number; maxPromptTokens: number;
 } {
   let inputTokens = 0, cacheWriteTokens = 0, cacheReadTokens = 0, outputTokens = 0;
   let model = 'sonnet';
   let apiCalls = 0;
+  // The per-turn sum below bills every API call the turn made, so a multi-tool-call
+  // turn logs a multiple of its actual context size. Consumers that care about context
+  // size (watchdog's context-hygiene thresholds) need the single largest call instead —
+  // that's the real prompt the model was holding at its fullest point in the turn.
+  let maxPromptTokens = 0;
 
   for (let j = billedIndex; j >= 0; j--) {
     try {
@@ -171,13 +176,15 @@ function sumTurnUsage(lines: string[], billedIndex: number): {
         apiCalls++;
         // Model is constant within a turn; capture it once from the outermost call.
         if (apiCalls === 1) model = usage.model;
+        const callPrompt = usage.inputTokens + usage.cacheWriteTokens + usage.cacheReadTokens;
+        if (callPrompt > maxPromptTokens) maxPromptTokens = callPrompt;
       }
       // Turn boundary: the first non-tool_result user entry (same rule as scanTriggerMarkers).
       if (entry.type === 'user' && !isToolResult(entry)) break;
     } catch {}
   }
 
-  return { inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens, model, apiCalls };
+  return { inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens, model, apiCalls, maxPromptTokens };
 }
 
 function readLastTurnUsage(transcriptPath: string): Json {
@@ -620,7 +627,7 @@ async function run(data: Json): Promise<string | null> {
       return null;
     }
 
-    const { inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens, model: rawModel, hadHumanTurn, source, apiCalls, subagents } = turn;
+    const { inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens, model: rawModel, hadHumanTurn, source, apiCalls, maxPromptTokens, subagents } = turn;
     const model = detectModel(rawModel);
 
     const totalTokens = inputTokens + cacheWriteTokens + cacheReadTokens + outputTokens;
@@ -660,6 +667,7 @@ async function run(data: Json): Promise<string | null> {
       output_tokens: outputTokens,
       total_tokens: totalTokens,
       api_calls: apiCalls,
+      max_prompt_tokens: maxPromptTokens,
       context_usage: data.context_usage ?? data.contextUsage ?? null,
       estimated_cost_usd: roundedCost,
       model_unpriced: modelUnpriced,

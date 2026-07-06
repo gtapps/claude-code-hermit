@@ -428,29 +428,34 @@ function maybePostCloseClear(config: Json): void {
 
 // --- Shared lifecycle/token guards (maybeContextClear + maybeContextCompact) ---
 
+/** Discriminated result for passesLifecycleGuards — the reason string feeds
+ *  last_hygiene_eval so a starved hygiene tier is diagnosable from state alone. */
+type GuardReason = 'paused' | 'interactive' | 'transition' | 'suspect-process' | 'shutdown-stamp' | 'no-tmux' | 'operator-recent';
+type GuardResult = { ok: true; sessionName: string } | { ok: false; reason: GuardReason };
+
 /**
  * Common lifecycle gates for the two auto-compaction mechanisms: not paused
  * (PROP-015), always-on only, no in-flight transition, no watchdog-internal
  * suspect state, no shutdown in progress, a live tmux session, and operator
  * silence ≥10 min. Returns the live session name when every gate passes, or
- * null when the caller should bail.
+ * a reason string when the caller should bail.
  */
-function passesLifecycleGuards(runtime: Json): string | null {
-  if (isPaused(HERMIT_ROOT).paused) return null; // PROP-015 — never auto-clear/compact while paused
-  if (runtime.runtime_mode === 'interactive') return null; // interactive sessions must never be auto-managed
-  if (runtime.transition) return null; // archiving/cleaning recovery is mid-flight — never interfere
+function passesLifecycleGuards(runtime: Json): GuardResult {
+  if (isPaused(HERMIT_ROOT).paused) return { ok: false, reason: 'paused' }; // PROP-015 — never auto-clear/compact while paused
+  if (runtime.runtime_mode === 'interactive') return { ok: false, reason: 'interactive' }; // interactive sessions must never be auto-managed
+  if (runtime.transition) return { ok: false, reason: 'transition' }; // archiving/cleaning recovery is mid-flight — never interfere
   const sessionState: string = runtime.session_state ?? '';
-  if (sessionState === 'suspect_process') return null; // exclusion model: only bail on watchdog-internal state
+  if (sessionState === 'suspect_process') return { ok: false, reason: 'suspect-process' }; // exclusion model: only bail on watchdog-internal state
 
-  if (runtime.shutdown_requested_at || runtime.shutdown_completed_at) return null;
+  if (runtime.shutdown_requested_at || runtime.shutdown_completed_at) return { ok: false, reason: 'shutdown-stamp' };
 
   const sessionName: string = runtime.tmux_session ?? '';
-  if (!sessionName || !tmuxSessionAlive(sessionName)) return null;
+  if (!sessionName || !tmuxSessionAlive(sessionName)) return { ok: false, reason: 'no-tmux' };
 
   const opAge = getOperatorLastActionAgeSecs();
-  if (opAge !== null && opAge < 10 * 60) return null; // operator-recency backoff
+  if (opAge !== null && opAge < 10 * 60) return { ok: false, reason: 'operator-recent' }; // operator-recency backoff
 
-  return sessionName;
+  return { ok: true, sessionName };
 }
 
 // Shared between maybeContextClear and maybeContextCompact — both need "the last
@@ -469,7 +474,10 @@ function getLastCostLogEntry(sessionId: string): Json {
       if (!line) continue;
       try {
         const e = JSON.parse(line);
-        if (e && e.session_id === sessionId) lastEntry = e;
+        // Subagent lines are appended after the dispatching turn's main line
+        // (cost-tracker.ts) and carry their own small token count — the hygiene
+        // mechanisms want the main turn's context size, not a subagent's.
+        if (e && e.session_id === sessionId && e.subagent !== true) lastEntry = e;
       } catch {}
     }
   } catch {
@@ -479,9 +487,61 @@ function getLastCostLogEntry(sessionId: string): Json {
   return lastEntry;
 }
 
-/** Prompt-side token total (input + cache write + cache read) for a cost-log entry. */
+/**
+ * Prompt-side token count for a cost-log entry — approximates real context size,
+ * not the per-turn billing total. `max_prompt_tokens` (the largest single API
+ * call's input+cache in the turn) is the real thing; entries logged before that
+ * field existed fall back to the per-call average of the summed total, which is
+ * far closer to context size than the raw sum (a multi-call turn's sum is a
+ * multiple of its actual context).
+ */
 function promptTokens(entry: Json): number {
-  return (entry.input_tokens ?? 0) + (entry.cache_write_tokens ?? 0) + (entry.cache_read_tokens ?? 0);
+  if (typeof entry.max_prompt_tokens === 'number') return entry.max_prompt_tokens;
+  const sum = (entry.input_tokens ?? 0) + (entry.cache_write_tokens ?? 0) + (entry.cache_read_tokens ?? 0);
+  return isEstimateOnly(entry) ? Math.round(sum / entry.api_calls) : sum;
+}
+
+/** True when a cost-log entry lacks the real per-call peak (max_prompt_tokens) and
+ *  spans more than one API call — promptTokens() can only average such an entry,
+ *  which is why the destructive /clear tier refuses to act on it (see maybeContextClear). */
+function isEstimateOnly(entry: Json): boolean {
+  return typeof entry.max_prompt_tokens !== 'number'
+    && typeof entry.api_calls === 'number' && entry.api_calls > 1;
+}
+
+/** Active arc ID, falling back to the harness session id cost-tracker persists to
+ *  sessions/.status.json (cost-tracker.ts:runtimeSessionId || sessionId) — the same
+ *  value used to key cost-log entries when no S-NNN arc is open (idle-phase wakes:
+ *  heartbeat/routines/channel messages). Without this fallback both hygiene tiers
+ *  are blind to exactly the accumulation they exist to catch. */
+function resolveHygieneSessionId(runtime: Json): string {
+  const sid: string = runtime.session_id ?? '';
+  if (sid) return sid;
+  const status = readJson(path.join(HERMIT_ROOT, 'sessions', '.status.json'));
+  return status && typeof status.session_id === 'string' ? status.session_id : '';
+}
+
+/** Records this tick's hygiene outcome on a held watchdog-state object, keyed by
+ *  mechanism, so the clear and compact tiers each keep their own most-recent eval.
+ *  A single tick runs clear then compact; a shared slot would let compact's outcome
+ *  clobber clear's every time compact is enabled, hiding the clear tier's skip/fire
+ *  reason — the exact diagnosability this record exists to provide. The caller owns
+ *  the subsequent writeWatchdogState (folds into a write it was already making). */
+function setHygieneEval(ws: Json, mechanism: 'clear' | 'compact', outcome: string, promptTokensVal?: number): void {
+  if (!ws.last_hygiene_eval || typeof ws.last_hygiene_eval !== 'object') ws.last_hygiene_eval = {};
+  ws.last_hygiene_eval[mechanism] = {
+    ts: utcStamp(),
+    outcome,
+    ...(promptTokensVal != null ? { prompt_tokens: promptTokensVal } : {}),
+  };
+}
+
+/** Read-modify-write variant of setHygieneEval for early-exit branches that don't
+ *  already hold a loaded watchdogState in hand. */
+function stampHygieneEval(mechanism: 'clear' | 'compact', outcome: string, promptTokensVal?: number): void {
+  const ws = readWatchdogState();
+  setHygieneEval(ws, mechanism, outcome, promptTokensVal);
+  writeWatchdogState(ws);
 }
 
 // --- Context-size clear ---
@@ -499,22 +559,33 @@ function maybeContextClear(config: Json): void {
   const runtime = readRuntimeJson();
   if (!runtime) return;
 
-  const sessionName = passesLifecycleGuards(runtime);
-  if (!sessionName) return;
+  const guard = passesLifecycleGuards(runtime);
+  if (!guard.ok) { stampHygieneEval('clear', `skip:lifecycle:${guard.reason}`); return; }
+  const sessionName = guard.sessionName;
 
   // Token check: find the last cost-log entry for this hermit session
-  const sessionId: string = runtime.session_id ?? '';
-  if (!sessionId) return;
+  const sessionId = resolveHygieneSessionId(runtime);
+  if (!sessionId) { stampHygieneEval('clear', 'skip:no-session-id'); return; }
 
   const lastEntry = getLastCostLogEntry(sessionId);
-  if (!lastEntry) return;
+  if (!lastEntry) { stampHygieneEval('clear', 'skip:no-cost-entry'); return; }
+
+  // Never fire the DESTRUCTIVE /clear on an estimated context size — the per-call mean
+  // could sit either side of the 700k threshold. The non-destructive compact tier keeps
+  // using the estimate (it self-corrects, and would compact the same context anyway one
+  // turn later when a real entry lands).
+  if (isEstimateOnly(lastEntry)) { stampHygieneEval('clear', 'skip:estimate-only'); return; }
 
   const prompt = promptTokens(lastEntry);
-  if (prompt <= threshold) return;
+  if (prompt <= threshold) { stampHygieneEval('clear', 'skip:under-threshold', prompt); return; }
 
   // Idempotence: bail if this entry was already cleared
   const watchdogState = readWatchdogState();
-  if (watchdogState.last_cleared_cost_ts && watchdogState.last_cleared_cost_ts === lastEntry.timestamp) return;
+  if (watchdogState.last_cleared_cost_ts && watchdogState.last_cleared_cost_ts === lastEntry.timestamp) {
+    setHygieneEval(watchdogState, 'clear', 'skip:already-processed', prompt);
+    writeWatchdogState(watchdogState);
+    return;
+  }
 
   // Quiescence guard: require pane unchanged across two consecutive ticks
   const currentHash = getPaneHash(sessionName);
@@ -522,18 +593,24 @@ function maybeContextClear(config: Json): void {
   if (currentHash === null || currentHash !== prevHash) {
     // First qualifying tick — record hash and wait for next tick
     watchdogState.last_pane_hash_ctx = currentHash;
+    setHygieneEval(watchdogState, 'clear', 'skip:quiescence-pending', prompt);
     writeWatchdogState(watchdogState);
     return;
   }
 
   // Pane stable across two ticks — safe to clear
-  if (!tryAcquireLifecycleLock()) return;
+  if (!tryAcquireLifecycleLock()) {
+    setHygieneEval(watchdogState, 'clear', 'skip:lock-held', prompt);
+    writeWatchdogState(watchdogState);
+    return;
+  }
   try {
     runtime.context_cleared = true;
     writeRuntimeJson(runtime);
     sendKeys(sessionName, '/clear');
     watchdogState.last_cleared_cost_ts = lastEntry.timestamp;
     watchdogState.last_pane_hash_ctx = null; // reset so next bloat cycle re-arms
+    setHygieneEval(watchdogState, 'clear', 'fired', prompt);
     writeWatchdogState(watchdogState);
     appendEvent('context-clear', `prompt tokens ${prompt} over threshold ${threshold}`);
   } finally {
@@ -579,8 +656,9 @@ function maybeContextCompact(config: Json): void {
   const runtime = readRuntimeJson();
   if (!runtime) return;
 
-  const sessionName = passesLifecycleGuards(runtime);
-  if (!sessionName) return;
+  const guard = passesLifecycleGuards(runtime);
+  if (!guard.ok) { stampHygieneEval('compact', `skip:lifecycle:${guard.reason}`); return; }
+  const sessionName = guard.sessionName;
 
   // Boundary marker: a fresh marker keeps its interval-cooldown waiver until the
   // compact it enables actually fires (deleted in the success block below). The
@@ -601,20 +679,20 @@ function maybeContextCompact(config: Json): void {
 
   // Midnight-adjacency suppression: the post-close /clear wipes context for free
   // right after daily-auto-close archives — a compact just before it is wasted spend.
-  if (isNearDailyAutoClose(config, 2 * 3600)) return;
+  if (isNearDailyAutoClose(config, 2 * 3600)) { stampHygieneEval('compact', 'skip:midnight-adjacent'); return; }
 
   // Token check: find the last cost-log entry for this hermit session
-  const sessionId: string = runtime.session_id ?? '';
-  if (!sessionId) return;
+  const sessionId = resolveHygieneSessionId(runtime);
+  if (!sessionId) { stampHygieneEval('compact', 'skip:no-session-id'); return; }
 
   const lastEntry = getLastCostLogEntry(sessionId);
-  if (!lastEntry) return;
+  if (!lastEntry) { stampHygieneEval('compact', 'skip:no-cost-entry'); return; }
 
   const prompt = promptTokens(lastEntry);
 
   // Token floor: never compact a small context, even with a boundary marker in play
-  if (prompt < MIN_COMPACT_FLOOR_TOKENS) return;
-  if (prompt <= threshold) return;
+  if (prompt < MIN_COMPACT_FLOOR_TOKENS) { stampHygieneEval('compact', 'skip:below-floor', prompt); return; }
+  if (prompt <= threshold) { stampHygieneEval('compact', 'skip:under-threshold', prompt); return; }
 
   const watchdogState = readWatchdogState();
 
@@ -636,21 +714,38 @@ function maybeContextCompact(config: Json): void {
   // Interval cooldown — waived only by a fresh boundary marker
   if (!boundaryWaive && watchdogState.last_compacted_at) {
     const sinceLast = ageSecs(watchdogState.last_compacted_at);
-    if (sinceLast !== null && sinceLast < minIntervalSecs) return;
+    if (sinceLast !== null && sinceLast < minIntervalSecs) {
+      setHygieneEval(watchdogState, 'compact', 'skip:interval-cooldown', prompt);
+      writeWatchdogState(watchdogState);
+      return;
+    }
   }
 
   // Idempotence: bail if this cost-log entry was already compacted
-  if (watchdogState.last_compacted_cost_ts && watchdogState.last_compacted_cost_ts === lastEntry.timestamp) return;
+  if (watchdogState.last_compacted_cost_ts && watchdogState.last_compacted_cost_ts === lastEntry.timestamp) {
+    setHygieneEval(watchdogState, 'compact', 'skip:already-processed', prompt);
+    writeWatchdogState(watchdogState);
+    return;
+  }
 
-  if (!paneStable) return;
+  if (!paneStable) {
+    setHygieneEval(watchdogState, 'compact', 'skip:quiescence-pending', prompt);
+    writeWatchdogState(watchdogState);
+    return;
+  }
 
   // Pane stable across two ticks — safe to compact
-  if (!tryAcquireLifecycleLock()) return;
+  if (!tryAcquireLifecycleLock()) {
+    setHygieneEval(watchdogState, 'compact', 'skip:lock-held', prompt);
+    writeWatchdogState(watchdogState);
+    return;
+  }
   try {
     sendKeys(sessionName, '/compact focus on unfinished work, pending operator items, and in-flight decisions');
     watchdogState.last_compacted_cost_ts = lastEntry.timestamp;
     watchdogState.last_compacted_at = utcStamp();
     watchdogState.last_pane_hash_compact = null; // reset so next bloat cycle re-arms
+    setHygieneEval(watchdogState, 'compact', 'fired', prompt);
     writeWatchdogState(watchdogState);
     try { fs.rmSync(COMPACT_REQUESTED_JSON); } catch {} // consume the boundary waiver now that it fired
     // Prompt-token count travels in the event so the next cost-log entry gives a

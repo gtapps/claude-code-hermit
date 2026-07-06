@@ -122,7 +122,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
 7. Replace `SHELL.md` with a fresh template that includes a "Next Start Point" section
    - Carry forward blockers from the closed session
    - If unfinished tasks remain in the native task list, note: "Unfinished tasks remain in the task list."
-8. **Clear transition and update runtime.json**: `transition: null`, `transition_target: null`, `transition_started_at: null`, `session_state: "idle"`, `session_id: null`, `shutdown_completed_at: <now>` (if this is a full shutdown close)
+8. **Clear transition and update runtime.json**: `transition: null`, `transition_target: null`, `transition_started_at: null`, `session_state: "idle"`, `session_id: null`. Additionally set `shutdown_completed_at: <now>` **only if `shutdown_requested_at` is already non-null in runtime.json** — that field is set by `hermit-stop.ts` before it dispatches `/session-close --shutdown`, so its presence is the mechanical signal that this close is a real hermit-stop, not `/session-close`'s own "Full Shutdown" framing reused by an unattended auto-close (`--auto`/`--scheduled`) that leaves the always-on process running. Stamping `shutdown_completed_at` on that path falsely tells the watchdog the whole hermit is stopping — it gates context-hygiene compaction/clear and restart recovery on that field being null, and a hermit-stop.ts–less close otherwise bricks both forever. If `shutdown_requested_at` is null, leave both shutdown fields untouched.
 
 ## On Task Complete (Idle Transition)
 

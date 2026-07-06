@@ -725,6 +725,89 @@ test('doctor checkWatchdog: stale last_run + recent restart → not-firing wins,
   expect(w.detail).not.toContain('restarts:');
 }));
 
+test('doctor checkWatchdog: restart tier disabled but post_close_clear active → liveness still checked',
+  withHermit(async (h) => {
+    fs.writeFileSync(path.join(h.dir, '.claude-code-hermit', 'config.json'),
+      JSON.stringify({ watchdog: { enabled: false }, post_close_clear: true, ...DOCTOR_BASE }, null, 2) + '\n');
+    setLastRun(h, isoAgo(1)); // stale — the hygiene tier still needs a live scheduler tick
+    const w = await doctorWatchdogCheck(h);
+    expect(w.status).toBe('warn');
+    expect(w.detail).toContain('not firing');
+  }));
+
+test('doctor checkWatchdog: restart tier disabled + hygiene active + fresh tick → ok, labels the tier split',
+  withHermit(async (h) => {
+    fs.writeFileSync(path.join(h.dir, '.claude-code-hermit', 'config.json'),
+      JSON.stringify({
+        watchdog: { enabled: false },
+        context_hygiene: { compact: { enabled: true, min_context_tokens: 150000, min_interval: '4h' } },
+        ...DOCTOR_BASE,
+      }, null, 2) + '\n');
+    setLastRun(h, new Date().toISOString());
+    const w = await doctorWatchdogCheck(h);
+    expect(w.status).toBe('ok');
+    expect(w.detail).toContain('restart tier disabled, hygiene tier active');
+  }));
+
+test('doctor checkWatchdog: alive session with a shutdown stamp → warn, names the pathology',
+  withHermit(async (h) => {
+    writeDoctorConfig(h);
+    patchRuntime(h, { session_state: 'in_progress', shutdown_completed_at: isoAgo(72) });
+    setLastRun(h, new Date().toISOString());
+    const w = await doctorWatchdogCheck(h);
+    expect(w.status).toBe('warn');
+    expect(w.detail).toContain('shutdown stamp');
+  }));
+
+test('doctor checkWatchdog: last_hygiene_eval surfaces in the ok detail', withHermit(async (h) => {
+  writeDoctorConfig(h);
+  const p = state(h, 'watchdog-state.json');
+  fs.writeFileSync(p, JSON.stringify({
+    last_run: new Date().toISOString(),
+    last_hygiene_eval: { compact: { ts: new Date().toISOString(), outcome: 'fired', prompt_tokens: 250000 } },
+  }) + '\n');
+  const w = await doctorWatchdogCheck(h);
+  expect(w.status).toBe('ok');
+  expect(w.detail).toContain('compact/fired');
+}));
+
+test('doctor checkWatchdog: per-mechanism last_hygiene_eval surfaces the most-recent tier',
+  withHermit(async (h) => {
+    writeDoctorConfig(h);
+    const older = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+    const newer = new Date().toISOString();
+    fs.writeFileSync(state(h, 'watchdog-state.json'), JSON.stringify({
+      last_run: new Date().toISOString(),
+      last_hygiene_eval: {
+        clear: { ts: older, outcome: 'skip:under-threshold', prompt_tokens: 300000 },
+        compact: { ts: newer, outcome: 'fired', prompt_tokens: 300000 },
+      },
+    }) + '\n');
+    const w = await doctorWatchdogCheck(h);
+    expect(w.detail).toContain('compact/fired'); // newer of the two wins
+  }));
+
+test('doctor checkWatchdog: stale scheduler + stuck shutdown stamp → not-firing wins',
+  withHermit(async (h) => {
+    writeDoctorConfig(h);
+    patchRuntime(h, { session_state: 'in_progress', shutdown_completed_at: isoAgo(72) });
+    setLastRun(h, isoAgo(1)); // scheduler dead — the higher-severity signal
+    const w = await doctorWatchdogCheck(h);
+    expect(w.status).toBe('warn');
+    expect(w.detail).toContain('not firing'); // liveness remediation, not the stamp warning
+  }));
+
+test('doctor checkWatchdog: fresh shutdown stamp on an alive session → no false positive',
+  withHermit(async (h) => {
+    writeDoctorConfig(h);
+    // A real in-flight hermit-stop stamps shutdown_requested_at seconds before
+    // /session-close flips session_state to idle — a fresh stamp is that window.
+    patchRuntime(h, { session_state: 'in_progress', shutdown_requested_at: new Date().toISOString() });
+    setLastRun(h, new Date().toISOString());
+    const w = await doctorWatchdogCheck(h);
+    expect(w.detail).not.toContain('shutdown stamp');
+  }));
+
 // -------------------------------------------------------
 // install / uninstall without systemctl (Linux-only path)
 // -------------------------------------------------------
@@ -882,7 +965,10 @@ test('post_close_clear: flag false → no send even with marker',
 const SESSION_ID = 'S-001';
 
 /** Write a cost-log entry under <hermit.dir>/.claude/cost-log.jsonl. */
-function writeCostLog(h: Hermit, entries: { session_id: string; input_tokens: number; cache_write_tokens: number; cache_read_tokens: number; timestamp?: string }[]): void {
+function writeCostLog(h: Hermit, entries: {
+  session_id: string; input_tokens: number; cache_write_tokens: number; cache_read_tokens: number;
+  timestamp?: string; api_calls?: number; max_prompt_tokens?: number; subagent?: boolean;
+}[]): void {
   const dir = path.join(h.dir, '.claude');
   fs.mkdirSync(dir, { recursive: true });
   const lines = entries.map(e => JSON.stringify({
@@ -894,6 +980,9 @@ function writeCostLog(h: Hermit, entries: { session_id: string; input_tokens: nu
     output_tokens: 500,
     total_tokens: e.input_tokens + e.cache_write_tokens + e.cache_read_tokens + 500,
     estimated_cost_usd: 1.0,
+    ...(e.api_calls !== undefined ? { api_calls: e.api_calls } : {}),
+    ...(e.max_prompt_tokens !== undefined ? { max_prompt_tokens: e.max_prompt_tokens } : {}),
+    ...(e.subagent !== undefined ? { subagent: e.subagent } : {}),
   })).join('\n') + '\n';
   fs.writeFileSync(path.join(dir, 'cost-log.jsonl'), lines);
 }
@@ -1335,6 +1424,209 @@ test('context_compact: fresh boundary marker survives the two-tick quiescence wa
     const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
     expect(tmuxLog).toContain('/compact');
     expect(fs.existsSync(state(h, 'compact-requested.json'))).toBe(false); // consumed on fire
+  }));
+
+// -------------------------------------------------------
+// context-hygiene starvation fixes: subagent-tail skip, idle session-id
+// fallback, real-context metric, negative telemetry (last_hygiene_eval)
+// -------------------------------------------------------
+
+test('context_compact: subagent tail entry is ignored — bloated main line still triggers',
+  withHermit(async (h) => {
+    writeContextCompactConfig(h);
+    writeAlwaysOnRuntime(h, 'idle');
+    writeCostLog(h, [
+      { session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 200000 }, // main turn line, 250k
+      { session_id: SESSION_ID, input_tokens: 500, cache_write_tokens: 0, cache_read_tokens: 500, subagent: true }, // dispatched-subagent tail, tiny
+    ]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    await watchdog(h, 'run'); // tick 1: hash recorded
+    const r2 = await watchdog(h, 'run'); // tick 2: same hash → fires
+    expect(r2.exitCode).toBe(0);
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog).toContain('/compact');
+  }));
+
+test('context_compact: idle-phase session-id fallback via sessions/.status.json',
+  withHermit(async (h) => {
+    writeContextCompactConfig(h);
+    // No open S-NNN arc — runtime.session_id is null, as it is for most of an
+    // always-on hermit's life between sessions.
+    patchRuntime(h, { session_state: 'idle', runtime_mode: 'tmux', session_id: null });
+    const harnessSid = 'harness-uuid-1234';
+    fs.mkdirSync(path.join(h.dir, '.claude-code-hermit', 'sessions'), { recursive: true });
+    fs.writeFileSync(
+      path.join(h.dir, '.claude-code-hermit', 'sessions', '.status.json'),
+      JSON.stringify({ session_id: harnessSid }) + '\n',
+    );
+    writeCostLog(h, [{ session_id: harnessSid, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 200000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    await watchdog(h, 'run');
+    const r2 = await watchdog(h, 'run');
+    expect(r2.exitCode).toBe(0);
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog).toContain('/compact');
+  }));
+
+test('context_compact: no session_id anywhere (runtime null, no .status.json) → skip:no-session-id',
+  withHermit(async (h) => {
+    writeContextCompactConfig(h);
+    patchRuntime(h, { session_state: 'idle', runtime_mode: 'tmux', session_id: null });
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 200000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+    const ws = readJson(state(h, 'watchdog-state.json'));
+    expect(ws.last_hygiene_eval?.compact?.outcome).toBe('skip:no-session-id');
+  }));
+
+test('context_clear: legacy multi-call entry averages down — no destructive misfire; still compact-eligible',
+  withHermit(async (h) => {
+    // Old semantics summed every API call in the turn: a 5-call turn at a real ~300k
+    // context logged 1.5M "prompt tokens" and blew straight through the 700k emergency
+    // clear threshold. The average (still the pre-max_prompt_tokens fallback, since
+    // this entry predates that field) keeps it out of the destructive tier while
+    // correctly landing above the 150k compact threshold.
+    writeContextCompactConfig(h, { minContextTokens: 150000, clearTokens: 700000 });
+    writeAlwaysOnRuntime(h, 'idle');
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 1500000, cache_write_tokens: 0, cache_read_tokens: 0, api_calls: 5 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    await watchdog(h, 'run'); // tick 1: both trackers prime their hashes
+    const r2 = await watchdog(h, 'run'); // tick 2
+    expect(r2.exitCode).toBe(0);
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog).not.toContain('/clear');
+    expect(tmuxLog).toContain('/compact');
+    const events = fs.readFileSync(eventsFile(h), 'utf-8');
+    expect(events).not.toContain('context-clear');
+    expect(events).toContain('context-compact');
+    // The destructive /clear declines the multi-call legacy estimate outright rather
+    // than acting on the per-call mean; the compact tier still uses it.
+    const ws = readJson(state(h, 'watchdog-state.json'));
+    expect(ws.last_hygiene_eval?.clear?.outcome).toBe('skip:estimate-only');
+  }));
+
+test('context_clear: max_prompt_tokens field takes precedence over the per-turn sum',
+  withHermit(async (h) => {
+    writeContextClearConfig(h, 700000);
+    writeAlwaysOnRuntime(h, 'idle');
+    // Small literal input/cache fields (100k sum) but max_prompt_tokens says the
+    // real single-call context was 900k — the field must win.
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 50000, max_prompt_tokens: 900000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    await watchdog(h, 'run');
+    const r2 = await watchdog(h, 'run');
+    expect(r2.exitCode).toBe(0);
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog).toContain('/clear');
+  }));
+
+test('context_clear: a legacy multi-call entry over threshold on the estimate → skip:estimate-only, never fires /clear',
+  withHermit(async (h) => {
+    writeContextClearConfig(h, 700000);
+    writeAlwaysOnRuntime(h, 'idle');
+    // 5M summed / 5 calls = 1M mean, over the 700k threshold — but with no
+    // max_prompt_tokens the mean is an estimate, and the destructive tier must not
+    // act on it (the real peak is unknowable from sum+calls). Guarded before quiescence.
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 5000000, cache_write_tokens: 0, cache_read_tokens: 0, api_calls: 5 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+    const ws = readJson(state(h, 'watchdog-state.json'));
+    expect(ws.last_hygiene_eval?.clear?.outcome).toBe('skip:estimate-only');
+  }));
+
+test('context_compact: stale shutdown stamp on an alive session → skip:lifecycle:shutdown-stamp',
+  withHermit(async (h) => {
+    writeContextCompactConfig(h);
+    writeAlwaysOnRuntime(h, 'in_progress');
+    // The fleet pathology this fixes: a nightly auto-close stamps shutdown_completed_at
+    // even though the always-on process stays alive and session_state goes back to
+    // in_progress/idle on the next turn — hermit-start (the actual fix) only clears
+    // this stamp on the next boot, so between now and then hygiene must stay diagnosable.
+    patchRuntime(h, { shutdown_completed_at: isoAgo(72) });
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 200000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+    const ws = readJson(state(h, 'watchdog-state.json'));
+    expect(ws.last_hygiene_eval?.compact?.outcome).toBe('skip:lifecycle:shutdown-stamp');
+  }));
+
+test('context_compact: last_hygiene_eval records the fire outcome and prompt token count',
+  withHermit(async (h) => {
+    writeContextCompactConfig(h);
+    writeAlwaysOnRuntime(h, 'idle');
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 200000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    await watchdog(h, 'run');
+    const r2 = await watchdog(h, 'run');
+    expect(r2.exitCode).toBe(0);
+    const ws = readJson(state(h, 'watchdog-state.json'));
+    expect(ws.last_hygiene_eval?.compact).toMatchObject({ outcome: 'fired', prompt_tokens: 250000 });
+  }));
+
+test('context_compact: below the 60k floor → skip:below-floor',
+  withHermit(async (h) => {
+    writeContextCompactConfig(h, { minContextTokens: 10000 });
+    writeAlwaysOnRuntime(h, 'idle');
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 10000, cache_write_tokens: 0, cache_read_tokens: 20000 }]); // 30k, under the 60k floor
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+    const ws = readJson(state(h, 'watchdog-state.json'));
+    expect(ws.last_hygiene_eval?.compact?.outcome).toBe('skip:below-floor');
+  }));
+
+test('context_compact: midnight-adjacent (daily-auto-close due within 2h) → skip:midnight-adjacent',
+  withHermit(async (h) => {
+    const soon = new Date(Date.now() + 60_000); // 1 minute from now, well inside the 2h window
+    writeContextCompactConfig(h, {
+      routines: [{ id: 'daily-auto-close', schedule: `${soon.getUTCMinutes()} ${soon.getUTCHours()} * * *`, enabled: true }],
+      timezone: 'UTC',
+    });
+    writeAlwaysOnRuntime(h, 'idle');
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 200000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+    const ws = readJson(state(h, 'watchdog-state.json'));
+    expect(ws.last_hygiene_eval?.compact?.outcome).toBe('skip:midnight-adjacent');
   }));
 
 // -------------------------------------------------------

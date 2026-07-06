@@ -433,6 +433,36 @@ function checkStaleRuntime(config: Json, sessionName: string): void {
   }
 }
 
+/**
+ * Clears shutdown_requested_at/shutdown_completed_at on an existing runtime.json
+ * before a fresh hermit-start boot. A deliberate start supersedes any prior
+ * shutdown intent — a stamp left over from a non-hermit-stop close (a nightly
+ * auto-close reusing /session-close's "Full Shutdown" framing while the always-on
+ * process stays alive) otherwise bricks watchdog restart recovery AND
+ * context-hygiene compaction/clear forever, since passesLifecycleGuards treats any
+ * non-null stamp as "the hermit is stopping". Mutates `existing` in place.
+ */
+function clearShutdownStampsOnBoot(existing: Json): void {
+  existing.shutdown_requested_at = null;
+  existing.shutdown_completed_at = null;
+}
+
+/**
+ * Removes the sessions/.status.json cost cache on an always-on boot. cost-tracker
+ * writes the current harness session id there each turn, and the watchdog's idle-phase
+ * hygiene fallback (resolveHygieneSessionId) reads it when no S-NNN arc is open. Across
+ * a restart the harness session id changes, but the old file survives until the first
+ * post-boot turn rewrites it — a stale pointer that would make the watchdog resolve the
+ * DEFUNCT prior session's last (possibly bloated) cost entry and fire a spurious /compact
+ * or /clear into the fresh, near-empty context. Removing it here makes the fallback
+ * return "no session id" (a clean skip) until a real turn re-populates it. cost-tracker
+ * treats a missing file as first-run and rebuilds cumulative totals from the index, so
+ * nothing is lost.
+ */
+function clearStatusCacheOnBoot(): void {
+  try { fs.unlinkSync(path.join(STATE_DIR, '..', 'sessions', '.status.json')); } catch {}
+}
+
 /** Acquire exclusive lifecycle lock. Exits on contention. */
 function acquireLifecycleLock(): void {
   if (process.platform === 'win32') {
@@ -896,10 +926,11 @@ async function main(): Promise<void> {
         last_shell_snapshot_at: null,
       });
     } else {
-      // Preserve lifecycle fields for session-start recovery
+      // Preserve lifecycle fields for session-start recovery.
       existing.version = 1;
       existing.runtime_mode = 'interactive';
       existing.tmux_session = null;
+      clearShutdownStampsOnBoot(existing);
       writeRuntimeJson(existing);
     }
     console.log(`[hermit] Running: ${shlexJoin(cmd)}`);
@@ -962,6 +993,10 @@ async function main(): Promise<void> {
   // Detect runtime mode
   const runtimeMode = isContainer() ? 'docker' : 'tmux';
 
+  // The prior process's harness session is over — drop its stale cost cache so the
+  // watchdog's idle-phase hygiene fallback can't resolve a defunct session (see helper).
+  clearStatusCacheOnBoot();
+
   // Create or update runtime.json as the single source of lifecycle truth
   const existing = readRuntimeJson();
   if (existing === null) {
@@ -981,10 +1016,11 @@ async function main(): Promise<void> {
       last_shell_snapshot_at: null,
     });
   } else {
-    // Preserve lifecycle fields for session-start recovery
+    // Preserve lifecycle fields for session-start recovery.
     existing.version = 1;
     existing.runtime_mode = runtimeMode;
     existing.tmux_session = sessionName;
+    clearShutdownStampsOnBoot(existing);
     writeRuntimeJson(existing);
   }
 
@@ -1049,6 +1085,8 @@ export {
   writeRuntimeJson,
   readRuntimeJson,
   checkStaleRuntime,
+  clearShutdownStampsOnBoot,
+  clearStatusCacheOnBoot,
   acquireLifecycleLock,
   fetchRegisteredMarketplaces,
   iterChannelConfigs,
