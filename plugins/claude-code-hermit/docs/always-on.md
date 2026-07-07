@@ -153,7 +153,7 @@ It installs the plugin (requires [Bun](https://bun.sh)), writes the bot token to
 
 `down` triggers a graceful session close before stopping (see [Graceful Shutdown](#graceful-shutdown) below for the exact sequence). On `up`, the hermit reads SHELL.md and the latest archived report to resume with full continuity.
 
-To queue work for the hermit to pick up next, use `/claude-code-hermit:proposal-create` followed by `/claude-code-hermit:proposal-act accept <id>`. Accept writes `NEXT-TASK.md`, which `session-start` consumes on the next boot.
+To queue work for the hermit to pick up next, use `/claude-code-hermit:proposal-create` followed by `/claude-code-hermit:proposal-act accept <id>`. Accept writes `NEXT-TASK.md`, which drains as soon as the current task finishes (or on the next heartbeat tick if the session is already idle) — it does not wait for a full boot.
 
 ---
 
