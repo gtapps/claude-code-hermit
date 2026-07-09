@@ -52,6 +52,7 @@ const HERMIT_ALLOW = [
   'Bash(bun */scripts/manifest-seed.ts*)',
   'Bash(bun */scripts/apply-settings.ts*)',
   'Bash(bun */scripts/channel-log.ts*)',
+  'Bash(bun */scripts/session-archive.ts*)',
   "Bash(bash -c 'AGENT_DIR=\".claude-code-hermit\"*)",
   'Edit(.claude-code-hermit/**)',
   'Write(.claude-code-hermit/**)',

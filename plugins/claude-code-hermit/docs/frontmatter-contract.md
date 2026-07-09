@@ -28,4 +28,4 @@ Field names: lowercase with underscores. Flat only — no nested objects. Use `n
 
 **Procedure brief** (`compiled/procedure-brief-<slug>-<YYYY-MM-DD>.md`): `type: procedure-brief`, `title`, `created` (ISO+tz), `tags: [procedure-capture]`, `source: session`, `session`, `related_sessions` (array), `proposed_skill_name`. Written by `reflect` when it detects a recurring multi-step procedure. Carries the recurring steps, evidence sessions, and proposed skill name + triggers in the body. Not tagged `foundational` — it is a transient audit record, not a domain output meant for session-start injection. The installed skill at `.claude/skills/<name>/SKILL.md` is the live procedure; the brief is the audit trail.
 
-Full per-field schemas are embedded in the scripts and agents that produce each type (`session-mgr`, `proposal-create`, `scripts/weekly-review.ts`). Those are authoritative.
+Full per-field schemas are embedded in the scripts and agents that produce each type (`scripts/session-archive.ts`, `proposal-create`, `scripts/weekly-review.ts`). Those are authoritative.

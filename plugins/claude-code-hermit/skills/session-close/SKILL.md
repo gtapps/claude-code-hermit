@@ -8,16 +8,14 @@ description: Closes the current work session with a structured handoff. Archives
 
 `/session-close` is always a **Full Shutdown**. The operator explicitly invoked it — that's the confirmation. No close mode decision, no prompting.
 
-When invoked with `--auto` by heartbeat (either after 12h SHELL.md inactivity, or via the `daily-auto-close` pending-flag drain after a 10-min lull), the operator did not invoke it. The auto-close path bypasses summary-gathering, skips reflect (step 5), skips the heartbeat-stop step (step below), stamps `closed_via: auto` in the archive frontmatter via the session-mgr payload, and clears `state/pending-close.json` after the archive succeeds.
+When invoked with `--auto` by heartbeat (either after 12h SHELL.md inactivity, or via the `daily-auto-close` pending-flag drain after a 10-min lull), the operator did not invoke it. The auto-close path bypasses summary-gathering, skips reflect (step 5), skips the heartbeat-stop step (step below), stamps `closed_via: auto` in the archive frontmatter via the `session-archive.ts` payload, and clears `state/pending-close.json` after the archive succeeds.
 
 Idle transitions happen automatically at task boundaries (handled by the `session` skill). By the time the operator runs `/session-close`, they want out.
 
 If heartbeat is running, stop it before archiving. **Skip on `--auto`** — heartbeat is the caller; stopping its Monitor would prevent all future ticks.
 If watches are registered (`state/monitors.runtime.json` has entries), stop all watches before archiving — invoke `/claude-code-hermit:watch stop --all`.
 
-session-mgr handles updating both SHELL.md (cosmetic) and `state/runtime.json` (lifecycle truth) during archiving. For full shutdown, session-mgr sets `shutdown_completed_at` in runtime.json.
-
-> **Tool note:** `claude-code-hermit:session-mgr` is a **subagent** — invoke it via the Agent tool, never the Skill tool. The `plugin:name` form it shares with skills does not imply the Skill tool.
+`scripts/session-archive.ts` handles updating both SHELL.md (cosmetic) and `state/runtime.json` (lifecycle truth) during archiving. For full shutdown, it sets `shutdown_completed_at` in runtime.json — but only if `shutdown_requested_at` is already non-null (`hermit-stop.ts`'s signal), so an unattended auto-close reusing this same "Full Shutdown" framing never falsely marks the always-on process as stopping.
 
 ---
 
@@ -27,7 +25,7 @@ Use this when the operator wants to end everything (via `hermit-stop` or explici
 
 ### Auto-close path (`--auto`)
 
-When invoked with `--auto` by heartbeat, skip steps 1–5 and jump directly to step 6 (shutdown_skill), step 7 (Tasks cleanup), step 8 (session-mgr archive), step 9 (pending-close cleanup), and step 10 (context-reset marker). Pass this templated payload to session-mgr:
+When invoked with `--auto` by heartbeat, skip steps 1–5 and jump directly to step 6 (shutdown_skill), step 7 (Tasks cleanup), step 8 (session-archive.ts archive), step 9 (pending-close cleanup), and step 10 (context-reset marker). Pipe this templated payload on stdin to `session-archive.ts archive --mode=auto`:
 
 ```
 Status: completed
@@ -41,7 +39,7 @@ Next Start Point: Fresh start.
 
 Write `Auto-closed by heartbeat.` as the first line of `## Overview` in the session report.
 
-If the archive in step 8 fails, leave `pending-close.json` in place so the next heartbeat tick retries the drain — skip step 9.
+If step 8 returns `ok === false`, leave `pending-close.json` in place so the next heartbeat tick retries the drain — skip step 9.
 
 ### Scheduled decision path (`--scheduled`)
 
@@ -58,7 +56,7 @@ This path is intentionally silent: no operator notification on queue or drain �
 
 ---
 
-1. Compile final session data **in context** — do NOT write to SHELL.md yet. session-mgr owns the final write. Gather:
+1. Compile final session data **in context** — do NOT write to SHELL.md yet. `session-archive.ts` owns the final write. Gather:
    - `Status:` one of `completed` | `partial` | `blocked`
    - `Blockers:` one line each, enough context for a cold start
    - `Lessons:` only genuinely useful ones. Before compiling, run the close debrief — answer three self-directed questions:
@@ -84,10 +82,11 @@ This path is intentionally silent: no operator notification on queue or drain �
    If reflect returns `reflect: no candidates`, scan this session's `## Findings` and `## Progress Log` for non-obvious discoveries not already in memory and issue the standard "remember it" reflection for any that clear the auto-memory threshold. Apply WHAT_NOT_TO_SAVE as normal.
 6. **Stop always-on services (`shutdown_skill`).** Read `shutdown_skill` from `.claude-code-hermit/config.json`. If non-null, invoke it as a skill command (the value may include arguments, e.g. `/serve stop`) via the Skill tool. **Best-effort:** on error or if the skill does not return, log a Monitoring line and continue to archival — never abort the close. Runs on both operator and `--auto` paths.
 7. If native Tasks exist: call `TaskList`, format as a markdown table. Then `TaskUpdate(status=deleted)` for completed tasks only — pending/in_progress tasks persist for next session.
-8. Archive the session via `claude-code-hermit:session-mgr` (full close — finalize SHELL.md and replace with fresh template in one operation).
-   Before invoking session-mgr: read `session_id` from `.claude-code-hermit/state/runtime.json`. Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-cost.ts <session_id>` via Bash and parse the JSON output to get `cost_usd` and `tokens` for this session. If the script fails or returns zeros, omit the `Cost:` line (session-mgr will fall back to `.status.json`).
-   Pass the following compact structured payload in the prompt — keep it brief, no freeform prose:
+8. Archive the session via `scripts/session-archive.ts archive --mode=close` (full close — finalize SHELL.md and replace with fresh template in one operation).
+   Before invoking: read `session_id` from `.claude-code-hermit/state/runtime.json`. Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-cost.ts <session_id>` via Bash and parse the JSON output to get `cost_usd` and `tokens` for this session. If the script fails or returns zeros, omit the `Cost:` line (session-archive.ts falls back to `.status.json`).
+   Pipe the following compact structured payload on stdin — keep it brief, no freeform prose:
    ```
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-archive.ts archive --mode=close --state-dir=.claude-code-hermit <<'HERMIT_PAYLOAD'
    Status: <completed|partial|blocked>
    Blockers: <one line each, or none>
    Lessons: <one line each, or none>
@@ -96,14 +95,17 @@ This path is intentionally silent: no operator notification on queue or drain �
    Cost: $X.XXXX (N tokens)
    Closed Via: <operator|auto>
    Next Start Point: <one line>
+   ## Plan
+   <task table, if native Tasks were created>
+   HERMIT_PAYLOAD
    ```
-   Also include the task table (if native Tasks were created).
-9. **Pending-close cleanup (both paths).** After the session-mgr archive returns success, delete `.claude-code-hermit/state/pending-close.json` if it exists (`rm -f` — ignore if absent). Any pending midnight-drain flag is invalidated by a successful close, regardless of trigger; without this step a flag queued before an operator-invoked close would survive and the next session's first heartbeat tick could fire `AUTO_CLOSE` against it.
+   Parse the single line of JSON printed to stdout. **`ok === false`** means the archive did NOT happen — do not proceed to step 9/10 as if it did; surface the returned `reason` to the operator and retry once before giving up.
+9. **Pending-close cleanup (both paths).** After step 8 returns `ok === true`, delete `.claude-code-hermit/state/pending-close.json` if it exists (`rm -f` — ignore if absent). Any pending midnight-drain flag is invalidated by a successful close, regardless of trigger; without this step a flag queued before an operator-invoked close would survive and the next session's first heartbeat tick could fire `AUTO_CLOSE` against it.
 10. **Context-reset marker (`--auto` only, after step 9 success).** Write `.claude-code-hermit/state/clear-requested.json`:
     ```json
     { "requested_at": "<utc ISO>", "reason": "daily-auto-close" }
     ```
-    Skip on archive failure (step 9 is skipped too — the marker inherits the archive-success precondition). Skip on operator-invoked closes entirely — only the `--auto` path writes this. The watchdog reads it on the next tick and sends `/clear` when the session is still alive + idle + unattended, resetting the stale conversation context before the next scheduled wake incurs a cold cache-write. `/clear` preserves CronCreate routines and Monitor tasks; no re-arm is needed.
+    Skip on archive failure (`ok === false` — step 9 is skipped too, the marker inherits the archive-success precondition). Skip on operator-invoked closes entirely — only the `--auto` path writes this. The watchdog reads it on the next tick and sends `/clear` when the session is still alive + idle + unattended, resetting the stale conversation context before the next scheduled wake incurs a cold cache-write. `/clear` preserves CronCreate routines and Monitor tasks; no re-arm is needed.
 
 ---
 

@@ -856,7 +856,7 @@ function writePostCloseClearConfig(h: Hermit): void {
 test('post_close_clear: marker + idle + tmux alive + operator silent → /clear sent, marker deleted',
   withHermit(async (h) => {
     writePostCloseClearConfig(h);
-    // runtime: idle (as set by session-mgr after auto-close)
+    // runtime: idle (as set by session-archive.ts after auto-close)
     patchRuntime(h, { session_state: 'idle' });
     writeClearMarker(h);
     // operator idle 30 min ago

@@ -26,7 +26,7 @@ Yes. Each project gets its own `.claude-code-hermit/` state directory. Install t
 
 ## What Claude model does it use?
 
-Whatever model your Claude Code instance uses by default. Override with `/hermit-settings model` (e.g., `sonnet`, `opus`). The `session-mgr` sub-agent always runs on Sonnet for cost efficiency.
+Whatever model your Claude Code instance uses by default. Override with `/hermit-settings model` (e.g., `sonnet`, `opus`). Session lifecycle (idle transitions, close, recovery) runs as a deterministic script (`session-archive.ts`), not a subagent, so it has no model tier of its own.
 
 ---
 

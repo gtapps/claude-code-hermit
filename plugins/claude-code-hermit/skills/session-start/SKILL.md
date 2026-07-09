@@ -4,8 +4,6 @@ description: Initializes or resumes a work session. Loads context from OPERATOR.
 ---
 # Session Start
 
-> **Tool note:** `claude-code-hermit:session-mgr` is a **subagent** — invoke it via the Agent tool, never the Skill tool. The `plugin:name` form it shares with skills does not imply the Skill tool.
-
 ## Operator Notification
 Notify the operator per the channel policy in CLAUDE.md (§ Operator Notification).
 
@@ -17,7 +15,7 @@ If invoked as `session-start --task '<text>'`: use `<text>` as the task and bypa
 
 - **Trigger:** `runtime.json` `session_state` is `in_progress` or `waiting`, AND SHELL.md's current `## Task` is non-placeholder, AND it collides with `<text>`. The `waiting_reason` selects the on-collision action below: `operator_input`/`conservative_pickup`/null are live states with a genuine pending task (per `channel-responder/SKILL.md`); `unclean_shutdown`/`dead_process` (and their `_no_channel` variants) are crash-recovery prompts whose `## Task` is a stale pre-crash task still awaiting the operator's archive-or-resume decision, not work actively in progress.
 - **Task-text comparison:** take the first non-comment, non-empty line under `## Task` in SHELL.md, trimmed, and compare it to `<text>`, also trimmed. The placeholder `<!-- Awaiting next task -->` counts as empty (not a collision). Equal (post-trim) → **not** a collision, this is the same task continuing (e.g. a routine's own re-entrant call re-seeding the identical `<text>`; the `--task` contract above stores it verbatim, so the strings match) — proceed unchanged. Different → collision.
-- **On collision — recovery `waiting_reason`** (`unclean_shutdown`/`dead_process`/`*_no_channel`): the crashed session's `## Task` is not live work, so do **not** subordinate the fresh task to it. Treat `<text>` as answering the pending recovery prompt with "archive as partial, start fresh": use `claude-code-hermit:session-mgr` to archive the crashed session as `partial`, clear `waiting_reason` and `last_error` in runtime.json, then proceed below with `<text>` as a new session (do **not** defer to NEXT-TASK.md). Append one SHELL.md `## Progress Log` line and notify per channel policy: `[HH:MM] session-start --task archived crashed session (partial), starting fresh: "<incoming task, one line>"`.
+- **On collision — recovery `waiting_reason`** (`unclean_shutdown`/`dead_process`/`*_no_channel`): the crashed session's `## Task` is not live work, so do **not** subordinate the fresh task to it. Treat `<text>` as answering the pending recovery prompt with "archive as partial, start fresh": pipe `Status: partial\nBlockers: none\nClosed Via: operator\n` on stdin to `bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-archive.ts archive --mode=close --state-dir=.claude-code-hermit`; if the returned `ok` is `false`, surface the `reason` and abort rather than proceeding with a fresh session on top of an unarchived crash. On `ok === true`, clear `waiting_reason` and `last_error` in runtime.json, then proceed below with `<text>` as a new session (do **not** defer to NEXT-TASK.md). Append one SHELL.md `## Progress Log` line and notify per channel policy: `[HH:MM] session-start --task archived crashed session (partial), starting fresh: "<incoming task, one line>"`.
 - **On collision — live `waiting_reason` or `in_progress`** (`operator_input`/`conservative_pickup`/null, or `in_progress`):
   1. Do **not** overwrite `## Task`. Do **not** create or renumber a session.
   2. Defer `<text>` to `.claude-code-hermit/sessions/NEXT-TASK.md`, using the same markdown shape `proposal-act`'s "Create a session task" step writes (`# Next Task` / `## Task` / `## Context` / `## Suggested Plan`). If `NEXT-TASK.md` already exists (another task is already pending), do **not** overwrite it — this incoming task is dropped, not queued.
@@ -37,11 +35,7 @@ All state lives under `.claude-code-hermit/` in the project root.
    - **Compaction-boundary marker cleanup:** unconditionally delete `state/compact-requested.json` if present (`rm -f`, ignore if absent). This marker is arc-scoped (written by `session`/`proposal-act` at a work-done boundary so the watchdog's routine-hygiene compactor can waive its interval cooldown once); it must never survive into a new session and influence that session's own compaction timing.
    - **Advisory lock check:** Try to acquire `state/.lifecycle.lock` non-blocking. If held by another process (hermit-start.ts, hermit-stop.ts), tell the operator "A lifecycle operation is in progress — wait for it to complete" and abort.
    - **If runtime.json is missing:** This is either a first run or a pre-runtime.json installation. If SHELL.md exists, treat as a first session and proceed normally. If neither exists, this is a fresh installation — proceed to step 5.
-   - **Interrupted transition recovery (P3):** If `transition` is not null, use `claude-code-hermit:session-mgr` to resume the interrupted operation:
-     - `transition == "archiving"` + target file missing → re-run archive
-     - `transition == "archiving"` + target file exists → skip to SHELL.md cleanup
-     - `transition == "cleaning"` → re-run SHELL.md cleanup
-     - Notify the operator: "Recovered from interrupted [transition]. Session is now idle."
+   - **Interrupted transition recovery (P3):** If `transition` is not null, run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-archive.ts recover --state-dir=.claude-code-hermit`. It owns the full deterministic branch table (`archiving`+target-missing → re-archive with a degraded payload; `archiving`+target-exists → skip straight to SHELL.md cleanup; `cleaning` → re-run SHELL.md cleanup; picks idle-vs-close cleanup semantics via the `transition_mode` field it reads, falling back to a full close for markers left by a pre-upgrade crash). Parse the returned JSON: if `ok === true`, notify the operator: "Recovered from interrupted transition. Session is now idle." If `ok === false`, treat this as the unclean-shutdown case below instead — the interrupted state could not be resolved mechanically.
    - **Unclean shutdown detection:** If `last_error == "unclean_shutdown"`:
      - In always-on mode: set `session_state` to `waiting` and `waiting_reason` to `"unclean_shutdown"` in runtime.json. If `watchdog_restart_reason` is set in runtime.json, include it in the channel message: "Came back up — watchdog restarted the session (reason: [watchdog_restart_reason]). Previous task: [task from SHELL.md, or 'unknown']. Reply with (1) to archive as partial and start fresh, or (2) to resume where we left off." Otherwise use: "Came back up after unclean shutdown. Previous task: [task from SHELL.md, or 'unknown']. Reply with (1) to archive as partial and start fresh, or (2) to resume where we left off." Then stop — channel-responder handles the reply. If `heartbeat.waiting_timeout` is set, heartbeat will auto-transition to `idle` after timeout elapses with no channel activity.
      - **Push-only setup guard:** if no channel is enabled (so channel-responder cannot receive a reply) AND `push_notifications === true`, the recovery prompt cannot be answered. The Operator Notification protocol will still fire `PushNotification` with the message, but immediately set `waiting_reason` to `"unclean_shutdown_no_channel"` and rely on `heartbeat.waiting_timeout` to auto-transition the session to `idle` (heartbeat step 6 flips `session_state` to `idle` without touching SHELL.md; the recovery prompt's archive-vs-resume choice is not made automatically — operators who want explicit archive-on-timeout semantics should configure a channel). If `waiting_timeout` is unset, log a Findings entry recommending the operator add one or configure a channel for two-way replies.
@@ -50,31 +44,31 @@ All state lives under `.claude-code-hermit/` in the project root.
    - **Dead process detection:** If `session_state == "dead_process"`: same flow as unclean shutdown above (including the push-only setup guard). Set `waiting_reason` to `"dead_process"` (or `"dead_process_no_channel"` in the push-only case) in runtime.json. Message: "Process died unexpectedly. Previous task: [task from SHELL.md, or 'unknown']. Reply with (1) to archive as partial and start fresh, or (2) to resume where we left off."
    - **Normal state:** If `session_state` is `idle` → ready for new task. If `in_progress` or `waiting` → existing session, offer resume.
 3b. **Watch registry reset.** Read `state/monitors.runtime.json` and clear all entries unconditionally — watches are session-scoped, so any previous entries are stale. If the file is missing, skip. This runs on every session start (new, resume, or crash recovery) before any watch registration occurs.
-4. **Session state routing** — evaluate the fast-path gate before spawning session-mgr.
+4. **Session state routing** — evaluate the fast-path gate before running `session-archive.ts`.
 
-   **Fast path (skip session-mgr) — ALL five must be true:**
+   **Fast path (skip session-archive.ts) — ALL five must be true:**
    - `runtime.json` was found and parsed successfully (not missing, not malformed)
    - `session_state` ∈ {`in_progress`, `idle`, `waiting`}
    - `transition` is null
    - `last_error` is null
    - `.claude-code-hermit/sessions/SHELL.md` exists
 
-   If all five are true: SHELL.md content is already available from the startup hook injection. Proceed directly to step 4b with the data already in hand. Do **not** spawn session-mgr. Read `session_id` from runtime.json — if set and SHELL.md `**ID:**` still contains the placeholder `S-NNN`, update it to the actual session ID (e.g., `S-009`) in-context without spawning session-mgr. Similarly, if `**Started:**` still contains the placeholder `YYYY-MM-DD HH:MM`, replace it with `created_at` from runtime.json (or the current date/time if `created_at` is absent), in-context without spawning session-mgr.
+   If all five are true: SHELL.md content is already available from the startup hook injection. Proceed directly to step 4b with the data already in hand. Do **not** run `session-archive.ts` here. Read `session_id` from runtime.json — if set and SHELL.md `**ID:**` still contains the placeholder `S-NNN`, update it to the actual session ID (e.g., `S-009`) in-context, no script call needed. Similarly, if `**Started:**` still contains the placeholder `YYYY-MM-DD HH:MM`, replace it with `created_at` from runtime.json (or the current date/time if `created_at` is absent), in-context, no script call needed.
 
-   **Slow path (spawn session-mgr) — any condition above fails:**
+   **Slow path (run `session-archive.ts open`) — any condition above fails:**
    - `runtime.json` is missing or malformed → first run or corrupted state
    - `session_state` is `dead_process` or any unrecognized value
-   - `transition` is not null → interrupted transition recovery needed
+   - `transition` is not null → already handled by the P3 recovery check in step 3 above; if it's still non-null here, `recover` didn't fully resolve it — re-run `recover` once more before falling through to `open`
    - `last_error` is not null → error recovery needed
-   - `SHELL.md` is missing → session-mgr must create it from template
+   - `SHELL.md` is missing → `open` must create it from template
 
-   On the slow path: use `claude-code-hermit:session-mgr` to check session state, handle recovery, and create/update SHELL.md as needed.
+   On the slow path: run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-archive.ts open --state-dir=.claude-code-hermit` (empty `Task:` payload if no task is known yet) to create/update SHELL.md and pre-compute the session ID. Gate on the returned `ok`; if `false`, surface the `reason` to the operator before proceeding.
 4b. If `runtime.json` `session_state` is `idle` (session between tasks — SHELL.md exists but no active task):
    - This is a session between tasks — do NOT create a new session or SHELL.md
    - Present: session start date, tasks completed count, latest entry from Session Summary
    - Skip to step 5 (NEXT-TASK.md check) to determine the task source
-   - When a task is provided: use `claude-code-hermit:session-mgr` to update runtime.json `session_state` to `in_progress`. Fill in Task. After confirming the plan with the operator, create native Tasks (`TaskCreate`) for each step.
-   - The session ID is pre-computed in runtime.json (set by session-mgr on previous idle transition)
+   - When a task is provided: pipe `Task: <text>` on stdin to `bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-archive.ts open --state-dir=.claude-code-hermit` to update runtime.json `session_state` to `in_progress` and fill in Task. After confirming the plan with the operator, create native Tasks (`TaskCreate`) for each step.
+   - The session ID is pre-computed in runtime.json (set by the previous idle transition's `archive --mode=idle`)
    - If heartbeat is running, it continues
 5. Read `.claude-code-hermit/OPERATOR.md` for project context and constraints
 5b. **Baseline audit offer (first session only).**
@@ -139,10 +133,10 @@ All state lives under `.claude-code-hermit/` in the project root.
 9b. If resuming an idle session (runtime.json `session_state` is `idle`):
    - Show session continuity info: tasks completed, session duration, cumulative cost
    - Ask: "What should I work on next?" (unless a NEXT-TASK.md was accepted in step 6)
-   - Once provided, use `claude-code-hermit:session-mgr` to fill Task and update runtime.json `session_state` to `in_progress`. After confirming the plan, create native Tasks for each step.
+   - Once provided, pipe `Task: <text>` on stdin to `bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-archive.ts open --state-dir=.claude-code-hermit` to fill Task and update runtime.json `session_state` to `in_progress`. After confirming the plan, create native Tasks for each step.
 10. If starting a new session:
    - Ask the operator: "What should I help with?" (unless a NEXT-TASK.md was accepted in step 6)
-   - Once provided, use `claude-code-hermit:session-mgr` to create the session with the task. After confirming the plan, create native Tasks (`TaskCreate`) for each step.
+   - Once provided, pipe `Task: <text>` on stdin to `bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-archive.ts open --state-dir=.claude-code-hermit` to create the session with the task. After confirming the plan, create native Tasks (`TaskCreate`) for each step.
 11. Once I know what to work on (new session only):
     - **Tags:** Ask "Any tags for this session? (e.g., refactor, frontend, urgent) Enter to skip." Write the answer to the `Tags:` field in SHELL.md. If skipped, leave blank.
 11b. **Watch registration.** If `config.monitors` exists and has enabled entries, invoke

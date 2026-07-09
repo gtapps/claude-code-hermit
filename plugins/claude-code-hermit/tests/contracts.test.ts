@@ -820,12 +820,12 @@ describe('channel resolver contract', () => {
 // Proposal ID scheme (TestProposalIdScheme)
 //
 // Guards against silent regressions: scripts narrowing the filename regex back
-// to the legacy-only form, or session-mgr losing the full-ID capture pattern.
+// to the legacy-only form, or session-archive.ts losing the full-ID capture pattern.
 // ============================================================
 
 describe('proposal-id scheme', () => {
   const WIDENED_REGEX = String.raw`/^PROP-\d+(?:-.+)?\.md$/`;
-  const SESSION_MGR_REGEX = '/PROP-[a-z0-9][a-z0-9-]*/gi';
+  const SESSION_ARCHIVE_REGEX = '/PROP-[a-z0-9][a-z0-9-]*/gi';
   const SCRIPTS_WITH_PROPOSAL_GLOB = ['reflect-precheck.ts', 'weekly-review.ts', 'doctor-check.ts'];
 
   test('all proposal-scanning scripts must contain the widened filename regex', () => {
@@ -837,11 +837,11 @@ describe('proposal-id scheme', () => {
     }
   });
 
-  test('session-mgr must use a regex that captures the full PROP-NNN-slug-HHMMSS form', () => {
-    const p = path.join(AGENTS, 'session-mgr.md');
+  test('session-archive.ts must use a regex that captures the full PROP-NNN-slug-HHMMSS form', () => {
+    const p = path.join(SCRIPTS, 'session-archive.ts');
     expect(fs.existsSync(p)).toBe(true);
     // missing → new-format IDs truncated to PROP-NNN in session reports
-    expect(read(p)).toContain(SESSION_MGR_REGEX);
+    expect(read(p)).toContain(SESSION_ARCHIVE_REGEX);
   });
 });
 

@@ -64,7 +64,7 @@ describe('session-start --task collision guard', () => {
 
   test('recovery waiting_reason archives-as-partial instead of deferring the fresh task', () => {
     expect(skill).toContain('recovery `waiting_reason`');
-    expect(skill).toContain('archive the crashed session as `partial`');
+    expect(skill).toContain('archive as partial, start fresh');
   });
 
   test('step 6 autonomous drain auto-accepts and only deletes after adoption', () => {

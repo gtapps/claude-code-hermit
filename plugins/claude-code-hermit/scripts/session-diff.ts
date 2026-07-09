@@ -1,6 +1,6 @@
 // scripts/session-diff.ts — Stop hook (standard+ profile)
 // Captures git diff stats and writes to state/session-diff.json (sidecar file).
-// session-mgr merges this into SHELL.md ## Changed during lifecycle transitions.
+// session-archive.ts merges this into SHELL.md ## Changed during lifecycle transitions.
 //
 // This script does NOT write to SHELL.md — that eliminates the read-modify-write
 // race between hooks and Claude editing SHELL.md.
@@ -9,7 +9,7 @@
 // Changes made in git worktrees are only visible to git diff in the main
 // worktree after the feature branch is merged back. If a session closes
 // mid-implementation while changes are still on a worktree branch, this
-// script will see an empty diff. session-mgr handles merge from this sidecar.
+// script will see an empty diff. session-archive.ts handles merge from this sidecar.
 
 import { execSync } from "node:child_process";
 import fs from "node:fs";

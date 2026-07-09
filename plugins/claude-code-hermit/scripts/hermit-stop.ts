@@ -59,7 +59,7 @@ function readActiveSession(): Json | null {
   const stats: Json = {};
 
   // Status and started come from runtime.json — the documented single source of truth.
-  // SHELL.md has no **Status:** field (removed; see session-mgr.md).
+  // SHELL.md has no **Status:** field (removed; see scripts/session-archive.ts).
   const runtime = readRuntimeJson();
   if (runtime) {
     stats.status = runtime.session_state ?? 'unknown';

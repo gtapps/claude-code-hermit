@@ -15,7 +15,7 @@ After install, run `/claude-code-hermit:hatch` in the target project to create t
 
 ## Plugin Structure
 
-- `agents/` — subagent definitions (session-mgr, proposal-triage, reflection-judge, evolve-runner, skill-eval-runner; hermit plugins add more subagents)
+- `agents/` — subagent definitions (proposal-triage, reflection-judge, evolve-runner, skill-eval-runner; hermit plugins add more subagents)
 - `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, brief, watch, heartbeat, hermit-routines, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, capability-brainstorm, channel-responder, channel-setup, hatch, hermit-evolve, docker-setup, docker-security, simplify, smoke-test, hermit-evolution, cost-reflect, hermit-health, weekly-review, migrate, hermit-doctor, recall
 - `hooks/hooks.json` — hook registrations
 - `scripts/` — hook implementation scripts + boot scripts (hermit-start.ts, hermit-stop.ts)
@@ -99,7 +99,7 @@ bun test
 - Avoid overengineering.
 - Hooks fail open — a hook must never block Claude Code. Catch all errors, `process.exit(0)`. Never exit non-zero on transient failures.
 - Consume stdin — every hook must read stdin to completion even if unused (avoids broken pipe errors).
-- Agent references in skill instructions must always use the full namespaced form `claude-code-hermit:<agent-name>` (e.g., `claude-code-hermit:session-mgr`). Bare names are auto-namespaced by the harness on load, so bare-name invocations from skill text will fail with "Agent type not found".
+- Agent references in skill instructions must always use the full namespaced form `claude-code-hermit:<agent-name>` (e.g., `claude-code-hermit:proposal-triage`). Bare names are auto-namespaced by the harness on load, so bare-name invocations from skill text will fail with "Agent type not found".
 - **Hermit `state-templates/CLAUDE-APPEND.md` blocks must not restate `config.json` contents** (routine schedules, Discord/Telegram user IDs, morning-brief times, `permission_mode`, `agent_name`, `sign_off`, `escalation`, `idle_behavior`). Those are loaded structurally from `config.json` on every session start. CLAUDE-APPEND describes behaviors, conventions, and workflow shape — not the wiring. Restating config values leaks them into `CLAUDE.md`, which the hatch's OPERATOR.md scan reads, tempting the model to mirror them again into OPERATOR.md prose. Naming routines by `id` and referencing `enabled` state is fine — those are stable; schedules and flags drift.
 - **Default `config.json` source of truth is `state-templates/config.json.template`.** Skills (especially `hatch`) must overlay operator choices onto the template — never re-declare a parallel inline default object in SKILL.md text. The `tests/template-skill-sync.test.ts` contract test catches drift between the template's top-level keys and `hatch/SKILL.md` references; if you add a field to the template, also reference it by name in hatch.
 - **SKILL.md size: trim before splitting.** Sibling files (e.g., `skills/<name>/EXTRA.md`) are not auto-loaded — only `SKILL.md` is. The model must explicitly `Read` siblings, which is unreliable for branch-conditional flow. When a SKILL.md grows large, prefer trimming verbose prose, collapsing redundant tables, and removing duplicated sections over splitting into multiple files.

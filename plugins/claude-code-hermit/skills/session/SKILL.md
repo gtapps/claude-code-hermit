@@ -44,16 +44,14 @@ Work through tasks using whatever tools, skills, and agents are available:
 
 When the work is done, or the operator decides to move on (even if partial or blocked):
 
-**Completion notification is the final step of this flow, not a substitute for it.** Skipping the session-mgr idle transition (step 6 below) leaves the session `in_progress`, which triggers stale-session heartbeat alerts and delays report archival until the time-based backstops kick in.
+**Completion notification is the final step of this flow, not a substitute for it.** Skipping the idle transition (step 6 below) leaves the session `in_progress`, which triggers stale-session heartbeat alerts and delays report archival until the time-based backstops kick in.
 
-> **Tool note:** `claude-code-hermit:session-mgr` is a **subagent** — invoke it via the Agent tool, never the Skill tool. The `plugin:name` form it shares with skills does not imply the Skill tool.
-
-1. Compile final session data **in context** — do NOT write to SHELL.md at this point. session-mgr owns the final write. Gather:
+1. Compile final session data **in context** — do NOT write to SHELL.md at this point. `session-archive.ts` owns the final write. Gather:
    - `Status:` one of `completed` | `partial` | `blocked`
    - `Blockers:` one line each, enough context for a cold start
    - `Lessons:` only genuinely useful ones
    - `Changed:` list of files modified
-2. Verify quality in-context before passing to session-mgr:
+2. Verify quality in-context before archiving:
    - Task status is one of `completed` | `partial` | `blocked`
    - Changed files are identified
    - Blockers have enough context for a cold start
@@ -62,22 +60,26 @@ When the work is done, or the operator decides to move on (even if partial or bl
 4. **Reflect (with debounce).** Read `state/reflection-state.json` for `last_reflection`. Only invoke the `claude-code-hermit:reflect` skill if `last_reflection` is null or older than 4 hours. For quick tasks (no tasks created, under 5 minutes), skip entirely — progress log is sufficient.
 4b. **Session-triggered scheduled checks.** For each `scheduled_checks` entry (from config already loaded) with `trigger: "session"` and `enabled: true`, invoke the skill. If a skill is unavailable or errors, skip it and continue — never block session finalization on a scheduled check failure. For each check that completed successfully, read-modify-write `state/reflection-state.json`: update only `scheduled_checks.<id>.last_run` to today's ISO date, preserving all other keys. Do not update `last_run` for failed checks.
 5. If native Tasks exist: call `TaskList`, format as a markdown table. Then `TaskUpdate(status=deleted)` for all tasks (idle = clean slate).
-6. Use `claude-code-hermit:session-mgr` to perform an **idle transition** (finalize SHELL.md, archive report, reset task-scoped sections, set `session_state` to `idle`). session-mgr updates `state/runtime.json` (lifecycle truth) and resets the task-scoped sections of SHELL.md.
-   Before invoking session-mgr: read `session_id` from `.claude-code-hermit/state/runtime.json`. Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-cost.ts <session_id>` via Bash and parse the JSON output to get `cost_usd` and `tokens` for this session. If the script fails or returns zeros, omit the `Cost:` line (session-mgr will fall back to `.status.json`).
-   Pass the following compact structured payload in the prompt — keep it brief, no freeform prose:
+6. Run `scripts/session-archive.ts` to perform an **idle transition** (finalize SHELL.md, archive report, reset task-scoped sections, set `session_state` to `idle`).
+   Before invoking: read `session_id` from `.claude-code-hermit/state/runtime.json`. Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-cost.ts <session_id>` via Bash and parse the JSON output to get `cost_usd` and `tokens` for this session. If the script fails or returns zeros, omit the `Cost:` line (session-archive.ts falls back to `.status.json`).
+   Pipe the following compact structured payload on stdin — keep it brief, no freeform prose:
    ```
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-archive.ts archive --mode=idle --state-dir=.claude-code-hermit <<'HERMIT_PAYLOAD'
    Status: <completed|partial|blocked>
    Blockers: <one line each, or none>
    Lessons: <one line each, or none>
    Changed: <file list, or none>
    Cost: $X.XXXX (N tokens)
+   ## Plan
+   <task table, if native Tasks were created>
+   HERMIT_PAYLOAD
    ```
-   Also include the task table (if native Tasks were created).
+   Parse the single line of JSON the script prints to stdout. **Gate every following step on the returned `ok` field.** `ok === true` → the transition succeeded, continue to step 7. `ok === false` → the archive did NOT happen — do not proceed as if it did. Append the returned `reason` to SHELL.md `## Findings` and retry once; if it fails again, notify the operator and leave the session `in_progress` rather than silently losing the report.
 7. If `heartbeat.enabled` is true in config and heartbeat is not already running: start it (`/claude-code-hermit:heartbeat start`)
 7b. **Compaction boundary marker.** After the idle transition (step 6) succeeds: write `state/compact-requested.json` with `{"requested_at": "<now ISO>", "reason": "session-work-done"}` (singleton — overwrite unconditionally). The arc that just archived is fully on disk, so this is a safe moment for the watchdog's routine-hygiene compactor (`maybeContextCompact`) to waive its interval cooldown on the next tick. Skip if step 6 failed. Run this step unchanged regardless of step 8's branch below; the marker is self-reaping. Its primary reaper is the watchdog's `maybeContextCompact`, which consumes it when the compaction fires and deletes it stale-on-read once it ages past `COMPACT_MARKER_TTL_SECS` — so even the conservative branch (where no `session-start` runs next) never leaks it. The next `session-start` step 3 unconditionally deletes any survivor on boot as a backstop: immediate in the auto-start branch, later otherwise.
-8. After the session-mgr idle transition (step 6) succeeds, check `.claude-code-hermit/sessions/NEXT-TASK.md` and read `escalation` from config:
+8. After the idle transition (step 6) succeeds (`ok === true`), check `.claude-code-hermit/sessions/NEXT-TASK.md` and read `escalation` from config:
    - **A task is queued AND `escalation` is `balanced` or `autonomous`:** notify the operator: "Archived as S-NNN. Task: [summary]. Status: [outcome]. Auto-starting queued task: [NEXT-TASK.md summary]." Then, as the terminal action of this flow, invoke `/claude-code-hermit:session-start` (no `--task` flag — it consumes `NEXT-TASK.md` itself via its own step 6). Do not perform any further steps of this invocation's flow after invoking it. Under `autonomous`, once that drained task completes, re-run this Work-done flow on it in turn (same as heartbeat's existing autonomous NEXT-TASK pickup) — never leave it silently `in_progress` with only a bare notification.
-   - **Otherwise** (no task queued, or `escalation` is `conservative`): notify the operator with the archival line: "Archived as S-NNN. Task: [summary]. Status: [outcome]." Append "Ready for what's next." **only when no task is queued** — omit that tail under `conservative` with a task queued, since a task IS pending and the tail would falsely imply an empty queue. Under `conservative` with a task queued: leave `NEXT-TASK.md` in place — do not auto-start it, do not mention the queued task here, and do not write to `runtime.json` from this flow (session_state/waiting_reason writes belong to session-mgr/heartbeat/channel-responder, not this skill). The existing heartbeat Idle Agency drain owns the single operator-facing queue notice: on its next tick its conservative branch notifies about the queued task and sets `waiting`.
+   - **Otherwise** (no task queued, or `escalation` is `conservative`): notify the operator with the archival line: "Archived as S-NNN. Task: [summary]. Status: [outcome]." Append "Ready for what's next." **only when no task is queued** — omit that tail under `conservative` with a task queued, since a task IS pending and the tail would falsely imply an empty queue. Under `conservative` with a task queued: leave `NEXT-TASK.md` in place — do not auto-start it, do not mention the queued task here, and do not write to `runtime.json` from this flow (session_state/waiting_reason writes belong to session-archive.ts/heartbeat/channel-responder, not this skill). The existing heartbeat Idle Agency drain owns the single operator-facing queue notice: on its next tick its conservative branch notifies about the queued task and sets `waiting`.
 9. Once the operator says what's next (or, in the auto-start branch above, once the drained task's own plan is underway): go to step 4 (plan the work)
 
 To close the session entirely, the operator runs `/claude-code-hermit:session-close` at any time.

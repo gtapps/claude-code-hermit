@@ -40,7 +40,10 @@ If runtime.json `session_state` is `idle` (no active task):
 If runtime.json `session_state` is `waiting` (alive but blocked on input):
 
 Read `waiting_reason` from runtime.json to understand why:
-- `"unclean_shutdown"` or `"dead_process"` → operator reply is an archive/resume choice: `(1)` = archive as partial and start fresh, `(2)` = resume as-is. Handle accordingly via `claude-code-hermit:session-mgr` — session-mgr owns the full state transition including clearing `waiting_reason`.
+- `"unclean_shutdown"` or `"dead_process"` → operator reply is an archive/resume choice:
+  - `(1)` archive as partial and start fresh: pipe `Status: partial\nBlockers: none\nClosed Via: operator\n` on stdin to `bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-archive.ts archive --mode=close --state-dir=.claude-code-hermit`. On `ok === true`, clear `waiting_reason` and `last_error` in runtime.json.
+  - `(2)` resume as-is: run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-archive.ts open --state-dir=.claude-code-hermit` with an empty `Task:` payload (SHELL.md's existing Task is left untouched) to set `session_state` back to `in_progress`; then clear `waiting_reason` and `last_error` in runtime.json.
+  - Either branch: if the script returns `ok === false`, surface the `reason` to the operator rather than silently proceeding as if the transition completed.
 - `"operator_input"`, `"conservative_pickup"`, or null → treat as normal task resumption.
 
 - **Status request** → respond with current context, stay `waiting`
@@ -110,6 +113,7 @@ Before running any heavy sub-step — an archive traversal, a multi-file search,
   - **Parsing the answer against the target entry:**
     - Entry has no `options` (plain yes/no entry): the answer must be `yes` or `no` (case-insensitive). Anything else on this entry → ambiguous, ask for clarification once, do not resolve.
     - Entry has `options` (2-4 labels): a bare number `k` within range (1 through the option count) selects `options[k-1]`; a number outside that range is ambiguous. Otherwise, case-insensitive prefix match the answer against the labels; a unique match resolves, no match or a multi-label prefix match is ambiguous. A bare `yes`/`no` against an options entry is ambiguous — reply with the numbered options and ask once, do not resolve.
+  - **Suggestion escape hatch:** when a bare `yes`/`no`/`later` can't be cleanly resolved here (ambiguous against an options entry, or multiple pending entries) *and* `state/proposals-index.json` has a `status: "proposed"` proposal, append to the clarification reply: "…or reply 'YES #N' to act on an open suggestion instead." Precedence is unchanged — this only hands a bare reply meant for a Suggestion card a way out of the micro-proposal loop.
   - **On resolved entry:**
     - Read `question` from the entry before modifying.
     - **Entry has `on_resolve`** → **resolve the entry on disk FIRST, then invoke.** Set `status: "approved"`, remove the entry from `pending`, write the file, and append the `micro-resolved` event below — all *before* invoking the command. The `on_resolve` command can run a long implementation (e.g. `proposal-act … --answer "implement now"` runs the falsification gate + full implementation); if the durable-queue removal were left until after that, a crash or compaction mid-implementation would leave the entry `status: "pending"` and heartbeat would keep re-nudging a question already acted on. Append `micro-resolved` event via stdin heredoc (question/answer are operator text and may contain apostrophes):
@@ -131,9 +135,10 @@ Before running any heavy sub-step — an archive traversal, a multi-file search,
     - **(yes/no branches only)** Remove the resolved entry from `pending`. Write the file. (The `on_resolve` branch already did this above, before invoking the command.)
   - If no pending micro-proposals: classify as normal message (fall through to categories below).
 
-- **Proposal approval** ("accept PROP-", "go ahead with PROP-", "approve PROP-", or referencing proposal numbers)
-  - Route through `/claude-code-hermit:proposal-act accept PROP-NNN` for each referenced proposal
-  - If the operator uses informal numbers (#1, #2): run `/claude-code-hermit:proposal-list` to resolve to PROP-NNN IDs. If no match, tell the operator.
+- **Proposal approval** ("accept PROP-", "go ahead with PROP-", "approve PROP-", referencing proposal numbers, `#N`, or a bare/`#N`-qualified `YES`/`LATER`/`NO` reply to a Suggestion card — only when no pending micro-proposal claimed the reply first, per Micro-approval response above)
+  - **Map the reply to an action** (case-insensitive): `YES` / "go ahead" / "accept" → `accept`; `LATER` / "hold" / "defer" → `defer`; `NO` / "drop" / "dismiss" → `dismiss`. `accept PROP-`/`approve PROP-` phrasing maps to `accept` directly; the operator can also spell the action out instead of YES/LATER/NO.
+  - **Resolve the target proposal:** an explicit `#N` or `PROP-NNN` reference — first confirm it matches a proposal in `state/proposals-index.json`; if it doesn't, reply in plain voice ("I don't see a Suggestion #N — reply with one of the open numbers") rather than routing to `proposal-act` (whose no-match error is terminal-voice and names a slash command). On a match, route through `/claude-code-hermit:proposal-act <action> PROP-N` (`proposal-act` zero-pads the integer itself). A bare `YES`/`LATER`/`NO` with no `#N`: read `state/proposals-index.json`, filter to `status: "proposed"`. Exactly one → apply to it. Zero or 2+ → reply listing the open Suggestion numbers and ask the operator to specify (e.g. "Reply 'YES #14'").
+  - Never surface internal proposal fields back to the channel (the exact list and `#N` derivation are canonical in `proposal-list` §4a) — confirm using the Suggestion number (see `proposal-act`'s channel-tagged notify).
 
 - **New instruction** ("work on X", "switch to Y", "prioritize Z")
   - If `session_state` is `idle`: treat as **Task assignment** (above)
