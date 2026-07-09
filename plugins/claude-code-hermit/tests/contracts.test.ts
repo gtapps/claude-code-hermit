@@ -1848,6 +1848,27 @@ describe('doctor version-currency check', () => {
     expect(c.status).toBe('warn');
     expect(c.detail).toContain('Fixed entries');
   }), 20000);
+
+  // The escalation must read the newer version's CHANGELOG from the marketplace-cache clone
+  // (marketplace.json's dir + the plugin's `source`), which is refreshed with marketplace.json
+  // — NOT the installed snapshot, which structurally can't carry the newer version's sections.
+  // No HERMIT_DOCTOR_CHANGELOG_PATH override here: resolution must come from `source`.
+  test('newer version Fixed entry resolved via marketplace-cache clone `source` → warn, escalated', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    const mpRoot = path.join(dir, 'mp');
+    const mpFile = path.join(mpRoot, '.claude-plugin', 'marketplace.json');
+    fs.mkdirSync(path.dirname(mpFile), { recursive: true });
+    fs.writeFileSync(mpFile, JSON.stringify({ plugins: [{ name: coreName, version: '99.0.0', source: './core' }] }));
+    fs.mkdirSync(path.join(mpRoot, 'core'), { recursive: true });
+    fs.writeFileSync(path.join(mpRoot, 'core', 'CHANGELOG.md'), '## [99.0.0] - 2099-01-01\n\n### Fixed\n- something\n');
+    const r = await runScript('doctor-check.ts', {
+      args: ['.claude-code-hermit'], cwd: dir,
+      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, HERMIT_DOCTOR_MARKETPLACE_FILE: mpFile },
+    });
+    const c = vcCheck(JSON.parse(r.stdout));
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('Fixed entries');
+  }), 20000);
 });
 
 describe('doctor context-age check', () => {
@@ -1914,6 +1935,26 @@ describe('doctor context-age check', () => {
     writeConfig(dir, HYGIENE_CONFIG);
     writeRuntime(dir, 'in_progress', 'sess-1');
     writeCostLogEntry(dir, 'sess-1', 2000);
+    writeHygieneEvent(dir, 'context-compact', 48);
+    const c = caCheck(await runDoctorCheck(dir));
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('context hygiene may be disabled or stuck');
+  }), 20000);
+
+  // Estimate-only entry (multi-call, no max_prompt_tokens): the compact tier this check
+  // mirrors averages the summed total rather than skipping, so an over-threshold average
+  // must still warn — regression guard for the clear-tier skip that used to short-circuit here.
+  test('active session, estimate-only entry over threshold → warn (compact-tier parity)', withTmpdir(async (dir) => {
+    writeConfig(dir, HYGIENE_CONFIG);
+    writeRuntime(dir, 'in_progress', 'sess-1');
+    fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
+    const entry = {
+      timestamp: new Date().toISOString(), session_id: 'sess-1', source: 'interactive', model: 'sonnet',
+      input_tokens: 6000, cache_write_tokens: 0, cache_read_tokens: 0, output_tokens: 0,
+      total_tokens: 6000, api_calls: 3, // no max_prompt_tokens → avg 2000 > 1000 threshold
+      estimated_cost_usd: 0,
+    };
+    fs.writeFileSync(path.join(dir, '.claude', 'cost-log.jsonl'), JSON.stringify(entry) + '\n');
     writeHygieneEvent(dir, 'context-compact', 48);
     const c = caCheck(await runDoctorCheck(dir));
     expect(c.status).toBe('warn');

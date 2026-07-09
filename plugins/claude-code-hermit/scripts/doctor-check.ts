@@ -29,9 +29,6 @@ const hooksPath = path.join(pluginRoot, 'hooks', 'hooks.json');
 // Resolve the cost log relative to the hermit dir (from argv), not the CWD —
 // doctor is often run from a different directory than the project root.
 const costLog = costLogPath(hermitDir);
-// Override lets tests point version-currency's Fixed-escalation scan at a fixture
-// without depending on real (moving-target) CHANGELOG content.
-const changelogPath = process.env.HERMIT_DOCTOR_CHANGELOG_PATH || path.join(pluginRoot, 'CHANGELOG.md');
 
 // State files expected to exist after a healthy hatch.
 const EXPECTED_STATE_FILES = [
@@ -406,12 +403,25 @@ function marketplaceCacheFile(coreName: string): string | null {
   return fs.existsSync(file) ? file : null;
 }
 
-/** CHANGELOG.md for a specific cached-but-not-yet-installed version, using the same
- *  versioned-cache layout siblingPluginDirs/marketplaceCacheFile already detect
- *  (.claude/plugins/cache/<mp>/<coreName>/<version>/). pluginRoot's own CHANGELOG.md (the
- *  installed version's frozen snapshot) can never contain sections past installedVersion,
- *  so scanning it for a newer cached version's Fixed entries always comes up empty — this
- *  reads the newer version's own file when the cache already has it on disk. */
+/** CHANGELOG.md for the newer version inside the marketplace-cache clone — the git checkout
+ *  `claude plugin marketplace update` refreshes alongside marketplace.json, so it carries the
+ *  newer version's entries even before `/plugin update` pulls the version's own install-cache
+ *  dir. Resolved from the marketplace-repo root (mpFile is <mp-root>/.claude-plugin/marketplace.json)
+ *  joined with the plugin's `source` (e.g. "./plugins/claude-code-hermit"). Returns null when
+ *  the entry has no usable source or the file isn't present. This is the source that actually
+ *  carries the (installedVersion, cachedVersion] range when the check fires; the install-cache
+ *  and installed-snapshot CHANGELOGs both stop at installedVersion in that state. */
+function marketplaceRepoChangelogPath(mpFile: string, entry: Json): string | null {
+  const source = typeof entry?.source === 'string' ? entry.source : '';
+  if (!source) return null;
+  const repoRoot = path.dirname(path.dirname(mpFile)); // <mp-root>/.claude-plugin/marketplace.json -> <mp-root>
+  const file = path.join(repoRoot, source, 'CHANGELOG.md');
+  return fs.existsSync(file) ? file : null;
+}
+
+/** CHANGELOG.md for a cached-but-not-yet-installed version in the versioned install cache
+ *  (.claude/plugins/cache/<mp>/<coreName>/<version>/), used only when `/plugin update` has
+ *  already pulled the version's files but hermit-evolve hasn't run yet. */
 function cachedVersionChangelogPath(coreName: string, version: string): string | null {
   const coreDir = versionedCacheCoreDir(coreName);
   if (!coreDir) return null;
@@ -481,11 +491,19 @@ function checkVersionCurrency() {
       return { id: 'version-currency', status: 'ok', detail: `installed ${installedVersion}, no newer version in local marketplace cache${cachedAt}` };
     }
 
-    // pluginRoot's own CHANGELOG.md is the installed version's frozen snapshot — it stops at
-    // installedVersion and can never contain a newer cachedVersion's sections. Prefer the
-    // cached version's own CHANGELOG.md when the cache happens to have it on disk.
-    const cachedChangelog = cachedVersionChangelogPath(coreName, cachedVersion) || changelogPath;
-    const escalation = changelogRangeHasFixed(installedVersion, cachedVersion, cachedChangelog) ? ' — includes Fixed entries' : '';
+    // Read the newer version's CHANGELOG from the marketplace-cache clone (refreshed with
+    // marketplace.json), falling back to the install cache if `/plugin update` already pulled
+    // it. pluginRoot's own CHANGELOG.md is deliberately NOT a fallback: as the installed
+    // version's frozen snapshot it stops at installedVersion, so scanning it for the
+    // (installedVersion, cachedVersion] range is structurally empty and would silently
+    // under-report a bug-fix gap. HERMIT_DOCTOR_CHANGELOG_PATH is the test seam. When no
+    // source is resolvable the escalation is simply omitted rather than faked.
+    const cachedChangelog =
+      marketplaceRepoChangelogPath(mpFile, entry)
+      || cachedVersionChangelogPath(coreName, cachedVersion)
+      || process.env.HERMIT_DOCTOR_CHANGELOG_PATH
+      || null;
+    const escalation = cachedChangelog && changelogRangeHasFixed(installedVersion, cachedVersion, cachedChangelog) ? ' — includes Fixed entries' : '';
     return {
       id: 'version-currency',
       status: 'warn',
@@ -931,16 +949,17 @@ function checkWatchdog() {
 // the *symptom* independent of cause — this check does, so a future hygiene-disabling bug
 // doesn't go unnoticed for days again.
 //
-// Mirrors hermit-watchdog.ts's hygiene primitives (resolveHygieneSessionId, promptTokens,
-// isEstimateOnly) rather than importing them: that file resolves state paths from a
-// CWD-relative STATE_DIR, while doctor-check.ts is deliberately invocable with an explicit
-// hermit dir different from CWD (see the costLog comment above) — importing would silently
-// read the wrong session on that path. The logic is small enough to duplicate safely.
+// Mirrors hermit-watchdog.ts's compact-tier hygiene primitives (resolveHygieneSessionId,
+// promptTokens, isEstimateOnly) rather than importing them: that file resolves state paths
+// from a CWD-relative STATE_DIR, while doctor-check.ts is deliberately invocable with an
+// explicit hermit dir different from CWD (see the costLog comment above) — importing would
+// silently read the wrong session on that path. The logic is small enough to duplicate safely.
 
 /** True when a cost-log entry lacks the real per-call peak (max_prompt_tokens) and spans
- *  more than one API call — its only token count is an average, not a real ceiling, so a
- *  context-size judgement based on it isn't trustworthy. Mirrors hermit-watchdog.ts's
- *  isEstimateOnly — the exact ambiguity the 1.2.19 /clear fix resolved for that tier. */
+ *  more than one API call — its only token count is a summed billing total across calls, so
+ *  promptTokensOf averages it back down to a per-call figure instead of using the raw sum.
+ *  Mirrors hermit-watchdog.ts's isEstimateOnly (the compact tier averages such entries; only
+ *  the destructive /clear tier refuses them). */
 function isEstimateOnlyEntry(entry: Json): boolean {
   return typeof entry.max_prompt_tokens !== 'number'
     && typeof entry.api_calls === 'number' && entry.api_calls > 1;
@@ -1007,10 +1026,12 @@ function checkContextAge() {
     if (!lastEntry) {
       return { id: 'context-age', status: 'ok', detail: 'no cost-log entry for the active session yet' };
     }
-    if (isEstimateOnlyEntry(lastEntry)) {
-      return { id: 'context-age', status: 'ok', detail: 'latest turn has no real context-size metric (multi-call, pre-max_prompt_tokens) — skipping' };
-    }
 
+    // This is a compact-tier tripwire, so it judges the same token count the compact
+    // tier acts on: promptTokensOf averages an estimate-only entry (as maybeContextCompact
+    // does) rather than skipping it. Only the destructive /clear tier refuses estimate-only
+    // entries — mirroring that skip here would blind the check to a bloated session whose
+    // latest turn happens to be a multi-call estimate, the exact case compact still compacts.
     const prompt = promptTokensOf(lastEntry);
     if (prompt <= threshold) {
       return { id: 'context-age', status: 'ok', detail: `context ${kStr(prompt)} tokens, at/under ${kStr(threshold)} threshold` };
