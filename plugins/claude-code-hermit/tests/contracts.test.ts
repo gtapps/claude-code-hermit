@@ -1743,14 +1743,14 @@ describe('reflect routine gating contract (token efficiency)', () => {
 // ============================================================
 
 const DOCTOR_CHECK_IDS = [
-  'runtime', 'config', 'hooks', 'state', 'cost', 'proposals', 'dependencies',
-  'permissions', 'docker-security', 'archive', 'reflect', 'scheduler', 'watchdog',
+  'runtime', 'config', 'hooks', 'state', 'cost', 'proposals', 'dependencies', 'version-currency',
+  'permissions', 'docker-security', 'archive', 'reflect', 'scheduler', 'watchdog', 'context-age',
   'opus-wake', 'heartbeat', 'raw-size', 'credential-expiry', 'model-pricing-known',
   'channel-liveness',
 ];
 
 describe('doctor report contract (PROP-018 count pin)', () => {
-  test('report emits exactly the 19 pinned check ids, in order', withTmpdir(async (dir) => {
+  test('report emits exactly the 21 pinned check ids, in order', withTmpdir(async (dir) => {
     writeConfig(dir, {});
     const report = await runDoctorCheck(dir);
     expect((report.checks ?? []).map((c: any) => c.id)).toEqual(DOCTOR_CHECK_IDS);
@@ -1770,10 +1770,155 @@ describe('hermit-doctor SKILL.md doc-sync (no drift between JSON checks and docs
     expect(missing).toEqual([]);
   });
 
-  test('counts read twenty, not fifteen', () => {
+  test('counts read twenty-two, not fifteen', () => {
     expect(skill).not.toContain('fifteen');
-    expect(skill.toLowerCase()).toContain('twenty');
+    expect(skill.toLowerCase()).toContain('twenty-two');
   });
+});
+
+describe('doctor version-currency check', () => {
+  const vcCheck = (report: any) => (report.checks ?? []).find((c: any) => c.id === 'version-currency');
+  const coreManifest = readJson(path.join(PLUGIN_ROOT, '.claude-plugin', 'plugin.json'));
+  const installedVersion: string = coreManifest.version;
+  const coreName: string = coreManifest.name;
+
+  test('no marketplace cache configured → ok', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    const report = await runDoctorCheck(dir);
+    const c = vcCheck(report);
+    expect(c.status).toBe('ok');
+    expect(c.detail).toContain('no marketplace cache');
+  }), 20000);
+
+  test('marketplace cache lists no matching plugin entry → ok, no comparable entry', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    const mpFile = path.join(dir, 'marketplace.json');
+    fs.writeFileSync(mpFile, JSON.stringify({ plugins: [] }));
+    const r = await runScript('doctor-check.ts', {
+      args: ['.claude-code-hermit'], cwd: dir,
+      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, HERMIT_DOCTOR_MARKETPLACE_FILE: mpFile },
+    });
+    const c = vcCheck(JSON.parse(r.stdout));
+    expect(c.status).toBe('ok');
+    expect(c.detail).toContain('no comparable version entry');
+  }), 20000);
+
+  test('marketplace cache lists the same version → ok, no newer version', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    const mpFile = path.join(dir, 'marketplace.json');
+    fs.writeFileSync(mpFile, JSON.stringify({ plugins: [{ name: coreName, version: installedVersion }] }));
+    const r = await runScript('doctor-check.ts', {
+      args: ['.claude-code-hermit'], cwd: dir,
+      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, HERMIT_DOCTOR_MARKETPLACE_FILE: mpFile },
+    });
+    const c = vcCheck(JSON.parse(r.stdout));
+    expect(c.status).toBe('ok');
+    expect(c.detail).toContain('no newer version');
+  }), 20000);
+
+  test('marketplace cache lists a newer version, no Fixed entries in range → warn, not escalated', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    const mpFile = path.join(dir, 'marketplace.json');
+    fs.writeFileSync(mpFile, JSON.stringify({ plugins: [{ name: coreName, version: '99.0.0' }] }));
+    const r = await runScript('doctor-check.ts', {
+      args: ['.claude-code-hermit'], cwd: dir,
+      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, HERMIT_DOCTOR_MARKETPLACE_FILE: mpFile },
+    });
+    const c = vcCheck(JSON.parse(r.stdout));
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('99.0.0');
+    expect(c.detail).not.toContain('Fixed entries');
+  }), 20000);
+
+  test('marketplace cache lists a newer version with a Fixed entry in range → warn, escalated', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    const mpFile = path.join(dir, 'marketplace.json');
+    fs.writeFileSync(mpFile, JSON.stringify({ plugins: [{ name: coreName, version: '99.0.0' }] }));
+    const changelog = path.join(dir, 'CHANGELOG.md');
+    fs.writeFileSync(changelog, '## [99.0.0] - 2099-01-01\n\n### Fixed\n- something\n');
+    const r = await runScript('doctor-check.ts', {
+      args: ['.claude-code-hermit'], cwd: dir,
+      env: {
+        CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT,
+        HERMIT_DOCTOR_MARKETPLACE_FILE: mpFile,
+        HERMIT_DOCTOR_CHANGELOG_PATH: changelog,
+      },
+    });
+    const c = vcCheck(JSON.parse(r.stdout));
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('Fixed entries');
+  }), 20000);
+});
+
+describe('doctor context-age check', () => {
+  const caCheck = (report: any) => (report.checks ?? []).find((c: any) => c.id === 'context-age');
+  const HYGIENE_CONFIG = { context_hygiene: { compact: { enabled: true, min_context_tokens: 1000 } } };
+
+  function writeCostLogEntry(dir: string, sessionId: string, maxPromptTokens: number) {
+    fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
+    const entry = {
+      timestamp: new Date().toISOString(), session_id: sessionId, source: 'interactive', model: 'sonnet',
+      input_tokens: 0, cache_write_tokens: 0, cache_read_tokens: 0, output_tokens: 0,
+      total_tokens: maxPromptTokens, api_calls: 1, max_prompt_tokens: maxPromptTokens,
+      estimated_cost_usd: 0,
+    };
+    fs.writeFileSync(path.join(dir, '.claude', 'cost-log.jsonl'), JSON.stringify(entry) + '\n');
+  }
+
+  function writeRuntime(dir: string, sessionState: string, sessionId: string) {
+    fs.writeFileSync(path.join(dir, '.claude-code-hermit', 'state', 'runtime.json'), JSON.stringify({
+      session_state: sessionState, session_id: sessionId, updated_at: new Date().toISOString(),
+    }));
+  }
+
+  function writeHygieneEvent(dir: string, action: string, ageHours: number) {
+    const ts = new Date(Date.now() - ageHours * 3600000).toISOString();
+    fs.writeFileSync(path.join(dir, '.claude-code-hermit', 'state', 'watchdog-events.jsonl'),
+      JSON.stringify({ ts, action, reason: 'test' }) + '\n');
+  }
+
+  test('compact tier not enabled → ok', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    const c = caCheck(await runDoctorCheck(dir));
+    expect(c.status).toBe('ok');
+    expect(c.detail).toContain('not enabled');
+  }), 20000);
+
+  test('no active session → ok', withTmpdir(async (dir) => {
+    writeConfig(dir, HYGIENE_CONFIG);
+    const c = caCheck(await runDoctorCheck(dir));
+    expect(c.status).toBe('ok');
+    expect(c.detail).toContain('no active session');
+  }), 20000);
+
+  test('active session, context under threshold → ok', withTmpdir(async (dir) => {
+    writeConfig(dir, HYGIENE_CONFIG);
+    writeRuntime(dir, 'in_progress', 'sess-1');
+    writeCostLogEntry(dir, 'sess-1', 500);
+    const c = caCheck(await runDoctorCheck(dir));
+    expect(c.status).toBe('ok');
+    expect(c.detail).toContain('under');
+  }), 20000);
+
+  test('active session, context over threshold, recent hygiene event → ok', withTmpdir(async (dir) => {
+    writeConfig(dir, HYGIENE_CONFIG);
+    writeRuntime(dir, 'in_progress', 'sess-1');
+    writeCostLogEntry(dir, 'sess-1', 2000);
+    writeHygieneEvent(dir, 'context-compact', 1);
+    const c = caCheck(await runDoctorCheck(dir));
+    expect(c.status).toBe('ok');
+    expect(c.detail).toContain('hygiene fired');
+  }), 20000);
+
+  test('active session, context over threshold, no recent hygiene event → warn', withTmpdir(async (dir) => {
+    writeConfig(dir, HYGIENE_CONFIG);
+    writeRuntime(dir, 'in_progress', 'sess-1');
+    writeCostLogEntry(dir, 'sess-1', 2000);
+    writeHygieneEvent(dir, 'context-compact', 48);
+    const c = caCheck(await runDoctorCheck(dir));
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('context hygiene may be disabled or stuck');
+  }), 20000);
 });
 
 describe('doctor credential-expiry check', () => {

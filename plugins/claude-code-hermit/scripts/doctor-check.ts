@@ -29,6 +29,9 @@ const hooksPath = path.join(pluginRoot, 'hooks', 'hooks.json');
 // Resolve the cost log relative to the hermit dir (from argv), not the CWD —
 // doctor is often run from a different directory than the project root.
 const costLog = costLogPath(hermitDir);
+// Override lets tests point version-currency's Fixed-escalation scan at a fixture
+// without depending on real (moving-target) CHANGELOG content.
+const changelogPath = process.env.HERMIT_DOCTOR_CHANGELOG_PATH || path.join(pluginRoot, 'CHANGELOG.md');
 
 // State files expected to exist after a healthy hatch.
 const EXPECTED_STATE_FILES = [
@@ -271,18 +274,29 @@ function satisfiesRange(version: any, range: any): boolean {
 //     levels up under <mp>/<other-plugin>/<max-version>/. The old one-level scan
 //     saw only other versions of core there, so `checked` was always 0 — a false
 //     all-clear for exactly the operators the check exists to protect.
+// pluginRoot's own-name directory in the versioned-cache layout
+// (.claude/plugins/cache/<mp>/<coreName>/), or null in the flat/monorepo layout where
+// pluginRoot's parent isn't named after core. Shared by siblingPluginDirs,
+// marketplaceCacheFile, and cachedVersionChangelogPath — all three need this same
+// layout switch before deriving their own paths.
+function versionedCacheCoreDir(coreName: string): string | null {
+  const parent = path.resolve(pluginRoot, '..');
+  return path.basename(parent) === coreName ? parent : null;
+}
+
 function siblingPluginDirs(coreName: string): string[] {
   const parent = path.resolve(pluginRoot, '..');
   const dirs: string[] = [];
-  if (path.basename(parent) === coreName) {
+  const coreDir = versionedCacheCoreDir(coreName);
+  if (coreDir) {
     // Versioned cache: walk the marketplace root, pick each sibling's newest version.
-    const marketplaceRoot = path.resolve(parent, '..');
+    const marketplaceRoot = path.resolve(coreDir, '..');
     let entries: fs.Dirent[] = [];
     try { entries = fs.readdirSync(marketplaceRoot, { withFileTypes: true }); } catch {}
     for (const ent of entries) {
       if (!ent.isDirectory()) continue;
       const pluginDir = path.join(marketplaceRoot, ent.name);
-      if (pluginDir === parent) continue; // skip core's own name dir
+      if (pluginDir === coreDir) continue; // skip core's own name dir
       let versions: fs.Dirent[] = [];
       try { versions = fs.readdirSync(pluginDir, { withFileTypes: true }); } catch { continue; }
       // Pick the newest cached version deliberately, not the currently-pinned
@@ -361,6 +375,124 @@ function checkDependencies() {
     return { id: 'dependencies', status: 'ok', detail: `${checked} sibling plugin(s) within required_core_version range` };
   } catch (e: any) {
     return { id: 'dependencies', status: 'warn', detail: `check failed: ${e.message}` };
+  }
+}
+
+// ----------------- Version currency -----------------
+// The version-gap signal hermit-evolve's evolve-plan.ts computes (recorded-vs-installed)
+// is reactive — it only reports once the operator runs /hermit-evolve. This check is the
+// proactive half: "is a newer version already sitting in the local marketplace cache that
+// /plugin update hasn't pulled in yet." That cache is only as fresh as the last explicit
+// `claude plugin marketplace update` (confirmed empirically — no automatic background
+// refresh exists in the CC CLI or anywhere in this plugin's own scripts), so a stale cache
+// under-reports rather than over-reports: this check can miss a newer release, but it can
+// never claim currency the install doesn't actually have. Worded accordingly below.
+
+/** Locate the marketplace-cache marketplace.json this install's `claude plugin marketplace
+ *  update` would refresh, given the versioned-cache layout siblingPluginDirs already
+ *  detects (pluginRoot = .claude/plugins/cache/<mp>/<coreName>/<version>/). Returns null
+ *  in the monorepo/flat-layout branch (dev checkout — nothing to compare against) or when
+ *  the tree/file isn't present. HERMIT_DOCTOR_MARKETPLACE_FILE overrides for tests, since
+ *  the real path depends on machine-local install layout the test harness doesn't control. */
+function marketplaceCacheFile(coreName: string): string | null {
+  const override = process.env.HERMIT_DOCTOR_MARKETPLACE_FILE;
+  if (override) return fs.existsSync(override) ? override : null;
+  const coreDir = versionedCacheCoreDir(coreName);
+  if (!coreDir) return null; // flat/monorepo layout — no cache to compare
+  const cacheMarketplaceDir = path.resolve(coreDir, '..'); // .../plugins/cache/<mp>
+  const mp = path.basename(cacheMarketplaceDir);
+  const pluginsRoot = path.resolve(cacheMarketplaceDir, '..', '..'); // .../plugins/cache/<mp> -> .../plugins
+  const file = path.join(pluginsRoot, 'marketplaces', mp, '.claude-plugin', 'marketplace.json');
+  return fs.existsSync(file) ? file : null;
+}
+
+/** CHANGELOG.md for a specific cached-but-not-yet-installed version, using the same
+ *  versioned-cache layout siblingPluginDirs/marketplaceCacheFile already detect
+ *  (.claude/plugins/cache/<mp>/<coreName>/<version>/). pluginRoot's own CHANGELOG.md (the
+ *  installed version's frozen snapshot) can never contain sections past installedVersion,
+ *  so scanning it for a newer cached version's Fixed entries always comes up empty — this
+ *  reads the newer version's own file when the cache already has it on disk. */
+function cachedVersionChangelogPath(coreName: string, version: string): string | null {
+  const coreDir = versionedCacheCoreDir(coreName);
+  if (!coreDir) return null;
+  const file = path.join(coreDir, version, 'CHANGELOG.md');
+  return fs.existsSync(file) ? file : null;
+}
+
+/** True if any CHANGELOG.md section for a version in (from, to] carries a `### Fixed`
+ *  heading — escalates version-currency's wording so "behind" doesn't read as purely
+ *  cosmetic when the gap includes an actual bug fix. */
+function changelogRangeHasFixed(from: string, to: string, file: string): boolean {
+  try {
+    const changelog = fs.readFileSync(file, 'utf8');
+    const sections = changelog.split(/^## \[/m).slice(1);
+    for (const section of sections) {
+      const m = section.match(/^([^\]]+)\]/);
+      const version = m?.[1];
+      if (!version || !/^\d+\.\d+\.\d+/.test(version)) continue;
+      if (Bun.semver.order(version, from) > 0 && Bun.semver.order(version, to) <= 0 && /^### Fixed/m.test(section)) {
+        return true;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function checkVersionCurrency() {
+  try {
+    const corePj = path.join(pluginRoot, '.claude-plugin', 'plugin.json');
+    if (!fs.existsSync(corePj)) {
+      return { id: 'version-currency', status: 'ok', detail: 'core manifest absent — skipping' };
+    }
+    let coreManifest: Json;
+    try {
+      coreManifest = JSON.parse(fs.readFileSync(corePj, 'utf8'));
+    } catch {
+      return { id: 'version-currency', status: 'warn', detail: 'core plugin.json unreadable' };
+    }
+    const installedVersion: string = coreManifest.version;
+    const coreName: string = coreManifest.name || '';
+    if (!installedVersion || !coreName) {
+      return { id: 'version-currency', status: 'ok', detail: 'core name/version not set — skipping' };
+    }
+
+    const mpFile = marketplaceCacheFile(coreName);
+    if (!mpFile) {
+      return { id: 'version-currency', status: 'ok', detail: 'no marketplace cache to compare against (dev checkout, or marketplace never added)' };
+    }
+    let marketplace: Json;
+    try {
+      marketplace = JSON.parse(fs.readFileSync(mpFile, 'utf8'));
+    } catch {
+      return { id: 'version-currency', status: 'ok', detail: 'marketplace cache unreadable — skipping' };
+    }
+    const entry = (Array.isArray(marketplace.plugins) ? marketplace.plugins : []).find((p: Json) => p.name === coreName);
+    const cachedVersion: string = entry?.version;
+    if (!cachedVersion || !/^\d+\.\d+\.\d+/.test(cachedVersion) || !/^\d+\.\d+\.\d+/.test(installedVersion)) {
+      return { id: 'version-currency', status: 'ok', detail: 'marketplace cache has no comparable version entry — skipping' };
+    }
+
+    let cachedAt = '';
+    try { cachedAt = ` (cached ${fs.statSync(mpFile).mtime.toISOString().slice(0, 10)})`; } catch {}
+
+    if (Bun.semver.order(cachedVersion, installedVersion) <= 0) {
+      return { id: 'version-currency', status: 'ok', detail: `installed ${installedVersion}, no newer version in local marketplace cache${cachedAt}` };
+    }
+
+    // pluginRoot's own CHANGELOG.md is the installed version's frozen snapshot — it stops at
+    // installedVersion and can never contain a newer cachedVersion's sections. Prefer the
+    // cached version's own CHANGELOG.md when the cache happens to have it on disk.
+    const cachedChangelog = cachedVersionChangelogPath(coreName, cachedVersion) || changelogPath;
+    const escalation = changelogRangeHasFixed(installedVersion, cachedVersion, cachedChangelog) ? ' — includes Fixed entries' : '';
+    return {
+      id: 'version-currency',
+      status: 'warn',
+      detail: `installed ${installedVersion}, marketplace cache has ${cachedVersion}${cachedAt}${escalation} — run \`/plugin marketplace update\` then \`/plugin update\`, then /claude-code-hermit:hermit-evolve`,
+    };
+  } catch (e: any) {
+    return { id: 'version-currency', status: 'warn', detail: `check failed: ${e.message}` };
   }
 }
 
@@ -792,6 +924,130 @@ function checkWatchdog() {
   }
 }
 
+// ----------------- Context age -----------------
+// The single worst waste pattern the 2026-07-09 live-harness audit found: a session that
+// never compacts, silently re-reading a huge context on every turn. 1.2.19 fixed the one
+// known cause (a stuck shutdown stamp bricking both hygiene tiers), but nothing tripwires
+// the *symptom* independent of cause — this check does, so a future hygiene-disabling bug
+// doesn't go unnoticed for days again.
+//
+// Mirrors hermit-watchdog.ts's hygiene primitives (resolveHygieneSessionId, promptTokens,
+// isEstimateOnly) rather than importing them: that file resolves state paths from a
+// CWD-relative STATE_DIR, while doctor-check.ts is deliberately invocable with an explicit
+// hermit dir different from CWD (see the costLog comment above) — importing would silently
+// read the wrong session on that path. The logic is small enough to duplicate safely.
+
+/** True when a cost-log entry lacks the real per-call peak (max_prompt_tokens) and spans
+ *  more than one API call — its only token count is an average, not a real ceiling, so a
+ *  context-size judgement based on it isn't trustworthy. Mirrors hermit-watchdog.ts's
+ *  isEstimateOnly — the exact ambiguity the 1.2.19 /clear fix resolved for that tier. */
+function isEstimateOnlyEntry(entry: Json): boolean {
+  return typeof entry.max_prompt_tokens !== 'number'
+    && typeof entry.api_calls === 'number' && entry.api_calls > 1;
+}
+
+function promptTokensOf(entry: Json): number {
+  if (typeof entry.max_prompt_tokens === 'number') return entry.max_prompt_tokens;
+  const sum = (entry.input_tokens ?? 0) + (entry.cache_write_tokens ?? 0) + (entry.cache_read_tokens ?? 0);
+  return isEstimateOnlyEntry(entry) ? Math.round(sum / (entry.api_calls || 1)) : sum;
+}
+
+/** Session id whose context size to judge: runtime.json's session_id, falling back to the
+ *  harness id in sessions/.status.json for idle-phase wakes (heartbeat/routines/channel
+ *  messages) — the same fallback hermit-watchdog.ts's hygiene tiers use, so this check
+ *  can't be blind to exactly the accumulation they exist to catch. */
+function resolveContextSessionId(runtime: Json): string {
+  const sid = runtime?.session_id;
+  if (typeof sid === 'string' && sid) return sid;
+  try {
+    const status = JSON.parse(fs.readFileSync(path.join(hermitDir, 'sessions', '.status.json'), 'utf8'));
+    return typeof status?.session_id === 'string' ? status.session_id : '';
+  } catch {
+    return '';
+  }
+}
+
+const CONTEXT_AGE_STALE_HOURS = 24;
+
+function checkContextAge() {
+  try {
+    const read = readConfigOrCovered('context-age');
+    if ('covered' in read) return read.covered;
+    const config = read.config;
+
+    const compactCfg = config.context_hygiene?.compact;
+    const threshold = compactCfg?.min_context_tokens;
+    if (!compactCfg || compactCfg.enabled !== true || typeof threshold !== 'number' || threshold <= 0) {
+      return { id: 'context-age', status: 'ok', detail: 'context_hygiene.compact not enabled — skipping' };
+    }
+
+    const runtimePath = path.join(stateDir, 'runtime.json');
+    let runtime: Json = null;
+    try { runtime = JSON.parse(fs.readFileSync(runtimePath, 'utf-8')); } catch {}
+    if (!runtime || !['in_progress', 'waiting'].includes(runtime.session_state)) {
+      return { id: 'context-age', status: 'ok', detail: 'no active session' };
+    }
+
+    const sessionId = resolveContextSessionId(runtime);
+    if (!sessionId) {
+      return { id: 'context-age', status: 'ok', detail: 'active session but no session id resolvable — skipping' };
+    }
+
+    // Last non-subagent cost-log entry for this session — mirrors getLastCostLogEntry.
+    let lastEntry: Json = null;
+    if (fs.existsSync(costLog)) {
+      for (const line of fs.readFileSync(costLog, 'utf-8').split('\n')) {
+        if (!line.trim()) continue;
+        try {
+          const e = JSON.parse(line);
+          if (e && e.session_id === sessionId && e.subagent !== true) lastEntry = e;
+        } catch {}
+      }
+    }
+    if (!lastEntry) {
+      return { id: 'context-age', status: 'ok', detail: 'no cost-log entry for the active session yet' };
+    }
+    if (isEstimateOnlyEntry(lastEntry)) {
+      return { id: 'context-age', status: 'ok', detail: 'latest turn has no real context-size metric (multi-call, pre-max_prompt_tokens) — skipping' };
+    }
+
+    const prompt = promptTokensOf(lastEntry);
+    if (prompt <= threshold) {
+      return { id: 'context-age', status: 'ok', detail: `context ${kStr(prompt)} tokens, at/under ${kStr(threshold)} threshold` };
+    }
+
+    const eventsPath = path.join(stateDir, 'watchdog-events.jsonl');
+    let lastHygieneAt: string | null = null;
+    try {
+      for (const line of fs.readFileSync(eventsPath, 'utf-8').split('\n')) {
+        if (!line.trim()) continue;
+        try {
+          const e = JSON.parse(line);
+          if (['context-compact', 'context-clear', 'post-close-clear'].includes(e.action)
+              && (!lastHygieneAt || e.ts > lastHygieneAt)) {
+            lastHygieneAt = e.ts;
+          }
+        } catch {}
+      }
+    } catch {}
+
+    const ageHours = lastHygieneAt ? (Date.now() - Date.parse(lastHygieneAt)) / 3600000 : Infinity;
+
+    if (!Number.isFinite(ageHours) || ageHours > CONTEXT_AGE_STALE_HOURS) {
+      const ageNote = lastHygieneAt ? `last hygiene event ${ageHours.toFixed(1)}h ago` : 'no hygiene event recorded yet';
+      return {
+        id: 'context-age',
+        status: 'warn',
+        detail: `context ${kStr(prompt)} tokens over ${kStr(threshold)} threshold, ${ageNote} — context hygiene may be disabled or stuck; see the watchdog check`,
+      };
+    }
+
+    return { id: 'context-age', status: 'ok', detail: `context ${kStr(prompt)} tokens over threshold, hygiene fired ${ageHours.toFixed(1)}h ago` };
+  } catch (e: any) {
+    return { id: 'context-age', status: 'fail', detail: `check failed: ${e.message}` };
+  }
+}
+
 function checkOpusWake() {
   try {
     const since = new Date(Date.now() - 7 * MS_PER_DAY).toISOString().slice(0, 10);
@@ -1149,12 +1405,14 @@ async function runAllChecks() {
     checkCost(),
     checkProposals(),
     checkDependencies(),
+    checkVersionCurrency(),
     checkPermissions(),
     checkDockerSecurity(),
     checkArchival(),
     checkReflectLoop(),
     checkScheduler(),
     checkWatchdog(),
+    checkContextAge(),
     checkOpusWake(),
     checkHeartbeat(),
     checkRawSize(),
@@ -1180,9 +1438,9 @@ function writeReport(checks: Json[]) {
 
 export {
   checkRuntime, checkConfig, checkHooks, checkStateFiles,
-  checkCost, checkProposals, checkDependencies, checkPermissions,
+  checkCost, checkProposals, checkDependencies, checkVersionCurrency, checkPermissions,
   checkDockerSecurity, checkArchival, checkReflectLoop, checkScheduler,
-  checkWatchdog, checkOpusWake, checkHeartbeat, checkRawSize,
+  checkWatchdog, checkContextAge, checkOpusWake, checkHeartbeat, checkRawSize,
   checkCredentialExpiry, checkModelPricingKnown, checkChannelLiveness,
   satisfiesRange, cidrOverlap,
   // runAllChecks is async (checkChannelLiveness performs network I/O) — callers must await it.

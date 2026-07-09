@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **hermit-doctor: `context-age` check** — warns when the active session's real context size (`max_prompt_tokens`) is over the `context_hygiene.compact.min_context_tokens` threshold and no compact/clear/post-close-clear event fired in the last 24h. A symptom tripwire for the whole context-hygiene-disabled failure class (the 1.2.19-fixed stuck-shutdown-stamp pathology being one instance), not tied to any single known cause.
+- **hermit-doctor: `version-currency` check** — warns when the local marketplace cache (`~/.claude/plugins/marketplaces/<mp>/.claude-plugin/marketplace.json`, refreshed only by an explicit `claude plugin marketplace update` — confirmed empirically, no automatic background refresh exists) lists a newer version than what's installed; escalates wording when the version gap's CHANGELOG sections carry a `### Fixed` heading. Silent no-op in a monorepo/dev checkout.
+
 ## [1.2.19] - 2026-07-06
 
 ### Added
