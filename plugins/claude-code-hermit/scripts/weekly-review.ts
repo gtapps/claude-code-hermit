@@ -75,6 +75,28 @@ const allSessions = sessionFiles
 
 const weekSessions = allSessions.filter(s => s.parsedDate >= weekStart && s.parsedDate < weekEnd);
 
+// --- Deliverables (## Artifacts bullets from this week's session reports) ---
+// Reuses the session content already read above — no extra file reads. Mirrors
+// the `- [[compiled/<type>-<slug>-<date>]] — annotation` format session-mgr
+// writes (agents/session-mgr.md § On Session Close step 5).
+const ARTIFACT_BULLET_RE = /^-\s*\[\[([^\]]+)\]\]\s*(?:—\s*(.*))?$/;
+function extractArtifacts(content: string): string[] {
+  const lines = (content || '').split('\n');
+  const startIdx = lines.findIndex(l => l.trim() === '## Artifacts');
+  if (startIdx === -1) return [];
+  const out: string[] = [];
+  for (let i = startIdx + 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^##\s/.test(line)) break;
+    const m = line.match(ARTIFACT_BULLET_RE);
+    if (!m) continue;
+    const annotation = (m[2] || '').trim();
+    out.push(annotation || m[1].replace(/^compiled\//, ''));
+  }
+  return out;
+}
+const delivered = weekSessions.flatMap(s => extractArtifacts(s.content));
+
 // --- Load proposals ---
 const proposalsDir = path.join(hermitDir, 'proposals');
 const proposalFiles = globDir(proposalsDir, /^PROP-\d+(?:-.+)?\.md$/);
@@ -287,9 +309,15 @@ const frontmatter = [
   'generated: true',
   `week: ${weekKey}`,
   `sessions_count: ${sessionsCount}`,
+  // Commas neutralized (not just quotes) — the shared frontmatter array parser
+  // (lib/frontmatter.ts) naively splits on every comma with no quote-awareness,
+  // so a comma inside an annotation would corrupt this into extra array entries.
+  `delivered_count: ${delivered.length}`,
+  `delivered: [${delivered.map(d => `"${d.replace(/"/g, '\\"').replace(/,/g, ';')}"`).join(', ')}]`,
   `proposals_created: ${weekCreated.length}`,
   `proposals_accepted: ${weekAccepted.length}`,
   `proposals_resolved: ${weekResolved.length}`,
+  `open_loops_count: ${openLoops.length}`,
   `total_cost_usd: ${totalCost.toFixed(2)}`,
   `total_tokens: ${totalTokens}`,
   `avg_session_cost_usd: ${avgCost.toFixed(2)}`,
@@ -315,6 +343,15 @@ if (sessionsCount > 0) {
   body += `${selfDirectedCount} self-directed (operator_turns = 0), ${assistedSessions.length} operator-assisted.\n\n`;
 } else {
   body += `### Sessions\nNo sessions this week.\n\n`;
+}
+
+// Delivered (durable compiled/ outputs produced this week, per session ## Artifacts)
+if (delivered.length > 0) {
+  body += `### Delivered\n`;
+  for (const d of delivered) {
+    body += `- ${d}\n`;
+  }
+  body += '\n';
 }
 
 // Proposals
