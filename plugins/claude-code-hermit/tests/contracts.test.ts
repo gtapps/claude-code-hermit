@@ -968,12 +968,14 @@ describe('kill metrics contract', () => {
 // ============================================================
 
 describe('procedure capture contract', () => {
-  const reflect = read(path.join(SKILLS, 'reflect', 'SKILL.md'));
+  // The Procedure capture subsection lives in reflect's branches.md (the
+  // main-session rare-branch procedures file; SKILL.md keeps only the stub).
+  const reflectBranches = read(path.join(SKILLS, 'reflect', 'branches.md'));
   const proposalCreate = read(path.join(SKILLS, 'proposal-create', 'SKILL.md'));
 
   /** Extract the kill-criteria block from the Procedure capture subsection. */
   function procedureCaptureKillSection(): string {
-    const parts = reflect.split('### Procedure capture (new-skill creation)');
+    const parts = reflectBranches.split('### Procedure capture (new-skill creation)');
     expect(parts.length).toBeGreaterThan(1); // subsection missing
     const subsection = parts[1].split('\n## ')[0];
     const killParts = subsection.split('Kill criteria');
@@ -1193,6 +1195,45 @@ describe('hermit-routines model contract', () => {
 });
 
 // ============================================================
+// hermit-routines diff-registration contract (TestHermitRoutinesCronRegistryContract)
+//
+// Guards the `load` success path against regressing back to an unconditional
+// CronList/CronDelete-all/CronCreate-all sweep on every call. That sweep was
+// replaced by cron-registry.ts's plan/commit diff (see scripts/cron-registry.ts
+// and its own test file, tests/cron-registry.test.ts, for the planner's pure
+// logic); `load --reset` keeps the old unconditional sweep as an explicit,
+// operator-invoked escape hatch — only the *default* path must not silently
+// regress to it.
+// ============================================================
+
+describe('hermit-routines diff-registration contract', () => {
+  const skillContent = read(path.join(SKILLS, 'hermit-routines', 'SKILL.md'));
+
+  test('SKILL.md wires the diff planner into load\'s success path', () => {
+    expect(skillContent).toContain('cron-registry.ts plan');
+    expect(skillContent).toContain('cron-registry.ts commit');
+  });
+
+  test('load\'s default success path is no longer an unconditional CronList sweep', () => {
+    expect(skillContent).not.toContain('Unconditional reset — ensures stale entries');
+  });
+
+  test('SKILL.md documents the KEEP-only fast path (no CronList/CronCreate/CronDelete)', () => {
+    expect(skillContent).toContain('KEEP:<n>');
+    expect(skillContent).toContain('No `CronList`, no `CronCreate`, no `CronDelete` this run.');
+  });
+
+  test('SKILL.md documents load --reset as the unconditional escape hatch', () => {
+    expect(skillContent).toContain('load --reset');
+    expect(skillContent).toContain('--force');
+  });
+
+  test('SKILL.md documents the boot-id mirror-invalidation mechanism', () => {
+    expect(skillContent).toContain('.boot-id');
+  });
+});
+
+// ============================================================
 // Gate-agent memory contract (TestGateAgentMemoryContract)
 //
 // Gate agents (proposal-triage, reflection-judge) must declare memory: project.
@@ -1314,6 +1355,13 @@ describe('reflect delegation contract', () => {
   test('SKILL.md dispatches skill-eval-runner fully-qualified with reference.md', () => {
     expect(skill).toContain('claude-code-hermit:skill-eval-runner');
     expect(skill).toContain('skills/reflect/reference.md');
+  });
+
+  test('SKILL.md points at branches.md for rare-branch procedures', () => {
+    // branches.md is load-bearing post-split: candidate processing, scheduled
+    // checks, and procedure capture live there. A stub that loses the pointer
+    // would strand those flows.
+    expect(skill).toContain('skills/reflect/branches.md');
   });
 
   test('skill-eval-runner stays generic and reference-driven', () => {
