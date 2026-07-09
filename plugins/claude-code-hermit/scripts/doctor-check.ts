@@ -1102,6 +1102,16 @@ function checkRoutineCost() {
     const floorCfg = read.config.doctor?.routine_cost_floor_usd;
     const floor = typeof floorCfg === 'number' ? floorCfg : ROUTINE_COST_DEFAULT_FLOOR_USD;
 
+    const routineSources: { id: string; cost: number }[] = [];
+    for (const [source, bucket] of Object.entries<Json>(idx.by_source)) {
+      if (!source.startsWith('routine:')) continue;
+      routineSources.push({ id: source.slice('routine:'.length), cost: bucket?.cost || 0 });
+    }
+    const noRunsYet = { id: 'routine-cost', status: 'ok', detail: 'no routine has enough runs yet for cost analysis' };
+    // Skip the unbounded routine-metrics.jsonl scan entirely when no routine has spent
+    // anything yet — a routine-less install shouldn't pay to parse the whole file.
+    if (routineSources.length === 0) return noRunsYet;
+
     const firedCounts: Record<string, number> = {};
     const metricsPath = path.join(stateDir, 'routine-metrics.jsonl');
     if (fs.existsSync(metricsPath)) {
@@ -1110,25 +1120,23 @@ function checkRoutineCost() {
         try {
           const e = JSON.parse(line);
           if (e && e.event === 'fired' && typeof e.routine_id === 'string') {
-            firedCounts[e.routine_id] = (firedCounts[e.routine_id] || 0) + 1;
+            // Match cost-tracker's 64-char id cap so the fired key joins the
+            // (already-truncated) routine: cost-source key.
+            const id = e.routine_id.slice(0, 64);
+            firedCounts[id] = (firedCounts[id] || 0) + 1;
           }
         } catch {}
       }
     }
 
     const perRun: { id: string; costPerRun: number }[] = [];
-    for (const [source, bucket] of Object.entries<Json>(idx.by_source)) {
-      if (!source.startsWith('routine:')) continue;
-      const id = source.slice('routine:'.length);
+    for (const { id, cost } of routineSources) {
       const runs = firedCounts[id] || 0;
       if (runs < ROUTINE_COST_MIN_RUNS) continue;
-      const cost = bucket?.cost || 0;
       perRun.push({ id, costPerRun: cost / runs });
     }
 
-    if (perRun.length === 0) {
-      return { id: 'routine-cost', status: 'ok', detail: 'no routine has enough runs yet for cost analysis' };
-    }
+    if (perRun.length === 0) return noRunsYet;
 
     const sorted = [...perRun].sort((a, b) => a.costPerRun - b.costPerRun);
     const mid = Math.floor(sorted.length / 2);
@@ -1140,7 +1148,7 @@ function checkRoutineCost() {
       return {
         id: 'routine-cost',
         status: 'warn',
-        detail: `${worst.id} $${worst.costPerRun.toFixed(2)}/run (median $${median.toFixed(2)}) — audit what it reads`,
+        detail: `${worst.id} $${worst.costPerRun.toFixed(2)}/run (median $${median.toFixed(2)}) — check its scope, model, and wake timing`,
       };
     }
 
