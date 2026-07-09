@@ -1793,12 +1793,12 @@ describe('reflect routine gating contract (token efficiency)', () => {
 const DOCTOR_CHECK_IDS = [
   'runtime', 'config', 'hooks', 'state', 'cost', 'proposals', 'dependencies', 'version-currency',
   'permissions', 'docker-security', 'archive', 'reflect', 'scheduler', 'watchdog', 'context-age',
-  'opus-wake', 'heartbeat', 'raw-size', 'credential-expiry', 'model-pricing-known',
+  'opus-wake', 'routine-cost', 'heartbeat', 'raw-size', 'credential-expiry', 'model-pricing-known',
   'channel-liveness',
 ];
 
 describe('doctor report contract (PROP-018 count pin)', () => {
-  test('report emits exactly the 21 pinned check ids, in order', withTmpdir(async (dir) => {
+  test('report emits exactly the 22 pinned check ids, in order', withTmpdir(async (dir) => {
     writeConfig(dir, {});
     const report = await runDoctorCheck(dir);
     expect((report.checks ?? []).map((c: any) => c.id)).toEqual(DOCTOR_CHECK_IDS);
@@ -1818,9 +1818,9 @@ describe('hermit-doctor SKILL.md doc-sync (no drift between JSON checks and docs
     expect(missing).toEqual([]);
   });
 
-  test('counts read twenty-two, not fifteen', () => {
+  test('counts read twenty-three, not fifteen', () => {
     expect(skill).not.toContain('fifteen');
-    expect(skill.toLowerCase()).toContain('twenty-two');
+    expect(skill.toLowerCase()).toContain('twenty-three');
   });
 });
 
@@ -2007,6 +2007,98 @@ describe('doctor context-age check', () => {
     const c = caCheck(await runDoctorCheck(dir));
     expect(c.status).toBe('warn');
     expect(c.detail).toContain('context hygiene may be disabled or stuck');
+  }), 20000);
+});
+
+describe('doctor routine-cost check', () => {
+  const rcCheck = (report: any) => (report.checks ?? []).find((c: any) => c.id === 'routine-cost');
+
+  function writeCostIndex(dir: string, bySource: Record<string, { cost: number; tokens: number }>) {
+    fs.writeFileSync(
+      path.join(dir, '.claude-code-hermit', 'state', 'cost-index.json'),
+      JSON.stringify({ version: 3, by_source: bySource }),
+    );
+  }
+
+  function writeRoutineMetrics(dir: string, firedCounts: Record<string, number>) {
+    const lines: string[] = [];
+    for (const [routineId, count] of Object.entries(firedCounts)) {
+      for (let i = 0; i < count; i++) {
+        // Distinct started/fired pairs — the writer's dedup guard only suppresses a
+        // *second consecutive* fired with no intervening started, so this must not
+        // trigger it.
+        lines.push(JSON.stringify({ ts: new Date().toISOString(), routine_id: routineId, event: 'started', delivery: 'cron-create' }));
+        lines.push(JSON.stringify({ ts: new Date().toISOString(), routine_id: routineId, event: 'fired', delivery: 'cron-create' }));
+      }
+    }
+    fs.writeFileSync(path.join(dir, '.claude-code-hermit', 'state', 'routine-metrics.jsonl'), lines.join('\n') + '\n');
+  }
+
+  test('no cost-index yet → ok', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    const c = rcCheck(await runDoctorCheck(dir));
+    expect(c.status).toBe('ok');
+    expect(c.detail).toContain('no cost-index data yet');
+  }), 20000);
+
+  test('all routines within 3x median → ok', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    writeCostIndex(dir, {
+      'routine:cheap': { cost: 1.2, tokens: 1000 },
+      'routine:mid': { cost: 1.5, tokens: 1000 },
+    });
+    writeRoutineMetrics(dir, { cheap: 3, mid: 3 });
+    const c = rcCheck(await runDoctorCheck(dir));
+    expect(c.status).toBe('ok');
+  }), 20000);
+
+  test('an outlier over 3x the fleet median → warn, names it', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    writeCostIndex(dir, {
+      'routine:cheap': { cost: 1.2, tokens: 1000 },
+      'routine:mid': { cost: 1.2, tokens: 1000 },
+      'routine:pricey': { cost: 45.0, tokens: 1000 }, // $15/run vs $0.40 median
+    });
+    writeRoutineMetrics(dir, { cheap: 3, mid: 3, pricey: 3 });
+    const c = rcCheck(await runDoctorCheck(dir));
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('pricey');
+    expect(c.detail).toContain('$15.00/run');
+    expect(c.detail).toContain('median $0.40');
+  }), 20000);
+
+  test('a routine with under 3 fired runs is skipped (no false positive)', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    writeCostIndex(dir, {
+      'routine:newish': { cost: 30.0, tokens: 1000 }, // would be a huge $/run if counted
+    });
+    writeRoutineMetrics(dir, { newish: 2 });
+    const c = rcCheck(await runDoctorCheck(dir));
+    expect(c.status).toBe('ok');
+    expect(c.detail).toContain('no routine has enough runs yet');
+  }), 20000);
+
+  test('doctor.routine_cost_floor_usd overrides the default floor', withTmpdir(async (dir) => {
+    // Two very cheap routines pin the median low ($0.01/run), so 3x-median ($0.03) stays
+    // well under both the default floor ($2) and 'mid' ($0.50/run) — under the default
+    // floor this is 'ok'. Only lowering the floor below $0.50 flips it to 'warn'.
+    const bySource = {
+      'routine:cheap1': { cost: 0.03, tokens: 1000 },
+      'routine:cheap2': { cost: 0.03, tokens: 1000 },
+      'routine:mid': { cost: 1.5, tokens: 1000 },
+    };
+    const fired = { cheap1: 3, cheap2: 3, mid: 3 };
+
+    writeConfig(dir, {});
+    writeCostIndex(dir, bySource);
+    writeRoutineMetrics(dir, fired);
+    const baseline = rcCheck(await runDoctorCheck(dir));
+    expect(baseline.status).toBe('ok');
+
+    writeConfig(dir, { doctor: { routine_cost_floor_usd: 0.01 } });
+    const c = rcCheck(await runDoctorCheck(dir));
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('mid');
   }), 20000);
 });
 

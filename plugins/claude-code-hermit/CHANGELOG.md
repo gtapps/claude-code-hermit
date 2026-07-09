@@ -9,6 +9,7 @@
 - **session-cost: per-session `cost_usd` no longer reads `0.00` for real work** — cost-log rows carry the shared transcript UUID, never the logical `S-NNN`, so the old exact-id match never hit; `session-cost.ts` now sums the arc window `[opened_at, closed_at]`. `cost-tracker.ts` re-stamps `opened_at` per arc keyed on the transcript id (so a crash/restart's stale window can't over-count the next session) and stamps `closed_at` on the idle transition (so a close running after idle still recovers the window instead of falling back to the always-zero exact-id match).
 - **hermit-doctor: `context-age` check** — warns when the active session's context size (`max_prompt_tokens`) is over the `context_hygiene.compact.min_context_tokens` threshold and no compact/clear event fired in the last 24h. A cause-independent tripwire for stuck or disabled context hygiene.
 - **hermit-doctor: `version-currency` check** — warns when the local marketplace cache lists a newer core version than the one installed, escalating the wording if the gap's CHANGELOG carries a `### Fixed` heading. Silent no-op in a monorepo/dev checkout.
+- **hermit-doctor: `routine-cost` check** — joins lifetime `cost-index.json` spend against `routine-metrics.jsonl` fired counts to estimate each routine's $/run; warns naming the worst outlier when it exceeds `max(doctor.routine_cost_floor_usd, 3× fleet median)`. Routines under 3 runs are skipped. New `doctor.routine_cost_floor_usd` config key (default 2).
 - **docs: routine-authoring playbook** — new `docs/routine-authoring.md` covers converting a costly broad-skill routine into a scoped one (haiku pin, verdict-line return, precheck gating); `hermit-routines` and `hatch` now point to it.
 - **hermit-routines: wake-clustering lint** — `load` now warns (one advisory line) when enabled routines' fire-times spread across more than `routine_wake_lint.max_windows` (default 6) distinct 30-min windows, naming the loneliest fires. A wake-count nudge: fewer distinct wake windows means fewer cache-cold wakes. Advisory only, never blocks registration.
 ### Changed
@@ -18,7 +19,11 @@
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-evolve`. No new config keys this release. The first `load` after upgrading finds no `state/cron-registry.json` mirror, so it treats every enabled routine as needing (re-)registration — a normal full re-registration, same as today's `load` — and the mirror self-seeds from it. No operator action needed.
+Run `/claude-code-hermit:hermit-evolve`.
+
+1. **Merge new config keys** — `doctor.routine_cost_floor_usd` is added to `.claude-code-hermit/config.json` via the standard `new_config_keys` merge (missing-only, never overwrites an operator-set value).
+
+The first `load` after upgrading finds no `state/cron-registry.json` mirror, so it treats every enabled routine as needing (re-)registration — a normal full re-registration, same as today's `load` — and the mirror self-seeds from it. No operator action needed.
 - **doctrine: codify measured token economics** — dev and operator `CLAUDE.md` now frame the atom of cost as the API call (cache traffic dominates spend, not per-prompt injection), note that each delegation bookends main with ≥2 full-context turns, and extend the script-mediation rule to native tool outputs (e.g. `CronList`).
 - **reflect: SKILL.md slimmed 52KB → ~15.7KB (stub + `branches.md` split)** — candidate-processing gates, scheduled-checks steps, procedure capture, and `skill-correction:*` routing moved to `skills/reflect/branches.md`, read only when that branch fires. `reference.md` and the `--quick`/`--scheduled-checks`/`--precheck-verdict` interfaces are unchanged.
 - **heartbeat: dispatch prompt points to a canonical return schema instead of inlining it** — the typed JSON return object now lives in `reference.md` § Return Schema (which the subagent already reads); the per-tick dispatch prompt is a pointer. De-dupes the contract without changing behavior.
