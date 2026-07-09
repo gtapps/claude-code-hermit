@@ -215,10 +215,22 @@ function computeWakeSpread(
   }
   const distinct = windows.size;
   if (distinct <= maxWindows) return null;
+  const sortedIdx = [...windows.keys()].sort((a, b) => a - b);
   const loneliest: string[] = [];
-  for (const idx of [...windows.keys()].sort((a, b) => a - b)) {
+  let minCount = Infinity;
+  for (const idx of sortedIdx) {
     const arr = windows.get(idx)!;
     if (arr.length === 1) loneliest.push(arr[0]);
+    minCount = Math.min(minCount, arr.length);
+  }
+  // No singleton windows (every window shares ≥2 fires) but still over-threshold:
+  // name the fires in the least-populated windows so the advisory always points at
+  // concrete schedules to move, rather than emitting an empty "consider clustering:".
+  if (loneliest.length === 0) {
+    for (const idx of sortedIdx) {
+      const arr = windows.get(idx)!;
+      if (arr.length === minCount) loneliest.push(...arr);
+    }
   }
   return { distinct, loneliest };
 }

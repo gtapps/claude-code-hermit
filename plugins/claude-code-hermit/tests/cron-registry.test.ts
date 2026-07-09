@@ -289,6 +289,24 @@ describe('computeWakeSpread — wake-clustering lint', () => {
     expect(s!.loneliest).toEqual(['c@03:00', 'd@06:00', 'e@09:00', 'f@12:00', 'g@15:00', 'h@18:00']);
   });
 
+  test('over threshold with no singleton windows → names the least-populated windows, never empty', () => {
+    // 7 windows, each shared by exactly 2 fires: no window is a singleton. The advisory
+    // must still name concrete fires rather than emit an empty "consider clustering:".
+    const set = [
+      { id: 'a1', schedule: '0 0 * * *' }, { id: 'a2', schedule: '15 0 * * *' },  // window 0
+      { id: 'b1', schedule: '0 1 * * *' }, { id: 'b2', schedule: '10 1 * * *' },  // window 2
+      { id: 'c1', schedule: '0 2 * * *' }, { id: 'c2', schedule: '15 2 * * *' },  // window 4
+      { id: 'd1', schedule: '0 3 * * *' }, { id: 'd2', schedule: '10 3 * * *' },  // window 6
+      { id: 'e1', schedule: '0 4 * * *' }, { id: 'e2', schedule: '15 4 * * *' },  // window 8
+      { id: 'f1', schedule: '0 5 * * *' }, { id: 'f2', schedule: '10 5 * * *' },  // window 10
+      { id: 'g1', schedule: '0 6 * * *' }, { id: 'g2', schedule: '15 6 * * *' },  // window 12
+    ];
+    const s = computeWakeSpread(set, 6);
+    expect(s!.distinct).toBe(7);
+    expect(s!.loneliest.length).toBeGreaterThan(0); // never dangles with nothing to name
+    expect(s!.loneliest).toContain('a1@00:00'); // min-count windows all have 2 → all named
+  });
+
   test('every-hour routines are excluded from the spread, however the hour field is spelled', () => {
     const sixWindows = [0, 2, 4, 6, 8, 10].map((h, i) => ({ id: `r${i}`, schedule: `0 ${h} * * *` }));
     expect(computeWakeSpread(sixWindows, 6)).toBeNull(); // exactly 6 windows, at threshold
