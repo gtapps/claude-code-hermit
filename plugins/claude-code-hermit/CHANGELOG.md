@@ -5,6 +5,7 @@
 ### Added
 - **hermit-doctor: `context-age` check** — warns when the active session's context size (`max_prompt_tokens`) is over the `context_hygiene.compact.min_context_tokens` threshold and no compact/clear event fired in the last 24h. A cause-independent tripwire for stuck or disabled context hygiene.
 - **hermit-doctor: `version-currency` check** — warns when the local marketplace cache lists a newer core version than the one installed, escalating the wording if the gap's CHANGELOG carries a `### Fixed` heading. Silent no-op in a monorepo/dev checkout.
+- **docs: routine-authoring playbook** — new `docs/routine-authoring.md` covers converting a costly broad-skill routine into a scoped one (haiku pin, verdict-line return, precheck gating); `hermit-routines` and `hatch` now point to it.
 ### Changed
 - **hermit-routines: diff-based cron registration** — `load` no longer tears down and recreates every routine CronCreate on each call; a new `scripts/cron-registry.ts` planner diffs against a `state/cron-registry.json` mirror and only re-registers routines that changed or are aging toward CC's 7-day auto-expiry cliff. Eliminates the daily `heartbeat-restart` reload's bulk `CronList`/`CronDelete`/`CronCreate` churn on an unchanged config. `load --reset` keeps the old unconditional sweep as an explicit escape hatch for suspected mirror/reality drift.
 
