@@ -20,12 +20,13 @@
 // there is nothing live to tear down; deleting anyway would just be a wasted
 // CronDelete call on an id CC has already forgotten.
 //
-// commit rewrites state/cron-registry.json: every id in <created-id-csv> is
-// stamped registered_at=now (resetting its age clock); every other id from the
-// last plan's CREATE/DELETE sets is dropped (skipped or failed CronCreate is
-// NOT recorded as live — that would let a real failure hide behind a "KEEP"
-// on the next run); ids untouched by the last plan (KEEP) carry forward with
-// their registered_at UNCHANGED, since no CronCreate happened for them.
+// commit rewrites state/cron-registry.json from the last plan's explicit KEEP set:
+// every id in <created-id-csv> is stamped registered_at=now (resetting its age
+// clock); only the plan's KEEP ids carry forward, with their registered_at
+// UNCHANGED (no CronCreate happened for them); every other id is dropped — a
+// skipped or failed CronCreate is NOT recorded as live (that would let a real
+// failure hide behind a "KEEP" next run), and nothing from a dead prior process
+// (boot mismatch → empty KEEP set) is resurrected as a ghost.
 //
 // Exit 0 always (fail-open: a mirror problem must never block routine registration;
 // `load --reset`'s unconditional CronList/CronDelete/CronCreate sweep remains the
@@ -57,7 +58,7 @@ interface Mirror {
 }
 
 interface PlanCreate { id: string; schedule: string; warn?: string; }
-interface PlanResult { deletes: string[]; creates: PlanCreate[]; keepCount: number; }
+interface PlanResult { deletes: string[]; creates: PlanCreate[]; keepCount: number; keeps: string[]; }
 
 function readMirror(mirrorPath: string): Mirror {
   try {
@@ -129,10 +130,11 @@ function planCron(
 
   const deletes: string[] = [];
   const creates: PlanCreate[] = [];
-  let keepCount = 0;
+  const keeps: string[] = [];
   const seen = new Set<string>();
 
   for (const r of enabled) {
+    if (seen.has(r.id)) continue; // duplicate id in config (validator only warns) — register once
     seen.add(r.id);
     const shift = shiftForRoutine(r.schedule, configTz, machineTz, ref);
     const hash = promptHash(r, shift.result, pluginRoot);
@@ -147,13 +149,15 @@ function planCron(
       continue;
     }
     const changed = existing.prompt_hash !== hash;
-    const aged = (nowMs - existing.registered_at) > REREGISTER_AGE_MS;
+    // A non-finite registered_at (malformed/hand-edited mirror) must fail safe to a
+    // re-register — not read as "never aged" and silently ride past CC's expiry cliff.
+    const aged = !Number.isFinite(existing.registered_at) || (nowMs - existing.registered_at) > REREGISTER_AGE_MS;
     if (changed || aged) {
       deletes.push(r.id);
       creates.push({ id: r.id, schedule: shift.result, warn: shift.warn });
       continue;
     }
-    keepCount++;
+    keeps.push(r.id);
   }
 
   // Mirror entries for routines that are no longer enabled/present — only plausibly
@@ -164,7 +168,7 @@ function planCron(
     }
   }
 
-  return { deletes, creates, keepCount };
+  return { deletes, creates, keepCount: keeps.length, keeps };
 }
 
 // Rewrites the mirror after the caller has issued the actual CronCreate/CronDelete
@@ -180,12 +184,14 @@ function commitCron(
   bootId: string | null,
   nowMs: number,
 ): Mirror {
-  const deleteSet = new Set(plan.deletes);
-  const createSet = new Set(plan.creates.map(c => c.id));
-
+  // Rebuild from the plan's explicit KEEP set rather than inferring "untouched" from
+  // set membership. On a boot mismatch (including load --reset) keeps is empty, so no
+  // entry from the dead prior process is carried forward — a routine disabled across a
+  // restart leaves no ghost that a later boot-match load would misread as a live KEEP.
   const next: Mirror = { boot_id: bootId, routines: {} };
-  for (const [id, entry] of Object.entries(mirror.routines)) {
-    if (!deleteSet.has(id) && !createSet.has(id)) next.routines[id] = entry; // untouched KEEP — age unchanged
+  for (const id of plan.keeps) {
+    const entry = mirror.routines[id];
+    if (entry) next.routines[id] = entry; // genuine KEEP — no CronCreate happened, age unchanged
   }
 
   for (const { id, schedule } of plan.creates) {

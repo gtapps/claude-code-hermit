@@ -136,6 +136,25 @@ describe('planCron — targeted changes', () => {
     expect(plan.keepCount).toBe(1);
   });
 
+  test('duplicate enabled ids in config register once, not twice', () => {
+    const routines = [r('a'), r('a')]; // config foot-gun — validate-config only warns on dup ids
+    const mirror = { boot_id: null, routines: {} };
+    const plan = planCron(routines, mirror, BOOT_A, PLUGIN_ROOT, null, 'UTC', T0);
+    expect(plan.creates.map(c => c.id)).toEqual(['a']); // a single CREATE, not a duplicate live cron
+  });
+
+  test('malformed mirror entry (non-finite registered_at) fails safe to re-register, not KEEP', () => {
+    const routines = [r('a')];
+    const mirror = {
+      boot_id: BOOT_A,
+      routines: { a: { prompt_hash: promptHash(r('a'), '0 9 * * *', PLUGIN_ROOT), registered_at: NaN } },
+    };
+    const plan = planCron(routines, mirror, BOOT_A, PLUGIN_ROOT, null, 'UTC', T0);
+    expect(plan.deletes).toEqual(['a']);
+    expect(plan.creates.map(c => c.id)).toEqual(['a']);
+    expect(plan.keepCount).toBe(0);
+  });
+
   test('DST-driven schedule shift changes the hash → DELETE+CREATE despite a fresh registered_at', () => {
     // Reuses the Europe/Lisbon fixture from cron-tz-shift.test.ts: winter Lisbon=UTC+0
     // (no shift), summer Lisbon=UTC+1 (1h shift) — the same schedule/tz pair produces
@@ -189,6 +208,27 @@ describe('commitCron', () => {
     const next = commitCron(mirror, plan, new Set(['a']), routineById, PLUGIN_ROOT, 'boot-new', T0);
     expect(next.routines.a).toBeDefined();
     expect(next.routines.b).toBeUndefined(); // stays missing → next plan() sees it as CREATE again
+  });
+
+  test('boot-mismatch commit drops a prior-boot entry not created this boot (no ghost KEEP)', () => {
+    // Prior boot had {a (still enabled), x (disabled/removed while down)}. After a restart
+    // the bootMismatch plan CREATEs only the enabled set and issues NO deletes, so commit
+    // must not resurrect x — else a later boot-match load would misread x as a live KEEP
+    // although its durable:false cron died with the prior process and was never recreated.
+    const priorMirror = {
+      boot_id: 'boot-old',
+      routines: {
+        a: { prompt_hash: promptHash(r('a'), '0 9 * * *', PLUGIN_ROOT), registered_at: T0 - 1000 },
+        x: { prompt_hash: promptHash(r('x'), '0 9 * * *', PLUGIN_ROOT), registered_at: T0 - 1000 },
+      },
+    };
+    const enabled = [r('a')];
+    const plan = planCron(enabled, priorMirror, 'boot-new', PLUGIN_ROOT, null, 'UTC', T0);
+    const routineById = new Map(enabled.map(x => [x.id, x]));
+    const next = commitCron(priorMirror, plan, new Set(['a']), routineById, PLUGIN_ROOT, 'boot-new', T0);
+    expect(next.routines.x).toBeUndefined(); // ghost not carried forward
+    expect(next.routines.a).toBeDefined();
+    expect(next.routines.a.registered_at).toBe(T0); // recreated this boot, freshly stamped
   });
 
   test('a DELETE id is dropped from the mirror', () => {
