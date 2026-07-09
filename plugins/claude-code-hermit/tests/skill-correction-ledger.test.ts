@@ -17,7 +17,9 @@ import { runScript, PLUGIN_ROOT } from './helpers/run';
 const read = (...p: string[]) => fs.readFileSync(path.join(PLUGIN_ROOT, ...p), 'utf-8');
 
 const sessionClose = read('skills', 'session-close', 'SKILL.md');
-const reflect      = read('skills', 'reflect', 'SKILL.md');
+// reflect's skill-correction routing detail lives in branches.md (the
+// rare-branch procedures file); assert against the combined surface.
+const reflect      = read('skills', 'reflect', 'SKILL.md') + '\n' + read('skills', 'reflect', 'branches.md');
 const proposalAct  = read('skills', 'proposal-act', 'SKILL.md');
 
 // ── 1. session-close: capture contract prose pins ───────────────────────────

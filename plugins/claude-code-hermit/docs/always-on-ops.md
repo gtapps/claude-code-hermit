@@ -183,11 +183,14 @@ Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect 
 
 `hermit-start.ts` auto-sends `/claude-code-hermit:hermit-routines load` after launching the always-on session. The skill:
 
-1. Resolves `$CLAUDE_PLUGIN_ROOT` and reads `config.timezone`
-2. Calls `CronList`, `CronDelete`s every `[hermit-routine:*]` entry — clears stale registrations and resets the 7-day expiry clock
-3. For each enabled routine, shifts the `schedule` from `config.timezone` to machine local time via `scripts/cron-tz-shift.ts`, then registers a fresh `CronCreate` with that shifted schedule and a prompt that invokes the skill plus logs to `state/routine-metrics.jsonl`
+1. Resolves `$CLAUDE_PLUGIN_ROOT`
+2. Runs `scripts/cron-registry.ts plan` — a diff against `state/cron-registry.json` (a derived mirror, keyed to the current boot via `state/.boot-id`) that decides, per enabled routine, whether it's unchanged (`KEEP`), needs its schedule/metadata re-registered (`DELETE`+`CREATE`), or is aging toward CC's 7-day auto-expiry cliff and needs re-registering regardless of config changes. The schedule shift (`config.timezone` → machine local time, via `cron-tz-shift.ts`) happens inside this step.
+3. For each `CREATE`, registers a fresh `CronCreate` with the planner's already-shifted schedule and a prompt that runs the pre-fire gate (`scripts/routine-precheck.ts`), invokes the skill on `PROCEED`, and logs to `state/routine-metrics.jsonl`; for each `DELETE`, tears down the matching `[hermit-routine:*]` entry first
+4. Commits the mirror so the next `load` (typically the daily `heartbeat-restart` re-arm) only re-registers what actually changed or is close to expiry — on an unchanged, fresh config this is a no-op with zero `CronList`/`CronCreate`/`CronDelete` calls
 
-CronCreate fires only between REPL turns — never mid-task. There is no queue: if Claude is mid-task when the cron time hits, the fire is deferred (not dropped) until idle. `run_during_waiting: false` routines additionally check `runtime.json` and self-suppress with a `skipped-waiting` event when `session_state == "waiting"`.
+`/claude-code-hermit:hermit-routines load --reset` bypasses the diff and does the old unconditional sweep (`CronList` → `CronDelete` every `[hermit-routine:*]` entry → `CronCreate` every enabled routine) — the escape hatch for suspected mirror/reality drift.
+
+CronCreate fires only between REPL turns — never mid-task. There is no queue: if Claude is mid-task when the cron time hits, the fire is deferred (not dropped) until idle. `routine-precheck.ts` gates every fire: it suppresses `run_during_waiting: false` routines with a `skipped-waiting` event when `session_state == "waiting"`, and any routine with a `skipped-paused` event when the binding pause flag is set; otherwise it stamps `started` and returns `PROCEED`.
 
 **`heartbeat-restart`** fires at 4am daily and re-registers the heartbeat Monitor and routine CronCreates (both expire after 7 days; daily re-arm keeps everything fresh).
 

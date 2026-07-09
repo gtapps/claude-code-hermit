@@ -1111,13 +1111,13 @@ describe('channel-reply-reminder', () => {
 // -------------------------------------------------------
 
 describe('doctor-check', () => {
-  test('doctor-check (minimal install, 19 checks)', withDir(async (dir) => {
+  test('doctor-check (minimal install, 21 checks)', withDir(async (dir) => {
     seedDoctor(dir,
       '{"agent_name":"test","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"active_hours":{"start":"08:00","end":"23:00"}},"routines":[]}');
     const report = await doctorReport(dir);
     expect(report.checks.map((c: any) => c.id)).toEqual([
-      'runtime', 'config', 'hooks', 'state', 'cost', 'proposals', 'dependencies',
-      'permissions', 'docker-security', 'archive', 'reflect', 'scheduler', 'watchdog', 'opus-wake', 'heartbeat',
+      'runtime', 'config', 'hooks', 'state', 'cost', 'proposals', 'dependencies', 'version-currency',
+      'permissions', 'docker-security', 'archive', 'reflect', 'scheduler', 'watchdog', 'context-age', 'opus-wake', 'heartbeat',
       'raw-size', 'credential-expiry', 'model-pricing-known', 'channel-liveness',
     ]);
   }));

@@ -30,7 +30,7 @@ After install, run `/claude-code-hermit:hatch` in the target project to create t
 
 ## Subagent delegation
 
-The shipped hermit applies a **main-as-orchestrator** pattern: the long-lived main session delegates heavy sub-steps to isolated-context subagents and keeps only the verdict. Delegate a sub-step when its intermediate context dwarfs its conclusion, it needs no operator contact mid-flight, and main needs the result, not the artifact. Subagents inherit `CLAUDE.md`/`CLAUDE.local.md` (a fixed re-seed cost per dispatch), so it's a net win only above that noise threshold, not a blanket rule. A delegated sub-step returns a verdict/`operator_message`; main owns `AskUserQuestion` and operator notification. Illustrative dispatchers (not exhaustive): `heartbeat`/`reflect`/`brief`/`weekly-review`/`hermit-evolution` → `skill-eval-runner`; `hermit-evolve` → `evolve-runner`; `proposal-act` → `general-purpose` for the accept-flow tail. The operator-facing version is in `state-templates/CLAUDE-APPEND.md` § Rules.
+The shipped hermit applies a **main-as-orchestrator** pattern: the long-lived main session delegates heavy sub-steps to isolated-context subagents and keeps only the verdict. Delegate a sub-step when its intermediate context dwarfs its conclusion, it needs no operator contact mid-flight, and main needs the result, not the artifact. Subagents inherit `CLAUDE.md`/`CLAUDE.local.md` (a fixed re-seed cost per dispatch), so it's a net win only above that noise threshold, not a blanket rule. Delegation *bookends* main rather than bypassing it: a dispatch costs the re-seed plus **≥2 main turns at full context** (the dispatch turn and the completion-ingestion turn) — batch dispatches, and for trivial sub-steps prefer a single inline main turn (measured live across production hermits). A delegated sub-step returns a verdict/`operator_message`; main owns `AskUserQuestion` and operator notification. Illustrative dispatchers (not exhaustive): `heartbeat`/`reflect`/`brief`/`weekly-review`/`hermit-evolution` → `skill-eval-runner`; `hermit-evolve` → `evolve-runner`; `proposal-act` → `general-purpose` for the accept-flow tail. The operator-facing version is in `state-templates/CLAUDE-APPEND.md` § Rules.
 
 ## Per-Project State
 
@@ -114,7 +114,12 @@ bun test
   (`startup-context.ts`, `generate-summary.ts`) is the largest recurring cost — a new
   section there must justify its per-session tokens against how often it changes behavior.
   No numeric budgets: this is a boundary rule (where digestion happens), not a size quota.
-  (SKILL.md size has its own rule above.)
+  (SKILL.md size has its own rule above.) **The atom of cost is the API call**: every
+  tool-call round trip re-reads the full accumulated context from cache, so
+  cache_read+cache_write dominates an always-on hermit's bill (≈85-90%, measured live
+  across production hermits), not per-prompt injection — the boundary rule above therefore
+  also covers **native tool outputs** (`CronList` returning full prompt text per entry,
+  etc.), not just file reads.
 
 ## Debugging gotchas
 

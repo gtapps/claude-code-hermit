@@ -7,6 +7,18 @@
 
 ### Fixed
 - **session-cost: per-session `cost_usd` is no longer `0.00` for real work** — `cost-log.jsonl` rows are always tagged with the transcript's process UUID, never the logical `S-NNN` id (assigned only at close), so an exact `session_id` match never hit. `session-cost.ts` now sums by time window `[opened_at, now]` instead, with `opened_at` stamped by `cost-tracker.ts` on the first `in_progress` turn of each arc; falls back to the old exact-match behavior when no `opened_at` is available.
+- **hermit-doctor: `context-age` check** — warns when the active session's context size (`max_prompt_tokens`) is over the `context_hygiene.compact.min_context_tokens` threshold and no compact/clear event fired in the last 24h. A cause-independent tripwire for stuck or disabled context hygiene.
+- **hermit-doctor: `version-currency` check** — warns when the local marketplace cache lists a newer core version than the one installed, escalating the wording if the gap's CHANGELOG carries a `### Fixed` heading. Silent no-op in a monorepo/dev checkout.
+- **docs: routine-authoring playbook** — new `docs/routine-authoring.md` covers converting a costly broad-skill routine into a scoped one (haiku pin, verdict-line return, precheck gating); `hermit-routines` and `hatch` now point to it.
+### Changed
+- **hermit-routines: consolidate the pre-fire gate into `routine-precheck.ts`** — one script call now owns the waiting-check, pause-check, and `started` stamp per routine fire, replacing three model-issued tool calls. Metrics schema and readers unchanged.
+- **hermit-routines: diff-based cron registration** — `load` no longer tears down and recreates every routine CronCreate on each call; a new `scripts/cron-registry.ts` planner diffs against a `state/cron-registry.json` mirror and only re-registers routines that changed or are aging toward CC's 7-day auto-expiry cliff. Eliminates the daily `heartbeat-restart` reload's bulk `CronList`/`CronDelete`/`CronCreate` churn on an unchanged config. `load --reset` keeps the old unconditional sweep as an explicit escape hatch for suspected mirror/reality drift.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. No new config keys this release. The first `load` after upgrading finds no `state/cron-registry.json` mirror, so it treats every enabled routine as needing (re-)registration — a normal full re-registration, same as today's `load` — and the mirror self-seeds from it. No operator action needed.
+- **doctrine: codify measured token economics** — dev and operator `CLAUDE.md` now frame the atom of cost as the API call (cache traffic dominates spend, not per-prompt injection), note that each delegation bookends main with ≥2 full-context turns, and extend the script-mediation rule to native tool outputs (e.g. `CronList`).
+- **reflect: SKILL.md slimmed 52KB → ~15.7KB (stub + `branches.md` split)** — candidate-processing gates, scheduled-checks steps, procedure capture, and `skill-correction:*` routing moved to `skills/reflect/branches.md`, read only when that branch fires. `reference.md` and the `--quick`/`--scheduled-checks`/`--precheck-verdict` interfaces are unchanged.
 
 ## [1.2.19] - 2026-07-06
 
