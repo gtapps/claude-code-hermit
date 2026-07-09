@@ -320,7 +320,7 @@ Run `settings-edit ... set permission_mode <value>`.
 **If argument is "compact":**
 - Show current `compact` values from config.json:
   ```
-  SHELL.md Compaction (config.json compact → session-mgr idle transition)
+  SHELL.md Compaction (config.json compact → session-archive.ts idle transition)
 
     monitoring_threshold    30    (compact when Monitoring exceeds this many lines)
     monitoring_keep         20    (keep this many recent entries after compacting)

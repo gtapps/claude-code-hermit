@@ -22,7 +22,7 @@ A Claude Code plugin that turns any Claude Code instance into a self-improving p
                                  |
  +-------------------------------v----------------------------------+
  |                    LAYER 3: AGENT LAYER                          |
- |   session-mgr (Sonnet) -- session lifecycle management           |
+ |   proposal-triage, reflection-judge, evolve-runner (Sonnet/Haiku) |
  |   (Hermits add specialized agents here)                          |
  +-------------------------------|----------------------------------+
                                  |
@@ -73,7 +73,7 @@ SHELL.md tasks,  status,   S-NNN-REPORT.md,
 
 **Close:** Defaults to idle transition at every task boundary — your hermit says "What's next?" and waits. Reflection fires. Full shutdown only via `/session-close`. See [Always-On Lifecycle](always-on-ops.md#2-always-on-lifecycle).
 
-**Archive:** SHELL.md + task table -> `S-NNN-REPORT.md`. Fresh template with carry-forward. Monitoring and Session Summary sections are compacted if over threshold (configurable via `compact` in config.json). On full close, unfinished tasks persist in the task list for the next session.
+**Archive:** SHELL.md + task table -> `S-NNN-REPORT.md`, written by `scripts/session-archive.ts` (a deterministic script, not an agent — session lifecycle needs no model judgment given the payload main already compiled). Fresh template with carry-forward. Monitoring and Session Summary sections are compacted if over threshold (configurable via `compact` in config.json). On full close, unfinished tasks persist in the task list for the next session.
 
 ---
 
@@ -81,7 +81,6 @@ SHELL.md tasks,  status,   S-NNN-REPORT.md,
 
 | Agent                    | Model  | Max Turns | Role                                                                              |
 | ------------------------ | ------ | --------- | --------------------------------------------------------------------------------- |
-| `session-mgr`            | Sonnet | 15        | Session lifecycle, progress tracking                                              |
 | `evolve-runner`          | Sonnet | 50        | Runs the hermit-evolve upgrade in isolation                                       |
 | `proposal-triage`        | Haiku  | —         | Pre-creation gate: deduplicates proposals, applies three-condition rule           |
 | `reflection-judge`       | Sonnet | —         | Post-reflect validator: verifies cross-session evidence citations before queuing  |
@@ -128,7 +127,7 @@ All state lives in git-tracked files. No database, no external service.
 
 ```
 claude-code-hermit/
-├── agents/session-mgr.md
+├── agents/proposal-triage.md, reflection-judge.md, evolve-runner.md, skill-eval-runner.md
 ├── hooks/hooks.json
 ├── scripts/               # Hook implementations + boot scripts
 ├── skills/                 # skill definitions
@@ -179,7 +178,7 @@ One writer per state file. No shared mutation bus. (Exception: `state/micro-prop
 
 | File                           | Owner (sole writer)                                 | Readers                                                       |
 | ------------------------------ | --------------------------------------------------- | ------------------------------------------------------------- |
-| `state/runtime.json`           | session-mgr + cost-tracker                          | heartbeat, session-start, /hermit-routines (rdw=false suppression)   |
+| `state/runtime.json`           | session-archive.ts + cost-tracker                    | heartbeat, session-start, /hermit-routines (rdw=false suppression)   |
 | `state/alert-state.json`       | heartbeat only                                      | heartbeat; evaluate-session (read-only nudge computation)     |
 | `state/reflection-state.json`  | reflect + session (non-overlapping phases)          | heartbeat (debounce), hermit-settings (scheduled-checks display) |
 | `state/channel-activity.json`  | channel-hook.ts only                                | channel-responder, heartbeat                                  |

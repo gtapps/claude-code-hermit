@@ -87,6 +87,8 @@ Hermit isn't just a work engine. During any session, you can ask it to reflect a
 
 You're always in control. Hermit suggests. You decide.
 
+**Handing this off to a non-developer owner?** Give them the [Owner's Guide](owners-guide.md) (talk, approve, pause, spend, who to call) and [What Your Assistant Can and Cannot Do](what-your-assistant-can-do.md) — both written for someone who'll never open a terminal.
+
 ---
 
 ## Tips

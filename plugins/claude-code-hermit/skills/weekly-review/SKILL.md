@@ -1,6 +1,6 @@
 ---
 name: weekly-review
-description: Generate the weekly review report for the current ISO week. Writes to .claude-code-hermit/compiled/review-weekly-YYYY-Www.md and sends a channel-friendly summary with an evolution block. Runs every Sunday at 23:00 via routine.
+description: Generate the weekly review report for the current ISO week. Writes to .claude-code-hermit/compiled/review-weekly-YYYY-Www.md (dev-facing detail) and sends a plain-language channel summary (Delivered / Decisions / Waiting on you / Spend). Runs every Sunday at 23:00 via routine.
 ---
 # Weekly Review
 
@@ -55,25 +55,26 @@ Generates the weekly review for the current ISO week.
    bun ${CLAUDE_PLUGIN_ROOT}/scripts/channel-log.ts .claude-code-hermit prune <knowledge.channel_log_retention_days from config.json, default 90>
    ```
 
-5. Build the weekly evolution block from the freshly-written review file:
-   - Read `.claude-code-hermit/compiled/review-weekly-<current-week>.md` frontmatter (just written in step 1).
-   - Also read the prior week's `compiled/review-weekly-*.md` frontmatter (sort by `week` descending, take the second file).
-   - Compute deltas directly from frontmatter values (no synthesis or inference) and format:
-     ```
-     ## This week's evolution
-     - Cost: $X.XX (vs $Y.YY prior week, Δ+/-N%)
-     - Autonomy: N% self-directed (vs M% prior, Δ+/-N pp)
-     - Proposals: +A created, B resolved (C pending review, D in flight)
-     - Oldest open accepted: PROP-NNN (Nd since accepted) [or "none"]
-     - Reflect: <the `reflect:` line from the review body's ### Reflect section, or "no reflect runs">
-     ```
-   - If no prior week file exists: omit the "vs" comparisons and show this week's numbers only.
-   - If the current-week file is missing (script failed): skip the evolution block entirely.
+5. Read the frontmatter needed for the channel summary from the freshly-written review file:
+   - Read `.claude-code-hermit/compiled/review-weekly-<current-week>.md` frontmatter (just written in step 1) — do not read the body; every value the channel message needs lives in frontmatter (`delivered_count`, `delivered`, `proposals_accepted`, `proposals_resolved`, `open_loops_count`, `total_cost_usd`).
+   - Also read the prior week's `compiled/review-weekly-*.md` frontmatter (sort by `week` descending, take the second file) for the Spend delta.
+   - If no prior week file exists: omit the "vs prior week" comparison and show this week's spend only.
+   - If the current-week file is missing (script failed): skip step 6 entirely and fall back to a plain note ("Weekly review didn't generate this week — nothing to send.").
 
-6. Channel-send the combined weekly summary:
+6. **Channel voice rule** (generalizes `claude-code-hermit:hermit-doctor`'s channel rule, `skills/hermit-doctor/SKILL.md:75-77`): the message below is for the person who owns this hermit, not a developer. Never emit `PROP-NNN`/`S-NNN`, `operator_turns`, raw token counts, cron strings, or file paths. Speak in plain outcomes and counts.
+
+   Channel-send the combined weekly summary:
    - Refresh the dashboard per `${CLAUDE_PLUGIN_ROOT}/docs/artifacts.md`; if it returns a URL, note it for the message below.
    - Publish the weekly-review artifact (`config.artifacts.weekly_review`) per `${CLAUDE_PLUGIN_ROOT}/docs/artifacts.md`; if it returns a URL, note it for the message below too.
-   - Compose the message: one-line review headline (session count, cost, self-directed rate from frontmatter) followed by the evolution block from step 5, plus the `Topic pages:` findings from step 3 when present, plus a final line listing whichever of the dashboard/weekly-review URLs were returned (e.g. `📎 <dashboard url> · 📎 <weekly-review url>` — omit either half that wasn't returned).
+   - Compose the message in these sections. Show a line only when it has something to report — except Spend, which always shows (spend visibility matters even at $0):
+     ```
+     Delivered: <delivered_count> thing(s) — <delivered, comma-joined plain names> [omit this whole line when delivered_count is 0]
+     Decisions: <proposals_accepted> approved, <proposals_resolved> resolved this week [omit this whole line when both are 0]
+     Waiting on you: <open_loops_count> thing(s) need a yes/no [omit this whole line when 0]
+     Spend: $<total_cost_usd> this week (vs $<prior week's total_cost_usd>, if a prior file exists) — an estimate, not a bill
+     ```
+     Followed by the `Topic pages:` findings from step 3 when present, plus a final line listing whichever of the dashboard/weekly-review URLs were returned (e.g. `📎 <dashboard url> · 📎 <weekly-review url>` — omit either half that wasn't returned).
+   - The written review file (`compiled/review-weekly-<week>.md`) keeps its existing dev-facing sections (`### Operator Dependence`, `### Proposals` by id, `### Reflect` vitals, `### Delivered`) untouched — this rewrite changes only what's spoken to the channel, not what's written to disk.
    - Resolve the outbound channel:
      ```
      bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit

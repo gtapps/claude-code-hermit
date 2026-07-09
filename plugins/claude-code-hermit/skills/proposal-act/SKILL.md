@@ -93,7 +93,7 @@ When the operator accepts a proposal:
 
 4. Ask: **"How should this be implemented?"**
 
-   **Channel-tagged turn:** do not wait interactively for a reply in this turn. Send the question via the channel reply tool with the three options numbered, AND queue a pending micro-proposal entry per `reflect` § Queuing procedure: `question: "PROP-NNN accepted: <title>. How should it be implemented?"`, `options: ["implement now", "session task", "manual"]`, `tier: 1`, `on_resolve: "/claude-code-hermit:proposal-act accept PROP-NNN --answer {answer}"`. Then stop — steps 1-3c already ran, so `status: accepted` is a safe resting state until the operator answers (immediately in this same conversational turn, or later via the § Channel re-entry path below). The interactive terminal path below is unchanged.
+   **Channel-tagged turn:** do not wait interactively for a reply in this turn. Send the question via the channel reply tool in plain voice with the three options numbered — "Suggestion #N — start now, queue it as a task, or leave it to you?" (derive `#N` per `proposal-list` §4a; never surface `PROP-NNN` or the title's bracket prefix to the channel). AND queue a pending micro-proposal entry per `reflect` § Queuing procedure: `question: "Suggestion #N accepted — how should it be implemented?"`, `options: ["implement now", "session task", "manual"]`, `tier: 1`, `on_resolve: "/claude-code-hermit:proposal-act accept PROP-NNN --answer {answer}"` (the `on_resolve` id stays `PROP-NNN` — internal, never shown). Then stop — steps 1-3c already ran, so `status: accepted` is a safe resting state until the operator answers (immediately in this same conversational turn, or later via the § Channel re-entry path below). The interactive terminal path below is unchanged.
 
    - **"Start implementing now"** (default, typical answer): run the falsification gate, then handle session lifecycle, then execute in this turn.
      **Falsification gate (runs first, before any session transition).** Verify the proposal is actionable as written with a read-only pass. Skip only when the body contains `## Skill Improvement` **and** `/skill-creator:skill-creator` is in the available-skills list (step (e) routes that to `/skill-creator:skill-creator`) — if `## Skill Improvement` is present but skill-creator is absent, the proposal becomes a code-edit implementation, so the gate runs to produce a `PROCEED` file list for the dispatch. Also skip if the body contains `## Skill Draft` — authoring is delegated to `/skill-creator:skill-creator` on accept, not a code-edit plan — but first check that the `source_artifact` path listed in `## Skill Draft` exists and is readable (if the file is missing or unreadable, REJECT with code `stale-paths` — the procedure brief was removed or archived; the operator should re-run reflect to generate a fresh brief).
@@ -112,7 +112,7 @@ When the operator accepts a proposal:
          - **Interactive mode** → surface to the operator: *"Falsification gate: [verdict] — [evidence]. Proceed anyway? Y to override / N to re-scope the proposal first."* Y → continue to the session-lifecycle branch below (step (a)). N → stop; status stays `accepted`. Operator re-scopes and re-runs `/proposal-act accept PROP-NNN`.
          - **Autonomous mode** → do not implement; notify via channel: *"PROP-NNN: falsification check — [evidence]. Reply 'override PROP-NNN' to implement anyway."*
      a. Use the `session_state` already read from `state/runtime.json` in step 3a to branch.
-     b. **Idle:** delegate to `claude-code-hermit:session-mgr` to transition to `in_progress` and fill SHELL.md Task as "Implement PROP-NNN: <title>". Proceed to (e).
+     b. **Idle:** pipe `Task: Implement PROP-NNN: <title>` on stdin to `bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-archive.ts open --state-dir=.claude-code-hermit` to transition to `in_progress` and fill SHELL.md Task. Proceed to (e).
      c. **In progress:** confirm before switching: "Currently working on: <current task>. Switch to PROP-NNN? Y/N".
         - Yes: append `[HH:MM] switched to PROP-NNN: <title> (prior task: <prior task>)` to SHELL.md `## Progress Log`; overwrite SHELL.md `Task:` field with "Implement PROP-NNN: <title>"; `runtime.json session_state` stays `in_progress`. Proceed to (e).
         - No: fall back to "Create a session task" below.
@@ -222,7 +222,7 @@ When the operator accepts a proposal:
 
    - **"I'll handle it manually"** → Just mark accepted. Respond: "Marked as accepted. No further action taken."
 
-5. Notify the operator: "PROP-NNN accepted: [title]"
+5. Notify the operator: "PROP-NNN accepted: [title]". On a channel-tagged turn (Step 0), use plain voice instead, matching the step-4 branch actually taken: **start now** → "Got it — starting on Suggestion #N."; **session task** → "Queued Suggestion #N as a task for the next session."; **manual** → "Marked Suggestion #N as accepted — leaving it to you." (`#N` derivation and the never-surface-`PROP-NNN` rule are canonical in `proposal-list` §4a — don't restate them here.)
 
 **Note:** There is no "Update OPERATOR.md" path. OPERATOR.md is operator-owned — the agent reads it but does not modify it. If the operator wants to update OPERATOR.md based on a proposal, they do it themselves.
 
@@ -244,7 +244,7 @@ When invoked as `accept PROP-NNN --answer "<label>"` (channel-responder resolvin
    ```
    Deferred on 2026-04-06T14:30:00+01:00. Reason: [operator's note]
    ```
-5. Respond: "PROP-NNN deferred."
+5. Respond: "PROP-NNN deferred." On a channel-tagged turn (Step 0), use plain voice instead: "Held Suggestion #N for later."
 
 Deferred proposals still appear in `/proposal-list` but are sorted below open proposals.
 
@@ -259,7 +259,7 @@ Deferred proposals still appear in `/proposal-list` but are sorted below open pr
    Dismissed on 2026-04-06T14:30:00+01:00. Reason: [operator's reason]
    ```
 4b. **Dismissal learning** — only when a reason was provided in step 3. Judge whether the reason states a durable preference, rule, or taste that applies to a *family* of future proposals (e.g. "don't propose process changes for things I do twice a year", "stop suggesting test-coverage proposals on docs-only changes") versus a one-off or proposal-specific response ("not now", "already did this manually", "the analysis is wrong", "duplicate of last week"). If generalizable, issue the standard "remember it" reflection framed as a `feedback`-type entry: state the preference as a rule, add a brief `Why:` and `How to apply:` so proposal-triage and reflection-judge can match it in their memory cross-check. Apply auto-memory discipline: respect `WHAT_NOT_TO_SAVE` (no file paths, no debugging recipes, no facts derivable from grep), keep it concise. The native auto-memory flow writes `feedback_<slug>.md` and updates the `MEMORY.md` index — do not write those files directly. If the reason is one-off or sub-threshold, skip — save nothing.
-5. Respond: "PROP-NNN dismissed." If step 4b saved a preference, add: "Remembered that as a standing preference (future similar proposals may be filtered)."
+5. Respond: "PROP-NNN dismissed." If step 4b saved a preference, add: "Remembered that as a standing preference (future similar proposals may be filtered)." On a channel-tagged turn (Step 0), use plain voice instead: "Dropped Suggestion #N." (same preference-remembered addendum, in plain voice, if step 4b saved one).
 
 Dismissed proposals are hidden from the default `/proposal-list` view. Use "show all" with `/proposal-list` to see them.
 

@@ -30,6 +30,8 @@ Main owns outbound sends and `AskUserQuestion`; a delegated sub-step returns its
 
 Full eligibility rules, resolution order, and the per-branch matrix: `/claude-code-hermit:channel-responder` § Outbound notification protocol.
 
+**Channel voice.** No internal IDs (PROP-NNN, S-NNN, MP-…), no token counts, no slash commands, no file paths, no cron strings — plain language with the one next step the operator can do from chat. Internal IDs stay in files; terminal output is exempt.
+
 ## Artifact Pages
 
 Dashboard/proposals/weekly-review, gated by `config.artifacts.*` (default on). On-demand publish needs no gate. Refresh runs inside the publish skills, not from here.

@@ -74,10 +74,11 @@ to run at any time. Produces no side effects beyond writing
 
    **Channel message — only when `new_entries` is non-empty.** Send one message covering all
    newly-failing checks, in plain language with a named next action, no PROP-/S-NNN vocabulary,
-   no raw check ids. Example: "I can't reach Telegram — the bot token was rejected. Regenerate
-   it with @BotFather, then run /channel-setup." A check already alerted (its `doctor:<id>` key
-   still present) stays silent on subsequent runs until it resolves — resolving just deletes the
-   key, there is no "recovered" ping in v1.
+   no raw check ids, no slash commands (per the Channel voice rule in `CLAUDE-APPEND.md`). Example:
+   "I can't reach Telegram — the bot token was rejected. Regenerate it with @BotFather, then ask
+   your consultant to re-pair the channel." A check already alerted (its `doctor:<id>` key still
+   present) stays silent on subsequent runs until it resolves — resolving just deletes the key,
+   there is no "recovered" ping in v1.
 
 ## Silence policy
 
