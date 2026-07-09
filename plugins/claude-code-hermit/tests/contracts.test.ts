@@ -2410,3 +2410,36 @@ describe('proposal-triage batch contract', () => {
     expect(brainstorm).toContain('DUPLICATE: <title> — <PROP-ID>');
   });
 });
+
+// ============================================================
+// Chat voice contract
+//
+// Presence/drift guard proving the "no internal IDs / no slash commands / no
+// token counts to a channel" rule is documented in the two surfaces that
+// carry it — this proves the rule is specified, not that every
+// channel-emitting skill obeys it (model-authored replies can't be enforced
+// by a markdown scan). The one deterministic (non-model) channel sender that
+// composes prose, composeBudgetMessage, is covered by a real forbidden-string
+// assertion in hooks.contract.test.ts (it shares that file's single-import
+// cost-tracker.ts fixture — see the comment there on why the module can only
+// be imported once per process).
+// ============================================================
+
+describe('chat voice contract', () => {
+  test('CLAUDE-APPEND.md documents the channel voice rule', () => {
+    const append = read(path.join(TEMPLATES, 'CLAUDE-APPEND.md'));
+    expect(append).toContain('Channel voice.');
+    expect(append).toContain('No internal IDs (PROP-NNN, S-NNN, MP-…)');
+  });
+
+  test('channel-responder/SKILL.md mirrors the channel voice rule', () => {
+    const responder = read(path.join(SKILLS, 'channel-responder', 'SKILL.md'));
+    expect(responder).toContain('Channel voice:');
+    expect(responder).toContain('no internal IDs');
+  });
+
+  test('hermit-doctor/SKILL.md channel example contains no slash command', () => {
+    const doctor = read(path.join(SKILLS, 'hermit-doctor', 'SKILL.md'));
+    expect(doctor).not.toMatch(/then run \/channel-setup/);
+  });
+});

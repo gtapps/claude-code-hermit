@@ -165,6 +165,7 @@ Before running any heavy sub-step — an archive traversal, a multi-file search,
 - Keep responses concise — one short paragraph max for channels
 - Always reference the current task so the operator knows you're oriented
 - If you can't handle the request, say so clearly and suggest what the operator should do
+- **Channel voice:** no internal IDs (PROP-NNN, S-NNN, MP-…), no token counts or cost-log jargon, no slash commands, no file paths, no cron strings. Say what happened and the one next thing the operator can do from chat (a plain reply, not a command). Internal IDs stay in files; terminal/maintainer output is exempt. See `CLAUDE-APPEND.md` § Operator Notification for the full rule.
 
 ## 4. Capture Interactive Patterns
 

@@ -106,7 +106,9 @@ All state lives under `.claude-code-hermit/` in the project root.
 
    4. Surface a single-line summary to the operator (channel in always-on, inline otherwise):
 
-      > "Baseline audit done. {N} proposals queued: PROP-XXX[, PROP-YYY]. Review with /claude-code-hermit:proposal-list."
+      > "Baseline audit done — {N} proposals queued for your review. Reply and I'll walk you through them."
+
+      (Channel voice: no PROP-ids, no slash command — the channel operator can't run one. Inline/terminal output is exempt, but this single line stays plain for both.)
 
    **Guard:** the marker is the one-shot gate. Absent marker → this step never fires.
 

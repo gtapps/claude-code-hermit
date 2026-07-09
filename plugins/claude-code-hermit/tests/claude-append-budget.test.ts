@@ -27,10 +27,11 @@ const append = fs.readFileSync(APPEND_PATH, 'utf8');
 describe('CLAUDE-APPEND size budget', () => {
   test('block stays under the post-trim ceiling', () => {
     // Pre-trim was 10,632 B. Trimmed to ~6,836 B, then held near 7,000 until the
-    // auto-mode classifier's "Sanctioned egress" safety bullet (~7,164 B) — the
-    // growth this ceiling was always meant to leave room for. 7,300 keeps a small
-    // margin above that without reopening the door to unbounded re-bloat.
-    expect(Buffer.byteLength(append, 'utf8')).toBeLessThanOrEqual(7300);
+    // auto-mode classifier's "Sanctioned egress" safety bullet (~7,164 B). Raised
+    // to 7,600 for the "Channel voice" rule (~7,532 B) — a deliberate, reviewed
+    // addition, not creep. Keep a small margin above the current size without
+    // reopening the door to unbounded re-bloat.
+    expect(Buffer.byteLength(append, 'utf8')).toBeLessThanOrEqual(7600);
   });
 });
 
