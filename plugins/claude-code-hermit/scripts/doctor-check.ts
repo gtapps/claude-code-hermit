@@ -1529,11 +1529,11 @@ async function runAllChecks() {
     checkWatchdog(),
     checkContextAge(),
     checkOpusWake(),
+    checkRoutineCost(),
     checkHeartbeat(),
     checkRawSize(),
     checkCredentialExpiry(),
     checkModelPricingKnown(),
-    checkRoutineCost(),
     await checkChannelLiveness(),
   ];
 }
@@ -1556,8 +1556,8 @@ export {
   checkRuntime, checkConfig, checkHooks, checkStateFiles,
   checkCost, checkProposals, checkDependencies, checkVersionCurrency, checkPermissions,
   checkDockerSecurity, checkArchival, checkReflectLoop, checkScheduler,
-  checkWatchdog, checkContextAge, checkOpusWake, checkHeartbeat, checkRawSize,
-  checkCredentialExpiry, checkModelPricingKnown, checkRoutineCost, checkChannelLiveness,
+  checkWatchdog, checkContextAge, checkOpusWake, checkRoutineCost, checkHeartbeat, checkRawSize,
+  checkCredentialExpiry, checkModelPricingKnown, checkChannelLiveness,
   satisfiesRange, cidrOverlap,
   // runAllChecks is async (checkChannelLiveness performs network I/O) — callers must await it.
   runAllChecks, writeReport,

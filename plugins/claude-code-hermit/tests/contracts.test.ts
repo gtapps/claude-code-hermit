@@ -1819,7 +1819,7 @@ describe('reflect routine gating contract (token efficiency)', () => {
 const DOCTOR_CHECK_IDS = [
   'runtime', 'config', 'hooks', 'state', 'cost', 'proposals', 'dependencies', 'version-currency',
   'permissions', 'docker-security', 'archive', 'reflect', 'scheduler', 'watchdog', 'context-age',
-  'opus-wake', 'heartbeat', 'raw-size', 'credential-expiry', 'model-pricing-known', 'routine-cost',
+  'opus-wake', 'routine-cost', 'heartbeat', 'raw-size', 'credential-expiry', 'model-pricing-known',
   'channel-liveness',
 ];
 
