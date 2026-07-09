@@ -4,11 +4,12 @@
 //
 // Primary mode: window-delta. cost-log.jsonl rows are tagged with the transcript's
 // process session_id (a UUID), never the logical S-NNN id (assigned only at close),
-// so an exact session_id match against S-NNN always misses. Instead, sum every row
-// whose timestamp falls in [opened_at, closed_at] — one process/transcript per arc,
-// so every in-window row belongs to this arc regardless of its session_id.
-// `opened_at` is read from state/runtime.json (stamped by cost-tracker.ts on the
-// first in_progress turn of the arc) unless overridden via --opened-at.
+// and one long-lived transcript holds many logical sessions — so an exact session_id
+// match against S-NNN always misses. Instead, sum every row whose timestamp falls in
+// the arc window [opened_at, closed_at]. Both bounds are read from state/runtime.json
+// (maintained by cost-tracker.ts: opened_at re-stamped per arc keyed on the transcript
+// id, closed_at stamped on the idle transition) unless overridden via --opened-at /
+// --closed-at. A live arc has no closed_at yet, so the window ends at now.
 //
 // Fallback mode: when no opened_at is available (older runtime.json, or none yet),
 // fail open to the legacy exact session_id sum — same zeros-for-unknown-id behavior
@@ -16,11 +17,10 @@
 // Fails open throughout: missing log or unreadable state prints {"cost_usd": 0, "tokens": 0}.
 
 import fs from 'node:fs';
-import path from 'node:path';
 import { costLogPath } from './lib/cc-compat';
+import { readRuntimeJson } from './lib/runtime';
 
 const COST_LOG = costLogPath('.claude-code-hermit');
-const RUNTIME_JSON = path.join('.claude-code-hermit', 'state', 'runtime.json');
 
 const argv = process.argv.slice(2);
 let sessionId = '';
@@ -33,14 +33,14 @@ for (let i = 0; i < argv.length; i++) {
   if (!sessionId) sessionId = a;
 }
 
-function readOpenedAt(): string | undefined {
-  if (openedAtOverride) return openedAtOverride;
-  try {
-    const rt = JSON.parse(fs.readFileSync(RUNTIME_JSON, 'utf8'));
-    return typeof rt.opened_at === 'string' ? rt.opened_at : undefined;
-  } catch {
-    return undefined;
-  }
+// Arc-window rationale is in the file header above; this just applies the
+// --opened-at / --closed-at overrides on top of runtime.json's values.
+function readWindow(): { openedAt?: string; closedAt?: string } {
+  const rt = readRuntimeJson() || {};
+  return {
+    openedAt: openedAtOverride ?? (typeof rt.opened_at === 'string' ? rt.opened_at : undefined),
+    closedAt: closedAtOverride ?? (typeof rt.closed_at === 'string' ? rt.closed_at : undefined),
+  };
 }
 
 function sumMatching(predicate: (e: any) => boolean): { cost: number; tokens: number } {
@@ -61,9 +61,13 @@ function sumMatching(predicate: (e: any) => boolean): { cost: number; tokens: nu
   return { cost, tokens };
 }
 
-const openedAt = readOpenedAt();
+const { openedAt, closedAt } = readWindow();
 const openedMs = openedAt ? Date.parse(openedAt) : NaN;
-const closedMs = closedAtOverride ? Date.parse(closedAtOverride) : Date.now();
+// A malformed/absent closed bound parses to NaN, which would silently zero the
+// window sum (every `ts <= NaN` is false); fall back to now, mirroring the
+// openedMs guard below. A live arc (no closed_at yet) also falls back to now.
+const closedParsed = closedAt ? Date.parse(closedAt) : NaN;
+const closedMs = Number.isFinite(closedParsed) ? closedParsed : Date.now();
 
 const result = Number.isFinite(openedMs)
   ? sumMatching(e => {

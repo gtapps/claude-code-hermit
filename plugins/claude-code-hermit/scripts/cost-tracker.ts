@@ -293,36 +293,48 @@ function readRuntimeSessionState(): string {
 }
 
 // Fresh-reads runtime.json (bypassing the per-run cache, to avoid clobbering a
-// field written by another process since the cache was populated), sets one
-// field, and writes back atomically. Skips silently if runtime.json can't be
-// read — never fabricates a partial file missing session_state/session_id.
-function writeRuntimeField(field: string, value: Json): void {
+// field written by another process since the cache was populated), applies a set
+// of field updates, and writes back atomically. Skips silently if runtime.json
+// can't be read — never fabricates a partial file missing session_state/session_id.
+function writeRuntimeFields(fields: Record<string, Json>): void {
   let runtime: Json;
   try {
     runtime = JSON.parse(fs.readFileSync(RUNTIME_JSON, 'utf-8'));
   } catch {
     return;
   }
-  runtime[field] = value;
+  Object.assign(runtime, fields);
   fs.writeFileSync(RUNTIME_JSON_TMP, JSON.stringify(runtime, null, 2) + '\n', 'utf-8');
   fs.renameSync(RUNTIME_JSON_TMP, RUNTIME_JSON);
 }
 
-// Stamps/clears runtime.json's `opened_at` so session-cost.ts can sum cost-log
-// rows by time window instead of session_id (which is always the transcript
-// UUID, never the logical S-NNN — see session-cost.ts). Keyed on session_state
-// (not session_id, which is empty mid-arc): the first in_progress turn of an
-// arc sets opened_at; the transition to idle clears it. 'waiting' is left
-// untouched so a waiting<->in_progress bounce stays one arc. Best-effort —
-// a lost write under concurrent watchdog access just re-stamps next turn.
-function maintainOpenedAt(nowIso: string): void {
+// Maintains the [opened_at, closed_at] window that session-cost.ts sums cost-log
+// rows over — the logical-session boundary, since cost-log rows carry the shared
+// transcript UUID (never the logical S-NNN) and one transcript holds many logical
+// sessions (see session-cost.ts). Three runtime.json fields define an arc:
+//   opened_at        — arc start (first in_progress turn)
+//   closed_at        — arc end, stamped on the idle transition; null while live
+//   opened_transcript— the CC transcript/process id that owns the current arc
+// A new arc is started (opened_at re-stamped, closed_at cleared) when there is no
+// live arc, the previous one has already closed, OR the transcript changed — the
+// last case resets a *stale* opened_at left by a process that died before its idle
+// clear (a crash/restart mints a new transcript id), so the next session's window
+// never bleeds in the dead arc's rows. `closed_at` is stamped rather than nulling
+// `opened_at` so a close that runs after the idle transition can still recover the
+// window instead of falling back to the always-zero exact-id match. 'waiting' is
+// left untouched so a waiting<->in_progress bounce stays one arc. Best-effort —
+// a lost write under concurrent access just re-applies next turn.
+function maintainOpenedAt(nowIso: string, transcriptId: string): void {
   try {
     const cached = readRuntimeJsonCached();
     const state = cached.session_state || 'unknown';
-    if (state === 'in_progress' && !cached.opened_at) {
-      writeRuntimeField('opened_at', nowIso);
-    } else if (state === 'idle' && cached.opened_at) {
-      writeRuntimeField('opened_at', null);
+    if (state === 'in_progress') {
+      const newArc = !cached.opened_at || cached.closed_at != null || cached.opened_transcript !== transcriptId;
+      if (newArc) {
+        writeRuntimeFields({ opened_at: nowIso, closed_at: null, opened_transcript: transcriptId });
+      }
+    } else if (state === 'idle' && cached.opened_at && cached.closed_at == null) {
+      writeRuntimeFields({ closed_at: nowIso });
     }
   } catch {
     // Non-fatal — never block cost tracking on runtime.json write failure.
@@ -687,7 +699,7 @@ async function run(data: Json): Promise<string | null> {
 
     // Read session_id from runtime.json once per turn (used for log entry + writeStatusJson)
     const runtimeSessionId = readRuntimeSessionId();
-    maintainOpenedAt(new Date().toISOString());
+    maintainOpenedAt(new Date().toISOString(), sessionId);
 
     // Read config once per turn — timezone drives by_date/by_week/by_month bucketing and
     // budget-window boundaries (PROP-016); budgetConfig drives the breach check below.

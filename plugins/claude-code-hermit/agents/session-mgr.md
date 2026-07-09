@@ -29,7 +29,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
 | `version` | hermit-start.ts | Set on creation only |
 | `session_state` | session-mgr (via lifecycle skills) | Authorized secondary writers: heartbeat (waiting→idle on timeout), channel-responder (waiting→in_progress on inbound message). |
 | `session_id` | session-mgr | Pre-computed on session start (next S-NNN), confirmed on archive |
-| `opened_at` | cost-tracker.ts | Set to the current turn's ISO timestamp on the first `in_progress` turn of an arc (if unset); cleared to `null` on transition to `idle`. Not touched on `waiting`. Read by `session-cost.ts` to sum cost-log rows for this arc by time window, since `session_id` in cost-log rows is always the transcript UUID, never `S-NNN`. |
+| `opened_at` / `closed_at` / `opened_transcript` | cost-tracker.ts | Arc window for `session-cost.ts` (cost-log rows carry the shared transcript UUID, never `S-NNN`, so cost is summed by `[opened_at, closed_at]` time window). `opened_at` is (re)stamped on an `in_progress` turn that starts a new arc — no live arc, the prior one already `closed_at`, or `opened_transcript` (the CC transcript id) changed (a crash/restart mints a new id, so this resets a stale `opened_at`). `closed_at` is stamped on the `idle` transition and cleared when the next arc opens; stamping it (rather than nulling `opened_at`) lets a close that runs post-idle still recover the window. Not touched on `waiting`. |
 | `created_at` | hermit-start.ts / session-start | Set once per lifecycle |
 | `updated_at` | Any writer | Updated on every write |
 | `runtime_mode` | hermit-start.ts | `interactive`, `tmux`, or `docker` |

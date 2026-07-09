@@ -202,4 +202,32 @@ describe('session-cost.ts: window-delta mode', () => {
     expect(out.cost_usd).toBe(0);
     expect(out.tokens).toBe(0);
   }));
+
+  test('closed_at from runtime.json bounds the window end (arc closed after idle)', withTmpdir(async (dir) => {
+    seedCostLog(dir, [
+      { timestamp: '2026-06-01T10:30:00Z', session_id: 'uuid-1', estimated_cost_usd: 0.20, total_tokens: 200, source: 'other' }, // inside the closed arc
+      { timestamp: '2026-06-01T14:00:00Z', session_id: 'uuid-1', estimated_cost_usd: 0.99, total_tokens: 999, source: 'routine:reflect' }, // autonomous, after closed_at → excluded
+    ]);
+    seedRuntime(dir, { opened_at: '2026-06-01T10:00:00Z', closed_at: '2026-06-01T11:00:00Z' });
+    const r = await runScript('session-cost.ts', { args: ['S-XXX'], cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT } });
+    expect(r.exitCode).toBe(0);
+    const out = JSON.parse(r.stdout.trim());
+    expect(out.cost_usd).toBeCloseTo(0.20, 4);
+    expect(out.tokens).toBe(200);
+  }));
+
+  test('malformed --closed-at falls back to now, not a silent zero window', withTmpdir(async (dir) => {
+    seedCostLog(dir, [
+      { timestamp: '2026-06-01T10:30:00Z', session_id: 'uuid-1', estimated_cost_usd: 0.20, total_tokens: 200, source: 'other' }, // inside [opened, now]
+    ]);
+    // Unparseable --closed-at previously → closedMs NaN → `ts <= NaN` false for every row → false 0.
+    const r = await runScript('session-cost.ts', {
+      args: ['S-XXX', '--opened-at', '2026-06-01T10:00:00Z', '--closed-at', 'not-a-date'],
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(0);
+    const out = JSON.parse(r.stdout.trim());
+    expect(out.cost_usd).toBeCloseTo(0.20, 4);
+    expect(out.tokens).toBe(200);
+  }));
 });
