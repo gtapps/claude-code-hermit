@@ -245,6 +245,8 @@ Recurrence signal (as evaluated by the runner): the same multi-step procedure ap
 2. Consult the harness available-skills list (authoritative — never disk checks or `claude plugin list`). If any `/claude-code-hermit:*` or sibling-plugin skill already covers the procedure → suppress.
 3. The standard `proposal-triage` gate still runs and catches an already-open PROP (DUPLICATE verdict).
 
+**Preference ladder (extend before create).** The dedup guard above is binary — *full* coverage suppresses. Between "fully covered" and "no related skill at all" sits the common case: an **adjacent** skill whose domain or trigger phrases overlap the procedure but that does not fully cover it. Prefer **extending the adjacent skill** over drafting a new one: route the procedure as a Component Health `## Skill Improvement` candidate naming that skill (Tier 2, the existing edit path — see § `skill-correction:*` routing and § Component Health) instead of the Tier-3 `## Skill Draft` below, and follow § Candidate processing. Draft a brand-new skill only when no installed or sibling skill can absorb the procedure. Rationale: a proliferation of narrow single-use skills is a failure of the skill library, not a success (reuse over build). When extending, skip the procedure-brief and `## Skill Draft` steps below.
+
 **Write the procedure brief (audit artifact):**
 
 Write `.claude-code-hermit/compiled/procedure-brief-<slug>-YYYY-MM-DD.md` before queuing the candidate. This is a housekeeping artifact (not evidence injected into the judged session content), so writing it before the judge call is permitted.
@@ -267,6 +269,8 @@ Body (concise — fits the `compiled/` char-budget/lint contract; do NOT write a
 - The recurring steps in order
 - Evidence sessions (which sessions and what Lessons/memory entries show the recurrence)
 - Proposed skill name and trigger phrases
+
+**Naming (applies to both `proposed_skill_name` above and the `## Skill Draft` `name` below).** Name the skill for the recurring *capability* it provides, never for the incident that surfaced it — no issue/PR numbers, error strings, dates, or `fix-<X>` phrasings in the name or slug (`fix-issue-44`, `handle-enoent`, `stop-verbose-brief` are all wrong). A skill named after its triggering event never routes on the capability it actually delivers, and the operator gate may rubber-stamp a bad name.
 
 **Routing:** classify **Tier 3** (a new skill auto-loads into every future session, its triggers can fire autonomously, and writing under `.claude/` is operator-space — effectively irreversible/cross-cutting). This matches the Tier-3 definition and the convention that all `category: capability` writers go straight to `proposal-create`.
 

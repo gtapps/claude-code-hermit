@@ -19,8 +19,9 @@ const read = (...p: string[]) => fs.readFileSync(path.join(PLUGIN_ROOT, ...p), '
 const sessionClose = read('skills', 'session-close', 'SKILL.md');
 // reflect's skill-correction routing detail lives in branches.md (the
 // rare-branch procedures file); assert against the combined surface.
-const reflect      = read('skills', 'reflect', 'SKILL.md') + '\n' + read('skills', 'reflect', 'branches.md');
-const proposalAct  = read('skills', 'proposal-act', 'SKILL.md');
+const reflect        = read('skills', 'reflect', 'SKILL.md') + '\n' + read('skills', 'reflect', 'branches.md');
+const proposalAct    = read('skills', 'proposal-act', 'SKILL.md');
+const channelResponder = read('skills', 'channel-responder', 'SKILL.md');
 
 // ── 1. session-close: capture contract prose pins ───────────────────────────
 
@@ -169,6 +170,30 @@ describe('reflect: skill-correction:* graduation routing', () => {
 
   test('reflect: Component Health Skills bullet references ledger graduation as backing', () => {
     expect(reflect).toContain('skill-correction:*` ledger graduation in step 3b');
+  });
+});
+
+// ── 3b. channel-responder: correction → ledger row prose pins ───────────────
+
+describe('channel-responder: resolved correction routes to ledger row', () => {
+  test('channel-responder: resolved corrections append instead of a Findings line', () => {
+    expect(channelResponder).toContain('Resolved corrections → observations ledger, not Findings');
+  });
+
+  test('channel-responder: uses skill-correction source value in the append row', () => {
+    expect(channelResponder).toContain('"source":"skill-correction"');
+  });
+
+  test('channel-responder: pattern is skill-correction:<canonical-name>', () => {
+    expect(channelResponder).toContain('"pattern":"skill-correction:<canonical-name>"');
+  });
+
+  test('channel-responder: append command tolerates failure with || true', () => {
+    expect(channelResponder).toContain('|| true');
+  });
+
+  test('channel-responder: unresolved corrections fall back to the Findings line', () => {
+    expect(channelResponder).toContain('do not guess a `<name>`');
   });
 });
 
