@@ -17,7 +17,9 @@ import { runScript, PLUGIN_ROOT } from './helpers/run';
 const read = (...p: string[]) => fs.readFileSync(path.join(PLUGIN_ROOT, ...p), 'utf-8');
 
 const sessionClose = read('skills', 'session-close', 'SKILL.md');
-const reflect = read('skills', 'reflect', 'SKILL.md');
+// reflect's candidate-processing detail lives in branches.md (the
+// rare-branch procedures file); assert against the combined surface.
+const reflect = read('skills', 'reflect', 'SKILL.md') + '\n' + read('skills', 'reflect', 'branches.md');
 const reflectRef = read('skills', 'reflect', 'reference.md');
 const judge = read('agents', 'reflection-judge.md');
 const hatch = read('skills', 'hatch', 'SKILL.md');

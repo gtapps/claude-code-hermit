@@ -19,19 +19,23 @@ import path from 'node:path';
 import { PLUGIN_ROOT } from './helpers/run';
 
 const REFLECT = path.join(PLUGIN_ROOT, 'skills', 'reflect', 'SKILL.md');
+const REFLECT_BRANCHES = path.join(PLUGIN_ROOT, 'skills', 'reflect', 'branches.md');
 const PROPOSAL_CREATE = path.join(PLUGIN_ROOT, 'skills', 'proposal-create', 'SKILL.md');
 const PROPOSAL_ACT = path.join(PLUGIN_ROOT, 'skills', 'proposal-act', 'SKILL.md');
 const TEMPLATE = path.join(PLUGIN_ROOT, 'state-templates', 'PROPOSAL.md.template');
 
-const reflect = fs.readFileSync(REFLECT, 'utf-8');
+// reflect's procedure-capture text is split between the SKILL.md stub and
+// branches.md (the rare-branch procedures file); assert against the combined surface.
+const reflect = fs.readFileSync(REFLECT, 'utf-8') + '\n' + fs.readFileSync(REFLECT_BRANCHES, 'utf-8');
 const proposalCreate = fs.readFileSync(PROPOSAL_CREATE, 'utf-8');
 const proposalAct = fs.readFileSync(PROPOSAL_ACT, 'utf-8');
 
 // ── reflect: new reflection prompt ──────────────────────────────────────────
 
 describe('reflect: procedure capture', () => {
-  test('reflect skill file exists', () => {
+  test('reflect skill files exist', () => {
     expect(fs.existsSync(REFLECT)).toBe(true);
+    expect(fs.existsSync(REFLECT_BRANCHES)).toBe(true);
   });
 
   test('reflect: new procedure-capture reflection prompt present', () => {

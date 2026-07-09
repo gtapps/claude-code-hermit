@@ -13,7 +13,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { acquireLock, releaseLock } from './lib/lockfile';
 import { writeRuntimeJson, readRuntimeJson, STATE_DIR, RUNTIME_JSON, RUNTIME_TMP, LIFECYCLE_LOCK } from './lib/runtime';
@@ -461,6 +461,23 @@ function clearShutdownStampsOnBoot(existing: Json): void {
  */
 function clearStatusCacheOnBoot(): void {
   try { fs.unlinkSync(path.join(STATE_DIR, '..', 'sessions', '.status.json')); } catch {}
+}
+
+/**
+ * Stamps a fresh per-process nonce at state/.boot-id on every always-on boot.
+ * cron-registry.ts (the hermit-routines diff planner) compares this against the
+ * boot_id stored in its state/cron-registry.json mirror: a mismatch means the
+ * mirror describes a prior process's CronCreates, which durable:false already
+ * killed on exit, so the planner treats every enabled routine as CREATE with no
+ * matching DELETE (nothing live to tear down). Written unconditionally, before
+ * hermit-routines load's first run, so the very first load after boot always
+ * sees a mismatch and does a full (and correct) re-registration.
+ */
+function writeBootId(): void {
+  try {
+    fs.mkdirSync(STATE_DIR, { recursive: true });
+    fs.writeFileSync(path.join(STATE_DIR, '.boot-id'), randomUUID() + '\n');
+  } catch {}
 }
 
 /** Acquire exclusive lifecycle lock. Exits on contention. */
@@ -996,6 +1013,8 @@ async function main(): Promise<void> {
   // The prior process's harness session is over — drop its stale cost cache so the
   // watchdog's idle-phase hygiene fallback can't resolve a defunct session (see helper).
   clearStatusCacheOnBoot();
+  // Fresh boot marker for hermit-routines' cron-registry diff (see helper).
+  writeBootId();
 
   // Create or update runtime.json as the single source of lifecycle truth
   const existing = readRuntimeJson();
@@ -1087,6 +1106,7 @@ export {
   checkStaleRuntime,
   clearShutdownStampsOnBoot,
   clearStatusCacheOnBoot,
+  writeBootId,
   acquireLifecycleLock,
   fetchRegisteredMarketplaces,
   iterChannelConfigs,
