@@ -19,8 +19,9 @@ const MAX_TOP_SOURCES = 5;
 const MAX_CHARS = 1500;
 
 // --plain mode: a channel-safe, no-jargon spend statement (audit's "plain spend
-// statement" PR). Today + a trailing 7-day baseline needs 8 calendar days of log.
-const PLAIN_LOOKBACK_DAYS = 8;
+// statement" PR). A cutoff of today−7 days spans today plus the 7 prior calendar
+// days — the trailing-7-day baseline compareToTypical averages (today excluded).
+const PLAIN_LOOKBACK_DAYS = 7;
 
 // Buckets the raw `source` values (heartbeat / routine:<id> / channel:<kind> / other)
 // into the plain-language groupings a non-dev operator recognizes — never the raw
