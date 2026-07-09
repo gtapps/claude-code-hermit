@@ -969,7 +969,7 @@ describe('kill metrics contract', () => {
 
 describe('procedure capture contract', () => {
   // The Procedure capture subsection lives in reflect's branches.md (the
-  // main-session branch-procedures sibling; SKILL.md keeps only the stub).
+  // main-session rare-branch procedures file; SKILL.md keeps only the stub).
   const reflectBranches = read(path.join(SKILLS, 'reflect', 'branches.md'));
   const proposalCreate = read(path.join(SKILLS, 'proposal-create', 'SKILL.md'));
 
@@ -1191,6 +1191,45 @@ describe('hermit-routines model contract', () => {
   test('SKILL.md must document the heartbeat-restart short-circuit in the substitution rule', () => {
     expect(skillContent).toContain('heartbeat-restart');
     expect(skillContent).toContain('treat `model` as absent');
+  });
+});
+
+// ============================================================
+// hermit-routines diff-registration contract (TestHermitRoutinesCronRegistryContract)
+//
+// Guards the `load` success path against regressing back to an unconditional
+// CronList/CronDelete-all/CronCreate-all sweep on every call. That sweep was
+// replaced by cron-registry.ts's plan/commit diff (see scripts/cron-registry.ts
+// and its own test file, tests/cron-registry.test.ts, for the planner's pure
+// logic); `load --reset` keeps the old unconditional sweep as an explicit,
+// operator-invoked escape hatch — only the *default* path must not silently
+// regress to it.
+// ============================================================
+
+describe('hermit-routines diff-registration contract', () => {
+  const skillContent = read(path.join(SKILLS, 'hermit-routines', 'SKILL.md'));
+
+  test('SKILL.md wires the diff planner into load\'s success path', () => {
+    expect(skillContent).toContain('cron-registry.ts plan');
+    expect(skillContent).toContain('cron-registry.ts commit');
+  });
+
+  test('load\'s default success path is no longer an unconditional CronList sweep', () => {
+    expect(skillContent).not.toContain('Unconditional reset — ensures stale entries');
+  });
+
+  test('SKILL.md documents the KEEP-only fast path (no CronList/CronCreate/CronDelete)', () => {
+    expect(skillContent).toContain('KEEP:<n>');
+    expect(skillContent).toContain('No `CronList`, no `CronCreate`, no `CronDelete` this run.');
+  });
+
+  test('SKILL.md documents load --reset as the unconditional escape hatch', () => {
+    expect(skillContent).toContain('load --reset');
+    expect(skillContent).toContain('--force');
+  });
+
+  test('SKILL.md documents the boot-id mirror-invalidation mechanism', () => {
+    expect(skillContent).toContain('.boot-id');
   });
 });
 

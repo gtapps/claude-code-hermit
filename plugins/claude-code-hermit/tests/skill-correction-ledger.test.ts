@@ -18,7 +18,7 @@ const read = (...p: string[]) => fs.readFileSync(path.join(PLUGIN_ROOT, ...p), '
 
 const sessionClose = read('skills', 'session-close', 'SKILL.md');
 // reflect's skill-correction routing detail lives in branches.md (the
-// branch-procedures sibling); assert against the combined surface.
+// rare-branch procedures file); assert against the combined surface.
 const reflect      = read('skills', 'reflect', 'SKILL.md') + '\n' + read('skills', 'reflect', 'branches.md');
 const proposalAct  = read('skills', 'proposal-act', 'SKILL.md');
 
