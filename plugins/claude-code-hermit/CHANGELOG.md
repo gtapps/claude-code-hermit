@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changed
+- **doctrine: codify measured token economics** — dev and operator `CLAUDE.md` now frame the atom of cost as the API call (cache traffic dominates spend, not per-prompt injection), note that each delegation bookends main with ≥2 full-context turns, and extend the script-mediation rule to native tool outputs (e.g. `CronList`).
 - **reflect: SKILL.md slimmed 52KB → ~15.7KB (stub + `branches.md` split)** — candidate-processing gates, scheduled-checks steps, procedure capture, and `skill-correction:*` routing moved to `skills/reflect/branches.md`, read only when that branch fires. `reference.md` and the `--quick`/`--scheduled-checks`/`--precheck-verdict` interfaces are unchanged.
 
 ## [1.2.19] - 2026-07-06
