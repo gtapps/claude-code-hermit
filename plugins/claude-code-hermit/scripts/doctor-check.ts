@@ -1339,6 +1339,85 @@ function checkModelPricingKnown() {
   }
 }
 
+// ----------------- Routine cost -----------------
+// Flags expensive-outlier routines (e.g. a "light" haiku routine that turns out to read
+// broad state and costs $15/run) so they surface without manually cross-referencing
+// cost-index.json and routine-metrics.jsonl. See docs/routine-authoring.md.
+
+function checkRoutineCost() {
+  try {
+    const read = readConfigOrCovered('routine-cost');
+    if ('covered' in read) return read.covered;
+    const config = read.config;
+
+    const routines: Array<{ id: string }> = (Array.isArray(config.routines) ? config.routines : [])
+      .filter((r: Json) => r && typeof r.id === 'string' && r.enabled !== false);
+    if (routines.length === 0) {
+      return { id: 'routine-cost', status: 'ok', detail: 'no enabled routines configured' };
+    }
+
+    const index = readCostIndex(costIndexPath(hermitDir));
+    if (!index) {
+      return { id: 'routine-cost', status: 'ok', detail: 'cost-index.json absent — no routine cost data yet' };
+    }
+    const bySource = index.by_source || {};
+
+    // Run counts from routine-metrics.jsonl are the authoritative source — by_source's
+    // `routine:*` keys can contain classifier artifacts (e.g. "routine:fired") from the
+    // greedy log-routine-event.sh fallback match in cost-tracker.ts's classifySource().
+    // Joining strictly against configured routine ids below filters those out.
+    const fireCounts = new Map<string, number>();
+    try {
+      const lines = fs.readFileSync(path.join(stateDir, 'routine-metrics.jsonl'), 'utf-8').split('\n');
+      for (const raw of lines) {
+        const line = raw.trim();
+        if (!line) continue;
+        try {
+          const e = JSON.parse(line);
+          if (e && typeof e.routine_id === 'string' && e.event === 'fired') {
+            fireCounts.set(e.routine_id, (fireCounts.get(e.routine_id) || 0) + 1);
+          }
+        } catch {}
+      }
+    } catch {
+      // routine-metrics.jsonl absent — fireCounts stays empty, handled as insufficient data below.
+    }
+
+    const MIN_RUNS = 3; // avoid divide-by-small-N false positives
+    const perRun: Array<{ id: string; costPerRun: number }> = [];
+    for (const r of routines) {
+      const runs = fireCounts.get(r.id) || 0;
+      if (runs < MIN_RUNS) continue;
+      const cost = bySource[`routine:${r.id}`]?.cost;
+      if (typeof cost !== 'number') continue;
+      perRun.push({ id: r.id, costPerRun: cost / runs });
+    }
+
+    if (perRun.length === 0) {
+      return { id: 'routine-cost', status: 'ok', detail: 'not enough run history yet to compare routine cost' };
+    }
+
+    const sorted = [...perRun].sort((a, b) => a.costPerRun - b.costPerRun);
+    const mid = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 === 0 ? (sorted[mid - 1].costPerRun + sorted[mid].costPerRun) / 2 : sorted[mid].costPerRun;
+
+    const floor = typeof config.doctor?.routine_cost_floor_usd === 'number' ? config.doctor.routine_cost_floor_usd : 2;
+    const threshold = Math.max(median * 3, floor);
+
+    const outliers = perRun.filter((p) => p.costPerRun > threshold).sort((a, b) => b.costPerRun - a.costPerRun);
+    if (outliers.length > 0) {
+      const worst = outliers[0];
+      return {
+        id: 'routine-cost', status: 'warn',
+        detail: `${worst.id} $${worst.costPerRun.toFixed(2)}/run (median $${median.toFixed(2)}) — audit what it reads`,
+      };
+    }
+    return { id: 'routine-cost', status: 'ok', detail: `${perRun.length} routine(s) compared, none over $${threshold.toFixed(2)}/run` };
+  } catch (e: any) {
+    return { id: 'routine-cost', status: 'fail', detail: `check failed: ${e.message}` };
+  }
+}
+
 // ----------------- Channel liveness -----------------
 // Core's first direct outward egress: one token-authed liveness call per
 // enabled channel. Never surface fetch error messages or probe URLs in
@@ -1439,6 +1518,7 @@ async function runAllChecks() {
     checkRawSize(),
     checkCredentialExpiry(),
     checkModelPricingKnown(),
+    checkRoutineCost(),
     await checkChannelLiveness(),
   ];
 }
@@ -1462,7 +1542,7 @@ export {
   checkCost, checkProposals, checkDependencies, checkVersionCurrency, checkPermissions,
   checkDockerSecurity, checkArchival, checkReflectLoop, checkScheduler,
   checkWatchdog, checkContextAge, checkOpusWake, checkHeartbeat, checkRawSize,
-  checkCredentialExpiry, checkModelPricingKnown, checkChannelLiveness,
+  checkCredentialExpiry, checkModelPricingKnown, checkRoutineCost, checkChannelLiveness,
   satisfiesRange, cidrOverlap,
   // runAllChecks is async (checkChannelLiveness performs network I/O) — callers must await it.
   runAllChecks, writeReport,

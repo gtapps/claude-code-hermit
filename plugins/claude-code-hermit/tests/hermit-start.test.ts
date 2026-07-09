@@ -243,6 +243,8 @@ describe('config contract: template and DEFAULT_CONFIG must mirror', () => {
     'docker.recommended_plugins',
     // Read directly by cron-registry.ts (raw config read, own default of 6) — not part of the loadConfig merge.
     'routine_wake_lint', 'routine_wake_lint.max_windows',
+    // Read directly by doctor-check.ts's routine-cost check (raw config read, own default of 2) — not part of the loadConfig merge.
+    'doctor', 'doctor.routine_cost_floor_usd',
   ]);
 
   test('key path sync: flattened key paths must match (excluding known template-only keys)', () => {

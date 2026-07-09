@@ -588,6 +588,32 @@ describe('context_hygiene validation', () => {
 });
 
 // ============================================================
+// doctor.routine_cost_floor_usd validation
+// ============================================================
+
+describe('doctor config validation', () => {
+  test('valid routine_cost_floor_usd produces no errors', () => {
+    const out = runValidate({ doctor: { routine_cost_floor_usd: 5 } });
+    expect(out.errors).toEqual([]);
+  });
+
+  test('negative routine_cost_floor_usd is an error', () => {
+    const out = runValidate({ doctor: { routine_cost_floor_usd: -1 } });
+    expect(out.errors.some((e: string) => e.includes('routine_cost_floor_usd: expected non-negative number'))).toBe(true);
+  });
+
+  test('non-number routine_cost_floor_usd is an error', () => {
+    const out = runValidate({ doctor: { routine_cost_floor_usd: '5' } });
+    expect(out.errors.some((e: string) => e.includes('routine_cost_floor_usd: expected non-negative number'))).toBe(true);
+  });
+
+  test('absent doctor block produces no errors', () => {
+    const out = runValidate({});
+    expect(out.errors.filter((e: string) => e.includes('doctor'))).toEqual([]);
+  });
+});
+
+// ============================================================
 // budget validation (PROP-016)
 // ============================================================
 
@@ -1793,12 +1819,12 @@ describe('reflect routine gating contract (token efficiency)', () => {
 const DOCTOR_CHECK_IDS = [
   'runtime', 'config', 'hooks', 'state', 'cost', 'proposals', 'dependencies', 'version-currency',
   'permissions', 'docker-security', 'archive', 'reflect', 'scheduler', 'watchdog', 'context-age',
-  'opus-wake', 'heartbeat', 'raw-size', 'credential-expiry', 'model-pricing-known',
+  'opus-wake', 'heartbeat', 'raw-size', 'credential-expiry', 'model-pricing-known', 'routine-cost',
   'channel-liveness',
 ];
 
 describe('doctor report contract (PROP-018 count pin)', () => {
-  test('report emits exactly the 21 pinned check ids, in order', withTmpdir(async (dir) => {
+  test('report emits exactly the 22 pinned check ids, in order', withTmpdir(async (dir) => {
     writeConfig(dir, {});
     const report = await runDoctorCheck(dir);
     expect((report.checks ?? []).map((c: any) => c.id)).toEqual(DOCTOR_CHECK_IDS);
@@ -1818,9 +1844,9 @@ describe('hermit-doctor SKILL.md doc-sync (no drift between JSON checks and docs
     expect(missing).toEqual([]);
   });
 
-  test('counts read twenty-two, not fifteen', () => {
+  test('counts read twenty-three, not fifteen', () => {
     expect(skill).not.toContain('fifteen');
-    expect(skill.toLowerCase()).toContain('twenty-two');
+    expect(skill.toLowerCase()).toContain('twenty-three');
   });
 });
 
@@ -2154,6 +2180,118 @@ describe('doctor model-pricing-known check', () => {
     const c = priceCheck(report);
     expect(c.status).toBe('warn');
     expect(c.detail).toContain('cost-log');
+  }), 20000);
+});
+
+describe('doctor routine-cost check', () => {
+  const routineCostCheck = (report: any) => (report.checks ?? []).find((c: any) => c.id === 'routine-cost');
+  const routine = (id: string) => ({ id, schedule: '0 9 * * *', skill: 'x:y', enabled: true });
+  const fired = (id: string, n: number) => Array.from({ length: n }, () => ({ routine_id: id, event: 'fired' }));
+
+  function writeCostIndex(dir: string, bySource: Record<string, { cost: number; tokens: number }>) {
+    fs.writeFileSync(path.join(dir, '.claude-code-hermit', 'state', 'cost-index.json'), JSON.stringify({
+      version: 3, byte_offset: 0, total_cost_usd: 0, total_tokens: 0, total_sessions: 0,
+      last_session_id: null, by_source: bySource, by_date: {}, by_week: {}, by_month: {},
+      skipped_corrupt_lines: 0, updated_at: new Date().toISOString(),
+    }));
+  }
+
+  function writeRoutineMetrics(dir: string, rows: Array<{ routine_id: string; event: string }>) {
+    const lines = rows.map(r => JSON.stringify({
+      ts: new Date().toISOString(), routine_id: r.routine_id, event: r.event, delivery: 'cron-create',
+    })).join('\n') + '\n';
+    fs.writeFileSync(path.join(dir, '.claude-code-hermit', 'state', 'routine-metrics.jsonl'), lines);
+  }
+
+  test('no enabled routines → ok', withTmpdir(async (dir) => {
+    writeConfig(dir, BASE_CONFIG);
+    const report = await runDoctorCheck(dir);
+    expect(routineCostCheck(report).status).toBe('ok');
+  }), 20000);
+
+  test('cost-index.json absent → ok', withTmpdir(async (dir) => {
+    writeConfig(dir, { ...BASE_CONFIG, routines: [routine('a')] });
+    const report = await runDoctorCheck(dir);
+    expect(routineCostCheck(report).status).toBe('ok');
+  }), 20000);
+
+  test('fewer than 3 runs → ok (no divide-by-small-N false positive)', withTmpdir(async (dir) => {
+    writeConfig(dir, { ...BASE_CONFIG, routines: [routine('a')] });
+    writeCostIndex(dir, { 'routine:a': { cost: 100, tokens: 1000 } });
+    writeRoutineMetrics(dir, fired('a', 2));
+    const report = await runDoctorCheck(dir);
+    expect(routineCostCheck(report).status).toBe('ok');
+  }), 20000);
+
+  test('outlier routine exceeding 3x median and floor → warn naming it', withTmpdir(async (dir) => {
+    // Three routines, not two — with only two data points the median is the average of
+    // both and gets dragged toward the outlier itself, defeating detection.
+    writeConfig(dir, { ...BASE_CONFIG, routines: [routine('cheap'), routine('cheap2'), routine('expensive')] });
+    writeCostIndex(dir, {
+      'routine:cheap': { cost: 1.2, tokens: 1000 },        // $0.40/run
+      'routine:cheap2': { cost: 1.35, tokens: 1000 },      // $0.45/run (median)
+      'routine:expensive': { cost: 45, tokens: 100000 },   // $15/run
+    });
+    writeRoutineMetrics(dir, [...fired('cheap', 3), ...fired('cheap2', 3), ...fired('expensive', 3)]);
+    const report = await runDoctorCheck(dir);
+    const c = routineCostCheck(report);
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('expensive');
+  }), 20000);
+
+  test('all routines under the floor → ok', withTmpdir(async (dir) => {
+    writeConfig(dir, { ...BASE_CONFIG, routines: [routine('a'), routine('b')] });
+    writeCostIndex(dir, {
+      'routine:a': { cost: 3, tokens: 1000 },   // $1.00/run
+      'routine:b': { cost: 3.3, tokens: 1000 }, // $1.10/run
+    });
+    writeRoutineMetrics(dir, [...fired('a', 3), ...fired('b', 3)]);
+    const report = await runDoctorCheck(dir);
+    expect(routineCostCheck(report).status).toBe('ok');
+  }), 20000);
+
+  test('polluted routine:<artifact> key with no matching routine id is ignored', withTmpdir(async (dir) => {
+    // cost-tracker's classifySource() can mint keys like "routine:fired" from the
+    // log-routine-event.sh fallback matcher — must not be treated as a real routine.
+    writeConfig(dir, { ...BASE_CONFIG, routines: [routine('a')] });
+    writeCostIndex(dir, {
+      'routine:a': { cost: 3, tokens: 1000 },     // $1.00/run, under floor
+      'routine:fired': { cost: 999, tokens: 1 },  // classifier artifact
+    });
+    writeRoutineMetrics(dir, fired('a', 3));
+    const report = await runDoctorCheck(dir);
+    const c = routineCostCheck(report);
+    expect(c.status).toBe('ok');
+    expect(c.detail).not.toContain('999');
+  }), 20000);
+
+  test('default floor absorbs a low-absolute-cost outlier that is many times the median', withTmpdir(async (dir) => {
+    writeConfig(dir, { ...BASE_CONFIG, routines: [routine('a'), routine('b'), routine('lonewolf')] });
+    writeCostIndex(dir, {
+      'routine:a': { cost: 0.03, tokens: 100 },  // $0.01/run
+      'routine:b': { cost: 0.036, tokens: 100 }, // $0.012/run (median)
+      'routine:lonewolf': { cost: 0.15, tokens: 100 },  // $0.05/run — >3x median, under the $2 floor
+    });
+    writeRoutineMetrics(dir, [...fired('a', 3), ...fired('b', 3), ...fired('lonewolf', 3)]);
+    const report = await runDoctorCheck(dir);
+    expect(routineCostCheck(report).status).toBe('ok');
+  }), 20000);
+
+  test('config.doctor.routine_cost_floor_usd override flags the same outlier', withTmpdir(async (dir) => {
+    writeConfig(dir, {
+      ...BASE_CONFIG, routines: [routine('a'), routine('b'), routine('lonewolf')],
+      doctor: { routine_cost_floor_usd: 0.02 },
+    });
+    writeCostIndex(dir, {
+      'routine:a': { cost: 0.03, tokens: 100 },
+      'routine:b': { cost: 0.036, tokens: 100 },
+      'routine:lonewolf': { cost: 0.15, tokens: 100 },
+    });
+    writeRoutineMetrics(dir, [...fired('a', 3), ...fired('b', 3), ...fired('lonewolf', 3)]);
+    const report = await runDoctorCheck(dir);
+    const c = routineCostCheck(report);
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('lonewolf');
   }), 20000);
 });
 

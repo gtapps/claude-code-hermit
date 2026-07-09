@@ -233,6 +233,13 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
     }
   }
 
+  if (config.doctor && typeof config.doctor === 'object') {
+    const floor = config.doctor.routine_cost_floor_usd;
+    if (floor !== undefined && (typeof floor !== 'number' || floor < 0)) {
+      errors.push(`doctor.routine_cost_floor_usd: expected non-negative number, got ${JSON.stringify(floor)}`);
+    }
+  }
+
   if (config.watchdog && typeof config.watchdog === 'object') {
     const wd = config.watchdog;
     if (typeof wd.enabled !== 'boolean') {

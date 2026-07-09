@@ -1,7 +1,8 @@
 # Routine Authoring
 
-How to convert a costly, broad-context routine into a purpose-built scoped skill — the pattern
-that separates a cheap always-on routine from an expensive one.
+How to convert a costly, broad-context routine into a purpose-built scoped skill — sometimes
+called a "**-light skill**" (e.g. `inbox-check-light`) — the pattern that separates a cheap
+always-on routine from an expensive one.
 
 ---
 
@@ -14,9 +15,10 @@ don't: *when* a routine needs a scoped skill instead of a broad one, and how to 
 
 A routine has a cost signature worth fixing when it:
 
-- Runs frequently (daily or more) and shows up as a high-\$/run line when you scan
-  `.claude/cost-log.jsonl` or run `/claude-code-hermit:cost-reflect` (no dedicated per-routine
-  doctor check exists yet — compare its \$/run against other routines by hand).
+- Runs frequently (daily or more) and shows up as a high-\$/run line — `/claude-code-hermit:hermit-doctor`'s
+  `routine-cost` check flags it automatically (a routine whose \$/run exceeds both 3× the fleet
+  median and `doctor.routine_cost_floor_usd`), or scan `.claude/cost-log.jsonl` /
+  `/claude-code-hermit:cost-reflect` by hand.
 - Invokes a broad, `/session-start`-style skill that loads a lot of context (recovery matrices,
   full state reads, conversational framing) to answer one narrow question ("is there anything to
   do?", "did this threshold cross?", "is this file stale?").
@@ -80,6 +82,22 @@ Applying the checklist:
 - Changed the skill's return to a single verdict line instead of a narrative summary.
 - Added a precheck script ahead of it for the common "nothing changed since last run" case, so
   most ticks never load the skill body at all.
+
+Before, in `config.json`:
+
+```json
+{ "id": "monthly-revenue", "schedule": "0 8 * * *", "skill": "claude-code-hermit:session-start" }
+```
+
+After — a scoped `-light` skill, haiku-pinned, no session entry:
+
+```json
+{ "id": "monthly-revenue", "schedule": "0 8 * * *", "skill": "revenue-check-light", "model": "haiku" }
+```
+
+`revenue-check-light/SKILL.md` reads only the revenue ledger slice it needs and returns one line
+(`"no change since last run"` or `"revenue crossed $X — notify"`) instead of onboarding a full
+session.
 
 The routine kept its behavior and schedule; the \$/run dropped by roughly two orders of magnitude
 because most fires now resolve in a bash precheck, and the ticks that do need a decision run a
