@@ -72,9 +72,9 @@ Set the PROP frontmatter:
 - `tags: [capability-brainstorm, ideation]`
 
 `/claude-code-hermit:proposal-create` invokes `proposal-triage` internally. Parse its outcome:
-- `CREATE` — PROP file written, note the assigned PROP-NNN.
-- `SUPPRESS — <code>` — record the suppression code. Don't retry.
-- `DUPLICATE:<PROP-ID>` — record the existing PROP-ID. Don't create.
+- `CREATE: <title>` — PROP file written, note the assigned PROP-NNN.
+- `SUPPRESS: <title> — <code>` — record the suppression code. Don't retry.
+- `DUPLICATE: <title> — <PROP-ID>` — record the existing PROP-ID. Don't create.
 
 Do NOT invoke `proposal-triage` directly in this skill — `/claude-code-hermit:proposal-create` already does it.
 

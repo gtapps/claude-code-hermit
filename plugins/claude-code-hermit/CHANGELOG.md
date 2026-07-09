@@ -9,6 +9,7 @@
 ### Changed
 - **hermit-routines: consolidate the pre-fire gate into `routine-precheck.ts`** — one script call now owns the waiting-check, pause-check, and `started` stamp per routine fire, replacing three model-issued tool calls. Metrics schema and readers unchanged.
 - **hermit-routines: diff-based cron registration** — `load` no longer tears down and recreates every routine CronCreate on each call; a new `scripts/cron-registry.ts` planner diffs against a `state/cron-registry.json` mirror and only re-registers routines that changed or are aging toward CC's 7-day auto-expiry cliff. Eliminates the daily `heartbeat-restart` reload's bulk `CronList`/`CronDelete`/`CronCreate` churn on an unchanged config. `load --reset` keeps the old unconditional sweep as an explicit escape hatch for suspected mirror/reality drift.
+- **reflect: batch `proposal-triage` gate calls** — `proposal-triage` now accepts N candidates in one call and returns N title-tagged verdict blocks, matching `reflection-judge`'s existing batch grammar. Reflect gates all pending candidates in a single dispatch instead of one per candidate; `proposal-create` and `scheduled-checks` keep calling it as a batch of one.
 
 ### Upgrade Instructions
 

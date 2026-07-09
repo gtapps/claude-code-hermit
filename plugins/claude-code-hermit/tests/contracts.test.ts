@@ -2255,3 +2255,66 @@ describe('doctor routine template contract', () => {
     expect(warnings).toEqual([]);
   });
 });
+
+// ============================================================
+// proposal-triage batch contract (PR-1: batch proposal-triage in reflect)
+//
+// proposal-triage used to be invoked strictly per-candidate ("never as a
+// batch"); it now accepts N candidates in one call and returns N title-tagged
+// verdict blocks, mirroring reflection-judge's existing batch grammar. Guards
+// against: the agent definition regressing to the old bare CREATE/SUPPRESS —
+// <code>/DUPLICATE:<PROP-ID> grammar, and any caller (reflect, proposal-create,
+// capability-brainstorm) still parsing the old bare grammar.
+// ============================================================
+
+describe('proposal-triage batch contract', () => {
+  const triage = read(path.join(AGENTS, 'proposal-triage.md'));
+  const branches = read(path.join(SKILLS, 'reflect', 'branches.md'));
+  const reflectSkill = read(path.join(SKILLS, 'reflect', 'SKILL.md'));
+  const proposalCreate = read(path.join(SKILLS, 'proposal-create', 'SKILL.md'));
+  const brainstorm = read(path.join(SKILLS, 'capability-brainstorm', 'SKILL.md'));
+
+  test('agents/proposal-triage.md documents multi-candidate batch input', () => {
+    expect(triage).toContain('batch of one');
+    expect(triage).toContain('separated by a blank line');
+  });
+
+  test('agents/proposal-triage.md documents the title-tagged verdict grammar', () => {
+    expect(triage).toContain('CREATE: <title>');
+    expect(triage).toContain('SUPPRESS: <title>');
+    expect(triage).toContain('DUPLICATE: <title>');
+  });
+
+  test('agents/proposal-triage.md no longer documents the old bare grammar', () => {
+    expect(triage).not.toContain('SUPPRESS — <code>');
+    expect(triage).not.toContain('DUPLICATE:<PROP-ID> — <one-line reason>');
+  });
+
+  test('reflect/branches.md gates candidates through proposal-triage in one batched call', () => {
+    expect(branches).toContain('single batched call');
+    expect(branches).not.toContain('single-candidate — invoke per-candidate, never as a batch');
+  });
+
+  test('reflect/branches.md parses the title-tagged triage verdict grammar', () => {
+    expect(branches).toContain('CREATE: <title>');
+    expect(branches).toContain('DUPLICATE: <title> — <PROP-ID>: <reason>');
+    expect(branches).toContain('SUPPRESS: <title> — <code>: <reason>');
+  });
+
+  test('reflect/SKILL.md no longer describes per-candidate triage dispatch', () => {
+    expect(reflectSkill).not.toContain('Triage each candidate');
+    expect(reflectSkill).not.toContain('per-candidate `claude-code-hermit:proposal-triage`');
+  });
+
+  test('proposal-create/SKILL.md documents its call as a batch of one and parses the new grammar', () => {
+    expect(proposalCreate).toContain('batch of one');
+    expect(proposalCreate).toContain('CREATE: <title>');
+    expect(proposalCreate).toContain('DUPLICATE: <title> — <PROP-ID>: <reason>');
+    expect(proposalCreate).toContain('SUPPRESS: <title> — <code>: <reason>');
+  });
+
+  test('capability-brainstorm/SKILL.md parses proposal-create outcome with the title-tagged grammar', () => {
+    expect(brainstorm).toContain('CREATE: <title>');
+    expect(brainstorm).toContain('DUPLICATE: <title> — <PROP-ID>');
+  });
+});

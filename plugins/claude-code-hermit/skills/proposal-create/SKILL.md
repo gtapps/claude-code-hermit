@@ -32,7 +32,7 @@ Evidence: <one-paragraph evidence summary>
 
 `Evidence Source:` is optional (default: `archived-session`). `Evidence Origin:` is optional (default: `own-work`).
 
-Parse line 1 as the verdict. Lines 2+ are additive metadata (`closest_prop`, `aligned`, `operator_excerpt`, `overlap_compiled`, `prior_discussion`, `failed_condition`) — read for context if useful but do not branch on them.
+This is a single-candidate call (a batch of one), so the response is one verdict block. Parse its line 1 as the verdict. Lines 2+ are additive metadata (`closest_prop`, `aligned`, `operator_excerpt`, `overlap_compiled`, `prior_discussion`, `failed_condition`) — read for context if useful but do not branch on them.
 
 After receiving the verdict, append one event to `state/proposal-metrics.jsonl`:
 ```bash
@@ -42,9 +42,9 @@ bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
 ```
 `evidence_source` is the `Evidence Source:` value the caller passed (default `archived-session`). `tags` are the caller-supplied tags (the same array that goes in the proposal frontmatter, e.g. `["procedure-capture"]`); use `[]` if none. Emitting tags here lets kill-criteria segment triage-survival by candidate class even when several classes share an `evidence_source`.
 
-- `CREATE` — proceed with the steps below
-- `DUPLICATE:<PROP-ID> — <reason>`: stop, report to the caller: "Proposal already exists as <PROP-ID>"
-- `SUPPRESS — <code>: <reason>`: stop, report the suppression reason to the caller
+- `CREATE: <title>` — proceed with the steps below
+- `DUPLICATE: <title> — <PROP-ID>: <reason>`: stop, report to the caller: "Proposal already exists as <PROP-ID>"
+- `SUPPRESS: <title> — <code>: <reason>`: stop, report the suppression reason to the caller
 - **Unrecognized line 1** (agent errored, returned malformed/empty output, or was terminated before emitting a verdict): fail closed — do not create the proposal; skip the triage-verdict append above. Append:
   ```bash
   bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
