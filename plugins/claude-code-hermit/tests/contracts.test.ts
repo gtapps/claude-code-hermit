@@ -588,6 +588,32 @@ describe('context_hygiene validation', () => {
 });
 
 // ============================================================
+// doctor.routine_cost_floor_usd validation
+// ============================================================
+
+describe('doctor config validation', () => {
+  test('valid routine_cost_floor_usd produces no errors', () => {
+    const out = runValidate({ doctor: { routine_cost_floor_usd: 5 } });
+    expect(out.errors).toEqual([]);
+  });
+
+  test('negative routine_cost_floor_usd is an error', () => {
+    const out = runValidate({ doctor: { routine_cost_floor_usd: -1 } });
+    expect(out.errors.some((e: string) => e.includes('routine_cost_floor_usd: expected non-negative number'))).toBe(true);
+  });
+
+  test('non-number routine_cost_floor_usd is an error', () => {
+    const out = runValidate({ doctor: { routine_cost_floor_usd: '5' } });
+    expect(out.errors.some((e: string) => e.includes('routine_cost_floor_usd: expected non-negative number'))).toBe(true);
+  });
+
+  test('absent doctor block produces no errors', () => {
+    const out = runValidate({});
+    expect(out.errors.filter((e: string) => e.includes('doctor'))).toEqual([]);
+  });
+});
+
+// ============================================================
 // budget validation (PROP-016)
 // ============================================================
 
@@ -2034,98 +2060,6 @@ describe('doctor context-age check', () => {
   }), 20000);
 });
 
-describe('doctor routine-cost check', () => {
-  const rcCheck = (report: any) => (report.checks ?? []).find((c: any) => c.id === 'routine-cost');
-
-  function writeCostIndex(dir: string, bySource: Record<string, { cost: number; tokens: number }>) {
-    fs.writeFileSync(
-      path.join(dir, '.claude-code-hermit', 'state', 'cost-index.json'),
-      JSON.stringify({ version: 3, by_source: bySource }),
-    );
-  }
-
-  function writeRoutineMetrics(dir: string, firedCounts: Record<string, number>) {
-    const lines: string[] = [];
-    for (const [routineId, count] of Object.entries(firedCounts)) {
-      for (let i = 0; i < count; i++) {
-        // Distinct started/fired pairs — the writer's dedup guard only suppresses a
-        // *second consecutive* fired with no intervening started, so this must not
-        // trigger it.
-        lines.push(JSON.stringify({ ts: new Date().toISOString(), routine_id: routineId, event: 'started', delivery: 'cron-create' }));
-        lines.push(JSON.stringify({ ts: new Date().toISOString(), routine_id: routineId, event: 'fired', delivery: 'cron-create' }));
-      }
-    }
-    fs.writeFileSync(path.join(dir, '.claude-code-hermit', 'state', 'routine-metrics.jsonl'), lines.join('\n') + '\n');
-  }
-
-  test('no cost-index yet → ok', withTmpdir(async (dir) => {
-    writeConfig(dir, {});
-    const c = rcCheck(await runDoctorCheck(dir));
-    expect(c.status).toBe('ok');
-    expect(c.detail).toContain('no cost-index data yet');
-  }), 20000);
-
-  test('all routines within 3x median → ok', withTmpdir(async (dir) => {
-    writeConfig(dir, {});
-    writeCostIndex(dir, {
-      'routine:cheap': { cost: 1.2, tokens: 1000 },
-      'routine:mid': { cost: 1.5, tokens: 1000 },
-    });
-    writeRoutineMetrics(dir, { cheap: 3, mid: 3 });
-    const c = rcCheck(await runDoctorCheck(dir));
-    expect(c.status).toBe('ok');
-  }), 20000);
-
-  test('an outlier over 3x the fleet median → warn, names it', withTmpdir(async (dir) => {
-    writeConfig(dir, {});
-    writeCostIndex(dir, {
-      'routine:cheap': { cost: 1.2, tokens: 1000 },
-      'routine:mid': { cost: 1.2, tokens: 1000 },
-      'routine:pricey': { cost: 45.0, tokens: 1000 }, // $15/run vs $0.40 median
-    });
-    writeRoutineMetrics(dir, { cheap: 3, mid: 3, pricey: 3 });
-    const c = rcCheck(await runDoctorCheck(dir));
-    expect(c.status).toBe('warn');
-    expect(c.detail).toContain('pricey');
-    expect(c.detail).toContain('$15.00/run');
-    expect(c.detail).toContain('median $0.40');
-  }), 20000);
-
-  test('a routine with under 3 fired runs is skipped (no false positive)', withTmpdir(async (dir) => {
-    writeConfig(dir, {});
-    writeCostIndex(dir, {
-      'routine:newish': { cost: 30.0, tokens: 1000 }, // would be a huge $/run if counted
-    });
-    writeRoutineMetrics(dir, { newish: 2 });
-    const c = rcCheck(await runDoctorCheck(dir));
-    expect(c.status).toBe('ok');
-    expect(c.detail).toContain('no routine has enough runs yet');
-  }), 20000);
-
-  test('doctor.routine_cost_floor_usd overrides the default floor', withTmpdir(async (dir) => {
-    // Two very cheap routines pin the median low ($0.01/run), so 3x-median ($0.03) stays
-    // well under both the default floor ($2) and 'mid' ($0.50/run) — under the default
-    // floor this is 'ok'. Only lowering the floor below $0.50 flips it to 'warn'.
-    const bySource = {
-      'routine:cheap1': { cost: 0.03, tokens: 1000 },
-      'routine:cheap2': { cost: 0.03, tokens: 1000 },
-      'routine:mid': { cost: 1.5, tokens: 1000 },
-    };
-    const fired = { cheap1: 3, cheap2: 3, mid: 3 };
-
-    writeConfig(dir, {});
-    writeCostIndex(dir, bySource);
-    writeRoutineMetrics(dir, fired);
-    const baseline = rcCheck(await runDoctorCheck(dir));
-    expect(baseline.status).toBe('ok');
-
-    writeConfig(dir, { doctor: { routine_cost_floor_usd: 0.01 } });
-    const c = rcCheck(await runDoctorCheck(dir));
-    expect(c.status).toBe('warn');
-    expect(c.detail).toContain('mid');
-  }), 20000);
-});
-
 describe('doctor credential-expiry check', () => {
   const credCheck = (report: any) => (report.checks ?? []).find((c: any) => c.id === 'credential-expiry');
 
@@ -2270,6 +2204,152 @@ describe('doctor model-pricing-known check', () => {
     const c = priceCheck(report);
     expect(c.status).toBe('warn');
     expect(c.detail).toContain('cost-log');
+  }), 20000);
+});
+
+describe('doctor routine-cost check', () => {
+  const routineCostCheck = (report: any) => (report.checks ?? []).find((c: any) => c.id === 'routine-cost');
+  const routine = (id: string) => ({ id, schedule: '0 9 * * *', skill: 'x:y', enabled: true });
+  // A fire-turn stamps exactly one of started|skipped-* via routine-precheck.ts; both accrue
+  // cost to the routine bucket, so both count toward the run denominator. `fired` is a later
+  // duplicate of `started` and is deliberately NOT counted.
+  const runs = (id: string, n: number, event = 'started') => Array.from({ length: n }, () => ({ routine_id: id, event }));
+
+  function writeCostIndex(dir: string, bySource: Record<string, { cost: number; tokens: number }>) {
+    fs.writeFileSync(path.join(dir, '.claude-code-hermit', 'state', 'cost-index.json'), JSON.stringify({
+      version: 3, byte_offset: 0, total_cost_usd: 0, total_tokens: 0, total_sessions: 0,
+      last_session_id: null, by_source: bySource, by_date: {}, by_week: {}, by_month: {},
+      skipped_corrupt_lines: 0, updated_at: new Date().toISOString(),
+    }));
+  }
+
+  function writeRoutineMetrics(dir: string, rows: Array<{ routine_id: string; event: string }>) {
+    const lines = rows.map(r => JSON.stringify({
+      ts: new Date().toISOString(), routine_id: r.routine_id, event: r.event, delivery: 'cron-create',
+    })).join('\n') + '\n';
+    fs.writeFileSync(path.join(dir, '.claude-code-hermit', 'state', 'routine-metrics.jsonl'), lines);
+  }
+
+  test('no enabled routines → ok', withTmpdir(async (dir) => {
+    writeConfig(dir, BASE_CONFIG);
+    const report = await runDoctorCheck(dir);
+    expect(routineCostCheck(report).status).toBe('ok');
+  }), 20000);
+
+  test('cost-index.json absent → ok', withTmpdir(async (dir) => {
+    writeConfig(dir, { ...BASE_CONFIG, routines: [routine('a')] });
+    const report = await runDoctorCheck(dir);
+    expect(routineCostCheck(report).status).toBe('ok');
+  }), 20000);
+
+  test('fewer than 3 runs → ok (no divide-by-small-N false positive)', withTmpdir(async (dir) => {
+    writeConfig(dir, { ...BASE_CONFIG, routines: [routine('a')] });
+    writeCostIndex(dir, { 'routine:a': { cost: 100, tokens: 1000 } });
+    writeRoutineMetrics(dir, runs('a', 2));
+    const report = await runDoctorCheck(dir);
+    expect(routineCostCheck(report).status).toBe('ok');
+  }), 20000);
+
+  test('outlier routine exceeding 3x peer median and floor → warn naming it', withTmpdir(async (dir) => {
+    writeConfig(dir, { ...BASE_CONFIG, routines: [routine('cheap'), routine('cheap2'), routine('expensive')] });
+    writeCostIndex(dir, {
+      'routine:cheap': { cost: 1.2, tokens: 1000 },        // $0.40/run
+      'routine:cheap2': { cost: 1.35, tokens: 1000 },      // $0.45/run
+      'routine:expensive': { cost: 45, tokens: 100000 },   // $15/run — peer median ≈$0.42, threshold $2
+    });
+    writeRoutineMetrics(dir, [...runs('cheap', 3), ...runs('cheap2', 3), ...runs('expensive', 3)]);
+    const report = await runDoctorCheck(dir);
+    const c = routineCostCheck(report);
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('expensive');
+    expect(c.detail).toContain('peer median $');  // the comparison basis is rendered, not just the verdict
+  }), 20000);
+
+  test('all routines under the floor → ok', withTmpdir(async (dir) => {
+    writeConfig(dir, { ...BASE_CONFIG, routines: [routine('a'), routine('b')] });
+    writeCostIndex(dir, {
+      'routine:a': { cost: 3, tokens: 1000 },   // $1.00/run
+      'routine:b': { cost: 3.3, tokens: 1000 }, // $1.10/run
+    });
+    writeRoutineMetrics(dir, [...runs('a', 3), ...runs('b', 3)]);
+    const report = await runDoctorCheck(dir);
+    expect(routineCostCheck(report).status).toBe('ok');
+  }), 20000);
+
+  test('polluted routine:<artifact> key with no matching routine id is ignored', withTmpdir(async (dir) => {
+    // cost-tracker's classifySource() can mint keys like "routine:fired" from the
+    // log-routine-event.sh fallback matcher — must not be treated as a real routine.
+    writeConfig(dir, { ...BASE_CONFIG, routines: [routine('a')] });
+    writeCostIndex(dir, {
+      'routine:a': { cost: 3, tokens: 1000 },     // $1.00/run, under floor
+      'routine:fired': { cost: 999, tokens: 1 },  // classifier artifact
+    });
+    writeRoutineMetrics(dir, runs('a', 3));
+    const report = await runDoctorCheck(dir);
+    const c = routineCostCheck(report);
+    expect(c.status).toBe('ok');
+    expect(c.detail).not.toContain('999');
+  }), 20000);
+
+  test('skipped fires count toward the run denominator (cheap-but-skipped routine not flagged)', withTmpdir(async (dir) => {
+    // skippy proceeded 3x (started+fired) but was idle-gated 20x (skipped-waiting). cost-tracker
+    // buckets all 23 fire-turns' cost to routine:skippy, so dividing by only the 3 `fired`
+    // events would report ~$7.67/run and warn; dividing by all 23 fire-turns reports $1/run.
+    writeConfig(dir, { ...BASE_CONFIG, routines: [routine('skippy'), routine('normal')] });
+    writeCostIndex(dir, {
+      'routine:skippy': { cost: 23, tokens: 23000 },  // 23 fire-turns → $1.00/run
+      'routine:normal': { cost: 3, tokens: 3000 },    // 3 fire-turns → $1.00/run
+    });
+    writeRoutineMetrics(dir, [
+      ...runs('skippy', 3, 'started'), ...runs('skippy', 3, 'fired'), ...runs('skippy', 20, 'skipped-waiting'),
+      ...runs('normal', 3, 'started'), ...runs('normal', 3, 'fired'),
+    ]);
+    const c = routineCostCheck(await runDoctorCheck(dir));
+    expect(c.status).toBe('ok');
+    expect(c.detail).not.toContain('skippy');
+  }), 20000);
+
+  test('expensive routine in a two-routine fleet is flagged (peer median, not self-inclusive)', withTmpdir(async (dir) => {
+    // With a self-inclusive median, 3×median is unreachable at n=2 and the outlier escapes;
+    // comparing against the peer median (self excluded) catches it.
+    writeConfig(dir, { ...BASE_CONFIG, routines: [routine('cheap'), routine('pricey')] });
+    writeCostIndex(dir, {
+      'routine:cheap': { cost: 3, tokens: 1000 },    // $1.00/run
+      'routine:pricey': { cost: 30, tokens: 10000 }, // $10.00/run — peer median $1, threshold $3
+    });
+    writeRoutineMetrics(dir, [...runs('cheap', 3), ...runs('pricey', 3)]);
+    const c = routineCostCheck(await runDoctorCheck(dir));
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('pricey');
+  }), 20000);
+
+  test('default floor absorbs a low-absolute-cost outlier that is many times the median', withTmpdir(async (dir) => {
+    writeConfig(dir, { ...BASE_CONFIG, routines: [routine('a'), routine('b'), routine('lonewolf')] });
+    writeCostIndex(dir, {
+      'routine:a': { cost: 0.03, tokens: 100 },  // $0.01/run
+      'routine:b': { cost: 0.036, tokens: 100 }, // $0.012/run (median)
+      'routine:lonewolf': { cost: 0.15, tokens: 100 },  // $0.05/run — >3x median, under the $2 floor
+    });
+    writeRoutineMetrics(dir, [...runs('a', 3), ...runs('b', 3), ...runs('lonewolf', 3)]);
+    const report = await runDoctorCheck(dir);
+    expect(routineCostCheck(report).status).toBe('ok');
+  }), 20000);
+
+  test('config.doctor.routine_cost_floor_usd override flags the same outlier', withTmpdir(async (dir) => {
+    writeConfig(dir, {
+      ...BASE_CONFIG, routines: [routine('a'), routine('b'), routine('lonewolf')],
+      doctor: { routine_cost_floor_usd: 0.02 },
+    });
+    writeCostIndex(dir, {
+      'routine:a': { cost: 0.03, tokens: 100 },
+      'routine:b': { cost: 0.036, tokens: 100 },
+      'routine:lonewolf': { cost: 0.15, tokens: 100 },
+    });
+    writeRoutineMetrics(dir, [...runs('a', 3), ...runs('b', 3), ...runs('lonewolf', 3)]);
+    const report = await runDoctorCheck(dir);
+    const c = routineCostCheck(report);
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('lonewolf');
   }), 20000);
 });
 

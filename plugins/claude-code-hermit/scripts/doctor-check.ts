@@ -1083,81 +1083,6 @@ function checkOpusWake() {
   }
 }
 
-// Advisory-only: $/run joins two independent mechanisms (transcript-classified cost vs.
-// a shell-stamped fired count), so treat it as an estimate. Skip routines with too few
-// runs to avoid divide-by-small-N false positives.
-const ROUTINE_COST_MIN_RUNS = 3;
-const ROUTINE_COST_DEFAULT_FLOOR_USD = 2;
-const ROUTINE_COST_MEDIAN_MULTIPLE = 3;
-
-function checkRoutineCost() {
-  try {
-    const idx = readCostIndex(costIndexPath(hermitDir));
-    if (!idx || !idx.by_source) {
-      return { id: 'routine-cost', status: 'ok', detail: 'no cost-index data yet' };
-    }
-
-    const read = readConfigOrCovered('routine-cost');
-    if ('covered' in read) return read.covered;
-    const floorCfg = read.config.doctor?.routine_cost_floor_usd;
-    const floor = typeof floorCfg === 'number' ? floorCfg : ROUTINE_COST_DEFAULT_FLOOR_USD;
-
-    const routineSources: { id: string; cost: number }[] = [];
-    for (const [source, bucket] of Object.entries<Json>(idx.by_source)) {
-      if (!source.startsWith('routine:')) continue;
-      routineSources.push({ id: source.slice('routine:'.length), cost: bucket?.cost || 0 });
-    }
-    const noRunsYet = { id: 'routine-cost', status: 'ok', detail: 'no routine has enough runs yet for cost analysis' };
-    // Skip the unbounded routine-metrics.jsonl scan entirely when no routine has spent
-    // anything yet — a routine-less install shouldn't pay to parse the whole file.
-    if (routineSources.length === 0) return noRunsYet;
-
-    const firedCounts: Record<string, number> = {};
-    const metricsPath = path.join(stateDir, 'routine-metrics.jsonl');
-    if (fs.existsSync(metricsPath)) {
-      for (const line of fs.readFileSync(metricsPath, 'utf-8').split('\n')) {
-        if (!line.trim()) continue;
-        try {
-          const e = JSON.parse(line);
-          if (e && e.event === 'fired' && typeof e.routine_id === 'string') {
-            // Match cost-tracker's 64-char id cap so the fired key joins the
-            // (already-truncated) routine: cost-source key.
-            const id = e.routine_id.slice(0, 64);
-            firedCounts[id] = (firedCounts[id] || 0) + 1;
-          }
-        } catch {}
-      }
-    }
-
-    const perRun: { id: string; costPerRun: number }[] = [];
-    for (const { id, cost } of routineSources) {
-      const runs = firedCounts[id] || 0;
-      if (runs < ROUTINE_COST_MIN_RUNS) continue;
-      perRun.push({ id, costPerRun: cost / runs });
-    }
-
-    if (perRun.length === 0) return noRunsYet;
-
-    const sorted = [...perRun].sort((a, b) => a.costPerRun - b.costPerRun);
-    const mid = Math.floor(sorted.length / 2);
-    const median = sorted.length % 2 === 0 ? (sorted[mid - 1].costPerRun + sorted[mid].costPerRun) / 2 : sorted[mid].costPerRun;
-
-    const worst = sorted[sorted.length - 1];
-    const outlierThreshold = Math.max(floor, ROUTINE_COST_MEDIAN_MULTIPLE * median);
-    if (worst.costPerRun > outlierThreshold) {
-      return {
-        id: 'routine-cost',
-        status: 'warn',
-        detail: `${worst.id} $${worst.costPerRun.toFixed(2)}/run (median $${median.toFixed(2)}) — check its scope, model, and wake timing`,
-      };
-    }
-
-    return { id: 'routine-cost', status: 'ok', detail: `${perRun.length} routine(s) analyzed, worst $${worst.costPerRun.toFixed(2)}/run (median $${median.toFixed(2)})` };
-  } catch (e: any) {
-    return { id: 'routine-cost', status: 'fail', detail: `check failed: ${e.message}` };
-  }
-}
-
 function checkHeartbeat() {
   try {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
@@ -1411,6 +1336,100 @@ function checkModelPricingKnown() {
     return { id: 'model-pricing-known', status: 'ok', detail: 'all configured models known to the pricing table' };
   } catch (e: any) {
     return { id: 'model-pricing-known', status: 'fail', detail: `check failed: ${e.message}` };
+  }
+}
+
+// ----------------- Routine cost -----------------
+// Flags expensive-outlier routines (e.g. a "light" haiku routine that turns out to read
+// broad state and costs $15/run) so they surface without manually cross-referencing
+// cost-index.json and routine-metrics.jsonl. See docs/routine-authoring.md.
+
+function medianOf(nums: number[]): number {
+  const s = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 === 0 ? (s[mid - 1] + s[mid]) / 2 : s[mid];
+}
+
+function checkRoutineCost() {
+  try {
+    const read = readConfigOrCovered('routine-cost');
+    if ('covered' in read) return read.covered;
+    const config = read.config;
+
+    const routines: Array<{ id: string }> = (Array.isArray(config.routines) ? config.routines : [])
+      .filter((r: Json) => r && typeof r.id === 'string' && r.enabled !== false);
+    if (routines.length === 0) {
+      return { id: 'routine-cost', status: 'ok', detail: 'no enabled routines configured' };
+    }
+
+    const index = readCostIndex(costIndexPath(hermitDir));
+    if (!index) {
+      return { id: 'routine-cost', status: 'ok', detail: 'cost-index.json absent — no routine cost data yet' };
+    }
+    const bySource = index.by_source || {};
+
+    // Denominator = every fire-TURN, not just proceeded fires. cost-tracker attributes a
+    // whole session turn to `routine:<id>` off the `[hermit-routine:<id>]` prompt marker
+    // whether the fire runs the skill or is idle-gated, so a skipped fire still adds cost to
+    // the bucket. routine-precheck.ts stamps exactly one of started|skipped-waiting|
+    // skipped-paused per fire (the model-issued `fired` stamp is a later, droppable duplicate
+    // of `started`), so counting those three is the true population that generated the cost.
+    // Counting only `fired` would drop skipped/errored fires from the denominator while their
+    // cost stays in the numerator, inflating $/run into false warns. Joining strictly against
+    // configured routine ids also filters classifier artifacts (e.g. a stray "routine:fired"
+    // by_source key) out.
+    const FIRE_EVENTS = new Set(['started', 'skipped-waiting', 'skipped-paused']);
+    const fireCounts = new Map<string, number>();
+    try {
+      const lines = fs.readFileSync(path.join(stateDir, 'routine-metrics.jsonl'), 'utf-8').split('\n');
+      for (const raw of lines) {
+        const line = raw.trim();
+        if (!line) continue;
+        try {
+          const e = JSON.parse(line);
+          if (e && typeof e.routine_id === 'string' && FIRE_EVENTS.has(e.event)) {
+            fireCounts.set(e.routine_id, (fireCounts.get(e.routine_id) || 0) + 1);
+          }
+        } catch {}
+      }
+    } catch {
+      // routine-metrics.jsonl absent — fireCounts stays empty, handled as insufficient data below.
+    }
+
+    const MIN_RUNS = 3; // avoid divide-by-small-N false positives
+    const perRun: Array<{ id: string; costPerRun: number }> = [];
+    for (const r of routines) {
+      const runs = fireCounts.get(r.id) || 0;
+      if (runs < MIN_RUNS) continue;
+      const cost = bySource[`routine:${r.id}`]?.cost;
+      if (typeof cost !== 'number') continue;
+      perRun.push({ id: r.id, costPerRun: cost / runs });
+    }
+
+    if (perRun.length < 2) {
+      return { id: 'routine-cost', status: 'ok', detail: `only ${perRun.length} routine(s) with enough run history — need ≥2 to compare` };
+    }
+
+    const floor = typeof config.doctor?.routine_cost_floor_usd === 'number' ? config.doctor.routine_cost_floor_usd : 2;
+
+    // Compare the costliest routine against the median of its PEERS (itself excluded).
+    // Including the candidate in the median lets a lone outlier drag the median toward
+    // itself — with only two routines that makes 3×median mathematically unreachable, so a
+    // genuinely expensive routine in a small fleet would never trip the gate.
+    const sorted = perRun.sort((a, b) => a.costPerRun - b.costPerRun);
+    const worst = sorted[sorted.length - 1];
+    const peerMedian = medianOf(sorted.slice(0, -1).map((p) => p.costPerRun));
+    const threshold = Math.max(peerMedian * 3, floor);
+
+    if (worst.costPerRun > threshold) {
+      return {
+        id: 'routine-cost', status: 'warn',
+        detail: `${worst.id} $${worst.costPerRun.toFixed(2)}/run vs peer median $${peerMedian.toFixed(2)} (threshold $${threshold.toFixed(2)}) — audit what it reads`,
+      };
+    }
+    return { id: 'routine-cost', status: 'ok', detail: `${perRun.length} routine(s) compared, none over $${threshold.toFixed(2)}/run` };
+  } catch (e: any) {
+    return { id: 'routine-cost', status: 'fail', detail: `check failed: ${e.message}` };
   }
 }
 
