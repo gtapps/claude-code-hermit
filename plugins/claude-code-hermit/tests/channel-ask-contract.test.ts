@@ -99,3 +99,28 @@ describe('channel-ask contract: allowlist stays honest', () => {
     });
   }
 });
+
+// Suggestion cards (PROP audit §8 item 2): a static drift guard for the
+// three markers a channel-facing proposal flow depends on. Same caveat as
+// above — proves the text is present, not that the model obeys it at runtime.
+describe('suggestion cards: channel-facing proposal vocabulary stays plain', () => {
+  test('proposal-list/SKILL.md carries the Step-0 marker and a Suggestion-cards path', () => {
+    const content = skillContent.get('proposal-list')!;
+    expect(content).toContain(STEP0_MARKER);
+    expect(content).toContain('Suggestion cards');
+  });
+
+  test('channel-responder/SKILL.md maps YES/LATER/NO replies to accept/defer/dismiss', () => {
+    const content = skillContent.get('channel-responder')!;
+    expect(content).toContain('`YES`');
+    expect(content).toContain('`LATER`');
+    expect(content).toMatch(/`NO`.*dismiss/);
+  });
+
+  test('proposal-act/SKILL.md confirms accept/defer/dismiss in plain voice on a channel-tagged turn', () => {
+    const content = skillContent.get('proposal-act')!;
+    expect(content).toContain('Got it — starting on Suggestion #N.');
+    expect(content).toContain('Held Suggestion #N for later.');
+    expect(content).toContain('Dropped Suggestion #N.');
+  });
+});

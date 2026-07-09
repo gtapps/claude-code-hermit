@@ -131,9 +131,10 @@ Before running any heavy sub-step — an archive traversal, a multi-file search,
     - **(yes/no branches only)** Remove the resolved entry from `pending`. Write the file. (The `on_resolve` branch already did this above, before invoking the command.)
   - If no pending micro-proposals: classify as normal message (fall through to categories below).
 
-- **Proposal approval** ("accept PROP-", "go ahead with PROP-", "approve PROP-", or referencing proposal numbers)
-  - Route through `/claude-code-hermit:proposal-act accept PROP-NNN` for each referenced proposal
-  - If the operator uses informal numbers (#1, #2): run `/claude-code-hermit:proposal-list` to resolve to PROP-NNN IDs. If no match, tell the operator.
+- **Proposal approval** ("accept PROP-", "go ahead with PROP-", "approve PROP-", referencing proposal numbers, `#N`, or a bare/`#N`-qualified `YES`/`LATER`/`NO` reply to a Suggestion card — only when no pending micro-proposal claimed the reply first, per Micro-approval response above)
+  - **Map the reply to an action** (case-insensitive): `YES` / "go ahead" / "accept" → `accept`; `LATER` / "hold" / "defer" → `defer`; `NO` / "drop" / "dismiss" → `dismiss`. `accept PROP-`/`approve PROP-` phrasing maps to `accept` directly; the operator can also spell the action out instead of YES/LATER/NO.
+  - **Resolve the target proposal:** an explicit `#N` or `PROP-NNN` reference resolves directly — route through `/claude-code-hermit:proposal-act <action> PROP-N` (`proposal-act` zero-pads the integer itself). A bare `YES`/`LATER`/`NO` with no `#N`: read `state/proposals-index.json`, filter to `status: "proposed"`. Exactly one → apply to it. Zero or 2+ → reply listing the open Suggestion numbers and ask the operator to specify (e.g. "Reply 'YES #14'").
+  - Never surface `PROP-NNN`, slug/timestamp, category, or tier back to the channel (rule defined once in `proposal-list` §4a) — confirm using the Suggestion number (see `proposal-act`'s channel-tagged notify).
 
 - **New instruction** ("work on X", "switch to Y", "prioritize Z")
   - If `session_state` is `idle`: treat as **Task assignment** (above)
