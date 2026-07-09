@@ -969,7 +969,7 @@ describe('kill metrics contract', () => {
 
 describe('procedure capture contract', () => {
   // The Procedure capture subsection lives in reflect's branches.md (the
-  // main-session branch-procedures sibling; SKILL.md keeps only the stub).
+  // main-session rare-branch procedures file; SKILL.md keeps only the stub).
   const reflectBranches = read(path.join(SKILLS, 'reflect', 'branches.md'));
   const proposalCreate = read(path.join(SKILLS, 'proposal-create', 'SKILL.md'));
 

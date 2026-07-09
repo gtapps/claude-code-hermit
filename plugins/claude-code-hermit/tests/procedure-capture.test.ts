@@ -25,7 +25,7 @@ const PROPOSAL_ACT = path.join(PLUGIN_ROOT, 'skills', 'proposal-act', 'SKILL.md'
 const TEMPLATE = path.join(PLUGIN_ROOT, 'state-templates', 'PROPOSAL.md.template');
 
 // reflect's procedure-capture text is split between the SKILL.md stub and
-// branches.md (the branch-procedures sibling); assert against the combined surface.
+// branches.md (the rare-branch procedures file); assert against the combined surface.
 const reflect = fs.readFileSync(REFLECT, 'utf-8') + '\n' + fs.readFileSync(REFLECT_BRANCHES, 'utf-8');
 const proposalCreate = fs.readFileSync(PROPOSAL_CREATE, 'utf-8');
 const proposalAct = fs.readFileSync(PROPOSAL_ACT, 'utf-8');
