@@ -28,7 +28,7 @@ describe('session work-done NEXT-TASK drain', () => {
 
   test('balanced/autonomous auto-starts the queued task as the terminal action', () => {
     expect(skill).toContain('balanced` or `autonomous`');
-    expect(skill).toContain('Auto-starting queued task');
+    expect(skill).toContain('Starting on [NEXT-TASK.md summary] next');
     expect(skill).toContain('terminal action');
   });
 
