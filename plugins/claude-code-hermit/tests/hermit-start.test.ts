@@ -241,6 +241,8 @@ describe('config contract: template and DEFAULT_CONFIG must mirror', () => {
     'compact', 'compact.monitoring_threshold', 'compact.monitoring_keep',
     'compact.summary_threshold', 'compact.summary_keep',
     'docker.recommended_plugins',
+    // Read directly by cron-registry.ts (raw config read, own default of 6) — not part of the loadConfig merge.
+    'routine_wake_lint', 'routine_wake_lint.max_windows',
   ]);
 
   test('key path sync: flattened key paths must match (excluding known template-only keys)', () => {

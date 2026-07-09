@@ -14,7 +14,7 @@
 // never silently ride a routine past CC's real 7-day auto-expiry cliff.
 
 import { describe, test, expect } from 'bun:test';
-import { planCron, commitCron, promptHash, REREGISTER_AGE_MS } from '../scripts/cron-registry';
+import { planCron, commitCron, computeWakeSpread, promptHash, REREGISTER_AGE_MS } from '../scripts/cron-registry';
 import { shiftCron } from '../scripts/cron-tz-shift';
 
 const PLUGIN_ROOT = '/plugin';
@@ -240,5 +240,105 @@ describe('commitCron', () => {
     const next = commitCron(mirror, plan, new Set([]), routineById, PLUGIN_ROOT, BOOT_A, T0);
     expect(next.routines.b).toBeUndefined();
     expect(next.routines.a).toEqual(mirror.routines.a); // 'a' was an untouched KEEP
+  });
+});
+
+// -------------------------------------------------------
+// computeWakeSpread — the wake-clustering lint (audit §7 PR-8). Pure over already
+// -shifted schedules, so tested in-process like planCron/commitCron above.
+// -------------------------------------------------------
+describe('computeWakeSpread — wake-clustering lint', () => {
+  // Same schedules as state-templates/config.json.template's default routines.
+  const STOCK = [
+    { id: 'heartbeat-restart', schedule: '0 4 * * *' },
+    { id: 'reflect', schedule: '0 9 * * *' },
+    { id: 'scheduled-checks', schedule: '5 9 * * *' },
+    { id: 'weekly-review', schedule: '0 23 * * 0' },
+    { id: 'daily-auto-close', schedule: '0 0 * * *' },
+    { id: 'doctor', schedule: '0 10 * * 1' },
+  ];
+
+  test('stock template config → null (5 distinct windows, under the default 6)', () => {
+    // windows: 04:00→8, 09:00 & 09:05→18, 23:00→46, 00:00→0, 10:00→20 = {0,8,18,20,46} = 5
+    expect(computeWakeSpread(STOCK, 6)).toBeNull();
+  });
+
+  test('scattered fire-times over the threshold → warn naming every (singleton) fire', () => {
+    const scattered = [0, 2, 4, 6, 8, 10, 12].map((h, i) => ({ id: `r${i}`, schedule: `0 ${h} * * *` }));
+    const s = computeWakeSpread(scattered, 6);
+    expect(s).not.toBeNull();
+    expect(s!.distinct).toBe(7);
+    expect(s!.loneliest).toEqual([
+      'r0@00:00', 'r1@02:00', 'r2@04:00', 'r3@06:00', 'r4@08:00', 'r5@10:00', 'r6@12:00',
+    ]);
+  });
+
+  test('a shared 30-min window is not "lonely" — only singleton windows are named', () => {
+    const set = [
+      { id: 'a', schedule: '0 0 * * *' },   // 00:00 → window 0
+      { id: 'b', schedule: '15 0 * * *' },  // 00:15 → window 0 (shares with a)
+      { id: 'c', schedule: '0 3 * * *' },   // window 6
+      { id: 'd', schedule: '0 6 * * *' },   // window 12
+      { id: 'e', schedule: '0 9 * * *' },   // window 18
+      { id: 'f', schedule: '0 12 * * *' },  // window 24
+      { id: 'g', schedule: '0 15 * * *' },  // window 30
+      { id: 'h', schedule: '0 18 * * *' },  // window 36
+    ];
+    const s = computeWakeSpread(set, 6);
+    expect(s!.distinct).toBe(7); // window 0 counts once despite two fires
+    expect(s!.loneliest).toEqual(['c@03:00', 'd@06:00', 'e@09:00', 'f@12:00', 'g@15:00', 'h@18:00']);
+  });
+
+  test('over threshold with no singleton windows → names the least-populated windows, never empty', () => {
+    // 7 windows, each shared by exactly 2 fires: no window is a singleton. The advisory
+    // must still name concrete fires rather than emit an empty "consider clustering:".
+    const set = [
+      { id: 'a1', schedule: '0 0 * * *' }, { id: 'a2', schedule: '15 0 * * *' },  // window 0
+      { id: 'b1', schedule: '0 1 * * *' }, { id: 'b2', schedule: '10 1 * * *' },  // window 2
+      { id: 'c1', schedule: '0 2 * * *' }, { id: 'c2', schedule: '15 2 * * *' },  // window 4
+      { id: 'd1', schedule: '0 3 * * *' }, { id: 'd2', schedule: '10 3 * * *' },  // window 6
+      { id: 'e1', schedule: '0 4 * * *' }, { id: 'e2', schedule: '15 4 * * *' },  // window 8
+      { id: 'f1', schedule: '0 5 * * *' }, { id: 'f2', schedule: '10 5 * * *' },  // window 10
+      { id: 'g1', schedule: '0 6 * * *' }, { id: 'g2', schedule: '15 6 * * *' },  // window 12
+    ];
+    const s = computeWakeSpread(set, 6);
+    expect(s!.distinct).toBe(7);
+    expect(s!.loneliest.length).toBeGreaterThan(0); // never dangles with nothing to name
+    expect(s!.loneliest).toContain('a1@00:00'); // min-count windows all have 2 → all named
+  });
+
+  test('every-hour routines are excluded from the spread, however the hour field is spelled', () => {
+    const sixWindows = [0, 2, 4, 6, 8, 10].map((h, i) => ({ id: `r${i}`, schedule: `0 ${h} * * *` }));
+    expect(computeWakeSpread(sixWindows, 6)).toBeNull(); // exactly 6 windows, at threshold
+    // Adding an every-hour routine must not push it over — if counted it would occupy
+    // all 48 windows. Both `*` and its range form `0-23` are excluded (fire every hour),
+    // so the set stays at 6 windows → still null.
+    const withHourly = [
+      ...sixWindows,
+      { id: 'star', schedule: '0 * * * *' },
+      { id: 'range', schedule: '0 0-23 * * *' },
+    ];
+    expect(computeWakeSpread(withHourly, 6)).toBeNull();
+  });
+
+  test('malformed schedule is skipped, never throws', () => {
+    const set = [{ id: 'bad', schedule: 'not a cron' }, { id: 'ok', schedule: '0 9 * * *' }];
+    expect(computeWakeSpread(set, 6)).toBeNull(); // only 'ok' contributes one window
+  });
+
+  test('threshold is honored — a lower max flips the stock config to a warn', () => {
+    const s = computeWakeSpread(STOCK, 3);
+    expect(s).not.toBeNull();
+    expect(s!.distinct).toBe(5);
+  });
+});
+
+describe('planCron — enabledShifted', () => {
+  test('collects only enabled routines, with their shifted schedules', () => {
+    const routines = [r('a'), r('b', { enabled: false }), r('c')];
+    const mirror = seedMirror([r('a'), r('c')], {}, T0 - 1000);
+    const plan = planCron(routines, mirror, BOOT_A, PLUGIN_ROOT, null, 'UTC', T0);
+    expect(plan.enabledShifted.map(x => x.id).sort()).toEqual(['a', 'c']); // disabled 'b' excluded
+    expect(plan.enabledShifted.every(x => x.schedule === '0 9 * * *')).toBe(true); // r() default, UTC → no shift
   });
 });

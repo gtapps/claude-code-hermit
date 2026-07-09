@@ -103,6 +103,9 @@
   "reflection": {
     "graduation_min_sessions": 1
   },
+  "routine_wake_lint": {
+    "max_windows": 6
+  },
   "storage_drift": {
     "ignore": []
   },

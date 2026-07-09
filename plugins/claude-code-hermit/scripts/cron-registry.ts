@@ -36,6 +36,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './lib/hash';
 import { shiftCron } from './cron-tz-shift';
+import { parseCronField } from './validate-config';
 
 type Json = any;
 
@@ -58,7 +59,8 @@ interface Mirror {
 }
 
 interface PlanCreate { id: string; schedule: string; warn?: string; }
-interface PlanResult { deletes: string[]; creates: PlanCreate[]; keepCount: number; keeps: string[]; }
+interface ShiftedRoutine { id: string; schedule: string; }
+interface PlanResult { deletes: string[]; creates: PlanCreate[]; keepCount: number; keeps: string[]; enabledShifted: ShiftedRoutine[]; }
 
 function readMirror(mirrorPath: string): Mirror {
   try {
@@ -131,12 +133,14 @@ function planCron(
   const deletes: string[] = [];
   const creates: PlanCreate[] = [];
   const keeps: string[] = [];
+  const enabledShifted: ShiftedRoutine[] = [];
   const seen = new Set<string>();
 
   for (const r of enabled) {
     if (seen.has(r.id)) continue; // duplicate id in config (validator only warns) — register once
     seen.add(r.id);
     const shift = shiftForRoutine(r.schedule, configTz, machineTz, ref);
+    enabledShifted.push({ id: r.id, schedule: shift.result }); // for the wake-spread lint, regardless of create/keep
     const hash = promptHash(r, shift.result, pluginRoot);
     const existing = mirror.routines[r.id];
 
@@ -168,7 +172,67 @@ function planCron(
     }
   }
 
-  return { deletes, creates, keepCount: keeps.length, keeps };
+  return { deletes, creates, keepCount: keeps.length, keeps, enabledShifted };
+}
+
+// Wake-clustering lint. Each cache-cold wake re-warms the whole session context, so
+// scattered routine fire-times cost more than clustered ones (§7 PR-8 of the
+// 2026-07-09 live-harness audit). Buckets each enabled routine's *shifted* (real
+// machine-local) fire-times into 30-min windows and reports when the number of
+// distinct windows exceeds maxWindows, naming the "loneliest" fires (a window with a
+// single routine) so the operator knows which schedules to move. This is a proxy for
+// wake COUNT, not a cache-warmth guarantee — the context cache TTL is far under 30
+// min, so same-window fires still wake cold; fewer distinct windows just means fewer
+// idle→active transitions. Advisory only: never affects registration.
+//
+// A routine that fires every hour (`*`, `*/1`, `0-23`) would occupy every window and
+// swamp the signal — excluded. Pure: no fs/Date; the shifted schedules are handed in.
+const WAKE_WINDOW_MINUTES = 30;
+
+function computeWakeSpread(
+  enabledShifted: ShiftedRoutine[],
+  maxWindows: number,
+): { distinct: number; loneliest: string[] } | null {
+  const windows = new Map<number, string[]>(); // window index → ["<id>@HH:MM", ...] firing in it
+  for (const { id, schedule } of enabledShifted) {
+    const parts = schedule.trim().split(/\s+/);
+    if (parts.length < 5) continue;
+    const [minF, hourF] = parts;
+    let mins: number[], hours: number[];
+    try {
+      mins = [...parseCronField(minF, 0, 59)];
+      hours = [...parseCronField(hourF, 0, 23)];
+    } catch { continue; } // malformed field — skip this routine, never throw
+    if (hours.length >= 24) continue; // fires every hour (`*`, `*/1`, `0-23`) — not a clustering signal
+    for (const h of hours) {
+      for (const m of mins) {
+        const idx = Math.floor((h * 60 + m) / WAKE_WINDOW_MINUTES);
+        const label = `${id}@${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        const arr = windows.get(idx);
+        if (arr) arr.push(label); else windows.set(idx, [label]);
+      }
+    }
+  }
+  const distinct = windows.size;
+  if (distinct <= maxWindows) return null;
+  const sortedIdx = [...windows.keys()].sort((a, b) => a - b);
+  const loneliest: string[] = [];
+  let minCount = Infinity;
+  for (const idx of sortedIdx) {
+    const arr = windows.get(idx)!;
+    if (arr.length === 1) loneliest.push(arr[0]);
+    minCount = Math.min(minCount, arr.length);
+  }
+  // No singleton windows (every window shares ≥2 fires) but still over-threshold:
+  // name the fires in the least-populated windows so the advisory always points at
+  // concrete schedules to move, rather than emitting an empty "consider clustering:".
+  if (loneliest.length === 0) {
+    for (const idx of sortedIdx) {
+      const arr = windows.get(idx)!;
+      if (arr.length === minCount) loneliest.push(...arr);
+    }
+  }
+  return { distinct, loneliest };
 }
 
 // Rewrites the mirror after the caller has issued the actual CronCreate/CronDelete
@@ -211,8 +275,8 @@ function writeMirror(mirrorPath: string, mirror: Mirror): void {
   fs.renameSync(tmp, mirrorPath);
 }
 
-export { planCron, commitCron, readMirror, readBootId, promptHash, REREGISTER_AGE_MS };
-export type { Mirror, MirrorEntry, PlanResult, PlanCreate };
+export { planCron, commitCron, computeWakeSpread, readMirror, readBootId, promptHash, REREGISTER_AGE_MS };
+export type { Mirror, MirrorEntry, PlanResult, PlanCreate, ShiftedRoutine };
 
 // --- CLI ---
 if (import.meta.main) {
@@ -244,6 +308,12 @@ if (import.meta.main) {
       for (const c of plan.creates) process.stdout.write(`CREATE:${c.id}|${c.schedule}\n`);
       for (const c of plan.creates) if (c.warn) process.stdout.write(`WARN:${c.id}|${c.warn}\n`);
       process.stdout.write(`KEEP:${plan.keepCount}\n`);
+      try {
+        const mw = config?.routine_wake_lint?.max_windows;
+        const maxWindows = Number.isFinite(mw) && mw > 0 ? mw : 6;
+        const spread = computeWakeSpread(plan.enabledShifted, maxWindows);
+        if (spread) process.stdout.write(`WAKESPREAD:${spread.distinct}|${maxWindows}|${spread.loneliest.join(',')}\n`);
+      } catch { /* fail-open: a lint calc must never block routine registration */ }
     } else {
       const createdCsv = process.argv[5] || '';
       const createdIds = new Set(createdCsv.split(',').map(s => s.trim()).filter(Boolean));
