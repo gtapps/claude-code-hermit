@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **doctrine: codify measured token economics** — `CLAUDE.md` (dev-facing) and `CLAUDE-APPEND.md` (operator-facing) now state that the atom of cost is the API call (cache traffic dominates an always-on hermit's spend, not per-prompt injection), that delegation bookends main with ≥2 full-context turns per dispatch, and that native tool outputs (e.g. `CronList`) are unbounded surfaces under the existing script-mediation boundary rule.
+
 ## [1.2.19] - 2026-07-06
 
 ### Added
