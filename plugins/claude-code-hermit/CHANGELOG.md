@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **hermit-routines: diff-based cron registration** — `load` no longer tears down and recreates every routine CronCreate on each call; a new `scripts/cron-registry.ts` planner diffs against a `state/cron-registry.json` mirror and only re-registers routines that changed or are aging toward CC's 7-day auto-expiry cliff. Eliminates the daily `heartbeat-restart` reload's bulk `CronList`/`CronDelete`/`CronCreate` churn on an unchanged config. `load --reset` keeps the old unconditional sweep as an explicit escape hatch for suspected mirror/reality drift.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. No new config keys this release. The first `load` after upgrading finds no `state/cron-registry.json` mirror, so it treats every enabled routine as needing (re-)registration — a normal full re-registration, same as today's `load` — and the mirror self-seeds from it. No operator action needed.
+
 ## [1.2.19] - 2026-07-06
 
 ### Added
