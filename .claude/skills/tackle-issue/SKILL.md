@@ -1,206 +1,182 @@
 ---
 name: tackle-issue
 description: |
-  Project-scoped extension of the user-level tackle-issue skill, active only inside this monorepo. Same triage workflow (read-only investigation, falsification, verdict, SHIP/CAVEAT/DEFER/SKIP recommendation), plus a picker mode when no specific issue is named, plus an optional branch + TaskCreate handoff on positive verdicts.
-  Three input modes:
-    • GitHub issue number — "tackle issue 99", "work issue 17", "start on gh #42". Fetches via gh, runs the full triage workflow. On SHIP / SHIP WITH CAVEAT, offers to check out a branch and seed implementation tasks.
-    • Pasted task content — "investigate this proposal", "pressure-test this", "scope this before I touch it". Runs the triage workflow on the pasted text. Read-only output only — no branch, no TaskCreate seeding.
-    • No input / picker phrasing — "tackle the next issue", "pick an issue", "what should I work on", "next issue". Lists ready-labelled open issues in gtapps/claude-code-hermit, filters those with linked open PRs, applies the dedup log, picks one, then runs the issue-number flow on it.
-  Flag:
-    • --investigate-only — runs the full triage workflow (including Proposed approach / Files / Verification on positive verdicts) and then stops. No branch checkout, no TaskCreate seeding. Stops once a branch is checked out and tasks are seeded.
+  Start-of-work triage in this monorepo. Trigger on: a GitHub issue number ("tackle issue 99",
+  "work on #42", bare #N), pasted proposal/spec text ("investigate this", "pressure-test this",
+  "scope this"), or picker phrasing ("tackle the next issue", "what should I work on"). Read-only
+  investigation that tries to falsify the premise, then recommends SHIP / SHIP WITH CAVEAT /
+  DEFER / SKIP. On SHIP verdicts for a real issue number it offers branch checkout + task
+  seeding; --investigate-only suppresses that handoff. Not for PR review or work already in
+  progress.
 ---
 
 # Tackle Issue
 
-Project-level extension of the user-level `tackle-issue` skill. Picks the next ready GitHub issue (or accepts a specific number or pasted task text), runs the full triage workflow against the current code, and — on a positive verdict — checks out a branch and seeds implementation tasks. Implementation, commit, and PR happen outside this skill.
-
-Three modes: **picker** (no arg), **issue number** (e.g. `tackle issue 99`), **pasted text** (investigation-only).
+Triage first, then optionally set up the work. Read-only until the operator picks "go" at the
+end. Implementation, commit, and PR happen outside this skill.
 
 ## Mindset
 
-A GitHub issue or pasted proposal is a **hypothesis**, not a spec. Issues filed by AI agents (hermit-scribe is the common case here) and pasted proposals often have correct intent but imperfect framing — the file paths may be stale, the proposed fix may be the first idea rather than the best one, the scope may be larger than needed, or the situation may have already changed since the issue was filed. Worse, the bug may not exist at all.
+An issue or proposal is a hypothesis, not a spec. Most issues here are filed by AI agents
+(hermit-scribe): intent is usually right, framing often is not (stale paths, first-idea fix,
+oversized scope, premise already fixed, or no bug at all). Try to falsify the premise before
+planning anything. If it survives, judge separately whether the change is worth its cost.
 
-The default posture is skeptical investigation. Before drafting any plan, try to falsify the premise. If the premise survives the falsification attempt, then evaluate whether implementing it is actually worth the cost — a verified premise is not the same as a worthwhile change.
+Two failure modes, both disqualifying:
 
-Two failure modes to avoid:
+- **Rubber-stamping**: implementing exactly what was written when a simpler fix exists or the
+  premise is partly wrong.
+- **Reflex-pushback**: manufactured objections. If the premise holds and ROI is good, say
+  "ship as written" plainly.
 
-- **Rubber-stamping** — accepting the issue's framing and drafting a plan that implements exactly what was written, even when a simpler fix exists or the premise is partially wrong.
-- **Reflex-pushback** — manufacturing objections to look thorough. If the premise holds and the ROI is good, say "ship it as written" plainly. The pushback is only valuable when it's grounded in evidence.
+**Proportionality**: scale investigation to blast radius. A one-file doc fix needs falsification
+steps 1 and 3 only, and a two-line trade-off note. Anything touching hooks, shipped skills, or
+release machinery gets the full pass, including a live probe when a harness-behavior claim is
+load-bearing.
 
-## Inputs and dispatch
+## Dispatch
 
-**Issue number:** any of "tackle issue 99", "work issue 17", "start on gh #42", "look at issue 5" — or a bare `#N` or `owner/repo#N`. Fetch with `gh issue view <N> --repo gtapps/claude-code-hermit --json title,body,labels,comments,author,state,url`. If the issue is closed, surface that and ask whether to continue. Can be combined with `--investigate-only` to suppress the branch + task handoff (see Flag below).
+- **Issue number** ("tackle issue 99", "#42", "owner/repo#N"):
+  `gh issue view <N> --repo <owner/repo from input, default gtapps/claude-code-hermit> --json title,body,labels,comments,author,state,url`
+  Read the comments: they often say "already fixed" or change scope, and they override the body.
+  Pull referenced issues/PRs when the body leans on them. Closed issue → surface that and ask
+  before continuing. Also run `gh pr list --repo <repo> --state open --search "<N>"`: an open PR
+  already covering the issue usually means DEFER to that PR.
+- **Pasted content** (proposal, spec, free-form): treat the text as the task body. Triage output
+  only, no handoff.
+- **Picker** ("tackle the next issue", "what should I work on", bare `/tackle-issue`): run
+  Picker below, then continue as issue-number mode.
+- **Ambiguous** ("tackle this", no number, no paste): ask which mode before fetching anything.
+- **`--investigate-only`** (combines with issue-number mode): full triage report including the
+  plan sections on positive verdicts, then stop. No branch, no tasks.
 
-**Pasted task content:** user pastes a proposal, spec, or free-form description. No `gh` fetch needed. Triage output only — no branch, no TaskCreate seeding (no issue-number anchor).
+**PROP-NNN references**: for issues in this repo, read the matching
+`.claude-code-hermit/proposals/PROP-NNN-*` file and fold its `## Problem` /
+`## Proposed Solution` into the evidence. Never dereference PROP ids from other repos
+(numbering is per-repo).
 
-**Picker phrasing:** "tackle the next issue", "pick an issue", "what should I work on", "next issue", or `/tackle-issue` with no argument. Run the Picker mode below, then fall through to the issue-number flow.
+**Handoff applies only to gtapps/claude-code-hermit issues.** Cross-repo issues get the triage
+report only.
 
-**Ambiguous:** user says "tackle this" with no number, no paste, no picker phrasing → ask which mode before fetching anything.
+## Picker
 
-**Flag `--investigate-only`:** can be combined with any issue-number input. Runs the full triage workflow (Falsification → Verdict → Recommendation → Output format, including Proposed approach / Files / Verification on positive verdicts), then stops. No branch checkout, no TaskCreate seeding. See [§ Flag: --investigate-only](#flag----investigate-only) below.
-
-## Picker mode
-
-Only runs when no issue number and no pasted content is provided.
-
-### P0. Fetch candidates
-
-```bash
-gh issue list --repo gtapps/claude-code-hermit --label ready --state open \
-  --json number,title,body,labels,updatedAt,url --limit 30
-```
-
-If 0 results: "No `ready`-labelled open issues — label issues `ready` on GitHub to opt in." Stop.
-
-### P1. Filter issues with linked open PRs
-
-```bash
-gh pr list --repo gtapps/claude-code-hermit --state open \
-  --json number,body,headRefName --limit 100
-```
-
-Build a set of referenced issue numbers from PR bodies (regex `(?:[Cc]loses|[Ff]ixes|[Rr]esolves)?\s*#(\d+)`) and head-ref branch names (pattern `(?:feat|fix|chore)/(\d+)-`). Remove those from the candidate list.
-
-### P2. Apply dedup log
-
-Read `.claude/state/tackle-issue-log.jsonl` (treat missing as empty). Drop candidates with:
-- a `skip` event in the last 7 days, or
-- a `presented` event in the last 24h without a subsequent `go`, `skip`, or `defer`, or
-- a `defer` event in the last 24h.
-
-`go` events are historical only — the linked-PR filter already handles "this issue is being worked."
-
-### P3. Pick one
-
-Sort remaining: `priority:high` label first, then by `updatedAt` descending. Pick `[0]`. If empty after filters: "All eligible issues have been recently picked or have open PRs." Stop.
-
-### P4. Fall through
-
-Continue to the Falsification workflow with the picked issue number as input.
+1. `gh issue list --repo gtapps/claude-code-hermit --label ready --state open --json number,title,labels,updatedAt --limit 30`.
+   Zero results → "No ready-labelled open issues; label issues `ready` to opt in." Stop.
+2. Drop issues referenced by open PRs:
+   `gh pr list --repo gtapps/claude-code-hermit --state open --json number,body,headRefName --limit 100`,
+   matching `#N` in bodies and `(feat|fix|chore)/N-` in head branch names.
+3. Drop issues with a `skip` event in the last 7 days or a `defer` event in the last 24h in
+   `.claude/state/tackle-issue-log.jsonl` (read at most the last 100 lines; missing file = no
+   exclusions).
+4. Sort `priority:high` first, then `updatedAt` descending. Take the first. Empty after
+   filters → say so and stop.
 
 ## Falsification workflow
 
-Run these against the current code before forming any verdict.
+Run against current code before forming any verdict.
 
-1. **Does the bug actually reproduce, or is the code already handling it?** Read the cited code paths. Find where the described behavior is implemented and check whether the described failure mode is real.
+1. **Does the bug reproduce, or does the code already handle it?** Read the cited paths; check
+   whether the described failure mode is real.
+2. **Is the feature already shipped under another name?** Grep symbols and concepts; check
+   docs/README.
+3. **Are cited paths, symbols, and behaviors current?** Renames silently invalidate issue bodies.
+4. **Did the situation change after filing?** `git log` on cited files,
+   `git log -S "<symbol>"` for named symbols.
+5. **Load-bearing claims about live Claude Code behavior get probed, not recalled.** "The hook
+   doesn't receive X" can't be falsified with Read/Grep. Use a tmux `claude --model haiku` probe
+   per root CLAUDE.md § Verification (a probe doesn't mutate the repo; it stays inside the
+   read-only posture). Only for load-bearing claims; most issues don't need one.
 
-2. **Is the feature already shipped, possibly under a different name?** Grep for relevant symbols and concepts. Check docs and README.
+Skim sibling tests for the existing behavior contract. Every load-bearing claim gets an evidence
+line tagged `[probed live | read code | recalled]`.
 
-3. **Are cited file paths, symbols, and behaviors still current?** Renames and refactors silently invalidate issue bodies.
+**Absence is not proof.** A grep that finds nothing proves absence only within the searched
+tree. Per-deployment config, operator-added routines, and live harness behavior are invisible to
+repo search. When a verdict pivots on a single negative claim ("nothing calls X"), that is the
+claim to probe, never the one to trust.
 
-4. **Has the situation changed since the issue was filed?** `git log` on cited files, or `git log -S "<symbol>"` for named symbols. Check whether relevant commits landed after the issue date.
+## Verdict (premise), then Recommendation (ROI)
 
-5. **If a load-bearing claim is about live Claude Code behavior, probe it — don't recall it.** Claims like "the hook doesn't receive X," "the skill triggers on Y," "the tool returns Z" can't be falsified with `Read`/`Grep`. Spin up a tmux `claude` session, exercise the actual behavior, and read what it does (see root `CLAUDE.md` § Verification). A live probe doesn't mutate the repo — it stays within this skill's read-only posture. Only do this when the claim is load-bearing; most issues don't need it.
+Verdict, pick one:
 
-Read referenced files with `Read`. Grep with `Grep`. Skim sibling tests for the existing behavior contract. Confirm each load-bearing claim against the current code (or, for live-behavior claims, against a probe), or label it "recalled, not verified."
+- **Confirmed as-is** — accurate, and the proposed fix is sound.
+- **Refined approach** — accurate premise, simpler fix exists.
+- **Corrected scope** — fix needed, but smaller/larger/differently shaped.
+- **Nothing to do** — premise is wrong. Output only Verdict + Evidence + the suggested
+  close/comment text (operator executes it). No Trade-offs, no Recommendation, no plan, no
+  handoff. Higher bar: if this verdict rests on a negative claim you couldn't reproduce from
+  defaults, probe it live or ask the operator first. Never conclude Nothing-to-do on
+  grep-silence alone; a false close costs more than over-investigating.
 
-**PROP-NNN cross-reference (this repo only):** if the issue body references `PROP-NNN-<slug>-HHMMSS`, read the matching file under `.claude-code-hermit/proposals/` and include its `## Problem` and `## Proposed Solution` sections in the evidence pass. Do NOT try to dereference PROP-NNN ids from other repos — the numbering is per-repo.
-
-## Verdict (on the premise)
-
-- **Confirmed as-is** — issue is accurate and the fix it proposes (if any) is sound.
-- **Refined approach** — premise is accurate but a simpler, cleaner, or more surgical fix exists.
-- **Corrected scope** — fix is needed but smaller, larger, or differently shaped than the issue suggests.
-- **Nothing to do** — premise is wrong. The bug doesn't exist, the feature already exists, or the situation has changed. **Stop here.** Recommend closing/commenting on the issue. Do not produce a plan or branch.
-
-## Recommendation (on whether to ship)
+Recommendation (first three verdicts only):
 
 - **SHIP** — net positive, proceed now.
-- **SHIP WITH CAVEAT** — proceed, but flag a specific risk, follow-up, or scope edge.
-- **DEFER** — worth doing, but not now. Say what unblocks it.
-- **SKIP** — premise holds but ROI is weak. **This is a legitimate outcome.** Name that honestly rather than defaulting to ship.
+- **SHIP WITH CAVEAT** — proceed, flag the specific risk or follow-up.
+- **DEFER** — worth doing, not now. Say what unblocks it.
+- **SKIP** — premise holds, ROI weak. A legitimate outcome; name it plainly.
 
 ## Output format
 
-Present everything in chat. **Do not call ExitPlanMode.**
-
-> Contract note: `/issue-proposals` parses this output by exact heading (`## Recommendation:`,
-> `## Verdict:`, `Proposed approach`, `Files to touch`, `Verification plan`, `Trade-offs`).
-> If you rename any of these, update `/issue-proposals` Steps 6–7 to match.
+Present in chat. **Never call ExitPlanMode.**
 
 ```
 ## Verdict: <Confirmed as-is | Refined approach | Corrected scope | Nothing to do>
 
 ## Evidence
-- <File or symbol checked> → <what was confirmed or falsified> [probed live | read code | recalled]
+- <file or symbol checked> → <what was confirmed or falsified> [probed live | read code | recalled]
 
 ## Trade-offs
-**Pros:** <value delivered, problems solved>
-**Cons:** <complexity cost, maintenance burden, risk>
-**Cost of doing nothing:** <what stays broken, or "negligible">
+**Pros:** <concrete value>  **Cons:** <concrete cost>  **Cost of doing nothing:** <...>
 
 ## Recommendation: <SHIP | SHIP WITH CAVEAT | DEFER | SKIP>
 <one-line why>
 ```
 
-Then, **only if recommendation is SHIP or SHIP WITH CAVEAT**, append:
+On SHIP / SHIP WITH CAVEAT, append:
 
 ```
 ## Proposed approach
-<plan in prose or steps>
-<If deviating from issue: "Deviating from source: <what> because <why>">
+<steps; if deviating from the issue: "Deviating from source: <what> because <why>">
 
 ## Files to touch
 - <path> — <change>
 
 ## Verification plan
-- <test, manual check, or command that proves the change works>
-- For behavior unit tests can't capture (hook firing, skill triggering, tool/harness behavior): a live tmux `claude` probe, not a reasoned assertion.
+- <test or command that proves it; a live tmux probe for behavior unit tests can't capture>
 ```
 
-Then stop. Do not ask whether to proceed.
+Trade-off lines must name concrete costs (files affected, maintenance burden, edge cases at
+risk). If you can't name one, don't pad the section.
 
-## Flag: --investigate-only
+## Handoff
 
-When `--investigate-only` is passed:
-- Run the full Falsification workflow → Verdict → Recommendation → Output format (including
-  Proposed approach / Files to touch / Verification plan on positive verdicts).
-- **Stop after printing the report.** Do not run the Branch + task handoff (H0–H6).
-- This flag is used by `/issue-proposals` to capture the verdict and plan text for proposal
-  creation, without starting implementation.
+Runs only when: recommendation is SHIP or SHIP WITH CAVEAT, input was a
+gtapps/claude-code-hermit issue number, and `--investigate-only` was not passed.
 
-## Branch + task handoff
+**Guardrails**: dirty tree (any branch) → stop, point at `/commit`. Mid-rebase, mid-merge, or
+detached HEAD → stop. On a feature branch with commits ahead of base → AskUserQuestion: continue
+current work or switch. `gh auth status` fails → stop with auth instructions.
 
-Runs only when the verdict is SHIP or SHIP WITH CAVEAT **and** the input mode produced a GitHub issue number (not pasted text) **and** `--investigate-only` was NOT passed.
+**Branch name**: `bug` label → `fix/<N>-<slug>`; `enhancement`/`feature` → `feat/<N>-<slug>`;
+else `chore/<N>-<slug>`. Slug from the title: lowercase, drop non-ASCII and stopwords, first 5
+tokens joined with `-`, max 40 chars.
 
-### H0. Guardrails
+**Plan**: 3–6 imperative bullets. Reuse the Proposed-approach steps verbatim when present.
 
-- On `main`/`master` with dirty tree → stop, point at `/commit`.
-- Mid-rebase, mid-merge, or detached HEAD → stop.
-- On a feature branch with uncommitted changes → stop, point at `/commit`.
-- On a feature branch (clean tree, commits ahead of base) → AskUserQuestion: continue current work, or switch to the new issue's branch leaving current as-is.
-- `gh auth status` fails → stop with auth instructions.
-- Never commit, push, or open PRs from this skill.
+**Present** issue number, title, URL, labels, linked PROP, branch, and plan, then
+AskUserQuestion (header "Tackle issue"):
 
-### H1. Draft branch name
+- **go** — check out branch, seed tasks
+- **skip** — log a 7-day dedup event, exit
+- **defer** — log a 24h cooldown event, exit
+- **stop** — exit with no log entry (analysis-only, no cooldown)
 
-Label-classified: `bug` → `fix/<N>-<slug>`, `enhancement`/`feature` → `feat/<N>-<slug>`, otherwise `chore/<N>-<slug>`. Slug from issue title: drop non-ASCII, lowercase, space-collapse non-`[a-z0-9]` runs, drop stopwords (`a an the and or of for to in on with by from as is are`), take first 5 tokens, join with `-`, hard-cap at 40 chars.
+Log terminal choices (go/skip/defer only, nothing before the answer) to
+`.claude/state/tackle-issue-log.jsonl`:
+`{"ts":"<iso>","issue":N,"action":"go|skip|defer","branch":"…","verdict":"…","recommendation":"…"}`
+(branch/verdict fields on go only).
 
-### H2. Draft plan
-
-3–6 imperative TODO bullets from the issue body + linked PROP `## Proposed Solution` if present. If the triage Proposed-approach section already enumerated steps, reuse those bullets verbatim.
-
-### H3. Present and ask
-
-Print:
-```
-Issue #N — <title>
-URL: <url>
-Labels: <comma list>
-Linked PROP: <id or "(none)">
-Branch: <branch>
-Plan:
-  • …
-```
-
-`AskUserQuestion` (header "Tackle issue"):
-- **go** — Check out branch, seed TaskCreate items, hand off
-- **skip** — Record skip (7-day dedup), exit
-- **defer** — Record defer (24h cooldown), exit
-
-Append `{"ts":"…","issue":N,"action":"presented","branch":"…","verdict":"…","recommendation":"…"}` to `.claude/state/tackle-issue-log.jsonl` before asking, then `{"ts":"…","issue":N,"action":"<choice>"}` after.
-
-### H4. On `go`: check out branch
+**On go**:
 
 ```bash
 git fetch origin
@@ -210,39 +186,20 @@ git checkout -b <branch> origin/$BASE
 
 If the branch already exists locally: `git checkout <branch>` and warn.
 
-### H5. Seed tasks
-
-`TaskCreate` each plan bullet as a separate task. Append three trailing tasks:
-- Run `/claude-code-dev-hermit:dev-quality`
-- Run `/commit`
-- Run `/claude-code-dev-hermit:dev-pr`
-
-### H6. Report and stop
-
-```
-On branch <branch>, ready to implement.
-When done: /claude-code-dev-hermit:dev-quality → /commit → /claude-code-dev-hermit:dev-pr.
-```
-
-Exit. No code edits, no commits, no PR.
-
-## Simplicity
-
-Minimum code that solves the problem. No abstractions for single-use code. No speculative flexibility. Surgical changes — every changed line should trace to the verdict.
-
-If the draft plan exceeds what the task requires, cut. Move "while we're here" cleanup to a SHIP WITH CAVEAT note.
+`TaskCreate` one task per plan bullet, then three trailing tasks: run
+`/claude-code-dev-hermit:dev-quality`, run `/commit`, run `/claude-code-dev-hermit:dev-pr`.
+Report "On branch <branch>, ready to implement" and stop. No code edits, no commits, no PR.
 
 ## Never
 
-- Call `ExitPlanMode`.
+- Call ExitPlanMode.
 - Commit, push, open PRs, comment on issues, change labels, or close issues.
 - Write to `.claude-code-hermit/` (hermit-runtime state, not workflow state).
-- Auto-pick more than one issue per invocation.
+- Pick more than one issue per invocation.
+- Verify by paraphrasing the issue: evidence lines describe what the code showed, not what the
+  issue said.
+- Default to SHIP because the premise verified: verified premise + weak ROI = SKIP.
+- Fold "while we're here" cleanup into the plan: mention it in chat after the report instead.
 
-## Anti-patterns
-
-- **Verifying by paraphrasing the issue.** The evidence line must describe what was read in the code, not what was read in the issue.
-- **Pro/con sections that hedge without substance.** Name concrete costs and benefits — files affected, time to maintain, edge cases at risk.
-- **Defaulting to SHIP because the premise is verified.** Verified premise + weak ROI = SKIP.
-- **Scope creep into the plan.** Unrelated improvements noticed during exploration go in chat after the report, not in the plan.
-- **Calling ExitPlanMode.** This is the single most important "don't."
+Plan sections follow the global engineering principles (Simplicity First, Surgical Changes):
+the minimum change that resolves the verdict.

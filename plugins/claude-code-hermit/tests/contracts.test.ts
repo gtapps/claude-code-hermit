@@ -968,12 +968,14 @@ describe('kill metrics contract', () => {
 // ============================================================
 
 describe('procedure capture contract', () => {
-  const reflect = read(path.join(SKILLS, 'reflect', 'SKILL.md'));
+  // The Procedure capture subsection lives in reflect's branches.md (the
+  // main-session branch-procedures sibling; SKILL.md keeps only the stub).
+  const reflectBranches = read(path.join(SKILLS, 'reflect', 'branches.md'));
   const proposalCreate = read(path.join(SKILLS, 'proposal-create', 'SKILL.md'));
 
   /** Extract the kill-criteria block from the Procedure capture subsection. */
   function procedureCaptureKillSection(): string {
-    const parts = reflect.split('### Procedure capture (new-skill creation)');
+    const parts = reflectBranches.split('### Procedure capture (new-skill creation)');
     expect(parts.length).toBeGreaterThan(1); // subsection missing
     const subsection = parts[1].split('\n## ')[0];
     const killParts = subsection.split('Kill criteria');
@@ -1314,6 +1316,13 @@ describe('reflect delegation contract', () => {
   test('SKILL.md dispatches skill-eval-runner fully-qualified with reference.md', () => {
     expect(skill).toContain('claude-code-hermit:skill-eval-runner');
     expect(skill).toContain('skills/reflect/reference.md');
+  });
+
+  test('SKILL.md points at branches.md for rare-branch procedures', () => {
+    // branches.md is load-bearing post-split: candidate processing, scheduled
+    // checks, and procedure capture live there. A stub that loses the pointer
+    // would strand those flows.
+    expect(skill).toContain('skills/reflect/branches.md');
   });
 
   test('skill-eval-runner stays generic and reference-driven', () => {

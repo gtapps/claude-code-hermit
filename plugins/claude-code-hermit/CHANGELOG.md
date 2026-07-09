@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **reflect: SKILL.md slimmed 52KB → ~15.7KB (stub + `branches.md` split)** — candidate-processing gates, scheduled-checks steps, procedure capture, and `skill-correction:*` routing moved to `skills/reflect/branches.md`, read only when that branch fires. `reference.md` and the `--quick`/`--scheduled-checks`/`--precheck-verdict` interfaces are unchanged.
+
 ## [1.2.19] - 2026-07-06
 
 ### Added
