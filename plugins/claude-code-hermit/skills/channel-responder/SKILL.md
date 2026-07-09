@@ -99,6 +99,9 @@ Before running any heavy sub-step — an archive traversal, a multi-file search,
   - If `session_state` is `in_progress`: respond with a concise summary of SHELL.md: task, current step, blockers
   - Keep it short — channel messages should be brief
 
+- **Spend request** ("how much have I spent", "why is my bill high", "cost breakdown", "what's my spend", or any variant asking about spend/cost/billing, in any language)
+  - Invoke `/claude-code-hermit:cost-reflect`. Its own Step 0/1 already detect the channel-tagged turn and run the plain-language `--plain` mode — do not run the raw token-category breakdown here.
+
 - **Task assignment** (only when `session_state` is `idle`: "work on X", "next task: Z", "start Y", or any message describing work to be done)
   - Invoke `/claude-code-hermit:session-start` to begin the new task (idle → in_progress)
   - The session-start skill handles filling Task and setting `session_state`; plan items are created as native Tasks

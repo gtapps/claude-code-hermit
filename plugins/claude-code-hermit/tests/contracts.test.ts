@@ -889,6 +889,30 @@ describe('analytics skills contract', () => {
 });
 
 // ============================================================
+// Plain spend statement contract (cost-reflect --plain routing)
+//
+// Guards against a future edit silently reverting a channel cost question to
+// the jargon-laden raw table: cost-reflect's channel branch must run --plain,
+// and channel-responder must route spend questions to cost-reflect rather than
+// falling through to a free-form model turn (the actual no-jargon guarantee on
+// --plain's OUTPUT is verified at runtime in cost-reflect-plain.test.ts).
+// ============================================================
+
+describe('plain spend statement routing contract', () => {
+  const costReflect = read(path.join(SKILLS, 'cost-reflect', 'SKILL.md'));
+  const channelResponder = read(path.join(SKILLS, 'channel-responder', 'SKILL.md'));
+
+  test('cost-reflect channel branch runs --plain, not the raw breakdown', () => {
+    expect(costReflect).toContain('--plain');
+  });
+
+  test('channel-responder routes spend questions to cost-reflect', () => {
+    expect(channelResponder).toContain('cost-reflect');
+    expect(channelResponder.toLowerCase()).toContain('spend request');
+  });
+});
+
+// ============================================================
 // Kill metrics contract (TestKillMetricsContract)
 //
 // Guards against the silent breakage where capability-brainstorm (or any future

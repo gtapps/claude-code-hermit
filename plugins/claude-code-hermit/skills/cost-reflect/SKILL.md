@@ -12,15 +12,25 @@ If this skill was invoked from a channel-arrived message (the inbound prompt con
 
 ## Step 1 — Run the analyzer
 
+On a channel-tagged turn (Step 0 detected a `<channel source="...">` tag), run the plain-language mode instead of the full breakdown — a channel operator asking "why is my bill high" shouldn't get raw token-category jargon:
+
+```
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/cost-reflect.ts .claude-code-hermit --plain
+```
+
+Otherwise (terminal/dev use), run the full breakdown:
+
 ```
 bun ${CLAUDE_PLUGIN_ROOT}/scripts/cost-reflect.ts .claude-code-hermit
 ```
 
-Capture stdout. If the output starts with "No cost data", report that message and stop — there's nothing to send.
+Capture stdout. If the output starts with "No cost data" or "No spend recorded yet", report that message and stop — there's nothing to send.
 
 ## Step 2 — Relay the report
 
-The script output is already formatted and capped at 1500 characters. Relay it verbatim. Don't summarize, reformat, or add commentary — the output is the report.
+**Terminal:** the script output is already formatted and capped at 1500 characters. Relay it verbatim. Don't summarize, reformat, or add commentary — the output is the report.
+
+**Channel (`--plain` output):** the script output is already plain language and jargon-free — no `cache_read`/`cache_write`/token-type labels, no session IDs, no `PROP-`/`S-NNN`, no slash commands. Relay it **translated into the operator's language** if the inbound message wasn't in English. Translation only — add no commentary and don't reintroduce token-category detail.
 
 ## Step 3 — Channel delivery
 
@@ -40,3 +50,4 @@ When this skill fires from a routine or proactively (i.e., not from a direct ope
 
 - **Scheduling:** this skill doesn't self-register a routine. To run it weekly, add it via `/claude-code-hermit:hermit-settings` — a Sunday 22:00 cadence (`0 22 * * 0`) before weekly-review works well.
 - **What it measures:** token-type cost composition (cache_read / cache_write / output / input), per-model breakdown (shown when ≥2 models appear, e.g. Sonnet main + Haiku heartbeat), cold-start turns (context warm-ups with no prior cache hit), and per-session cost attribution. For week-over-week totals and autonomy trends, use `/claude-code-hermit:hermit-evolution` instead.
+- **`--plain` mode** (channel-tagged turns only): today's spend vs. a trailing-7-day typical day, drivers named by work (not token type), spend-cap status, and a one-line notional-dollars caveat. No token categories, session IDs, or internal IDs.

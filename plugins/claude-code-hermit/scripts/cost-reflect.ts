@@ -2,6 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { costByType } from './lib/pricing';
+import { loadConfig } from './lib/channel-auth';
+import { money, resolveTimezone, budgetLine } from './lib/spend-status';
+import { todayYMD } from './lib/time';
 
 type Json = any;
 
@@ -14,6 +17,20 @@ const COLD_START_OUTPUT_MAX = 1000; // tokens
 const MAX_TOP_SESSIONS = 3;
 const MAX_TOP_SOURCES = 5;
 const MAX_CHARS = 1500;
+
+// --plain mode: a channel-safe, no-jargon spend statement (audit's "plain spend
+// statement" PR). Today + a trailing 7-day baseline needs 8 calendar days of log.
+const PLAIN_LOOKBACK_DAYS = 8;
+
+// Buckets the raw `source` values (heartbeat / routine:<id> / channel:<kind> / other)
+// into the plain-language groupings a non-dev operator recognizes — never the raw
+// source string itself.
+function labelSource(src: string): string {
+  if (src === 'heartbeat') return 'background check-ins';
+  if (src.startsWith('routine:')) return 'scheduled routines';
+  if (src.startsWith('channel:')) return 'your messages';
+  return 'our conversations';
+}
 
 function parseLogEntries(costLog: string): Json[] {
   try {
@@ -37,12 +54,99 @@ function formatCost(n: number) {
   return n < 0.01 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`;
 }
 
+// Total-vs-typical framing for the plain statement. `typical` is the trailing
+// 7-day daily average (today excluded, so a still-running day isn't self-compared).
+function compareToTypical(today: number, typical: number): string {
+  if (typical <= 0) return '';
+  const ratio = today / typical;
+  if (ratio >= 1.3) return ` — higher than a typical day (~${money(typical)}/day)`;
+  if (ratio <= 0.7) return ` — lower than a typical day (~${money(typical)}/day)`;
+  return ` — about a typical day (~${money(typical)}/day)`;
+}
+
+// Top 2-3 plain-language drivers by cost. Multiple raw sources collapsing into the
+// same label (e.g. several routine:<id> buckets) are summed under that one label.
+function buildDriverLine(bySource: Record<string, number>): string | null {
+  const merged: Record<string, number> = {};
+  for (const [src, cost] of Object.entries(bySource)) {
+    const label = labelSource(src);
+    merged[label] = (merged[label] || 0) + cost;
+  }
+  const top = Object.entries(merged).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  if (top.length === 0) return null;
+  return `Mostly from ${top.map(([label, cost]) => `${label} (${money(cost)})`).join(', ')}.`;
+}
+
+function buildPlainStatement(stateDir: string, costLog: string): string {
+  const config = loadConfig(stateDir) || {};
+  const timezone = resolveTimezone(config);
+
+  // Timezone-aware calendar-day key, matching how lib/cost-log.ts buckets the same
+  // log for budgetLine's cap check below — a raw UTC slice here would let "Today"'s
+  // total and the cap line disagree near a non-UTC operator's day boundary.
+  const entryDate = (e: Json): string => {
+    const ts = e.timestamp ? new Date(e.timestamp) : null;
+    return ts && !isNaN(ts.getTime()) ? todayYMD(timezone, ts) : '';
+  };
+
+  const entries = parseLogEntries(costLog);
+  const cutoffDate = todayYMD(timezone, new Date(Date.now() - PLAIN_LOOKBACK_DAYS * 86400000));
+  const recent = entries.filter(e => {
+    const d = entryDate(e);
+    return d && d >= cutoffDate;
+  });
+
+  if (recent.length === 0) {
+    return 'No spend recorded yet.\n';
+  }
+
+  const today = todayYMD(timezone);
+  const byDate: Record<string, number> = {};
+  const bySource: Record<string, number> = {};
+  for (const e of recent) {
+    const model = e.model || 'sonnet';
+    const types = costByType(model, e.input_tokens || 0, e.cache_write_tokens || 0, e.cache_read_tokens || 0, e.output_tokens || 0);
+    const cost = types.input + types.cacheWrite + types.cacheRead + types.output;
+    const date = entryDate(e);
+    if (date) byDate[date] = (byDate[date] || 0) + cost;
+    bySource[e.source || 'other'] = (bySource[e.source || 'other'] || 0) + cost;
+  }
+
+  const lines: string[] = [];
+
+  const todaySpend = byDate[today] || 0;
+  const priorDates = Object.keys(byDate).filter(d => d !== today);
+  const typical = priorDates.length > 0
+    ? priorDates.reduce((sum, d) => sum + byDate[d], 0) / priorDates.length
+    : 0;
+  lines.push(`Today: ${money(todaySpend)}${compareToTypical(todaySpend, typical)}.`);
+
+  const driverLine = buildDriverLine(bySource);
+  if (driverLine) lines.push(driverLine);
+
+  const cap = budgetLine(stateDir, config, timezone);
+  if (cap) lines.push(cap);
+
+  lines.push('These dollar figures are an estimate for tracking spend, not a literal bill.');
+
+  return lines.join('\n') + '\n';
+}
+
 function run() {
-  const stateDir = process.argv[2] || '.claude-code-hermit';
-  const days = Math.max(1, parseInt(process.argv[3], 10) || 7);
+  const rawArgs = process.argv.slice(2);
+  const plainMode = rawArgs.includes('--plain');
+  const positional = rawArgs.filter(a => a !== '--plain');
+  const stateDir = positional[0] || '.claude-code-hermit';
+  const days = Math.max(1, parseInt(positional[1], 10) || 7);
 
   // cost-log.jsonl is a sibling of the state dir (both under the project root).
   const costLog = path.resolve(stateDir, '..', '.claude', 'cost-log.jsonl');
+
+  if (plainMode) {
+    process.stdout.write(buildPlainStatement(stateDir, costLog));
+    return;
+  }
+
   const cutoffDate = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
 
   const entries = parseLogEntries(costLog);
