@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Changed
-- **doctrine: codify measured token economics** — `CLAUDE.md` (dev-facing) and `CLAUDE-APPEND.md` (operator-facing) now state that the atom of cost is the API call (cache traffic dominates an always-on hermit's spend, not per-prompt injection), that delegation bookends main with ≥2 full-context turns per dispatch, and that native tool outputs (e.g. `CronList`) are unbounded surfaces under the existing script-mediation boundary rule.
+- **doctrine: codify measured token economics** — dev and operator `CLAUDE.md` now frame the atom of cost as the API call (cache traffic dominates spend, not per-prompt injection), note that each delegation bookends main with ≥2 full-context turns, and extend the script-mediation rule to native tool outputs (e.g. `CronList`).
 
 ## [1.2.19] - 2026-07-06
 
