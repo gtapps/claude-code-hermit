@@ -24,10 +24,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { acquireLock, releaseLock } from './lib/lockfile';
-import { utcISOStamp as utcStamp, currentHHMM, parseSimpleCronTime, friendlyBoundary } from './lib/time';
+import { utcISOStamp as utcStamp, currentHHMM, currentHHMMOrUTC, parseSimpleCronTime, friendlyBoundary } from './lib/time';
 import { writeRuntimeJson, readRuntimeJson, STATE_DIR, LIFECYCLE_LOCK } from './lib/runtime';
 import { tmuxSessionAlive, getSessionName as deriveSessionName } from './lib/tmux';
 import { costLogPath } from './lib/cc-compat';
+import { flushResetBreadcrumb } from './lib/progress-log';
 import { wallMinutes } from './cron-tz-shift';
 import { isPaused, pauseReasonLabel } from './lib/pause';
 import { runTelemetryExportIfDue } from './report-export';
@@ -112,7 +113,7 @@ function pushOperatorMessage(text: string): void {
 
 /** Current time as "HH:MM" in `timezone`, falling back to the UTC clock if the zone is invalid. */
 function nowHHMM(timezone: string): string {
-  return currentHHMM(timezone) ?? new Date().toISOString().slice(11, 16);
+  return currentHHMMOrUTC(timezone);
 }
 
 /** Operator-language message for a watchdog restart. */
@@ -607,6 +608,15 @@ function maybeContextClear(config: Json): void {
   try {
     runtime.context_cleared = true;
     writeRuntimeJson(runtime);
+    // Breadcrumb before the destructive keystroke — PreCompact never fires on /clear
+    // (see precompact-stamp.ts), so this is the only trace of the reset. flushResetBreadcrumb
+    // is fail-open internally; it must never delay or suppress the safety clear below.
+    flushResetBreadcrumb(path.join(HERMIT_ROOT, 'sessions', 'SHELL.md'), {
+      kind: 'cleared',
+      trigger: `watchdog-${Math.round(threshold / 1000)}k`,
+      hhmm: nowHHMM(config.timezone ?? 'UTC'),
+      tokens: prompt,
+    });
     sendKeys(sessionName, '/clear');
     watchdogState.last_cleared_cost_ts = lastEntry.timestamp;
     watchdogState.last_pane_hash_ctx = null; // reset so next bloat cycle re-arms

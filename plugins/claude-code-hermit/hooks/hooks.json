@@ -227,6 +227,20 @@
         ],
         "description": "Capture async-dispatched subagent token cost (invisible to Stop-time cost-tracker)"
       }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/precompact-stamp.ts"],
+            "timeout": 5
+          }
+        ],
+        "description": "Stamp SHELL.md Progress Log before context compaction (manual /compact or native auto-compaction) — a breadcrumb only, never blocks compaction. Does not fire on /clear; the watchdog's own emergency /clear flushes separately in hermit-watchdog.ts"
+      }
     ]
   }
 }

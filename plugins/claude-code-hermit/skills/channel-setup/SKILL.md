@@ -245,3 +245,28 @@ Channel setup complete!
 ```
 
 If anything was skipped, list the remaining steps.
+
+### 7a. Send owner welcome (once, only when exactly one channel was newly paired)
+
+Run this once, after step 7's summary, across the *whole* run — not per channel inside the steps 2–6 loop.
+
+Skip entirely if no channel selected "Ready to pair" in step 5 this run — an operator re-running setup against an already-paired channel ("Already paired") or one they skipped shouldn't get a repeat welcome.
+
+Also skip, with a note in the summary ("Welcome message skipped — more than one channel was newly paired this run; let the owner know directly"), if *more than one* channel selected "Ready to pair" this run (the "All" path pairing several channels at once). `channel-send.ts` has no per-channel target — it resolves one generic outbound channel (`primary`, else first eligible in config order) — so with several freshly-paired channels there's no reliable way to know which one it would reach.
+
+Otherwise (exactly one channel newly paired), send one short, plain-language welcome so the owner has something the moment the bot can reach them. Not the full guide — a channel message can't hold it, and this is just an orientation pointer:
+
+```bash
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/channel-send.ts .claude-code-hermit - <<'HERMIT_WELCOME'
+Hi — I'm connected here now.
+
+A few basics:
+- Talk to me anytime, in plain language.
+- If I have a suggestion or need a decision, I'll ask, and you can just reply yes, later, or no.
+- Say "pause" to stop me and "resume" to continue — pausing really stops me until you say resume.
+- I track what I spend on AI usage and will tell you if it's getting close to any limit that's set.
+- If I ever go quiet, or something's confusing, reach out to whoever set me up for you — they can also give you the full written guide.
+HERMIT_WELCOME
+```
+
+No file paths, slash commands, or internal jargon in this text — it's the owner's first message. If the send fails, note it in the summary above but don't block setup: "Welcome message couldn't be sent (`<error>`) — the channel is paired; let the owner know directly this time."

@@ -84,14 +84,18 @@ function patchRuntime(h: Hermit, patch: Record<string, unknown>): void {
 
 /** Fake tmux: sessionAlive 0 = alive, 1 = dead. send-keys/kill-session log to tmux-calls.log.
  *  runtimeSnapshotPath: if set, the stub copies runtime.json to this path when it sees send-keys .../clear,
- *  proving the context_cleared marker was written before the /clear keystroke. */
-function writeFakeTmux(h: Hermit, sessionAlive: 0 | 1, paneContent = 'tmux pane content', runtimeSnapshotPath?: string): void {
+ *  proving the context_cleared marker was written before the /clear keystroke.
+ *  shellSnapshotPath: if set, the stub copies sessions/SHELL.md to this path at the same instant,
+ *  proving the pre-clear breadcrumb was written before the /clear keystroke. */
+function writeFakeTmux(h: Hermit, sessionAlive: 0 | 1, paneContent = 'tmux pane content', runtimeSnapshotPath?: string, shellSnapshotPath?: string): void {
   const log = path.join(h.dir, 'tmux-calls.log');
   const stub = path.join(h.fakeBin, 'tmux');
   const runtimePath = state(h, 'runtime.json');
-  const sendKeysExtra = runtimeSnapshotPath
-    ? `[[ "$*" == *"/clear"* || "$*" == *"/compact"* ]] && cat "${runtimePath}" > "${runtimeSnapshotPath}"`
-    : 'true';
+  const shellPath = path.join(h.dir, '.claude-code-hermit', 'sessions', 'SHELL.md');
+  const sendKeysExtra = [
+    runtimeSnapshotPath ? `[[ "$*" == *"/clear"* || "$*" == *"/compact"* ]] && cat "${runtimePath}" > "${runtimeSnapshotPath}"` : '',
+    shellSnapshotPath ? `[[ "$*" == *"/clear"* || "$*" == *"/compact"* ]] && cat "${shellPath}" > "${shellSnapshotPath}"` : '',
+  ].filter(Boolean).join(' ; ') || 'true';
   fs.writeFileSync(stub, `#!/usr/bin/env bash
 case "$1" in
   has-session) exit ${sessionAlive} ;;
@@ -1032,6 +1036,61 @@ test('context_clear: bloated idle + quiescent + operator silent → /clear sent 
     expect(fs.readFileSync(eventsFile(h), 'utf-8')).toContain('context-clear');
     const runtimeAtClear = readJson(snapshotPath);
     expect(runtimeAtClear.context_cleared).toBe(true);
+  }));
+
+test('context_clear: SHELL.md breadcrumb is written before the /clear keystroke',
+  withHermit(async (h) => {
+    writeContextClearConfig(h);
+    writeAlwaysOnRuntime(h, 'idle');
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 800000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+
+    const sessionsDir = path.join(h.dir, '.claude-code-hermit', 'sessions');
+    fs.mkdirSync(sessionsDir, { recursive: true });
+    fs.writeFileSync(path.join(sessionsDir, 'SHELL.md'), '## Progress Log\n', 'utf-8');
+
+    const shellSnapshotPath = path.join(h.dir, 'shell-at-clear.md');
+    writeFakeTmux(h, 0, 'static pane content', undefined, shellSnapshotPath);
+    writeFakePgrep(h, 1);
+
+    await watchdog(h, 'run'); // tick 1: hash recorded
+    await watchdog(h, 'run'); // tick 2: /clear fires
+
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog).toContain('/clear');
+
+    // The snapshot was taken by the stub at the instant it saw the /clear keystroke —
+    // asserting the breadcrumb is already there proves the flush ran before sendKeys.
+    const shellAtClear = fs.readFileSync(shellSnapshotPath, 'utf-8');
+    expect(shellAtClear).toContain('context cleared (watchdog-700k)');
+    expect(shellAtClear).toContain('arc may have unfinished work');
+
+    // Not appended to observations.jsonl — a breadcrumb is Progress-Log only (see
+    // scripts/lib/progress-log.ts header comment for why observations.jsonl was dropped).
+    const obsPath = state(h, 'observations.jsonl');
+    const obsContent = fs.existsSync(obsPath) ? fs.readFileSync(obsPath, 'utf-8') : '';
+    expect(obsContent).not.toContain('watchdog-700k');
+  }));
+
+test('context_clear: fail-open — missing sessions/SHELL.md does not block the safety /clear',
+  withHermit(async (h) => {
+    writeContextClearConfig(h);
+    writeAlwaysOnRuntime(h, 'idle');
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 800000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    // Deliberately do NOT create sessions/SHELL.md — the flush helper's read will throw,
+    // and it must fail open rather than suppress the destructive /clear below it.
+
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    await watchdog(h, 'run'); // tick 1
+    const r2 = await watchdog(h, 'run'); // tick 2: /clear should still fire
+
+    expect(r2.exitCode).toBe(0);
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog).toContain('/clear');
+    expect(fs.readFileSync(eventsFile(h), 'utf-8')).toContain('context-clear');
   }));
 
 test('context_clear: fires for in_progress session (evolve case) when quiescent + bloated',

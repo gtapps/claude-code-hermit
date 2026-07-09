@@ -21,6 +21,7 @@ import { currentHHMM } from './lib/time';
 import { readFrontmatter, isEmptyAutoArchive } from './lib/frontmatter';
 import { findStorageDrift, findSchemaDrift } from './lib/drift';
 import { sha256 } from './lib/hash';
+import { appendToProgressLog } from './lib/progress-log';
 
 type Json = any;
 
@@ -212,25 +213,6 @@ function isShellSnapshotDue(stateDir: string, runtime: Json) {
   } catch {
     return false;
   }
-}
-
-function appendToProgressLog(shellPath: string, line: string) {
-  try {
-    let content = fs.readFileSync(shellPath, 'utf-8');
-    const marker = '## Progress Log';
-    const idx = content.indexOf(marker);
-    if (idx === -1) {
-      content = content.trimEnd() + '\n\n' + line + '\n';
-    } else {
-      const nextSection = content.indexOf('\n## ', idx + marker.length);
-      if (nextSection === -1) {
-        content = content.trimEnd() + '\n' + line + '\n';
-      } else {
-        content = content.slice(0, nextSection) + '\n' + line + content.slice(nextSection);
-      }
-    }
-    fs.writeFileSync(shellPath, content, 'utf-8');
-  } catch { /* fail-open */ }
 }
 
 const reflectionStatePath = path.join(stateDir, 'state', 'reflection-state.json');

@@ -17,6 +17,12 @@ function currentHHMM(timezone: string, ref?: Date): string | null {
   }
 }
 
+// currentHHMM but guaranteed non-null: falls back to UTC 'HH:MM' on timezone error.
+// Shared by the PreCompact hook and the watchdog, which both need a definite stamp.
+function currentHHMMOrUTC(timezone: string): string {
+  return currentHHMM(timezone) ?? new Date().toISOString().slice(11, 16);
+}
+
 // Returns today (or `ref`) as 'YYYY-MM-DD' in the given timezone.
 function todayYMD(timezone: string, ref: Date = new Date()): string {
   try {
@@ -170,4 +176,4 @@ function friendlyBoundary(iso: string, timezone: string): string {
   return `${date} ${hhmm}`.trim();
 }
 
-export { currentHHMM, todayYMD, thisWeekKey, thisMonthYYYYMM, nextBoundaryISO, localISOStamp, utcISOStamp, parseDuration, parseSimpleCronTime, friendlyBoundary };
+export { currentHHMM, currentHHMMOrUTC, todayYMD, thisWeekKey, thisMonthYYYYMM, nextBoundaryISO, localISOStamp, utcISOStamp, parseDuration, parseSimpleCronTime, friendlyBoundary };

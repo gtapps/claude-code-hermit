@@ -164,13 +164,14 @@ describe('cost-tracker', () => {
 describe('cost-tracker getCumulativeCost (in-process)', () => {
   let wd: Workdir;
   let getCumulativeCost: typeof import('../scripts/cost-tracker').getCumulativeCost;
+  let composeBudgetMessage: typeof import('../scripts/cost-tracker').composeBudgetMessage;
 
   beforeAll(async () => {
     wd = setupWorkdir();
     const prev = process.cwd();
     process.chdir(wd.dir);
     try {
-      ({ getCumulativeCost } = await import('../scripts/cost-tracker'));
+      ({ getCumulativeCost, composeBudgetMessage } = await import('../scripts/cost-tracker'));
     } finally {
       process.chdir(prev);
     }
@@ -193,6 +194,23 @@ describe('cost-tracker getCumulativeCost (in-process)', () => {
     expect(r.cost).toBeCloseTo(0.10, 3);
     expect(r.tokens).toBe(1000);
     expect(r.operatorTurns).toBe(0);
+  });
+
+  // Chat voice contract: composeBudgetMessage is the one deterministic
+  // (non-model) channel sender that composes prose, so it's the only place a
+  // forbidden-string assertion can enforce actual output, not just documented
+  // intent — see the "chat voice contract" describe block in contracts.test.ts.
+  test('composeBudgetMessage never leaks internal IDs or token jargon', () => {
+    const periods = [
+      { period: 'daily', spend: 5.2, cap: 5, ratio: 1.04, level: 'breach' },
+      { period: 'weekly', spend: 18, cap: 20, ratio: 0.9, level: 'warn' },
+    ];
+    const msg = composeBudgetMessage(periods, 'pause', '2026-07-10T00:00:00Z', 'UTC');
+    expect(msg).not.toMatch(/PROP-\d{3}/);
+    expect(msg).not.toMatch(/S-\d{3}/);
+    expect(msg).not.toMatch(/MP-\d{8}/);
+    expect(msg).not.toMatch(/cache_read|cache_write|token/i);
+    expect(msg).not.toMatch(/\/claude-code-hermit:/);
   });
 });
 
