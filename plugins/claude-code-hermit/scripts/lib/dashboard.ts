@@ -19,6 +19,7 @@ import { readMergedAlerts } from './alert-state';
 import { todayYMD } from './time';
 import { costIndexPath, readCostIndex } from './cost-log';
 import { rebuildIndex, type ProposalsIndex } from '../proposals-index';
+import { loadStrings, fmt, type ArtifactStrings } from './artifact-strings';
 
 type Json = any;
 
@@ -88,6 +89,7 @@ export interface DashboardState {
   weekly: WeeklyState | null;
   lastBrief: LastBriefState | null;
   compiledIndex: { docs: CompiledDocRow[]; omitted: number };
+  strings: ArtifactStrings;
 }
 
 // ---------- loading ----------
@@ -246,22 +248,27 @@ function loadCompiledIndex(hermitDir: string): { docs: CompiledDocRow[]; omitted
 // Alert entries have no single schema: telemetry/checklist alerts carry a `message`
 // string, but budget alerts (the dominant type) store structured fields and no message.
 // Synthesize a readable line for those instead of falling back to the raw dedup key.
-function alertMessage(key: string, v: Json): string {
-  if (typeof v?.message === 'string') return v.message;
+// Returns an already-escaped, safe-to-inject-raw string: file-derived parts (message,
+// period, dedup key) are escaped here; the chrome templates are pre-escaped by
+// loadStrings(). renderStatus injects the result without re-escaping, so a translated
+// budget-alert string isn't double-escaped.
+function alertMessage(key: string, v: Json, s: ArtifactStrings): string {
+  if (typeof v?.message === 'string') return escapeHtml(v.message);
   if (v?.kind === 'budget') {
-    const period = typeof v.period === 'string' ? v.period : 'budget';
-    const state = v.level === 'breach' ? 'breached' : 'warning';
+    const period = escapeHtml(typeof v.period === 'string' ? v.period : 'budget');
+    const state = v.level === 'breach' ? s.budget_state_breached : s.budget_state_warning;
     const spend = typeof v.spend === 'number' ? `$${v.spend.toFixed(2)}` : null;
     const cap = typeof v.cap === 'number' ? `$${v.cap.toFixed(2)}` : null;
-    const amounts = spend && cap ? ` (${spend} of ${cap})` : '';
-    return `${period} budget ${state}${amounts}`;
+    const amounts = spend && cap ? fmt(s.budget_amounts, { spend, cap }) : '';
+    return fmt(s.budget_text, { period, state, amounts });
   }
-  return key;
+  return escapeHtml(key);
 }
 
 export function loadDashboardState(hermitDir: string): DashboardState {
   const config = readJsonSafe(path.join(hermitDir, 'config.json')) ?? {};
   const timezone = typeof config.timezone === 'string' && config.timezone ? config.timezone : 'UTC';
+  const strings = loadStrings(hermitDir);
   const runtime = readJsonSafe(path.join(hermitDir, 'state', 'runtime.json'));
   const today = loadTodayCost(hermitDir, timezone);
   // Union alerts across the per-writer files (skill/checklist + budget + telemetry).
@@ -270,7 +277,7 @@ export function loadDashboardState(hermitDir: string): DashboardState {
     if (v?.suppressed === true) continue; // dismissed/digested — not an active alert
     alerts.push({
       key,
-      message: alertMessage(key, v),
+      message: alertMessage(key, v, strings),
       timestamp: typeof v?.timestamp === 'string' ? v.timestamp : null,
     });
   }
@@ -285,6 +292,7 @@ export function loadDashboardState(hermitDir: string): DashboardState {
     weekly: loadWeekly(hermitDir),
     lastBrief: loadLastBrief(hermitDir),
     compiledIndex: loadCompiledIndex(hermitDir),
+    strings,
   };
 }
 
@@ -396,16 +404,16 @@ export function chip(status: string): string {
   return `<span class="chip chip-${cls}">${escapeHtml(status)}</span>`;
 }
 
-function ageLabel(days: number | null): string {
+function ageLabel(days: number | null, s: ArtifactStrings): string {
   if (days == null) return '';
-  if (days === 0) return 'today';
-  return `${days}d`;
+  if (days === 0) return s.age_today;
+  return fmt(s.age_days, { n: days });
 }
 
 // Renders " (Nd)" (leading space included) or '' when age is unknown, so callers
 // never emit an empty "()" placeholder.
-function ageParen(days: number | null): string {
-  const label = ageLabel(days);
+function ageParen(days: number | null, s: ArtifactStrings): string {
+  const label = ageLabel(days, s);
   return label ? ` <span class="muted">(${label})</span>` : '';
 }
 
@@ -413,32 +421,35 @@ function pct(n: number | null): string {
   return n == null ? '—' : `${Math.round(n)}%`;
 }
 
-function delta(current: number | null, prior: number | null, unit: 'pp' | '$'): string {
+function delta(current: number | null, prior: number | null, unit: 'pp' | '$', s: ArtifactStrings): string {
   if (current == null || prior == null) return '';
   const diff = current - prior;
   const sign = diff >= 0 ? '+' : '';
   if (unit === '$') {
     const relBase = Math.abs(prior) > 0.0001 ? prior : null;
     const relPct = relBase != null ? Math.round((diff / relBase) * 100) : null;
-    return relPct != null ? ` (vs $${prior.toFixed(2)} prior, ${sign}${relPct}%)` : ` (vs $${prior.toFixed(2)} prior)`;
+    return relPct != null
+      ? fmt(s.weekly_delta_cost, { prior: `$${prior.toFixed(2)}`, sign, pct: relPct })
+      : fmt(s.weekly_delta_cost_no_pct, { prior: `$${prior.toFixed(2)}` });
   }
-  return ` (vs ${Math.round(prior)}% prior, ${sign}${Math.round(diff)}pp)`;
+  return fmt(s.weekly_delta_pp, { prior: Math.round(prior), sign, diff: Math.round(diff) });
 }
 
 function renderStatus(state: DashboardState): string {
+  const s = state.strings;
   const alertsHtml = state.alerts.length
     ? `<ul class="alerts">${state.alerts
-        .map(a => `<li>⚠ ${escapeHtml(a.message)}</li>`)
+        .map(a => `<li>⚠ ${a.message}</li>`)
         .join('')}</ul>`
-    : `<p class="muted">No active alerts.</p>`;
+    : `<p class="muted">${s.status_no_alerts}</p>`;
 
   return `
     <section class="card">
-      <h2>Status</h2>
+      <h2>${s.status_heading}</h2>
       <div class="stat-row">
-        <div class="stat"><span class="stat-label">Session</span><span class="stat-value">${escapeHtml(state.sessionState ?? 'idle')}</span></div>
-        <div class="stat"><span class="stat-label">Today</span><span class="stat-value">$${state.todayCostUsd.toFixed(2)} · ${escapeHtml(formatTokens(state.todayTokens))}</span></div>
-        <div class="stat"><span class="stat-label">Alerts</span><span class="stat-value">${state.alerts.length}</span></div>
+        <div class="stat"><span class="stat-label">${s.status_session}</span><span class="stat-value">${escapeHtml(state.sessionState ?? 'idle')}</span></div>
+        <div class="stat"><span class="stat-label">${s.status_today}</span><span class="stat-value">$${state.todayCostUsd.toFixed(2)} · ${escapeHtml(formatTokens(state.todayTokens))}</span></div>
+        <div class="stat"><span class="stat-label">${s.status_alerts}</span><span class="stat-value">${state.alerts.length}</span></div>
       </div>
       ${alertsHtml}
     </section>`;
@@ -446,37 +457,43 @@ function renderStatus(state: DashboardState): string {
 
 // Shared label for a proposal row: status chip, id, title, age — used both in the
 // expandable open-proposal summary and the one-line history entries.
-function proposalLabel(p: ProposalRow): string {
-  return `${chip(p.status)} <strong>${escapeHtml(p.id)}</strong> — ${escapeHtml(p.title)}${ageParen(p.ageDays)}`;
+function proposalLabel(p: ProposalRow, s: ArtifactStrings): string {
+  return `${chip(p.status)} <strong>${escapeHtml(p.id)}</strong> — ${escapeHtml(p.title)}${ageParen(p.ageDays, s)}`;
 }
 
 function renderProposals(state: DashboardState): string {
+  const s = state.strings;
   const { open, other, otherOmitted, oldestOpenAccepted } = state.proposals;
 
   const openHtml = open.length
     ? open
         .map(
           p => `<details class="proposal">
-            <summary>${proposalLabel(p)}</summary>
+            <summary>${proposalLabel(p, s)}</summary>
             <div class="proposal-body">${mdToHtml(p.body)}</div>
           </details>`
         )
         .join('')
-    : `<p class="muted">No open proposals.</p>`;
+    : `<p class="muted">${s.proposals_none_open}</p>`;
 
   const otherHtml = other.length
     ? `<ul class="proposal-history">${other
-        .map(p => `<li>${proposalLabel(p)}</li>`)
-        .join('')}${otherOmitted > 0 ? `<li class="muted">+${otherOmitted} more not shown</li>` : ''}</ul>`
+        .map(p => `<li>${proposalLabel(p, s)}</li>`)
+        .join('')}${otherOmitted > 0 ? `<li class="muted">${fmt(s.common_more_not_shown, { n: otherOmitted })}</li>` : ''}</ul>`
     : '';
 
   const oldestLine = oldestOpenAccepted
-    ? `<p class="muted">Oldest open accepted: ${escapeHtml(oldestOpenAccepted.id)}${oldestOpenAccepted.ageDays != null ? ` (${ageLabel(oldestOpenAccepted.ageDays)} since accepted)` : ''}</p>`
+    ? `<p class="muted">${fmt(s.proposals_oldest_accepted, {
+        id: escapeHtml(oldestOpenAccepted.id),
+        age: oldestOpenAccepted.ageDays != null
+          ? fmt(s.proposals_since_accepted, { age: ageLabel(oldestOpenAccepted.ageDays, s) })
+          : '',
+      })}</p>`
     : '';
 
   return `
     <section class="card">
-      <h2>Proposals</h2>
+      <h2>${s.proposals_heading}</h2>
       ${oldestLine}
       ${openHtml}
       ${otherHtml}
@@ -484,58 +501,61 @@ function renderProposals(state: DashboardState): string {
 }
 
 function renderWeekly(state: DashboardState): string {
+  const s = state.strings;
   const w = state.weekly;
   if (!w) {
-    return `<section class="card"><h2>This week's evolution</h2><p class="muted">No weekly review yet.</p></section>`;
+    return `<section class="card"><h2>${s.weekly_heading}</h2><p class="muted">${s.weekly_none}</p></section>`;
   }
 
   const costLine = w.costUsd != null
-    ? `Cost: $${w.costUsd.toFixed(2)}${w.hasPrior ? delta(w.costUsd, w.priorCostUsd, '$') : ''}`
+    ? fmt(s.weekly_cost, { amount: `$${w.costUsd.toFixed(2)}`, delta: w.hasPrior ? delta(w.costUsd, w.priorCostUsd, '$', s) : '' })
     : null;
   const autonomyLine = w.autonomyPct != null
-    ? `Autonomy: ${pct(w.autonomyPct)} self-directed${w.hasPrior ? delta(w.autonomyPct, w.priorAutonomyPct, 'pp') : ''}`
+    ? fmt(s.weekly_autonomy, { pct: pct(w.autonomyPct), delta: w.hasPrior ? delta(w.autonomyPct, w.priorAutonomyPct, 'pp', s) : '' })
     : null;
   const proposalsLine = (w.createdCount != null || w.resolvedCount != null)
-    ? `Proposals: +${w.createdCount ?? 0} created, ${w.resolvedCount ?? 0} resolved`
+    ? fmt(s.weekly_proposals, { created: w.createdCount ?? 0, resolved: w.resolvedCount ?? 0 })
     : null;
 
   const summary = [costLine, autonomyLine, proposalsLine].filter(Boolean) as string[];
 
   return `
     <section class="card">
-      <h2>Week ${escapeHtml(w.week)}</h2>
-      <ul class="evolution">${summary.map(l => `<li>${escapeHtml(l)}</li>`).join('')}</ul>
+      <h2>${fmt(s.weekly_week, { week: escapeHtml(w.week) })}</h2>
+      <ul class="evolution">${summary.map(l => `<li>${l}</li>`).join('')}</ul>
       <details class="weekly-body">
-        <summary>Full review</summary>
+        <summary>${s.weekly_full_review}</summary>
         <div>${w.bodyHtml}</div>
       </details>
     </section>`;
 }
 
 function renderBrief(state: DashboardState): string {
+  const s = state.strings;
   const b = state.lastBrief;
   if (!b) {
-    return `<section class="card"><h2>Latest brief</h2><p class="muted">No brief yet.</p></section>`;
+    return `<section class="card"><h2>${s.brief_heading}</h2><p class="muted">${s.brief_none}</p></section>`;
   }
   const when = b.generatedAt ? ` <span class="muted">· ${escapeHtml(b.generatedAt)}</span>` : '';
   return `
     <section class="card">
-      <h2>Latest brief <span class="muted">(${escapeHtml(b.kind)})</span>${when}</h2>
+      <h2>${s.brief_heading} <span class="muted">(${escapeHtml(b.kind)})</span>${when}</h2>
       ${mdToHtml(b.text)}
     </section>`;
 }
 
 function renderCompiledIndex(state: DashboardState): string {
+  const s = state.strings;
   const { docs, omitted } = state.compiledIndex;
   if (!docs.length) {
-    return `<section class="card"><h2>Compiled docs</h2><p class="muted">Nothing compiled yet.</p></section>`;
+    return `<section class="card"><h2>${s.compiled_heading}</h2><p class="muted">${s.compiled_none}</p></section>`;
   }
   const items = docs.map(d => `<li>${escapeHtml(d.title)} <span class="muted">(${escapeHtml(d.name)})</span></li>`).join('');
-  const omittedLine = omitted > 0 ? `<li class="muted">+${omitted} more not shown</li>` : '';
+  const omittedLine = omitted > 0 ? `<li class="muted">${fmt(s.common_more_not_shown, { n: omitted })}</li>` : '';
   return `
     <section class="card">
-      <h2>Compiled docs</h2>
-      <p class="muted">Ask to open any of these as a page.</p>
+      <h2>${s.compiled_heading}</h2>
+      <p class="muted">${s.compiled_hint}</p>
       <ul class="proposal-history">${items}${omittedLine}</ul>
     </section>`;
 }
@@ -616,19 +636,20 @@ footer.hermit-footer { color: var(--muted); font-size: 12px; margin-top: 8px; }
  *  identical underlying state (the "last updated" stamp is excluded from the hash
  *  via a placeholder token, so the publish gate can skip no-op republishes). */
 export function renderDashboard(state: DashboardState, opts?: { now?: string }): { html: string; hash: string } {
-  const templated = `<title>Hermit Dashboard</title>
+  const s = state.strings;
+  const templated = `<title>${s.dashboard_title}</title>
 <style>${CSS}</style>
 <div class="hermit-page">
   <header>
-    <h1>${escapeHtml(state.agentName)} — Hermit Dashboard</h1>
-    <span class="updated">updated ${UPDATED_TOKEN}</span>
+    <h1>${fmt(s.dashboard_header, { name: escapeHtml(state.agentName) })}</h1>
+    <span class="updated">${s.label_updated} ${UPDATED_TOKEN}</span>
   </header>
   ${renderStatus(state)}
   ${renderBrief(state)}
   ${renderProposals(state)}
   ${renderWeekly(state)}
   ${renderCompiledIndex(state)}
-  <footer class="hermit-footer">Rendered by claude-code-hermit — script-generated, not model-authored.</footer>
+  <footer class="hermit-footer">${s.footer}</footer>
 </div>
 `;
 

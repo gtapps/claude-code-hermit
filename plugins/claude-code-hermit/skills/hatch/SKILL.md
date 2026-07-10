@@ -370,6 +370,18 @@ Set `CLAUDE_CODE_TASK_LIST_ID` in `.claude/settings.local.json` so native Claude
 
 This enables native Tasks for plan tracking. The cost-tracker hook reads task files from `~/.claude/tasks/{task_list_id}/` to generate `tasks-snapshot.md`.
 
+### 5b. Localize artifact chrome (non-`en` operators only)
+
+The script-rendered Artifact pages (dashboard, proposals) read their fixed UI chrome from `.claude-code-hermit/state/artifact-strings.json` when present, overlaying it per key over the English defaults (a missing key or an absent file falls back to English). Model-authored content already follows `language`; this closes the gap for the ~35 hardcoded chrome labels so a non-`en` dashboard isn't half-English.
+
+Run **only** when the chosen `language` is set and is not `en`:
+
+1. Emit the English scaffold: `bun ${CLAUDE_PLUGIN_ROOT}/scripts/artifact-strings-scaffold.ts <language> <current-ISO-timestamp>`.
+2. Translate every value inside the `strings` object into the operator's language. Leave the keys and any `{placeholder}` tokens **verbatim** (word order may move around a token, but the token text must not change or be translated). Leave the `language` and `generated` fields as emitted.
+3. Write the result to `.claude-code-hermit/state/artifact-strings.json`.
+
+When `language` is `en` or unset, skip — absent file ⇒ English chrome, byte-identical to today.
+
 ### 5a. OPERATOR.md onboarding
 
 Generate OPERATOR.md through a project scan and targeted conversation instead of asking the operator to edit it manually.
@@ -879,6 +891,7 @@ Quick replaces Step 4 entirely and applies these defaults silently at the shared
 | Advanced Phase 3 equivalent | escalation, remote | template defaults (balanced, true) — don't override |
 | Advanced Phase 4 equivalent | plugins + scheduled_checks | install all 4; write 3 scheduled_checks entries per Phase 4 mapping |
 | Advanced Phase 4b equivalent | `.baseline-pending` marker | same eligibility check as Advanced |
+| Step 5b | artifact chrome localization | run verbatim — generate the translated table only when `language` is set and not `en`; skip silently otherwise |
 | Advanced Phase 5 equivalent | channels.<name>.* | state_dir + enabled + dm_channel_id=null; omit allowed_users + morning_brief |
 | Quick Turn 3 idle choice | idle_behavior | set to answer (`discover` / `wait`) |
 | Quick Turn 3 channel choice | push_notifications | template default (true) — don't override |

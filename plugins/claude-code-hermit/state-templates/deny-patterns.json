@@ -1,6 +1,13 @@
 {
   "default": [
     "Bash(rm -rf *)",
+    "Bash(rm -fr *)",
+    "Bash(rm -r -f *)",
+    "Bash(rm -f -r *)",
+    "Bash(*/rm -rf *)",
+    "Bash(*/rm -fr *)",
+    "Bash(*/rm -r -f *)",
+    "Bash(*/rm -f -r *)",
     "Bash(chmod 777*)",
     "Bash(*sudo *)",
     "Bash(*> /etc/*)",
