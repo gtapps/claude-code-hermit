@@ -115,9 +115,12 @@ process.stdin.on('end', () => {
     const totalTokens = inputTokens + cacheWriteTokens + cacheReadTokens + outputTokens;
     if (totalTokens === 0) { process.exit(0); return; }
 
-    // Source attribution from the launch entry's turn (best-effort, falls back to 'other')
+    // Source attribution from the launch entry's turn (best-effort, falls back to 'other').
+    // findAsyncLaunch reads the whole parent transcript (no tail window), so a missed
+    // boundary here just means the launch is in the genuine first turn — no truncation
+    // guard needed like cost-tracker.ts's tail-windowed scan.
     let source = 'other';
-    try { source = classifySource(scanTriggerMarkers(launch.lines, launch.index)); } catch {}
+    try { source = classifySource(scanTriggerMarkers(launch.lines, launch.index).text); } catch {}
 
     const model = detectModel(rawModel);
     const estimatedCost = Math.round(

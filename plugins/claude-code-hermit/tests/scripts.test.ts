@@ -2661,7 +2661,7 @@ describe('cost-tracker classifySource / scanTriggerMarkers', () => {
       JSON.stringify({ type: 'user', message: { content: [{ tool_use_id: 't1', type: 'tool_result', content: 'ok' }] } }),
       JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 100, output_tokens: 50 } } }),
     ];
-    expect(scanTriggerMarkers(lines, 3)).toContain('[hermit-routine:daily]');
+    expect(scanTriggerMarkers(lines, 3).text).toContain('[hermit-routine:daily]');
   });
 
   // scanTriggerMarkers: turn-boundary stops at prior billed assistant
@@ -2673,7 +2673,7 @@ describe('cost-tracker classifySource / scanTriggerMarkers', () => {
       JSON.stringify({ type: 'user', message: { content: 'operator message with no marker' } }),
       JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 100, output_tokens: 50 } } }),
     ];
-    expect(scanTriggerMarkers(lines, 3)).not.toContain('[hermit-routine:old-routine]');
+    expect(scanTriggerMarkers(lines, 3).text).not.toContain('[hermit-routine:old-routine]');
   });
 
   // scanTriggerMarkers: reaches the marker past an intermediate tool-calling assistant
@@ -2686,8 +2686,9 @@ describe('cost-tracker classifySource / scanTriggerMarkers', () => {
       JSON.stringify({ type: 'user', message: { content: [{ tool_use_id: 't1', type: 'tool_result', content: 'ok' }] } }),
       JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 100, output_tokens: 50 }, content: [{ type: 'text', text: 'done' }] } }),
     ];
-    const text = scanTriggerMarkers(lines, 3);
+    const { text, boundaryFound } = scanTriggerMarkers(lines, 3);
     expect(text).toContain('[hermit-routine:reflect]');
+    expect(boundaryFound).toBe(true);
     expect(classifySource(text)).toBe('routine:reflect');
   });
 
@@ -2701,8 +2702,32 @@ describe('cost-tracker classifySource / scanTriggerMarkers', () => {
       JSON.stringify({ type: 'user', message: { content: [{ tool_use_id: 't1', type: 'tool_result', content: 'ok' }] } }),
       JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 100, output_tokens: 50 } } }),
     ];
-    const text = scanTriggerMarkers(lines, 3);
+    const { text } = scanTriggerMarkers(lines, 3);
     expect(classifySource(text)).toBe('channel:discord');
+  });
+
+  // boundaryFound: false when the scan runs off the start of `lines` without hitting the
+  // triggering user prompt — simulates a truncated tail window whose turn boundary lies
+  // outside the buffer. This is the signal readLastTurnUsage() uses to force 'other'.
+  test('cost-tracker: scanTriggerMarkers boundaryFound is false when the prompt is missing from lines', () => {
+    const lines = [
+      // No triggering user entry at all — everything here is tool-calling/billed assistant
+      // steps, as if the window were truncated before the real turn start.
+      JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 80, output_tokens: 30 }, content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: {} }] } }),
+      JSON.stringify({ type: 'user', message: { content: [{ tool_use_id: 't1', type: 'tool_result', content: 'ok' }] } }),
+      JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 100, output_tokens: 50 } } }),
+    ];
+    const { boundaryFound } = scanTriggerMarkers(lines, 2);
+    expect(boundaryFound).toBe(false);
+  });
+
+  test('cost-tracker: scanTriggerMarkers boundaryFound is true when the triggering prompt is present', () => {
+    const lines = [
+      JSON.stringify({ type: 'user', message: { content: '[hermit-routine:daily] fire' } }),
+      JSON.stringify({ type: 'assistant', message: { usage: { input_tokens: 100, output_tokens: 50 } } }),
+    ];
+    const { boundaryFound } = scanTriggerMarkers(lines, 1);
+    expect(boundaryFound).toBe(true);
   });
 });
 

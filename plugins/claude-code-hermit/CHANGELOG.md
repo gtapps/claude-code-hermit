@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- **cost-tracker: fall back to `other` source when a turn's boundary falls outside the 512KB scan window** — prevents a large turn (e.g. a plugin upgrade run) from inheriting a stale or self-echoed routine marker and tripping a false `hermit-doctor` routine-cost warn.
+
 ### Changed
 - **hooks: shared stdin/profile helper (`lib/hook-input.ts`)** — unifies stdin draining and `AGENT_HOOK_PROFILE` parsing across the four PreToolUse gates (`pause-gate`, `ask-gate`, `enforce-deny-patterns`, `cache-edit-guard`).
 - **hooks: PreToolUse stdin cap raised 64KB → 1MB** — fewer legitimate large payloads hit the cap. The default-allow gates (`enforce-deny-patterns`, `cache-edit-guard`) still fail open above the cap, so this narrows rather than closes the oversize gap for them.

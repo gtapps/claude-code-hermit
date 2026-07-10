@@ -279,6 +279,58 @@ describe('cost-tracker subagent with no resolvedModel', () => {
   });
 });
 
+// Regression for #572: a turn whose real triggering prompt falls outside the 512KB
+// tail window must not inherit a stale/echoed marker still inside that window.
+describe('cost-tracker: oversized turn with boundary outside the tail window', () => {
+  let dir: string;
+  let logPath: string;
+
+  beforeAll(async () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-cost-tracker-oversized-'));
+    fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
+    logPath = path.join(dir, '.claude', 'cost-log.jsonl');
+    const stateDir = path.join(dir, '.claude-code-hermit', 'state');
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(path.join(stateDir, 'runtime.json'), JSON.stringify({ session_id: 'test-session', session_state: 'active' }));
+
+    // The REAL trigger for this turn — a plain operator prompt, no routine marker.
+    // Followed by >512KB of filler tool_use/tool_result pairs so this line falls
+    // before the tail window's read-from offset. One filler entry near the end
+    // (inside the window) echoes a stale routine marker in its tool_result content
+    // — simulating a leftover `log-routine-event.sh doctor started` string from an
+    // unrelated earlier fire, or output surfaced by this very turn's own tooling.
+    const transcriptLines: string[] = [
+      triggerPrompt('Investigate the failing upgrade run and apply the fix.'),
+    ];
+    const filler = 'x'.repeat(2000);
+    for (let i = 0; i < 300; i++) {
+      transcriptLines.push(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id: `t${i}`, name: 'Bash', input: {} }] } }));
+      transcriptLines.push(JSON.stringify({ type: 'user', message: { content: [{ tool_use_id: `t${i}`, type: 'tool_result', content: filler }] } }));
+    }
+    // Stale marker, planted a few entries before the end — well within the 512KB tail.
+    transcriptLines.push(JSON.stringify({ type: 'user', message: { content: [{ tool_use_id: 'stale', type: 'tool_result', content: 'log-routine-event.sh doctor started' }] } }));
+    transcriptLines.push(assistantEntry('claude-sonnet-4-6', 5000, 2000));
+
+    const transcriptPath = path.join(dir, 'transcript.jsonl');
+    const content = transcriptLines.join('\n') + '\n';
+    expect(Buffer.byteLength(content, 'utf-8')).toBeGreaterThan(524288); // sanity: exceeds TAIL_BYTES
+    fs.writeFileSync(transcriptPath, content);
+
+    const stdin = JSON.stringify({ session_id: 'test-session', transcript_path: transcriptPath });
+    await runScript('cost-tracker.ts', { stdin, cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT } });
+  });
+
+  afterAll(() => {
+    if (dir) fs.rmSync(dir, { recursive: true });
+  });
+
+  test('cost-tracker: logs source as "other", not the stale in-window marker', () => {
+    const lines = fs.readFileSync(logPath, 'utf-8').trim().split('\n');
+    const entry = JSON.parse(lines[0]);
+    expect(entry.source).toBe('other');
+  });
+});
+
 // max_prompt_tokens is the real context-size signal watchdog's hygiene thresholds
 // key on (a multi-call turn's summed input_tokens is a multiple of its actual
 // context, not the context itself) — the largest single API call in the turn.
