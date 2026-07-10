@@ -120,6 +120,9 @@ Run `settings-edit ... set agent_name <value>` ("none"/"clear" → null).
 Auto-detect the system locale via Bash as a default suggestion.
 Ask: "Preferred language? (e.g., pt, en, es, fr) [current value or auto-detected]"
 Run `settings-edit ... set language <value>`.
+Then re-sync the artifact-chrome translation table (the dashboard/proposals pages overlay `.claude-code-hermit/state/artifact-strings.json` per key over the English defaults):
+- New value is **not** `en`: emit `bun ${CLAUDE_PLUGIN_ROOT}/scripts/artifact-strings-scaffold.ts <value> <current-ISO-timestamp>`, translate every `strings` value into that language (keep keys and `{placeholder}` tokens verbatim), and write `.claude-code-hermit/state/artifact-strings.json`.
+- New value is `en`: delete `.claude-code-hermit/state/artifact-strings.json` if it exists (absent file ⇒ English chrome).
 
 **If argument is "timezone":**
 Auto-detect the system timezone via Bash as a default suggestion.

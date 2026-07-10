@@ -8,6 +8,7 @@
 
 import { loadProposals, mdToHtml, escapeHtml, CSS, chip, type ProposalRow, type OpenProposalRow } from './dashboard';
 import { sha256 } from './hash';
+import { loadStrings, fmt, type ArtifactStrings } from './artifact-strings';
 
 const UPDATED_TOKEN = '__PROPOSALS_PAGE_UPDATED__';
 
@@ -15,11 +16,12 @@ export interface ProposalsPageState {
   open: OpenProposalRow[];
   other: ProposalRow[];
   otherOmitted: number;
+  strings: ArtifactStrings;
 }
 
 export function loadProposalsPageState(hermitDir: string): ProposalsPageState {
   const { open, other, otherOmitted } = loadProposals(hermitDir);
-  return { open, other, otherOmitted };
+  return { open, other, otherOmitted, strings: loadStrings(hermitDir) };
 }
 
 // "PROP-025-some-slug-123243" -> "prop-025". Falls back to a full slugified id
@@ -35,8 +37,8 @@ function createdLabel(created: string | null): string {
   return ` <span class="muted">(${escapeHtml(created)})</span>`;
 }
 
-function renderOpen(open: OpenProposalRow[]): string {
-  if (!open.length) return `<p class="muted">No open proposals.</p>`;
+function renderOpen(open: OpenProposalRow[], s: ArtifactStrings): string {
+  if (!open.length) return `<p class="muted">${s.proposals_none_open}</p>`;
   return open
     .map(p => `<section class="card" id="${proposalAnchorId(p.id)}">
       <h2>${chip(p.status)} ${escapeHtml(p.id)}</h2>
@@ -46,15 +48,15 @@ function renderOpen(open: OpenProposalRow[]): string {
     .join('');
 }
 
-function renderOther(other: ProposalRow[], otherOmitted: number): string {
+function renderOther(other: ProposalRow[], otherOmitted: number, s: ArtifactStrings): string {
   if (!other.length) return '';
   const items = other
     .map(p => `<li>${chip(p.status)} <strong>${escapeHtml(p.id)}</strong> — ${escapeHtml(p.title)}${createdLabel(p.created)}</li>`)
     .join('');
-  const omittedLine = otherOmitted > 0 ? `<li class="muted">+${otherOmitted} more not shown</li>` : '';
+  const omittedLine = otherOmitted > 0 ? `<li class="muted">${fmt(s.common_more_not_shown, { n: otherOmitted })}</li>` : '';
   return `
     <section class="card">
-      <h2>History</h2>
+      <h2>${s.proposals_history}</h2>
       <ul class="proposal-history">${items}${omittedLine}</ul>
     </section>`;
 }
@@ -66,16 +68,17 @@ function renderOther(other: ProposalRow[], otherOmitted: number): string {
  *  Date.now()-derived and would otherwise mint a new artifact version once a
  *  day even with zero proposal activity; created-date is shown instead. */
 export function renderProposalsPage(state: ProposalsPageState, opts?: { now?: string }): { html: string; hash: string } {
-  const templated = `<title>Hermit Proposals</title>
+  const s = state.strings;
+  const templated = `<title>${s.proposals_page_title}</title>
 <style>${CSS}</style>
 <div class="hermit-page">
   <header>
-    <h1>Proposals</h1>
-    <span class="updated">updated ${UPDATED_TOKEN}</span>
+    <h1>${s.proposals_page_header}</h1>
+    <span class="updated">${s.label_updated} ${UPDATED_TOKEN}</span>
   </header>
-  ${renderOpen(state.open)}
-  ${renderOther(state.other, state.otherOmitted)}
-  <footer class="hermit-footer">Rendered by claude-code-hermit — script-generated, not model-authored.</footer>
+  ${renderOpen(state.open, s)}
+  ${renderOther(state.other, state.otherOmitted, s)}
+  <footer class="hermit-footer">${s.footer}</footer>
 </div>
 `;
 

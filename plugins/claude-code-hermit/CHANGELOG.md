@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **Artifact chrome localization** — the dashboard and proposals-page renderers now read their ~35 hardcoded UI strings (section headers, stat labels, empty states, age labels, the footer, the synthesized budget-alert line) from a new `scripts/lib/artifact-strings.ts` table instead of inline English literals. `.claude-code-hermit/state/artifact-strings.json`, when present, overlays a translated table **per key** over the English defaults — a missing key or an absent file falls back to English, so an untranslated hermit renders byte-identically to today. `hatch` (Step 5b) and `hermit-settings language` now generate/regenerate that table (model-translated once, at language-set time) whenever the operator's `language` is non-`en`, and delete it when switching back to `en`. Closes the gap where model-authored content (briefs, proposal bodies, weekly reviews) already followed `config.language` but the surrounding page chrome stayed English. See `docs/artifacts.md` § Localization.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`.
+
+1. **Localize the artifact chrome for a non-`en` hermit.** Read `language` from `.claude-code-hermit/config.json`. If it is set and is **not** `en`, generate the translated UI-chrome table so the dashboard/proposals pages stop rendering half-English:
+   - Emit the English scaffold: `bun ${CLAUDE_PLUGIN_ROOT}/scripts/artifact-strings-scaffold.ts <language> <current-ISO-timestamp>`.
+   - Translate every value inside the `strings` object into that language, leaving the keys and any `{placeholder}` tokens verbatim (word order may move around a token; the token text must not change).
+   - Write the result to `.claude-code-hermit/state/artifact-strings.json`.
+   The next dashboard/proposals refresh republishes once (the string file is ordinary render input, so it trips the hash gate a single time) with fully-localized chrome; steady state stays no-op-gated. If `language` is `en` or unset, do nothing — English is the default and today's output is unchanged. To opt out of localization on a non-`en` hermit, delete `.claude-code-hermit/state/artifact-strings.json`.
+
 ## [1.2.20] - 2026-07-10
 
 ### Added

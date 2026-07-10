@@ -91,6 +91,21 @@ was written, though the anchor element's presence in the rendered DOM was confir
 the section name is included in text unconditionally so the link is useful whether or
 not the viewer auto-scrolls.
 
+## Localization
+
+The dashboard and proposals renderers read their fixed UI chrome (section headers, stat
+labels, empty states, age labels, the footer, the synthesized budget-alert line) from
+`scripts/lib/artifact-strings.ts` (`DEFAULT_STRINGS`, English). When
+`.claude-code-hermit/state/artifact-strings.json` is present, `loadStrings()` overlays it
+**per key** over those defaults — a missing key or an absent file falls back to English,
+so a hermit with no translation renders byte-identically to an untranslated one. That file
+is an ordinary render input: it's model-composed once at language-set time (`hatch` /
+`hermit-settings language`) and then rendered deterministically forever, exactly like
+`state/last-brief.json`. Translating it therefore trips the hash gate once (one republish)
+and steady state stays no-op-gated. Weekly-review has no chrome (pure frontmatter-stripped
+model markdown), so it needs no string table. Number/date formatting (`$`, ISO timestamps)
+is not localized — format, not language.
+
 ## Weekly review
 
 `config.artifacts.weekly_review`, state key `weekly_review`. The latest compiled
