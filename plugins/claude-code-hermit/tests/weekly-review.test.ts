@@ -126,3 +126,131 @@ describe('weekly-review.ts — deliverables', () => {
     expect(fm.open_loops_count).toBe('0');
   }));
 });
+
+// -------------------------------------------------------------------------
+// Usage section — usage-metrics.jsonl → "no tracked use" suggestions.
+// Suggest-only: guarded so a young/missing ledger never reads as "unused".
+// -------------------------------------------------------------------------
+
+function daysAgoIso(days: number): string {
+  return new Date(Date.now() - days * 86400000).toISOString();
+}
+
+function writeLedgerLines(hermitDir: string, lines: object[]): void {
+  const p = path.join(hermitDir, 'state', 'usage-metrics.jsonl');
+  fs.writeFileSync(p, lines.map(l => JSON.stringify(l)).join('\n') + '\n');
+}
+
+function writeCompiledDoc(hermitDir: string, filename: string, fm: Record<string, string>): void {
+  const lines = Object.entries(fm).map(([k, v]) => `${k}: ${v}`);
+  const content = `---\n${lines.join('\n')}\n---\nBody.\n`;
+  fs.writeFileSync(path.join(hermitDir, 'compiled', filename), content);
+}
+
+describe('weekly-review.ts — Usage section', () => {
+  test('old ledger + stale untouched doc — Usage section lists it', withHermitDir(async (hermitDir) => {
+    writeLedgerLines(hermitDir, [{ ts: daysAgoIso(90), kind: 'meta', event: 'ledger-start' }]);
+    writeCompiledDoc(hermitDir, 'note-old-2026-01-01.md', { type: 'note', created: daysAgoIso(100) });
+    const r = await runScript('weekly-review.ts', { args: [hermitDir] });
+    expect(r.exitCode).toBe(0);
+    const { fm, body } = readReview(hermitDir);
+    expect(body).toContain('### Usage');
+    expect(body).toContain('note-old-2026-01-01.md');
+    expect(fm.usage_untouched_count).toBe('1');
+  }));
+
+  test('foundational-tagged doc is exempt from the Usage section', withHermitDir(async (hermitDir) => {
+    writeLedgerLines(hermitDir, [{ ts: daysAgoIso(90), kind: 'meta', event: 'ledger-start' }]);
+    writeCompiledDoc(hermitDir, 'note-old-2026-01-01.md', {
+      type: 'note', created: daysAgoIso(100), tags: '[foundational]',
+    });
+    const r = await runScript('weekly-review.ts', { args: [hermitDir] });
+    expect(r.exitCode).toBe(0);
+    const { fm, body } = readReview(hermitDir);
+    expect(body).not.toContain('### Usage');
+    expect(fm.usage_untouched_count).toBe('0');
+  }));
+
+  test('topic pages are exempt from the Usage section', withHermitDir(async (hermitDir) => {
+    writeLedgerLines(hermitDir, [{ ts: daysAgoIso(90), kind: 'meta', event: 'ledger-start' }]);
+    writeCompiledDoc(hermitDir, 'topic-rota.md', { type: 'topic', created: daysAgoIso(100) });
+    const r = await runScript('weekly-review.ts', { args: [hermitDir] });
+    expect(r.exitCode).toBe(0);
+    const { body } = readReview(hermitDir);
+    expect(body).not.toContain('### Usage');
+  }));
+
+  test('a young ledger suppresses the Usage section even with a stale doc', withHermitDir(async (hermitDir) => {
+    writeLedgerLines(hermitDir, [{ ts: daysAgoIso(5), kind: 'meta', event: 'ledger-start' }]);
+    writeCompiledDoc(hermitDir, 'note-old-2026-01-01.md', { type: 'note', created: daysAgoIso(100) });
+    const r = await runScript('weekly-review.ts', { args: [hermitDir] });
+    expect(r.exitCode).toBe(0);
+    const { fm, body } = readReview(hermitDir);
+    expect(body).not.toContain('### Usage');
+    expect(fm.usage_untouched_count).toBe('0');
+  }));
+
+  test('no ledger at all — no Usage section', withHermitDir(async (hermitDir) => {
+    writeCompiledDoc(hermitDir, 'note-old-2026-01-01.md', { type: 'note', created: daysAgoIso(100) });
+    const r = await runScript('weekly-review.ts', { args: [hermitDir] });
+    expect(r.exitCode).toBe(0);
+    const { body } = readReview(hermitDir);
+    expect(body).not.toContain('### Usage');
+  }));
+
+  test('a doc read within the staleness window is excluded even if old', withHermitDir(async (hermitDir) => {
+    writeLedgerLines(hermitDir, [
+      { ts: daysAgoIso(90), kind: 'meta', event: 'ledger-start' },
+      { ts: daysAgoIso(10), kind: 'compiled', name: 'note-old-2026-01-01', source: 'read' },
+    ]);
+    writeCompiledDoc(hermitDir, 'note-old-2026-01-01.md', { type: 'note', created: daysAgoIso(100) });
+    const r = await runScript('weekly-review.ts', { args: [hermitDir] });
+    expect(r.exitCode).toBe(0);
+    const { body } = readReview(hermitDir);
+    expect(body).not.toContain('### Usage');
+  }));
+
+  test('a dormant skill (no tracked use in 60+ days) is listed under Usage', withHermitDir(async (hermitDir) => {
+    writeLedgerLines(hermitDir, [
+      { ts: daysAgoIso(90), kind: 'meta', event: 'ledger-start' },
+      { ts: daysAgoIso(75), kind: 'skill', name: 'claude-code-hermit:migrate', source: 'skill-tool' },
+    ]);
+    const r = await runScript('weekly-review.ts', { args: [hermitDir] });
+    expect(r.exitCode).toBe(0);
+    const { fm, body } = readReview(hermitDir);
+    expect(body).toContain('### Usage');
+    expect(body).toContain('skill claude-code-hermit:migrate');
+    expect(fm.usage_untouched_count).toBe('1');
+  }));
+
+  test('a recently-used skill is not listed as dormant', withHermitDir(async (hermitDir) => {
+    writeLedgerLines(hermitDir, [
+      { ts: daysAgoIso(90), kind: 'meta', event: 'ledger-start' },
+      { ts: daysAgoIso(5), kind: 'skill', name: 'claude-code-hermit:migrate', source: 'skill-tool' },
+    ]);
+    const r = await runScript('weekly-review.ts', { args: [hermitDir] });
+    expect(r.exitCode).toBe(0);
+    const { body } = readReview(hermitDir);
+    expect(body).not.toContain('### Usage');
+  }));
+
+  test('ledger compaction: collapses stale (>180d) duplicate events to the newest per name, keeps meta and recent events', withHermitDir(async (hermitDir) => {
+    const tsNewestStale = daysAgoIso(190);
+    writeLedgerLines(hermitDir, [
+      { ts: daysAgoIso(300), kind: 'meta', event: 'ledger-start' },
+      { ts: daysAgoIso(200), kind: 'skill', name: 'x:foo', source: 'skill-tool' },
+      { ts: daysAgoIso(195), kind: 'skill', name: 'x:foo', source: 'skill-tool' },
+      { ts: tsNewestStale, kind: 'skill', name: 'x:foo', source: 'skill-tool' },
+      { ts: daysAgoIso(10), kind: 'skill', name: 'x:bar', source: 'skill-tool' },
+    ]);
+    const r = await runScript('weekly-review.ts', { args: [hermitDir] });
+    expect(r.exitCode).toBe(0);
+    const ledgerPath = path.join(hermitDir, 'state', 'usage-metrics.jsonl');
+    const events = fs.readFileSync(ledgerPath, 'utf-8').split('\n').filter(Boolean).map(l => JSON.parse(l));
+    expect(events.filter(e => e.kind === 'meta')).toHaveLength(1);
+    const fooEvents = events.filter(e => e.name === 'x:foo');
+    expect(fooEvents).toHaveLength(1);
+    expect(fooEvents[0].ts).toBe(tsNewestStale);
+    expect(events.some(e => e.name === 'x:bar')).toBe(true);
+  }));
+});

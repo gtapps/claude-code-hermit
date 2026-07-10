@@ -298,6 +298,87 @@ try {
   }
 } catch {}
 
+// --- Usage (usage-metrics.jsonl → weekly-review suggestions) ---
+// Suggest-only: never auto-archives. Coverage is inherently partial (startup
+// injection, subagent reads, and skill invocations outside the tracked paths
+// are invisible), so a young or missing ledger must never read as "unused".
+const USAGE_STALE_DAYS = 60;
+const usageStaleMs = USAGE_STALE_DAYS * 86400000;
+const compiledDir = path.join(hermitDir, 'compiled');
+const usageLedgerPath = path.join(hermitDir, 'state', 'usage-metrics.jsonl');
+
+let ledgerStartMs: number | null = null;
+const lastUsedMs = new Map<string, number>(); // key: `${kind}:${name}`
+try {
+  const usageLines = fs.readFileSync(usageLedgerPath, 'utf-8').split('\n');
+  for (const line of usageLines) {
+    if (!line.trim()) continue;
+    try {
+      const e = JSON.parse(line);
+      const tsMs = Date.parse(e.ts);
+      if (!Number.isFinite(tsMs)) continue;
+      if (ledgerStartMs === null || tsMs < ledgerStartMs) ledgerStartMs = tsMs;
+      if ((e.kind === 'skill' || e.kind === 'compiled') && typeof e.name === 'string') {
+        const key = `${e.kind}:${e.name}`;
+        const prev = lastUsedMs.get(key);
+        if (prev === undefined || tsMs > prev) lastUsedMs.set(key, tsMs);
+      }
+    } catch {}
+  }
+} catch {}
+
+const untouchedDocs: { stem: string; lastRead: number | null; date: Date }[] = [];
+const dormantSkills: { name: string; lastUsed: number }[] = [];
+
+// Guard: a ledger younger than the staleness window (or missing entirely)
+// would make every doc/skill look unused — say nothing rather than mislead.
+if (ledgerStartMs !== null && (now.getTime() - ledgerStartMs) >= usageStaleMs) {
+  const cutoffMs = now.getTime() - usageStaleMs;
+
+  try {
+    for (const docPath of globDir(compiledDir, /^[^.].*\.md$/)) {
+      const fm = readFrontmatter(docPath);
+      if (!fm || !fm.type) continue;
+      // Same exemptions as archive-compiled.ts: foundational + topic pages are
+      // living documents; also skip weekly-review's own generated output.
+      if ((fm.tags || []).includes('foundational') || fm.type === 'topic' || fm.type === 'review' || fm.generated) continue;
+      const dateStr = fm.updated || fm.created;
+      if (!dateStr) continue;
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime()) || (now.getTime() - date.getTime()) < usageStaleMs) continue;
+      const stem = path.basename(docPath, '.md');
+      const lastRead = lastUsedMs.get(`compiled:${stem}`) ?? null;
+      if (lastRead !== null && lastRead >= cutoffMs) continue; // read recently — not stale
+      untouchedDocs.push({ stem, lastRead, date });
+    }
+  } catch {}
+  untouchedDocs.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  for (const [key, ts] of lastUsedMs) {
+    if (!key.startsWith('skill:') || ts >= cutoffMs) continue;
+    dormantSkills.push({ name: key.slice('skill:'.length), lastUsed: ts });
+  }
+  dormantSkills.sort((a, b) => a.lastUsed - b.lastUsed);
+}
+
+const usageUntouchedCount = untouchedDocs.length + dormantSkills.length;
+
+let usageSection = '';
+if (untouchedDocs.length > 0 || dormantSkills.length > 0) {
+  const DOC_CAP = 10, SKILL_CAP = 10;
+  usageSection = `### Usage (no tracked use ≥${USAGE_STALE_DAYS}d)\n`;
+  for (const d of untouchedDocs.slice(0, DOC_CAP)) {
+    const lastReadStr = d.lastRead !== null ? new Date(d.lastRead).toISOString().slice(0, 10) : 'never';
+    usageSection += `- compiled/${d.stem}.md — last tracked read ${lastReadStr}, updated ${d.date.toISOString().slice(0, 10)}\n`;
+  }
+  if (untouchedDocs.length > DOC_CAP) usageSection += `- (+${untouchedDocs.length - DOC_CAP} more)\n`;
+  for (const s of dormantSkills.slice(0, SKILL_CAP)) {
+    usageSection += `- skill ${s.name} — last tracked use ${new Date(s.lastUsed).toISOString().slice(0, 10)}\n`;
+  }
+  if (dormantSkills.length > SKILL_CAP) usageSection += `- (+${dormantSkills.length - SKILL_CAP} more)\n`;
+  usageSection += `Tracked sources only (skill-tool calls, operator slash commands, compiled/ Reads); startup injection and subagent reads are not tracked.\n\n`;
+}
+
 // --- Build report ---
 
 const frontmatter = [
@@ -330,6 +411,7 @@ const frontmatter = [
   `reflect_accepted: ${reflectAccepted}`,
   `reflect_cost_usd: ${reflectCost.toFixed(2)}`,
   `reflect_observations: ${reflectObsTotal}`,
+  `usage_untouched_count: ${usageUntouchedCount}`,
   '---',
 ].join('\n');
 
@@ -432,13 +514,53 @@ try {
 } catch {}
 
 if (knowledgeSection) body += knowledgeSection;
+if (usageSection) body += usageSection;
 
 const report = `${frontmatter}\n${body}`;
 
 // --- Write review file ---
-const compiledDir = path.join(hermitDir, 'compiled');
 fs.mkdirSync(compiledDir, { recursive: true });
 
 const reviewPath = path.join(compiledDir, `review-weekly-${weekKey}.md`);
 fs.writeFileSync(reviewPath, report, 'utf8');
 console.log(`Weekly review written: ${reviewPath}`);
+
+// --- Compact the usage ledger: keep events <180d, plus the single newest
+// event per stale kind:name pair (preserves last-used forever), plus the
+// ledger-start meta line. Same tmp+rename pattern as prune-observations.ts.
+try {
+  const USAGE_RETENTION_DAYS = 180;
+  const cutoffMs = now.getTime() - USAGE_RETENTION_DAYS * 86400000;
+  const rawLedger = fs.readFileSync(usageLedgerPath, 'utf-8');
+  const ledgerLines = rawLedger.split('\n').filter(l => l.trim());
+
+  let metaLine: string | null = null;
+  const recent: string[] = [];
+  const staleLatest = new Map<string, { ts: number; line: string }>();
+
+  for (const line of ledgerLines) {
+    let e: Json;
+    try { e = JSON.parse(line); } catch { recent.push(line); continue; }
+    if (e.kind === 'meta' && e.event === 'ledger-start') {
+      if (!metaLine) metaLine = line;
+      continue;
+    }
+    const tsMs = Date.parse(e.ts);
+    if (!Number.isFinite(tsMs) || tsMs >= cutoffMs) { recent.push(line); continue; }
+    const key = `${e.kind}:${e.name}`;
+    const prev = staleLatest.get(key);
+    if (!prev || tsMs > prev.ts) staleLatest.set(key, { ts: tsMs, line });
+  }
+
+  const kept = [
+    ...(metaLine ? [metaLine] : []),
+    ...[...staleLatest.values()].map(v => v.line),
+    ...recent,
+  ];
+
+  if (kept.length < ledgerLines.length) {
+    const tmp = usageLedgerPath + '.tmp';
+    fs.writeFileSync(tmp, kept.join('\n') + (kept.length ? '\n' : ''), 'utf-8');
+    fs.renameSync(tmp, usageLedgerPath);
+  }
+} catch { /* fail-open — no ledger yet, or unreadable */ }
