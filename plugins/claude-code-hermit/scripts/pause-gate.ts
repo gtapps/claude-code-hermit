@@ -17,6 +17,15 @@ import { hermitDir } from './lib/cc-compat';
 import { isPaused } from './lib/pause';
 import { runHook } from './lib/hook-input';
 
+// Emit the deny message for a paused hermit and exit 2, or return to allow.
+function denyIfPaused(): void {
+  const status = isPaused(hermitDir());
+  if (!status.paused) return; // allow
+  const untilPhrase = status.until ? `until ${status.until}` : 'until resumed by operator';
+  process.stderr.write(`Hermit is paused (${status.reason ?? 'operator'}, ${untilPhrase})\n`);
+  process.exit(2);
+}
+
 // Channel reply tools surface in several shapes across CC versions —
 // mcp__discord__reply, plugin_discord_discord_reply, mcp__plugin_discord_discord__reply
 // (see channel-hook.ts and the loose hooks.json PostToolUse matcher
@@ -32,13 +41,11 @@ function isExempt(toolName: string): boolean {
 function main(payload: any): void {
   const toolName = payload && typeof payload.tool_name === 'string' ? payload.tool_name : '';
   if (!toolName || isExempt(toolName)) return; // allow
-
-  const status = isPaused(hermitDir());
-  if (!status.paused) return; // allow
-
-  const untilPhrase = status.until ? `until ${status.until}` : 'until resumed by operator';
-  process.stderr.write(`Hermit is paused (${status.reason ?? 'operator'}, ${untilPhrase})\n`);
-  process.exit(2);
+  denyIfPaused();
 }
 
-runHook(main);
+// Oversize stdin can't be parsed for tool_name, but the exempt tools (reply /
+// PushNotification) are never ~1MB — so a paused hermit fails closed here
+// rather than letting a large payload slip an action past the pause. Unpaused,
+// denyIfPaused() returns and we fall through to allow.
+runHook(main, denyIfPaused);

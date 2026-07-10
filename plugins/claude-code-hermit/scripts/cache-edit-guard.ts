@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { safe } from './lib/sanitize';
-import { readHookInput } from './lib/hook-input';
+import { readHookInput, OVERSIZE } from './lib/hook-input';
 
 type Json = any;
 
@@ -53,7 +53,7 @@ function resolveSourceRoot(marketplaceFile: string, marketplaceName: string, plu
 
 async function main() {
   const event = await readHookInput();
-  if (!event) process.exit(0);
+  if (!event || event === OVERSIZE) process.exit(0); // empty / unparseable / oversize — fail open
 
   const name = event.tool_name;
   if (name !== 'Edit' && name !== 'Write') process.exit(0);

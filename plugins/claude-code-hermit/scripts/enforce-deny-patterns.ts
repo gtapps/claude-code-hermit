@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { readHookInput, isStrictProfile } from './lib/hook-input';
+import { readHookInput, isStrictProfile, OVERSIZE } from './lib/hook-input';
 
 type Json = any;
 
@@ -98,7 +98,7 @@ function buildToolCall(event: Json): { tool: string; content: string; candidates
 
 async function run() {
   const event = await readHookInput();
-  if (!event) process.exit(0);
+  if (!event || event === OVERSIZE) process.exit(0); // empty / unparseable / oversize — fail open
 
   const toolCall = buildToolCall(event);
 

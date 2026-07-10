@@ -137,10 +137,20 @@ describe('pause-gate', () => {
     expect(r.exitCode).toBe(0);
   }));
 
-  // Stdin over the 1MB cap (lib/hook-input.ts MAX_HOOK_STDIN) fails open even
-  // while paused — the deny path never gets a parsed payload to act on.
-  test('stdin over the 1MB cap while paused — fail-open, allow', withDir(async (dir) => {
+  // Stdin over the 1MB cap (lib/hook-input.ts MAX_HOOK_STDIN) can't be parsed
+  // for tool_name, but the exempt tools are never ~1MB — so a paused hermit
+  // fails CLOSED here (exit 2) rather than letting a large payload slip past.
+  test('stdin over the 1MB cap while paused — fail-closed, deny', withDir(async (dir) => {
     setPauseFile(dir);
+    const padding = 'a'.repeat(1.5 * 1024 * 1024);
+    const r = await run({ tool_name: 'Bash', tool_input: { command: 'ls', padding } }, dir);
+    expect(r.exitCode).toBe(2);
+    expect(r.stderr).toContain('paused');
+  }));
+
+  // The fail-closed path is gated on the pause flag — unpaused, an oversize
+  // payload still fails open (allow), same as any other stdin the gate ignores.
+  test('stdin over the 1MB cap while unpaused — fail-open, allow', withDir(async (dir) => {
     const padding = 'a'.repeat(1.5 * 1024 * 1024);
     const r = await run({ tool_name: 'Bash', tool_input: { command: 'ls', padding } }, dir);
     expect(r.exitCode).toBe(0);

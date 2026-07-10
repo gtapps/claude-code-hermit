@@ -3,7 +3,10 @@
 ## [Unreleased]
 
 ### Changed
-- **hooks: shared stdin/profile helper (`lib/hook-input.ts`)** — unifies stdin draining and `AGENT_HOOK_PROFILE` parsing across `pause-gate`, `ask-gate`, `enforce-deny-patterns`, and `cache-edit-guard`. Deny-pattern/cache-guard stdin cap rises 64KB → 1MB (closes an oversize-payload bypass that silently skipped enforcement), and `AGENT_HOOK_PROFILE` matching is now case/whitespace-insensitive in `enforce-deny-patterns` (already true for the dev plugin's `git-push-guard`).
+- **hooks: shared stdin/profile helper (`lib/hook-input.ts`)** — unifies stdin draining and `AGENT_HOOK_PROFILE` parsing across the four PreToolUse gates (`pause-gate`, `ask-gate`, `enforce-deny-patterns`, `cache-edit-guard`).
+- **hooks: PreToolUse stdin cap raised 64KB → 1MB** — fewer legitimate large payloads hit the cap. The default-allow gates (`enforce-deny-patterns`, `cache-edit-guard`) still fail open above the cap, so this narrows rather than closes the oversize gap for them.
+- **pause-gate: fails closed on oversize stdin while paused** — a payload too large to parse (>1MB) can no longer slip an action past an active pause; unpaused, oversize still fails open like any ignored stdin.
+- **hooks: `AGENT_HOOK_PROFILE` matching is now case/whitespace-insensitive** in `enforce-deny-patterns`, aligning it with the dev plugin's `git-push-guard`.
 
 ## [1.2.20] - 2026-07-10
 

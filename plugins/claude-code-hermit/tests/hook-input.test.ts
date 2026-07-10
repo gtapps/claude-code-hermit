@@ -7,7 +7,7 @@
 // Usage: bun test tests/hook-input.test.ts   (from the plugin root)
 
 import { describe, test, expect } from 'bun:test';
-import { readHookInput, hookProfile, isStrictProfile, MAX_HOOK_STDIN } from '../scripts/lib/hook-input';
+import { readHookInput, hookProfile, isStrictProfile, MAX_HOOK_STDIN, OVERSIZE } from '../scripts/lib/hook-input';
 
 async function* chunksOf(...parts: string[]): AsyncIterable<string> {
   for (const p of parts) yield p;
@@ -45,14 +45,14 @@ describe('readHookInput', () => {
     expect(result).toEqual(JSON.parse(payload));
   });
 
-  test('payload over cap — null, but generator fully drained', async () => {
+  test('payload over cap — OVERSIZE sentinel, but generator fully drained', async () => {
     let yielded = 0;
     async function* oversized(): AsyncIterable<string> {
       yielded++; yield 'x'.repeat(50);
       yielded++; yield 'y'.repeat(50);
     }
     const result = await readHookInput(10, oversized());
-    expect(result).toBeNull();
+    expect(result).toBe(OVERSIZE);
     expect(yielded).toBe(2); // drained to completion despite exceeding cap early
   });
 
