@@ -158,4 +158,31 @@ describe('renderers honor the overlay', () => {
     expect(after1.hash).not.toBe(before.hash);
     expect(after2.hash).toBe(after1.hash);
   }));
+
+  // Overlay values with HTML-special chars (apostrophes are common in fr/it/…, plus `&`)
+  // must be escaped exactly once. Two renderer spots compose chrome + data into one line;
+  // a stray re-escape there turns a translated string into literal `&#39;`/`&amp;` mojibake.
+  test('overlay values with special chars render escaped exactly once (no double-escape)', withHermitDir((hermitDir) => {
+    // Weekly card summary line (renderWeekly) + budget-alert line (renderStatus).
+    fs.writeFileSync(
+      path.join(hermitDir, 'compiled', 'review-weekly-2026-W27.md'),
+      '---\nweek: 2026-W27\ntotal_cost_usd: 12.34\nself_directed_rate: 0.8\nproposals_created: 1\nproposals_resolved: 2\n---\nbody',
+    );
+    fs.writeFileSync(
+      path.join(hermitDir, 'state', 'budget-alerts.json'),
+      JSON.stringify({ alerts: { 'budget:daily': { kind: 'budget', period: 'daily', level: 'breach', spend: 5, cap: 4, timestamp: '2026-07-05T00:00:00Z' } } }),
+    );
+    writeStrings(hermitDir, {
+      weekly_autonomy: "Autonomie : {pct} d'auto-dirige & co{delta}",
+      budget_state_breached: "d'epasse",
+    });
+    const { html } = renderDashboard(loadDashboardState(hermitDir), { now: '2026-07-05T09:00:00Z' });
+
+    // Singly-escaped forms present...
+    expect(html).toContain("d&#39;auto-dirige &amp; co"); // weekly line
+    expect(html).toContain('d&#39;epasse');               // budget alert line
+    // ...and no double-escaped mojibake anywhere.
+    expect(html).not.toContain('&amp;#39;');
+    expect(html).not.toContain('&amp;amp;');
+  }));
 });

@@ -248,17 +248,21 @@ function loadCompiledIndex(hermitDir: string): { docs: CompiledDocRow[]; omitted
 // Alert entries have no single schema: telemetry/checklist alerts carry a `message`
 // string, but budget alerts (the dominant type) store structured fields and no message.
 // Synthesize a readable line for those instead of falling back to the raw dedup key.
+// Returns an already-escaped, safe-to-inject-raw string: file-derived parts (message,
+// period, dedup key) are escaped here; the chrome templates are pre-escaped by
+// loadStrings(). renderStatus injects the result without re-escaping, so a translated
+// budget-alert string isn't double-escaped.
 function alertMessage(key: string, v: Json, s: ArtifactStrings): string {
-  if (typeof v?.message === 'string') return v.message;
+  if (typeof v?.message === 'string') return escapeHtml(v.message);
   if (v?.kind === 'budget') {
-    const period = typeof v.period === 'string' ? v.period : 'budget';
+    const period = escapeHtml(typeof v.period === 'string' ? v.period : 'budget');
     const state = v.level === 'breach' ? s.budget_state_breached : s.budget_state_warning;
     const spend = typeof v.spend === 'number' ? `$${v.spend.toFixed(2)}` : null;
     const cap = typeof v.cap === 'number' ? `$${v.cap.toFixed(2)}` : null;
     const amounts = spend && cap ? fmt(s.budget_amounts, { spend, cap }) : '';
     return fmt(s.budget_text, { period, state, amounts });
   }
-  return key;
+  return escapeHtml(key);
 }
 
 export function loadDashboardState(hermitDir: string): DashboardState {
@@ -435,7 +439,7 @@ function renderStatus(state: DashboardState): string {
   const s = state.strings;
   const alertsHtml = state.alerts.length
     ? `<ul class="alerts">${state.alerts
-        .map(a => `<li>⚠ ${escapeHtml(a.message)}</li>`)
+        .map(a => `<li>⚠ ${a.message}</li>`)
         .join('')}</ul>`
     : `<p class="muted">${s.status_no_alerts}</p>`;
 
@@ -518,7 +522,7 @@ function renderWeekly(state: DashboardState): string {
   return `
     <section class="card">
       <h2>${fmt(s.weekly_week, { week: escapeHtml(w.week) })}</h2>
-      <ul class="evolution">${summary.map(l => `<li>${escapeHtml(l)}</li>`).join('')}</ul>
+      <ul class="evolution">${summary.map(l => `<li>${l}</li>`).join('')}</ul>
       <details class="weekly-body">
         <summary>${s.weekly_full_review}</summary>
         <div>${w.bodyHtml}</div>
