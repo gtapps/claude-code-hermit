@@ -85,6 +85,16 @@ $result = matchServer($servers, 'nonexistent');
 check(count($result) === 0, 'no match returns empty');
 
 // ---------------------------------------------------------------------------
+// Tests: phpLogKey
+// ---------------------------------------------------------------------------
+echo "\nphpLogKey:\n";
+check(phpLogKey('php83') === 'php-8.3', "php83 -> php-8.3");
+check(phpLogKey('php74') === 'php-7.4', "php74 -> php-7.4");
+check(phpLogKey('php810') === 'php-8.10', "php810 -> php-8.10 (multi-digit minor)");
+check(phpLogKey('nonsense') === null, "non-matching input returns null");
+check(phpLogKey('') === null, "empty input returns null");
+
+// ---------------------------------------------------------------------------
 // Tests: matchSite
 // ---------------------------------------------------------------------------
 echo "\nmatchSite:\n";

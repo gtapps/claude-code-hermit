@@ -74,6 +74,18 @@ function matchServer(array $servers, string $query): array {
     }));
 }
 
+// ---------------------------------------------------------------------------
+// Translate a server's raw `php_version` (e.g. "php83") into the log key
+// Forge expects for its PHP-FPM log (e.g. "php-8.3"). Returns null if the
+// input doesn't match the expected `php<major><minor+>` shape.
+// ---------------------------------------------------------------------------
+function phpLogKey(string $phpVersion): ?string {
+    if (!preg_match('/^php(\d)(\d+)$/', $phpVersion, $m)) {
+        return null;
+    }
+    return "php-{$m[1]}.{$m[2]}";
+}
+
 function matchSite(array $sites, string $query): array {
     if (is_numeric($query)) {
         return array_values(array_filter($sites, fn($s) => (string)$s->id === $query));
