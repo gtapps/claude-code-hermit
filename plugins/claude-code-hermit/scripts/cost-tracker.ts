@@ -74,17 +74,21 @@ function detectModel(modelStr: string | undefined): string {
 // assistant steps (which each carry their own usage) so a multi-step heartbeat/routine
 // turn still reaches its marker, while stopping before the prior turn's prompt so an
 // earlier routine's marker can't bleed into a later turn's source.
-function scanTriggerMarkers(lines: string[], billedIndex: number): string {
+// `boundaryFound` is true only when the loop actually hit that triggering prompt; false
+// means the walk ran off the start of `lines` without finding it — the caller uses this
+// to detect when `lines` (e.g. a truncated tail window) doesn't cover the real turn start.
+function scanTriggerMarkers(lines: string[], billedIndex: number): { text: string; boundaryFound: boolean } {
   const parts: string[] = [];
+  let boundaryFound = false;
   for (let j = billedIndex - 1; j >= 0; j--) {
     try {
       const prev = JSON.parse(lines[j]);
       parts.push(entryText(prev));
       // Reached this turn's triggering prompt — include it, then stop.
-      if (prev.type === 'user' && !isToolResult(prev)) break;
+      if (prev.type === 'user' && !isToolResult(prev)) { boundaryFound = true; break; }
     } catch {}
   }
-  return parts.join(' ');
+  return { text: parts.join(' '), boundaryFound };
 }
 
 // Classify a turn's trigger source from the scanned text of its entries.
@@ -97,6 +101,8 @@ function scanTriggerMarkers(lines: string[], billedIndex: number): string {
 // Limitation: scanning covers the whole turn (prompt + tool_results), so a turn that
 // merely surfaces a marker string in tool output (e.g. grepping these very sources)
 // can be misclassified. Accepted — the markers are stable and this is rare in practice.
+// (When the scan's turn boundary itself falls outside the tail window, the caller in
+// readLastTurnUsage() skips this function entirely and forces 'other' — see there.)
 function classifySource(triggerText: string): string {
   if (!triggerText) return 'other';
   if (triggerText.includes('HEARTBEAT_EVALUATE') ||
@@ -160,7 +166,10 @@ function collectSubagentUsage(lines: string[], billedIndex: number): Array<{
   return out;
 }
 
-// Limitation: a turn spanning more than TAIL_BYTES is summed from buffer start, not the real boundary — same bleed as scanTriggerMarkers.
+// Limitation: a turn spanning more than TAIL_BYTES is summed from buffer start, not the real
+// boundary — token counts still over-count in this case (deliberately: discarding real token
+// data would be worse than a bounded over-count). Source attribution no longer shares this
+// bleed — see the boundaryFound guard in readLastTurnUsage().
 function sumTurnUsage(lines: string[], billedIndex: number): {
   inputTokens: number; cacheWriteTokens: number; cacheReadTokens: number;
   outputTokens: number; model: string; apiCalls: number; maxPromptTokens: number;
@@ -231,8 +240,13 @@ function readLastTurnUsage(transcriptPath: string): Json {
           } catch {}
         }
 
-        const triggerText = scanTriggerMarkers(lines, i);
-        const source = classifySource(triggerText);
+        const { text: triggerText, boundaryFound } = scanTriggerMarkers(lines, i);
+        // A truncated tail (readFrom > 0) whose turn boundary fell outside the window
+        // can't be trusted — the scan may have picked up a stale marker from an earlier,
+        // unrelated turn still in the window, or one echoed in this turn's own tool
+        // output. Attribute to 'other' rather than risk misattributing a large turn
+        // (e.g. a plugin upgrade run) to an unrelated routine/heartbeat/channel source.
+        const source = (!boundaryFound && readFrom > 0) ? 'other' : classifySource(triggerText);
         const subagents = collectSubagentUsage(lines, i);
         return { ...summed, hadHumanTurn, source, subagents };
       } catch {}
