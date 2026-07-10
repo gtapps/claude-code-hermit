@@ -136,4 +136,13 @@ describe('pause-gate', () => {
     const r = await run({ tool_input: { command: 'ls' } }, dir);
     expect(r.exitCode).toBe(0);
   }));
+
+  // Stdin over the 1MB cap (lib/hook-input.ts MAX_HOOK_STDIN) fails open even
+  // while paused — the deny path never gets a parsed payload to act on.
+  test('stdin over the 1MB cap while paused — fail-open, allow', withDir(async (dir) => {
+    setPauseFile(dir);
+    const padding = 'a'.repeat(1.5 * 1024 * 1024);
+    const r = await run({ tool_name: 'Bash', tool_input: { command: 'ls', padding } }, dir);
+    expect(r.exitCode).toBe(0);
+  }));
 });

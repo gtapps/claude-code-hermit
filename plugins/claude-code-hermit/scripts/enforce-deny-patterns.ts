@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { readHookInput, isStrictProfile } from './lib/hook-input';
 
 type Json = any;
 
@@ -19,7 +20,6 @@ const DENY_FILE = path.join(
   'state-templates',
   'deny-patterns.json'
 );
-const MAX_STDIN = 64 * 1024;
 
 function globToRegex(glob: string): RegExp {
   const escaped = glob
@@ -96,50 +96,47 @@ function buildToolCall(event: Json): { tool: string; content: string; candidates
   return { tool: name, content: '', candidates: [] };
 }
 
-function main() {
-  let raw = '';
-  process.stdin.setEncoding('utf8');
-  process.stdin.on('data', chunk => {
-    raw += chunk;
-    if (raw.length > MAX_STDIN) process.exit(0);
-  });
-  process.stdin.on('end', () => {
-    try {
-      const event = JSON.parse(raw);
-      const toolCall = buildToolCall(event);
+async function run() {
+  const event = await readHookInput();
+  if (!event) process.exit(0);
 
-      // --- Check 1: Warn on state-template edits ---
-      if ((toolCall.tool === 'Edit' || toolCall.tool === 'Write') &&
-          /state-templates\/.*\.template/.test(toolCall.content)) {
-        process.stderr.write('Editing template file — confirm this is intentional\n');
-      }
+  const toolCall = buildToolCall(event);
 
-      // --- Check 2: Deny patterns ---
-      if (!toolCall.content) process.exit(0);
+  // --- Check 1: Warn on state-template edits ---
+  if ((toolCall.tool === 'Edit' || toolCall.tool === 'Write') &&
+      /state-templates\/.*\.template/.test(toolCall.content)) {
+    process.stderr.write('Editing template file — confirm this is intentional\n');
+  }
 
-      let patterns: Json;
-      try {
-        patterns = JSON.parse(fs.readFileSync(DENY_FILE, 'utf8'));
-      } catch {
-        process.exit(0); // Missing or invalid deny file — allow
-      }
+  // --- Check 2: Deny patterns ---
+  if (!toolCall.content) process.exit(0);
 
-      const isAlwaysOn = process.env.AGENT_HOOK_PROFILE === 'strict';
-      const allPatterns = [
-        ...(patterns.default || []),
-        ...(isAlwaysOn ? (patterns.always_on || []) : []),
-      ];
+  let patterns: Json;
+  try {
+    patterns = JSON.parse(fs.readFileSync(DENY_FILE, 'utf8'));
+  } catch {
+    process.exit(0); // Missing or invalid deny file — allow
+  }
 
-      for (const pattern of allPatterns) {
-        if (matchesPattern(toolCall, pattern)) {
-          process.stderr.write(`BLOCKED by deny-patterns: ${pattern}\n`);
-          process.exit(2);
-        }
-      }
-    } catch (e) {
-      // Silently allow on parse errors
+  const allPatterns = [
+    ...(patterns.default || []),
+    ...(isStrictProfile() ? (patterns.always_on || []) : []),
+  ];
+
+  for (const pattern of allPatterns) {
+    if (matchesPattern(toolCall, pattern)) {
+      process.stderr.write(`BLOCKED by deny-patterns: ${pattern}\n`);
+      process.exit(2);
     }
-  });
+  }
+}
+
+async function main() {
+  try {
+    await run();
+  } catch {
+    // Silently allow on unexpected errors
+  }
 }
 
 main();

@@ -15,6 +15,7 @@ process.stdout.on('error', () => {});
 
 import { hermitDir } from './lib/cc-compat';
 import { isPaused } from './lib/pause';
+import { runHook } from './lib/hook-input';
 
 // Channel reply tools surface in several shapes across CC versions —
 // mcp__discord__reply, plugin_discord_discord_reply, mcp__plugin_discord_discord__reply
@@ -28,14 +29,7 @@ function isExempt(toolName: string): boolean {
   return toolName === 'PushNotification' || REPLY_TOOL_RE.test(toolName);
 }
 
-function main(raw: string): void {
-  let payload: any;
-  try {
-    payload = JSON.parse(raw);
-  } catch {
-    return; // malformed stdin — allow
-  }
-
+function main(payload: any): void {
   const toolName = payload && typeof payload.tool_name === 'string' ? payload.tool_name : '';
   if (!toolName || isExempt(toolName)) return; // allow
 
@@ -47,15 +41,4 @@ function main(raw: string): void {
   process.exit(2);
 }
 
-try {
-  let buf = '';
-  process.stdin.setEncoding('utf8');
-  process.stdin.on('data', chunk => { buf += chunk; });
-  process.stdin.on('error', () => {});
-  process.stdin.on('end', () => {
-    try { main(buf); } catch { /* fail-open */ }
-    process.exit(0);
-  });
-} catch {
-  process.exit(0);
-}
+runHook(main);

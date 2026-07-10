@@ -39,6 +39,7 @@ import { hermitDir } from './lib/cc-compat';
 import { loadConfig } from './lib/channel-auth';
 import { channelLikelyDown } from './lib/channel-health';
 import { resolve as resolveOutboundChannel } from './resolve-outbound-channel';
+import { runHook } from './lib/hook-input';
 
 const REDIRECT_REASON =
   'No interactive operator on this surface (always-on channel session). Do not retry ' +
@@ -49,14 +50,7 @@ const REDIRECT_REASON =
   'channel message. If a human operator is in fact attending this terminal, they can relaunch ' +
   'with HERMIT_ASK_GATE=off to disable this gate for that session.';
 
-function main(raw: string): void {
-  let payload: any;
-  try {
-    payload = JSON.parse(raw);
-  } catch {
-    return; // malformed stdin — allow
-  }
-
+function main(payload: any): void {
   const toolName = payload && typeof payload.tool_name === 'string' ? payload.tool_name : '';
   if (toolName !== 'AskUserQuestion') return; // allow (defensive; matcher already scopes)
 
@@ -88,15 +82,4 @@ function main(raw: string): void {
   process.exit(2);
 }
 
-try {
-  let buf = '';
-  process.stdin.setEncoding('utf8');
-  process.stdin.on('data', chunk => { buf += chunk; });
-  process.stdin.on('error', () => {});
-  process.stdin.on('end', () => {
-    try { main(buf); } catch { /* fail-open */ }
-    process.exit(0);
-  });
-} catch {
-  process.exit(0);
-}
+runHook(main);
