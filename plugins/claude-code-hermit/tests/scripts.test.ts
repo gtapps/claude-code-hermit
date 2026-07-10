@@ -1131,6 +1131,24 @@ describe('record-gate', () => {
     const out = await gate(dir, { gate: 'bogus' as any }, 'Foo', 'CREATE: Foo');
     expect(out).toBe('GATE_FAILED');
   }));
+
+  test('record-gate (missing state/ subdir does not crash — creates it before appending)', async () => {
+    // Regression: appendJsonlLine's fs.appendFileSync throws ENOENT if state/ doesn't
+    // exist yet, which would violate this script's own "Exit 0 always" contract.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'record-gate-nodir-'));
+    try {
+      const r = await runScript('record-gate.ts', {
+        args: [dir, '--gate', 'triage', '--caller', 'test'],
+        stdin: 'Title: Foo\nVerdict: CREATE: Foo\n',
+      });
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout.trim()).toBe('PROCEED|CREATE');
+      const line = JSON.parse(fs.readFileSync(path.join(dir, 'state', 'proposal-metrics.jsonl'), 'utf-8').trim());
+      expect(line).toMatchObject({ type: 'triage-verdict', verdict: 'CREATE' });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 // -------------------------------------------------------

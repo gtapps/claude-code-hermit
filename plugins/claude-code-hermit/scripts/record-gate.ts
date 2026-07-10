@@ -23,6 +23,7 @@
 // new judge-verdict metric type. Verdict grammars: agents/proposal-triage.md
 // § Output, agents/reflection-judge.md § Verdicts.
 
+import fs from 'node:fs';
 import path from 'node:path';
 import { appendJsonlLine } from './lib/append-jsonl';
 import { utcISOStamp } from './lib/time';
@@ -57,6 +58,10 @@ function parseArgs(argv: string[]): Record<string, string> {
   const verdictLine = verdictMatch ? verdictMatch[1].trim() : '';
 
   const agent = gate === 'judge' ? 'reflection-judge' : 'proposal-triage';
+
+  if (stateDir) {
+    try { fs.mkdirSync(path.join(stateDir, 'state'), { recursive: true }); } catch { /* appendJsonlLine below reports the real failure */ }
+  }
 
   function failClosed(): never {
     if (stateDir) {
