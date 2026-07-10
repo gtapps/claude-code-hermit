@@ -39,6 +39,7 @@ if (file_exists($prodAutoload)) {
 }
 
 use Laravel\Forge\Forge;
+use Laravel\Forge\Exceptions\NotFoundException;
 
 // ---------------------------------------------------------------------------
 // .env loader (project root only; getenv() takes precedence)
@@ -191,7 +192,7 @@ if ($cmd === '' || $cmd === '--help' || $cmd === 'help') {
       sites <server>              List sites on a server
       site <server> <site>        Show site detail
       logs <server> <site>        Show latest deployment log for a site
-      server-log <server> <key>   Read a server log by key (keys are hyphenated: nginx-error, nginx-access)
+      server-log <server> <key>   Read a server log by key (keys are hyphenated: nginx-error, nginx-access; 'php' auto-resolves to php-<major>.<minor>)
       deploy-history <server> <site>          List recent deployments
       deploy-log <server> <site> <deploy-id>  Fetch a specific deployment log
       deploy-status <server-id> <site-id> <deploy-id>  Print a deployment's status (raw IDs)
@@ -368,7 +369,22 @@ if ($cmd === 'logs') {
 if ($cmd === 'server-log') {
     check(isset($positional[1]), "Usage: forge.php server-log <server> <key>");
     $server = resolveServer($forge, $org, $positional[0]);
-    $log    = $forge->serverLog($org, $server->id, $positional[1]);
+    $key    = $positional[1];
+
+    if ($key === 'php') {
+        $detail   = $forge->server($org, $server->id);
+        $resolved = phpLogKey($detail->phpVersion ?? '');
+        if ($resolved !== null) {
+            $key = $resolved;
+        }
+    }
+
+    try {
+        $log = $forge->serverLog($org, $server->id, $key);
+    } catch (NotFoundException $e) {
+        fwrite(STDERR, "No log found for key '$key' on server {$server->name}. Either this key is wrong, or Forge doesn't track a log path for this service (common on servers with a custom, non-Forge-provisioned install of it). Check the server's installed services.\n");
+        exit(1);
+    }
     echo $log . "\n";
     exit(0);
 }

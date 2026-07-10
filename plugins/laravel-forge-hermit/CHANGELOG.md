@@ -1,5 +1,19 @@
 # Changelog — laravel-forge-hermit
 
+## [Unreleased]
+
+### Fixed
+- **forge-logs: `server-log <server> php` auto-resolves the PHP-FPM log key** — the key is dot-version notation matching the server's installed PHP (`php-8.3`), not the literal `php`. Passing `php` now looks up the server's `php_version` and translates it automatically.
+- **forge-logs: server-log 404s no longer crash** — a missing log key now prints a readable message (wrong key, or the service has no Forge-tracked log path) instead of an uncaught exception.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `php/forge-lib.php` | Add `phpLogKey()` translation helper |
+| `php/forge.php` | `server-log`: auto-resolve `php` key, catch `NotFoundException` |
+| `skills/forge-logs/SKILL.md` | Document PHP-FPM key format and custom-provider 404s |
+
 ## [0.0.5] - 2026-07-03
 
 ### Changed
