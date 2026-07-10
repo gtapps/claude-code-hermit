@@ -25,4 +25,4 @@ function safeForLLM(s: any): string {
   return safe(s).replace(INJECTION_RE, (match) => '[' + match.slice(1, -1) + ']');
 }
 
-export { safe, safeForLLM };
+export { safe, safeForLLM, INJECTION_TAGS };

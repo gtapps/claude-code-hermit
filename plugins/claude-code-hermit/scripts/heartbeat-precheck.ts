@@ -1,6 +1,6 @@
 // heartbeat-precheck.ts — fast-path verdict before the LLM evaluates HEARTBEAT.md.
 // Usage: bun heartbeat-precheck.ts [--peek] <hermit-state-dir>
-// Output (stdout, one line): SKIP|<reason>  |  OK  |  AUTO_CLOSE  |  EVALUATE
+// Output (stdout, one line): SKIP|<reason>  |  OK  |  AUTO_CLOSE  |  EVALUATE  |  ALERT|<detail>
 // Exit 0 always. Without --peek: writes updated alert-state.json (increments total_ticks).
 // With --peek: read-only — computes the same verdict without any state mutation.
 //
@@ -15,6 +15,8 @@ import { readAlertState, defaultAlertState, quarantineAlertState, writeAlertStat
 import { readFrontmatter } from './lib/frontmatter';
 import { isProposalScanItem } from './lib/heartbeat-items';
 import { isPaused } from './lib/pause';
+import { scanForInjection } from './lib/injection-scan';
+import { sha256 } from './lib/hash';
 
 type Json = any;
 
@@ -172,6 +174,23 @@ const checklistItems = heartbeatContent
   .filter(l => /^[-*+]\s/.test(l));
 
 if (checklistItems.length === 0) emit('SKIP|HEARTBEAT.md has no checklist items');
+
+// Injection gate: HEARTBEAT.md is model-editable and feeds the autonomous
+// evaluation subagent verbatim, so a poisoned item written in one session
+// would steer every future wake. On a hit, ALERT wakes the model to notify
+// the operator WITHOUT evaluating the checklist; the announced-hash damper
+// (state/injection-alert.json, written by the SKILL.md ALERT branch) keeps
+// it to one alert per file version. Scan errors fall through — never block
+// the tick. Pause still pre-empts this (gate at top of file).
+try {
+  const hit = scanForInjection(heartbeatContent);
+  if (hit) {
+    const hash = sha256(heartbeatContent).slice(0, 8);
+    const announced = readJSON(path.join(stateDir, 'state', 'injection-alert.json'));
+    if (announced?.hash === hash) emit('SKIP|injection-suspect (announced)');
+    emit(`ALERT|injection-suspect:${hash}|${hit.cls} at line ${hit.line}`);
+  }
+} catch { /* fail-open: scan trouble must not block the tick */ }
 
 const config = readJSON(path.join(stateDir, 'config.json')) ?? {};
 const hbConfig = config.heartbeat ?? {};
