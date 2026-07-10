@@ -112,6 +112,18 @@
           }
         ],
         "description": "Regenerate state-summary.md after state/ file edits"
+      },
+      {
+        "matcher": "Skill|Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/usage-track.ts"],
+            "timeout": 3
+          }
+        ],
+        "description": "Append skill invocations and compiled/ reads to state/usage-metrics.jsonl (weekly-review consumes it for untouched-knowledge suggestions)"
       }
     ],
     "UserPromptSubmit": [

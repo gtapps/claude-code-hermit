@@ -1118,6 +1118,77 @@ describe('prompt-context', () => {
 });
 
 // -------------------------------------------------------
+// record-operator-action (UserPromptSubmit + SessionStart hook) — usage capture
+//
+// User-typed skill invocations bypass the Skill tool entirely (live-probed
+// 2026-07-10: zero PostToolUse events fired), so this prompt-side capture is
+// the only path that sees them. The raw UserPromptSubmit payload for a
+// slash-command turn is the BARE typed text (e.g. "/claude-code-hermit:recall")
+// — live-probed 2026-07-10 via a raw-stdin capture; the <command-message>/
+// <command-name> wrapper only exists in the stored transcript, added later by
+// CC's own prompt-expansion pipeline, and never reaches this hook. Capture is
+// therefore restricted to the namespaced `plugin:skill` form (colon required)
+// so native commands (/model, /clear, ...) can't be mistaken for skill usage;
+// a bare un-namespaced personal skill (e.g. /tackle-issue) is a known gap.
+// -------------------------------------------------------
+
+describe('record-operator-action (usage capture)', () => {
+  const ledgerPath = (dir: string) => hermit(dir, 'state', 'usage-metrics.jsonl');
+  const readEvents = (dir: string) => fs.existsSync(ledgerPath(dir))
+    ? fs.readFileSync(ledgerPath(dir), 'utf-8').split('\n').filter(Boolean).map(l => JSON.parse(l))
+    : [];
+  const run = (prompt: string, dir: string) => runScript('record-operator-action.ts', {
+    stdin: JSON.stringify({ prompt }), cwd: dir, env: { AGENT_DIR: hermit(dir) },
+  });
+
+  test('namespaced skill, no args (real payload shape) — appends a skill:prompt event', withDir(async (dir) => {
+    const r = await run('/claude-code-hermit:recall', dir);
+    expect(r.exitCode).toBe(0);
+    const events = readEvents(dir);
+    expect(events.some(e => e.kind === 'skill' && e.name === 'claude-code-hermit:recall' && e.source === 'prompt')).toBe(true);
+  }));
+
+  test('namespaced skill with trailing args is captured verbatim (name only)', withDir(async (dir) => {
+    const r = await run('/claude-code-hermit:weekly-review now please', dir);
+    expect(r.exitCode).toBe(0);
+    const events = readEvents(dir);
+    expect(events.some(e => e.name === 'claude-code-hermit:weekly-review')).toBe(true);
+  }));
+
+  test('native command without a namespace colon (e.g. /model) — no skill event', withDir(async (dir) => {
+    const r = await run('/model sonnet', dir);
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(ledgerPath(dir))).toBe(false);
+  }));
+
+  test('bare un-namespaced personal skill (e.g. /tackle-issue) — no skill event (known gap)', withDir(async (dir) => {
+    const r = await run('/tackle-issue 99', dir);
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(ledgerPath(dir))).toBe(false);
+  }));
+
+  test('path-like prose starting with "/" — no false-positive skill event', withDir(async (dir) => {
+    const r = await run('/etc/passwd leaked in the logs', dir);
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(ledgerPath(dir))).toBe(false);
+  }));
+
+  test('absolute file path with a space — no false-positive skill event', withDir(async (dir) => {
+    const r = await run('/home/d0m/foo.txt has a bug', dir);
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(ledgerPath(dir))).toBe(false);
+  }));
+
+  test('plain prompt text — no skill event', withDir(async (dir) => {
+    const r = await runScript('record-operator-action.ts', {
+      stdin: JSON.stringify({ prompt: 'fix the login bug' }), cwd: dir, env: { AGENT_DIR: hermit(dir) },
+    });
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(ledgerPath(dir))).toBe(false);
+  }));
+});
+
+// -------------------------------------------------------
 // channel-reply-reminder (UserPromptSubmit hook)
 // -------------------------------------------------------
 

@@ -22,6 +22,7 @@ process.stdout.on('error', () => {});
 import fs from 'node:fs';
 import path from 'node:path';
 import { hermitDir } from './lib/cc-compat';
+import { appendUsageEvent } from './lib/usage-ledger';
 
 const AGENT_DIR = hermitDir();
 const STATE_PATH = path.join(AGENT_DIR, 'state', 'last-operator-action.json');
@@ -45,6 +46,38 @@ function isRoutinePrompt(prompt: string): boolean {
   return false;
 }
 
+// User-typed skill invocations bypass the Skill tool entirely (live-probed
+// 2026-07-10: zero PostToolUse events fire), so scripts/usage-track.ts never
+// sees them. This is the only capture point for that path.
+//
+// The raw UserPromptSubmit payload for an operator-typed slash command is the
+// bare text as typed (e.g. "/claude-code-hermit:recall") — empirically
+// verified 2026-07-10 (CC v2.1.206) via a raw-stdin capture. The
+// <command-message>/<command-name> wrapper visible in stored transcripts is
+// added later by CC's own prompt-expansion pipeline and never reaches this
+// hook's stdin; an earlier design assumed otherwise by reading transcripts
+// instead of the hook boundary, which was wrong.
+//
+// Restricted to the namespaced `plugin:skill` form (colon required) so
+// native CC commands (/model, /clear, /effort, ...) — never namespaced —
+// can't be mistaken for skill usage. This also means a bare, un-namespaced
+// personal/project skill (e.g. /tackle-issue) isn't captured here; documented
+// as a known gap rather than risking false "skill" entries from native
+// commands. A path or prose that happens to start with "/" only matches if it
+// has the exact "/word:word " shape, which is vanishingly rare.
+const SLASH_COMMAND_RE = /^\/([a-zA-Z][a-zA-Z0-9_-]*:[a-zA-Z][a-zA-Z0-9_-]*)(?:\s|$)/;
+
+function extractSkillName(prompt: string): string | null {
+  const m = prompt.match(SLASH_COMMAND_RE);
+  return m ? m[1] : null;
+}
+
+function appendSkillUsage(name: string): void {
+  try {
+    appendUsageEvent(AGENT_DIR, { ts: new Date().toISOString(), kind: 'skill', name, source: 'prompt' });
+  } catch { /* fail-open */ }
+}
+
 function main(raw: string): void {
   let prompt: string | null = null;
   try {
@@ -56,6 +89,9 @@ function main(raw: string): void {
     if (!fs.existsSync(STATE_PATH)) write();
     return;
   }
+
+  const skillName = extractSkillName(prompt);
+  if (skillName) appendSkillUsage(skillName);
 
   if (!isRoutinePrompt(prompt)) write();
 }

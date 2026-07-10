@@ -161,6 +161,7 @@ See [Always-On Operations](always-on-ops.md) for tmux setup and operational deta
 │   ├── reflection-state.json  <- last reflection timestamp + scheduled check state
 │   ├── routine-metrics.jsonl <- append-only routine fire log
 │   ├── proposal-metrics.jsonl <- append-only event log
+│   ├── usage-metrics.jsonl    <- append-only skill/compiled-read usage log
 │   ├── micro-proposals.json   <- pending micro-approvals list (pending[])
 │   └── state-summary.md       <- auto-generated health snapshot
 ├── raw/                       <- domain inputs (fetched content, snapshots, logs)
