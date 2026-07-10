@@ -12,7 +12,7 @@ import { execSync } from 'node:child_process';
 import { readFrontmatter, readFileWithFrontmatter, globDir } from './lib/frontmatter';
 import { hermitDir } from './lib/cc-compat';
 import { findStorageDrift, findSchemaDrift } from './lib/drift';
-import { safe } from './lib/sanitize';
+import { safe, safeForLLMMultiline, scanInjected } from './lib/sanitize';
 import { resolve as resolveOutboundChannel } from './resolve-outbound-channel';
 import { formatTokens } from './lib/format';
 
@@ -37,6 +37,24 @@ const BUDGETS = {
   upgrade:        500,
 };
 
+// Injection-time content guard: defuse context-marker tags in everything we
+// emit; replace an entry outright when a threat marker matches. The file on
+// disk is never touched — hits are recorded for the doctor context-scan check.
+const scanHits: { source: string; reason: string }[] = [];
+
+// Scans `text`, records a hit against `source` when a marker fires, and
+// returns the reason (or null when clean).
+function checkThreat(source: string, text: string): string | null {
+  const reason = scanInjected(text);
+  if (reason) scanHits.push({ source, reason });
+  return reason;
+}
+
+function guarded(source: string, text: string): string {
+  const reason = checkThreat(source, text);
+  return reason ? `[BLOCKED: ${reason}]` : safeForLLMMultiline(text);
+}
+
 // Emit artifact entries for a list, tracking chars used against a budget.
 // headerFn(artifact) → string used as the section header per entry.
 // Pinned and recent budgets are intentionally isolated — unused pinned budget
@@ -52,11 +70,14 @@ function emitArtifacts(artifacts: Json[], budget: number, headerFn: (a: Json) =>
     let entry: string;
     if (stub) {
       if (stubRaw.length > available) continue; // too long for remaining budget — skip rather than garble
-      entry = header + stubRaw;
+      entry = header + guarded(`compiled/${a.basename}.md`, stubRaw);
     } else {
       const body = a.body || '';
       const snippet = body.slice(0, available);
-      entry = header + snippet + (snippet.length < body.length ? '\n[...]\n' : '');
+      const blockReason = checkThreat(`compiled/${a.basename}.md`, snippet);
+      const content = blockReason ? `[BLOCKED: ${blockReason}]` : safeForLLMMultiline(snippet);
+      entry = header + content
+        + (blockReason ? '' : (snippet.length < body.length ? '\n[...]\n' : ''));
     }
     parts.push(entry);
     used += entry.length;
@@ -152,7 +173,7 @@ function main(source: string | null) {
   try {
     const lines = fs.readFileSync(operatorPath, 'utf-8').split('\n').slice(0, 50).join('\n');
     if (lines.trim()) {
-      emit('Session Context', lines.slice(0, BUDGETS.operator));
+      emit('Session Context', guarded('OPERATOR.md', lines.slice(0, BUDGETS.operator)));
     }
   } catch {
     // No OPERATOR.md — skip silently
@@ -203,7 +224,7 @@ function main(source: string | null) {
 
     const sessionOutput = parts.join('\n\n');
     if (sessionOutput.trim()) {
-      emit('Active Session', sessionOutput.slice(0, BUDGETS.session));
+      emit('Active Session', guarded('sessions/SHELL.md', sessionOutput.slice(0, BUDGETS.session)));
     } else {
       emit('Active Session', 'Session file exists but has no actionable content');
     }
@@ -295,6 +316,10 @@ function main(source: string | null) {
               let entry = `- ${a.basename} [${a.fm.type || 'artifact'}]`
                 + (date ? ` (${date})` : '') + (tags ? ` ${tags}` : '');
               if (summary) entry += `\n  ${summary.slice(0, 100)}`;
+              const blockReason = checkThreat(`compiled/${a.basename}.md`, entry);
+              entry = blockReason
+                ? `- ${a.basename} [BLOCKED: ${blockReason}]`
+                : safeForLLMMultiline(entry);
               if (used + entry.length + 1 > catalogBudget) break;
               catLines.push(entry);
               used += entry.length + 1;
@@ -385,7 +410,7 @@ function main(source: string | null) {
           reportExcerpt += reportContent.split('\n').slice(0, 20).join('\n');
         }
 
-        emit('Last Report', reportExcerpt.slice(0, BUDGETS.report));
+        emit('Last Report', guarded(`sessions/${reports[0]}`, reportExcerpt.slice(0, BUDGETS.report)));
       } else {
         emit('Last Report', 'No previous sessions');
       }
@@ -408,6 +433,18 @@ function main(source: string | null) {
       // Non-fatal
     }
   }
+
+  // -------------------------------------------------------
+  // 9. Persist scan record (always — empty hits clear a prior warning)
+  // -------------------------------------------------------
+  try {
+    const stateDir = path.resolve(AGENT_DIR, 'state');
+    fs.mkdirSync(stateDir, { recursive: true });
+    const scanPath = path.join(stateDir, 'context-scan.json');
+    const tmp = scanPath + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify({ ts: new Date().toISOString(), hits: scanHits }, null, 2) + '\n', { encoding: 'utf-8', mode: 0o600 });
+    fs.renameSync(tmp, scanPath);
+  } catch {}
 }
 
 if (import.meta.main) {

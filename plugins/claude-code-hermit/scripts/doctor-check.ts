@@ -1339,6 +1339,34 @@ function checkModelPricingKnown() {
   }
 }
 
+// ----------------- Context scan -----------------
+// Reads the record startup-context.ts writes on every SessionStart: which
+// injected entries (compiled/ bodies, catalog summaries, OPERATOR/SHELL
+// excerpts, last report) tripped the injection-marker scan and were blocked.
+// The scan itself never mutates files — this check just surfaces its verdict.
+
+function checkContextScan() {
+  try {
+    const p = path.join(stateDir, 'context-scan.json');
+    if (!fs.existsSync(p)) {
+      return { id: 'context-scan', status: 'ok', detail: 'no scan record yet (written on next session start)' };
+    }
+    const d = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    const hits = Array.isArray(d.hits) ? d.hits : [];
+    if (hits.length === 0) {
+      return { id: 'context-scan', status: 'ok', detail: 'startup injection clean' };
+    }
+    const sources = [...new Set(hits.map((h: Json) => String(h.source)))];
+    const shown = sources.slice(0, 3).join(', ') + (sources.length > 3 ? ', …' : '');
+    return {
+      id: 'context-scan', status: 'warn',
+      detail: `${hits.length} blocked entr${hits.length === 1 ? 'y' : 'ies'} in startup injection (${shown}) — content stays on disk; inspect or remove the flagged files`,
+    };
+  } catch (e: any) {
+    return { id: 'context-scan', status: 'fail', detail: `check failed: ${e.message}` };
+  }
+}
+
 // ----------------- Routine cost -----------------
 // Flags expensive-outlier routines (e.g. a "light" haiku routine that turns out to read
 // broad state and costs $15/run) so they surface without manually cross-referencing
@@ -1534,6 +1562,7 @@ async function runAllChecks() {
     checkRawSize(),
     checkCredentialExpiry(),
     checkModelPricingKnown(),
+    checkContextScan(),
     await checkChannelLiveness(),
   ];
 }
@@ -1557,7 +1586,7 @@ export {
   checkCost, checkProposals, checkDependencies, checkVersionCurrency, checkPermissions,
   checkDockerSecurity, checkArchival, checkReflectLoop, checkScheduler,
   checkWatchdog, checkContextAge, checkOpusWake, checkRoutineCost, checkHeartbeat, checkRawSize,
-  checkCredentialExpiry, checkModelPricingKnown, checkChannelLiveness,
+  checkCredentialExpiry, checkModelPricingKnown, checkContextScan, checkChannelLiveness,
   satisfiesRange, cidrOverlap,
   // runAllChecks is async (checkChannelLiveness performs network I/O) — callers must await it.
   runAllChecks, writeReport,

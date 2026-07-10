@@ -1844,11 +1844,11 @@ const DOCTOR_CHECK_IDS = [
   'runtime', 'config', 'hooks', 'state', 'cost', 'proposals', 'dependencies', 'version-currency',
   'permissions', 'docker-security', 'archive', 'reflect', 'scheduler', 'watchdog', 'context-age',
   'opus-wake', 'routine-cost', 'heartbeat', 'raw-size', 'credential-expiry', 'model-pricing-known',
-  'channel-liveness',
+  'context-scan', 'channel-liveness',
 ];
 
 describe('doctor report contract (PROP-018 count pin)', () => {
-  test('report emits exactly the 22 pinned check ids, in order', withTmpdir(async (dir) => {
+  test('report emits exactly the 23 pinned check ids, in order', withTmpdir(async (dir) => {
     writeConfig(dir, {});
     const report = await runDoctorCheck(dir);
     expect((report.checks ?? []).map((c: any) => c.id)).toEqual(DOCTOR_CHECK_IDS);

@@ -4,6 +4,7 @@
 
 ### Added
 - **enforce-deny-patterns: closed the documented `rm -rf` bypass** — matches `rm -fr`/`rm -r -f`/`rm -f -r` and `/bin/rm`/`./rm`-prefixed spellings now, bare and behind `&&`/`;`/`|`; matching also normalizes doubled whitespace, unquoted `$IFS`, and backslash-continuation obfuscation (quote-aware — never folds quoted data). Same patterns merge into the native `settings.json` deny array via `apply-settings.ts deny`.
+- **startup-context: injection-time threat scan** — everything the SessionStart hook injects (compiled bodies/stubs, catalog summaries, OPERATOR.md/SHELL.md excerpts, last report) is routed through the context-marker defuser plus a tight marker scan (injection phrases, credential-shaped strings); a hit replaces only that entry with `[BLOCKED: <reason>]` while the file on disk stays untouched. Hits persist to `state/context-scan.json`; new `context-scan` doctor check surfaces them. Defense-in-depth for context integrity, not a permission boundary.
 
 ### Upgrade Instructions
 
