@@ -164,10 +164,9 @@ describe('proposal-create: ## Skill Draft variant', () => {
   });
 
   test('proposal-create: triage-verdict emission carries tags (segments triage-survival)', () => {
-    const verdictLines = proposalCreate
-      .split('\n')
-      .filter((l) => l.includes('"type":"triage-verdict"'));
-    expect(verdictLines.some((l) => l.includes('"tags"'))).toBe(true);
+    // Emitted by record-gate.ts (tests/scripts.test.ts describe('record-gate') guards
+    // the field lands in the actual event); this guards the call site passes `--tags`.
+    expect(proposalCreate).toContain("--tags '[<caller-supplied tags>]'");
   });
 });
 

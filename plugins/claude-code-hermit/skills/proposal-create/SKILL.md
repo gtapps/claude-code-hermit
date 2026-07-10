@@ -32,48 +32,36 @@ Evidence: <one-paragraph evidence summary>
 
 `Evidence Source:` is optional (default: `archived-session`). `Evidence Origin:` is optional (default: `own-work`).
 
-This is a single-candidate call (a batch of one), so the response is one verdict block. Parse its line 1 as the verdict. Lines 2+ are additive metadata (`closest_prop`, `aligned`, `operator_excerpt`, `overlap_compiled`, `prior_discussion`, `failed_condition`) — read for context if useful but do not branch on them.
-
-After receiving the verdict, append one event to `state/proposal-metrics.jsonl`:
+This is a single-candidate call (a batch of one), so the response is one verdict block. Lines 2+ are additive metadata (`closest_prop`, `aligned`, `operator_excerpt`, `overlap_compiled`, `prior_discussion`, `failed_condition`) — read for context if useful but do not branch on them. Record line 1 as the verdict:
 ```bash
-bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
-  .claude-code-hermit/state/proposal-metrics.jsonl \
-  '{"ts":"<now ISO>","type":"triage-verdict","verdict":"<CREATE|SUPPRESS|DUPLICATE>","caller":"proposal-create","evidence_source":"<evidence source>","tags":[<caller-supplied tags>]}'
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/record-gate.ts .claude-code-hermit --gate triage --caller proposal-create \
+    --evidence-source "<evidence source>" --tags '[<caller-supplied tags>]' <<'HERMIT_GATE'
+Title: <proposal title>
+Verdict: <the agent's line 1, verbatim>
+HERMIT_GATE
 ```
 `evidence_source` is the `Evidence Source:` value the caller passed (default `archived-session`). `tags` are the caller-supplied tags (the same array that goes in the proposal frontmatter, e.g. `["procedure-capture"]`); use `[]` if none. Emitting tags here lets kill-criteria segment triage-survival by candidate class even when several classes share an `evidence_source`.
 
-- `CREATE: <title>` — proceed with the steps below
-- `DUPLICATE: <title> — <PROP-ID>: <reason>`: stop, report to the caller: "Proposal already exists as <PROP-ID>"
-- `SUPPRESS: <title> — <code>: <reason>`: stop, report the suppression reason to the caller
-- **Unrecognized line 1** (agent errored, returned malformed/empty output, or was terminated before emitting a verdict): fail closed — do not create the proposal; skip the triage-verdict append above. Append:
-  ```bash
-  bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
-    .claude-code-hermit/state/proposal-metrics.jsonl \
-    '{"ts":"<now ISO>","type":"gate-failed","agent":"proposal-triage","title":"<title>"}'
-  ```
-  Note `gate-failed: proposal-triage — <title>` in the SHELL.md Progress Log. The candidate re-surfaces on the next reflect cycle.
+- `PROCEED|CREATE` — proceed with the steps below
+- `DROP|DUPLICATE:<PROP-ID>` — stop, report to the caller: "Proposal already exists as <PROP-ID>"
+- `DROP|SUPPRESS:<code>` — stop, report the suppression reason (from the agent's line 1) to the caller
+- `GATE_FAILED` (unrecognized/empty line 1 — agent errored, returned malformed output, or was terminated before emitting a verdict): fail closed — do not create the proposal. Note `gate-failed: proposal-triage — <title>` in the SHELL.md Progress Log. The candidate re-surfaces on the next reflect cycle.
 
 ## How to Create
 
-1. Determine the next proposal ID and creation timestamp:
-   - List all `.claude-code-hermit/proposals/PROP-*.md` files
-   - Extract the integer from each filename (regex `PROP-(\d+)`), take the max, add 1; zero-pad to 3 digits. If none exist, start at `001`.
-   - Capture current time as `HHMMSS` (6 digits, zero-padded) in the `timezone` from `config.json`, or UTC if unset.
-   - Canonical ID: `PROP-NNN-<slug>-HHMMSS` (e.g. `PROP-009-capability-brainstorm-103612`). This is what goes in frontmatter `id:` and in all cross-references. The ID equals the filename stem — there is no separate short form in the file.
+1. Determine the next proposal ID:
+   ```bash
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/next-prop-id.ts .claude-code-hermit <<'HERMIT_TITLE'
+   <proposal title>
+   HERMIT_TITLE
+   ```
+   Output is the canonical ID `PROP-NNN-<slug>-HHMMSS` (e.g. `PROP-009-capability-brainstorm-103612`) — what goes in frontmatter `id:` and in all cross-references. The ID equals the filename stem — there is no separate short form in the file. The script resolves the next `NNN`, generates the slug, stamps `HHMMSS` in `config.json`'s timezone (UTC if unset), and appends a same-second collision-suffix letter (`a`, `b`, …) if the target filename already exists.
 
 2. Build the filename and create the proposal file:
-   - Generate a slug from the title:
-     a. Drop non-ASCII characters, lowercase.
-     b. Replace every run of non-`[a-z0-9]` characters with a single space.
-     c. Split into tokens; drop stopwords: `a an the and or of for to in on with by from as is are`.
-     d. If filter leaves zero tokens, fall back to the pre-filter token list.
-     e. Take the first 5 tokens; join with `-`; truncate to 40 chars at a word boundary (drop trailing tokens until ≤40 chars; if a single token exceeds 40, hard-cut it).
-     f. If after all steps the slug is empty (title was all punctuation, all non-ASCII, or itself empty), use the literal `proposal` as the slug. The filename and id must never contain a double-dash like `PROP-009--HHMMSS`.
-   - Target filename: `PROP-NNN-<slug>-HHMMSS.md` (e.g. `PROP-009-capability-brainstorm-103612.md`).
-   - If the target filename already exists (same-second collision), append `a` to both the filename (`...-HHMMSSa.md`) and the `id` field (`PROP-NNN-slug-HHMMSSa`). On further collisions, continue through `b`, `c`, … in order.
-   - Create `.claude-code-hermit/proposals/PROP-NNN-<slug>-HHMMSS.md` using `.claude-code-hermit/templates/PROPOSAL.md.template`:
+   - Target filename: `<id>.md` (e.g. `PROP-009-capability-brainstorm-103612.md`).
+   - Create `.claude-code-hermit/proposals/<id>.md` using `.claude-code-hermit/templates/PROPOSAL.md.template`:
    - Write YAML frontmatter with:
-     - `id`: the canonical ID `PROP-NNN-<slug>-HHMMSS` (or `PROP-NNN-<slug>-HHMMSSa` if the collision guard fired) — equals the filename stem without `.md`
+     - `id`: the canonical ID from step 1 — equals the filename stem without `.md`
      - `status`: `proposed`
      - `source`: `manual` (default), `auto-detected` (when invoked by `reflect`), or `operator-request` (when triggered by a direct operator request). This field records **proposal origin only** — gate bypass is controlled by the caller-supplied `Evidence Source:` above, not by `source:`.
      - `session`: the current session ID (S-NNN)

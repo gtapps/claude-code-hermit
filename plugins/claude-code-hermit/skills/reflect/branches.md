@@ -20,7 +20,7 @@ Invoked from SKILL.md § Scheduled-checks mode. Run at most one due check, then 
      Evidence: <one-paragraph summary>
      Sessions: none
      ```
-     Pass it to § Candidate processing → Evidence Validation (`claude-code-hermit:reflection-judge`). On ACCEPT/DOWNGRADE, gate with the Proposal triage gate (`claude-code-hermit:proposal-triage`, a batch of one here — single candidate) — when appending the `triage-verdict` metric, set `"caller":"scheduled-checks"`. On triage `CREATE: <title>`: Tier 1/2 → Micro-approval queuing; Tier 3 → `/claude-code-hermit:proposal-create`. `SUPPRESS: <title> — ...`/`DUPLICATE: <title> — ...` from triage, or SUPPRESS from the judge → drop silently (note in the Progress Log). An unrecognized judge or triage verdict → fail closed per § Gate failure handling; the candidate re-surfaces on the next scheduled-checks run.
+     Pass it to § Candidate processing → Evidence Validation (`claude-code-hermit:reflection-judge`). On a `PROCEED` token, gate with the Proposal triage gate (`claude-code-hermit:proposal-triage`, a batch of one here — single candidate; pass `--caller scheduled-checks` to `record-gate.ts`). On triage `PROCEED|CREATE`: Tier 1/2 → Micro-approval queuing; Tier 3 → `/claude-code-hermit:proposal-create`. A `DROP|...` token from either gate → drop silently (note in the Progress Log). `GATE_FAILED` from either gate → fail closed per § Gate failure handling; the candidate re-surfaces on the next scheduled-checks run.
    - **`empty`:** no candidate. `consecutive_empty += 1` (persisted in step 7). Check the interval-adjustment rule below.
    - **`unavailable`:** note in SHELL.md `## Findings`: `Scheduled check skipped: <id> — skill unavailable (cooldown 4h)`. No candidate.
    - **`error`:** note in SHELL.md `## Findings`: `Scheduled check error: <id> — retrying after interval_days`. No candidate.
@@ -112,21 +112,21 @@ Artifact: <machine-written state file> — <cited value/pattern>   (optional)
 
 `scheduled-check/<id>` and `operator-request` share the same bypass policy at every gate (skip recurrence, enforce consequence + actionability). They are **kept distinct on purpose**: `scheduled-check/<id>` carries the check identifier for telemetry and debugging; `operator-request` marks human-initiated flows (e.g. baseline audits in `session-start`). Future routing will read them as different provenance classes. Do not collapse them into one value.
 
-The judge returns one verdict line per candidate, matched by `<title>`. Apply the routing below to each line independently; only act on ACCEPT and DOWNGRADE:
-- **ACCEPT** or **ACCEPT (<source>)** — proceed with the candidate at its original tier.
-- **DOWNGRADE:<new-tier>** or **DOWNGRADE:<new-tier> (<source>)** — proceed at the revised tier. When the reason contains `quarantine: external origin`, the revised tier is 3 regardless of apparent reversibility — route to `proposal-create` and pass `Evidence Origin: external-content` through so proposal-create can write the operator-visible provenance line in the PROP body. reflect does not write the PROP body itself.
-- **SUPPRESS** — if suppressed with code `no-sessions`, note the candidate in SHELL.md Findings for future revisit. Otherwise drop silently.
-- **Unrecognized line** for a candidate (agent errored, returned malformed/empty output, or was terminated mid-batch): fail closed per § Gate failure handling with `"agent":"reflection-judge"`.
+The judge returns one verdict line per candidate, matched by `<title>`. For each candidate, record its line:
+```bash
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/record-gate.ts .claude-code-hermit --gate judge --caller reflect <<'HERMIT_GATE'
+Title: <title>
+Verdict: <the judge's line for this candidate, verbatim>
+HERMIT_GATE
+```
+- `PROCEED|ACCEPT` — proceed with the candidate at its original tier.
+- `PROCEED|DOWNGRADE:<N>` — proceed at the revised tier `N`. When the judge's reason contains `quarantine: external origin`, the judge itself already forced `N` to 3 — route to `proposal-create` and pass `Evidence Origin: external-content` through so proposal-create can write the operator-visible provenance line in the PROP body. reflect does not write the PROP body itself.
+- `DROP|SUPPRESS:<code>` — if `<code>` is `no-sessions`, note the candidate in SHELL.md Findings for future revisit. Otherwise drop silently.
+- `GATE_FAILED` — see § Gate failure handling.
 
 ### Gate failure handling
 
-Shared fail-closed path for both gate agents. On an unrecognized, malformed, or empty verdict: treat as SUPPRESS — do not create or queue the candidate (for triage failures, skip the triage-verdict append too). Append the metric:
-```bash
-bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
-  .claude-code-hermit/state/proposal-metrics.jsonl \
-  '{"ts":"<now ISO>","type":"gate-failed","agent":"<reflection-judge|proposal-triage>","title":"<title>"}'
-```
-Note `gate-failed: <agent> — <title>` in the SHELL.md Progress Log. The candidate re-surfaces on the next reflect cycle.
+`record-gate.ts` fails closed by construction: an unrecognized, malformed, or empty verdict line always returns `GATE_FAILED` and appends the `gate-failed` metric itself (agent tagged via `--gate triage|judge`) — no separate append needed at the call site. On `GATE_FAILED`: do not create or queue the candidate. Note `gate-failed: <agent> — <title>` in the SHELL.md Progress Log. The candidate re-surfaces on the next reflect cycle.
 
 ### Component Health signal ladder
 
@@ -153,20 +153,17 @@ Evidence Origin: <own-work | external-content, or omit to default to own-work>
 Evidence: <one-paragraph evidence summary>
 ```
 
-The gate returns one verdict block per candidate, matched by `<title>`:
-- `CREATE: <title>` — proceed
-- `DUPLICATE: <title> — <PROP-ID>: <reason>` — link to existing proposal in SHELL.md Findings instead, do not create
-- `SUPPRESS: <title> — <code>: <reason>` — drop silently
-- **Unrecognized or missing verdict for a candidate's title** — fail closed per § Gate failure handling with `"agent":"proposal-triage"`, for that candidate only; the rest of the batch proceeds on its own verdicts.
-
-Parse each block's line 1 as that candidate's verdict. Lines 2+ in a block are additive metadata (`closest_prop`, `aligned`, `operator_excerpt`, `overlap_compiled`, `prior_discussion`, `failed_condition`) — read for context if useful, but do not treat as part of the verdict for branching.
-
-After receiving the verdicts, append one `triage-verdict` event per candidate to `state/proposal-metrics.jsonl` (loop over the batch). Use `"caller":"reflect"` on a normal reflect run, or `"caller":"scheduled-checks"` when invoked via § Scheduled checks:
+The gate returns one verdict block per candidate, matched by `<title>`. Line 1 of each block is that candidate's verdict; lines 2+ are additive metadata (`closest_prop`, `aligned`, `operator_excerpt`, `overlap_compiled`, `prior_discussion`, `failed_condition`) — read for context if useful, but do not treat as part of the verdict for branching. For each candidate, record its verdict line (use `"caller":"reflect"` on a normal reflect run, or `"caller":"scheduled-checks"` when invoked via § Scheduled checks):
 ```bash
-bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
-  .claude-code-hermit/state/proposal-metrics.jsonl \
-  '{"ts":"<now ISO>","type":"triage-verdict","verdict":"<CREATE|SUPPRESS|DUPLICATE>","caller":"reflect"}'
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/record-gate.ts .claude-code-hermit --gate triage --caller reflect <<'HERMIT_GATE'
+Title: <title>
+Verdict: <that candidate's line 1, verbatim>
+HERMIT_GATE
 ```
+- `PROCEED|CREATE` — proceed
+- `DROP|DUPLICATE:<PROP-ID>` — link to existing proposal in SHELL.md Findings instead, do not create
+- `DROP|SUPPRESS:<code>` — drop silently
+- `GATE_FAILED` — see § Gate failure handling, for that candidate only; the rest of the batch proceeds on its own verdicts.
 
 ### Outcomes
 
@@ -174,7 +171,7 @@ After validating with `claude-code-hermit:reflection-judge`, choose exactly one 
 
 1. **No action** — pattern not strong enough, already handled, or already addressed by the Resolution Check.
 2. **Memory update** — for **durable lessons** worth remembering for future sessions: operator-stated rules, preferences that recurred, decision rationales that may apply later, workflow patterns that worked. Issue the standard "remember it" reflection — the trained auto-memory flow handles the write, with its own discipline (concise, MEMORY.md ≤ 200 lines / 25KB, topic files for detail, respect WHAT_NOT_TO_SAVE). Save nothing if nothing rises above noise. Sub-threshold *patterns* do NOT go to memory — they go to the observations ledger; keeping the recurrence store separate from operator memory is what prevents the judge's `covered-by-memory` check from suppressing a pattern at the moment it graduates.
-3. **Proposal candidate** — classify tier (§ Proposal Tier Classification) for every candidate reaching this outcome, batch them all through the Proposal triage gate together, then per candidate on its own verdict: Tier 1/2 CREATE → queue micro-approval in `state/micro-proposals.json`; Tier 3 CREATE → call `/claude-code-hermit:proposal-create` (exception: procedure-capture candidates skip the separate pre-gate — see § Procedure capture).
+3. **Proposal candidate** — classify tier (§ Proposal Tier Classification) for every candidate reaching this outcome, batch them all through the Proposal triage gate together, then per candidate on its own token: Tier 1/2 `PROCEED|CREATE` → queue micro-approval in `state/micro-proposals.json`; Tier 3 `PROCEED|CREATE` → call `/claude-code-hermit:proposal-create` (exception: procedure-capture candidates skip the separate pre-gate — see § Procedure capture).
 
 Sub-threshold observations do not surface to the operator in steady state. Append them to the observations ledger with a short stable pattern label via stdin heredoc (labels are free text and may contain apostrophes):
 ```bash
@@ -195,24 +192,19 @@ Review past dismissed and deferred proposals. Avoid re-suggesting recently dismi
 
 Every micro-proposal question must include: **[observed pattern + duration] + [consequence] + [exact proposed change] + "Yes / No"** (or the exact option labels, for an `options` entry). Do not queue vague questions like "Found a pattern. Want me to improve it?" — all three components must be present.
 
-Dedup: do not re-append the same candidate if an entry with the same title/id already exists in `pending`.
-
 Queuing procedure:
 
-1. Generate ID: `MP-YYYYMMDD-N` where N increments within the same day (0, 1, 2). Check existing `micro-queued` events in `proposal-metrics.jsonl` for today to determine N.
-2. Read `state/micro-proposals.json`. Append a new entry to `pending` with `id: "MP-YYYYMMDD-N"`, `tier: <1|2>`, `status: "pending"`, `follow_up_count: 0`, `ts: "<now ISO>"`, `question: "<full question text>"`. Write the file.
+```bash
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/queue-micro-proposal.ts .claude-code-hermit <<'HERMIT_MP'
+{"tier":<1|2>,"question":"<full question text>","options":["<label>", ...],"on_resolve":"<full skill invocation with an {answer} placeholder>"}
+HERMIT_MP
+```
+`options` and `on_resolve` are optional — used by channel-bridged asks from other skills (see `channel-responder` § Channel-safe ask bridge) as well as reflect's own future N-way candidates. When `on_resolve` is present, the script forces `tier: 1` regardless of the caller-supplied tier (so tier-1 readers like heartbeat keep working unchanged) and tags the metrics event `"kind":"ask"` (a bounded ask is not a yes/no approval, so `generate-summary.ts`/`weekly-review.ts` exclude it from approval-rate calculations).
 
-   Entries MAY also carry two optional fields, used by channel-bridged asks from other skills (see `channel-responder` § Channel-safe ask bridge) as well as reflect's own future N-way candidates:
-   - `options: ["<label>", ...]` — 2-4 short labels. Absent means a plain yes/no entry (fully backward compatible).
-   - `on_resolve: "<full skill invocation with an {answer} placeholder>"` — when present, resolving the entry substitutes the chosen label into `{answer}` (the resolver quotes it, so multi-word labels stay one argument) and invokes the resulting command, superseding the tier-based yes/no handling. Bridge entries always set `tier: 1` regardless of the asking skill's own tiering, so tier-1 readers (e.g. heartbeat) keep working unchanged.
-3. Append `micro-queued` event to `proposal-metrics.jsonl` via stdin heredoc (question is free text and may contain apostrophes):
-   ```bash
-   bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl <<'HERMIT_METRICS_JSON'
-   {"ts":"<now ISO>","type":"micro-queued","micro_id":"MP-YYYYMMDD-N","tier":1,"question":"<full question text>"}
-   HERMIT_METRICS_JSON
-   ```
-   For a channel-bridged ask (the entry carries `on_resolve`), add `"kind":"ask"` to this event. It still fires — so step 1's per-day `N` counter stays correct — but the marker tells the approval-rate readers (`generate-summary.ts`, `weekly-review.ts`) to exclude it: a bounded ask is not a yes/no approval. Its eventual `micro-resolved`/`answered` event is audit-only and, being neither `approved` nor `rejected`, is already outside those rates.
-4. Notify the operator with the question. Entries without `options`: `MP-YYYYMMDD-N (tier <N>): <question>` — Reply `"MP-YYYYMMDD-N yes"` or `"MP-YYYYMMDD-N no"` (bare `yes`/`no` accepted when only one entry is pending). Entries with `options`: render them numbered (`1. <label>`, `2. <label>`, ...) under the question and hint `Reply "MP-YYYYMMDD-N <number or label>"` (bare number/label accepted when only one entry is pending).
+- `QUEUED|MP-YYYYMMDD-N` — the script generates the day-scoped ID, appends the `pending` entry to `state/micro-proposals.json`, and logs the `micro-queued` metric event.
+- `DUPLICATE|<existing-id>` — a pending entry with the same `question` already exists; nothing written.
+
+Notify the operator with the question (using the returned or existing id). Entries without `options`: `MP-YYYYMMDD-N (tier <N>): <question>` — Reply `"MP-YYYYMMDD-N yes"` or `"MP-YYYYMMDD-N no"` (bare `yes`/`no` accepted when only one entry is pending). Entries with `options`: render them numbered (`1. <label>`, `2. <label>`, ...) under the question and hint `Reply "MP-YYYYMMDD-N <number or label>"` (bare number/label accepted when only one entry is pending).
 
 ### Procedure capture (new-skill creation)
 

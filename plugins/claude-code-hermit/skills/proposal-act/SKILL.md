@@ -8,7 +8,7 @@ Take action on a proposal: accept, defer, dismiss, or resolve.
 
 ## Step 0 — Channel reply
 
-If this skill was invoked from a channel-arrived message (the inbound prompt contains a `<channel source="...">` tag), reply via that channel's reply tool. Otherwise emit to conversation. On a channel-tagged turn, step 4's bounded ask (below) also queues a durable micro-proposal entry — see `channel-responder` § Channel-safe ask bridge (schema: `reflect` § Queuing procedure) — so it survives compaction or a session restart.
+If this skill was invoked from a channel-arrived message (the inbound prompt contains a `<channel source="...">` tag), reply via that channel's reply tool. Otherwise emit to conversation. On a channel-tagged turn, step 4's bounded ask (below) also queues a durable micro-proposal entry via `queue-micro-proposal.ts` — see `channel-responder` § Channel-safe ask bridge — so it survives compaction or a session restart.
 
 ## Usage
 
@@ -26,26 +26,21 @@ If no action or ID is provided, ask the operator which proposal and action.
 
 ## Resolving a Proposal ID
 
-Before reading any proposal file, resolve the operator's input to a filename using this algorithm:
-
-1. Trim whitespace and uppercase the input.
-2. Match against `/^PROP-(\d+)(?:-(.+))?$/`. If no match: error "Not a PROP id."
-3. Zero-pad the integer to 3 digits (e.g. `PROP-6` → `PROP-006`).
-4. Build the glob pattern. Always anchor: never use bare `PROP-NNN*.md` (collides with 4-digit NNN files like `PROP-0061.md` once proposal counts cross 1000).
-   - If no suffix (e.g. `PROP-006`): glob two anchored patterns and union the results: `PROP-006.md` (legacy exact match) plus `PROP-006-*.md` (new-format files with that integer).
-   - If suffix present (e.g. `PROP-006-103612` or `PROP-006-capability-brainstorm-103612`): glob `PROP-006-*<suffix>*.md`. The leading `-*` brackets the slug for timestamp-only inputs; the trailing wildcard catches the `a`/`b`/… collision-suffix variant. The disambiguation prompt resolves any over-matches.
-5. Glob `.claude-code-hermit/proposals/<pattern>` (or each pattern in turn for the two-pattern no-suffix case, then union).
-6. Count the matches:
-   - **0 matches**: error "No proposal matches [input]. Use /proposal-list to see available proposals."
-   - **1 match**: proceed with that file.
-   - **2+ matches**: show a disambiguation prompt:
-     ```
-     Multiple proposals match PROP-NNN:
-       PROP-NNN-capability-brainstorm-103612 — [title of first match]
-       PROP-NNN-session-cost-tracking-104207 — [title of second match]
-     Reply with the full ID to continue.
-     ```
-     Re-resolve with the operator's reply.
+Before reading any proposal file, resolve the operator's input to a filename:
+```bash
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-prop.ts .claude-code-hermit "<operator input>"
+```
+- `MATCH|<filename>` — proceed with that file.
+- `NONE|not-a-prop-id` — error "Not a PROP id."
+- `NONE|no-match` — error "No proposal matches [input]. Use /proposal-list to see available proposals."
+- `AMBIGUOUS|<json array of {file, title}>` — show a disambiguation prompt:
+  ```
+  Multiple proposals match PROP-NNN:
+    PROP-NNN-capability-brainstorm-103612 — [title of first match]
+    PROP-NNN-session-cost-tracking-104207 — [title of second match]
+  Reply with the full ID to continue.
+  ```
+  Re-resolve with the operator's reply.
 
 ## Timestamp Convention
 
@@ -93,7 +88,13 @@ When the operator accepts a proposal:
 
 4. Ask: **"How should this be implemented?"**
 
-   **Channel-tagged turn:** do not wait interactively for a reply in this turn. Send the question via the channel reply tool in plain voice with the three options numbered — "Suggestion #N — start now, queue it as a task, or leave it to you?" (derive `#N` per `proposal-list` §4a; never surface `PROP-NNN` or the title's bracket prefix to the channel). AND queue a pending micro-proposal entry per `reflect` § Queuing procedure: `question: "Suggestion #N accepted — how should it be implemented?"`, `options: ["implement now", "session task", "manual"]`, `tier: 1`, `on_resolve: "/claude-code-hermit:proposal-act accept PROP-NNN --answer {answer}"` (the `on_resolve` id stays `PROP-NNN` — internal, never shown). Then stop — steps 1-3c already ran, so `status: accepted` is a safe resting state until the operator answers (immediately in this same conversational turn, or later via the § Channel re-entry path below). The interactive terminal path below is unchanged.
+   **Channel-tagged turn:** do not wait interactively for a reply in this turn. Send the question via the channel reply tool in plain voice with the three options numbered — "Suggestion #N — start now, queue it as a task, or leave it to you?" (derive `#N` per `proposal-list` §4a; never surface `PROP-NNN` or the title's bracket prefix to the channel). AND queue a pending micro-proposal entry:
+   ```bash
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/queue-micro-proposal.ts .claude-code-hermit <<'HERMIT_MP'
+   {"tier":1,"question":"Suggestion #N accepted — how should it be implemented?","options":["implement now","session task","manual"],"on_resolve":"/claude-code-hermit:proposal-act accept PROP-NNN --answer {answer}"}
+   HERMIT_MP
+   ```
+   (the `on_resolve` id stays `PROP-NNN` — internal, never shown). Then stop — steps 1-3c already ran, so `status: accepted` is a safe resting state until the operator answers (immediately in this same conversational turn, or later via the § Channel re-entry path below). The interactive terminal path below is unchanged.
 
    - **"Start implementing now"** (default, typical answer): run the falsification gate, then handle session lifecycle, then execute in this turn.
      **Falsification gate (runs first, before any session transition).** Verify the proposal is actionable as written with a read-only pass. Skip only when the body contains `## Skill Improvement` **and** `/skill-creator:skill-creator` is in the available-skills list (step (e) routes that to `/skill-creator:skill-creator`) — if `## Skill Improvement` is present but skill-creator is absent, the proposal becomes a code-edit implementation, so the gate runs to produce a `PROCEED` file list for the dispatch. Also skip if the body contains `## Skill Draft` — authoring is delegated to `/skill-creator:skill-creator` on accept, not a code-edit plan — but first check that the `source_artifact` path listed in `## Skill Draft` exists and is readable (if the file is missing or unreadable, REJECT with code `stale-paths` — the procedure brief was removed or archived; the operator should re-run reflect to generate a fresh brief).

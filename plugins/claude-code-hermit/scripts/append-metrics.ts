@@ -11,7 +11,7 @@
 //   — required for free-text payloads (question, pattern labels, prose values)
 //     where apostrophes in single-quoted argv would corrupt the shell command.
 
-import fs from 'node:fs';
+import { appendJsonlLine } from './lib/append-jsonl';
 
 const filePath = process.argv[2];
 
@@ -21,18 +21,11 @@ if (!filePath) {
 }
 
 function append(eventJson: string): void {
-  if (!eventJson) {
-    console.error('Error: event payload is empty');
+  const err = appendJsonlLine(filePath!, eventJson);
+  if (err) {
+    console.error(err);
     process.exit(1);
   }
-  // Validate JSON before appending
-  try {
-    JSON.parse(eventJson);
-  } catch (err: any) {
-    console.error(`Invalid JSON: ${err.message}`);
-    process.exit(1);
-  }
-  fs.appendFileSync(filePath!, eventJson + '\n', 'utf-8');
 }
 
 if (process.argv[3] !== undefined) {
