@@ -16,6 +16,9 @@
 ### Changed
 - **proposal-act/proposal-create/reflect: mechanics prose collapsed to script calls** — operator-facing behavior is unchanged; each dispatch is now one script invocation instead of an inline algorithm, cutting ~2-4K tokens per proposal/reflect turn.
 
+### Fixed
+- **doctor routine-cost: window $/run to the routine's fire-tracking start** — the cumulative `cost-index.json` numerator was divided by a fire-count denominator that only covers the window since `routine-metrics.jsonl` tracking was added (#378), so hermits with lifetime cost predating that feature saw an inflated $/run and false warns on infrequent routines. Cost is now windowed to each routine's earliest tracked fire, falling back to the lifetime total when windowing isn't available.
+
 ### Upgrade Instructions
 
 Run `/claude-code-hermit:hermit-evolve` — it adds the four new `Bash(bun */scripts/*.ts*)` permission entries required for the new scripts to run unattended.

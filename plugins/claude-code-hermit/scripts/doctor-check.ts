@@ -10,7 +10,7 @@ import { parseDuration } from './lib/time';
 import { globDir, readFrontmatter } from './lib/frontmatter';
 import { validate } from './validate-config';
 import { kStr } from './lib/format';
-import { costIndexPath, readCostIndex, scanAutomatedOpus } from './lib/cost-log';
+import { costIndexPath, readCostIndex, scanAutomatedOpus, scanRoutineCostWindowed } from './lib/cost-log';
 import { costLogPath } from './lib/cc-compat';
 import { PRICING } from './lib/pricing';
 import { getEnabledChannels } from './hermit-start';
@@ -1408,6 +1408,13 @@ function checkRoutineCost() {
     // by_source key) out.
     const FIRE_EVENTS = new Set(['started', 'skipped-waiting', 'skipped-paused']);
     const fireCounts = new Map<string, number>();
+    // Earliest tracked fire `ts` per routine, keyed by cost-index by_source id — routine-metrics.jsonl
+    // tracking (added #378) can postdate part of a routine's lifetime cost-index accumulation, so the
+    // cost-index numerator (all-time cumulative) and this fire-count denominator (tracked-window only)
+    // can silently cover different windows, inflating $/run on hermits that predate the tracking
+    // feature (#573). Windowing the numerator to [earliest tracked fire, now] via
+    // scanRoutineCostWindowed below keeps both sides on the same window.
+    const cutoffBySource = new Map<string, string>();
     try {
       const lines = fs.readFileSync(path.join(stateDir, 'routine-metrics.jsonl'), 'utf-8').split('\n');
       for (const raw of lines) {
@@ -1417,6 +1424,11 @@ function checkRoutineCost() {
           const e = JSON.parse(line);
           if (e && typeof e.routine_id === 'string' && FIRE_EVENTS.has(e.event)) {
             fireCounts.set(e.routine_id, (fireCounts.get(e.routine_id) || 0) + 1);
+            if (typeof e.ts === 'string' && e.ts) {
+              const source = `routine:${e.routine_id}`;
+              const prev = cutoffBySource.get(source);
+              if (!prev || e.ts < prev) cutoffBySource.set(source, e.ts);
+            }
           }
         } catch {}
       }
@@ -1424,12 +1436,17 @@ function checkRoutineCost() {
       // routine-metrics.jsonl absent — fireCounts stays empty, handled as insufficient data below.
     }
 
+    const windowedCost = scanRoutineCostWindowed(costLog, cutoffBySource);
+
     const MIN_RUNS = 3; // avoid divide-by-small-N false positives
     const perRun: Array<{ id: string; costPerRun: number }> = [];
     for (const r of routines) {
       const runs = fireCounts.get(r.id) || 0;
       if (runs < MIN_RUNS) continue;
-      const cost = bySource[`routine:${r.id}`]?.cost;
+      // Prefer the windowed cost (same window as `runs`); fall back to the lifetime cost-index
+      // bucket when windowing isn't available (no valid fire ts, or cost-log.jsonl absent) —
+      // that preserves today's behavior wherever the new data source can't be used.
+      const cost = windowedCost.get(`routine:${r.id}`) ?? bySource[`routine:${r.id}`]?.cost;
       if (typeof cost !== 'number') continue;
       perRun.push({ id: r.id, costPerRun: cost / runs });
     }

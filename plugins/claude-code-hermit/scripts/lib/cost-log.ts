@@ -291,6 +291,41 @@ function scanAutomatedOpus(costLogFile: string, sinceDateInclusive: string, time
   return { count, cost };
 }
 
+// Per-source windowed cost sum, used by doctor-check.ts's routine-cost check to align the
+// cost numerator to the same window as its fire-count denominator (routine-metrics.jsonl
+// tracking can postdate part of a routine's lifetime cost-index accumulation — see #573).
+// `cutoffBySource` maps a by_source key (e.g. "routine:weekly-review") to an ISO-8601 UTC
+// timestamp string ("...Z"); only lines with a matching source AND timestamp >= that cutoff
+// are summed. Compared on epoch-ms via Date.parse, NOT lexicographically: the two writers use
+// different sub-second precision (routine-metrics.jsonl cutoffs are whole-second
+// `...T%H:%M:%SZ` from `date -u`, cost-log.jsonl timestamps are millisecond `...SS.mmmZ` from
+// `toISOString()`), and `...SS.mmmZ` sorts lexicographically *before* `...SSZ` because '.'
+// (0x2E) < 'Z' (0x5A) — so a same-second cost entry at the window boundary would be wrongly
+// excluded under string comparison. Epoch-ms comparison keeps both sides on the true instant.
+function scanRoutineCostWindowed(costLogFile: string, cutoffBySource: Map<string, string>): Map<string, number> {
+  const totals = new Map<string, number>();
+  if (!fs.existsSync(costLogFile) || cutoffBySource.size === 0) return totals;
+  const cutoffMsBySource = new Map<string, number>();
+  for (const [src, cutoff] of cutoffBySource) {
+    const ms = Date.parse(cutoff);
+    if (!Number.isNaN(ms)) cutoffMsBySource.set(src, ms);
+  }
+  for (const line of fs.readFileSync(costLogFile, 'utf8').split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const e = JSON.parse(line);
+      const src = e.source;
+      if (typeof src !== 'string') continue;
+      const cutoffMs = cutoffMsBySource.get(src);
+      if (cutoffMs === undefined || typeof e.timestamp !== 'string') continue;
+      const ts = Date.parse(e.timestamp);
+      if (Number.isNaN(ts) || ts < cutoffMs) continue;
+      totals.set(src, (totals.get(src) || 0) + (e.estimated_cost_usd || 0));
+    } catch { /* skip corrupt lines — checkCost already surfaces corruption */ }
+  }
+  return totals;
+}
+
 // Counts JSONL lines flagged model_unpriced:true (cost-tracker.ts marks a turn this way
 // when the raw model string didn't match any known haiku/sonnet/opus substring — still
 // priced at sonnet rates, but flagged so the drift is auditable). Mirrors scanAutomatedOpus's
@@ -349,4 +384,4 @@ function scanCostLogWarnings(costLogFile: string, sinceDateInclusive: string, ti
   return { opusWake, unpriced };
 }
 
-export { costIndexPath, readCostIndex, computeIndex, updateCostIndex, rebuildCostIndex, scanAutomatedOpus, scanUnpricedModels, scanCostLogWarnings };
+export { costIndexPath, readCostIndex, computeIndex, updateCostIndex, rebuildCostIndex, scanAutomatedOpus, scanUnpricedModels, scanCostLogWarnings, scanRoutineCostWindowed };

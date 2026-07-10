@@ -2349,6 +2349,46 @@ describe('doctor routine-cost check', () => {
     expect(c.status).toBe('warn');
     expect(c.detail).toContain('lonewolf');
   }), 20000);
+
+  test('#573: lifetime cost predating fire tracking is windowed out, not flagged', withTmpdir(async (dir) => {
+    // routine-metrics.jsonl tracking (added #378) can postdate part of a routine's lifetime
+    // cost-index accumulation. `weekly` accrued $97 before tracking existed, plus $3 across its
+    // 3 tracked fires ($1/run) — lifetime cost-index cost is $100, so dividing by only the 3
+    // tracked runs (the old bug) gives ~$33.33/run and falsely flags it. Windowing the numerator
+    // to [earliest tracked fire, now] should exclude the pre-tracking $97 and correctly compute
+    // $1/run, matching peer `other` and producing no warning.
+    writeConfig(dir, { ...BASE_CONFIG, routines: [routine('weekly'), routine('other')] });
+    writeCostIndex(dir, {
+      'routine:weekly': { cost: 100, tokens: 100000 }, // $97 pre-tracking + $3 tracked = $100 lifetime
+      'routine:other': { cost: 3, tokens: 3000 },       // $1.00/run, no pre-tracking history
+    });
+
+    const earliest = new Date(Date.now() - 3600_000).toISOString(); // 1h ago
+    const mid = new Date(Date.now() - 2400_000).toISOString();
+    const late = new Date(Date.now() - 1200_000).toISOString();
+    fs.writeFileSync(path.join(dir, '.claude-code-hermit', 'state', 'routine-metrics.jsonl'), [
+      { ts: earliest, routine_id: 'weekly', event: 'started', delivery: 'cron-create' },
+      { ts: mid, routine_id: 'weekly', event: 'started', delivery: 'cron-create' },
+      { ts: late, routine_id: 'weekly', event: 'started', delivery: 'cron-create' },
+      { ts: new Date().toISOString(), routine_id: 'other', event: 'started', delivery: 'cron-create' },
+      { ts: new Date().toISOString(), routine_id: 'other', event: 'started', delivery: 'cron-create' },
+      { ts: new Date().toISOString(), routine_id: 'other', event: 'started', delivery: 'cron-create' },
+    ].map(e => JSON.stringify(e)).join('\n') + '\n');
+
+    const preTracking = new Date(Date.now() - 7200_000).toISOString(); // 2h ago, before `earliest`
+    fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.claude', 'cost-log.jsonl'), [
+      { timestamp: preTracking, source: 'routine:weekly', estimated_cost_usd: 97 },
+      { timestamp: earliest, source: 'routine:weekly', estimated_cost_usd: 1 },
+      { timestamp: mid, source: 'routine:weekly', estimated_cost_usd: 1 },
+      { timestamp: late, source: 'routine:weekly', estimated_cost_usd: 1 },
+    ].map(e => JSON.stringify(e)).join('\n') + '\n');
+
+    const report = await runDoctorCheck(dir);
+    const c = routineCostCheck(report);
+    expect(c.status).toBe('ok');
+    expect(c.detail).not.toContain('weekly');
+  }), 20000);
 });
 
 describe('doctor channel-liveness check', () => {
