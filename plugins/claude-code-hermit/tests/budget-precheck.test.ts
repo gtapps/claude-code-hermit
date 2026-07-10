@@ -19,6 +19,7 @@ import { runScript } from './helpers/run';
 
 const hermit = (dir: string, ...p: string[]) => path.join(dir, '.claude-code-hermit', ...p);
 const alertPath = (dir: string) => hermit(dir, 'state', 'alert-state.json');
+const budgetAlertsPath = (dir: string) => hermit(dir, 'state', 'budget-alerts.json');
 const pausePath = (dir: string) => hermit(dir, 'state', 'pause.json');
 
 // Matches isProposalScanItem so, with no proposals/ dir and no pending alert, the
@@ -49,6 +50,14 @@ function writeAlertState(dir: string, alerts: Record<string, unknown>): void {
   }));
 }
 
+// Budget alerts live in budget-alerts.json (cost-tracker's sole-owned file), NOT
+// alert-state.json. readMergedAlerts unions them, so the precheck sees these; the
+// production layout is what exercises the merged-read path the SKILL depends on.
+function writeBudgetAlerts(dir: string, alerts: Record<string, unknown>): void {
+  writeAlertState(dir, {});
+  fs.writeFileSync(budgetAlertsPath(dir), JSON.stringify({ alerts }));
+}
+
 function writePause(dir: string, reason: string): void {
   fs.writeFileSync(pausePath(dir), JSON.stringify({
     paused: true, paused_until: null, reason, by: 'test', ts: NOW,
@@ -72,34 +81,34 @@ async function precheck(dir: string): Promise<string> {
 describe('budget pause-escape gate', () => {
   test('un-notified budget-reason pause lets one EVALUATE through', withTmp(async (dir) => {
     writePause(dir, 'budget');
-    writeAlertState(dir, { 'budget-breach:daily:2026-07-04': budgetEntry(false) });
+    writeBudgetAlerts(dir, { 'budget-breach:daily:2026-07-04': budgetEntry(false) });
 
     expect(await precheck(dir)).toBe('EVALUATE');
   }));
 
   test('notified budget-reason pause falls back to plain SKIP|paused', withTmp(async (dir) => {
     writePause(dir, 'budget');
-    writeAlertState(dir, { 'budget-breach:daily:2026-07-04': budgetEntry(true) });
+    writeBudgetAlerts(dir, { 'budget-breach:daily:2026-07-04': budgetEntry(true) });
 
     expect(await precheck(dir)).toBe('SKIP|paused');
   }));
 
   test('operator-reason pause never escapes, even with an un-notified budget alert', withTmp(async (dir) => {
     writePause(dir, 'operator');
-    writeAlertState(dir, { 'budget-breach:daily:2026-07-04': budgetEntry(false) });
+    writeBudgetAlerts(dir, { 'budget-breach:daily:2026-07-04': budgetEntry(false) });
 
     expect(await precheck(dir)).toBe('SKIP|paused');
   }));
 
   test('watchdog-reason pause never escapes', withTmp(async (dir) => {
     writePause(dir, 'watchdog');
-    writeAlertState(dir, { 'budget-breach:daily:2026-07-04': budgetEntry(false) });
+    writeBudgetAlerts(dir, { 'budget-breach:daily:2026-07-04': budgetEntry(false) });
 
     expect(await precheck(dir)).toBe('SKIP|paused');
   }));
 
   test('no pause.json at all — unaffected, budget alert surfaces via the pending-alert gate', withTmp(async (dir) => {
-    writeAlertState(dir, { 'budget-breach:daily:2026-07-04': budgetEntry(false) });
+    writeBudgetAlerts(dir, { 'budget-breach:daily:2026-07-04': budgetEntry(false) });
 
     expect(await precheck(dir)).toBe('EVALUATE');
   }));
@@ -107,7 +116,7 @@ describe('budget pause-escape gate', () => {
 
 describe('pending-budget-alert gate (action:"alert", not paused)', () => {
   test('un-notified budget alert forces EVALUATE', withTmp(async (dir) => {
-    writeAlertState(dir, {
+    writeBudgetAlerts(dir, {
       'budget-warn:monthly:2026-07': { kind: 'budget', level: 'warn', period: 'monthly', action: 'alert', spend: 85, cap: 100, ratio: 0.85, notified: false, ts: NOW },
     });
 
@@ -115,7 +124,7 @@ describe('pending-budget-alert gate (action:"alert", not paused)', () => {
   }));
 
   test('all budget alerts already notified — gate does not fire (falls through to OK)', withTmp(async (dir) => {
-    writeAlertState(dir, {
+    writeBudgetAlerts(dir, {
       'budget-warn:monthly:2026-07': { kind: 'budget', level: 'warn', period: 'monthly', action: 'alert', spend: 85, cap: 100, ratio: 0.85, notified: true, ts: NOW },
     });
 

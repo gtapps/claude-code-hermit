@@ -552,11 +552,15 @@ function composeBudgetMessage(newPeriods: Json[], action: 'alert' | 'pause', unt
 // Record `notified: true` on already-persisted budget alert entries via a fresh
 // read-modify-write, so the confirmation write reflects current on-disk state
 // rather than a snapshot taken before the (awaited) send. Fail-open.
+function markAlertNotified(alerts: Json, key: string): void {
+  const entry = alerts[key];
+  if (entry && !entry.notified) entry.notified = true;
+}
+
 function markBudgetNotified(newPeriods: Json[], periodKey: Record<string, string>): void {
   mutateOwnedAlerts(BUDGET_ALERTS, (alerts) => {
     for (const p of newPeriods) {
-      const entry = alerts[`budget-${p.level}:${p.period}:${periodKey[p.period]}`];
-      if (entry && !entry.notified) entry.notified = true;
+      markAlertNotified(alerts, `budget-${p.level}:${p.period}:${periodKey[p.period]}`);
     }
   });
 }
@@ -801,6 +805,14 @@ async function run(data: Json): Promise<string | null> {
 export { run, getCumulativeCost, classifySource, scanTriggerMarkers, sumTurnUsage, collectSubagentUsage, detectModel, composeBudgetMessage, maintainOpenedAt };
 
 if (import.meta.main) {
+  // Mark-only entrypoint (synchronous, no stdin): the heartbeat SKILL calls this
+  // to flip a delivered budget alert's `notified` flag. Keeps cost-tracker the
+  // sole writer of budget-alerts.json so the SKILL never races the owned write.
+  const markKey = process.argv[2] === '--mark-budget-notified' ? process.argv[3] : null;
+  if (markKey) {
+    mutateOwnedAlerts(BUDGET_ALERTS, (alerts) => markAlertNotified(alerts, markKey));
+    process.exit(0);
+  }
   (async () => {
     try {
       const chunks: Buffer[] = [];

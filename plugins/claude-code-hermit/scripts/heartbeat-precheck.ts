@@ -31,6 +31,12 @@ if (!stateDir) emit('EVALUATE');
 
 const alertStatePath = path.join(stateDir, 'state', 'alert-state.json');
 
+// An un-notified budget alert in the merged alert view (cost-tracker writes
+// budget-alerts.json; readMergedAlerts unions the per-writer files). Shared by
+// the pause-escape gate, the pending-budget gate, and the injection branch.
+const budgetPending = (dir: string): boolean =>
+  Object.values(readMergedAlerts(dir)).some((e: Json) => e?.kind === 'budget' && e.notified === false);
+
 // Earliest gate (PROP-015) — ahead of the pending-close drain below, so a
 // paused hermit also suppresses AUTO_CLOSE, not just the checklist. Read-only:
 // identical under --peek since it writes nothing.
@@ -44,8 +50,7 @@ if (pauseStatus.paused) {
   // heartbeat skill announces and marks `notified:true`, and every subsequent tick
   // falls back to the plain SKIP|paused here (no un-notified entry left to escape on).
   if (pauseStatus.reason === 'budget') {
-    const budgetUnannounced = Object.values(readMergedAlerts(stateDir)).some((e: Json) => e?.kind === 'budget' && e.notified === false);
-    if (!budgetUnannounced) emit('SKIP|paused');
+    if (!budgetPending(stateDir)) emit('SKIP|paused');
     // else fall through to the gates below, which will reach the pending-budget
     // check and emit EVALUATE.
   } else {
@@ -57,6 +62,26 @@ const readJSON = (p: string): Json => {
   try { return JSON.parse(fs.readFileSync(p, 'utf-8')); }
   catch { return null; }
 };
+
+// True when an in_progress session has been operator-quiet for >12h (prefers
+// last-operator-action.json, falls back to SHELL.md mtime). Pure read; fail-open
+// to false so a read error never forces a close. Shared by the injection branch
+// (AUTO_CLOSE never reads HEARTBEAT.md, so it survives a tainted checklist) and
+// the stale-session block below.
+function staleAutoCloseDue(dir: string, nowMs: number): boolean {
+  try {
+    const runtime = readJSON(path.join(dir, 'state', 'runtime.json')) ?? {};
+    if ((runtime.session_state ?? 'idle') !== 'in_progress') return false;
+    const lastAction = readJSON(path.join(dir, 'state', 'last-operator-action.json'));
+    if (lastAction && typeof lastAction.at === 'string') {
+      const t = new Date(lastAction.at).getTime();
+      if (!isNaN(t)) return (nowMs - t) / 3600000 > 12;
+    }
+    // Absent/malformed action file → SHELL.md mtime fallback.
+    const mtime = fs.statSync(path.join(dir, 'sessions', 'SHELL.md')).mtime.getTime();
+    return (nowMs - mtime) / 3600000 > 12;
+  } catch { return false; }
+}
 
 // Normalises a HEARTBEAT.md checklist item to its dedup key.
 // Key format mirrors SKILL.md: 'checklist:<first-8-chars-normalized>'.
@@ -180,15 +205,22 @@ if (checklistItems.length === 0) emit('SKIP|HEARTBEAT.md has no checklist items'
 // would steer every future wake. On a hit, ALERT wakes the model to notify
 // the operator WITHOUT evaluating the checklist; the announced-hash damper
 // (state/injection-alert.json, written by the SKILL.md ALERT branch) keeps
-// it to one alert per file version. Scan errors fall through — never block
-// the tick. Pause still pre-empts this (gate at top of file).
+// it to one alert per file version. Deterministic operator-safety escalations
+// survive the suspension: a pending budget alert pierces the damper (the SKILL
+// ALERT branch delivers it without reading HEARTBEAT.md), and a due stale
+// auto-close still fires (AUTO_CLOSE never reads HEARTBEAT.md). One verdict per
+// tick, budget before the destructive close. Scan errors fall through — never
+// block the tick. Pause still pre-empts this (gate at top of file).
 try {
   const hit = scanForInjection(heartbeatContent);
   if (hit) {
     const hash = sha256(heartbeatContent).slice(0, 8);
+    const verdict = `ALERT|injection-suspect:${hash}|${hit.cls} at line ${hit.line}`;
+    if (budgetPending(stateDir)) emit(verdict);
+    if (staleAutoCloseDue(stateDir, now)) emit('AUTO_CLOSE');
     const announced = readJSON(path.join(stateDir, 'state', 'injection-alert.json'));
     if (announced?.hash === hash) emit('SKIP|injection-suspect (announced)');
-    emit(`ALERT|injection-suspect:${hash}|${hit.cls} at line ${hit.line}`);
+    emit(verdict);
   }
 } catch { /* fail-open: scan trouble must not block the tick */ }
 
@@ -241,17 +273,18 @@ if (hasPendingMicro) emit('EVALUATE');
 // forces an immediate EVALUATE — this is both how `action:"alert"` breaches surface
 // at all, and the mechanism the pause-escape gate above depends on to actually emit
 // EVALUATE rather than just falling through.
-const hasPendingBudgetAlert = Object.values(readMergedAlerts(stateDir)).some(
-  (e: Json) => e?.kind === 'budget' && e.notified === false);
-if (hasPendingBudgetAlert) emit('EVALUATE');
+if (budgetPending(stateDir)) emit('EVALUATE');
 
 const runtime = readJSON(path.join(stateDir, 'state', 'runtime.json')) ?? {};
 const sessionState = runtime.session_state ?? 'idle';
 
 if (sessionState === 'in_progress') {
+  // 12h operator-quiet → auto-close. The action-file resolution below is kept
+  // only to feed the separate stale-EVALUATE damper (different threshold/purpose).
+  if (staleAutoCloseDue(stateDir, now)) emit('AUTO_CLOSE');
   // Prefer last-operator-action.json: records genuine operator prompts only, unaffected
   // by routine writes (reflect, scheduled-checks, heartbeat alerts) that bump SHELL.md mtime.
-  // Falls back to SHELL.md mtime for pre-upgrade installs that don't have the file yet.
+  // Absent/malformed → !usedActionFile leaves opQuiet true, so the damper still wakes.
   let usedActionFile = false;
   let lastActionAt = NaN;
   try {
@@ -259,22 +292,12 @@ if (sessionState === 'in_progress') {
     if (lastAction && typeof lastAction.at === 'string') {
       const t = new Date(lastAction.at).getTime();
       if (!isNaN(t)) {
-        if ((now - t) / (1000 * 60 * 60) > 12) emit('AUTO_CLOSE');
-        usedActionFile = true; // valid timestamp — skip mtime fallback
+        usedActionFile = true;
         lastActionAt = t;
       }
     }
-  } catch { /* fail-open: fall through to mtime */ }
+  } catch { /* fail-open */ }
 
-  if (!usedActionFile) {
-    // SHELL.md mtime fallback (absent or malformed last-operator-action.json).
-    // Fail-open: any stat error → fall through to EVALUATE (LLM does the stale check).
-    try {
-      const shellPath = path.join(stateDir, 'sessions', 'SHELL.md');
-      const mtime = fs.statSync(shellPath).mtime.getTime();
-      if ((now - mtime) / (1000 * 60 * 60) > 12) emit('AUTO_CLOSE');
-    } catch { /* fail-open */ }
-  }
   // Stale-session check: wake once per stale_threshold, not every tick.
   // Falls back to EVALUATE when last-operator-action.json is absent (pre-upgrade installs),
   // mtime fallback was used, or timestamp is future-dated (clock skew / cross-machine).

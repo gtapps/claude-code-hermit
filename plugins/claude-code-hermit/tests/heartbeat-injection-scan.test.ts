@@ -28,7 +28,17 @@ const TAINTED_HEARTBEAT =
 
 const CONFIG = JSON.stringify({ timezone: 'UTC', heartbeat: { clean_recheck_cooldown: null } });
 
-function build(opts: { heartbeat: string; injectionAlertHash?: string }): string {
+// Fixed clock for the deterministic-time cases (stale auto-close needs `now` vs
+// last-operator-action). STALE_ACTION is 14h earlier — past the 12h threshold.
+const NOW = '2026-07-10T12:00:00Z';
+const STALE_ACTION = '2026-07-09T22:00:00Z';
+
+function build(opts: {
+  heartbeat: string;
+  injectionAlertHash?: string;
+  budget?: 'pending' | 'notified';
+  staleInProgress?: boolean;
+}): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-hbinject-'));
   fs.mkdirSync(hermit(dir, 'state'), { recursive: true });
   fs.mkdirSync(hermit(dir, 'proposals'), { recursive: true });
@@ -40,6 +50,22 @@ function build(opts: { heartbeat: string; injectionAlertHash?: string }): string
       JSON.stringify({ hash: opts.injectionAlertHash, announced_at: '2026-07-10T00:00:00Z' }),
     );
   }
+  if (opts.budget) {
+    // Budget alerts live in budget-alerts.json (cost-tracker's owned file), unioned
+    // via readMergedAlerts — the production layout the pierce depends on.
+    fs.writeFileSync(hermit(dir, 'state', 'budget-alerts.json'), JSON.stringify({
+      alerts: {
+        'budget-breach:daily:2026-07-10': {
+          kind: 'budget', level: 'breach', period: 'daily', action: 'pause',
+          spend: 6, cap: 5, ratio: 1.2, notified: opts.budget === 'notified', ts: NOW,
+        },
+      },
+    }));
+  }
+  if (opts.staleInProgress) {
+    fs.writeFileSync(hermit(dir, 'state', 'runtime.json'), JSON.stringify({ session_state: 'in_progress' }));
+    fs.writeFileSync(hermit(dir, 'state', 'last-operator-action.json'), JSON.stringify({ at: STALE_ACTION }));
+  }
   return dir;
 }
 
@@ -47,10 +73,11 @@ function contentHash(text: string): string {
   return sha256(text).slice(0, 8);
 }
 
-async function verdict(dir: string, peek = false): Promise<string> {
+async function verdict(dir: string, peek = false, env?: Record<string, string>): Promise<string> {
   const r = await runScript('heartbeat-precheck.ts', {
     args: [...(peek ? ['--peek'] : []), '.claude-code-hermit'],
     cwd: dir,
+    env,
   });
   return r.stdout.trim();
 }
@@ -95,6 +122,11 @@ describe('scanForInjection (unit)', () => {
   test('benign: "previous" without an override verb', () => {
     expect(scanForInjection('- see the previous instructions section of the README')).toBeNull();
   });
+
+  test('shipped HEARTBEAT.md.template scans clean (no self-inflicted freeze on boot)', () => {
+    const tpl = fs.readFileSync(path.join(PLUGIN_ROOT, 'state-templates', 'HEARTBEAT.md.template'), 'utf-8');
+    expect(scanForInjection(tpl)).toBeNull();
+  });
 });
 
 describe('heartbeat-precheck injection gate (integration)', () => {
@@ -129,6 +161,28 @@ describe('heartbeat-precheck injection gate (integration)', () => {
     expect(v.startsWith('ALERT|injection-suspect:')).toBe(true);
     expect(fs.existsSync(injectionAlertPath)).toBe(false);
     expect(fs.existsSync(alertStatePath)).toBe(false);
+  });
+});
+
+// Deterministic operator-safety escalations survive the checklist suspension:
+// a pending budget alert pierces the announced-damper (so the SKILL ALERT branch
+// can deliver it), and a due stale auto-close still fires — neither reads HEARTBEAT.md.
+describe('injection gate: safety-gate pass-through under taint', () => {
+  const announced = () => contentHash(TAINTED_HEARTBEAT);
+
+  test('tainted + announced + pending budget alert → ALERT (pierces the damper)', async () => {
+    const dir = build({ heartbeat: TAINTED_HEARTBEAT, injectionAlertHash: announced(), budget: 'pending' });
+    expect((await verdict(dir)).startsWith('ALERT|injection-suspect:')).toBe(true);
+  });
+
+  test('tainted + announced + budget already notified → SKIP (only a pending alert pierces)', async () => {
+    const dir = build({ heartbeat: TAINTED_HEARTBEAT, injectionAlertHash: announced(), budget: 'notified' });
+    expect(await verdict(dir)).toBe('SKIP|injection-suspect (announced)');
+  });
+
+  test('tainted + announced + 12h stale in-progress session → AUTO_CLOSE', async () => {
+    const dir = build({ heartbeat: TAINTED_HEARTBEAT, injectionAlertHash: announced(), staleInProgress: true });
+    expect(await verdict(dir, false, { HERMIT_NOW: NOW })).toBe('AUTO_CLOSE');
   });
 });
 
