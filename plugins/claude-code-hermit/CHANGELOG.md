@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **proposal mechanics: named CLI wrappers** — `resolve-prop.ts`, `next-prop-id.ts`, `record-gate.ts`, `queue-micro-proposal.ts` replace inline prose in `proposal-act`, `proposal-create`, and `reflect` (PROP-id fuzzy resolution, ID/slug generation, gate-verdict parsing + fail-closed routing, micro-approval queuing) with deterministic scripts on the existing verdict-line contract. `append-metrics.ts`'s validate-then-append logic is extracted to `scripts/lib/append-jsonl.ts`, reused by all three new appenders.
+
+### Changed
+- **proposal-act/proposal-create/reflect: mechanics prose collapsed to script calls** — operator-facing behavior is unchanged; each dispatch is now one script invocation instead of an inline algorithm, cutting ~2-4K tokens per proposal/reflect turn.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve` — it adds the four new `Bash(bun */scripts/*.ts*)` permission entries required for the new scripts to run unattended.
+
 ## [1.2.20] - 2026-07-10
 
 ### Added

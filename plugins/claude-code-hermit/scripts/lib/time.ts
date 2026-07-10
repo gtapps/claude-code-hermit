@@ -142,6 +142,22 @@ function utcISOStamp(): string {
   return new Date().toISOString().slice(0, 19) + 'Z';
 }
 
+// HHMMSS (6 digits) in `timezone`, or UTC on any Intl failure. Normalises Intl's
+// '24' hour (some locales emit this for midnight) to '00', matching currentHHMM's
+// convention above. Used by next-prop-id.ts for the proposal-ID timestamp suffix.
+function nowHHMMSS(timezone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    }).formatToParts(new Date());
+    const get = (t: string) => String(parts.find(p => p.type === t)?.value ?? '0').padStart(2, '0');
+    const h = get('hour') === '24' ? '00' : get('hour');
+    return h + get('minute') + get('second');
+  } catch {
+    return new Date().toISOString().slice(11, 19).replace(/:/g, '');
+  }
+}
+
 // Parses a duration string like "30s", "5m", "2h" to milliseconds.
 // Returns defaultMs on any parse failure.
 function parseDuration(str: unknown, defaultMs: number): number {
@@ -176,4 +192,4 @@ function friendlyBoundary(iso: string, timezone: string): string {
   return `${date} ${hhmm}`.trim();
 }
 
-export { currentHHMM, currentHHMMOrUTC, todayYMD, thisWeekKey, thisMonthYYYYMM, nextBoundaryISO, localISOStamp, utcISOStamp, parseDuration, parseSimpleCronTime, friendlyBoundary };
+export { currentHHMM, currentHHMMOrUTC, nowHHMMSS, todayYMD, thisWeekKey, thisMonthYYYYMM, nextBoundaryISO, localISOStamp, utcISOStamp, parseDuration, parseSimpleCronTime, friendlyBoundary };

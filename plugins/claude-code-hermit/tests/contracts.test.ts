@@ -970,18 +970,16 @@ describe('kill metrics contract', () => {
   });
 
   test('proposal-create triage-verdict event must include evidence_source', () => {
-    // missing → triage-survival rate cannot be segmented by brainstorm origin
-    expect(proposalCreate).toContain(
-      '"type":"triage-verdict","verdict":"<CREATE|SUPPRESS|DUPLICATE>","caller":"proposal-create","evidence_source":"<evidence source>"',
-    );
+    // missing → triage-survival rate cannot be segmented by brainstorm origin.
+    // record-gate.ts (tests/scripts.test.ts describe('record-gate')) guards that the
+    // flag actually lands in the appended event; this guards the call site passes it.
+    expect(proposalCreate).toContain('--evidence-source "<evidence source>"');
   });
 
   test('proposal-create triage-verdict event must include tags', () => {
     // Tagged candidate classes that share an evidence_source (e.g. procedure-capture)
     // can only segment their triage-survival rate by the tags field on this event.
-    expect(proposalCreate).toContain(
-      '"caller":"proposal-create","evidence_source":"<evidence source>","tags":[',
-    );
+    expect(proposalCreate).toContain("--tags '[<caller-supplied tags>]'");
   });
 
   test('proposal-create created event must include tags', () => {
@@ -2492,9 +2490,12 @@ describe('proposal-triage batch contract', () => {
   });
 
   test('reflect/branches.md parses the title-tagged triage verdict grammar', () => {
-    expect(branches).toContain('CREATE: <title>');
-    expect(branches).toContain('DUPLICATE: <title> — <PROP-ID>: <reason>');
-    expect(branches).toContain('SUPPRESS: <title> — <code>: <reason>');
+    // Routed via record-gate.ts's PROCEED/DROP tokens rather than the raw agent
+    // grammar directly — the raw `CREATE: <title>` line still flows into the
+    // script's stdin (see the record-gate.ts invocation just above these lines).
+    expect(branches).toContain('PROCEED|CREATE');
+    expect(branches).toContain('DROP|DUPLICATE:<PROP-ID>');
+    expect(branches).toContain('DROP|SUPPRESS:<code>');
   });
 
   test('reflect/SKILL.md no longer describes per-candidate triage dispatch', () => {
@@ -2504,9 +2505,9 @@ describe('proposal-triage batch contract', () => {
 
   test('proposal-create/SKILL.md documents its call as a batch of one and parses the new grammar', () => {
     expect(proposalCreate).toContain('batch of one');
-    expect(proposalCreate).toContain('CREATE: <title>');
-    expect(proposalCreate).toContain('DUPLICATE: <title> — <PROP-ID>: <reason>');
-    expect(proposalCreate).toContain('SUPPRESS: <title> — <code>: <reason>');
+    expect(proposalCreate).toContain('PROCEED|CREATE');
+    expect(proposalCreate).toContain('DROP|DUPLICATE:<PROP-ID>');
+    expect(proposalCreate).toContain('DROP|SUPPRESS:<code>');
   });
 
   test('capability-brainstorm/SKILL.md parses proposal-create outcome with the title-tagged grammar', () => {

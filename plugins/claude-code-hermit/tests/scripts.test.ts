@@ -908,6 +908,310 @@ describe('append-metrics (dual-mode)', () => {
 });
 
 // -------------------------------------------------------
+// resolve-prop.ts (subprocess — PROP-id fuzzy resolution)
+// -------------------------------------------------------
+
+describe('resolve-prop', () => {
+  function seedProposal(dir: string, filename: string, title: string) {
+    fs.mkdirSync(hermit(dir, 'proposals'), { recursive: true });
+    write(hermit(dir, 'proposals', filename), `---\ntitle: ${title}\n---\nbody\n`);
+  }
+  async function resolveProp(dir: string, input: string) {
+    const r = await runScript('resolve-prop.ts', { args: [hermit(dir), input] });
+    expect(r.exitCode).toBe(0);
+    return r.stdout.trimEnd();
+  }
+
+  test('resolve-prop (legacy exact match)', withDir(async (dir) => {
+    seedProposal(dir, 'PROP-007.md', 'Legacy');
+    expect(await resolveProp(dir, 'prop-7')).toBe('MATCH|PROP-007.md');
+  }));
+
+  test('resolve-prop (new-format bare-id match)', withDir(async (dir) => {
+    seedProposal(dir, 'PROP-006-capability-brainstorm-103612.md', 'Foo');
+    expect(await resolveProp(dir, 'PROP-6')).toBe('MATCH|PROP-006-capability-brainstorm-103612.md');
+  }));
+
+  test('resolve-prop (suffix match, lowercase input against lowercase slug)', withDir(async (dir) => {
+    seedProposal(dir, 'PROP-006-capability-brainstorm-103612.md', 'Foo');
+    expect(await resolveProp(dir, 'prop-006-capability-brainstorm-103612'))
+      .toBe('MATCH|PROP-006-capability-brainstorm-103612.md');
+  }));
+
+  test('resolve-prop (suffix match, timestamp-only input)', withDir(async (dir) => {
+    seedProposal(dir, 'PROP-006-capability-brainstorm-103612.md', 'Foo');
+    expect(await resolveProp(dir, 'PROP-006-103612')).toBe('MATCH|PROP-006-capability-brainstorm-103612.md');
+  }));
+
+  test('resolve-prop (4-digit NNN never collides with 3-digit bare id)', withDir(async (dir) => {
+    // PROP-006 must not match PROP-0061.md once proposal counts cross 1000.
+    seedProposal(dir, 'PROP-0061.md', 'Collision');
+    expect(await resolveProp(dir, 'PROP-6')).toBe('NONE|no-match');
+  }));
+
+  test('resolve-prop (0 matches)', withDir(async (dir) => {
+    fs.mkdirSync(hermit(dir, 'proposals'), { recursive: true });
+    expect(await resolveProp(dir, 'PROP-999')).toBe('NONE|no-match');
+  }));
+
+  test('resolve-prop (not a PROP id)', withDir(async (dir) => {
+    fs.mkdirSync(hermit(dir, 'proposals'), { recursive: true });
+    expect(await resolveProp(dir, 'hello')).toBe('NONE|not-a-prop-id');
+  }));
+
+  test('resolve-prop (2+ matches — AMBIGUOUS carries file + title)', withDir(async (dir) => {
+    seedProposal(dir, 'PROP-006-capability-brainstorm-103612.md', 'Foo');
+    seedProposal(dir, 'PROP-006-something-else-110000.md', 'Bar');
+    const out = await resolveProp(dir, 'PROP-6');
+    expect(out.startsWith('AMBIGUOUS|')).toBe(true);
+    const payload = JSON.parse(out.slice('AMBIGUOUS|'.length));
+    expect(payload).toEqual([
+      { file: 'PROP-006-capability-brainstorm-103612.md', title: 'Foo' },
+      { file: 'PROP-006-something-else-110000.md', title: 'Bar' },
+    ]);
+  }));
+});
+
+// -------------------------------------------------------
+// next-prop-id.ts (subprocess — ID + slug + collision-guard generation)
+// -------------------------------------------------------
+
+describe('next-prop-id', () => {
+  function seedConfig(dir: string, timezone = 'UTC') {
+    write(hermit(dir, 'config.json'), JSON.stringify({ timezone }));
+    fs.mkdirSync(hermit(dir, 'proposals'), { recursive: true });
+  }
+  async function nextId(dir: string, title: string) {
+    const r = await runScript('next-prop-id.ts', { args: [hermit(dir)], stdin: title });
+    expect(r.exitCode).toBe(0);
+    return r.stdout.trim();
+  }
+
+  test('next-prop-id (starts at 001 on an empty proposals dir)', withDir(async (dir) => {
+    seedConfig(dir);
+    expect(await nextId(dir, 'First Proposal Ever')).toMatch(/^PROP-001-first-proposal-ever-\d{6}$/);
+  }));
+
+  test('next-prop-id (max + 1, zero-padded)', withDir(async (dir) => {
+    seedConfig(dir);
+    write(hermit(dir, 'proposals', 'PROP-005-foo-100000.md'), 'x');
+    write(hermit(dir, 'proposals', 'PROP-006-bar-110000.md'), 'x');
+    expect(await nextId(dir, 'Next One')).toMatch(/^PROP-007-next-one-\d{6}$/);
+  }));
+
+  test('next-prop-id (stopword-only title falls back to pre-filter tokens)', withDir(async (dir) => {
+    seedConfig(dir);
+    expect(await nextId(dir, 'the a of and')).toMatch(/^PROP-001-the-a-of-and-\d{6}$/);
+  }));
+
+  test('next-prop-id (long single token hard-cut to 40 chars)', withDir(async (dir) => {
+    seedConfig(dir);
+    const id = await nextId(dir, 'supercalifragilisticexpialidocioussupercalifragilisticexpialidocious');
+    const slug = id.replace(/^PROP-001-/, '').replace(/-\d{6}$/, '');
+    expect(slug.length).toBe(40);
+  }));
+
+  test('next-prop-id (all-punctuation title falls back to literal "proposal")', withDir(async (dir) => {
+    seedConfig(dir);
+    expect(await nextId(dir, '!!!???...')).toMatch(/^PROP-001-proposal-\d{6}$/);
+  }));
+
+  test('next-prop-id (apostrophe survives via stdin)', withDir(async (dir) => {
+    seedConfig(dir);
+    expect(await nextId(dir, "bob's widget")).toMatch(/^PROP-001-bob-s-widget-\d{6}$/);
+  }));
+
+  test('next-prop-id (argv mode works for apostrophe-free titles)', withDir(async (dir) => {
+    seedConfig(dir);
+    const r = await runScript('next-prop-id.ts', { args: [hermit(dir), 'Argv Title'] });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout.trim()).toMatch(/^PROP-001-argv-title-\d{6}$/);
+  }));
+
+  // No test for the letter-suffix collision branch itself: `num` is always freshly
+  // computed as max(existing NNNs)+1 from the same directory the collision check
+  // scans, so no sequential call can ever see a pre-existing file at its own freshly
+  // computed NNN — the branch guards a genuine concurrent-read race (two invocations
+  // sharing one pre-race directory snapshot), which isn't reproducible via sequential
+  // black-box CLI calls. The repeated-title test above already confirms sequential
+  // calls always get distinct, monotonically increasing ids without ever needing it.
+  test('next-prop-id (repeated same-title calls always get distinct, incrementing ids)', withDir(async (dir) => {
+    seedConfig(dir);
+    const id1 = await nextId(dir, 'Repeat Title');
+    write(hermit(dir, 'proposals', `${id1}.md`), 'placeholder');
+    const id2 = await nextId(dir, 'Repeat Title');
+    expect(id2).not.toBe(id1);
+    expect(id2).toMatch(/^PROP-002-repeat-title-\d{6}$/);
+  }));
+
+  test('next-prop-id (missing state dir exits 1)', async () => {
+    const r = await runScript('next-prop-id.ts', { args: ['/nonexistent/hermit/state/dir', 'Title'] });
+    expect(r.exitCode).toBe(1);
+  });
+});
+
+// -------------------------------------------------------
+// record-gate.ts (subprocess — gate-verdict parsing + metric append + routing)
+// -------------------------------------------------------
+
+describe('record-gate', () => {
+  async function gate(dir: string, opts: { gate: 'triage' | 'judge'; caller?: string; evidenceSource?: string; tags?: string[] }, title: string, verdict: string) {
+    const args = [hermit(dir), '--gate', opts.gate, '--caller', opts.caller ?? 'reflect'];
+    if (opts.evidenceSource) args.push('--evidence-source', opts.evidenceSource);
+    if (opts.tags) args.push('--tags', JSON.stringify(opts.tags));
+    const r = await runScript('record-gate.ts', { args, stdin: `Title: ${title}\nVerdict: ${verdict}\n` });
+    expect(r.exitCode).toBe(0);
+    return r.stdout.trim();
+  }
+  function ledgerLines(dir: string): any[] {
+    const p = hermit(dir, 'state', 'proposal-metrics.jsonl');
+    if (!fs.existsSync(p)) return [];
+    return fs.readFileSync(p, 'utf-8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+  }
+
+  test('record-gate (triage CREATE -> PROCEED + triage-verdict event)', withDir(async (dir) => {
+    const out = await gate(dir, { gate: 'triage', caller: 'proposal-create', evidenceSource: 'capability-brainstorm', tags: ['capability-brainstorm'] }, 'Foo', 'CREATE: Foo');
+    expect(out).toBe('PROCEED|CREATE');
+    const lines = ledgerLines(dir);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({ type: 'triage-verdict', verdict: 'CREATE', caller: 'proposal-create', evidence_source: 'capability-brainstorm', tags: ['capability-brainstorm'] });
+  }));
+
+  test('record-gate (triage SUPPRESS -> DROP with code)', withDir(async (dir) => {
+    const out = await gate(dir, { gate: 'triage' }, 'Foo', 'SUPPRESS: Foo — weak-recurrence: one-off ("excerpt")');
+    expect(out).toBe('DROP|SUPPRESS:weak-recurrence');
+    expect(ledgerLines(dir)[0]).toMatchObject({ type: 'triage-verdict', verdict: 'SUPPRESS' });
+  }));
+
+  test('record-gate (triage DUPLICATE -> DROP with PROP-ID)', withDir(async (dir) => {
+    const out = await gate(dir, { gate: 'triage' }, 'Foo', 'DUPLICATE: Foo — PROP-019: same problem');
+    expect(out).toBe('DROP|DUPLICATE:PROP-019');
+    expect(ledgerLines(dir)[0]).toMatchObject({ type: 'triage-verdict', verdict: 'DUPLICATE' });
+  }));
+
+  test('record-gate (triage garbled verdict -> GATE_FAILED + gate-failed event)', withDir(async (dir) => {
+    const out = await gate(dir, { gate: 'triage' }, 'Foo', 'garbled nonsense');
+    expect(out).toBe('GATE_FAILED');
+    expect(ledgerLines(dir)[0]).toMatchObject({ type: 'gate-failed', agent: 'proposal-triage', title: 'Foo' });
+  }));
+
+  test('record-gate (judge ACCEPT -> PROCEED, no ledger event)', withDir(async (dir) => {
+    const out = await gate(dir, { gate: 'judge' }, 'Bar', 'ACCEPT: Bar');
+    expect(out).toBe('PROCEED|ACCEPT');
+    expect(ledgerLines(dir)).toHaveLength(0);
+  }));
+
+  test('record-gate (judge ACCEPT with source tag)', withDir(async (dir) => {
+    expect(await gate(dir, { gate: 'judge' }, 'Bar', 'ACCEPT (current-session): Bar')).toBe('PROCEED|ACCEPT');
+  }));
+
+  test('record-gate (judge DOWNGRADE -> PROCEED with tier)', withDir(async (dir) => {
+    const out = await gate(dir, { gate: 'judge' }, 'Bar', 'DOWNGRADE:2: Bar — auto-closed-evidence');
+    expect(out).toBe('PROCEED|DOWNGRADE:2');
+  }));
+
+  test('record-gate (judge DOWNGRADE quarantine — tier passes through as-is)', withDir(async (dir) => {
+    const out = await gate(dir, { gate: 'judge' }, 'Bar', 'DOWNGRADE:3 (current-session): Bar — quarantine: external origin');
+    expect(out).toBe('PROCEED|DOWNGRADE:3');
+  }));
+
+  test('record-gate (judge SUPPRESS -> DROP with code, no ledger event)', withDir(async (dir) => {
+    const out = await gate(dir, { gate: 'judge' }, 'Bar', 'SUPPRESS: Bar — no-sessions: no cross-session evidence cited');
+    expect(out).toBe('DROP|SUPPRESS:no-sessions');
+    expect(ledgerLines(dir)).toHaveLength(0);
+  }));
+
+  test('record-gate (judge empty verdict -> GATE_FAILED + gate-failed event tagged reflection-judge)', withDir(async (dir) => {
+    const out = await gate(dir, { gate: 'judge' }, 'Bar', '');
+    expect(out).toBe('GATE_FAILED');
+    expect(ledgerLines(dir)[0]).toMatchObject({ type: 'gate-failed', agent: 'reflection-judge', title: 'Bar' });
+  }));
+
+  test('record-gate (invalid --gate value -> GATE_FAILED)', withDir(async (dir) => {
+    const out = await gate(dir, { gate: 'bogus' as any }, 'Foo', 'CREATE: Foo');
+    expect(out).toBe('GATE_FAILED');
+  }));
+});
+
+// -------------------------------------------------------
+// queue-micro-proposal.ts (subprocess — MP-id generation + dedup + queue write)
+// -------------------------------------------------------
+
+describe('queue-micro-proposal', () => {
+  function seed(dir: string) {
+    write(hermit(dir, 'config.json'), '{"timezone":"UTC"}');
+    write(hermit(dir, 'state', 'micro-proposals.json'), '{"pending":[]}');
+  }
+  async function queue(dir: string, payload: any) {
+    const r = await runScript('queue-micro-proposal.ts', { args: [hermit(dir)], stdin: JSON.stringify(payload) });
+    expect(r.exitCode).toBe(0);
+    return r.stdout.trim();
+  }
+  function microFile(dir: string): any {
+    return readJson(hermit(dir, 'state', 'micro-proposals.json'));
+  }
+
+  test('queue-micro-proposal (first entry of the day is N=0)', withDir(async (dir) => {
+    seed(dir);
+    const out = await queue(dir, { tier: 1, question: 'For 3 weeks I added the same hashtags. Automate it? Yes / No' });
+    expect(out).toMatch(/^QUEUED\|MP-\d{8}-0$/);
+    const micro = microFile(dir);
+    expect(micro.pending).toHaveLength(1);
+    expect(micro.pending[0]).toMatchObject({ tier: 1, status: 'pending', follow_up_count: 0 });
+  }));
+
+  test('queue-micro-proposal (N increments within the same day)', withDir(async (dir) => {
+    seed(dir);
+    const out1 = await queue(dir, { tier: 1, question: 'Question A' });
+    const out2 = await queue(dir, { tier: 2, question: 'Question B' });
+    const n1 = parseInt(out1.split('-').pop()!, 10);
+    const n2 = parseInt(out2.split('-').pop()!, 10);
+    expect(n2).toBe(n1 + 1);
+  }));
+
+  test('queue-micro-proposal (dedup by exact question match)', withDir(async (dir) => {
+    seed(dir);
+    const out1 = await queue(dir, { tier: 1, question: 'Same question here' });
+    const id1 = out1.split('|')[1];
+    const out2 = await queue(dir, { tier: 1, question: 'Same question here' });
+    expect(out2).toBe(`DUPLICATE|${id1}`);
+    expect(microFile(dir).pending).toHaveLength(1);
+  }));
+
+  test('queue-micro-proposal (on_resolve forces tier 1 and tags the event kind:ask)', withDir(async (dir) => {
+    seed(dir);
+    await queue(dir, { tier: 3, question: 'Bridged Q?', options: ['a', 'b'], on_resolve: '/skill accept {answer}' });
+    const entry = microFile(dir).pending[0];
+    expect(entry.tier).toBe(1);
+    expect(entry.options).toEqual(['a', 'b']);
+    expect(entry.on_resolve).toBe('/skill accept {answer}');
+    const ledger = fs.readFileSync(hermit(dir, 'state', 'proposal-metrics.jsonl'), 'utf-8').trim().split('\n').map(l => JSON.parse(l));
+    expect(ledger[0]).toMatchObject({ type: 'micro-queued', tier: 1, kind: 'ask' });
+  }));
+
+  test('queue-micro-proposal (preserves existing pending entries on write)', withDir(async (dir) => {
+    seed(dir);
+    write(hermit(dir, 'state', 'micro-proposals.json'), JSON.stringify({ pending: [{ id: 'MP-20260101-0', tier: 1, status: 'pending', follow_up_count: 0, ts: '2026-01-01T00:00:00Z', question: 'Old question' }] }));
+    await queue(dir, { tier: 1, question: 'New question' });
+    const pending = microFile(dir).pending;
+    expect(pending).toHaveLength(2);
+    expect(pending[0].id).toBe('MP-20260101-0');
+  }));
+
+  test('queue-micro-proposal (missing question -> exit 1, no write)', withDir(async (dir) => {
+    seed(dir);
+    const r = await runScript('queue-micro-proposal.ts', { args: [hermit(dir)], stdin: JSON.stringify({ tier: 1 }) });
+    expect(r.exitCode).toBe(1);
+  }));
+
+  test('queue-micro-proposal (invalid JSON -> exit 1, no write)', withDir(async (dir) => {
+    seed(dir);
+    const r = await runScript('queue-micro-proposal.ts', { args: [hermit(dir)], stdin: 'not-json' });
+    expect(r.exitCode).toBe(1);
+  }));
+});
+
+// -------------------------------------------------------
 // update-reflection-state.ts (subprocess — argv + file-write CLI contract)
 // -------------------------------------------------------
 
