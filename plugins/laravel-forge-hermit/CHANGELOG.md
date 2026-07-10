@@ -1,6 +1,6 @@
 # Changelog — laravel-forge-hermit
 
-## [Unreleased]
+## [0.0.6] - 2026-07-10
 
 ### Fixed
 - **forge-logs: `server-log <server> php` auto-resolves the PHP-FPM log key** — the key is dot-version notation matching the server's installed PHP (`php-8.3`), not the literal `php`. Passing `php` now looks up the server's `php_version` and translates it automatically.
