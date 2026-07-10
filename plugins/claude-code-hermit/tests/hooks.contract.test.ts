@@ -436,6 +436,24 @@ describe('enforce-deny-patterns', () => {
     expect(r.exitCode).toBe(0);
   }));
 
+<<<<<<< HEAD
+  // AGENT_HOOK_PROFILE normalization (lib/hook-input.ts isStrictProfile): a
+  // differently-cased or padded value must still count as strict.
+  test('enforce-deny-patterns (block always-on when profile is "Strict", capitalized)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Bash","tool_input":{"command":"cd repo && git push --force origin x"}}',
+      cwd: dir, env: { AGENT_HOOK_PROFILE: 'Strict', CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(2);
+  }));
+
+  // The stdin cap rose from 64KB to 1MB (lib/hook-input.ts MAX_HOOK_STDIN) —
+  // a denied command padded past the old 64KB cap must still be blocked.
+  test('enforce-deny-patterns (block rm -rf padded past the old 64KB cap)', withDir(async (dir) => {
+    const command = `rm -rf x # ${'a'.repeat(70 * 1024)}`;
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: JSON.stringify({ tool_name: 'Bash', tool_input: { command } }),
+=======
   // ---- rm flag-order / path-prefixed bypass regressions ----
   // Each spelling below previously slipped the `Bash(rm -rf *)`-only pattern
   // (documented caveat in root CLAUDE.md) despite being functionally identical
@@ -455,11 +473,18 @@ describe('enforce-deny-patterns', () => {
   test('enforce-deny-patterns (block rm -rf with doubled internal whitespace)', withDir(async (dir) => {
     const r = await runScript('enforce-deny-patterns.ts', {
       stdin: '{"tool_name":"Bash","tool_input":{"command":"rm  -rf  x"}}',
+>>>>>>> origin/main
       cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
     });
     expect(r.exitCode).toBe(2);
   }));
 
+<<<<<<< HEAD
+  test('enforce-deny-patterns (stdin over the 1MB cap — fail-open, allow)', withDir(async (dir) => {
+    const command = `rm -rf x # ${'a'.repeat(1.5 * 1024 * 1024)}`;
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: JSON.stringify({ tool_name: 'Bash', tool_input: { command } }),
+=======
   test('enforce-deny-patterns (block rm -rf via unquoted $IFS)', withDir(async (dir) => {
     const r = await runScript('enforce-deny-patterns.ts', {
       stdin: '{"tool_name":"Bash","tool_input":{"command":"rm${IFS}-rf${IFS}x"}}',
@@ -512,6 +537,7 @@ describe('enforce-deny-patterns', () => {
   test('enforce-deny-patterns (allow command containing "rm" as a substring)', withDir(async (dir) => {
     const r = await runScript('enforce-deny-patterns.ts', {
       stdin: '{"tool_name":"Bash","tool_input":{"command":"confirm -rf x"}}',
+>>>>>>> origin/main
       cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
     });
     expect(r.exitCode).toBe(0);

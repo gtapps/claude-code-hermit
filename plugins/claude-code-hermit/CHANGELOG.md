@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+- **hooks: shared stdin/profile helper (`lib/hook-input.ts`)** — unifies stdin draining and `AGENT_HOOK_PROFILE` parsing across the four PreToolUse gates (`pause-gate`, `ask-gate`, `enforce-deny-patterns`, `cache-edit-guard`).
+- **hooks: PreToolUse stdin cap raised 64KB → 1MB** — fewer legitimate large payloads hit the cap. The default-allow gates (`enforce-deny-patterns`, `cache-edit-guard`) still fail open above the cap, so this narrows rather than closes the oversize gap for them.
+- **pause-gate: fails closed on oversize stdin while paused** — a payload too large to parse (>1MB) can no longer slip an action past an active pause; unpaused, oversize still fails open like any ignored stdin.
+- **hooks: `AGENT_HOOK_PROFILE` matching is now case/whitespace-insensitive** in `enforce-deny-patterns`, aligning it with the dev plugin's `git-push-guard`.
 ### Added
 - **proposal mechanics: named CLI wrappers** — `resolve-prop.ts`, `next-prop-id.ts`, `record-gate.ts`, `queue-micro-proposal.ts` replace inline prose in `proposal-act`, `proposal-create`, and `reflect` (PROP-id fuzzy resolution, ID/slug generation, gate-verdict parsing + fail-closed routing, micro-approval queuing) with deterministic scripts on the existing verdict-line contract. `append-metrics.ts`'s validate-then-append logic is extracted to `scripts/lib/append-jsonl.ts`, reused by all three new appenders.
 

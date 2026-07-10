@@ -150,4 +150,13 @@ describe('ask-gate', () => {
     const r = await run({ tool_input: {} }, dir);
     expect(r.exitCode).toBe(0);
   }));
+
+  // Stdin over the 1MB cap (lib/hook-input.ts MAX_HOOK_STDIN) fails open even
+  // on an otherwise-eligible always_on/managed session.
+  test('stdin over the 1MB cap on an eligible session — fail-open, allow', withDir(async (dir) => {
+    setConfig(dir);
+    const padding = 'a'.repeat(1.5 * 1024 * 1024);
+    const r = await run({ tool_name: 'AskUserQuestion', tool_input: { questions: [], padding } }, dir);
+    expect(r.exitCode).toBe(0);
+  }));
 });
