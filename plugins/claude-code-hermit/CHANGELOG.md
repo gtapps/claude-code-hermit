@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **record-operator-action: operator-typed slash commands now refresh `last-operator-action.json`** — the blanket bare-`/` drop keyed on a `<command-message>` wrapper that never reaches the hook's stdin, so slash-driven sessions looked idle to AUTO_CLOSE and watchdog hygiene; only hermit's own tmux-injected commands are filtered now (#574).
 - **cost-tracker: fall back to `other` source when a turn's boundary falls outside the 512KB scan window** — prevents a large turn (e.g. a plugin upgrade run) from inheriting a stale or self-echoed routine marker and tripping a false `hermit-doctor` routine-cost warn.
 
 ### Changed

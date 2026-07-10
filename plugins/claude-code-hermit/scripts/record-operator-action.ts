@@ -14,10 +14,10 @@ process.stdout.on('error', () => {});
 //
 // Filtered prompts (not operator activity):
 //   [hermit-routine:…   — cron-delivered routine prompts (hermit-routines/SKILL.md:43-54)
-//   /<anything> (bare, no <command-message>) — /loop re-fires, cron injections,
-//                          programmatic slash invocations
 //   <channel…           — unauthorized DMs arrive here before channel-responder's allowlist
 //                          check; recording them would let bot traffic suppress AUTO_CLOSE
+//   hermit's own tmux-injected slash commands — see INJECTED_EXACT below. Every
+//   other bare `/…` prompt counts as operator activity (see isRoutinePrompt).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -35,20 +35,33 @@ function write() {
   } catch { /* fail-open */ }
 }
 
+// Hermit-injected slash prompts — tmux send-keys from hermit-watchdog.ts and
+// hermit-stop.ts arrive at this hook as bare text, byte-identical to operator
+// typing. A live probe (2026-07-10, CC v2.1.206) showed operator-typed slash
+// commands ALSO arrive bare (no <command-message> wrapper reaches stdin), so
+// there is no stdin-visible signal to key on: drop exactly our own known
+// injections and count every other prompt as operator activity. Missing the
+// operator is the destructive direction (mid-session /clear, AUTO_CLOSE);
+// counting a stray programmatic prompt only delays cleanup.
+// tests/auto-close.test.ts syncs this list against the actual sendKeys call
+// sites — extend it when adding a new injection.
+const INJECTED_EXACT = new Set([
+  '/claude-code-hermit:heartbeat run',
+  '/claude-code-hermit:heartbeat start',
+  '/claude-code-hermit:heartbeat stop',
+  '/claude-code-hermit:hermit-routines load',
+  '/claude-code-hermit:session-close --shutdown',
+]);
+
 function isRoutinePrompt(prompt: string): boolean {
   if (prompt.startsWith('[hermit-routine:')) return true;
-  const t = prompt.trimStart();
+  const t = prompt.trim();
   if (t.startsWith('<channel')) return true;
-  // /loop re-fires and other programmatic slash injections arrive as bare strings.
-  // NOTE: operator-typed slash commands ALSO arrive as bare text with no
-  // <command-message> wrapper (live-probed 2026-07-10, CC v2.1.206 — the wrapper
-  // only exists in the stored transcript, added later by CC's prompt-expansion
-  // pipeline; see the skill-capture note below). This hook cannot distinguish an
-  // operator slash-command turn from a programmatic one at this boundary, so it
-  // drops both — a genuine operator `/…` turn does NOT refresh
-  // last-operator-action.json. Known limitation, not fixed here: narrowing the
-  // filter would alter AUTO_CLOSE gating.
-  if (t.startsWith('/') && !prompt.includes('<command-message>')) return true;
+  if (INJECTED_EXACT.has(t)) return true;
+  // Watchdog hygiene injections (hermit-watchdog.ts:421,620,754). Native
+  // commands may never reach this hook at all; dropping them is safe either
+  // way — typing /clear or /compact ends a context, it doesn't signal presence.
+  if (t === '/clear' || t.startsWith('/compact')) return true;
   return false;
 }
 

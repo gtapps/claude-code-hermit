@@ -267,14 +267,42 @@ describe('last-operator-action.json signal', () => {
     expect(fs.existsSync(lastOp(dir))).toBe(true);
   }));
 
-  // g. hook smoke: bare loop re-fire → file NOT written
-  test('hook smoke: bare /claude-code-hermit:heartbeat run → file NOT written', withTmp(async (dir) => {
-    await recordHook(dir, '{"prompt":"/claude-code-hermit:heartbeat run"}');
+  // g. hook smoke: exact hermit-injected commands (watchdog re-arm + shutdown) → file NOT written
+  for (const injected of [
+    '/claude-code-hermit:heartbeat run',
+    '/claude-code-hermit:heartbeat start',
+    '/claude-code-hermit:heartbeat stop',
+    '/claude-code-hermit:hermit-routines load',
+    '/claude-code-hermit:session-close --shutdown',
+  ]) {
+    test(`hook smoke: injected "${injected}" → file NOT written`, withTmp(async (dir) => {
+      await recordHook(dir, JSON.stringify({ prompt: injected }));
+      expect(fs.existsSync(lastOp(dir))).toBe(false);
+    }));
+  }
+
+  // g3. hook smoke: injected command with trailing whitespace/newline still matches
+  test('hook smoke: injected command with trailing whitespace → file NOT written', withTmp(async (dir) => {
+    await recordHook(dir, JSON.stringify({ prompt: '/claude-code-hermit:heartbeat run\n' }));
     expect(fs.existsSync(lastOp(dir))).toBe(false);
   }));
 
-  // h. hook smoke: operator-typed /heartbeat run (with command-message wrapper) → file IS written
-  test('hook smoke: operator-typed /heartbeat run (command-message wrapper) → file IS written', withTmp(async (dir) => {
+  // g4. hook smoke: watchdog hygiene commands (/clear, /compact ...) → file NOT written
+  test('hook smoke: bare /clear (watchdog hygiene) → file NOT written', withTmp(async (dir) => {
+    await recordHook(dir, '{"prompt":"/clear"}');
+    expect(fs.existsSync(lastOp(dir))).toBe(false);
+  }));
+
+  test('hook smoke: bare /compact ... (watchdog hygiene) → file NOT written', withTmp(async (dir) => {
+    await recordHook(dir, JSON.stringify({
+      prompt: '/compact focus on unfinished work, pending operator items, and in-flight decisions',
+    }));
+    expect(fs.existsSync(lastOp(dir))).toBe(false);
+  }));
+
+  // h. hook smoke: legacy wrapped shape (never actually reaches stdin per the
+  // 2026-07-10 probe, but must not regress to dropped if some future CC version emits it)
+  test('hook smoke: legacy <command-message> wrapped shape → file IS written', withTmp(async (dir) => {
     await recordHook(dir, JSON.stringify({
       prompt: '<command-message>heartbeat run</command-message>\n<command-name>/claude-code-hermit:heartbeat run</command-name>',
     }));
@@ -287,24 +315,40 @@ describe('last-operator-action.json signal', () => {
     expect(fs.existsSync(lastOp(dir))).toBe(false);
   }));
 
-  // j. hook smoke: bare /loop re-fire of /brief → file NOT written
-  test('hook smoke: bare /claude-code-hermit:brief (loop re-fire) → file NOT written', withTmp(async (dir) => {
+  // j. hook smoke: operator-typed bare /brief → file IS written (#574 repro — this is the
+  // shape a real operator slash-command turn actually arrives as; no <command-message>
+  // wrapper reaches this hook's stdin)
+  test('hook smoke: operator-typed bare /claude-code-hermit:brief → file IS written', withTmp(async (dir) => {
     await recordHook(dir, '{"prompt":"/claude-code-hermit:brief"}');
-    expect(fs.existsSync(lastOp(dir))).toBe(false);
+    expect(fs.existsSync(lastOp(dir))).toBe(true);
   }));
 
-  // k. hook smoke: operator-typed /brief (command-message wrapper) → file IS written
-  test('hook smoke: operator-typed /brief (command-message wrapper) → file IS written', withTmp(async (dir) => {
+  // k. hook smoke: legacy wrapped /brief shape → still written
+  test('hook smoke: legacy <command-message> wrapped /brief shape → file IS written', withTmp(async (dir) => {
     await recordHook(dir, JSON.stringify({
       prompt: '<command-message>claude-code-hermit:brief</command-message>\n<command-name>/claude-code-hermit:brief</command-name>',
     }));
     expect(fs.existsSync(lastOp(dir))).toBe(true);
   }));
 
-  // l. hook smoke: bare arbitrary slash command (any future loop re-fire) → file NOT written
-  test('hook smoke: bare /some-future-plugin:some-cmd → file NOT written', withTmp(async (dir) => {
+  // l. hook smoke: bare arbitrary namespaced slash command → file IS written (not on the
+  // hermit-injected drop-list, so it counts as operator activity — see #574)
+  test('hook smoke: bare /some-future-plugin:some-cmd → file IS written', withTmp(async (dir) => {
     await recordHook(dir, '{"prompt":"/some-future-plugin:some-cmd --flag"}');
-    expect(fs.existsSync(lastOp(dir))).toBe(false);
+    expect(fs.existsSync(lastOp(dir))).toBe(true);
+  }));
+
+  // l2. hook smoke: un-namespaced operator command (e.g. a personal/project skill) → file IS written
+  test('hook smoke: bare /tackle-issue 574 (un-namespaced) → file IS written', withTmp(async (dir) => {
+    await recordHook(dir, '{"prompt":"/tackle-issue 574"}');
+    expect(fs.existsSync(lastOp(dir))).toBe(true);
+  }));
+
+  // l3. hook smoke: single-step always-on boot skill (hermit-start.ts argv bootstrap) →
+  // file IS written (accepted delta: this is indistinguishable from operator-typed /session)
+  test('hook smoke: bare /claude-code-hermit:session (boot_skill) → file IS written', withTmp(async (dir) => {
+    await recordHook(dir, '{"prompt":"/claude-code-hermit:session"}');
+    expect(fs.existsSync(lastOp(dir))).toBe(true);
   }));
 
   // m. SessionStart (no payload) + absent file → file IS written (cold-start seed)
@@ -332,6 +376,45 @@ describe('last-operator-action.json signal', () => {
     await recordHook(dir, '', ['--force']);
     expect(fs.readFileSync(lastOp(dir), 'utf-8')).not.toContain('2026-05-20T09:00:00');
   }));
+});
+
+// -------------------------------------------------------
+// injection-sync drift guard: every slash literal hermit-watchdog.ts /
+// hermit-stop.ts inject via tmux send-keys must be dropped by
+// record-operator-action.ts's isRoutinePrompt. Prevents a future injection
+// from silently refreshing the operator clock it should not touch.
+// -------------------------------------------------------
+
+describe('record-operator-action: hermit-injected commands stay in sync', () => {
+  function extractSendKeysLiterals(file: string): string[] {
+    const src = fs.readFileSync(path.join(PLUGIN_ROOT, 'scripts', file), 'utf-8');
+    const literals: string[] = [];
+    for (const line of src.split('\n')) {
+      if (!line.includes('sendKeys(') && !line.includes("'send-keys'")) continue;
+      for (const m of line.matchAll(/'(\/[^']*)'/g)) literals.push(m[1]);
+    }
+    return literals;
+  }
+
+  const literals = [
+    ...extractSendKeysLiterals('hermit-watchdog.ts'),
+    ...extractSendKeysLiterals('hermit-stop.ts'),
+  ];
+
+  test('sweep finds a non-trivial number of injected slash literals', () => {
+    expect(literals.length).toBeGreaterThanOrEqual(5);
+  });
+
+  for (const literal of [...new Set(literals)]) {
+    test(`injected literal "${literal}" is dropped by record-operator-action.ts`, withTmp(async (dir) => {
+      const r = await runScript('record-operator-action.ts', {
+        stdin: JSON.stringify({ prompt: literal }),
+        cwd: dir,
+      });
+      expect(r.exitCode).toBe(0);
+      expect(fs.existsSync(hermit(dir, 'state', 'last-operator-action.json'))).toBe(false);
+    }));
+  }
 });
 
 // -------------------------------------------------------
