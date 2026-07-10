@@ -73,19 +73,73 @@ function splitSegments(command: string): string[] {
   return out;
 }
 
+function isIdentChar(ch: string | undefined): boolean {
+  return !!ch && /[A-Za-z0-9_]/.test(ch);
+}
+
+// Normalize a command for MATCHING ONLY — never rewrites the command that
+// actually executes. Exactly three transforms, all restricted to text OUTSIDE
+// single/double quotes (quote-tracking mirrors splitSegments) so a quoted
+// argument is never rewritten into a spurious match:
+//   1. collapse horizontal whitespace runs (spaces/tabs) to a single space
+//   2. remove backslash-newline line continuations (bash removes both chars,
+//      inserting no whitespace)
+//   3. fold unquoted $IFS / ${IFS} to a space
+// Deliberately NOT doing NFKC/ANSI-strip/NUL-strip/flag-reordering: those are
+// not Bash-equivalent to the canonical spelling. E.g. fullwidth "ｓudo" is a
+// distinct token that fails with "command not found" (127), not an executable
+// sudo bypass — folding it would close a non-threat while adding false-positive
+// surface on legitimate unicode arguments.
+function normalize(command: string): string {
+  let out = '';
+  let quote: string | null = null;
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i];
+    if (c === '\\' && quote !== "'") {
+      if (command[i + 1] === '\n') { i++; continue; } // drop backslash-newline entirely
+      if (i + 1 < command.length) { out += c + command[i + 1]; i++; continue; }
+      out += c; continue;
+    }
+    if (quote) {
+      out += c;
+      if (c === quote) quote = null;
+      continue;
+    }
+    if (c === '"' || c === "'") { quote = c; out += c; continue; }
+    if (c === '$' && command[i + 1] === '{' && command.slice(i + 2, i + 5) === 'IFS' && command[i + 5] === '}') {
+      out += ' '; i += 5; continue;
+    }
+    if (c === '$' && command.slice(i + 1, i + 4) === 'IFS' && !isIdentChar(command[i + 4])) {
+      out += ' '; i += 3; continue;
+    }
+    if (c === ' ' || c === '\t') {
+      out += ' ';
+      while (command[i + 1] === ' ' || command[i + 1] === '\t') i++;
+      continue;
+    }
+    out += c;
+  }
+  return out;
+}
+
 function buildToolCall(event: Json): { tool: string; content: string; candidates: string[] } {
   const name = event.tool_name || '';
   const input = event.tool_input || {};
 
   if (name === 'Bash') {
     const command = input.command || '';
-    // Match the whole command AND each compound segment, so a deny pattern
-    // anchored to a leading command (e.g. `Bash(rm -rf *)`) still fires inside
-    // `cd /tmp && rm -rf x`. Splitting is quote-aware (see splitSegments) so a
-    // separator inside a quoted string does not fragment the command. Dedup —
-    // a non-compound command otherwise appears twice (whole + its one segment).
-    const segments = splitSegments(command).map((s: string) => s.trim());
-    const candidates = [...new Set([command, ...segments])].filter(Boolean);
+    const normalized = normalize(command);
+    // Match the whole command AND each compound segment — of BOTH the raw and
+    // normalized spelling — so a deny pattern anchored to a leading command
+    // (e.g. `Bash(rm -rf *)`) still fires inside `cd /tmp && rm${IFS}-rf x`.
+    // Normalizing only the whole command would miss this: the anchored regex
+    // wouldn't match past the `cd /tmp &&` prefix, and the raw segment still
+    // carries the obfuscation. Splitting is quote-aware (see splitSegments) so
+    // a separator inside a quoted string does not fragment the command, and
+    // normalize() never folds text inside quotes. Dedup via Set.
+    const rawSegments = splitSegments(command).map((s: string) => s.trim());
+    const normalizedSegments = splitSegments(normalized).map((s: string) => s.trim());
+    const candidates = [...new Set([command, normalized, ...rawSegments, ...normalizedSegments])].filter(Boolean);
     return { tool: 'Bash', content: command, candidates };
   }
   if (name === 'Edit' || name === 'Write') {

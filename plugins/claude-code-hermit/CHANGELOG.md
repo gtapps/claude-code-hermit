@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **enforce-deny-patterns: closed the documented `rm -rf` bypass** — matches `rm -fr`/`rm -r -f`/`rm -f -r` and `/bin/rm`/`./rm`-prefixed spellings now, bare and behind `&&`/`;`/`|`; matching also normalizes doubled whitespace, unquoted `$IFS`, and backslash-continuation obfuscation (quote-aware — never folds quoted data). Same patterns merge into the native `settings.json` deny array via `apply-settings.ts deny`.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`.
+
+1. **Harden `rm` deny patterns.** Resolve `hatch_target` (`.claude-code-hermit/state/hatch-options.json` → `target`, per the same resolution hermit-evolve already does in its own Step 1) to the settings file (`.claude/settings.local.json` for `local`, `.claude/settings.json` for `committed`/`project`). Read that file's `permissions.deny`. If it does **not** already contain `"Bash(rm -rf *)"`, the operator chose Skip (or has no deny rules) at hatch time — do nothing, preserve that choice. Otherwise run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <resolved-settings-file> deny minimal` to merge the eight new `rm` flag-order/path-prefixed patterns — additive and idempotent (`mergeDeny` dedups), safe to re-run. The runtime hook itself needs no migration; it reads `state-templates/deny-patterns.json` from the plugin install directly on the next session.
+
 ## [1.2.20] - 2026-07-10
 
 ### Added

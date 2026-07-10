@@ -435,6 +435,87 @@ describe('enforce-deny-patterns', () => {
     });
     expect(r.exitCode).toBe(0);
   }));
+
+  // ---- rm flag-order / path-prefixed bypass regressions ----
+  // Each spelling below previously slipped the `Bash(rm -rf *)`-only pattern
+  // (documented caveat in root CLAUDE.md) despite being functionally identical
+  // to `rm -rf` in bash. Covers the four enumerated flag orders (bare + path-
+  // prefixed) added to state-templates/deny-patterns.json.
+  for (const command of ['rm -fr x', 'rm -r -f x', 'rm -f -r x', './rm -rf x', '/bin/rm -rf x']) {
+    test(`enforce-deny-patterns (block rm flag/path variant: ${command})`, withDir(async (dir) => {
+      const r = await runScript('enforce-deny-patterns.ts', {
+        stdin: JSON.stringify({ tool_name: 'Bash', tool_input: { command } }),
+        cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+      });
+      expect(r.exitCode).toBe(2);
+    }));
+  }
+
+  // ---- normalization regressions (whitespace / $IFS / backslash-continuation) ----
+  test('enforce-deny-patterns (block rm -rf with doubled internal whitespace)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Bash","tool_input":{"command":"rm  -rf  x"}}',
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(2);
+  }));
+
+  test('enforce-deny-patterns (block rm -rf via unquoted $IFS)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Bash","tool_input":{"command":"rm${IFS}-rf${IFS}x"}}',
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(2);
+  }));
+
+  test('enforce-deny-patterns (block rm -rf via backslash-newline continuation)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'rm -rf \\\nx' } }),
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(2);
+  }));
+
+  // ---- compound + obfuscation combined (the segment-level normalization gap) ----
+  // A whole-command-only normalized candidate would miss these: the anchored
+  // regex can't match past a `true &&`/`cd /tmp &&` prefix, and the raw segment
+  // still carries the obfuscation. Segment-level normalization closes this.
+  test('enforce-deny-patterns (block $IFS-obfuscated rm -rf behind &&)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Bash","tool_input":{"command":"true && rm${IFS}-rf${IFS}x"}}',
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(2);
+  }));
+
+  test('enforce-deny-patterns (block doubled-whitespace rm -rf behind &&)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Bash","tool_input":{"command":"cd /tmp && rm  -rf  x"}}',
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(2);
+  }));
+
+  // ---- false-positive guard (primary) ----
+  // A quoted ${IFS} is DATA, not shell syntax — it must never be folded into a
+  // match. This is the risk the segment/whole normalization pass must avoid.
+  test('enforce-deny-patterns (quoted ${IFS} is not folded — no false match)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: JSON.stringify({ tool_name: 'Bash', tool_input: { command: "printf '%s' 'sudo${IFS}whoami'" } }),
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(0);
+  }));
+
+  // Confirms glob narrowing (`*/rm …`, not a bare `*rm`) doesn't false-positive
+  // on commands that merely contain "rm" as a substring of another word.
+  test('enforce-deny-patterns (allow command containing "rm" as a substring)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: '{"tool_name":"Bash","tool_input":{"command":"confirm -rf x"}}',
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(0);
+  }));
 });
 
 // -------------------------------------------------------
