@@ -77,14 +77,26 @@ function isIdentChar(ch: string | undefined): boolean {
   return !!ch && /[A-Za-z0-9_]/.test(ch);
 }
 
+// Chars splitSegments treats as structural (quotes, separators, backslash).
+// normalize() runs before splitSegments on the same string, and splitSegments
+// is itself backslash-aware — folding an escaped one of these down to a bare
+// char here would strip the escape it relies on and desync its quote/segment
+// tracking (see the fold branch in normalize).
+const STRUCTURAL_CHARS = new Set(['"', "'", '\\', ';', '|', '&']);
+
 // Normalize a command for MATCHING ONLY — never rewrites the command that
-// actually executes. Exactly three transforms, all restricted to text OUTSIDE
+// actually executes. Exactly four transforms, all restricted to text OUTSIDE
 // single/double quotes (quote-tracking mirrors splitSegments) so a quoted
 // argument is never rewritten into a spurious match:
 //   1. collapse horizontal whitespace runs (spaces/tabs) to a single space
 //   2. remove backslash-newline line continuations (bash removes both chars,
 //      inserting no whitespace)
 //   3. fold unquoted $IFS / ${IFS} to a space
+//   4. fold an unquoted backslash escape \X down to X for ordinary X (bash
+//      collapses it; only when fully unquoted — inside "..." the backslash is
+//      kept literal before ordinary chars, so folding there would corrupt data).
+//      X in `"' ;|& \` is kept escaped: folding those into bare metachars would
+//      desync the downstream quote/segment split against the normalized string.
 // Deliberately NOT doing NFKC/ANSI-strip/NUL-strip/flag-reordering: those are
 // not Bash-equivalent to the canonical spelling. E.g. fullwidth "ｓudo" is a
 // distinct token that fails with "command not found" (127), not an executable
@@ -97,8 +109,18 @@ function normalize(command: string): string {
     const c = command[i];
     if (c === '\\' && quote !== "'") {
       if (command[i + 1] === '\n') { i++; continue; } // drop backslash-newline entirely
-      if (i + 1 < command.length) { out += c + command[i + 1]; i++; continue; }
-      out += c; continue;
+      if (i + 1 >= command.length) { out += c; continue; } // trailing backslash
+      const next = command[i + 1];
+      // Unquoted: fold \X -> X (bash collapses the escape), so `r\m -rf` and
+      // `rm -r\f` normalize to `rm -rf` and hit the anchored deny glob. But only
+      // for ordinary X — keep `\X` verbatim for STRUCTURAL_CHARS. Folding those to
+      // a bare metachar desyncs splitSegments against the normalized string: an
+      // unquoted `\"` would open a spurious run that swallows a following segment
+      // (a real deny bypass), and `\;` / `\|` / `\&` would fabricate a separator
+      // (a false positive). Inside double quotes: keep both chars verbatim too —
+      // bash keeps \X literal there, and \" must not spuriously close the run.
+      if (quote === null && !STRUCTURAL_CHARS.has(next)) { out += next; i++; continue; }
+      out += c + next; i++; continue;
     }
     if (quote) {
       out += c;

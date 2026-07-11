@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **enforce-deny-patterns: fold unquoted backslash escapes** — `r\m -rf` / `rm -r\f` no longer slip past rm and other command/flag-anchored deny globs. The fold is restricted to ordinary chars: escaped quotes/separators (`\"`, `\;`, …) are kept verbatim so they can't desync the segment split — an unquoted `\"` no longer opens a spurious run that hides a following `rm -rf`, and `\;` no longer fabricates a separator.
+
 ## [1.2.21] - 2026-07-10
 
 ### Added
