@@ -548,6 +548,32 @@ describe('enforce-deny-patterns', () => {
     expect(r.exitCode).toBe(0);
   }));
 
+  // An unquoted escaped QUOTE (`\"` / `\'`) is a literal quote char in bash — it
+  // must not fold to a bare quote in the normalized string, or it opens a
+  // spurious run that swallows the following obfuscated segment and lets a real
+  // `rm -rf` slip past the deny glob. `echo \" ; r\m -rf x` runs `rm -rf x`.
+  for (const cmd of ['echo \\" ; r\\m -rf x', "echo \\' ; r\\m -rf x"]) {
+    test(`enforce-deny-patterns (escaped quote must not desync segment split: ${cmd})`, withDir(async (dir) => {
+      const r = await runScript('enforce-deny-patterns.ts', {
+        stdin: JSON.stringify({ tool_name: 'Bash', tool_input: { command: cmd } }),
+        cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+      });
+      expect(r.exitCode).toBe(2);
+    }));
+  }
+
+  // Mirror false-positive guard: an unquoted escaped SEPARATOR (`\;`) is a
+  // literal char in bash, so `echo a\; rm -rf x` is a single harmless echo — it
+  // must not fold into a fabricated `;` that fragments the command into a
+  // spurious `rm -rf x` segment.
+  test('enforce-deny-patterns (escaped separator not folded into a spurious segment)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'echo a\\; rm -rf x' } }),
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(0);
+  }));
+
   // ---- compound + obfuscation combined (the segment-level normalization gap) ----
   // A whole-command-only normalized candidate would miss these: the anchored
   // regex can't match past a `true &&`/`cd /tmp &&` prefix, and the raw segment
