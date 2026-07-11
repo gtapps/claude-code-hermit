@@ -78,13 +78,16 @@ function isIdentChar(ch: string | undefined): boolean {
 }
 
 // Normalize a command for MATCHING ONLY — never rewrites the command that
-// actually executes. Exactly three transforms, all restricted to text OUTSIDE
+// actually executes. Exactly four transforms, all restricted to text OUTSIDE
 // single/double quotes (quote-tracking mirrors splitSegments) so a quoted
 // argument is never rewritten into a spurious match:
 //   1. collapse horizontal whitespace runs (spaces/tabs) to a single space
 //   2. remove backslash-newline line continuations (bash removes both chars,
 //      inserting no whitespace)
 //   3. fold unquoted $IFS / ${IFS} to a space
+//   4. fold an unquoted backslash escape \X (X ≠ newline) down to X (bash
+//      collapses it; only when fully unquoted — inside "..." the backslash is
+//      kept literal before ordinary chars, so folding there would corrupt data)
 // Deliberately NOT doing NFKC/ANSI-strip/NUL-strip/flag-reordering: those are
 // not Bash-equivalent to the canonical spelling. E.g. fullwidth "ｓudo" is a
 // distinct token that fails with "command not found" (127), not an executable
@@ -97,8 +100,13 @@ function normalize(command: string): string {
     const c = command[i];
     if (c === '\\' && quote !== "'") {
       if (command[i + 1] === '\n') { i++; continue; } // drop backslash-newline entirely
-      if (i + 1 < command.length) { out += c + command[i + 1]; i++; continue; }
-      out += c; continue;
+      if (i + 1 >= command.length) { out += c; continue; } // trailing backslash
+      // Unquoted: fold \X -> X (bash collapses the escape), so `r\m -rf` and
+      // `rm -r\f` normalize to `rm -rf` and hit the anchored deny glob. Inside
+      // double quotes: keep both chars verbatim — bash keeps \X literal there,
+      // and \" must not spuriously close the run (mirrors splitSegments).
+      if (quote === null) { out += command[i + 1]; i++; continue; }
+      out += c + command[i + 1]; i++; continue;
     }
     if (quote) {
       out += c;

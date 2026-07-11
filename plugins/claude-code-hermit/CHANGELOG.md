@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **enforce-deny-patterns: fold unquoted backslash escapes** — `r\m -rf` / `rm -r\f` no longer slip past rm and other command/flag-anchored deny globs.
+
 ## [1.2.21] - 2026-07-10
 
 ### Added

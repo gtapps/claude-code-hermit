@@ -506,6 +506,48 @@ describe('enforce-deny-patterns', () => {
     expect(r.exitCode).toBe(2);
   }));
 
+  // ---- backslash-escape bypass (issue #578) ----
+  // Bash collapses \X -> X for ordinary X, so `r\m -rf` executes `rm -rf`.
+  // normalize() must fold the unquoted escape so the anchored deny glob fires.
+  for (const cmd of ['r\\m -rf x', 'rm -r\\f x', '\\rm -rf x']) {
+    test(`enforce-deny-patterns (block rm -rf via unquoted backslash escape: ${cmd})`, withDir(async (dir) => {
+      const r = await runScript('enforce-deny-patterns.ts', {
+        stdin: JSON.stringify({ tool_name: 'Bash', tool_input: { command: cmd } }),
+        cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+      });
+      expect(r.exitCode).toBe(2);
+    }));
+  }
+
+  // False-positive guard: a backslash escape inside quotes is DATA — bash keeps
+  // it literal (double quotes) or verbatim (single quotes), so it must not fold
+  // into a match. The double-quoted case also guards quote-tracking: a folded \"
+  // would mis-close the run.
+  test('enforce-deny-patterns (backslash escape inside single quotes not folded — no false match)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: JSON.stringify({ tool_name: 'Bash', tool_input: { command: "printf '%s' 'r\\m -rf x'" } }),
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(0);
+  }));
+
+  test('enforce-deny-patterns (backslash escape inside double quotes not folded — no false match)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'echo "r\\m -rf x"' } }),
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(0);
+  }));
+
+  // A legit unquoted \$ / \* escape must not fold into a spurious deny.
+  test('enforce-deny-patterns (legit unquoted backslash escape does not introduce a spurious deny)', withDir(async (dir) => {
+    const r = await runScript('enforce-deny-patterns.ts', {
+      stdin: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'grep -r \\* .' } }),
+      cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+    });
+    expect(r.exitCode).toBe(0);
+  }));
+
   // ---- compound + obfuscation combined (the segment-level normalization gap) ----
   // A whole-command-only normalized candidate would miss these: the anchored
   // regex can't match past a `true &&`/`cd /tmp &&` prefix, and the raw segment
