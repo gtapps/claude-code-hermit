@@ -54,6 +54,7 @@ export const DEFAULT_STRINGS = {
 
   // Proposals page
   proposals_history: 'History',
+  proposals_open_count: '{n} Open',
 
   // Weekly card
   weekly_heading: "This week's evolution",
