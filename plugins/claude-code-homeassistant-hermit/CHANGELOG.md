@@ -2,7 +2,7 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
-## [Unreleased]
+## [0.4.4] - 2026-07-12
 
 ### Added
 - **`ha updates` + `ha-update-check` scheduled check** — daily check surfaces pending Home Assistant updates (Core, OS, Supervisor, add-ons, HACS) from the `update.*` domain as `[ha-update]` proposals, tiered (Core/OS/Supervisor/add-ons individual, HACS aggregated), native fields only (no web fetch), honoring HA's own `skipped_version`.

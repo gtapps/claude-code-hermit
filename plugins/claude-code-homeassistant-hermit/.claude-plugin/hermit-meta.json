@@ -1,7 +1,7 @@
 {
-  "required_core_version": ">=1.2.22",
+  "required_core_version": ">=1.2.23",
   "requires": {
-    "claude-code-hermit": ">=1.2.22"
+    "claude-code-hermit": ">=1.2.23"
   },
   "hermit": {
     "boot_skill": "/claude-code-homeassistant-hermit:ha-boot"
