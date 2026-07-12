@@ -2,6 +2,17 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Added
+- **`ha updates` + `ha-update-check` scheduled check** — daily check surfaces pending Home Assistant updates (Core, OS, Supervisor, add-ons, HACS) from the `update.*` domain as `[ha-update]` proposals, tiered (Core/OS/Supervisor/add-ons individual, HACS aggregated), native fields only (no web fetch), honoring HA's own `skipped_version`.
+- **Opt-in one-tap update handling** — new `ha_update_auto_apply` config flag (default off, prompted at hatch Step 7.56) plus `/claude-code-homeassistant-hermit:ha-apply-update` lets accepted add-on/HACS proposals auto-install (HA backs up first); Core/OS/Supervisor always wait for an explicit operator confirm regardless of the flag.
+- **`gateServiceCall` update-domain carve-out** — `update.install` (and other `update.*` services) are now gated independently of `ha_safety_mode`: blocked outright with the flag off (closing a previously ungated actuation path — `update` was never in `SENSITIVE_DOMAINS`), require `--confirm` on every call with the flag on. Calls also referencing a genuinely sensitive entity are unaffected.
+
+### Upgrade Instructions
+
+Run `/claude-code-homeassistant-hermit:hatch` to register the `ha-update-check` scheduled check and be prompted for `ha_update_auto_apply` (Step 7.56). No action needed to keep the previous (advisory-only) behavior — the flag defaults to off.
+
 ## [0.4.3] - 2026-07-12
 
 ### Fixed

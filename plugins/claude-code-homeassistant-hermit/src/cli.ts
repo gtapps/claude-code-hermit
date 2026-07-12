@@ -43,6 +43,7 @@ import type { MutationGate } from './policy';
 import { evaluateYamlPolicy, simulateArtifact } from './simulate';
 import { computeSilenceSummary } from './silence';
 import { captureStates, restoreStates, DEFAULT_DOMAINS } from './snapshot-restore';
+import { collectPendingUpdates, formatUpdatesStdout } from './update-check';
 import {
   HELPER_TYPES,
   type WsCommandClient,
@@ -178,6 +179,7 @@ const HA_COMMANDS = [
   'audit-scripts',
   'probe',
   'integration-health',
+  'updates',
   'fetch-history',
   'list-automations',
   'list-scripts',
@@ -276,6 +278,9 @@ positional arguments:
                         Useful for verifying endpoints.
     integration-health  Detect degraded HA integrations and write
                         state/integration-health-degraded-domains.json.
+    updates             List pending Home Assistant updates (update.* domain)
+                        with version deltas, tiered core/os/supervisor/addon/
+                        hacs.
     fetch-history       Fetch and aggregate HA history into a snapshot
                         artifact. Requires a normalized snapshot; runs
                         \`refresh-context\` first if none exists.
@@ -554,6 +559,12 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
   'ha integration-health': {
     prog: 'ha_agent_lab ha integration-health',
     usage: 'usage: ha_agent_lab ha integration-health [-h]',
+    positionals: [],
+    flags: {},
+  },
+  'ha updates': {
+    prog: 'ha_agent_lab ha updates',
+    usage: 'usage: ha_agent_lab ha updates [-h]',
     positionals: [],
     flags: {},
   },
@@ -1090,6 +1101,10 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
 
   if (args.command === 'ha' && args.sub === 'integration-health') {
     return handleIntegrationHealth(root, config, deps);
+  }
+
+  if (args.command === 'ha' && args.sub === 'updates') {
+    return handleUpdates(config, deps);
   }
 
   if (args.command === 'ha' && args.sub === 'refresh-context') {
@@ -2011,6 +2026,23 @@ export async function handleIntegrationHealth(
   const payload = computeDegradedDomains(normalized);
   writeDegradedDomainsArtifact(root, payload);
   console.log(formatIntegrationHealthStdout(payload, today));
+  return 0;
+}
+
+export async function handleUpdates(config: AppConfig, overrides: Partial<CliDeps> = {}): Promise<number> {
+  const deps = resolveDeps(overrides);
+  const today = todayIso();
+  const header = `ha-update-check findings — ${today}`;
+  let states: Array<Record<string, any>>;
+  try {
+    const client = await deps.createClient(config);
+    states = await client.getStates();
+  } catch (exc: any) {
+    console.log(`${header}\nNo actionable findings. (skipped: ${exc?.message ?? exc})`);
+    return 0;
+  }
+  const updates = collectPendingUpdates(states);
+  console.log(formatUpdatesStdout(updates, today));
   return 0;
 }
 
