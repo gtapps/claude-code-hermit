@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [0.0.14] - 2026-07-12
 
 ### Fixed
 - **fitness-lab: stop reading a stale `.env` Strava token** — `getAccessToken` now prefers the Strava MCP server's own auto-refreshed token (`~/.config/strava-mcp/config.json`, test seam `STRAVA_MCP_CONFIG`) when present and unexpired, falling back to `.env`'s `STRAVA_ACCESS_TOKEN` otherwise. Previously `fitness-lab.ts` only ever read the one-time `.env` copy, which silently went stale once the MCP server refreshed its own token independently, causing 401s the `strava-health-check` routine didn't catch (it checks the MCP server's live connection, not `.env`).
