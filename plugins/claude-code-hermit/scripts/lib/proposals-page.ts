@@ -1,12 +1,13 @@
 // Deterministic renderer for the Hermit Proposals-page artifact — mirrors
 // scripts/lib/dashboard.ts's render/hash-gate discipline (see docs/artifacts.md).
-// Full text for open (proposed/accepted) proposals, each in its own anchored
-// <section id="prop-nnn"> for deep-linking from channel messages; deferred/
-// resolved/dismissed proposals are one-line history entries, same bucket the
+// Open (proposed/accepted) proposals render as collapsed-by-default
+// <details class="proposal" id="prop-nnn"> — a one-line summary that expands to
+// full text on click, each anchored for deep-linking from channel messages;
+// deferred/resolved/dismissed proposals are one-line history entries, same bucket the
 // dashboard already computes. Self-contained fragment — no
 // <!DOCTYPE>/<html>/<head>/<body> (Artifact tool wraps it).
 
-import { loadProposals, mdToHtml, escapeHtml, CSS, chip, type ProposalRow, type OpenProposalRow } from './dashboard';
+import { loadProposals, mdToHtml, escapeHtml, CSS, proposalLabel, type ProposalRow, type OpenProposalRow } from './dashboard';
 import { sha256 } from './hash';
 import { loadStrings, fmt, type ArtifactStrings } from './artifact-strings';
 
@@ -39,19 +40,22 @@ function createdLabel(created: string | null): string {
 
 function renderOpen(open: OpenProposalRow[], s: ArtifactStrings): string {
   if (!open.length) return `<p class="muted">${s.proposals_none_open}</p>`;
-  return open
-    .map(p => `<section class="card" id="${proposalAnchorId(p.id)}">
-      <h2>${chip(p.status)} ${escapeHtml(p.id)}</h2>
-      <p>${escapeHtml(p.title)}${createdLabel(p.created)}</p>
+  const items = open
+    .map(p => `<details class="proposal" id="${proposalAnchorId(p.id)}">
+      <summary>${proposalLabel(p, createdLabel(p.created))}</summary>
       <div class="proposal-body">${mdToHtml(p.body)}</div>
-    </section>`)
+    </details>`)
     .join('');
+  return `<section class="card">
+    <h2>${fmt(s.proposals_open_count, { n: open.length })}</h2>
+    ${items}
+  </section>`;
 }
 
 function renderOther(other: ProposalRow[], otherOmitted: number, s: ArtifactStrings): string {
   if (!other.length) return '';
   const items = other
-    .map(p => `<li>${chip(p.status)} <strong>${escapeHtml(p.id)}</strong> — ${escapeHtml(p.title)}${createdLabel(p.created)}</li>`)
+    .map(p => `<li>${proposalLabel(p, createdLabel(p.created))}</li>`)
     .join('');
   const omittedLine = otherOmitted > 0 ? `<li class="muted">${fmt(s.common_more_not_shown, { n: otherOmitted })}</li>` : '';
   return `

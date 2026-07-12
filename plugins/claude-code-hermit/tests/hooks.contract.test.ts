@@ -1748,6 +1748,101 @@ describe('checkDependencies', () => {
   }));
 });
 
+describe('checkCredentialExpiry (registry)', () => {
+  async function credCheck(dir: string, fakeRoot: string, meta?: string) {
+    seedDoctor(dir);
+    seedFakePlugins(dir, { sibling: true, meta });
+    return checkById(await doctorReport(dir, {
+      CLAUDE_PLUGIN_ROOT: fakeRoot,
+      CLAUDE_CONFIG_DIR: path.join(dir, 'no-such-claude-dir'),
+      ANTHROPIC_API_KEY: '',
+    }), 'credential-expiry');
+  }
+
+  test('checkCredentialExpiry (no credentials field → ok)', withDir(async (dir) => {
+    const root = path.join(dir, 'plugins', 'claude-code-hermit');
+    const d = await credCheck(dir, root, '{"required_core_version":">=1.0.0"}');
+    expect(d.status).toBe('ok');
+    expect(d.detail).not.toContain('plugin credential');
+  }));
+
+  test('checkCredentialExpiry (probe OK → ok, counted)', withDir(async (dir) => {
+    const root = path.join(dir, 'plugins', 'claude-code-hermit');
+    const d = await credCheck(dir, root, '{"credentials":[{"name":"c1","expiry_probe":"echo OK"}]}');
+    expect(d.status).toBe('ok');
+    expect(d.detail).toContain('1 plugin credential(s) ok');
+  }));
+
+  test('checkCredentialExpiry (EXPIRES far in the future → ok, counted)', withDir(async (dir) => {
+    const root = path.join(dir, 'plugins', 'claude-code-hermit');
+    const d = await credCheck(dir, root, '{"credentials":[{"name":"c1","expiry_probe":"echo EXPIRES:2099-01-01T00:00:00Z"}]}');
+    expect(d.status).toBe('ok');
+    expect(d.detail).toContain('1 plugin credential(s) ok');
+  }));
+
+  test('checkCredentialExpiry (EXPIRES <7d → warn, names reauth_skill)', withDir(async (dir) => {
+    const root = path.join(dir, 'plugins', 'claude-code-hermit');
+    const soon = new Date(Date.now() + 3 * 86400000).toISOString();
+    const meta = JSON.stringify({
+      credentials: [{ name: 'c1', expiry_probe: `echo EXPIRES:${soon}`, reauth_skill: '/x:reauth' }],
+    });
+    const d = await credCheck(dir, root, meta);
+    expect(d.status).toBe('warn');
+    expect(d.detail).toMatch(/c1 expires in 3\.\dd/);
+    expect(d.detail).toContain('/x:reauth');
+  }));
+
+  test('checkCredentialExpiry (EXPIRED → warn, names reauth_skill)', withDir(async (dir) => {
+    const root = path.join(dir, 'plugins', 'claude-code-hermit');
+    const meta = JSON.stringify({
+      credentials: [{ name: 'c1', expiry_probe: 'echo EXPIRED', reauth_skill: '/x:reauth' }],
+    });
+    const d = await credCheck(dir, root, meta);
+    expect(d.status).toBe('warn');
+    expect(d.detail).toContain('c1 EXPIRED — run /x:reauth');
+  }));
+
+  test('checkCredentialExpiry (malformed probe output → warn, probe failed)', withDir(async (dir) => {
+    const root = path.join(dir, 'plugins', 'claude-code-hermit');
+    const d = await credCheck(dir, root, '{"credentials":[{"name":"c1","expiry_probe":"echo BANANA"}]}');
+    expect(d.status).toBe('warn');
+    expect(d.detail).toContain('probe failed (malformed output)');
+  }));
+
+  test('checkCredentialExpiry (probe timeout → warn, probe failed)', withDir(async (dir) => {
+    const root = path.join(dir, 'plugins', 'claude-code-hermit');
+    seedDoctor(dir);
+    seedFakePlugins(dir, { sibling: true, meta: '{"credentials":[{"name":"c1","expiry_probe":"sleep 2 && echo OK"}]}' });
+    const d = checkById(await doctorReport(dir, {
+      CLAUDE_PLUGIN_ROOT: root,
+      CLAUDE_CONFIG_DIR: path.join(dir, 'no-such-claude-dir'),
+      ANTHROPIC_API_KEY: '',
+      HERMIT_CRED_PROBE_TIMEOUT_MS: '200',
+    }), 'credential-expiry');
+    expect(d.status).toBe('warn');
+    expect(d.detail).toContain('probe failed (timeout)');
+  }));
+
+  test('checkCredentialExpiry (nonzero exit → warn, probe failed)', withDir(async (dir) => {
+    const root = path.join(dir, 'plugins', 'claude-code-hermit');
+    const d = await credCheck(dir, root, '{"credentials":[{"name":"c1","expiry_probe":"exit 3"}]}');
+    expect(d.status).toBe('warn');
+    expect(d.detail).toContain('probe failed');
+  }));
+
+  test('checkCredentialExpiry (probe $CLAUDE_PLUGIN_ROOT points at the declaring sibling, not core)', withDir(async (dir) => {
+    const root = path.join(dir, 'plugins', 'claude-code-hermit');
+    // The sibling's own hermit-meta.json contains "expiry_probe"; core's dir has
+    // no hermit-meta.json. A probe grepping $CLAUDE_PLUGIN_ROOT resolves to OK
+    // only when the env points at the sibling that declared it.
+    const probe = 'grep -q expiry_probe "$CLAUDE_PLUGIN_ROOT/.claude-plugin/hermit-meta.json" && echo OK || echo EXPIRED';
+    const meta = JSON.stringify({ credentials: [{ name: 'c1', expiry_probe: probe }] });
+    const d = await credCheck(dir, root, meta);
+    expect(d.status).toBe('ok');
+    expect(d.detail).toContain('1 plugin credential(s) ok');
+  }));
+});
+
 // -------------------------------------------------------
 // cidrOverlap pure helper (in-process import from doctor-check.ts)
 // -------------------------------------------------------

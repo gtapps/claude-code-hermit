@@ -87,13 +87,31 @@ describe('renderProposalsPage', () => {
     expect(html).toContain('<title>Hermit Proposals</title>');
   }));
 
-  test('renders an anchored section per open proposal', withHermitDir((hermitDir) => {
+  test('renders each open proposal as a collapsed <details> anchored for deep-linking', withHermitDir((hermitDir) => {
     writeProposal(hermitDir, 'PROP-025-hub-spoke-100000.md',
       { id: 'PROP-025-hub-spoke-100000', title: '"Hub and spoke"', status: 'proposed', created: '2026-07-01T10:00:00Z' },
       'Full text of the proposal.');
     const { html } = renderProposalsPage(loadProposalsPageState(hermitDir));
-    expect(html).toContain('id="prop-025"');
-    expect(html).toContain('Full text of the proposal.');
+    expect(html).toContain('<details class="proposal" id="prop-025">');
+    expect(html).not.toMatch(/<details class="proposal" id="prop-025"[^>]*\sopen/);
+    expect(html).toContain('Full text of the proposal.'); // present in markup even though collapsed by default
+  }));
+
+  test('shows an open-proposal count heading, absent when there are none open', withHermitDir((hermitDir) => {
+    writeProposal(hermitDir, 'PROP-001-open-a-100000.md',
+      { id: 'PROP-001-open-a-100000', title: '"Open A"', status: 'proposed', created: '2026-07-01T10:00:00Z' },
+      'body a');
+    writeProposal(hermitDir, 'PROP-002-open-b-100000.md',
+      { id: 'PROP-002-open-b-100000', title: '"Open B"', status: 'accepted', created: '2026-07-02T10:00:00Z' },
+      'body b');
+    const { html } = renderProposalsPage(loadProposalsPageState(hermitDir));
+    expect(html).toContain('2 Open');
+  }));
+
+  test('omits the open count heading when there are no open proposals', withHermitDir((hermitDir) => {
+    const { html } = renderProposalsPage(loadProposalsPageState(hermitDir));
+    expect(html).not.toContain('Open</h2>');
+    expect(html).toContain('No open proposals.');
   }));
 
   test('omits age-in-days so the hash stays activity-driven, not date-driven', withHermitDir((hermitDir) => {
