@@ -1,8 +1,9 @@
 // Deterministic renderer for the Hermit Proposals-page artifact — mirrors
 // scripts/lib/dashboard.ts's render/hash-gate discipline (see docs/artifacts.md).
-// Full text for open (proposed/accepted) proposals, each in its own anchored
-// <section id="prop-nnn"> for deep-linking from channel messages; deferred/
-// resolved/dismissed proposals are one-line history entries, same bucket the
+// Open (proposed/accepted) proposals render as collapsed-by-default
+// <details class="proposal" id="prop-nnn"> — a one-line summary that expands to
+// full text on click, each anchored for deep-linking from channel messages;
+// deferred/resolved/dismissed proposals are one-line history entries, same bucket the
 // dashboard already computes. Self-contained fragment — no
 // <!DOCTYPE>/<html>/<head>/<body> (Artifact tool wraps it).
 
