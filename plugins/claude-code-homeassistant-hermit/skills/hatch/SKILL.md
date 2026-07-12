@@ -166,6 +166,15 @@ Read `ha_assist_control_enabled` from `.claude-code-hermit/config.json`.
   - **Yes** → write `ha_assist_control_enabled: true` to `config.json`.
   - **No / skip** → leave the key absent (fail-closed default; CLI remains available for automation triggering).
 
+### 7.56 HA update one-tap apply (optional)
+
+Read `ha_update_auto_apply` from `.claude-code-hermit/config.json`.
+
+- **If the key is already set**: skip (idempotent).
+- **If absent**: ask — "Enable one-tap update handling? The daily `ha-update-check` always proposes pending Home Assistant updates for your review. With this on, accepting an **add-on or HACS** update installs it immediately (HA backs it up first, and rolls back on failure). Core, OS, and Supervisor updates always wait for your explicit go-ahead in chat, even with this enabled — those can affect dashboard access and have no software undo."
+  - **Yes** → write `ha_update_auto_apply: true` to `config.json`.
+  - **No / skip** → leave the key absent (fail-closed default; every pending update stays a proposal you apply yourself in the HA UI).
+
 ### 7.6 Knowledge-schema extension
 
 Read `.claude-code-hermit/knowledge-schema.md`.
@@ -248,6 +257,7 @@ After adding or updating any entries, remind the operator: "Run `/claude-code-he
 {"id": "ha-patterns",            "plugin": "claude-code-homeassistant-hermit", "skill": "claude-code-homeassistant-hermit:ha-analyze-patterns",        "enabled": true, "trigger": "interval", "interval_days": 7}
 {"id": "ha-safety-audit",        "plugin": "claude-code-homeassistant-hermit", "skill": "claude-code-homeassistant-hermit:ha-safety-audit",           "enabled": true, "trigger": "interval", "interval_days": 7}
 {"id": "ha-integration-health",  "plugin": "claude-code-homeassistant-hermit", "skill": "claude-code-homeassistant-hermit:ha-integration-health",    "enabled": true, "trigger": "interval", "interval_days": 1}
+{"id": "ha-update-check",        "plugin": "claude-code-homeassistant-hermit", "skill": "claude-code-homeassistant-hermit:ha-update-check",           "enabled": true, "trigger": "interval", "interval_days": 1}
 ```
 
 These replace any need for CronCreate routines around analysis/observability — the `scheduled-checks` routine picks up whichever check is due, runs it, and any findings surface as proposals automatically.
@@ -265,7 +275,7 @@ hatch complete
   ✓  config.json stamped v<version>
   ✓  boot_skill: /claude-code-homeassistant-hermit:ha-boot (set | already set | operator override preserved)
   ✓  Routines registered: daily-ha-context, morning-brief (disabled by default), evening-brief
-  ✓  Scheduled checks registered: ha-patterns, ha-safety-audit, ha-integration-health
+  ✓  Scheduled checks registered: ha-patterns, ha-safety-audit, ha-integration-health, ha-update-check
   ✓  knowledge-schema.md: HA types added (or already present)
 
 Manual steps remaining:

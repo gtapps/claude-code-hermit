@@ -8,7 +8,15 @@ import { afterEach, expect, test } from 'bun:test';
 import { main } from '../src/cli';
 import { HomeAssistantError } from '../src/ha-api';
 import { clearPolicyCaches } from '../src/policy';
-import { captureOutput, cleanupTmp, fakeClient, makeHaConfig, tmpPath, type FakeClient } from './helpers';
+import {
+  captureOutput,
+  cleanupTmp,
+  fakeClient,
+  makeHaConfig,
+  makeHaConfigWith,
+  tmpPath,
+  type FakeClient,
+} from './helpers';
 import { AppConfig } from '../src/config';
 
 afterEach(() => {
@@ -199,4 +207,112 @@ test('non-sensitive entities in scene.apply map still proceed under strict', asy
   expect(client.calls.post).toEqual([
     ['/api/services/scene/apply', { entities: { 'light.living_room': 'on' } }],
   ]);
+});
+
+// The update-domain carve-out in gateServiceCall: independent of ha_safety_mode,
+// gated solely by ha_update_auto_apply + --confirm. See policy.ts's dedicated
+// branch above the ALLOW passthrough.
+
+function cfgWithFlag(mode: string, updateAutoApply: boolean): AppConfig {
+  const root = makeHaConfigWith(mode, { ha_update_auto_apply: updateAutoApply });
+  return new AppConfig(root, 'http://ha.local:8123', null, null, 'tok', 5, 0);
+}
+
+test('update.install blocked under strict when ha_update_auto_apply is unset', async () => {
+  const client = fakeClient();
+  const { code, out } = await runCli(
+    ['ha', 'call-service', 'update.install', '--data', '{"entity_id":"update.home_assistant_core_update"}'],
+    client,
+    cfg('strict'),
+  );
+  expect(code).toBe(1);
+  const parsed = JSON.parse(out);
+  expect(parsed.blocked).toBe(true);
+  expect(client.calls.post.length).toBe(0);
+});
+
+test('update.install blocked under ask when ha_update_auto_apply is unset, even with --confirm', async () => {
+  const client = fakeClient({ post: () => ({ status: 'ok' }) });
+  const { code, out } = await runCli(
+    [
+      'ha',
+      'call-service',
+      'update.install',
+      '--data',
+      '{"entity_id":"update.home_assistant_core_update"}',
+      '--confirm',
+    ],
+    client,
+    cfg('ask'),
+  );
+  expect(code).toBe(1);
+  expect(JSON.parse(out).blocked).toBe(true);
+  expect(client.calls.post.length).toBe(0);
+});
+
+test('update.install with ha_update_auto_apply on still needs --confirm under strict', async () => {
+  const client = fakeClient({ post: () => ({ status: 'ok' }) });
+  const { code, out } = await runCli(
+    ['ha', 'call-service', 'update.install', '--data', '{"entity_id":"update.home_assistant_core_update"}'],
+    client,
+    cfgWithFlag('strict', true),
+  );
+  expect(code).toBe(1);
+  expect(JSON.parse(out).requires_confirm).toBe(true);
+  expect(client.calls.post.length).toBe(0);
+});
+
+test('update.install with ha_update_auto_apply on and --confirm runs under strict', async () => {
+  const client = fakeClient({ post: () => ({ status: 'ok' }) });
+  const { code, out } = await runCli(
+    [
+      'ha',
+      'call-service',
+      'update.install',
+      '--data',
+      '{"entity_id":"update.home_assistant_core_update","backup":true}',
+      '--confirm',
+    ],
+    client,
+    cfgWithFlag('strict', true),
+  );
+  expect(code).toBe(0);
+  const parsed = JSON.parse(out);
+  expect(parsed.ok).toBe(true);
+  expect(client.calls.post).toEqual([
+    [
+      '/api/services/update/install',
+      { entity_id: 'update.home_assistant_core_update', backup: true },
+    ],
+  ]);
+});
+
+test('update.install with ha_update_auto_apply on and --confirm runs under ask (mode-independent)', async () => {
+  const client = fakeClient({ post: () => ({ status: 'ok' }) });
+  const { code, out } = await runCli(
+    ['ha', 'call-service', 'update.install', '--data', '{"entity_id":"update.home_assistant_core_update"}', '--confirm'],
+    client,
+    cfgWithFlag('ask', true),
+  );
+  expect(code).toBe(0);
+  expect(JSON.parse(out).ok).toBe(true);
+});
+
+test('update.install carrying a lock entity still hard-blocks under strict even with the flag on', async () => {
+  const client = fakeClient({ post: () => ({ status: 'ok' }) });
+  const { code, out } = await runCli(
+    [
+      'ha',
+      'call-service',
+      'update.install',
+      '--data',
+      '{"entity_id":["update.home_assistant_core_update","lock.front_door"]}',
+      '--confirm',
+    ],
+    client,
+    cfgWithFlag('strict', true),
+  );
+  expect(code).toBe(1);
+  expect(JSON.parse(out).blocked).toBe(true);
+  expect(client.calls.post.length).toBe(0);
 });

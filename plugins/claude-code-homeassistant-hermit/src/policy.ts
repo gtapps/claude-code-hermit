@@ -111,6 +111,15 @@ export function assistControl(root?: string | null): boolean {
   return loadAssistControl(resolve(root ?? process.cwd()));
 }
 
+function loadUpdateAutoApply(root: string): boolean {
+  return loadHermitConfig(root)['ha_update_auto_apply'] === true;
+}
+
+/** Read ha_update_auto_apply from .claude-code-hermit/config.json. Fail-closed: returns false. */
+export function updateAutoApply(root?: string | null): boolean {
+  return loadUpdateAutoApply(resolve(root ?? process.cwd()));
+}
+
 export interface MutationGate {
   allowed: boolean;
   requiresConfirm: boolean;
@@ -311,6 +320,43 @@ export function gateServiceCall(
     [`${domain}.${service}`],
     root,
   );
+
+  // update.* services (update.install in particular) get a dedicated,
+  // flag-gated confirm requirement instead of the blanket ALLOW every other
+  // non-sensitive maintenance call gets — independent of ha_safety_mode, so
+  // enabling ha_update_auto_apply doesn't silently do nothing under strict.
+  // Only engages when nothing else about the call is sensitive (decision.
+  // severity is still ALLOW here): a call that also references a lock/alarm
+  // entity already carries a higher severity and falls through to the
+  // existing block/ask branches below, unaffected by this carve-out.
+  if (decision.severity === Severity.ALLOW && domain === 'update') {
+    if (!updateAutoApply(root)) {
+      return {
+        allowed: false,
+        requiresConfirm: false,
+        mode,
+        reason:
+          'update domain actuation requires ha_update_auto_apply to be enabled — ' +
+          'surface this as a proposal for the operator to approve.',
+      };
+    }
+    if (confirmed) {
+      return {
+        allowed: true,
+        requiresConfirm: false,
+        mode,
+        reason: 'Approved via --confirm (ha_update_auto_apply).',
+      };
+    }
+    return {
+      allowed: false,
+      requiresConfirm: true,
+      mode,
+      reason:
+        'update.* services require operator confirmation (ha_update_auto_apply is opt-in) — ' +
+        're-run with --confirm once the operator approves.',
+    };
+  }
   if (decision.severity === Severity.ALLOW) {
     return { allowed: true, requiresConfirm: false, mode, reason: 'ok' };
   }

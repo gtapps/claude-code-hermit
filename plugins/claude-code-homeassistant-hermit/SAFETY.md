@@ -51,6 +51,16 @@ When you set `ha_assist_control_enabled: true` in `.claude-code-hermit/config.js
 
 **Trade-off accepted:** the fail-closed *enumeration* guarantee is traded for trust in the HA exposure list. The per-entity `HA_SAFE_ENTITIES` / `HA_EXTRA_SENSITIVE_DOMAINS` overrides still apply to concrete `entity_id`-based calls (those resolve and are checked normally); Assist intent calls bypass enumeration entirely and rely on HA's exposure gate.
 
+## Update Installation
+
+`ha call-service update.install` is not gated by `ha_safety_mode` at all — it has its own carve-out in `gateServiceCall`, deliberately decoupled from the mode dial:
+
+- **`ha_update_auto_apply` unset or `false` (default)**: any `update.*` call with no other sensitive entity riding along is **blocked outright**, in both `strict` and `ask`. Surface it as a proposal (this is what `/claude-code-homeassistant-hermit:ha-update-check` does daily).
+- **`ha_update_auto_apply: true`** (set via `/claude-code-homeassistant-hermit:hatch` Step 7.56): the same call is **allowed, but only with `--confirm` on every invocation** — the flag authorizes the call *class*, `--confirm` authorizes each *instance*. Neither alone is sufficient, and this holds regardless of `ha_safety_mode`.
+- A call that also references a genuinely sensitive entity (`lock`, `alarm_control_panel`) is unaffected by this carve-out and still hard-blocks under `strict` via the normal path.
+
+**Tier rule, enforced by `/claude-code-homeassistant-hermit:ha-apply-update`, not by the policy layer:** even with the flag on, add-on and HACS updates may auto-apply (HA backs them up first); Core, OS, and Supervisor updates always wait for an explicit operator go-ahead in chat, because a bad Core update can cut off dashboard access with no software undo — a backup alone isn't a sufficient safety net for that failure mode.
+
 ## Policy Overrides
 
 Configured via environment variables in `.env` (see `.env.example`):
