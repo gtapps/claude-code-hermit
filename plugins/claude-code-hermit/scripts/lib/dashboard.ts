@@ -121,14 +121,17 @@ function ageDaysFrom(iso: string | null): number | null {
 }
 
 export function loadProposals(hermitDir: string): DashboardState['proposals'] {
-  const idxPath = path.join(hermitDir, 'state', 'proposals-index.json');
-  let index: ProposalsIndex | null = readJsonSafe(idxPath);
-  if (!index) index = rebuildIndex(hermitDir); // self-heal: missing/stale cache, or first run
+  // Always rebuild: rebuildIndex() is a cheap frontmatter read (no LLM/token cost) and
+  // this self-heals any out-of-band drift (e.g. a Bash `mv` rename) that the
+  // write-event-gated generate-summary hook never sees. It already reads each open
+  // proposal's full body while parsing frontmatter — capture it via bodyOut instead of
+  // re-reading every open proposal's file a second time below.
+  const bodies = new Map<string, string>();
+  const index: ProposalsIndex | null = rebuildIndex(hermitDir, bodies);
   if (!index || !Array.isArray(index.proposals)) {
     return { open: [], other: [], otherOmitted: 0, oldestOpenAccepted: null };
   }
 
-  const proposalsDir = path.join(hermitDir, 'proposals');
   const open: OpenProposalRow[] = [];
   const other: ProposalRow[] = [];
   let oldestOpenAccepted: OldestAccepted | null = null;
@@ -152,11 +155,12 @@ export function loadProposals(hermitDir: string): DashboardState['proposals'] {
     }
 
     if (OPEN_STATUSES.has(status)) {
-      let body = '';
-      if (row.file) {
-        const parsed = readFileWithFrontmatter(path.join(proposalsDir, row.file));
-        if (parsed) body = parsed.body;
-      }
+      // Body already captured during the rebuild pass above (same read, no re-open).
+      // A missing entry means rebuildIndex itself couldn't read the file (a TOCTOU race
+      // between its readdir and per-file read) — surface that loudly instead of
+      // rendering an empty card that reads as "proposal exists but has no content."
+      const cached = row.file ? bodies.get(row.file) : undefined;
+      const body = cached !== undefined ? cached : (row.file ? `_(file missing: ${row.file})_` : '');
       open.push({ ...base, body });
     } else {
       other.push(base);

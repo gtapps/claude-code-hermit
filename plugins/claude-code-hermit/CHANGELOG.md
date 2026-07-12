@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+- **dashboard/proposals-page: proposals-index self-heals on every read** — `loadProposals()` (shared by both artifact renderers) previously trusted a parseable-but-stale `proposals-index.json` unless the file was missing; an out-of-band proposal-file rename/move (e.g. Bash `mv`, which produces no Write/Edit event) left the cache stale indefinitely, and both pages rendered the open proposal with its old id and an empty body until the index was rebuilt by hand. `loadProposals()` now rebuilds the index from disk on every read — `rebuildIndex()` is a cheap frontmatter-only scan, no LLM/token cost, and the renderer already reads every open proposal's full body anyway. A row whose backing file still can't be read after the rebuild (a TOCTOU race) now renders `_(file missing: <file>)_` instead of a silently empty body. `channel-responder`'s YES/#N and micro-approval escape-hatch resolution paths — the surface the operator acts through — also validate the index against disk before matching.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. No further action needed — the fixes live in `dashboard.ts` and `channel-responder/SKILL.md`, picked up from the plugin install path on the next session.
+
+No config.json changes required.
 ### Added
 - **credential registry** — sibling plugins can declare expiring credentials in `hermit-meta.json` `credentials[]` (`name`, `state_path`, `expiry_probe`, `reauth_skill`); the doctor `credential-expiry` check now executes each `expiry_probe` (bash, 5s timeout, one-line `OK`/`EXPIRES:<iso>`/`EXPIRED` protocol) alongside the built-in Claude OAuth check, warning on expired or <7d credentials and naming the plugin's reauth skill. Malformed output or a timeout degrades to a "probe failed" warn, never a crash. A new HEARTBEAT.md standing check surfaces non-ok credentials to the operator. See `docs/creating-your-own-hermit.md` § Credential registry.
 

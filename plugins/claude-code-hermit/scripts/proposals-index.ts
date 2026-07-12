@@ -74,7 +74,7 @@ function parseLegacy(idFromFile: string, body: string): ProposalRow {
   };
 }
 
-export function rebuildIndex(stateDir: string): ProposalsIndex | null {
+export function rebuildIndex(stateDir: string, bodyOut?: Map<string, string>): ProposalsIndex | null {
   const proposalsDir = path.join(stateDir, 'proposals');
   if (!fs.existsSync(proposalsDir)) return null;
 
@@ -100,6 +100,10 @@ export function rebuildIndex(stateDir: string): ProposalsIndex | null {
       });
       continue;
     }
+
+    // Captured for callers (dashboard.ts) that need the body too — avoids a second
+    // full-file read of the same proposal just parsed here.
+    if (bodyOut) bodyOut.set(base, parsed.body);
 
     if (parsed.fm && typeof parsed.fm === 'object') {
       const fm = parsed.fm;

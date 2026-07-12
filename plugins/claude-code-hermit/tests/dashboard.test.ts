@@ -43,6 +43,20 @@ function writeProposal(hermitDir: string, file: string, fm: Record<string, strin
   fs.writeFileSync(path.join(hermitDir, 'proposals', file), `---\n${yaml}\n---\n${body}\n`);
 }
 
+function writeStaleIndex(hermitDir: string, rows: Array<{ id: string; file: string; title: string }>): void {
+  writeJson(hermitDir, 'state/proposals-index.json', {
+    updated: '2026-07-12T10:00:00Z',
+    count: rows.length,
+    counts: { proposed: rows.length },
+    proposals: rows.map(r => ({
+      id: r.id, file: r.file, status: 'proposed', source: 'manual', category: null,
+      title: r.title, created: '2026-07-12T10:00:00Z', session: null,
+      responded: false, accepted_date: null, resolved_date: null, tags: [],
+      self_eval_key: null, legacy: false,
+    })),
+  });
+}
+
 function writeWeekly(hermitDir: string, week: string, fm: Record<string, string>, body: string): void {
   const yaml = Object.entries(fm).map(([k, v]) => `${k}: ${v}`).join('\n');
   fs.writeFileSync(path.join(hermitDir, 'compiled', `review-weekly-${week}.md`), `---\n${yaml}\n---\n${body}\n`);
@@ -188,6 +202,54 @@ describe('loadDashboardState', () => {
     expect((state.proposals.other[0] as any).body).toBeUndefined();
 
     expect(state.proposals.oldestOpenAccepted?.id).toBe('PROP-002-accepted-100000');
+  }));
+
+  // Regression for the 2026-07-12 incident: a bulk Bash `mv` rename left
+  // proposals-index.json stale (old ids/filenames), and both artifact pages
+  // rendered the open proposal with an empty body until the index was rebuilt
+  // by hand. loadProposals() must now self-heal on every read instead of
+  // trusting a parseable-but-stale cache.
+  test('self-heals a stale index against a renamed proposal file (incident regression)', withHermitDir((hermitDir) => {
+    // Current state on disk: the proposal under its NEW (post-rename) name.
+    writeProposal(hermitDir, 'PROP-004-renamed-140000.md',
+      { id: 'PROP-004-renamed-140000', title: '"Renamed proposal"', status: 'proposed', created: '2026-07-12T10:00:00Z' },
+      'Full body text that must survive the rename.');
+    // Stale cache left over from before the rename: old id/filename that no
+    // longer exists on disk.
+    writeStaleIndex(hermitDir, [
+      { id: 'PROP-004-old-name-100000', file: 'PROP-004-old-name-100000.md', title: 'Renamed proposal' },
+    ]);
+
+    const state = loadDashboardState(hermitDir);
+    expect(state.proposals.open.map(p => p.id)).toEqual(['PROP-004-renamed-140000']);
+    expect(state.proposals.open[0].body).toContain('Full body text that must survive the rename.');
+    // Stale entry from before the rebuild must not linger.
+    expect(state.proposals.open.some(p => p.id === 'PROP-004-old-name-100000')).toBe(false);
+  }));
+
+  test('a stale index entry for a since-deleted proposal file does not appear', withHermitDir((hermitDir) => {
+    // No proposal file on disk — only a stale index claiming one exists.
+    writeStaleIndex(hermitDir, [
+      { id: 'PROP-005-deleted-100000', file: 'PROP-005-deleted-100000.md', title: 'Deleted proposal' },
+    ]);
+
+    const state = loadDashboardState(hermitDir);
+    expect(state.proposals.open).toEqual([]);
+  }));
+
+  test('a proposal file added out-of-band appears even though the index predates it', withHermitDir((hermitDir) => {
+    // Stale index reflects zero proposals.
+    writeJson(hermitDir, 'state/proposals-index.json', {
+      updated: '2026-07-12T09:00:00Z', count: 0, counts: {}, proposals: [],
+    });
+    // A proposal written to disk after that snapshot (e.g. by a script that
+    // bypassed the Write/Edit-gated generate-summary hook).
+    writeProposal(hermitDir, 'PROP-006-new-150000.md',
+      { id: 'PROP-006-new-150000', title: '"New proposal"', status: 'proposed', created: '2026-07-12T15:00:00Z' },
+      'Body of the new proposal.');
+
+    const state = loadDashboardState(hermitDir);
+    expect(state.proposals.open.map(p => p.id)).toEqual(['PROP-006-new-150000']);
   }));
 
   test('caps the "other" (resolved/dismissed) list and reports the omitted count', withHermitDir((hermitDir) => {
