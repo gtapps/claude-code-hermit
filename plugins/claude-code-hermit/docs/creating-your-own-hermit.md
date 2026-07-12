@@ -167,6 +167,34 @@ If your hermit needs to run domain-specific setup on every always-on launch (e.g
 
 **Operator override:** operators can change or clear the boot skill via `/claude-code-hermit:hermit-settings boot-skill` — useful if they install multiple domain hermits and need to pick one, or want to temporarily disable domain bootstrap.
 
+### Credential registry
+
+If your hermit holds a credential that expires (OAuth token, API key with a rotation window), declare it in `.claude-plugin/hermit-meta.json` so core's `hermit-doctor` and heartbeat surface its expiry alongside every other installed plugin's credentials — one nag surface instead of a bespoke re-auth check per hermit:
+
+```json
+{
+  "credentials": [
+    {
+      "name": "strava-oauth",
+      "state_path": "state/strava-tokens.json",
+      "expiry_probe": "bun ${CLAUDE_PLUGIN_ROOT}/scripts/check-token.ts",
+      "reauth_skill": "/claude-code-fitness-hermit:strava-auth"
+    }
+  ]
+}
+```
+
+- `name` (required) — short id shown in the doctor line.
+- `state_path` (optional) — where the credential lives, relative to the hermit state dir. Informational only; the doctor check does not read it.
+- `expiry_probe` (required) — a shell command run via `bash -c` with a 5s timeout. It **must print exactly one line** to stdout:
+  - `OK` — credential valid, no known expiry.
+  - `EXPIRES:<iso8601>` — valid until the given timestamp.
+  - `EXPIRED` — already expired.
+  Anything else (multi-word output, a non-parseable date, a timeout, a nonzero exit) degrades to a warn-level "probe failed" — it never crashes doctor and never counts as a hard failure.
+- `reauth_skill` (optional) — the namespaced skill the operator (or heartbeat) should run to re-authenticate. Named in the doctor detail and the heartbeat nudge when the credential needs attention.
+
+Core's `credential-expiry` doctor check aggregates the built-in Claude OAuth check with every sibling plugin's declared `credentials[]`, warning when any credential is `EXPIRED` or expires within 7 days. The shipped `HEARTBEAT.md` standing check surfaces any non-ok credential to the operator by name.
+
 ### Hook patterns
 
 Follow core's `scripts/` directory as reference. Profile-gate safety hooks to `strict`, quality hooks to `standard,strict`. Fail open (exit 0 on parse errors). Drain stdin. No npm dependencies.
@@ -292,3 +320,4 @@ Skills should say "notify the operator" instead of referencing specific channels
 - [ ] Docker system packages (if any) declared in a `## Docker apt dependencies` section in the hatch SKILL.md or `DOCKER.md` at plugin root
 - [ ] Docker network requirements (if any) declared in a `## Docker network requirements` section so `/docker-security` can surface them — outbound domains and LAN-IP suggestions (use `ASK_OPERATOR_FOR_<NAME>_IP` if the IP is operator-specific)
 - [ ] Each agent's `model:` matches task complexity (Haiku for scanning, Sonnet for reasoning) — use the short alias, not a pinned ID
+- [ ] Expiring credentials (if any) declared in `hermit-meta.json` `credentials[]` with an `expiry_probe` and `reauth_skill`

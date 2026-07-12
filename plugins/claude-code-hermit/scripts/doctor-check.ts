@@ -15,6 +15,7 @@ import { costLogPath } from './lib/cc-compat';
 import { PRICING } from './lib/pricing';
 import { getEnabledChannels } from './hermit-start';
 import { readChannelToken } from './lib/channel-token';
+import { siblingPluginDirs, versionedCacheCoreDir, readHermitMeta, readCoreName } from './lib/plugin-siblings';
 
 type Json = any;
 
@@ -43,11 +44,7 @@ const EXPECTED_STATE_FILES = [
 
 function checkRuntime() {
   try {
-    let required: string | null = null;
-    try {
-      const meta = JSON.parse(fs.readFileSync(path.join(pluginRoot, '.claude-plugin', 'hermit-meta.json'), 'utf8'));
-      required = meta.required_bun_version || null;
-    } catch {}
+    const required: string | null = readHermitMeta(pluginRoot).required_bun_version || null;
     let version: string;
     try {
       version = execFileSync('bun', ['--version'], { encoding: 'utf8', timeout: 5000 }).trim();
@@ -263,67 +260,6 @@ function satisfiesRange(version: any, range: any): boolean {
   return Bun.semver.satisfies(version, range);
 }
 
-// Enumerate the directories that directly contain a sibling plugin's
-// .claude-plugin/. Handles both layouts core actually ships in:
-//   - monorepo / legacy flat cache: siblings are one level up (plugins/<name>/).
-//   - versioned marketplace cache: .claude/plugins/cache/<mp>/<plugin>/<version>/,
-//     where pluginRoot's parent is core's OWN name dir and real siblings live two
-//     levels up under <mp>/<other-plugin>/<max-version>/. The old one-level scan
-//     saw only other versions of core there, so `checked` was always 0 — a false
-//     all-clear for exactly the operators the check exists to protect.
-// pluginRoot's own-name directory in the versioned-cache layout
-// (.claude/plugins/cache/<mp>/<coreName>/), or null in the flat/monorepo layout where
-// pluginRoot's parent isn't named after core. Shared by siblingPluginDirs,
-// marketplaceCacheFile, and cachedVersionChangelogPath — all three need this same
-// layout switch before deriving their own paths.
-function versionedCacheCoreDir(coreName: string): string | null {
-  const parent = path.resolve(pluginRoot, '..');
-  return path.basename(parent) === coreName ? parent : null;
-}
-
-function siblingPluginDirs(coreName: string): string[] {
-  const parent = path.resolve(pluginRoot, '..');
-  const dirs: string[] = [];
-  const coreDir = versionedCacheCoreDir(coreName);
-  if (coreDir) {
-    // Versioned cache: walk the marketplace root, pick each sibling's newest version.
-    const marketplaceRoot = path.resolve(coreDir, '..');
-    let entries: fs.Dirent[] = [];
-    try { entries = fs.readdirSync(marketplaceRoot, { withFileTypes: true }); } catch {}
-    for (const ent of entries) {
-      if (!ent.isDirectory()) continue;
-      const pluginDir = path.join(marketplaceRoot, ent.name);
-      if (pluginDir === coreDir) continue; // skip core's own name dir
-      let versions: fs.Dirent[] = [];
-      try { versions = fs.readdirSync(pluginDir, { withFileTypes: true }); } catch { continue; }
-      // Pick the newest cached version deliberately, not the currently-pinned
-      // one (we don't read installed_plugins.json): this check is forward-
-      // looking — a `/plugin update` pulls the newest — so warning when the
-      // newest sibling demands a core the operator lacks is the conservative,
-      // warn-favoring direction. A false warn is cheaper than the false
-      // all-clear this function exists to prevent.
-      const newest = versions
-        .filter(v => v.isDirectory() && fs.existsSync(path.join(pluginDir, v.name, '.claude-plugin', 'plugin.json')))
-        .map(v => v.name)
-        // Guard the comparator: Bun.semver.order throws on a non-semver-named dir
-        // (e.g. a `backup/` copy), which would degrade the whole dependency check.
-        .filter(name => /^\d+\.\d+\.\d+/.test(name))
-        .sort((a, b) => Bun.semver.order(b, a))[0];
-      if (newest) dirs.push(path.join(pluginDir, newest));
-    }
-  } else {
-    let entries: fs.Dirent[] = [];
-    try { entries = fs.readdirSync(parent, { withFileTypes: true }); } catch {}
-    for (const ent of entries) {
-      if (!ent.isDirectory()) continue;
-      const dir = path.join(parent, ent.name);
-      if (dir === pluginRoot) continue; // skip self
-      if (fs.existsSync(path.join(dir, '.claude-plugin', 'plugin.json'))) dirs.push(dir);
-    }
-  }
-  return dirs;
-}
-
 function checkDependencies() {
   try {
     // Read core version + name from this plugin's own manifest.
@@ -344,13 +280,11 @@ function checkDependencies() {
 
     const mismatches: string[] = [];
     let checked = 0;
-    for (const dir of siblingPluginDirs(coreManifest.name || '')) {
+    for (const dir of siblingPluginDirs(pluginRoot, coreManifest.name || '')) {
       const pj = path.join(dir, '.claude-plugin', 'plugin.json');
       let manifest: Json;
       try { manifest = JSON.parse(fs.readFileSync(pj, 'utf8')); } catch { continue; }
-      const metaPath = path.join(dir, '.claude-plugin', 'hermit-meta.json');
-      let meta: Json = {};
-      try { if (fs.existsSync(metaPath)) meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); } catch {}
+      const meta = readHermitMeta(dir);
       const range = meta.required_core_version;
       if (!range) continue;
       checked++;
@@ -394,7 +328,7 @@ function checkDependencies() {
 function marketplaceCacheFile(coreName: string): string | null {
   const override = process.env.HERMIT_DOCTOR_MARKETPLACE_FILE;
   if (override) return fs.existsSync(override) ? override : null;
-  const coreDir = versionedCacheCoreDir(coreName);
+  const coreDir = versionedCacheCoreDir(pluginRoot, coreName);
   if (!coreDir) return null; // flat/monorepo layout — no cache to compare
   const cacheMarketplaceDir = path.resolve(coreDir, '..'); // .../plugins/cache/<mp>
   const mp = path.basename(cacheMarketplaceDir);
@@ -423,7 +357,7 @@ function marketplaceRepoChangelogPath(mpFile: string, entry: Json): string | nul
  *  (.claude/plugins/cache/<mp>/<coreName>/<version>/), used only when `/plugin update` has
  *  already pulled the version's files but hermit-evolve hasn't run yet. */
 function cachedVersionChangelogPath(coreName: string, version: string): string | null {
-  const coreDir = versionedCacheCoreDir(coreName);
+  const coreDir = versionedCacheCoreDir(pluginRoot, coreName);
   if (!coreDir) return null;
   const file = path.join(coreDir, version, 'CHANGELOG.md');
   return fs.existsSync(file) ? file : null;
@@ -1222,41 +1156,129 @@ function checkRawSize() {
 // hermit-docker login-verification probe (state-templates/bin/hermit-docker).
 // Unrecognized shape degrades to 'ok' by design — no false alarms on format
 // drift, at the cost of the check silently going dark if the shape changes.
+function claudeOAuthStatus(): { status: 'ok' | 'warn'; note: string } {
+  const credDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
+  const credPath = path.join(credDir, '.credentials.json');
+  if (!fs.existsSync(credPath)) {
+    if (process.env.ANTHROPIC_API_KEY) {
+      return { status: 'ok', note: 'API-key mode (no OAuth credentials file)' };
+    }
+    return { status: 'ok', note: 'no OAuth credentials file (keychain or API-key auth)' };
+  }
+  let creds: Json;
+  try {
+    creds = JSON.parse(fs.readFileSync(credPath, 'utf8'));
+  } catch {
+    return { status: 'warn', note: 'credentials file unreadable (malformed JSON)' };
+  }
+  const expiresAt = creds?.claudeAiOauth?.expiresAt;
+  if (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt)) {
+    return { status: 'ok', note: 'credentials present, no recognizable expiry field' };
+  }
+  const msLeft = expiresAt - Date.now();
+  if (msLeft <= 0) {
+    const hoursAgo = Math.abs(msLeft) / 3600000;
+    return { status: 'warn', note: `OAuth token expired ${hoursAgo.toFixed(1)}h ago — run \`claude /login\` (the ~8h re-login trap)` };
+  }
+  if (msLeft < 2 * 3600000) {
+    return { status: 'warn', note: `OAuth token expires in ${(msLeft / 60000).toFixed(0)}m — re-login soon` };
+  }
+  return { status: 'ok', note: `OAuth token valid (expires in ${(msLeft / 3600000).toFixed(1)}h)` };
+}
+
+// Probe timeout: 5s default; env override exists solely so tests can exercise
+// the timeout path without waiting 5 real seconds.
+const CRED_PROBE_TIMEOUT_MS_ENV = Number(process.env.HERMIT_CRED_PROBE_TIMEOUT_MS);
+const CRED_PROBE_TIMEOUT_MS = CRED_PROBE_TIMEOUT_MS_ENV > 0 ? CRED_PROBE_TIMEOUT_MS_ENV : 5000;
+const CRED_WARN_WINDOW_MS = 7 * 24 * 3600000; // < 7d → warn
+const CRED_PROBE_CEILING = 8; // defensive cap on total probes run per doctor pass
+
+type ProbeResult =
+  | { kind: 'ok' }
+  | { kind: 'expired' }
+  | { kind: 'expires'; at: number }
+  | { kind: 'probe-failed'; reason: string };
+
+// Runs one hermit-meta.json expiry_probe. Protocol: bash -c <cmd>, one line of
+// stdout, exactly OK | EXPIRED | EXPIRES:<iso8601>. Anything else (multi-word
+// first line, unparseable date, timeout, nonzero exit) degrades to a warn-level
+// "probe failed" — never crashes the doctor check.
+function runExpiryProbe(cmd: string): ProbeResult {
+  let out: string;
+  try {
+    out = execFileSync('bash', ['-c', cmd], { encoding: 'utf8', timeout: CRED_PROBE_TIMEOUT_MS, stdio: ['ignore', 'pipe', 'ignore'] });
+  } catch (e: any) {
+    return { kind: 'probe-failed', reason: e?.code === 'ETIMEDOUT' || e?.signal === 'SIGTERM' ? 'timeout' : 'exit error' };
+  }
+  const line = (out.split('\n')[0] || '').trim();
+  if (line === 'OK') return { kind: 'ok' };
+  if (line === 'EXPIRED') return { kind: 'expired' };
+  if (line.startsWith('EXPIRES:')) {
+    const at = Date.parse(line.slice('EXPIRES:'.length));
+    if (Number.isNaN(at)) return { kind: 'probe-failed', reason: 'malformed date' };
+    return { kind: 'expires', at };
+  }
+  return { kind: 'probe-failed', reason: 'malformed output' };
+}
+
+// Walks sibling plugins' hermit-meta.json credentials[] and runs each
+// declared expiry_probe, capped at CRED_PROBE_CEILING total probes (defensive
+// ceiling on wall-clock: worst case CRED_PROBE_CEILING × CRED_PROBE_TIMEOUT_MS).
+// Entries missing expiry_probe are skipped silently — declaring a credential
+// without a probe is allowed, there's just nothing to check.
+function probeSiblingCredentials(): { okCount: number; badNotes: string[] } {
+  const coreName = readCoreName(pluginRoot);
+
+  let okCount = 0;
+  const badNotes: string[] = [];
+  let probesRun = 0;
+
+  for (const dir of siblingPluginDirs(pluginRoot, coreName)) {
+    if (probesRun >= CRED_PROBE_CEILING) break;
+    const meta = readHermitMeta(dir);
+    const credentials = Array.isArray(meta.credentials) ? meta.credentials : [];
+    let manifestName: string | null = null;
+    try {
+      manifestName = JSON.parse(fs.readFileSync(path.join(dir, '.claude-plugin', 'plugin.json'), 'utf8')).name || null;
+    } catch {}
+    const pluginLabel = manifestName || path.basename(dir);
+
+    for (const cred of credentials) {
+      if (probesRun >= CRED_PROBE_CEILING) break;
+      if (!cred || typeof cred.expiry_probe !== 'string' || !cred.expiry_probe) continue;
+      probesRun++;
+      const who = `${pluginLabel}/${cred.name || 'credential'}`;
+      const fix = cred.reauth_skill ? ` — run ${cred.reauth_skill}` : '';
+      const result = runExpiryProbe(cred.expiry_probe);
+      if (result.kind === 'ok') {
+        okCount++;
+      } else if (result.kind === 'expired') {
+        badNotes.push(`${who} EXPIRED${fix}`);
+      } else if (result.kind === 'expires') {
+        const msLeft = result.at - Date.now();
+        if (msLeft <= 0) {
+          badNotes.push(`${who} EXPIRED${fix}`);
+        } else if (msLeft < CRED_WARN_WINDOW_MS) {
+          badNotes.push(`${who} expires in ${(msLeft / (24 * 3600000)).toFixed(1)}d${fix}`);
+        } else {
+          okCount++;
+        }
+      } else {
+        badNotes.push(`${who} probe failed (${result.reason})`);
+      }
+    }
+  }
+  return { okCount, badNotes };
+}
+
 function checkCredentialExpiry() {
   try {
-    const credDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
-    const credPath = path.join(credDir, '.credentials.json');
-    if (!fs.existsSync(credPath)) {
-      if (process.env.ANTHROPIC_API_KEY) {
-        return { id: 'credential-expiry', status: 'ok', detail: 'API-key mode (no OAuth credentials file)' };
-      }
-      return { id: 'credential-expiry', status: 'ok', detail: 'no OAuth credentials file (keychain or API-key auth)' };
-    }
-    let creds: Json;
-    try {
-      creds = JSON.parse(fs.readFileSync(credPath, 'utf8'));
-    } catch {
-      return { id: 'credential-expiry', status: 'warn', detail: 'credentials file unreadable (malformed JSON)' };
-    }
-    const expiresAt = creds?.claudeAiOauth?.expiresAt;
-    if (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt)) {
-      return { id: 'credential-expiry', status: 'ok', detail: 'credentials present, no recognizable expiry field' };
-    }
-    const msLeft = expiresAt - Date.now();
-    if (msLeft <= 0) {
-      const hoursAgo = Math.abs(msLeft) / 3600000;
-      return {
-        id: 'credential-expiry', status: 'warn',
-        detail: `OAuth token expired ${hoursAgo.toFixed(1)}h ago — run \`claude /login\` (the ~8h re-login trap)`,
-      };
-    }
-    if (msLeft < 2 * 3600000) {
-      return {
-        id: 'credential-expiry', status: 'warn',
-        detail: `OAuth token expires in ${(msLeft / 60000).toFixed(0)}m — re-login soon`,
-      };
-    }
-    return { id: 'credential-expiry', status: 'ok', detail: `OAuth token valid (expires in ${(msLeft / 3600000).toFixed(1)}h)` };
+    const oauth = claudeOAuthStatus();
+    const sib = probeSiblingCredentials();
+    const status = (oauth.status === 'warn' || sib.badNotes.length > 0) ? 'warn' : 'ok';
+    const parts = [...sib.badNotes, oauth.note]; // worst-first, OAuth note always present
+    if (sib.okCount > 0) parts.push(`${sib.okCount} plugin credential(s) ok`);
+    return { id: 'credential-expiry', status, detail: parts.join('; ') };
   } catch (e: any) {
     return { id: 'credential-expiry', status: 'fail', detail: `check failed: ${e.message}` };
   }
