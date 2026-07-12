@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **dashboard/proposals-page: proposals-index self-heals on every read** — `loadProposals()` (shared by both artifact renderers) previously trusted a parseable-but-stale `proposals-index.json` unless the file was missing; an out-of-band proposal-file rename/move (e.g. Bash `mv`, which produces no Write/Edit event) left the cache stale indefinitely, and both pages rendered the open proposal with its old id and an empty body until the index was rebuilt by hand. `loadProposals()` now rebuilds the index from disk on every read — `rebuildIndex()` is a cheap frontmatter-only scan, no LLM/token cost, and the renderer already reads every open proposal's full body anyway. A row whose backing file still can't be read after the rebuild (a TOCTOU race) now renders `_(file missing: <file>)_` instead of a silently empty body. `channel-responder`'s YES/#N and micro-approval escape-hatch resolution paths — the surface the operator acts through — also validate the index against disk before matching.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. No further action needed — the fixes live in `dashboard.ts` and `channel-responder/SKILL.md`, picked up from the plugin install path on the next session.
+
+No config.json changes required.
+
 ## [1.2.22] - 2026-07-12
 
 ### Fixed
