@@ -70,26 +70,34 @@ notes.
 
 ## Proposals page
 
-`config.artifacts.proposals`, state key `proposals`. Full text of every open
-(`proposed`/`accepted`) proposal, each in its own anchored `<section id="prop-nnn">`
-(lowercased `PROP-NNN` prefix) for deep-linking; deferred/resolved/dismissed proposals
-are one-line history entries — the same "other" bucket the dashboard already computes.
-Rendered by `scripts/lib/proposals-page.ts` (reuses the dashboard's proposal loader,
-markdown converter, and CSS). `<title>` is `Hermit Proposals`. Deliberately omits
-proposal age-in-days (unlike the dashboard) — age is `Date.now()`-derived and would
+`config.artifacts.proposals`, state key `proposals`. Every open (`proposed`/`accepted`)
+proposal renders as a collapsed-by-default `<details class="proposal" id="prop-nnn">`
+(lowercased `PROP-NNN` prefix as the `id`, for deep-linking) — a one-line summary (status
+chip, id, title, created-date) that expands to the full body on click, the same pattern
+the dashboard already uses for its proposals card. A heading above the list shows the open
+count (e.g. "3 Open"); deferred/resolved/dismissed proposals stay one-line history entries
+— the same "other" bucket the dashboard already computes. Rendered by
+`scripts/lib/proposals-page.ts` (reuses the dashboard's proposal loader, markdown
+converter, and CSS — no CSS changes were needed since `.proposal`/`.proposal-body` already
+existed for the dashboard's own `<details>`). `<title>` is `Hermit Proposals`. Deliberately
+omits proposal age-in-days (unlike the dashboard) — age is `Date.now()`-derived and would
 otherwise mint a new artifact version once a day even with zero activity; created-date
-is shown instead, keeping the hash purely activity-driven.
+is shown instead, keeping the hash purely activity-driven (the open count is likewise
+activity-driven, not date-driven, so it doesn't reintroduce that churn).
 
 Refresh triggers: `proposal-create` (step 6), `proposal-act` (every accept/defer/
 dismiss/resolve flow, after its Respond step). Both refresh silently by default,
 matching the dashboard's existing no-URL-re-post convention — with one exception:
 `proposal-create`'s own announcement message carries a deep link to the just-created
 proposal, since that's the moment the operator is most likely to want to jump straight
-to it: `📎 <url>#prop-nnn ("PROP-NNN: <title>")`. Fragment scroll-to-anchor behavior in
-the claude.ai artifact viewer itself is unverified (no browser access at the time this
-was written, though the anchor element's presence in the rendered DOM was confirmed) —
-the section name is included in text unconditionally so the link is useful whether or
-not the viewer auto-scrolls.
+to it: `📎 <url>#prop-nnn ("PROP-NNN: <title>")`. The anchor lives on the `<details>`
+element itself, so a browser that auto-opens the `:target`ed `<details>` (current Chrome/
+Safari/Firefox) lands the operator directly on the expanded proposal. Where a viewer
+doesn't do that — the claude.ai artifact viewer's fragment behavior is unverified (no
+browser access at the time this was written, though the anchor element's presence in the
+rendered DOM was confirmed) — the link still scrolls to the correct proposal's collapsed
+summary line, which already shows the chip, id, and title; the section name is included in
+text unconditionally so the link is useful either way.
 
 ## Localization
 

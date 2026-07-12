@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **proposals artifact page: open proposals are now collapsible** — collapsed-by-default one-line summaries with an open count, matching the dashboard; deep-link anchor moved onto the `<details>`.
+
 ## [1.2.22] - 2026-07-12
 
 ### Fixed

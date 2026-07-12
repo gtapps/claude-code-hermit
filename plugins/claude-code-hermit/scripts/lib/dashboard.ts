@@ -455,10 +455,11 @@ function renderStatus(state: DashboardState): string {
     </section>`;
 }
 
-// Shared label for a proposal row: status chip, id, title, age — used both in the
-// expandable open-proposal summary and the one-line history entries.
-function proposalLabel(p: ProposalRow, s: ArtifactStrings): string {
-  return `${chip(p.status)} <strong>${escapeHtml(p.id)}</strong> — ${escapeHtml(p.title)}${ageParen(p.ageDays, s)}`;
+// Shared label for a proposal row: status chip, id, title, plus a caller-supplied
+// suffix (age paren here; proposals-page.ts passes a created-date paren instead).
+// Exported so proposals-page.ts's open/history rows reuse the same template.
+export function proposalLabel(p: ProposalRow, suffix: string): string {
+  return `${chip(p.status)} <strong>${escapeHtml(p.id)}</strong> — ${escapeHtml(p.title)}${suffix}`;
 }
 
 function renderProposals(state: DashboardState): string {
@@ -469,7 +470,7 @@ function renderProposals(state: DashboardState): string {
     ? open
         .map(
           p => `<details class="proposal">
-            <summary>${proposalLabel(p, s)}</summary>
+            <summary>${proposalLabel(p, ageParen(p.ageDays, s))}</summary>
             <div class="proposal-body">${mdToHtml(p.body)}</div>
           </details>`
         )
@@ -478,7 +479,7 @@ function renderProposals(state: DashboardState): string {
 
   const otherHtml = other.length
     ? `<ul class="proposal-history">${other
-        .map(p => `<li>${proposalLabel(p, s)}</li>`)
+        .map(p => `<li>${proposalLabel(p, ageParen(p.ageDays, s))}</li>`)
         .join('')}${otherOmitted > 0 ? `<li class="muted">${fmt(s.common_more_not_shown, { n: otherOmitted })}</li>` : ''}</ul>`
     : '';
 
