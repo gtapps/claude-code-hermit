@@ -9,3 +9,6 @@ Thumbs.db
 .history
 # Cost log
 .claude/cost-log.jsonl
+
+# Graphify output
+graphify-out

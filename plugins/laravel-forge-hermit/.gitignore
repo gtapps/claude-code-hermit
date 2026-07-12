@@ -3,3 +3,4 @@ node_modules/
 .env
 .mcp.json
 php/vendor/
+graphify-out

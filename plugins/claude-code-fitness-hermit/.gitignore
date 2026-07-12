@@ -21,3 +21,6 @@ __pycache__/
 
 # Cost log
 .claude/cost-log.jsonl
+
+# Graphify output
+graphify-out

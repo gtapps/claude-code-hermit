@@ -71,3 +71,6 @@ dist/
 
 # Developer-local Claude Code settings
 .claude/settings.json
+
+# Graphify output
+graphify-out/
