@@ -56,7 +56,6 @@ const DEFAULT_CONFIG: Json = {
   monitors: [],
   env: {
     AGENT_HOOK_PROFILE: 'standard',
-    COMPACT_THRESHOLD: '75',
     CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '65',
     MAX_THINKING_TOKENS: '10000',
   },

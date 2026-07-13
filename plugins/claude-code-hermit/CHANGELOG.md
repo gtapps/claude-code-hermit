@@ -23,6 +23,26 @@
 2. Verify `state/routine-monitor-liveness.json` exists and is fresh (within the last ~2 minutes). If it's absent, the install fell back to CronCreate mode automatically — confirm via `/claude-code-hermit:hermit-routines status`; no action needed, routines keep working as before.
 3. If upgrading an already-running always-on hermit (no restart), run `/claude-code-hermit:hermit-routines status` afterward and confirm only `[hermit-routine:heartbeat-restart]` remains in the CronList — if other `[hermit-routine:*]` entries are still present, re-run `load` to complete the sweep.
 4. Migrate the doctor routine's schedule in `.claude-code-hermit/config.json` by **exact string match only**: `"0 10 * * 1"` → `"10 9 * * 1"`; `"0 10 * * *"` → `"10 9 * * *"`. Any other value on that routine is operator-customized — leave it untouched. (A boot-time ratchet in `hermit-start.ts` also recognizes both old defaults as a backstop for hermits that skip this step or switch from interactive to always-on later, but it only fires on the next always-on launch — this step applies immediately.)
+- **session-archive: structured report frontmatter** — archived reports now carry `blockers`, `lessons`, `artifacts`, and `next_start` as frontmatter fields alongside their existing prose sections; the report's own frontmatter doubles as its index row, no separate index file needed.
+
+### Removed
+- **suggest-compact Stop-hook stage deleted** — the tool-call compact nudge counted Stop events, not tool calls or context usage, and duplicated the three real compaction tiers (native autocompact, watchdog backstop, emergency clear). Stop-pipeline no longer emits anything on stdout; `COMPACT_THRESHOLD` env key removed.
+
+### Upgrade Instructions
+
+1. **Remove `COMPACT_THRESHOLD` from `.claude-code-hermit/config.json`** — delete the key from the `env` block if present.
+2. **Remove `COMPACT_THRESHOLD` from the operator's settings env block** — check the hatch target settings file (`.claude/settings.local.json` or `.claude/settings.json` per `state/hatch-options.json`) and delete the `"COMPACT_THRESHOLD"` entry from `env` if present.
+3. Stale permission cleanup (`Bash(bun */scripts/suggest-compact.ts*)`) is handled by the standard permissions step — no separate action.
+4. **Optional:** delete leftover counter files at `<os tmpdir>/claude-agent-compact-<uid>/` (`rm -r`, not `rm -rf`). Safe to skip — the OS tmpdir is ephemeral and container-local in Docker deployments.
+
+No other config.json changes required.
+### Changed
+- **startup-context: SessionStart injection is now source-gated** — post-compaction (`source=compact`) injects only a ≤1,200-char delta capsule (lifecycle state, task + last progress line, file pointers; never cost/upgrade/catalog/drift/report bodies), and resumed sessions skip the Last Report section when SHELL.md is active — the resumed transcript already contains it. Fresh starts unchanged.
+- **reflect/brief/weekly-review/startup-context: frontmatter-first report reads** — these read a report's structured frontmatter row first and open the full body only for a legacy report (no `next_start` key) or when a check needs prose the row can't witness; a no-change reflect run now reads zero full report bodies.
+
+### Fixed
+- **startup-context: a post-compaction start no longer clears a prior context-scan warning** — the `source=compact` path only scans the delta capsule (task/progress), so it now merges the scan record instead of overwriting it; a compaction can no longer flip the doctor `context-scan` check to "clean" while an injection marker still sits in OPERATOR.md/compiled/report. The next full start re-scans comprehensively and overwrites, self-healing any stale merged hit.
+- **hermit-doctor: `credential-expiry` no longer warns on the Claude Code session's own OAuth token** — the access token auto-refreshes via its refresh token roughly every 8h with no operator action (confirmed live: unattended hermits rewrite `.credentials.json` hours after boot with no `/login` run), so warning on its `expiresAt` was a false "re-login" alarm every cycle. The check now reports only sibling-plugin `expiry_probe` results.
 
 ## [1.2.23] - 2026-07-12
 

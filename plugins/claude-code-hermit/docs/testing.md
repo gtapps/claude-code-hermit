@@ -21,7 +21,7 @@ Tests live in `tests/`:
 
 | File                   | Used by                                     | Format                                                                            |
 | ---------------------- | ------------------------------------------- | --------------------------------------------------------------------------------- |
-| `stop-hook-input.json` | cost-tracker, suggest-compact, session-diff | JSON with `session_id`, `model`, `input_tokens`, `output_tokens` |
+| `stop-hook-input.json` | cost-tracker, session-diff | JSON with `session_id`, `model`, `input_tokens`, `output_tokens` |
 | `shell-session.md`     | evaluate-session                            | SHELL.md format (copy of a live session)                                          |
 
 ---
@@ -33,9 +33,6 @@ Each hook can be tested in isolation. Stop hooks expect JSON on stdin:
 ```bash
 # cost-tracker (Stop hook — always runs)
 cat tests/fixtures/stop-hook-input.json | bun scripts/cost-tracker.ts
-
-# suggest-compact (Stop hook — always runs)
-cat tests/fixtures/stop-hook-input.json | bun scripts/suggest-compact.ts
 
 # session-diff (Stop hook — standard/strict profile, self-gated)
 cat tests/fixtures/stop-hook-input.json | \

@@ -7,8 +7,10 @@ main session composes the channel summary and applies every side effect.
 ## Inputs (read fresh — do not reuse cached values)
 
 - Every `.claude-code-hermit/compiled/topic-*.md` — read full bodies.
-- The 3 most recent `.claude-code-hermit/sessions/S-*-REPORT.md` — for the staleness/contradiction
-  cross-check below (read only as needed; skip if no topic pages exist).
+- The 3 most recent `.claude-code-hermit/sessions/S-*-REPORT.md` — frontmatter first (`date`, `tags`,
+  `task`, `lessons`) for the staleness/contradiction cross-check below; open a full body only to confirm
+  a specific contradiction that the row can't settle, or for a report whose frontmatter lacks the
+  `next_start` key (legacy — read in full). Skip entirely if no topic pages exist.
 - `MEMORY.md` — operator's auto-memory index (at the project root's
   `.claude/projects/.../memory/MEMORY.md` — read the path that exists) — to resolve wikilink targets.
 

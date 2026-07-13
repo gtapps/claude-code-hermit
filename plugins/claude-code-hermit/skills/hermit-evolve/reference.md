@@ -217,11 +217,12 @@ Same logic as init step 8, but target the file determined by `hatch_target` (res
 - `hatch_target == "local"` → `.claude/settings.local.json`
 - `hatch_target == "committed"` → `.claude/settings.json`
 
-Check the target settings file for the plugin's required permissions (`git diff/status/log`, per-script `bun` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required entries are: `cost-tracker.ts`, `suggest-compact.ts`, `evaluate-session.ts`, `append-metrics.ts`, `resolve-prop.ts`, `next-prop-id.ts`, `record-gate.ts`, `queue-micro-proposal.ts`, `generate-summary.ts`, `proposals-index.ts`, `cron-tz-shift.ts`, `archive-shell.ts`, `evolve-plan.ts`, `evolve-finalize.ts`, `manifest-seed.ts`. **Delegated mode: add any missing entries without asking** (a missing `bun` permission breaks hooks, so this is non-optional), and collect them for the step-10 report. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found in the target file:
+Check the target settings file for the plugin's required permissions (`git diff/status/log`, per-script `bun` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required entries are: `cost-tracker.ts`, `evaluate-session.ts`, `append-metrics.ts`, `resolve-prop.ts`, `next-prop-id.ts`, `record-gate.ts`, `queue-micro-proposal.ts`, `generate-summary.ts`, `proposals-index.ts`, `cron-tz-shift.ts`, `archive-shell.ts`, `evolve-plan.ts`, `evolve-finalize.ts`, `manifest-seed.ts`. **Delegated mode: add any missing entries without asking** (a missing `bun` permission breaks hooks, so this is non-optional), and collect them for the step-10 report. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found in the target file:
 
 - `Bash(python3:*)`, `Bash(node:*)` — replaced by scoped bun entries
 - `Edit(.claude/.claude-code-hermit/**)`, `Write(.claude/.claude-code-hermit/**)` — replaced by `.claude-code-hermit/**` (v0.0.6 path change)
 - `Bash(bun */scripts/run-with-profile.ts*)` — the run-with-profile wrapper was removed; profile-gated hooks now self-gate on `AGENT_HOOK_PROFILE`
+- `Bash(bun */scripts/suggest-compact.ts*)` — the suggest-compact Stop-hook stage was removed; compaction is owned by native autocompact, the watchdog backstop, and emergency clear
 
 ### 9. Write updated config
 

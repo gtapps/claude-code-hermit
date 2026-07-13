@@ -39,7 +39,6 @@ Written to `.claude/settings.local.json` at boot by `hermit-start`. Exported to 
 | Key | Default | Purpose |
 |-----|---------|---------|
 | `AGENT_HOOK_PROFILE` | `"standard"` | Hook profile: `minimal`, `standard`, `strict`. Protected in always-on mode. |
-| `COMPACT_THRESHOLD` | `"75"` | Tool-call-count threshold for compact suggestion. |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | `"65"` | Auto-compact at this % of context window. |
 | `MAX_THINKING_TOKENS` | `"10000"` | Cap on thinking tokens per turn. |
 Modify with `/hermit-settings env`.
@@ -455,7 +454,7 @@ config.json "env"  ->  hermit-start.ts  ->  .claude/settings.local.json "env"  -
 ```
 
 - **Shell env only:** `CLAUDE_CONFIG_DIR`, `ANTHROPIC_API_KEY` (OAuth credentials live in `.credentials.json`, written by `claude /login`)
-- **settings.local.json only:** `AGENT_HOOK_PROFILE`, `COMPACT_THRESHOLD`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, `MAX_THINKING_TOKENS`
+- **settings.local.json only:** `AGENT_HOOK_PROFILE`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, `MAX_THINKING_TOKENS`
 - **Derived at boot:** `DISCORD_STATE_DIR`, `TELEGRAM_STATE_DIR` — injected into both shell env (tmux forward) and `settings.local.json` by `hermit-start`, from `channels.<name>.state_dir`
 
 ---
@@ -497,7 +496,6 @@ A realistic `config.json` for an always-on Docker hermit with Discord:
   ],
   "env": {
     "AGENT_HOOK_PROFILE": "strict",
-    "COMPACT_THRESHOLD": "75",
     "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "65",
     "MAX_THINKING_TOKENS": "10000"
   },

@@ -449,6 +449,19 @@ function yamlArray(items: string[]): string {
   return `[${items.map(s => safeBareword.test(s) ? s : JSON.stringify(s)).join(', ')}]`;
 }
 
+// Frontmatter digest of a prose section: content lines only (no template
+// comments), each clipped, list capped — readers use this as the index row
+// and open the body section only when it overflows.
+function contentLines(s: string): string[] {
+  const maxItems = 6;
+  const maxLen = 150;
+  return s.split('\n')
+    .map(l => l.trim().replace(/^-\s+/, ''))
+    .filter(l => l && !l.startsWith('<!--'))
+    .slice(0, maxItems)
+    .map(l => l.length > maxLen ? l.slice(0, maxLen - 1) + '…' : l);
+}
+
 function buildReport(opts: {
   sessionId: string; mode: 'idle' | 'close' | 'auto'; now: Date;
   payload: Record<string, string> & { plan?: string }; shell: string; stateDir: string; config: Json;
@@ -473,7 +486,10 @@ function buildReport(opts: {
   const changed = mergeSessionDiff(payload['Changed'] || '', stateDir);
   const artifacts = payload['Artifacts'] || '';
   const lessons = payload['Lessons'] || '';
-  const nextStart = payload['Next Start Point'] || '';
+  // Idle-mode payloads may still carry a stale 'Next Start Point:' line (it isn't
+  // part of the idle contract, same as the omitted body section below) — force it
+  // empty so frontmatter and body agree.
+  const nextStart = mode !== 'idle' ? (payload['Next Start Point'] || '') : '';
 
   const fm = [
     '---',
@@ -486,6 +502,10 @@ function buildReport(opts: {
     `tags: ${yamlArray(tags)}`,
     `proposals_created: ${yamlArray(proposalsCreated)}`,
     `task: ${JSON.stringify(task)}`,
+    `artifacts: ${yamlArray(contentLines(artifacts))}`,
+    `blockers: ${yamlArray(contentLines(blockers))}`,
+    `lessons: ${yamlArray(contentLines(lessons))}`,
+    `next_start: ${JSON.stringify(firstContentLine(nextStart, 200))}`,
     `escalation: ${escalation}`,
     `operator_turns: ${operatorTurns}`,
     `closed_via: ${closedVia}`,

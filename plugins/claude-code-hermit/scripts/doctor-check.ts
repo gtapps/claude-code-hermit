@@ -2,7 +2,6 @@
 // never crashes and the process always exits 0.
 
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
@@ -1239,40 +1238,13 @@ function checkRawSize() {
 }
 
 // ----------------- Credential expiry -----------------
-
-// Shape (claudeAiOauth.expiresAt, epoch ms) confirmed by the existing
-// hermit-docker login-verification probe (state-templates/bin/hermit-docker).
-// Unrecognized shape degrades to 'ok' by design — no false alarms on format
-// drift, at the cost of the check silently going dark if the shape changes.
-function claudeOAuthStatus(): { status: 'ok' | 'warn'; note: string } {
-  const credDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
-  const credPath = path.join(credDir, '.credentials.json');
-  if (!fs.existsSync(credPath)) {
-    if (process.env.ANTHROPIC_API_KEY) {
-      return { status: 'ok', note: 'API-key mode (no OAuth credentials file)' };
-    }
-    return { status: 'ok', note: 'no OAuth credentials file (keychain or API-key auth)' };
-  }
-  let creds: Json;
-  try {
-    creds = JSON.parse(fs.readFileSync(credPath, 'utf8'));
-  } catch {
-    return { status: 'warn', note: 'credentials file unreadable (malformed JSON)' };
-  }
-  const expiresAt = creds?.claudeAiOauth?.expiresAt;
-  if (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt)) {
-    return { status: 'ok', note: 'credentials present, no recognizable expiry field' };
-  }
-  const msLeft = expiresAt - Date.now();
-  if (msLeft <= 0) {
-    const hoursAgo = Math.abs(msLeft) / 3600000;
-    return { status: 'warn', note: `OAuth token expired ${hoursAgo.toFixed(1)}h ago — run \`claude /login\` (the ~8h re-login trap)` };
-  }
-  if (msLeft < 2 * 3600000) {
-    return { status: 'warn', note: `OAuth token expires in ${(msLeft / 60000).toFixed(0)}m — re-login soon` };
-  }
-  return { status: 'ok', note: `OAuth token valid (expires in ${(msLeft / 3600000).toFixed(1)}h)` };
-}
+//
+// Claude Code's own OAuth access token is intentionally NOT checked here: it
+// refreshes silently via the long-lived refresh token roughly every 8h with
+// no operator action, so warning on its expiresAt was a false alarm (confirmed
+// live — unattended hermits rewrite .credentials.json hours after boot with no
+// /login run). This check covers only sibling-plugin credentials declared via
+// hermit-meta.json's expiry_probe.
 
 // Probe timeout: 5s default; env override exists solely so tests can exercise
 // the timeout path without waiting 5 real seconds.
@@ -1367,11 +1339,11 @@ function probeSiblingCredentials(): { okCount: number; badNotes: string[] } {
 
 function checkCredentialExpiry() {
   try {
-    const oauth = claudeOAuthStatus();
     const sib = probeSiblingCredentials();
-    const status = (oauth.status === 'warn' || sib.badNotes.length > 0) ? 'warn' : 'ok';
-    const parts = [...sib.badNotes, oauth.note]; // worst-first, OAuth note always present
+    const status = sib.badNotes.length > 0 ? 'warn' : 'ok';
+    const parts = [...sib.badNotes];
     if (sib.okCount > 0) parts.push(`${sib.okCount} plugin credential(s) ok`);
+    if (parts.length === 0) parts.push('no sibling plugins declare a credential to probe');
     return { id: 'credential-expiry', status, detail: parts.join('; ') };
   } catch (e: any) {
     return { id: 'credential-expiry', status: 'fail', detail: `check failed: ${e.message}` };

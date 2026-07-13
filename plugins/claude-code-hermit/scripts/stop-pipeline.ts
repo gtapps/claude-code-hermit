@@ -1,10 +1,8 @@
 // stop-pipeline.ts — unified Stop hook
 // Reads stdin once, runs all stop stages in sequence, touches heartbeat.
-// Only suggest-compact output goes to stdout (Claude Code parses it).
-// All other stage output goes to stderr.
+// All stage output goes to stderr; nothing is emitted on stdout.
 
 import { run as costTracker } from './cost-tracker';
-import { run as suggestCompact } from './suggest-compact';
 import { run as sessionDiff } from './session-diff';
 import { run as evaluateSession } from './evaluate-session';
 import { sessionCrons, backgroundTasks, ccVersion, hermitDir } from './lib/cc-compat';
@@ -40,29 +38,19 @@ async function main(): Promise<void> {
   const profile = (process.env.AGENT_HOOK_PROFILE || 'standard').trim().toLowerCase();
   const isStandardPlus = profile !== 'minimal';
 
-  // Suggest-compact output gets special treatment — Claude Code parses it for additionalContext
-  let compactSuggestion: Json = null;
-
   // Stage 1: cost-tracker (always)
   try {
     const out = await costTracker(payload);
     if (out) console.error(out);
   } catch (e: any) { console.error(`[stop-pipeline] cost-tracker: ${e.message}`); }
 
-  // Stage 2: suggest-compact (standard+)
-  if (isStandardPlus) {
-    try {
-      compactSuggestion = await suggestCompact(payload);
-    } catch (e: any) { console.error(`[stop-pipeline] suggest-compact: ${e.message}`); }
-  }
-
-  // Stage 3: session-diff (standard+, state-aware debounce)
+  // Stage 2: session-diff (standard+, state-aware debounce)
   if (isStandardPlus) {
     try { await sessionDiff(payload); }
     catch (e: any) { console.error(`[stop-pipeline] session-diff: ${e.message}`); }
   }
 
-  // Stage 4: evaluate-session (standard+)
+  // Stage 3: evaluate-session (standard+)
   if (isStandardPlus) {
     try {
       const out = await evaluateSession(payload);
@@ -88,11 +76,6 @@ async function main(): Promise<void> {
     fs.writeFileSync(tmp, JSON.stringify(snapshot, null, 2) + '\n', 'utf-8');
     fs.renameSync(tmp, SNAPSHOT_FILE);
   } catch {}
-
-  // Emit suggest-compact as the ONLY stdout — Claude Code parses this for additionalContext
-  if (compactSuggestion) {
-    console.log(JSON.stringify(compactSuggestion));
-  }
 }
 
 main().catch(e => { console.error(`[stop-pipeline] ${e.message}`); });

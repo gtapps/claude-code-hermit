@@ -134,18 +134,6 @@ function seedDockerSecurity(dir: string): void {
   write(path.join(dir, 'docker-compose.security.yml'), '');
 }
 
-// Clean up any suggest-compact counter files left in the OS tmpdir.
-afterAll(() => {
-  const counterDir = path.join(os.tmpdir(), `claude-agent-compact-${process.getuid?.() ?? 'win'}`);
-  try {
-    for (const f of fs.readdirSync(counterDir)) {
-      if (/^counter-test-session-.*\.txt$/.test(f)) {
-        fs.rmSync(path.join(counterDir, f), { force: true });
-      }
-    }
-  } catch {}
-});
-
 // -------------------------------------------------------
 // cost-tracker
 // -------------------------------------------------------
@@ -215,33 +203,8 @@ describe('cost-tracker getCumulativeCost (in-process)', () => {
 });
 
 // -------------------------------------------------------
-// suggest-compact / evaluate-session
+// evaluate-session
 // -------------------------------------------------------
-
-describe('suggest-compact', () => {
-  test('suggest-compact', withDir(async (dir) => {
-    const stdin = fs.readFileSync(path.join(fixturesDir, 'stop-hook-input.json'), 'utf-8');
-    const r = await runScript('suggest-compact.ts', { stdin, cwd: dir });
-    expect(r.exitCode).toBe(0);
-  }));
-
-  test('suggest-compact (empty stdin)', withDir(async (dir) => {
-    const r = await runScript('suggest-compact.ts', { stdin: '', cwd: dir });
-    expect(r.exitCode).toBe(0);
-  }));
-
-  // Regression for the removed context_usage branch: a payload claiming 90% context
-  // usage must NOT produce a percentage-based suggestion. Only the tool-call counter
-  // (COMPACT_THRESHOLD calls in one session) may trigger a suggestion.
-  test('suggest-compact (context_usage present but ignored)', withDir(async (dir) => {
-    const base = JSON.parse(fs.readFileSync(path.join(fixturesDir, 'stop-hook-input.json'), 'utf-8'));
-    const stdin = JSON.stringify({ ...base, session_id: 'test-session-ctxusage', context_usage: 0.9 });
-    const r = await runScript('suggest-compact.ts', { stdin, cwd: dir });
-    expect(r.exitCode).toBe(0);
-    expect(r.stdout).not.toContain('context usage');
-    expect(r.stdout.trim()).toBe('');
-  }));
-});
 
 describe('evaluate-session', () => {
   test('evaluate-session (empty stdin)', withDir(async (dir) => {
@@ -792,16 +755,10 @@ describe('stop-pipeline', () => {
 
   test('stop-pipeline (stdout contract)', withDir(async (dir) => {
     const r = await runScript('stop-pipeline.ts', {
-      stdin: stopHookInput(dir), cwd: dir,
-      env: { ...PIPE_ENV, COMPACT_THRESHOLD: '1' },
+      stdin: stopHookInput(dir), cwd: dir, env: PIPE_ENV,
     });
     expect(r.exitCode).toBe(0);
-    if (r.stdout.trim()) {
-      const parsed = JSON.parse(r.stdout);
-      expect(parsed).toHaveProperty('additionalContext');
-    }
-    expect(r.stdout).not.toContain('cost-tracker');
-    expect(r.stdout).not.toContain('session-eval');
+    expect(r.stdout.trim()).toBe('');
     expect(r.stderr).toContain('cost-tracker');
   }));
 
@@ -1196,6 +1153,33 @@ Rota body.
     const sourceless = await runScript('startup-context.ts', { cwd: dir, env: ENV });
     expect(sourceless.exitCode).toBe(0);
     expect(sourceless.stdout).toContain('---Last Report---');
+  }));
+
+  test('startup-context (source=startup, new-format report → frontmatter row, no Overview body)', withDir(async (dir) => {
+    write(hermit(dir, 'sessions', 'S-001-REPORT.md'),
+      '---\nid: S-001\nstatus: completed\nblockers: ["waiting on review", "infra blocked"]\n' +
+      'next_start: "pick up the migration script"\ntask: "ship the thing"\n---\n' +
+      '# Session Report: S-001\n\n## Overview\nship the thing\n');
+    const r = await runScript('startup-context.ts', {
+      cwd: dir, env: ENV, stdin: JSON.stringify({ source: 'startup', session_id: 'x' }),
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toContain('---Last Report---');
+    expect(r.stdout).toContain('status=completed ship the thing');
+    expect(r.stdout).toContain('next: pick up the migration script');
+    expect(r.stdout).toContain('blockers: waiting on review (+1 more)');
+    expect(r.stdout).not.toContain('## Overview');
+  }));
+
+  test('startup-context (source=startup, legacy report with no next_start key → Overview fallback preserved)', withDir(async (dir) => {
+    write(hermit(dir, 'sessions', 'S-001-REPORT.md'), '---\nid: S-001\nstatus: completed\n---\n# Report\n## Overview\nPrev session overview.\n');
+    const r = await runScript('startup-context.ts', {
+      cwd: dir, env: ENV, stdin: JSON.stringify({ source: 'startup', session_id: 'x' }),
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toContain('---Last Report---');
+    expect(r.stdout).toContain('## Overview');
+    expect(r.stdout).toContain('Prev session overview');
   }));
 });
 

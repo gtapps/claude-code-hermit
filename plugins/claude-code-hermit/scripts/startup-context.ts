@@ -442,15 +442,30 @@ function emitFullContext(source: string | null) {
 
       if (reports.length > 0) {
         const reportPath = path.join(sessionsDir, reports[0]);
-        const reportContent = fs.readFileSync(reportPath, 'utf-8');
+        const parsed = readFileWithFrontmatter(reportPath);
+        const fm = parsed?.fm;
+        const reportContent = parsed?.content ?? fs.readFileSync(reportPath, 'utf-8');
 
         let reportExcerpt = `[${reports[0]}]\n`;
-        const overview = extractSection(reportContent, 'Overview');
-        if (overview && overview.trim()) {
-          reportExcerpt += `## Overview\n${overview.trimEnd()}`;
+        if (fm && Object.prototype.hasOwnProperty.call(fm, 'next_start')) {
+          // New-format report: the frontmatter row is the index — skip the
+          // Overview body entirely.
+          reportExcerpt += `status=${fm.status || 'unknown'} ${fm.task || ''}`.trimEnd();
+          if (fm.next_start) reportExcerpt += `\nnext: ${fm.next_start}`;
+          const blockers = Array.isArray(fm.blockers) ? fm.blockers : [];
+          if (blockers.length > 0) {
+            const extra = blockers.length > 1 ? ` (+${blockers.length - 1} more)` : '';
+            reportExcerpt += `\nblockers: ${blockers[0]}${extra}`;
+          }
         } else {
-          // No Overview header — emit first 20 lines
-          reportExcerpt += reportContent.split('\n').slice(0, 20).join('\n');
+          // Legacy report — no structured fields, fall back to the Overview body.
+          const overview = extractSection(reportContent, 'Overview');
+          if (overview && overview.trim()) {
+            reportExcerpt += `## Overview\n${overview.trimEnd()}`;
+          } else {
+            // No Overview header — emit first 20 lines
+            reportExcerpt += reportContent.split('\n').slice(0, 20).join('\n');
+          }
         }
 
         emit('Last Report', guarded(`sessions/${reports[0]}`, reportExcerpt.slice(0, BUDGETS.report)));

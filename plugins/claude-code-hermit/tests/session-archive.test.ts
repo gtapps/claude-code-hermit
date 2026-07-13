@@ -26,6 +26,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { runScript } from './helpers/run';
+import { readFrontmatter } from '../scripts/lib/frontmatter';
 
 const hermit = (dir: string, ...p: string[]) => path.join(dir, '.claude-code-hermit', ...p);
 const sessionsDir = (dir: string) => hermit(dir, 'sessions');
@@ -481,7 +482,8 @@ describe('recovery matrix', () => {
 describe('structural equivalence with the session-mgr.md spec', () => {
   const REQUIRED_FRONTMATTER_KEYS = [
     'id', 'status', 'date', 'duration', 'cost_usd', 'tokens', 'tags',
-    'proposals_created', 'task', 'escalation', 'operator_turns', 'closed_via',
+    'proposals_created', 'task', 'artifacts', 'blockers', 'lessons', 'next_start',
+    'escalation', 'operator_turns', 'closed_via',
   ];
   const REQUIRED_SECTIONS = [
     '## Overview', '## Completed', '## Changed', '## Artifacts',
@@ -515,4 +517,61 @@ describe('structural equivalence with the session-mgr.md spec', () => {
     const src = fs.readFileSync(path.join(import.meta.dir, '..', 'scripts', 'session-archive.ts'), 'utf-8');
     expect(src).toContain('/PROP-[a-z0-9][a-z0-9-]*/gi');
   });
+});
+
+// =============================================================================
+// Structured frontmatter (blockers/lessons/artifacts/next_start) — the row
+// reflect/brief/weekly-review/startup-context now read instead of full bodies.
+describe('structured report frontmatter', () => {
+  test('multi-line prose fields round-trip as arrays via the shared frontmatter parser', withTmp(async (dir) => {
+    await open(dir, 'Task: structured fields\n', '2026-07-09T12:00:00Z');
+    const payload =
+      'Status: completed\n' +
+      'Blockers: waiting on review, needs sign-off\nstill blocked on infra\n' +
+      'Lessons: cache invalidation matters\nretry logic needs backoff\n' +
+      'Artifacts: compiled/report-1.md\ncompiled/report-2.md\n' +
+      'Changed: none\n' +
+      'Next Start Point: pick up the migration script\n';
+    await archive(dir, 'close', payload, '2026-07-09T13:00:00Z');
+    const fm = readFrontmatter(path.join(sessionsDir(dir), 'S-001-REPORT.md'));
+    expect(fm.blockers).toEqual(['waiting on review, needs sign-off', 'still blocked on infra']);
+    expect(fm.lessons).toEqual(['cache invalidation matters', 'retry logic needs backoff']);
+    expect(fm.artifacts).toEqual(['compiled/report-1.md', 'compiled/report-2.md']);
+    expect(fm.next_start).toBe('pick up the migration script');
+  }));
+
+  test('placeholder-only payload yields empty arrays and empty next_start', withTmp(async (dir) => {
+    await open(dir, 'Task: placeholders\n', '2026-07-09T12:00:00Z');
+    const payload = 'Status: completed\nChanged: none\n';
+    await archive(dir, 'close', payload, '2026-07-09T13:00:00Z');
+    const fm = readFrontmatter(path.join(sessionsDir(dir), 'S-001-REPORT.md'));
+    expect(fm.blockers).toEqual([]);
+    expect(fm.lessons).toEqual([]);
+    expect(fm.artifacts).toEqual([]);
+    expect(fm.next_start).toBe('');
+  }));
+
+  test('YAML-hostile characters and internal commas in a blocker line stay parseable as one item', withTmp(async (dir) => {
+    await open(dir, 'Task: hostile chars\n', '2026-07-09T12:00:00Z');
+    const payload = 'Status: completed\nBlockers: #urgent fix, needs {infra} and [approval]\nChanged: none\n';
+    await archive(dir, 'close', payload, '2026-07-09T13:00:00Z');
+    const fm = readFrontmatter(path.join(sessionsDir(dir), 'S-001-REPORT.md'));
+    expect(fm.blockers).toEqual(['#urgent fix, needs {infra} and [approval]']);
+  }));
+
+  test('idle-mode archive has empty next_start', withTmp(async (dir) => {
+    await open(dir, 'Task: idle next_start\n', '2026-07-09T12:00:00Z');
+    await archive(dir, 'idle', BASIC_CLOSE_PAYLOAD, '2026-07-09T13:00:00Z');
+    const fm = readFrontmatter(path.join(sessionsDir(dir), 'S-001-REPORT.md'));
+    expect(fm.next_start).toBe('');
+  }));
+
+  test('a # in a quoted scalar (next_start referencing an issue) survives the parser', withTmp(async (dir) => {
+    await open(dir, 'Task: continue #591 review\n', '2026-07-09T12:00:00Z');
+    const payload = 'Status: completed\nChanged: none\nNext Start Point: address the #591 review comments\n';
+    await archive(dir, 'close', payload, '2026-07-09T13:00:00Z');
+    const fm = readFrontmatter(path.join(sessionsDir(dir), 'S-001-REPORT.md'));
+    expect(fm.next_start).toBe('address the #591 review comments');
+    expect(fm.task).toBe('continue #591 review');
+  }));
 });

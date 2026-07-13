@@ -2061,74 +2061,24 @@ describe('doctor context-age check', () => {
 describe('doctor credential-expiry check', () => {
   const credCheck = (report: any) => (report.checks ?? []).find((c: any) => c.id === 'credential-expiry');
 
-  test('no credentials file, no API key → ok', withTmpdir(async (dir) => {
+  test('no sibling plugin credentials declared → ok', withTmpdir(async (dir) => {
     writeConfig(dir, {});
     const credDir = path.join(dir, 'no-such-cred-dir');
     const r = await runScript('doctor-check.ts', {
       args: ['.claude-code-hermit'], cwd: dir,
       env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_CONFIG_DIR: credDir, ANTHROPIC_API_KEY: '' },
-    });
-    const report = JSON.parse(r.stdout);
-    expect(credCheck(report).status).toBe('ok');
-  }), 20000);
-
-  test('no credentials file, API key set → ok, API-key mode', withTmpdir(async (dir) => {
-    writeConfig(dir, {});
-    const credDir = path.join(dir, 'no-such-cred-dir');
-    const r = await runScript('doctor-check.ts', {
-      args: ['.claude-code-hermit'], cwd: dir,
-      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_CONFIG_DIR: credDir, ANTHROPIC_API_KEY: 'sk-test' },
     });
     const report = JSON.parse(r.stdout);
     const c = credCheck(report);
     expect(c.status).toBe('ok');
-    expect(c.detail).toContain('API-key mode');
+    expect(c.detail).toContain('no sibling plugins declare a credential to probe');
   }), 20000);
 
-  test('malformed credentials JSON → warn', withTmpdir(async (dir) => {
-    writeConfig(dir, {});
-    const credDir = path.join(dir, 'creds');
-    fs.mkdirSync(credDir, { recursive: true });
-    fs.writeFileSync(path.join(credDir, '.credentials.json'), '{not json');
-    const r = await runScript('doctor-check.ts', {
-      args: ['.claude-code-hermit'], cwd: dir,
-      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_CONFIG_DIR: credDir, ANTHROPIC_API_KEY: '' },
-    });
-    const report = JSON.parse(r.stdout);
-    expect(credCheck(report).status).toBe('warn');
-  }), 20000);
-
-  test('fresh token (+24h) → ok', withTmpdir(async (dir) => {
-    writeConfig(dir, {});
-    const credDir = path.join(dir, 'creds');
-    fs.mkdirSync(credDir, { recursive: true });
-    fs.writeFileSync(path.join(credDir, '.credentials.json'), JSON.stringify({
-      claudeAiOauth: { expiresAt: Date.now() + 24 * 3600000 },
-    }));
-    const r = await runScript('doctor-check.ts', {
-      args: ['.claude-code-hermit'], cwd: dir,
-      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_CONFIG_DIR: credDir, ANTHROPIC_API_KEY: '' },
-    });
-    const report = JSON.parse(r.stdout);
-    expect(credCheck(report).status).toBe('ok');
-  }), 20000);
-
-  test('near-expiry token (+30m) → warn', withTmpdir(async (dir) => {
-    writeConfig(dir, {});
-    const credDir = path.join(dir, 'creds');
-    fs.mkdirSync(credDir, { recursive: true });
-    fs.writeFileSync(path.join(credDir, '.credentials.json'), JSON.stringify({
-      claudeAiOauth: { expiresAt: Date.now() + 30 * 60000 },
-    }));
-    const r = await runScript('doctor-check.ts', {
-      args: ['.claude-code-hermit'], cwd: dir,
-      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_CONFIG_DIR: credDir, ANTHROPIC_API_KEY: '' },
-    });
-    const report = JSON.parse(r.stdout);
-    expect(credCheck(report).status).toBe('warn');
-  }), 20000);
-
-  test('expired token (-1h) → warn, detail mentions login', withTmpdir(async (dir) => {
+  // Regression guard: the Claude Code session's own OAuth token auto-refreshes
+  // every ~8h with no operator action, so an expired/malformed/near-expiry
+  // .credentials.json must never surface as a doctor warning — this check
+  // only reports sibling-plugin expiry_probe results.
+  test('expired Claude Code session credentials are not flagged → ok', withTmpdir(async (dir) => {
     writeConfig(dir, {});
     const credDir = path.join(dir, 'creds');
     fs.mkdirSync(credDir, { recursive: true });
@@ -2140,9 +2090,20 @@ describe('doctor credential-expiry check', () => {
       env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_CONFIG_DIR: credDir, ANTHROPIC_API_KEY: '' },
     });
     const report = JSON.parse(r.stdout);
-    const c = credCheck(report);
-    expect(c.status).toBe('warn');
-    expect(c.detail).toContain('/login');
+    expect(credCheck(report).status).toBe('ok');
+  }), 20000);
+
+  test('malformed session credentials JSON is not flagged → ok', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    const credDir = path.join(dir, 'creds');
+    fs.mkdirSync(credDir, { recursive: true });
+    fs.writeFileSync(path.join(credDir, '.credentials.json'), '{not json');
+    const r = await runScript('doctor-check.ts', {
+      args: ['.claude-code-hermit'], cwd: dir,
+      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_CONFIG_DIR: credDir, ANTHROPIC_API_KEY: '' },
+    });
+    const report = JSON.parse(r.stdout);
+    expect(credCheck(report).status).toBe('ok');
   }), 20000);
 });
 

@@ -190,7 +190,7 @@ See [Always-On Operations](always-on-ops.md) for tmux setup and operational deta
 | Profile                | What runs                                      | Best for                       |
 | ---------------------- | ---------------------------------------------- | ------------------------------ |
 | **minimal**            | Cost tracking only                             | Experimenting                  |
-| **standard** (default) | + compact suggestions + session quality checks | Day-to-day work                |
+| **standard** (default) | + session quality checks                       | Day-to-day work                |
 | **strict**             | + safety hooks from hermits                    | Always-on, production-adjacent |
 
 Set in `config.json` `env` (written to `.claude/settings.local.json` at boot):
