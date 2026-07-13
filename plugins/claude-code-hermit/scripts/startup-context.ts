@@ -181,8 +181,9 @@ function main(source: string | null) {
   } else {
     emitFullContext(source);
   }
-  // Always — an empty-hits write clears a prior context-scan warning.
-  persistScanRecord();
+  // Always — a full-path clean scan clears a prior warning; the compact path
+  // merges (it only scanned the capsule) so it can't clear a real warning.
+  persistScanRecord(source);
 }
 
 // Post-compaction path: the delta capsule is the ONLY injection. The native
@@ -478,14 +479,28 @@ function emitFullContext(source: string | null) {
 
 }
 
-// Persist scan record (always — empty hits clear a prior warning)
-function persistScanRecord(): void {
+// Persist scan record. A full-path scan is comprehensive, so it overwrites —
+// empty hits legitimately clear a prior warning. The compact path only scanned
+// the delta capsule (task/progress), so it MERGES with the existing record
+// rather than overwriting: a compaction must never clear a warning a prior full
+// scan recorded for OPERATOR.md/compiled/report. The next full start re-scans
+// comprehensively and overwrites, self-healing any stale merged hit.
+function persistScanRecord(source: string | null): void {
   try {
     const stateDir = path.resolve(AGENT_DIR, 'state');
     fs.mkdirSync(stateDir, { recursive: true });
     const scanPath = path.join(stateDir, 'context-scan.json');
+    let hits = scanHits;
+    if (source === 'compact') {
+      try {
+        const prev = JSON.parse(fs.readFileSync(scanPath, 'utf-8'));
+        const prevHits: { source: string; reason: string }[] = Array.isArray(prev.hits) ? prev.hits : [];
+        const seen = new Set(hits.map(h => `${h.source}\0${h.reason}`));
+        hits = hits.concat(prevHits.filter(h => !seen.has(`${h.source}\0${h.reason}`)));
+      } catch {}
+    }
     const tmp = scanPath + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify({ ts: new Date().toISOString(), hits: scanHits }, null, 2) + '\n', { encoding: 'utf-8', mode: 0o600 });
+    fs.writeFileSync(tmp, JSON.stringify({ ts: new Date().toISOString(), hits }, null, 2) + '\n', { encoding: 'utf-8', mode: 0o600 });
     fs.renameSync(tmp, scanPath);
   } catch {}
 }

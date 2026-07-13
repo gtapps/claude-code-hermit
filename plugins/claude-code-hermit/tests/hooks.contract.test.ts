@@ -1152,6 +1152,19 @@ Rota body.
     expect(fs.existsSync(hermit(dir, 'state', 'context-scan.json'))).toBe(true);
   }));
 
+  test('startup-context (source=compact → does not clear a prior full-scan warning)', withDir(async (dir) => {
+    // A prior full startup recorded a warning for a surface the compact path never scans.
+    const scanPath = hermit(dir, 'state', 'context-scan.json');
+    fs.mkdirSync(hermit(dir, 'state'), { recursive: true });
+    write(scanPath, JSON.stringify({ ts: '2026-01-01T00:00:00Z', hits: [{ source: 'OPERATOR.md', reason: 'system-marker' }] }));
+    const r = await runScript('startup-context.ts', {
+      cwd: dir, env: ENV, stdin: JSON.stringify({ source: 'compact', session_id: 'x' }),
+    });
+    expect(r.exitCode).toBe(0);
+    const rec = JSON.parse(fs.readFileSync(scanPath, 'utf-8'));
+    expect(rec.hits.some((h: any) => h.source === 'OPERATOR.md')).toBe(true);
+  }));
+
   test('startup-context (source=resume, active SHELL.md → Last Report omitted, rest intact)', withDir(async (dir) => {
     write(hermit(dir, 'sessions', 'S-001-REPORT.md'), '# Report\n## Overview\nPrev session overview.\n');
     const r = await runScript('startup-context.ts', {
