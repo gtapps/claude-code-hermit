@@ -303,9 +303,9 @@ describe('loadConfig merge', () => {
   });
 
   test('user env override does not lose other env keys', () => {
-    writeConfig({ env: { COMPACT_THRESHOLD: '100' } });
+    writeConfig({ env: { AGENT_HOOK_PROFILE: 'minimal' } });
     const merged = loadConfig();
-    expect(merged.env.COMPACT_THRESHOLD).toBe('100');
+    expect(merged.env.AGENT_HOOK_PROFILE).toBe('minimal');
     expect(merged.env).toContainKey('MAX_THINKING_TOKENS');
     expect(merged.env.MAX_THINKING_TOKENS).toBe('10000');
   });

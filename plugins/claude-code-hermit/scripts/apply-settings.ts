@@ -37,7 +37,6 @@ const HERMIT_ALLOW = [
   'Bash(git status:*)',
   'Bash(git log:*)',
   'Bash(bun */scripts/cost-tracker.ts*)',
-  'Bash(bun */scripts/suggest-compact.ts*)',
   'Bash(bun */scripts/heartbeat-precheck.ts*)',
   'Bash(bun */scripts/reflect-precheck.ts*)',
   'Bash(bun */scripts/archive-shell.ts*)',
