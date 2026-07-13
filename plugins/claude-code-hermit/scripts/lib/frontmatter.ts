@@ -50,8 +50,11 @@ function _parseFrontmatterWithEnd(content: string): { fm: Json | null; end: numb
     } else if (val === 'null') {
       result[key] = null;
     } else {
-      val = val.replace(/\s+#.*$/, '').replace(/^["']|["']$/g, '');
-      result[key] = val;
+      // A fully-quoted scalar may legitimately contain '#' (e.g. next_start
+      // referencing "#591") — strip an inline comment only from an unquoted
+      // value, matching YAML's rule that '#' inside quotes is literal.
+      const quoted = val.match(/^"(.*)"$/) || val.match(/^'(.*)'$/);
+      result[key] = quoted ? quoted[1] : val.replace(/\s+#.*$/, '').replace(/^["']|["']$/g, '');
     }
   }
   return { fm: result, end };

@@ -565,4 +565,13 @@ describe('structured report frontmatter', () => {
     const fm = readFrontmatter(path.join(sessionsDir(dir), 'S-001-REPORT.md'));
     expect(fm.next_start).toBe('');
   }));
+
+  test('a # in a quoted scalar (next_start referencing an issue) survives the parser', withTmp(async (dir) => {
+    await open(dir, 'Task: continue #591 review\n', '2026-07-09T12:00:00Z');
+    const payload = 'Status: completed\nChanged: none\nNext Start Point: address the #591 review comments\n';
+    await archive(dir, 'close', payload, '2026-07-09T13:00:00Z');
+    const fm = readFrontmatter(path.join(sessionsDir(dir), 'S-001-REPORT.md'));
+    expect(fm.next_start).toBe('address the #591 review comments');
+    expect(fm.task).toBe('continue #591 review');
+  }));
 });
