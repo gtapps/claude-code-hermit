@@ -70,7 +70,7 @@ All hooks follow this contract:
 
 ### Test Framework
 
-Hook contract tests live in `tests/hooks.contract.test.ts` and run with `bun test` (no extra dependencies — `bun:test` is built in). All other suites are also `bun test` — no shell harnesses, no Python, no Jest, no Vitest. See [Contributing](../CONTRIBUTING.md).
+Hook contract tests live in `tests/hooks.contract.test.ts` and run with `bun test` (no extra dependencies — `bun:test` is built in). All other suites are also `bun test` — no shell harnesses, no Python, no Jest, no Vitest. See [Contributing](../../../CONTRIBUTING.md).
 
 ---
 
@@ -92,4 +92,3 @@ These are stricter than `hooks.contract.test.ts` — they test the plugin's beha
 ### Fixture: cron-test-corpus.json
 
 `tests/cron-test-corpus.json` is a shared fixture used by contract tests that validate cron expression parsing. It contains time/schedule pairs with expected fire/skip decisions. Add entries when fixing schedule edge cases.
-

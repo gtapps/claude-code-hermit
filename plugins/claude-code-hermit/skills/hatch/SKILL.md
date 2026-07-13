@@ -272,7 +272,7 @@ questions: [
     header: "Permissions",
     question: "Permission mode for Claude Code?",
     options: [
-      { label: "auto", description: "**Default.** Classifier-reviewed autonomy — each action reviewed before it runs. Available on Max/Team/Enterprise/API plans with Sonnet 4.6 or Opus 4.6/4.7 (Max → Opus 4.7 only). Not on Pro or Haiku — choose acceptEdits if unsure." },
+      { label: "auto", description: "**Default.** Classifier-reviewed autonomy — each action reviewed before it runs. Generally available to all users across subscription plans and API usage; supported models and provider configuration can vary. If Claude reports it unavailable for the current selection, choose a supported model or another permission mode." },
       { label: "acceptEdits", description: "Auto-approve file edits, prompt for shell commands. Good balance if auto is unavailable on your plan." },
       { label: "default", description: "Prompt for permission on first use of each tool" },
       { label: "dontAsk", description: "Deny all tools not in permissions.allow — requires curated allowlist" },
@@ -829,7 +829,7 @@ Record `sign_off`, `deployment` (one of `docker` / `tmux` / `interactive`), `cha
 `push_notifications` is left at the template default (`true`) — no follow-up question. Push is dormant whenever a channel is reachable (the runtime guard in CLAUDE-APPEND.md sends channel-first) and fires only as fallback when a channel is unreachable or absent.
 
 **Derived values from this turn (used in the confirm bundle and Step 5 overlay):**
-- `permission_mode`: `auto` (same default for both Docker and non-Docker deployments). Requires CC 2.1.148+ and Max/Team/Enterprise/API plan — not on Pro or Haiku. If the operator is on an ineligible plan, they'll see an "unavailable" error at launch and should run `/hermit-settings permissions` to switch to `acceptEdits`.
+- `permission_mode`: `auto` (same default for both Docker and non-Docker deployments). Generally available to all users across subscription plans and API usage; supported models and provider configuration can vary. If Claude reports it unavailable for the current selection, choose a supported model or run `/hermit-settings permissions` to select another mode.
 - Deny pattern profile: Docker → hardened (default + always_on), else → minimal (default only). Applied at Step 9 silently.
 - `auto-chain target`: see "Quick — auto-chain at end of Step 10" table.
 

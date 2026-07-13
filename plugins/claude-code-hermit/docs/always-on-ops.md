@@ -171,7 +171,7 @@ Routines live in `config.json` as a `routines` array:
 ```
 
 - `id`: unique name for dedup and display
-- `schedule`: 5-field cron expression (`minute hour dom month dow`), written in `config.timezone` — converted to machine local time at load before CronCreate registration (see [Config reference — routines.schedule](../docs/config-reference.md#cron-schedule-rules))
+- `schedule`: 5-field cron expression (`minute hour dom month dow`), written in `config.timezone`. Monitor mode evaluates it directly in that timezone; the CronCreate anchor/fallback path converts it to machine-local time at registration (see [Config reference — routines.schedule](../docs/config-reference.md#cron-schedule-rules))
 - `skill`: full slash-command name (e.g. `claude-code-hermit:brief --morning` for plugin skills, `ha-refresh-context` for local project skills)
 - `run_during_waiting`: optional — if `true`, fires even when session status is `waiting` (default: `false`)
 - `model`: optional — one of `opus`, `sonnet`, `haiku`. Runs the skill in a subagent at that model to save cost on lightweight routines (e.g. URL checks, threshold comparisons). Subagents run in isolated context and return only a one-line status, so only use it on stateless routines — not ones whose value is chat/transcript output, and not `heartbeat-restart` (ignored there). See [config-reference](config-reference.md#idle-agency--routines) for details.
@@ -240,11 +240,11 @@ Four levers, in rough order of impact:
 
 Not suitable for routines whose value is chat or transcript output (subagent output collapses to one line) or for `heartbeat-restart` (must run in-session). See the [Routines](#routines) section above and [config-reference](config-reference.md#idle-agency--routines).
 
-**3. Interval and active hours.** Cost is wakes/day × cost/wake. Widen `heartbeat.every` (default 5 min) or tighten `active_hours` in `config.json`. Only `EVALUATE`/`AUTO_CLOSE` wakes cost tokens — the `--peek` poll between them is free.
+**3. Interval and active hours.** Cost is wakes/day × cost/wake. Widen `heartbeat.every` (default `2h`) or tighten `active_hours` in `config.json`. Only `EVALUATE`/`AUTO_CLOSE` wakes cost tokens — the `--peek` poll between them is free.
 
 **4. Checklist curation.** A shorter, sharper `HEARTBEAT.md` lets the free OK precheck path fire more often, skipping the full LLM eval. `/claude-code-hermit:heartbeat edit` warns when the list exceeds 10 items.
 
-**Measure before and after:** run `/claude-code-hermit:cost-reflect` to see spend broken down by trigger source (`heartbeat`, `routine:<id>`, `other`) and by token type. The `routine:<id>` rows are the ones a per-routine model override shrinks; `heartbeat` is the one that responds to interval/checklist changes; `other` covers interactive and unattributed turns.
+**Measure before and after:** run `/claude-code-hermit:cost-reflect` to see spend broken down by trigger source (`heartbeat`, `routine:<id>`, `routine:multi`, `channel:<name>`, `other`) and by token type. The routine rows are the ones a per-routine model override shrinks; `heartbeat` responds to interval/checklist changes; `channel:<name>` identifies channel-triggered turns; `other` covers interactive and unattributed turns.
 
 ---
 

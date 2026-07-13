@@ -197,7 +197,7 @@ Note: "Boot skill changes take effect on next `hermit-start` run."
 
 **If argument is "permissions":**
 Ask: "Permission mode for Claude Code? (auto / acceptEdits / default / plan / dontAsk / bypassPermissions) [current value]"
-- `auto` — autonomous mode; a classifier reviews each action before it runs. Max plan → Opus 4.7 only. Team/Enterprise/API → Sonnet 4.6 or Opus 4.6/4.7. Not available on Pro, Haiku, or non-Anthropic providers. **(default)**
+- `auto` — autonomous mode; a classifier reviews each action before it runs. Generally available to all users across subscription plans and API usage; supported models and provider configuration can vary. If Claude reports it unavailable for the current selection, choose a supported model or another permission mode. **(default)**
 - `acceptEdits` — auto-approves file edits, prompts for shell commands
 - `default` — prompts for permission on first use of each tool
 - `plan` — read-only exploration, no file modifications or shell commands

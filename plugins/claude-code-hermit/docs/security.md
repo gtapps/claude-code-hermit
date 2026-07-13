@@ -4,7 +4,7 @@ Safety model for autonomous hermit agents — deny patterns, defense in depth, a
 
 ---
 
-> **Important:** Deny patterns are blocklist-based string matches. They block known dangerous commands but cannot prevent all harmful invocations. The default `auto` mode reduces (but does not eliminate) the need for container isolation by requiring classifier review of each action (requires CC 2.1.150+ and Max/Teams/Enterprise plan — operators on Pro or Haiku will fall back to `acceptEdits`). Always use container isolation when running with `bypassPermissions`. See [Known Limitations](#known-limitations) below.
+> **Important:** Deny patterns are blocklist-based string matches. They block known dangerous commands but cannot prevent all harmful invocations. The default `auto` mode reduces (but does not eliminate) the need for container isolation by requiring classifier review of each action. Auto mode is generally available to all users across subscription plans and API usage; current Claude Code version, model, provider, and administrator settings can still affect availability. If it is unavailable for the current selection, choose a supported model or another permission mode. Always use container isolation when running with `bypassPermissions`. See [Known Limitations](#known-limitations) below.
 
 ## Deny Patterns
 
@@ -122,7 +122,7 @@ Two binding instances exist today:
 
 ## Auto-mode Classifier
 
-Claude Code's `--permission-mode auto` (the hermit's default) routes tool calls through a classifier that blocks anything it judges irreversible, destructive, or aimed outside the trusted environment — a second gate that runs after the permissions system, before a tool call executes. Live tmux probes (CC 2.1.201, `--model sonnet` — **haiku has no auto mode and silently falls back to `acceptEdits`, so it can never exercise the classifier**) settled how a hermit's own sealed settings writes interact with it:
+Claude Code's `--permission-mode auto` (the hermit's default) routes tool calls through a classifier that blocks anything it judges irreversible, destructive, or aimed outside the trusted environment — a second gate that runs after the permissions system, before a tool call executes. The live tmux probes used for the implementation ran on CC 2.1.201 with `--model sonnet`; current model/provider availability is governed by Claude Code rather than hard-coded here. Those probes settled how a hermit's own sealed settings writes interact with the classifier:
 
 - **Tiers and resolution.** `autoMode.hard_deny` blocks unconditionally — the only way past it is an out-of-session executor (see below). `autoMode.soft_deny` (which includes the classifier's built-in `[Self-Modification]` rule — an agent widening its own `permissions.allow`) is cleared by either explicit intent in the operator's own live message, or a seeded `autoMode.allow` exception. The `ask_gate` tier above is a different mechanism entirely (a hermit-owned `PreToolUse` hook), not the classifier.
 - **`autoMode` config is read only from `~/.claude/settings.json`, `.claude/settings.local.json`, managed settings, or `--settings`** — never from a committed project `.claude/settings.json`. A hermit's sealed autoMode entries (below) are always written to `settings.local.json` for this reason, regardless of `hatch_target`.
