@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **startup-context: SessionStart injection is now source-gated** — post-compaction (`source=compact`) injects only a ≤1,200-char delta capsule (lifecycle state, task + last progress line, file pointers; never cost/upgrade/catalog/drift/report bodies), and resumed sessions skip the Last Report section when SHELL.md is active — the resumed transcript already contains it. Fresh starts unchanged.
+
 ## [1.2.23] - 2026-07-12
 
 ### Fixed

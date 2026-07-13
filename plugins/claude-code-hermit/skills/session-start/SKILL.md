@@ -147,8 +147,8 @@ All state lives under `.claude-code-hermit/` in the project root.
 ## Context to Load
 
 - `.claude-code-hermit/OPERATOR.md` (always)
-- `.claude-code-hermit/sessions/SHELL.md` (if exists) **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**
-- Most recent `.claude-code-hermit/sessions/S-*-REPORT.md` (for continuity — only the latest one)
+- `.claude-code-hermit/sessions/SHELL.md` (if exists) **(re-read before writing to it or before reusing a value cached in context from before compaction; after a compact-source start the injected capsule's task/progress lines suffice for orientation — don't re-read just to reconstruct context)**
+- Most recent `.claude-code-hermit/sessions/S-*-REPORT.md` (for continuity — only the latest one; skip after a compact-source start, the capsule carries its path)
 - `.claude-code-hermit/state/runtime.json` (always — for lifecycle state)
 
 Do NOT load all session reports — only the most recent one.
