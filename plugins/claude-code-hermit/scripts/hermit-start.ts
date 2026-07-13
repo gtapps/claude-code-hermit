@@ -51,7 +51,7 @@ const DEFAULT_CONFIG: Json = {
     { id: 'scheduled-checks', schedule: '5 9 * * *', skill: 'claude-code-hermit:reflect --scheduled-checks', run_during_waiting: true, enabled: true },
     { id: 'weekly-review', schedule: '0 23 * * 0', skill: 'claude-code-hermit:weekly-review', enabled: true },
     { id: 'daily-auto-close', schedule: '0 0 * * *', skill: 'claude-code-hermit:session-close --scheduled', model: 'haiku', run_during_waiting: true, enabled: true },
-    { id: 'doctor', schedule: '0 10 * * 1', skill: 'claude-code-hermit:hermit-doctor', model: 'haiku', run_during_waiting: true, enabled: true },
+    { id: 'doctor', schedule: '10 9 * * 1', skill: 'claude-code-hermit:hermit-doctor', model: 'haiku', run_during_waiting: true, enabled: true },
   ],
   monitors: [],
   env: {
@@ -199,19 +199,30 @@ function loadConfig(): Json {
   return merged;
 }
 
-// One-way ratchet: an always-on boot upgrades the template-default weekly
-// doctor schedule to daily. Only touches the entry if it's still at the
-// template default — a custom schedule the operator set is left alone. Does
-// not downgrade back to weekly on stop; a box that reverts to interactive
-// keeps daily doctor, which is harmless.
-const DOCTOR_WEEKLY_SCHEDULE = '0 10 * * 1';
-const DOCTOR_DAILY_SCHEDULE = '0 10 * * *';
+// One-way ratchet: an always-on boot upgrades a template-default weekly doctor
+// schedule to daily. Only touches the entry if it's still at a KNOWN default —
+// a custom schedule the operator set is left alone. Does not downgrade back to
+// weekly on stop; a box that reverts to interactive keeps daily doctor, which
+// is harmless.
+//
+// The set has three entries, not one, because it must recognize schedules from
+// every prior template generation: '0 10 * * 1' is the pre-clustering weekly
+// default, '10 9 * * 1' is the current (clustered) weekly default, and
+// '0 10 * * *' is what THIS ratchet itself already wrote for any hermit that
+// went always-on before clustering shipped — those live fleet hermits are the
+// primary reason for the entry, since without it they'd read as "custom" and
+// never pick up the clustered daily schedule (the CHANGELOG's evolve-time
+// migration is the primary path for already-installed hermits; this ratchet is
+// the deterministic backstop for installs that skip that step, or that switch
+// from interactive to always-on later).
+const KNOWN_DEFAULT_SCHEDULES = ['0 10 * * 1', '10 9 * * 1', '0 10 * * *'];
+const DOCTOR_DAILY_SCHEDULE = '10 9 * * *';
 
 function applyAlwaysOnDoctorSchedule(config: Json): void {
   const routine = Array.isArray(config.routines)
     ? config.routines.find((r: Json) => r?.id === 'doctor')
     : null;
-  if (routine && routine.schedule === DOCTOR_WEEKLY_SCHEDULE) {
+  if (routine && KNOWN_DEFAULT_SCHEDULES.includes(routine.schedule)) {
     routine.schedule = DOCTOR_DAILY_SCHEDULE;
   }
 }

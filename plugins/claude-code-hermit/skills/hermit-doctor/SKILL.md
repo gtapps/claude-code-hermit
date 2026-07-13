@@ -1,11 +1,11 @@
 ---
 name: hermit-doctor
-description: Returns a twenty-four-check health report on the hermit installation (runtime, config, hooks, state-file integrity, cost, proposals, deps, version currency, permissions, docker/sandbox, archival, reflect loop, scheduler, watchdog, context age, opus-wake spend, routine cost, heartbeat, raw storage size, credential expiry, model pricing, channel liveness, context scan). Use when diagnosing an install, before a release, or after suspicious behavior. Activates on messages like "/hermit-doctor", "health check", "diagnose the hermit", "what's wrong", "run diagnostic".
+description: Returns a twenty-five-check health report on the hermit installation (runtime, config, hooks, state-file integrity, cost, proposals, deps, version currency, permissions, docker/sandbox, archival, reflect loop, scheduler, watchdog, context age, opus-wake spend, routine cost, heartbeat, routine monitor, raw storage size, credential expiry, model pricing, channel liveness, context scan). Use when diagnosing an install, before a release, or after suspicious behavior. Activates on messages like "/hermit-doctor", "health check", "diagnose the hermit", "what's wrong", "run diagnostic".
 ---
 
 # Hermit Doctor
 
-Runs twenty-three read-only health checks against the current hermit install (`channel-liveness`
+Runs twenty-four read-only health checks against the current hermit install (`channel-liveness`
 is the only one that performs outbound API calls — see Notes) and surfaces the summary. Safe
 to run at any time. Produces no side effects beyond writing
 `.claude-code-hermit/state/doctor-report.json` and appending a summary block to SHELL.md.
@@ -20,16 +20,16 @@ to run at any time. Produces no side effects beyond writing
    JSON to stdout. It exits 0 unconditionally — on any internal failure the failing
    check reports `status: "fail"` in its own entry rather than crashing the report.
 
-2. Parse the JSON. For each of the twenty-three checks in the report (`runtime`, `config`, `hooks`, `state`, `cost`,
+2. Parse the JSON. For each of the twenty-four checks in the report (`runtime`, `config`, `hooks`, `state`, `cost`,
    `proposals`, `dependencies`, `version-currency`, `permissions`, `docker-security`, `archive`, `reflect`, `scheduler`, `watchdog`,
-   `context-age`, `opus-wake`, `routine-cost`, `heartbeat`, `raw-size`, `credential-expiry`, `model-pricing-known`, `context-scan`, `channel-liveness`), emit one line using this format:
+   `context-age`, `opus-wake`, `routine-cost`, `heartbeat`, `routine-monitor`, `raw-size`, `credential-expiry`, `model-pricing-known`, `context-scan`, `channel-liveness`), emit one line using this format:
    - `✓ <id> — <detail>` when `status: ok`
    - `⚠ <id> — <detail>` when `status: warn`
    - `✗ <id> — <detail>` when `status: fail`
 
-2.5. **Sandbox capability check** (twenty-fourth check, run after step 2):
+2.5. **Sandbox capability check** (twenty-fifth check, run after step 2):
 
-   Architectural note: this check is computed by the skill orchestrator, not by `doctor-check.ts`. `state/doctor-report.json` therefore contains only the twenty-three checks emitted in step 2; the sandbox line is appended to the rendered summary and to SHELL.md but is not present in the JSON report. Tools that consume `doctor-report.json` programmatically should call `scripts/sandbox-probe.ts` separately if they need the sandbox status.
+   Architectural note: this check is computed by the skill orchestrator, not by `doctor-check.ts`. `state/doctor-report.json` therefore contains only the twenty-four checks emitted in step 2; the sandbox line is appended to the rendered summary and to SHELL.md but is not present in the JSON report. Tools that consume `doctor-report.json` programmatically should call `scripts/sandbox-probe.ts` separately if they need the sandbox status.
 
    Determine the sandbox enabled state: read `.claude/settings.json` and `.claude/settings.local.json`; the last file that explicitly declares `sandbox.enabled` wins (Claude Code's merge order). Treat non-bool values as undeclared.
 
@@ -46,14 +46,14 @@ to run at any time. Produces no side effects beyond writing
      - `warn`: emit `⚠ sandbox — enabled but: <message>`.
      - `fail`: emit `✗ sandbox — enabled but: <message>. Fix: <install_hint>`.
 
-   Add this as the twenty-fourth line to the summary.
+   Add this as the twenty-fifth line to the summary.
 
 3. Append a summary section to `.claude-code-hermit/sessions/SHELL.md` under a new
-   `## Doctor Report (<ts>)` heading. Use the same twenty-four lines from steps 2 and 2.5. Place it
+   `## Doctor Report (<ts>)` heading. Use the same twenty-five lines from steps 2 and 2.5. Place it
    above the `## Monitoring` section so it sits with session-level context, not
    with monitoring chatter.
 
-4. Return the twenty-four lines to the caller. Cap total output at 30 lines.
+4. Return the twenty-five lines to the caller. Cap total output at 30 lines.
 
 5. **Escalation & dedup.** Build the failing set: every JSON check from step 2 with
    `status: warn|fail`, plus the step-2.5 sandbox line when it rendered ⚠/✗ (id `sandbox`).
@@ -82,10 +82,10 @@ to run at any time. Produces no side effects beyond writing
 
 ## Silence policy
 
-- If every check is `ok`, return only: `All twenty-four checks passed.` Do not notify via
+- If every check is `ok`, return only: `All twenty-five checks passed.` Do not notify via
   channel (Tier 0). Still resolve any stale `doctor:*` alert-state keys (step 5) and still
   append to SHELL.md so the run is traceable.
-- If any check is `warn` or `fail`, return the full twenty-four-line summary. Channel notification
+- If any check is `warn` or `fail`, return the full twenty-five-line summary. Channel notification
   is governed by step 5's escalation-and-dedup logic, not a blanket per-run ping: only newly
   appearing findings message the channel, and only once until they resolve.
 
@@ -109,8 +109,9 @@ to run at any time. Produces no side effects beyond writing
 | `watchdog` | Reads `config.watchdog`, `config.post_close_clear`, `config.context_hygiene.compact.enabled`, `state/watchdog-state.json` (`last_run` liveness + `consecutive_stale` + `last_hygiene_eval`), `state/runtime.json` (`runtime_mode`, `session_state`, shutdown stamps), and `state/watchdog-events.jsonl`. Steps 0a-0c (post-close clear, emergency clear, routine-hygiene compact) run independent of `watchdog.enabled`, so the check treats any of those as "active" even when the restart tier is off. First checks for a shutdown stamp on a still-alive session (bricks both hygiene and restart recovery until the next `hermit-start`), then liveness: the watchdog stamps `last_run` on every invocation before any gate, so a fresh stamp proves the scheduler/loop is firing. If stale (>20m) or missing, summarizes restarts/nudges/re-arms/clears/compacts over the last 7 days plus the most recent hygiene skip/fire reason otherwise. | `ok` when nothing is active (restart tier off and no hygiene feature on), or firing and quiet (appends "last tick Nm ago", or "restart tier disabled, hygiene tier active" when only hygiene runs); `warn` if a stamp is stuck on an alive session, if `last_run` is stale/missing — "enabled but not firing" with remediation keyed to `runtime_mode` (`tmux` → `bin/hermit-watchdog install`; `docker` → recreate the container; unknown → both hints) — or, when firing, if any restart in the last 7 days or a stale cycle is in progress. |
 | `context-age` | Reads `config.context_hygiene.compact` (threshold), `state/runtime.json` (active session + session id, with the idle-phase fallback to `sessions/.status.json` used by the hygiene tiers), the active session's last cost-log entry (`max_prompt_tokens`, or the per-call average of a multi-call estimate-only turn — matching what the compact tier judges), and `state/watchdog-events.jsonl` for the most recent `context-compact`/`context-clear`/`post-close-clear` event. A symptom tripwire for the whole context-hygiene-disabled failure class, not a specific root cause. | `warn` if the active session's context exceeds `min_context_tokens` and no hygiene event fired in the last 24h; `ok` if the compact tier is off, no active session, context is under threshold, or hygiene fired recently. |
 | `opus-wake` | Scans `.claude/cost-log.jsonl` for the last 7 days for automated (heartbeat/routine) turns billed on Opus. | `warn` if any found — names the count and cost, since automated wakes are the usual source of tier-drift spend; `ok` otherwise. |
-| `routine-cost` | Joins per-routine cost from `state/cost-index.json` (`by_source["routine:<id>"]`, lifetime) with fire-turn counts from `state/routine-metrics.jsonl` (`started` + `skipped-*` events — skipped fires still accrue the ambient full-context `cache_read` cost to the bucket, so they belong in the denominator) for enabled routines with ≥3 fires, computing `$/run`. Advisory only — cost is transcript-classified and run count is a shell stamp, two independent mechanisms. | `warn` naming the routine, its `$/run`, the peer median, and the threshold, when `$/run` exceeds both 3× the peer median (the other routines' median, so a lone or uniformly-priced fleet won't warn) and `doctor.routine_cost_floor_usd` (default $2); `ok` when fewer than 2 routines have ≥3 fires or none exceed the threshold. |
+| `routine-cost` | Joins per-routine cost from `state/cost-index.json` (`by_source["routine:<id>"]`, lifetime) with fire-turn counts from `state/routine-metrics.jsonl` (`started` always counts; `skipped-*` events count only when `delivery !== "monitor"` — a CronCreate-delivered skip still accrues the ambient full-context `cache_read` cost, but a routine-monitor-delivered skip costs zero model tokens and would dilute `$/run` if counted) for enabled routines with ≥3 fires, computing `$/run`. Advisory only — cost is transcript-classified and run count is a shell stamp, two independent mechanisms. | `warn` naming the routine, its `$/run`, the peer median, and the threshold, when `$/run` exceeds both 3× the peer median (the other routines' median, so a lone or uniformly-priced fleet won't warn) and `doctor.routine_cost_floor_usd` (default $2); `ok` when fewer than 2 routines have ≥3 fires or none exceed the threshold. |
 | `heartbeat` | Reads `config.heartbeat`, `state/runtime.json`, `state/heartbeat-liveness.json`, and `state/heartbeat-monitor.runtime.json`. Verifies the monitor loop is actually running by checking the liveness timestamp written on every poll iteration. A tick older than the monitor's `started_at` is ignored (leftover from a prior session). | `ok` when disabled, no active session, the trusted tick is fresh, or the monitor is within a short startup grace (~2m); `fail` when a trusted tick is older than 3× the configured interval, or no trusted tick exists past the startup grace (Monitor subprocess spawn blocked). |
+| `routine-monitor` | Reads `config.routines`, `state/routine-monitor.runtime.json`, `state/runtime.json`, and `state/routine-monitor-liveness.json`. Same active-session-only, startup-grace, and trust-liveness-against-`started_at` logic as `heartbeat`, applied to the routine-scheduling Monitor subprocess instead. Reports the registration mode (`monitor` or `croncreate-fallback`). | `ok` when no non-anchor routine is enabled, not yet loaded, in `croncreate-fallback` mode, no active session, or the trusted tick is fresh/warming up; `fail` when a trusted tick is older than `max(10× poll interval, 10m)`, or no trusted tick exists past the startup grace (Monitor subprocess spawn blocked). |
 | `raw-size` | Sums file sizes in `raw/` (plus `raw/.archive/`) and checks `runtime.json.last_raw_archive_at`. | `warn` if `raw/` exceeds 50 MB, or if raw files exist and the archive routine hasn't run in >14 days (or never); `ok` otherwise. |
 | `credential-expiry` | Reads `claudeAiOauth.expiresAt` from `$CLAUDE_CONFIG_DIR/.credentials.json` (fallback `~/.claude/.credentials.json`), then executes each sibling plugin's `hermit-meta.json` `credentials[].expiry_probe` (bash, 5s timeout, one-line `OK`/`EXPIRES:<iso>`/`EXPIRED` protocol). | `warn` if the OAuth token is expired/expiring (<2h) or unreadable, if any plugin credential is EXPIRED or expires within 7 days, or if a probe times out or prints malformed output; `ok` otherwise. |
 | `model-pricing-known` | Compares `config.model`, each `routines[].model`, and `config.heartbeat.model` against the pricing table (`scripts/lib/pricing.ts`); also scans `.claude/cost-log.jsonl` for the last 7 days (inert today — cost-log model strings are pre-collapsed to `haiku\|sonnet\|opus` before logging, so this only activates once raw model ids persist). | `warn` naming every unpriced model and where it's configured — cost tracking silently falls back to sonnet pricing for unknowns; `ok` if every configured model is known. |

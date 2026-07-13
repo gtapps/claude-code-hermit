@@ -4,7 +4,7 @@
 // precheck.ts's verdict-token contract. Delegates the JSONL write to log-routine-event.sh,
 // which stays the single writer — the #464 dedup guard and JSONL schema live in exactly
 // one place.
-// Usage: bun routine-precheck.ts <routine-id> <rdw:true|false>
+// Usage: bun routine-precheck.ts <routine-id> <rdw:true|false> [delivery]
 // Output (stdout, one line): SKIP | PROCEED
 // Side effect: stamps skipped-waiting | skipped-paused | started via log-routine-event.sh.
 // Exit 0 always — fail-open to PROCEED on any read error (a malformed runtime.json must
@@ -23,6 +23,7 @@ function emit(verdict: string): never {
 
 const id = process.argv[2];
 const rdw = process.argv[3] === 'true';
+const delivery = process.argv[4] || 'cron-create';
 
 if (!id) emit('PROCEED');
 
@@ -37,7 +38,7 @@ const LOG_SCRIPT = path.join(import.meta.dir, 'log-routine-event.sh');
 
 function stamp(event: string): void {
   try {
-    execFileSync(LOG_SCRIPT, [id, event], { cwd: PROJECT_ROOT, stdio: ['ignore', 'ignore', 'ignore'] });
+    execFileSync(LOG_SCRIPT, [id, event, delivery], { cwd: PROJECT_ROOT, stdio: ['ignore', 'ignore', 'ignore'] });
   } catch { /* fail-open — a stamp failure must not block the routine */ }
 }
 

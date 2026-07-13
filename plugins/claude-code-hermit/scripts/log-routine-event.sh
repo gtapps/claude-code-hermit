@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Append one event line to .claude-code-hermit/state/routine-metrics.jsonl
-# Usage: log-routine-event.sh <routine-id> <event>
+# Usage: log-routine-event.sh <routine-id> <event> [delivery]
 # Events: fired | skipped-waiting | skipped-paused | started
+# delivery: cron-create (default) | monitor
 set -euo pipefail
 
 id="$1"
 event="$2"
+delivery="${3:-cron-create}"
 
 # CronCreate prompts fire with $PWD set to the session's primary working
 # directory, which may be a subdirectory of the hermit project root. Walk up
@@ -34,6 +36,6 @@ if [[ "$event" == "fired" && -f "$metrics" ]]; then
 fi
 
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-printf '{"ts":"%s","routine_id":"%s","event":"%s","delivery":"cron-create"}\n' \
-  "$ts" "$id" "$event" \
+printf '{"ts":"%s","routine_id":"%s","event":"%s","delivery":"%s"}\n' \
+  "$ts" "$id" "$event" "$delivery" \
   >> "$metrics"

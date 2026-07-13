@@ -133,7 +133,7 @@ If routines are configured (default after init or upgrade):
 - **Morning routine** — `brief --morning` at configured time (default: active hours start + 30m): generates a brief, reviews pending proposals, checks priorities. Framing adapts to `always_on` setting.
 - **Evening routine** — `brief --evening` at configured time (default: active hours end - 30m): summarizes the day's work, archives via session-close, flags tomorrow's priorities.
 
-Both fire via per-session CronCreate jobs registered by `/claude-code-hermit:hermit-routines`. Configure with `/claude-code-hermit:hermit-settings routines`.
+Both fire from `/claude-code-hermit:hermit-routines` — a persistent Monitor subprocess where available, per-session CronCreate jobs as fallback. Configure with `/claude-code-hermit:hermit-settings routines`.
 
 ### Idle agency
 
@@ -155,7 +155,7 @@ When idle and `idle_behavior` is `"discover"` (set via `/hermit-settings idle`),
 
 ## Routines
 
-Routines are time-triggered skills registered as per-session `CronCreate` jobs by the `/claude-code-hermit:hermit-routines` skill. Unlike heartbeat checks (which run every tick), routines fire at exact cron times — no LLM needed to check the clock, and CronCreate is idle-gated so routines never interrupt mid-task.
+Routines are time-triggered skills managed by the `/claude-code-hermit:hermit-routines` skill. Where the Monitor tool is available, all enabled routines except `heartbeat-restart` run from one persistent Monitor subprocess: it evaluates every routine's cron schedule directly (no LLM needed to check the clock), so a skipped fire costs zero model tokens and routines due in the same poll batch into a single wake. `heartbeat-restart` stays a CronCreate re-arm anchor that keeps the monitor alive. Where Monitor is unavailable, `load` falls back to registering every enabled routine as its own per-session CronCreate job, idle-gated at the harness turn level.
 
 ### Config
 
@@ -181,33 +181,32 @@ Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect 
 
 ### How it works
 
-`hermit-start.ts` auto-sends `/claude-code-hermit:hermit-routines load` after launching the always-on session. The skill:
+`hermit-start.ts` auto-sends `/claude-code-hermit:hermit-routines load` after launching the always-on session. The skill resolves `$CLAUDE_PLUGIN_ROOT`, then:
 
-1. Resolves `$CLAUDE_PLUGIN_ROOT`
-2. Runs `scripts/cron-registry.ts plan` — a diff against `state/cron-registry.json` (a derived mirror, keyed to the current boot via `state/.boot-id`) that decides, per enabled routine, whether it's unchanged (`KEEP`), needs its schedule/metadata re-registered (`DELETE`+`CREATE`), or is aging toward CC's 7-day auto-expiry cliff and needs re-registering regardless of config changes. The schedule shift (`config.timezone` → machine local time, via `cron-tz-shift.ts`) happens inside this step.
-3. For each `CREATE`, registers a fresh `CronCreate` with the planner's already-shifted schedule and a prompt that runs the pre-fire gate (`scripts/routine-precheck.ts`), invokes the skill on `PROCEED`, and logs to `state/routine-metrics.jsonl`; for each `DELETE`, tears down the matching `[hermit-routine:*]` entry first
-4. Commits the mirror so the next `load` (typically the daily `heartbeat-restart` re-arm) only re-registers what actually changed or is close to expiry — on an unchanged, fresh config this is a no-op with zero `CronList`/`CronCreate`/`CronDelete` calls
+**Monitor mode (tried first).** Registers one persistent Monitor subprocess (`scripts/routine-monitor.sh`, 60s poll) running `scripts/routine-due.ts`, which reads `config.routines` directly, evaluates each enabled non-anchor routine's schedule against `state/routine-schedule.json` cursors, applies the pause/waiting/idle gates itself, and prints a single `ROUTINE_DUE [hermit-routine:<id>] ...` line only for routines that should actually wake the session — a routine that's due-but-skipped costs zero model tokens. `hermit-routines run <ids>` handles the wake: it re-runs `scripts/routine-precheck.ts` for the `started` stamp, invokes the skill on `PROCEED`, and logs to `state/routine-metrics.jsonl`. The anchor (`heartbeat-restart`) still registers via a single `CronCreate`, kept fresh by the same diff-planner (`scripts/cron-registry.ts`) described below, scoped to that one routine.
 
-`/claude-code-hermit:hermit-routines load --reset` bypasses the diff and does the old unconditional sweep (`CronList` → `CronDelete` every `[hermit-routine:*]` entry → `CronCreate` every enabled routine) — the escape hatch for suspected mirror/reality drift.
+**CronCreate fallback** (Monitor tool unavailable, or the subprocess fails to spawn): every enabled routine, anchor included, registers as its own per-session CronCreate. `scripts/cron-registry.ts plan` diffs against `state/cron-registry.json` (a derived mirror, keyed to the current boot via `state/.boot-id`) — unchanged (`KEEP`), re-registered (`DELETE`+`CREATE`) on a schedule/metadata edit, or re-registered regardless of config changes once aging toward CC's 7-day auto-expiry cliff. The schedule shift (`config.timezone` → machine local time, via `cron-tz-shift.ts`) happens inside this step — monitor-mode routines skip it, evaluating directly in `config.timezone`. Each `CREATE` gets a prompt that runs `scripts/routine-precheck.ts`, invokes the skill on `PROCEED`, and logs to `state/routine-metrics.jsonl`; each `DELETE` tears down the matching `[hermit-routine:*]` entry first. On an unchanged, fresh config this is a no-op with zero `CronList`/`CronCreate`/`CronDelete` calls. CronCreate fires only between REPL turns — never mid-task; a fire that comes due during `in_progress` is deferred (not dropped) until idle.
 
-CronCreate fires only between REPL turns — never mid-task. There is no queue: if Claude is mid-task when the cron time hits, the fire is deferred (not dropped) until idle. `routine-precheck.ts` gates every fire: it suppresses `run_during_waiting: false` routines with a `skipped-waiting` event when `session_state == "waiting"`, and any routine with a `skipped-paused` event when the binding pause flag is set; otherwise it stamps `started` and returns `PROCEED`.
+`/claude-code-hermit:hermit-routines load --reset` bypasses both diffs and does an unconditional sweep — the escape hatch for suspected drift.
 
-**`heartbeat-restart`** fires at 4am daily and re-registers the heartbeat Monitor and routine CronCreates (both expire after 7 days; daily re-arm keeps everything fresh).
+`routine-precheck.ts` gates every fire regardless of delivery mechanism: it suppresses `run_during_waiting: false` routines with a `skipped-waiting` event when `session_state == "waiting"`, and any routine with a `skipped-paused` event when the binding pause flag is set; otherwise it stamps `started` and returns `PROCEED`. In monitor mode, `routine-due.ts` applies the same two gates itself before ever waking the session, plus an `in_progress` defer that CronCreate gets for free from the harness.
 
-Inspect live registrations with `/claude-code-hermit:hermit-routines status` (calls `CronList` under the hood). Inspect fire history with `tail .claude-code-hermit/state/routine-metrics.jsonl`.
+**`heartbeat-restart`** fires at 4am daily and re-invokes `load`, which re-registers the heartbeat Monitor and re-arms the routine monitor (or, in fallback mode, the routine CronCreates — which expire after 7 days without this daily re-arm).
+
+Inspect live state with `/claude-code-hermit:hermit-routines status` (monitor liveness + anchor, or the full CronCreate list in fallback mode). Inspect fire history with `tail .claude-code-hermit/state/routine-metrics.jsonl` — each row's `delivery` field is `monitor` or `cron-create`.
 
 ### Relationship to heartbeat and monitors
 
 |                | Routines                         | Heartbeat                      | Monitors                          |
 | -------------- | -------------------------------- | ------------------------------ | --------------------------------- |
 | Timing         | Exact cron schedule              | Every N minutes                | Event-driven or interval          |
-| Engine         | CronCreate (idle-gated)          | CC Monitor (subprocess poll)   | Monitor tool (OS subprocess)      |
-| Cost           | Zero tokens until fire           | Zero tokens when quiet         | Zero tokens when quiet            |
-| Survives exit  | No (re-registered on launch)     | No (re-armed daily by heartbeat-restart) | No (session-scoped)    |
-| Mid-task fire  | Deferred until idle              | Yes (interrupts)               | Yes (interrupts)                  |
+| Engine         | Monitor subprocess (60s poll, gates in-script); CronCreate anchor + fallback | CC Monitor (subprocess poll)   | Monitor tool (OS subprocess)      |
+| Cost           | Zero tokens for a skipped fire (monitor mode) | Zero tokens when quiet         | Zero tokens when quiet            |
+| Survives exit  | No (re-registered on launch; anchor re-arms daily) | No (re-armed daily by heartbeat-restart) | No (session-scoped)    |
+| Mid-task fire  | Deferred via `session_state` — coarser than CronCreate's turn-level idle gate, can interject | Yes (interrupts)               | Yes (interrupts)                  |
 | Use for        | Scheduled tasks (briefs, audits) | Continuous monitoring          | Reactive watching / quiet polling |
 
-**Hybrid model:** Monitors handle reactive event streams (interrupt-OK). Routines handle scheduled work (idle-gated, never interrupt). Heartbeat handles continuous health checks. Neither replaces the others.
+**Hybrid model:** Monitors handle reactive event streams (interrupt-OK). Routines handle scheduled work, gated outside the session for near-zero cost. Heartbeat handles continuous health checks. Neither replaces the others.
 
 Config-defined watches auto-register at session start. Runtime truth: `.claude-code-hermit/state/monitors.runtime.json`. See `/claude-code-hermit:watch` for ad-hoc watching.
 

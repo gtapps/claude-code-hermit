@@ -82,7 +82,7 @@ Start the heartbeat as a persistent CC Monitor subprocess.
 5. Register a new Monitor:
    - `description`: `heartbeat-monitor` (reserved slot — operators must not reuse this description for ad-hoc `/watch` entries)
    - `command`: `bash <abs_script_path> <interval_seconds> $PWD/.claude-code-hermit`
-   - `timeout_ms`: 86400000  (24h; re-armed daily by `heartbeat-restart`)
+   - `timeout_ms`: 86400000  (schema-required boilerplate — a `persistent: true` Monitor does not expire on this deadline, confirmed live: a probed monitor outlived a 60s `timeout_ms` by 2 minutes with no sign of stopping. The daily `heartbeat-restart` re-arm exists to recover from monitor *death* and session restarts, not from a timeout.)
    - `persistent`: true
 6. Write the new entry (description, task_id, command, interval, started_at) to `state/heartbeat-monitor.runtime.json`. Do NOT use `state/monitors.runtime.json` — that file is owned exclusively by /watch and is cleared on every session start.
 7. Append to SHELL.md Monitoring: `[HH:MM] Heartbeat: monitor registered (interval: <every>) — liveness confirmed by /hermit-doctor heartbeat check`.

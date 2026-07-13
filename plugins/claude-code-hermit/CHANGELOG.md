@@ -2,11 +2,25 @@
 
 ## [Unreleased]
 
+### Added
+- **routine-monitor: routines run from one persistent Monitor subprocess** — where the Monitor tool is available, every enabled routine except `heartbeat-restart` is now scheduled by `scripts/routine-due.ts` (polled every 60s by `scripts/routine-monitor.sh`), which evaluates cron schedules directly in `config.timezone`, applies the pause/waiting/idle gates itself, and wakes the session only for routines that should actually run — a skipped fire now costs zero model tokens instead of a full-context turn, and routines due in the same poll batch into one wake. `heartbeat-restart` stays a CronCreate re-arm anchor that keeps the monitor alive across restarts and >24h pauses. Platforms without Monitor (Amazon Bedrock, Google Cloud Agent Platform, Microsoft Foundry, or `DISABLE_TELEMETRY`/`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`) fall back to the previous per-routine CronCreate flow unchanged. New `hermit-doctor` check `routine-monitor` reports liveness and the active mode.
+
 ### Changed
 - **startup-context: SessionStart injection is now source-gated** — post-compaction (`source=compact`) injects only a ≤1,200-char delta capsule (lifecycle state, task + last progress line, file pointers; never cost/upgrade/catalog/drift/report bodies), and resumed sessions skip the Last Report section when SHELL.md is active — the resumed transcript already contains it. Fresh starts unchanged.
+- **routine scheduling: idle-gating is coarser in monitor mode** — the subprocess gates on `session_state`, not the harness's turn-level idle gate, so a routine wake can now interject into an active conversation (the same trade `/heartbeat` already accepts). CronCreate fallback/anchor mode is unaffected.
+- **default doctor routine schedule clusters with reflect/scheduled-checks** — `10 9 * * 1` (was `0 10 * * 1`), joining the 09:00/09:05 window so co-due wakes share a warm prompt cache; distinct default wake windows drop from 5 to 4. Existing always-on hermits are ratcheted forward automatically by `hermit-start.ts` (see Upgrade Instructions).
+- **routine-metrics.jsonl rows gain a `delivery` field** (`cron-create` or `monitor`) — `log-routine-event.sh` and `routine-precheck.ts` both take an optional trailing delivery argument, default `cron-create` (unchanged for existing callers). The `routine-cost` doctor check now excludes monitor-delivered skips from its `$/run` denominator, since they cost zero tokens and would otherwise dilute the metric below a genuinely expensive routine's real cost.
+- **`heartbeat/SKILL.md` timeout comment corrected** — a live probe confirmed a `persistent: true` Monitor does not expire at `timeout_ms`; the field is schema-required boilerplate, and the daily `heartbeat-restart` re-arm exists to recover from monitor death and session restarts, not a timeout.
 
 ### Fixed
 - **startup-context: a post-compaction start no longer clears a prior context-scan warning** — the `source=compact` path only scans the delta capsule (task/progress), so it now merges the scan record instead of overwriting it; a compaction can no longer flip the doctor `context-scan` check to "clean" while an injection marker still sits in OPERATOR.md/compiled/report. The next full start re-scans comprehensively and overwrites, self-healing any stale merged hit.
+
+### Upgrade Instructions
+
+1. Run `/claude-code-hermit:hermit-routines load` — this registers the routine monitor (sweeping any pre-existing per-routine CronCreates in the process), re-registers the `heartbeat-restart` anchor, and is idempotent to re-run.
+2. Verify `state/routine-monitor-liveness.json` exists and is fresh (within the last ~2 minutes). If it's absent, the install fell back to CronCreate mode automatically — confirm via `/claude-code-hermit:hermit-routines status`; no action needed, routines keep working as before.
+3. If upgrading an already-running always-on hermit (no restart), run `/claude-code-hermit:hermit-routines status` afterward and confirm only `[hermit-routine:heartbeat-restart]` remains in the CronList — if other `[hermit-routine:*]` entries are still present, re-run `load` to complete the sweep.
+4. Migrate the doctor routine's schedule in `.claude-code-hermit/config.json` by **exact string match only**: `"0 10 * * 1"` → `"10 9 * * 1"`; `"0 10 * * *"` → `"10 9 * * *"`. Any other value on that routine is operator-customized — leave it untouched. (A boot-time ratchet in `hermit-start.ts` also recognizes both old defaults as a backstop for hermits that skip this step or switch from interactive to always-on later, but it only fires on the next always-on launch — this step applies immediately.)
 
 ## [1.2.23] - 2026-07-12
 

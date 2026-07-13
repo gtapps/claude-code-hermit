@@ -1797,6 +1797,79 @@ describe('heartbeat-monitor', () => {
 });
 
 // -------------------------------------------------------
+// routine-monitor.sh — real-script tests (ROUTINE_MONITOR_ONCE=1)
+// -------------------------------------------------------
+
+describe('routine-monitor', () => {
+  const RT_MONITOR_SH = path.join(SCRIPTS_DIR, 'routine-monitor.sh');
+
+  function makeRtStub(body: string): { path: string; cleanup(): void } {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-stub-'));
+    const p = path.join(dir, 'stub.js');
+    fs.writeFileSync(p, body);
+    return { path: p, cleanup: () => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch {} } };
+  }
+
+  async function rtMonitorOnce(stubBody: string): Promise<{ stdout: string; cleanup(): void }> {
+    const stub = makeRtStub(stubBody);
+    const rtDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-hermit-'));
+    try {
+      const r = await runBash(RT_MONITOR_SH, {
+        args: ['60', rtDir],
+        env: { ROUTINE_MONITOR_ONCE: '1', ROUTINE_DUE_SCRIPT: stub.path },
+      });
+      return {
+        stdout: r.stdout.trimEnd(),
+        cleanup: () => { try { fs.rmSync(rtDir, { recursive: true, force: true }); } catch {} },
+      };
+    } finally {
+      stub.cleanup();
+    }
+  }
+
+  test('routine-monitor (non-empty ROUTINE_DUE line echoed as-is)', async () => {
+    const r = await rtMonitorOnce('process.stdout.write("ROUTINE_DUE [hermit-routine:reflect]\\n");\n');
+    r.cleanup();
+    expect(r.stdout).toBe('ROUTINE_DUE [hermit-routine:reflect]');
+  });
+
+  test('routine-monitor (empty stdout → silent)', async () => {
+    const r = await rtMonitorOnce('process.stdout.write("");\n');
+    r.cleanup();
+    expect(r.stdout).toBe('');
+  });
+
+  test('routine-monitor (routine-due nonzero exit → ROUTINE_MONITOR_ERROR)', async () => {
+    const r = await rtMonitorOnce('process.stderr.write("crash\\n"); process.exit(1);\n');
+    r.cleanup();
+    expect(r.stdout).toContain('ROUTINE_MONITOR_ERROR: routine-due failed');
+  });
+
+  // Loop reaches iter-2 without ONCE (bounded by timeout(1)) — confirms no
+  // per-iteration suppression (unlike heartbeat's cold-start damper, routine-due's
+  // init-to-now semantics already make iter-1 safe, so no suppression is needed here).
+  test('routine-monitor (loop reaches iter-2 without ONCE)', async () => {
+    const stub = makeRtStub('process.stdout.write("ROUTINE_DUE [hermit-routine:x]\\n");\n');
+    const rtDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-hermit-'));
+    try {
+      const proc = Bun.spawn({
+        cmd: ['timeout', '3', 'bash', RT_MONITOR_SH, '1', rtDir],
+        env: { ...process.env, ROUTINE_DUE_SCRIPT: stub.path },
+        stdin: Buffer.from(''),
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      const [stdout] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+      const lines = stdout.trim().split('\n').filter(Boolean);
+      expect(lines.length).toBeGreaterThanOrEqual(2);
+    } finally {
+      stub.cleanup();
+      try { fs.rmSync(rtDir, { recursive: true, force: true }); } catch {}
+    }
+  }, 10000);
+});
+
+// -------------------------------------------------------
 // reflect-precheck.ts (subprocess — argv/stdout/state-mutation CLI contract)
 // -------------------------------------------------------
 

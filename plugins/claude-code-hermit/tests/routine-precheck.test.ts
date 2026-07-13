@@ -126,4 +126,21 @@ describe('routine-precheck', () => {
     const rows = readMetricsRows(dir);
     expect(Object.keys(rows[0]).sort()).toEqual(['delivery', 'event', 'routine_id', 'ts']);
   }));
+
+  test('explicit delivery arg "monitor" serializes delivery: monitor', withDir(async (dir) => {
+    const r = await runScript('routine-precheck.ts', { args: ['test-routine', 'false', 'monitor'], cwd: dir });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout.trim()).toBe('PROCEED');
+    const rows = readMetricsRows(dir);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ routine_id: 'test-routine', event: 'started', delivery: 'monitor' });
+  }));
+
+  test('no delivery arg defaults to delivery: cron-create (unchanged)', withDir(async (dir) => {
+    const r = await run('legacy-routine', 'false', dir);
+    expect(r.exitCode).toBe(0);
+    const rows = readMetricsRows(dir);
+    expect(rows[0]).toMatchObject({ event: 'started', delivery: 'cron-create' });
+    expect(Object.keys(rows[0]).sort()).toEqual(['delivery', 'event', 'routine_id', 'ts']);
+  }));
 });

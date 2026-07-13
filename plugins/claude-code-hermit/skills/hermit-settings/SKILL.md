@@ -264,7 +264,7 @@ Run `settings-edit ... set permission_mode <value>`.
 **If argument is "routines":**
 - Show current routines from `config.routines` array:
   ```
-  Routines (config.json routines → /claude-code-hermit:hermit-routines CronCreates):
+  Routines (config.json routines → routine monitor; CronCreate fallback where Monitor is unavailable):
 
     #  ID           Schedule       Skill                                Status
     1. morning      30 8 * * *     claude-code-hermit:brief --morning    enabled

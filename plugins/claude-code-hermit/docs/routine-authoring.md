@@ -38,7 +38,7 @@ produce a report.
    on purpose — it exists to answer one question, not to onboard a session.
 
 2. **Pin it to haiku** via the routine's optional `model` field
-   (`skills/hermit-routines/SKILL.md:44-50`). Setting `model` dispatches the skill to an isolated
+   (`skills/hermit-routines/SKILL.md`, "Model-override substitution"). Setting `model` dispatches the skill to an isolated
    subagent (via the Agent tool) instead of running it in the live session — no session
    conversation is inherited, only filesystem access. Two shipped defaults already do this:
    `daily-auto-close` and `doctor` are both `"model": "haiku"` in
@@ -46,7 +46,7 @@ produce a report.
    append must run in-session, and `load` ignores the override there regardless.
 
 3. **Return a verdict line, not transcript prose.** A dispatched routine's subagent "returns only
-   a one-line status to the session" (`skills/hermit-routines/SKILL.md:47,50,156`) — design the
+   a one-line status" (`skills/hermit-routines/SKILL.md`, "Model-override substitution" and the `model` Notes entry) — design the
    scoped skill's output around that from the start, rather than writing a skill that produces
    rich output and then truncating it.
 
@@ -60,8 +60,8 @@ produce a report.
      owns the audit trail (updates `reflection-state.json`, appends the Progress Log line) so
      reflect's skill body never loads on a no-op day.
 
-   Wire the precheck into the routine's cron prompt the same way `hermit-routines` already does
-   for its `reflect` special case (`skills/hermit-routines/SKILL.md:94-98`): run the script, branch
+   Wire the precheck into the routine's execution prompt the same way `hermit-routines` already does
+   for its `reflect` special case (`skills/hermit-routines/SKILL.md`, Shared execution semantics — "skill is exactly claude-code-hermit:reflect"): run the script, branch
    on its single stdout line, only invoke the skill on the "do something" branch.
 
 Applying all four steps turns a routine that always pays for a full skill load and a session-model

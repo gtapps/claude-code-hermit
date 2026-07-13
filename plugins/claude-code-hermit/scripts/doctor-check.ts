@@ -1098,6 +1098,94 @@ function checkHeartbeat() {
   }
 }
 
+// Modeled directly on checkHeartbeat above — same active-session-only gate, same
+// startup-grace and trust-liveness-against-started_at logic. Two differences:
+// (1) enabled/scope is derived from config.routines (any non-anchor enabled entry),
+// not a single heartbeat.enabled flag; (2) a croncreate-fallback mode (Monitor tool
+// unavailable) is reported ok rather than evaluated for liveness at all.
+function checkRoutineMonitor() {
+  try {
+    const read = readConfigOrCovered('routine-monitor');
+    if ('covered' in read) return read.covered;
+    const config = read.config;
+
+    const nonAnchorEnabled = (Array.isArray(config.routines) ? config.routines : [])
+      .some((r: Json) => r && r.enabled === true && r.id !== 'heartbeat-restart');
+    if (!nonAnchorEnabled) {
+      return { id: 'routine-monitor', status: 'ok', detail: 'routine-monitor: no monitor-scheduled routines' };
+    }
+
+    const runtimeFilePath = path.join(stateDir, 'routine-monitor.runtime.json');
+    let monRt: Json = null;
+    try { monRt = JSON.parse(fs.readFileSync(runtimeFilePath, 'utf-8')); } catch { /* absent or unparseable */ }
+    if (!monRt) {
+      return { id: 'routine-monitor', status: 'ok', detail: 'routine-monitor: not yet loaded (run /claude-code-hermit:hermit-routines load)' };
+    }
+    if (monRt.mode === 'croncreate-fallback') {
+      return { id: 'routine-monitor', status: 'ok', detail: 'routine-monitor: croncreate-fallback mode (Monitor unavailable)' };
+    }
+
+    const runtimePath = path.join(stateDir, 'runtime.json');
+    if (!fs.existsSync(runtimePath)) {
+      return { id: 'routine-monitor', status: 'ok', detail: 'routine-monitor: enabled, no runtime state' };
+    }
+    const rt = JSON.parse(fs.readFileSync(runtimePath, 'utf-8'));
+    const sessionState = rt.session_state;
+    if (sessionState !== 'in_progress' && sessionState !== 'waiting') {
+      return { id: 'routine-monitor', status: 'ok', detail: `routine-monitor: enabled, no active session (state=${sessionState ?? 'unknown'})` };
+    }
+
+    const interval = typeof monRt.interval === 'number' && monRt.interval > 0 ? monRt.interval : 60;
+    const threshold = Math.max(10 * interval * 1000, 10 * 60 * 1000);
+    const STARTUP_GRACE_MS = 2 * 60 * 1000;
+    const now = Date.now();
+
+    let startedAt: number | null = null;
+    if (typeof monRt.started_at === 'string') {
+      const t = Date.parse(monRt.started_at);
+      if (Number.isFinite(t)) startedAt = t;
+    }
+
+    const livenessPath = path.join(stateDir, 'routine-monitor-liveness.json');
+    let lastPeekAt: number | null = null;
+    try {
+      const liveness = JSON.parse(fs.readFileSync(livenessPath, 'utf-8'));
+      if (typeof liveness.last_peek_at === 'string') {
+        const t = Date.parse(liveness.last_peek_at);
+        if (Number.isFinite(t)) lastPeekAt = t;
+      }
+    } catch { /* missing or unparseable */ }
+
+    const trusted = lastPeekAt !== null && (startedAt === null || lastPeekAt >= startedAt);
+
+    if (trusted) {
+      const ageMs = now - lastPeekAt!;
+      const tickStr = `${Math.round(ageMs / 60000)}m ago`;
+      if (ageMs > threshold) {
+        return {
+          id: 'routine-monitor',
+          status: 'fail',
+          detail: `routine-monitor not ticking — Monitor subprocess spawn likely blocked (seccomp / nested-userns in container). Last tick: ${tickStr}.`,
+        };
+      }
+      return { id: 'routine-monitor', status: 'ok', detail: `routine-monitor: ticking (last tick ${tickStr})` };
+    }
+
+    if (startedAt !== null && (now - startedAt) >= STARTUP_GRACE_MS) {
+      const tickStr = lastPeekAt !== null ? `${Math.round((now - lastPeekAt) / 60000)}m ago (predates current monitor — stale)` : 'never';
+      return {
+        id: 'routine-monitor',
+        status: 'fail',
+        detail: `routine-monitor not ticking — Monitor subprocess spawn likely blocked (seccomp / nested-userns in container). Last tick: ${tickStr}.`,
+      };
+    }
+
+    return { id: 'routine-monitor', status: 'ok', detail: 'routine-monitor: warming up — monitor registered, first tick pending' };
+  } catch (e: any) {
+    return { id: 'routine-monitor', status: 'fail', detail: `check failed: ${e.message}` };
+  }
+}
+
 function checkRawSize() {
   try {
     const rawDir = path.join(hermitDir, 'raw');
@@ -1424,16 +1512,22 @@ function checkRoutineCost() {
     }
     const bySource = index.by_source || {};
 
-    // Denominator = every fire-TURN, not just proceeded fires. cost-tracker attributes a
-    // whole session turn to `routine:<id>` off the `[hermit-routine:<id>]` prompt marker
-    // whether the fire runs the skill or is idle-gated, so a skipped fire still adds cost to
-    // the bucket. routine-precheck.ts stamps exactly one of started|skipped-waiting|
-    // skipped-paused per fire (the model-issued `fired` stamp is a later, droppable duplicate
-    // of `started`), so counting those three is the true population that generated the cost.
-    // Counting only `fired` would drop skipped/errored fires from the denominator while their
-    // cost stays in the numerator, inflating $/run into false warns. Joining strictly against
-    // configured routine ids also filters classifier artifacts (e.g. a stray "routine:fired"
-    // by_source key) out.
+    // Denominator = every fire-TURN that could have generated model cost, not just
+    // proceeded fires. cost-tracker attributes a whole session turn to `routine:<id>`
+    // off the `[hermit-routine:<id>]` prompt marker whether the fire runs the skill
+    // or is idle-gated, so a CronCreate-delivered skip still adds cost to the bucket —
+    // routine-precheck.ts stamps exactly one of started|skipped-waiting|skipped-paused
+    // per fire (the model-issued `fired` stamp is a later, droppable duplicate of
+    // `started`), so counting those three is the true population that generated the
+    // cost UNDER CRONCREATE. Monitor-mode skips are different: routine-due.ts stamps
+    // skipped-waiting/skipped-paused itself, subprocess-side, with zero model wake and
+    // zero cost — counting them in the denominator would dilute $/run below what a
+    // genuinely expensive routine actually costs per real invocation, masking it.
+    // `started` always counts (a model turn ran either way); monitor-delivered skips
+    // are excluded. Counting only `fired` would drop skipped/errored fires from the
+    // denominator while their cost stays in the numerator, inflating $/run into false
+    // warns. Joining strictly against configured routine ids also filters classifier
+    // artifacts (e.g. a stray "routine:fired" by_source key) out.
     const FIRE_EVENTS = new Set(['started', 'skipped-waiting', 'skipped-paused']);
     const fireCounts = new Map<string, number>();
     // Earliest tracked fire `ts` per routine, keyed by cost-index by_source id — routine-metrics.jsonl
@@ -1450,13 +1544,13 @@ function checkRoutineCost() {
         if (!line) continue;
         try {
           const e = JSON.parse(line);
-          if (e && typeof e.routine_id === 'string' && FIRE_EVENTS.has(e.event)) {
-            fireCounts.set(e.routine_id, (fireCounts.get(e.routine_id) || 0) + 1);
-            if (typeof e.ts === 'string' && e.ts) {
-              const source = `routine:${e.routine_id}`;
-              const prev = cutoffBySource.get(source);
-              if (!prev || e.ts < prev) cutoffBySource.set(source, e.ts);
-            }
+          if (!e || typeof e.routine_id !== 'string' || !FIRE_EVENTS.has(e.event)) continue;
+          if (e.event !== 'started' && e.delivery === 'monitor') continue; // zero-cost skip — excluded
+          fireCounts.set(e.routine_id, (fireCounts.get(e.routine_id) || 0) + 1);
+          if (typeof e.ts === 'string' && e.ts) {
+            const source = `routine:${e.routine_id}`;
+            const prev = cutoffBySource.get(source);
+            if (!prev || e.ts < prev) cutoffBySource.set(source, e.ts);
           }
         } catch {}
       }
@@ -1604,6 +1698,7 @@ async function runAllChecks() {
     checkOpusWake(),
     checkRoutineCost(),
     checkHeartbeat(),
+    checkRoutineMonitor(),
     checkRawSize(),
     checkCredentialExpiry(),
     checkModelPricingKnown(),
@@ -1630,7 +1725,7 @@ export {
   checkRuntime, checkConfig, checkHooks, checkStateFiles,
   checkCost, checkProposals, checkDependencies, checkVersionCurrency, checkPermissions,
   checkDockerSecurity, checkArchival, checkReflectLoop, checkScheduler,
-  checkWatchdog, checkContextAge, checkOpusWake, checkRoutineCost, checkHeartbeat, checkRawSize,
+  checkWatchdog, checkContextAge, checkOpusWake, checkRoutineCost, checkHeartbeat, checkRoutineMonitor, checkRawSize,
   checkCredentialExpiry, checkModelPricingKnown, checkContextScan, checkChannelLiveness,
   satisfiesRange, cidrOverlap,
   // runAllChecks is async (checkChannelLiveness performs network I/O) — callers must await it.

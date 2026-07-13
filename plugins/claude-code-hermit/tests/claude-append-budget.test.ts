@@ -28,10 +28,11 @@ describe('CLAUDE-APPEND size budget', () => {
   test('block stays under the post-trim ceiling', () => {
     // Pre-trim was 10,632 B. Trimmed to ~6,836 B, then held near 7,000 until the
     // auto-mode classifier's "Sanctioned egress" safety bullet (~7,164 B). Raised
-    // to 7,600 for the "Channel voice" rule (~7,532 B) — a deliberate, reviewed
-    // addition, not creep. Keep a small margin above the current size without
-    // reopening the door to unbounded re-bloat.
-    expect(Buffer.byteLength(append, 'utf8')).toBeLessThanOrEqual(7600);
+    // to 7,600 for the "Channel voice" rule (~7,532 B), then to 7,700 for the
+    // `ROUTINE_DUE` notification-handler line (~7,638 B) — both deliberate,
+    // reviewed additions, not creep. Keep a small margin above the current size
+    // without reopening the door to unbounded re-bloat.
+    expect(Buffer.byteLength(append, 'utf8')).toBeLessThanOrEqual(7700);
   });
 });
 
@@ -47,6 +48,7 @@ describe('CLAUDE-APPEND load-bearing anchors', () => {
     '## Rules',
     'resolve-outbound-channel.ts .claude-code-hermit', // the outbound-resolve invocation
     'HEARTBEAT_EVALUATE',                              // heartbeat notification trigger
+    'ROUTINE_DUE',                                      // routine-monitor notification trigger
     'covered-by-memory',                               // canonical memory-suppression code
   ];
   for (const a of anchors) {

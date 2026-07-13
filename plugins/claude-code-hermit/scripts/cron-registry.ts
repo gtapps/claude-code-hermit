@@ -275,7 +275,17 @@ function writeMirror(mirrorPath: string, mirror: Mirror): void {
   fs.renameSync(tmp, mirrorPath);
 }
 
-export { planCron, commitCron, computeWakeSpread, readMirror, readBootId, promptHash, REREGISTER_AGE_MS };
+// --ids <csv>: restrict planning/committing to a subset of routines by id (used to
+// register the heartbeat-restart anchor alone in monitor mode — planCron then emits
+// DELETE for every previously-tracked routine outside the subset, which is what
+// sweeps stale non-anchor CronCreates). null/empty idsCsv → routines unchanged.
+function filterRoutinesByIds(routines: Json[], idsCsv: string | null): Json[] {
+  if (!idsCsv) return routines;
+  const idsSet = new Set(idsCsv.split(',').map(s => s.trim()).filter(Boolean));
+  return routines.filter((r: Json) => idsSet.has(r?.id));
+}
+
+export { planCron, commitCron, computeWakeSpread, readMirror, readBootId, promptHash, REREGISTER_AGE_MS, filterRoutinesByIds };
 export type { Mirror, MirrorEntry, PlanResult, PlanCreate, ShiftedRoutine };
 
 // --- CLI ---
@@ -285,7 +295,7 @@ if (import.meta.main) {
   const pluginRoot = process.argv[4];
 
   if ((mode !== 'plan' && mode !== 'commit') || !hermitDir || !pluginRoot) {
-    process.stdout.write('SKIP|usage: cron-registry.ts <plan|commit> <hermit-dir> <plugin-root> [created-csv]\n');
+    process.stdout.write('SKIP|usage: cron-registry.ts <plan|commit> <hermit-dir> <plugin-root> [created-csv] [--force] [--ids <csv>]\n');
     process.exit(0);
   }
 
@@ -293,7 +303,10 @@ if (import.meta.main) {
     const configPath = path.join(hermitDir, 'config.json');
     const mirrorPath = path.join(hermitDir, 'state', 'cron-registry.json');
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    const routines: Json[] = Array.isArray(config.routines) ? config.routines : [];
+    const allRoutines: Json[] = Array.isArray(config.routines) ? config.routines : [];
+    const idsFlagIndex = process.argv.indexOf('--ids');
+    const idsFilter = idsFlagIndex !== -1 ? process.argv[idsFlagIndex + 1] : null;
+    const routines: Json[] = filterRoutinesByIds(allRoutines, idsFilter);
     const configTz = typeof config.timezone === 'string' ? config.timezone : null;
     const machineTz = resolveMachineTz();
     const mirror = readMirror(mirrorPath);

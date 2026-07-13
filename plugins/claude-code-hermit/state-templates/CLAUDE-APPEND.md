@@ -15,6 +15,7 @@ Registry: `state/monitors.runtime.json` (sole truth — not SHELL.md). Use `/wat
 - Authoring rules (stream vs poll, `grep --line-buffered`, `|| true` in poll loops, the four required Monitor params, the `$CLAUDE_PLUGIN_ROOT`-unavailable-in-subprocess caveat): `/claude-code-hermit:watch` skill.
 - Watches die with the session — for scheduled work use `/claude-code-hermit:hermit-routines`.
 - `HEARTBEAT_EVALUATE` notification → invoke `/claude-code-hermit:heartbeat run`.
+- `ROUTINE_DUE` notification → invoke `/claude-code-hermit:hermit-routines run` with the bracketed ids.
 
 ## Operator Notification
 

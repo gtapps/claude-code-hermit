@@ -14,7 +14,7 @@
 // never silently ride a routine past CC's real 7-day auto-expiry cliff.
 
 import { describe, test, expect } from 'bun:test';
-import { planCron, commitCron, computeWakeSpread, promptHash, REREGISTER_AGE_MS } from '../scripts/cron-registry';
+import { planCron, commitCron, computeWakeSpread, promptHash, REREGISTER_AGE_MS, filterRoutinesByIds } from '../scripts/cron-registry';
 import { shiftCron } from '../scripts/cron-tz-shift';
 
 const PLUGIN_ROOT = '/plugin';
@@ -340,5 +340,70 @@ describe('planCron — enabledShifted', () => {
     const plan = planCron(routines, mirror, BOOT_A, PLUGIN_ROOT, null, 'UTC', T0);
     expect(plan.enabledShifted.map(x => x.id).sort()).toEqual(['a', 'c']); // disabled 'b' excluded
     expect(plan.enabledShifted.every(x => x.schedule === '0 9 * * *')).toBe(true); // r() default, UTC → no shift
+  });
+});
+
+// --ids <csv> filter (monitor-mode anchor-only plan/commit). filterRoutinesByIds is a
+// pure pre-filter applied to the routines array before planCron — no change to
+// planCron/commitCron's own signatures or diff semantics, so the suites above stay
+// byte-identical to today when the flag is absent.
+describe('filterRoutinesByIds', () => {
+  test('null idsCsv → routines unchanged (identity, absent-flag case)', () => {
+    const routines = [r('heartbeat-restart'), r('reflect'), r('weekly-review')];
+    expect(filterRoutinesByIds(routines, null)).toBe(routines);
+  });
+
+  test('csv restricts to the named ids, order-preserving', () => {
+    const routines = [r('heartbeat-restart'), r('reflect'), r('weekly-review')];
+    const filtered = filterRoutinesByIds(routines, 'heartbeat-restart');
+    expect(filtered.map(x => x.id)).toEqual(['heartbeat-restart']);
+  });
+
+  test('multi-id csv with whitespace', () => {
+    const routines = [r('a'), r('b'), r('c')];
+    expect(filterRoutinesByIds(routines, ' a , c ').map(x => x.id)).toEqual(['a', 'c']);
+  });
+
+  test('empty string idsCsv → routines unchanged', () => {
+    const routines = [r('a')];
+    expect(filterRoutinesByIds(routines, '')).toBe(routines);
+  });
+});
+
+describe('planCron with --ids filter — monitor-mode anchor-only registration', () => {
+  test('plan --ids heartbeat-restart on a mirror tracking 6 routines → KEEP anchor, DELETE the other 5', () => {
+    const all = ['heartbeat-restart', 'reflect', 'scheduled-checks', 'weekly-review', 'daily-auto-close', 'doctor'].map(id => r(id));
+    const mirror = seedMirror(all, {}, T0 - 1000); // all 6 tracked, fresh
+    const filtered = filterRoutinesByIds(all, 'heartbeat-restart');
+    const plan = planCron(filtered, mirror, BOOT_A, PLUGIN_ROOT, null, 'UTC', T0);
+    expect(plan.deletes.sort()).toEqual(['daily-auto-close', 'doctor', 'reflect', 'scheduled-checks', 'weekly-review']);
+    expect(plan.creates).toEqual([]);
+    expect(plan.keepCount).toBe(1); // anchor kept, unchanged
+  });
+
+  test('plan --ids heartbeat-restart on an empty mirror → CREATE anchor only, no deletes', () => {
+    const filtered = filterRoutinesByIds([r('heartbeat-restart'), r('reflect')], 'heartbeat-restart');
+    const emptyMirror = { boot_id: BOOT_A, routines: {} };
+    const plan = planCron(filtered, emptyMirror, BOOT_A, PLUGIN_ROOT, null, 'UTC', T0);
+    expect(plan.creates.map(c => c.id)).toEqual(['heartbeat-restart']);
+    expect(plan.deletes).toEqual([]);
+  });
+
+  test('commit --ids heartbeat-restart prunes the mirror to the anchor alone', () => {
+    const all = [r('heartbeat-restart'), r('reflect'), r('weekly-review')];
+    const mirror = seedMirror(all, {}, T0 - 1000);
+    const filtered = filterRoutinesByIds(all, 'heartbeat-restart');
+    const plan = planCron(filtered, mirror, BOOT_A, PLUGIN_ROOT, null, 'UTC', T0);
+    const routineById = new Map(filtered.map((x: any) => [x.id, x]));
+    const next = commitCron(mirror, plan, new Set(), routineById, PLUGIN_ROOT, BOOT_A, T0);
+    expect(Object.keys(next.routines)).toEqual(['heartbeat-restart']);
+  });
+
+  test('no --ids flag → planCron output is byte-identical to the unfiltered call', () => {
+    const all = [r('heartbeat-restart'), r('reflect')];
+    const mirror = seedMirror(all, {}, T0 - 1000);
+    const viaFilter = planCron(filterRoutinesByIds(all, null), mirror, BOOT_A, PLUGIN_ROOT, null, 'UTC', T0);
+    const direct = planCron(all, mirror, BOOT_A, PLUGIN_ROOT, null, 'UTC', T0);
+    expect(viaFilter).toEqual(direct);
   });
 });

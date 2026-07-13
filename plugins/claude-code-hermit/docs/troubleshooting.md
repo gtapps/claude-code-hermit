@@ -89,11 +89,17 @@ SHELL.md from a crashed session persists. Choose **resume** or **start new** (ge
 ## Routines Not Firing
 
 - Check the `routines` array in config.json — each routine must have `enabled: true`.
-- Verify routines are registered: `/claude-code-hermit:hermit-routines status` (lists active CronCreate registrations from `CronList`). Should show one entry per enabled routine, prefixed with `[hermit-routine:<id>]`.
-- If `status` is empty: confirm `always_on: true` in config.json (only always-on hermits auto-register on launch). Manual fix: run `/claude-code-hermit:hermit-routines load`.
-- Inspect fire history: `tail .claude-code-hermit/state/routine-metrics.jsonl` — `fired` events with `"delivery":"cron-create"` mean the routine ran; `skipped-waiting` means `run_during_waiting: false` suppressed it because session was `waiting`.
-- CronCreate is idle-gated. If Claude was mid-task when the cron time hit, the fire is **deferred until idle, not dropped**. Long mid-task spans push fires later but never lose them.
-- CronCreate auto-expires after 7 days. The daily `heartbeat-restart` routine (4am) re-runs `/claude-code-hermit:hermit-routines load` to reset the clock — if you've disabled it, routines will silently stop firing after a week.
+- Verify state: `/claude-code-hermit:hermit-routines status`. Monitor mode shows the monitor's liveness + interval and the anchor's CronList entry; fallback mode lists one CronCreate per enabled routine, prefixed with `[hermit-routine:<id>]`.
+- If `status` shows nothing loaded: confirm `always_on: true` in config.json (only always-on hermits auto-register on launch). Manual fix: run `/claude-code-hermit:hermit-routines load`.
+- Inspect fire history: `tail .claude-code-hermit/state/routine-metrics.jsonl` — a `started` (or `fired`) event means the routine ran; `skipped-waiting` means `run_during_waiting: false` suppressed it because session was `waiting`; `skipped-paused` means the hermit was paused. The `delivery` field is `monitor` or `cron-create`.
+- **Monitor mode** gates on `session_state`, not the harness turn-level idle gate — a due routine can interject mid-conversation instead of waiting for idle, and a fire that lands while `session_state: in_progress` is deferred to the next poll (not dropped).
+- **CronCreate fallback/anchor mode** is idle-gated by the harness. If Claude was mid-task when the cron time hit, the fire is **deferred until idle, not dropped**. Long mid-task spans push fires later but never lose them. CronCreate auto-expires after 7 days — the daily `heartbeat-restart` routine (4am) re-runs `load` to reset the clock; if you've disabled it, fallback-mode routines will silently stop firing after a week.
+
+## Routine Monitor Not Ticking
+
+- Run `/claude-code-hermit:hermit-doctor` and check the `routine-monitor` line. `ok` naming `croncreate-fallback mode` means Monitor is unavailable on this platform (Bedrock/Google Cloud Agent Platform/Foundry, or `DISABLE_TELEMETRY`/`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`) and routines are running via CronCreate instead — nothing to fix.
+- `fail` naming "Monitor subprocess spawn likely blocked" usually means seccomp or nested-user-namespace restrictions inside a container prevented the subprocess from starting — the same failure mode that blocks `/watch` streams and the heartbeat monitor. Check `state/routine-monitor-liveness.json` for a `last_peek_at` timestamp; if it's missing or stale, the subprocess isn't running.
+- `/claude-code-hermit:hermit-routines load` re-registers the monitor and, if registration or liveness-verify fails, automatically falls back to CronCreate — re-run it after fixing the underlying container/sandbox restriction to return to monitor mode.
 
 ## Idle Agency Not Working
 

@@ -803,10 +803,28 @@ describe('negative paths', () => {
 // ============================================================
 
 describe('applyAlwaysOnDoctorSchedule', () => {
-  test('weekly template default ratchets to daily', () => {
+  test('old (pre-clustering) weekly default ratchets to the new clustered daily', () => {
     const config = { routines: [{ id: 'doctor', schedule: '0 10 * * 1', enabled: true }] };
     applyAlwaysOnDoctorSchedule(config);
-    expect(config.routines[0].schedule).toBe('0 10 * * *');
+    expect(config.routines[0].schedule).toBe('10 9 * * *');
+  });
+
+  test('current (clustered) weekly default ratchets to daily', () => {
+    const config = { routines: [{ id: 'doctor', schedule: '10 9 * * 1', enabled: true }] };
+    applyAlwaysOnDoctorSchedule(config);
+    expect(config.routines[0].schedule).toBe('10 9 * * *');
+  });
+
+  test('old (pre-clustering) daily default ratchets to the new clustered daily — fleet migration backstop', () => {
+    // Live always-on hermits were already ratcheted to the OLD daily schedule by
+    // a prior boot, before clustering existed. Without this case in the known-
+    // defaults set, those hermits would read as "custom" and never re-cluster —
+    // the primary migration path is the hermit-evolve Upgrade Instructions
+    // (exact-match config.json rewrite); this ratchet is the deterministic
+    // backstop for installs that skip that step.
+    const config = { routines: [{ id: 'doctor', schedule: '0 10 * * *', enabled: true }] };
+    applyAlwaysOnDoctorSchedule(config);
+    expect(config.routines[0].schedule).toBe('10 9 * * *');
   });
 
   test('custom schedule is left untouched', () => {
@@ -819,7 +837,13 @@ describe('applyAlwaysOnDoctorSchedule', () => {
     const config = { routines: [{ id: 'doctor', schedule: '0 10 * * 1', enabled: true }] };
     applyAlwaysOnDoctorSchedule(config);
     applyAlwaysOnDoctorSchedule(config);
-    expect(config.routines[0].schedule).toBe('0 10 * * *');
+    expect(config.routines[0].schedule).toBe('10 9 * * *');
+  });
+
+  test('already at the new clustered daily schedule — idempotent no-op', () => {
+    const config = { routines: [{ id: 'doctor', schedule: '10 9 * * *', enabled: true }] };
+    applyAlwaysOnDoctorSchedule(config);
+    expect(config.routines[0].schedule).toBe('10 9 * * *');
   });
 
   test('no doctor routine present does not throw', () => {

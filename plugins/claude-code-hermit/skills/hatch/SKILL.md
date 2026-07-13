@@ -317,7 +317,7 @@ For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, 
 - `{"id":"evening","schedule":"30 22 * * *","skill":"claude-code-hermit:brief --evening","enabled":true,"run_during_waiting":true}`
 - Always add (regardless of routine choice): `{"id":"heartbeat-restart","schedule":"0 4 * * *","skill":"claude-code-hermit:heartbeat start","run_during_waiting":true,"enabled":true}`
 - If no routines: still add heartbeat-restart to the `routines` array (it's infrastructure, not a user routine)
-- **Routines auto-register only on always-on launches via `hermit-start.ts`.** Interactive `/session` users who want routines active in interactive mode must run `/claude-code-hermit:hermit-routines load` themselves. Mention this once at the end of hatch if the operator is running interactively.
+- **Routines auto-register only on always-on launches via `hermit-start.ts`** (as one persistent routine monitor; CronCreate fallback where Monitor is unavailable). Interactive `/session` users who want routines active in interactive mode must run `/claude-code-hermit:hermit-routines load` themselves. Mention this once at the end of hatch if the operator is running interactively.
 - If the operator wants a custom routine beyond the morning/evening defaults, point them at [Routine Authoring](../../docs/routine-authoring.md) for the cost-conscious authoring pattern (scoped skill, haiku pin, precheck gating) rather than hand-deriving it.
 
 ### 5. Write config.json

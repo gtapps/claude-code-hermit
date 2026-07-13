@@ -38,7 +38,7 @@ Just Claude Code and everything is yours to shape: channels (Discord/Telegram), 
 
 - **Orchestrator** instructed to delegate tasks & exploration to other agents, main context stays clean for token efficiency.
 - **Heartbeat** gates `/loop` behind a filesystem-only precheck so it stops paying the model every tick, sweeping your checklist for **zero tokens**.
-- **Routines** wrap `CronCreate` jobs that expire in 7 days and fire in the machine's timezone: they self-rearm daily, run on your wall clock, and are managed by `/hermit-routines`.
+- **Routines** run from one persistent `Monitor` subprocess that decides eligibility outside the session, so a skipped fire costs zero tokens and co-due routines batch into one wake; a daily `CronCreate` anchor re-arms it. Falls back to per-routine `CronCreate` where `Monitor` is unavailable. Managed by `/hermit-routines`.
 - **`/watch`** wraps `Monitor` streams that die with the session: it auto-starts from config (or plain language) and routes findings to your notifications, silent when quiet.
 - **Channels** let you DM a session; the hermit agent acts on it (*"accept PROP-014"*, *"status"*) and **pings you first** when something needs a yes/no.
 - **Auto-memory + knowledge** Two layers. Claude Code's native auto-memory holds operator facts and preferences (how to work with you); on top, the hermit adds a `raw/` → `compiled/` knowledge base — domain outputs and living topic pages updated in place — re-injected as a catalog within a context budget at session start. Your Discord/Telegram DM text is also captured locally, so decisions made over chat outlive the thread: `weekly-review` distills them into memory (opt out with `knowledge.channel_log_enabled: false`). `/recall` searches across all of it.
