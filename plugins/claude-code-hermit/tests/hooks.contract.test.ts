@@ -1154,6 +1154,33 @@ Rota body.
     expect(sourceless.exitCode).toBe(0);
     expect(sourceless.stdout).toContain('---Last Report---');
   }));
+
+  test('startup-context (source=startup, new-format report → frontmatter row, no Overview body)', withDir(async (dir) => {
+    write(hermit(dir, 'sessions', 'S-001-REPORT.md'),
+      '---\nid: S-001\nstatus: completed\nblockers: ["waiting on review", "infra blocked"]\n' +
+      'next_start: "pick up the migration script"\ntask: "ship the thing"\n---\n' +
+      '# Session Report: S-001\n\n## Overview\nship the thing\n');
+    const r = await runScript('startup-context.ts', {
+      cwd: dir, env: ENV, stdin: JSON.stringify({ source: 'startup', session_id: 'x' }),
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toContain('---Last Report---');
+    expect(r.stdout).toContain('status=completed ship the thing');
+    expect(r.stdout).toContain('next: pick up the migration script');
+    expect(r.stdout).toContain('blockers: waiting on review (+1 more)');
+    expect(r.stdout).not.toContain('## Overview');
+  }));
+
+  test('startup-context (source=startup, legacy report with no next_start key → Overview fallback preserved)', withDir(async (dir) => {
+    write(hermit(dir, 'sessions', 'S-001-REPORT.md'), '---\nid: S-001\nstatus: completed\n---\n# Report\n## Overview\nPrev session overview.\n');
+    const r = await runScript('startup-context.ts', {
+      cwd: dir, env: ENV, stdin: JSON.stringify({ source: 'startup', session_id: 'x' }),
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toContain('---Last Report---');
+    expect(r.stdout).toContain('## Overview');
+    expect(r.stdout).toContain('Prev session overview');
+  }));
 });
 
 // -------------------------------------------------------

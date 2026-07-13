@@ -10,7 +10,7 @@ populate the corresponding field in the return JSON instead — the main session
 
 - `.claude-code-hermit/state/reflection-state.json` — for `last_resolution_check`, `last_sparse_nudge`
 - `.claude-code-hermit/proposals/PROP-*.md` — for accepted proposals (Resolution Check)
-- `.claude-code-hermit/sessions/S-*-REPORT.md` — 3 most recent (read full bodies)
+- `.claude-code-hermit/sessions/S-*-REPORT.md` — 3 most recent (frontmatter first; open a full body only per the Step 1 rule below)
 - `.claude-code-hermit/state/routine-metrics.jsonl` — last 400 lines (routine check)
 - `.claude-code-hermit/state/channel-replies.jsonl` — last 200 lines (engagement check; skip if absent)
 - `.claude/cost-log.jsonl` — last 200 lines (cost join; project root, sibling of `.claude-code-hermit/` — not nested under it)
@@ -63,9 +63,13 @@ Run this step only if `resolution_check` is listed in `phases_json`.
 
    **If `success_signal` is null** — use the prose pattern-absence test:
 
-   Read the 3 most recent `sessions/S-*-REPORT.md` files in full (sort descending by filename, read the
-   top 3). Do NOT truncate bodies — if a file exceeds your read window, note truncation explicitly
-   per file rather than silently trimming.
+   Read the YAML frontmatter of the 3 most recent `sessions/S-*-REPORT.md` files (sort descending by
+   filename, take the top 3): `task`, `tags`, `lessons`, `blockers`, `artifacts`, `next_start`, `status`,
+   `date`. Test pattern presence against those fields first. A report whose frontmatter lacks the
+   `next_start` key is **legacy** — read it in full as before (do NOT truncate its body). For non-legacy
+   reports, open the full body only when the pattern concerns prose the frontmatter row cannot witness
+   (e.g. Progress Log detail, section wording) — and then only that one report, not all 3. If a body you
+   do open exceeds your read window, note the truncation explicitly rather than silently trimming.
 
    **Same-area guard (absence must be meaningful):** before counting absence, establish work-area overlap —
    collect the proposal's `tags` plus the `tags:` frontmatter of its `related_sessions` reports into a
@@ -122,7 +126,8 @@ produce a `routine_candidates` entry:
 **Uncited-routine detection:**
 
 For each routine with ≥5 fires in the last 14 days: read the 3 most recent `sessions/S-*-REPORT.md`
-(reuse the bodies already read in Step 1 if available). If no session report cites the routine's
+(reuse the frontmatter rows already read in Step 1 if available; open a body only for a legacy report
+or when the row's `task`/`lessons`/`artifacts` don't settle the citation check). If no session report cites the routine's
 `routine_id` or skill output as producing findings, decisions, or follow-ups — apply the
 Three-Condition Rule:
 1. Repeated pattern: ≥5 fires with zero citation.
@@ -169,8 +174,9 @@ Read two sources directly (no Explore nesting):
    for workflow-pattern entries (topic files flagged as workflow patterns, lines with `workflow` in the
    description).
 
-2. `## Lessons` sections of the 3 most recent `sessions/S-*-REPORT.md` files (reuse bodies from Step 1
-   if available).
+2. The `lessons` frontmatter array of the 3 most recent `sessions/S-*-REPORT.md` files (reuse the rows
+   from Step 1 if available). For a legacy report (no `next_start` frontmatter key), read its `## Lessons`
+   section instead.
 
 **Recurrence signal:** the same multi-step procedure appears as a Lesson or memory workflow-pattern in
 **≥ `graduation_min_sessions` distinct archived sessions** (read from `.claude-code-hermit/config.json`
