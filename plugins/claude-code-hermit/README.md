@@ -1,7 +1,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.23-green.svg" alt="Version 1.2.23" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.24-green.svg" alt="Version 1.2.24" /></a>
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/_gh_traffic_stats/.github/badges/clones.json" alt="Downloads" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
   <a href="https://discord.gg/54sJqAxhUh"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Join" /></a>
@@ -164,6 +164,7 @@ Tune via `/hermit-settings` (or just by asking the hermit). Some of the settings
 | `auto_session` | auto-start session on boot — **`true`** |
 | `boot_skill` / `shutdown_skill` | custom boot / teardown skill |
 | `post_close_clear` | clear context after midnight close — **`true`** |
+| `COMPACT_THRESHOLD` | tool-count compact hint — **`75`** |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | auto-compact at % of context — **`65`** |
 | `MAX_THINKING_TOKENS` | thinking-token cap per turn — **`10000`** |
 | `watchdog.enabled` | external dead-session recovery — **`false`** (local/tmux); `/docker-setup` enables it |
