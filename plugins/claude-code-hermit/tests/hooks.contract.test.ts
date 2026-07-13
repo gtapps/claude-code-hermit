@@ -1107,6 +1107,96 @@ Rota body.
     expect(r.exitCode).toBe(0);
     expect(r.stdout).not.toContain('---Compaction Pointers---');
   }));
+
+  // ---- source-gated renderer: compact = delta capsule only; resume trims Last Report ----
+
+  test('startup-context (source=compact, full state → ≤1200 chars, no full-capsule sections)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"waiting","waiting_reason":"operator_input"}');
+    write(hermit(dir, 'OPERATOR.md'), '# Operator\nContext body that must never be re-injected on compact.\n');
+    write(hermit(dir, 'sessions', 'S-001-REPORT.md'), '# Report\n## Overview\nReport body text stays out.\n');
+    const r = await runScript('startup-context.ts', {
+      cwd: dir, env: ENV, stdin: JSON.stringify({ source: 'compact', session_id: 'x' }),
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout.length).toBeLessThanOrEqual(1200);
+    expect(r.stdout).toContain('---Compaction Pointers---');
+    for (const banned of ['---Session Context---', '---Active Session---', '---Compiled Knowledge---',
+      '---Schema Drift---', '---Storage Drift---', '---Session Cost---', '---Last Report---', '---Upgrade Check---']) {
+      expect(r.stdout).not.toContain(banned);
+    }
+  }));
+
+  test('startup-context (source=compact → pointer lines, never bodies)', withDir(async (dir) => {
+    write(hermit(dir, 'OPERATOR.md'), '# Operator\nSecret operator body.\n');
+    write(hermit(dir, 'sessions', 'S-001-REPORT.md'), '# Report\nReport body text.\n');
+    fs.mkdirSync(hermit(dir, 'proposals'), { recursive: true });
+    write(hermit(dir, 'proposals', 'open-proposal.md'), '---\nid: x\n---\nProposal body.\n');
+    const r = await runScript('startup-context.ts', {
+      cwd: dir, env: ENV, stdin: JSON.stringify({ source: 'compact', session_id: 'x' }),
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toContain('latest report: sessions/S-001-REPORT.md');
+    expect(r.stdout).toContain('operator context: OPERATOR.md');
+    expect(r.stdout).toContain('proposals dir: proposals/');
+    expect(r.stdout).toContain('last progress: - [10:00] Started test session');
+    expect(r.stdout).not.toContain('Report body text');
+    expect(r.stdout).not.toContain('Secret operator body');
+    expect(r.stdout).not.toContain('Proposal body');
+  }));
+
+  test('startup-context (source=compact → context-scan record still persisted)', withDir(async (dir) => {
+    const r = await runScript('startup-context.ts', {
+      cwd: dir, env: ENV, stdin: JSON.stringify({ source: 'compact', session_id: 'x' }),
+    });
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(hermit(dir, 'state', 'context-scan.json'))).toBe(true);
+  }));
+
+  test('startup-context (source=compact → does not clear a prior full-scan warning)', withDir(async (dir) => {
+    // A prior full startup recorded a warning for a surface the compact path never scans.
+    const scanPath = hermit(dir, 'state', 'context-scan.json');
+    fs.mkdirSync(hermit(dir, 'state'), { recursive: true });
+    write(scanPath, JSON.stringify({ ts: '2026-01-01T00:00:00Z', hits: [{ source: 'OPERATOR.md', reason: 'system-marker' }] }));
+    const r = await runScript('startup-context.ts', {
+      cwd: dir, env: ENV, stdin: JSON.stringify({ source: 'compact', session_id: 'x' }),
+    });
+    expect(r.exitCode).toBe(0);
+    const rec = JSON.parse(fs.readFileSync(scanPath, 'utf-8'));
+    expect(rec.hits.some((h: any) => h.source === 'OPERATOR.md')).toBe(true);
+  }));
+
+  test('startup-context (source=resume, active SHELL.md → Last Report omitted, rest intact)', withDir(async (dir) => {
+    write(hermit(dir, 'sessions', 'S-001-REPORT.md'), '# Report\n## Overview\nPrev session overview.\n');
+    const r = await runScript('startup-context.ts', {
+      cwd: dir, env: ENV, stdin: JSON.stringify({ source: 'resume', session_id: 'x' }),
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).not.toContain('---Last Report---');
+    expect(r.stdout).toContain('---Active Session---');
+    expect(r.stdout).toContain('---Session Cost---');
+  }));
+
+  test('startup-context (source=resume, no actionable SHELL.md → Last Report still emitted)', withDir(async (dir) => {
+    fs.rmSync(hermit(dir, 'sessions', 'SHELL.md'));
+    write(hermit(dir, 'sessions', 'S-001-REPORT.md'), '# Report\n## Overview\nPrev session overview.\n');
+    const r = await runScript('startup-context.ts', {
+      cwd: dir, env: ENV, stdin: JSON.stringify({ source: 'resume', session_id: 'x' }),
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toContain('---Last Report---');
+    expect(r.stdout).toContain('Prev session overview');
+  }));
+
+  test('startup-context (source=startup and source-less → Last Report emitted)', withDir(async (dir) => {
+    const startup = await runScript('startup-context.ts', {
+      cwd: dir, env: ENV, stdin: JSON.stringify({ source: 'startup', session_id: 'x' }),
+    });
+    expect(startup.exitCode).toBe(0);
+    expect(startup.stdout).toContain('---Last Report---');
+    const sourceless = await runScript('startup-context.ts', { cwd: dir, env: ENV });
+    expect(sourceless.exitCode).toBe(0);
+    expect(sourceless.stdout).toContain('---Last Report---');
+  }));
 });
 
 // -------------------------------------------------------
