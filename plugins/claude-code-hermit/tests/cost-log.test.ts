@@ -24,6 +24,10 @@ function writeLog(dir: string, entries: object[]): string {
 }
 
 const NY = 'America/New_York';
+// Reference "now" for the retention cutoffs, pinned a couple days after the fixture
+// dates so the 2026-07-04/05 buckets stay inside the trailing by_date window regardless
+// of the real wall-clock date (otherwise these fixed-date fixtures age out and fail).
+const ASOF = new Date('2026-07-06T12:00:00Z');
 
 describe('#10d — timezone change re-buckets the index', () => {
   test('a config.timezone change triggers a rebuild under the new tz', withTmpdir((dir) => {
@@ -33,12 +37,12 @@ describe('#10d — timezone change re-buckets the index', () => {
     ]);
     const idxPath = path.join(dir, 'cost-index.json');
 
-    const utc = updateCostIndex(logPath, idxPath, 'UTC');
+    const utc = updateCostIndex(logPath, idxPath, 'UTC', ASOF);
     expect(Object.keys(utc.by_date)).toEqual(['2026-07-05']);
     expect(utc.timezone).toBe('UTC');
 
     // Same log, new timezone — must re-bucket, not keep the stale UTC key.
-    const ny = updateCostIndex(logPath, idxPath, NY);
+    const ny = updateCostIndex(logPath, idxPath, NY, ASOF);
     expect(ny.timezone).toBe(NY);
     expect(Object.keys(ny.by_date)).toEqual(['2026-07-04']);
     expect(ny.by_date['2026-07-05']).toBeUndefined();
@@ -52,7 +56,7 @@ describe('#10c — computeIndex: read-only spend without writing the index', () 
     ]);
     const idxPath = path.join(dir, 'cost-index.json');
 
-    const idx = computeIndex(logPath, NY);
+    const idx = computeIndex(logPath, NY, ASOF);
     expect(idx.by_date['2026-07-04'].cost).toBe(1.5);
     expect(idx.timezone).toBe(NY);
     expect(fs.existsSync(idxPath)).toBe(false); // read-only — sole-writer invariant preserved
@@ -66,7 +70,7 @@ describe('updateCostIndex — by_week/by_month tz-aware aggregation', () => {
       { timestamp: '2026-07-05T02:00:00Z', session_id: 's1', source: 'other', model: 'sonnet', total_tokens: 100, estimated_cost_usd: 1.0 },
     ]);
     const idxPath = path.join(dir, 'cost-index.json');
-    const idx = updateCostIndex(logPath, idxPath, NY);
+    const idx = updateCostIndex(logPath, idxPath, NY, ASOF);
 
     expect(Object.keys(idx.by_date)).toEqual(['2026-07-04']);
     expect(idx.by_week['2026-W27'].cost).toBe(1.0);
@@ -79,7 +83,7 @@ describe('updateCostIndex — by_week/by_month tz-aware aggregation', () => {
       { timestamp: '2026-07-05T02:00:00Z', session_id: 's1', source: 'other', model: 'sonnet', total_tokens: 50, estimated_cost_usd: 0.5 },
     ]);
     const idxPath = path.join(dir, 'cost-index.json');
-    const idx = updateCostIndex(logPath, idxPath, NY);
+    const idx = updateCostIndex(logPath, idxPath, NY, ASOF);
 
     expect(Object.keys(idx.by_date)).toEqual(['2026-07-04']);
     expect(idx.by_date['2026-07-04'].cost).toBe(2);
@@ -93,7 +97,7 @@ describe('updateCostIndex — by_week/by_month tz-aware aggregation', () => {
       { timestamp: '2026-07-04T22:17:00Z', session_id: 's1', source: 'other', model: 'sonnet', total_tokens: 100, estimated_cost_usd: 1.0 },
     ]);
     const idxPath = path.join(dir, 'cost-index.json');
-    const idx = updateCostIndex(logPath, idxPath); // no timezone arg -> defaults to UTC
+    const idx = updateCostIndex(logPath, idxPath, undefined, ASOF); // timezone omitted -> defaults to UTC
 
     expect(Object.keys(idx.by_date)).toEqual(['2026-07-04']);
     expect(idx.by_week['2026-W27']).toBeDefined();
@@ -104,12 +108,12 @@ describe('updateCostIndex — by_week/by_month tz-aware aggregation', () => {
       { timestamp: '2026-07-04T12:00:00Z', session_id: 's1', source: 'other', model: 'sonnet', total_tokens: 100, estimated_cost_usd: 1.0 },
     ]);
     const idxPath = path.join(dir, 'cost-index.json');
-    updateCostIndex(logPath, idxPath, 'UTC');
+    updateCostIndex(logPath, idxPath, 'UTC', ASOF);
 
     fs.appendFileSync(logPath, JSON.stringify({
       timestamp: '2026-07-04T13:00:00Z', session_id: 's1', source: 'other', model: 'sonnet', total_tokens: 50, estimated_cost_usd: 0.5,
     }) + '\n');
-    const idx = updateCostIndex(logPath, idxPath, 'UTC');
+    const idx = updateCostIndex(logPath, idxPath, 'UTC', ASOF);
 
     expect(idx.by_date['2026-07-04'].cost).toBe(1.5);
     expect(idx.total_cost_usd).toBe(1.5);

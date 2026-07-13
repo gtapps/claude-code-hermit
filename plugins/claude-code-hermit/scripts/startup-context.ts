@@ -4,7 +4,9 @@ process.stdout.on('error', () => {});
 // startup-context.ts — SessionStart hook
 // Replaces the inline bash blob with a capped, priority-ordered context injection.
 // Emits only startup-relevant SHELL.md sections with per-section budgets.
-// Hard cap: 9000 chars total (~2250 tokens).
+// Hard cap: 9000 chars total (~2250 tokens). Source-gated: `compact` emits only
+// a delta capsule (≤ COMPACT_CAP); `resume` skips the Last Report section when
+// SHELL.md is active; `startup`/`clear`/unknown get the full capsule.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -21,6 +23,7 @@ type Json = any;
 const AGENT_DIR = hermitDir();
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT || path.resolve(import.meta.dir, '..');
 const HARD_CAP = 9000;
+const COMPACT_CAP = 1200; // total stdout when source === "compact" (delta capsule only)
 
 // Section budgets (chars). Higher priority sections emit first.
 // If a section exceeds its budget, it is truncated with [...truncated].
@@ -28,7 +31,6 @@ const HARD_CAP = 9000;
 const BUDGETS = {
   operator:      2000,
   session:       3000,
-  pointers:       800, // compaction pointers — only emitted when source === "compact"
   knowledge:     2500, // compiled/ artifacts — read from config, 2500 default
   schemaDrift:    400, // only emitted when compiled/ types are undeclared in knowledge-schema.md
   storageDrift:   500, // only emitted when misplaced files are found
@@ -100,11 +102,11 @@ function lastLines(text: string, n: number): string {
   return lines.slice(-n).join('\n');
 }
 
-// Build the post-compaction pointer block: the state that native/driver-sent
-// compaction drops and startup-context's other sections don't already cover
-// (Active Session re-injects SHELL.md's Task/Progress/Blockers, but not
-// runtime.json's session_state/waiting_reason, pending micro-approvals, or
-// outbound channel routing). Fail-open per-field — one missing/malformed
+// Build the post-compaction delta capsule: the ONLY injection on
+// source === "compact". Carries hermit lifecycle state (never assumed
+// preserved by the native summary — its quality varies) plus file pointers;
+// bodies, catalog, cost, and upgrade status stay out — they are not
+// continuity state. Fail-open per-field — one missing/malformed
 // state file must not blank the rest. Returns "" if nothing is available.
 function buildCompactionPointers(agentDir: string): string {
   const parts: string[] = [];
@@ -124,7 +126,12 @@ function buildCompactionPointers(agentDir: string): string {
     const firstLine = task
       ? task.split('\n').map(l => l.trim()).find(l => l && !l.startsWith('<!--'))
       : null;
-    if (firstLine) parts.push(`task: ${safe(firstLine).slice(0, 300)}`);
+    if (firstLine) parts.push(`task: ${guarded('sessions/SHELL.md', firstLine.slice(0, 300))}`);
+    const progress = extractSection(shellContent, 'Progress Log');
+    const lastEntry = progress
+      ? progress.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('<!--')).pop()
+      : null;
+    if (lastEntry) parts.push(`last progress: ${guarded('sessions/SHELL.md', lastEntry.slice(0, 200))}`);
   } catch {}
 
   try {
@@ -143,6 +150,25 @@ function buildCompactionPointers(agentDir: string): string {
     if (route) parts.push(`outbound channel: ${safe(route.id)} (chat_id: ${safe(route.chat_id)})`);
   } catch {}
 
+  try {
+    const reports = globDir(path.resolve(agentDir, 'sessions'), /^S-\d+-REPORT\.md$/)
+      .map(f => path.basename(f))
+      .reverse();
+    if (reports.length > 0) parts.push(`latest report: sessions/${reports[0]}`);
+  } catch {}
+
+  try {
+    if (fs.statSync(path.resolve(agentDir, 'OPERATOR.md')).size > 0) {
+      parts.push('operator context: OPERATOR.md (not re-read; consult before outward-facing actions)');
+    }
+  } catch {}
+
+  try {
+    if (fs.readdirSync(path.resolve(agentDir, 'proposals')).some(f => f.endsWith('.md'))) {
+      parts.push('proposals dir: proposals/');
+    }
+  } catch {}
+
   if (parts.length === 0) return '';
 
   parts.push('Full state: SHELL.md + runtime.json. Task list: native Tasks. Don\'t re-read large files to reconstruct context.');
@@ -150,6 +176,32 @@ function buildCompactionPointers(agentDir: string): string {
 }
 
 function main(source: string | null) {
+  if (source === 'compact') {
+    emitCompactCapsule();
+  } else {
+    emitFullContext(source);
+  }
+  // Always — a full-path clean scan clears a prior warning; the compact path
+  // merges (it only scanned the capsule) so it can't clear a real warning.
+  persistScanRecord(source);
+}
+
+// Post-compaction path: the delta capsule is the ONLY injection. The native
+// summary carries the narrative; full sections would re-inject up to HARD_CAP
+// chars of state the session just paid to summarize.
+function emitCompactCapsule(): void {
+  try {
+    const pointers = buildCompactionPointers(AGENT_DIR);
+    if (!pointers) return;
+    const header = '---Compaction Pointers---\n';
+    const body = pointers.slice(0, COMPACT_CAP - header.length - 1);
+    process.stdout.write(header + body + '\n');
+  } catch {
+    // fail-open — a broken capsule must never block startup
+  }
+}
+
+function emitFullContext(source: string | null) {
   let totalChars = 0;
 
   function emit(label: string, content: string): void {
@@ -193,6 +245,7 @@ function main(source: string | null) {
     shellContent = fs.readFileSync(shellPath, 'utf-8');
   } catch {}
 
+  let hasActiveSession = false;
   if (shellContent === null) {
     emit('Active Session', 'No active session');
   } else {
@@ -224,21 +277,10 @@ function main(source: string | null) {
 
     const sessionOutput = parts.join('\n\n');
     if (sessionOutput.trim()) {
+      hasActiveSession = true;
       emit('Active Session', guarded('sessions/SHELL.md', sessionOutput.slice(0, BUDGETS.session)));
     } else {
       emit('Active Session', 'Session file exists but has no actionable content');
-    }
-  }
-
-  // -------------------------------------------------------
-  // 3b. Compaction pointers (priority 2.2, budget 800) — only on source === "compact"
-  // -------------------------------------------------------
-  if (source === 'compact' && totalChars < HARD_CAP) {
-    try {
-      const pointers = buildCompactionPointers(AGENT_DIR);
-      if (pointers) emit('Compaction Pointers', pointers.slice(0, BUDGETS.pointers));
-    } catch {
-      // Non-fatal — never let pointer injection block ordinary startup context
     }
   }
 
@@ -387,9 +429,10 @@ function main(source: string | null) {
   }
 
   // -------------------------------------------------------
-  // 7. Last report (priority 4, budget 1500)
+  // 7. Last report (priority 4, budget 1500) — skipped on resume with an
+  //    active SHELL.md: the resumed transcript already contains the report.
   // -------------------------------------------------------
-  if (totalChars < HARD_CAP) {
+  if (totalChars < HARD_CAP && !(source === 'resume' && hasActiveSession)) {
     try {
       const sessionsDir = path.resolve(AGENT_DIR, 'sessions');
       const reports = fs.readdirSync(sessionsDir)
@@ -434,15 +477,30 @@ function main(source: string | null) {
     }
   }
 
-  // -------------------------------------------------------
-  // 9. Persist scan record (always — empty hits clear a prior warning)
-  // -------------------------------------------------------
+}
+
+// Persist scan record. A full-path scan is comprehensive, so it overwrites —
+// empty hits legitimately clear a prior warning. The compact path only scanned
+// the delta capsule (task/progress), so it MERGES with the existing record
+// rather than overwriting: a compaction must never clear a warning a prior full
+// scan recorded for OPERATOR.md/compiled/report. The next full start re-scans
+// comprehensively and overwrites, self-healing any stale merged hit.
+function persistScanRecord(source: string | null): void {
   try {
     const stateDir = path.resolve(AGENT_DIR, 'state');
     fs.mkdirSync(stateDir, { recursive: true });
     const scanPath = path.join(stateDir, 'context-scan.json');
+    let hits = scanHits;
+    if (source === 'compact') {
+      try {
+        const prev = JSON.parse(fs.readFileSync(scanPath, 'utf-8'));
+        const prevHits: { source: string; reason: string }[] = Array.isArray(prev.hits) ? prev.hits : [];
+        const seen = new Set(hits.map(h => `${h.source}\0${h.reason}`));
+        hits = hits.concat(prevHits.filter(h => !seen.has(`${h.source}\0${h.reason}`)));
+      } catch {}
+    }
     const tmp = scanPath + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify({ ts: new Date().toISOString(), hits: scanHits }, null, 2) + '\n', { encoding: 'utf-8', mode: 0o600 });
+    fs.writeFileSync(tmp, JSON.stringify({ ts: new Date().toISOString(), hits }, null, 2) + '\n', { encoding: 'utf-8', mode: 0o600 });
     fs.renameSync(tmp, scanPath);
   } catch {}
 }

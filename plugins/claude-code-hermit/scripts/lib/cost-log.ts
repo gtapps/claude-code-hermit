@@ -84,23 +84,25 @@ function _writeIndex(indexPath: string, index: Json): Json {
 // Months-ago reference date, via UTC calendar-month subtraction (not ms subtraction —
 // months have variable length, so `Date.UTC` normalization is the correct way to land
 // on "the same day N months back" for a monthly retention cutoff).
-function _monthsAgo(n: number): Date {
-  const now = new Date();
+function _monthsAgo(n: number, now: Date = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - n, now.getUTCDate()));
 }
 
 // Drop by_date/by_week/by_month buckets older than their retention windows. Keeps the
 // index bounded regardless of how long the hermit runs; total_* counters are unaffected.
-function _pruneBuckets(index: Json, timezone: string): void {
-  const dateCutoff = todayYMD(timezone, new Date(Date.now() - BY_DATE_RETENTION_DAYS * 86400000));
+// `asOf` is the reference "now" for the retention cutoffs (default real clock); tests pin
+// it so fixed-date fixtures don't age out of the window as wall-clock time advances.
+function _pruneBuckets(index: Json, timezone: string, asOf: Date = new Date()): void {
+  const nowMs = asOf.getTime();
+  const dateCutoff = todayYMD(timezone, new Date(nowMs - BY_DATE_RETENTION_DAYS * 86400000));
   for (const date of Object.keys(index.by_date)) {
     if (date < dateCutoff) delete index.by_date[date];
   }
-  const weekCutoff = thisWeekKey(timezone, new Date(Date.now() - BY_WEEK_RETENTION_WEEKS * 7 * 86400000));
+  const weekCutoff = thisWeekKey(timezone, new Date(nowMs - BY_WEEK_RETENTION_WEEKS * 7 * 86400000));
   for (const week of Object.keys(index.by_week)) {
     if (week < weekCutoff) delete index.by_week[week];
   }
-  const monthCutoff = thisMonthYYYYMM(timezone, _monthsAgo(BY_MONTH_RETENTION_MONTHS));
+  const monthCutoff = thisMonthYYYYMM(timezone, _monthsAgo(BY_MONTH_RETENTION_MONTHS, asOf));
   for (const month of Object.keys(index.by_month)) {
     if (month < monthCutoff) delete index.by_month[month];
   }
@@ -177,7 +179,7 @@ function _foldLogInto(index: Json, logPath: string, timezone: string): void {
 }
 
 // Full O(n) rebuild from scratch. Only called: first run, version mismatch, or log truncation.
-function rebuildCostIndex(logPath: string, indexPath: string, timezone: string = 'UTC'): Json {
+function rebuildCostIndex(logPath: string, indexPath: string, timezone: string = 'UTC', asOf: Date = new Date()): Json {
   const index = _emptyIndex();
   index.timezone = timezone; // stamp so a later tz change can be detected and re-bucketed
 
@@ -191,7 +193,7 @@ function rebuildCostIndex(logPath: string, indexPath: string, timezone: string =
   _foldLogInto(index, logPath, timezone);
 
   index.byte_offset = fileSize;
-  _pruneBuckets(index, timezone);
+  _pruneBuckets(index, timezone, asOf);
   index.updated_at = new Date().toISOString();
   return _writeIndex(indexPath, index);
 }
@@ -202,11 +204,11 @@ function rebuildCostIndex(logPath: string, indexPath: string, timezone: string =
 // mismatched/absent, but must not write it (cost-tracker is the sole index writer,
 // and a paused hermit runs no Stop turn to rebuild it). O(n) in the log size — only
 // used on the fallback path, so the steady state stays on the O(1) incremental read.
-function computeIndex(logPath: string, timezone: string = 'UTC'): Json {
+function computeIndex(logPath: string, timezone: string = 'UTC', asOf: Date = new Date()): Json {
   const index = _emptyIndex();
   index.timezone = timezone;
   _foldLogInto(index, logPath, timezone);
-  _pruneBuckets(index, timezone);
+  _pruneBuckets(index, timezone, asOf);
   return index;
 }
 
@@ -215,7 +217,7 @@ function computeIndex(logPath: string, timezone: string = 'UTC'): Json {
 // appears truncated (byte_offset > fileSize). `timezone` (default 'UTC') determines the
 // by_date/by_week/by_month bucketing — pass config.timezone so budget windows match the
 // operator's local calendar.
-function updateCostIndex(logPath: string, indexPath: string, timezone: string = 'UTC'): Json {
+function updateCostIndex(logPath: string, indexPath: string, timezone: string = 'UTC', asOf: Date = new Date()): Json {
   let fileSize = 0;
   try {
     fileSize = fs.statSync(logPath).size;
@@ -234,7 +236,7 @@ function updateCostIndex(logPath: string, indexPath: string, timezone: string = 
   // and current-period spend would under-read (a cap could be silently under-enforced)
   // until they refill. Re-bucket the whole log under the new tz, like a version bump.
   if (!index || index.byte_offset > fileSize || index.timezone !== timezone) {
-    return rebuildCostIndex(logPath, indexPath, timezone);
+    return rebuildCostIndex(logPath, indexPath, timezone, asOf);
   }
 
   // No new bytes
@@ -262,7 +264,7 @@ function updateCostIndex(logPath: string, indexPath: string, timezone: string = 
   }
 
   index.byte_offset = fileSize;
-  _pruneBuckets(index, timezone);
+  _pruneBuckets(index, timezone, asOf);
   index.updated_at = new Date().toISOString();
   return _writeIndex(indexPath, index);
 }
