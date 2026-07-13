@@ -88,16 +88,43 @@ describe('routine-due', () => {
     expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T09:00:00.000Z');
   }));
 
-  test('mark older than 24h with no recent match → expired, no fire, cursor advances to window floor', withDir(async (dir) => {
+  test('mark older than 24h with no recent match → expired, no fire, cursor advances to nowMinute', withDir(async (dir) => {
     // A daily schedule always has exactly one occurrence inside any 24h lookback
     // window (the window width equals the period), so this case needs a schedule
     // whose period exceeds 24h — weekly Monday 9am, evaluated on a Wednesday, so
-    // the [windowFloor(Tue), now(Wed)] window spans neither this nor last Monday.
+    // the (windowFloor(Tue), now(Wed)] window spans neither this nor last Monday.
+    // On no-match the cursor converges to nowMinute (not windowFloor) so the next
+    // poll re-scans only new minutes instead of re-walking the dead 24h window.
     writeConfig(dir, [ROUTINE({ schedule: '0 9 * * 1' })]);
     writeSchedule(dir, { 'test-routine': { last_consumed_mark: '2026-07-01T00:00:00.000Z' } }); // long stale
-    const r = await run(dir, '2026-07-15T03:00:00Z'); // Wednesday; windowFloor = Tue 2026-07-14T03:00
+    const r = await run(dir, '2026-07-15T03:00:00Z'); // Wednesday
     expect(r.stdout.trim()).toBe('');
-    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-14T03:00:00.000Z');
+    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T03:00:00.000Z');
+  }));
+
+  test('not-yet-due routine advances cursor to nowMinute on a no-match poll', withDir(async (dir) => {
+    // Daily 9am, cursor at yesterday's fire, polled at 08:00 — no match in (cursor, now].
+    // Old behavior left the cursor put (re-scanning a growing window every poll); now it
+    // converges to nowMinute so the next poll's window is just the elapsed minute.
+    writeConfig(dir, [ROUTINE({ schedule: '0 9 * * *' })]);
+    writeSchedule(dir, { 'test-routine': { last_consumed_mark: '2026-07-14T09:00:00.000Z' } });
+    const r = await run(dir, '2026-07-15T08:00:00Z');
+    expect(r.stdout.trim()).toBe('');
+    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T08:00:00.000Z');
+  }));
+
+  test('invalid config.timezone → fail-soft: no fire, but cursor init and stale-entry prune still run', withDir(async (dir) => {
+    // A bad tz makes the formatter null → the minute scan finds no match, but the missing
+    // cursor must still initialize and a stale non-eligible entry must still be pruned.
+    writeConfig(dir, [ROUTINE({ id: 'live-one' })], 'Not/AZone');
+    writeSchedule(dir, { 'gone-routine': { last_consumed_mark: '2026-07-15T08:00:00.000Z' } }); // no longer in config
+    const r = await run(dir, '2026-07-15T09:00:00Z');
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout.trim()).toBe('');
+    const sched = readSchedule(dir);
+    expect(sched['live-one']).toBeDefined();               // missing cursor initialized despite bad tz
+    expect(sched['live-one'].last_consumed_mark).toBe('2026-07-15T09:00:00.000Z');
+    expect(sched['gone-routine']).toBeUndefined();          // stale entry pruned
   }));
 
   test('session_state in_progress → no emission, mark NOT consumed, no stamp; idle run then emits', withDir(async (dir) => {
@@ -124,6 +151,32 @@ describe('routine-due', () => {
     const rows = readMetricsRows(dir);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ routine_id: 'test-routine', event: 'skipped-paused', delivery: 'monitor' });
+  }));
+
+  test('persist failure in skip branch → NO skipped-* row, cursor unchanged; retry writes exactly one', withDir(async (dir) => {
+    writeConfig(dir, [ROUTINE()]);
+    writeSchedule(dir, { 'test-routine': { last_consumed_mark: '2026-07-15T08:00:00.000Z' } });
+    setPause(hermit(dir), { reason: 'operator', by: 'test' });
+
+    // Force the schedule persist to fail via the test seam — the deferred skip stamp must
+    // not be written and the cursor must not advance (persist-before-stamp ordering).
+    const rFail = await runScript('routine-due.ts', {
+      args: [hermit(dir)],
+      env: { HERMIT_NOW: '2026-07-15T09:00:00Z', HERMIT_DUE_FORCE_PERSIST_FAIL: '1' },
+    });
+    expect(rFail.exitCode).toBe(0);
+    expect(rFail.stdout.trim()).toBe('');
+    expect(readMetricsRows(dir)).toHaveLength(0); // no phantom skipped-* row
+    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T08:00:00.000Z'); // cursor unchanged
+    expect(fs.existsSync(livenessPath(dir))).toBe(true); // liveness still written (seam is schedule-scoped)
+
+    // Retry without the seam — now exactly one skip row, and the cursor advances.
+    const rOk = await run(dir, '2026-07-15T09:00:00Z');
+    expect(rOk.stdout.trim()).toBe('');
+    const rows = readMetricsRows(dir);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ routine_id: 'test-routine', event: 'skipped-paused', delivery: 'monitor' });
+    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T09:00:00.000Z');
   }));
 
   test('waiting × run_during_waiting matrix', withDir(async (dir) => {

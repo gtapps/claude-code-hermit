@@ -5,7 +5,10 @@
 // Usage: bun test tests/cron-match.test.ts   (from the plugin root)
 
 import { describe, test, expect } from 'bun:test';
-import { cronMatches, datePartsInTz } from '../scripts/lib/cron-match';
+import {
+  cronMatches, datePartsInTz,
+  compileCron, cronMatchesCompiled, makeTzFormatter, partsFromFormatter,
+} from '../scripts/lib/cron-match';
 
 const W = new Date('2026-01-15T12:00:00Z'); // winter reference
 const S = new Date('2026-07-15T12:00:00Z'); // summer reference
@@ -109,5 +112,45 @@ describe('cronMatches', () => {
     expect(afterFallback.hour).toBe(1);
     expect(cronMatches('30 1 * * *', beforeFallback)).toBe(true);
     expect(cronMatches('30 1 * * *', afterFallback)).toBe(true);
+  });
+});
+
+// The compiled two-tier interface (compileCron / cronMatchesCompiled) that routine-due.ts
+// uses in its hot loop — exercised directly, not just through the cronMatches wrapper.
+describe('compileCron / cronMatchesCompiled', () => {
+  test('malformed exprs return null (no throw)', () => {
+    expect(compileCron('0 9 * *')).toBeNull();       // 4 fields
+    expect(compileCron('0 9 * * * *')).toBeNull();   // 6 fields
+    expect(compileCron('*/0 * * * *')).toBeNull();   // step base 0
+    expect(compileCron('99 9 * * *')).toBeNull();    // minute out of range
+  });
+
+  test('DOW 7 normalizes to 0 (Sunday)', () => {
+    const c = compileCron('5 9 * * 7')!;
+    expect(c.dow.has(0)).toBe(true);
+    expect(c.dow.has(7)).toBe(true);
+    const sunday = datePartsInTz(new Date('2026-07-19T09:05:00Z'), 'UTC')!; // Sunday → dow 0
+    expect(cronMatchesCompiled(c, sunday)).toBe(true);
+    const monday = datePartsInTz(new Date('2026-07-20T09:05:00Z'), 'UTC')!;
+    expect(cronMatchesCompiled(c, monday)).toBe(false);
+  });
+
+  test('compiled match agrees with the cronMatches wrapper', () => {
+    const parts = datePartsInTz(new Date('2026-07-15T09:05:00Z'), 'UTC')!;
+    const c = compileCron('5 9 * * *')!;
+    expect(cronMatchesCompiled(c, parts)).toBe(true);
+    expect(cronMatchesCompiled(c, parts)).toBe(cronMatches('5 9 * * *', parts));
+  });
+});
+
+describe('makeTzFormatter / partsFromFormatter', () => {
+  test('reused formatter yields the same parts as the single-shot datePartsInTz', () => {
+    const fmt = makeTzFormatter('UTC')!;
+    const d = new Date('2026-07-15T09:05:00Z');
+    expect(partsFromFormatter(fmt, d)).toEqual(datePartsInTz(d, 'UTC'));
+  });
+
+  test('bad tz → makeTzFormatter returns null', () => {
+    expect(makeTzFormatter('Not/A_Zone')).toBeNull();
   });
 });

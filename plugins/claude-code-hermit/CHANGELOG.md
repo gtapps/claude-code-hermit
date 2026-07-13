@@ -14,6 +14,8 @@
 
 ### Fixed
 - **startup-context: a post-compaction start no longer clears a prior context-scan warning** — the `source=compact` path only scans the delta capsule (task/progress), so it now merges the scan record instead of overwriting it; a compaction can no longer flip the doctor `context-scan` check to "clean" while an injection marker still sits in OPERATOR.md/compiled/report. The next full start re-scans comprehensively and overwrites, self-healing any stale merged hit.
+- **routine-monitor: scan-loop efficiency, skip-metric ordering, and error throttling** — `routine-due.ts` now builds one timezone formatter per poll and pre-compiles each cron once (instead of reconstructing both per candidate minute), and advances the no-match cursor to the current minute so a not-yet-due routine stops re-walking a growing window every poll; skip metrics are stamped only after the schedule cursor persists, so a failed write no longer leaves a phantom `skipped-*` row; and `routine-monitor.sh` throttles `ROUTINE_MONITOR_ERROR` (emitted on the 1st and every 60th consecutive failure) so a persistent spawn failure can't storm the session.
+- **cost attribution: co-firing routines no longer mis-charge the first routine** — when ≥2 routines fire in one shared wake turn (a monitor co-fire, named on the `ROUTINE_DUE` line), `cost-tracker` attributes the turn to a synthetic `routine:multi` bucket instead of the first id, so the doctor's per-routine `$/run` check no longer inflates one routine and masks the others. Detection is anchored to the `ROUTINE_DUE` line so `heartbeat-restart`'s re-arm output can't false-trigger it.
 
 ### Upgrade Instructions
 

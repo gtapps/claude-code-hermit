@@ -6,9 +6,9 @@
 // Usage: bun routine-due.ts <hermit-dir>
 // Output (stdout): nothing, or exactly one line:
 //   ROUTINE_DUE [hermit-routine:<id1>] [hermit-routine:<id2>] ...
-// The bracketed markers are load-bearing — cost-tracker.ts classifySource matches
-// /\[hermit-routine:([A-Za-z0-9._-]+)\]/ to attribute the wake turn without any
-// classifier change.
+// The bracketed markers are load-bearing — cost-tracker.ts classifySource reads this
+// ROUTINE_DUE line to attribute the wake turn: one id → routine:<id>, ≥2 ids (a co-fire)
+// → the routine:multi bucket.
 //
 // State model (state/routine-schedule.json): { "<id>": { "last_consumed_mark": "<ISO minute>" } }
 // A routine is due when a cron-matching minute mark exists in (last_consumed_mark, now],
@@ -26,7 +26,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { isPaused } from './lib/pause';
 import { validateCronSchedule, ROUTINE_ID_RE } from './validate-config';
-import { cronMatches, datePartsInTz } from './lib/cron-match';
+import { makeTzFormatter, partsFromFormatter, compileCron, cronMatchesCompiled } from './lib/cron-match';
 import { readJson as readJSON } from './lib/cli';
 
 type Json = any;
@@ -57,6 +57,10 @@ function floorToMinute(d: Date): Date {
 }
 
 function writeJSONAtomic(p: string, value: Json): boolean {
+  // Test-only seam: force the schedule persist to fail (leaving liveness writable) so a
+  // test can reach the skip branches with a valid cursor, then verify the persist-before-
+  // stamp ordering. Scoped to schedulePath so it never affects liveness or other writes.
+  if (process.env.HERMIT_DUE_FORCE_PERSIST_FAIL && p === schedulePath) return false;
   try {
     fs.mkdirSync(path.dirname(p), { recursive: true });
     const tmp = `${p}.${process.pid}.tmp`;
@@ -94,6 +98,10 @@ const config = readJSON(path.join(hermitDir, 'config.json'));
 if (!config) finish([]);
 
 const timezone: string | null = typeof config.timezone === 'string' ? config.timezone : null;
+// One formatter per poll, reused across every candidate minute. null on a bad tz — the
+// per-candidate scan then finds no match (fail-soft), but cursor init/reset and pruning
+// below still run exactly as before.
+const tzFormatter = makeTzFormatter(timezone);
 const routines: Json[] = Array.isArray(config.routines) ? config.routines : [];
 const eligible = routines.filter((r: Json) =>
   r && r.enabled === true && r.id && r.skill && r.schedule && r.id !== ANCHOR_ID);
@@ -111,6 +119,9 @@ try {
 const schedule: Json = readJSON(schedulePath) || {};
 let scheduleChanged = false;
 const dueIds: string[] = [];
+// Skip stamps are deferred and flushed only after the schedule persists — a failed persist
+// must not leave a skipped-* row whose cursor advance was rolled back (phantom ledger rows).
+const pendingStamps: Array<[string, string]> = [];
 
 for (const routine of eligible) {
   const id: string = routine.id;
@@ -122,6 +133,10 @@ for (const routine of eligible) {
     process.stderr.write(`routine-due: skipping routine "${id}" — invalid schedule "${routine.schedule}"\n`);
     continue;
   }
+  // Parse the cron once per routine (invariant across the minute scan). Non-null here since
+  // validateCronSchedule already accepted it — the guard just satisfies the type checker.
+  const compiled = compileCron(routine.schedule);
+  if (!compiled) continue;
 
   const entry = schedule[id];
   let cursor: Date | null = entry && typeof entry.last_consumed_mark === 'string'
@@ -139,15 +154,17 @@ for (const routine of eligible) {
   let latestMatch: Date | null = null;
   for (let t = from.getTime() + MINUTE_MS; t <= nowMinute.getTime(); t += MINUTE_MS) {
     const candidate = new Date(t);
-    const parts = datePartsInTz(candidate, timezone);
-    if (parts && cronMatches(routine.schedule, parts)) latestMatch = candidate;
+    const parts = tzFormatter ? partsFromFormatter(tzFormatter, candidate) : null;
+    if (parts && cronMatchesCompiled(compiled, parts)) latestMatch = candidate;
   }
 
   if (!latestMatch) {
-    // No-match clamp advance: converge the cursor even when nothing matched, so a
-    // cursor stuck far in the past doesn't re-scan the same dead window forever.
-    if (cursor.getTime() < windowFloor.getTime()) {
-      schedule[id] = { last_consumed_mark: windowFloor.toISOString() };
+    // No match in (from, now]: advance the cursor to nowMinute so the next poll re-scans only
+    // new minutes instead of re-walking this dead window every interval. Safe — nothing
+    // matched up to now, and anything before windowFloor is intentionally abandoned (no
+    // catch-up). Guard against a redundant write when the cursor is already at nowMinute.
+    if (cursor.getTime() < nowMinute.getTime()) {
+      schedule[id] = { last_consumed_mark: nowMinute.toISOString() };
       scheduleChanged = true;
     }
     continue;
@@ -158,13 +175,13 @@ for (const routine of eligible) {
   if (paused) {
     schedule[id] = { last_consumed_mark: latestMatch.toISOString() };
     scheduleChanged = true;
-    stamp(id, 'skipped-paused');
+    pendingStamps.push([id, 'skipped-paused']);
     continue;
   }
   if (sessionState === 'waiting' && !rdw) {
     schedule[id] = { last_consumed_mark: latestMatch.toISOString() };
     scheduleChanged = true;
-    stamp(id, 'skipped-waiting');
+    pendingStamps.push([id, 'skipped-waiting']);
     continue;
   }
   if (sessionState === 'in_progress') {
@@ -189,11 +206,14 @@ for (const id of Object.keys(schedule)) {
 if (scheduleChanged) {
   const persisted = writeJSONAtomic(schedulePath, schedule);
   if (!persisted) {
-    // Ordering contract: persist before emit. A failed write must not emit —
-    // otherwise the subprocess-side dedup guarantee is void.
+    // Ordering contract: persist before emit AND before stamping. A failed write must not
+    // emit or stamp — otherwise the subprocess-side dedup/ledger guarantee is void.
     process.stderr.write(`routine-due: failed to persist ${schedulePath} — emitting nothing this poll\n`);
     finish([]);
   }
 }
+
+// Persist succeeded (or nothing changed) — now flush the deferred skip stamps.
+for (const [id, event] of pendingStamps) stamp(id, event);
 
 finish(dueIds.length ? [`ROUTINE_DUE ${dueIds.map(id => `[hermit-routine:${id}]`).join(' ')}`] : []);

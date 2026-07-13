@@ -2335,6 +2335,24 @@ describe('doctor routine-cost check', () => {
     expect(c.detail).toContain('10.00'); // $30/3 real fires, not $30/23
   }), 20000);
 
+  test('co-fire cost bucketed to routine:multi is excluded from the per-routine comparison', withTmpdir(async (dir) => {
+    // 'a' and 'b' only ever co-fire; classifySource attributes their shared wake turn to the
+    // synthetic routine:multi bucket (not the first id). Since the check iterates only
+    // configured ids, routine:multi is ignored — neither routine shows an inflated $/run.
+    // Without the bucket the whole $900 would land on routine:a → $300/run → a false warn.
+    writeConfig(dir, { ...BASE_CONFIG, routines: [routine('a'), routine('b'), routine('x'), routine('y')] });
+    writeCostIndex(dir, {
+      'routine:multi': { cost: 900, tokens: 900000 }, // co-fire cost — not a configured id, excluded
+      'routine:x': { cost: 3, tokens: 3000 },          // $1.00/run
+      'routine:y': { cost: 3.3, tokens: 3000 },        // $1.10/run
+    });
+    writeRoutineMetrics(dir, [...runs('a', 3), ...runs('b', 3), ...runs('x', 3), ...runs('y', 3)]);
+    const c = routineCostCheck(await runDoctorCheck(dir));
+    expect(c.status).toBe('ok');
+    expect(c.detail).not.toContain('multi');
+    expect(c.detail).not.toContain('900');
+  }), 20000);
+
   test('expensive routine in a two-routine fleet is flagged (peer median, not self-inclusive)', withTmpdir(async (dir) => {
     // With a self-inclusive median, 3×median is unreachable at n=2 and the outlier escapes;
     // comparing against the peer median (self excluded) catches it.

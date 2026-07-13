@@ -109,6 +109,18 @@ function classifySource(triggerText: string): string {
       triggerText.includes('/claude-code-hermit:heartbeat run')) {
     return 'heartbeat';
   }
+  // Monitor co-fire: a ROUTINE_DUE line naming ≥2 distinct routine ids means one wake turn
+  // ran multiple routines. Attribute the shared turn to a synthetic `routine:multi` bucket
+  // rather than mis-charging the whole turn to the first id (which would inflate that
+  // routine's per-run cost and mask the others in the doctor's routine-cost check).
+  // Anchored to the ROUTINE_DUE line — NOT the whole turn — so heartbeat-restart's re-arm,
+  // whose `load` step's CronDelete output surfaces [hermit-routine:*] markers, never trips it.
+  const routineDue = triggerText.match(/ROUTINE_DUE((?:\s+\[hermit-routine:[A-Za-z0-9._-]+\])+)/);
+  if (routineDue) {
+    const ids = new Set([...routineDue[1].matchAll(/\[hermit-routine:([A-Za-z0-9._-]+)\]/g)].map((m) => m[1]));
+    if (ids.size >= 2) return 'routine:multi';
+    if (ids.size === 1) return `routine:${[...ids][0].slice(0, 64)}`;
+  }
   // Strict charset — must match a real routine id, never a placeholder or glob
   const routineMatch = triggerText.match(/\[hermit-routine:([A-Za-z0-9._-]+)\]/);
   // Length-cap to 64 chars so ids can't overflow markdown table cells

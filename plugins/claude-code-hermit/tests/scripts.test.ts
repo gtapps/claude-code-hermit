@@ -1867,6 +1867,50 @@ describe('routine-monitor', () => {
       try { fs.rmSync(rtDir, { recursive: true, force: true }); } catch {}
     }
   }, 10000);
+
+  // Drives ONE bounded, long-lived monitor process (ROUTINE_MONITOR_ONCE would reset the
+  // in-loop fail counter every invocation, so it can't test suppression).
+  async function rtMonitorBounded(stubBody: string, timeoutSec = 3): Promise<{ stdout: string }> {
+    const stub = makeRtStub(stubBody);
+    const rtDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rt-hermit-'));
+    try {
+      const proc = Bun.spawn({
+        cmd: ['timeout', String(timeoutSec), 'bash', RT_MONITOR_SH, '0.2', rtDir],
+        env: { ...process.env, ROUTINE_DUE_SCRIPT: stub.path },
+        stdin: Buffer.from(''),
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      const [stdout] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+      return { stdout };
+    } finally {
+      stub.cleanup();
+      try { fs.rmSync(rtDir, { recursive: true, force: true }); } catch {}
+    }
+  }
+
+  const countErrors = (s: string) => s.split('\n').filter(l => l.includes('ROUTINE_MONITOR_ERROR')).length;
+
+  // Persistent failure: 1st emits, every consecutive failure suppressed (count never
+  // reaches 60 in the window), so exactly one error line across many iterations.
+  test('routine-monitor (consecutive failures throttled to one error line)', async () => {
+    const { stdout } = await rtMonitorBounded('process.exit(1);\n');
+    expect(countErrors(stdout)).toBe(1);
+  }, 10000);
+
+  // Alternating fail/success (odd calls fail via a counter file): each success resets the
+  // counter, so each subsequent failure is a fresh streak that re-emits — ≥2 error lines
+  // proves the reset re-arms emission (without reset it would stay at exactly 1).
+  test('routine-monitor (success resets the throttle → next failure re-emits)', async () => {
+    const stub = `const fs=require('fs'),path=require('path');
+const cf=path.join(process.argv[2],'.rtcount');
+let n=0; try{n=parseInt(fs.readFileSync(cf,'utf8'))||0;}catch{}
+n++; fs.writeFileSync(cf,String(n));
+if(n%2===1) process.exit(1);
+`;
+    const { stdout } = await rtMonitorBounded(stub);
+    expect(countErrors(stdout)).toBeGreaterThanOrEqual(2);
+  }, 10000);
 });
 
 // -------------------------------------------------------
@@ -2659,6 +2703,25 @@ describe('cost-tracker classifySource / scanTriggerMarkers', () => {
   });
   test('cost-tracker: classifySource([hermit-routine:cortex-refresh]) = routine:cortex-refresh', () => {
     expect(classifySource('text [hermit-routine:cortex-refresh] more text')).toBe('routine:cortex-refresh');
+  });
+
+  // classifySource: monitor co-fire → routine:multi (ROUTINE_DUE line naming ≥2 distinct ids)
+  test('cost-tracker: classifySource(ROUTINE_DUE with 2 ids) = routine:multi', () => {
+    expect(classifySource('ROUTINE_DUE [hermit-routine:weekly-review] [hermit-routine:doctor]')).toBe('routine:multi');
+  });
+  test('cost-tracker: classifySource(ROUTINE_DUE with 1 id) = routine:<id>', () => {
+    expect(classifySource('ROUTINE_DUE [hermit-routine:reflect]')).toBe('routine:reflect');
+  });
+  // Anchoring guard: a heartbeat turn whose tool output surfaces multiple [hermit-routine:*]
+  // markers (heartbeat-restart's re-arm CronDelete output) but has NO ROUTINE_DUE line must
+  // stay heartbeat — never routine:multi.
+  test('cost-tracker: classifySource(heartbeat + stray routine markers, no ROUTINE_DUE) = heartbeat', () => {
+    expect(classifySource('HEARTBEAT_EVALUATE — CronDelete [hermit-routine:reflect] [hermit-routine:doctor]')).toBe('heartbeat');
+  });
+  // A turn with stray markers but no ROUTINE_DUE line falls through to the generic first-match
+  // path (not routine:multi) — preserves pre-existing single-fire attribution.
+  test('cost-tracker: classifySource(2 markers, no ROUTINE_DUE line) = first id, not multi', () => {
+    expect(classifySource('load done: CronDelete [hermit-routine:reflect] [hermit-routine:doctor]')).toBe('routine:reflect');
   });
 
   // classifySource: no marker → other
