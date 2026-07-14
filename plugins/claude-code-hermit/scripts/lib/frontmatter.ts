@@ -171,6 +171,21 @@ function globDirRecursive(dir: string): string[] {
 }
 
 /**
+ * List PROP-*.md filenames (bare, not full paths) in `dir`, sorted.
+ * Distinguishes "directory absent" (ok:true, empty — nothing to review) from
+ * any other readdir error (ok:false — ambiguous, e.g. EACCES/EIO under the
+ * Docker runtime); globDir collapses both to [], which is unsafe wherever an
+ * ambiguous read must never look like "no proposals."
+ */
+function listProposalFiles(dir: string): { ok: boolean; files: string[] } {
+  try {
+    return { ok: true, files: fs.readdirSync(dir).filter(f => /^PROP-.*\.md$/.test(f)).sort() };
+  } catch (err: any) {
+    return err?.code === 'ENOENT' ? { ok: true, files: [] } : { ok: false, files: [] };
+  }
+}
+
+/**
  * Resolve an artifact_paths entry to a list of .md file paths.
  * Supports directories (recursive scan) and simple glob patterns (*.md, name-*.md).
  * baseDir is the project root.
@@ -185,4 +200,4 @@ function resolveArtifactPath(baseDir: string, pathEntry: string): string[] {
   return globDir(dir, re);
 }
 
-export { parseFrontmatter, readFrontmatter, readFileWithFrontmatter, isEmptyAutoArchive, newestByType, globDir, globDirRecursive, resolveArtifactPath };
+export { parseFrontmatter, readFrontmatter, readFileWithFrontmatter, isEmptyAutoArchive, newestByType, globDir, globDirRecursive, resolveArtifactPath, listProposalFiles };

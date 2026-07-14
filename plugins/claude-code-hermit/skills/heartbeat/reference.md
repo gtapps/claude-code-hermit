@@ -1,10 +1,14 @@
 # Heartbeat — Evaluation Reference
 
 This file is the instruction spec for the isolated-context subagent dispatched by SKILL.md `run` step 4.
-The subagent reads only files (no inherited session context); writes and notifications are handled by the
-calling main session after it receives the subagent's structured JSON return value. Where an instruction
-below says "append to Monitoring", "notify the operator", or "write alert-state.json", populate the
-corresponding field in the return JSON instead — the main session applies those actions.
+The subagent reads only files (no inherited session context) and returns **judgment only** — which items
+are currently firing, and a human-readable label for each. All bookkeeping (dedup, suppression,
+resolution, the daily digest, monitoring lines, operator notifications, `last_clean_eval_at`, and
+`heartbeat_result`) is derived deterministically by `update-alert-state.ts` from the returned firing set —
+the subagent never authors any of it. This split exists because a small model (`heartbeat.model`,
+haiku by default) intermittently fabricated that bookkeeping when it was asked to author it directly
+(issue #594): inventing schema fields, garbling keys, and marking a still-pending micro-proposal
+`suppressed:true` (which would have silently hidden a genuine pending operator decision).
 
 This file is read only on the EVALUATE path, once the precheck determines a full LLM tick is warranted.
 
@@ -14,88 +18,74 @@ This file is read only on the EVALUATE path, once the precheck determines a full
 - `.claude-code-hermit/HEARTBEAT.md` — the checklist items
 - `.claude-code-hermit/config.json` — for `heartbeat.stale_threshold` (default `"2h"`)
 - `.claude-code-hermit/state/runtime.json` — for `session_state`, `session_id`
-- `.claude-code-hermit/state/alert-state.json` — for `alerts{}`, `self_eval{}`, `total_ticks`, `last_digest_date`
-- `.claude-code-hermit/state/micro-proposals.json` — for pending micro-proposals
+- `.claude-code-hermit/state/alert-state.json` — for `self_eval{}` and `total_ticks` only (the
+  Self-Evaluation step below). Do **not** read or reason about `alerts{}` — that bookkeeping is
+  script-owned; nothing in this file needs it.
 - `.claude-code-hermit/sessions/SHELL.md` — for last Progress Log entry timestamp and session `**ID:**`
 
 **2. Stale-session check.** If `session_state === 'in_progress'` in `runtime.json`:
 - Find the most recent `[HH:MM]` timestamp in SHELL.md `## Progress Log`.
 - Parse `heartbeat.stale_threshold` from config (default `"2h"`). Compute elapsed since that timestamp (current wall-clock time minus parsed timestamp).
-- If elapsed > stale_threshold: add `stale-session` to the firing-alert set (key: `stale-session`).
+- If elapsed > stale_threshold: add `stale-session` to the firing set (key: `stale-session`).
 
 **3. Per-item evaluation.** For each item in HEARTBEAT.md:
-- Determine whether the described condition is currently true.
-- Default proposals item (text references `proposals/` and `status: proposed`): normally resolved by `heartbeat-precheck.ts` filesystem-side, so a clean queue never reaches this EVALUATE. When it does: scan `proposals/` for any `PROP-NNN-*.md` file whose frontmatter contains `status: proposed`; alert if any found, keyed `proposal-pending:<PROP-NNN>` per proposal. Also run resolution detection — for any existing `proposal-pending:<PROP-NNN>` alert whose proposal is no longer `status: proposed` (accepted/resolved/deferred/dismissed, or the file is gone), advance its `consecutive_clean` toward resolution. (The precheck never writes `alerts{}`; this suppression/resolution bookkeeping is skill-owned.)
-- Custom items (disk thresholds, SQL checks, file patterns, etc.): apply LLM judgment using available project files and context needed to evaluate the condition. Produce a semantic key per the taxonomy table below.
-- Collect all firing items with their keys. Items with no matching condition produce no alert.
+- **Default proposals item** (text references `proposals/` and `status: proposed`): skip it entirely.
+  `update-alert-state.ts` derives its live state directly from `proposals/` frontmatter every tick,
+  independent of anything returned here — there is nothing for you to evaluate or report.
+- **Custom items** (disk thresholds, SQL checks, file patterns, etc.): apply LLM judgment using
+  available project files and context needed to evaluate the condition. Produce a semantic key per
+  the taxonomy table below.
+- Collect all firing items with their keys and a short human-readable `text` label for each — see
+  § Firing Item Text below for the required style. Items with no matching condition produce nothing.
 
-**4–7. Dedup, micro-proposals, self-eval, return JSON:** follow §Alert Deduplication, §Self-Evaluation, and §If nothing actionable / §If something found below.
+**4. Self-evaluation:** follow § Self-Evaluation below (only on the every-20-ticks trigger).
+
+**5. Return JSON** — see § Return Schema below for the required fields and exact format.
 
 ## Semantic Key Taxonomy
 
-Produce one semantic key per alert:
+Produce one semantic key per firing item:
 
 | Situation | Key format |
 |-----------|-----------|
 | Stale session | `stale-session` |
 | Checklist item | `checklist:<first-8-chars-of-item-normalized>` |
-| Proposal pending | `proposal-pending:<PROP-NNN>` |
 | Waiting timeout | `waiting-timeout` |
-| Micro-proposal pending | `micro-proposal-pending:<id>` |
 | Custom / freeform | `custom:<first-100-chars-normalized>` — fallback only |
 
 Normalise: lowercase, remove non-alphanumeric characters, truncate at the listed limit.
 
-## Alert Deduplication
+**Never** emit a `micro-proposal-pending:*` or `proposal-pending:*` key. Those are derived and owned
+entirely by `update-alert-state.ts` from `state/micro-proposals.json` and `proposals/*.md` frontmatter —
+an entry you emit under either prefix is dropped as a phantom and has no effect.
 
-Before appending any alert to SHELL.md Monitoring:
+## Firing Item Text
 
-1. Read `.claude-code-hermit/state/alert-state.json`.
-2. Look up the alert's semantic key in `alerts{}`:
-   - **Not found:** Add entry `{count:1, consecutive_clean:0, suppressed:false, first_seen:<today>, last_seen:<today>, text:<text>}`. Append to Monitoring normally.
-   - **count < 5:** Increment `count`, reset `consecutive_clean` to 0, update `last_seen`. Append to Monitoring normally.
-   - **count === 5:** Increment `count`, set `suppressed:true`, reset `consecutive_clean` to 0. Append once: `[HH:MM] Heartbeat: above alert suppressed after 5 fires (first: {first_seen}). Daily digest only.` Notify the operator.
-   - **count > 5:** Increment `count`, reset `consecutive_clean` to 0, update `last_seen`. Do NOT append to Monitoring.
-3. **Resolution detection:** After evaluating all items, for each entry in `alerts{}` that did NOT fire this tick: increment `consecutive_clean`. If `consecutive_clean >= 2`:
-   - **Not suppressed:** Append `[HH:MM] Heartbeat: resolved — {text}`. Remove entry.
-   - **Suppressed:** Resolve silently — remove entry, omit from next daily digest.
-4. **Daily digest:** If `last_digest_date` is not today and suppressed alerts exist: notify the operator `Suppressed alert digest: {list with counts and ages}`. Set `last_digest_date` to today.
-   - **Proposal entries:** For any suppressed key matching `proposal-pending:<PROP-NNN>`, render it as `PROP-NNN "<title>"` rather than the raw key. Find the title by reading frontmatter `title` from `proposals/PROP-NNN-*.md` (also check legacy `proposals/PROP-NNN.md`). If exactly one file matches, render its title; on zero or multiple matches, fall back to the bare key — never block the digest.
-5. **Micro-proposal check:** Read `state/micro-proposals.json → pending`. For each entry where `status === "pending"` and `tier === 1`: include a monitoring line `[HH:MM] Heartbeat: micro-proposal '{id}' awaiting operator input — {question}` in `shell_monitoring_lines`. If the entry has `options`, append them numbered — `[1: <label>, 2: <label>, ...]` — so the operator can answer directly instead of seeing a choice-less question. Use key `micro-proposal-pending:<id>` for dedup.
-6. **Return JSON** — see § Return Schema below for the required fields and exact format. The calling main session applies all writes.
-
-## If nothing actionable
-
-- `shell_monitoring_lines`: empty.
-- `last_clean_eval_at`: current ISO timestamp. This seeds the clean-recheck damper so the precheck can return `OK` directly for subsequent ticks within the cooldown.
-- `operator_message`: null.
-- `heartbeat_result`: `"OK"`.
-
-## If something found
-
-- `shell_monitoring_lines`: dedup-filtered monitoring lines (subject to dedup above).
-- `operator_message`: summary under 5 lines.
-- `last_clean_eval_at`: null — belt-and-suspenders hygiene so the damper clock always reflects the last *fully clean* eval. The precheck's active-follow-up guard is the primary defense; this clear covers the narrow window between an alert resolving and `alerts{}` emptying.
-- `heartbeat_result`: `"ALERT"`.
-
-**Do NOT implement fixes — only report.**
-
-**Exception:** Auto-close (`AUTO_CLOSE` precheck verdict, SKILL.md step 2) is the one fix heartbeat is authorized to apply. It runs as a terminal branch in the MAIN SESSION before the subagent is dispatched: the session has gone idle past the actionable threshold and archiving it is the correct response, not an alert. The subagent never handles AUTO_CLOSE.
+Each firing item's `text` is a channel-voice one-liner: plain language, the concrete condition first, no
+internal IDs (no `PROP-NNN`, no session IDs, no file paths unless the item itself is about a file). It is
+used verbatim in the SHELL.md monitoring line and, for a brand-new or newly-suppressed alert, in the
+operator notification — write it for that audience, not as a debug note to yourself.
 
 ## Return Schema
 
 Return exactly this JSON object — no prose, no markdown fences:
 
-`{"resolved_keys": [...], "new_entries": {...}, "updated_entries": {...}, "last_clean_eval_at": "<ISO or null>", "self_eval_updates": {...}, "shell_monitoring_lines": [...], "operator_message": "<string or null>", "heartbeat_result": "OK"|"ALERT"}`
+`{"firing": [{"key": "<semantic key>", "text": "<channel-voice one-liner>"}, ...], "self_eval_updates": {...}}`
 
-All eight keys are required. A `null` value is valid for `last_clean_eval_at` and `operator_message` — never omit the key. See §If nothing actionable / §If something found for the clean vs alerting values.
+Both keys are required. `firing` is `[]` when nothing is currently true — this is the normal "clean tick"
+case; do not omit the key or return anything else in its place. `self_eval_updates` is `{}` outside the
+every-20-ticks trigger (see below) — never omit it.
+
+**Do NOT implement fixes — only report.**
+
+**Exception:** Auto-close (`AUTO_CLOSE` precheck verdict, SKILL.md step 2) is the one fix heartbeat is authorized to apply. It runs as a terminal branch in the MAIN SESSION before the subagent is dispatched: the session has gone idle past the actionable threshold and archiving it is the correct response, not an alert. The subagent never handles AUTO_CLOSE.
 
 ## Self-Evaluation (every 20 ticks)
 
 Triggered when `total_ticks % 20 === 0` (read from `state/alert-state.json` after the precheck has already incremented the counter).
 
-1. Read `state/alert-state.json`.
-2. For each HEARTBEAT.md item: count alert lines for that item in the last 20 ticks. If zero → increment `clean_ticks` and update `sessions_seen` / `last_session_id`. If alert fired → reset `clean_ticks` to 0.
+1. Read `state/alert-state.json` for `self_eval{}` and `total_ticks`.
+2. For each HEARTBEAT.md item: count alert lines for that item in the last 20 ticks (SHELL.md `## Monitoring`). If zero → increment `clean_ticks` and update `sessions_seen` / `last_session_id`. If alert fired → reset `clean_ticks` to 0.
 
    **`sessions_seen`:** number of distinct session IDs (from SHELL.md `**ID:**`) during which this item was evaluated. Incremented only when the current session ID differs from `last_session_id`.
 
@@ -113,4 +103,4 @@ Triggered when `total_ticks % 20 === 0` (read from `state/alert-state.json` afte
    - Checklist weight violation: same threshold.
 
 5. **No channel message. No SHELL.md append.** Output flows through `self_eval_updates` in the return JSON only.
-6. Include updated `self_eval{}` entries in `self_eval_updates` in the return JSON (`alerts{}` and `last_clean_eval_at` are handled by the main eval path, not here).
+6. Include updated `self_eval{}` entries in `self_eval_updates` in the return JSON.

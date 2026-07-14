@@ -44,12 +44,18 @@ interface Fixture {
   legacyProposal?: string; // filename → written with NO frontmatter
   microPending?: boolean;
   totalTicks?: number;
+  noProposalsDir?: boolean;  // don't create proposals/ at all (ENOENT readdir path)
+  proposalsAsFile?: boolean; // proposals is a regular file, not a dir (ENOTDIR readdir path)
 }
 
 function build(fix: Fixture): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-hbscan-'));
   fs.mkdirSync(hermit(dir, 'state'), { recursive: true });
-  fs.mkdirSync(hermit(dir, 'proposals'), { recursive: true });
+  if (fix.proposalsAsFile) {
+    fs.writeFileSync(hermit(dir, 'proposals'), 'not a directory\n');
+  } else if (!fix.noProposalsDir) {
+    fs.mkdirSync(hermit(dir, 'proposals'), { recursive: true });
+  }
   fs.writeFileSync(hermit(dir, 'config.json'), CONFIG);
   fs.writeFileSync(hermit(dir, 'HEARTBEAT.md'), fix.heartbeat ?? HEARTBEAT_DEFAULT);
   const alert = {
@@ -157,6 +163,16 @@ describe('default proposal-scan resolution', () => {
   test('empty proposals dir with no alerts → OK', async () => {
     const dir = build({});
     expect(await verdict(dir)).toBe('OK');
+  });
+
+  test('11. missing proposals/ dir, no lingering alert → OK (ENOENT is not ambiguous)', async () => {
+    const dir = build({ noProposalsDir: true });
+    expect(await verdict(dir)).toBe('OK');
+  });
+
+  test('12. proposals/ is a regular file (ENOTDIR readdir error) → EVALUATE (fail-open, never a false OK)', async () => {
+    const dir = build({ proposalsAsFile: true });
+    expect(await verdict(dir)).toBe('EVALUATE');
   });
 });
 

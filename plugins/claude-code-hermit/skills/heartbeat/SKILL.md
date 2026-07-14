@@ -58,18 +58,20 @@ This subcommand is the handler for `HEARTBEAT_EVALUATE` notifications emitted by
    > Read `${CLAUDE_PLUGIN_ROOT}/skills/heartbeat/reference.md` for the complete evaluation instructions. Execute the evaluation steps in that file against `.claude-code-hermit/` in the current project directory, using the file paths described there. Return the JSON object exactly as specified in reference.md § Return Schema (no prose). Do NOT write any files or send any notifications — the calling session handles all writes and notifications.
 
    Receive the structured JSON back from the subagent.
-5. **Apply writes** in the main session (to preserve cost attribution and channel/file access). First, validate the subagent return: if it cannot be parsed as JSON, or is missing any required **key** (`resolved_keys`, `new_entries`, `updated_entries`, `last_clean_eval_at`, `self_eval_updates`, `shell_monitoring_lines`, `operator_message`, `heartbeat_result`), **skip all writes and emit `HEARTBEAT_OK`** — fail-open, never corrupt persistent state. A present key with a `null` value is valid, not missing (`last_clean_eval_at` and `operator_message` are legitimately `null`). Tradeoff: a malformed return during a genuine alert condition is swallowed for this tick; the next tick re-evaluates. Never corrupting `alert-state.json` is the deliberate priority. Otherwise:
-   - Write `state/alert-state.json` via the dedicated script (do NOT write `total_ticks` — owned by the precheck). Pass the subagent return on **stdin** via a quoted heredoc so free-text alert / `self_eval` values (which may contain apostrophes) can't break the command:
+5. **Apply writes** in the main session (to preserve cost attribution and channel/file access). First, validate the subagent return: if it cannot be parsed as JSON, or is missing either required **key** (`firing`, `self_eval_updates`), **skip all writes and emit `HEARTBEAT_OK`** — fail-open, never corrupt persistent state. Otherwise:
+   - Pass the subagent return to the dedicated script on **stdin** via a quoted heredoc so free-text `text` / `self_eval` values (which may contain apostrophes) can't break the command:
      ```
      bun ${CLAUDE_PLUGIN_ROOT}/scripts/update-alert-state.ts .claude-code-hermit/state/alert-state.json <<'HERMIT_ALERT_JSON'
      <subagent-return-json>
      HERMIT_ALERT_JSON
      ```
-     The script merges `new_entries` and `updated_entries` into `alerts{}`, applies `resolved_keys` deletions, sets `last_clean_eval_at`, and overlays `self_eval_updates` into `self_eval{}`.
-   - If `shell_monitoring_lines` is non-empty: append each line to SHELL.md `## Monitoring`.
-   - If `operator_message` is non-null: notify the operator (per CLAUDE-APPEND.md § Operator Notification).
-   - For each entry in `self_eval_updates` with a `proposal_args` field: invoke `/claude-code-hermit:proposal-create` with those args.
-6. Respond with `HEARTBEAT_OK` or `HEARTBEAT_ALERT` per `heartbeat_result`.
+     The script owns all bookkeeping now (issue #594): it derives the file-backed `micro-proposal-pending:*`/`proposal-pending:*` keys itself, unions them with the subagent's `firing` set, and runs the deterministic dedup/suppression/resolution/digest ladder — the subagent never authors any of that. On success it writes `state/alert-state.json` and prints one JSON line on stdout: `{"monitoring_lines": [...], "notifications": [...], "heartbeat_result": "OK"|"ALERT"}`. On any internal validation failure or write failure it writes nothing and prints nothing (exit 0 either way).
+   - **If stdout is empty or unparseable:** skip the remaining sub-steps and emit `HEARTBEAT_OK` — identical fail-open handling to a malformed subagent return; the next tick re-evaluates. Never treat this as an error.
+   - **Otherwise**, parse the script's stdout JSON:
+     - Append each `monitoring_lines` entry to SHELL.md `## Monitoring`.
+     - For each `notifications` entry: notify the operator (per CLAUDE-APPEND.md § Operator Notification). The script has already decided which ticks are notify-worthy (a new alert, a suppression transition, the daily digest) — send every entry it produced, unconditionally.
+     - For each entry in the subagent's `self_eval_updates` with a `proposal_args` field: invoke `/claude-code-hermit:proposal-create` with those args.
+6. Respond with `HEARTBEAT_OK` or `HEARTBEAT_ALERT` per the **script's** `heartbeat_result` (not the subagent's — the subagent no longer returns one).
 
 ### start
 

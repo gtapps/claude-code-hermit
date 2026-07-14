@@ -192,4 +192,16 @@ function friendlyBoundary(iso: string, timezone: string): string {
   return `${date} ${hhmm}`.trim();
 }
 
-export { currentHHMM, currentHHMMOrUTC, nowHHMMSS, todayYMD, thisWeekKey, thisMonthYYYYMM, nextBoundaryISO, localISOStamp, utcISOStamp, parseDuration, parseSimpleCronTime, friendlyBoundary };
+// Resolves "now" as epoch ms: real wall-clock, overridable by HERMIT_NOW for
+// deterministic tests. Same override convention as archive-shell.ts/
+// session-archive.ts/routine-due.ts (which return Date) — centralized here so
+// a caller wanting an epoch number doesn't need its own inline copy.
+function resolveHermitNowMs(): number {
+  if (process.env.HERMIT_NOW) {
+    const d = new Date(process.env.HERMIT_NOW).getTime();
+    if (!isNaN(d)) return d;
+  }
+  return Date.now();
+}
+
+export { currentHHMM, currentHHMMOrUTC, nowHHMMSS, todayYMD, thisWeekKey, thisMonthYYYYMM, nextBoundaryISO, localISOStamp, utcISOStamp, parseDuration, parseSimpleCronTime, friendlyBoundary, resolveHermitNowMs };

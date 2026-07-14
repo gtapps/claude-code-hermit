@@ -2595,3 +2595,52 @@ describe('chat voice contract', () => {
     expect(doctor).not.toMatch(/then run \/channel-setup/);
   });
 });
+
+// ============================================================
+// Heartbeat eval-runner return contract (issue #594)
+//
+// The subagent (reference.md) and the calling skill (SKILL.md) must agree on
+// the return shape, and neither may reintroduce the model-authored bookkeeping
+// fields that update-alert-state.ts now owns exclusively. A drift here (e.g.
+// SKILL.md validating a stale key list, or reference.md instructing the model
+// to emit `suppressed`/`resolved_keys` again) would silently reopen #594.
+// ============================================================
+
+describe('heartbeat eval-runner return contract', () => {
+  const reference = read(path.join(SKILLS, 'heartbeat', 'reference.md'));
+  const skill = read(path.join(SKILLS, 'heartbeat', 'SKILL.md'));
+
+  const REMOVED_MODEL_FIELDS = [
+    'resolved_keys', 'new_entries', 'updated_entries', 'shell_monitoring_lines',
+    'operator_message', 'suppressed', 'consecutive_clean',
+  ];
+
+  test('reference.md Return Schema is exactly {firing, self_eval_updates}', () => {
+    expect(reference).toContain('{"firing": [{"key": "<semantic key>", "text": "<channel-voice one-liner>"}, ...], "self_eval_updates": {...}}');
+  });
+
+  test('reference.md never instructs the model to author removed bookkeeping fields', () => {
+    // Backtick-wrapped, matching how a field name is referenced in these docs —
+    // 'suppressed'/'consecutive_clean' still appear as plain prose describing
+    // the historical bug, which is fine; as a schema field, they must not.
+    for (const field of REMOVED_MODEL_FIELDS) {
+      expect(reference).not.toContain(`\`${field}\``);
+    }
+  });
+
+  test('reference.md forbids the model from emitting structured (file-backed) keys', () => {
+    expect(reference).toContain('**Never** emit a `micro-proposal-pending:*` or `proposal-pending:*` key.');
+  });
+
+  test('SKILL.md step 5 validates exactly the new required-key list', () => {
+    expect(skill).toContain('missing either required **key** (`firing`, `self_eval_updates`)');
+    for (const field of REMOVED_MODEL_FIELDS) {
+      expect(skill).not.toContain(`\`${field}\``);
+    }
+  });
+
+  test('SKILL.md reads monitoring_lines/notifications/heartbeat_result from the script, not the subagent', () => {
+    expect(skill).toContain('"monitoring_lines": [...], "notifications": [...], "heartbeat_result"');
+    expect(skill).toContain("per the **script's** `heartbeat_result`");
+  });
+});
