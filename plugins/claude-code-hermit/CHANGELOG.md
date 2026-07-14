@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **heartbeat: eval-runner subagent can no longer fabricate alert-state schema** — the haiku eval-runner previously authored `alerts{}` bookkeeping directly (counts, suppression, resolution, `last_clean_eval_at`) and intermittently invented fields, garbled keys, or marked a pending `micro-proposal-pending:*` key suppressed, silencing a genuine Tier-1 operator decision. The subagent now returns only a firing set of `{key, text}` judgment items; `update-alert-state.ts` derives `micro-proposal-pending:*`/`proposal-pending:*` from their source-of-truth files and owns the entire dedup/suppression/resolution/digest ladder deterministically, so this class of fabrication is no longer possible regardless of model. No state-schema migration needed — additive/backward-compatible, existing `alert-state.json` entries read unchanged.
+
 ## [1.2.24] - 2026-07-13
 
 ### Added

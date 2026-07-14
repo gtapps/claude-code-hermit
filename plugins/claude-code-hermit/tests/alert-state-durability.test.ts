@@ -126,23 +126,28 @@ describe('heartbeat-precheck alert-state durability', () => {
 });
 
 describe('update-alert-state durability', () => {
+  // Post-#594 contract: the eval subagent returns a `firing` set, not raw
+  // alert entries — the script itself derives the entry shape (count,
+  // consecutive_clean, suppressed, first_seen, last_seen, text).
+  const FIRING = { firing: [{ key: 'checklist:kkkkkkkk', text: 'k fired' }], self_eval_updates: {} };
+
   test('quarantines a present-but-corrupt file instead of merging onto a blank state', withTmp(async (dir) => {
     fs.writeFileSync(alertPath(dir), CORRUPT);
 
-    await updateAlertState(dir, { new_entries: { k: { suppressed: false } } });
+    await updateAlertState(dir, FIRING);
 
     const backups = stateFiles(dir).filter(f => f.startsWith('alert-state.json.corrupt-'));
     expect(backups.length).toBe(1);
     expect(fs.readFileSync(hermit(dir, 'state', backups[0]), 'utf-8')).toBe(CORRUPT);
 
     const written = JSON.parse(fs.readFileSync(alertPath(dir), 'utf-8'));
-    expect(written.alerts.k).toEqual({ suppressed: false });
+    expect(written.alerts['checklist:kkkkkkkk']).toMatchObject({ count: 1, suppressed: false, text: 'k fired' });
   }));
 
   test('transient read error (EISDIR) declines to write, does not clobber', withTmp(async (dir) => {
     fs.mkdirSync(alertPath(dir));
 
-    await updateAlertState(dir, { new_entries: { k: { suppressed: false } } });
+    await updateAlertState(dir, FIRING);
 
     expect(fs.statSync(alertPath(dir)).isDirectory()).toBe(true);
     expect(stateFiles(dir).some(f => f.startsWith('alert-state.json.corrupt-'))).toBe(false);
@@ -153,13 +158,13 @@ describe('update-alert-state durability', () => {
       alerts: {}, last_digest_date: null, self_eval: { a: 1 }, total_ticks: 686, last_stale_wake_at: '2026-05-19T00:00:00Z',
     }));
 
-    await updateAlertState(dir, { new_entries: { k: { suppressed: false } }, self_eval_updates: { b: 2 } });
+    await updateAlertState(dir, { firing: [{ key: 'checklist:kkkkkkkk', text: 'k fired' }], self_eval_updates: { b: 2 } });
 
     const written = JSON.parse(fs.readFileSync(alertPath(dir), 'utf-8'));
     expect(written.total_ticks).toBe(686);
     expect(written.last_stale_wake_at).toBe('2026-05-19T00:00:00Z');
     expect(written.self_eval).toEqual({ a: 1, b: 2 });
-    expect(written.alerts.k).toEqual({ suppressed: false });
+    expect(written.alerts['checklist:kkkkkkkk']).toMatchObject({ count: 1, suppressed: false, text: 'k fired' });
     expect(stateFiles(dir).some(f => f.endsWith('.tmp'))).toBe(false);
   }));
 });

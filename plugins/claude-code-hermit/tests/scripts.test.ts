@@ -651,84 +651,115 @@ describe('archive-raw', () => {
 // -------------------------------------------------------
 
 describe('update-alert-state', () => {
-  async function updateAlertState(dir: string, payload: string) {
+  const NOW = '2026-07-10T12:00:00.000Z';
+
+  async function updateAlertState(dir: string, payload: string, env: Record<string, string> = { HERMIT_NOW: NOW }) {
     const stateFile = hermit(dir, 'state', 'alert-state.json');
-    const r = await runScript('update-alert-state.ts', { args: [stateFile], stdin: payload });
+    const r = await runScript('update-alert-state.ts', { args: [stateFile], stdin: payload, env });
     expect(r.exitCode).toBe(0);
-    return readJson(stateFile);
+    return {
+      state: fs.existsSync(stateFile) ? readJson(stateFile) : null,
+      stdout: r.stdout.trim() ? JSON.parse(r.stdout.trim()) : null,
+    };
   }
 
-  test('update-alert-state (new_entries merged into alerts)', withDir(async (dir) => {
-    write(hermit(dir, 'state', 'alert-state.json'),
-      '{"alerts":{},"self_eval":{},"total_ticks":5}');
-    const d = await updateAlertState(dir,
-      '{"new_entries":{"stale-session":{"severity":"low"}},"updated_entries":{},"resolved_keys":[],"last_clean_eval_at":null,"self_eval_updates":{}}');
-    expect(d.alerts['stale-session']).toEqual({ severity: 'low' });
-    expect(d.total_ticks).toBe(5); // precheck-owned — must survive untouched
+  const firingPayload = (firing: Array<{ key: string; text: string }>, self_eval_updates: object = {}) =>
+    JSON.stringify({ firing, self_eval_updates });
+
+  test('update-alert-state (new firing item creates entry, notifies once, preserves total_ticks)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"total_ticks":5}');
+    const { state, stdout } = await updateAlertState(dir, firingPayload([{ key: 'stale-session', text: 'Session idle 3h' }]));
+    expect(state.alerts['stale-session']).toEqual({
+      count: 1, consecutive_clean: 0, suppressed: false, first_seen: '2026-07-10', last_seen: '2026-07-10', text: 'Session idle 3h',
+    });
+    expect(state.total_ticks).toBe(5); // precheck-owned — must survive untouched
+    expect(stdout.heartbeat_result).toBe('ALERT');
+    expect(stdout.monitoring_lines).toEqual(['[12:00] Heartbeat: Session idle 3h']);
+    expect(stdout.notifications).toEqual(['Session idle 3h']); // first observation notifies
   }));
 
-  test('update-alert-state (updated_entries overlays existing alerts)', withDir(async (dir) => {
+  test('update-alert-state (repeat fire increments count, no notification on ticks 2-4)', withDir(async (dir) => {
     write(hermit(dir, 'state', 'alert-state.json'),
-      '{"alerts":{"stale-session":{"severity":"low","count":1}},"self_eval":{},"total_ticks":10}');
-    const d = await updateAlertState(dir,
-      '{"new_entries":{},"updated_entries":{"stale-session":{"severity":"low","count":2}},"resolved_keys":[],"last_clean_eval_at":null,"self_eval_updates":{}}');
-    expect(d.alerts['stale-session'].count).toBe(2);
-    expect(d.total_ticks).toBe(10);
+      '{"alerts":{"stale-session":{"count":1,"consecutive_clean":0,"suppressed":false,"first_seen":"2026-07-08","last_seen":"2026-07-08","text":"old text"}},"self_eval":{},"total_ticks":10}');
+    const { state, stdout } = await updateAlertState(dir, firingPayload([{ key: 'stale-session', text: 'Session idle 5h' }]));
+    expect(state.alerts['stale-session'].count).toBe(2);
+    expect(state.alerts['stale-session'].suppressed).toBe(false);
+    expect(state.alerts['stale-session'].text).toBe('Session idle 5h'); // label refreshed
+    expect(stdout.monitoring_lines).toEqual(['[12:00] Heartbeat: Session idle 5h']);
+    expect(stdout.notifications).toEqual([]); // repeat fire — no re-notification
   }));
 
-  test('update-alert-state (resolved_keys deleted from alerts)', withDir(async (dir) => {
+  test('update-alert-state (sixth fire suppresses — count:6, monitoring + notification once)', withDir(async (dir) => {
     write(hermit(dir, 'state', 'alert-state.json'),
-      '{"alerts":{"stale-session":{"severity":"low"},"other-alert":{"severity":"high"}},"self_eval":{},"total_ticks":3}');
-    const d = await updateAlertState(dir,
-      '{"new_entries":{},"updated_entries":{},"resolved_keys":["stale-session"],"last_clean_eval_at":null,"self_eval_updates":{}}');
-    expect(d.alerts).not.toHaveProperty('stale-session');
-    expect(d.alerts['other-alert']).toBeDefined();
+      '{"alerts":{"checklist:abc12345":{"count":5,"consecutive_clean":0,"suppressed":false,"first_seen":"2026-07-01","last_seen":"2026-07-09","text":"disk 90% full"}},"self_eval":{},"total_ticks":20,"last_digest_date":"2026-07-10"}'); // digest already sent today — isolates this assertion to the suppression transition alone
+    const { state, stdout } = await updateAlertState(dir, firingPayload([{ key: 'checklist:abc12345', text: 'disk 90% full' }]));
+    expect(state.alerts['checklist:abc12345']).toMatchObject({ count: 6, suppressed: true, consecutive_clean: 0 });
+    expect(stdout.monitoring_lines).toEqual(['[12:00] Heartbeat: above alert suppressed after 5 fires (first: 2026-07-01). Daily digest only.']);
+    expect(stdout.notifications).toEqual(['Heartbeat: above alert suppressed after 5 fires (first: 2026-07-01). Daily digest only.']);
   }));
 
-  test('update-alert-state (self_eval_updates overlays self_eval)', withDir(async (dir) => {
+  test('update-alert-state (seventh fire — silent, stays suppressed, no notification)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'),
+      '{"alerts":{"checklist:abc12345":{"count":6,"consecutive_clean":0,"suppressed":true,"first_seen":"2026-07-01","last_seen":"2026-07-09","text":"disk 90% full"}},"self_eval":{},"total_ticks":21,"last_digest_date":"2026-07-10"}');
+    const { state, stdout } = await updateAlertState(dir, firingPayload([{ key: 'checklist:abc12345', text: 'disk 90% full' }]));
+    expect(state.alerts['checklist:abc12345'].count).toBe(7);
+    expect(state.alerts['checklist:abc12345'].suppressed).toBe(true);
+    expect(stdout.monitoring_lines).toEqual([]);
+    expect(stdout.notifications).toEqual([]); // last_digest_date already today — no repeat digest
+  }));
+
+  test('update-alert-state (not firing for 2 ticks resolves — unsuppressed announces, suppressed silent)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'), JSON.stringify({
+      alerts: {
+        'checklist:aaa11111': { count: 2, consecutive_clean: 1, suppressed: false, first_seen: '2026-07-08', last_seen: '2026-07-09', text: 'flaky check' },
+        'checklist:bbb22222': { count: 8, consecutive_clean: 1, suppressed: true, first_seen: '2026-07-01', last_seen: '2026-07-09', text: 'noisy suppressed check' },
+      },
+      self_eval: {}, total_ticks: 15,
+    }));
+    const { state, stdout } = await updateAlertState(dir, firingPayload([]));
+    expect(state.alerts).not.toHaveProperty('checklist:aaa11111');
+    expect(state.alerts).not.toHaveProperty('checklist:bbb22222');
+    expect(stdout.monitoring_lines).toEqual(['[12:00] Heartbeat: resolved — flaky check']); // suppressed one resolves silently
+  }));
+
+  test('update-alert-state (self_eval_updates overlays self_eval; wrong-type value coerced to {})', withDir(async (dir) => {
     write(hermit(dir, 'state', 'alert-state.json'),
       '{"alerts":{},"self_eval":{"existing-key":"old-value"},"total_ticks":1}');
-    const d = await updateAlertState(dir,
-      '{"new_entries":{},"updated_entries":{},"resolved_keys":[],"last_clean_eval_at":null,"self_eval_updates":{"new-key":"new-value"}}');
-    expect(d.self_eval['existing-key']).toBe('old-value');
-    expect(d.self_eval['new-key']).toBe('new-value');
+    const { state } = await updateAlertState(dir, firingPayload([], { 'new-key': 'new-value' }));
+    expect(state.self_eval['existing-key']).toBe('old-value');
+    expect(state.self_eval['new-key']).toBe('new-value');
+
+    const { state: state2 } = await updateAlertState(dir, JSON.stringify({ firing: [], self_eval_updates: ['not', 'an', 'object'] }));
+    expect(state2.self_eval['existing-key']).toBe('old-value'); // malformed type silently ignored, not fatal
   }));
 
-  test('update-alert-state (last_clean_eval_at set from payload)', withDir(async (dir) => {
-    write(hermit(dir, 'state', 'alert-state.json'),
-      '{"alerts":{},"self_eval":{},"last_clean_eval_at":null,"total_ticks":2}');
-    const d = await updateAlertState(dir,
-      '{"new_entries":{},"updated_entries":{},"resolved_keys":[],"last_clean_eval_at":"2026-06-21T22:00:00.000Z","self_eval_updates":{}}');
-    expect(d.last_clean_eval_at).toBe('2026-06-21T22:00:00.000Z');
+  test('update-alert-state (empty firing sets last_clean_eval_at to now; firing clears it)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"last_clean_eval_at":null,"total_ticks":2}');
+    const { state: clean } = await updateAlertState(dir, firingPayload([]));
+    expect(clean.last_clean_eval_at).toBe(NOW);
+
+    write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"last_clean_eval_at":"2026-06-20T10:00:00.000Z","total_ticks":1}');
+    const { state: alerting } = await updateAlertState(dir, firingPayload([{ key: 'stale-session', text: 'x' }]));
+    expect(alerting.last_clean_eval_at).toBeNull();
   }));
 
-  test('update-alert-state (null last_clean_eval_at payload value honored)', withDir(async (dir) => {
-    write(hermit(dir, 'state', 'alert-state.json'),
-      '{"alerts":{},"self_eval":{},"last_clean_eval_at":"2026-06-20T10:00:00.000Z","total_ticks":1}');
-    const d = await updateAlertState(dir,
-      '{"new_entries":{},"updated_entries":{},"resolved_keys":[],"last_clean_eval_at":null,"self_eval_updates":{}}');
-    expect(d.last_clean_eval_at).toBeNull();
-  }));
-
-  test('update-alert-state (total_ticks, last_stale_wake_at, last_digest_date preserved)', withDir(async (dir) => {
+  test('update-alert-state (total_ticks, last_stale_wake_at, last_digest_date preserved absent a digest event)', withDir(async (dir) => {
     write(hermit(dir, 'state', 'alert-state.json'),
       '{"alerts":{},"self_eval":{},"total_ticks":42,"last_stale_wake_at":"2026-06-21T20:00:00.000Z","last_digest_date":"2026-06-21","last_clean_eval_at":null}');
-    const d = await updateAlertState(dir,
-      '{"new_entries":{},"updated_entries":{},"resolved_keys":[],"last_clean_eval_at":null,"self_eval_updates":{}}');
-    expect(d.total_ticks).toBe(42);
-    expect(d.last_stale_wake_at).toBe('2026-06-21T20:00:00.000Z');
-    expect(d.last_digest_date).toBe('2026-06-21');
+    const { state } = await updateAlertState(dir, firingPayload([]));
+    expect(state.total_ticks).toBe(42);
+    expect(state.last_stale_wake_at).toBe('2026-06-21T20:00:00.000Z');
+    expect(state.last_digest_date).toBe('2026-06-21');
   }));
 
-  test('update-alert-state (missing state file — fail-open, exits 0)', withDir(async (dir) => {
+  test('update-alert-state (missing state file — fail-open, seeds default, exits 0)', withDir(async (dir) => {
     const stateFile = hermit(dir, 'state', 'alert-state.json');
     const r = await runScript('update-alert-state.ts', {
-      args: [stateFile],
-      stdin: '{"new_entries":{"k":{"severity":"low"}},"updated_entries":{},"resolved_keys":[],"last_clean_eval_at":null,"self_eval_updates":{}}',
+      args: [stateFile], stdin: firingPayload([{ key: 'custom:x', text: 'k fired' }]), env: { HERMIT_NOW: NOW },
     });
     expect(r.exitCode).toBe(0);
     const d = readJson(stateFile);
-    expect(d.alerts['k']).toBeDefined();
+    expect(d.alerts['custom:x']).toBeDefined();
   }));
 
   test('update-alert-state (bad JSON payload — exits 1, no write)', withDir(async (dir) => {
@@ -738,34 +769,156 @@ describe('update-alert-state', () => {
     expect(fs.existsSync(stateFile)).toBe(false);
   }));
 
+  test('update-alert-state (malformed firing shapes reject the whole tick — no write, no aging)', withDir(async (dir) => {
+    const before = '{"alerts":{"stale-session":{"count":1,"consecutive_clean":0,"suppressed":false,"first_seen":"2026-07-01","last_seen":"2026-07-01","text":"t"}},"self_eval":{},"total_ticks":9}';
+    const stateFile = hermit(dir, 'state', 'alert-state.json');
+
+    write(stateFile, before);
+    let r = await runScript('update-alert-state.ts', { args: [stateFile], stdin: JSON.stringify({ firing: 'not-an-array', self_eval_updates: {} }), env: { HERMIT_NOW: NOW } });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout.trim()).toBe('');
+    expect(readJson(stateFile)).toEqual(JSON.parse(before)); // untouched — never coerced to empty and aged
+
+    write(stateFile, before);
+    r = await runScript('update-alert-state.ts', { args: [stateFile], stdin: JSON.stringify({ firing: [{ key: 'checklist:x' }], self_eval_updates: {} }), env: { HERMIT_NOW: NOW } }); // missing text
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout.trim()).toBe('');
+    expect(readJson(stateFile)).toEqual(JSON.parse(before));
+  }));
+
+  test('update-alert-state (duplicate firing keys deduped — first occurrence wins)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"total_ticks":1}');
+    const { state } = await updateAlertState(dir, firingPayload([
+      { key: 'checklist:dup00000', text: 'first text' },
+      { key: 'checklist:dup00000', text: 'second text' },
+    ]));
+    expect(Object.keys(state.alerts)).toEqual(['checklist:dup00000']);
+    expect(state.alerts['checklist:dup00000'].text).toBe('first text');
+  }));
+
+  test('update-alert-state (write failure — no stdout, no side effects)', withDir(async (dir) => {
+    const stateFile = hermit(dir, 'state', 'alert-state.json');
+    fs.mkdirSync(stateFile); // path is a directory → write throws EISDIR
+    const r = await runScript('update-alert-state.ts', { args: [stateFile], stdin: firingPayload([{ key: 'stale-session', text: 'x' }]), env: { HERMIT_NOW: NOW } });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout.trim()).toBe('');
+    expect(fs.statSync(stateFile).isDirectory()).toBe(true); // untouched
+  }));
+
   test('update-alert-state (apostrophe in free-text value round-trips intact)', withDir(async (dir) => {
     // Regression: apostrophes broke single-quoted argv passing.
-    write(hermit(dir, 'state', 'alert-state.json'),
-      '{"alerts":{},"self_eval":{},"total_ticks":7}');
-    const d = await updateAlertState(dir, JSON.stringify({
-      new_entries: { 'stale-session': { severity: 'low', note: "the session's been idle" } },
-      updated_entries: {},
-      resolved_keys: [],
-      last_clean_eval_at: null,
-      self_eval_updates: { 'last-note': "prod's disk > 80%" },
-    }));
-    expect(d.alerts['stale-session'].note).toBe("the session's been idle");
-    expect(d.self_eval['last-note']).toBe("prod's disk > 80%");
-    expect(d.total_ticks).toBe(7);
+    write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"total_ticks":7}');
+    const { state } = await updateAlertState(dir, firingPayload(
+      [{ key: 'stale-session', text: "the session's been idle" }],
+      { 'last-note': "prod's disk > 80%" },
+    ));
+    expect(state.alerts['stale-session'].text).toBe("the session's been idle");
+    expect(state.self_eval['last-note']).toBe("prod's disk > 80%");
+    expect(state.total_ticks).toBe(7);
   }));
 
   test('update-alert-state (embedded double-quote and newline round-trip intact)', withDir(async (dir) => {
-    write(hermit(dir, 'state', 'alert-state.json'),
-      '{"alerts":{},"self_eval":{},"total_ticks":1}');
-    const note = 'said "hi"\nthen left';
-    const d = await updateAlertState(dir, JSON.stringify({
-      new_entries: { 'k': { note } },
-      updated_entries: {},
-      resolved_keys: [],
-      last_clean_eval_at: null,
-      self_eval_updates: {},
+    write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"total_ticks":1}');
+    const text = 'said "hi"\nthen left';
+    const { state } = await updateAlertState(dir, firingPayload([{ key: 'custom:k', text }]));
+    expect(state.alerts['custom:k'].text).toBe(text);
+  }));
+
+  // -----------------------------------------------------------------------
+  // Structured-key derivation (issue #594 scope A′) — micro-proposal-pending
+  // and proposal-pending are script-derived from source-of-truth, never
+  // model-authored. These pin the regression the refactor exists to close.
+  // -----------------------------------------------------------------------
+
+  test('update-alert-state (derives heartbeat_result ALERT from a pending micro-proposal even when model firing is empty)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"total_ticks":1}');
+    write(hermit(dir, 'state', 'micro-proposals.json'), JSON.stringify({ pending: [{ id: 'MP-1', status: 'pending', tier: 1, question: 'Proceed?' }] }));
+    const { state, stdout } = await updateAlertState(dir, firingPayload([])); // model reports nothing
+    expect(stdout.heartbeat_result).toBe('ALERT');
+    expect(state.alerts['micro-proposal-pending:MP-1']).toBeDefined();
+    expect(state.alerts['micro-proposal-pending:MP-1'].text).toContain("micro-proposal 'MP-1' awaiting operator input — Proceed?");
+  }));
+
+  test('update-alert-state (channel voice: a new structured-key entry never sends its raw id to the operator)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"total_ticks":1}');
+    write(hermit(dir, 'state', 'micro-proposals.json'), JSON.stringify({ pending: [{ id: 'MP-1', status: 'pending', tier: 1, question: 'Proceed?' }] }));
+    fs.mkdirSync(hermit(dir, 'proposals'), { recursive: true });
+    fs.writeFileSync(hermit(dir, 'proposals', 'PROP-009-test-120000.md'), '---\nid: PROP-009\nstatus: proposed\ntitle: Retry queue\n---\nbody\n');
+    const { state, stdout } = await updateAlertState(dir, firingPayload([]));
+    // Both structured keys are new this tick — monitoring lines (file-only) may
+    // carry the id, but notifications (operator channel) must not.
+    expect(state.alerts['micro-proposal-pending:MP-1']).toBeDefined();
+    expect(state.alerts['proposal-pending:PROP-009']).toBeDefined();
+    expect(stdout.notifications).toEqual([]);
+    expect(stdout.monitoring_lines.some((l: string) => l.includes('MP-1'))).toBe(true);
+    expect(stdout.monitoring_lines.some((l: string) => l.includes('PROP-009'))).toBe(true);
+  }));
+
+  test('update-alert-state (#594 regression: model omitting/garbling a pending micro-proposal key never resolves it)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'), JSON.stringify({
+      alerts: { 'micro-proposal-pending:MP-1': { count: 2, consecutive_clean: 1, suppressed: false, first_seen: '2026-07-08', last_seen: '2026-07-09', text: 'old label' } },
+      self_eval: {}, total_ticks: 5,
     }));
-    expect(d.alerts['k'].note).toBe(note);
+    write(hermit(dir, 'state', 'micro-proposals.json'), JSON.stringify({ pending: [{ id: 'MP-1', status: 'pending', tier: 1, question: 'Proceed?' }] }));
+    // Model hallucinates a garbled duplicate instead of the real key — the real
+    // key is re-derived from micro-proposals.json regardless, so it is neither
+    // dropped nor aged: count increments and consecutive_clean resets to 0.
+    const { state } = await updateAlertState(dir, firingPayload([{ key: 'micro-proposal-pending:mp1garbled', text: 'garbled' }]));
+    expect(state.alerts['micro-proposal-pending:MP-1']).toMatchObject({ count: 3, consecutive_clean: 0 });
+  }));
+
+  test('update-alert-state (phantom rejection: model-injected structured key is dropped)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"total_ticks":1}');
+    // No micro-proposals.json / proposals/ — nothing is actually pending.
+    const { state } = await updateAlertState(dir, firingPayload([
+      { key: 'micro-proposal-pending:FAKE', text: 'hallucinated' },
+      { key: 'proposal-pending:PROP-999', text: 'hallucinated' },
+    ]));
+    expect(state.alerts).toEqual({});
+  }));
+
+  test('update-alert-state (fail-safe: corrupt micro-proposals.json freezes existing entry instead of aging it)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'), JSON.stringify({
+      alerts: { 'micro-proposal-pending:MP-1': { count: 2, consecutive_clean: 1, suppressed: false, first_seen: '2026-07-08', last_seen: '2026-07-09', text: 'old label' } },
+      self_eval: {}, total_ticks: 5,
+    }));
+    write(hermit(dir, 'state', 'micro-proposals.json'), '{not-json');
+    const { state } = await updateAlertState(dir, firingPayload([]));
+    // consecutive_clean would have become 2 (→ deleted) had this been treated
+    // as "not firing" — frozen means byte-identical, not aged at all.
+    expect(state.alerts['micro-proposal-pending:MP-1']).toEqual({
+      count: 2, consecutive_clean: 1, suppressed: false, first_seen: '2026-07-08', last_seen: '2026-07-09', text: 'old label',
+    });
+  }));
+
+  test('update-alert-state (proposal-pending derives a title-rendered label from frontmatter, falls back to bare id)', withDir(async (dir) => {
+    fs.mkdirSync(hermit(dir, 'proposals'), { recursive: true });
+    fs.writeFileSync(hermit(dir, 'proposals', 'PROP-005-test-120000.md'), '---\nid: PROP-005\nstatus: proposed\ntitle: Add retry logic\n---\nbody\n');
+    write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"total_ticks":1}');
+    const { state } = await updateAlertState(dir, firingPayload([]));
+    expect(state.alerts['proposal-pending:PROP-005'].text).toBe('PROP-005 "Add retry logic"');
+  }));
+
+  test('update-alert-state (daily digest fires for suppressed entries once per tz-local day, includes rendered title)', withDir(async (dir) => {
+    write(hermit(dir, 'config.json'), JSON.stringify({ timezone: 'UTC' }));
+    write(hermit(dir, 'state', 'alert-state.json'), JSON.stringify({
+      alerts: { 'proposal-pending:PROP-005': { count: 6, consecutive_clean: 0, suppressed: true, first_seen: '2026-07-01', last_seen: '2026-07-09', text: 'PROP-005 "Add retry logic"' } },
+      self_eval: {}, total_ticks: 30, last_digest_date: null,
+    }));
+    const { state, stdout } = await updateAlertState(dir, firingPayload([]));
+    expect(stdout.notifications.some((n: string) => n.includes('PROP-005 "Add retry logic"'))).toBe(true);
+    expect(state.last_digest_date).toBe('2026-07-10');
+  }));
+
+  test('update-alert-state (digest gate uses configured timezone, not UTC, across the midnight boundary)', withDir(async (dir) => {
+    write(hermit(dir, 'config.json'), JSON.stringify({ timezone: 'Pacific/Kiritimati' })); // UTC+14 — already "tomorrow" at UTC 12:00
+    write(hermit(dir, 'state', 'alert-state.json'), JSON.stringify({
+      alerts: { 'checklist:zzz99999': { count: 6, consecutive_clean: 0, suppressed: true, first_seen: '2026-07-01', last_seen: '2026-07-09', text: 'noisy' } },
+      self_eval: {}, total_ticks: 30, last_digest_date: '2026-07-11', // already "today" in +14, would wrongly re-fire under UTC's 2026-07-10
+    }));
+    const { state, stdout } = await updateAlertState(dir, firingPayload([]));
+    expect(stdout.notifications).toEqual([]); // no repeat digest — tz-local today already matches last_digest_date
+    expect(state.last_digest_date).toBe('2026-07-11');
   }));
 });
 
