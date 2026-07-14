@@ -63,6 +63,22 @@ Run before anything else. Abort the release if any step fails.
 
 If the auditor reports any FAIL, fix before proceeding. WARNs are acceptable if justified. Stale-reference detection-and-fix is consolidated into Step 4 below.
 
+### 1.5. Refresh the knowledge graph
+
+The repo carries graphify knowledge graphs (all gitignored): a root monorepo graph at `graphify-out/` and one per-plugin graph at `plugins/<slug>/graphify-out/`. Refresh both so they reflect the code that's shipping: the root graph (covers the whole monorepo, including this plugin's code) and this plugin's own graph. `/release` is single-plugin, so only the target plugin's per-plugin graph is refreshed here, not the other siblings'. This runs before the fast-path branch in Step 2, so it fires on both the normal and already-bumped paths, always before either push.
+
+```bash
+ROOT="$(git rev-parse --show-toplevel)"
+if command -v graphify >/dev/null; then
+  # Root monorepo graph
+  [ -f "$ROOT/graphify-out/graph.json" ] && (cd "$ROOT" && graphify update .)
+  # This plugin's own graph (single-plugin scope; "if exists")
+  [ -f "$ROOT/plugins/<slug>/graphify-out/graph.json" ] && (cd "$ROOT" && graphify update plugins/<slug>)
+fi
+```
+
+AST-only, no API cost. Each update is guarded by its graph.json existing, so it skips silently on checkouts where graphify isn't set up. Both graph dirs are gitignored, so this never affects release staging or the Step 6 `git status` check. If an update errors, warn and continue: a stale graph must not block a release.
+
 ### 2. Determine version bump
 
 **Already-bumped fast-path (two-phase release flow):** Find the most recent tag for this plugin:
