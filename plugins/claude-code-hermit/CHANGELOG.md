@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.25] - 2026-07-14
 
 ### Fixed
 - **heartbeat: eval-runner subagent can no longer fabricate alert-state schema** — the haiku eval-runner previously authored `alerts{}` bookkeeping directly (counts, suppression, resolution, `last_clean_eval_at`) and intermittently invented fields, garbled keys, or marked a pending `micro-proposal-pending:*` key suppressed, silencing a genuine Tier-1 operator decision. The subagent now returns only a firing set of `{key, text}` judgment items; `update-alert-state.ts` derives `micro-proposal-pending:*`/`proposal-pending:*` from their source-of-truth files and owns the entire dedup/suppression/resolution/digest ladder deterministically, so this class of fabrication is no longer possible regardless of model. No state-schema migration needed — additive/backward-compatible, existing `alert-state.json` entries read unchanged.
@@ -9,6 +9,12 @@
 - **cost scripts: cwd-anchored cost-log resolution** — `today-cost.ts`, `session-cost.ts`, `weekly-review.ts`, `cost-reflect.ts`, and `reflect-precheck.ts` resolved cost-log paths against `process.cwd()`, silently reporting `$0.00`/zeros (or suppressing the reflect cost-spike phase) after a cwd drift. All now anchor to `hermitDir()`; `today-cost.ts` reports `cost data unavailable` instead of a misleading `$0.00` when the log can't be read.
 - **heartbeat: stale-session no longer false-alarms on sessions spanning midnight** — staleness is now derived deterministically by `update-alert-state.ts` (bottom-most Progress Log entry, timezone-correct mod-24 resolution) instead of asking the eval model to do time arithmetic over date-less `[HH:MM]` stamps; the model can no longer emit the key at all.
 - **evaluate-session: progress nudge no longer backdates entries to the session start date** — same date-less-timestamp fix, now timezone-correct: the nudge resolves the last `[HH:MM]` Progress Log stamp in `config.timezone` (matching how stamps are written and the stale-session alert) instead of the server-local zone, so a hermit whose container TZ differs from `config.timezone` no longer mis-nudges; the 48h "session may be complete" nudge keys off SHELL.md mtime.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. All fixes are additive and backward-compatible — no state migration or manual step needed.
+
+No config.json changes required.
 
 ## [1.2.24] - 2026-07-13
 
