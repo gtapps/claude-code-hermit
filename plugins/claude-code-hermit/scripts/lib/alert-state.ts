@@ -20,7 +20,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { readFrontmatter, listProposalFiles } from './frontmatter';
+import { parseFrontmatter, listProposalFiles } from './frontmatter';
 
 type Json = any;
 
@@ -123,7 +123,30 @@ export function mutateOwnedAlerts(p: string, mutator: (alerts: Json) => void): b
 // deriveProposalPendingKeys below).
 // ---------------------------------------------------------------------------
 
-export interface FiringItem { key: string; text: string; }
+// `text` is the file surface (SHELL.md monitoring lines) — id-carrying is fine
+// there. `channelText` is the id-free operator-channel label; absent when `text`
+// is already channel-safe (model-authored keys), read with `?? text`.
+export interface FiringItem { key: string; text: string; channelText?: string; }
+
+// Keys backed by a filesystem source-of-truth (see deriveMicroPendingKeys /
+// deriveProposalPendingKeys). These are the ONLY code path that bakes a raw
+// internal id into an alert's text, so channel-safety scrubbing is scoped to
+// them. Shared with update-alert-state.ts (phantom-key filter, freeze).
+export const MICRO_PREFIX = 'micro-proposal-pending:';
+export const PROPOSAL_PREFIX = 'proposal-pending:';
+export const STRUCTURED_PREFIXES = [MICRO_PREFIX, PROPOSAL_PREFIX];
+export const isStructuredKey = (key: string): boolean =>
+  STRUCTURED_PREFIXES.some(p => key.startsWith(p));
+
+// Strip internal ids that must never reach the operator channel. The banned set
+// is the closed list in state-templates/CLAUDE-APPEND.md § Channel voice:
+// "No internal IDs (PROP-NNN, S-NNN, MP-…)". Applied only to structured-keyed
+// notifications (the sole id-injection path); model text is id-free by the
+// reference.md contract, so it is never scrubbed (no false positives on legit
+// operator text like "S-5 partition"). Collapse the whitespace the removal leaves.
+export function scrubInternalIds(s: string): string {
+  return s.replace(/\bPROP-\d+|\bMP-[\w-]+|\bS-\d+\b/g, '').replace(/\s{2,}/g, ' ').trim();
+}
 
 export interface ClassifyTickResult {
   alerts: Json;
@@ -146,8 +169,26 @@ export function classifyTick(opts: {
   // first-observation notification is suppressed. Monitoring lines are
   // file-only (SHELL.md), so they're unaffected and still show the id.
   silentOnNewKeys: Set<string>;
+  // False when a structured source-of-truth read was ambiguous this tick: the
+  // digest is built over a partial view (frozen entries are excluded upstream),
+  // so skip emitting it AND advancing last_digest_date — it re-fires next tick
+  // once the read succeeds, rather than consuming the day's digest on a partial
+  // view. Defaults to true (a normal tick).
+  structuredReadOk?: boolean;
 }): ClassifyTickResult {
   const { firing, nowIso, today, hhmm, silentOnNewKeys } = opts;
+  const structuredReadOk = opts.structuredReadOk !== false;
+  // Persist channelText on an entry only when it differs from text — model-key
+  // entries thus gain no new field and stay byte-identical to pre-change state.
+  const withChannel = (entry: Json, item: FiringItem): Json =>
+    item.channelText && item.channelText !== item.text
+      ? { ...entry, channelText: item.channelText } : entry;
+  // Channel-safe label for a key: prefer the id-free channelText over text, then
+  // scrub any embedded internal id for structured (filesystem-backed) keys.
+  const channelLabel = (key: string, source: { text: string; channelText?: string }): string => {
+    const label = source.channelText ?? source.text;
+    return isStructuredKey(key) ? scrubInternalIds(label) : label;
+  };
   const prevAlerts: Json = opts.prevAlerts && typeof opts.prevAlerts === 'object' ? opts.prevAlerts : {};
   const firingByKey = new Map(firing.map(f => [f.key, f]));
   const alerts: Json = {};
@@ -163,7 +204,7 @@ export function classifyTick(opts: {
         // Brand-new alert — notify once, on first observation (never repeated
         // on ticks 2-4; the operator already knows once told) — except keys
         // in silentOnNewKeys, whose text is not channel-safe.
-        alerts[key] = { count: 1, consecutive_clean: 0, suppressed: false, first_seen: today, last_seen: today, text: item.text };
+        alerts[key] = withChannel({ count: 1, consecutive_clean: 0, suppressed: false, first_seen: today, last_seen: today, text: item.text }, item);
         monitoringLines.push(`[${hhmm}] Heartbeat: ${item.text}`);
         if (!silentOnNewKeys.has(key)) notifications.push(item.text);
       } else {
@@ -173,16 +214,19 @@ export function classifyTick(opts: {
         // draft of this ladder.)
         const count = (typeof prev.count === 'number' ? prev.count : 0) + 1;
         if (count <= 5) {
-          alerts[key] = { ...prev, count, consecutive_clean: 0, last_seen: today, text: item.text, suppressed: false };
+          alerts[key] = withChannel({ ...prev, count, consecutive_clean: 0, last_seen: today, text: item.text, suppressed: false }, item);
           monitoringLines.push(`[${hhmm}] Heartbeat: ${item.text}`);
         } else if (count === 6) {
-          alerts[key] = { ...prev, count, consecutive_clean: 0, last_seen: today, text: item.text, suppressed: true };
-          const line = `Heartbeat: above alert suppressed after 5 fires (first: ${prev.first_seen}). Daily digest only.`;
-          monitoringLines.push(`[${hhmm}] ${line}`);
-          notifications.push(line);
+          alerts[key] = withChannel({ ...prev, count, consecutive_clean: 0, last_seen: today, text: item.text, suppressed: true }, item);
+          // Monitoring line (SHELL.md, file-only) may reference "above" — the
+          // alert's own line sits directly above it there. The channel
+          // notification names the alert id-free instead ("above" has no
+          // referent in a channel message).
+          monitoringLines.push(`[${hhmm}] Heartbeat: above alert suppressed after 5 fires (first: ${prev.first_seen}). Daily digest only.`);
+          notifications.push(`Heartbeat: "${channelLabel(key, item)}" suppressed after 5 fires — daily digest only.`);
         } else {
           // count > 6 — silent; visible only via the daily digest below.
-          alerts[key] = { ...prev, count, consecutive_clean: 0, last_seen: today, text: item.text, suppressed: true };
+          alerts[key] = withChannel({ ...prev, count, consecutive_clean: 0, last_seen: today, text: item.text, suppressed: true }, item);
         }
       }
     } else if (prev) {
@@ -198,9 +242,10 @@ export function classifyTick(opts: {
 
   const suppressedEntries = Object.entries(alerts).filter(([, e]: [string, Json]) => e?.suppressed === true);
   let lastDigestDate = opts.prevLastDigestDate ?? null;
-  if (suppressedEntries.length > 0 && lastDigestDate !== today) {
+  // structuredReadOk gate: don't emit or advance the digest on a partial view.
+  if (structuredReadOk && suppressedEntries.length > 0 && lastDigestDate !== today) {
     const list = suppressedEntries
-      .map(([, e]: [string, Json]) => `${e.text} (${e.count}x, since ${e.first_seen})`)
+      .map(([k, e]: [string, Json]) => `${channelLabel(k, e)} (${e.count}x, since ${e.first_seen})`)
       .join('; ');
     notifications.push(`Suppressed alert digest: ${list}`);
     lastDigestDate = today;
@@ -252,11 +297,16 @@ export function deriveMicroPendingKeys(stateDir: string): { ok: boolean; items: 
   const items: FiringItem[] = [];
   for (const entry of pending) {
     if (!entry || entry.status !== 'pending' || entry.tier !== 1 || typeof entry.id !== 'string') continue;
-    let text = `micro-proposal '${entry.id}' awaiting operator input — ${typeof entry.question === 'string' ? entry.question : ''}`;
+    const question = typeof entry.question === 'string' ? entry.question : '';
+    let text = `micro-proposal '${entry.id}' awaiting operator input — ${question}`;
+    // channelText omits the raw MP- id (channel-voice rule); keeps question + options.
+    let channelText = `a decision awaiting your input — ${question}`;
     if (Array.isArray(entry.options) && entry.options.length > 0) {
-      text += ' [' + entry.options.map((o: any, i: number) => `${i + 1}: ${o}`).join(', ') + ']';
+      const opts = ' [' + entry.options.map((o: any, i: number) => `${i + 1}: ${o}`).join(', ') + ']';
+      text += opts;
+      channelText += opts;
     }
-    items.push({ key: `micro-proposal-pending:${entry.id}`, text });
+    items.push({ key: `micro-proposal-pending:${entry.id}`, text, channelText });
   }
   return { ok: true, items };
 }
@@ -267,15 +317,32 @@ export function deriveProposalPendingKeys(stateDir: string): { ok: boolean; item
   if (!listed.ok) return { ok: false, items: [] };
   const items: FiringItem[] = [];
   for (const f of listed.files) {
-    const fm = readFrontmatter(path.join(dir, f));
-    if (!fm || fm.status !== 'proposed') continue; // legacy/unreadable/malformed/not-proposed — skip this file only
+    // Match deriveMicroPendingKeys' fail-safe: an ambiguous per-file read
+    // (EACCES/EIO/EISDIR — realistic under the Docker runtime) must freeze the
+    // whole prefix, never silently drop a `status: proposed` file (which would
+    // age its pending alert toward resolution — the exact #594 harm). ENOENT
+    // (file vanished mid-scan) is unambiguous → skip it and let its alert resolve.
+    let raw: string;
+    try {
+      raw = fs.readFileSync(path.join(dir, f), 'utf-8');
+    } catch (err: any) {
+      if (err?.code === 'ENOENT') continue;
+      return { ok: false, items: [] };
+    }
+    const fm = parseFrontmatter(raw);
+    if (!fm || fm.status !== 'proposed') continue; // legacy/no-frontmatter/malformed/not-proposed — skip this file only
     const m = f.match(/^(PROP-\d+)/);
     if (!m) continue;
     const id = m[1];
     const title = typeof fm.title === 'string' && fm.title ? fm.title : null;
     // Pre-rendered so the daily digest needs no second frontmatter read: falls
     // back to the bare id on zero/multiple-match (no title found), never blocks.
-    items.push({ key: `proposal-pending:${id}`, text: title ? `${id} "${title}"` : id });
+    // channelText omits the raw PROP- id (channel-voice rule); title-only.
+    items.push({
+      key: `proposal-pending:${id}`,
+      text: title ? `${id} "${title}"` : id,
+      channelText: title ? `proposal "${title}" awaiting review` : 'a proposal awaiting review',
+    });
   }
   return { ok: true, items };
 }

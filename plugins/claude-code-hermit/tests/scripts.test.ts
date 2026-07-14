@@ -694,8 +694,9 @@ describe('update-alert-state', () => {
       '{"alerts":{"checklist:abc12345":{"count":5,"consecutive_clean":0,"suppressed":false,"first_seen":"2026-07-01","last_seen":"2026-07-09","text":"disk 90% full"}},"self_eval":{},"total_ticks":20,"last_digest_date":"2026-07-10"}'); // digest already sent today — isolates this assertion to the suppression transition alone
     const { state, stdout } = await updateAlertState(dir, firingPayload([{ key: 'checklist:abc12345', text: 'disk 90% full' }]));
     expect(state.alerts['checklist:abc12345']).toMatchObject({ count: 6, suppressed: true, consecutive_clean: 0 });
+    // Monitoring line (SHELL.md) keeps "above alert"; the channel notification names the alert instead.
     expect(stdout.monitoring_lines).toEqual(['[12:00] Heartbeat: above alert suppressed after 5 fires (first: 2026-07-01). Daily digest only.']);
-    expect(stdout.notifications).toEqual(['Heartbeat: above alert suppressed after 5 fires (first: 2026-07-01). Daily digest only.']);
+    expect(stdout.notifications).toEqual(['Heartbeat: "disk 90% full" suppressed after 5 fires — daily digest only.']);
   }));
 
   test('update-alert-state (seventh fire — silent, stays suppressed, no notification)', withDir(async (dir) => {
@@ -899,14 +900,33 @@ describe('update-alert-state', () => {
     expect(state.alerts['proposal-pending:PROP-005'].text).toBe('PROP-005 "Add retry logic"');
   }));
 
-  test('update-alert-state (daily digest fires for suppressed entries once per tz-local day, includes rendered title)', withDir(async (dir) => {
+  test('update-alert-state (fail-safe: an unreadable proposal file freezes existing proposal-pending entry instead of aging it)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'), JSON.stringify({
+      alerts: { 'proposal-pending:PROP-007': { count: 2, consecutive_clean: 1, suppressed: false, first_seen: '2026-07-08', last_seen: '2026-07-09', text: 'PROP-007 "x"' } },
+      self_eval: {}, total_ticks: 5,
+    }));
+    fs.mkdirSync(hermit(dir, 'proposals'), { recursive: true });
+    fs.mkdirSync(hermit(dir, 'proposals', 'PROP-007-broken.md')); // a dir where a file is expected → EISDIR on read (ambiguous, non-ENOENT)
+    const { state } = await updateAlertState(dir, firingPayload([]));
+    // consecutive_clean would have become 2 (→ deleted) had the unreadable file
+    // been treated as "not proposed" and the alert aged. Frozen means byte-identical.
+    expect(state.alerts['proposal-pending:PROP-007']).toEqual({
+      count: 2, consecutive_clean: 1, suppressed: false, first_seen: '2026-07-08', last_seen: '2026-07-09', text: 'PROP-007 "x"',
+    });
+  }));
+
+  test('update-alert-state (daily digest fires once per tz-local day; legacy structured entry without channelText is scrubbed id-free — R2)', withDir(async (dir) => {
     write(hermit(dir, 'config.json'), JSON.stringify({ timezone: 'UTC' }));
+    // Pre-#594-channelText entry: only `text` (id-carrying), no `channelText`.
+    // Its condition has cleared (firing empty, no proposals/ dir), so the
+    // resolution branch keeps it unrewritten — the digest must still not leak PROP-005.
     write(hermit(dir, 'state', 'alert-state.json'), JSON.stringify({
       alerts: { 'proposal-pending:PROP-005': { count: 6, consecutive_clean: 0, suppressed: true, first_seen: '2026-07-01', last_seen: '2026-07-09', text: 'PROP-005 "Add retry logic"' } },
       self_eval: {}, total_ticks: 30, last_digest_date: null,
     }));
     const { state, stdout } = await updateAlertState(dir, firingPayload([]));
-    expect(stdout.notifications.some((n: string) => n.includes('PROP-005 "Add retry logic"'))).toBe(true);
+    expect(stdout.notifications.some((n: string) => n.includes('Add retry logic'))).toBe(true);
+    expect(stdout.notifications.join('\n')).not.toMatch(/PROP-\d+|MP-[\w-]+|\bS-\d+\b/);
     expect(state.last_digest_date).toBe('2026-07-10');
   }));
 
@@ -919,6 +939,64 @@ describe('update-alert-state', () => {
     const { state, stdout } = await updateAlertState(dir, firingPayload([]));
     expect(stdout.notifications).toEqual([]); // no repeat digest — tz-local today already matches last_digest_date
     expect(state.last_digest_date).toBe('2026-07-11');
+  }));
+
+  test('update-alert-state (structured sixth-fire suppression notification names the alert id-free)', withDir(async (dir) => {
+    fs.mkdirSync(hermit(dir, 'proposals'), { recursive: true });
+    fs.writeFileSync(hermit(dir, 'proposals', 'PROP-005-x-120000.md'), '---\nid: PROP-005\nstatus: proposed\ntitle: Add retry logic\n---\nbody\n');
+    // count:5 → the derived proposal-pending re-fires this tick → count:6 = suppression transition.
+    write(hermit(dir, 'state', 'alert-state.json'), JSON.stringify({
+      alerts: { 'proposal-pending:PROP-005': { count: 5, consecutive_clean: 0, suppressed: false, first_seen: '2026-07-01', last_seen: '2026-07-09', text: 'PROP-005 "Add retry logic"', channelText: 'proposal "Add retry logic" awaiting review' } },
+      self_eval: {}, total_ticks: 20, last_digest_date: '2026-07-10', // digest already sent today — isolate the suppression notification
+    }));
+    const { state, stdout } = await updateAlertState(dir, firingPayload([]));
+    expect(state.alerts['proposal-pending:PROP-005']).toMatchObject({ count: 6, suppressed: true });
+    expect(stdout.notifications.length).toBe(1);
+    expect(stdout.notifications[0]).toContain('Add retry logic'); // named, not "above alert"
+    expect(stdout.notifications.join('\n')).not.toMatch(/PROP-\d+|MP-[\w-]+|\bS-\d+\b/);
+  }));
+
+  test('update-alert-state (R3: internal ids embedded in a proposal title / micro question are scrubbed from notifications)', withDir(async (dir) => {
+    write(hermit(dir, 'config.json'), JSON.stringify({ timezone: 'UTC' }));
+    fs.mkdirSync(hermit(dir, 'proposals'), { recursive: true });
+    fs.writeFileSync(hermit(dir, 'proposals', 'PROP-005-x-120000.md'), '---\nid: PROP-005\nstatus: proposed\ntitle: Revert PROP-004 handling\n---\nbody\n');
+    write(hermit(dir, 'state', 'micro-proposals.json'), JSON.stringify({ pending: [{ id: 'MP-1', status: 'pending', tier: 1, question: 'see S-123 for context — proceed?' }] }));
+    write(hermit(dir, 'state', 'alert-state.json'), JSON.stringify({
+      alerts: {
+        'proposal-pending:PROP-005': { count: 6, consecutive_clean: 0, suppressed: true, first_seen: '2026-07-01', last_seen: '2026-07-09', text: 'x' },
+        'micro-proposal-pending:MP-1': { count: 6, consecutive_clean: 0, suppressed: true, first_seen: '2026-07-01', last_seen: '2026-07-09', text: 'x' },
+      },
+      self_eval: {}, total_ticks: 30, last_digest_date: null, // digest due → both suppressed entries surface
+    }));
+    const { stdout } = await updateAlertState(dir, firingPayload([]));
+    const joined = stdout.notifications.join('\n');
+    expect(joined).toContain('Revert'); // the title's descriptive text still reaches the operator
+    expect(joined).not.toMatch(/PROP-\d+|MP-[\w-]+|\bS-\d+\b/); // every embedded id (PROP-004, S-123) scrubbed
+  }));
+
+  test('update-alert-state (R1: corrupt micro-proposals.json with no prior alert still reports ALERT + clears last_clean_eval_at)', withDir(async (dir) => {
+    // frozen is empty (no prior micro alert), so hasFrozen would miss this — the read failure itself is the signal.
+    write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"total_ticks":5,"last_clean_eval_at":"2026-06-01T00:00:00.000Z"}');
+    write(hermit(dir, 'state', 'micro-proposals.json'), '{not-json');
+    const { state, stdout } = await updateAlertState(dir, firingPayload([]));
+    expect(stdout.heartbeat_result).toBe('ALERT');
+    expect(state.last_clean_eval_at).toBeNull();
+  }));
+
+  test('update-alert-state (R4: an ambiguous structured read blocks the digest even when another suppressed alert is due)', withDir(async (dir) => {
+    write(hermit(dir, 'config.json'), JSON.stringify({ timezone: 'UTC' }));
+    write(hermit(dir, 'state', 'alert-state.json'), JSON.stringify({
+      alerts: {
+        'micro-proposal-pending:MP-1': { count: 6, consecutive_clean: 0, suppressed: true, first_seen: '2026-07-01', last_seen: '2026-07-09', text: 'frozen' },
+        'checklist:noisy001': { count: 6, consecutive_clean: 0, suppressed: true, first_seen: '2026-07-01', last_seen: '2026-07-09', text: 'noisy checklist' },
+      },
+      self_eval: {}, total_ticks: 30, last_digest_date: null,
+    }));
+    write(hermit(dir, 'state', 'micro-proposals.json'), '{not-json'); // ambiguous → freeze micro prefix, structuredReadOk=false
+    const { state, stdout } = await updateAlertState(dir, firingPayload([]));
+    expect(stdout.notifications).toEqual([]); // digest suppressed despite the checklist alert being due
+    expect(state.last_digest_date).toBeNull(); // digest clock not advanced on a partial view
+    expect(state.alerts['micro-proposal-pending:MP-1']).toBeDefined(); // frozen entry preserved
   }));
 });
 

@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { currentHHMM, todayYMD, parseDuration } from './lib/time';
 import { readAlertState, defaultAlertState, quarantineAlertState, writeAlertState, readMergedAlerts } from './lib/alert-state';
-import { readFrontmatter } from './lib/frontmatter';
+import { readFrontmatter, listProposalFiles } from './lib/frontmatter';
 import { isProposalScanItem } from './lib/heartbeat-items';
 import { isPaused } from './lib/pause';
 import { scanForInjection } from './lib/injection-scan';
@@ -108,21 +108,14 @@ function normalizeItemKey(itemText: string): string | null {
 // Read-only — writes nothing, so it is identical under --peek.
 function resolveProposalScanItem(dir: string, alertMap: Json): 'clean' | 'evaluate' {
   const proposalsDir = path.join(dir, 'proposals');
-  let files: string[];
-  try {
-    files = fs.readdirSync(proposalsDir)
-      .filter(f => /^PROP-.*\.md$/.test(f))
-      .map(f => path.join(proposalsDir, f))
-      .sort();
-  } catch (e: any) {
-    // ENOENT (dir absent) → nothing to review; fall through to the empty-scan
-    // branch (which still honors a lingering alert). Any other error on an
-    // existing dir (EACCES/EIO/EMFILE — realistic under the Docker runtime) is
-    // ambiguous → fail-open, never a false OK. globDir would swallow all of these
-    // as [], silently defeating the invariant above (the bug this guards).
-    if (e?.code !== 'ENOENT') return 'evaluate';
-    files = [];
-  }
+  // listProposalFiles distinguishes ENOENT (ok:true, empty — nothing to review,
+  // fall through to the empty-scan branch that still honors a lingering alert)
+  // from any other readdir error (ok:false — EACCES/EIO/ENOTDIR, realistic under
+  // the Docker runtime), which is ambiguous → fail-open, never a false OK. Shared
+  // with the alert-state derivers so both scans agree on what counts as readable.
+  const listed = listProposalFiles(proposalsDir);
+  if (!listed.ok) return 'evaluate';
+  const files = listed.files.map(f => path.join(proposalsDir, f));
   const proposedIds: string[] = [];
   for (const f of files) {
     const fm = readFrontmatter(f);
