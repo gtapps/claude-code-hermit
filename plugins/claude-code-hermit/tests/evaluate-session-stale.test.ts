@@ -30,12 +30,13 @@ function withTmpdir(fn: (dir: string) => Promise<void> | void) {
   };
 }
 
-function seedHermit(dir: string, opts: { shell: string; sessionState?: string }) {
+function seedHermit(dir: string, opts: { shell: string; sessionState?: string; timezone?: string }) {
   const hd = path.join(dir, '.claude-code-hermit');
   fs.writeFileSync(
     path.join(hd, 'state', 'runtime.json'),
     JSON.stringify({ session_state: opts.sessionState ?? 'in_progress' }),
   );
+  if (opts.timezone) fs.writeFileSync(path.join(hd, 'config.json'), JSON.stringify({ timezone: opts.timezone }));
   fs.writeFileSync(path.join(hd, 'sessions', 'SHELL.md'), opts.shell);
   return path.join(hd, 'sessions', 'SHELL.md');
 }
@@ -115,5 +116,28 @@ describe('evaluate-session: in_progress progress nudge (stale-timestamp regressi
     expect(r.exitCode).toBe(0);
     expect(r.stderr).not.toMatch(/No progress logged/);
     expect(r.stderr).not.toMatch(/Session may be complete/);
+  }));
+
+  // Progress Log [HH:MM] stamps are authored in config.timezone; the nudge must
+  // resolve elapsed in that zone, not the server-local one. Process TZ is UTC
+  // (see runEval); config.timezone is Asia/Dubai (+4, DST-free) so the two
+  // interpretations diverge by a fixed 4h. Pre-fix (server-local UTC) these cases
+  // fail; post-fix they pass.
+  test('config.timezone-aware: fresh entry in config tz does not nudge (server-UTC would false-alarm)', withTmpdir(async (dir) => {
+    // 11:00Z == 15:00 in Dubai; stamp [12:00] Dubai → 3h elapsed → no nudge.
+    // Server-local UTC would read now=11:00 < 12:00 → yesterday → ~23h → false nudge.
+    seedHermit(dir, { shell: staleShell('[12:00] recent item'), timezone: 'Asia/Dubai' });
+    const r = await runEval(dir, '2026-07-14T11:00:00Z');
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).not.toMatch(/No progress logged/);
+  }));
+
+  test('config.timezone-aware: elapsed hours computed in config tz, not server-local', withTmpdir(async (dir) => {
+    // 14:00Z == 18:00 in Dubai; stamp [08:00] Dubai → 10h elapsed.
+    // Server-local UTC would read now=14:00 → 6h. Assert the Dubai value (10h).
+    seedHermit(dir, { shell: staleShell('[08:00] earlier item'), timezone: 'Asia/Dubai' });
+    const r = await runEval(dir, '2026-07-14T14:00:00Z');
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).toMatch(/No progress logged in 10h/);
   }));
 });
