@@ -9,7 +9,7 @@
 
 # claude-code-hermit
 
-Claude Code plugin that turns a Claude Code instance into a 24/7 AI assistant. **Orchestrates**, **Self-improves**, **Pro-Active**, **Cost-aware**, **Observable**, **One Claude subscription, multiple hermits**.
+Claude Code plugin that turns a Claude Code instance into a 24/7 agent. **Orchestrates**, **Self-improves**, **Pro-Active**, **Cost-aware**, **Observable**, **One Claude subscription, multiple hermits**.
 
 <p align="center">
   <img src="plugins/claude-code-hermit/assets/cover.png" alt="Always-on Claude Code Agent" />
