@@ -22,6 +22,7 @@ import { readFrontmatter, isEmptyAutoArchive } from './lib/frontmatter';
 import { findStorageDrift, findSchemaDrift } from './lib/drift';
 import { sha256 } from './lib/hash';
 import { appendToProgressLog } from './lib/progress-log';
+import { costLogPath as resolveCostLog, hermitDir as resolveHermitRoot } from './lib/cc-compat';
 
 type Json = any;
 
@@ -239,7 +240,10 @@ if (hasAcceptedProposals(stateDir) && daysSince(lastResolutionCheck) > 7) {
   phases.resolution_check = true;
 }
 
-const costLogPath = path.resolve(stateDir, '..', '.claude', 'cost-log.jsonl');
+// Anchor cost-log resolution: a relative stateDir (real invocation passes
+// `.claude-code-hermit`) would otherwise resolve against a drifted cwd and
+// silently suppress the cost-spike phase. Absolute (as tests pass) is verbatim.
+const costLogPath = resolveCostLog(path.isAbsolute(stateDir) ? stateDir : resolveHermitRoot());
 if (checkCostSpike(costLogPath, lastRunAt)) phases.cost_spike = true;
 
 if (phase === 'juvenile' && daysSince(reflectionState.last_digest_at) > 7) {

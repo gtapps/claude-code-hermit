@@ -5,6 +5,7 @@ import { costByType } from './lib/pricing';
 import { loadConfig } from './lib/channel-auth';
 import { money, resolveTimezone, budgetLine } from './lib/spend-status';
 import { todayYMD } from './lib/time';
+import { costLogPath, hermitDir } from './lib/cc-compat';
 
 type Json = any;
 
@@ -137,11 +138,14 @@ function run() {
   const rawArgs = process.argv.slice(2);
   const plainMode = rawArgs.includes('--plain');
   const positional = rawArgs.filter(a => a !== '--plain');
-  const stateDir = positional[0] || '.claude-code-hermit';
+  // An absolute arg (as tests pass) is used verbatim; a relative/absent arg is
+  // resolved via the anchored hermitDir() so cost-log and config reads survive
+  // cwd drift (the calling shell persists cd across Bash calls).
+  const stateArg = positional[0];
+  const stateDir = stateArg && path.isAbsolute(stateArg) ? stateArg : hermitDir();
   const days = Math.max(1, parseInt(positional[1], 10) || 7);
 
-  // cost-log.jsonl is a sibling of the state dir (both under the project root).
-  const costLog = path.resolve(stateDir, '..', '.claude', 'cost-log.jsonl');
+  const costLog = costLogPath(stateDir);
 
   if (plainMode) {
     process.stdout.write(buildPlainStatement(stateDir, costLog));

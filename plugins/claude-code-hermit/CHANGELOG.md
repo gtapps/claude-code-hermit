@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
-- **cost scripts: cwd-anchored cost-log resolution** — `today-cost.ts`, `session-cost.ts`, and `weekly-review.ts` resolved cost-log paths against `process.cwd()`, silently reporting `$0.00`/zeros after a cwd drift. All three now anchor to `hermitDir()`; `today-cost.ts` reports `cost data unavailable` instead of a misleading `$0.00` when the log can't be read.
+- **cost scripts: cwd-anchored cost-log resolution** — `today-cost.ts`, `session-cost.ts`, `weekly-review.ts`, `cost-reflect.ts`, and `reflect-precheck.ts` resolved cost-log paths against `process.cwd()`, silently reporting `$0.00`/zeros (or suppressing the reflect cost-spike phase) after a cwd drift. All now anchor to `hermitDir()`; `today-cost.ts` reports `cost data unavailable` instead of a misleading `$0.00` when the log can't be read.
 
 ## [1.2.24] - 2026-07-13
 
