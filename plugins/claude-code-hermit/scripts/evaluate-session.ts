@@ -10,13 +10,23 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { readTasks } from './lib/tasks';
 import { hermitDir } from './lib/cc-compat';
+import { currentHHMM, elapsedSinceHHMM, resolveHermitNowMs } from './lib/time';
 
 type Json = any;
 
+const now = resolveHermitNowMs();
 const HERMIT_DIR = hermitDir();
 const SHELL_SESSION = path.join(HERMIT_DIR, 'sessions', 'SHELL.md');
 const HASH_FILE = path.join(HERMIT_DIR, 'sessions', '.eval-hash');
 const RUNTIME_JSON = path.join(HERMIT_DIR, 'state', 'runtime.json');
+const CONFIG_JSON = path.join(HERMIT_DIR, 'config.json');
+
+// config.timezone is the zone Progress Log [HH:MM] stamps are written in (every
+// writer uses currentHHMM(config.timezone)); fail-open to UTC on any read error.
+function configTimezone(): string {
+  try { return (JSON.parse(fs.readFileSync(CONFIG_JSON, 'utf-8')).timezone as string) ?? 'UTC'; }
+  catch { return 'UTC'; }
+}
 
 function evaluateSession(content: Json, tasks: Json[]): Json {
   const results: Json = {
@@ -153,21 +163,27 @@ async function _evaluate(): Promise<string | null> {
 
     // Only nudge during in_progress — not waiting (intentionally paused) or idle
     if (status === 'in_progress') {
-      // Find last progress log timestamp
-      const progressSection = content.match(/## Progress Log\n([\s\S]*?)(?=\n## |$)/);
-      const progressText = progressSection ? progressSection[1].trim() : '';
-      const timeEntries = progressText.match(/\[(\d{1,2}:\d{2})\]/g);
-      if (timeEntries && timeEntries.length > 0) {
-        // Parse session start date from header
-        const startMatch = content.match(/\*\*Started:\*\*\s*(\d{4}-\d{2}-\d{2})/);
-        if (startMatch) {
-          const lastTime = timeEntries[timeEntries.length - 1].replace(/[\[\]]/g, '');
-          const lastDate = new Date(`${startMatch[1]}T${lastTime}:00`);
-          const hoursAgo = (Date.now() - lastDate.getTime()) / (1000 * 60 * 60);
+      // >24h elapsed is unknowable from date-less stamps — use SHELL.md mtime for
+      // the "may be complete" nudge (nothing, not even Monitoring appends, wrote for 48h).
+      let sessionMayBeComplete = false;
+      try { sessionMayBeComplete = (now - fs.statSync(SHELL_SESSION).mtime.getTime()) / 3600000 > 48; }
+      catch { /* fail-open */ }
 
-          if (hoursAgo > 48) {
-            console.error('Session may be complete. Consider /session-close or idle transition.');
-          } else if (hoursAgo > 4) {
+      if (sessionMayBeComplete) {
+        console.error('Session may be complete. Consider /session-close or idle transition.');
+      } else {
+        // Progress Log timestamps are date-less [HH:MM]. Use the bottom-most entry
+        // (append-ordered) and resolve it as its most recent past occurrence, so a
+        // session spanning midnight doesn't backdate today's entries.
+        const progressSection = content.match(/## Progress Log\n([\s\S]*?)(?=\n## |$)/);
+        const progressText = progressSection ? progressSection[1].trim() : '';
+        const timeEntries = progressText.match(/\[(\d{1,2}:\d{2})\]/g);
+        if (timeEntries && timeEntries.length > 0) {
+          const lastTime = timeEntries[timeEntries.length - 1].replace(/[\[\]]/g, '');
+          const nowDate = new Date(now);
+          const nowHHMM = currentHHMM(configTimezone(), nowDate) ?? nowDate.toISOString().slice(11, 16);
+          const hoursAgo = elapsedSinceHHMM(nowHHMM, lastTime) / 3600000;
+          if (hoursAgo > 4) {
             console.error(`No progress logged in ${Math.round(hoursAgo)}h. Update Progress Log or Blockers.`);
           }
         }

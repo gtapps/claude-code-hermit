@@ -168,6 +168,17 @@ function parseDuration(str: unknown, defaultMs: number): number {
   return parseInt(m[1], 10) * mult;
 }
 
+// Elapsed ms from a date-less 'HH:MM' stamp to `nowHHMM`, resolved as the
+// stamp's most recent past occurrence (mod 24h) — a stamp numerically after
+// nowHHMM is yesterday's, not the future. Used where a Progress Log's [HH:MM]
+// entries carry no date.
+function elapsedSinceHHMM(nowHHMM: string, stampHHMM: string): number {
+  const toMin = (s: string) => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
+  let diffMin = toMin(nowHHMM) - toMin(stampHHMM);
+  if (diffMin < 0) diffMin += 1440;
+  return diffMin * 60000;
+}
+
 // Parse the minute/hour fields of a simple numeric 5-field cron schedule
 // (e.g. "0 0 * * *"). Shared by hermit-watchdog.ts (daily-auto-close proximity)
 // and channel-status-responder.ts (next-routine line) — both only need the
@@ -204,4 +215,4 @@ function resolveHermitNowMs(): number {
   return Date.now();
 }
 
-export { currentHHMM, currentHHMMOrUTC, nowHHMMSS, todayYMD, thisWeekKey, thisMonthYYYYMM, nextBoundaryISO, localISOStamp, utcISOStamp, parseDuration, parseSimpleCronTime, friendlyBoundary, resolveHermitNowMs };
+export { currentHHMM, currentHHMMOrUTC, nowHHMMSS, todayYMD, thisWeekKey, thisMonthYYYYMM, nextBoundaryISO, localISOStamp, utcISOStamp, parseDuration, parseSimpleCronTime, friendlyBoundary, resolveHermitNowMs, elapsedSinceHHMM };

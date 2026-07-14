@@ -16,19 +16,9 @@ This file is read only on the EVALUATE path, once the precheck determines a full
 
 **1. Read inputs fresh** — do not reuse values cached from prior reads in this session.
 - `.claude-code-hermit/HEARTBEAT.md` — the checklist items
-- `.claude-code-hermit/config.json` — for `heartbeat.stale_threshold` (default `"2h"`)
-- `.claude-code-hermit/state/runtime.json` — for `session_state`, `session_id`
-- `.claude-code-hermit/state/alert-state.json` — for `self_eval{}` and `total_ticks` only (the
-  Self-Evaluation step below). Do **not** read or reason about `alerts{}` — that bookkeeping is
-  script-owned; nothing in this file needs it.
-- `.claude-code-hermit/sessions/SHELL.md` — for last Progress Log entry timestamp and session `**ID:**`
+- `.claude-code-hermit/sessions/SHELL.md` — for session `**ID:**`
 
-**2. Stale-session check.** If `session_state === 'in_progress'` in `runtime.json`:
-- Find the most recent `[HH:MM]` timestamp in SHELL.md `## Progress Log`.
-- Parse `heartbeat.stale_threshold` from config (default `"2h"`). Compute elapsed since that timestamp (current wall-clock time minus parsed timestamp).
-- If elapsed > stale_threshold: add `stale-session` to the firing set (key: `stale-session`).
-
-**3. Per-item evaluation.** For each item in HEARTBEAT.md:
+**2. Per-item evaluation.** For each item in HEARTBEAT.md:
 - **Default proposals item** (text references `proposals/` and `status: proposed`): skip it entirely.
   `update-alert-state.ts` derives its live state directly from `proposals/` frontmatter every tick,
   independent of anything returned here — there is nothing for you to evaluate or report.
@@ -38,9 +28,9 @@ This file is read only on the EVALUATE path, once the precheck determines a full
 - Collect all firing items with their keys and a short human-readable `text` label for each — see
   § Firing Item Text below for the required style. Items with no matching condition produce nothing.
 
-**4. Self-evaluation:** follow § Self-Evaluation below (only on the every-20-ticks trigger).
+**3. Self-evaluation:** follow § Self-Evaluation below (only on the every-20-ticks trigger).
 
-**5. Return JSON** — see § Return Schema below for the required fields and exact format.
+**4. Return JSON** — see § Return Schema below for the required fields and exact format.
 
 ## Semantic Key Taxonomy
 
@@ -48,16 +38,17 @@ Produce one semantic key per firing item:
 
 | Situation | Key format |
 |-----------|-----------|
-| Stale session | `stale-session` |
 | Checklist item | `checklist:<first-8-chars-of-item-normalized>` |
 | Waiting timeout | `waiting-timeout` |
 | Custom / freeform | `custom:<first-100-chars-normalized>` — fallback only |
 
 Normalise: lowercase, remove non-alphanumeric characters, truncate at the listed limit.
 
-**Never** emit a `micro-proposal-pending:*` or `proposal-pending:*` key. Those are derived and owned
-entirely by `update-alert-state.ts` from `state/micro-proposals.json` and `proposals/*.md` frontmatter —
-an entry you emit under either prefix is dropped as a phantom and has no effect.
+**Never** emit a `micro-proposal-pending:*` or `proposal-pending:*` key, or the `stale-session` key.
+Those are derived and owned entirely by `update-alert-state.ts` — the two prefixes from
+`state/micro-proposals.json` and `proposals/*.md` frontmatter, `stale-session` from `runtime.json` +
+the bottom-most SHELL.md Progress Log timestamp — an entry you emit under any of them is dropped as
+a phantom and has no effect.
 
 ## Firing Item Text
 

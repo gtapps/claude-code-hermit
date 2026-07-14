@@ -23,10 +23,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   readAlertState, defaultAlertState, quarantineAlertState, writeAlertState,
-  classifyTick, deriveMicroPendingKeys, deriveProposalPendingKeys, FiringItem,
-  MICRO_PREFIX, PROPOSAL_PREFIX, isStructuredKey,
+  classifyTick, deriveMicroPendingKeys, deriveProposalPendingKeys, deriveStaleSession, FiringItem,
+  MICRO_PREFIX, PROPOSAL_PREFIX, STALE_KEY, isStructuredKey,
 } from './lib/alert-state';
-import { currentHHMM, todayYMD, resolveHermitNowMs } from './lib/time';
+import { currentHHMM, todayYMD, resolveHermitNowMs, parseDuration } from './lib/time';
 
 type Json = any;
 
@@ -79,7 +79,7 @@ function apply(payloadJson: string): void {
 
   const validated = validateFiring(payload.firing);
   if (validated === null) process.exit(0); // malformed firing shape — reject the tick, no write
-  const modelFiring = validated.filter(f => !isStructuredKey(f.key));
+  const modelFiring = validated.filter(f => !isStructuredKey(f.key) && f.key !== STALE_KEY);
 
   const selfEvalUpdates: Json =
     payload.self_eval_updates && typeof payload.self_eval_updates === 'object' && !Array.isArray(payload.self_eval_updates)
@@ -114,6 +114,10 @@ function apply(payloadJson: string): void {
 
   const micro = deriveMicroPendingKeys(stateDir);
   const proposal = deriveProposalPendingKeys(stateDir);
+  const stale = deriveStaleSession(stateDir, {
+    hhmmNow: hhmm,
+    staleThresholdMs: parseDuration(config.heartbeat?.stale_threshold, 2 * 3600000),
+  });
 
   // Fail-safe: an ambiguous source-of-truth read must never age or resolve
   // that prefix's existing entries this tick (the exact #594 harm this
@@ -127,14 +131,15 @@ function apply(payloadJson: string): void {
   };
   if (!micro.ok) freezePrefix(MICRO_PREFIX);
   if (!proposal.ok) freezePrefix(PROPOSAL_PREFIX);
+  if (!stale.ok) freezePrefix(STALE_KEY);
 
   // An ambiguous structured read means this tick's view is partial: never report
   // a verified-clean eval (would arm the precheck damper over an unverifiable
   // pending decision) and never emit/advance the digest on a partial view.
-  const hasStructuredReadFailure = !micro.ok || !proposal.ok;
+  const hasStructuredReadFailure = !micro.ok || !proposal.ok || !stale.ok;
 
   const structuredItems = [...(micro.ok ? micro.items : []), ...(proposal.ok ? proposal.items : [])];
-  const firing: FiringItem[] = [...modelFiring, ...structuredItems];
+  const firing: FiringItem[] = [...modelFiring, ...structuredItems, ...(stale.ok ? stale.items : [])];
 
   // Structured keys' text bakes in a raw PROP-NNN/MP-… id, which must never
   // reach the operator channel (house channel-voice rule) — silence their

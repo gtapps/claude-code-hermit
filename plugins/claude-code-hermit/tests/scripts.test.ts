@@ -16,6 +16,7 @@ import path from 'node:path';
 
 import { runScript, PLUGIN_ROOT, SCRIPTS_DIR, MONOREPO_ROOT } from './helpers/run';
 import { setupWorkdir, fixturesDir, type Workdir } from './helpers/workdir';
+import { deriveStaleSession, STALE_KEY } from '../scripts/lib/alert-state';
 
 // In-process imports — pure libs with no import-time CWD dependence.
 import { safeForLLM, safeForLLMMultiline } from '../scripts/lib/sanitize';
@@ -668,8 +669,8 @@ describe('update-alert-state', () => {
 
   test('update-alert-state (new firing item creates entry, notifies once, preserves total_ticks)', withDir(async (dir) => {
     write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"total_ticks":5}');
-    const { state, stdout } = await updateAlertState(dir, firingPayload([{ key: 'stale-session', text: 'Session idle 3h' }]));
-    expect(state.alerts['stale-session']).toEqual({
+    const { state, stdout } = await updateAlertState(dir, firingPayload([{ key: 'checklist:idle0001', text: 'Session idle 3h' }]));
+    expect(state.alerts['checklist:idle0001']).toEqual({
       count: 1, consecutive_clean: 0, suppressed: false, first_seen: '2026-07-10', last_seen: '2026-07-10', text: 'Session idle 3h',
     });
     expect(state.total_ticks).toBe(5); // precheck-owned — must survive untouched
@@ -680,11 +681,11 @@ describe('update-alert-state', () => {
 
   test('update-alert-state (repeat fire increments count, no notification on ticks 2-4)', withDir(async (dir) => {
     write(hermit(dir, 'state', 'alert-state.json'),
-      '{"alerts":{"stale-session":{"count":1,"consecutive_clean":0,"suppressed":false,"first_seen":"2026-07-08","last_seen":"2026-07-08","text":"old text"}},"self_eval":{},"total_ticks":10}');
-    const { state, stdout } = await updateAlertState(dir, firingPayload([{ key: 'stale-session', text: 'Session idle 5h' }]));
-    expect(state.alerts['stale-session'].count).toBe(2);
-    expect(state.alerts['stale-session'].suppressed).toBe(false);
-    expect(state.alerts['stale-session'].text).toBe('Session idle 5h'); // label refreshed
+      '{"alerts":{"checklist:idle0001":{"count":1,"consecutive_clean":0,"suppressed":false,"first_seen":"2026-07-08","last_seen":"2026-07-08","text":"old text"}},"self_eval":{},"total_ticks":10}');
+    const { state, stdout } = await updateAlertState(dir, firingPayload([{ key: 'checklist:idle0001', text: 'Session idle 5h' }]));
+    expect(state.alerts['checklist:idle0001'].count).toBe(2);
+    expect(state.alerts['checklist:idle0001'].suppressed).toBe(false);
+    expect(state.alerts['checklist:idle0001'].text).toBe('Session idle 5h'); // label refreshed
     expect(stdout.monitoring_lines).toEqual(['[12:00] Heartbeat: Session idle 5h']);
     expect(stdout.notifications).toEqual([]); // repeat fire — no re-notification
   }));
@@ -740,7 +741,7 @@ describe('update-alert-state', () => {
     expect(clean.last_clean_eval_at).toBe(NOW);
 
     write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"last_clean_eval_at":"2026-06-20T10:00:00.000Z","total_ticks":1}');
-    const { state: alerting } = await updateAlertState(dir, firingPayload([{ key: 'stale-session', text: 'x' }]));
+    const { state: alerting } = await updateAlertState(dir, firingPayload([{ key: 'checklist:idle0001', text: 'x' }]));
     expect(alerting.last_clean_eval_at).toBeNull();
   }));
 
@@ -810,10 +811,10 @@ describe('update-alert-state', () => {
     // Regression: apostrophes broke single-quoted argv passing.
     write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"total_ticks":7}');
     const { state } = await updateAlertState(dir, firingPayload(
-      [{ key: 'stale-session', text: "the session's been idle" }],
+      [{ key: 'checklist:idle0001', text: "the session's been idle" }],
       { 'last-note': "prod's disk > 80%" },
     ));
-    expect(state.alerts['stale-session'].text).toBe("the session's been idle");
+    expect(state.alerts['checklist:idle0001'].text).toBe("the session's been idle");
     expect(state.self_eval['last-note']).toBe("prod's disk > 80%");
     expect(state.total_ticks).toBe(7);
   }));
@@ -997,6 +998,137 @@ describe('update-alert-state', () => {
     expect(stdout.notifications).toEqual([]); // digest suppressed despite the checklist alert being due
     expect(state.last_digest_date).toBeNull(); // digest clock not advanced on a partial view
     expect(state.alerts['micro-proposal-pending:MP-1']).toBeDefined(); // frozen entry preserved
+  }));
+
+  // -----------------------------------------------------------------------
+  // stale-session derivation — script-derived like the structured keys above,
+  // but notify-eligible (its text carries no internal id). These pin the
+  // regression: sessions spanning midnight were false-alarmed because the
+  // eval model picked the numerically-largest date-less [HH:MM] instead of
+  // the append-ordered last entry.
+  // -----------------------------------------------------------------------
+
+  test('update-alert-state (derives stale-session from a quiet in_progress SHELL.md, notifies)', withDir(async (dir) => {
+    write(hermit(dir, 'config.json'), JSON.stringify({ timezone: 'UTC', heartbeat: { stale_threshold: '2h' } }));
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"in_progress"}');
+    write(hermit(dir, 'sessions', 'SHELL.md'), '# Active Session\n\n## Progress Log\n- [09:00] last thing\n');
+    write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"total_ticks":1}');
+    const { state, stdout } = await updateAlertState(dir, firingPayload([]), { HERMIT_NOW: '2026-07-10T15:00:00.000Z' });
+    expect(stdout.heartbeat_result).toBe('ALERT');
+    expect(state.alerts[STALE_KEY]).toBeDefined();
+    expect(state.alerts[STALE_KEY].text).toContain('[09:00]');
+    expect(stdout.notifications.length).toBe(1); // unlike structured keys, stale-session DOES notify on first fire
+  }));
+
+  test('update-alert-state (cross-midnight fresh activity does not derive stale-session — the enodo regression)', withDir(async (dir) => {
+    write(hermit(dir, 'config.json'), JSON.stringify({ timezone: 'UTC', heartbeat: { stale_threshold: '2h' } }));
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"in_progress"}');
+    write(hermit(dir, 'sessions', 'SHELL.md'),
+      '# Active Session\n\n## Progress Log\n- [21:23] worked on queue item 1\n- [14:38] resumed queue work\n- [15:50] finished item 3\n');
+    write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"total_ticks":1}');
+    const { state, stdout } = await updateAlertState(dir, firingPayload([]), { HERMIT_NOW: '2026-07-14T16:30:00.000Z' });
+    expect(state.alerts[STALE_KEY]).toBeUndefined();
+    expect(stdout.heartbeat_result).toBe('OK');
+  }));
+
+  test('update-alert-state (model-emitted stale-session is dropped as a phantom — the model may never author this key)', withDir(async (dir) => {
+    write(hermit(dir, 'config.json'), JSON.stringify({ timezone: 'UTC', heartbeat: { stale_threshold: '2h' } }));
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"in_progress"}');
+    write(hermit(dir, 'sessions', 'SHELL.md'),
+      '# Active Session\n\n## Progress Log\n- [21:23] worked on queue item 1\n- [14:38] resumed queue work\n- [15:50] finished item 3\n');
+    write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"total_ticks":1}');
+    const { state } = await updateAlertState(
+      dir,
+      JSON.stringify({ firing: [{ key: 'stale-session', text: 'model-invented' }], self_eval_updates: {} }),
+      { HERMIT_NOW: '2026-07-14T16:30:00.000Z' },
+    );
+    expect(state.alerts[STALE_KEY]).toBeUndefined();
+  }));
+
+  test('update-alert-state (stale-session resolves after 2 clean ticks, same ladder as other keys)', withDir(async (dir) => {
+    write(hermit(dir, 'config.json'), JSON.stringify({ timezone: 'UTC', heartbeat: { stale_threshold: '2h' } }));
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"in_progress"}');
+    write(hermit(dir, 'sessions', 'SHELL.md'),
+      '# Active Session\n\n## Progress Log\n- [15:50] finished item 3\n');
+    write(hermit(dir, 'state', 'alert-state.json'), JSON.stringify({
+      alerts: { [STALE_KEY]: { count: 1, consecutive_clean: 1, suppressed: false, first_seen: '2026-07-13', last_seen: '2026-07-13', text: 'stale' } },
+      self_eval: {}, total_ticks: 5,
+    }));
+    const { state } = await updateAlertState(dir, firingPayload([]), { HERMIT_NOW: '2026-07-14T16:30:00.000Z' });
+    expect(state.alerts[STALE_KEY]).toBeUndefined(); // resolved and removed
+  }));
+
+  test('update-alert-state (idle session never derives stale-session even with a stale-looking log)', withDir(async (dir) => {
+    write(hermit(dir, 'config.json'), JSON.stringify({ timezone: 'UTC', heartbeat: { stale_threshold: '2h' } }));
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"idle"}');
+    write(hermit(dir, 'sessions', 'SHELL.md'), '# Active Session\n\n## Progress Log\n- [09:00] last thing\n');
+    write(hermit(dir, 'state', 'alert-state.json'), '{"alerts":{},"self_eval":{},"total_ticks":1}');
+    const { state } = await updateAlertState(dir, firingPayload([]), { HERMIT_NOW: '2026-07-10T15:00:00.000Z' });
+    expect(state.alerts[STALE_KEY]).toBeUndefined();
+  }));
+});
+
+// -------------------------------------------------------
+// deriveStaleSession (pure function, in-process) — unit coverage for the
+// bottom-most-entry + mod-24 resolution the e2e tests above exercise through
+// update-alert-state.ts. hhmmNow is passed directly so no clock mocking needed.
+// -------------------------------------------------------
+
+describe('deriveStaleSession', () => {
+  const TWO_HOURS_MS = 2 * 3600000;
+
+  function seed(dir: string, opts: { progressLog: string; sessionState?: string }) {
+    write(hermit(dir, 'state', 'runtime.json'), JSON.stringify({ session_state: opts.sessionState ?? 'in_progress' }));
+    write(hermit(dir, 'sessions', 'SHELL.md'), `# Active Session\n\n## Progress Log\n${opts.progressLog}`);
+  }
+
+  test('cross-midnight fresh activity resolves to the bottom-most entry, not the numerically-largest', withDir((dir) => {
+    seed(dir, { progressLog: '- [21:23] worked on queue item 1\n- [14:38] resumed queue work\n- [15:50] finished item 3\n' });
+    const r = deriveStaleSession(hermit(dir), { hhmmNow: '16:30', staleThresholdMs: TWO_HOURS_MS });
+    expect(r).toEqual({ ok: true, items: [] });
+  }));
+
+  test('genuinely stale session fires with the bottom-most entry and correct elapsed hours', withDir((dir) => {
+    seed(dir, { progressLog: '- [09:00] last thing\n' });
+    const r = deriveStaleSession(hermit(dir), { hhmmNow: '15:00', staleThresholdMs: TWO_HOURS_MS });
+    expect(r.ok).toBe(true);
+    expect(r.items).toHaveLength(1);
+    expect(r.items[0].key).toBe(STALE_KEY);
+    expect(r.items[0].text).toContain('[09:00]');
+    expect(r.items[0].text).toContain('~6.0h');
+  }));
+
+  test('midnight wraparound with a recent entry does not fire (elapsed resolves to <1h, not 23h+)', withDir((dir) => {
+    seed(dir, { progressLog: '- [23:50] late-night item\n' });
+    const r = deriveStaleSession(hermit(dir), { hhmmNow: '00:30', staleThresholdMs: TWO_HOURS_MS });
+    expect(r).toEqual({ ok: true, items: [] });
+  }));
+
+  test('idle session (or missing runtime.json) never fires', withDir((dir) => {
+    seed(dir, { progressLog: '- [09:00] last thing\n', sessionState: 'idle' });
+    const r = deriveStaleSession(hermit(dir), { hhmmNow: '15:00', staleThresholdMs: TWO_HOURS_MS });
+    expect(r).toEqual({ ok: true, items: [] });
+
+    fs.rmSync(hermit(dir, 'state', 'runtime.json'));
+    const r2 = deriveStaleSession(hermit(dir), { hhmmNow: '15:00', staleThresholdMs: TWO_HOURS_MS });
+    expect(r2).toEqual({ ok: true, items: [] });
+  }));
+
+  test('in_progress with SHELL.md absent (ENOENT) does not fire; unreadable SHELL.md (EISDIR) freezes (ok:false)', withDir((dir) => {
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"in_progress"}');
+    fs.rmSync(hermit(dir, 'sessions', 'SHELL.md'));
+    const r = deriveStaleSession(hermit(dir), { hhmmNow: '15:00', staleThresholdMs: TWO_HOURS_MS });
+    expect(r).toEqual({ ok: true, items: [] });
+
+    fs.mkdirSync(hermit(dir, 'sessions', 'SHELL.md')); // a dir where a file is expected → EISDIR, ambiguous
+    const r2 = deriveStaleSession(hermit(dir), { hhmmNow: '15:00', staleThresholdMs: TWO_HOURS_MS });
+    expect(r2.ok).toBe(false);
+  }));
+
+  test('Progress Log section with no [HH:MM] entries does not fire', withDir((dir) => {
+    seed(dir, { progressLog: '' });
+    const r = deriveStaleSession(hermit(dir), { hhmmNow: '15:00', staleThresholdMs: TWO_HOURS_MS });
+    expect(r).toEqual({ ok: true, items: [] });
   }));
 });
 
