@@ -11,9 +11,8 @@
  */
 
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { acquireLock, releaseLock } from './lib/lockfile';
 import { writeRuntimeJson, readRuntimeJson, STATE_DIR, RUNTIME_JSON, RUNTIME_TMP, LIFECYCLE_LOCK } from './lib/runtime';
@@ -305,106 +304,6 @@ function isContainer(): boolean {
     fs.existsSync('/run/.containerenv') ||
     process.env.container === 'docker'
   );
-}
-
-/**
- * Return true if the effective sandbox.enabled state is true.
- *
- * Respects Claude Code's merge order: settings.local.json overrides settings.json.
- * The last file that explicitly declares sandbox.enabled wins. Non-bool values
- * (e.g., the string "false") are treated as undeclared, not coerced via Boolean().
- */
-function isSandboxEnabled(): boolean {
-  let result: boolean | null = null;
-  for (const p of ['.claude/settings.json', '.claude/settings.local.json']) {
-    try {
-      const s = JSON.parse(fs.readFileSync(p, 'utf-8'));
-      if (!isDict(s)) continue;
-      const sandbox = s.sandbox || {};
-      if (!isDict(sandbox)) continue;
-      if ('enabled' in sandbox && typeof sandbox.enabled === 'boolean') {
-        result = sandbox.enabled;
-      }
-    } catch {}
-  }
-  return result === true;
-}
-
-/** Python str(float) for st_mtime: integral floats render with a trailing '.0'. */
-function pyFloatStr(x: number): string {
-  if (Number.isInteger(x) && Math.abs(x) < 1e16) return x.toFixed(1);
-  return String(x);
-}
-
-/** Python str(os.path.getmtime(p)): st_mtime is computed as sec + 1e-9 * nsec. */
-function getmtimeStr(p: string): string {
-  const ns = fs.statSync(p, { bigint: true }).mtimeNs;
-  const sec = Number(ns / 1_000_000_000n);
-  const nsec = Number(ns % 1_000_000_000n);
-  return pyFloatStr(sec + 1e-9 * nsec);
-}
-
-/** Run sandbox-probe.ts (via bun); cache result keyed on a system fingerprint. */
-function sandboxProbeCached(): Json | null {
-  const probeCache = path.join(STATE_DIR, 'sandbox-probe.json');
-  const probeScript = path.join(PLUGIN_ROOT, 'scripts', 'sandbox-probe.ts');
-  if (!fs.existsSync(probeScript)) return null;
-
-  const bwrapPath = Bun.which('bwrap') || '';
-  const socatPath = Bun.which('socat') || '';
-  let bwrapMtime = '';
-  let socatMtime = '';
-  try {
-    bwrapMtime = bwrapPath ? getmtimeStr(bwrapPath) : '';
-    socatMtime = socatPath ? getmtimeStr(socatPath) : '';
-  } catch {
-    bwrapMtime = socatMtime = '';
-  }
-  const fpRaw = `${os.release()}|${bwrapPath}|${bwrapMtime}|${socatPath}|${socatMtime}`;
-  const fingerprint = createHash('sha1').update(fpRaw).digest('hex').slice(0, 16);
-
-  try {
-    const cached = JSON.parse(fs.readFileSync(probeCache, 'utf-8'));
-    if (cached.fingerprint === fingerprint) {
-      const cachedResult = cached.result;
-      if (isDict(cachedResult)) return cachedResult;
-      // Corrupted cache (non-dict result) — fall through to re-probe.
-    }
-  } catch {}
-
-  let result: Json;
-  try {
-    const out = spawnSync('bun', [probeScript], { timeout: 10_000, encoding: 'utf-8' });
-    if (out.status !== 0) return null;
-    result = JSON.parse(out.stdout);
-    if (!isDict(result)) return null;
-  } catch {
-    return null;
-  }
-
-  try {
-    fs.mkdirSync(STATE_DIR, { recursive: true });
-    fs.writeFileSync(probeCache, JSON.stringify({ fingerprint, result }));
-  } catch {}
-
-  return result;
-}
-
-/**
- * Warn to stdout if sandbox is enabled but deps are unavailable.
- *
- * Skipped inside containers: the container is the isolation boundary, so there is
- * nothing to warn about (and probing would always fail in unprivileged containers).
- */
-function checkSandboxCapability(): void {
-  if (!isSandboxEnabled()) return;
-  if (isContainer()) return;
-  const probe = sandboxProbeCached();
-  if (!pyTruthy(probe) || probe.status === 'pass') return;
-  const msg = 'message' in probe ? probe.message : 'Sandbox may not start.';
-  console.log(`[hermit] Warning: sandbox enabled but: ${msg}`);
-  const hint = probe.install_hint;
-  if (pyTruthy(hint)) console.log(`[hermit] Fix: ${hint}`);
 }
 
 /** Check for stale runtime state from a previous run and warn. */
@@ -871,7 +770,6 @@ async function main(): Promise<void> {
   acquireLifecycleLock();
   checkForUpgrade(config);
   const tools = checkPrerequisites();
-  checkSandboxCapability();
   const cmd = buildClaudeCommand(config, tools);
   const sessionName = getSessionName(config);
 
@@ -1119,9 +1017,6 @@ export {
   checkForUpgrade,
   checkPrerequisites,
   isContainer,
-  isSandboxEnabled,
-  sandboxProbeCached,
-  checkSandboxCapability,
   writeRuntimeJson,
   readRuntimeJson,
   checkStaleRuntime,

@@ -640,36 +640,23 @@ Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <resolved-settings-file
 
 Do NOT include `Bash(docker *)`, `Bash(kubectl *)`, `Bash(ssh *)` in hatch — these are valid in devops contexts on the host. Docker-setup includes them because the container should not spawn child containers or SSH out.
 
-### 9a. Sandbox profile (silent auto-apply, no question)
+### 9a. Sandbox nudge (informational only, no question, no write)
 
-Configure the Claude Code bash sandbox for this hermit when the system supports it. The sandbox isolates bash tool calls at the OS level (`bwrap` on Linux/WSL2, `sandbox-exec` on macOS), adding defense in depth on top of the `permissions.deny` rules from Step 9. This step asks the operator no questions — silent secure default when deps are present, silent skip when they're not.
+Claude Code ships its own native bash sandbox (`sandbox.*` settings, `bwrap`/`sandbox-exec`) with its own setup command (`/sandbox`). Hermit does not probe for it or configure it — predicting whether CC's own sandbox spawn will succeed from outside CC is unreliable and previously caused false-positive auto-configuration that broke Bash mid-hatch. This step only prints a one-time pointer; it never writes `sandbox.*`.
 
 **Step:**
 
 1. **Resolve target settings file** using `hatch_target` (`local` → `.claude/settings.local.json`; `committed` → `.claude/settings.json`).
 
-2. **Skip if operator already has sandbox config.** Check if the target settings file already has any of these *operator-intent* keys under `sandbox`: `enabled`, `filesystem`, `network`, `failIfUnavailable`, `autoAllowBashIfSandboxed`, `allowUnsandboxedCommands`. If any are present, skip silently — tell the operator once: "Existing sandbox config preserved." Continue to Step 9b.
+2. **Branch on deployment:**
 
-   **Important:** `sandbox.enableWeakerNestedSandbox` does NOT count as operator config — it's a legacy hermit-managed key (`hermit-start` strips it on boot). Ignore it when deciding whether to skip.
+   **If `deployment == docker`**: print a one-line informational note (never a recommendation — recommending an in-container sandbox would push operators toward the Ubuntu 24.04+ AppArmor path where `bwrap` can't start in-container): "In Docker the container is the isolation boundary (Anthropic-recommended for unattended runs). Claude Code's bash sandbox is off by default; `bubblewrap`/`socat` are installed, so `/sandbox` is available if you want in-container defense-in-depth." No settings write.
 
-3. **Probe capability**:
-   ```bash
-   bun ${CLAUDE_PLUGIN_ROOT}/scripts/sandbox-probe.ts
-   ```
-   Parse the JSON `status` field.
+   For non-Docker deployments (`tmux` or `interactive`), check the target settings file for an already-declared `sandbox.enabled` key (either value):
+   - **Not declared**: print a one-time recommendation — "Bash sandboxing isn't set up. Claude Code can isolate Bash calls at the OS level — recommended. Run `/sandbox` to enable it (its Dependencies tab checks bubblewrap/socat for you); docs: https://code.claude.com/docs/en/sandboxing."
+   - **Already declared**: stay silent — the operator already made the call.
 
-4. **Branch on deployment + probe status:**
-
-   **If `deployment == docker`**: regardless of probe result, run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <resolved-settings-file> sandbox off`. One-line note: "Sandbox off for Docker — the container is the isolation boundary (Anthropic-recommended): https://code.claude.com/docs/en/sandboxing". Skip the rest of Step 4a.
-
-   For non-Docker deployments (`tmux` or `interactive`), branch on probe status:
-   - `"pass"`: run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <resolved-settings-file> sandbox standard` (reads `state-templates/sandbox-profiles.json` `standard` entry and merges `sandbox.filesystem.denyRead` from `deny-patterns.json`). One-line note to the operator: "Sandbox enabled (standard profile, written to {file})."
-   - `"warn"`:
-     - If `deployment == tmux`: run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <resolved-settings-file> sandbox off`. Note: "Sandbox off — user-namespaces appear blocked on this host (`{message}`). An always-on hermit relies on sandbox-free spawn for heartbeat and /watch monitors. Install the host bwrap AppArmor profile (`{install_hint}`) to re-enable later, then set `sandbox.enabled:true`."
-     - Otherwise (`deployment == interactive`): surface the probe `message` verbatim to the operator first, then run the `sandbox standard` command. One-line note: "Sandbox configured (standard profile, may degrade silently per warning above; written to {file})."
-   - `"fail"`: do NOT write any sandbox block. Print a single line with the install hint from the probe result: "Sandbox unavailable: {message} — run `{install_hint}` to enable later, then re-run `/claude-code-hermit:hermit-evolve`." Continue.
-
-No `AskUserQuestion`. Operators who want the sandbox off can set `sandbox.enabled: false` in their settings file at any time — documented in `docs/faq.md`.
+No `AskUserQuestion` — enabling or disabling `sandbox.*` is entirely the operator's call via `/sandbox` or by editing their settings file directly.
 
 ### 9b. Persist hatch options
 

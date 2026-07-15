@@ -86,7 +86,7 @@ Only the five `git`/`npm`/`--no-verify` entries reach the native `settings.json 
 | Layer               | Where           | Enforcement           |
 | ------------------- | --------------- | --------------------- |
 | Deny patterns       | `settings.json` | Mechanical*           |
-| Bash sandbox        | `settings.json` (`sandbox.*`) | Kernel-enforced (`bwrap`); credential path denies + optional network isolation — auto-configured by `/hatch` |
+| Bash sandbox        | `settings.json` (`sandbox.*`) | Kernel-enforced (`bwrap`); Claude Code's own native sandbox — hermit does not configure it, see [Bash Sandbox](#bash-sandbox) below |
 | Agent-level rules   | `agents/*.md`   | Instruction-following |
 | Hook enforcement    | `hooks.json`    | Mechanical            |
 | Config isolation    | Named volume    | Mechanical            |
@@ -135,18 +135,13 @@ Claude Code's `--permission-mode auto` (the hermit's default) routes tool calls 
 
 ## Bash Sandbox
 
-`/hatch` auto-configures Claude Code's native bash sandbox (v2.1.150+) on probe pass. The standard profile:
+Hermit does not probe for or configure Claude Code's native bash sandbox (`sandbox.*` settings, `bwrap`/`sandbox-exec`). Predicting whether CC's own sandbox spawn would succeed from outside CC proved unreliable — a false-positive probe could enable a sandbox profile that then broke every subsequent Bash call, with no in-session recovery. `/hatch` instead prints a one-time pointer to CC's own setup: run `/sandbox` (its Dependencies tab checks `bwrap`/`socat` for you) or see the [sandbox docs](https://code.claude.com/docs/en/sandboxing).
 
-- **Filesystem:** denies reads of `~/.aws`, `~/.ssh`, `~/.gnupg`
-- **Network:** unrestricted (no outbound block at this layer — use `/docker-security` for egress control)
+**Docker:** `bubblewrap`/`socat` stay installed in the hermit image so `/sandbox` is available in-container if you want it, but hermit writes nothing (Claude Code's sandbox is off by default). The container boundary (`cap_drop:ALL`, `no-new-privileges`, network policy) is the isolation layer Anthropic recommends for unattended runs, and the nested bwrap sandbox is optional defense-in-depth on top of it (https://code.claude.com/docs/en/sandbox-environments). Note: on Ubuntu 24.04+ hosts (`kernel.apparmor_restrict_unprivileged_userns=1`, the 23.10+ default) the AppArmor `docker-default` policy blocks `bwrap` from creating user-namespaces in-container, so an in-container sandbox may not start there and — if forced on regardless — would silently kill heartbeat and `/watch` Monitor subprocesses.
 
-The sandbox wraps every `Bash` tool call with `bwrap` (Linux) or the platform equivalent. If the probe fails (bubblewrap unavailable), `/hatch` prints an install hint and skips.
+**Enabling or disabling:** entirely the operator's call — run `/sandbox` or edit `sandbox.enabled` in your settings file directly. Hermit never writes this key.
 
-**Docker:** for container deployments the bash sandbox is set off (`sandbox.enabled:false`) at `/hatch` / `/docker-setup` time. The container boundary (`cap_drop:ALL`, `no-new-privileges`, network policy) is the isolation layer Anthropic recommends for unattended runs, and the nested bwrap sandbox is optional defense-in-depth rather than required (https://code.claude.com/docs/en/sandbox-environments). It is left off for two reasons: on Ubuntu 24.04+ hosts (`kernel.apparmor_restrict_unprivileged_userns=1`, the 23.10+ default) the AppArmor `docker-default` policy blocks `bwrap` from creating user-namespaces in-container, so it can't start and would silently kill heartbeat and `/watch` Monitor subprocesses; and running it where it *can* start (a host without the userns block) needs `enableWeakerNestedSandbox` — which only addresses the in-container `/proc` case, not a blocked user-namespace — and which Anthropic notes "considerably weakens security." `hermit-start` does not manage this key at runtime — existing installs are migrated once by `/hermit-evolve` (which asks before changing it).
-
-**Opting out:** set `sandbox.enabled: false` in your settings file.
-
-**Re-enabling on a host (tmux):** if a `warn` probe disabled the sandbox at hatch time, install the bwrap AppArmor profile on the host (per the [sandbox docs](https://code.claude.com/docs/en/sandboxing)), then set `sandbox.enabled:true` and delete `.claude-code-hermit/state/sandbox-probe.json` to clear the cached probe result.
+**Credential protection:** Claude Code's default sandbox read policy still allows reads of `~/.aws`, `~/.ssh`, and `~/.gnupg`. If you enable the sandbox, add a `sandbox.credentials` block (or `sandbox.filesystem.denyRead`) to block them — earlier hermit versions wrote these denies for you, but hermit no longer manages `sandbox.*`, so this is now yours to set. See the [sandbox docs](https://code.claude.com/docs/en/sandboxing#protect-credentials).
 
 **Custom CA / MITM proxies:** tools that use a corporate proxy with a custom certificate authority may need `"enableWeakerNetworkIsolation": true` in the `sandbox` block. See the [FAQ](faq.md) for details.
 
@@ -218,7 +213,7 @@ Beyond the always-on baseline above, `/claude-code-hermit:docker-security` is an
 
 ## Security Checklist
 
-- [ ] Bash sandbox enabled — auto-configured by `/hatch` on supported hosts (check `sandbox.enabled` in settings file); `bubblewrap` required on Linux
+- [ ] Bash sandbox enabled (optional, operator's call — run `/sandbox`; `bubblewrap`/`socat` required on Linux, see [Bash Sandbox](#bash-sandbox))
 - [ ] Docker/VM if using `permission_mode: "bypassPermissions"` — see [Always-On Setup](always-on.md)
 - [ ] Non-root user inside container
 - [ ] Container hardening stanzas present (`no-new-privileges`, `cap_drop`, `pids_limit`) — generated by `/docker-setup` v1.0.26+

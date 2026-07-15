@@ -10,7 +10,7 @@ Only via WSL2. Clone your project inside WSL2 (`/home/you/project`), not on the 
 
 ## How does bash sandboxing work?
 
-The sandbox isolates bash tool calls at the OS level — `sandbox-exec` on macOS (built in, nothing to install) and `bwrap` + `socat` on Linux/WSL2. The `/hatch` wizard enables it by default at the "standard" profile, which protects credential paths (`~/.aws`, `~/.ssh`, `~/.gnupg`) while leaving network unrestricted so tools like `gh`, `npm`, and `pip` work on first run.
+The sandbox isolates bash tool calls at the OS level — `sandbox-exec` on macOS (built in, nothing to install) and `bwrap` + `socat` on Linux/WSL2. Hermit doesn't manage it: run Claude Code's own `/sandbox` command to enable it (its Dependencies tab checks `bwrap`/`socat` for you), or see the [sandbox docs](https://code.claude.com/docs/en/sandboxing).
 
 If your tooling uses a custom certificate authority (e.g. `gcloud` with a MITM proxy), you may need `"enableWeakerNetworkIsolation": true` in your `sandbox` settings block — see the [Claude Code sandbox docs](https://code.claude.com/docs/en/settings#sandbox-settings).
 

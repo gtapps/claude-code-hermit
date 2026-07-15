@@ -26,15 +26,6 @@
     "Edit(*/.claude/plugins/marketplaces/*)",
     "Write(*/.claude/plugins/marketplaces/*)"
   ],
-  "sandbox": {
-    "filesystem": {
-      "denyRead": [
-        "~/.aws",
-        "~/.ssh",
-        "~/.gnupg"
-      ]
-    }
-  },
   "always_on": [
     "Bash(ssh *)",
     "Bash(docker *)",

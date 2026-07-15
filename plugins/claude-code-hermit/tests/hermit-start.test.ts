@@ -10,9 +10,6 @@
 //     time by isContainer()). Tests that need is_container() === false rely
 //     on the host genuinely not being a container and are skipped inside
 //     real containers (CI runs on VM runners, so they run there).
-//   - `_sandbox_probe_cached` / `subprocess.run` patches → a pre-seeded
-//     state/sandbox-probe.json whose fingerprint is computed exactly the
-//     way hermit-start.ts computes it.
 //   - `sys.exit` / stdout capture → temporary process.exit / console.log
 //     overrides (both are mutable harness objects, unlike module exports).
 //
@@ -27,7 +24,6 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
 
 import {
   DEFAULT_CONFIG,
@@ -36,9 +32,6 @@ import {
   iterChannelConfigs,
   writeSettingsEnv,
   applyArtifactGrant,
-  isSandboxEnabled,
-  sandboxProbeCached,
-  checkSandboxCapability,
   applyAlwaysOnDoctorSchedule,
   clearShutdownStampsOnBoot,
   clearStatusCacheOnBoot,
@@ -190,39 +183,6 @@ async function runBuildClaudeCommand(
   ]);
   if (exitCode !== 0) throw new Error(`harness exited ${exitCode}: ${stderr}`);
   return JSON.parse(stdout);
-}
-
-// ---------- sandbox-probe cache fingerprint (computed the way hermit-start.ts does) ----------
-
-function pyFloatStr(x: number): string {
-  if (Number.isInteger(x) && Math.abs(x) < 1e16) return x.toFixed(1);
-  return String(x);
-}
-
-function getmtimeStr(p: string): string {
-  const ns = fs.statSync(p, { bigint: true }).mtimeNs;
-  return pyFloatStr(Number(ns / 1_000_000_000n) + 1e-9 * Number(ns % 1_000_000_000n));
-}
-
-function realFingerprint(): string {
-  const bwrapPath = Bun.which('bwrap') || '';
-  const socatPath = Bun.which('socat') || '';
-  let bwrapMtime = '';
-  let socatMtime = '';
-  try {
-    bwrapMtime = bwrapPath ? getmtimeStr(bwrapPath) : '';
-    socatMtime = socatPath ? getmtimeStr(socatPath) : '';
-  } catch {
-    bwrapMtime = socatMtime = '';
-  }
-  const fpRaw = `${os.release()}|${bwrapPath}|${bwrapMtime}|${socatPath}|${socatMtime}`;
-  return createHash('sha1').update(fpRaw).digest('hex').slice(0, 16);
-}
-
-const PROBE_CACHE = '.claude-code-hermit/state/sandbox-probe.json';
-
-function seedProbeCache(result: any, fingerprint: string = realFingerprint()): void {
-  fs.writeFileSync(PROBE_CACHE, JSON.stringify({ fingerprint, result }));
 }
 
 // ============================================================
@@ -610,29 +570,6 @@ describe('applyArtifactGrant', () => {
   });
 });
 
-describe('isSandboxEnabled', () => {
-  test('settings.local.json enabled=false overrides settings.json enabled=true', () => {
-    writeSettings({ sandbox: { enabled: false } });
-    fs.writeFileSync('.claude/settings.json', JSON.stringify({ sandbox: { enabled: true } }));
-    expect(isSandboxEnabled()).toBe(false);
-  });
-
-  test('settings.local.json enabled=true is used when settings.json is absent', () => {
-    writeSettings({ sandbox: { enabled: true } });
-    expect(isSandboxEnabled()).toBe(true);
-  });
-
-  test('`sandbox: null` in settings file does not crash; treated as undeclared', () => {
-    writeSettings({ sandbox: null });
-    expect(isSandboxEnabled()).toBe(false);
-  });
-
-  test('`enabled: "false"` (string) is not coerced — treated as undeclared', () => {
-    writeSettings({ sandbox: { enabled: 'false' } });
-    expect(isSandboxEnabled()).toBe(false);
-  });
-});
-
 describe('writeSettingsEnv sandbox overlay', () => {
   test.skipIf(IN_CONTAINER)('`sandbox: null` in settings file does not crash writeSettingsEnv', () => {
     // is_container() must be false: rely on the host genuinely not being a
@@ -643,18 +580,6 @@ describe('writeSettingsEnv sandbox overlay', () => {
     const config = loadConfig();
     captureLog(() => writeSettingsEnv(config)); // should not throw
     expect(readSettings()).not.toContainKey('sandbox');
-  });
-
-  test('checkSandboxCapability returns immediately inside a container without probing', () => {
-    // mock_probe.assert_not_called() replacement: seed a cache that WOULD
-    // produce a warning if the probe path ran (fail status, matching
-    // fingerprint). The container short-circuit must produce no output.
-    process.env.container = 'docker';
-    writeSettings({ sandbox: { enabled: true } });
-    writeConfig({});
-    seedProbeCache({ status: 'fail', message: 'SHOULD-NOT-PRINT', install_hint: 'X' });
-    const { out } = captureLog(() => checkSandboxCapability());
-    expect(out).toBe('');
   });
 
   test('in-container boot strips obsolete enableWeakerNestedSandbox but never touches enabled', () => {
@@ -701,85 +626,6 @@ describe('writeSettingsEnv sandbox overlay', () => {
     const config = loadConfig();
     captureLog(() => writeSettingsEnv(config));
     expect(readSettings()).not.toContainKey('sandbox');
-  });
-});
-
-describe('sandboxProbeCached', () => {
-  test('a cached probe with matching fingerprint short-circuits probe invocation', () => {
-    // mock_run.assert_not_called() replacement: the seeded result carries a
-    // message ('cached') the real probe never emits, and a cache hit never
-    // rewrites the file — so getting it back proves no subprocess ran.
-    const before = JSON.stringify({
-      fingerprint: realFingerprint(),
-      result: { status: 'pass', message: 'cached' },
-    });
-    fs.writeFileSync(PROBE_CACHE, before);
-
-    const result = sandboxProbeCached();
-    expect(result).toEqual({ status: 'pass', message: 'cached' });
-    expect(fs.readFileSync(PROBE_CACHE, 'utf-8')).toBe(before);
-  });
-
-  test('a missing cache file triggers probe invocation and writes a fresh cache', () => {
-    // The Python test faked subprocess.run to return status=pass; here the
-    // REAL sandbox-probe.ts runs (it always exits 0 with a JSON dict), so we
-    // pin the cache-write contract without pinning the machine's probe verdict.
-    expect(fs.existsSync(PROBE_CACHE)).toBe(false);
-
-    const result = sandboxProbeCached();
-    expect(result).not.toBeNull();
-    expect(typeof result.status).toBe('string');
-    expect(['pass', 'warn', 'fail']).toContain(result.status);
-    expect(fs.existsSync(PROBE_CACHE)).toBe(true);
-    const cached = JSON.parse(fs.readFileSync(PROBE_CACHE, 'utf-8'));
-    expect(cached).toContainKey('fingerprint');
-    expect(cached.result).toEqual(result);
-  }, 15000);
-
-  test('a cache file with a non-dict result is treated as a miss and the probe re-runs', () => {
-    seedProbeCache('corrupted-string');
-
-    const result = sandboxProbeCached();
-    expect(result).not.toBe('corrupted-string' as any);
-    expect(result).not.toBeNull();
-    expect(typeof result.status).toBe('string');
-    const cached = JSON.parse(fs.readFileSync(PROBE_CACHE, 'utf-8'));
-    expect(typeof cached.result).toBe('object');
-    expect(cached.result).toEqual(result);
-  }, 15000);
-});
-
-describe('checkSandboxCapability warnings', () => {
-  test.skipIf(IN_CONTAINER)('when sandbox enabled and probe fails, the warning + install hint are printed', () => {
-    // _sandbox_probe_cached patch replacement: pre-seed the cache with a
-    // matching fingerprint so the fake probe result is served from disk.
-    delete process.env.container;
-    writeSettings({ sandbox: { enabled: true } });
-    seedProbeCache({
-      status: 'fail',
-      message: 'Missing: bwrap, socat.',
-      install_hint: 'apt-get install -y bubblewrap socat',
-    });
-    const { out } = captureLog(() => checkSandboxCapability());
-    expect(out).toContain('Warning: sandbox enabled');
-    expect(out).toContain('Missing: bwrap, socat.');
-    expect(out).toContain('apt-get install -y bubblewrap socat');
-  });
-
-  test('probe warn message references AppArmor for Ubuntu 24.04 (not kernel.userns_restrict)', () => {
-    const src = fs.readFileSync(path.join(PLUGIN_ROOT, 'scripts', 'sandbox-probe.ts'), 'utf-8');
-    expect(src).toContain('AppArmor');
-    expect(src).not.toContain('kernel.userns' + '_restrict');
-  });
-
-  test.skipIf(IN_CONTAINER)('a warn-status probe surfaces the message; install_hint may be absent', () => {
-    delete process.env.container;
-    writeSettings({ sandbox: { enabled: true } });
-    seedProbeCache({ status: 'warn', message: 'user-namespaces disabled.', install_hint: null });
-    const { out } = captureLog(() => checkSandboxCapability());
-    expect(out).toContain('user-namespaces disabled.');
-    // No "Fix:" line when install_hint is null.
-    expect(out).not.toContain('Fix:');
   });
 });
 

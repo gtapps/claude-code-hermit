@@ -39,7 +39,7 @@ If the output is `container`, **stop immediately** — do not proceed to step 1.
 4. Read `docker.network_mode` from config (default: `"bridge"`). If `"host"`, set `HOST_NETWORK_MODE=true` and surface to operator: "Detected `network_mode: host` in your config. The LAN containment toggle (Prompt 1) will be skipped — it would replace host mode and break your HA / host-bound service access. Resource bounds (Prompt 2) will not apply network sysctls in host mode either; Docker rejects them and the container would fail to start."
 5. **Detect hermit ports**: run `timeout 10s docker compose -f docker-compose.hermit.yml config --format json 2>/dev/null` and parse `.services.hermit.ports`. Store as in-memory `detected_hermit_ports` (array of long-form Compose port objects: `{target, published, host_ip, protocol, mode}`). If the command fails or returns no JSON, fall back to `grep -n '^\s*ports:' docker-compose.hermit.yml` and set `detected_hermit_ports_unparsed=true` if found. Either way, a non-empty result means ports are present.
 6. Check whether the container is currently running: `docker compose -f docker-compose.hermit.yml ps --status running --format '{{.Service}}' 2>/dev/null | grep -x hermit`. If absent: tell the operator "Container is not running. The wizard will still write the overlay; you'll see the live verification only after starting the container with `hermit-docker up`."
-7. Read current `docker.security.*` from config.json. Also read `sandbox.*` from the target settings file (same `hatch_target` routing as hatch/docker-setup: `hatch_target == "local"` → `.claude/settings.local.json`; else → `.claude/settings.json`). Print a "current posture" summary. Example:
+7. Read current `docker.security.*` from config.json. Also read `sandbox.enabled` from the target settings file (same `hatch_target` routing as hatch/docker-setup: `hatch_target == "local"` → `.claude/settings.local.json`; else → `.claude/settings.json`) — display only, hermit does not configure this key. Print a "current posture" summary. Example:
 
    ```
    Current security posture:
@@ -50,12 +50,9 @@ If the output is `container`, **stop immediately** — do not proceed to step 1.
    Baseline (always on, from v1.0.26):
      cap_drop: ALL, no-new-privileges, pids_limit: 2048
 
-   Sandbox (bash tool isolation, from v1.1.2):
-     profile: standard  (or: off / not configured)
-     in-container: sandbox off (the container is the isolation boundary)
+   Sandbox (bash tool isolation, operator-managed via /sandbox):
+     enabled: true  (or: false / not configured)
    ```
-
-   Derive `profile` by checking `sandbox.enabled` in the settings file: `true` → `standard` (or the profile name if you can infer it from `filesystem.denyRead`), `false` → `off`, absent → `not configured`.
 
 ### 2. Trust model framing
 

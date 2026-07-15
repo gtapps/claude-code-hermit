@@ -1856,8 +1856,8 @@ describe('doctor report contract (PROP-018 count pin)', () => {
 describe('hermit-doctor SKILL.md doc-sync (no drift between JSON checks and docs)', () => {
   const skill = read(path.join(SKILLS, 'hermit-doctor', 'SKILL.md'));
 
-  test('every JSON check id (plus sandbox) appears as a table row', () => {
-    const missing = [...DOCTOR_CHECK_IDS, 'sandbox'].filter(id => !skill.includes(`| \`${id}\` |`));
+  test('every JSON check id appears as a table row', () => {
+    const missing = DOCTOR_CHECK_IDS.filter(id => !skill.includes(`| \`${id}\` |`));
     expect(missing).toEqual([]);
   });
 

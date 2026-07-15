@@ -15,7 +15,6 @@
  *                            settings writes made unattended. Target MUST be settings.local.json
  *                            — the classifier never reads autoMode from committed project settings.
  *   deny <minimal|hardened>  Merge deny-patterns from state-templates/deny-patterns.json
- *   sandbox <standard|off>   Merge sandbox profile from state-templates/sandbox-profiles.json
  *   channel-env <CH> <dir>   Set env.<CH>_STATE_DIR and strip any stale env.*_BOT_TOKEN
  *
  * Rules:
@@ -165,19 +164,6 @@ function mergeDeny(settings: Json, entries: string[]): void {
   }
 }
 
-function mergeSandbox(settings: Json, profile: Json): void {
-  settings.sandbox ??= {};
-  // Never overwrite operator-intent keys that are already set.
-  const OPERATOR_KEYS = new Set([
-    'enabled', 'filesystem', 'network',
-    'failIfUnavailable', 'autoAllowBashIfSandboxed', 'allowUnsandboxedCommands',
-  ]);
-  for (const [k, v] of Object.entries(profile)) {
-    if (OPERATOR_KEYS.has(k) && settings.sandbox[k] !== undefined) continue;
-    settings.sandbox[k] = v;
-  }
-}
-
 const [, , targetFile, op, ...rest] = process.argv;
 
 if (!targetFile || !op) {
@@ -234,30 +220,6 @@ switch (op) {
     break;
   }
 
-  case 'sandbox': {
-    const profileName = rest[0];
-    if (profileName !== 'standard' && profileName !== 'off') {
-      console.error(`sandbox requires 'standard' or 'off', got: ${profileName ?? '(none)'}`);
-      process.exit(1);
-    }
-    const profilesFile = path.join(PLUGIN_ROOT, 'state-templates', 'sandbox-profiles.json');
-    const profiles = readJson(profilesFile);
-    const profile: Json = { ...profiles[profileName] };
-    if (!profile || Object.keys(profile).length === 0) {
-      console.error(`sandbox profile '${profileName}' not found in ${profilesFile}`);
-      process.exit(1);
-    }
-    // For 'standard', merge filesystem.denyRead from deny-patterns.json
-    if (profileName === 'standard') {
-      const patternsFile = path.join(PLUGIN_ROOT, 'state-templates', 'deny-patterns.json');
-      const patterns = readJson(patternsFile);
-      const denyRead = patterns.sandbox?.filesystem?.denyRead;
-      if (denyRead) profile.filesystem = { denyRead };
-    }
-    mergeSandbox(settings, profile);
-    break;
-  }
-
   case 'channel-env': {
     const channel = rest[0];
     const stateDir = rest[1];
@@ -275,7 +237,7 @@ switch (op) {
   }
 
   default: {
-    console.error(`Unknown operation: ${op}. Valid ops: task-id, allow, artifact-allow, automode-seed, deny, sandbox, channel-env`);
+    console.error(`Unknown operation: ${op}. Valid ops: task-id, allow, artifact-allow, automode-seed, deny, channel-env`);
     process.exit(1);
   }
 }

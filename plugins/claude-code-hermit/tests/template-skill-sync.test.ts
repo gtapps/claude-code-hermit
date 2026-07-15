@@ -20,7 +20,6 @@ import { PLUGIN_ROOT } from './helpers/run';
 
 const TEMPLATE_PATH = path.join(PLUGIN_ROOT, 'state-templates', 'config.json.template');
 const SKILL_PATH = path.join(PLUGIN_ROOT, 'skills', 'hatch', 'SKILL.md');
-const SANDBOX_PROFILES_PATH = path.join(PLUGIN_ROOT, 'state-templates', 'sandbox-profiles.json');
 const DENY_PATTERNS_PATH = path.join(PLUGIN_ROOT, 'state-templates', 'deny-patterns.json');
 const WORKTREEINCLUDE_PATH = path.join(PLUGIN_ROOT, 'state-templates', 'WORKTREEINCLUDE-APPEND.txt');
 
@@ -94,30 +93,15 @@ describe('nested artifacts.* keys are referenced in operator-facing docs', () =>
 });
 
 // -------------------------------------------------------
-// Sandbox template files referenced in hatch/SKILL.md
+// Deny-patterns template file referenced in hatch/SKILL.md
 // -------------------------------------------------------
-describe('sandbox templates', () => {
-  test('sandbox-profiles.json exists', () => {
-    expect(fs.existsSync(SANDBOX_PROFILES_PATH)).toBe(true);
-  });
-
+describe('deny-patterns template', () => {
   test('deny-patterns.json exists', () => {
     expect(fs.existsSync(DENY_PATTERNS_PATH)).toBe(true);
   });
 
-  test('hatch/SKILL.md references sandbox-profiles.json', () => {
-    expect(skillContent).toContain('sandbox-profiles.json');
-  });
-
-  test('hatch/SKILL.md references deny-patterns.json sandbox section', () => {
+  test('hatch/SKILL.md references deny-patterns.json', () => {
     expect(skillContent).toContain('deny-patterns.json');
-  });
-
-  test('deny-patterns.json has sandbox.filesystem.denyRead section', () => {
-    const d = JSON.parse(fs.readFileSync(DENY_PATTERNS_PATH, 'utf-8'));
-    expect(d).toHaveProperty('sandbox');
-    expect(d.sandbox).toHaveProperty('filesystem');
-    expect(d.sandbox.filesystem).toHaveProperty('denyRead');
   });
 });
 

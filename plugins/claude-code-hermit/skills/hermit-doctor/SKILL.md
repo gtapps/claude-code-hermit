@@ -1,6 +1,6 @@
 ---
 name: hermit-doctor
-description: Returns a twenty-four-check health report on the hermit installation (runtime, config, hooks, state-file integrity, cost, proposals, deps, version currency, permissions, docker/sandbox, archival, reflect loop, scheduler, watchdog, context age, opus-wake spend, routine cost, heartbeat, routine monitor, raw storage size, sibling-plugin credential expiry, model pricing, channel liveness, context scan). Use when diagnosing an install, before a release, or after suspicious behavior. Activates on messages like "/hermit-doctor", "health check", "diagnose the hermit", "what's wrong", "run diagnostic".
+description: Returns a twenty-four-check health report on the hermit installation (runtime, config, hooks, state-file integrity, cost, proposals, deps, version currency, permissions, docker, archival, reflect loop, scheduler, watchdog, context age, opus-wake spend, routine cost, heartbeat, routine monitor, raw storage size, sibling-plugin credential expiry, model pricing, channel liveness, context scan). Use when diagnosing an install, before a release, or after suspicious behavior. Activates on messages like "/hermit-doctor", "health check", "diagnose the hermit", "what's wrong", "run diagnostic".
 ---
 
 # Hermit Doctor
@@ -27,36 +27,15 @@ to run at any time. Produces no side effects beyond writing
    - `⚠ <id> — <detail>` when `status: warn`
    - `✗ <id> — <detail>` when `status: fail`
 
-2.5. **Sandbox capability check** (twenty-fifth check, run after step 2):
-
-   Architectural note: this check is computed by the skill orchestrator, not by `doctor-check.ts`. `state/doctor-report.json` therefore contains only the twenty-four checks emitted in step 2; the sandbox line is appended to the rendered summary and to SHELL.md but is not present in the JSON report. Tools that consume `doctor-report.json` programmatically should call `scripts/sandbox-probe.ts` separately if they need the sandbox status.
-
-   Determine the sandbox enabled state: read `.claude/settings.json` and `.claude/settings.local.json`; the last file that explicitly declares `sandbox.enabled` wins (Claude Code's merge order). Treat non-bool values as undeclared.
-
-   - **If running inside a container** (`/.dockerenv` or `/run/.containerenv` exists): do not run the probe (`unshare --user --pid true` fails unconditionally in unprivileged containers, producing a spurious WARN). Branch on the enabled state read above:
-     - enabled `true`: emit `⚠ sandbox — enabled inside container; recommended off. The container is the isolation boundary; on Ubuntu 24.04+ hosts bwrap can't start in-container and heartbeat/watch monitors fail. Run /claude-code-hermit:hermit-evolve or set sandbox.enabled:false.`
-     - otherwise: emit `✓ sandbox — off in container (the container is the isolation boundary)`.
-   - If sandbox is **not enabled** (no declaration, or last declaration is `false`): emit `✓ sandbox — disabled (not configured)`. Do not run the probe.
-   - Otherwise, run:
-     ```bash
-     bun ${CLAUDE_PLUGIN_ROOT}/scripts/sandbox-probe.ts
-     ```
-     Branch on `status`:
-     - `pass`: emit `✓ sandbox — enabled, deps OK.`
-     - `warn`: emit `⚠ sandbox — enabled but: <message>`.
-     - `fail`: emit `✗ sandbox — enabled but: <message>. Fix: <install_hint>`.
-
-   Add this as the twenty-fifth line to the summary.
-
 3. Append a summary section to `.claude-code-hermit/sessions/SHELL.md` under a new
-   `## Doctor Report (<ts>)` heading. Use the same twenty-five lines from steps 2 and 2.5. Place it
+   `## Doctor Report (<ts>)` heading. Use the same twenty-four lines from step 2. Place it
    above the `## Monitoring` section so it sits with session-level context, not
    with monitoring chatter.
 
-4. Return the twenty-five lines to the caller. Cap total output at 30 lines.
+4. Return the twenty-four lines to the caller. Cap total output at 30 lines.
 
 5. **Escalation & dedup.** Build the failing set: every JSON check from step 2 with
-   `status: warn|fail`, plus the step-2.5 sandbox line when it rendered ⚠/✗ (id `sandbox`).
+   `status: warn|fail`.
 
    Read `.claude-code-hermit/state/alert-state.json` `alerts{}` and compute:
    - `new_entries`: for each failing check whose `doctor:<id>` key is absent from `alerts{}` —
@@ -82,10 +61,10 @@ to run at any time. Produces no side effects beyond writing
 
 ## Silence policy
 
-- If every check is `ok`, return only: `All twenty-five checks passed.` Do not notify via
+- If every check is `ok`, return only: `All twenty-four checks passed.` Do not notify via
   channel (Tier 0). Still resolve any stale `doctor:*` alert-state keys (step 5) and still
   append to SHELL.md so the run is traceable.
-- If any check is `warn` or `fail`, return the full twenty-five-line summary. Channel notification
+- If any check is `warn` or `fail`, return the full twenty-four-line summary. Channel notification
   is governed by step 5's escalation-and-dedup logic, not a blanket per-run ping: only newly
   appearing findings message the channel, and only once until they resolve.
 
@@ -117,7 +96,6 @@ to run at any time. Produces no side effects beyond writing
 | `model-pricing-known` | Compares `config.model`, each `routines[].model`, and `config.heartbeat.model` against the pricing table (`scripts/lib/pricing.ts`); also scans `.claude/cost-log.jsonl` for the last 7 days (inert today — cost-log model strings are pre-collapsed to `haiku\|sonnet\|opus` before logging, so this only activates once raw model ids persist). | `warn` naming every unpriced model and where it's configured — cost tracking silently falls back to sonnet pricing for unknowns; `ok` if every configured model is known. |
 | `context-scan` | Reads `state/context-scan.json`, written by `startup-context.ts` on every `SessionStart` — which injected entries (compiled bodies/stubs, catalog summaries, OPERATOR.md/SHELL.md excerpts, last report) tripped the injection-marker scan and were blocked. The scan never mutates files; this check only surfaces its verdict. | `ok` if no record yet or the last scan found nothing; `warn` naming the blocked sources (content stays on disk — inspect or remove the flagged files) if any hit. |
 | `channel-liveness` | For each enabled channel in `config.channels`, resolves its bot token from `<state_dir>/.env` and makes one token-authed liveness call (Telegram `getMe`, Discord `/users/@me`) with a 5s timeout. The only check that leaves the machine. | `ok` if reachable or no channels configured; `warn` if unreachable (timeout/network error) or no token configured; `fail` if the platform rejects the token (401/403 — bot token invalid or revoked). |
-| `sandbox` | Runs `scripts/sandbox-probe.ts` and cross-references with `sandbox.enabled` in settings files. | `fail` if sandbox enabled and deps (bwrap/socat) missing; `warn` if deps present but user-namespaces disabled; `ok` if disabled or fully operational. |
 
 No automatic fixes. Doctor reports; the operator acts.
 
