@@ -2,10 +2,23 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
-## [Unreleased]
+## [0.4.5] - 2026-07-15
 
 ### Added
 - **ha morning/evening briefs: pending-updates section** — surfaces Core/OS/Supervisor/add-on version bumps (HACS as a count) from `ha updates`; morning links the matching `[ha-update]` proposal and drops it from the generic Pending list.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/ha-morning-brief/SKILL.md` | Add pending-updates section, link matching `[ha-update]` proposal |
+| `skills/ha-evening-brief/SKILL.md` | Add pending-updates section |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. No further action needed — the brief changes live in `ha-morning-brief`/`ha-evening-brief` SKILL.md, picked up from the plugin install path on the next session.
+
+No config.json changes required.
 
 ## [0.4.4] - 2026-07-12
 
