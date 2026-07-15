@@ -38,8 +38,20 @@ if [ -f /etc/dnsmasq.allowlist ]; then
     # for the operator to review and tune the allowlist before flipping to
     # enforce. Raw `--log-queries` text (operator greps); structured JSONL
     # emission is deferred to v1.1.
+    #
+    # Static `address=/host/ip` records are still honored (extracted below and
+    # passed as --address= flags) so an operator-pinned internal hostname
+    # resolves the same in both modes; only the address=/#/ NXDOMAIN catchall
+    # is skipped, since that is the one line that would make this mode block.
+    set --
+    while IFS= read -r line || [ -n "$line" ]; do
+      case "$line" in
+        address=/#/*) ;;
+        address=/*)    set -- "$@" "--$line" ;;
+      esac
+    done < /etc/dnsmasq.allowlist
     dnsmasq -k --log-queries --log-facility=- --no-hosts \
-      --server=1.1.1.1 \
+      --server=1.1.1.1 "$@" \
       --listen-address=127.0.0.1 2>&1 &
   else
     dnsmasq -k --log-facility=- --conf-file=/etc/dnsmasq.allowlist \

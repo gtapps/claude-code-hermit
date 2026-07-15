@@ -4,6 +4,9 @@
 #
 # Syntax:
 #   server=/<domain>/<upstream>   — allow <domain> and any subdomain, forward to <upstream>
+#   address=/<host>/<ip>          — static pin: resolve <host> to <ip> locally, no forward.
+#                                    Honored in both enforce and log-only mode. Place above
+#                                    the catchall below.
 #   address=/#/                   — return NXDOMAIN for everything else (catchall)
 #
 # To add a domain at runtime, edit this file in

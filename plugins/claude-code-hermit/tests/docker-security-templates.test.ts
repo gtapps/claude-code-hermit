@@ -56,6 +56,30 @@ describe('netguard-entrypoint.sh.template', () => {
   test('entrypoint: pgrep dnsmasq used for liveness check', () => {
     expect(entrypoint).toContain('pgrep dnsmasq');
   });
+
+  // -------------------------------------------------------
+  // Entrypoint: log-only mode honors static address= records (issue #602)
+  // -------------------------------------------------------
+  test('entrypoint: log-only branch extracts address= lines from the allowlist', () => {
+    expect(entrypoint).toContain('while IFS= read -r line || [ -n "$line" ]; do');
+    expect(entrypoint).toContain('done < /etc/dnsmasq.allowlist');
+  });
+
+  test('entrypoint: log-only extraction excludes the address=/#/ catchall', () => {
+    expect(entrypoint).toContain('address=/#/*) ;;');
+  });
+
+  test('entrypoint: log-only extraction forwards matched lines as --address= flags', () => {
+    expect(entrypoint).toContain('set -- "$@" "--$line"');
+    expect(entrypoint).toContain('--server=1.1.1.1 "$@" \\');
+  });
+
+  test('entrypoint: log-only dnsmasq launch is still followed by the pgrep hold-open guard', () => {
+    const logOnlyIdx = entrypoint.indexOf('--server=1.1.1.1 "$@"');
+    const pgrepIdx = entrypoint.indexOf('pgrep dnsmasq');
+    expect(logOnlyIdx).toBeGreaterThan(-1);
+    expect(pgrepIdx).toBeGreaterThan(logOnlyIdx);
+  });
 });
 
 // -------------------------------------------------------
@@ -126,6 +150,10 @@ describe('dnsmasq.allowlist.template', () => {
   test('allowlist: server=/claude.com/ present (OAuth login flow)', () => {
     expect(allowlist).toContain('server=/claude.com/');
   });
+
+  test('allowlist: documents address=/<host>/<ip> as a static pin (issue #602)', () => {
+    expect(allowlist).toContain('address=/<host>/<ip>');
+  });
 });
 
 // -------------------------------------------------------
@@ -142,6 +170,10 @@ describe('tune instruction (SKILL.md + docs)', () => {
 
   test("docs/docker-security.md: no stale 'restart hermit-netguard' instruction in tune section", () => {
     expect(docs).not.toContain('restart hermit-netguard');
+  });
+
+  test("docs/docker-security.md: no longer recommends extra_hosts as a workaround (issue #602 — Docker rejects it under network_mode: service:)", () => {
+    expect(docs).not.toContain('Use `extra_hosts` on the `hermit` service in your compose file instead');
   });
 
   test('docs/docker-security.md: no python3 in the verify block (Python retired from image)', () => {

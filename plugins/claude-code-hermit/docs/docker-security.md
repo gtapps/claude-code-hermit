@@ -111,7 +111,13 @@ In **enforce mode**, the same command surfaces NXDOMAIN denials. Decide which do
 
 The wizard does not auto-promote blocked domains. Manual review keeps the trust boundary at the operator.
 
-**Pinning an internal/private hostname (e.g. Tailscale MagicDNS) to an IP is not something the allowlist supports** — it only takes `server=` forwarding rules and the catchall, and log-only mode skips the allowlist file entirely (dnsmasq isn't even loaded with `--conf-file` in that mode), so a hand-added static record would silently resolve in enforce mode but not log-only. Use `extra_hosts` on the `hermit` service in your compose file instead — it resolves via `/etc/hosts` before any DNS query is made, so it works identically regardless of DNS mode.
+**⚠️ Re-running the `/docker-security` wizard regenerates `dnsmasq.allowlist` from scratch** (from your fleet/additional domain selections only) and **erases any hand-added `address=` lines**. Back up the file first if you've added static records below.
+
+**Pinning an internal/private hostname (e.g. Tailscale MagicDNS) to an IP:** add a static record —
+```
+address=/internal-host.example/10.0.0.5
+```
+— above the `address=/#/` catchall, then apply it with `hermit-docker down && hermit-docker up` (restarting `hermit-netguard` alone leaves `hermit` with stale resolver state). This works in both enforce and log-only mode: log-only extracts and honors static `address=` records while still forwarding everything else (block-nothing preserved); enforce loads the file as-is. `extra_hosts` on the `hermit` service is **not** a usable alternative here — hermit runs with `network_mode: "service:hermit-netguard"`, and Docker rejects `extra_hosts`/`--add-host` outright on any container sharing another container's network namespace.
 
 ## GitHub CLI authentication {#gh-cli-authentication}
 

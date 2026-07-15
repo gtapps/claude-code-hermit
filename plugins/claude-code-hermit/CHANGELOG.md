@@ -3,7 +3,14 @@
 ## [Unreleased]
 
 ### Fixed
-- **docker-security docs: clarify that DNS log-only mode ignores the allowlist entirely** — static `address=` records only apply in enforce mode; documented `extra_hosts` on the `hermit` service as the mode-independent way to pin an internal hostname to an IP.
+- **docker-security: log-only DNS mode now honors static `address=` allowlist records** — previously log-only skipped `dnsmasq.allowlist` entirely, so operator-pinned internal hostnames (e.g. Tailscale MagicDNS) silently failed to resolve unless enforce mode was on. The log-only entrypoint now extracts and applies static `address=/host/ip` records (excluding the `address=/#/` catchall) while still forwarding everything else — block-nothing behavior is unchanged.
+
+### Upgrade Instructions
+
+For hermits with the Docker security overlay installed (`.claude-code-hermit/docker/netguard-entrypoint.sh` exists — skip entirely if not):
+1. Copy `state-templates/docker/security/netguard-entrypoint.sh.template` over `.claude-code-hermit/docker/netguard-entrypoint.sh` (keep it executable).
+2. Run `.claude-code-hermit/bin/hermit-docker update` to rebuild the `hermit-netguard` image with the new entrypoint and bounce the stack.
+3. Do **not** re-run the full `/docker-security` wizard for this upgrade — it regenerates `dnsmasq.allowlist` from your fleet/domain selections and would erase any hand-added `address=` records. No `dnsmasq.allowlist` change is needed; the fix only changes how the entrypoint parses the file that's already there.
 
 ## [1.2.26] - 2026-07-15
 
