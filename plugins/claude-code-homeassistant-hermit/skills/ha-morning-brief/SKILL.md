@@ -44,8 +44,13 @@ When both `claude-code-hermit` and `claude-code-homeassistant-hermit` are instal
 
 8. **Cost-spike check** — Read `.claude-code-hermit/state/reflection-state.json` if it exists. Look for any `cost_spike` entry with a timestamp within the last 24 hours. If found, include a "Cost alert" bullet in the brief with the flagged amount.
 
+8a. **Pending updates**: Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha updates` and capture stdout. Branch on its content (the command always exits 0 — never branch on exit code):
+   - Contains `(skipped:` — log a single line to SHELL.md `## Monitoring` (`updates fetch failed: <detail after "skipped:">`) and omit the `Updates:` section entirely.
+   - Contains `(no updates pending)` — omit the `Updates:` section entirely.
+   - Otherwise — render one line per listed Core/OS/Supervisor/add-on update (`[tier] Title: installed → latest`) plus the HACS count line, translating tier labels into the operator's language. If more than 3 individual (non-HACS) updates are pending, list the 3 highest-tier (Core, then OS, then Supervisor, then add-ons) and collapse the rest into `+ N more updates pending`, matching the evening brief. For each rendered individual (non-HACS) update, `Glob` `.claude-code-hermit/proposals/PROP-*.md` for a `[ha-update]` proposal whose title carries the same tier and target version (e.g. `[ha-update] HA Core → 2026.7.1`) and append `(PROP-NNN)`; if none matches yet, render the line without an id. Step 9 reuses this glob result when this branch ran it.
+
 9. **Pending work** — Scan for:
-   - `Glob` for `.claude-code-hermit/proposals/PROP-*.md` — read status from each, list any `pending` proposals
+   - `Glob` `.claude-code-hermit/proposals/PROP-*.md` (reuse step 8a's glob result if its `Otherwise` branch already ran it; otherwise run the `Glob` here) — read status from each, list any `pending` proposals. Exclude a `pending` proposal whose title starts with `[ha-update]` **only when the `Updates:` section is present** (it surfaces there instead); when step 8a omitted the `Updates:` section (skipped fetch or no updates pending), keep `[ha-update]` proposals in this list so they are not lost
    - Check if `.claude-code-hermit/sessions/NEXT-TASK.md` exists (queued task)
    - Read `.claude-code-hermit/cost-summary.md` if it exists — include yesterday's cost
 
@@ -93,6 +98,11 @@ Energy:
 Alerts:
 - [devices offline, unusual states, or "All clear"]
 
+Updates:
+- [tier] Title: installed → latest (PROP-NNN if a matching proposal exists)
+- [N HACS updates pending]
+- [Omit section entirely when none pending or the fetch was skipped.]
+
 Pending:
 - [proposals, queued tasks, or "Nothing pending"]
 
@@ -108,7 +118,7 @@ Today's priorities:
 - [from OPERATOR.md Current Priority, filtered to actionable items]
 ```
 
-Adapt the greeting and section headers to the operator's configured language. Keep the entire brief under 25 lines — strip lower-priority lines (e.g., Cost when no spike) if the Overnight section pushes over the cap. **`Awaiting decision:` lines are final and non-droppable** — strip from `Energy`, `Cost`, and `Today's priorities` before touching MP lines.
+Adapt the greeting and section headers to the operator's configured language. Keep the entire brief under 25 lines — strip lower-priority lines (e.g., Cost when no spike) if the Overnight section pushes over the cap. **`Awaiting decision:` lines are final and non-droppable** — strip from `Energy`, `Cost`, `Today's priorities`, and `Updates` (in that order) before touching MP lines.
 
 ## Delivery
 

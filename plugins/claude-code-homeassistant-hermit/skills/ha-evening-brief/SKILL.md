@@ -28,6 +28,11 @@ When both `claude-code-hermit` and `claude-code-homeassistant-hermit` are instal
 
 3. **Anomalous sensors** — From the live snapshot, identify currently unavailable, stuck, or unexpected-state sensors. Report only what is currently wrong — no baseline diff required.
 
+3a. **Pending updates**: Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha updates` and capture stdout. Branch on its content (the command always exits 0 — never branch on exit code):
+   - Contains `(skipped:` — log a single line to SHELL.md `## Monitoring` (`updates fetch failed: <detail after "skipped:">`) and omit the `Updates:` section entirely.
+   - Contains `(no updates pending)` — omit the `Updates:` section entirely.
+   - Otherwise — render one line per listed Core/OS/Supervisor/add-on update (`[tier] Title: installed → latest`) plus the HACS count line, translating tier labels into the operator's language. No proposal-id lookup here (unlike the morning brief). If more than 3 individual updates are pending, list the 3 highest-tier (Core, then OS, then Supervisor, then add-ons) and collapse the rest into the line "+ N more updates pending" to keep the section from blowing the line cap below.
+
 4. **Energy snapshot** — From the live context, pull current power draw and day's energy consumption if HA energy entities exist. Omit this section if no energy sensors are available.
 
 5. **Compose brief** — Write a concise evening brief in the operator's language (from OPERATOR.md). Use the format below.
@@ -60,11 +65,16 @@ Devices:
 Sensors:
 - [currently unavailable or anomalous — or "None"]
 
+Updates:
+- [tier] Title: installed → latest
+- [N HACS updates pending]
+- [Omit section entirely when none pending or the fetch was skipped.]
+
 Energy:
 - [day's consumption, current draw — omit section when unavailable]
 ```
 
-Keep the entire brief under 10 lines. Adapt the greeting and section headers to the operator's configured language.
+Keep the entire brief under 14 lines (10 when the `Updates:` section is absent — no updates pending or the fetch was skipped). Adapt the greeting and section headers to the operator's configured language.
 
 ## Delivery
 

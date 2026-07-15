@@ -2,6 +2,11 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Added
+- **ha morning/evening briefs: pending-updates section** — surfaces Core/OS/Supervisor/add-on version bumps (HACS as a count) from `ha updates`; morning links the matching `[ha-update]` proposal and drops it from the generic Pending list.
+
 ## [0.4.4] - 2026-07-12
 
 ### Added
