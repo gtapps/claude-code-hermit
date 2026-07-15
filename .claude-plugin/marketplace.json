@@ -91,7 +91,7 @@
       "name": "laravel-forge-hermit",
       "source": "./plugins/laravel-forge-hermit",
       "description": "Laravel Forge layer for claude-code-hermit — deployment, logs, server/site skills, and daily estate scan via the official Forge PHP SDK",
-      "version": "0.0.6",
+      "version": "0.0.7",
       "category": "development",
       "author": {
         "name": "gtapps",

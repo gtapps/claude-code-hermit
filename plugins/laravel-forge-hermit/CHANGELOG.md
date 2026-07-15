@@ -1,11 +1,28 @@
 # Changelog — laravel-forge-hermit
 
-## [Unreleased]
+## [0.0.7] - 2026-07-15
 
 ### Added
 - **forge.php: `background-process-log <server> <process-id>` command + `backgroundProcessLog` read** — log access for apps running as Forge background processes (#606)
 - **forge.php: `site-log <server> <site> <type>` command (application, nginx-access, nginx-error)** — site-level logs, previously unreachable
 - **forge.php: read allowlist expanded with 43 SDK detail/output/config read methods** — secret-bearing reads (`siteEnvironment`, `deploymentTriggerUrl`, credential methods) deliberately excluded and test-enforced
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `php/forge-lib.php` | Add `backgroundProcessLog`/`siteLog` helpers, expand read allowlist |
+| `php/forge.php` | Add `background-process-log` and `site-log` commands |
+| `php/tests/run.php` | Cover new commands and allowlist entries |
+| `tests/hook.test.ts` | Cover write-confirm-gate against new read commands |
+| `skills/forge-logs/SKILL.md` | Document background-process and site-log commands |
+| `state-templates/CLAUDE-APPEND.md` | Reflect expanded log surface |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. No further action needed — the new log commands are picked up from the plugin install path on the next session.
+
+No config.json changes required.
 
 ## [0.0.6] - 2026-07-10
 
