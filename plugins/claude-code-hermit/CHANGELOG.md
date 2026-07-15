@@ -1,10 +1,16 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.26] - 2026-07-15
 
 ### Fixed
 - **heartbeat/routines: monitor wake notifications no longer count as operator activity** — `HEARTBEAT_EVALUATE`/`HEARTBEAT_ERROR`/`ROUTINE_DUE`/`ROUTINE_MONITOR_ERROR` prompts were stamping `last-operator-action.json`, spuriously resetting the AUTO_CLOSE lull and suppressing daily-close drains. The UserPromptSubmit filter now drops the monitor emission grammar.
 - **watchdog: context resets invalidate the session-id cost cache** — post-close and emergency `/clear` now delete `sessions/.status.json` (and the emergency clear cross-stamps the compact tracker), so the compact tier can no longer fire a spurious `/compact` on the destroyed context's stale cost entry.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. Both fixes are additive and backward-compatible — no state migration or manual step needed.
+
+No config.json changes required.
 
 ## [1.2.25] - 2026-07-14
 
