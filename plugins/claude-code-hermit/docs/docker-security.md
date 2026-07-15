@@ -117,7 +117,7 @@ The wizard does not auto-promote blocked domains. Manual review keeps the trust 
 ```
 address=/internal-host.example/10.0.0.5
 ```
-— above the `address=/#/` catchall. This works in both enforce and log-only mode: log-only extracts and honors static `address=` records while still forwarding everything else (block-nothing preserved); enforce loads the file as-is. `extra_hosts` on the `hermit` service is **not** a usable alternative here — hermit runs with `network_mode: "service:hermit-netguard"`, and Docker rejects `extra_hosts`/`--add-host` outright on any container sharing another container's network namespace.
+— above the `address=/#/` catchall, then apply it with `hermit-docker down && hermit-docker up` (restarting `hermit-netguard` alone leaves `hermit` with stale resolver state). This works in both enforce and log-only mode: log-only extracts and honors static `address=` records while still forwarding everything else (block-nothing preserved); enforce loads the file as-is. `extra_hosts` on the `hermit` service is **not** a usable alternative here — hermit runs with `network_mode: "service:hermit-netguard"`, and Docker rejects `extra_hosts`/`--add-host` outright on any container sharing another container's network namespace.
 
 ## GitHub CLI authentication {#gh-cli-authentication}
 
