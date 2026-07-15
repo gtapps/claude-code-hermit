@@ -16,6 +16,9 @@ INTERVAL="${1:?usage: routine-monitor.sh <interval_seconds> <hermit_state_dir>}"
 RT_DIR="${2:?usage: routine-monitor.sh <interval_seconds> <hermit_state_dir>}"
 DUE="${ROUTINE_DUE_SCRIPT:-$(dirname "$0")/routine-due.ts}"
 fail_count=0
+# Emission grammar (this line's "$out" and the ROUTINE_MONITOR_ERROR line below) is
+# load-bearing: record-operator-action.ts isRoutinePrompt() drops these lines;
+# tests/auto-close.test.ts drift guard syncs them.
 while true; do
   if out="$(bun "$DUE" "$RT_DIR" 2>/dev/null)"; then
     fail_count=0

@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { runScript, PLUGIN_ROOT } from './helpers/run';
+import { runScript, PLUGIN_ROOT, SCRIPTS_DIR } from './helpers/run';
 import { fixturesDir } from './helpers/workdir';
 
 // ---------- fixture scaffolding ----------
@@ -300,6 +300,32 @@ describe('last-operator-action.json signal', () => {
     expect(fs.existsSync(lastOp(dir))).toBe(false);
   }));
 
+  // g5. hook smoke: Monitor-delivered scheduler notifications → file NOT written
+  for (const notification of [
+    'HEARTBEAT_EVALUATE',
+    'HEARTBEAT_ERROR: precheck failed',
+    'ROUTINE_DUE [hermit-routine:morning-brief]',
+    'ROUTINE_DUE [hermit-routine:reflect] [hermit-routine:doctor]',
+    'ROUTINE_MONITOR_ERROR: routine-due failed (3 consecutive)',
+  ]) {
+    test(`hook smoke: monitor notification "${notification}" → file NOT written`, withTmp(async (dir) => {
+      await recordHook(dir, JSON.stringify({ prompt: notification }));
+      expect(fs.existsSync(lastOp(dir))).toBe(false);
+    }));
+  }
+
+  // g6. hook smoke: prose merely containing/echoing a monitor token → file IS written
+  // (tight grammar — a mid-sentence or near-miss token still counts as operator activity)
+  test('hook smoke: prose mentioning HEARTBEAT_EVALUATE mid-sentence → file IS written', withTmp(async (dir) => {
+    await recordHook(dir, JSON.stringify({ prompt: 'why did HEARTBEAT_EVALUATE fire twice?' }));
+    expect(fs.existsSync(lastOp(dir))).toBe(true);
+  }));
+
+  test('hook smoke: near-miss "HEARTBEAT_EVALUATE looks weird" → file IS written', withTmp(async (dir) => {
+    await recordHook(dir, JSON.stringify({ prompt: 'HEARTBEAT_EVALUATE looks weird' }));
+    expect(fs.existsSync(lastOp(dir))).toBe(true);
+  }));
+
   // h. hook smoke: legacy wrapped shape (never actually reaches stdin per the
   // 2026-07-10 probe, but must not regress to dropped if some future CC version emits it)
   test('hook smoke: legacy <command-message> wrapped shape → file IS written', withTmp(async (dir) => {
@@ -418,6 +444,52 @@ describe('record-operator-action: hermit-injected commands stay in sync', () => 
 });
 
 // -------------------------------------------------------
+// monitor-emission drift guard: every scheduler notification string emitted by
+// heartbeat-monitor.sh / routine-monitor.sh / routine-due.ts must be dropped by
+// record-operator-action.ts's isRoutinePrompt. Prevents a future emission-grammar
+// rename from silently reopening the AUTO_CLOSE defer-loop.
+// -------------------------------------------------------
+
+describe('record-operator-action: monitor emission strings stay in sync', () => {
+  function extractEchoLiterals(file: string): string[] {
+    const src = fs.readFileSync(path.join(SCRIPTS_DIR, file), 'utf-8');
+    const literals: string[] = [];
+    for (const m of src.matchAll(/echo "((?:HEARTBEAT|ROUTINE)_[A-Z_]+[^"]*)"/g)) {
+      literals.push(m[1].replace(/\$\{[^}]*\}|\$[a-zA-Z_]+/g, 'x'));
+    }
+    return literals;
+  }
+
+  const literals = [
+    ...extractEchoLiterals('heartbeat-monitor.sh'),
+    ...extractEchoLiterals('routine-monitor.sh'),
+  ];
+
+  test('sweep finds the known monitor emission literals', () => {
+    expect(literals.length).toBeGreaterThanOrEqual(4); // EVALUATE, 2x ERROR variants, MONITOR_ERROR
+  });
+
+  // routine-due.ts builds its line from a template literal rather than a bare echo —
+  // assert the grammar anchor is still present in source.
+  test('routine-due.ts still emits the ROUTINE_DUE [hermit-routine: grammar', () => {
+    const src = fs.readFileSync(path.join(SCRIPTS_DIR, 'routine-due.ts'), 'utf-8');
+    expect(src).toContain('ROUTINE_DUE ');
+    expect(src).toContain('[hermit-routine:');
+  });
+
+  for (const literal of [...new Set([...literals, 'ROUTINE_DUE [hermit-routine:x]'])]) {
+    test(`monitor emission "${literal}" is dropped by record-operator-action.ts`, withTmp(async (dir) => {
+      const r = await runScript('record-operator-action.ts', {
+        stdin: JSON.stringify({ prompt: literal }),
+        cwd: dir,
+      });
+      expect(r.exitCode).toBe(0);
+      expect(fs.existsSync(hermit(dir, 'state', 'last-operator-action.json'))).toBe(false);
+    }));
+  }
+});
+
+// -------------------------------------------------------
 // daily-auto-close lull + pending-close drain
 // -------------------------------------------------------
 
@@ -441,6 +513,25 @@ describe('daily-auto-close lull + pending-close drain', () => {
     writeState(dir, 'last-operator-action.json', '{"at":"2026-05-20T22:40:00+00:00"}');
     writeState(dir, 'runtime.json', RUNTIME_IN_PROGRESS);
     expect(await precheck(dir, { now: NOW })).not.toBe('AUTO_CLOSE');
+  }));
+
+  // drain.2b. Regression for the overnight defer-loop (compiled/audit-1225-wake-economics-
+  // validation-2026-07-15.md § R1): AUTO_CLOSE peek → HEARTBEAT_EVALUATE wake → the
+  // notification itself must NOT stamp the clock, or the mutating precheck inside the wake
+  // sees fresh "activity" and falls through to SKIP|outside active hours, and the queued
+  // close never drains.
+  test('drain: HEARTBEAT_EVALUATE through the hook does not stamp clock; AUTO_CLOSE still drains', withTmp(async (dir) => {
+    hbSetup(dir);
+    writeState(dir, 'pending-close.json', PENDING);
+    writeState(dir, 'last-operator-action.json', '{"at":"2026-05-20T22:30:00+00:00"}'); // 15 min before NOW
+    writeState(dir, 'runtime.json', RUNTIME_IN_PROGRESS);
+    await runScript('record-operator-action.ts', {
+      stdin: JSON.stringify({ prompt: 'HEARTBEAT_EVALUATE' }),
+      cwd: dir,
+    });
+    expect(fs.readFileSync(hermit(dir, 'state', 'last-operator-action.json'), 'utf-8'))
+      .toContain('2026-05-20T22:30:00'); // unmoved
+    expect(await precheck(dir, { now: NOW })).toBe('AUTO_CLOSE');
   }));
 
   // drain.3. pending-close.json + session_state == idle + lull > 10min → AUTO_CLOSE

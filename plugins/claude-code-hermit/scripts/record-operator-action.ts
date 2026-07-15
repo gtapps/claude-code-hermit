@@ -16,6 +16,9 @@ process.stdout.on('error', () => {});
 //   [hermit-routine:…   — cron-delivered routine prompts (hermit-routines/SKILL.md:43-54)
 //   <channel…           — unauthorized DMs arrive here before channel-responder's allowlist
 //                          check; recording them would let bot traffic suppress AUTO_CLOSE
+//   HEARTBEAT_EVALUATE/HEARTBEAT_ERROR/ROUTINE_DUE/ROUTINE_MONITOR_ERROR — Monitor-delivered
+//                          scheduler wake notifications (heartbeat-monitor.sh, routine-due.ts,
+//                          routine-monitor.sh) — see isRoutinePrompt below
 //   hermit's own tmux-injected slash commands — see INJECTED_EXACT below. Every
 //   other bare `/…` prompt counts as operator activity (see isRoutinePrompt).
 
@@ -58,6 +61,20 @@ function isRoutinePrompt(prompt: string): boolean {
   const t = prompt.trim();
   if (t.startsWith('<channel')) return true;
   if (INJECTED_EXACT.has(t)) return true;
+  // Monitor-delivered scheduler notifications — not operator activity. Grammar
+  // must match the emitters exactly (verified against source, NOT live-probed —
+  // a 2026-07-15 probe attempt hit an unrelated harness setup issue where no
+  // UserPromptSubmit hook fired at all in scratch tmux sessions; revisit if a
+  // future probe contradicts this):
+  //   heartbeat-monitor.sh:26-34 → "HEARTBEAT_EVALUATE" (bare) | "HEARTBEAT_ERROR: <detail>"
+  //   routine-due.ts:219         → "ROUTINE_DUE [hermit-routine:<id>] ..."
+  //   routine-monitor.sh:26      → "ROUTINE_MONITOR_ERROR: <detail>"
+  // tests/auto-close.test.ts monitor-emission drift guard re-derives this list
+  // from the emitters' source — extend both together.
+  if (t === 'HEARTBEAT_EVALUATE') return true;
+  if (t.startsWith('HEARTBEAT_ERROR: ')) return true;
+  if (t.startsWith('ROUTINE_DUE [hermit-routine:')) return true;
+  if (t.startsWith('ROUTINE_MONITOR_ERROR: ')) return true;
   // Watchdog hygiene injections (hermit-watchdog.ts:421,620,754). Native
   // commands may never reach this hook at all; dropping them is safe either
   // way — typing /clear or /compact ends a context, it doesn't signal presence.

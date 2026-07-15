@@ -8,7 +8,8 @@
 //   ROUTINE_DUE [hermit-routine:<id1>] [hermit-routine:<id2>] ...
 // The bracketed markers are load-bearing — cost-tracker.ts classifySource reads this
 // ROUTINE_DUE line to attribute the wake turn: one id → routine:<id>, ≥2 ids (a co-fire)
-// → the routine:multi bucket.
+// → the routine:multi bucket. Also load-bearing: record-operator-action.ts
+// isRoutinePrompt() drops this line; tests/auto-close.test.ts drift guard syncs it.
 //
 // State model (state/routine-schedule.json): { "<id>": { "last_consumed_mark": "<ISO minute>" } }
 // A routine is due when a cron-matching minute mark exists in (last_consumed_mark, now],

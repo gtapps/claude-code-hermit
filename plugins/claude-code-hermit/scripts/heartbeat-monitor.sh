@@ -23,6 +23,8 @@ while true; do
   printf '{"last_peek_at":"%s"}\n' "$_ts" > "$HB_DIR/state/.heartbeat-liveness.tmp" \
     && mv "$HB_DIR/state/.heartbeat-liveness.tmp" "$HB_DIR/state/heartbeat-liveness.json" \
     || true
+  # Emission grammar is load-bearing: record-operator-action.ts isRoutinePrompt()
+  # drops these lines; tests/auto-close.test.ts drift guard syncs them.
   case "$verdict" in
     EVALUATE*)
       [[ -n "$first" ]] || echo "HEARTBEAT_EVALUATE" ;;
