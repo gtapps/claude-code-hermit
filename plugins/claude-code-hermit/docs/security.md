@@ -141,6 +141,8 @@ Hermit does not probe for or configure Claude Code's native bash sandbox (`sandb
 
 **Enabling or disabling:** entirely the operator's call — run `/sandbox` or edit `sandbox.enabled` in your settings file directly. Hermit never writes this key.
 
+**Credential protection:** Claude Code's default sandbox read policy still allows reads of `~/.aws`, `~/.ssh`, and `~/.gnupg`. If you enable the sandbox, add a `sandbox.credentials` block (or `sandbox.filesystem.denyRead`) to block them — earlier hermit versions wrote these denies for you, but hermit no longer manages `sandbox.*`, so this is now yours to set. See the [sandbox docs](https://code.claude.com/docs/en/sandboxing#protect-credentials).
+
 **Custom CA / MITM proxies:** tools that use a corporate proxy with a custom certificate authority may need `"enableWeakerNetworkIsolation": true` in the `sandbox` block. See the [FAQ](faq.md) for details.
 
 ---
