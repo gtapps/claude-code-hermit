@@ -40,6 +40,30 @@ const READ_ALLOWLIST = [
     'monitors', 'webhooks', 'backgroundProcesses', 'commands',
     // org
     'organizations',
+    // singular detail + output counterparts
+    'backgroundProcess', 'backgroundProcessLog',
+    'command', 'commandOutput',
+    'scheduledJob', 'scheduledJobOutput', 'siteScheduledJob', 'siteScheduledJobOutput',
+    'serverEvent', 'serverEventOutput',
+    // site logs + site/domain config
+    'siteApplicationLog', 'siteNginxAccessLog', 'siteNginxErrorLog',
+    'siteNginx', 'domainNginxConfig', 'domainConfigurations', 'siteHealthcheck',
+    // deployment config
+    'deploymentScript',
+    // laravel integrations
+    'getMaintenance', 'getHorizon', 'getOctane', 'getScheduler', 'getPulse', 'getReverb', 'getInertia',
+    // monitoring detail
+    'monitor', 'heartbeats', 'heartbeat',
+    // singular parity getters
+    'organizationSite', 'domain', 'databaseUser', 'webhook', 'backupConfiguration',
+    'phpVersion', 'activeDomainCertificate',
+    // php config reads
+    'phpCli', 'phpCliVersion', 'phpFpm', 'phpMaxExecutionTime', 'phpMaxUploadSize',
+    'phpOpcache', 'phpPool', 'phpSiteVersion',
+    // Deliberately NOT allowlisted (do not add): siteEnvironment (env vars are
+    // secrets), deploymentTriggerUrl (secret URL), composerCredential(s),
+    // npmCredential(s), serverCredential(s), serverKey, deployKey (credentials).
+    // The global cross-org sites() stays out too (org-scoped reads only).
 ];
 
 // Raw transports — blocked even if somehow allowlisted (defense-in-depth).

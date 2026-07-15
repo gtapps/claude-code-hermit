@@ -24,10 +24,12 @@ A wrong reboot causes an outage. A wrong deploy targets the wrong site. The `wri
 Skills self-advertise through their own `SKILL.md` descriptions — they are not catalogued here. The curated `php forge.php` commands cover the hot paths. For any other SDK read — server events, firewall rules, databases, scheduled jobs, certificates, etc. — use read-only generic dispatch:
 
 ```bash
-# Args as JSON array on stdin; the org slug is prepended automatically
-# (except global methods like `organizations` and `sites`).
-echo '["<server-id>"]' | php ${CLAUDE_PLUGIN_ROOT}/php/forge.php call databases
-echo '["<server-id>", "<site-id>"]' | php ${CLAUDE_PLUGIN_ROOT}/php/forge.php call deployments
+# Args as JSON array on stdin — keep IDs as bare numbers, not quoted strings
+# (SDK params are typed ints; strict_types rejects "123"). The org slug is
+# prepended automatically (except global methods like `organizations`).
+echo '[123]' | php ${CLAUDE_PLUGIN_ROOT}/php/forge.php call databases
+echo '[123, 456]' | php ${CLAUDE_PLUGIN_ROOT}/php/forge.php call deployments
+echo '[123]' | php ${CLAUDE_PLUGIN_ROOT}/php/forge.php call backgroundProcesses
 ```
 
 Only read methods on the closed allowlist are accepted — this path cannot mutate anything.

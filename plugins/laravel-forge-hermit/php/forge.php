@@ -193,6 +193,8 @@ if ($cmd === '' || $cmd === '--help' || $cmd === 'help') {
       site <server> <site>        Show site detail
       logs <server> <site>        Show latest deployment log for a site
       server-log <server> <key>   Read a server log by key (keys are hyphenated: nginx-error, nginx-access; 'php' auto-resolves to php-<major>.<minor>)
+      site-log <server> <site> <type>  Read a site log (type: application, nginx-access, nginx-error)
+      background-process-log <server> <process-id>  Fetch a background process's log output
       deploy-history <server> <site>          List recent deployments
       deploy-log <server> <site> <deploy-id>  Fetch a specific deployment log
       deploy-status <server-id> <site-id> <deploy-id>  Print a deployment's status (raw IDs)
@@ -390,6 +392,36 @@ if ($cmd === 'server-log') {
 }
 
 // ---------------------------------------------------------------------------
+// site-log <server> <site> <type>
+// ---------------------------------------------------------------------------
+if ($cmd === 'site-log') {
+    check(isset($positional[2]), "Usage: forge.php site-log <server> <site> <application|nginx-access|nginx-error>");
+
+    $methods = [
+        'application'  => 'siteApplicationLog',
+        'nginx-access' => 'siteNginxAccessLog',
+        'nginx-error'  => 'siteNginxErrorLog',
+    ];
+    $type = $positional[2];
+    if (!isset($methods[$type])) {
+        fwrite(STDERR, "Unknown log type '$type'. Valid types: " . implode(', ', array_keys($methods)) . "\n");
+        exit(1);
+    }
+
+    $server = resolveServer($forge, $org, $positional[0]);
+    $site   = resolveSite($forge, $org, $server, $positional[1]);
+
+    try {
+        $log = $forge->{$methods[$type]}($org, $server->id, $site->id);
+    } catch (NotFoundException $e) {
+        fwrite(STDERR, "No $type log found for site {$site->name} on server {$server->name}.\n");
+        exit(1);
+    }
+    echo $log . "\n";
+    exit(0);
+}
+
+// ---------------------------------------------------------------------------
 // deploy-history <server> <site>
 // ---------------------------------------------------------------------------
 if ($cmd === 'deploy-history') {
@@ -414,6 +446,23 @@ if ($cmd === 'deploy-log') {
     $site     = resolveSite($forge, $org, $server, $positional[1]);
     $deployId = (int)$positional[2];   // SDK param is int; argv gives a string under strict_types
     $log      = $forge->deploymentLog($org, $server->id, $site->id, $deployId);
+    echo $log . "\n";
+    exit(0);
+}
+
+// ---------------------------------------------------------------------------
+// background-process-log <server> <process-id>
+// ---------------------------------------------------------------------------
+if ($cmd === 'background-process-log') {
+    check(isset($positional[1]), "Usage: forge.php background-process-log <server> <process-id>");
+    $server    = resolveServer($forge, $org, $positional[0]);
+    $processId = (int)$positional[1];   // SDK param is int; argv gives a string under strict_types
+    try {
+        $log = $forge->backgroundProcessLog($org, $server->id, $processId);
+    } catch (NotFoundException $e) {
+        fwrite(STDERR, "No background process $processId on server {$server->name}. List processes with: echo '[{$server->id}]' | forge.php call backgroundProcesses\n");
+        exit(1);
+    }
     echo $log . "\n";
     exit(0);
 }

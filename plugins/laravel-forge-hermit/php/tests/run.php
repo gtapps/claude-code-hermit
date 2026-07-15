@@ -174,6 +174,23 @@ check(!isAllowed('rebootServer'), 'rebootServer rejected (not on allowlist)');
 check(isAllowed('servers'), 'servers allowed');
 check(isAllowed('deployment'), 'deployment allowed');
 check(isAllowed('serverLog'), 'serverLog allowed');
+check(isAllowed('backgroundProcessLog'), 'backgroundProcessLog allowed');
+check(isAllowed('siteApplicationLog'), 'siteApplicationLog allowed');
+check(!isAllowed('siteEnvironment'), 'siteEnvironment rejected (env vars are secrets)');
+check(!isAllowed('deploymentTriggerUrl'), 'deploymentTriggerUrl rejected (secret URL)');
+check(!isAllowed('composerCredentials'), 'composerCredentials rejected (credentials)');
+check(!isAllowed('updateSiteEnvironment'), 'updateSiteEnvironment rejected (mutator)');
+
+// Every allowlist entry must be a real public method on the SDK (typo guard —
+// previously a misspelled entry would pass the suite and only fail at runtime).
+$missingMethods = array_values(array_filter(
+    READ_ALLOWLIST,
+    fn($m) => !method_exists(Forge::class, $m)
+));
+$allMethodsExist = $missingMethods === [];
+check($allMethodsExist,
+    'every READ_ALLOWLIST entry exists on Forge SDK'
+    . ($allMethodsExist ? '' : ' (missing: ' . implode(', ', $missingMethods) . ')'));
 
 // ---------------------------------------------------------------------------
 // Tests: NO_ORG_METHODS — org slug must not be prepended for global methods

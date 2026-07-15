@@ -66,6 +66,16 @@ describe('write-confirm-gate: pass-through cases', () => {
     const r = runHook({ tool_name: 'Bash', tool_input: { command: 'echo \'["s1"]\' | php /plugin/php/forge.php call servers' } });
     expect(r.exitCode).toBe(0);
   });
+
+  test('site-log (read command) passes', () => {
+    const r = runHook({ tool_name: 'Bash', tool_input: { command: 'php /plugin/php/forge.php site-log web-1 example.com application' } });
+    expect(r.exitCode).toBe(0);
+  });
+
+  test('background-process-log (read command) passes', () => {
+    const r = runHook({ tool_name: 'Bash', tool_input: { command: 'php /plugin/php/forge.php background-process-log web-1 123' } });
+    expect(r.exitCode).toBe(0);
+  });
 });
 
 describe('write-confirm-gate: blocked cases', () => {

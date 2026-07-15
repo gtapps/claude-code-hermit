@@ -1,5 +1,12 @@
 # Changelog — laravel-forge-hermit
 
+## [Unreleased]
+
+### Added
+- **forge.php: `background-process-log <server> <process-id>` command + `backgroundProcessLog` read** — log access for apps running as Forge background processes (#606)
+- **forge.php: `site-log <server> <site> <type>` command (application, nginx-access, nginx-error)** — site-level logs, previously unreachable
+- **forge.php: read allowlist expanded with 43 SDK detail/output/config read methods** — secret-bearing reads (`siteEnvironment`, `deploymentTriggerUrl`, credential methods) deliberately excluded and test-enforced
+
 ## [0.0.6] - 2026-07-10
 
 ### Fixed
