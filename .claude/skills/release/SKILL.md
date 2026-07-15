@@ -104,6 +104,8 @@ Present the suggested version and rationale. Wait for confirmation before procee
 
 Prepend a new entry to `plugins/<slug>/CHANGELOG.md` immediately after the `# Changelog` header, before the previous version entry. If a `[Unreleased]` section already exists, rename it to `[X.Y.Z] - YYYY-MM-DD` instead of prepending a new one — the entry has been accumulating during development.
 
+**Docs-only double-check (do this before promoting/writing the entry).** Read every narrative bullet about to ship in this version and confirm each describes a real code/behavior change an operator experiences. Drop any bullet whose only change is documentation — README, `docs/`, `CLAUDE.md`, or code comments — including bullets that pair a docs correction onto an otherwise-code entry (keep the code half, cut the docs half). Docs corrections belong in the commit message and PR description, never the CHANGELOG. Cross-check against the actual diff: `git diff <last-tag>..HEAD -- plugins/<slug>` — if a bullet's only backing changes are `.md` or comment edits, it should not be in the changelog. This mirrors the root `CLAUDE.md` §Commits rule.
+
 **Format**:
 
 ```markdown
