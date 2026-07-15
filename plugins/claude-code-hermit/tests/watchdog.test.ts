@@ -962,6 +962,51 @@ test('post_close_clear: flag false → no send even with marker',
     expect(fs.existsSync(state(h, 'clear-requested.json'))).toBe(true);
   }));
 
+test('post_close_clear: invalidates sessions/.status.json so a stale pre-clear cost entry cannot trigger a spurious compact',
+  withHermit(async (h) => {
+    fs.writeFileSync(path.join(h.dir, '.claude-code-hermit', 'config.json'), JSON.stringify({
+      post_close_clear: true,
+      watchdog: { enabled: false },
+      context_hygiene: { compact: { enabled: true, min_context_tokens: 150000, min_interval: '4h' } },
+      heartbeat: { enabled: true, every: '2h', active_hours: { start: '00:00', end: '23:59' } },
+    }, null, 2) + '\n');
+    // Mirrors session-archive.ts's post-auto-close state: idle, no open arc —
+    // resolveHygieneSessionId falls back to sessions/.status.json.
+    patchRuntime(h, { session_state: 'idle', session_id: null });
+    fs.mkdirSync(path.join(h.dir, '.claude-code-hermit', 'sessions'), { recursive: true });
+    fs.writeFileSync(
+      path.join(h.dir, '.claude-code-hermit', 'sessions', '.status.json'),
+      JSON.stringify({ session_id: SESSION_ID }) + '\n',
+    );
+    // Bloated pre-clear entry — the dead context's final turn.
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 200000 }]);
+    writeClearMarker(h);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(0.5) }) + '\n');
+    // Pre-prime the compact tracker's pane hash so quiescence is already satisfied —
+    // absent the fix, tick 2 alone would be enough for the compactor to misfire.
+    primeCompactHash(h, STATIC_HASH);
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    // Tick 1: post-close /clear fires and (with the fix) deletes .status.json.
+    const r1 = await watchdog(h, 'run');
+    expect(r1.exitCode).toBe(0);
+    const tmuxLog1 = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog1).toContain('/clear');
+    expect(fs.readFileSync(eventsFile(h), 'utf-8')).toContain('post-close-clear');
+    expect(fs.existsSync(path.join(h.dir, '.claude-code-hermit', 'sessions', '.status.json'))).toBe(false);
+
+    // Tick 2: runtime.session_id is still null (no real turn has run yet) — the
+    // compactor must fail to resolve a session id now that the cache is gone.
+    const r2 = await watchdog(h, 'run');
+    expect(r2.exitCode).toBe(0);
+    const tmuxLog2 = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog2).not.toContain('/compact');
+    expect(fs.readFileSync(eventsFile(h), 'utf-8')).not.toContain('context-compact');
+    const ws = readJson(state(h, 'watchdog-state.json'));
+    expect(ws.last_hygiene_eval?.compact?.outcome).toBe('skip:no-session-id');
+  }));
+
 // -------------------------------------------------------
 // context-clear tests
 // -------------------------------------------------------
@@ -1377,6 +1422,39 @@ test('context_clear takes precedence over compact on the same tick (both thresho
     const events = fs.readFileSync(eventsFile(h), 'utf-8');
     expect(events).toContain('context-clear');
     expect(events).not.toContain('context-compact');
+  }));
+
+test('context_clear (mid-arc emergency clear) cross-stamps compact idempotence so the destroyed entry cannot re-trigger a spurious compact',
+  withHermit(async (h) => {
+    writeContextCompactConfig(h, { minContextTokens: 150000, minInterval: '4h', clearTokens: 700000 });
+    writeAlwaysOnRuntime(h, 'idle'); // arc open: runtime.session_id = SESSION_ID — resolveHygieneSessionId short-circuits, cache deletion alone can't help
+    const entryTimestamp = '2026-01-01T00:00:00.000Z';
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 800000, timestamp: entryTimestamp }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    await watchdog(h, 'run'); // tick 1: both trackers prime their hashes
+    const r2 = await watchdog(h, 'run'); // tick 2: /clear fires and exits before compact runs
+    expect(r2.exitCode).toBe(0);
+    const tmuxLog2 = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog2).toContain('/clear');
+    expect(tmuxLog2).not.toContain('/compact');
+
+    // Cross-stamp: the emergency clear must mark this cost entry as already
+    // compacted too — deleting sessions/.status.json alone cannot protect this
+    // path, since runtime.session_id (arc still open) short-circuits the fallback.
+    const wsAfterClear = readJson(state(h, 'watchdog-state.json'));
+    expect(wsAfterClear.last_compacted_cost_ts).toBe(entryTimestamp);
+
+    const r3 = await watchdog(h, 'run'); // tick 3: clear is idempotent; compact must see the cross-stamp
+    expect(r3.exitCode).toBe(0);
+    const tmuxLog3 = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog3).not.toContain('/compact');
+    const events3 = fs.readFileSync(eventsFile(h), 'utf-8');
+    expect(events3).not.toContain('context-compact');
+    const wsAfterTick3 = readJson(state(h, 'watchdog-state.json'));
+    expect(wsAfterTick3.last_hygiene_eval?.compact?.outcome).toBe('skip:already-processed');
   }));
 
 test('context_compact: boundary marker waives min_interval but not the 60k floor',

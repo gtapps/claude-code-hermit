@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **watchdog: context resets invalidate the session-id cost cache** — post-close and emergency `/clear` now delete `sessions/.status.json` (and the emergency clear cross-stamps the compact tracker), so the compact tier can no longer fire a spurious `/compact` on the destroyed context's stale cost entry.
+
 ## [1.2.25] - 2026-07-14
 
 ### Fixed
