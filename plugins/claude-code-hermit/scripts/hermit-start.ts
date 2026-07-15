@@ -474,6 +474,11 @@ function clearShutdownStampsOnBoot(existing: Json): void {
  * return "no session id" (a clean skip) until a real turn re-populates it. cost-tracker
  * treats a missing file as first-run and rebuilds cumulative totals from the index, so
  * nothing is lost.
+ *
+ * The watchdog also imports this and calls it mid-run at context-reset time (post-close
+ * and emergency /clear in hermit-watchdog.ts) for the same reason: once /clear destroys a
+ * context, its last cost entry is stale, and the same fallback must not resolve it into a
+ * spurious /compact against the fresh context.
  */
 function clearStatusCacheOnBoot(): void {
   try { fs.unlinkSync(path.join(STATE_DIR, '..', 'sessions', '.status.json')); } catch {}

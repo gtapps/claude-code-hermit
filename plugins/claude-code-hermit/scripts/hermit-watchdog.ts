@@ -32,6 +32,7 @@ import { flushResetBreadcrumb } from './lib/progress-log';
 import { wallMinutes } from './cron-tz-shift';
 import { isPaused, pauseReasonLabel } from './lib/pause';
 import { runTelemetryExportIfDue } from './report-export';
+import { clearStatusCacheOnBoot as clearStatusCache } from './hermit-start';
 
 type Json = any;
 
@@ -419,6 +420,7 @@ function maybePostCloseClear(config: Json): void {
     runtime.context_cleared = true;
     writeRuntimeJson(runtime);
     sendKeys(sessionName, '/clear');
+    clearStatusCache();
     try { fs.rmSync(CLEAR_REQUESTED_JSON); } catch {}
     appendEvent('post-close-clear', 'daily-auto-close context reset');
   } finally {
@@ -618,7 +620,12 @@ function maybeContextClear(config: Json): void {
       tokens: prompt,
     });
     sendKeys(sessionName, '/clear');
+    clearStatusCache();
     watchdogState.last_cleared_cost_ts = lastEntry.timestamp;
+    // Cross-stamp: runtime.session_id short-circuits resolveHygieneSessionId when an
+    // arc is open, so cache deletion alone can't stop the compact tier from resolving
+    // this same (now-destroyed) entry — mark it consumed for compact too.
+    watchdogState.last_compacted_cost_ts = lastEntry.timestamp;
     watchdogState.last_pane_hash_ctx = null; // reset so next bloat cycle re-arms
     setHygieneEval(watchdogState, 'clear', 'fired', prompt);
     writeWatchdogState(watchdogState);
