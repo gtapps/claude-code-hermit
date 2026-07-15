@@ -111,6 +111,8 @@ In **enforce mode**, the same command surfaces NXDOMAIN denials. Decide which do
 
 The wizard does not auto-promote blocked domains. Manual review keeps the trust boundary at the operator.
 
+**Pinning an internal/private hostname (e.g. Tailscale MagicDNS) to an IP is not something the allowlist supports** — it only takes `server=` forwarding rules and the catchall, and log-only mode skips the allowlist file entirely (dnsmasq isn't even loaded with `--conf-file` in that mode), so a hand-added static record would silently resolve in enforce mode but not log-only. Use `extra_hosts` on the `hermit` service in your compose file instead — it resolves via `/etc/hosts` before any DNS query is made, so it works identically regardless of DNS mode.
+
 ## GitHub CLI authentication {#gh-cli-authentication}
 
 `gh` is pre-installed in the hermit Docker baseline image. By default it runs anonymously — fine for read-only public-repo operations, but subject to GitHub's unauthenticated rate limit (60 req/hr per IP).

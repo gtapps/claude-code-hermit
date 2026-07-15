@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **docker-security docs: clarify that DNS log-only mode ignores the allowlist entirely** — static `address=` records only apply in enforce mode; documented `extra_hosts` on the `hermit` service as the mode-independent way to pin an internal hostname to an IP.
+
 ## [1.2.26] - 2026-07-15
 
 ### Fixed
