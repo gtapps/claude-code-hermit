@@ -8,6 +8,7 @@
 ### Upgrade Instructions
 
 Run `/claude-code-hermit:hermit-evolve`. Additive and backward-compatible — the new per-monitor damper is stored under `last_monitor_rearm` in `watchdog-state.json` (created on demand), and the step is gated on the existing `watchdog.enabled`; no config or state migration needed.
+- **hermit-routines: model-override dispatch anchors the subagent to the absolute project dir** — stops relative-path misresolution (doubled `.claude-code-hermit` path) that caused false doctor alerts under cheap-model routines.
 
 ## [1.2.27] - 2026-07-15
 
