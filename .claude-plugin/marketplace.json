@@ -88,9 +88,9 @@
       ]
     },
     {
-      "name": "briefing-hermit",
-      "source": "./plugins/briefing-hermit",
-      "description": "News/trending briefing pipeline for claude-code-hermit — curated source registry, fetch/score/write/deliver/archive pipeline, weekly synthesis, and source-health analytics for an autonomous briefing assistant",
+      "name": "feed-hermit",
+      "source": "./plugins/feed-hermit",
+      "description": "Feed-to-brief pipeline for claude-code-hermit — curated source registry, fetch/score/write/deliver/archive pipeline, weekly synthesis, and source-health analytics for an autonomous feed-reading assistant",
       "version": "0.1.0",
       "category": "productivity",
       "author": {
@@ -98,11 +98,11 @@
         "url": "https://github.com/gtapps"
       },
       "license": "MIT",
-      "homepage": "https://github.com/gtapps/claude-code-hermit/tree/main/plugins/briefing-hermit",
+      "homepage": "https://github.com/gtapps/claude-code-hermit/tree/main/plugins/feed-hermit",
       "repository": "https://github.com/gtapps/claude-code-hermit",
       "keywords": [
-        "briefing",
-        "news",
+        "feed",
+        "brief",
         "rss",
         "trending",
         "gtapps"
