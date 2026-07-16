@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **hermit-routines: model-override dispatch anchors the subagent to the absolute project dir** — stops relative-path misresolution (doubled `.claude-code-hermit` path) that caused false doctor alerts under cheap-model routines.
+
 ## [1.2.27] - 2026-07-15
 
 ### Removed
