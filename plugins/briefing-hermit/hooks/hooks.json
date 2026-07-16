@@ -1,0 +1,32 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/fetch-guard.ts"],
+            "timeout": 5
+          }
+        ],
+        "description": "Block WebFetch to any domain not in sources.md (plus a hardcoded infra allowlist). Fails open if sources.md is missing."
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/validate-sources.ts"],
+            "timeout": 10
+          }
+        ],
+        "description": "Validate the sources.md table format after any edit to it. Passes through for non-sources.md files."
+      }
+    ]
+  }
+}

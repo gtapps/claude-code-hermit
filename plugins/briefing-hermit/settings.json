@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(bun *reddit-fetch.ts*)",
+      "Bash(bun *validate-sources.ts*)",
+      "Bash(bun test*)",
+      "Edit(sources.md)",
+      "Write(sources.md)",
+      "Edit(categories.md)",
+      "Write(categories.md)",
+      "Edit(BRIEFING.md)",
+      "Write(BRIEFING.md)",
+      "Edit(.claude-code-hermit/**)",
+      "Write(.claude-code-hermit/**)",
+      "Write(tmp/**)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(chmod 777*)",
+      "Bash(curl * | bash*)",
+      "Bash(wget * | bash*)",
+      "Edit(**/.claude-code-hermit/OPERATOR.md)",
+      "Write(**/.claude-code-hermit/OPERATOR.md)",
+      "Edit(.env)",
+      "Write(.env)"
+    ]
+  }
+}

@@ -88,6 +88,27 @@
       ]
     },
     {
+      "name": "briefing-hermit",
+      "source": "./plugins/briefing-hermit",
+      "description": "News/trending briefing pipeline for claude-code-hermit — curated source registry, fetch/score/write/deliver/archive pipeline, weekly synthesis, and source-health analytics for an autonomous briefing assistant",
+      "version": "0.1.0",
+      "category": "productivity",
+      "author": {
+        "name": "gtapps",
+        "url": "https://github.com/gtapps"
+      },
+      "license": "MIT",
+      "homepage": "https://github.com/gtapps/claude-code-hermit/tree/main/plugins/briefing-hermit",
+      "repository": "https://github.com/gtapps/claude-code-hermit",
+      "keywords": [
+        "briefing",
+        "news",
+        "rss",
+        "trending",
+        "gtapps"
+      ]
+    },
+    {
       "name": "laravel-forge-hermit",
       "source": "./plugins/laravel-forge-hermit",
       "description": "Laravel Forge layer for claude-code-hermit — deployment, logs, server/site skills, and daily estate scan via the official Forge PHP SDK",
