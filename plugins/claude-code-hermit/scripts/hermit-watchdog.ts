@@ -412,12 +412,11 @@ const MONITOR_REARM_DAMPER_SECS = 6 * 3600;
  * True when a monitor that should be ticking has a liveness timestamp stale past
  * thresholdSecs — or, lacking any trusted tick, a registration older than the startup
  * grace. Trust mirrors doctor: a tick predating started_at belongs to a prior session's
- * monitor and is not proof the current one is alive. A monitor never registered (no
- * runtime file, so started_at unknown) returns false — re-registering that is
+ * monitor and is not proof the current one is alive. A monitor never registered
+ * (runtimeData null, so started_at unknown) returns false — re-registering that is
  * session-start's job, not the watchdog's.
  */
-function monitorLivenessStale(livenessFile: string, runtimeFile: string, thresholdSecs: number): boolean {
-  const runtimeData = readJson(path.join(STATE_DIR, runtimeFile));
+function monitorLivenessStale(livenessFile: string, runtimeData: Json, thresholdSecs: number): boolean {
   const startedAt: string | null =
     runtimeData && typeof runtimeData.started_at === 'string' ? runtimeData.started_at : null;
   const startedAtMs = startedAt !== null ? Date.parse(startedAt) : NaN;
@@ -444,7 +443,8 @@ function heartbeatMonitorStale(config: Json): boolean {
   const hbCfg = config?.heartbeat;
   if (!hbCfg || typeof hbCfg !== 'object' || Array.isArray(hbCfg) || !hbCfg.enabled) return false;
   const thresholdSecs = 3 * parseDuration(hbCfg.every ?? '2h');
-  return monitorLivenessStale('heartbeat-liveness.json', 'heartbeat-monitor.runtime.json', thresholdSecs);
+  const monRt = readJson(path.join(STATE_DIR, 'heartbeat-monitor.runtime.json'));
+  return monitorLivenessStale('heartbeat-liveness.json', monRt, thresholdSecs);
 }
 
 /** Routine monitor stale? Gated + thresholded exactly as doctor's checkRoutineMonitor. */
@@ -456,7 +456,7 @@ function routineMonitorStale(config: Json): boolean {
   if (!monRt || monRt.mode === 'croncreate-fallback') return false; // not loaded, or CronCreate fallback (no Monitor)
   const interval = typeof monRt.interval === 'number' && monRt.interval > 0 ? monRt.interval : 60;
   const thresholdSecs = Math.max(10 * interval, 10 * 60);
-  return monitorLivenessStale('routine-monitor-liveness.json', 'routine-monitor.runtime.json', thresholdSecs);
+  return monitorLivenessStale('routine-monitor-liveness.json', monRt, thresholdSecs);
 }
 
 /** Damper open when this monitor hasn't been re-armed within MONITOR_REARM_DAMPER_SECS. */
