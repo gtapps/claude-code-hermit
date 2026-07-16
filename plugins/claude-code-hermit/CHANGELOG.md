@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **watchdog: liveness-keyed re-arm of dead heartbeat/routine monitors** — a Monitor subprocess that dies mid-session (e.g. at a restart) is now detected from its stale liveness file and re-armed within one watchdog cycle, damped to one attempt per monitor per 6h. Previously recovery waited on the `heartbeat-restart` anchor (up to 3 days on slow cadences) or the 26h fired-age fallback, which stays inert when the model-issued `fired` metric is missing.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. Additive and backward-compatible — the new per-monitor damper is stored under `last_monitor_rearm` in `watchdog-state.json` (created on demand), and the step is gated on the existing `watchdog.enabled`; no config or state migration needed.
+
 ## [1.2.27] - 2026-07-15
 
 ### Removed

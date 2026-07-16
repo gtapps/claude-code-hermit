@@ -13,6 +13,8 @@
  *       un-redirectable dialog (native permission prompt, harness prompt)
  *   4. Wedge detection — nudge-then-escalate when heartbeat is stale
  *   5. Re-arm fallback — re-arm when heartbeat-restart routine missed its window
+ *   6. Monitor re-arm  — re-arm a heartbeat/routine Monitor whose liveness file
+ *                        went stale mid-session (any cause), damped per monitor
  *
  * Usage: bun scripts/hermit-watchdog.ts [run|install|uninstall]
  *        (invoked by .claude-code-hermit/bin/hermit-watchdog run)
@@ -387,6 +389,128 @@ function doRearm(sessionName: string): void {
   sendKeys(sessionName, '/claude-code-hermit:heartbeat start');
   appendEvent('re-arm-fallback', 'heartbeat-restart routine missed ~26h window');
   process.stderr.write(`[watchdog] re-armed "${sessionName}"\n`);
+}
+
+// --- Monitor-liveness re-arm (step 6) ---
+//
+// Step 5 above re-arms only when the heartbeat-restart routine's `fired` age crosses
+// ~26h — a model-issued metric that can be missing entirely, leaving that fallback
+// permanently inert. This step keys off ground truth instead: the per-poll liveness
+// files the monitors themselves stamp. Its staleness logic mirrors doctor's
+// checkHeartbeat/checkRoutineMonitor (trusted-tick vs started_at, startup grace) so a
+// doctor 'fail' and a watchdog re-arm trip on the same signal.
+
+// A monitor writes liveness on its first loop iteration, so a real tick lands within
+// seconds of spawn; the grace only needs to cover spawn + first precheck.
+const MONITOR_STARTUP_GRACE_SECS = 120;
+// One re-arm attempt per monitor per this window. Essential: where Monitor spawn is
+// blocked outright (seccomp / nested-userns), an undamped liveness-keyed re-arm would
+// re-inject every tick forever — each injection a paid full-context wake.
+const MONITOR_REARM_DAMPER_SECS = 6 * 3600;
+
+/**
+ * True when a monitor that should be ticking has a liveness timestamp stale past
+ * thresholdSecs — or, lacking any trusted tick, a registration older than the startup
+ * grace. Trust mirrors doctor: a tick predating started_at belongs to a prior session's
+ * monitor and is not proof the current one is alive. A monitor never registered (no
+ * runtime file, so started_at unknown) returns false — re-registering that is
+ * session-start's job, not the watchdog's.
+ */
+function monitorLivenessStale(livenessFile: string, runtimeFile: string, thresholdSecs: number): boolean {
+  const runtimeData = readJson(path.join(STATE_DIR, runtimeFile));
+  const startedAt: string | null =
+    runtimeData && typeof runtimeData.started_at === 'string' ? runtimeData.started_at : null;
+  const startedAtMs = startedAt !== null ? Date.parse(startedAt) : NaN;
+
+  const liveness = readJson(path.join(STATE_DIR, livenessFile));
+  const lastPeekAt: string | null =
+    liveness && typeof liveness.last_peek_at === 'string' ? liveness.last_peek_at : null;
+  const lastPeekMs = lastPeekAt !== null ? Date.parse(lastPeekAt) : NaN;
+
+  const trusted = Number.isFinite(lastPeekMs) && (!Number.isFinite(startedAtMs) || lastPeekMs >= startedAtMs);
+  if (trusted) {
+    const age = ageSecs(lastPeekAt!);
+    return age !== null && age > thresholdSecs;
+  }
+  if (Number.isFinite(startedAtMs)) {
+    const startAge = ageSecs(startedAt!);
+    return startAge !== null && startAge >= MONITOR_STARTUP_GRACE_SECS;
+  }
+  return false;
+}
+
+/** Heartbeat monitor stale? Gated + thresholded exactly as doctor's checkHeartbeat. */
+function heartbeatMonitorStale(config: Json): boolean {
+  const hbCfg = config?.heartbeat;
+  if (!hbCfg || typeof hbCfg !== 'object' || Array.isArray(hbCfg) || !hbCfg.enabled) return false;
+  const thresholdSecs = 3 * parseDuration(hbCfg.every ?? '2h');
+  return monitorLivenessStale('heartbeat-liveness.json', 'heartbeat-monitor.runtime.json', thresholdSecs);
+}
+
+/** Routine monitor stale? Gated + thresholded exactly as doctor's checkRoutineMonitor. */
+function routineMonitorStale(config: Json): boolean {
+  const routines = Array.isArray(config?.routines) ? config.routines : [];
+  const anyEnabled = routines.some((r: Json) => r && r.enabled === true && r.id !== 'heartbeat-restart');
+  if (!anyEnabled) return false;
+  const monRt = readJson(path.join(STATE_DIR, 'routine-monitor.runtime.json'));
+  if (!monRt || monRt.mode === 'croncreate-fallback') return false; // not loaded, or CronCreate fallback (no Monitor)
+  const interval = typeof monRt.interval === 'number' && monRt.interval > 0 ? monRt.interval : 60;
+  const thresholdSecs = Math.max(10 * interval, 10 * 60);
+  return monitorLivenessStale('routine-monitor-liveness.json', 'routine-monitor.runtime.json', thresholdSecs);
+}
+
+/** Damper open when this monitor hasn't been re-armed within MONITOR_REARM_DAMPER_SECS. */
+function rearmDamperOpen(lastStamp: unknown): boolean {
+  if (typeof lastStamp !== 'string') return true;
+  const age = ageSecs(lastStamp);
+  return age === null || age >= MONITOR_REARM_DAMPER_SECS;
+}
+
+/**
+ * Re-arm a heartbeat/routine Monitor that died mid-session, detected via its stale
+ * liveness file rather than step 5's fired-age heuristic. Injects only the dead
+ * monitor's re-arm command (both are in record-operator-action's INJECTED_EXACT, so
+ * neither stamps the operator-activity clock). `alreadyRearmed` short-circuits when
+ * step 5 already fired doRearm this tick — that re-armed both, nothing left to do.
+ */
+function maybeMonitorRearm(config: Json, sessionName: string, operatorGraceSecs: number, alreadyRearmed: boolean): void {
+  if (alreadyRearmed) return;
+  if (isPaused(HERMIT_ROOT).paused) return;               // no injection while paused (mirrors doNudge)
+  if (!tmuxSessionAlive(sessionName)) return;             // dead session belongs to the doRestart path
+  const opAge = getOperatorLastActionAgeSecs();
+  if (opAge !== null && opAge < operatorGraceSecs) return; // operator mid-conversation — back off
+
+  const heartbeatStale = heartbeatMonitorStale(config);
+  const routineStale = routineMonitorStale(config);
+  if (!heartbeatStale && !routineStale) return;
+
+  const state = readWatchdogState();
+  const lastRearm =
+    state.last_monitor_rearm && typeof state.last_monitor_rearm === 'object' && !Array.isArray(state.last_monitor_rearm)
+      ? state.last_monitor_rearm
+      : {};
+
+  const doHeartbeat = heartbeatStale && rearmDamperOpen(lastRearm.heartbeat);
+  const doRoutines = routineStale && rearmDamperOpen(lastRearm.routines);
+  if (!doHeartbeat && !doRoutines) return; // stale but still inside the per-monitor damper window
+
+  // Routine reload first, then heartbeat start after a settle gap — same ordering
+  // doRearm uses when it sends both.
+  if (doRoutines) {
+    sendKeys(sessionName, '/claude-code-hermit:hermit-routines load');
+    if (doHeartbeat) Bun.sleepSync(2000);
+  }
+  if (doHeartbeat) sendKeys(sessionName, '/claude-code-hermit:heartbeat start');
+
+  const stamp = utcStamp();
+  if (doHeartbeat) lastRearm.heartbeat = stamp;
+  if (doRoutines) lastRearm.routines = stamp;
+  state.last_monitor_rearm = lastRearm;
+  writeWatchdogState(state);
+
+  const targets = [doHeartbeat ? 'heartbeat' : null, doRoutines ? 'routine-monitor' : null].filter(Boolean).join('+');
+  appendEvent('monitor-rearm', `${targets} liveness stale`);
+  process.stderr.write(`[watchdog] monitor re-arm "${sessionName}" (${targets})\n`);
 }
 
 // --- Post-close context reset ---
@@ -1008,6 +1132,7 @@ async function main(): Promise<void> {
   }
 
   // 5. Re-arm fallback: fire if heartbeat-restart routine hasn't fired in ~26h
+  let rearmedThisTick = false;
   const rearmThresholdSecs = 26 * 3600;
   const routineAge = getLastRoutineFiredAgeSecs('heartbeat-restart');
   if (routineAge !== null && routineAge > rearmThresholdSecs) {
@@ -1016,9 +1141,15 @@ async function main(): Promise<void> {
     if (opAge === null || opAge >= operatorGraceSecs) {
       if (tmuxSessionAlive(sessionName)) {
         doRearm(sessionName);
+        rearmedThisTick = true;
       }
     }
   }
+
+  // 6. Liveness-keyed monitor re-arm: recover a heartbeat/routine Monitor that died
+  // mid-session, detected via its stale liveness file rather than step 5's fired-age
+  // heuristic (which needs a model-issued 'fired' metric that can be missing).
+  maybeMonitorRearm(config, sessionName, operatorGraceSecs, rearmedThisTick);
 }
 
 // --- Install / uninstall ---

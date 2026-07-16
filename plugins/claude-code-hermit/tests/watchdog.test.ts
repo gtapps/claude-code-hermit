@@ -607,6 +607,145 @@ test('started event does not count as fired for re-arm check', withHermit(async 
 }));
 
 // -------------------------------------------------------
+// 11c. Monitor-liveness re-arm (step 6): recover a Monitor that died mid-session,
+//      detected via its stale liveness file rather than step 5's fired-age heuristic.
+//      No .heartbeat file → wedge (step 4) skipped; no routine-metrics.jsonl →
+//      step-5 fired-age fallback skipped; so only step 6 is under test here.
+// -------------------------------------------------------
+
+const tmuxCalls = (h: Hermit) => {
+  const p = path.join(h.dir, 'tmux-calls.log');
+  return fs.existsSync(p) ? fs.readFileSync(p, 'utf-8') : '';
+};
+const events = (h: Hermit) => (fs.existsSync(eventsFile(h)) ? fs.readFileSync(eventsFile(h), 'utf-8') : '');
+const writeState = (h: Hermit, name: string, obj: unknown) =>
+  fs.writeFileSync(state(h, name), JSON.stringify(obj) + '\n');
+const writeRoutineMonitorConfig = (h: Hermit) =>
+  fs.writeFileSync(path.join(h.dir, '.claude-code-hermit', 'config.json'), JSON.stringify({
+    watchdog: { enabled: true, stale_factor: 2, escalate_after: 3, operator_grace: '15m' },
+    heartbeat: { enabled: true, every: '2h', active_hours: { start: '00:00', end: '23:59' } },
+    routines: [{ id: 'scheduled-checks', enabled: true, schedule: '*/30 * * * *' }],
+  }, null, 2) + '\n');
+
+test('stale heartbeat liveness → monitor-rearm event, only heartbeat start injected', withHermit(async (h) => {
+  writeConfig(h); // heartbeat every 2h → threshold 6h; no routines
+  // Trusted but stale: last tick 8h ago, monitor registered 9h ago.
+  writeState(h, 'heartbeat-monitor.runtime.json', { started_at: isoAgo(9) });
+  writeState(h, 'heartbeat-liveness.json', { last_peek_at: isoAgo(8) });
+  writeFakeTmux(h, 0);
+  writeFakePgrep(h, 1);
+  const r = await watchdog(h, 'run');
+  expect(r.exitCode).toBe(0);
+  expect(events(h)).toContain('monitor-rearm');
+  expect(events(h)).toContain('heartbeat');
+  const calls = tmuxCalls(h);
+  expect(calls).toContain('/claude-code-hermit:heartbeat start');
+  expect(calls).not.toContain('hermit-routines load');
+  // Damper stamp persisted for the heartbeat monitor.
+  expect(typeof readWatchdogStateFile(h).last_monitor_rearm?.heartbeat).toBe('string');
+}));
+
+test('fresh heartbeat liveness → no monitor-rearm', withHermit(async (h) => {
+  writeConfig(h);
+  writeState(h, 'heartbeat-monitor.runtime.json', { started_at: isoAgo(5 / 60) }); // 5 min ago
+  writeState(h, 'heartbeat-liveness.json', { last_peek_at: isoAgo(1 / 60) });       // 1 min ago
+  writeFakeTmux(h, 0);
+  writeFakePgrep(h, 1);
+  const r = await watchdog(h, 'run');
+  expect(r.exitCode).toBe(0);
+  expect(events(h)).not.toContain('monitor-rearm');
+}));
+
+test('stale liveness but within damper window → no second re-arm', withHermit(async (h) => {
+  writeConfig(h);
+  writeState(h, 'heartbeat-monitor.runtime.json', { started_at: isoAgo(9) });
+  writeState(h, 'heartbeat-liveness.json', { last_peek_at: isoAgo(8) });
+  // Already re-armed 1h ago — inside the 6h per-monitor damper.
+  writeState(h, 'watchdog-state.json', { last_monitor_rearm: { heartbeat: isoAgo(1) } });
+  writeFakeTmux(h, 0);
+  writeFakePgrep(h, 1);
+  const r = await watchdog(h, 'run');
+  expect(r.exitCode).toBe(0);
+  expect(events(h)).not.toContain('monitor-rearm');
+}));
+
+test('stale liveness but dead session → restart path owns it, no monitor-rearm', withHermit(async (h) => {
+  writeConfig(h);
+  writeState(h, 'heartbeat-monitor.runtime.json', { started_at: isoAgo(9) });
+  writeState(h, 'heartbeat-liveness.json', { last_peek_at: isoAgo(8) });
+  writeFakeTmux(h, 1); // dead
+  writeFakePgrep(h, 1);
+  const r = await watchdog(h, 'run');
+  expect(r.exitCode).toBe(0);
+  expect(events(h)).toContain('restart');
+  expect(events(h)).not.toContain('monitor-rearm');
+}));
+
+test('stale liveness but operator active < grace → no re-arm', withHermit(async (h) => {
+  writeConfig(h); // operator_grace 15m
+  writeState(h, 'heartbeat-monitor.runtime.json', { started_at: isoAgo(9) });
+  writeState(h, 'heartbeat-liveness.json', { last_peek_at: isoAgo(8) });
+  writeState(h, 'last-operator-action.json', { at: isoAgo(2 / 60) }); // 2 min ago
+  writeFakeTmux(h, 0);
+  writeFakePgrep(h, 1);
+  const r = await watchdog(h, 'run');
+  expect(r.exitCode).toBe(0);
+  expect(events(h)).not.toContain('monitor-rearm');
+}));
+
+test('liveness tick predating started_at + past startup grace → re-arm', withHermit(async (h) => {
+  writeConfig(h);
+  // Monitor registered 10 min ago (past the 2-min grace); only tick is 20 min ago,
+  // which predates started_at → untrusted → falls to the startup-grace branch.
+  writeState(h, 'heartbeat-monitor.runtime.json', { started_at: isoAgo(10 / 60) });
+  writeState(h, 'heartbeat-liveness.json', { last_peek_at: isoAgo(20 / 60) });
+  writeFakeTmux(h, 0);
+  writeFakePgrep(h, 1);
+  const r = await watchdog(h, 'run');
+  expect(r.exitCode).toBe(0);
+  expect(events(h)).toContain('monitor-rearm');
+}));
+
+test('stale liveness but hermit paused → no re-arm', withHermit(async (h) => {
+  writeConfig(h);
+  writeState(h, 'heartbeat-monitor.runtime.json', { started_at: isoAgo(9) });
+  writeState(h, 'heartbeat-liveness.json', { last_peek_at: isoAgo(8) });
+  writeState(h, 'operator-pause.json', { paused: true, paused_until: null, reason: 'operator' });
+  writeFakeTmux(h, 0);
+  writeFakePgrep(h, 1);
+  const r = await watchdog(h, 'run');
+  expect(r.exitCode).toBe(0);
+  expect(events(h)).not.toContain('monitor-rearm');
+}));
+
+test('stale routine-monitor liveness → monitor-rearm, only hermit-routines load injected', withHermit(async (h) => {
+  // Routine monitor enabled (a non-anchor routine), interval 60s → threshold 10m.
+  writeRoutineMonitorConfig(h);
+  writeState(h, 'routine-monitor.runtime.json', { started_at: isoAgo(25 / 60), interval: 60, mode: 'monitor' });
+  writeState(h, 'routine-monitor-liveness.json', { last_peek_at: isoAgo(20 / 60) }); // 20 min ago > 10m
+  writeFakeTmux(h, 0);
+  writeFakePgrep(h, 1);
+  const r = await watchdog(h, 'run');
+  expect(r.exitCode).toBe(0);
+  expect(events(h)).toContain('monitor-rearm');
+  expect(events(h)).toContain('routine-monitor');
+  const calls = tmuxCalls(h);
+  expect(calls).toContain('/claude-code-hermit:hermit-routines load');
+  expect(calls).not.toContain('heartbeat start');
+}));
+
+test('routine monitor in croncreate-fallback mode → no re-arm', withHermit(async (h) => {
+  writeRoutineMonitorConfig(h);
+  writeState(h, 'routine-monitor.runtime.json', { started_at: isoAgo(25 / 60), interval: 60, mode: 'croncreate-fallback' });
+  writeState(h, 'routine-monitor-liveness.json', { last_peek_at: isoAgo(20 / 60) });
+  writeFakeTmux(h, 0);
+  writeFakePgrep(h, 1);
+  const r = await watchdog(h, 'run');
+  expect(r.exitCode).toBe(0);
+  expect(events(h)).not.toContain('monitor-rearm');
+}));
+
+// -------------------------------------------------------
 // 12. checkWatchdog in doctor-check.ts: disabled → ok
 // -------------------------------------------------------
 
