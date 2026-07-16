@@ -62,4 +62,19 @@ describe('apply-settings.ts deny', () => {
     expect(deny).toContain('Bash(some-other-tool*)');
     expect(deny.filter((p: string) => p === 'Bash(rm -fr *)').length).toBe(1);
   });
+
+  // A Write(glob) whose Edit(glob) twin is present is a dead no-op in Claude
+  // Code's engine (Edit covers Write) and trips the v2.1.211 boot warning — it
+  // must not be seeded into settings.json. deny-patterns.json keeps both spellings
+  // for the tool-specific runtime hook; the seed drops the redundant Write.
+  test('deny drops redundant Write(glob) rules whose Edit(glob) twin is seeded', async () => {
+    const dir = freshDir();
+    const file = seedSettings(dir, {});
+    const r = await runScript('apply-settings.ts', { args: [file, 'deny', 'minimal'] });
+    expect(r.exitCode).toBe(0);
+    const deny = readSettings(file).permissions.deny;
+    expect(deny).toContain('Edit(*/.claude/plugins/marketplaces/*)');
+    expect(deny).not.toContain('Write(*/.claude/plugins/marketplaces/*)');
+    expect(deny.some((p: string) => /^Write\(/.test(p))).toBe(false);
+  });
 });

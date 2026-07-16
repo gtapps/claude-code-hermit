@@ -3,11 +3,11 @@
 ## [Unreleased]
 
 ### Fixed
-- **hatch/apply-settings: dropped the no-op `Write(.claude-code-hermit/**)` allow rule** — Claude Code only matches file-permission checks against `Edit(path)` rules (Edit covers all file-editing tools, including Write), so the seeded `Write(...)` entry was dead and triggered a boot warning on every hermit. `Edit(.claude-code-hermit/**)` alone still grants the same access.
+- **hatch/apply-settings: stop seeding no-op `Write(path)` permission rules** — Claude Code only matches file-permission checks against `Edit(path)` rules (Edit covers all file-editing tools, including Write), and (v2.1.211+) warns at boot on `Write(path)` rules. The seeded allow rule `Write(.claude-code-hermit/**)` is dropped, and `apply-settings deny` now strips redundant `Write(<glob>)` rules whose `Edit(<glob>)` twin is present (e.g. `Write(*/.claude/plugins/marketplaces/*)`) before writing settings, so a freshly-hatched hermit no longer trips the boot warning. `deny-patterns.json` keeps both spellings — the tool-specific `enforce-deny-patterns` runtime hook still needs the `Write` variant.
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-evolve`. It strips the stale `"Write(.claude-code-hermit/**)",` line from your hatch-target settings file (`.claude/settings.local.json` or `.claude/settings.json`, whichever `hatch` wrote to) wherever its `Edit(.claude-code-hermit/**)` twin is already present. No config.json changes.
+Run `/claude-code-hermit:hermit-evolve`. In your hatch-target settings file (`.claude/settings.local.json` or `.claude/settings.json`, whichever `hatch` wrote to) it removes any `Write(<glob>)` line from both `permissions.allow` and `permissions.deny` whose `Edit(<glob>)` twin is already present — at minimum the stale `"Write(.claude-code-hermit/**)"` allow line and the `"Write(*/.claude/plugins/marketplaces/*)"` deny line. No config.json changes.
 
 ## [1.2.27] - 2026-07-15
 
