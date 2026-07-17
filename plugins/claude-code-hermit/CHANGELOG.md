@@ -1,19 +1,21 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.28] - 2026-07-17
 
 ### Fixed
 - **watchdog: liveness-keyed re-arm of dead heartbeat/routine monitors** — a Monitor subprocess that dies mid-session (e.g. at a restart) is now detected from its stale liveness file and re-armed within one watchdog cycle, damped to one attempt per monitor per 6h. Previously recovery waited on the `heartbeat-restart` anchor (up to 3 days on slow cadences) or the 26h fired-age fallback, which stays inert when the model-issued `fired` metric is missing.
-
-### Upgrade Instructions
-
-Run `/claude-code-hermit:hermit-evolve`. Additive and backward-compatible — the new per-monitor damper is stored under `last_monitor_rearm` in `watchdog-state.json` (created on demand), and the step is gated on the existing `watchdog.enabled`; no config or state migration needed.
 - **hatch/apply-settings: stop seeding no-op `Write(path)` permission rules** — Claude Code only matches file-permission checks against `Edit(path)` rules (Edit covers all file-editing tools, including Write), and (v2.1.211+) warns at boot on `Write(path)` rules. The seeded allow rule `Write(.claude-code-hermit/**)` is dropped, and `apply-settings deny` now strips redundant `Write(<glob>)` rules whose `Edit(<glob>)` twin is present (e.g. `Write(*/.claude/plugins/marketplaces/*)`) before writing settings, so a freshly-hatched hermit no longer trips the boot warning. `deny-patterns.json` keeps both spellings — the tool-specific `enforce-deny-patterns` runtime hook still needs the `Write` variant.
+- **hermit-routines: model-override dispatch anchors the subagent to the absolute project dir** — stops relative-path misresolution (doubled `.claude-code-hermit` path) that caused false doctor alerts under cheap-model routines.
 
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-evolve`. In your hatch-target settings file (`.claude/settings.local.json` or `.claude/settings.json`, whichever `hatch` wrote to) it removes any `Write(<glob>)` line from both `permissions.allow` and `permissions.deny` whose `Edit(<glob>)` twin is already present — at minimum the stale `"Write(.claude-code-hermit/**)"` allow line and the `"Write(*/.claude/plugins/marketplaces/*)"` deny line. No config.json changes.
-- **hermit-routines: model-override dispatch anchors the subagent to the absolute project dir** — stops relative-path misresolution (doubled `.claude-code-hermit` path) that caused false doctor alerts under cheap-model routines.
+Run `/claude-code-hermit:hermit-evolve`.
+
+1. In your hatch-target settings file (`.claude/settings.local.json` or `.claude/settings.json`, whichever `hatch` wrote to), remove any `Write(<glob>)` line from both `permissions.allow` and `permissions.deny` whose `Edit(<glob>)` twin is already present — at minimum the stale `Write(.claude-code-hermit/**)` allow line and the `Write(*/.claude/plugins/marketplaces/*)` deny line.
+
+**Note:** The watchdog re-arm and hermit-routines dispatch-path fixes are additive/backward-compatible and need no migration step — `watchdog-state.json`'s new `last_monitor_rearm` field is created on demand, gated on the existing `watchdog.enabled`.
+
+No other config.json changes required.
 
 ## [1.2.27] - 2026-07-15
 

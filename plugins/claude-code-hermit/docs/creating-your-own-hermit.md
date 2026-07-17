@@ -195,6 +195,22 @@ If your hermit holds a credential that expires (OAuth token, API key with a rota
 
 Core's `credential-expiry` doctor check aggregates the built-in Claude OAuth check with every sibling plugin's declared `credentials[]`, warning when any credential is `EXPIRED` or expires within 7 days. The shipped `HEARTBEAT.md` standing check surfaces any non-ok credential to the operator by name.
 
+### Brief skills
+
+If your hermit contributes to the operator's daily brief (agenda, news, finance, a domain digest), ship it as a normal skill rather than a new composition mechanism:
+
+- Ship a `/<your-plugin>:<name>-brief` skill that returns a short, self-contained digest in plain channel voice. It must never block the rest of a brief: on a failed upstream fetch it degrades to a single `<name>: unavailable (<reason>)` line and returns.
+- Don't create a competing morning or evening routine. In your `hatch`, check `config.routines` for an existing brief routine and offer to append your skill invocation to that routine's prompt. The routine prompt is the composition point: ordering is prompt order, and the model handles a failed section in-session. If no brief routine exists, offer to create one.
+
+Example of a composed routine prompt after two domain hermits hatch:
+
+```
+Run /claude-code-hermit:brief, then /google-workspace-hermit:agenda-brief,
+then /briefing-hermit:news-brief, and send one combined message.
+```
+
+This is a convention, not a core contract: core ships no block registry or brief config schema. The HA hermit's `ha-morning-brief` and the fitness hermit's routine templates follow this shape.
+
 ### Hook patterns
 
 Follow core's `scripts/` directory as reference. Profile-gate safety hooks to `strict`, quality hooks to `standard,strict`. Fail open (exit 0 on parse errors). Drain stdin. No npm dependencies.
