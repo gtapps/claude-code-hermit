@@ -18,6 +18,7 @@ import { mutateOwnedAlerts, budgetAlertsPath } from './lib/alert-state';
 import { setPause, isPaused } from './lib/pause';
 import { evaluateBudget, pauseBoundary } from './lib/budget';
 import { sendToChannel } from './lib/channel-send';
+import { classifySource } from './lib/trigger-source';
 
 type Json = any;
 
@@ -91,54 +92,9 @@ function scanTriggerMarkers(lines: string[], billedIndex: number): { text: strin
   return { text: parts.join(' '), boundaryFound };
 }
 
-// Classify a turn's trigger source from the scanned text of its entries.
-// Only the marker-driven sources below are claimed; everything else is 'other'
-// (the non-scheduled bucket, typically the largest row in practice).
-// Routine ids are validated only for presence/uniqueness in config — the
-// strict charset here ([A-Za-z0-9._-]+) is the classifier's own gate, and
-// it is confirmed to reject skill-template noise ([hermit-routine:*], <id> placeholders)
-// that appears in tool_result entries when routines register.
-// Limitation: scanning covers the whole turn (prompt + tool_results), so a turn that
-// merely surfaces a marker string in tool output (e.g. grepping these very sources)
-// can be misclassified. Accepted — the markers are stable and this is rare in practice.
-// (When the scan's turn boundary itself falls outside the tail window, the caller in
-// readLastTurnUsage() skips this function entirely and forces 'other' — see there.)
-function classifySource(triggerText: string): string {
-  if (!triggerText) return 'other';
-  if (triggerText.includes('HEARTBEAT_EVALUATE') ||
-      triggerText.includes('/claude-code-hermit:heartbeat run')) {
-    return 'heartbeat';
-  }
-  // Monitor co-fire: a ROUTINE_DUE line naming ≥2 distinct routine ids means one wake turn
-  // ran multiple routines. Attribute the shared turn to a synthetic `routine:multi` bucket
-  // rather than mis-charging the whole turn to the first id (which would inflate that
-  // routine's per-run cost and mask the others in the doctor's routine-cost check).
-  // Anchored to the ROUTINE_DUE line — NOT the whole turn — so heartbeat-restart's re-arm,
-  // whose `load` step's CronDelete output surfaces [hermit-routine:*] markers, never trips it.
-  const routineDue = triggerText.match(/ROUTINE_DUE((?:\s+\[hermit-routine:[A-Za-z0-9._-]+\])+)/);
-  if (routineDue) {
-    const ids = new Set([...routineDue[1].matchAll(/\[hermit-routine:([A-Za-z0-9._-]+)\]/g)].map((m) => m[1]));
-    if (ids.size >= 2) return 'routine:multi';
-    if (ids.size === 1) return `routine:${[...ids][0].slice(0, 64)}`;
-  }
-  // Strict charset — must match a real routine id, never a placeholder or glob
-  const routineMatch = triggerText.match(/\[hermit-routine:([A-Za-z0-9._-]+)\]/);
-  // Length-cap to 64 chars so ids can't overflow markdown table cells
-  if (routineMatch) return `routine:${routineMatch[1].slice(0, 64)}`;
-  // log-routine-event.sh fallback: present in tool_result when the skill fires the marker
-  const logMatch = triggerText.match(/log-routine-event\.sh\s+([A-Za-z0-9._-]+)/);
-  if (logMatch) return `routine:${logMatch[1].slice(0, 64)}`;
-  // Inbound-channel envelope (see lib/channel-envelope.ts): source is plugin-qualified
-  // on the wire (e.g. `plugin:discord:discord`, `plugin:voice:voice`), so take the
-  // segment after the last ':' as the channel kind. Strict charset — like the routine
-  // regex above, the value must match the allowed charset to be captured at all (not
-  // captured loosely then sanitized), so `<id>`/`*` placeholder noise fails the match
-  // entirely rather than surviving as a truncated false positive.
-  const channelMatch = triggerText.match(/<channel\b[^>]*\bsource="([A-Za-z0-9._:-]+)"/);
-  const channelKind = channelMatch ? channelMatch[1].split(':').pop() : '';
-  if (channelKind) return `channel:${channelKind.slice(0, 64)}`;
-  return 'other';
-}
+// classifySource moved to lib/trigger-source.ts (imported above, re-exported below)
+// so transcript-digest.ts can classify wake sources without importing this module
+// (whose load-time HERMIT_DIR init would pollute in-process test cwd resolution).
 
 // Collect Agent tool_results from the current turn window.
 // Subagent assistant entries live in separate transcript files and never appear here;

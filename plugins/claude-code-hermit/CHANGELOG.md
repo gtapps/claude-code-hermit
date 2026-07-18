@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **transcript-digest: ground-truth behavioral telemetry for reflect** — new `scripts/transcript-digest.ts` mines recent Claude Code session transcripts (bounded tail read, time-windowed by `--days`) into verdict-sized JSON counters: tool failures by tool, tool rejections by denial kind, wakes vs productive wakes, compaction events, subagent dispatches. Reflect's new weekly `behavior` phase cites these as machine-measured evidence (a defer-loop auto-row plus an anomaly checklist), giving the self-knowledge loop ground truth it can't get from self-authored reports. Self-activates on the next scheduled reflect; no migration.
+
 ## [1.2.28] - 2026-07-17
 
 ### Fixed

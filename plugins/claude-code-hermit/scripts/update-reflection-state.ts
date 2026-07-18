@@ -105,6 +105,7 @@ const updated = {
   last_reflection: now,
   last_resolution_check: preserve('last_resolution_check'),
   last_digest_at: preserve('last_digest_at'),
+  last_behavior_digest_at: preserve('last_behavior_digest_at'),
   last_sparse_nudge: Object.keys(mergedNudge).length > 0 ? mergedNudge : null,
   counters: c,
 };

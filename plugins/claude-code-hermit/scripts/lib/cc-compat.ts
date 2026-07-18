@@ -20,6 +20,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 
 type Json = any;
 type TriState = { state: string; count: number; entries: Json[] };
@@ -198,6 +199,114 @@ function extractUsage(entry: Json): { inputTokens: number; cacheWriteTokens: num
   };
 }
 
+/**
+ * A turn-opening user entry: a real triggering prompt, not a tool_result
+ * carrier and not a mid-turn skill-expansion injection. The `isMeta !== true`
+ * guard is load-bearing: CC emits `isMeta:true` user entries mid-turn (e.g.
+ * "Base directory for this skill: …") which are NOT turn boundaries — treating
+ * them as boundaries splits a turn before its later tool calls land.
+ * @param {object} entry
+ * @returns {boolean}
+ */
+function isTurnTrigger(entry: Json): boolean {
+  return entry.type === 'user' && !isToolResult(entry) && entry.isMeta !== true;
+}
+
+/**
+ * A compact_boundary marker — CC writes one `type:'system'` entry per context
+ * compaction (auto or manual). `compactMetadata.trigger` distinguishes them but
+ * callers that only count compactions need the type/subtype discriminator.
+ * @param {object} entry
+ * @returns {boolean}
+ */
+function isCompactBoundary(entry: Json): boolean {
+  return entry.type === 'system' && entry.subtype === 'compact_boundary';
+}
+
+/**
+ * The {id, name} of every tool_use block in an assistant entry. One assistant
+ * API response may split across multiple JSONL entries sharing message.id, but
+ * a given tool_use id never appears twice — callers building an id→name map
+ * should first-write-wins on id to make re-emission harmless.
+ * @param {object} entry
+ * @returns {Array<{ id: string, name: string }>}
+ */
+function toolUseNames(entry: Json): Array<{ id: string; name: string }> {
+  if (entry.type !== 'assistant') return [];
+  const c = entry.message?.content;
+  if (!Array.isArray(c)) return [];
+  const out: Array<{ id: string; name: string }> = [];
+  for (const b of c) {
+    if (b && b.type === 'tool_use' && typeof b.id === 'string' && typeof b.name === 'string') {
+      out.push({ id: b.id, name: b.name });
+    }
+  }
+  return out;
+}
+
+/**
+ * The tool_use_id of every `is_error:true` tool_result block in a carrier user
+ * entry. A single entry may hold several (parallel tool calls), so this returns
+ * an array rather than a boolean. Rejections also carry `is_error:true`, so a
+ * caller must check toolRejectionKind FIRST and skip this when it's a rejection.
+ * @param {object} entry
+ * @returns {string[]}
+ */
+function errorToolResultIds(entry: Json): string[] {
+  if (entry.type !== 'user') return [];
+  const c = entry.message?.content;
+  if (!Array.isArray(c)) return [];
+  const out: string[] = [];
+  for (const b of c) {
+    if (b && b.type === 'tool_result' && b.is_error === true && typeof b.tool_use_id === 'string') {
+      out.push(b.tool_use_id);
+    }
+  }
+  return out;
+}
+
+/**
+ * The denial kind for a rejected tool call, or null if the entry is not a
+ * rejection carrier. Current CC stamps a top-level `toolDenialKind` field
+ * (`user-rejected` | `automode-blocked` | `permission-rule`); when present it
+ * is authoritative. Older CC lacked the field, so fall back to sniffing the
+ * tool_result text — the phrase families are CC-authored and drift-prone, hence
+ * they live here in cc-compat. Rejections carry `is_error:true`, so this is what
+ * separates them from genuine tool failures.
+ * @param {object} entry
+ * @returns {string|null}
+ */
+function toolRejectionKind(entry: Json): string | null {
+  if (entry.type !== 'user') return null;
+  if (typeof entry.toolDenialKind === 'string' && entry.toolDenialKind) {
+    return entry.toolDenialKind;
+  }
+  const c = entry.message?.content;
+  if (!Array.isArray(c)) return null;
+  for (const b of c) {
+    if (!b || b.type !== 'tool_result') continue;
+    const t = typeof b.content === 'string' ? b.content : JSON.stringify(b.content ?? '');
+    if (t.includes("doesn't want to proceed with this tool use")) return 'user-rejected';
+    if (t.includes('Permission for this action was denied') || t.includes('Permission to use')) return 'automode-blocked';
+  }
+  return null;
+}
+
+/**
+ * The transcript directory for a project root, mirroring CC's own path-key
+ * derivation: the absolute project root with every non-alphanumeric character
+ * replaced by '-' (so `/home/u/.claude/x` → `-home-u--claude-x`). CC replaces
+ * dots too — a `/`-only scheme silently mis-keys any dotted path.
+ * @param {string} projectRoot absolute project root
+ * @param {string} [home] override for ~ (tests); defaults to os.homedir()
+ * @returns {string} absolute path to ~/.claude/projects/<key>
+ */
+function transcriptDirFor(projectRoot: string, home?: string): string {
+  const h = home ?? os.homedir();
+  const key = projectRoot.replace(/[^a-zA-Z0-9]/g, '-');
+  return path.join(h, '.claude', 'projects', key);
+}
+
 // ---------------------------------------------------------------------------
 // Cost-log path and record shape
 // ---------------------------------------------------------------------------
@@ -271,6 +380,12 @@ export {
   entryText,
   isToolResult,
   extractUsage,
+  isTurnTrigger,
+  isCompactBoundary,
+  toolUseNames,
+  errorToolResultIds,
+  toolRejectionKind,
+  transcriptDirFor,
   // Cost-log
   costLogPath,
   // Capability sniff

@@ -246,6 +246,13 @@ if (hasAcceptedProposals(stateDir) && daysSince(lastResolutionCheck) > 7) {
 const costLogPath = resolveCostLog(path.isAbsolute(stateDir) ? stateDir : resolveHermitRoot());
 if (checkCostSpike(costLogPath, lastRunAt)) phases.cost_spike = true;
 
+// Behavioral-telemetry digest — weekly for every hermit (not age-gated like
+// `digest` below): reflect's evidence step reads ground-truth transcript counters
+// (defer-loop wakes, tool failures, denial spikes) it can't get from self-report.
+if (daysSince(reflectionState.last_behavior_digest_at) > 7) {
+  phases.behavior = true;
+}
+
 if (phase === 'juvenile' && daysSince(reflectionState.last_digest_at) > 7) {
   phases.digest = true;
 }
