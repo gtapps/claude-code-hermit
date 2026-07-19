@@ -1,0 +1,26 @@
+[
+  {
+    "id": "1001",
+    "shortId": "ACME-7",
+    "title": "TypeError: Cannot read properties of undefined (reading 'id')",
+    "culprit": "app/checkout/cart.ts in applyCoupon",
+    "level": "error",
+    "status": "unresolved",
+    "count": "42",
+    "firstSeen": "2026-07-02T23:10:00Z",
+    "lastSeen": "2026-07-03T00:20:00Z",
+    "metadata": { "type": "TypeError", "value": "Cannot read properties of undefined" }
+  },
+  {
+    "id": "1002",
+    "shortId": "ACME-8",
+    "title": "TimeoutError: upstream request timed out",
+    "culprit": "app/api/client.ts in fetchWithRetry",
+    "level": "warning",
+    "status": "unresolved",
+    "count": "6",
+    "firstSeen": "2026-07-03T00:05:00Z",
+    "lastSeen": "2026-07-03T00:18:00Z",
+    "metadata": { "type": "TimeoutError", "value": "upstream request timed out" }
+  }
+]

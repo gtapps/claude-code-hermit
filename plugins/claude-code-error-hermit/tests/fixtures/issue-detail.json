@@ -1,0 +1,12 @@
+{
+  "id": "1001",
+  "shortId": "ACME-7",
+  "title": "TypeError: Cannot read properties of undefined (reading 'id')",
+  "culprit": "app/checkout/cart.ts in applyCoupon",
+  "level": "error",
+  "status": "unresolved",
+  "count": "42",
+  "firstSeen": "2026-07-02T23:10:00Z",
+  "lastSeen": "2026-07-03T00:20:00Z",
+  "metadata": { "type": "TypeError", "value": "Cannot read properties of undefined" }
+}

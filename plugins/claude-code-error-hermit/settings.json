@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bun *scripts/error-api.ts *)",
+      "Bash(bun ${CLAUDE_PLUGIN_ROOT}/scripts/error-api.ts *)",
+      "Bash(bun *scripts/error-precheck.ts *)",
+      "Bash(bun ${CLAUDE_PLUGIN_ROOT}/scripts/error-precheck.ts *)",
+      "Bash(bun test*)",
+      "Bash(git status)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Edit(.claude-code-hermit/**)",
+      "Write(.claude-code-hermit/**)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(chmod 777*)",
+      "Bash(curl * | bash*)",
+      "Bash(wget * | bash*)",
+      "Edit(.env)",
+      "Write(.env)",
+      "Edit(**/.claude-code-hermit/OPERATOR.md)",
+      "Write(**/.claude-code-hermit/OPERATOR.md)"
+    ]
+  }
+}

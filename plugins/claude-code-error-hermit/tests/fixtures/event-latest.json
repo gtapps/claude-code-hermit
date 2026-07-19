@@ -1,0 +1,30 @@
+{
+  "id": "eventabc123",
+  "eventID": "eventabc123",
+  "message": "TypeError: Cannot read properties of undefined (reading 'id')",
+  "culprit": "app/checkout/cart.ts in applyCoupon",
+  "dateCreated": "2026-07-03T00:20:00Z",
+  "release": { "version": "web@2026.7.2-a1b2c3d" },
+  "tags": [
+    { "key": "release", "value": "web@2026.7.2-a1b2c3d" },
+    { "key": "environment", "value": "production" }
+  ],
+  "entries": [
+    {
+      "type": "exception",
+      "data": {
+        "values": [
+          {
+            "type": "TypeError",
+            "value": "Cannot read properties of undefined (reading 'id')",
+            "stacktrace": {
+              "frames": [
+                { "filename": "app/checkout/cart.ts", "function": "applyCoupon", "lineNo": 88 }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
