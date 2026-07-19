@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **transcript-digest: ground-truth behavioral telemetry for reflect** — new `scripts/transcript-digest.ts` mines recent session transcripts into verdict-sized JSON counters (tool failures, rejections by kind, wakes vs productive wakes, compactions, subagent dispatches). Reflect's new weekly `behavior` phase cites them as machine-measured evidence via a defer-loop auto-row and anomaly checklist. Self-activates on the next scheduled reflect; no migration.
+
 ## [1.2.28] - 2026-07-17
 
 ### Fixed

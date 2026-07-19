@@ -35,8 +35,10 @@ function makeTmpHermit(overrides: {
   // SHELL.md
   fs.writeFileSync(path.join(dir, 'sessions', 'SHELL.md'), '## Progress Log\n', 'utf-8');
 
-  // reflection-state.json
-  const reflState: Record<string, unknown> = { counters: {} };
+  // reflection-state.json — recent behavior cursor keeps the weekly `behavior`
+  // phase quiet for tests that aren't exercising it (the behavior-phase suite
+  // overwrites this file with its own cursor).
+  const reflState: Record<string, unknown> = { counters: {}, last_behavior_digest_at: new Date().toISOString() };
   if (overrides.lastRunAt !== undefined) {
     (reflState.counters as Record<string, unknown>).last_run_at = overrides.lastRunAt;
   }
@@ -398,5 +400,48 @@ describe('reflection-judge: §1.4 config-agnostic ledger verification', () => {
 
   test('judge is config-agnostic (does not re-count threshold)', () => {
     expect(judge).toContain('config-agnostic');
+  });
+});
+
+// ── Section: behavior phase (transcript-digest weekly cadence) ─────────────────
+
+describe('reflect-precheck: behavior phase', () => {
+  // Write reflection-state.json with a recent last_run_at (suppresses the compute
+  // phase's null-lastRunAt trigger) plus an explicit top-level behavior cursor, so
+  // the `behavior` phase is the deciding one.
+  function withBehaviorCursor(cursor: string | undefined): string {
+    const dir = makeTmpHermit();
+    const now = new Date().toISOString();
+    const state: Record<string, unknown> = { counters: { last_run_at: now } };
+    if (cursor !== undefined) state.last_behavior_digest_at = cursor;
+    fs.writeFileSync(path.join(dir, 'state', 'reflection-state.json'), JSON.stringify(state), 'utf-8');
+    return dir;
+  }
+
+  function daysAgo(n: number): string {
+    return new Date(Date.now() - n * 86_400_000).toISOString();
+  }
+
+  test('fires when the behavior cursor is unset (first run)', async () => {
+    const verdict = await runPrecheck(withBehaviorCursor(undefined));
+    expect(verdict.startsWith('RUN|')).toBe(true);
+    expect(JSON.parse(verdict.slice(4)).behavior).toBe(true);
+  });
+
+  test('fires when the behavior cursor is older than 7 days', async () => {
+    const verdict = await runPrecheck(withBehaviorCursor(daysAgo(10)));
+    expect(verdict.startsWith('RUN|')).toBe(true);
+    expect(JSON.parse(verdict.slice(4)).behavior).toBe(true);
+  });
+
+  test('does not fire when the behavior cursor is within 7 days', async () => {
+    const verdict = await runPrecheck(withBehaviorCursor(daysAgo(2)));
+    // Other phases stay quiet (recent last_run_at, no proposals/costs/observations),
+    // so this collapses to EMPTY; behavior must not be present either way.
+    if (verdict.startsWith('RUN|')) {
+      expect(JSON.parse(verdict.slice(4)).behavior).toBeUndefined();
+    } else {
+      expect(verdict).toBe('EMPTY');
+    }
   });
 });

@@ -2284,7 +2284,10 @@ function seedReflect(dir: string, stateJson: object) {
   write(hermit(dir, 'config.json'), '{"timezone":"UTC"}');
   write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"idle"}');
   fs.mkdirSync(hermit(dir, 'proposals'), { recursive: true });
-  write(hermit(dir, 'state', 'reflection-state.json'), JSON.stringify(stateJson));
+  // Default a recent behavior-digest cursor so the weekly `behavior` phase stays
+  // quiet unless a test opts in (callers override by including the key).
+  write(hermit(dir, 'state', 'reflection-state.json'),
+    JSON.stringify({ last_behavior_digest_at: isoSec(new Date()), ...stateJson }));
 }
 
 describe('reflect-precheck', () => {
@@ -2372,6 +2375,7 @@ describe('reflect-precheck', () => {
       `{"session_state":"${sessionState}","last_shell_snapshot_at":null}`);
     fs.mkdirSync(hermit(dir, 'proposals'), { recursive: true });
     write(hermit(dir, 'state', 'reflection-state.json'), JSON.stringify({
+      last_behavior_digest_at: isoSec(new Date()),
       counters: { total_runs: 5, empty_runs: 2, last_run_at: isoSec(new Date()), since: since30() },
     }));
     if (inflate) {

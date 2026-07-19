@@ -131,9 +131,13 @@ function seedReflect(dir: string, reportMd: string): void {
   fs.writeFileSync(hermit(dir, 'config.json'), '{"timezone":"UTC"}');
   fs.writeFileSync(hermit(dir, 'sessions', 'S-001-REPORT.md'), reportMd);
   // old lastRunAt so the report mtime appears newer; old since so phase is
-  // 'adult' (prevents newborn/digest from firing).
+  // 'adult' (prevents newborn/digest from firing); recent behavior cursor so the
+  // weekly `behavior` phase stays quiet.
   writeState(dir, 'reflection-state.json',
-    '{"counters":{"last_run_at":"2020-01-01T00:00:00Z","since":"2020-01-01T00:00:00Z"}}\n');
+    JSON.stringify({
+      counters: { last_run_at: '2020-01-01T00:00:00Z', since: '2020-01-01T00:00:00Z' },
+      last_behavior_digest_at: new Date().toISOString(),
+    }) + '\n');
   // session_state: idle so the in_progress short-circuit doesn't apply
   writeState(dir, 'runtime.json', '{"session_state":"idle"}');
 }
