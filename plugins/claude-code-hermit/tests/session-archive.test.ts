@@ -222,6 +222,10 @@ describe('S-NNN resolution', () => {
 describe('cost precedence', () => {
   test('payload Cost line used when no opened_at (window unmeasurable)', withTmp(async (dir) => {
     await open(dir, 'Task: x\n', '2026-07-09T12:00:00Z');
+    // Simulate a session opened by pre-rollout code: runtime carries no arc bounds,
+    // so the window is unmeasurable and the legacy Cost: line is the only source.
+    const { opened_at, closed_at, ...legacyRuntime } = readRuntime(dir);
+    writeRuntime(dir, legacyRuntime);
     await archive(dir, 'close', BASIC_CLOSE_PAYLOAD, '2026-07-09T13:00:00Z');
     const report = fs.readFileSync(path.join(sessionsDir(dir), 'S-001-REPORT.md'), 'utf-8');
     expect(report).toContain('cost_usd: 0.4231');
@@ -263,6 +267,35 @@ describe('cost precedence', () => {
     const report = fs.readFileSync(path.join(sessionsDir(dir), 'S-001-REPORT.md'), 'utf-8');
     expect(report).toContain('cost_usd: 0.08');
     expect(report).toContain('tokens: 800');
+  }));
+
+  test('a session archived before its first tracked turn does not inherit the previous arc', withTmp(async (dir) => {
+    // Previous arc [10:00, 11:00] cost $9; this session opens at 12:00 and is
+    // auto-closed before cost-tracker stamps a new arc. Without `open` resetting
+    // opened_at/closed_at, the report would measure the previous window.
+    writeRuntime(dir, { session_state: 'idle', opened_at: '2026-07-09T10:00:00Z', closed_at: '2026-07-09T11:00:00Z' });
+    seedCostLog(dir, [
+      { timestamp: '2026-07-09T10:30:00Z', estimated_cost_usd: 9.0, total_tokens: 90000 },
+      { timestamp: '2026-07-09T12:30:00Z', estimated_cost_usd: 0.02, total_tokens: 200 },
+    ]);
+    await open(dir, 'Task: x\n', '2026-07-09T12:00:00Z');
+    const autoPayload = 'Status: completed\nBlockers: none\nLessons: none\nChanged: none\nClosed Via: auto\nNext Start Point: Fresh start.\n';
+    await archive(dir, 'auto', autoPayload, '2026-07-09T13:00:00Z');
+    const report = fs.readFileSync(path.join(sessionsDir(dir), 'S-001-REPORT.md'), 'utf-8');
+    expect(report).toContain('cost_usd: 0.02');
+    expect(report).toContain('tokens: 200');
+  }));
+
+  test('a stale closed_at at/before opened_at is dropped, not measured as an inverted window', withTmp(async (dir) => {
+    await open(dir, 'Task: x\n', '2026-07-09T12:00:00Z');
+    // closed_at predates opened_at — [12:00, 11:00] would sum to a silent zero.
+    writeRuntime(dir, { ...readRuntime(dir), opened_at: '2026-07-09T12:00:00Z', closed_at: '2026-07-09T11:00:00Z' });
+    seedCostLog(dir, [{ timestamp: '2026-07-09T12:30:00Z', estimated_cost_usd: 0.07, total_tokens: 700 }]);
+    const payload = 'Status: completed\nBlockers: none\nLessons: none\nChanged: none\n';
+    await archive(dir, 'close', payload, '2026-07-09T13:00:00Z');
+    const report = fs.readFileSync(path.join(sessionsDir(dir), 'S-001-REPORT.md'), 'utf-8');
+    expect(report).toContain('cost_usd: 0.07');
+    expect(report).toContain('tokens: 700');
   }));
 
   test('a genuine zero-cost window does not fall through to a stale payload Cost line', withTmp(async (dir) => {
@@ -312,6 +345,8 @@ describe('shutdown_completed_at guard', () => {
 describe('idle vs. close reset semantics', () => {
   test('idle reset preserves SHELL.md, clears task-scoped sections, increments Tasks Completed', withTmp(async (dir) => {
     await open(dir, 'Task: first task\n', '2026-07-09T12:00:00Z');
+    // Cost reaches the summary line via the measured window, so seed one.
+    seedCostLog(dir, [{ timestamp: '2026-07-09T12:30:00Z', estimated_cost_usd: 0.4231, total_tokens: 152689 }]);
     await archive(dir, 'idle', BASIC_CLOSE_PAYLOAD, '2026-07-09T13:00:00Z');
     const shell = readShell(dir);
     expect(shell).toContain('**Tasks Completed:** 1');

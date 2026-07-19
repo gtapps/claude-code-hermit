@@ -16,6 +16,12 @@ import { runScript, PLUGIN_ROOT } from './helpers/run';
 
 const read = (...p: string[]) => fs.readFileSync(path.join(PLUGIN_ROOT, ...p), 'utf-8');
 
+// Ledger rows must be dated relative to now, not pinned to a literal date:
+// prune-observations.ts enforces a 30-day retention window, so a hardcoded
+// timestamp silently flips the "both rows are fresh" prune assertion from pass
+// to fail once the wall clock passes it.
+const hoursAgoISO = (h: number) => new Date(Date.now() - h * 3600000).toISOString();
+
 const sessionClose = read('skills', 'session-close', 'SKILL.md');
 // reflect's skill-correction routing detail lives in branches.md (the
 // rare-branch procedures file); assert against the combined surface.
@@ -77,7 +83,7 @@ describe('append-metrics: skill-correction row round-trip', () => {
 
   test('append-metrics: skill-correction row appended and parseable', async () => {
     const row = JSON.stringify({
-      ts: '2026-06-19T11:00:00+01:00',
+      ts: hoursAgoISO(2),
       pattern: 'skill-correction:my-skill',
       session_id: 'S-001',
       source: 'skill-correction',
@@ -98,7 +104,7 @@ describe('append-metrics: skill-correction row round-trip', () => {
   test('append-metrics: two distinct-session rows group by pattern in prune', async () => {
     // append a second session row for the same pattern
     const row2 = JSON.stringify({
-      ts: '2026-06-19T12:00:00+01:00',
+      ts: hoursAgoISO(1),
       pattern: 'skill-correction:my-skill',
       session_id: 'S-002',
       source: 'skill-correction',

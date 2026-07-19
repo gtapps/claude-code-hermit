@@ -289,6 +289,20 @@ function extractProposalIds(shell: string): string[] {
 // one) even though session-close/session no longer instruct writing it.
 // ---------------------------------------------------------------------------
 
+// Recover path only: the cost verbArchive already wrote to the report frontmatter.
+// The crash landed after the report was written, so its frontmatter is the
+// authoritative session cost — not a fresh (and by then window-less) recomputation.
+// readFrontmatter returns scalars as strings — coerce, don't typeof-check.
+function recoveredReportCost(reportPath: string): { cost_usd: number; tokens: number } {
+  const fm = readFrontmatter(reportPath);
+  const cost = Number(fm?.cost_usd);
+  const tokens = Number(fm?.tokens);
+  return {
+    cost_usd: Number.isFinite(cost) ? cost : 0,
+    tokens: Number.isFinite(tokens) ? tokens : 0,
+  };
+}
+
 function resolveCost(
   payload: Record<string, string>,
   opts: { logPath: string; openedAt?: string; closedAt?: string },
@@ -550,9 +564,9 @@ function replaceSectionInPlace(shell: string, heading: string, newBody: string):
 }
 
 // `mode` isn't needed here — both call sites only invoke this when mode is
-// already known to be 'idle', so the cost the caller already has (computed
-// once by buildReport, or a single fresh resolveCost in the recover path) is
-// passed in directly instead of `sessionsDir` + a second resolveCost call.
+// already known to be 'idle', so the cost the caller already has (computed once
+// by buildReport, or read back from the written report in the recover path) is
+// passed in directly instead of `sessionsDir` + a second cost resolution.
 function idleReset(shell: string, sessionId: string, now: Date, payload: Record<string, string>, compactCfg: ReturnType<typeof resolveCompactConfig>, cost: { cost_usd: number; tokens: number }): string {
   // Snapshot the task summary from the ORIGINAL (pre-reset) shell — once the
   // Task section is cleared below, extracting from the mutated copy would
@@ -654,7 +668,11 @@ function verbArchive(flags: Record<string, string | true>, stdin: string): Json 
 
   const config = readConfig(stateDir);
   const openedAt = typeof runtimeBefore.opened_at === 'string' ? runtimeBefore.opened_at : undefined;
-  const closedAt = typeof runtimeBefore.closed_at === 'string' ? runtimeBefore.closed_at : undefined;
+  // A closed_at at or before opened_at is a stale bound left by an earlier arc. Passing
+  // it through would measure an inverted window, which sums to a silent zero — drop it
+  // so the window ends at `now` instead (buildReport's `closedAt ?? localISOStamp(now)`).
+  const rawClosedAt = typeof runtimeBefore.closed_at === 'string' ? runtimeBefore.closed_at : undefined;
+  const closedAt = rawClosedAt && Date.parse(rawClosedAt) > Date.parse(openedAt ?? '') ? rawClosedAt : undefined;
   const { content: reportContent, cost: reportCost } = buildReport({ sessionId, mode, now, payload, shell, stateDir, config, openedAt, closedAt });
 
   const reportPath = path.join(sessionsDir, `${sessionId}-REPORT.md`);
@@ -724,7 +742,17 @@ function verbOpen(flags: Record<string, string | true>, stdin: string): Json {
     return { ok: false, reason: 'shell-write-error: ' + e.message };
   }
 
-  const update = updateRuntime(runtimePath, now, { session_state: 'in_progress', session_id: sessionId });
+  // Start this session's cost arc here rather than waiting for cost-tracker's first
+  // in_progress turn. Without it, runtime still carries the PREVIOUS arc's
+  // [opened_at, closed_at]; a session archived before that first turn lands
+  // (auto-close, an immediate idle, recover's re-archive) would measure the previous
+  // session's window and stamp its cost onto this report. cost-tracker's arc logic is
+  // unaffected: closed_at is null so no new arc is forced, and a transcript change
+  // still re-stamps opened_at to the first turn (no cost accrues before it).
+  const update = updateRuntime(runtimePath, now, {
+    session_state: 'in_progress', session_id: sessionId,
+    opened_at: localISOStamp(now), closed_at: null,
+  });
   if (!update.ok) return { ok: false, reason: update.reason };
 
   return { ok: true, session_id: sessionId };
@@ -805,18 +833,9 @@ function verbRecover(flags: Record<string, string | true>): Json {
   const idleAlreadyReset = mode === 'idle' && shell.includes(`**${sessionId}**`);
   let newShell: string;
   if (mode === 'idle') {
-    // Read cost from the report verbArchive already wrote (targetPath) rather than
-    // recomputing — the crash landed after the report was written, so its frontmatter
-    // is the authoritative session cost, not a fresh (and here window-less) resolveCost.
-    // readFrontmatter returns scalars as strings — coerce, don't typeof-check.
-    const recoveredFm = readFrontmatter(targetPath);
-    const recoveredCostUsd = Number(recoveredFm?.cost_usd);
-    const recoveredTokens = Number(recoveredFm?.tokens);
-    const recoveredCost = {
-      cost_usd: Number.isFinite(recoveredCostUsd) ? recoveredCostUsd : 0,
-      tokens: Number.isFinite(recoveredTokens) ? recoveredTokens : 0,
-    };
-    newShell = idleAlreadyReset ? shell : idleReset(shell, sessionId, now, {}, resolveCompactConfig(config), recoveredCost);
+    newShell = idleAlreadyReset
+      ? shell
+      : idleReset(shell, sessionId, now, {}, resolveCompactConfig(config), recoveredReportCost(targetPath));
   } else {
     newShell = closeReset(path.join(stateDir, 'templates', 'SHELL.md.template'), shell);
   }

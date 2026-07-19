@@ -10,7 +10,7 @@
 
 import fs from 'node:fs';
 
-export function sumWindow(logPath: string, openedMs: number, closedMs: number): { cost: number; tokens: number } {
+function sumWindow(logPath: string, openedMs: number, closedMs: number): { cost: number; tokens: number } {
   let cost = 0;
   let tokens = 0;
   try {
