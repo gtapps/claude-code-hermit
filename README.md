@@ -9,7 +9,7 @@
 
 # claude-code-hermit
 
-Claude Code plugin that turns a Claude Code instance into a 24/7 agent. **Always-on. Stateful. Proactive. Self-improving through an operator-gated proposal system. Cost-aware. Observable. Works with your Claude Subscription**.
+Claude Code plugin that turns a Claude Code instance into a 24/7 agent. **Stateful. Proactive. Self-improving through an operator-gated proposal system. Cost-aware. Observable. Works with your Claude Subscription**.
 
 <p align="center">
   <img src="plugins/claude-code-hermit/assets/cover.png" alt="Always-on Claude Code Agent" />
