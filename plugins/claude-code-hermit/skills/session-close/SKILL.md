@@ -82,8 +82,7 @@ This path is intentionally silent: no operator notification on queue or drain �
    If reflect returns `reflect: no candidates`, scan this session's `## Findings` and `## Progress Log` for non-obvious discoveries not already in memory and issue the standard "remember it" reflection for any that clear the auto-memory threshold. Apply WHAT_NOT_TO_SAVE as normal.
 6. **Stop always-on services (`shutdown_skill`).** Read `shutdown_skill` from `.claude-code-hermit/config.json`. If non-null, invoke it as a skill command (the value may include arguments, e.g. `/serve stop`) via the Skill tool. **Best-effort:** on error or if the skill does not return, log a Monitoring line and continue to archival — never abort the close. Runs on both operator and `--auto` paths.
 7. If native Tasks exist: call `TaskList`, format as a markdown table. Then `TaskUpdate(status=deleted)` for completed tasks only — pending/in_progress tasks persist for next session.
-8. Archive the session via `scripts/session-archive.ts archive --mode=close` (full close — finalize SHELL.md and replace with fresh template in one operation).
-   Before invoking: read `session_id` from `.claude-code-hermit/state/runtime.json`. Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-cost.ts <session_id>` via Bash and parse the JSON output to get `cost_usd` and `tokens` for this session. If the script fails or returns zeros, omit the `Cost:` line (session-archive.ts falls back to `.status.json`).
+8. Archive the session via `scripts/session-archive.ts archive --mode=close` (full close — finalize SHELL.md and replace with fresh template in one operation). `session-archive.ts` derives cost itself from the cost-log window — no `Cost:` line to compute or pass.
    Pipe the following compact structured payload on stdin — keep it brief, no freeform prose:
    ```
    bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-archive.ts archive --mode=close --state-dir=.claude-code-hermit <<'HERMIT_PAYLOAD'
@@ -92,7 +91,6 @@ This path is intentionally silent: no operator notification on queue or drain �
    Lessons: <one line each, or none>
    Changed: <file list, or none>
    Artifacts: <wikilinks to compiled/ outputs produced this session, or none>
-   Cost: $X.XXXX (N tokens)
    Closed Via: <operator|auto>
    Next Start Point: <one line>
    ## Plan

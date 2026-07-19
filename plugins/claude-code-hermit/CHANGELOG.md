@@ -5,6 +5,10 @@
 ### Added
 - **transcript-digest: ground-truth behavioral telemetry for reflect** — new `scripts/transcript-digest.ts` mines recent session transcripts into verdict-sized JSON counters (tool failures, rejections by kind, wakes vs productive wakes, compactions, subagent dispatches). Reflect's new weekly `behavior` phase cites them as machine-measured evidence via a defer-loop auto-row and anomaly checklist. Self-activates on the next scheduled reflect; no migration.
 
+### Fixed
+- **session-archive: derive session cost from the cost-log window, not `.status.json`** — `.status.json` is a cumulative running total, so auto-closed sessions were stamped with the hermit's lifetime spend, inflating report `cost_usd`/`tokens` and `weekly-review`'s weekly total.
+- **session-archive: open the cost arc at session open** — a session archived before its first tracked turn measured the previous session's window and inherited its cost.
+
 ## [1.2.28] - 2026-07-17
 
 ### Fixed
