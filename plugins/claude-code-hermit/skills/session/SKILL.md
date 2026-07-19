@@ -55,13 +55,11 @@ When the work is done, or the operator decides to move on (even if partial or bl
    - Task status is one of `completed` | `partial` | `blocked`
    - Changed files are identified
    - Blockers have enough context for a cold start
-   - Cost data recorded (if available)
 3. Create proposals for any high-leverage improvements discovered during work
 4. **Reflect (with debounce).** Read `state/reflection-state.json` for `last_reflection`. Only invoke the `claude-code-hermit:reflect` skill if `last_reflection` is null or older than 4 hours. For quick tasks (no tasks created, under 5 minutes), skip entirely — progress log is sufficient.
 4b. **Session-triggered scheduled checks.** For each `scheduled_checks` entry (from config already loaded) with `trigger: "session"` and `enabled: true`, invoke the skill. If a skill is unavailable or errors, skip it and continue — never block session finalization on a scheduled check failure. For each check that completed successfully, read-modify-write `state/reflection-state.json`: update only `scheduled_checks.<id>.last_run` to today's ISO date, preserving all other keys. Do not update `last_run` for failed checks.
 5. If native Tasks exist: call `TaskList`, format as a markdown table. Then `TaskUpdate(status=deleted)` for all tasks (idle = clean slate).
-6. Run `scripts/session-archive.ts` to perform an **idle transition** (finalize SHELL.md, archive report, reset task-scoped sections, set `session_state` to `idle`).
-   Before invoking: read `session_id` from `.claude-code-hermit/state/runtime.json`. Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-cost.ts <session_id>` via Bash and parse the JSON output to get `cost_usd` and `tokens` for this session. If the script fails or returns zeros, omit the `Cost:` line (session-archive.ts falls back to `.status.json`).
+6. Run `scripts/session-archive.ts` to perform an **idle transition** (finalize SHELL.md, archive report, reset task-scoped sections, set `session_state` to `idle`). It derives cost itself from the cost-log window — no `Cost:` line to compute or pass.
    Pipe the following compact structured payload on stdin — keep it brief, no freeform prose:
    ```
    bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-archive.ts archive --mode=idle --state-dir=.claude-code-hermit <<'HERMIT_PAYLOAD'
@@ -69,7 +67,6 @@ When the work is done, or the operator decides to move on (even if partial or bl
    Blockers: <one line each, or none>
    Lessons: <one line each, or none>
    Changed: <file list, or none>
-   Cost: $X.XXXX (N tokens)
    ## Plan
    <task table, if native Tasks were created>
    HERMIT_PAYLOAD

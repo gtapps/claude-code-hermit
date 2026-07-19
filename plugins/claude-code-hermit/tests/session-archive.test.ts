@@ -99,6 +99,14 @@ const BASIC_CLOSE_PAYLOAD =
   'Status: completed\nBlockers: none\nLessons: none\nChanged: none\nArtifacts: none\n' +
   'Cost: $0.4231 (152689 tokens)\nClosed Via: operator\nNext Start Point: pick up here\n';
 
+// Seeds .claude/cost-log.jsonl next to the hermit dir — costLogPath(hermit(dir))
+// resolves to path.join(dir, '.claude', 'cost-log.jsonl').
+function seedCostLog(dir: string, entries: Array<{ timestamp: string; estimated_cost_usd: number; total_tokens: number }>) {
+  const claudeDir = path.join(dir, '.claude');
+  fs.mkdirSync(claudeDir, { recursive: true });
+  fs.writeFileSync(path.join(claudeDir, 'cost-log.jsonl'), entries.map(e => JSON.stringify(e)).join('\n') + '\n');
+}
+
 // =============================================================================
 describe('durability', () => {
   test('open + archive leave no .tmp sibling anywhere under the hermit dir', withTmp(async (dir) => {
@@ -207,8 +215,12 @@ describe('S-NNN resolution', () => {
 });
 
 // =============================================================================
-describe('cost fallback chain', () => {
-  test('payload Cost line takes precedence', withTmp(async (dir) => {
+// Precedence: measured cost-log window (runtime.opened_at present) -> legacy
+// payload Cost line (window unmeasurable) -> 0/0. `.status.json` is a cumulative
+// running total and must NEVER be read for cost (that was the #615 bug: an
+// auto-closed 0-duration session got stamped with the hermit's lifetime spend).
+describe('cost precedence', () => {
+  test('payload Cost line used when no opened_at (window unmeasurable)', withTmp(async (dir) => {
     await open(dir, 'Task: x\n', '2026-07-09T12:00:00Z');
     await archive(dir, 'close', BASIC_CLOSE_PAYLOAD, '2026-07-09T13:00:00Z');
     const report = fs.readFileSync(path.join(sessionsDir(dir), 'S-001-REPORT.md'), 'utf-8');
@@ -216,20 +228,51 @@ describe('cost fallback chain', () => {
     expect(report).toContain('tokens: 152689');
   }));
 
-  test('falls back to .status.json when the payload has no Cost line', withTmp(async (dir) => {
+  test('never falls back to .status.json — records 0/0 when unmeasurable and no Cost payload (regression, #615)', withTmp(async (dir) => {
     await open(dir, 'Task: x\n', '2026-07-09T12:00:00Z');
     fs.writeFileSync(path.join(sessionsDir(dir), '.status.json'), JSON.stringify({ cost_usd: 1.2345, tokens: 9999, operator_turns: 3 }));
     const payload = 'Status: completed\nBlockers: none\nLessons: none\nChanged: none\n';
     await archive(dir, 'close', payload, '2026-07-09T13:00:00Z');
     const report = fs.readFileSync(path.join(sessionsDir(dir), 'S-001-REPORT.md'), 'utf-8');
-    expect(report).toContain('cost_usd: 1.2345');
-    expect(report).toContain('tokens: 9999');
+    expect(report).toContain('cost_usd: 0');
+    expect(report).toContain('tokens: 0');
+    // .status.json still sources operator_turns — that read is untouched.
     expect(report).toContain('operator_turns: 3');
   }));
 
-  test('falls back to 0.00/0 when neither payload nor .status.json have cost data', withTmp(async (dir) => {
+  test('falls back to 0.00/0 when neither payload nor cost-log window have cost data', withTmp(async (dir) => {
     await open(dir, 'Task: x\n', '2026-07-09T12:00:00Z');
     const payload = 'Status: completed\nBlockers: none\nLessons: none\nChanged: none\n';
+    await archive(dir, 'close', payload, '2026-07-09T13:00:00Z');
+    const report = fs.readFileSync(path.join(sessionsDir(dir), 'S-001-REPORT.md'), 'utf-8');
+    expect(report).toContain('cost_usd: 0');
+    expect(report).toContain('tokens: 0');
+  }));
+
+  test('auto-close records the measured cost-log window, not the inflated .status.json (regression, #615)', withTmp(async (dir) => {
+    await open(dir, 'Task: x\n', '2026-07-09T12:00:00Z');
+    writeRuntime(dir, { ...readRuntime(dir), opened_at: '2026-07-09T12:00:00Z' });
+    seedCostLog(dir, [
+      { timestamp: '2026-07-09T12:30:00Z', estimated_cost_usd: 0.05, total_tokens: 500 },
+      { timestamp: '2026-07-09T12:45:00Z', estimated_cost_usd: 0.03, total_tokens: 300 },
+    ]);
+    fs.writeFileSync(path.join(sessionsDir(dir), '.status.json'), JSON.stringify({ cost_usd: 671.81, tokens: 1023435573 }));
+    // The real --auto payload template never carries a Cost: line.
+    const autoPayload = 'Status: completed\nBlockers: none\nLessons: none\nChanged: none\nArtifacts: none\nClosed Via: auto\nNext Start Point: Fresh start.\n';
+    await archive(dir, 'auto', autoPayload, '2026-07-09T13:00:00Z');
+    const report = fs.readFileSync(path.join(sessionsDir(dir), 'S-001-REPORT.md'), 'utf-8');
+    expect(report).toContain('cost_usd: 0.08');
+    expect(report).toContain('tokens: 800');
+  }));
+
+  test('a genuine zero-cost window does not fall through to a stale payload Cost line', withTmp(async (dir) => {
+    await open(dir, 'Task: x\n', '2026-07-09T12:00:00Z');
+    writeRuntime(dir, { ...readRuntime(dir), opened_at: '2026-07-09T12:00:00Z' });
+    // Rows exist, but entirely outside the [opened_at, now] window.
+    seedCostLog(dir, [
+      { timestamp: '2026-07-09T11:00:00Z', estimated_cost_usd: 5.00, total_tokens: 1000 },
+    ]);
+    const payload = 'Status: completed\nBlockers: none\nLessons: none\nChanged: none\nCost: $5.0000 (1000 tokens)\n';
     await archive(dir, 'close', payload, '2026-07-09T13:00:00Z');
     const report = fs.readFileSync(path.join(sessionsDir(dir), 'S-001-REPORT.md'), 'utf-8');
     expect(report).toContain('cost_usd: 0');
@@ -406,6 +449,22 @@ describe('recovery matrix', () => {
     await recover(dir, '2026-07-09T13:00:00Z');
     const report = fs.readFileSync(path.join(sessionsDir(dir), 'S-001-REPORT.md'), 'utf-8');
     expect(report).toBe('PRE-EXISTING, MUST NOT BE OVERWRITTEN');
+  }));
+
+  test('idle recovery reads cost from the already-written report, not a fresh window/`.status.json` (regression, #615)', withTmp(async (dir) => {
+    await open(dir, 'Task: crashed after report\n', '2026-07-09T12:00:00Z');
+    fs.writeFileSync(path.join(sessionsDir(dir), 'S-001-REPORT.md'),
+      '---\nid: S-001\ncost_usd: 0.55\ntokens: 12345\n---\n\n# Session Report: S-001\n');
+    // An inflated .status.json must not leak in via a re-derived cost.
+    fs.writeFileSync(path.join(sessionsDir(dir), '.status.json'), JSON.stringify({ cost_usd: 671.81, tokens: 1023435573 }));
+    writeRuntime(dir, {
+      session_state: 'in_progress', session_id: 'S-001',
+      transition: 'archiving', transition_mode: 'idle', transition_target: 'S-001-REPORT.md',
+    });
+    await recover(dir, '2026-07-09T13:00:00Z');
+    const shell = readShell(dir);
+    expect(shell).toContain('($0.55)');
+    expect(shell).not.toContain('($671.81)');
   }));
 
   test('cleaning -> skips straight to SHELL reset', withTmp(async (dir) => {

@@ -20,6 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { costLogPath, hermitDir } from './lib/cc-compat';
 import { readRuntimeJson } from './lib/runtime';
+import { computeSessionCost } from './lib/session-cost';
 
 const ROOT = hermitDir();
 const COST_LOG = costLogPath(ROOT);
@@ -64,18 +65,11 @@ function sumMatching(predicate: (e: any) => boolean): { cost: number; tokens: nu
 }
 
 const { openedAt, closedAt } = readWindow();
-const openedMs = openedAt ? Date.parse(openedAt) : NaN;
-// A malformed/absent closed bound parses to NaN, which would silently zero the
-// window sum (every `ts <= NaN` is false); fall back to now, mirroring the
-// openedMs guard below. A live arc (no closed_at yet) also falls back to now.
-const closedParsed = closedAt ? Date.parse(closedAt) : NaN;
-const closedMs = Number.isFinite(closedParsed) ? closedParsed : Date.now();
+const measured = computeSessionCost({ logPath: COST_LOG, openedAt, closedAt });
 
-const result = Number.isFinite(openedMs)
-  ? sumMatching(e => {
-      const ts = Date.parse(e.timestamp);
-      return Number.isFinite(ts) && ts >= openedMs && ts <= closedMs;
-    })
+// Window mode unavailable (no opened_at) — fall back to the legacy exact-match sum.
+const result = measured.available
+  ? { cost: measured.cost_usd, tokens: measured.tokens }
   : sumMatching(e => e.session_id === sessionId);
 
 process.stdout.write(JSON.stringify({ cost_usd: Math.round(result.cost * 10000) / 10000, tokens: result.tokens }) + '\n');

@@ -28,9 +28,11 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { globDir } from './lib/frontmatter';
+import { globDir, readFrontmatter } from './lib/frontmatter';
 import { localISOStamp } from './lib/time';
 import { readAlertState as readRuntime, quarantineAlertState as quarantineRuntime } from './lib/alert-state';
+import { costLogPath } from './lib/cc-compat';
+import { computeSessionCost } from './lib/session-cost';
 
 type Json = any;
 
@@ -277,29 +279,27 @@ function extractProposalIds(shell: string): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Cost fallback chain: payload Cost line -> sessions/.status.json -> 0.00/0.
-// (The session-mgr.md spec's third fallback, "parse `## Cost` from SHELL.md",
-// is dropped: no such section exists in the current SHELL.md.template.)
+// Cost precedence: measured cost-log window (computeSessionCost) -> legacy
+// payload Cost line -> 0.00/0. `sessions/.status.json` is NEVER consulted for
+// cost — it's a cumulative running total (cost-tracker.ts), not a per-session
+// value, and stamping it onto a report silently records the hermit's lifetime
+// spend as one session's cost (the auto-close inflation bug this replaced).
+// The legacy Cost: line parse is kept as the second tier for rollout
+// back-compat (in-flight sessions / not-yet-evolved skill text may still emit
+// one) even though session-close/session no longer instruct writing it.
 // ---------------------------------------------------------------------------
 
-function resolveCost(payload: Record<string, string>, sessionsDir: string): { cost_usd: number; tokens: number } {
+function resolveCost(
+  payload: Record<string, string>,
+  opts: { logPath: string; openedAt?: string; closedAt?: string },
+): { cost_usd: number; tokens: number } {
+  const measured = computeSessionCost(opts);
+  if (measured.available) return { cost_usd: measured.cost_usd, tokens: measured.tokens };
+
   const costLine = payload['Cost'] || '';
-  // Tolerate thousands separators (`$1,234.50 (1,526,890 tokens)`) — a strict
-  // no-comma regex would miss them and fall through to .status.json, which holds
-  // a cumulative running total, silently recording the wrong cost for the session.
+  // Tolerate thousands separators (`$1,234.50 (1,526,890 tokens)`).
   const m = /\$([\d,]+(?:\.\d+)?)\s*\(([\d,]+)\s*tokens?\)/.exec(costLine);
   if (m) return { cost_usd: Math.round(parseFloat(m[1].replace(/,/g, '')) * 10000) / 10000, tokens: parseInt(m[2].replace(/,/g, ''), 10) };
-  const statusPath = path.join(sessionsDir, '.status.json');
-  const raw = readFileSafe(statusPath);
-  if (raw) {
-    try {
-      const status = JSON.parse(raw);
-      return {
-        cost_usd: typeof status.cost_usd === 'number' ? status.cost_usd : 0,
-        tokens: typeof status.tokens === 'number' ? status.tokens : 0,
-      };
-    } catch { /* fall through */ }
-  }
   return { cost_usd: 0, tokens: 0 };
 }
 
@@ -465,14 +465,15 @@ function contentLines(s: string): string[] {
 function buildReport(opts: {
   sessionId: string; mode: 'idle' | 'close' | 'auto'; now: Date;
   payload: Record<string, string> & { plan?: string }; shell: string; stateDir: string; config: Json;
+  openedAt?: string; closedAt?: string;
 }): { content: string; statusNote: string | null; cost: { cost_usd: number; tokens: number } } {
-  const { sessionId, mode, now, payload, shell, stateDir, config } = opts;
+  const { sessionId, mode, now, payload, shell, stateDir, config, openedAt, closedAt } = opts;
   const sessionsDir = path.join(stateDir, 'sessions');
   const timezone = resolveTimezone(config);
   const { status, note: statusNote } = normalizeStatus(payload['Status'] || '');
   const startedAt = extractStartedAt(shell);
   const duration = startedAt ? formatDuration(now.getTime() - startedAt.getTime()) : '0m';
-  const cost = resolveCost(payload, sessionsDir);
+  const cost = resolveCost(payload, { logPath: costLogPath(stateDir), openedAt, closedAt: closedAt ?? localISOStamp(now) });
   const { cost_usd, tokens } = cost;
   const tags = extractTags(shell);
   const proposalsCreated = extractProposalIds(shell);
@@ -652,7 +653,9 @@ function verbArchive(flags: Record<string, string | true>, stdin: string): Json 
   if (!setTransition.ok) return { ok: false, reason: setTransition.reason };
 
   const config = readConfig(stateDir);
-  const { content: reportContent, cost: reportCost } = buildReport({ sessionId, mode, now, payload, shell, stateDir, config });
+  const openedAt = typeof runtimeBefore.opened_at === 'string' ? runtimeBefore.opened_at : undefined;
+  const closedAt = typeof runtimeBefore.closed_at === 'string' ? runtimeBefore.closed_at : undefined;
+  const { content: reportContent, cost: reportCost } = buildReport({ sessionId, mode, now, payload, shell, stateDir, config, openedAt, closedAt });
 
   const reportPath = path.join(sessionsDir, `${sessionId}-REPORT.md`);
   try {
@@ -802,7 +805,18 @@ function verbRecover(flags: Record<string, string | true>): Json {
   const idleAlreadyReset = mode === 'idle' && shell.includes(`**${sessionId}**`);
   let newShell: string;
   if (mode === 'idle') {
-    newShell = idleAlreadyReset ? shell : idleReset(shell, sessionId, now, {}, resolveCompactConfig(config), resolveCost({}, sessionsDir));
+    // Read cost from the report verbArchive already wrote (targetPath) rather than
+    // recomputing — the crash landed after the report was written, so its frontmatter
+    // is the authoritative session cost, not a fresh (and here window-less) resolveCost.
+    // readFrontmatter returns scalars as strings — coerce, don't typeof-check.
+    const recoveredFm = readFrontmatter(targetPath);
+    const recoveredCostUsd = Number(recoveredFm?.cost_usd);
+    const recoveredTokens = Number(recoveredFm?.tokens);
+    const recoveredCost = {
+      cost_usd: Number.isFinite(recoveredCostUsd) ? recoveredCostUsd : 0,
+      tokens: Number.isFinite(recoveredTokens) ? recoveredTokens : 0,
+    };
+    newShell = idleAlreadyReset ? shell : idleReset(shell, sessionId, now, {}, resolveCompactConfig(config), recoveredCost);
   } else {
     newShell = closeReset(path.join(stateDir, 'templates', 'SHELL.md.template'), shell);
   }
