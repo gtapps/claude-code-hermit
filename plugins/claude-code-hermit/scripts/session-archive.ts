@@ -6,10 +6,11 @@
 // and the PR-2 plan) found 12 of its 13 tasks are mechanical transforms given a payload
 // main already compiles in-context — this script takes over every one of those writes.
 //
-// Three verbs:
+// Four verbs:
 //   archive --mode=idle|close|auto --state-dir=<dir>   (stdin: structured payload)
 //   open --state-dir=<dir>                             (stdin: Task: <text>)
 //   recover --state-dir=<dir>                           (no stdin payload — reads on-disk state)
+//   auto-close-decision --state-dir=<dir>               (no stdin — daily-auto-close branch table)
 //
 // Every verb emits exactly one line of JSON to stdout: {"ok": boolean, ...}. `ok` is the
 // explicit outcome contract review found missing — no subagent judgment layer exists
@@ -33,6 +34,7 @@ import { localISOStamp } from './lib/time';
 import { readAlertState as readRuntime, quarantineAlertState as quarantineRuntime } from './lib/alert-state';
 import { costLogPath } from './lib/cc-compat';
 import { computeSessionCost } from './lib/session-cost';
+import { AUTO_CLOSE_LULL_MINUTES } from './lib/auto-close';
 
 type Json = any;
 
@@ -634,10 +636,58 @@ function closeFinalUpdates(mode: 'idle' | 'close' | 'auto', sessionsDir: string,
 }
 
 // ---------------------------------------------------------------------------
+// Post-archive marker bookkeeping — mode-keyed consequences of a successful
+// archive (formerly prose steps: session/SKILL.md 7b, session-close steps 9/10).
+// Each sub-action is individually guarded; failures land in the returned map
+// and never flip the archive's ok. `suppressWrites` (the recover path) skips
+// the two marker WRITES but still deletes pending-close.json: a recovered
+// close is still a completed close and a surviving flag could AUTO_CLOSE the
+// next session, while the writes trigger watchdog actions (compaction, /clear)
+// that must not fire off a boot-time recovery.
+// ---------------------------------------------------------------------------
+
+// Deletes state/pending-close.json if present; tolerates absence, reports
+// errors. Shared by applyPostArchiveMarkers (close/auto archive) and the
+// auto-close-decision verb's stale-flag reap.
+function reapPendingClose(stateDir: string): string {
+  const pendingPath = path.join(stateDir, 'state', 'pending-close.json');
+  try {
+    if (fs.existsSync(pendingPath)) { fs.rmSync(pendingPath); return 'deleted'; }
+    return 'absent';
+  } catch (e: any) {
+    return 'error: ' + e.message;
+  }
+}
+
+function applyPostArchiveMarkers(stateDir: string, mode: 'idle' | 'close' | 'auto', now: Date, suppressWrites: boolean): Json {
+  const markers: Json = {};
+  const writeMarker = (name: string, reason: string): string => {
+    try {
+      fs.mkdirSync(path.join(stateDir, 'state'), { recursive: true });
+      writeFileAtomic(path.join(stateDir, 'state', name),
+        JSON.stringify({ requested_at: localISOStamp(now), reason }, null, 2) + '\n');
+      return 'written';
+    } catch (e: any) {
+      return 'error: ' + e.message;
+    }
+  };
+  if (mode === 'idle') {
+    markers.compact_requested = suppressWrites ? 'skipped' : writeMarker('compact-requested.json', 'session-work-done');
+  }
+  if (mode === 'close' || mode === 'auto') {
+    markers.pending_close = reapPendingClose(stateDir);
+  }
+  if (mode === 'auto') {
+    markers.clear_requested = suppressWrites ? 'skipped' : writeMarker('clear-requested.json', 'daily-auto-close');
+  }
+  return markers;
+}
+
+// ---------------------------------------------------------------------------
 // Verb: archive
 // ---------------------------------------------------------------------------
 
-function verbArchive(flags: Record<string, string | true>, stdin: string): Json {
+function verbArchive(flags: Record<string, string | true>, stdin: string, opts: { skipMarkerWrites?: boolean } = {}): Json {
   const mode = flags['mode'];
   if (mode !== 'idle' && mode !== 'close' && mode !== 'auto') {
     return { ok: false, reason: `archive requires --mode=idle|close|auto, got: ${mode ?? '(none)'}` };
@@ -703,7 +753,8 @@ function verbArchive(flags: Record<string, string | true>, stdin: string): Json 
   const clearTransition = updateRuntime(runtimePath, now, finalUpdates);
   if (!clearTransition.ok) return { ok: false, reason: clearTransition.reason };
 
-  return { ok: true, archived: true, session_id: sessionId, report_path: reportPath, mode };
+  const markers = applyPostArchiveMarkers(stateDir, mode, now, !!opts.skipMarkerWrites);
+  return { ok: true, archived: true, session_id: sessionId, report_path: reportPath, mode, markers };
 }
 
 // ---------------------------------------------------------------------------
@@ -794,7 +845,7 @@ function verbRecover(flags: Record<string, string | true>): Json {
       ...(legacyNote ? [legacyNote] : []),
     ].join('\n');
     const syntheticPayload = `Status: partial\nBlockers: ${blockers}\nClosed Via: recovered\n`;
-    const result = verbArchive({ mode, 'state-dir': stateDir }, syntheticPayload);
+    const result = verbArchive({ mode, 'state-dir': stateDir }, syntheticPayload, { skipMarkerWrites: true });
     if (!result.ok) {
       // Re-archive couldn't complete (e.g. SHELL.md itself is gone, so buildReport
       // has nothing to work from). Clear the transition markers so the next start
@@ -820,7 +871,8 @@ function verbRecover(flags: Record<string, string | true>): Json {
       session_state: 'idle',
     });
     if (!clear.ok) return { ok: false, reason: clear.reason };
-    return { ok: true, recovered: true, recovery_path: 'markers-cleared-no-shell', legacy: !!legacyNote };
+    const markers = applyPostArchiveMarkers(stateDir, mode, now, /* suppressWrites */ true);
+    return { ok: true, recovered: true, recovery_path: 'markers-cleared-no-shell', legacy: !!legacyNote, markers };
   }
 
   const config = readConfig(stateDir);
@@ -849,7 +901,71 @@ function verbRecover(flags: Record<string, string | true>): Json {
   const clear = updateRuntime(runtimePath, now, finalUpdates);
   if (!clear.ok) return { ok: false, reason: clear.reason };
 
-  return { ok: true, recovered: true, recovery_path: 'shell-reset', mode_used: mode, legacy: !!legacyNote };
+  const markers = applyPostArchiveMarkers(stateDir, mode, now, /* suppressWrites */ true);
+  return { ok: true, recovered: true, recovery_path: 'shell-reset', mode_used: mode, legacy: !!legacyNote, markers };
+}
+
+// ---------------------------------------------------------------------------
+// Verb: auto-close-decision — the daily-auto-close midnight branch table
+// (session-close/SKILL.md --scheduled path). Reads lifecycle state and the
+// operator-action clock, mutates pending-close.json itself, and returns the
+// decision; the model only executes a close-now via the --auto archive path.
+// A corrupt/unreadable runtime maps to noop, not close-now: the prose
+// fail-open rule covers only the last-operator-action clock, and closing a
+// session whose state is unknowable would be fail-destructive. That noop is
+// also non-destructive — it leaves pending-close.json alone, since a queued
+// flag is only provably stale once we know there is no session worth closing
+// (a read `session_state` outside {in_progress, idle}, or no runtime.json at
+// all). No quarantine here — recover owns quarantine.
+// ---------------------------------------------------------------------------
+
+function verbAutoCloseDecision(flags: Record<string, string | true>): Json {
+  const { stateDir, runtimePath, now } = resolveRunContext(flags);
+  const pendingPath = path.join(stateDir, 'state', 'pending-close.json');
+
+  const r = readRuntime(runtimePath);
+  if (r.kind === 'corrupt' || r.kind === 'ioerror') {
+    // Unknown state: noop WITHOUT touching pending-close.json. `ioerror` is a
+    // healthy file we transiently could not read (lib/alert-state.ts marks it
+    // do-not-destroy), and a corrupt runtime may still front a live session —
+    // deleting the flag either way strands it until the next midnight.
+    return { ok: true, decision: 'noop', reason: `runtime unreadable (${r.kind})` };
+  }
+  // `missing` falls through: no runtime.json means no session, so any flag is stale.
+  const sessionState = r.kind === 'ok' ? (r.value?.session_state ?? 'unset') : r.kind;
+  if (sessionState !== 'in_progress' && sessionState !== 'idle') {
+    // Nothing to close; a leftover flag from a prior session is stale — reap it.
+    const reaped = reapPendingClose(stateDir) === 'deleted';
+    return { ok: true, decision: 'noop', reason: `session_state=${sessionState}${reaped ? '; stale pending-close deleted' : ''}` };
+  }
+
+  let lastAction: Json = null;
+  try { lastAction = JSON.parse(fs.readFileSync(path.join(stateDir, 'state', 'last-operator-action.json'), 'utf-8')); } catch {}
+  const atMs = lastAction && typeof lastAction.at === 'string' ? new Date(lastAction.at).getTime() : NaN;
+  if (isNaN(atMs)) {
+    // Fail-open per the --scheduled prose: no valid operator clock → idle indefinitely.
+    return { ok: true, decision: 'close-now', reason: 'last-operator-action missing/invalid' };
+  }
+  if (atMs > now.getTime()) {
+    // Clock skew: a future stamp yields a negative lull that can never exceed the
+    // threshold, which would pin this verb to `queued` every midnight while the
+    // heartbeat drain (same comparison) never fires. Treat it as an invalid clock
+    // and take the same fail-open branch, with a reason that names the anomaly.
+    return { ok: true, decision: 'close-now', reason: 'last-operator-action is in the future (clock skew)' };
+  }
+
+  const lullMin = (now.getTime() - atMs) / 60_000;
+  if (lullMin > AUTO_CLOSE_LULL_MINUTES) {
+    return { ok: true, decision: 'close-now', reason: `lull ${Math.round(lullMin)}min` };
+  }
+
+  try {
+    fs.mkdirSync(path.join(stateDir, 'state'), { recursive: true });
+    writeFileAtomic(pendingPath, JSON.stringify({ queued_at: localISOStamp(now), queued_by: 'daily-auto-close' }, null, 2) + '\n');
+  } catch (e: any) {
+    return { ok: false, reason: 'pending-close-write-error: ' + e.message };
+  }
+  return { ok: true, decision: 'queued', reason: `operator active ${Math.round(lullMin)}min ago` };
 }
 
 // ---------------------------------------------------------------------------
@@ -868,8 +984,9 @@ function main(): void {
   if (verb === 'archive') return emit(verbArchive(flags, stdin));
   if (verb === 'open') return emit(verbOpen(flags, stdin));
   if (verb === 'recover') return emit(verbRecover(flags));
+  if (verb === 'auto-close-decision') return emit(verbAutoCloseDecision(flags));
 
-  return emit({ ok: false, reason: `unknown verb: ${verb || '(none)'}. Valid verbs: archive, open, recover` });
+  return emit({ ok: false, reason: `unknown verb: ${verb || '(none)'}. Valid verbs: archive, open, recover, auto-close-decision` });
 }
 
 if (import.meta.main) {

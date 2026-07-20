@@ -45,8 +45,11 @@ describe('session work-done NEXT-TASK drain', () => {
     expect(skill).toContain('do not write to `runtime.json` from this flow');
   });
 
-  test('step 7b (compaction marker) is unconditional regardless of the drain branch', () => {
-    expect(skill).toContain('Run this step unchanged regardless of step 8');
+  test('step 7b (compaction marker) is script-owned, so it precedes the drain branch', () => {
+    // The write moved into session-archive.ts (step 6's idle archive), which runs
+    // before step 8 branches — the old "unconditional regardless of step 8"
+    // invariant now holds structurally. Pin the prose that documents that.
+    expect(skill).toContain('idle archive itself wrote `state/compact-requested.json`');
   });
 
   test('step 7b names the watchdog as the primary marker reaper (accurate for conservative branch)', () => {

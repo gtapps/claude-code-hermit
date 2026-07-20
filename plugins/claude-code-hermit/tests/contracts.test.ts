@@ -2644,3 +2644,28 @@ describe('heartbeat eval-runner return contract', () => {
     expect(skill).toContain("per the **script's** `heartbeat_result`");
   });
 });
+
+// ============================================================
+// Determinized lifecycle wiring contract
+//
+// Guards the skill→script cutover for the Phase A determinization: each skill
+// must keep invoking its deterministic replacement. A silent edit dropping the
+// reference would revert the branch back to prose-driven (model-judged) writes.
+// ============================================================
+
+describe('determinized lifecycle wiring contract', () => {
+  test('session-close SKILL.md routes the --scheduled branch through the auto-close-decision verb', () => {
+    const skill = read(path.join(SKILLS, 'session-close', 'SKILL.md'));
+    expect(skill).toContain('auto-close-decision');
+  });
+
+  test('reflect SKILL.md applies resolution actions via apply-reflection-actions.ts', () => {
+    const skill = read(path.join(SKILLS, 'reflect', 'SKILL.md'));
+    expect(skill).toContain('apply-reflection-actions.ts');
+  });
+
+  test('session SKILL.md advances the scheduled-check cursor via --scheduled-check-run', () => {
+    const skill = read(path.join(SKILLS, 'session', 'SKILL.md'));
+    expect(skill).toContain('--scheduled-check-run');
+  });
+});

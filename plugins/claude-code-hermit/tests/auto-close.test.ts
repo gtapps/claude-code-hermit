@@ -918,3 +918,169 @@ describe('stale-session gate: skip LLM wake when operator is present', () => {
     expect(state.last_stale_wake_at).toBeUndefined();
   }));
 });
+
+// -------------------------------------------------------
+// auto-close-decision verb: the deterministic midnight branch table
+// (session-close --scheduled). The verb reads runtime + the operator clock,
+// mutates pending-close.json itself, and returns noop | queued | close-now.
+// -------------------------------------------------------
+
+describe('auto-close-decision verb', () => {
+  const NOW = '2026-05-20T22:45:00+00:00';
+  const pendingPath = (dir: string) => hermit(dir, 'state', 'pending-close.json');
+
+  async function decide(dir: string, now: string = NOW) {
+    const r = await runScript('session-archive.ts', {
+      args: ['auto-close-decision', `--state-dir=${hermit(dir)}`],
+      env: { HERMIT_NOW: now, TZ: 'UTC' },
+    });
+    expect(r.exitCode).toBe(0);
+    return JSON.parse(r.stdout.trim());
+  }
+
+  const lastOpAt = (dir: string, at: string) =>
+    writeState(dir, 'last-operator-action.json', JSON.stringify({ at }));
+
+  test('in_progress + 15min lull → close-now, no pending-close written', withTmp(async (dir) => {
+    writeState(dir, 'runtime.json', RUNTIME_IN_PROGRESS);
+    lastOpAt(dir, '2026-05-20T22:30:00+00:00');
+    const result = await decide(dir);
+    expect(result.ok).toBe(true);
+    expect(result.decision).toBe('close-now');
+    expect(fs.existsSync(pendingPath(dir))).toBe(false);
+  }));
+
+  test('in_progress + 5min lull → queued, pending-close stamped by daily-auto-close at HERMIT_NOW', withTmp(async (dir) => {
+    writeState(dir, 'runtime.json', RUNTIME_IN_PROGRESS);
+    lastOpAt(dir, '2026-05-20T22:40:00+00:00');
+    const result = await decide(dir);
+    expect(result.decision).toBe('queued');
+    const pending = JSON.parse(fs.readFileSync(pendingPath(dir), 'utf-8'));
+    expect(pending.queued_by).toBe('daily-auto-close');
+    // TZ pinned to UTC in decide() so the localISOStamp prefix is deterministic.
+    expect(pending.queued_at.startsWith('2026-05-20T22:45:00')).toBe(true);
+    expect(new Date(pending.queued_at).getTime()).toBe(Date.parse(NOW));
+  }));
+
+  test('queued overwrites an existing pending-close (singleton semantics)', withTmp(async (dir) => {
+    writeState(dir, 'runtime.json', RUNTIME_IN_PROGRESS);
+    lastOpAt(dir, '2026-05-20T22:40:00+00:00');
+    writeState(dir, 'pending-close.json', '{"queued_at":"2026-05-19T00:00:00+0000","queued_by":"daily-auto-close"}');
+    const result = await decide(dir);
+    expect(result.decision).toBe('queued');
+    const pending = JSON.parse(fs.readFileSync(pendingPath(dir), 'utf-8'));
+    expect(new Date(pending.queued_at).getTime()).toBe(Date.parse(NOW));
+  }));
+
+  test('idle + 15min lull → close-now', withTmp(async (dir) => {
+    writeState(dir, 'runtime.json', '{"session_state":"idle"}');
+    lastOpAt(dir, '2026-05-20T22:30:00+00:00');
+    expect((await decide(dir)).decision).toBe('close-now');
+  }));
+
+  test('idle + 5min lull → queued', withTmp(async (dir) => {
+    writeState(dir, 'runtime.json', '{"session_state":"idle"}');
+    lastOpAt(dir, '2026-05-20T22:40:00+00:00');
+    expect((await decide(dir)).decision).toBe('queued');
+  }));
+
+  test('exact 10-min boundary → queued (threshold is strictly greater-than)', withTmp(async (dir) => {
+    writeState(dir, 'runtime.json', RUNTIME_IN_PROGRESS);
+    lastOpAt(dir, '2026-05-20T22:35:00+00:00');
+    expect((await decide(dir)).decision).toBe('queued');
+  }));
+
+  test("session_state 'waiting' → noop, stale pending-close reaped", withTmp(async (dir) => {
+    writeState(dir, 'runtime.json', '{"session_state":"waiting"}');
+    writeState(dir, 'pending-close.json', '{"queued_at":"2026-05-19T00:00:00+0000","queued_by":"daily-auto-close"}');
+    const result = await decide(dir);
+    expect(result.decision).toBe('noop');
+    expect(result.reason).toContain('waiting');
+    expect(fs.existsSync(pendingPath(dir))).toBe(false);
+  }));
+
+  test('runtime.json absent → noop, seeded stale flag deleted', withTmp(async (dir) => {
+    writeState(dir, 'pending-close.json', '{"queued_at":"2026-05-19T00:00:00+0000","queued_by":"daily-auto-close"}');
+    const result = await decide(dir);
+    expect(result.ok).toBe(true);
+    expect(result.decision).toBe('noop');
+    expect(fs.existsSync(pendingPath(dir))).toBe(false);
+  }));
+
+  test('runtime.json corrupt → noop, corrupt file NOT quarantined (recover owns quarantine)', withTmp(async (dir) => {
+    const garbage = '{not valid json at all';
+    writeState(dir, 'runtime.json', garbage);
+    const result = await decide(dir);
+    expect(result.ok).toBe(true);
+    expect(result.decision).toBe('noop');
+    expect(fs.readFileSync(hermit(dir, 'state', 'runtime.json'), 'utf-8')).toBe(garbage);
+    const stateFiles = fs.readdirSync(hermit(dir, 'state'));
+    expect(stateFiles.some(f => f.startsWith('runtime.json.corrupt'))).toBe(false);
+  }));
+
+  // A queued flag is only provably stale once we know there is no session worth
+  // closing. An absent runtime.json proves that; a corrupt or unreadable one does
+  // not — it may still front a live session whose close is legitimately queued,
+  // and reaping there strands the session until the next midnight.
+  test('runtime.json corrupt → queued pending-close SURVIVES (not provably stale)', withTmp(async (dir) => {
+    writeState(dir, 'runtime.json', '{not valid json at all');
+    writeState(dir, 'pending-close.json', '{"queued_at":"2026-05-20T00:00:00+0000","queued_by":"daily-auto-close"}');
+    const result = await decide(dir);
+    expect(result.decision).toBe('noop');
+    expect(result.reason).toContain('corrupt');
+    expect(fs.existsSync(pendingPath(dir))).toBe(true);
+  }));
+
+  test('runtime.json unreadable (ioerror) → queued pending-close SURVIVES', withTmp(async (dir) => {
+    writeState(dir, 'runtime.json', RUNTIME_IN_PROGRESS);
+    writeState(dir, 'pending-close.json', '{"queued_at":"2026-05-20T00:00:00+0000","queued_by":"daily-auto-close"}');
+    fs.chmodSync(hermit(dir, 'state', 'runtime.json'), 0o000);
+    try {
+      const result = await decide(dir);
+      expect(result.decision).toBe('noop');
+      expect(fs.existsSync(pendingPath(dir))).toBe(true);
+    } finally {
+      fs.chmodSync(hermit(dir, 'state', 'runtime.json'), 0o644);
+    }
+  }));
+
+  test('last-operator-action in the future → close-now, anomaly named in reason', withTmp(async (dir) => {
+    // A future stamp yields a negative lull that can never exceed the threshold.
+    // Left unguarded it pins this verb to `queued` every midnight while the
+    // heartbeat drain (same comparison) never fires — the session never closes.
+    writeState(dir, 'runtime.json', RUNTIME_IN_PROGRESS);
+    lastOpAt(dir, '2026-05-21T22:45:00+00:00');
+    const result = await decide(dir);
+    expect(result.decision).toBe('close-now');
+    expect(result.reason).toContain('clock skew');
+    expect(fs.existsSync(pendingPath(dir))).toBe(false);
+  }));
+
+  test('last-operator-action absent → close-now (fail-open)', withTmp(async (dir) => {
+    writeState(dir, 'runtime.json', RUNTIME_IN_PROGRESS);
+    expect((await decide(dir)).decision).toBe('close-now');
+  }));
+
+  test('last-operator-action with invalid at → close-now (fail-open)', withTmp(async (dir) => {
+    writeState(dir, 'runtime.json', RUNTIME_IN_PROGRESS);
+    writeState(dir, 'last-operator-action.json', '{"at":"not-a-date"}');
+    expect((await decide(dir)).decision).toBe('close-now');
+  }));
+
+  test('bare state dir (state/ subdir missing entirely) → ok:true noop, no crash', withTmp(async (dir) => {
+    fs.rmSync(hermit(dir, 'state'), { recursive: true, force: true });
+    const result = await decide(dir);
+    expect(result.ok).toBe(true);
+    expect(result.decision).toBe('noop');
+  }));
+
+  // Constants-sync pin: the 10-minute lull threshold must stay a single shared
+  // constant — both the precheck drain and the decision verb import it from
+  // lib/auto-close, so they can never disagree on the boundary.
+  test('heartbeat-precheck and session-archive both import the lull from lib/auto-close', () => {
+    const precheckSrc = fs.readFileSync(path.join(SCRIPTS_DIR, 'heartbeat-precheck.ts'), 'utf-8');
+    const archiveSrc = fs.readFileSync(path.join(SCRIPTS_DIR, 'session-archive.ts'), 'utf-8');
+    expect(precheckSrc).toContain('lib/auto-close');
+    expect(archiveSrc).toContain('lib/auto-close');
+  });
+});

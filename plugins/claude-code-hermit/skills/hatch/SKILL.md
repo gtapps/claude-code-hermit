@@ -561,6 +561,8 @@ Merge these into the target file:
       "Bash(bun */scripts/generate-summary.ts*)",
       "Bash(bun */scripts/proposals-index.ts*)",
       "Bash(bun */scripts/update-reflection-state.ts*)",
+      "Bash(bun */scripts/apply-reflection-actions.ts*)",
+      "Bash(bun */scripts/transcript-digest.ts*)",
       "Bash(bun */scripts/cron-tz-shift.ts*)",
       "Bash(bun */scripts/evolve-plan.ts*)",
       "Bash(bun */scripts/evolve-finalize.ts*)",
@@ -580,7 +582,7 @@ Merge these into the target file:
 **Why each one:**
 
 - `git diff`, `git status`, `git log` — session-diff.ts hook auto-populates `## Changed` in SHELL.md
-- `bun */scripts/<name>.ts` — Stop hooks (cost-tracker, session-diff, evaluate-session) and precheck scripts (heartbeat-precheck, reflect-precheck), scoped to plugin scripts only. Includes `manifest-seed.ts`, which the seeding sub-step below runs to write the template-manifest baseline (deferred from Step 2 so the permission is in place first). Includes `channel-log.ts`, which weekly-review's consolidation step runs unattended to list/mark/prune the episodic channel log (PROP-010). Includes `session-archive.ts`, the deterministic session-lifecycle writer (idle/close/auto-close/open/recover) that replaced the session-mgr subagent — without this permission a hatched hermit would be asked (functionally denied headlessly) on its first idle transition. Includes `resolve-prop.ts`, `next-prop-id.ts`, `record-gate.ts`, `queue-micro-proposal.ts` — the proposal-act/proposal-create/reflect mechanics wrappers; without these, ID resolution, ID generation, gate-verdict routing, and micro-approval queuing would all be functionally denied headlessly
+- `bun */scripts/<name>.ts` — Stop hooks (cost-tracker, session-diff, evaluate-session) and precheck scripts (heartbeat-precheck, reflect-precheck), scoped to plugin scripts only. Includes `manifest-seed.ts`, which the seeding sub-step below runs to write the template-manifest baseline (deferred from Step 2 so the permission is in place first). Includes `channel-log.ts`, which weekly-review's consolidation step runs unattended to list/mark/prune the episodic channel log (PROP-010). Includes `session-archive.ts`, the deterministic session-lifecycle writer (idle/close/auto-close/open/recover) that replaced the session-mgr subagent — without this permission a hatched hermit would be asked (functionally denied headlessly) on its first idle transition. Includes `resolve-prop.ts`, `next-prop-id.ts`, `record-gate.ts`, `queue-micro-proposal.ts` — the proposal-act/proposal-create/reflect mechanics wrappers; without these, ID resolution, ID generation, gate-verdict routing, and micro-approval queuing would all be functionally denied headlessly. Includes `apply-reflection-actions.ts` and `transcript-digest.ts` — reflect's transactional resolution-action apply and its behavioral-telemetry digest; without these a scheduled reflect silently degrades to introspection-only and never resolves a proposal
 - `bash -c 'AGENT_DIR=...` — SessionStart hook that loads session context on every startup
 - `Edit` on `.claude-code-hermit/**` — heartbeat appends to SHELL.md, increments config.json tick counter, and skills update session state without prompting (Edit rules cover all file-editing tools, including Write)
 

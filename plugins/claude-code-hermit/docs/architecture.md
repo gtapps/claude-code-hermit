@@ -338,7 +338,7 @@ Three context-reset mechanisms live in the watchdog script, each owning a distin
 
 Mechanism 3 also has a secondary effect on mechanism-independent native/proactive auto-compaction (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`): by keeping context low at quiescent moments, it reduces how often native auto-compaction gets the chance to fire mid-task in the first place.
 
-A boundary marker (`state/compact-requested.json`), written by the `session` and `proposal-act` skills at arc-end moments, lets mechanism 3 waive its `min_interval` cooldown for one tick — never its 60k token floor. See `config-reference.md` § `context_hygiene` for the full guard list and config keys.
+A boundary marker (`state/compact-requested.json`), written by `session-archive.ts` on idle archive and by the `proposal-act` skill at arc-end moments, lets mechanism 3 waive its `min_interval` cooldown for one tick — never its 60k token floor. See `config-reference.md` § `context_hygiene` for the full guard list and config keys.
 
 ---
 
