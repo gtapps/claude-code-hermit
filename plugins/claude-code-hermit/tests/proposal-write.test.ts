@@ -355,6 +355,44 @@ describe('proposal.ts patch', () => {
     expect(occurrences).toBe(1);
   });
 
+  test('an @now Decision line already present with a different timestamp is not duplicated', async () => {
+    wd = setupWorkdir();
+    seedState(wd.dir);
+    const dir = wd.dir;
+    const id = await createProposal(dir);
+    // Every SKILL-documented Decision line carries `@now`, which expands to a
+    // fresh stamp per run — comparing expanded text would never match, so the
+    // guard has to compare the raw line with `@now` as a timestamp wildcard.
+    // Seeding an earlier run's output directly (rather than sleeping past a real
+    // second boundary) proves the wildcard matches ANY differing timestamp.
+    const seeded = fs.readFileSync(propPath(dir, id), 'utf-8')
+      .replace('## Operator Decision\n', '## Operator Decision\nAccepted on 2001-01-01T00:00:00Z.\n');
+    fs.writeFileSync(propPath(dir, id), seeded);
+    await runScript('proposal.ts', {
+      args: ['patch', stateArg(dir), id, '--set', 'status=accepted', '--set', 'accepted_date=@now'],
+      stdin: 'Decision: Accepted on @now.\n',
+    });
+    const content = fs.readFileSync(propPath(dir, id), 'utf-8');
+    expect(content.match(/Accepted on \d{4}-/g)?.length).toBe(1);
+    expect(content).toContain('Accepted on 2001-01-01T00:00:00Z.');
+  });
+
+  test('a bare Decision: line does not swallow the following Set: line', async () => {
+    wd = setupWorkdir();
+    seedState(wd.dir);
+    const id = await createProposal(wd.dir);
+    const r = await runScript('proposal.ts', {
+      args: ['patch', stateArg(wd.dir), id],
+      stdin: 'Decision:\nSet: success_signal=avg_session_cost_usd < 5 over 7 sessions\n',
+    });
+    expect(r.stdout.trim()).toBe(`OK|${id}`);
+    const after = fs.readFileSync(propPath(wd.dir, id), 'utf-8');
+    expect(after).toContain('success_signal: "avg_session_cost_usd < 5 over 7 sessions"');
+    // The Set: line must not also land in the Operator Decision section.
+    const decision = after.slice(after.indexOf('## Operator Decision'));
+    expect(decision).not.toContain('Set: success_signal');
+  });
+
   test('no free-text value rides --set argv in either SKILL.md', () => {
     const proposalCreate = fs.readFileSync(path.join(PLUGIN_ROOT, 'skills', 'proposal-create', 'SKILL.md'), 'utf-8');
     const proposalAct = fs.readFileSync(path.join(PLUGIN_ROOT, 'skills', 'proposal-act', 'SKILL.md'), 'utf-8');

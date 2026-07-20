@@ -81,17 +81,9 @@ function regenTail(stateDir: string): void {
   try { regenerateSummary(path.join(stateDir, 'state')); } catch (e: any) { warn(`summary regen failed: ${e.message}`); }
 }
 
-function parseFlags(argv: string[]): Record<string, string | true> {
-  const out: Record<string, string | true> = {};
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i].startsWith('--')) {
-      const key = argv[i].slice(2);
-      const next = argv[i + 1];
-      if (next !== undefined && !next.startsWith('--')) { out[key] = next; i++; }
-      else out[key] = true;
-    }
-  }
-  return out;
+function flagValue(argv: string[], flag: string): string | undefined {
+  const i = argv.indexOf(flag);
+  return i === -1 ? undefined : argv[i + 1];
 }
 
 // ---------------------------------------------------------------- create ---
@@ -126,7 +118,10 @@ async function verbCreate(stateDir: string): Promise<void> {
 
   const source = grabHeader(header, 'Source') || 'manual';
   let session = grabHeader(header, 'Session');
-  if (session === null) {
+  // Falsy, not just null: a bare `Session:` line means "no session", which must
+  // fall through to the runtime.json default (and then to null) rather than
+  // writing `session: ""` — every other header defaults on falsy too.
+  if (!session) {
     const runtime = readJson(path.join(stateDir, 'state', 'runtime.json'));
     session = runtime?.session_id ?? null;
   }
@@ -229,15 +224,25 @@ function parsePatchArgs(args: string[]): { filename: string | undefined; sets: s
   return { filename, sets, requestCompact };
 }
 
-// True when `heading`'s section already ends with `line` (trimmed, exact) —
-// makes a re-run of the same patch call idempotent instead of duplicating
-// the Operator Decision entry.
-function sectionEndsWithLine(content: string, heading: string, line: string): boolean {
+const TIMESTAMP_RE_SRC = '\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:[+-]\\d{2}:\\d{2}|Z)';
+
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// True when `heading`'s section already ends with `rawLine` — makes a re-run of
+// the same patch call idempotent instead of duplicating the Operator Decision
+// entry. Compares against the RAW (unexpanded) line with `@now` as a timestamp
+// wildcard: every SKILL-documented Decision line is `... on @now.`, which
+// expands to a fresh stamp each second, so a byte-comparison against the
+// expanded line would never match on a retry and the guard would never fire.
+function sectionEndsWithLine(content: string, heading: string, rawLine: string): boolean {
   const section = findSection(content, heading);
   if (!section) return false;
-  const sectionText = content.slice(section.start, section.end);
-  const lines = sectionText.split('\n').map(l => l.trim()).filter(Boolean);
-  return lines.length > 0 && lines[lines.length - 1] === line.trim();
+  const lines = content.slice(section.start, section.end).split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length === 0) return false;
+  const pattern = rawLine.trim().split('@now').map(escapeRe).join(TIMESTAMP_RE_SRC);
+  return new RegExp(`^${pattern}$`).test(lines[lines.length - 1]);
 }
 
 async function verbPatch(stateDir: string, args: string[]): Promise<void> {
@@ -253,11 +258,17 @@ async function verbPatch(stateDir: string, args: string[]): Promise<void> {
     sets[key] = kv.slice(eq + 1);
   }
 
-  const stdin = await readStdin();
-  const decisionMatch = /^Decision:\s*(.*)$/m.exec(stdin);
-  const decisionLine = decisionMatch ? decisionMatch[1].trim() : null;
+  // patch is the one verb documented as stdin-optional (defer/dismiss with no
+  // note omit the heredoc) — skip the read on a TTY so an interactive invocation
+  // with no piped input doesn't hang waiting for EOF.
+  const stdin = process.stdin.isTTY ? '' : await readStdin();
+  // `[ \t]*` not `\s*`: `\s` matches newlines, so a bare `Decision:` line
+  // followed by a `Set:` line would capture the Set line as the decision text
+  // (and then also apply it as a frontmatter set).
+  const decisionMatch = /^Decision:[ \t]*(.*)$/m.exec(stdin);
+  const decisionLine = decisionMatch ? decisionMatch[1].trim() || null : null;
   const stdinSets: Record<string, string> = {};
-  const setLineRe = /^Set:\s*([^\s=]+)=(.*)$/gm;
+  const setLineRe = /^Set:[ \t]*([^\s=]+)=(.*)$/gm;
   let m: RegExpExecArray | null;
   while ((m = setLineRe.exec(stdin))) {
     if (!PATCH_KEY_RE.test(m[1])) fail(`invalid-key:${m[1]}`);
@@ -293,9 +304,8 @@ async function verbPatch(stateDir: string, args: string[]): Promise<void> {
   }
 
   if (decisionLine) {
-    const expanded = expand(decisionLine);
-    if (!sectionEndsWithLine(patched, 'Operator Decision', expanded)) {
-      try { patched = appendToSection(patched, 'Operator Decision', expanded); }
+    if (!sectionEndsWithLine(patched, 'Operator Decision', decisionLine)) {
+      try { patched = appendToSection(patched, 'Operator Decision', expand(decisionLine)); }
       catch { fail('no-operator-decision-section'); }
     }
   }
@@ -323,8 +333,7 @@ async function verbPatch(stateDir: string, args: string[]): Promise<void> {
 
 async function verbShellAppend(stateDir: string, args: string[]): Promise<void> {
   const line = (await readStdin()).trim();
-  const flags = parseFlags(args);
-  const section = flags['section'];
+  const section = flagValue(args, '--section');
   if (section !== 'findings' && section !== 'progress') fail('unknown-section');
   if (!line) fail('empty-line');
   const heading = section === 'findings' ? 'Findings' : 'Progress Log';

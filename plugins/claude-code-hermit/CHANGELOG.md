@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Added
-- **proposal lifecycle: fully Bash-scripted state writes (works from background/worktree sessions)** — new `scripts/proposal.ts` CLI with five verbs: `create` (transactional: heredoc in, ID claimed atomically via exclusive create, Findings line, created event, index+summary regen; any pre-write failure mutates nothing), `patch` (frontmatter flips + Operator Decision append in one atomic write, `@now` timestamp expansion, `--request-compact`), `shell-append` (section-aware SHELL.md append), `next-task` (exclusive NEXT-TASK.md create), `routine` (validated config.json routine upsert). Closes the harness background-isolation gap where the Write/Edit tools are blocked on the main-rooted state dir, and the burned-ID half-created-state hazard where a blocked write could leave an ID assigned and metrics recorded with no proposal file.
+- **proposal lifecycle: fully Bash-scripted state writes** — new `scripts/proposal.ts` CLI (`create`, `patch`, `shell-append`, `next-task`, `routine`) replaces the Write/Edit tool calls on `.claude-code-hermit/`, which the harness blocks in background/worktree sessions. `create` claims the ID atomically with the file write, closing the burned-ID half-created-state hazard.
 
 ### Changed
 - **proposal-create/proposal-act: no Write/Edit tool calls on `.claude-code-hermit/` remain** — both skills invoke `proposal.ts` verbs; the next-prop-id/append-metrics/generate-summary steps in proposal-create fold into `proposal.ts create`; Resolve's compact-requested.json write moves to `--request-compact`.
