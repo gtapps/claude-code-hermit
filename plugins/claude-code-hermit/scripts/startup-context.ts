@@ -15,6 +15,7 @@ import { readFrontmatter, readFileWithFrontmatter, globDir } from './lib/frontma
 import { hermitDir } from './lib/cc-compat';
 import { findStorageDrift, findSchemaDrift } from './lib/drift';
 import { safe, safeForLLMMultiline, scanInjected } from './lib/sanitize';
+import { loadConfig } from './lib/channel-auth';
 import { resolve as resolveOutboundChannel } from './resolve-outbound-channel';
 import { formatTokens } from './lib/format';
 
@@ -102,6 +103,22 @@ function lastLines(text: string, n: number): string {
   return lines.slice(-n).join('\n');
 }
 
+// Operator-language fact for injected context. The structural whitelist is the
+// first gate — it rejects anything tag-, newline-, or control-byte-shaped, and
+// accepts locale codes (`pt`, `pt-BR`, `pt_BR`) plus human language names.
+// It is NOT the only gate: `hermit-settings language` can be driven from a
+// channel-tagged turn, so the value is remote-influenceable and still gets the
+// same threat scan every other injected surface goes through — the whitelist
+// alone would pass a letters-and-spaces injection phrase.
+function operatorLanguage(agentDir: string): string | null {
+  const config = loadConfig(agentDir);
+  if (!config) return null;
+  const v = typeof config.language === 'string' ? config.language.trim() : '';
+  if (!v || v.length > 40 || !/^[\p{L}\p{M}][\p{L}\p{M}\p{N} '._()-]*$/u.test(v)) return null;
+  if (checkThreat('config.json:language', v)) return null;
+  return v;
+}
+
 // Build the post-compaction delta capsule: the ONLY injection on
 // source === "compact". Carries hermit lifecycle state (never assumed
 // preserved by the native summary — its quality varies) plus file pointers;
@@ -110,6 +127,12 @@ function lastLines(text: string, n: number): string {
 // state file must not blank the rest. Returns "" if nothing is available.
 function buildCompactionPointers(agentDir: string): string {
   const parts: string[] = [];
+
+  // First: the capsule is hard-sliced at COMPACT_CAP, so anything appended
+  // late is what a state-heavy hermit loses. Language is the one fact here
+  // that has no other post-compaction source.
+  const lang = operatorLanguage(agentDir);
+  if (lang) parts.push(`operator language: ${safe(lang)} (reply in this language)`);
 
   try {
     const runtime = JSON.parse(fs.readFileSync(path.resolve(agentDir, 'state', 'runtime.json'), 'utf-8'));
@@ -216,6 +239,11 @@ function emitFullContext(source: string | null) {
     }
     process.stdout.write(header + body + '\n');
     totalChars += header.length + body.length + 1;
+  }
+
+  const lang = operatorLanguage(AGENT_DIR);
+  if (lang) {
+    emit('Operator Preferences', `operator_language: ${safe(lang)}\nAll operator-facing prose uses this language.`);
   }
 
   // -------------------------------------------------------

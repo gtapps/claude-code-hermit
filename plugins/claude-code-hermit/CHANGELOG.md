@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **session-start: configured operator language no longer drops mid-session** — SessionStart context (full start and the post-compaction capsule) now carries `operator_language` from config.json, so replies and notifications keep the operator's language after crash recovery, resume, and compaction. Underscore locale codes (`pt_BR`) are accepted, and the capsule emits the fact first so a state-heavy hermit doesn't lose it to the compaction-capsule size cap.
+- **startup-context: `config.json` `language` runs the injection threat scan** — the value is settable via `hermit-settings` on a channel turn, so it is remote-influenceable; the structural whitelist alone would have passed a letters-and-spaces injection phrase into every session's context. It now blocks and records a `config.json:language` hit like every other injected surface.
+
 ## [1.2.29] - 2026-07-20
 
 ### Added
