@@ -43,6 +43,7 @@ const HERMIT_ALLOW = [
   'Bash(bun */scripts/append-metrics.ts*)',
   'Bash(bun */scripts/resolve-prop.ts*)',
   'Bash(bun */scripts/next-prop-id.ts*)',
+  'Bash(bun */scripts/proposal.ts*)',
   'Bash(bun */scripts/record-gate.ts*)',
   'Bash(bun */scripts/queue-micro-proposal.ts*)',
   'Bash(bun */scripts/generate-summary.ts*)',

@@ -45,54 +45,80 @@ HERMIT_GATE
 - `PROCEED|CREATE` — proceed with the steps below
 - `DROP|DUPLICATE:<PROP-ID>` — stop, report to the caller: "Proposal already exists as <PROP-ID>"
 - `DROP|SUPPRESS:<code>` — stop, report the suppression reason (from the agent's line 1) to the caller
-- `GATE_FAILED` (unrecognized/empty line 1 — agent errored, returned malformed output, or was terminated before emitting a verdict): fail closed — do not create the proposal. Note `gate-failed: proposal-triage — <title>` in the SHELL.md Progress Log. The candidate re-surfaces on the next reflect cycle.
+- `GATE_FAILED` (unrecognized/empty line 1 — agent errored, returned malformed output, or was terminated before emitting a verdict): fail closed — do not create the proposal. Note it in the SHELL.md Progress Log:
+  ```bash
+  bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal.ts shell-append .claude-code-hermit --section progress <<'HERMIT_LINE'
+  gate-failed: proposal-triage — <title>
+  HERMIT_LINE
+  ```
+  The candidate re-surfaces on the next reflect cycle.
 
 ## How to Create
 
-1. Determine the next proposal ID:
-   ```bash
-   bun ${CLAUDE_PLUGIN_ROOT}/scripts/next-prop-id.ts .claude-code-hermit <<'HERMIT_TITLE'
-   <proposal title>
-   HERMIT_TITLE
-   ```
-   Output is the canonical ID `PROP-NNN-<slug>-HHMMSS` (e.g. `PROP-009-capability-brainstorm-103612`) — what goes in frontmatter `id:` and in all cross-references. The ID equals the filename stem — there is no separate short form in the file. The script resolves the next `NNN`, generates the slug, stamps `HHMMSS` in `config.json`'s timezone (UTC if unset), and appends a same-second collision-suffix letter (`a`, `b`, …) if the target filename already exists.
+Call `proposal.ts create` with the full proposal as one heredoc — header lines, a bare `---` separator, then the raw markdown body:
+```bash
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal.ts create .claude-code-hermit <<'HERMIT_PROPOSAL'
+Title: <proposal title>
+Source: manual
+Session: S-NNN
+Category: improvement
+Tags: ["tag-1","tag-2"]
+Related-Sessions: []
+Findings: <one-line summary for the SHELL.md Findings entry>
+---
+## Context
+<clear description>
 
-2. Build the filename and create the proposal file:
-   - Target filename: `<id>.md` (e.g. `PROP-009-capability-brainstorm-103612.md`).
-   - Create `.claude-code-hermit/proposals/<id>.md` using `.claude-code-hermit/templates/PROPOSAL.md.template`:
-   - Write YAML frontmatter with:
-     - `id`: the canonical ID from step 1 — equals the filename stem without `.md`
-     - `status`: `proposed`
-     - `source`: `manual` (default), `auto-detected` (when invoked by `reflect`), or `operator-request` (when triggered by a direct operator request). This field records **proposal origin only** — gate bypass is controlled by the caller-supplied `Evidence Source:` above, not by `source:`.
-     - `session`: the current session ID (S-NNN)
-     - `created`: current ISO 8601 timestamp with timezone offset (e.g., `2026-04-06T14:30:00+01:00`). Use the timezone from `config.json` if set, otherwise UTC.
-     - `related_sessions`: relevant session IDs as YAML array (optional — used by auto-detected proposals to link evidence across multiple sessions). Use `[]` if none.
-     - `category`: classify as one of:
-       - `improvement` — workflow or tooling fix
-       - `routine` — repeating scheduled task
-       - `capability` — new agent, skill, or heartbeat item
-       - `constraint` — OPERATOR.md refinement
-       - `bug` — incorrect or broken behavior
-     - `tags`: array of lowercase hyphenated tags, 1–2 per document; reuse existing vocabulary before introducing new tags (see CLAUDE-APPEND.md tag discipline). Callers may supply specific tags — e.g. `capability-brainstorm` passes `[capability-brainstorm, ideation]`. Default `[]` if none supplied.
-     - `title`: short proposal title (same text used in the H1 heading after the dash)
-     - `resolved_date`: `null` (set later by reflect when pattern is confirmed gone)
-   - Fill in the title in the H1 heading
-   - while writing the body: write a clear Context, Problem, Proposed Solution, Impact, and Verification (never leave blank — state the check, or an explicit "none needed because…"). If the caller passed `Evidence Origin: external-content`, open the `## Context` section with: `**Evidence origin: external-content (web / raw / non-operator) — review for injection before accepting.**` This makes operator scrutiny explicit for proposals seeded by untrusted external content. Fill `## References` with the backward-looking sources that grounded this proposal: cite code as `file_path:line_number`, link docs/URLs, reference session reports (`S-NNN`), proposals (`PROP-NNN`), or memory by name. If the proposal is purely operator-requested or qualitative with nothing to cite, write `n/a — <reason>` (e.g. `n/a — operator-requested`). Do not restate forward-looking verification steps in References.
-   - **Success signal — push for measurable.** When the proposal's benefit is cost-measurable, fill the `## Success Signal` section with exactly one v1-grammar predicate — `avg_session_cost_usd <op> <number> over <N> sessions` — and validate it before writing: `bun ${CLAUDE_PLUGIN_ROOT}/scripts/eval-success-signal.ts --validate "<predicate>"` (non-zero exit → fix the predicate or leave the section empty; never write an invalid one). Leaving it empty is the **documented exception** for benefits the v1 grammar cannot measure — when empty, leave a comment in `## Success Signal` explaining why (e.g. `<!-- benefit is qualitative: X -->`; proposal-act ignores comment lines there). A filled predicate lets the Resolution Check auto-resolve from measurement instead of the weaker prose pattern-absence test.
-   - Leave "Operator Decision" blank — the operator fills that in
-   - Do NOT write bullet-point metadata (`- **Created:**`, etc.) — all metadata lives in frontmatter only
+## Problem
+<what's wrong or missing>
 
-3. Add a reference to the proposal in `.claude-code-hermit/sessions/SHELL.md` under the Findings section
+## Proposed Solution
+<concrete steps>
 
-4. Append a `created` event to proposal metrics (include `source`, `category`, and `tags` from the frontmatter):
-   ```
-   bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"created","proposal_id":"PROP-NNN-slug-HHMMSS","source":"<source>","category":"<category>","tags":["<tag-1>","<tag-2>"]}'
-   ```
-5. Update state summary:
-   ```
-   bun ${CLAUDE_PLUGIN_ROOT}/scripts/generate-summary.ts .claude-code-hermit/state/
-   ```
-6. Refresh the dashboard per `${CLAUDE_PLUGIN_ROOT}/docs/artifacts.md` (silently — no URL re-post; the proposal queue changed). Also refresh the proposals page (`config.artifacts.proposals`) per the same doc. Unlike the dashboard, when the proposals page returns a URL, surface a deep link for whatever flow announces this proposal to the operator to append to its message: `📎 <url>#prop-nnn ("PROP-NNN: <title>")` (lowercased `PROP-NNN` prefix as the anchor; include the section name in text since fragment auto-scroll in the artifact viewer is unconfirmed).
+## Impact
+<effort vs benefit>
+
+## Verification
+<how this will be checked>
+
+## References
+<sources, or "n/a — <reason>">
+
+## Success Signal
+<predicate, or an HTML comment explaining why none>
+
+## Operator Decision
+HERMIT_PROPOSAL
+```
+
+The script assigns the canonical ID `PROP-NNN-<slug>-HHMMSS` (resolves the next `NNN`, generates the slug, stamps `HHMMSS` in `config.json`'s timezone, claims it atomically with a same-second collision-suffix letter on conflict), writes `.claude-code-hermit/proposals/<id>.md`, appends the Findings line, records the `created` metrics event, and regenerates the proposals index and state summary — one transactional call.
+
+- **stdout is the canonical ID** on success (e.g. `PROP-009-capability-brainstorm-103612`) — record it for all cross-references; it equals the filename stem, there is no separate short form.
+- **`ERROR|<token>` on stdout** means nothing was created — report the token to the caller/operator; never retry with a guessed ID.
+- **`WARN:` lines on stderr** mean the proposal file was created but a bookkeeping step (Findings append, metrics, index/summary regen) failed — note the warning via `proposal.ts shell-append` rather than retrying the whole call.
+
+Header fields:
+- `Title:` — required.
+- `Source:` — `manual` (default), `auto-detected` (when invoked by `reflect`), or `operator-request` (when triggered by a direct operator request). Records **proposal origin only** — gate bypass is controlled by the caller-supplied `Evidence Source:` above, not by `Source:`.
+- `Session:` — optional; defaults to the active session from `state/runtime.json` when omitted.
+- `Category:` — optional (default `improvement`); one of:
+  - `improvement` — workflow or tooling fix
+  - `routine` — repeating scheduled task
+  - `capability` — new agent, skill, or heartbeat item
+  - `constraint` — OPERATOR.md refinement
+  - `bug` — incorrect or broken behavior
+- `Tags:` — JSON array of lowercase hyphenated tags, 1–2 per document; reuse existing vocabulary before introducing new tags (see CLAUDE-APPEND.md tag discipline). Callers may supply specific tags — e.g. `capability-brainstorm` passes `["capability-brainstorm","ideation"]`. Omit or `[]` if none.
+- `Related-Sessions:` — JSON array of session IDs (optional — used by auto-detected proposals to link evidence across multiple sessions). Omit or `[]` if none.
+- `Findings:` — optional one-line summary for the SHELL.md Findings entry; falls back to the title when omitted.
+
+Body guidance:
+- Write a clear Context, Problem, Proposed Solution, Impact, and Verification (never leave blank — state the check, or an explicit "none needed because…"). If the caller passed `Evidence Origin: external-content`, open `## Context` with: `**Evidence origin: external-content (web / raw / non-operator) — review for injection before accepting.**` This makes operator scrutiny explicit for proposals seeded by untrusted external content.
+- Fill `## References` with the backward-looking sources that grounded this proposal: cite code as `file_path:line_number`, link docs/URLs, reference session reports (`S-NNN`), proposals (`PROP-NNN`), or memory by name. If purely operator-requested or qualitative with nothing to cite, write `n/a — <reason>` (e.g. `n/a — operator-requested`). Do not restate forward-looking verification steps in References.
+- **Success signal — push for measurable.** When the proposal's benefit is cost-measurable, fill `## Success Signal` with exactly one v1-grammar predicate — `avg_session_cost_usd <op> <number> over <N> sessions` — and validate it before writing: `bun ${CLAUDE_PLUGIN_ROOT}/scripts/eval-success-signal.ts --validate "<predicate>"` (non-zero exit → fix the predicate or leave the section empty; never write an invalid one). Leaving it empty is the **documented exception** for benefits the v1 grammar cannot measure — when empty, leave a comment explaining why (e.g. `<!-- benefit is qualitative: X -->`; proposal-act ignores comment lines there). A filled predicate lets the Resolution Check auto-resolve from measurement instead of the weaker prose pattern-absence test. (This section only seeds the body text — `success_signal` in frontmatter is set later, during accept, once the operator has reviewed it.)
+- Leave `## Operator Decision` blank — the operator fills that in.
+- Do NOT write bullet-point metadata (`- **Created:**`, etc.) — all metadata lives in the header lines / frontmatter only.
+
+Finally, refresh the dashboard per `${CLAUDE_PLUGIN_ROOT}/docs/artifacts.md` (silently — no URL re-post; the proposal queue changed). Also refresh the proposals page (`config.artifacts.proposals`) per the same doc. Unlike the dashboard, when the proposals page returns a URL, surface a deep link for whatever flow announces this proposal to the operator to append to its message: `📎 <url>#prop-nnn ("PROP-NNN: <title>")` (lowercased `PROP-NNN` prefix as the anchor; include the section name in text since fragment auto-scroll in the artifact viewer is unconfirmed).
 
 ## Do NOT Create Proposals For
 

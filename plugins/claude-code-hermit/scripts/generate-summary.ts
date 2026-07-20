@@ -186,31 +186,35 @@ fs.writeFileSync(OUTPUT, content, 'utf-8');
 }
 
 // CLI mode: bun generate-summary.ts <state-dir-path>
-if (process.argv[2]) {
-  run(process.argv[2]);
-  process.exit(0);
+if (import.meta.main) {
+  if (process.argv[2]) {
+    run(process.argv[2]);
+    process.exit(0);
+  }
+
+  // Hook mode: PostToolUse on Edit|Write — fire only when a state/ file was edited
+  let raw = '';
+  process.stdin.setEncoding('utf8');
+  process.stdin.on('data', chunk => {
+    raw += chunk;
+    if (raw.length > MAX_STDIN) process.exit(0);
+  });
+  process.stdin.on('end', () => {
+    try {
+      if (!raw.includes(STATE_SUBDIR) && !raw.includes(PROPOSALS_SUBDIR)) process.exit(0);
+      const event = JSON.parse(raw);
+      const filePath = (event.tool_input || {}).file_path || (event.tool_input || {}).path || '';
+      // Anchor on the absolute path from the payload — immune to cwd drift (#384)
+      // Proposal write → rebuild the derived proposals index (any writer: create/act/reflect).
+      const pIdx = filePath.indexOf(PROPOSALS_SUBDIR);
+      if (pIdx !== -1) rebuildIndex(filePath.slice(0, pIdx) + HERMIT_SUBDIR);
+      // State write → regenerate state-summary.md.
+      const sIdx = filePath.indexOf(STATE_SUBDIR);
+      if (sIdx !== -1) run(filePath.slice(0, sIdx + STATE_SUBDIR.length));
+    } catch {
+      // Never block the agent
+    }
+  });
 }
 
-// Hook mode: PostToolUse on Edit|Write — fire only when a state/ file was edited
-let raw = '';
-process.stdin.setEncoding('utf8');
-process.stdin.on('data', chunk => {
-  raw += chunk;
-  if (raw.length > MAX_STDIN) process.exit(0);
-});
-process.stdin.on('end', () => {
-  try {
-    if (!raw.includes(STATE_SUBDIR) && !raw.includes(PROPOSALS_SUBDIR)) process.exit(0);
-    const event = JSON.parse(raw);
-    const filePath = (event.tool_input || {}).file_path || (event.tool_input || {}).path || '';
-    // Anchor on the absolute path from the payload — immune to cwd drift (#384)
-    // Proposal write → rebuild the derived proposals index (any writer: create/act/reflect).
-    const pIdx = filePath.indexOf(PROPOSALS_SUBDIR);
-    if (pIdx !== -1) rebuildIndex(filePath.slice(0, pIdx) + HERMIT_SUBDIR);
-    // State write → regenerate state-summary.md.
-    const sIdx = filePath.indexOf(STATE_SUBDIR);
-    if (sIdx !== -1) run(filePath.slice(0, sIdx + STATE_SUBDIR.length));
-  } catch {
-    // Never block the agent
-  }
-});
+export { run };

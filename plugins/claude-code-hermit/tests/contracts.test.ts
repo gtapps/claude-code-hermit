@@ -983,10 +983,11 @@ describe('kill metrics contract', () => {
   });
 
   test('proposal-create created event must include tags', () => {
-    // missing → PROP-acceptance rate cannot be segmented by brainstorm origin
-    expect(proposalCreate).toContain(
-      '"type":"created","proposal_id":"PROP-NNN-slug-HHMMSS","source":"<source>","category":"<category>","tags":[',
-    );
+    // missing → PROP-acceptance rate cannot be segmented by brainstorm origin.
+    // The `created` event is now built by proposal.ts's create verb rather than
+    // composed inline in SKILL.md prose — assert against the actual emitter.
+    const proposalScript = read(path.join(SCRIPTS, 'proposal.ts'));
+    expect(proposalScript).toMatch(/type:\s*'created'[\s\S]{0,80}\btags\b/);
   });
 
   test('capability-brainstorm kill criteria must invoke proposal-metrics-report.ts', () => {
@@ -2667,5 +2668,29 @@ describe('determinized lifecycle wiring contract', () => {
   test('session SKILL.md advances the scheduled-check cursor via --scheduled-check-run', () => {
     const skill = read(path.join(SKILLS, 'session', 'SKILL.md'));
     expect(skill).toContain('--scheduled-check-run');
+  });
+});
+
+// ============================================================
+// Proposal-lifecycle state writes are fully script-mediated — the harness
+// background-isolation guard blocks the Write/Edit tools on the main-rooted
+// `.claude-code-hermit/` state dir, so proposal-create and proposal-act must
+// never fall back to those tools for a proposal-file or SHELL.md mutation.
+// ============================================================
+
+describe('proposal lifecycle: no tool-mediated state writes', () => {
+  const proposalCreate = read(path.join(SKILLS, 'proposal-create', 'SKILL.md'));
+  const proposalAct = read(path.join(SKILLS, 'proposal-act', 'SKILL.md'));
+
+  test('proposal-create/SKILL.md invokes proposal.ts create instead of the Write tool', () => {
+    expect(proposalCreate).toContain('proposal.ts create');
+    expect(proposalCreate).not.toMatch(/Write tool|Edit the/);
+  });
+
+  test('proposal-act/SKILL.md invokes proposal.ts patch/next-task/routine instead of Edit/Write', () => {
+    expect(proposalAct).toContain('proposal.ts patch');
+    expect(proposalAct).toContain('proposal.ts next-task');
+    expect(proposalAct).toContain('proposal.ts routine');
+    expect(proposalAct).not.toMatch(/Write tool|Edit the/);
   });
 });

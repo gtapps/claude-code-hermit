@@ -44,7 +44,7 @@ bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-prop.ts .claude-code-hermit "<operator
 
 ## Timestamp Convention
 
-All timestamps in frontmatter and Operator Decision text use ISO 8601 with timezone offset (e.g., `2026-04-06T14:30:00+01:00`). Use the timezone from `config.json` if set, otherwise UTC.
+All timestamps in frontmatter and Operator Decision text use ISO 8601 with timezone offset (e.g., `2026-04-06T14:30:00+01:00`). Use the timezone from `config.json` if set, otherwise UTC. `@now` in a `proposal.ts patch` `--set` value or in a stdin `Decision:`/`Set:` line expands to this stamp — prefer it over composing the timestamp yourself.
 
 ## Dashboard Refresh
 
@@ -55,36 +55,41 @@ Every flow below (accept, defer, dismiss, resolve) changes a proposal's status. 
 When the operator accepts a proposal:
 
 1. Resolve the proposal file using the resolution algorithm above, then read it.
-2. Update the YAML frontmatter: set `status` to `accepted`, add `accepted_date` as timestamp. Do NOT set `resolved_date` — resolution happens when reflect confirms the pattern is gone. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
-2b. **First-response tracking:** Check if the proposal's `responded` field is already `true`. If `false`: set `responded: true` in frontmatter, then append a `responded` event:
-   ```
-   bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"responded","proposal_id":"PROP-NNN","action":"accept"}'
-   ```
-   Then call `bun ${CLAUDE_PLUGIN_ROOT}/scripts/generate-summary.ts .claude-code-hermit/state/`. If `responded` is already `true`, skip the append (prevents double-counting).
-3. Append a timestamp to the Operator Decision section:
-   ```
-   Accepted on 2026-04-06T14:30:00+01:00.
-   ```
 
-3a. **Session tracking:** Read `state/runtime.json` for `session_id` and `session_state` (both are used below). If `session_id` is non-null, set `accepted_in_session` to that session ID in the proposal's YAML frontmatter. If no session is active (`session_id` is null), leave `accepted_in_session: null`.
-
-3b. **Routine proposals.** If the proposal metadata contains `Type: routine` and a `## Config` section with a JSON block:
-    - Parse the JSON block. Validate: must have `id`, `schedule`, `skill`, `enabled` fields.
-    - Check for duplicate `id` in existing `config.json` routines array — if found, update the existing entry instead of appending.
-    - If no duplicate found, append the routine entry to `config.json` routines array.
-    - Respond: "Routine '{id}' added to config. Run `/claude-code-hermit:hermit-routines load` to register it immediately."
-    - Notify the operator.
-    - Skip step 4 — no further implementation needed.
-
-3c. **Success signal (optional).** Check whether the proposal body has a `## Success Signal` section with a non-empty predicate line (ignore comment lines starting with `<!--`).
-   - If a non-empty predicate line is found, validate it:
+2. **Determine what to set.** Read `state/runtime.json` for `session_id` and `session_state` (both used below — `session_state` drives step 4's branch). From the file already read in step 1:
+   - `responded`: if currently `false`, plan `--set responded=true` for the patch call below and fire the first-response event now, **before** that patch call, so its summary regen already reflects it:
+     ```
+     bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"responded","proposal_id":"PROP-NNN","action":"accept"}'
+     ```
+     If `responded` is already `true`, skip both (prevents double-counting).
+   - `accepted_in_session`: if `session_id` is non-null, plan `--set accepted_in_session=<session_id>`. If no session is active (`session_id` is null), leave it unset (frontmatter default `null` stays).
+   - `success_signal` (optional): check whether the body has a `## Success Signal` section with a non-empty predicate line (ignore comment lines starting with `<!--`). If found, validate it:
      ```
      bun ${CLAUDE_PLUGIN_ROOT}/scripts/eval-success-signal.ts --validate "<predicate line>"
      ```
-   - Exit 0 → set `success_signal: <predicate line>` in the proposal's YAML frontmatter.
-   - Exit non-zero → log a one-line warning to SHELL.md Findings: `PROP-NNN success_signal ignored: <reason printed by the script>`. Leave `success_signal: null`.
-   - No `## Success Signal` section, or the section is empty / comment-only → leave `success_signal: null`.
-   - Never block accept regardless of outcome.
+     Exit 0 → plan a stdin `Set: success_signal=<predicate line>` line for the patch call (free text — never argv `--set`). Exit non-zero → plan a `proposal.ts shell-append` warning: `PROP-NNN success_signal ignored: <reason printed by the script>`. No section, or empty/comment-only → leave `success_signal` unset. Never block accept regardless of outcome.
+
+3. **Patch.** One call applies the frontmatter flip, session tracking, success signal, and the Operator Decision timestamp — assembled from what step 2 determined:
+   ```bash
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal.ts patch .claude-code-hermit <filename> \
+       --set status=accepted --set accepted_date=@now \
+       [--set responded=true] [--set accepted_in_session=<session_id>] <<'HERMIT_PATCH'
+   Decision: Accepted on @now.
+   [Set: success_signal=<predicate line>]
+   HERMIT_PATCH
+   ```
+   Do NOT set `resolved_date` — resolution happens when reflect confirms the pattern is gone. `OK|<id>` confirms the write; `ERROR|<reason>` means nothing was patched — report it to the caller/operator and stop.
+
+3a. **Routine proposals.** If the proposal metadata contains `Type: routine` and a `## Config` section with a JSON block, upsert it into `config.json`:
+   ```bash
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal.ts routine .claude-code-hermit <<'HERMIT_ROUTINE'
+   <the ## Config JSON block, verbatim>
+   HERMIT_ROUTINE
+   ```
+   The script validates `id`/`schedule`/`skill`/`enabled` are present and upserts by `id` — `OK|added` / `OK|updated`, or `ERROR|<reason>` (nothing written; report it and stop).
+   - Respond: "Routine '{id}' added to config. Run `/claude-code-hermit:hermit-routines load` to register it immediately."
+   - Notify the operator.
+   - Skip step 4 — no further implementation needed.
 
 4. Ask: **"How should this be implemented?"**
 
@@ -94,7 +99,7 @@ When the operator accepts a proposal:
    {"tier":1,"question":"Suggestion #N accepted — how should it be implemented?","options":["implement now","session task","manual"],"on_resolve":"/claude-code-hermit:proposal-act accept PROP-NNN --answer {answer}"}
    HERMIT_MP
    ```
-   (the `on_resolve` id stays `PROP-NNN` — internal, never shown). Then stop — steps 1-3c already ran, so `status: accepted` is a safe resting state until the operator answers (immediately in this same conversational turn, or later via the § Channel re-entry path below). The interactive terminal path below is unchanged.
+   (the `on_resolve` id stays `PROP-NNN` — internal, never shown). Then stop — steps 1-3a already ran, so `status: accepted` is a safe resting state until the operator answers (immediately in this same conversational turn, or later via the § Channel re-entry path below). The interactive terminal path below is unchanged.
 
    - **"Start implementing now"** (default, typical answer): run the falsification gate, then handle session lifecycle, then execute in this turn.
      **Falsification gate (runs first, before any session transition).** Verify the proposal is actionable as written with a read-only pass. Skip only when the body contains `## Skill Improvement` **and** `/skill-creator:skill-creator` is in the available-skills list (step (e) routes that to `/skill-creator:skill-creator`) — if `## Skill Improvement` is present but skill-creator is absent, the proposal becomes a code-edit implementation, so the gate runs to produce a `PROCEED` file list for the dispatch. Also skip if the body contains `## Skill Draft` — authoring is delegated to `/skill-creator:skill-creator` on accept, not a code-edit plan — but first check that the `source_artifact` path listed in `## Skill Draft` exists and is readable (if the file is missing or unreadable, REJECT with code `stale-paths` — the procedure brief was removed or archived; the operator should re-run reflect to generate a fresh brief).
@@ -112,7 +117,7 @@ When the operator accepts a proposal:
        - `REJECT` (stop before any session transition — `session_state` and SHELL.md `Task:` stay untouched):
          - **Interactive mode** → surface to the operator: *"Falsification gate: [verdict] — [evidence]. Proceed anyway? Y to override / N to re-scope the proposal first."* Y → continue to the session-lifecycle branch below (step (a)). N → stop; status stays `accepted`. Operator re-scopes and re-runs `/proposal-act accept PROP-NNN`.
          - **Autonomous mode** → do not implement; notify via channel: *"PROP-NNN: falsification check — [evidence]. Reply 'override PROP-NNN' to implement anyway."*
-     a. Use the `session_state` already read from `state/runtime.json` in step 3a to branch.
+     a. Use the `session_state` already read from `state/runtime.json` in step 2 to branch.
      b. **Idle:** pipe `Task: Implement PROP-NNN: <title>` on stdin to `bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-archive.ts open --state-dir=.claude-code-hermit` to transition to `in_progress` and fill SHELL.md Task. Proceed to (e).
      c. **In progress:** confirm before switching: "Currently working on: <current task>. Switch to PROP-NNN? Y/N".
         - Yes: append `[HH:MM] switched to PROP-NNN: <title> (prior task: <prior task>)` to SHELL.md `## Progress Log`; overwrite SHELL.md `Task:` field with "Implement PROP-NNN: <title>"; `runtime.json session_state` stays `in_progress`. Proceed to (e).
@@ -199,8 +204,14 @@ When the operator accepts a proposal:
          Unlike the e.5 quality gate (best-effort, never blocks), e.6 **blocks resolution when a defined verification step fails** — that is the correctness check the quality gate does not provide.
      f. **(in-main path)** When verifiably done: run `/proposal-act resolve PROP-NNN`, then notify the operator (or channel in autonomous mode) with the tier-appropriate message from (e.5). (Dispatched implementations resolve + notify in the step (e) post-return handling.)
 
-   - **"Create a session task"** → Write `.claude-code-hermit/sessions/NEXT-TASK.md`:
-     ```markdown
+   - **"Create a session task"** → assemble the full NEXT-TASK.md content (Task/Context/Suggested Plan derived from the proposal), appending any of the following bullets to the end of the Suggested Plan, in order, numbered sequentially from `4.` (quality-gate bullet is last so `/claude-code-hermit:simplify` reviews any skill-creator output):
+       - **(if the proposal contains `## Skill Improvement` AND `/skill-creator:skill-creator` is available)** `Use /skill-creator:skill-creator to build and validate the skill.`
+       - **(if the proposal contains `## Skill Draft`)** `Use /skill-creator:skill-creator to author the captured procedure from the source_artifact (see ## Skill Draft), present the final SKILL.md to the operator for confirmation, then install it to the install_target only on confirmation.`
+       - **(if `quality_gate.tier` in `.claude-code-hermit/config.json` is not `"budget"` — i.e. `"balanced"` or `"quality"`)** `Run /claude-code-hermit:simplify on the touched files for a cleanup pass, then commit.`
+
+     Then create it — the script's exclusive create makes the "already pending" check atomic (no separate existence pre-check needed):
+     ```bash
+     bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal.ts next-task .claude-code-hermit <<'HERMIT_NEXT_TASK'
      # Next Task (from PROP-NNN)
 
      ## Task
@@ -213,13 +224,11 @@ When the operator accepts a proposal:
      1. [Step derived from Proposed Solution]
      2. [Step derived from Proposed Solution]
      3. Verify the fix resolves the pattern
+     [any appended bullets from above, numbered from 4.]
+     HERMIT_NEXT_TASK
      ```
-     If `NEXT-TASK.md` already exists: do **not** write. Status still flips to `accepted` (operator intent is recorded). Notify: "PROP-NNN accepted. NEXT-TASK is already pending another proposal. Run `/session-start` to consume it first, then re-run `/proposal-act accept PROP-NNN` and pick 'Start implementing now' or manual."
-     Otherwise write the file. Then append any of the following bullets to the end of the Suggested Plan, in order, numbered sequentially from `4.` (quality-gate bullet is last so `/claude-code-hermit:simplify` reviews any skill-creator output):
-       - **(if the proposal contains `## Skill Improvement` AND `/skill-creator:skill-creator` is available)** `Use /skill-creator:skill-creator to build and validate the skill.`
-       - **(if the proposal contains `## Skill Draft`)** `Use /skill-creator:skill-creator to author the captured procedure from the source_artifact (see ## Skill Draft), present the final SKILL.md to the operator for confirmation, then install it to the install_target only on confirmation.`
-       - **(if `quality_gate.tier` in `.claude-code-hermit/config.json` is not `"budget"` — i.e. `"balanced"` or `"quality"`)** `Run /claude-code-hermit:simplify on the touched files for a cleanup pass, then commit.`
-     Confirm: "Task prepared. The next `/session-start` will offer this as the default task."
+     - `OK` — confirm: "Task prepared. The next `/session-start` will offer this as the default task."
+     - `ERROR|next-task-exists` — another proposal's task is already pending; nothing was written. Status still flips to `accepted` (operator intent is recorded, via the step 3 patch above). Notify: "PROP-NNN accepted. NEXT-TASK is already pending another proposal. Run `/session-start` to consume it first, then re-run `/proposal-act accept PROP-NNN` and pick 'Start implementing now' or manual."
 
    - **"I'll handle it manually"** → Just mark accepted. Respond: "Marked as accepted. No further action taken."
 
@@ -229,7 +238,7 @@ When the operator accepts a proposal:
 
 ## Channel re-entry (`--answer`)
 
-When invoked as `accept PROP-NNN --answer "<label>"` (channel-responder resolving the micro-proposal entry queued by step 4's channel branch, either later in the same turn or in a fresh session): the proposal's frontmatter `status` is already `accepted` from the original turn, so skip steps 1-3c entirely — do not re-append a duplicate "Accepted on …" timestamp or re-fire the `responded` event. Match `<label>` case-insensitively by prefix against the three step-4 options and jump straight into the matching branch:
+When invoked as `accept PROP-NNN --answer "<label>"` (channel-responder resolving the micro-proposal entry queued by step 4's channel branch, either later in the same turn or in a fresh session): the proposal's frontmatter `status` is already `accepted` from the original turn, so skip steps 1-3a entirely — do not re-append a duplicate "Accepted on …" timestamp or re-fire the `responded` event. Match `<label>` case-insensitively by prefix against the three step-4 options and jump straight into the matching branch:
 
 - `implement now` → **"Start implementing now"** (falsification gate onward; the autonomous-mode channel notifies already present in that branch apply as usual).
 - `session task` → **"Create a session task"**.
@@ -238,13 +247,20 @@ When invoked as `accept PROP-NNN --answer "<label>"` (channel-responder resolvin
 ## Defer Flow
 
 1. Resolve the proposal file using the resolution algorithm above, then read it.
-2. Update the YAML frontmatter: set `status` to `deferred`, add `deferred_date` as timestamp. Do NOT set `resolved_date` — deferral is not a terminal state. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
-2b. **First-response tracking:** Same as accept flow — check `responded` field, set to `true` if `false`, append `responded` event with `"action":"defer"`, call `generate-summary.ts`. Skip if already `true`.
+2. **First-response tracking:** check the `responded` field. If `false`, fire the event now — before the patch call below, so its summary regen reflects it:
+   ```
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"responded","proposal_id":"PROP-NNN","action":"defer"}'
+   ```
+   Skip if already `true`.
 3. Ask: "Any note on why it's deferred or when to revisit?" (optional — operator can skip)
-4. If a note is provided, append to the Operator Decision section:
+4. Patch:
+   ```bash
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal.ts patch .claude-code-hermit <filename> \
+       --set status=deferred --set deferred_date=@now [--set responded=true] <<'HERMIT_PATCH'
+   Decision: Deferred on @now. Reason: [operator's note]
+   HERMIT_PATCH
    ```
-   Deferred on 2026-04-06T14:30:00+01:00. Reason: [operator's note]
-   ```
+   Do NOT set `resolved_date` — deferral is not a terminal state. Omit the `Decision:` line entirely if no note was given. `OK|<id>` confirms; `ERROR|<reason>` means nothing was patched — report it and stop.
 5. Respond: "PROP-NNN deferred." On a channel-tagged turn (Step 0), use plain voice instead: "Held Suggestion #N for later."
 
 Deferred proposals still appear in `/proposal-list` but are sorted below open proposals.
@@ -252,13 +268,20 @@ Deferred proposals still appear in `/proposal-list` but are sorted below open pr
 ## Dismiss Flow
 
 1. Resolve the proposal file using the resolution algorithm above, then read it.
-2. Update the YAML frontmatter: set `status` to `dismissed`, add `dismissed_date` and `resolved_date` as timestamps. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
-2b. **First-response tracking:** Same as accept flow — check `responded` field, set to `true` if `false`, append `responded` event with `"action":"dismiss"`, call `generate-summary.ts`. Skip if already `true`.
+2. **First-response tracking:** check the `responded` field. If `false`, fire the event now — before the patch call below, so its summary regen reflects it:
+   ```
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"responded","proposal_id":"PROP-NNN","action":"dismiss"}'
+   ```
+   Skip if already `true`.
 3. Ask: "Reason for dismissal?" (optional — operator can skip)
-4. If a reason is provided, append to the Operator Decision section:
+4. Patch:
+   ```bash
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal.ts patch .claude-code-hermit <filename> \
+       --set status=dismissed --set dismissed_date=@now --set resolved_date=@now [--set responded=true] <<'HERMIT_PATCH'
+   Decision: Dismissed on @now. Reason: [operator's reason]
+   HERMIT_PATCH
    ```
-   Dismissed on 2026-04-06T14:30:00+01:00. Reason: [operator's reason]
-   ```
+   Omit the `Decision:` line entirely if no reason was given. `OK|<id>` confirms; `ERROR|<reason>` means nothing was patched — report it and stop.
 4b. **Dismissal learning** — only when a reason was provided in step 3. Judge whether the reason states a durable preference, rule, or taste that applies to a *family* of future proposals (e.g. "don't propose process changes for things I do twice a year", "stop suggesting test-coverage proposals on docs-only changes") versus a one-off or proposal-specific response ("not now", "already did this manually", "the analysis is wrong", "duplicate of last week"). If generalizable, issue the standard "remember it" reflection framed as a `feedback`-type entry: state the preference as a rule, add a brief `Why:` and `How to apply:` so proposal-triage and reflection-judge can match it in their memory cross-check. Apply auto-memory discipline: respect `WHAT_NOT_TO_SAVE` (no file paths, no debugging recipes, no facts derivable from grep), keep it concise. The native auto-memory flow writes `feedback_<slug>.md` and updates the `MEMORY.md` index — do not write those files directly. If the reason is one-off or sub-threshold, skip — save nothing.
 5. Respond: "PROP-NNN dismissed." If step 4b saved a preference, add: "Remembered that as a standing preference (future similar proposals may be filtered)." On a channel-tagged turn (Step 0), use plain voice instead: "Dropped Suggestion #N." (same preference-remembered addendum, in plain voice, if step 4b saved one).
 
@@ -269,17 +292,22 @@ Dismissed proposals are hidden from the default `/proposal-list` view. Use "show
 Used when reflect has surfaced a sparse-cadence proposal as a resolution candidate (pattern absent from recent sessions but cadence too infrequent to auto-resolve). Also available directly: `/claude-code-hermit:proposal-act resolve PROP-NNN`.
 
 1. Resolve the proposal file using the resolution algorithm above, then read it.
-2. Update the YAML frontmatter: set `status` to `resolved`, `resolved_date` to current timestamp. Do NOT set `dismissed_date`. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
-3. Append a `resolved` event to proposal-metrics.jsonl:
+2. Append a `resolved` event to proposal-metrics.jsonl — before the patch call below, so its summary regen reflects it:
    ```
    bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"resolved","proposal_id":"PROP-NNN"}'
    ```
-4. Append to the Operator Decision section:
+3. Patch — frontmatter flip, Operator Decision timestamp, and the compaction-boundary marker in one call:
+   ```bash
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal.ts patch .claude-code-hermit <filename> \
+       --set status=resolved --set resolved_date=@now --request-compact <<'HERMIT_PATCH'
+   Decision: Resolved on @now.
+   HERMIT_PATCH
    ```
-   Resolved on 2026-04-06T14:30:00+01:00.
-   ```
-   If the resolve was triggered by reflect's auto-resolve flow (pattern absent from recent sessions), the caller may append "Pattern confirmed absent." but this is no longer the default — resolve also covers implementation completion via the Start-now branch.
-5. **Compaction boundary marker.** Write `state/compact-requested.json` with `{"requested_at": "<now ISO>", "reason": "proposal-resolve"}` (singleton — overwrite unconditionally). A resolved proposal's implementation is fully committed, so this is a safe moment for the watchdog's routine-hygiene compactor (`maybeContextCompact`) to waive its interval cooldown on the next tick. Both the dispatched-path post-return handling and the in-main path (f) route through this Resolve Flow, so one write here covers both; batch accepts each overwrite the same singleton and coalesce into a single compaction (existing operator-silence + quiescence guards).
-6. Respond: "PROP-NNN resolved."
+   Do NOT set `dismissed_date`. If the resolve was triggered by reflect's auto-resolve flow (pattern absent from recent sessions), the caller may append "Pattern confirmed absent." to the Decision line, but this is no longer the default — resolve also covers implementation completion via the Start-now branch.
+
+   `--request-compact` writes `state/compact-requested.json` (`{"requested_at": <now>, "reason": "proposal-resolve"}`, singleton — overwrite unconditionally). A resolved proposal's implementation is fully committed, so this is a safe moment for the watchdog's routine-hygiene compactor (`maybeContextCompact`) to waive its interval cooldown on the next tick. Both the dispatched-path post-return handling and the in-main path (f) route through this Resolve Flow, so one call here covers both; batched overwrites of the same singleton coalesce into a single compaction (existing operator-silence + quiescence guards).
+
+   `OK|<id>` confirms; `ERROR|<reason>` means nothing was patched — report it and stop.
+4. Respond: "PROP-NNN resolved."
 
 No first-response tracking on resolve — the proposal was already accepted and that event was already logged.

@@ -144,17 +144,42 @@ function utcISOStamp(): string {
 
 // HHMMSS (6 digits) in `timezone`, or UTC on any Intl failure. Normalises Intl's
 // '24' hour (some locales emit this for midnight) to '00', matching currentHHMM's
-// convention above. Used by next-prop-id.ts for the proposal-ID timestamp suffix.
-function nowHHMMSS(timezone: string): string {
+// convention above. Used by lib/prop-id.ts for the proposal-ID timestamp suffix.
+// `now` is injectable so collision-suffix behavior is deterministically testable.
+function nowHHMMSS(timezone: string, now: Date = new Date()): string {
   try {
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-    }).formatToParts(new Date());
+    }).formatToParts(now);
     const get = (t: string) => String(parts.find(p => p.type === t)?.value ?? '0').padStart(2, '0');
     const h = get('hour') === '24' ? '00' : get('hour');
     return h + get('minute') + get('second');
   } catch {
-    return new Date().toISOString().slice(11, 19).replace(/:/g, '');
+    return now.toISOString().slice(11, 19).replace(/:/g, '');
+  }
+}
+
+// ISO 8601 with a colon-delimited offset (e.g. `2026-07-20T11:12:08+01:00`) in
+// `timezone`, or `+00:00` on any Intl failure — the proposal frontmatter/Operator
+// Decision timestamp convention. Distinct from localISOStamp (process-local tz,
+// no-colon offset — runtime.json's format) and utcISOStamp (always UTC, `Z` suffix).
+// Intl's `timeZoneName: 'longOffset'` emits `GMT+01:00` / bare `GMT` for UTC —
+// strip the `GMT` prefix and map bare `GMT` to `+00:00`.
+function zonedISOStamp(timezone: string, d: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+      timeZoneName: 'longOffset',
+    }).formatToParts(d);
+    const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+    const hour = get('hour') === '24' ? '00' : get('hour');
+    const offsetRaw = get('timeZoneName').replace(/^GMT/, '');
+    const offset = offsetRaw === '' ? '+00:00' : offsetRaw;
+    return `${get('year')}-${get('month')}-${get('day')}T${hour}:${get('minute')}:${get('second')}${offset}`;
+  } catch {
+    return d.toISOString().replace(/\.\d{3}Z$/, '+00:00');
   }
 }
 
@@ -215,4 +240,4 @@ function resolveHermitNowMs(): number {
   return Date.now();
 }
 
-export { currentHHMM, currentHHMMOrUTC, nowHHMMSS, todayYMD, thisWeekKey, thisMonthYYYYMM, nextBoundaryISO, localISOStamp, utcISOStamp, parseDuration, parseSimpleCronTime, friendlyBoundary, resolveHermitNowMs, elapsedSinceHHMM };
+export { currentHHMM, currentHHMMOrUTC, nowHHMMSS, zonedISOStamp, todayYMD, thisWeekKey, thisMonthYYYYMM, nextBoundaryISO, localISOStamp, utcISOStamp, parseDuration, parseSimpleCronTime, friendlyBoundary, resolveHermitNowMs, elapsedSinceHHMM };

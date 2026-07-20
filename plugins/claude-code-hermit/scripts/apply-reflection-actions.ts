@@ -18,71 +18,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { listProposalFiles, readFileWithFrontmatter } from './lib/frontmatter';
 import { appendJsonlLine } from './lib/append-jsonl';
+import { writeFileAtomic, patchFrontmatter, appendShellLine, PATCH_KEY_RE } from './lib/md-write';
 
 type Json = any;
 
 const ACTIONS = new Set(['auto-resolve', 'nudge', 'skip']);
-// Mirrors the frontmatter parser's own key grammar (lib/frontmatter.ts).
-const PATCH_KEY_RE = /^\w[\w_]*$/;
-const BARE_VALUE_RE = /^[A-Za-z0-9][\w./:+-]*$/;
-
-function writeFileAtomic(p: string, content: string): void {
-  const tmp = `${p}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, content, 'utf-8');
-  fs.renameSync(tmp, p);
-}
-
-function serializeValue(v: Json): string {
-  if (v === null) return 'null';
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-  return BARE_VALUE_RE.test(v) ? v : JSON.stringify(v);
-}
-
-// Line-level frontmatter patch: replaces the first `key:` line inside the
-// `---` block (inserts before the closing delimiter when absent), preserving
-// every non-patched byte — comments, ordering, and the body stay untouched.
-function patchFrontmatter(content: string, patch: Record<string, Json>): string {
-  const end = content.indexOf('\n---', 3);
-  // The validation pass proves this holds, but the apply pass re-reads from disk
-  // and the function is exported — without the guard, slice(4, -1) would absorb
-  // the entire body into the frontmatter line array and discard all but its last
-  // byte. Throwing lands the entry in `errors` instead of corrupting the file.
-  if (end === -1) throw new Error('no frontmatter terminator');
-  const lines = content.slice(4, end).split('\n');
-  for (const [key, value] of Object.entries(patch)) {
-    const line = `${key}: ${serializeValue(value)}`;
-    const re = new RegExp(`^${key}\\s*:`);
-    const idx = lines.findIndex(l => re.test(l));
-    if (idx >= 0) lines[idx] = line;
-    else lines.push(line);
-  }
-  return '---\n' + lines.join('\n') + content.slice(end);
-}
-
-// Best-effort append of a pre-rendered line to SHELL.md's `## Findings`
-// section (inserted at section end: before the next `## ` heading or EOF).
-// Returns null on success, error message otherwise.
-function appendFinding(sessionsDir: string, line: string): string | null {
-  const shellPath = path.join(sessionsDir, 'SHELL.md');
-  let shell: string;
-  try { shell = fs.readFileSync(shellPath, 'utf-8'); }
-  catch { return 'SHELL.md unreadable'; }
-  const m = /^## Findings[ \t]*$/m.exec(shell);
-  if (!m) return 'SHELL.md has no ## Findings section';
-  const sectionStart = m.index + m[0].length;
-  const nextHeading = shell.indexOf('\n## ', sectionStart);
-  const insertAt = nextHeading === -1 ? shell.length : nextHeading;
-  const before = shell.slice(0, insertAt).replace(/\n*$/, '\n');
-  // Normalizing `after` to a single leading newline would swallow the blank line
-  // that separates this section from the next heading, gluing them together.
-  const after = shell.slice(insertAt).replace(/^\n*/, nextHeading === -1 ? '\n' : '\n\n');
-  try {
-    writeFileAtomic(shellPath, before + line + after);
-    return null;
-  } catch (e: any) {
-    return 'SHELL.md write failed: ' + e.message;
-  }
-}
 
 function apply(stateDir: string, stdin: string): Json {
   let input: Json;
@@ -165,7 +105,7 @@ function apply(stateDir: string, stdin: string): Json {
       applied.nudge++;
     }
     if (a.shell_findings_line) {
-      const err = appendFinding(path.join(stateDir, 'sessions'), a.shell_findings_line);
+      const err = appendShellLine(path.join(stateDir, 'sessions'), 'Findings', a.shell_findings_line);
       if (err) errors.push(`${a.proposal_id}: findings append: ${err}`);
     }
   }

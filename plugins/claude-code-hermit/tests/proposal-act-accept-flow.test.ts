@@ -124,11 +124,14 @@ test("frontmatter description mentions 'start implementing now'", () => {
   expect(frontmatterOf(skill)).toMatch(/^description:.*start implementing now/m);
 });
 
-// Step 3c: success_signal capture and validation.
+// Step 2's success_signal bullet: capture and validation.
 // Guards that the step exists, references eval-success-signal.ts, and never blocks accept.
+// (Folded from a standalone numbered step 3c into step 2's "determine what to
+// set" bullet list when the accept flow consolidated onto proposal.ts patch —
+// same behavior, new anchor.)
 describe('step 3c: success_signal', () => {
   test('step 3c: success_signal step present', () => {
-    expect(skill).toContain('3c.');
+    expect(skill).toContain('`success_signal` (optional)');
   });
 
   test('step 3c: references eval-success-signal.ts', () => {
