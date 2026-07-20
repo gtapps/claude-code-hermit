@@ -1,7 +1,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.28-green.svg" alt="Version 1.2.28" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.29-green.svg" alt="Version 1.2.29" /></a>
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/_gh_traffic_stats/.github/badges/clones.json" alt="Downloads" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
   <a href="https://discord.gg/54sJqAxhUh"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Join" /></a>
@@ -9,7 +9,7 @@
 
 # claude-code-hermit
 
-Claude Code plugin that turns a Claude Code instance into a 24/7 agent. **Always-on. Stateful. Proactive. Self-improving through an operator-gated proposal system. Cost-aware. Observable. Works with your Claude Subscription**.
+Claude Code plugin that turns a Claude Code instance into a 24/7 agent. **Stateful. Proactive. Self-improving through an operator-gated proposal system. Cost-aware. Observable. Works with your Claude Subscription**.
 
 <p align="center">
   <img src="assets/cover.png" alt="Always-on Claude Code Agent" />
@@ -38,7 +38,7 @@ Hermit adds a persistent operating layer around Claude Code, a learning loop, an
 
 - **Stateful** live working state, archived session handoffs, runtime observations, lessons, findings, blockers, completed tasks, files created/modified/deleted.
 - **Agent Routines** Add your own routines that run from one persistent `Monitor` subprocess that decides eligibility outside the session, so a skipped fire costs zero tokens and co-due routines batch into one wake; a daily `CronCreate` anchor re-arms it. Falls back to per-routine `CronCreate` where `Monitor` is unavailable. Managed by `/hermit-routines`.
-- **Heartbeat** gates `/loop` behind a filesystem-only precheck so it stops paying the model every tick, sweeping your checklist for **zero tokens**.
+- **Heartbeat** polls from a persistent `Monitor` subprocess — a filesystem-only precheck decides every tick, and the model only wakes (and only bills) when something actually changed.
 - **`/watch`** wraps `Monitor` streams that die with the session: it auto-starts from config (or plain language) and routes findings to your notifications, silent when quiet.
 - **Channels** let you DM a session; the hermit agent acts on it (*"accept PROP-014"*, *"status"*) and **pings you first** when something needs a yes/no.
 - **Pause it from your phone — and it actually stops.** Ask for status, pause, resume, or snooze over Discord or Telegram. The pause is enforced at the tool boundary, not merely treated as a conversational request.
