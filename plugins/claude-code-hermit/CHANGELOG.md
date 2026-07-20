@@ -14,6 +14,13 @@
 ### Fixed
 - **session-archive: derive session cost from the cost-log window, not `.status.json`** — `.status.json` is a cumulative running total, so auto-closed sessions were stamped with the hermit's lifetime spend, inflating report `cost_usd`/`tokens` and `weekly-review`'s weekly total.
 - **session-archive: open the cost arc at session open** — a session archived before its first tracked turn measured the previous session's window and inherited its cost.
+- **apply-settings: seed permissions for the new reflect scripts** — `apply-reflection-actions.ts` and `transcript-digest.ts` were missing from the sealed allow-list, so a headless reflect was functionally denied on both and silently degraded to introspection-only.
+- **session-archive: `auto-close-decision` no longer deletes a queued close on an unreadable runtime** — a corrupt or transiently unreadable `runtime.json` mapped to the stale-flag reap, discarding a live `pending-close.json` and stranding the session until the next midnight. The reap now requires a successfully read, non-closeable `session_state`.
+- **session-archive: `recover` reaps `pending-close.json` on the no-SHELL.md path** — that branch returned a completed close without the marker bookkeeping, so a flag queued before the crash survived and could auto-close the next session on its first heartbeat tick.
+
+### Upgrade Instructions
+
+1. Re-run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <hatch_target settings file> allow` to add the two new script permissions. Without it, scheduled reflect is asked for permission (functionally denied in headless/channel sessions) and never applies its resolution actions or reads its behavior digest.
 
 ## [1.2.28] - 2026-07-17
 

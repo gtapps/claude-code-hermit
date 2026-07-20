@@ -244,4 +244,44 @@ describe('apply-reflection-actions: edges', () => {
     expect(fs.readFileSync(proposalPath(dir), 'utf-8')).toMatch(/^status: resolved$/m);
     expect(fs.readFileSync(metricsPath(dir), 'utf-8')).toBe(METRICS_EVENT + '\n');
   }));
+
+  // The ledger is line-delimited and every reader parses it line by line inside a
+  // bare catch, so a pretty-printed metrics_event appended verbatim would be
+  // dropped silently rather than erroring. Canonicalize to one physical line.
+  test('pretty-printed metrics_event is re-serialized to a single JSONL line', withTmp(async (dir) => {
+    const pretty = '{\n  "event": "auto_resolved",\n  "proposal_id": "PROP-042"\n}';
+    const result = await apply(dir, {
+      resolution_actions: [{ ...AUTO_RESOLVE, metrics_event: pretty }],
+    });
+    expect(result.ok).toBe(true);
+    expect(result.errors).toBeUndefined();
+    const written = fs.readFileSync(metricsPath(dir), 'utf-8');
+    expect(written.trimEnd().split('\n')).toHaveLength(1);
+    expect(JSON.parse(written)).toEqual({ event: 'auto_resolved', proposal_id: 'PROP-042' });
+  }));
+
+  // Normalizing the tail to a single newline used to swallow the blank line that
+  // separates ## Findings from the heading after it, gluing the sections together.
+  test('findings append preserves the blank line before the next heading', withTmp(async (dir) => {
+    await apply(dir, { resolution_actions: [AUTO_RESOLVE] });
+    const once = fs.readFileSync(shellPath(dir), 'utf-8');
+    expect(once).toContain(`${FINDINGS_LINE}\n\n## Monitoring`);
+    // Stable across repeated runs — neither collapsing nor accumulating blank lines.
+    await apply(dir, {
+      resolution_actions: [{ ...AUTO_RESOLVE, shell_findings_line: '- [reflect] second line' }],
+    });
+    const twice = fs.readFileSync(shellPath(dir), 'utf-8');
+    expect(twice).toContain(`${FINDINGS_LINE}\n- [reflect] second line\n\n## Monitoring`);
+  }));
+
+  // patchFrontmatter is exported and the apply pass re-reads from disk, so the
+  // validation pass is not a sufficient guarantee. Without the terminator guard,
+  // slice(4, -1) absorbs the body into the frontmatter and discards it.
+  test('proposal with no closing frontmatter delimiter is rejected, file untouched', withTmp(async (dir) => {
+    const truncated = '---\nid: PROP-042\nstatus: proposed\n\nbody with no terminator\n';
+    fs.writeFileSync(proposalPath(dir), truncated);
+    const result = await apply(dir, { resolution_actions: [AUTO_RESOLVE] });
+    expect(result.ok).toBe(false);
+    expect(fs.readFileSync(proposalPath(dir), 'utf-8')).toBe(truncated);
+  }));
 });

@@ -48,6 +48,8 @@ const HERMIT_ALLOW = [
   'Bash(bun */scripts/generate-summary.ts*)',
   'Bash(bun */scripts/proposals-index.ts*)',
   'Bash(bun */scripts/update-reflection-state.ts*)',
+  'Bash(bun */scripts/apply-reflection-actions.ts*)',
+  'Bash(bun */scripts/transcript-digest.ts*)',
   'Bash(bun */scripts/cron-tz-shift.ts*)',
   'Bash(bun */scripts/evolve-plan.ts*)',
   'Bash(bun */scripts/evolve-finalize.ts*)',

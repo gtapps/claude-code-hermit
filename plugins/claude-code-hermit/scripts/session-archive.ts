@@ -871,7 +871,8 @@ function verbRecover(flags: Record<string, string | true>): Json {
       session_state: 'idle',
     });
     if (!clear.ok) return { ok: false, reason: clear.reason };
-    return { ok: true, recovered: true, recovery_path: 'markers-cleared-no-shell', legacy: !!legacyNote };
+    const markers = applyPostArchiveMarkers(stateDir, mode, now, /* suppressWrites */ true);
+    return { ok: true, recovered: true, recovery_path: 'markers-cleared-no-shell', legacy: !!legacyNote, markers };
   }
 
   const config = readConfig(stateDir);
@@ -911,8 +912,11 @@ function verbRecover(flags: Record<string, string | true>): Json {
 // decision; the model only executes a close-now via the --auto archive path.
 // A corrupt/unreadable runtime maps to noop, not close-now: the prose
 // fail-open rule covers only the last-operator-action clock, and closing a
-// session whose state is unknowable would be fail-destructive. No quarantine
-// here — this verb is read-mostly; recover owns quarantine.
+// session whose state is unknowable would be fail-destructive. That noop is
+// also non-destructive — it leaves pending-close.json alone, since a queued
+// flag is only provably stale once we know there is no session worth closing
+// (a read `session_state` outside {in_progress, idle}, or no runtime.json at
+// all). No quarantine here — recover owns quarantine.
 // ---------------------------------------------------------------------------
 
 function verbAutoCloseDecision(flags: Record<string, string | true>): Json {
@@ -920,6 +924,14 @@ function verbAutoCloseDecision(flags: Record<string, string | true>): Json {
   const pendingPath = path.join(stateDir, 'state', 'pending-close.json');
 
   const r = readRuntime(runtimePath);
+  if (r.kind === 'corrupt' || r.kind === 'ioerror') {
+    // Unknown state: noop WITHOUT touching pending-close.json. `ioerror` is a
+    // healthy file we transiently could not read (lib/alert-state.ts marks it
+    // do-not-destroy), and a corrupt runtime may still front a live session —
+    // deleting the flag either way strands it until the next midnight.
+    return { ok: true, decision: 'noop', reason: `runtime unreadable (${r.kind})` };
+  }
+  // `missing` falls through: no runtime.json means no session, so any flag is stale.
   const sessionState = r.kind === 'ok' ? (r.value?.session_state ?? 'unset') : r.kind;
   if (sessionState !== 'in_progress' && sessionState !== 'idle') {
     // Nothing to close; a leftover flag from a prior session is stale — reap it.
@@ -933,6 +945,13 @@ function verbAutoCloseDecision(flags: Record<string, string | true>): Json {
   if (isNaN(atMs)) {
     // Fail-open per the --scheduled prose: no valid operator clock → idle indefinitely.
     return { ok: true, decision: 'close-now', reason: 'last-operator-action missing/invalid' };
+  }
+  if (atMs > now.getTime()) {
+    // Clock skew: a future stamp yields a negative lull that can never exceed the
+    // threshold, which would pin this verb to `queued` every midnight while the
+    // heartbeat drain (same comparison) never fires. Treat it as an invalid clock
+    // and take the same fail-open branch, with a reason that names the anomaly.
+    return { ok: true, decision: 'close-now', reason: 'last-operator-action is in the future (clock skew)' };
   }
 
   const lullMin = (now.getTime() - atMs) / 60_000;

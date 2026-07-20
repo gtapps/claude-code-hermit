@@ -514,6 +514,27 @@ describe('recovery matrix', () => {
     expect(result.recovery_path).toBe('shell-reset');
   }));
 
+  // Every recover path that represents a completed close must reap
+  // pending-close.json, or a flag queued before the crash survives and the next
+  // session's first heartbeat tick auto-closes it. The no-SHELL.md branch is the
+  // easiest one to miss because it returns before the shell-reset bookkeeping.
+  test('cleaning + SHELL.md absent -> still reaps pending-close (regression)', withTmp(async (dir) => {
+    await open(dir, 'Task: crashed with no shell\n', '2026-07-09T12:00:00Z');
+    fs.writeFileSync(path.join(sessionsDir(dir), 'S-001-REPORT.md'), 'already written');
+    fs.rmSync(path.join(sessionsDir(dir), 'SHELL.md'));
+    const pending = path.join(dir, '.claude-code-hermit', 'state', 'pending-close.json');
+    fs.writeFileSync(pending, '{"queued_at":"2026-07-09T00:00:00+0000","queued_by":"daily-auto-close"}');
+    writeRuntime(dir, {
+      session_state: 'in_progress', session_id: 'S-001',
+      transition: 'cleaning', transition_mode: 'close', transition_target: 'S-001-REPORT.md',
+    });
+    const result = await recover(dir, '2026-07-09T13:00:00Z');
+    expect(result.ok).toBe(true);
+    expect(result.recovery_path).toBe('markers-cleared-no-shell');
+    expect(result.markers.pending_close).toBe('deleted');
+    expect(fs.existsSync(pending)).toBe(false);
+  }));
+
   test('no interrupted transition -> no-op, ok:true', withTmp(async (dir) => {
     writeRuntime(dir, { session_state: 'idle' });
     const result = await recover(dir, '2026-07-09T13:00:00Z');

@@ -1018,6 +1018,44 @@ describe('auto-close-decision verb', () => {
     expect(stateFiles.some(f => f.startsWith('runtime.json.corrupt'))).toBe(false);
   }));
 
+  // A queued flag is only provably stale once we know there is no session worth
+  // closing. An absent runtime.json proves that; a corrupt or unreadable one does
+  // not — it may still front a live session whose close is legitimately queued,
+  // and reaping there strands the session until the next midnight.
+  test('runtime.json corrupt → queued pending-close SURVIVES (not provably stale)', withTmp(async (dir) => {
+    writeState(dir, 'runtime.json', '{not valid json at all');
+    writeState(dir, 'pending-close.json', '{"queued_at":"2026-05-20T00:00:00+0000","queued_by":"daily-auto-close"}');
+    const result = await decide(dir);
+    expect(result.decision).toBe('noop');
+    expect(result.reason).toContain('corrupt');
+    expect(fs.existsSync(pendingPath(dir))).toBe(true);
+  }));
+
+  test('runtime.json unreadable (ioerror) → queued pending-close SURVIVES', withTmp(async (dir) => {
+    writeState(dir, 'runtime.json', RUNTIME_IN_PROGRESS);
+    writeState(dir, 'pending-close.json', '{"queued_at":"2026-05-20T00:00:00+0000","queued_by":"daily-auto-close"}');
+    fs.chmodSync(hermit(dir, 'state', 'runtime.json'), 0o000);
+    try {
+      const result = await decide(dir);
+      expect(result.decision).toBe('noop');
+      expect(fs.existsSync(pendingPath(dir))).toBe(true);
+    } finally {
+      fs.chmodSync(hermit(dir, 'state', 'runtime.json'), 0o644);
+    }
+  }));
+
+  test('last-operator-action in the future → close-now, anomaly named in reason', withTmp(async (dir) => {
+    // A future stamp yields a negative lull that can never exceed the threshold.
+    // Left unguarded it pins this verb to `queued` every midnight while the
+    // heartbeat drain (same comparison) never fires — the session never closes.
+    writeState(dir, 'runtime.json', RUNTIME_IN_PROGRESS);
+    lastOpAt(dir, '2026-05-21T22:45:00+00:00');
+    const result = await decide(dir);
+    expect(result.decision).toBe('close-now');
+    expect(result.reason).toContain('clock skew');
+    expect(fs.existsSync(pendingPath(dir))).toBe(false);
+  }));
+
   test('last-operator-action absent → close-now (fail-open)', withTmp(async (dir) => {
     writeState(dir, 'runtime.json', RUNTIME_IN_PROGRESS);
     expect((await decide(dir)).decision).toBe('close-now');

@@ -43,6 +43,11 @@ function serializeValue(v: Json): string {
 // every non-patched byte — comments, ordering, and the body stay untouched.
 function patchFrontmatter(content: string, patch: Record<string, Json>): string {
   const end = content.indexOf('\n---', 3);
+  // The validation pass proves this holds, but the apply pass re-reads from disk
+  // and the function is exported — without the guard, slice(4, -1) would absorb
+  // the entire body into the frontmatter line array and discard all but its last
+  // byte. Throwing lands the entry in `errors` instead of corrupting the file.
+  if (end === -1) throw new Error('no frontmatter terminator');
   const lines = content.slice(4, end).split('\n');
   for (const [key, value] of Object.entries(patch)) {
     const line = `${key}: ${serializeValue(value)}`;
@@ -68,9 +73,11 @@ function appendFinding(sessionsDir: string, line: string): string | null {
   const nextHeading = shell.indexOf('\n## ', sectionStart);
   const insertAt = nextHeading === -1 ? shell.length : nextHeading;
   const before = shell.slice(0, insertAt).replace(/\n*$/, '\n');
-  const after = shell.slice(insertAt).replace(/^\n*/, '\n');
+  // Normalizing `after` to a single leading newline would swallow the blank line
+  // that separates this section from the next heading, gluing them together.
+  const after = shell.slice(insertAt).replace(/^\n*/, nextHeading === -1 ? '\n' : '\n\n');
   try {
-    writeFileAtomic(shellPath, before + line + (nextHeading === -1 ? '\n' : '') + after);
+    writeFileAtomic(shellPath, before + line + after);
     return null;
   } catch (e: any) {
     return 'SHELL.md write failed: ' + e.message;
@@ -99,7 +106,10 @@ function apply(stateDir: string, stdin: string): Json {
     if (!ACTIONS.has(a.action)) return { ok: false, reason: `${label}: unknown action "${a.action}"` };
     if (a.metrics_event != null) {
       if (typeof a.metrics_event !== 'string') return { ok: false, reason: `${label}: metrics_event must be a JSON string` };
-      try { JSON.parse(a.metrics_event); }
+      // Re-serialize rather than just validating: the ledger is line-delimited,
+      // and pretty-printed model output would otherwise be appended verbatim as
+      // several physical lines that every JSONL reader silently drops.
+      try { a.metrics_event = JSON.stringify(JSON.parse(a.metrics_event)); }
       catch { return { ok: false, reason: `${label}: metrics_event is not valid JSON` }; }
     }
     if (a.shell_findings_line != null && typeof a.shell_findings_line !== 'string') {
