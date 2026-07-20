@@ -161,6 +161,7 @@ your-project/
 │   │   ├── budget-alerts.json        # Budget alert dedup (cost-tracker-owned)
 │   │   ├── telemetry-alert.json      # Telemetry export-failure alert dedup (telemetry-export-owned)
 │   │   ├── channel-health.json       # Advisory channel send-liveness (channel-send-owned)
+│   │   ├── operator-turn-open.json   # Transient "an operator turn is in flight" marker (opened on operator prompts, cleared at Stop)
 │   │   ├── .heartbeat                # Activity marker (heartbeat-touch-owned)
 │   │   └── .lifecycle.lock           # Always-on lifecycle lock (hermit-start-owned)
 │   ├── bin/hermit-start, hermit-stop
@@ -194,6 +195,7 @@ One writer per state file. No shared mutation bus. (Exception: `state/micro-prop
 | `state/heartbeat-monitor.runtime.json` | heartbeat skill only                        | heartbeat-start (write), heartbeat-stop (clear), heartbeat-restart (rewrite) |
 | `state/heartbeat-liveness.json` | heartbeat-monitor.sh (every poll iteration)         | doctor-check.ts (heartbeat liveness check), heartbeat status  |
 | `state/cc-stop-snapshot.json`  | stop-pipeline.ts only                               | doctor-check.ts (scheduler/background-task health check)      |
+| `state/operator-turn-open.json` | record-operator-action.ts (opens, on kept operator prompts + `--force`); stop-pipeline.ts (clears at Stop — the only deleter) | routine-due.ts (defer gate, 60-min TTL backstop against a marker orphaned by a failed Stop) |
 | `state/.heartbeat`             | heartbeat-touch.ts only                             | heartbeat (detect activity gaps)                              |
 | `state/.lifecycle.lock`        | hermit-start.ts only                                | hermit-stop.ts (cleanup)                                      |
 | `state/cost-index.json`        | cost-tracker.ts only                                | cost-tracker.ts (writeCostSummary, getCumulativeCost fallback), doctor-check.ts |

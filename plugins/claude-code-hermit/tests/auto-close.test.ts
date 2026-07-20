@@ -438,6 +438,13 @@ describe('last-operator-action.json signal', () => {
     expect(fs.existsSync(turnPath(dir))).toBe(false);
   }));
 
+  test('marker: watchdog hygiene injections (/clear, /compact) → NOT written', withTmp(async (dir) => {
+    await recordHook(dir, JSON.stringify({ prompt: '/clear' }));
+    expect(fs.existsSync(turnPath(dir))).toBe(false);
+    await recordHook(dir, JSON.stringify({ prompt: '/compact focus on the migration' }));
+    expect(fs.existsSync(turnPath(dir))).toBe(false);
+  }));
+
   test('marker: --force (channel-responder post-auth) → written', withTmp(async (dir) => {
     await recordHook(dir, '', ['--force']);
     expect(fs.existsSync(turnPath(dir))).toBe(true);

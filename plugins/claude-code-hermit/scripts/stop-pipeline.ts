@@ -36,6 +36,13 @@ async function main(): Promise<void> {
     }
   }
 
+  // Operator-turn marker: whichever turn opened it is over — routines may fire.
+  // Cleared before the stages, not after: this hook has a 15s timeout and the
+  // stages below can burn it on a large session. A clear stranded behind them
+  // would defer every monitor-delivered routine for the marker's full TTL —
+  // the starvation class issue #617 fixed, just time-bounded.
+  try { fs.unlinkSync(TURN_FILE); } catch {}
+
   const profile = (process.env.AGENT_HOOK_PROFILE || 'standard').trim().toLowerCase();
   const isStandardPlus = profile !== 'minimal';
 
@@ -61,9 +68,6 @@ async function main(): Promise<void> {
 
   // Guaranteed heartbeat touch — runs even if all stages fail
   try { fs.writeFileSync(HEARTBEAT_FILE, new Date().toISOString() + '\n'); } catch {}
-
-  // Operator-turn marker: whichever turn opened it is over — routines may fire.
-  try { fs.unlinkSync(TURN_FILE); } catch {}
 
   // Write CC-stop-payload snapshot (tri-state, labeled with captured_at).
   // sole writer for state/cc-stop-snapshot.json. Fail-open.

@@ -78,7 +78,7 @@ After authorization passes, run:
 bun ${CLAUDE_PLUGIN_ROOT}/scripts/record-operator-action.ts --force
 ```
 
-This writes `state/last-operator-action.json` with the current timestamp, resetting the AUTO_CLOSE quiet window (used by both the 12h-inactivity trigger and the daily-midnight lull drain). The `UserPromptSubmit` hook deliberately skips `<channel` prompts (it can't see the allowlist); this step is the authorized write site.
+This writes `state/last-operator-action.json` with the current timestamp, resetting the AUTO_CLOSE quiet window (used by both the 12h-inactivity trigger and the daily-midnight lull drain). It also opens `state/operator-turn-open.json`, which defers monitor-mode routines for the rest of this exchange (cleared at Stop). The `UserPromptSubmit` hook deliberately skips `<channel` prompts (it can't see the allowlist); this step is the authorized write site for both. Run it as early as authorization allows — a routine due before it lands can interject mid-exchange.
 
 ## 1e. Persist Chat ID
 

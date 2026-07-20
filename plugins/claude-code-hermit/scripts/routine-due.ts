@@ -119,7 +119,7 @@ const sessionState: string | null = runtime && typeof runtime.session_state === 
 const turnMarker: Json = readJSON(path.join(stateDir, 'operator-turn-open.json'));
 const turnAt = turnMarker && typeof turnMarker.at === 'string' ? new Date(turnMarker.at).getTime() : NaN;
 const turnAge = nowDate.getTime() - turnAt;
-const operatorTurnOpen = !isNaN(turnAt) && turnAge >= 0 && turnAge <= TURN_TTL_MS;
+const operatorTurnOpen = turnAge >= 0 && turnAge <= TURN_TTL_MS; // NaN fails both
 
 let paused = false;
 try {
