@@ -56,9 +56,10 @@ The argument is the slug from the brief CTA (e.g., `local-first-sync`, `apex-one
    Omit sections where data is unavailable rather than filling with unknowns. Keep it tight — a quick
    reference, not a full report.
 
-4. **Deliver via channel.** Use the core channel-resolution protocol: run
-   `bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit`, parse stdout JSON,
-   then call `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text }`.
+4. **Deliver via channel.** Use the Operator Notification protocol in CLAUDE.md § Operator Notification
+   (core resolves the channel and falls back to push when no channel is reachable). `text` is the analysis
+   from step 3. For the push-fallback branch, condense to a single line (≤200 chars, no markdown): the
+   one-sentence verdict on `<slug>`, then `open CC to read the full analysis`.
 
 5. **Fallback.** If the slug matches nothing in recent briefs and web research returns nothing useful, reply:
    "Couldn't find enough on `<slug>` to write a useful analysis — the item may have been in an older brief.

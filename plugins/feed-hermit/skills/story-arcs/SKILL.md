@@ -22,8 +22,8 @@ Manage the developing-story-arcs file that feeds the `feed-brief` arc-tagging en
 
 ### 1. Find the active arcs file
 
-Glob `compiled/story-arcs-*.md`. Sort by filename date suffix descending (newest first). Read the most
-recent. If none exists, create `compiled/story-arcs-<today>.md` with the standard template
+Glob `.claude-code-hermit/compiled/story-arcs-*.md`. Sort by filename date suffix descending (newest first). Read the most
+recent. If none exists, create `.claude-code-hermit/compiled/story-arcs-<today>.md` with the standard template
 (frontmatter + `## Active` + `## Recently Resolved` sections).
 
 ### 2. Execute subcommand

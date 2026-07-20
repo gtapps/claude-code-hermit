@@ -195,7 +195,7 @@ Full contract lives in `agents/source-fetcher.md`.
 
 ## 6. brief-feedback
 
-Monthly reaction log at `compiled/brief-feedback-YYYY-MM.md`. One line per reaction event:
+Monthly reaction log at `.claude-code-hermit/compiled/brief-feedback-YYYY-MM.md`. One line per reaction event:
 
 ```
 2026-01-15 morning | 👍 | source: Example Blog | topic: example-topic-slug
@@ -233,7 +233,7 @@ give every part's message ID the same metadata.
 
 ## 8. pending-delivery
 
-`compiled/pending-delivery.md` — a singleton holding a brief whose send failed, so it can be
+`.claude-code-hermit/compiled/pending-delivery.md` — a singleton holding a brief whose send failed, so it can be
 delivered on the operator's next inbound message. Overwritten on each failure; cleared once
 delivered.
 
@@ -253,7 +253,7 @@ Frontmatter keys: `title, type, created, brief_path`.
 
 ## 9. brief-summary
 
-`compiled/brief-summary-last-<date>.md` — a compact one-line summary of the last
+`.claude-code-hermit/compiled/brief-summary-last-<date>.md` — a compact one-line summary of the last
 delivered brief, injected at every session start. Accumulates; the newest is chosen for injection.
 
 ```yaml

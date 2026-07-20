@@ -26,7 +26,7 @@ Proactively discover and add new RSS/web sources to `feed-sources.md`. Complemen
 1. **Read current state** (in parallel):
    - `feed-sources.md` — extract active source names, URLs, categories. Count sources per category.
    - `feed-categories.md` — all P1/P2 categories and their priorities.
-   - Glob `compiled/story-arcs-*.md`, read the most recent. Extract Watch-clause keywords from each active arc under `## Active`.
+   - Glob `.claude-code-hermit/compiled/story-arcs-*.md`, read the most recent. Extract Watch-clause keywords from each active arc under `## Active`.
 
 2. **Identify gaps:**
    - Any P1 or P2 category with fewer than 3 active sources is a **gap category**.
@@ -62,7 +62,7 @@ Proactively discover and add new RSS/web sources to `feed-sources.md`. Complemen
    URL, the gap it addresses, and a one-line "why this looked promising" note.
 
    **`--scheduled` only:** notify the operator per CLAUDE.md § Operator Notification with a one-line summary
-   ("N unverified source candidate(s) found — see compiled/source-candidates-<date>.md"). Don't queue a
+   ("N unverified source candidate(s) found — see .claude-code-hermit/compiled/source-candidates-<date>.md"). Don't queue a
    micro-approval: verification requires an interactive WebFetch only the operator can trigger. The operator
    reviews the file and, for any candidate they want, runs `/source-scout` interactively (or edits
    `feed-sources.md` manually) so verification happens with them present.

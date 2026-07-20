@@ -62,10 +62,11 @@ Produce a weekly synthesis from the archived brief notes. All data comes from
 
    Tone: slightly more reflective than an evening brief. One paragraph of narrative before the lists is fine.
 
-5. **Deliver** via the core channel-resolution protocol:
-   - Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit`, parse stdout JSON.
-   - On success call `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text }`.
-   - On resolve miss or send failure, write the digest to `.claude-code-hermit/compiled/pending-delivery.md` (frontmatter `title`, `type: pending-delivery`, `created`, `brief_path` pointing at the weekly archive path). Do not retry.
+5. **Deliver** via the Operator Notification protocol in CLAUDE.md § Operator Notification (core resolves
+   the channel and falls back to push when no channel is reachable). `text` is the digest from step 4.
+   - For the push-fallback branch, condense to a single line (≤200 chars, no markdown): lead with the week's
+     dominant theme, then the brief count. Example: `Quiet week on AI infra, 12 briefs — open CC to read`.
+   - On resolve miss or send failure, write the digest to `.claude-code-hermit/compiled/pending-delivery.md` (frontmatter `title`, `type: pending-delivery`, `created`, `brief_path` pointing at the weekly archive path). Do not retry. This queue supersedes the protocol's SHELL.md-logging branch — don't also log the digest to SHELL.md Findings or record a `channel-send-unavailable` issue.
 
 6. **Archive** to `.claude-code-hermit/briefs/weekly/YYYY-WNN.md` (create the directory if absent).
    Use the ISO week number (e.g. `2026-W15`). Use actual counts from steps 1–3, not placeholders:
@@ -83,7 +84,7 @@ Produce a weekly synthesis from the archived brief notes. All data comes from
    ---
    ```
 
-7. **Reaction-feedback aggregation.** Glob `compiled/brief-feedback-*.md`.
+7. **Reaction-feedback aggregation.** Glob `.claude-code-hermit/compiled/brief-feedback-*.md`.
    **If no such files exist, SKIP this step silently** — the reaction-feedback producer is a channel-layer
    concern not shipped with this plugin, so its absence is expected, not an error. When logs do exist:
    - Read the two most recent files (current + previous month if both exist).

@@ -35,7 +35,8 @@ Dispatch the `@feed-hermit:source-fetcher` subagent (model: haiku) to fetch all 
 sources from `feed-sources.md`. Pass the full source list (URLs + names) and the resolved `<slot>`.
 
 **Output-path contract:** the agent writes its extracted items to `tmp/feed-source-items-<slot>.json`
-in the project root (never `/tmp/`). Each item: `{title, summary, url, source, date}`. No scoring —
+in the project root (never `/tmp/`). Items are nested under `sources[]`, each item:
+`{title, summary, url, published_at, source, section, author}`. No scoring —
 extraction only. After the agent returns, read that file for the collected items.
 
 ### Phase 2 — Chrome, reddit, and X sources
@@ -77,7 +78,7 @@ a. **Score and filter.** Apply the internal scoring in `FEEDS.md`. Deduplicate a
    Filter aggressively — penalize recycled discourse, reward concrete changes and primary sources.
 
 b. **Story-arc cross-reference** — run only if `config.feed.enrichments.story_arcs === true`.
-   Glob `compiled/story-arcs-*.md` and read the most recent (newest filename date suffix wins). Read arcs
+   Glob `.claude-code-hermit/compiled/story-arcs-*.md` and read the most recent (newest filename date suffix wins). Read arcs
    under `## Active` only — extract each arc's name, approximate start date (from the `started:`
    parenthetical), and Watch-clause keywords. For each surviving item, check case-insensitive substring
    overlap between the item's title/summary and any arc's name tokens, context prose, or Watch terms.
@@ -106,11 +107,14 @@ Write the brief per `FEEDS.md` philosophy, tone, and format. Apply the slot's or
 
 ### Phase 5 — Deliver
 
-Deliver via the core channel-resolution protocol:
-1. Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit` and parse stdout JSON.
-2. On success (`id`/`chat_id` present) call `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text }` where `text` is the brief.
+Deliver via the Operator Notification protocol in CLAUDE.md § Operator Notification (core resolves the
+channel and falls back to push when no channel is reachable). On success, `text` is the brief.
+For the push-fallback branch, condense to a single line (≤200 chars, no markdown): lead with the top P1
+item, then the item count. Example: `Anthropic ships Opus 4.8, 6 more items — open CC to read`.
 
-**On delivery failure** (resolve miss, partial channel object, send error) write the full brief to
+**On delivery failure** (resolve miss, partial channel object, send error) this skill's queue supersedes
+the protocol's SHELL.md-logging branch — do not log the brief to SHELL.md Findings and do not record a
+`channel-send-unavailable` issue. Instead write the full brief to
 `.claude-code-hermit/compiled/pending-delivery.md` for delivery on the operator's next inbound message:
 ```yaml
 ---

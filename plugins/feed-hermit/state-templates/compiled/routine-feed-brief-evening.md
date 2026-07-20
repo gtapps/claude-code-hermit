@@ -16,5 +16,5 @@ Produce and deliver the evening brief.
 ## Steps
 
 1. Invoke `/feed-hermit:feed-brief --evening`.
-2. The skill owns the full 7-phase pipeline and delivers via the configured channel; on send failure it queues to `compiled/pending-delivery.md`.
+2. The skill owns the full 7-phase pipeline and delivers via the configured channel; on send failure it queues to `.claude-code-hermit/compiled/pending-delivery.md`.
 3. Close session idle when the brief is delivered or queued.
