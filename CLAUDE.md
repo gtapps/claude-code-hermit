@@ -1,7 +1,7 @@
 # claude-code-hermit (monorepo)
 
-This repo is a multi-plugin Claude Code marketplace. Six plugins ship from `plugins/<slug>/`:
-`claude-code-hermit` (core), `claude-code-dev-hermit`, `claude-code-homeassistant-hermit`, `claude-code-fitness-hermit`, `hermit-scribe`, `laravel-forge-hermit`.
+This repo is a multi-plugin Claude Code marketplace. Seven plugins ship from `plugins/<slug>/`:
+`claude-code-hermit` (core), `claude-code-dev-hermit`, `claude-code-homeassistant-hermit`, `claude-code-fitness-hermit`, `hermit-scribe`, `laravel-forge-hermit`, `feed-hermit`.
 Each plugin has its own `CLAUDE.md`, `CHANGELOG.md`, and `tests/` — read those for plugin-specific context.
 
 The top-level `.claude-plugin/marketplace.json` is the only marketplace. The README at the repo root is the canonical hermit pitch.
@@ -47,7 +47,7 @@ Always launch Claude Code from this repo's root, not from inside a plugin dir. A
 - **Docker paths mirror the host** (`${PWD}:${PWD}` mount) — absolute paths are identical inside the container despite the container user being `claude`.
 - **`rm -rf` is blocked** by the `enforce-deny-patterns` hook — inside `&&`/`;`/`|` chains too, and across `rm -rf`/`rm -fr`/`rm -r -f`/`rm -f -r` (bare and path-prefixed: `/bin/rm`, `./rm`), plus whitespace/`$IFS`/backslash-continuation/unquoted-backslash-escape (`r\m -rf`) obfuscation of any of those. A match blocks (exit 2); the hook otherwise fails open on parse/read errors. Not matched: bundled extra flags (`-rfv`), long flags (`--recursive --force`), env-prefixed forms. Use `rm -r` (no `-f`) for scratch cleanup.
 - **Subtree imports are unsquashed**: `git log --first-parent` for the monorepo-only view; full upstream commits live under each subtree merge.
-- **CI is path-filtered per plugin**: every plugin has a paths-filtered workflow under `.github/workflows/` (`test-hooks` core, `test-ha`, `test-dev`, `test-fitness`, `test-scribe`, `test-forge`), so a PR touching one plugin runs only that plugin's suite. Root-file changes (`package.json`, `bun.lock`, `tsconfig.json`) trigger all of them.
+- **CI is path-filtered per plugin**: every plugin has a paths-filtered workflow under `.github/workflows/` (`test-hooks` core, `test-ha`, `test-dev`, `test-fitness`, `test-scribe`, `test-forge`, `test-feed`), so a PR touching one plugin runs only that plugin's suite. Root-file changes (`package.json`, `bun.lock`, `tsconfig.json`) trigger all of them.
 - **Shell `cd` persists across Bash calls.** Any `cd` in a Bash call leaves CWD pinned for subsequent Bash calls in the session — affects CWD-relative scripts like `heartbeat-precheck.ts .claude-code-hermit` (silently `SKIP|HEARTBEAT.md missing`) and commands like `git add`. Plugin test runners (`bun test` or `bash plugins/<slug>/tests/run-all.sh` run from inside the plugin dir) end inside `plugins/<slug>/`. Use absolute paths or prefix `cd "$(git rev-parse --show-toplevel)" && …` (resolves to the current tree root — the worktree under `claude --worktree`, the main checkout otherwise — never a hardcoded path).
 
 ## Verification

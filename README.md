@@ -222,6 +222,7 @@ Extension plugins you stack on top of any hermit you've hatched.
 - [**`dev-hermit`**](plugins/claude-code-dev-hermit/README.md) — *For software builders.* Safety layer for code-writing agents: push guard, branch discipline, gated PRs.
 - [**`homeassistant-hermit`**](plugins/claude-code-homeassistant-hermit/README.md) — *For Home Assistant users.* HA skills, safety hook, automation builder, zero-dependency CLI.
 - [**`fitness-hermit`**](plugins/claude-code-fitness-hermit/README.md) — *Fitness focused.* Strava MCP wiring, activity deep-dives, weekly-load routines.
+- [**`feed-hermit`**](plugins/feed-hermit/README.md) — *For feed-to-brief pipelines.* Curated source registry, fetch/score/write pipeline, weekly synthesis, source-health analytics.
 - [**`laravel-forge-hermit`**](plugins/laravel-forge-hermit/README.md) — *For Laravel Forge operators.* Deploy, logs, and server/site skills over the official Forge PHP SDK.
 - [**`hermit-scribe`**](plugins/hermit-scribe/README.md) — *For maintainers.* Files GitHub issues and comments from proposals via a bot identity.
 
