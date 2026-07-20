@@ -17,10 +17,12 @@
 - **apply-settings: seed permissions for the new reflect scripts** — `apply-reflection-actions.ts` and `transcript-digest.ts` were missing from the sealed allow-list, so a headless reflect was functionally denied on both and silently degraded to introspection-only.
 - **session-archive: `auto-close-decision` no longer deletes a queued close on an unreadable runtime** — a corrupt or transiently unreadable `runtime.json` mapped to the stale-flag reap, discarding a live `pending-close.json` and stranding the session until the next midnight. The reap now requires a successfully read, non-closeable `session_state`.
 - **session-archive: `recover` reaps `pending-close.json` on the no-SHELL.md path** — that branch returned a completed close without the marker bookkeeping, so a flag queued before the crash survived and could auto-close the next session on its first heartbeat tick.
+- **routine-monitor: gate on an open operator turn, not `session_state`** — an `in_progress` session that never closed starved every monitor-delivered routine (including its own `daily-auto-close`) indefinitely, since `session_state` means "nobody closed the session," not "a conversation is happening." The defer now keys on a Stop-cleared `state/operator-turn-open.json` marker (60-min TTL backstop against an orphaned marker), fail-open to emit on absent/malformed/stale/future-dated markers.
 
 ### Upgrade Instructions
 
 1. Re-run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <hatch_target settings file> allow` to add the two new script permissions. Without it, scheduled reflect is asked for permission (functionally denied in headless/channel sessions) and never applies its resolution actions or reads its behavior digest.
+2. Run `/claude-code-hermit:hermit-routines load` to re-arm the routine monitor with the fixed gate **before** any session-restart step. Two bounded mixed-version windows exist until this runs: an old monitor with the new hooks still starves on `in_progress` until re-arm (this ordering closes that gap); a new monitor with old in-session hooks (marker never written) falls back to pure emit — CronCreate parity, no starvation, only a mild loss of politeness — until the session next restarts.
 
 ## [1.2.28] - 2026-07-17
 

@@ -14,6 +14,7 @@ type Json = any;
 const HERMIT_DIR = hermitDir();
 const HEARTBEAT_FILE = path.join(HERMIT_DIR, 'state', '.heartbeat');
 const SNAPSHOT_FILE = path.join(HERMIT_DIR, 'state', 'cc-stop-snapshot.json');
+const TURN_FILE = path.join(HERMIT_DIR, 'state', 'operator-turn-open.json');
 
 async function main(): Promise<void> {
   // Read stdin once
@@ -60,6 +61,9 @@ async function main(): Promise<void> {
 
   // Guaranteed heartbeat touch — runs even if all stages fail
   try { fs.writeFileSync(HEARTBEAT_FILE, new Date().toISOString() + '\n'); } catch {}
+
+  // Operator-turn marker: whichever turn opened it is over — routines may fire.
+  try { fs.unlinkSync(TURN_FILE); } catch {}
 
   // Write CC-stop-payload snapshot (tri-state, labeled with captured_at).
   // sole writer for state/cc-stop-snapshot.json. Fail-open.

@@ -125,7 +125,7 @@ Routines (config.json):
 
 ## Notes
 
-- **Monitor mode gates on `session_state`, coarser than CronCreate's turn-level idle gate.** A routine wake can interject mid-conversation (same trade the heartbeat monitor accepts) — CronCreate never fires mid-task.
+- **Monitor mode defers only while an operator turn is open** (a Stop-cleared marker, 60-min TTL backstop), coarser than CronCreate's turn-level idle gate. A routine wake can still interject mid-conversation (same trade the heartbeat monitor accepts) — CronCreate never fires mid-task. A session left `in_progress` with no open operator turn no longer starves routines.
 - **Routine ids** must match `^[A-Za-z0-9._-]{1,64}$` (enforced by `validate-config.ts`) — ids travel through bracket markers, `--ids` CSVs, and JSONL rows.
 - **Changes take effect immediately.** `hermit-settings routines` invokes `load` after writing config; hand-edited `config.json` needs a manual `load`.
 - **Interactive mode does not auto-register routines.** `hermit-start.ts` calls `load` only on always-on launches.

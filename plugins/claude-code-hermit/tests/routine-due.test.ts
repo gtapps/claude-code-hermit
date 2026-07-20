@@ -31,6 +31,11 @@ const writeSchedule = (dir: string, value: any) =>
   fs.writeFileSync(schedulePath(dir), JSON.stringify(value));
 const writeRuntime = (dir: string, sessionState: string) =>
   fs.writeFileSync(hermit(dir, 'state', 'runtime.json'), JSON.stringify({ session_state: sessionState }));
+const turnMarkerPath = (dir: string) => hermit(dir, 'state', 'operator-turn-open.json');
+const writeTurnMarker = (dir: string, at: string) =>
+  fs.writeFileSync(turnMarkerPath(dir), JSON.stringify({ at }));
+const writeTurnMarkerRaw = (dir: string, raw: string) =>
+  fs.writeFileSync(turnMarkerPath(dir), raw);
 const writeConfig = (dir: string, routines: any[], timezone: string | null = 'UTC') =>
   fs.writeFileSync(hermit(dir, 'config.json'), JSON.stringify({ timezone, routines }));
 
@@ -127,18 +132,71 @@ describe('routine-due', () => {
     expect(sched['gone-routine']).toBeUndefined();          // stale entry pruned
   }));
 
-  test('session_state in_progress → no emission, mark NOT consumed, no stamp; idle run then emits', withDir(async (dir) => {
+  test('incident repro: in_progress + no operator-turn marker → emits and consumes (extratus starvation)', withDir(async (dir) => {
+    // session_state alone no longer defers — it means "nobody closed the session",
+    // not "a conversation is happening". Without a marker, a due routine (including
+    // daily-auto-close) must fire even while in_progress persists indefinitely.
     writeConfig(dir, [ROUTINE()]);
     writeSchedule(dir, { 'test-routine': { last_consumed_mark: '2026-07-15T08:00:00.000Z' } });
     writeRuntime(dir, 'in_progress');
-    const r1 = await run(dir, '2026-07-15T09:00:00Z');
-    expect(r1.stdout.trim()).toBe('');
-    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T08:00:00.000Z'); // untouched
-    expect(readMetricsRows(dir)).toHaveLength(0);
+    const r = await run(dir, '2026-07-15T09:30:00Z');
+    expect(r.stdout.trim()).toBe('ROUTINE_DUE [hermit-routine:test-routine]');
+    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T09:00:00.000Z');
+  }));
 
-    writeRuntime(dir, 'idle');
-    const r2 = await run(dir, '2026-07-15T09:00:00Z');
+  test('in_progress + fresh operator-turn marker → defer, no consume', withDir(async (dir) => {
+    writeConfig(dir, [ROUTINE()]);
+    writeSchedule(dir, { 'test-routine': { last_consumed_mark: '2026-07-15T08:00:00.000Z' } });
+    writeRuntime(dir, 'in_progress');
+    writeTurnMarker(dir, '2026-07-15T09:15:00.000Z'); // 15 min old at run time, well under the 60-min TTL
+    const r = await run(dir, '2026-07-15T09:30:00Z');
+    expect(r.stdout.trim()).toBe('');
+    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T08:00:00.000Z'); // untouched
+  }));
+
+  test('in_progress + stale marker (> 60-min TTL) → emits (orphaned-marker backstop)', withDir(async (dir) => {
+    writeConfig(dir, [ROUTINE()]);
+    writeSchedule(dir, { 'test-routine': { last_consumed_mark: '2026-07-15T08:00:00.000Z' } });
+    writeRuntime(dir, 'in_progress');
+    writeTurnMarker(dir, '2026-07-15T08:00:00.000Z'); // 90 min old at run time
+    const r = await run(dir, '2026-07-15T09:30:00Z');
+    expect(r.stdout.trim()).toBe('ROUTINE_DUE [hermit-routine:test-routine]');
+    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T09:00:00.000Z');
+  }));
+
+  test('in_progress + future-dated marker (clock skew) → emits, not treated as live', withDir(async (dir) => {
+    writeConfig(dir, [ROUTINE()]);
+    writeSchedule(dir, { 'test-routine': { last_consumed_mark: '2026-07-15T08:00:00.000Z' } });
+    writeRuntime(dir, 'in_progress');
+    writeTurnMarker(dir, '2026-07-15T10:30:00.000Z'); // an hour ahead of run time
+    const r = await run(dir, '2026-07-15T09:30:00Z');
+    expect(r.stdout.trim()).toBe('ROUTINE_DUE [hermit-routine:test-routine]');
+    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T09:00:00.000Z');
+  }));
+
+  test('in_progress + malformed marker file → fail-open to emit', withDir(async (dir) => {
+    writeConfig(dir, [ROUTINE()]);
+    writeSchedule(dir, { 'test-routine': { last_consumed_mark: '2026-07-15T08:00:00.000Z' } });
+    writeRuntime(dir, 'in_progress');
+    writeTurnMarkerRaw(dir, '{oops');
+    const r = await run(dir, '2026-07-15T09:30:00Z');
+    expect(r.stdout.trim()).toBe('ROUTINE_DUE [hermit-routine:test-routine]');
+    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T09:00:00.000Z');
+  }));
+
+  test('in_progress lull catch-up: deferred while marker present, emits once marker clears', withDir(async (dir) => {
+    writeConfig(dir, [ROUTINE()]);
+    writeSchedule(dir, { 'test-routine': { last_consumed_mark: '2026-07-15T08:00:00.000Z' } });
+    writeRuntime(dir, 'in_progress');
+    writeTurnMarker(dir, '2026-07-15T09:15:00.000Z');
+    const r1 = await run(dir, '2026-07-15T09:30:00Z');
+    expect(r1.stdout.trim()).toBe('');
+    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T08:00:00.000Z');
+
+    fs.rmSync(turnMarkerPath(dir)); // Stop-pipeline cleared it — turn ended
+    const r2 = await run(dir, '2026-07-15T09:40:00Z');
     expect(r2.stdout.trim()).toBe('ROUTINE_DUE [hermit-routine:test-routine]');
+    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T09:00:00.000Z');
   }));
 
   test('paused → no emission, mark consumed, skipped-paused row (delivery=monitor)', withDir(async (dir) => {

@@ -769,6 +769,26 @@ describe('stop-pipeline', () => {
     expect(r.exitCode).toBe(0);
     expect(r.stdout + r.stderr).toContain('malformed');
   }));
+
+  // issue #617 — the operator-turn marker must clear at Stop regardless of what
+  // came before it, so a defer never outlives the turn that opened it.
+  test('stop-pipeline clears operator-turn-open.json even when a preceding stage fails', withGitDir(async (dir) => {
+    write(hermit(dir, 'state', 'operator-turn-open.json'), '{"at":"2026-05-20T09:00:00.000Z"}');
+    const r = await runScript('stop-pipeline.ts', {
+      stdin: stopHookInput(dir), cwd: dir, env: PIPE_ENV,
+    });
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(hermit(dir, 'state', 'operator-turn-open.json'))).toBe(false);
+  }));
+
+  test('stop-pipeline (malformed stdin) still clears operator-turn-open.json, fail-open', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'operator-turn-open.json'), '{"at":"2026-05-20T09:00:00.000Z"}');
+    const r = await runScript('stop-pipeline.ts', {
+      stdin: '{broken', cwd: dir, env: PIPE_ENV,
+    });
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(hermit(dir, 'state', 'operator-turn-open.json'))).toBe(false);
+  }));
 });
 
 // -------------------------------------------------------

@@ -13,9 +13,9 @@
 //
 // State model (state/routine-schedule.json): { "<id>": { "last_consumed_mark": "<ISO minute>" } }
 // A routine is due when a cron-matching minute mark exists in (last_consumed_mark, now],
-// lower-bounded at now-24h. Gate order per due routine: paused → waiting(!rdw) → in_progress
-// (defer, no consume) → emit (consume). Missing entry inits to now, fires nothing — exact
-// CronCreate-death parity, no catch-up (operator-confirmed).
+// lower-bounded at now-24h. Gate order per due routine: paused → waiting(!rdw) →
+// operator-turn-open (defer, no consume) → emit (consume). Missing entry inits to now,
+// fires nothing — exact CronCreate-death parity, no catch-up (operator-confirmed).
 //
 // heartbeat-restart is hardcoded excluded — it stays the CronCreate re-arm anchor.
 //
@@ -35,6 +35,7 @@ type Json = any;
 const ANCHOR_ID = 'heartbeat-restart';
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
+const TURN_TTL_MS = 60 * 60 * 1000; // orphaned-marker backstop; see gate comment below
 
 const hermitDir = process.argv[2];
 if (!hermitDir) process.exit(0);
@@ -109,6 +110,16 @@ const eligible = routines.filter((r: Json) =>
 
 let runtime: Json = readJSON(path.join(stateDir, 'runtime.json'));
 const sessionState: string | null = runtime && typeof runtime.session_state === 'string' ? runtime.session_state : null;
+
+// Live-exchange signal: an operator-initiated turn is open (marker written by
+// record-operator-action.ts on kept operator prompts, cleared by stop-pipeline.ts
+// at Stop). TTL bounds a marker orphaned by a failed Stop. Absent, malformed,
+// stale, or future-dated (clock skew — heartbeat-precheck.ts precedent) all read
+// as no-open-turn → emit. Fail-open: a broken marker must never starve routines.
+const turnMarker: Json = readJSON(path.join(stateDir, 'operator-turn-open.json'));
+const turnAt = turnMarker && typeof turnMarker.at === 'string' ? new Date(turnMarker.at).getTime() : NaN;
+const turnAge = nowDate.getTime() - turnAt;
+const operatorTurnOpen = !isNaN(turnAt) && turnAge >= 0 && turnAge <= TURN_TTL_MS;
 
 let paused = false;
 try {
@@ -185,8 +196,9 @@ for (const routine of eligible) {
     pendingStamps.push([id, 'skipped-waiting']);
     continue;
   }
-  if (sessionState === 'in_progress') {
-    // Defer: do NOT consume — next poll re-derives from the untouched cursor.
+  if (operatorTurnOpen) {
+    // Defer: live operator exchange — do NOT consume; next poll re-derives from
+    // the untouched cursor and fires at the first post-turn poll.
     continue;
   }
 

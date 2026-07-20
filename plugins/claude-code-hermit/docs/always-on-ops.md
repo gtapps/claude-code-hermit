@@ -189,7 +189,7 @@ Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect 
 
 `/claude-code-hermit:hermit-routines load --reset` bypasses both diffs and does an unconditional sweep — the escape hatch for suspected drift.
 
-`routine-precheck.ts` gates every fire regardless of delivery mechanism: it suppresses `run_during_waiting: false` routines with a `skipped-waiting` event when `session_state == "waiting"`, and any routine with a `skipped-paused` event when the binding pause flag is set; otherwise it stamps `started` and returns `PROCEED`. In monitor mode, `routine-due.ts` applies the same two gates itself before ever waking the session, plus an `in_progress` defer that CronCreate gets for free from the harness.
+`routine-precheck.ts` gates every fire regardless of delivery mechanism: it suppresses `run_during_waiting: false` routines with a `skipped-waiting` event when `session_state == "waiting"`, and any routine with a `skipped-paused` event when the binding pause flag is set; otherwise it stamps `started` and returns `PROCEED`. In monitor mode, `routine-due.ts` applies the same two gates itself before ever waking the session, plus an operator-turn defer (Stop-cleared `state/operator-turn-open.json` marker, 60-min TTL backstop) approximating the idle gate CronCreate gets for free from the harness.
 
 **`heartbeat-restart`** fires at 4am daily and re-invokes `load`, which re-registers the heartbeat Monitor and re-arms the routine monitor (or, in fallback mode, the routine CronCreates — which expire after 7 days without this daily re-arm).
 
@@ -203,7 +203,7 @@ Inspect live state with `/claude-code-hermit:hermit-routines status` (monitor li
 | Engine         | Monitor subprocess (60s poll, gates in-script); CronCreate anchor + fallback | CC Monitor (subprocess poll)   | Monitor tool (OS subprocess)      |
 | Cost           | Zero tokens for a skipped fire (monitor mode) | Zero tokens when quiet         | Zero tokens when quiet            |
 | Survives exit  | No (re-registered on launch; anchor re-arms daily) | No (re-armed daily by heartbeat-restart) | No (session-scoped)    |
-| Mid-task fire  | Deferred via `session_state` — coarser than CronCreate's turn-level idle gate, can interject | Yes (interrupts)               | Yes (interrupts)                  |
+| Mid-task fire  | Deferred while an operator turn is open (Stop-cleared marker, 60-min TTL) — coarser than CronCreate's turn-level idle gate, can interject | Yes (interrupts)               | Yes (interrupts)                  |
 | Use for        | Scheduled tasks (briefs, audits) | Continuous monitoring          | Reactive watching / quiet polling |
 
 **Hybrid model:** Monitors handle reactive event streams (interrupt-OK). Routines handle scheduled work, gated outside the session for near-zero cost. Heartbeat handles continuous health checks. Neither replaces the others.

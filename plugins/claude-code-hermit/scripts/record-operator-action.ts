@@ -3,6 +3,10 @@ process.stdout.on('error', () => {});
 // UserPromptSubmit + SessionStart hook — records when an operator prompt is received.
 // Writes state/last-operator-action.json so heartbeat-precheck.ts can gate AUTO_CLOSE
 // on genuine operator silence rather than SHELL.md mtime (which routine writes reset).
+// Also opens state/operator-turn-open.json on the same kept prompts (plus --force) so
+// routine-due.ts can defer monitor-mode routines only while a real operator turn is in
+// flight; stop-pipeline.ts clears it at Stop (issue #617 — session_state alone starved
+// routines indefinitely because it never resets on its own).
 //
 // Invocation modes:
 //   (stdin) UserPromptSubmit — JSON payload with `prompt`. Filter applied, write if kept.
@@ -30,12 +34,25 @@ import { appendUsageEvent } from './lib/usage-ledger';
 const AGENT_DIR = hermitDir();
 const STATE_PATH = path.join(AGENT_DIR, 'state', 'last-operator-action.json');
 const TMP_PATH   = path.join(AGENT_DIR, 'state', '.last-operator-action.json.tmp');
+const TURN_PATH  = path.join(AGENT_DIR, 'state', 'operator-turn-open.json');
+const TURN_TMP   = path.join(AGENT_DIR, 'state', '.operator-turn-open.json.tmp');
+
+function writeMarker(tmpPath: string, finalPath: string) {
+  try {
+    fs.writeFileSync(tmpPath, JSON.stringify({ at: new Date().toISOString() }) + '\n', 'utf-8');
+    fs.renameSync(tmpPath, finalPath);
+  } catch { /* fail-open */ }
+}
 
 function write() {
-  try {
-    fs.writeFileSync(TMP_PATH, JSON.stringify({ at: new Date().toISOString() }) + '\n', 'utf-8');
-    fs.renameSync(TMP_PATH, STATE_PATH);
-  } catch { /* fail-open */ }
+  writeMarker(TMP_PATH, STATE_PATH);
+}
+
+// Marks "an operator turn is in flight" for routine-due.ts's defer gate. Cleared by
+// stop-pipeline.ts at Stop; routine-due.ts applies a 60-min TTL as an orphaned-marker
+// backstop (a failed Stop must not starve routines forever).
+function openTurnMarker() {
+  writeMarker(TURN_TMP, TURN_PATH);
 }
 
 // Hermit-injected slash prompts — tmux send-keys from hermit-watchdog.ts and
@@ -134,11 +151,13 @@ function main(raw: string): void {
     const skillName = extractSkillName(prompt);
     if (skillName) appendSkillUsage(skillName);
     write();
+    openTurnMarker();
   }
 }
 
 if (process.argv.includes('--force')) {
   write();
+  openTurnMarker();
   process.exit(0);
 }
 
