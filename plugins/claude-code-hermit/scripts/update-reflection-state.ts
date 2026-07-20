@@ -3,13 +3,21 @@
 // Zero npm dependencies, Node stdlib only. Always exits 0 on I/O failure (fail-open).
 // Usage: bun update-reflection-state.ts <state-file-path> '<json-payload>'
 //    or: bun update-reflection-state.ts <state-file-path> --quick-hash <hash>
+//    or: bun update-reflection-state.ts <state-file-path> --scheduled-check-run <id>
 //
 // --quick-hash is a distinct write path for the reflect --quick cursor: it writes ONLY
 // the top-level last_quick_hash key and does not touch last_run_at/last_reflection/counters
 // below — mutating those would suppress the next scheduled reflect (see reflect/SKILL.md's
 // quick-mode note on why it never calls the counter-incrementing path below).
+//
+// --scheduled-check-run is the session skill's step-4b cursor: it writes ONLY
+// scheduled_checks.<id>.last_run (today's date), preserving sibling per-check
+// fields and everything else. reflect/branches.md step 7 keeps its own richer
+// inline per-check writer (last_unavailable_at/last_error_at/consecutive_empty)
+// — deliberately separate surfaces; do not unify them onto this flag.
 
 import fs from 'node:fs';
+import { resolveHermitNowMs } from './lib/time';
 
 type Json = any;
 
@@ -25,6 +33,25 @@ if (arg3 === '--quick-hash') {
   let state: Json = {};
   try { state = JSON.parse(fs.readFileSync(stateFile, 'utf-8')); } catch { /* first run before state file exists */ }
   state.last_quick_hash = hash;
+  try {
+    fs.writeFileSync(stateFile, JSON.stringify(state, null, 2) + '\n', 'utf-8');
+  } catch (err: any) {
+    console.error(`update-reflection-state: write failed: ${err.message}`);
+  }
+  process.exit(0);
+}
+
+if (arg3 === '--scheduled-check-run') {
+  const id = process.argv[4];
+  if (!stateFile || !id) {
+    console.error('Usage: bun update-reflection-state.ts <state-file-path> --scheduled-check-run <id>');
+    process.exit(1);
+  }
+  let state: Json = {};
+  try { state = JSON.parse(fs.readFileSync(stateFile, 'utf-8')); } catch { /* first run before state file exists */ }
+  if (!state.scheduled_checks || typeof state.scheduled_checks !== 'object') state.scheduled_checks = {};
+  if (!state.scheduled_checks[id] || typeof state.scheduled_checks[id] !== 'object') state.scheduled_checks[id] = {};
+  state.scheduled_checks[id].last_run = new Date(resolveHermitNowMs()).toISOString().slice(0, 10);
   try {
     fs.writeFileSync(stateFile, JSON.stringify(state, null, 2) + '\n', 'utf-8');
   } catch (err: any) {

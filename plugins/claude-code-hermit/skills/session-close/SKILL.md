@@ -8,7 +8,7 @@ description: Closes the current work session with a structured handoff. Archives
 
 `/session-close` is always a **Full Shutdown**. The operator explicitly invoked it — that's the confirmation. No close mode decision, no prompting.
 
-When invoked with `--auto` by heartbeat (either after 12h SHELL.md inactivity, or via the `daily-auto-close` pending-flag drain after a 10-min lull), the operator did not invoke it. The auto-close path bypasses summary-gathering, skips reflect (step 5), skips the heartbeat-stop step (step below), stamps `closed_via: auto` in the archive frontmatter via the `session-archive.ts` payload, and clears `state/pending-close.json` after the archive succeeds.
+When invoked with `--auto` by heartbeat (either after 12h SHELL.md inactivity, or via the `daily-auto-close` pending-flag drain after a 10-min lull), the operator did not invoke it. The auto-close path bypasses summary-gathering, skips reflect (step 5), skips the heartbeat-stop step (step below), and stamps `closed_via: auto` in the archive frontmatter via the `session-archive.ts` payload; `session-archive.ts` itself clears `state/pending-close.json` and writes the context-reset marker after a successful archive.
 
 Idle transitions happen automatically at task boundaries (handled by the `session` skill). By the time the operator runs `/session-close`, they want out.
 
@@ -25,7 +25,7 @@ Use this when the operator wants to end everything (via `hermit-stop` or explici
 
 ### Auto-close path (`--auto`)
 
-When invoked with `--auto` by heartbeat, skip steps 1–5 and jump directly to step 6 (shutdown_skill), step 7 (Tasks cleanup), step 8 (session-archive.ts archive), step 9 (pending-close cleanup), and step 10 (context-reset marker). Pipe this templated payload on stdin to `session-archive.ts archive --mode=auto`:
+When invoked with `--auto` by heartbeat, skip steps 1–5 and jump directly to step 6 (shutdown_skill), step 7 (Tasks cleanup), and step 8 (session-archive.ts archive — the script itself performs the step 9/10 marker bookkeeping on success). Pipe this templated payload on stdin to `session-archive.ts archive --mode=auto`:
 
 ```
 Status: completed
@@ -39,20 +39,24 @@ Next Start Point: Fresh start.
 
 Write `Auto-closed by heartbeat.` as the first line of `## Overview` in the session report.
 
-If step 8 returns `ok === false`, leave `pending-close.json` in place so the next heartbeat tick retries the drain — skip step 9.
+If step 8 returns `ok === false`, no markers were written and `pending-close.json` is left in place automatically, so the next heartbeat tick retries the drain.
 
 ### Scheduled decision path (`--scheduled`)
 
-Invoked by the `daily-auto-close` routine at `0 0 * * *` (local) — the midnight decision layer that decides whether to close now, queue, or do nothing. The routine prompt is prefixed `[hermit-routine:daily-auto-close]` so `scripts/record-operator-action.ts` does not bump `state/last-operator-action.json` (load-bearing: this path reads that clock to decide whether to close now or queue).
+Invoked by the `daily-auto-close` routine at `0 0 * * *` (local) — the midnight decision layer that decides whether to close now, queue, or do nothing. The routine prompt is prefixed `[hermit-routine:daily-auto-close]` so `scripts/record-operator-action.ts` does not bump `state/last-operator-action.json` (load-bearing: the decision verb reads that clock to decide whether to close now or queue).
 
-1. Read `state/runtime.json` (`session_state`), `state/last-operator-action.json` (`at`), and whether `state/pending-close.json` exists.
-2. Branch:
-   - **a. `session_state` not in `{in_progress, idle}`** — nothing to close. If `pending-close.json` exists, delete it (`rm -f .claude-code-hermit/state/pending-close.json` — stale flag from a prior session that already closed). Stop: do not notify the operator, do not write to `routine-metrics.jsonl`.
-   - **b. `session_state` in `{in_progress, idle}` AND `now - last_operator_action > 10min`** — safe lull; close directly by proceeding through the Auto-close path (`--auto`) above (steps 6–10, `Closed Via: auto`). Stop.
-   - **c. `session_state` in `{in_progress, idle}` AND `now - last_operator_action ≤ 10min`** — operator is currently active; queue. Write `state/pending-close.json` with `{"queued_at":"<now ISO>","queued_by":"daily-auto-close"}` (singleton; overwrite unconditionally). Stop. The heartbeat-precheck drain block emits `AUTO_CLOSE` on the next tick where the operator has been idle >10 minutes.
-3. If `last-operator-action.json` is absent, unreadable, or has no valid `at` timestamp: treat as "operator idle indefinitely" → take branch (b). Fail-open — better to close an arguably-active session than to leak the routine into perpetual noop.
+1. Run the decision verb and parse its single JSON line:
+   ```
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/session-archive.ts auto-close-decision --state-dir=.claude-code-hermit
+   ```
+   The verb owns the whole branch table: it reads `session_state` and the operator-action clock, deletes a stale `pending-close.json` itself when there is nothing to close, writes a fresh queue flag itself when the operator is active, and fails open to close-now when the clock is missing or invalid (operator idle indefinitely). A corrupt or unreadable `runtime.json` maps to `noop`, not close-now — closing a session whose state is unknowable would be fail-destructive.
+2. Branch on the returned `decision`:
+   - **`noop`** — stop: do not notify the operator, do not write to `routine-metrics.jsonl`.
+   - **`queued`** — stop. The heartbeat-precheck drain block emits `AUTO_CLOSE` on the next tick where the operator has been idle >10 minutes.
+   - **`close-now`** — close directly by proceeding through the Auto-close path (`--auto`) above (steps 6–8, `Closed Via: auto`). Stop.
+   - **`ok === false`** — append the returned `reason` to SHELL.md `## Findings` and stop; the routine retries next midnight.
 
-This path is intentionally silent: no operator notification on queue or drain — the `Auto-closed S-NNN` signal from the `--auto` archive is the only operator-facing output. The 10-minute lull threshold is hardcoded here and in `scripts/heartbeat-precheck.ts`.
+This path is intentionally silent: no operator notification on queue or drain — the `Auto-closed S-NNN` signal from the `--auto` archive is the only operator-facing output. The 10-minute lull threshold lives in `scripts/lib/auto-close.ts`, shared by the decision verb, the heartbeat-precheck drain, and the watchdog post-close-clear backoff.
 
 ---
 
@@ -97,13 +101,9 @@ This path is intentionally silent: no operator notification on queue or drain �
    <task table, if native Tasks were created>
    HERMIT_PAYLOAD
    ```
-   Parse the single line of JSON printed to stdout. **`ok === false`** means the archive did NOT happen — do not proceed to step 9/10 as if it did; surface the returned `reason` to the operator and retry once before giving up.
-9. **Pending-close cleanup (both paths).** After step 8 returns `ok === true`, delete `.claude-code-hermit/state/pending-close.json` if it exists (`rm -f` — ignore if absent). Any pending midnight-drain flag is invalidated by a successful close, regardless of trigger; without this step a flag queued before an operator-invoked close would survive and the next session's first heartbeat tick could fire `AUTO_CLOSE` against it.
-10. **Context-reset marker (`--auto` only, after step 9 success).** Write `.claude-code-hermit/state/clear-requested.json`:
-    ```json
-    { "requested_at": "<utc ISO>", "reason": "daily-auto-close" }
-    ```
-    Skip on archive failure (`ok === false` — step 9 is skipped too, the marker inherits the archive-success precondition). Skip on operator-invoked closes entirely — only the `--auto` path writes this. The watchdog reads it on the next tick and sends `/clear` when the session is still alive + idle + unattended, resetting the stale conversation context before the next scheduled wake incurs a cold cache-write. `/clear` preserves CronCreate routines and Monitor tasks; no re-arm is needed.
+   Parse the single line of JSON printed to stdout. **`ok === false`** means the archive did NOT happen — no markers were written; surface the returned `reason` to the operator and retry once before giving up.
+9. **Pending-close cleanup** *(now automatic)*. `session-archive.ts` deletes `state/pending-close.json` itself on close/auto archive success (reported in its `markers` output field) — any pending midnight-drain flag is invalidated by a successful close, regardless of trigger. Nothing to do here.
+10. **Context-reset marker** *(now automatic, `--auto` only)*. On auto archive success the script writes `state/clear-requested.json` itself. The watchdog reads it on the next tick and sends `/clear` when the session is still alive + idle + unattended, resetting stale conversation context before the next scheduled wake incurs a cold cache-write. `/clear` preserves CronCreate routines and Monitor tasks; no re-arm is needed.
 
 ---
 

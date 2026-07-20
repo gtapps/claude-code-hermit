@@ -33,6 +33,7 @@ import { costLogPath } from './lib/cc-compat';
 import { flushResetBreadcrumb } from './lib/progress-log';
 import { wallMinutes } from './cron-tz-shift';
 import { isPaused, pauseReasonLabel } from './lib/pause';
+import { AUTO_CLOSE_LULL_MS } from './lib/auto-close';
 import { runTelemetryExportIfDue } from './report-export';
 import { clearStatusCacheOnBoot as clearStatusCache } from './hermit-start';
 
@@ -537,7 +538,7 @@ function maybePostCloseClear(config: Json): void {
   if (!tmuxSessionAlive(sessionName)) return;
 
   const opAge = getOperatorLastActionAgeSecs();
-  if (opAge !== null && opAge < 10 * 60) return; // operator active < 10 min — back off
+  if (opAge !== null && opAge < AUTO_CLOSE_LULL_MS / 1000) return; // operator active within the lull — back off
 
   if (!tryAcquireLifecycleLock()) return; // another lifecycle action in flight, retry next tick
   try {

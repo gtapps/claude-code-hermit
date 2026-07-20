@@ -4,6 +4,12 @@
 
 ### Added
 - **transcript-digest: ground-truth behavioral telemetry for reflect** — new `scripts/transcript-digest.ts` mines recent session transcripts into verdict-sized JSON counters (tool failures, rejections by kind, wakes vs productive wakes, compactions, subagent dispatches). Reflect's new weekly `behavior` phase cites them as machine-measured evidence via a defer-loop auto-row and anomaly checklist. Self-activates on the next scheduled reflect; no migration.
+- **session-close: deterministic midnight decision** — new `session-archive.ts auto-close-decision` verb replaces the `--scheduled` prose branch table (noop / queued / close-now); the 10-min lull constant moves to `scripts/lib/auto-close.ts`, shared with the heartbeat-precheck drain and the watchdog post-close-clear backoff.
+- **reflect: transactional apply of runner resolution actions** — new `scripts/apply-reflection-actions.ts` validates the whole `resolution_actions` batch before any write (frontmatter patch, proposal-metrics append, Findings line); invalid batches write nothing.
+- **reflect/session: `--scheduled-check-run <id>` cursor flag** — `update-reflection-state.ts` writes `scheduled_checks.<id>.last_run` directly; session step 4b no longer hand-edits reflection-state.json.
+
+### Changed
+- **session-archive: owns post-archive markers** — idle archive writes `state/compact-requested.json`; close/auto delete `state/pending-close.json`; auto also writes `state/clear-requested.json`. Outcomes reported in a `markers` output field and never flip `ok`; recover re-archives suppress the marker writes (still delete pending-close). Skills stop doing this bookkeeping in prose.
 
 ### Fixed
 - **session-archive: derive session cost from the cost-log window, not `.status.json`** — `.status.json` is a cumulative running total, so auto-closed sessions were stamped with the hermit's lifetime spend, inflating report `cost_usd`/`tokens` and `weekly-review`'s weekly total.

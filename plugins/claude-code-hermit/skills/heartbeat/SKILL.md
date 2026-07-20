@@ -35,7 +35,7 @@ This subcommand is the handler for `HEARTBEAT_EVALUATE` notifications emitted by
    - `OK` → emit `HEARTBEAT_OK`. Stop.
    - `AUTO_CLOSE` → operator inactivity exceeded the threshold (12h of no operator action, or 10-min lull after a `daily-auto-close` queued at midnight). Run the auto-close sequence, then stop:
      1. Append to SHELL.md `## Monitoring`: `[HH:MM] Heartbeat: auto-closed.` (Step 2 replaces SHELL.md with a fresh template, so a later append would miss the archived report.)
-     2. Invoke `/claude-code-hermit:session-close --auto` (skips summary-gathering, reflect, heartbeat-stop; passes `Closed Via: auto` to `session-archive.ts`; clears `state/pending-close.json` after archive succeeds).
+     2. Invoke `/claude-code-hermit:session-close --auto` (skips summary-gathering, reflect, heartbeat-stop; passes `Closed Via: auto` to `session-archive.ts`, which itself clears `state/pending-close.json` and writes the context-reset marker after archive succeeds).
      3. Notify the operator per CLAUDE-APPEND.md § Operator Notification: "Auto-closed S-NNN."
      4. Emit `HEARTBEAT_AUTO_CLOSED`. Stop. Do NOT run the EVALUATE flow — the session is being archived; generating stale-session alerts for a closing session would create phantom dedup entries.
    - Starts with `ALERT|injection-suspect:` → HEARTBEAT.md matched an injection pattern. Parse the verdict as `ALERT|injection-suspect:<hash>|<detail>`. Then:

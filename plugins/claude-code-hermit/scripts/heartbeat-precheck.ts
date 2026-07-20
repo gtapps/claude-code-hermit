@@ -17,6 +17,7 @@ import { isProposalScanItem } from './lib/heartbeat-items';
 import { isPaused } from './lib/pause';
 import { scanForInjection } from './lib/injection-scan';
 import { sha256 } from './lib/hash';
+import { AUTO_CLOSE_LULL_MINUTES } from './lib/auto-close';
 
 type Json = any;
 
@@ -165,7 +166,7 @@ if (process.env.HERMIT_NOW) {
       const t = tStr ? new Date(tStr).getTime() : NaN;
       if (!isNaN(t)) {
         // Valid last-operator-action → standard 10-min lull check.
-        if ((now - t) / (1000 * 60) > 10) emit('AUTO_CLOSE');
+        if ((now - t) / (1000 * 60) > AUTO_CLOSE_LULL_MINUTES) emit('AUTO_CLOSE');
       } else {
         // Absent/malformed last-operator-action → fail-open per daily-auto-close
         // SKILL.md step 5, BUT only when the flag itself is recent. A stale flag

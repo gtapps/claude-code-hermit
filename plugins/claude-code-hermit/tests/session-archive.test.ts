@@ -669,3 +669,122 @@ describe('structured report frontmatter', () => {
     expect(fm.task).toBe('continue #591 review');
   }));
 });
+
+// =============================================================================
+// Post-archive markers — the mode-keyed consequences of a successful archive
+// (compact-requested / pending-close / clear-requested), formerly prose steps
+// in session/SKILL.md 7b and session-close steps 9/10. Marker failures must
+// never flip the archive's ok, and the recover path must never WRITE markers
+// (a boot-time recovery must not trigger watchdog compaction or /clear).
+describe('post-archive markers', () => {
+  const markerPath = (dir: string, name: string) => hermit(dir, 'state', name);
+  const pendingPath = (dir: string) => markerPath(dir, 'pending-close.json');
+  const compactPath = (dir: string) => markerPath(dir, 'compact-requested.json');
+  const clearPath = (dir: string) => markerPath(dir, 'clear-requested.json');
+
+  test('idle archive writes compact-requested.json (reason session-work-done), no clear-requested', withTmp(async (dir) => {
+    await open(dir, 'Task: x\n', '2026-07-09T12:00:00Z');
+    const result = await archive(dir, 'idle', BASIC_CLOSE_PAYLOAD, '2026-07-09T13:00:00Z');
+    expect(result.ok).toBe(true);
+    expect(result.markers.compact_requested).toBe('written');
+    const marker = JSON.parse(fs.readFileSync(compactPath(dir), 'utf-8'));
+    expect(Number.isNaN(new Date(marker.requested_at).getTime())).toBe(false);
+    expect(marker.reason).toBe('session-work-done');
+    expect(fs.existsSync(clearPath(dir))).toBe(false);
+  }));
+
+  test('close archive deletes a pre-seeded pending-close.json, writes no other markers', withTmp(async (dir) => {
+    await open(dir, 'Task: x\n', '2026-07-09T12:00:00Z');
+    fs.writeFileSync(pendingPath(dir), '{"queued_at":"2026-07-09T00:05:00+0000","queued_by":"daily-auto-close"}');
+    const result = await archive(dir, 'close', BASIC_CLOSE_PAYLOAD, '2026-07-09T13:00:00Z');
+    expect(result.ok).toBe(true);
+    expect(result.markers.pending_close).toBe('deleted');
+    expect(fs.existsSync(pendingPath(dir))).toBe(false);
+    expect(fs.existsSync(compactPath(dir))).toBe(false);
+    expect(fs.existsSync(clearPath(dir))).toBe(false);
+  }));
+
+  test('close archive without a pending-close reports absent, ok stays true', withTmp(async (dir) => {
+    await open(dir, 'Task: x\n', '2026-07-09T12:00:00Z');
+    const result = await archive(dir, 'close', BASIC_CLOSE_PAYLOAD, '2026-07-09T13:00:00Z');
+    expect(result.ok).toBe(true);
+    expect(result.markers.pending_close).toBe('absent');
+  }));
+
+  test('auto archive deletes pending-close AND writes clear-requested (reason daily-auto-close)', withTmp(async (dir) => {
+    await open(dir, 'Task: x\n', '2026-07-09T12:00:00Z');
+    fs.writeFileSync(pendingPath(dir), '{"queued_at":"2026-07-09T00:05:00+0000","queued_by":"daily-auto-close"}');
+    const result = await archive(dir, 'auto', BASIC_CLOSE_PAYLOAD, '2026-07-09T13:00:00Z');
+    expect(result.ok).toBe(true);
+    expect(result.markers.pending_close).toBe('deleted');
+    expect(result.markers.clear_requested).toBe('written');
+    expect(fs.existsSync(pendingPath(dir))).toBe(false);
+    const marker = JSON.parse(fs.readFileSync(clearPath(dir), 'utf-8'));
+    expect(marker.reason).toBe('daily-auto-close');
+  }));
+
+  test('a failed archive creates zero marker files and leaves a seeded pending-close intact', withTmp(async (dir) => {
+    await open(dir, 'Task: x\n', '2026-07-09T12:00:00Z');
+    fs.rmSync(shellPath(dir)); // forces ok:false (shell-missing) before any marker step
+    const pending = '{"queued_at":"2026-07-09T00:05:00+0000","queued_by":"daily-auto-close"}';
+    fs.writeFileSync(pendingPath(dir), pending);
+    const result = await archive(dir, 'close', BASIC_CLOSE_PAYLOAD, '2026-07-09T13:00:00Z');
+    expect(result.ok).toBe(false);
+    expect(result.markers).toBeUndefined();
+    expect(fs.existsSync(compactPath(dir))).toBe(false);
+    expect(fs.existsSync(clearPath(dir))).toBe(false);
+    expect(fs.readFileSync(pendingPath(dir), 'utf-8')).toBe(pending);
+  }));
+
+  test('a marker write failure does not flip ok (compact-requested path blocked by a directory)', withTmp(async (dir) => {
+    await open(dir, 'Task: x\n', '2026-07-09T12:00:00Z');
+    fs.mkdirSync(compactPath(dir)); // rename onto an existing directory fails
+    const result = await archive(dir, 'idle', BASIC_CLOSE_PAYLOAD, '2026-07-09T13:00:00Z');
+    expect(result.ok).toBe(true);
+    expect(result.markers.compact_requested).toStartWith('error');
+  }));
+
+  test('recover re-archive path (idle) suppresses the compact-requested write', withTmp(async (dir) => {
+    await open(dir, 'Task: crashed before report\n', '2026-07-09T12:00:00Z');
+    writeRuntime(dir, {
+      session_state: 'in_progress', session_id: 'S-001',
+      transition: 'archiving', transition_mode: 'idle', transition_target: 'S-001-REPORT.md',
+    });
+    const result = await recover(dir, '2026-07-09T13:00:00Z');
+    expect(result.ok).toBe(true);
+    expect(result.recovered).toBe(true);
+    expect(result.markers.compact_requested).toBe('skipped');
+    expect(fs.existsSync(compactPath(dir))).toBe(false);
+  }));
+
+  test('recover re-archive path (auto) deletes pending-close but never writes clear-requested', withTmp(async (dir) => {
+    await open(dir, 'Task: crashed before report\n', '2026-07-09T12:00:00Z');
+    fs.writeFileSync(pendingPath(dir), '{"queued_at":"2026-07-09T00:05:00+0000","queued_by":"daily-auto-close"}');
+    writeRuntime(dir, {
+      session_state: 'in_progress', session_id: 'S-001',
+      transition: 'archiving', transition_mode: 'auto', transition_target: 'S-001-REPORT.md',
+    });
+    const result = await recover(dir, '2026-07-09T13:00:00Z');
+    expect(result.ok).toBe(true);
+    expect(result.recovered).toBe(true);
+    expect(fs.existsSync(pendingPath(dir))).toBe(false);
+    expect(fs.existsSync(clearPath(dir))).toBe(false);
+  }));
+
+  test('recover shell-reset path (close) deletes pending-close, no clear-requested, markers reported', withTmp(async (dir) => {
+    await open(dir, 'Task: crashed mid-cleanup\n', '2026-07-09T12:00:00Z');
+    fs.writeFileSync(path.join(sessionsDir(dir), 'S-001-REPORT.md'), 'already written');
+    fs.writeFileSync(pendingPath(dir), '{"queued_at":"2026-07-09T00:05:00+0000","queued_by":"daily-auto-close"}');
+    writeRuntime(dir, {
+      session_state: 'in_progress', session_id: 'S-001',
+      transition: 'cleaning', transition_mode: 'close', transition_target: 'S-001-REPORT.md',
+    });
+    const result = await recover(dir, '2026-07-09T13:00:00Z');
+    expect(result.ok).toBe(true);
+    expect(result.recovery_path).toBe('shell-reset');
+    expect(result.markers).toBeDefined();
+    expect(result.markers.pending_close).toBe('deleted');
+    expect(fs.existsSync(pendingPath(dir))).toBe(false);
+    expect(fs.existsSync(clearPath(dir))).toBe(false);
+  }));
+});
