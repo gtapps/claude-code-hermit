@@ -9,6 +9,9 @@
 - **proposal-create/proposal-act: no Write/Edit tool calls on `.claude-code-hermit/` remain** — both skills invoke `proposal.ts` verbs; the next-prop-id/append-metrics/generate-summary steps in proposal-create fold into `proposal.ts create`; Resolve's compact-requested.json write moves to `--request-compact`.
 - Internal: transactional markdown helpers promoted from `apply-reflection-actions.ts` into `scripts/lib/md-write.ts`; proposal-ID logic extracted into `scripts/lib/prop-id.ts` (`next-prop-id.ts` is now a thin CLI wrapper over it, contract unchanged); `generate-summary.ts` gains an `import.meta.main` guard and exports `run` so other scripts can call it directly instead of spawning a subprocess.
 
+### Removed
+- **proposals: dropped the pre-frontmatter bullet-metadata reader** — `**Status:**`-style metadata is no longer parsed. Frontmatter has been the canonical proposal format since 1.0.0 and no write path has been able to patch a bullet-metadata file for some time, so a legacy file listed as actionable but could not be accepted, deferred, dismissed, or resolved. Such a file now surfaces in `proposal-list` as status `unknown` rather than showing recovered metadata it can't act on; it is still listed, never silently dropped.
+
 ### Upgrade Instructions
 1. Re-run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <hatch-target settings file> allow` to seed the permission for `scripts/proposal.ts`. Without this, proposal lifecycle actions (create/accept/defer/dismiss/resolve) prompt for permission — functionally denied in headless/channel/background sessions.
 

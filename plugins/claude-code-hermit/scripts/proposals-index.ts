@@ -44,32 +44,23 @@ export interface ProposalsIndex {
 
 // Title comes from frontmatter `title` when set, else the H1 heading
 // `# Proposal: PROP-NNN — [Title]`.
-function extractTitle(fm: Json | null, body: string): string | null {
-  if (fm && typeof fm.title === 'string' && fm.title.trim()) return fm.title.trim();
+function extractTitle(fm: Json, body: string): string | null {
+  if (typeof fm.title === 'string' && fm.title.trim()) return fm.title.trim();
   const m = body.match(/^#\s+Proposal:\s+\S+\s+[—-]\s+(.+)$/m);
   return m ? m[1].trim() : null;
 }
 
-// Legacy (pre-frontmatter) fallback: parse `**Status:**`-style bullet metadata.
-function parseLegacy(idFromFile: string, body: string): ProposalRow {
-  const grab = (label: string): string | null => {
-    const m = body.match(new RegExp(`\\*\\*${label}:\\*\\*\\s*(.+)`));
-    return m ? m[1].trim() : null;
-  };
+// Minimal row for a proposal whose frontmatter can't be read — an fs error, or a
+// file without a `---` block at all. Don't silently drop it: it would vanish from
+// proposal-list while heartbeat, which reads disk directly, still wakes on it, so
+// the two surfaces would disagree about whether it exists. `status: null` counts
+// as 'unknown', which is also honest about what the lifecycle can do with it —
+// proposal.ts's patch verb can only write frontmatter.
+function placeholderRow(id: string, file: string): ProposalRow {
   return {
-    id: idFromFile,
-    file: '',
-    status: grab('Status'),
-    source: grab('Source') ?? 'manual',
-    category: grab('Category'),
-    title: extractTitle(null, body),
-    created: grab('Created'),
-    session: grab('Session'),
-    responded: false,
-    accepted_date: null,
-    resolved_date: null,
-    tags: [],
-    self_eval_key: null,
+    id, file, status: null, source: null, category: null,
+    title: null, created: null, session: null, responded: false,
+    accepted_date: null, resolved_date: null, tags: [], self_eval_key: null,
     legacy: true,
   };
 }
@@ -86,18 +77,7 @@ export function rebuildIndex(stateDir: string, bodyOut?: Map<string, string>): P
     const idStem = base.replace(/\.md$/, '');
     const parsed = readFileWithFrontmatter(file);
     if (!parsed) {
-      // Truly unreadable file (fs error, not malformed frontmatter — that falls
-      // to the legacy branch below). Don't silently drop it: it would vanish from
-      // proposal-list while heartbeat, which reads disk directly, still wakes on
-      // it, so the two surfaces would disagree about whether it exists. Emit a
-      // minimal placeholder row so it still shows up (status null → counts as
-      // 'unknown').
-      proposals.push({
-        id: idStem, file: base, status: null, source: null, category: null,
-        title: null, created: null, session: null, responded: false,
-        accepted_date: null, resolved_date: null, tags: [], self_eval_key: null,
-        legacy: true,
-      });
+      proposals.push(placeholderRow(idStem, base));
       continue;
     }
 
@@ -124,10 +104,7 @@ export function rebuildIndex(stateDir: string, bodyOut?: Map<string, string>): P
         legacy: false,
       });
     } else {
-      const idMatch = base.match(/^(PROP-\d+(?:-[a-z0-9-]+-\d+)?)/i);
-      const row = parseLegacy(idMatch ? idMatch[1] : idStem, parsed.body);
-      row.file = base;
-      proposals.push(row);
+      proposals.push(placeholderRow(idStem, base));
     }
   }
 

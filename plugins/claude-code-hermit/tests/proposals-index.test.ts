@@ -52,17 +52,23 @@ describe('rebuildIndex', () => {
     expect(p2.title).toBe('Bar direct'); // frontmatter title wins over heading
   });
 
-  test('parses legacy (no-frontmatter) proposals with legacy:true', () => {
+  test('a no-frontmatter proposal still gets a placeholder row, not a parsed one', () => {
     const dir = makeDir();
+    // Bullet metadata is no longer parsed — but the file must not vanish from the
+    // index, or proposal-list and heartbeat (which reads disk directly) would
+    // disagree about whether it exists. It surfaces as status-unknown, which is
+    // honest: proposal.ts only writes frontmatter, so nothing can act on it.
     writeProposal(dir, 'PROP-006.md',
       '# Proposal: PROP-006 — Legacy one\n\n**Status:** accepted\n**Created:** 2026-01-01\n');
     const idx = rebuildIndex(hermit(dir))!;
     const p = idx.proposals[0];
     expect(p.legacy).toBe(true);
     expect(p.id).toBe('PROP-006');
-    expect(p.status).toBe('accepted');
-    expect(p.source).toBe('manual'); // legacy default
-    expect(p.title).toBe('Legacy one');
+    expect(p.file).toBe('PROP-006.md');
+    expect(p.status).toBeNull();
+    expect(p.source).toBeNull();
+    expect(p.title).toBeNull();
+    expect(idx.counts.unknown).toBe(1);
   });
 
   test('writes proposals-index.json and is idempotent on content', () => {

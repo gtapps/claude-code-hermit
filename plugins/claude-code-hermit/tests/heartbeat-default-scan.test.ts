@@ -41,7 +41,7 @@ interface Fixture {
   heartbeat?: string;
   alertState?: object;
   proposals?: Array<{ id: string; status: string }>;
-  legacyProposal?: string; // filename → written with NO frontmatter
+  unparseableProposal?: string; // filename → written with NO frontmatter block
   microPending?: boolean;
   totalTicks?: number;
   noProposalsDir?: boolean;  // don't create proposals/ at all (ENOENT readdir path)
@@ -72,8 +72,8 @@ function build(fix: Fixture): string {
       `---\nid: ${p.id}\nstatus: ${p.status}\ntitle: Test ${p.id}\n---\nbody\n`,
     );
   }
-  if (fix.legacyProposal) {
-    fs.writeFileSync(hermit(dir, 'proposals', fix.legacyProposal), 'Just a bullet, no frontmatter.\n');
+  if (fix.unparseableProposal) {
+    fs.writeFileSync(hermit(dir, 'proposals', fix.unparseableProposal), 'Just a bullet, no frontmatter.\n');
   }
   if (fix.microPending) {
     fs.writeFileSync(
@@ -142,8 +142,11 @@ describe('default proposal-scan resolution', () => {
     expect(await verdict(dir)).toBe('EVALUATE');
   });
 
-  test('8. legacy proposal file with no frontmatter → EVALUATE (fail-open)', async () => {
-    const dir = build({ legacyProposal: 'PROP-006.md' });
+  // Not about any supported format — the scan must degrade gracefully on a file
+  // it cannot parse (truncated write, hand-edited, pre-frontmatter leftover)
+  // rather than erroring or silently skipping the tick.
+  test('8. proposal file with no parseable frontmatter → EVALUATE (fail-open)', async () => {
+    const dir = build({ unparseableProposal: 'PROP-006.md' });
     expect(await verdict(dir)).toBe('EVALUATE');
   });
 
