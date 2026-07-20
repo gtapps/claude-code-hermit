@@ -14,6 +14,7 @@ type Json = any;
 const HERMIT_DIR = hermitDir();
 const HEARTBEAT_FILE = path.join(HERMIT_DIR, 'state', '.heartbeat');
 const SNAPSHOT_FILE = path.join(HERMIT_DIR, 'state', 'cc-stop-snapshot.json');
+const TURN_FILE = path.join(HERMIT_DIR, 'state', 'operator-turn-open.json');
 
 async function main(): Promise<void> {
   // Read stdin once
@@ -34,6 +35,13 @@ async function main(): Promise<void> {
       console.error('[stop-pipeline] malformed stdin, falling back to empty payload');
     }
   }
+
+  // Operator-turn marker: whichever turn opened it is over — routines may fire.
+  // Cleared before the stages, not after: this hook has a 15s timeout and the
+  // stages below can burn it on a large session. A clear stranded behind them
+  // would defer every monitor-delivered routine for the marker's full TTL —
+  // the starvation class issue #617 fixed, just time-bounded.
+  try { fs.unlinkSync(TURN_FILE); } catch {}
 
   const profile = (process.env.AGENT_HOOK_PROFILE || 'standard').trim().toLowerCase();
   const isStandardPlus = profile !== 'minimal';

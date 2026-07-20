@@ -227,6 +227,7 @@ describe('weekly-review partition of auto-archived sessions', () => {
 
 describe('last-operator-action.json signal', () => {
   const lastOp = (dir: string) => hermit(dir, 'state', 'last-operator-action.json');
+  const turnPath = (dir: string) => hermit(dir, 'state', 'operator-turn-open.json');
   const recordHook = (dir: string, stdin: string, args: string[] = []) =>
     runScript('record-operator-action.ts', { stdin, cwd: dir, args });
 
@@ -405,6 +406,59 @@ describe('last-operator-action.json signal', () => {
     writeState(dir, 'last-operator-action.json', '{"at":"2026-05-20T09:00:00.000Z"}');
     await recordHook(dir, '', ['--force']);
     expect(fs.readFileSync(lastOp(dir), 'utf-8')).not.toContain('2026-05-20T09:00:00');
+  }));
+
+  // q. operator-turn-open.json marker — issue #617's routine-due.ts defer signal.
+  // Written alongside last-operator-action.json on the same kept-prompt/--force paths,
+  // never on SessionStart (a restart seed is not an operator turn).
+  test('marker: plain operator prompt → operator-turn-open.json written with parseable ISO at', withTmp(async (dir) => {
+    await recordHook(dir, '{"prompt":"hello"}');
+    expect(fs.existsSync(turnPath(dir))).toBe(true);
+    const at = JSON.parse(fs.readFileSync(turnPath(dir), 'utf-8')).at;
+    expect(isNaN(new Date(at).getTime())).toBe(false);
+  }));
+
+  test('marker: [hermit-routine: prefix → NOT written', withTmp(async (dir) => {
+    await recordHook(dir, '{"prompt":"[hermit-routine:reflect] Invoke /claude-code-hermit:reflect."}');
+    expect(fs.existsSync(turnPath(dir))).toBe(false);
+  }));
+
+  test('marker: HEARTBEAT_EVALUATE notification → NOT written', withTmp(async (dir) => {
+    await recordHook(dir, '{"prompt":"HEARTBEAT_EVALUATE"}');
+    expect(fs.existsSync(turnPath(dir))).toBe(false);
+  }));
+
+  test('marker: <channel inbound → NOT written', withTmp(async (dir) => {
+    await recordHook(dir, '{"prompt":"<channel source=discord chat_id=x>hi</channel>"}');
+    expect(fs.existsSync(turnPath(dir))).toBe(false);
+  }));
+
+  test('marker: hermit-injected exact command → NOT written', withTmp(async (dir) => {
+    await recordHook(dir, JSON.stringify({ prompt: '/claude-code-hermit:heartbeat run' }));
+    expect(fs.existsSync(turnPath(dir))).toBe(false);
+  }));
+
+  test('marker: watchdog hygiene injections (/clear, /compact) → NOT written', withTmp(async (dir) => {
+    await recordHook(dir, JSON.stringify({ prompt: '/clear' }));
+    expect(fs.existsSync(turnPath(dir))).toBe(false);
+    await recordHook(dir, JSON.stringify({ prompt: '/compact focus on the migration' }));
+    expect(fs.existsSync(turnPath(dir))).toBe(false);
+  }));
+
+  test('marker: --force (channel-responder post-auth) → written', withTmp(async (dir) => {
+    await recordHook(dir, '', ['--force']);
+    expect(fs.existsSync(turnPath(dir))).toBe(true);
+  }));
+
+  test('marker: SessionStart (no prompt), file absent → NOT written (not an operator turn)', withTmp(async (dir) => {
+    await recordHook(dir, '');
+    expect(fs.existsSync(turnPath(dir))).toBe(false);
+  }));
+
+  test('marker: SessionStart (no prompt), file already present → left untouched', withTmp(async (dir) => {
+    writeState(dir, 'operator-turn-open.json', '{"at":"2026-05-20T09:00:00.000Z"}');
+    await recordHook(dir, '');
+    expect(fs.readFileSync(turnPath(dir), 'utf-8')).toContain('2026-05-20T09:00:00');
   }));
 });
 

@@ -161,6 +161,7 @@ your-project/
 │   │   ├── budget-alerts.json        # Budget alert dedup (cost-tracker-owned)
 │   │   ├── telemetry-alert.json      # Telemetry export-failure alert dedup (telemetry-export-owned)
 │   │   ├── channel-health.json       # Advisory channel send-liveness (channel-send-owned)
+│   │   ├── operator-turn-open.json   # Transient "an operator turn is in flight" marker (opened on operator prompts, cleared at Stop)
 │   │   ├── .heartbeat                # Activity marker (heartbeat-touch-owned)
 │   │   └── .lifecycle.lock           # Always-on lifecycle lock (hermit-start-owned)
 │   ├── bin/hermit-start, hermit-stop
@@ -194,6 +195,7 @@ One writer per state file. No shared mutation bus. (Exception: `state/micro-prop
 | `state/heartbeat-monitor.runtime.json` | heartbeat skill only                        | heartbeat-start (write), heartbeat-stop (clear), heartbeat-restart (rewrite) |
 | `state/heartbeat-liveness.json` | heartbeat-monitor.sh (every poll iteration)         | doctor-check.ts (heartbeat liveness check), heartbeat status  |
 | `state/cc-stop-snapshot.json`  | stop-pipeline.ts only                               | doctor-check.ts (scheduler/background-task health check)      |
+| `state/operator-turn-open.json` | record-operator-action.ts (opens, on kept operator prompts + `--force`); stop-pipeline.ts (clears at Stop — the only deleter) | routine-due.ts (defer gate, 60-min TTL backstop against a marker orphaned by a failed Stop) |
 | `state/.heartbeat`             | heartbeat-touch.ts only                             | heartbeat (detect activity gaps)                              |
 | `state/.lifecycle.lock`        | hermit-start.ts only                                | hermit-stop.ts (cleanup)                                      |
 | `state/cost-index.json`        | cost-tracker.ts only                                | cost-tracker.ts (writeCostSummary, getCumulativeCost fallback), doctor-check.ts |
@@ -315,7 +317,7 @@ Hermit provides the **timing infrastructure** (when to reflect), the **proposal 
 Morning routine (configurable time, default: active hours start + 30m): brief, proposal review, priority check, pending micro-proposals surfaced.
 Evening routine (configurable time, default: active hours end - 30m): daily journal archived as S-NNN, reflection, preparation for tomorrow.
 
-Both are managed by `/claude-code-hermit:hermit-routines`. Where the Monitor tool is available, one persistent Monitor subprocess evaluates every enabled routine's schedule outside the session — a skipped fire costs zero model tokens, and routines due in the same poll batch into one wake. Eligibility gating happens against `session_state`, which is coarser than CronCreate's harness turn-level idle gate: a routine wake can interject into an active conversation. `heartbeat-restart` stays a CronCreate **re-arm anchor**, firing daily at 4am to re-invoke `load` (re-arming the monitor) and re-register the heartbeat Monitor. Where Monitor is unavailable (Bedrock/Google Cloud Agent Platform/Foundry, `DISABLE_TELEMETRY`), `load` falls back to per-routine CronCreate registrations, idle-gated at the harness turn level and re-armed daily by the same anchor before the 7-day expiry cliff.
+Both are managed by `/claude-code-hermit:hermit-routines`. Where the Monitor tool is available, one persistent Monitor subprocess evaluates every enabled routine's schedule outside the session — a skipped fire costs zero model tokens, and routines due in the same poll batch into one wake. Eligibility gating defers only while an operator turn is genuinely open (a Stop-cleared `state/operator-turn-open.json` marker, 60-min TTL backstop) — coarser than CronCreate's harness turn-level idle gate: a routine wake can still interject into an active conversation, but a session merely left `in_progress` no longer starves routines. `heartbeat-restart` stays a CronCreate **re-arm anchor**, firing daily at 4am to re-invoke `load` (re-arming the monitor) and re-register the heartbeat Monitor. Where Monitor is unavailable (Bedrock/Google Cloud Agent Platform/Foundry, `DISABLE_TELEMETRY`), `load` falls back to per-routine CronCreate registrations, idle-gated at the harness turn level and re-armed daily by the same anchor before the 7-day expiry cliff.
 
 ### Scheduling ownership boundaries
 
