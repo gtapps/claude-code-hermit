@@ -226,7 +226,7 @@ Installation summary:
   ✓ Prerequisite: claude-code-hermit {base_version} confirmed
   ✓ Registries: feed-sources.md / feed-categories.md / FEEDS.md seeded (or already present){; starter pack applied if opted in}
   ✓ .gitignore: tmp/ covered
-  ✓ config.json: feed block written, _hermit_versions stamped, {K}/3 routines added, source-scout check registered
+  ✓ config.json: feed block written, _hermit_versions stamped, {K}/3 routines added, source-scout check registered, briefs archive registered in storage_drift.ignore
   ✓ Routine prompts: {N}/3 dropped, {M}/3 already present
   ✓ CLAUDE.md: Feed Workflow block injected (or already present)
   ✓ knowledge-schema.md: brief types added (or already present)

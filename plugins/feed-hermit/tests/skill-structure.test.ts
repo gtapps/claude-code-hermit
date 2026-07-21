@@ -70,8 +70,8 @@ test("CLAUDE-APPEND has matched block markers", () => {
 test("hatch idempotently registers the plugin-owned brief archive", () => {
   const raw = readFileSync(join(ROOT, "skills", "hatch", "SKILL.md"), "utf8");
   expect(raw).toContain("config.storage_drift.ignore");
-  expect(raw).toContain('Append the bare directory name `"briefs"` when it is absent');
-  expect(raw).toContain("if already present, leave the array");
+  expect(raw).toMatch(/`"briefs"`[\s\S]{0,80}absent/);
+  expect(raw).toMatch(/already present[\s\S]{0,60}leave the array\s+unchanged/);
 });
 
 for (const f of [

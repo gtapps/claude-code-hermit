@@ -37,7 +37,7 @@ After install, run `/feed-hermit:hatch` in the target project. The core hermit (
 
 ## Data ownership
 
-- **Plugin owns:** `.claude-code-hermit/briefs/` archive (daily + `weekly/`), `.claude-code-hermit/compiled/story-arcs-*.md`, `.claude-code-hermit/compiled/pending-delivery.md`, `.claude-code-hermit/compiled/brief-feedback-YYYY-MM.md`, `.claude-code-hermit/compiled/brief-summary-last-*.md`, `.claude-code-hermit/compiled/source-candidates-*.md`, `state/brief-message-registry.json`, and `tmp/` fetch scratch (3-day retention; hatch adds `tmp/` to the consumer `.gitignore`).
+- **Plugin owns:** `.claude-code-hermit/briefs/` archive (daily + `weekly/`; hatch registers `"briefs"` in `config.storage_drift.ignore` so core's drift check skips it — never move it into `raw/`/`compiled/`), `.claude-code-hermit/compiled/story-arcs-*.md`, `.claude-code-hermit/compiled/pending-delivery.md`, `.claude-code-hermit/compiled/brief-feedback-YYYY-MM.md`, `.claude-code-hermit/compiled/brief-summary-last-*.md`, `.claude-code-hermit/compiled/source-candidates-*.md`, `state/brief-message-registry.json`, and `tmp/` fetch scratch (3-day retention; hatch adds `tmp/` to the consumer `.gitignore`).
 - **Operator owns:** `feed-sources.md`, `feed-categories.md`, `FEEDS.md` at the project root — plugin-validated, never overwritten by hatch once present.
 
 The two data contracts (registry table + archive frontmatter) are documented verbatim in `docs/schema.md`; treat them as the product's spine and do not drift them. The `sources_skipped` (fetch failed) vs `sources_quiet` (returned clean, 0 items) distinction powers `source-health` — never collapse the two.

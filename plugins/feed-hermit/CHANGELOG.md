@@ -11,7 +11,13 @@ All notable changes to this project will be documented in this file.
 
 ### Upgrade Instructions
 
-Read `.claude-code-hermit/config.json`. Ensure `storage_drift.ignore` is an array that includes `"briefs"`: if `storage_drift` or `ignore` is absent or malformed, normalize it while preserving valid sibling keys and existing array entries; if the array is valid but does not contain `"briefs"`, append it. Write the updated file. Do not move or rewrite anything under `.claude-code-hermit/briefs/`.
+1. **Read `.claude-code-hermit/config.json`.**
+2. **Ensure `storage_drift` is an object** — create it if absent or malformed, preserving any valid sibling keys.
+3. **Ensure `storage_drift.ignore` is an array** — create it as an empty array if absent or malformed, preserving any existing entries.
+4. **Append `"briefs"` to `storage_drift.ignore`** if it is not already present.
+5. **Write the updated `config.json`.**
+
+**Note:** `.claude-code-hermit/briefs/` is feed-hermit's own archive — nothing under it is moved or rewritten.
 
 ---
 
