@@ -15,7 +15,7 @@
  *   stdin JSON:
  *     {
  *       "packages": ["libsqlite3-dev", ...],
- *       "auth": "oauth-token" | "api-key",
+ *       "auth": "setup-token" | "oauth-token" | "api-key",
  *       "channels": {
  *         "envLines":    ["DISCORD_STATE_DIR=${PWD}/.claude.local/channels/discord", ...],
  *         "volumeLines": ["${PWD}/.claude.local/channels/discord:/home/claude/.claude/channels/discord", ...]
@@ -54,7 +54,7 @@ interface Channels {
 }
 interface Inputs {
   packages?: string[];
-  auth: 'oauth-token' | 'api-key';
+  auth: 'setup-token' | 'oauth-token' | 'api-key';
   channels?: Channels;
   agentHookProfile: string;
   tmuxSessionName: string;
@@ -102,6 +102,13 @@ export function render(inputs: Inputs): { dockerfile: string; compose: string } 
 
   // AUTH_ENV_LINE carries a trailing newline (api-key) so CHANNEL_ENV_LINES,
   // which shares the same template line, starts on a fresh line.
+  //
+  // Only api-key gets an env line. Both subscription modes read their
+  // credential from the claude-config volume — and setup-token specifically
+  // must NOT be wired through .env: compose applies env_file at container
+  // creation only, so an .env-stored token would need a host-side recreate on
+  // every renewal, defeating the point of channel-relayed re-auth. hermit-start
+  // exports it from the volume file at process start instead.
   const authEnvLine = inputs.auth === 'api-key'
     ? '      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}\n'
     : '';

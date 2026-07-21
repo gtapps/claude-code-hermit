@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Added
+- **docker: long-lived login token auth (`claude setup-token`)** — subscription logins expire on an unknowable date and recovery needed SSH access to the box; the hermit now mints its own 1-year token, so expiry is deterministic. Stored `0600` on the config volume (never `.env` — `env_file` applies at container creation, which would force a host-side recreate per renewal) and exported by the launcher at process start. New default for `/docker-setup`; `/login` and API-key remain documented alternatives.
+- **doctor: core self-declares its login token to `credential-expiry`** — the check now walks core's own `hermit-meta.json` alongside siblings', and honours a per-credential `warn_days` (core uses 14; default stays 7). Check count unchanged.
+- **`/claude-code-hermit:relogin`** — renews the login token over the operator's channel: relays a one-time sign-in link, takes the code back, installs, restarts. The token itself never crosses the channel.
+- **watchdog: reactive re-auth recovery** — a lapsed token is detected and recovered deterministically with no model in the loop (the hermit can't reason without a login). Ack-first: it asks the operator to reply `reauth` before minting anything, so a one-time link is never burned while nobody is watching.
+- **`hermit-docker setup-token`** — terminal front door for the same flow, for conversion and fresh installs. `hermit-watchdog restart <reason>` exposes the existing locked restart path that all three front doors share.
 - **proposal lifecycle: fully Bash-scripted state writes** — new `scripts/proposal.ts` CLI (`create`, `patch`, `shell-append`, `next-task`, `routine`) replaces the Write/Edit tool calls on `.claude-code-hermit/`, which the harness blocks in background/worktree sessions. `create` claims the ID atomically with the file write, closing the burned-ID half-created-state hazard.
 
 ### Changed
@@ -14,8 +19,14 @@
 
 ### Upgrade Instructions
 1. Re-run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts <hatch-target settings file> allow` to seed the permission for `scripts/proposal.ts`. Without this, proposal lifecycle actions (create/accept/defer/dismiss/resolve) prompt for permission — functionally denied in headless/channel/background sessions.
+2. Re-running the same `apply-settings.ts ... allow` command above also seeds the permission for `scripts/setup-token-mint.ts`. Without it, `/relogin` prompts — which is a denial in the channel session it is designed to run in.
+3. **Docker hermits only — refresh the on-disk entrypoint BEFORE rebuilding.** `hermit-docker update` rebuilds with the operator's on-disk `docker-entrypoint.hermit.sh`, not the plugin template, so bumping the plugin and running `update` alone rebuilds with the old entrypoint. Re-run `/claude-code-hermit:docker-setup` (or patch the on-disk copy from `state-templates/docker/docker-entrypoint.hermit.sh.template`) first, then `hermit-docker update`. This carries the boot-gate fix for token auth.
+4. **Optional — convert an existing Docker hermit to token auth:** run `.claude-code-hermit/bin/hermit-docker setup-token`, complete the browser step, done. Nothing will nag you to convert. Until you do, the hermit keeps using its `/login` credentials and still goes dark when they expire; after converting, renewal is a once-a-year prompt on your channel with no server access.
+5. **Never run `/logout` inside the container.** It deletes the stored credentials *and* resets first-launch state, after which the interactive wizard demands a login and refuses the token. No renewal path needs it.
 
 ### Fixed
+- **docker entrypoint: no longer false-blocks a token-auth hermit at boot** — the §0/§0b credential gates only understood API-key and `/login` auth, so a hermit using a long-lived token sat waiting on the stale `expiresAt` of a `.credentials.json` it wasn't using. Both gates now recognise token mode, keyed on the token file (the env var is exported later, after the entrypoint runs). §0b is skipped even when the token has expired: booting a 401-alive session keeps channel ingestion up, which is what the reactive recovery relies on to reach the operator.
+- **`hermit-docker login`: short-circuits on token-mode hermits** — it mirrored the same stale `expiresAt` check and would have reported "expired" forever on every converted hermit, pushing operators into a login they don't need.
 - **session-start: configured operator language no longer drops mid-session** — SessionStart context (full start and the post-compaction capsule) now carries `operator_language` from config.json, so replies and notifications keep the operator's language after crash recovery, resume, and compaction. Underscore locale codes (`pt_BR`) are accepted, and the capsule emits the fact first so a state-heavy hermit doesn't lose it to the compaction-capsule size cap.
 - **startup-context: `config.json` `language` runs the injection threat scan** — the value is settable via `hermit-settings` on a channel turn, so it is remote-influenceable; the structural whitelist alone would have passed a letters-and-spaces injection phrase into every session's context. It now blocks and records a `config.json:language` hit like every other injected surface.
 

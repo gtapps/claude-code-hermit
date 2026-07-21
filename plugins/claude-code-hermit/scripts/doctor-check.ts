@@ -1239,12 +1239,17 @@ function checkRawSize() {
 
 // ----------------- Credential expiry -----------------
 //
-// Claude Code's own OAuth access token is intentionally NOT checked here: it
+// Claude Code's own OAuth *access* token is intentionally NOT checked here: it
 // refreshes silently via the long-lived refresh token roughly every 8h with
 // no operator action, so warning on its expiresAt was a false alarm (confirmed
 // live — unattended hermits rewrite .credentials.json hours after boot with no
-// /login run). This check covers only sibling-plugin credentials declared via
-// hermit-meta.json's expiry_probe.
+// /login run).
+//
+// A `claude setup-token` credential is the opposite case and IS checked: the
+// hermit mints it, it lasts a year, nothing refreshes it, and renewal needs a
+// human browser tap. Core declares it like any other credential — via its own
+// hermit-meta.json — so this check covers core plus every sibling plugin that
+// declares an expiry_probe.
 
 // Probe timeout: 5s default; env override exists solely so tests can exercise
 // the timeout path without waiting 5 real seconds.
@@ -1288,12 +1293,16 @@ function runExpiryProbe(cmd: string, pluginDir: string): ProbeResult {
   return { kind: 'probe-failed', reason: 'malformed output' };
 }
 
-// Walks sibling plugins' hermit-meta.json credentials[] and runs each
-// declared expiry_probe, capped at CRED_PROBE_CEILING total probes (defensive
+// Walks core's own and sibling plugins' hermit-meta.json credentials[] and runs
+// each declared expiry_probe, capped at CRED_PROBE_CEILING total probes (defensive
 // ceiling on wall-clock: worst case CRED_PROBE_CEILING × CRED_PROBE_TIMEOUT_MS).
 // Entries missing expiry_probe are skipped silently — declaring a credential
 // without a probe is allowed, there's just nothing to check.
-function probeSiblingCredentials(): { okCount: number; badNotes: string[] } {
+//
+// Core is probed first and deliberately: siblingPluginDirs() excludes core's own
+// dir in both cache layouts, so core's setup-token credential would otherwise be
+// invisible to the very check that exists to catch expiring credentials.
+function probeDeclaredCredentials(): { okCount: number; badNotes: string[] } {
   const coreName = readCoreName(pluginRoot);
 
   let okCount = 0;
@@ -1301,10 +1310,10 @@ function probeSiblingCredentials(): { okCount: number; badNotes: string[] } {
   let probesRun = 0;
   let skipped = 0;
 
-  for (const dir of siblingPluginDirs(pluginRoot, coreName)) {
+  for (const dir of [pluginRoot, ...siblingPluginDirs(pluginRoot, coreName)]) {
     const meta = readHermitMeta(dir);
     const credentials = Array.isArray(meta.credentials) ? meta.credentials : [];
-    const pluginLabel = readCoreName(dir) || path.basename(dir);
+    const pluginLabel = (dir === pluginRoot ? coreName : readCoreName(dir)) || path.basename(dir);
 
     for (const cred of credentials) {
       if (!cred || typeof cred.expiry_probe !== 'string' || !cred.expiry_probe) continue;
@@ -1314,6 +1323,11 @@ function probeSiblingCredentials(): { okCount: number; badNotes: string[] } {
       probesRun++;
       const who = `${pluginLabel}/${cred.name || 'credential'}`;
       const fix = cred.reauth_skill ? ` — run ${cred.reauth_skill}` : '';
+      // Per-credential lead time: a credential whose renewal needs the operator
+      // to find a browser deserves more notice than the 7d default. Core's
+      // setup-token asks for 14.
+      const warnDays = Number(cred.warn_days);
+      const warnWindowMs = warnDays > 0 ? warnDays * 24 * 3600000 : CRED_WARN_WINDOW_MS;
       const result = runExpiryProbe(cred.expiry_probe, dir);
       if (result.kind === 'ok') {
         okCount++;
@@ -1323,7 +1337,7 @@ function probeSiblingCredentials(): { okCount: number; badNotes: string[] } {
         const msLeft = result.at - Date.now();
         if (msLeft <= 0) {
           badNotes.push(`${who} EXPIRED${fix}`);
-        } else if (msLeft < CRED_WARN_WINDOW_MS) {
+        } else if (msLeft < warnWindowMs) {
           badNotes.push(`${who} expires in ${(msLeft / (24 * 3600000)).toFixed(1)}d${fix}`);
         } else {
           okCount++;
@@ -1339,11 +1353,11 @@ function probeSiblingCredentials(): { okCount: number; badNotes: string[] } {
 
 function checkCredentialExpiry() {
   try {
-    const sib = probeSiblingCredentials();
+    const sib = probeDeclaredCredentials();
     const status = sib.badNotes.length > 0 ? 'warn' : 'ok';
     const parts = [...sib.badNotes];
     if (sib.okCount > 0) parts.push(`${sib.okCount} plugin credential(s) ok`);
-    if (parts.length === 0) parts.push('no sibling plugins declare a credential to probe');
+    if (parts.length === 0) parts.push('no plugin declares a credential to probe');
     return { id: 'credential-expiry', status, detail: parts.join('; ') };
   } catch (e: any) {
     return { id: 'credential-expiry', status: 'fail', detail: `check failed: ${e.message}` };

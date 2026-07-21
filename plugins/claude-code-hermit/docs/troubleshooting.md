@@ -156,9 +156,32 @@ Check logs first:
 
 Common causes:
 
-- **Auth expired:** `hermit-docker login` to re-authenticate, then `hermit-docker restart`.
+- **Auth expired:** `hermit-docker login` to re-authenticate, then `hermit-docker restart`. On a hermit using a long-lived login token, use `hermit-docker setup-token` instead — see below.
 - **Workspace trust not accepted:** Attach once (`hermit-docker attach`), accept the trust prompt, then detach (`Ctrl+B, D`).
 - **Missing `.env`:** If using API key auth, ensure `.env` exists with `ANTHROPIC_API_KEY` set.
+
+## Hermit Went Dark / Authentication Errors
+
+If the hermit stops responding and the logs show `401` or `Invalid authentication credentials`, its login has lapsed.
+
+**On a hermit using a long-lived login token, you shouldn't need to do anything from a terminal.** Within a few minutes the watchdog messages you on your channel saying it's down and asking you to reply `reauth`. Do that when you're at a browser; it sends a one-time sign-in link, takes the code back, and restarts itself. Nothing is minted until you reply, so a link never expires unused.
+
+To check or drive it yourself:
+
+```bash
+# What auth is this hermit on, and when does it expire?
+.claude-code-hermit/bin/hermit-docker bash -c \
+  '.claude-code-hermit/bin/hermit-run setup-token-mint status'
+
+# Renew from the terminal instead of over chat
+.claude-code-hermit/bin/hermit-docker setup-token
+```
+
+Notes:
+
+- **Never run `/logout` inside the container.** It wipes the stored credentials *and* resets first-launch state, after which the interactive wizard demands a login and refuses the token — turning a two-minute renewal into a rebuild. Renewal never needs it.
+- If the relay never messages you, the hermit has no reachable channel. It stops rather than minting a link it can't deliver; renew from the terminal with `hermit-docker setup-token`.
+- `hermit-docker login` on a token-mode hermit deliberately does nothing but tell you so — the leftover `.credentials.json` from the original login is stale by design and is not what the hermit is using.
 
 ## Permission Denied Inside Container
 

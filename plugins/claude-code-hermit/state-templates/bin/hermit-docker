@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Docker management CLI for hermit containers.
 # Usage: hermit-docker <command> [args...]
-# Commands: up, down, attach, bash, login, logs, restart
+# Commands: up, down, attach, bash, login, setup-token, logs, restart
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG="$SCRIPT_DIR/../config.json"
-CMD="${1:?Usage: hermit-docker <up|down|attach|bash|login|logs|restart|update> [args...]}"
+CMD="${1:?Usage: hermit-docker <up|down|attach|bash|login|setup-token|logs|restart|update> [args...]}"
 shift
 
 if [ ! -f "$CONFIG" ]; then
@@ -199,8 +199,37 @@ case "$CMD" in
     cd "$PROJECT_DIR" && "${DC[@]}" exec -it "$SERVICE" /bin/bash "$@"
     ;;
 
+  setup-token)
+    _require_running
+    echo "[hermit] Minting a long-lived login token inside the container."
+    echo "[hermit] → Open the link it prints, sign in, and paste the code back here"
+    echo "[hermit] → The token is written straight to the container's config volume — it is never printed"
+    echo ""
+    cd "$PROJECT_DIR" && "${DC[@]}" exec -it "$SERVICE" .claude-code-hermit/bin/hermit-run setup-token-mint terminal
+    echo ""
+    echo "[hermit] Restarting the hermit so it picks up the new token..."
+    cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" .claude-code-hermit/bin/hermit-watchdog restart reauth \
+      || echo "[hermit] Auto-restart failed — run: hermit-docker restart" >&2
+    echo "[hermit] Done. Renewal from here on is handled over your channel — no box access needed."
+    ;;
+
   login)
     _require_running
+    # A hermit converted to setup-token auth usually still carries the
+    # .credentials.json from its original /login. That file is never refreshed
+    # again, so the expiry mirror-check below would report "expired" forever and
+    # push the operator into a login they don't need. Short-circuit first.
+    STATUS_JSON=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" \
+      .claude-code-hermit/bin/hermit-run setup-token-mint status 2>/dev/null || echo '{}')
+    STATUS_PARSED=$(echo "$STATUS_JSON" | bun -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8')); console.log(d.token_mode ?? 'false'); console.log(d.expires_at ?? 'unknown');" 2>/dev/null || printf 'false\nunknown')
+    TOKEN_MODE="${STATUS_PARSED%%$'\n'*}"
+    TOKEN_EXPIRY="${STATUS_PARSED##*$'\n'}"
+    if [ "$TOKEN_MODE" = "true" ]; then
+      echo "[hermit] This hermit uses a long-lived login token (expires: ${TOKEN_EXPIRY})."
+      echo "[hermit] It renews itself over your channel — you'll be asked when it's due."
+      echo "[hermit] To renew now instead: hermit-docker setup-token"
+      exit 0
+    fi
     AUTH_STATUS=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" claude auth status --json 2>/dev/null || echo '{}')
     PARSED=$(echo "$AUTH_STATUS" | bun -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8')); console.log(d.loggedIn ?? 'false'); console.log(d.email ?? 'unknown'); console.log(d.authMethod ?? 'unknown');" 2>/dev/null || printf 'false\nunknown\nunknown')
     LOGGED_IN="${PARSED%%$'\n'*}"
@@ -564,7 +593,7 @@ JSEOF
     ;;
 
   *)
-    echo "Usage: hermit-docker <up|down|attach|bash|login|logs|restart|update> [args...]" >&2
+    echo "Usage: hermit-docker <up|down|attach|bash|login|setup-token|logs|restart|update> [args...]" >&2
     exit 1
     ;;
 esac

@@ -52,11 +52,17 @@ fi
 unset _CLAUDE_VER
 
 # --- 0. Wait for auth credentials ---
-# OAuth users must run `claude /login` inside the container on first boot.
-# The login writes .credentials.json to the named volume, which persists
-# across restarts. API key users set ANTHROPIC_API_KEY in .env instead.
+# Three auth modes reach this gate:
+#   - setup-token: a long-lived token file on the named volume. hermit-start
+#     exports it as CLAUDE_CODE_OAUTH_TOKEN, but that happens AFTER this
+#     entrypoint runs — so the FILE, not the env var, is the boot-time signal.
+#   - /login OAuth: .credentials.json on the named volume, written by
+#     `hermit-docker login` and refreshed silently by the CLI.
+#   - API key: ANTHROPIC_API_KEY from .env.
 CRED_FILE="${CLAUDE_CONFIG_DIR}/.credentials.json"
-if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -f "$CRED_FILE" ]; then
+SETUP_TOKEN_FILE="${CLAUDE_CONFIG_DIR}/.hermit-setup-token"
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] \
+   && [ ! -f "$SETUP_TOKEN_FILE" ] && [ ! -f "$CRED_FILE" ]; then
   echo ""
   echo "=============================================="
   echo "  No auth credentials found."
@@ -71,7 +77,7 @@ if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -f "$CRED_FILE" ]; then
   echo "=============================================="
   echo ""
   WAIT_SECS=0
-  while [ ! -f "$CRED_FILE" ]; do
+  while [ ! -f "$CRED_FILE" ] && [ ! -f "$SETUP_TOKEN_FILE" ]; do
     sleep 5
     WAIT_SECS=$((WAIT_SECS + 5))
     if [ "$WAIT_SECS" -ge 600 ]; then
@@ -84,7 +90,17 @@ if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -f "$CRED_FILE" ]; then
 fi
 
 # --- 0b. Check if OAuth token has expired ---
-if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -f "$CRED_FILE" ]; then
+# Skipped entirely in setup-token mode, for two reasons:
+#   1. A converted hermit usually still carries the .credentials.json from its
+#      original /login. That file's expiresAt lapses and is never refreshed
+#      again, so this gate would false-block a perfectly healthy hermit at boot.
+#   2. Even when the setup-token itself has expired, booting is the right move:
+#      a 401-alive claude keeps tmux, hooks and channel ingestion up, which is
+#      exactly what the watchdog's reactive re-auth relay needs to reach the
+#      operator. Blocking here would strand the hermit with no way to recover
+#      short of box access. Expiry is surfaced by doctor + the relay instead.
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] \
+   && [ ! -f "$SETUP_TOKEN_FILE" ] && [ -f "$CRED_FILE" ]; then
   EXPIRED=$(bun -e '
 try {
   const creds = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));

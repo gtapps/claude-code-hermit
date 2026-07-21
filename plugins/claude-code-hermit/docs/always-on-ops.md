@@ -260,13 +260,38 @@ All state is in `sessions/SHELL.md` on disk. A disconnect loses conversation con
 
 ---
 
-## 6. Security
+## 6. Login Renewal
+
+A Docker hermit on subscription auth uses a **long-lived login token** minted with `claude setup-token`. It lasts a year, and because the hermit mints it, the expiry date is known from day one — the CLI itself exposes no expiry surface for these tokens, so the hermit tracks it in `state/setup-token.json`.
+
+Renewal takes one browser tap and needs no server access.
+
+**Two weeks before expiry**, the hermit asks you over your channel. Reply and it sends a one-time sign-in link; open it, send back the code it gives you, and the hermit installs the new token and restarts itself. Doctor's `credential-expiry` check reports the same thing if you'd rather see it there.
+
+**If a token lapses unnoticed**, the hermit recovers itself. It can't think without a working login, so this path runs deterministically in the watchdog: it messages you that it's down and waits. Reply `reauth` when you're at a browser, and the same link-and-code exchange follows. Nothing happens until you reply — a one-time link minted at 3am while you're asleep would just expire unused.
+
+You can also renew from a terminal at any time:
+
+```bash
+.claude-code-hermit/bin/hermit-docker setup-token
+```
+
+Notes:
+
+- The sign-in link and the code travel over your channel. **The token itself never does** — it goes straight into a `0600` file on the container's config volume, and is never printed or logged.
+- The token is deliberately not stored in `.env`: Docker applies `env_file` only when a container is created, so a token there could not be rotated without recreating the container from the host — the manual step this whole flow exists to remove.
+- **Never run `/logout` inside the container.** It deletes the stored credentials *and* resets first-launch state, after which the interactive wizard demands a login and won't accept the token. Renewal never needs it.
+- A fresh install still does one attended `/login` before minting the token, because the first-launch wizard requires it. Initial setup is attended anyway, so this costs nothing after day one.
+
+---
+
+## 7. Security
 
 See [Security](security.md).
 
 ---
 
-## 7. Operational Concerns
+## 8. Operational Concerns
 
 ### Rate limits
 

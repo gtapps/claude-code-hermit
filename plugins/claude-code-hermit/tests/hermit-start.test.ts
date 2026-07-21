@@ -35,7 +35,9 @@ import {
   applyAlwaysOnDoctorSchedule,
   clearShutdownStampsOnBoot,
   clearStatusCacheOnBoot,
+  hydrateSetupTokenEnv,
 } from '../scripts/hermit-start';
+import { TOKEN_ENV_VAR } from '../scripts/lib/setup-token';
 
 const PLUGIN_ROOT = path.resolve(import.meta.dir, '..');
 
@@ -771,5 +773,57 @@ describe('clearStatusCacheOnBoot', () => {
 
   test('no-op (no throw) when the cache does not exist', () => {
     expect(() => clearStatusCacheOnBoot()).not.toThrow();
+  });
+});
+
+describe('hydrateSetupTokenEnv', () => {
+  const VALID = 'sk-ant-oat01-abcdefghijklmnopqrstuvwxyz0123456789';
+  let dir: string;
+  let savedToken: string | undefined;
+  let savedConfigDir: string | undefined;
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-token-env-'));
+    savedToken = process.env[TOKEN_ENV_VAR];
+    savedConfigDir = process.env.CLAUDE_CONFIG_DIR;
+    delete process.env[TOKEN_ENV_VAR];
+    process.env.CLAUDE_CONFIG_DIR = dir;
+  });
+
+  afterEach(() => {
+    if (savedToken === undefined) delete process.env[TOKEN_ENV_VAR];
+    else process.env[TOKEN_ENV_VAR] = savedToken;
+    if (savedConfigDir === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = savedConfigDir;
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('exports an installed token into the environment', () => {
+    fs.writeFileSync(path.join(dir, '.hermit-setup-token'), `${VALID}\n`, { mode: 0o600 });
+    hydrateSetupTokenEnv();
+    expect(process.env[TOKEN_ENV_VAR]).toBe(VALID);
+  });
+
+  test('no token installed → leaves the environment alone', () => {
+    hydrateSetupTokenEnv();
+    expect(process.env[TOKEN_ENV_VAR]).toBeUndefined();
+  });
+
+  // Matches the CLI's own precedence and lets an operator override the installed
+  // token for a single boot without touching the file.
+  test('an explicit env var wins over the installed file', () => {
+    fs.writeFileSync(path.join(dir, '.hermit-setup-token'), `${VALID}\n`, { mode: 0o600 });
+    process.env[TOKEN_ENV_VAR] = 'sk-ant-oat01-explicit-override-value-here';
+    hydrateSetupTokenEnv();
+    expect(process.env[TOKEN_ENV_VAR]).toBe('sk-ant-oat01-explicit-override-value-here');
+  });
+
+  // tmux spawns a shell that does NOT inherit this process's environment, so the
+  // token only reaches claude if it is in the forwarded set. Dropping it from
+  // that list would leave the token exported here and absent where it is used.
+  test('the token var is forwarded into the tmux env-file', () => {
+    const src = fs.readFileSync(path.join(import.meta.dir, '..', 'scripts', 'hermit-start.ts'), 'utf-8');
+    const decl = src.slice(src.indexOf('const forwardVars ='));
+    expect(decl.slice(0, decl.indexOf('\n'))).toContain('TOKEN_ENV_VAR');
   });
 });
