@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.30] - 2026-07-21
 
 ### Added
 - **docker: long-lived login token auth (`claude setup-token`)** — subscription logins expire on an unknowable date and recovery needed SSH access to the box; the hermit now mints its own 1-year token, so expiry is deterministic. Stored `0600` on the config volume (never `.env` — `env_file` applies at container creation, which would force a host-side recreate per renewal) and exported by the launcher at process start. New default for `/docker-setup`; `/login` and API-key remain documented alternatives.

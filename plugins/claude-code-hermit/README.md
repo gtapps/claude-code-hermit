@@ -1,7 +1,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.29-green.svg" alt="Version 1.2.29" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.30-green.svg" alt="Version 1.2.30" /></a>
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/_gh_traffic_stats/.github/badges/clones.json" alt="Downloads" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
   <a href="https://discord.gg/54sJqAxhUh"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Join" /></a>
@@ -222,6 +222,7 @@ Extension plugins you stack on top of any hermit you've hatched.
 - [**`dev-hermit`**](../claude-code-dev-hermit/README.md) — *For software builders.* Safety layer for code-writing agents: push guard, branch discipline, gated PRs.
 - [**`homeassistant-hermit`**](../claude-code-homeassistant-hermit/README.md) — *For Home Assistant users.* HA skills, safety hook, automation builder, zero-dependency CLI.
 - [**`fitness-hermit`**](../claude-code-fitness-hermit/README.md) — *Fitness focused.* Strava MCP wiring, activity deep-dives, weekly-load routines.
+- [**`feed-hermit`**](plugins/feed-hermit/README.md) — *For feed-to-brief pipelines.* Curated source registry, fetch/score/write pipeline, weekly synthesis, source-health analytics.
 - [**`laravel-forge-hermit`**](../laravel-forge-hermit/README.md) — *For Laravel Forge operators.* Deploy, logs, and server/site skills over the official Forge PHP SDK.
 - [**`hermit-scribe`**](plugins/hermit-scribe/README.md) — *For maintainers.* Files GitHub issues and comments from proposals via a bot identity.
 
