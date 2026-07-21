@@ -2,7 +2,7 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
-## [Unreleased]
+## [0.4.6] - 2026-07-21
 
 ### Fixed
 - **settings.json: dropped no-op `Write(<path>)` allow rules** — Claude Code only matches file-permission checks against `Edit(path)` rules (Edit covers all file-editing tools, including Write), so the `Write(.claude-code-hermit/**)`, `Write(**/.claude-code-hermit/OPERATOR.md)`, and `Write(.env)` entries were dead and triggered a boot warning. Their `Edit(...)` twins still grant the same access.
