@@ -1,19 +1,21 @@
 # Plugin Hermit Storage Convention
 
-Plugin hermits must store all domain artifacts in exactly two directories:
+Plugin hermits store session-facing domain artifacts in exactly two directories:
 
 - `.claude-code-hermit/raw/` — ephemeral inputs (fetched content, snapshots, logs, API dumps).
 - `.claude-code-hermit/compiled/` — durable outputs (briefings, digests, assessments, audit results).
 
-Everything else is infra managed by the base hermit (`state/`, `sessions/`, `proposals/`, `templates/`, operator-curated docs). Domain plugins must not add top-level directories for knowledge artifacts — the one exception is a hermit-owned runtime directory declared in `config.storage_drift.ignore` (see below).
+Everything else is infra managed by the base hermit (`state/`, `sessions/`, `proposals/`, `templates/`, operator-curated docs). Domain plugins must not add top-level directories for knowledge artifacts unless the directory is an intentional plugin-owned archive with its own documented lifecycle. Plugin-owned archives and runtime directories must be declared in `config.storage_drift.ignore` (see below).
 
 ## Why these two and nothing else
 
 The `compiled/` directory is scanned at session start to inject foundational context. `scripts/archive-raw.ts` and the weekly review run retention against `raw/`, covering both dated `.md` and `.json` artifacts. Fixed-name `-latest.*` aliases are never archived. Anything outside these two paths is invisible to both mechanisms — your audits won't surface at session start, and your snapshots will never be archived.
 
-## Runtime dirs (`storage_drift.ignore`)
+## Intentional plugin-owned dirs (`storage_drift.ignore`)
 
 Some domain plugins install a hermit-owned runtime tree that is **not** a knowledge artifact — for example, `laravel-forge-hermit` puts a Composer vendor tree at `.claude-code-hermit/forge-runtime/`. The same applies to a downstream agent that overrides a core plugin script (e.g. keeping a project-specific `hermit-start.ts` wrapper at `.claude-code-hermit/scripts/`) — it's live code, not an artifact, and must not be moved into `raw/` or `compiled/`. These dirs are legitimate, so the storage-drift check must not flag them.
+
+A domain plugin may also own an archive that is intentionally outside core's context injection and rotation. The declaring plugin owns the archive's readers, format, and retention policy, and exposes any session-facing projection through `compiled/`. Allowlisting the archive suppresses false remediation but does not make core inject or rotate it.
 
 Declare such dirs in `config.json`:
 
@@ -25,15 +27,16 @@ Declare such dirs in `config.json`:
 
 The entry must be the **bare directory name** (`"forge-runtime"`, `"scripts"`), not a path (`".claude-code-hermit/scripts/"` or `"scripts/"`) — the check matches against `entry.name` from a directory listing, so a path-form entry silently fails to match and the drift warning keeps recurring.
 
-When a domain plugin calls hatch, its Step 8 (config.json rewrite) appends its runtime dir name to `storage_drift.ignore` idempotently. The drift check (`scripts/lib/drift.ts`) reads this list at runtime and skips declared dirs — in both the session-start Storage Drift block and the reflect observations ledger.
+When a domain plugin calls hatch, its config rewrite appends each intentional directory name to `storage_drift.ignore` idempotently. The drift check (`scripts/lib/drift.ts`) reads this list at runtime and skips declared dirs — in both the session-start Storage Drift block and the reflect observations ledger.
 
-Rules for a compliant runtime dir:
+Rules for a compliant plugin-owned dir:
 - One per domain plugin (keep it scoped).
 - Hermit-owned only — not the application's own `vendor/` or `node_modules/`.
-- Never write archivable knowledge content into it; use `raw/` or `compiled/` for that.
+- Runtime dirs never contain archivable knowledge content; use `raw/` or `compiled/` for that.
+- Archive dirs document their consumers and lifecycle, and expose any session-facing projection through `compiled/`.
 - Register it in `storage_drift.ignore` during hatch — never rely on it being silently ignored.
 
-This mirrors the Karpathy raw-vs-compiled split: raw is the immutable ground truth, compiled is the LLM-maintained derivative. The filesystem layout is fixed; the `type` field in frontmatter is what differentiates work products within each directory.
+The session-facing layout still mirrors the Karpathy raw-vs-compiled split: raw is the immutable ground truth, compiled is the LLM-maintained derivative. The `type` field in frontmatter differentiates work products within each directory; allowlisted archives stay behind their declaring plugin's interface.
 
 ## File naming
 

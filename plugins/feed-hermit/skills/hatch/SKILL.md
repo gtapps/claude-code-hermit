@@ -181,6 +181,14 @@ In `config.scheduled_checks`, check for `id: "source-scout"`. If absent, append;
 {"id": "source-scout", "plugin": "feed-hermit", "skill": "feed-hermit:source-scout", "enabled": true, "trigger": "interval", "interval_days": 30}
 ```
 
+### 7e — Register the brief archive
+
+Ensure `config.storage_drift` is an object and `config.storage_drift.ignore` is an array. If either is
+absent or malformed, normalize it while preserving any valid sibling keys and existing array entries.
+Append the bare directory name `"briefs"` when it is absent; if already present, leave the array
+unchanged. This registers feed-hermit's plugin-owned archive without teaching core about a
+domain-specific directory.
+
 Write the updated `config.json` using the Write tool (full-file replacement to keep valid JSON).
 
 ---
@@ -218,7 +226,7 @@ Installation summary:
   ✓ Prerequisite: claude-code-hermit {base_version} confirmed
   ✓ Registries: feed-sources.md / feed-categories.md / FEEDS.md seeded (or already present){; starter pack applied if opted in}
   ✓ .gitignore: tmp/ covered
-  ✓ config.json: feed block written, _hermit_versions stamped, {K}/3 routines added, source-scout check registered
+  ✓ config.json: feed block written, _hermit_versions stamped, {K}/3 routines added, source-scout check registered, briefs archive registered in storage_drift.ignore
   ✓ Routine prompts: {N}/3 dropped, {M}/3 already present
   ✓ CLAUDE.md: Feed Workflow block injected (or already present)
   ✓ knowledge-schema.md: brief types added (or already present)

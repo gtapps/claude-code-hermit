@@ -67,6 +67,13 @@ test("CLAUDE-APPEND has matched block markers", () => {
   expect(raw).toContain("<!-- /feed-hermit: Feed Workflow -->");
 });
 
+test("hatch idempotently registers the plugin-owned brief archive", () => {
+  const raw = readFileSync(join(ROOT, "skills", "hatch", "SKILL.md"), "utf8");
+  expect(raw).toContain("config.storage_drift.ignore");
+  expect(raw).toMatch(/`"briefs"`[\s\S]{0,80}absent/);
+  expect(raw).toMatch(/already present[\s\S]{0,60}leave the array\s+unchanged/);
+});
+
 for (const f of [
   "routine-feed-brief-morning.md",
   "routine-feed-brief-evening.md",

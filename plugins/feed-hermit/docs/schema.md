@@ -276,5 +276,9 @@ injection. Body: <=250 chars, one line.
 - **source-items** (`tmp/feed-source-items-<slot>.json`): 3-day retention. The pipeline is
   daily, so items older than 3 days are stale scratch.
 - **All other compiled artifacts**: default 14-day retention (core `knowledge.raw_retention_days`
-  in `config.json`). Archive files under `briefs/` and living pages are exempt from rotation
-  per core knowledge rules.
+  in `config.json`). Living pages are exempt from rotation per core knowledge rules.
+- **`briefs/`**: never rotated. It is a plugin-owned archive registered in
+  `config.storage_drift.ignore` (by hatch step 7e), so core neither injects nor rotates it —
+  feed-hermit owns its retention, and the retention policy is "keep everything". Its
+  session-facing projection is `compiled/brief-summary-last-*.md`; its readers are
+  `weekly-digest`, `story-arcs`, and `source-health`.
