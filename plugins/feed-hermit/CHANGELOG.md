@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [0.1.1] - 2026-07-21
 
 ### Fixed
 - **hatch: register the `briefs` archive in `storage_drift.ignore`** — prevents core session-start and reflect checks from reporting feed-hermit's canonical archive as layout drift.

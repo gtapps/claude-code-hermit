@@ -91,7 +91,7 @@
       "name": "feed-hermit",
       "source": "./plugins/feed-hermit",
       "description": "Feed-to-brief pipeline for claude-code-hermit — curated source registry, fetch/score/write/deliver/archive pipeline, weekly synthesis, and source-health analytics for an autonomous feed-reading assistant",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "category": "productivity",
       "author": {
         "name": "gtapps",

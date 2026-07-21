@@ -11,7 +11,7 @@ claude plugin marketplace add gtapps/claude-code-hermit
 claude plugin install feed-hermit@claude-code-hermit --scope local
 ```
 
-After install, run `/feed-hermit:hatch` in the target project. The core hermit (`claude-code-hermit` ≥1.2.22) must be installed and hatched first — `hatch` will prompt if it isn't.
+After install, run `/feed-hermit:hatch` in the target project. The core hermit (`claude-code-hermit` ≥1.2.30) must be installed and hatched first — `hatch` will prompt if it isn't.
 
 ## Plugin Structure
 
