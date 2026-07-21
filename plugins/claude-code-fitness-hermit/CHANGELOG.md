@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [0.0.15] - 2026-07-21
 
 ### Fixed
 - **settings.json: dropped no-op `Write(<path>)` allow rules** — Claude Code only matches file-permission checks against `Edit(path)` rules (Edit covers all file-editing tools, including Write), so the `Write(.claude-code-hermit/**)`, `Write(**/.claude-code-hermit/OPERATOR.md)`, and `Write(.env)` entries were dead and triggered a boot warning. Their `Edit(...)` twins still grant the same access.
