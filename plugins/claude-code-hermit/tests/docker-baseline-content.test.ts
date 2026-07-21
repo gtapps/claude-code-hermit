@@ -129,6 +129,33 @@ describe('Dockerfile: Python retired, bun pinned', () => {
   });
 });
 
+describe('Entrypoint: setup-token auth gates', () => {
+  // The entrypoint runs BEFORE hermit-start exports CLAUDE_CODE_OAUTH_TOKEN, so
+  // a gate keyed only on the env var would never see token mode and would sit
+  // there waiting for credentials that are already present. The file on the
+  // volume is the only boot-time signal.
+  test('entrypoint: defines the token file path and gates on the FILE', () => {
+    expect(entrypoint).toContain('SETUP_TOKEN_FILE="${CLAUDE_CONFIG_DIR}/.hermit-setup-token"');
+    const gate = entrypoint.slice(entrypoint.indexOf('# --- 0. Wait for auth credentials'));
+    const zeroGate = gate.slice(0, gate.indexOf('# --- 0b.'));
+    expect(zeroGate).toContain('[ ! -f "$SETUP_TOKEN_FILE" ]');
+  });
+
+  test('entrypoint: the credential wait loop also breaks on a minted token', () => {
+    expect(entrypoint).toContain('while [ ! -f "$CRED_FILE" ] && [ ! -f "$SETUP_TOKEN_FILE" ]; do');
+  });
+
+  // A converted hermit usually still carries the .credentials.json from its
+  // original /login, whose expiresAt lapses and is never refreshed again. Before
+  // this skip, that stale field false-blocked a perfectly healthy hermit at boot.
+  test('entrypoint: §0b expiry gate is skipped entirely in token mode', () => {
+    const expiryGate = entrypoint.slice(entrypoint.indexOf('# --- 0b.'));
+    const condition = expiryGate.slice(0, expiryGate.indexOf('EXPIRED=$('));
+    expect(condition).toContain('[ ! -f "$SETUP_TOKEN_FILE" ]');
+    expect(condition).toContain('[ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]');
+  });
+});
+
 describe('Entrypoint: placeholder-free session name resolution', () => {
   test('entrypoint: no {{...}} placeholders remain (safe to raw-copy)', () => {
     expect(entrypoint).not.toMatch(/\{\{[A-Z_]+\}\}/);

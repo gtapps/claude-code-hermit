@@ -18,6 +18,7 @@ import { acquireLock, releaseLock } from './lib/lockfile';
 import { writeRuntimeJson, readRuntimeJson, STATE_DIR, RUNTIME_JSON, RUNTIME_TMP, LIFECYCLE_LOCK } from './lib/runtime';
 import { localISOStamp } from './lib/time';
 import { tmuxSessionAlive, getSessionName } from './lib/tmux';
+import { defaultConfigDir, readTokenValue, TOKEN_ENV_VAR } from './lib/setup-token';
 
 type Json = any;
 
@@ -763,9 +764,28 @@ function execvp(cmd: string[]): never {
   process.exit(res.status ?? 1);
 }
 
+/**
+ * Export an installed setup-token into this process's environment.
+ *
+ * Both launch paths depend on this running first: the interactive execvp path
+ * inherits process.env directly, and the tmux path copies forwardVars into the
+ * env-file it sources. An already-set env var wins, matching the CLI's own
+ * precedence and letting an operator override the installed token for one boot.
+ *
+ * The token is read from disk at every process start, which is what makes
+ * renewal work without touching the host: write a new token file, bounce the
+ * process, done — no container recreate, no .env edit.
+ */
+export function hydrateSetupTokenEnv(): void {
+  if (process.env[TOKEN_ENV_VAR]) return;
+  const token = readTokenValue(defaultConfigDir());
+  if (token) process.env[TOKEN_ENV_VAR] = token;
+}
+
 async function main(): Promise<void> {
   const noTmuxFlag = process.argv.includes('--no-tmux');
 
+  hydrateSetupTokenEnv();
   const config = loadConfig();
   acquireLifecycleLock();
   checkForUpgrade(config);
@@ -879,7 +899,7 @@ async function main(): Promise<void> {
   // Auth vars must be in shell env before claude launches.
   // *_STATE_DIR vars must be OS env because MCP servers (channel plugins)
   // inherit shell env but don't read settings.local.json.
-  const forwardVars = ['CLAUDE_CONFIG_DIR', 'ANTHROPIC_API_KEY', 'AGENT_HOOK_PROFILE'];
+  const forwardVars = ['CLAUDE_CONFIG_DIR', 'ANTHROPIC_API_KEY', TOKEN_ENV_VAR, 'AGENT_HOOK_PROFILE'];
   // *_STATE_DIR vars must reach MCP servers via OS env — see writeSettingsEnv.
   for (const [chName, chCfg] of iterChannelConfigs(config)) {
     if (pyTruthy(chCfg.state_dir)) {
@@ -903,7 +923,12 @@ async function main(): Promise<void> {
       envContent += `export ${v}=${shlexQuote(val)}\n`;
     }
   }
-  fs.writeFileSync(envFile, envContent);
+  // Unlink-then-create-0600 rather than write-then-chmod: this file now carries
+  // the long-lived setup-token alongside any API key, it sits on a predictable
+  // path in a world-writable tmpdir, and write-then-chmod leaves it briefly
+  // world-readable. 'wx' also refuses to follow a pre-planted symlink.
+  fs.rmSync(envFile, { force: true });
+  fs.writeFileSync(envFile, envContent, { flag: 'wx', mode: 0o600 });
   fs.chmodSync(envFile, 0o600);
 
   const shellCmd = `. ${shlexQuote(envFile)} && rm -f ${shlexQuote(envFile)} && ${shlexJoin(cmd)}`;

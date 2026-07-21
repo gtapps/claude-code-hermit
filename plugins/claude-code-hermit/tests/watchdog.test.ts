@@ -248,6 +248,123 @@ describe('dead session', () => {
 });
 
 // -------------------------------------------------------
+// 5a. Re-auth relay (setup-token expiry)
+// -------------------------------------------------------
+
+/** Put the fixture in setup-token mode with a record expiring `days` from now. */
+function writeSetupToken(h: Hermit, days: number, opts: { installFile?: boolean } = {}): string {
+  const configDir = path.join(h.dir, 'claude-config');
+  fs.mkdirSync(configDir, { recursive: true });
+  if (opts.installFile !== false) {
+    fs.writeFileSync(path.join(configDir, '.hermit-setup-token'), 'sk-ant-oat01-testtesttesttesttest\n', { mode: 0o600 });
+  }
+  fs.writeFileSync(state(h, 'setup-token.json'), JSON.stringify({
+    minted_at: isoAgo(24),
+    expires_at: new Date(Date.now() + days * 86400_000).toISOString(),
+  }));
+  return configDir;
+}
+
+const relayMarker = (h: Hermit) => state(h, 'reauth-relay.json');
+
+describe('re-auth relay', () => {
+  test('expired setup-token → relay spawned, wedge tiers suppressed', withHermit(async (h) => {
+    writeConfig(h);
+    writeFakeTmux(h, 0);
+    writeFakePgrep(h, 1);
+    const configDir = writeSetupToken(h, -1);
+    // Heartbeat old enough that a nudge would normally fire — proving the relay
+    // suppresses it rather than merely running before it.
+    touchAgo(state(h, '.heartbeat'), 6 * 3600);
+
+    const r = await watchdog(h, 'run', { env: { CLAUDE_CONFIG_DIR: configDir } });
+    expect(r.exitCode).toBe(0);
+    const events = fs.readFileSync(eventsFile(h), 'utf-8');
+    expect(events).toContain('reauth-relay');
+    expect(events).not.toContain('nudge');
+  }));
+
+  test('valid setup-token → no relay', withHermit(async (h) => {
+    writeConfig(h);
+    writeFakeTmux(h, 0);
+    writeFakePgrep(h, 1);
+    const configDir = writeSetupToken(h, 200);
+    const r = await watchdog(h, 'run', { env: { CLAUDE_CONFIG_DIR: configDir } });
+    expect(r.exitCode).toBe(0);
+    const events = fs.existsSync(eventsFile(h)) ? fs.readFileSync(eventsFile(h), 'utf-8') : '';
+    expect(events).not.toContain('reauth-relay');
+  }));
+
+  // A leftover record on a hermit that no longer uses token auth must not
+  // trigger a renewal for a credential it isn't using.
+  test('expired record but no token installed → no relay', withHermit(async (h) => {
+    writeConfig(h);
+    writeFakeTmux(h, 0);
+    writeFakePgrep(h, 1);
+    const configDir = writeSetupToken(h, -1, { installFile: false });
+    const r = await watchdog(h, 'run', { env: { CLAUDE_CONFIG_DIR: configDir, CLAUDE_CODE_OAUTH_TOKEN: '' } });
+    expect(r.exitCode).toBe(0);
+    const events = fs.existsSync(eventsFile(h)) ? fs.readFileSync(eventsFile(h), 'utf-8') : '';
+    expect(events).not.toContain('reauth-relay');
+  }));
+
+  // The operator can legitimately take hours to reach a browser, so an in-flight
+  // relay is identified by a live PID, not by marker age.
+  test('live relay marker → no second relay spawned', withHermit(async (h) => {
+    writeConfig(h);
+    writeFakeTmux(h, 0);
+    writeFakePgrep(h, 1);
+    const configDir = writeSetupToken(h, -1);
+    fs.writeFileSync(relayMarker(h), JSON.stringify({
+      pid: process.pid, mode: 'relay', stage: 'awaiting-ack',
+      started_at: isoAgo(5), updated_at: isoAgo(5),
+    }));
+
+    const r = await watchdog(h, 'run', { env: { CLAUDE_CONFIG_DIR: configDir } });
+    expect(r.exitCode).toBe(0);
+    const events = fs.existsSync(eventsFile(h)) ? fs.readFileSync(eventsFile(h), 'utf-8') : '';
+    expect(events).not.toContain('relay spawned');
+    expect(fs.existsSync(relayMarker(h))).toBe(true);
+  }));
+
+  // A crashed relay must not permanently disable recovery.
+  test('dead relay marker → cleared and a fresh relay spawned', withHermit(async (h) => {
+    writeConfig(h);
+    writeFakeTmux(h, 0);
+    writeFakePgrep(h, 1);
+    const configDir = writeSetupToken(h, -1);
+    // PID 2^22 is above the default pid_max — reliably not a running process.
+    fs.writeFileSync(relayMarker(h), JSON.stringify({
+      pid: 4194304, mode: 'relay', stage: 'awaiting-ack',
+      started_at: isoAgo(1), updated_at: isoAgo(1),
+    }));
+
+    const r = await watchdog(h, 'run', { env: { CLAUDE_CONFIG_DIR: configDir } });
+    expect(r.exitCode).toBe(0);
+    const events = fs.readFileSync(eventsFile(h), 'utf-8');
+    expect(events).toContain('cleared stale marker');
+    expect(events).toContain('relay spawned');
+  }));
+});
+
+// -------------------------------------------------------
+// 5c. restart subcommand — the shared post-renewal bounce
+// -------------------------------------------------------
+
+describe('restart subcommand', () => {
+  test('restart <reason> → doRestart path runs with that reason', withHermit(async (h) => {
+    writeConfig(h);
+    writeFakeTmux(h, 0);
+    writeFakePgrep(h, 1);
+    const r = await watchdog(h, 'restart', { env: {} });
+    expect(r.exitCode).toBe(0);
+    const events = fs.readFileSync(eventsFile(h), 'utf-8');
+    expect(events).toContain('restart');
+    expect(fs.existsSync(path.join(h.dir, 'hermit-start-called'))).toBe(true);
+  }));
+});
+
+// -------------------------------------------------------
 // 5b. Dead session + channel configured → restart push actually reaches it
 //     (deterministic channel voice: the watchdog reaches channel-send via
 //     spawnSync with no cwd override, so this also proves HERMIT_ROOT — a

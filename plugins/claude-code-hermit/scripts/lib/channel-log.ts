@@ -248,6 +248,32 @@ function unconsolidated(hermitDir: string, beforeTs?: string): { ok: boolean; ro
 }
 
 /**
+ * Inbound rows at or after `sinceIso`, oldest first. Absent DB → [].
+ *
+ * Deliberately ignores consolidation state, unlike unconsolidated(): this is
+ * for flows that poll the channel for one specific operator reply (the re-auth
+ * relay waiting on an ack or a login code), where a row already distilled by
+ * weekly-review is still a perfectly valid answer.
+ */
+function inboundSince(hermitDir: string, sinceIso: string, limit = 50): ChannelRow[] {
+  if (!dbExists(hermitDir)) return [];
+  try {
+    const db = openDb(hermitDir, { readonly: true });
+    try {
+      return db
+        .query(
+          `SELECT * FROM messages WHERE direction = 'in' AND ts >= ? ORDER BY ts ASC LIMIT ?`
+        )
+        .all(sinceIso, limit) as ChannelRow[];
+    } finally {
+      db.close();
+    }
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Stamp consolidated_at on the given row ids. Absent DB → ok:true no-op
  * (nothing to mark). Called only after the caller has successfully applied
  * the distilled writes (memory/compiled) — see weekly-review's consolidation
@@ -299,5 +325,5 @@ function prune(hermitDir: string, retentionDays: number): { ok: boolean; deleted
   }
 }
 
-export { logMessage, searchLog, unconsolidated, markConsolidated, prune, dbExists, dbPath, isLoggingEnabled };
+export { logMessage, searchLog, unconsolidated, inboundSince, markConsolidated, prune, dbExists, dbPath, isLoggingEnabled };
 export type { LogInput, ChannelRow };

@@ -94,6 +94,18 @@ describe('render-docker-templates.ts', () => {
     expect(compose(oauthDir)).not.toContain('ANTHROPIC_API_KEY');
   });
 
+  // The token must never be wired through compose. env_file is applied only at
+  // container creation, so a token living there could not be rotated without
+  // recreating the container from the host — the exact manual step the
+  // channel-relayed renewal exists to remove.
+  test('setup-token auth adds no auth env line at all', async () => {
+    const dir = freshDir();
+    await render(dir, { auth: 'setup-token' });
+    const rendered = compose(dir);
+    expect(rendered).not.toContain('ANTHROPIC_API_KEY');
+    expect(rendered).not.toContain('CLAUDE_CODE_OAUTH_TOKEN');
+  });
+
   test('git-identity bind-mount is conditional on gitIdentityMount', async () => {
     const withDir = freshDir();
     await render(withDir, { gitIdentityMount: true });

@@ -147,6 +147,28 @@ Hermit does not probe for or configure Claude Code's native bash sandbox (`sandb
 
 ---
 
+## Login Token Handling
+
+Docker hermits on subscription auth hold a long-lived `setup-token`. Renewal relays through the operator's chat channel, so it's worth being precise about what crosses that channel and what doesn't.
+
+**Crosses the channel:** the one-time OAuth sign-in URL, and the short-lived login code the operator pastes back. Both are single-use and worthless once the flow completes.
+
+**Never crosses the channel:** the token. It is captured from the mint process's own terminal pane and written directly to a `0600` file on the container's config volume. It is never printed to stdout, never logged, never included in a channel message, and never returned by any script that a skill or the model can read — the install path returns only `{ok, expires_at}`. The renewal skill relays a link it was handed; it never sees the credential.
+
+**Where the token lives, and where it doesn't:**
+
+| Location | Holds the token? | Why |
+| --- | --- | --- |
+| `<config-dir>/.hermit-setup-token` | Yes, `0600` | Persistent volume, survives restarts, rotatable in place |
+| `state/setup-token.json` | No — only `{minted_at, expires_at}` | Doctor and the watchdog need expiry, not the secret |
+| `.env` / docker-compose | **No, deliberately** | `env_file` applies at container creation, so a token there could not be rotated without a host-side recreate |
+| tmux env-file (`/tmp/.hermit-env-*`) | Transiently, `0600` | Sourced then deleted by the shell that launches claude |
+| Mint pane scrollback + capture file | Transiently, `0600` | Both destroyed on every exit path, including aborts |
+
+The reactive recovery path runs entirely in the watchdog with no model involvement — a hermit with a lapsed login cannot reason, so the flow that recovers it must not depend on reasoning. It also waits for an explicit operator acknowledgement before minting anything, so an attacker who can observe the channel still cannot cause a link to be issued on demand.
+
+---
+
 ## Container Hardening
 
 `/claude-code-hermit:docker-setup` (v1.0.26+) renders three kernel-enforced hardening stanzas into `docker-compose.hermit.yml`. These are defense in depth — they reduce the blast radius of a successful prompt injection or a compromised plugin. They are **not** a substitute for the upstream defenses (deny patterns, non-root user, named-volume isolation, no host secret mounts) and they don't make the container "safe against prompt injection." They make a successful injection less useful.

@@ -25,7 +25,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
-import { acquireLock, releaseLock } from './lib/lockfile';
+import { acquireLock, releaseLock, pidAlive } from './lib/lockfile';
 import { utcISOStamp as utcStamp, currentHHMM, currentHHMMOrUTC, parseSimpleCronTime, friendlyBoundary } from './lib/time';
 import { writeRuntimeJson, readRuntimeJson, STATE_DIR, LIFECYCLE_LOCK } from './lib/runtime';
 import { tmuxSessionAlive, getSessionName as deriveSessionName } from './lib/tmux';
@@ -33,6 +33,7 @@ import { costLogPath } from './lib/cc-compat';
 import { flushResetBreadcrumb } from './lib/progress-log';
 import { wallMinutes } from './cron-tz-shift';
 import { isPaused, pauseReasonLabel } from './lib/pause';
+import { defaultConfigDir, msUntilExpiry, tokenModeActive } from './lib/setup-token';
 import { AUTO_CLOSE_LULL_MS } from './lib/auto-close';
 import { runTelemetryExportIfDue } from './report-export';
 import { clearStatusCacheOnBoot as clearStatusCache } from './hermit-start';
@@ -48,6 +49,13 @@ const LAST_OPERATOR_ACTION = path.join(STATE_DIR, 'last-operator-action.json');
 const CLEAR_REQUESTED_JSON = path.join(STATE_DIR, 'clear-requested.json');
 const COMPACT_REQUESTED_JSON = path.join(STATE_DIR, 'compact-requested.json');
 const HERMIT_ROOT = path.dirname(STATE_DIR); // '.claude-code-hermit' — isPaused() joins its own 'state/pause.json'
+const REAUTH_MARKER_JSON = path.join(STATE_DIR, 'reauth-relay.json');
+const REAUTH_MINT_SCRIPT = path.join(import.meta.dir, 'setup-token-mint.ts');
+// Backstop against PID reuse on a long-lived box; liveness is the real signal.
+const REAUTH_MARKER_MAX_AGE_MS = 26 * 3600000;
+// Skill-driven mints have no usable PID (verb per process), so age is the only
+// signal — sized to the flow's own timeouts rather than the relay's ack wait.
+const REAUTH_SKILL_MARKER_MAX_AGE_MS = 2 * 3600000;
 
 // --- Utilities ---
 
@@ -361,6 +369,69 @@ function doRestart(sessionName: string, reason: string, runtime: Json, timezone:
     process.stderr.write(`[watchdog] restart failed: ${e}\n`);
   } finally {
     releaseLock(LIFECYCLE_LOCK); // no-op once already released
+  }
+}
+
+// --- Re-auth relay (step 3a) ---
+//
+// A lapsed setup-token leaves the hermit alive but unable to reach the API, and
+// no amount of restarting fixes that — only a human browser tap does. The relay
+// is the deterministic recovery: ask the operator over their channel, mint a
+// fresh token, install it, restart. No model in the loop, because by definition
+// the model can't run.
+//
+// Note what is deliberately NOT suppressed: dead-session restart (step 3) still
+// fires during a relay. The relay polls the channel log for the operator's
+// reply, and inbound messages only reach that log through the channel plugin
+// living inside the claude session — so keeping the session up, even 401-dead,
+// is what makes the reply reachable at all.
+
+/** True when a relay process is genuinely still working. Clears a dead marker. */
+function reauthRelayActive(): boolean {
+  const marker = readJson(REAUTH_MARKER_JSON);
+  if (!marker) return false;
+  const age = ageSecs(marker.updated_at ?? marker.started_at ?? '');
+  const isSkillMode = marker.mode === 'skill';
+  // The /relogin skill drives the mint one verb at a time, each its own
+  // short-lived process, so its recorded PID is always dead by the time we look.
+  // Age is the only usable signal there — and it has to be one, because
+  // otherwise we read a live flow as abandoned and spawn a relay whose
+  // startMint() kills the pane holding the operator's pending sign-in link.
+  // Its window is the flow's own timeouts (link 90s + code 30m + token 3m),
+  // not the relay's 24h operator-ack wait.
+  const maxAge = isSkillMode ? REAUTH_SKILL_MARKER_MAX_AGE_MS : REAUTH_MARKER_MAX_AGE_MS;
+  const tooOld = age === null || age * 1000 > maxAge;
+  // Liveness over age: a relay legitimately waits many hours for the operator to
+  // reach a browser, so only a dead PID (or an absurd age) means abandoned — skill
+  // mode has no PID to check, so age alone is its liveness signal.
+  if (!tooOld && (isSkillMode || (typeof marker.pid === 'number' && pidAlive(marker.pid)))) return true;
+  try {
+    fs.unlinkSync(REAUTH_MARKER_JSON);
+    appendEvent('reauth-relay', 'cleared stale marker');
+  } catch {}
+  return false;
+}
+
+/** 'active' → relay in flight; 'spawned' → just started one; 'idle' → nothing to do. */
+function evaluateReauth(): 'active' | 'spawned' | 'idle' {
+  if (reauthRelayActive()) return 'active';
+  if (!tokenModeActive(defaultConfigDir())) return 'idle';
+  const msLeft = msUntilExpiry(HERMIT_ROOT);
+  if (msLeft === null || msLeft > 0) return 'idle';
+
+  try {
+    const child = spawn(process.execPath, [REAUTH_MINT_SCRIPT, 'relay'], {
+      detached: true,
+      stdio: 'ignore',
+    });
+    child.on('error', (e) => process.stderr.write(`[watchdog] reauth relay spawn failed: ${e}\n`));
+    child.unref();
+    appendEvent('reauth-relay', 'setup-token expired — relay spawned');
+    process.stderr.write('[watchdog] setup-token expired — spawned re-auth relay\n');
+    return 'spawned';
+  } catch (e) {
+    process.stderr.write(`[watchdog] reauth relay spawn failed: ${e}\n`);
+    return 'idle';
   }
 }
 
@@ -1046,6 +1117,14 @@ async function main(): Promise<void> {
     }
   }
 
+  // 3a. Re-auth relay — runs after dead-session restart on purpose (see the
+  // block comment above evaluateReauth). While a relay is in flight the session
+  // can't do useful work, so the nudge/wedge tiers below are suppressed: they'd
+  // be noise, and an escalated restart mid-flow would churn the session the
+  // relay is about to bounce itself.
+  const reauth = evaluateReauth();
+  if (reauth === 'spawned' || reauth === 'active') process.exit(0);
+
   // 3b. Stall-question detection (PROP-024) — catches the un-redirectable remainder
   // the AskUserQuestion PreToolUse gate (ask-gate.ts) can't reach: native permission
   // dialogs and harness-rendered prompts below the tool layer. Notify only, once per
@@ -1295,6 +1374,31 @@ function cmdUninstall(): void {
   }
 }
 
+/**
+ * Bounce the managed session on demand, reusing the same locked restart path
+ * the watchdog's own recovery uses. Exists because credentials are read at
+ * process start: after a token renewal something has to restart claude, and
+ * every front door (terminal mint, relay, /relogin skill) should go through
+ * one implementation rather than improvising its own kill-and-respawn.
+ */
+function cmdRestart(reason: string): void {
+  if (!fs.existsSync(CONFIG_PATH)) {
+    process.stderr.write('[watchdog] no config — nothing to restart\n');
+    process.exit(0);
+  }
+  let config: Json;
+  try {
+    config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+  } catch {
+    process.exit(0);
+  }
+  const runtime = readRuntimeJson();
+  if (runtime === null) process.exit(0);
+  const sessionName = runtime.tmux_session || deriveSessionName(config);
+  if (!sessionName) process.exit(0);
+  doRestart(sessionName, reason, runtime, config.timezone ?? 'UTC');
+}
+
 if (import.meta.main) {
   const subcommand = process.argv[2] ?? 'run';
   if (subcommand === 'run' || subcommand === '') {
@@ -1308,6 +1412,8 @@ if (import.meta.main) {
     cmdInstall();
   } else if (subcommand === 'uninstall') {
     cmdUninstall();
+  } else if (subcommand === 'restart') {
+    cmdRestart(process.argv[3] ?? 'manual');
   } else {
     process.stderr.write(`[watchdog] unknown subcommand: ${subcommand}\n`);
     process.exit(1);

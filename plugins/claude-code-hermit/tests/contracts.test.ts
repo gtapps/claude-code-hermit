@@ -2062,7 +2062,21 @@ describe('doctor context-age check', () => {
 describe('doctor credential-expiry check', () => {
   const credCheck = (report: any) => (report.checks ?? []).find((c: any) => c.id === 'credential-expiry');
 
-  test('no sibling plugin credentials declared → ok', withTmpdir(async (dir) => {
+  /** Write a setup-token record expiring `days` from now (negative = already lapsed). */
+  const writeTokenRecord = (dir: string, days: number) => {
+    const stateDir = path.join(dir, '.claude-code-hermit', 'state');
+    fs.mkdirSync(stateDir, { recursive: true });
+    const expires = new Date(Date.now() + days * 24 * 3600000).toISOString();
+    fs.writeFileSync(
+      path.join(stateDir, 'setup-token.json'),
+      JSON.stringify({ minted_at: new Date(Date.now() - 3600000).toISOString(), expires_at: expires })
+    );
+  };
+
+  // Core self-declares its setup-token credential, so even with no siblings and
+  // no token installed there is exactly one probe — and it reports ok, because
+  // "this hermit doesn't use token auth" is not a credential problem.
+  test('no siblings and no token installed → ok', withTmpdir(async (dir) => {
     writeConfig(dir, {});
     const credDir = path.join(dir, 'no-such-cred-dir');
     const r = await runScript('doctor-check.ts', {
@@ -2072,7 +2086,59 @@ describe('doctor credential-expiry check', () => {
     const report = JSON.parse(r.stdout);
     const c = credCheck(report);
     expect(c.status).toBe('ok');
-    expect(c.detail).toContain('no sibling plugins declare a credential to probe');
+    expect(c.detail).toContain('1 plugin credential(s) ok');
+  }), 20000);
+
+  // The point of the whole feature: a setup-token inside its 14-day window must
+  // warn, and must name the skill that renews it.
+  test('setup-token expiring within the 14d window → warn naming the skill', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    writeTokenRecord(dir, 13);
+    const r = await runScript('doctor-check.ts', {
+      args: ['.claude-code-hermit'], cwd: dir,
+      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_CONFIG_DIR: path.join(dir, 'creds'), ANTHROPIC_API_KEY: '' },
+    });
+    const c = credCheck(JSON.parse(r.stdout));
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('setup-token');
+    expect(c.detail).toContain('/claude-code-hermit:relogin');
+  }), 20000);
+
+  // Just outside the window: silent. Guards against the warn firing all year.
+  test('setup-token beyond the 14d window → ok', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    writeTokenRecord(dir, 30);
+    const r = await runScript('doctor-check.ts', {
+      args: ['.claude-code-hermit'], cwd: dir,
+      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_CONFIG_DIR: path.join(dir, 'creds'), ANTHROPIC_API_KEY: '' },
+    });
+    const c = credCheck(JSON.parse(r.stdout));
+    expect(c.status).toBe('ok');
+  }), 20000);
+
+  // 14 not 7: a lapsed setup-token needs a human at a browser, so the default
+  // window would be too short. This asserts warn_days is actually honoured —
+  // at 10 days out the shared 7d default would stay silent.
+  test('setup-token at 10d out warns (warn_days=14 beats the 7d default)', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    writeTokenRecord(dir, 10);
+    const r = await runScript('doctor-check.ts', {
+      args: ['.claude-code-hermit'], cwd: dir,
+      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_CONFIG_DIR: path.join(dir, 'creds'), ANTHROPIC_API_KEY: '' },
+    });
+    expect(credCheck(JSON.parse(r.stdout)).status).toBe('warn');
+  }), 20000);
+
+  test('already-expired setup-token → warn EXPIRED', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    writeTokenRecord(dir, -1);
+    const r = await runScript('doctor-check.ts', {
+      args: ['.claude-code-hermit'], cwd: dir,
+      env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_CONFIG_DIR: path.join(dir, 'creds'), ANTHROPIC_API_KEY: '' },
+    });
+    const c = credCheck(JSON.parse(r.stdout));
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain('EXPIRED');
   }), 20000);
 
   // Regression guard: the Claude Code session's own OAuth token auto-refreshes
