@@ -923,7 +923,12 @@ async function main(): Promise<void> {
       envContent += `export ${v}=${shlexQuote(val)}\n`;
     }
   }
-  fs.writeFileSync(envFile, envContent);
+  // Unlink-then-create-0600 rather than write-then-chmod: this file now carries
+  // the long-lived setup-token alongside any API key, it sits on a predictable
+  // path in a world-writable tmpdir, and write-then-chmod leaves it briefly
+  // world-readable. 'wx' also refuses to follow a pre-planted symlink.
+  fs.rmSync(envFile, { force: true });
+  fs.writeFileSync(envFile, envContent, { flag: 'wx', mode: 0o600 });
   fs.chmodSync(envFile, 0o600);
 
   const shellCmd = `. ${shlexQuote(envFile)} && rm -f ${shlexQuote(envFile)} && ${shlexJoin(cmd)}`;

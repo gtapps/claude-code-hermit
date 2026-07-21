@@ -31,13 +31,14 @@
  */
 
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import {
   defaultConfigDir,
   installToken,
   isPlausibleToken,
+  mintCaptureFilePath,
+  mintSessionName,
   readTokenRecord,
   tokenModeActive,
 } from './lib/setup-token';
@@ -46,8 +47,8 @@ import { inboundSince } from './lib/channel-log';
 import { tmuxSessionAlive } from './lib/tmux';
 
 const HERMIT_DIR = process.env.HERMIT_DIR || '.claude-code-hermit';
-const MINT_SESSION = 'hermit-reauth-mint';
-const CAPTURE_FILE = path.join(os.tmpdir(), '.hermit-mint-capture');
+const MINT_SESSION = mintSessionName();
+const CAPTURE_FILE = mintCaptureFilePath();
 const MARKER_FILE = path.join(HERMIT_DIR, 'state', 'reauth-relay.json');
 
 // A tmux pane hard-wraps its output, and both artifacts we scrape are long: the
@@ -69,7 +70,6 @@ const POLL_MS = 2_000;
 const OSC8_TARGET_RE = /\x1b\]8;;(https:\/\/[^\x07\x1b]+)(?:\x07|\x1b\\)/g;
 const PLAIN_URL_RE = /https:\/\/[^\s\x07"'<>]+/g;
 const TOKEN_RE = /sk-ant-[A-Za-z0-9_-]{20,}/g;
-const CODE_PROMPT_RE = /Paste code here/i;
 
 function stripAnsi(s: string): string {
   return s
@@ -97,11 +97,6 @@ export function extractUrl(stream: string): string | null {
     .filter((u) => u.includes('oauth'));
   if (oauth.length === 0) return null;
   return oauth.sort((a, b) => b.length - a.length)[0];
-}
-
-/** True once the mint is waiting for a login code. */
-export function needsCode(stream: string): boolean {
-  return CODE_PROMPT_RE.test(stripAnsi(stream));
 }
 
 /** The minted token, or null. Last match wins — the token is the final thing printed. */
@@ -187,11 +182,28 @@ function clearMarker(): void {
   } catch {}
 }
 
+/** Single-quote a path for the shell command `pipe-pane` runs. */
+function shQuote(s: string): string {
+  return `'${s.replaceAll("'", `'\\''`)}'`;
+}
+
+/**
+ * Create the capture file fresh, refusing to follow anything already at that
+ * path. The path is predictable and lives in a world-writable tmpdir, and
+ * pipe-pane appends to it through a shell redirect — which would happily follow
+ * a pre-planted symlink and hand the minted token to whoever planted it.
+ * O_CREAT|O_EXCL ('wx') does not follow symlinks, so it fails loudly instead.
+ */
+function createCaptureFile(): void {
+  fs.rmSync(CAPTURE_FILE, { force: true });
+  fs.closeSync(fs.openSync(CAPTURE_FILE, 'wx', 0o600));
+  fs.chmodSync(CAPTURE_FILE, 0o600);
+}
+
 /** Start `claude setup-token` in a wide detached pane, streaming to a 0600 capture file. */
 function startMint(mode: string): void {
   cleanupMint();
-  fs.writeFileSync(CAPTURE_FILE, '', { mode: 0o600 });
-  fs.chmodSync(CAPTURE_FILE, 0o600);
+  createCaptureFile();
 
   // Linger briefly after the CLI exits so the token stays streamable even if the
   // poller is between ticks when the process ends.
@@ -201,13 +213,20 @@ function startMint(mode: string): void {
     'claude setup-token; sleep 20',
   ]);
   if (r.status !== 0) throw new Error('failed to start mint session');
-  tmux(['pipe-pane', '-o', '-t', MINT_SESSION, `cat >> ${CAPTURE_FILE}`]);
+  tmux(['pipe-pane', '-o', '-t', MINT_SESSION, `cat >> ${shQuote(CAPTURE_FILE)}`]);
   writeMarker('started', mode);
 }
 
-/** Paste a login code into the mint pane (text then Enter — bracketed-paste bug). */
+/**
+ * Paste a login code into the mint pane (text then Enter — bracketed-paste bug).
+ *
+ * `-l --` is load-bearing: without it tmux parses the code as a key sequence, so
+ * a code that happens to start with `-` is read as an option (the send fails
+ * silently and the flow times out on a link already burned), and one that
+ * matches a key name is sent as that key rather than as text.
+ */
 function submitCode(code: string): void {
-  tmux(['send-keys', '-t', MINT_SESSION, code]);
+  tmux(['send-keys', '-l', '-t', MINT_SESSION, '--', code]);
   Bun.sleepSync(500);
   tmux(['send-keys', '-t', MINT_SESSION, 'Enter']);
 }
@@ -303,7 +322,6 @@ async function runMintFlow(io: OperatorIO, mode: string, requireAck: boolean): P
     }
   }
 
-  const ackAt = new Date().toISOString();
   writeMarker('minting', mode);
   startMint(mode);
 
@@ -312,12 +330,17 @@ async function runMintFlow(io: OperatorIO, mode: string, requireAck: boolean): P
 
   writeMarker('awaiting-code', mode);
   await io.notify(`Open this link to sign in, then send me the code it gives you:\n${url}`);
+  // The code window opens only once the link is out. Anchoring it earlier (at
+  // the ack) would let ordinary chatter between "reauth" and the link — an "ok",
+  // a "sure" — be picked up as the login code and pasted into the pane, failing
+  // the mint on a one-time link that is now burned.
+  const linkAt = new Date().toISOString();
 
   // Poll for the token throughout: if the browser flow completes on its own, no
   // code is ever needed and asking for one would strand the flow.
   let token = await waitFor(() => extractToken(readStream()), 15_000);
   if (!token) {
-    const code = await io.awaitCode(ackAt);
+    const code = await io.awaitCode(linkAt);
     if (code) submitCode(code);
     token = await waitFor(() => extractToken(readStream()), TOKEN_TIMEOUT_MS);
   }
@@ -331,7 +354,10 @@ async function runMintFlow(io: OperatorIO, mode: string, requireAck: boolean): P
 
   const record = installToken(HERMIT_DIR, defaultConfigDir(), token);
   cleanupMint();
-  writeMarker('installed', mode);
+  // Drop the marker on success too, not just on failure: it is the "a renewal is
+  // in flight" flag that the /relogin preflight and the watchdog both read, and
+  // leaving it behind makes the next renewal look already-running.
+  clearMarker();
 
   await io.notify(
     `You're signed back in. Nothing else to do — the next renewal is due ${friendlyDate(record.expires_at)}, and I'll ask you then.`
@@ -387,12 +413,15 @@ async function main(): Promise<void> {
       break;
 
     case 'relay':
+      // clearMarker() unconditionally: runMintFlow already drops the marker on
+      // both its own exits, and a throw would otherwise leave one behind that
+      // the watchdog reads as a relay still in flight.
       try {
         code = await runMintFlow(channelIO, 'relay', true);
         if (code === 0) requestRestart();
       } finally {
         cleanupMint();
-        if (code !== 0) clearMarker();
+        clearMarker();
       }
       break;
 

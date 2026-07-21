@@ -7,7 +7,7 @@
 // scraping what a human sees yields a broken sign-in link.
 
 import { describe, expect, test } from 'bun:test';
-import { extractToken, extractUrl, findAck, findCode, needsCode } from '../scripts/setup-token-mint';
+import { extractToken, extractUrl, findAck, findCode } from '../scripts/setup-token-mint';
 
 const FULL_URL =
   'https://claude.com/cai/oauth/authorize?code=true&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e' +
@@ -49,17 +49,6 @@ describe('extractUrl', () => {
 
   test('strips trailing punctuation that is not part of the link', () => {
     expect(extractUrl(`open (${FULL_URL}).`)).toBe(FULL_URL);
-  });
-});
-
-describe('needsCode', () => {
-  test('detects the code prompt through ANSI styling', () => {
-    expect(needsCode(PANE_STREAM)).toBe(true);
-    expect(needsCode('\x1b[1m Paste code here if prompted > \x1b[0m')).toBe(true);
-  });
-
-  test('is false before the prompt renders', () => {
-    expect(needsCode('Opening browser...')).toBe(false);
   });
 });
 

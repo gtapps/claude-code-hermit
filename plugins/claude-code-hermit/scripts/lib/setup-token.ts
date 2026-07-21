@@ -41,6 +41,22 @@ export function tokenFilePath(configDir: string): string {
   return path.join(configDir, TOKEN_FILENAME);
 }
 
+/**
+ * tmux session name for the mint pane, and the path its output streams to.
+ *
+ * Both are namespaced by project directory, like getSessionName() does for the
+ * managed session: two hermits under one user's tmux server would otherwise
+ * share a mint session and a capture file, and either one's cleanupMint()
+ * would tear down the other's in-flight sign-in.
+ */
+export function mintSessionName(): string {
+  return `hermit-reauth-mint-${path.basename(process.cwd())}`;
+}
+
+export function mintCaptureFilePath(): string {
+  return path.join(os.tmpdir(), `.${mintSessionName()}-capture`);
+}
+
 export function tokenRecordPath(hermitDir: string): string {
   return path.join(hermitDir, 'state', 'setup-token.json');
 }

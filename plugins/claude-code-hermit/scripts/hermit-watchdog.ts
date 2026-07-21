@@ -53,6 +53,9 @@ const REAUTH_MARKER_JSON = path.join(STATE_DIR, 'reauth-relay.json');
 const REAUTH_MINT_SCRIPT = path.join(import.meta.dir, 'setup-token-mint.ts');
 // Backstop against PID reuse on a long-lived box; liveness is the real signal.
 const REAUTH_MARKER_MAX_AGE_MS = 26 * 3600000;
+// Skill-driven mints have no usable PID (verb per process), so age is the only
+// signal — sized to the flow's own timeouts rather than the relay's ack wait.
+const REAUTH_SKILL_MARKER_MAX_AGE_MS = 2 * 3600000;
 
 // --- Utilities ---
 
@@ -388,10 +391,20 @@ function reauthRelayActive(): boolean {
   const marker = readJson(REAUTH_MARKER_JSON);
   if (!marker) return false;
   const age = ageSecs(marker.updated_at ?? marker.started_at ?? '');
-  const tooOld = age === null || age * 1000 > REAUTH_MARKER_MAX_AGE_MS;
-  // Liveness over age: a relay legitimately waits many hours for the operator
-  // to reach a browser, so only a dead PID (or an absurd age) means abandoned.
-  if (!tooOld && typeof marker.pid === 'number' && pidAlive(marker.pid)) return true;
+  const isSkillMode = marker.mode === 'skill';
+  // The /relogin skill drives the mint one verb at a time, each its own
+  // short-lived process, so its recorded PID is always dead by the time we look.
+  // Age is the only usable signal there — and it has to be one, because
+  // otherwise we read a live flow as abandoned and spawn a relay whose
+  // startMint() kills the pane holding the operator's pending sign-in link.
+  // Its window is the flow's own timeouts (link 90s + code 30m + token 3m),
+  // not the relay's 24h operator-ack wait.
+  const maxAge = isSkillMode ? REAUTH_SKILL_MARKER_MAX_AGE_MS : REAUTH_MARKER_MAX_AGE_MS;
+  const tooOld = age === null || age * 1000 > maxAge;
+  // Liveness over age: a relay legitimately waits many hours for the operator to
+  // reach a browser, so only a dead PID (or an absurd age) means abandoned — skill
+  // mode has no PID to check, so age alone is its liveness signal.
+  if (!tooOld && (isSkillMode || (typeof marker.pid === 'number' && pidAlive(marker.pid)))) return true;
   try {
     fs.unlinkSync(REAUTH_MARKER_JSON);
     appendEvent('reauth-relay', 'cleared stale marker');
