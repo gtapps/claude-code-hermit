@@ -1,6 +1,6 @@
 # Changelog — laravel-forge-hermit
 
-## [Unreleased]
+## [0.0.8] - 2026-07-21
 
 ### Fixed
 - **settings.json: dropped no-op `Write(<path>)` allow rules** — Claude Code only matches file-permission checks against `Edit(path)` rules (Edit covers all file-editing tools, including Write), so the `Write(.claude-code-hermit/**)`, `Write(.env)`, and `Write(**/.claude-code-hermit/OPERATOR.md)` entries were dead and triggered a boot warning. Their `Edit(...)` twins still grant the same access.
