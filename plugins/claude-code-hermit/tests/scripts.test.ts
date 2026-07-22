@@ -183,6 +183,43 @@ describe('static file checks', () => {
     expect(marketplaceIdx).toBeLessThan(updateLoopIdx);
     expect(src).toContain('.sort((a, b) =>');
   });
+
+  test('hermit-docker warns when the container runs a stale baked entrypoint', () => {
+    const src = fs.readFileSync(path.join(PLUGIN_ROOT, 'state-templates', 'bin', 'hermit-docker'), 'utf8');
+    // The guard content-hashes the on-disk entrypoint against the image's baked copy.
+    expect(src).toContain('_warn_if_entrypoint_stale()');
+    expect(src).toContain('/home/claude/docker-entrypoint.sh');
+    expect(src).toContain('sha256sum');
+    // `up` invokes it after bringing the container up.
+    const upIdx = src.indexOf('"${DC[@]}" up -d "$@"');
+    const upGuardIdx = src.indexOf('_warn_if_entrypoint_stale', upIdx);
+    expect(upIdx).toBeGreaterThan(-1);
+    expect(upGuardIdx).toBeGreaterThan(upIdx);
+    // `update` warns only in --plugins-only mode (rebuild modes fix it inline).
+    expect(src).toContain('[ "$PLUGINS_ONLY" = true ] && _warn_if_entrypoint_stale');
+    // ...and flags a needed second rebuild when the async evolve chain ran.
+    expect(src).toContain('run \'hermit-docker update\' once more');
+  });
+
+  test('hermit-docker setup-token gates on the container core version', () => {
+    const src = fs.readFileSync(path.join(PLUGIN_ROOT, 'state-templates', 'bin', 'hermit-docker'), 'utf8');
+    expect(src).toContain('_require_core_version_at_least()');
+    expect(src).toContain('sort -V');
+    // The gate runs before the mint dispatch, so a stale clone is caught up front.
+    const gateIdx = src.indexOf('_require_core_version_at_least "1.2.30" "setup-token"');
+    const mintIdx = src.indexOf('hermit-run setup-token-mint terminal');
+    expect(gateIdx).toBeGreaterThan(-1);
+    expect(mintIdx).toBeGreaterThan(-1);
+    expect(gateIdx).toBeLessThan(mintIdx);
+  });
+
+  test('hermit-exec reports version skew, not corruption, on a missing script', () => {
+    const src = fs.readFileSync(path.join(PLUGIN_ROOT, 'scripts', 'hermit-exec.sh'), 'utf8');
+    expect(src).not.toContain('may be corrupted');
+    expect(src).toContain('may predate this command');
+    expect(src).toContain('hermit-docker update');
+    expect(src).toContain('claude plugin update claude-code-hermit');
+  });
 });
 
 // -------------------------------------------------------

@@ -61,6 +61,57 @@ _require_running() {
   fi
 }
 
+_entrypoint_stale_warn() {
+  echo "[hermit] Warning: docker-entrypoint.hermit.sh changed since the image was built —" >&2
+  echo "[hermit]          the container is running a stale entrypoint. Rebuild to apply:" >&2
+  echo "[hermit]          .claude-code-hermit/bin/hermit-docker update" >&2
+}
+
+# Warn when the container's baked entrypoint no longer matches the on-disk
+# docker-entrypoint.hermit.sh. hermit-evolve refreshes the on-disk copy from the
+# plugin template AFTER `update` has already rebuilt, so an entrypoint-template
+# release leaves the baked copy stale until the next rebuild — silently, since
+# nothing else compares them (this stranded a hermit in a boot-loop on the fleet).
+# Content hash, computed in-container off the image so it works whether the
+# container is running or boot-looping, and stays shell-portable. Never blocks:
+# warn and continue, fail open on any docker error.
+_warn_if_entrypoint_stale() {
+  local ondisk="$PROJECT_DIR/docker-entrypoint.hermit.sh"
+  [ -f "$ondisk" ] || return 0   # non-entrypoint layout — nothing to compare
+
+  local cid image rc=0
+  cid="$(cd "$PROJECT_DIR" && "${DC[@]}" ps -a -q "$SERVICE" 2>/dev/null | head -1 || true)"
+  [ -n "$cid" ] || return 0   # never created — first boot, nothing baked yet
+  image="$(docker inspect --format '{{.Image}}' "$cid" 2>/dev/null || true)"
+  [ -n "$image" ] || return 0
+
+  # Hash both copies with the same in-container sha256sum: the baked entrypoint at
+  # its image path, and the on-disk copy bind-mounted read-only. exit 3 => mismatch;
+  # exit 0 => in sync or a copy was unreadable; any other code => docker error (fail open).
+  docker run --rm --entrypoint sh -v "$ondisk:/tmp/hermit-ondisk-entrypoint:ro" "$image" -c \
+    'a=$(sha256sum /tmp/hermit-ondisk-entrypoint 2>/dev/null | cut -d" " -f1); b=$(sha256sum /home/claude/docker-entrypoint.sh 2>/dev/null | cut -d" " -f1); { [ -n "$a" ] && [ -n "$b" ]; } || exit 0; [ "$a" != "$b" ] && exit 3; exit 0' \
+    2>/dev/null || rc=$?
+  [ "$rc" = 3 ] && _entrypoint_stale_warn
+  return 0
+}
+
+# Guard a subcommand whose backing script shipped in a specific core version. A
+# container whose marketplace clone predates that version can't run it — surface
+# the version skew and point at `update`, instead of letting the in-container
+# dispatcher raise its "plugin may be corrupted" error on what is only a stale
+# (not corrupt) clone. Fail open when the version can't be read: the in-container
+# error still catches it, just with less-precise wording.
+_require_core_version_at_least() {
+  local need="$1" subcmd="$2" have
+  have="$(_enumerate_plugins 2>/dev/null | awk -F'\t' '$1 ~ /^claude-code-hermit@/ {print $3; exit}')"
+  [ -n "$have" ] || return 0
+  if [ "$(printf '%s\n%s\n' "$need" "$have" | sort -V | head -1)" != "$need" ]; then
+    echo "[hermit] Container plugin v$have predates '$subcmd' (needs v$need)." >&2
+    echo "[hermit] Update first: .claude-code-hermit/bin/hermit-docker update" >&2
+    exit 1
+  fi
+}
+
 # Poll tmux pane for the Claude Code REPL input box. The exact rendering varies by
 # CC version / TUI / terminal width, so match the prompt char ❯ plus ANY structural
 # marker of the rendered input box: a horizontal rule (──── or older ╭─/╰─ corners)
@@ -140,6 +191,7 @@ case "$CMD" in
   up)
     echo "[hermit] Starting Docker container..."
     cd "$PROJECT_DIR" && "${DC[@]}" up -d "$@"
+    _warn_if_entrypoint_stale
     echo ""
     echo "Container is up. To attach to the hermit's tmux session:"
     echo ""
@@ -201,6 +253,7 @@ case "$CMD" in
 
   setup-token)
     _require_running
+    _require_core_version_at_least "1.2.30" "setup-token"
     echo "[hermit] Minting a long-lived login token inside the container."
     echo "[hermit] → Open the link it prints, sign in, and paste the code back here"
     echo "[hermit] → The token is written straight to the container's config volume — it is never printed"
@@ -282,6 +335,7 @@ case "$CMD" in
     fi
     echo "[hermit] Restarting container..."
     cd "$PROJECT_DIR" && "${DC[@]}" down && "${DC[@]}" up -d
+    _warn_if_entrypoint_stale
     echo "[hermit] Container restarted."
     _oauth_hint
     ;;
@@ -302,6 +356,10 @@ case "$CMD" in
       { echo "[hermit] --cc-only and --plugins-only are mutually exclusive" >&2; exit 2; }
 
     _require_running
+
+    # --plugins-only never rebuilds, so a stale baked entrypoint stays stale — warn.
+    # In rebuild modes the build below refreshes it, so no warning is needed there.
+    [ "$PLUGINS_ONLY" = true ] && _warn_if_entrypoint_stale
 
     CC_BEFORE=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" claude --version 2>/dev/null \
       | grep -oP '[\d.]+' | head -1 || echo "unknown")
@@ -480,6 +538,14 @@ case "$CMD" in
           echo "[hermit] Warning: prompt not detected — hermit-evolve not auto-started." >&2
           echo "[hermit]          The pin is already durable; run /claude-code-hermit:hermit-evolve when you attach." >&2
         fi
+      fi
+      # The image was already rebuilt above, before evolve ran. If evolve now refreshes
+      # docker-entrypoint.hermit.sh from the new template, the just-built image is stale
+      # against it — a second rebuild is required, and no in-band check can see the async
+      # evolve's result from here. Flag it so the operator knows to run update again.
+      if [ "$EVOLVE_SENT" = true ]; then
+        echo "[hermit] Note: if hermit-evolve reports it refreshed docker-entrypoint.hermit.sh," >&2
+        echo "[hermit]       run 'hermit-docker update' once more so the image rebuilds with it." >&2
       fi
     fi
 

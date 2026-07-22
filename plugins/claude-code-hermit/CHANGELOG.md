@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### Fixed
+- **hermit-docker: warns when the container runs a stale baked entrypoint** — `up`, `restart`, and `update --plugins-only` content-hash the on-disk `docker-entrypoint.hermit.sh` against the image's baked copy and warn to rebuild on mismatch; `update`'s evolve chain flags when a second rebuild is needed.
+- **hermit-docker / hermit-exec: version-aware error for a stale plugin clone** — a subcommand the container's clone predates (e.g. `setup-token` on a pre-1.2.30 clone) reports the version skew and points at `update` instead of the misleading "plugin may be corrupted, reinstall".
 - **watchdog: re-arm fallback damped and pause-gated** — the step-5 heartbeat-restart re-arm re-injected both bootstrap prompts every ~5-min tick while the fired-age stayed >26h; now one attempt per 6h window, and never while paused.
 
 ## [1.2.30] - 2026-07-21
