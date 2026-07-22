@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.31] - 2026-07-22
 
 ### Fixed
 - **hermit-docker: warns when the container runs a stale baked entrypoint** — `up`, `restart`, and `update --plugins-only` content-hash the on-disk `docker-entrypoint.hermit.sh` against the image's baked copy and warn to rebuild on mismatch; `update`'s evolve chain flags when a second rebuild is needed.
