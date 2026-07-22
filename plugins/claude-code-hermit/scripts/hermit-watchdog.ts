@@ -13,6 +13,7 @@
  *       un-redirectable dialog (native permission prompt, harness prompt)
  *   4. Wedge detection — nudge-then-escalate when heartbeat is stale
  *   5. Re-arm fallback — re-arm when heartbeat-restart routine missed its window
+ *                        (damped + pause-gated, like step 6)
  *   6. Monitor re-arm  — re-arm a heartbeat/routine Monitor whose liveness file
  *                        went stale mid-session (any cause), damped per monitor
  *
@@ -531,7 +532,8 @@ function routineMonitorStale(config: Json): boolean {
   return monitorLivenessStale('routine-monitor-liveness.json', monRt, thresholdSecs);
 }
 
-/** Damper open when this monitor hasn't been re-armed within MONITOR_REARM_DAMPER_SECS. */
+/** Damper open when the given re-arm timestamp is older than MONITOR_REARM_DAMPER_SECS
+ *  (or missing). Shared by the step-6 monitor re-arm and the step-5 routine fallback. */
 function rearmDamperOpen(lastStamp: unknown): boolean {
   if (typeof lastStamp !== 'string') return true;
   const age = ageSecs(lastStamp);
@@ -1211,16 +1213,23 @@ async function main(): Promise<void> {
     }
   }
 
-  // 5. Re-arm fallback: fire if heartbeat-restart routine hasn't fired in ~26h
+  // 5. Re-arm fallback: fire if heartbeat-restart routine hasn't fired in ~26h.
+  // Damped like step 6 (one attempt per MONITOR_REARM_DAMPER_SECS): the fired
+  // metric only advances at the routine's next real fire, so an undamped check
+  // re-injects both bootstrap prompts every tick for up to ~24h. Never inject
+  // while paused (PROP-015), mirroring the other send paths.
   let rearmedThisTick = false;
   const rearmThresholdSecs = 26 * 3600;
   const routineAge = getLastRoutineFiredAgeSecs('heartbeat-restart');
-  if (routineAge !== null && routineAge > rearmThresholdSecs) {
+  if (routineAge !== null && routineAge > rearmThresholdSecs && !isPaused(HERMIT_ROOT).paused) {
     const opAge = getOperatorLastActionAgeSecs();
     // Only re-arm when operator is silent (not in the middle of a conversation)
     if (opAge === null || opAge >= operatorGraceSecs) {
-      if (tmuxSessionAlive(sessionName)) {
+      const watchdogState = readWatchdogState();
+      if (rearmDamperOpen(watchdogState.last_rearm_fallback) && tmuxSessionAlive(sessionName)) {
         doRearm(sessionName);
+        watchdogState.last_rearm_fallback = utcStamp();
+        writeWatchdogState(watchdogState);
         rearmedThisTick = true;
       }
     }
