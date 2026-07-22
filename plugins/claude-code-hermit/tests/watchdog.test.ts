@@ -724,6 +724,53 @@ test('started event does not count as fired for re-arm check', withHermit(async 
 }));
 
 // -------------------------------------------------------
+// 11d/e. Step-5 re-arm damper: the fired metric only advances at the routine's
+//        next real fire, so an undamped >26h check re-injects every tick. One
+//        attempt per 6h window, mirroring step 6.
+// -------------------------------------------------------
+
+// Shared setup: heartbeat-restart fired 28h ago (> 26h), .heartbeat fresh so wedge
+// detection stays out of the way, live session.
+const armStep5 = (h: Hermit) => {
+  writeConfig(h);
+  touchAgo(state(h, '.heartbeat'), 1800);
+  fs.writeFileSync(state(h, 'routine-metrics.jsonl'), JSON.stringify({
+    ts: isoAgoSeconds(28), routine_id: 'heartbeat-restart', event: 'fired', delivery: 'cron-create',
+  }) + '\n');
+  writeFakeTmux(h, 0);
+  writeFakePgrep(h, 0);
+};
+
+test('re-arm fallback within damper window → no second re-arm', withHermit(async (h) => {
+  armStep5(h);
+  // Fallback re-armed 1h ago: inside the 6h damper.
+  writeState(h, 'watchdog-state.json', { last_rearm_fallback: isoAgo(1) });
+  const r = await watchdog(h, 'run');
+  expect(r.exitCode).toBe(0);
+  expect(events(h)).not.toContain('re-arm-fallback');
+}));
+
+test('re-arm fallback past damper window → fires and refreshes damper stamp', withHermit(async (h) => {
+  armStep5(h);
+  const stale = isoAgo(7); // last fallback 7h ago, past the 6h damper
+  writeState(h, 'watchdog-state.json', { last_rearm_fallback: stale });
+  const r = await watchdog(h, 'run');
+  expect(r.exitCode).toBe(0);
+  expect(events(h)).toContain('re-arm-fallback');
+  const stamp = readWatchdogStateFile(h).last_rearm_fallback;
+  expect(typeof stamp).toBe('string');
+  expect(stamp).not.toBe(stale);
+}));
+
+test('re-arm fallback suppressed while paused', withHermit(async (h) => {
+  armStep5(h);
+  writePauseFlag(h);
+  const r = await watchdog(h, 'run');
+  expect(r.exitCode).toBe(0);
+  expect(events(h)).not.toContain('re-arm-fallback');
+}));
+
+// -------------------------------------------------------
 // 11c. Monitor-liveness re-arm (step 6): recover a Monitor that died mid-session,
 //      detected via its stale liveness file rather than step 5's fired-age heuristic.
 //      No .heartbeat file → wedge (step 4) skipped; no routine-metrics.jsonl →

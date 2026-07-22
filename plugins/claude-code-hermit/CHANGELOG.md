@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **watchdog: re-arm fallback damped and pause-gated** — step 5 re-injected both bootstrap prompts every ~5-min tick while the heartbeat-restart fired-age stayed >26h (up to ~24h of full-context wakes, since the fired metric only advances at the routine's next real fire); now one attempt per 6h window, and never while paused.
+
 ## [1.2.30] - 2026-07-21
 
 ### Added
