@@ -80,7 +80,7 @@ _warn_if_entrypoint_stale() {
   [ -f "$ondisk" ] || return 0   # non-entrypoint layout — nothing to compare
 
   local cid image rc=0
-  cid="$(cd "$PROJECT_DIR" && "${DC[@]}" ps -a -q "$SERVICE" 2>/dev/null | head -1)"
+  cid="$(cd "$PROJECT_DIR" && "${DC[@]}" ps -a -q "$SERVICE" 2>/dev/null | head -1 || true)"
   [ -n "$cid" ] || return 0   # never created — first boot, nothing baked yet
   image="$(docker inspect --format '{{.Image}}' "$cid" 2>/dev/null || true)"
   [ -n "$image" ] || return 0
@@ -335,6 +335,7 @@ case "$CMD" in
     fi
     echo "[hermit] Restarting container..."
     cd "$PROJECT_DIR" && "${DC[@]}" down && "${DC[@]}" up -d
+    _warn_if_entrypoint_stale
     echo "[hermit] Container restarted."
     _oauth_hint
     ;;

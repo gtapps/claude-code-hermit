@@ -3,8 +3,8 @@
 ## [Unreleased]
 
 ### Fixed
-- **hermit-docker: warns when the container runs a stale baked entrypoint** — `up` and `update --plugins-only` content-hash the on-disk `docker-entrypoint.hermit.sh` against the image's baked copy and warn to rebuild on mismatch. Closes the silent gap where an entrypoint-template release left an updating hermit on the old baked entrypoint until some future rebuild (it stranded a fleet hermit in a boot-loop); `update`'s evolve chain now also flags when a second rebuild is needed.
-- **hermit-docker / hermit-exec: version-aware error for a stale plugin clone** — a subcommand whose backing script the container's clone predates (e.g. `setup-token` on a pre-1.2.30 clone) reports the version skew and points at `update`, instead of the misleading "plugin may be corrupted, reinstall" that a reinstall of the same stale clone wouldn't fix.
+- **hermit-docker: warns when the container runs a stale baked entrypoint** — `up`, `restart`, and `update --plugins-only` content-hash the on-disk `docker-entrypoint.hermit.sh` against the image's baked copy and warn to rebuild on mismatch; `update`'s evolve chain flags when a second rebuild is needed.
+- **hermit-docker / hermit-exec: version-aware error for a stale plugin clone** — a subcommand the container's clone predates (e.g. `setup-token` on a pre-1.2.30 clone) reports the version skew and points at `update` instead of the misleading "plugin may be corrupted, reinstall".
 
 ## [1.2.30] - 2026-07-21
 
