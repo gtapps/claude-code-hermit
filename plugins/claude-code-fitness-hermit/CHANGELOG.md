@@ -1,40 +1,36 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
----
-
 ## [0.0.15] - 2026-07-21
 
 ### Fixed
-- **settings.json: dropped no-op `Write(<path>)` allow rules** — Claude Code only matches file-permission checks against `Edit(path)` rules (Edit covers all file-editing tools, including Write), so the `Write(.claude-code-hermit/**)`, `Write(**/.claude-code-hermit/OPERATOR.md)`, and `Write(.env)` entries were dead and triggered a boot warning. Their `Edit(...)` twins still grant the same access.
+- No-op `Write(<path>)` rules are gone from `settings.json`; their `Edit(...)` equivalents already cover file-editing tools and avoid the boot warning.
 
 ## [0.0.14] - 2026-07-12
 
 ### Fixed
-- **fitness-lab: stop reading a stale `.env` Strava token** — `getAccessToken` now prefers the Strava MCP server's own auto-refreshed token (`~/.config/strava-mcp/config.json`, test seam `STRAVA_MCP_CONFIG`) when present and unexpired, falling back to `.env`'s `STRAVA_ACCESS_TOKEN` otherwise. Previously `fitness-lab.ts` only ever read the one-time `.env` copy, which silently went stale once the MCP server refreshed its own token independently, causing 401s the `strava-health-check` routine didn't catch (it checks the MCP server's live connection, not `.env`).
+- `getAccessToken` now prefers the unexpired Strava MCP token in `~/.config/strava-mcp/config.json`, falling back to `.env`'s `STRAVA_ACCESS_TOKEN`.
 
 ## [0.0.13] - 2026-07-06
 
 ### Added
-- **hatch: auto-mode environment seed** — new Step 8d runs `scripts/automode-env.ts`, naming `www.strava.com` as a trusted `autoMode.environment` entry in `.claude/settings.local.json`, so Claude Code's auto-mode classifier stops treating the nightly `strava-sync` routine's read-only fetches as unrecognized outbound calls. Environment-only — no `autoMode.allow` exception is seeded.
+- Hatch Step 8d seeds `www.strava.com` in `autoMode.environment` through `scripts/automode-env.ts` for nightly `strava-sync` fetches.
 
 ## [0.0.12] - 2026-07-03
 
 ### Added
-- **`scripts/fitness-lab.ts`: deterministic stats + CRUD engine (first shipped code)** — one Bun/TypeScript script with `analyze`, `weekly-load`, `weekly-patterns`, and `rpe` subcommands. Fetches and reduces Strava streams itself (`STRAVA_API_BASE` test seam, token parsed read-only from `.env`), so raw time-series never enter model context and the metrics are reproducible. Emits an echoed `THRESHOLDS` block. Any auth failure — including a partial-scope 401 on a single call like `/athlete/zones` — emits `{"error":"strava_auth"}` with the verbatim health-check recovery message and exits 1 (never silently degrades the recovery band). `analyze` also reduces the trail HR-vs-altitude coupling to `hr_altitude` (Pearson r) and exposes `session_detail.work_segment_hrs` so the interval `I1→IN` progression renders even on lap-sparse activities; `weekly-load` fetches ~30 activities/week of headroom so busy weeks don't render as phantom rest. Covered by `scripts/fitness-lab.test.ts` (pure-function + Bun.serve contract layers).
+- `scripts/fitness-lab.ts` provides deterministic `analyze`, `weekly-load`, `weekly-patterns`, and `rpe` commands, reproducible Strava reductions, and hard auth-failure recovery.
 
 ### Changed
-- **Skills delegate math to `fitness-lab.ts`** — `activity-deep-dive`, `set-rpe`, `capture-activity-rpe`, and `weekly-coaching-patterns` now make one `Bash(bun *fitness-lab.ts*)` call and keep only argument handling, JSON interpretation, and coaching narrative; the computation prose is gone. `strava-data-cruncher` runs the script for weekly load and falls back to MCP only for shapes it doesn't emit. `activity-notes.json` is now script-written (atomic tmp+rename).
-- **CLAUDE-APPEND core rule: load analysis routes through `fitness-lab.ts`** — replaces the "use `get-activity-streams` for load analysis" rule; MCP stream/detail tools are now scoped to ad-hoc questions. `settings.json` adds the `Bash(bun *fitness-lab.ts*)` allow (MCP allowlist unchanged).
-- **hatch: reuse-vs-install branch for an ambient Strava MCP server** — Step 4 detects an existing Strava MCP server and offers to reuse it instead of writing a duplicate `.mcp.json` entry.
-- **README: `/hermit-brain` → `/hermit-health`** — the core `hermit-brain` skill merged into `hermit-health`; the docs now point at the surviving skill.
-- **`weekly-coaching-patterns` prose: `reflect-scheduled-checks` → `reflect --scheduled-checks`** — the core scheduled-check runner merged into `reflect`; the skill now names the surviving invocation (no behavior change — the `scheduled-checks` routine still consumes its stdout).
-- **CLAUDE-APPEND slimmed 5.3KB → ~3.9KB** — the Skills, Subagents, and Strava-MCP-tool catalog tables were removed; skill descriptions and the already-in-context MCP tool schemas carry that content. The `get-athlete-stats` all-time-totals steer is kept inline (don't sum `get-all-activities` client-side). The block is re-paid on every session load and subagent dispatch, so this cuts recurring context cost.
+- `activity-deep-dive`, RPE, and coaching skills now delegate calculations to `fitness-lab.ts`; `strava-data-cruncher` falls back to MCP only for unsupported shapes.
+- CLAUDE-APPEND now routes load analysis through `fitness-lab.ts`, with MCP stream and detail tools reserved for ad-hoc questions.
+- Hatch Step 4 now offers to reuse an existing Strava MCP server instead of writing a duplicate `.mcp.json` entry.
+- README references now use `/hermit-health` after the `hermit-brain` merge.
+- `weekly-coaching-patterns` now invokes `reflect --scheduled-checks` after the scheduled-check runner merged into `reflect`.
+- Reduced CLAUDE-APPEND from 5.3 KB to about 3.9 KB by removing catalog tables while retaining the all-time-totals guidance.
 
 ### Fixed
-- **fitness-lab: surface hard Strava auth failure in `weekly-load`** — a 401 on `/athlete/zones` now propagates the exit-1 `strava_auth` recovery signal instead of silently degrading zone load, matching `analyze`.
-- **fitness-lab: minor correctness** — `weekly-load --weeks` rejects non-positive values; a dead recovery-window branch was removed; `analyze` fetches activity details inside its batch (one fewer round-trip).
+- `weekly-load` now propagates the exit-1 `strava_auth` recovery signal for `/athlete/zones` 401s instead of degrading zone load.
+- `weekly-load --weeks` now rejects non-positive values, and `analyze` fetches activity details within its batch.
 
 ### Upgrade Instructions
 - No manual steps. The Fitness CLAUDE-APPEND block is synced automatically via `hermit-evolve` Step 7's sibling-upgrade flow when this version's gap is processed.
@@ -42,24 +38,18 @@ All notable changes to this project will be documented in this file.
 ## [0.0.11] - 2026-06-29
 
 ### Changed
-- **strava-data-cruncher: removed `maxTurns` cap** — the agent already self-limits via an internal 30-API-call governor; the turn cap was redundant and risked silently truncating analysis on long activity histories.
+- `strava-data-cruncher` no longer sets `maxTurns`; its internal 30-API-call governor remains the limit.
 
 ## [0.0.10] - 2026-06-24
 
 ### Fixed
-- **hatch: domain auto-resume** — writes a state marker before delegating to core; core terminus invokes this skill via the Skill tool automatically. Removes the manual re-run. Requires `claude-code-hermit` ≥1.2.11.
+- Hatch now writes a state marker before core delegation so the core terminus resumes the domain skill automatically.
 
 ## [0.0.9] - 2026-06-23
 
 ### Fixed
 
-- **hatch: domain resume after core hatch** — Step 1 now prints the re-run instruction before invoking core as the terminal action, so the operator sees it. Removes the "then continue" assumption that silently dropped Step 2.
-
-### Files affected
-
-| File | Change |
-|------|--------|
-| `skills/hatch/SKILL.md` | Domain resume: print instruction before core hatch, then stop instead of continuing |
+- Hatch Step 1 now prints its re-run instruction before terminal core invocation so subsequent steps are not dropped.
 
 ### Upgrade Instructions
 
@@ -73,21 +63,9 @@ No `config.json` changes required.
 
 ### Changed
 
-- **tests: migrated from Node/JS to Bun/TypeScript** — test files renamed `.js` → `.ts`; runner and domain-brainstorm inline eval now invoke `bun` (bun migration, core #18).
-- **strava-data-cruncher: model alias normalized** — `claude-haiku-4-5-20251001` → `haiku` for forward-compatible model resolution.
-- **required_core_version: bumped to >=1.2.0** — aligns with core 1.2.0 dependency floor.
-
-### Files affected
-
-| File | Change |
-|------|--------|
-| `tests/skill-structure.test.ts` | Renamed from `.js`; migrated to TypeScript with ESM imports |
-| `tests/test-utils.ts` | Renamed from `.js`; TypeScript types added |
-| `tests/run-all.sh` | Runner updated: `node` → `bun` |
-| `agents/strava-data-cruncher.md` | Model alias: `claude-haiku-4-5-20251001` → `haiku` |
-| `skills/domain-brainstorm/SKILL.md` | Metrics append: `node -e` → `bun -e` |
-| `.claude-plugin/hermit-meta.json` | `required_core_version` and `requires` bumped to `>=1.2.0` |
-| `.claude-plugin/plugin.json` | `dependencies.claude-code-hermit` bumped to `^1.2.0` |
+- Tests now use Bun and TypeScript, including the test runner and domain-brainstorm inline evaluation.
+- `strava-data-cruncher` now uses the forward-compatible `haiku` model alias.
+- Raised the core dependency floor to `>=1.2.0`.
 
 ### Upgrade Instructions
 
@@ -103,24 +81,15 @@ No `config.json` changes required.
 
 ### Added
 
-- **strava-sync + weekly-load-review: surface strength-session recovery signal** — the daily sync derives a fatigue tier (`moderate`/`light`/`none`) from each new WeightTraining/Workout `moving_time` and appends a leg-fatigue note to the 21:30 summary; the weekly review reports strength as `[N] sessions ([M] min)` and persists `strength_minutes` to `strava-weekly-baselines.json` (additive field). No new state files or API calls. Closes #258.
-- **domain-brainstorm: on-demand training-gap brainstorm skill** — reads Strava history and MEMORY.md goals, delegates bulk aggregation to `strava-data-cruncher`, and surfaces at most 2 goal-coverage or imbalance ideas (prefixes `[goal-gap]`, `[imbalance]`) as proposals via `proposal-create`. Scoped to coverage/imbalance gaps only — cardiac-drift and load trends remain with `weekly-coaching-patterns`. Never runs autonomously.
-- **Core Rule: ground training-history facts in Strava, not memory** — records, PBs, all-time totals, counts, and cross-block comparisons require a full-history Strava query; context/compaction may drop older activities. Recent-activity questions are unaffected.
-- **activity-deep-dive: trail running support** — classifies terrain (road/trail) from `sport_type: TrailRun` plus an elevation-gain fallback, then swaps the confounded pace/HR efficiency for VAM and a heuristic grade-adjusted-pace estimate, reframes cardiac drift against the altitude profile, suppresses road-calibrated cadence flags, and extends the recovery window for descent load. Adds `terrain` to artifact frontmatter. Closes #256.
+- `strava-sync` and `weekly-load-review` now surface strength-session recovery signals and persist `strength_minutes` to `strava-weekly-baselines.json`.
+- An on-demand `domain-brainstorm` skill now surfaces up to two Strava-backed training coverage or imbalance proposals.
+- Training-history facts now require full-history Strava queries rather than memory; recent-activity questions are unchanged.
+- `activity-deep-dive` now supports trail running with terrain-aware metrics, observations, recovery windows, and artifact frontmatter.
 
 ### Changed
 
-- **routine-weekly-load-review: elevation-weighted load** — run distance is scaled by a gradient multiplier (1.0–1.5×) into `adjusted_km`; spike/dip flags compare adjusted figures (falls back to raw `km` for weeks logged before this change). Channel output shows both raw and load-adjusted distance.
-- **required_core_version: bumped to >=1.1.9** — aligns with the issue-proposals routine added in core 1.1.9.
-
-### Files affected
-
-| File | Change |
-|------|--------|
-| `skills/domain-brainstorm/SKILL.md` | New training-gap brainstorm skill |
-| `state-templates/CLAUDE-APPEND.md` | Adds domain-brainstorm to skills table and Fitness Proposal Categories section |
-| `.claude-plugin/hermit-meta.json` | required_core_version and requires bumped to >=1.1.9 |
-| `.claude-plugin/plugin.json` | dependencies claude-code-hermit bumped to ^1.1.9 |
+- `routine-weekly-load-review` now uses elevation-weighted `adjusted_km` for load flags while retaining raw-distance output.
+- Raised the core dependency floor to `>=1.1.9`.
 
 ### Upgrade Instructions
 
@@ -137,25 +106,15 @@ No `config.json` changes required.
 
 ### Added
 
-- **weekly-coaching-patterns: first scheduled check for fitness-hermit** — weekly interval check that reads the last 4 steady-session `activity-note` compiled artifacts and detects upward cardiac-drift trends (4 consecutive steady sessions strictly rising). Findings are routed through the `reflect-scheduled-checks` proposal pipeline as `Evidence Source: scheduled-check/weekly-coaching-patterns`. Registered by `hatch` via `config.scheduled_checks`; no new routine required.
-- **strava-sync: auto-trigger activity-deep-dive for new runs** — the daily sync runs a full coaching deep-dive for each new run (capped at the 3 most-recent, skipped IDs logged). Deep-dive failures are logged to the Progress Log and not retried, since the cursor has already advanced.
-- **activity-deep-dive: cadence analysis** — surfaces avg spm, CV, and over-striding/variability flags for running activities (skipped for non-running types or absent stream).
+- A weekly `weekly-coaching-patterns` check now detects four-session rising cardiac-drift trends through `reflect-scheduled-checks`.
+- `strava-sync` now triggers coaching deep dives for up to three new runs and logs non-retried failures.
+- `activity-deep-dive` now reports cadence, coefficient of variation, and over-striding or variability flags for runs.
 
 ### Changed
 
-- **capture-activity-rpe: refresh deep-dive after RPE capture** — re-runs `activity-deep-dive` for `Run` activities so the artifact includes RPE, which is unavailable at sync time.
-- **activity-deep-dive: interval vs steady-state session detection** — classifies each workout from HR alternation and lap clustering, then branches the metrics: interval sessions report work-interval HR progression and between-bout recovery, steady sessions report pace/HR efficiency and cardiac drift. Both still get zone breakdown and recovery estimate. `session_kind` is recorded in the compiled artifact frontmatter.
-- **activity-deep-dive: labeled coaching observations to SHELL.md Findings** — signal-bearing observations (cardiac drift, zone anomalies, RPE/recovery conflicts, efficiency regressions) are appended under `## Findings` as `Coaching observation [<label>] (activity <id>)`, feeding reflect's `current-session` evidence path. Dedup-guarded against repeated runs.
-
-### Files affected
-
-| File | Change |
-|------|--------|
-| `skills/activity-deep-dive/SKILL.md` | Interval/steady-state detection, cadence analysis, labeled SHELL.md observations |
-| `skills/capture-activity-rpe/SKILL.md` | Re-runs deep-dive after RPE capture for Run activities |
-| `skills/weekly-coaching-patterns/SKILL.md` | New scheduled check for cardiac-drift trend detection |
-| `state-templates/compiled/routine-strava-sync.md` | Auto-triggers activity-deep-dive for new runs |
-| `state-templates/CLAUDE-APPEND.md` | Adds weekly-coaching-patterns to skills table |
+- `capture-activity-rpe` now reruns `activity-deep-dive` for `Run` activities so artifacts include RPE.
+- `activity-deep-dive` now identifies interval and steady-state sessions, recording `session_kind` with tailored metrics.
+- `activity-deep-dive` now appends deduplicated labeled coaching observations to `SHELL.md` findings.
 
 ### Upgrade Instructions
 
@@ -171,12 +130,12 @@ No `config.json` changes required.
 
 ### Fixed
 
-- **hermit-evolve: duplicate Fitness block after core 1.1.1 target migration** — when core migrated its block to `CLAUDE.local.md`, the Fitness block was left in `CLAUDE.md` and a second one appended, producing duplicates. Upgrade Instructions strip the stray block.
+- Removed duplicate Fitness blocks left in `CLAUDE.md` after the core 1.1.1 target migration.
 
 ### Changed
 
-- **hatch: Step 6 is now target-aware** — reads `hatch-options.json` and writes the CLAUDE-APPEND block to `CLAUDE.local.md` or `CLAUDE.md` based on `target`. Detects scope from `claude plugin list --json` and stamps `hatch-options.json` when core hatch hasn't run yet.
-- **hatch: Upgrade Instructions Step 3 is fully unattended** — dropped hand-edit detection since `/hatch`'s single-source-of-truth contract makes the marked block template-authoritative.
+- Hatch Step 6 now writes the CLAUDE-APPEND block to the target selected in `hatch-options.json`.
+- Upgrade Instructions Step 3 now runs unattended because marked blocks are template-authoritative.
 
 ### Upgrade Instructions
 
@@ -196,17 +155,9 @@ No `config.json` changes required.
 
 ### Changed
 
-- **deps: core hermit floor raised to >=1.1.1** — aligns with the >=1.1.1 requirement now enforced across all fleet plugins; operators on older core builds will be prompted to update.
-- **docs: README updated to reflect RPE skills** — `capture-activity-rpe` and `set-rpe` now listed in the skills overview and features section.
-- **docs: min Claude Code prerequisite raised to v2.1.140+** — reflects the actual minimum tested version.
-
-### Files affected
-
-| File | Change |
-|------|--------|
-| `.claude-plugin/hermit-meta.json` | `required_core_version` and `requires` bumped to `>=1.1.1` |
-| `.claude-plugin/plugin.json` | `dependencies.claude-code-hermit` bumped to `^1.1.1` |
-| `README.md` | RPE skills added to features and skills overview; CC prerequisite raised to v2.1.140+ |
+- Raised the core dependency floor to `>=1.1.1`.
+- README now lists `capture-activity-rpe` and `set-rpe` in its skills overview and features.
+- Raised the minimum tested Claude Code version to v2.1.140+.
 
 ### Upgrade Instructions
 
@@ -222,25 +173,12 @@ No `config.json` changes required.
 
 ### Added
 
-- **capture-activity-rpe**: new skill that captures RPE when the operator replies to a `strava-sync` notification. Binds RPE to the latest synced activity via `strava-pending-rpe.json` and persists to `activity-notes.json`. Channel-agnostic.
-- **set-rpe**: new slash command for manual and retroactive RPE entry (`/claude-code-fitness-hermit:set-rpe <id|latest> <rpe> [notes]`).
-- **strava-sync**: appends an RPE prompt to the daily channel summary and writes `strava-pending-rpe.json` for `capture-activity-rpe` to consume.
-- **activity-deep-dive**: surfaces `Subjective: RPE N/10 — <notes>` from `activity-notes.json` in output and compiled-artifact frontmatter when present.
-- **weekly-load-review**: appends avg RPE summary to the channel message when 2 or more `activity-notes.json` entries exist for the week.
-- **knowledge-schema.md**: documents the JSON shape of `activity-notes.json` and `strava-pending-rpe.json`.
-
-### Files affected
-
-| File | Change |
-|------|--------|
-| `skills/capture-activity-rpe/SKILL.md` | New skill: channel-reply RPE capture |
-| `skills/set-rpe/SKILL.md` | New skill: manual and retroactive RPE entry |
-| `skills/activity-deep-dive/SKILL.md` | Surface RPE and notes from `activity-notes.json` |
-| `state-templates/compiled/routine-strava-sync.md` | Append RPE prompt after successful channel send |
-| `state-templates/compiled/routine-weekly-load-review.md` | Append avg RPE summary when ≥2 entries present |
-| `docs/knowledge-schema.md` | Document `activity-notes.json` and `strava-pending-rpe.json` shapes |
-| `CLAUDE.md` | Memory conventions for new state files |
-| `state-templates/CLAUDE-APPEND.md` | Fitness Workflow block updated with new state refs |
+- `capture-activity-rpe` now captures channel-reply RPE in `activity-notes.json`.
+- `/claude-code-fitness-hermit:set-rpe` now supports manual and retroactive RPE entry.
+- `strava-sync` now writes `strava-pending-rpe.json` and adds an RPE prompt to daily summaries.
+- `activity-deep-dive` now includes subjective RPE notes in output and compiled artifact frontmatter.
+- `weekly-load-review` now adds an average RPE summary when the week has at least two activity notes.
+- Added `knowledge-schema.md` documentation for `activity-notes.json` and `strava-pending-rpe.json`.
 
 ### Upgrade Instructions
 
@@ -260,18 +198,8 @@ No `config.json` changes required.
 
 ### Changed
 
-- **hatch: core hermit floor raised to ≥1.0.26** — prerequisite for docker-security overlay and recent hermit-evolve reliability fixes. Hatch now warns and stops if the installed core version is below `1.0.26`.
-- **hatch: docker-security DNS allowlist** — added `strava.com` domain entry under a new `## Docker network requirements` section so `/claude-code-hermit:docker-security` can surface it when the operator enables LAN containment.
-
-### Files affected
-
-| File | Change |
-|------|--------|
-| `.claude-plugin/hermit-meta.json` | `required_core_version` and `requires` bumped to `>=1.0.26` |
-| `.claude-plugin/plugin.json` | `dependencies.claude-code-hermit` bumped to `^1.0.26` |
-| `skills/hatch/SKILL.md` | Version check floor raised to `1.0.26`; docker-security DNS block added |
-| `CLAUDE.md` | Core version reference updated to `≥1.0.26` |
-| `README.md` | Core version badge updated |
+- Raised the core dependency floor to `>=1.0.26`; Hatch now warns and stops on older installations.
+- Added `strava.com` to Docker network requirements for `/claude-code-hermit:docker-security`.
 
 ### Upgrade Instructions
 
@@ -287,7 +215,7 @@ No `config.json` changes required.
 
 ### Added
 
-- **Initial public release.**
+- Initial public release.
 
 ### Upgrade Instructions
 

@@ -100,5 +100,5 @@ Then ask the operator which findings to apply (all / pick / none). For approved 
 
 After applying:
 
-- Edits under `plugins/<slug>/` ship with that plugin — offer a terse bullet for its `[Unreleased]` `### Fixed`: `- **docs: <what was corrected>**` (one line, repo changelog style). Root README/CLAUDE.md edits skip the changelog per repo convention.
+- Edits under `plugins/<slug>/` ship with that plugin — offer a terse plain sentence-case line for its `[Unreleased]` `### Fixed`, with no `**docs:**` prefix (one line, repo changelog style). Root README/CLAUDE.md edits skip the changelog per repo convention.
 - Remind that the edits are uncommitted and `/commit` captures them. **Never commit or push from this skill.**

@@ -114,13 +114,7 @@ Prepend a new entry to `plugins/<slug>/CHANGELOG.md` immediately after the `# Ch
 ### Added / Changed / Fixed
 (use whichever sections apply — skip empty ones)
 
-- **component: one-line summary** — optional ≤1-sentence rationale.
-
-### Files affected
-
-| File | Change |
-|------|--------|
-| `path/to/file` | terse one-line description |
+- Plain sentence-case line describing the change; the header carries the category. Backticks for `commands`, `paths`, `--flags`.
 
 ### Upgrade Instructions
 
@@ -133,10 +127,8 @@ No `config.json` changes required.
 
 **Template constraints (enforce these):**
 
-1. **Narrative bullets (Added / Changed / Fixed)** — canonical format lives in root `CLAUDE.md` §Commits; enforce it here: one-line summary in the shape `- **component: what changed** — short rationale if non-obvious.` Target 1–3 lines, ~40 words max. If a bullet wants to grow longer, the surplus belongs in the PR description, not here.
-   - Lead with the component or subsystem (`reflect:`, `session-mgr:`, `hermit-docker:`).
+1. **Narrative bullets (Added / Changed / Fixed)** — canonical format lives in root `CLAUDE.md` §Commits; enforce it here: a plain sentence-case line under the category header, no `**component:**` prefix and no leading Fixed/Added verb (the header carries the category). Backticks for commands/paths/flags. Target 1–2 lines, ~40 words max. If a bullet wants to grow longer, the surplus belongs in the PR description, not here.
    - Do NOT list internal refactors, helper extractions, test scaffolding, or renamed variables — those are visible in `git diff`.
-   - Do NOT repeat what `Files affected` already shows.
    - **Recovery procedures, migration shell snippets, and breaking-change steps belong in `### Upgrade Instructions`, never in the narrative bullet.** Write a tight summary ("changed default X to Y") and let that section carry the imperative steps — `hermit-evolve` reads them step-by-step.
 
 2. **Upgrade Instructions** — strict imperative block:
@@ -146,9 +138,7 @@ No `config.json` changes required.
    - Include what `hermit-evolve` does NOT need to touch only if omission would cause it to act destructively. Otherwise silence.
    - Close with `No config.json changes required.` if true — it's the most common case and operators scan for it.
 
-3. **Files affected table** — one line per file, ≤15 words per Change cell. If a file had many sub-changes, summarize the category, not the enumeration.
-
-4. **What belongs where:**
+3. **What belongs where:**
    - Why it changed → Changed/Fixed bullet.
    - What evolve executes → Upgrade Instructions (imperative, numbered).
    - Behavior deltas that need no action but operators should know → one final line after the numbered list, prefixed `**Note:**`. Not a step.
