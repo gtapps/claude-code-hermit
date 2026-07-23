@@ -3,86 +3,121 @@
 // payload with a recognized trigger. See scripts/precompact-stamp.ts and
 // scripts/lib/progress-log.ts.
 
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { runScript } from './helpers/run';
 
-let hermitDir: string;
-let shellPath: string;
-
-beforeEach(() => {
-  hermitDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-precompact-'));
+function makeDir(): string {
+  const hermitDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-precompact-'));
   fs.mkdirSync(path.join(hermitDir, 'sessions'), { recursive: true });
-  shellPath = path.join(hermitDir, 'sessions', 'SHELL.md');
-  fs.writeFileSync(shellPath, '## Progress Log\n', 'utf-8');
+  fs.writeFileSync(path.join(hermitDir, 'sessions', 'SHELL.md'), '## Progress Log\n', 'utf-8');
   fs.writeFileSync(path.join(hermitDir, 'config.json'), JSON.stringify({ timezone: 'UTC' }), 'utf-8');
-});
+  return hermitDir;
+}
 
-afterEach(() => {
-  fs.rmSync(hermitDir, { recursive: true, force: true });
-});
-
-async function runHook(stdin: string) {
+async function runHook(stdin: string, hermitDir: string) {
   return runScript('precompact-stamp.ts', { stdin, env: { AGENT_DIR: hermitDir } });
 }
 
 describe('precompact-stamp: valid PreCompact payloads', () => {
   test('trigger:"auto" writes a breadcrumb, empty stdout, exit 0', async () => {
-    const result = await runHook(JSON.stringify({ hook_event_name: 'PreCompact', trigger: 'auto' }));
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe('');
-    const shell = fs.readFileSync(shellPath, 'utf-8');
-    expect(shell).toContain('context compacted (auto)');
-    expect(shell).toContain('arc may have unfinished work');
+    const hermitDir = makeDir();
+    try {
+      const shellPath = path.join(hermitDir, 'sessions', 'SHELL.md');
+      const result = await runHook(JSON.stringify({ hook_event_name: 'PreCompact', trigger: 'auto' }), hermitDir);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toBe('');
+      const shell = fs.readFileSync(shellPath, 'utf-8');
+      expect(shell).toContain('context compacted (auto)');
+      expect(shell).toContain('arc may have unfinished work');
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 
   test('trigger:"manual" writes a breadcrumb, empty stdout, exit 0', async () => {
-    const result = await runHook(JSON.stringify({ hook_event_name: 'PreCompact', trigger: 'manual' }));
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe('');
-    const shell = fs.readFileSync(shellPath, 'utf-8');
-    expect(shell).toContain('context compacted (manual)');
+    const hermitDir = makeDir();
+    try {
+      const shellPath = path.join(hermitDir, 'sessions', 'SHELL.md');
+      const result = await runHook(JSON.stringify({ hook_event_name: 'PreCompact', trigger: 'manual' }), hermitDir);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toBe('');
+      const shell = fs.readFileSync(shellPath, 'utf-8');
+      expect(shell).toContain('context compacted (manual)');
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 });
 
 describe('precompact-stamp: no-op on anything that is not a genuine PreCompact payload', () => {
   test('malformed stdin: no write, no stdout, exit 0', async () => {
-    const before = fs.readFileSync(shellPath, 'utf-8');
-    const result = await runHook('not json{{{');
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe('');
-    expect(fs.readFileSync(shellPath, 'utf-8')).toBe(before);
+    const hermitDir = makeDir();
+    try {
+      const shellPath = path.join(hermitDir, 'sessions', 'SHELL.md');
+      const before = fs.readFileSync(shellPath, 'utf-8');
+      const result = await runHook('not json{{{', hermitDir);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toBe('');
+      expect(fs.readFileSync(shellPath, 'utf-8')).toBe(before);
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 
   test('empty stdin: no write, no stdout, exit 0', async () => {
-    const before = fs.readFileSync(shellPath, 'utf-8');
-    const result = await runHook('');
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe('');
-    expect(fs.readFileSync(shellPath, 'utf-8')).toBe(before);
+    const hermitDir = makeDir();
+    try {
+      const shellPath = path.join(hermitDir, 'sessions', 'SHELL.md');
+      const before = fs.readFileSync(shellPath, 'utf-8');
+      const result = await runHook('', hermitDir);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toBe('');
+      expect(fs.readFileSync(shellPath, 'utf-8')).toBe(before);
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 
   test('wrong hook_event_name: no write', async () => {
-    const before = fs.readFileSync(shellPath, 'utf-8');
-    const result = await runHook(JSON.stringify({ hook_event_name: 'SessionStart', trigger: 'auto' }));
-    expect(result.exitCode).toBe(0);
-    expect(fs.readFileSync(shellPath, 'utf-8')).toBe(before);
+    const hermitDir = makeDir();
+    try {
+      const shellPath = path.join(hermitDir, 'sessions', 'SHELL.md');
+      const before = fs.readFileSync(shellPath, 'utf-8');
+      const result = await runHook(JSON.stringify({ hook_event_name: 'SessionStart', trigger: 'auto' }), hermitDir);
+      expect(result.exitCode).toBe(0);
+      expect(fs.readFileSync(shellPath, 'utf-8')).toBe(before);
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 
   test('invalid trigger value: no write', async () => {
-    const before = fs.readFileSync(shellPath, 'utf-8');
-    const result = await runHook(JSON.stringify({ hook_event_name: 'PreCompact', trigger: 'bogus' }));
-    expect(result.exitCode).toBe(0);
-    expect(fs.readFileSync(shellPath, 'utf-8')).toBe(before);
+    const hermitDir = makeDir();
+    try {
+      const shellPath = path.join(hermitDir, 'sessions', 'SHELL.md');
+      const before = fs.readFileSync(shellPath, 'utf-8');
+      const result = await runHook(JSON.stringify({ hook_event_name: 'PreCompact', trigger: 'bogus' }), hermitDir);
+      expect(result.exitCode).toBe(0);
+      expect(fs.readFileSync(shellPath, 'utf-8')).toBe(before);
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 
   test('missing trigger: no write', async () => {
-    const before = fs.readFileSync(shellPath, 'utf-8');
-    const result = await runHook(JSON.stringify({ hook_event_name: 'PreCompact' }));
-    expect(result.exitCode).toBe(0);
-    expect(fs.readFileSync(shellPath, 'utf-8')).toBe(before);
+    const hermitDir = makeDir();
+    try {
+      const shellPath = path.join(hermitDir, 'sessions', 'SHELL.md');
+      const before = fs.readFileSync(shellPath, 'utf-8');
+      const result = await runHook(JSON.stringify({ hook_event_name: 'PreCompact' }), hermitDir);
+      expect(result.exitCode).toBe(0);
+      expect(fs.readFileSync(shellPath, 'utf-8')).toBe(before);
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 });
 

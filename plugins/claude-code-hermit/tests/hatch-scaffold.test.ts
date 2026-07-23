@@ -1,23 +1,14 @@
-import { describe, test, expect, afterEach } from 'bun:test';
+import { describe, test, expect, afterAll } from 'bun:test';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { runScript, PLUGIN_ROOT } from './helpers/run';
+import { freshDirFactory } from './helpers/workdir';
 
 const TEMPLATES = path.join(PLUGIN_ROOT, 'state-templates');
 const ISO_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{4}$/;
 
-const tmpdirs: string[] = [];
-function freshDir(): string {
-  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-scaffold-'));
-  tmpdirs.push(d);
-  return d;
-}
-afterEach(() => {
-  for (const d of tmpdirs.splice(0)) {
-    try { fs.rmSync(d, { recursive: true, force: true }); } catch {}
-  }
-});
+const { freshDir, cleanup } = freshDirFactory('hermit-scaffold-');
+afterAll(cleanup);
 
 async function scaffold(projectRoot: string, reinit = false) {
   const args = reinit ? [projectRoot, '--reinit=true'] : [projectRoot];

@@ -21,10 +21,10 @@ Examples:
 
 ### 0. Resolve target slugs
 
-- If a slug arg was passed, validate `plugins/<slug>/.claude-plugin/plugin.json` exists. If not, abort with: `Plugin 'plugins/<slug>/' not found. Available: <comma-separated slugs>.`
-- If no slug, glob `plugins/*/.claude-plugin/plugin.json` and collect the directory names. Run tests for each in sequence.
+- If no slug arg was passed, run `bash scripts/test-all.sh` from the repo root (launches every plugin's suite in parallel; wall time is bounded by the slowest suite instead of their sum) and report its summary table directly — skip Steps 0-1 below entirely.
+- If a slug arg was passed, validate `plugins/<slug>/.claude-plugin/plugin.json` exists. If not, abort with: `Plugin 'plugins/<slug>/' not found. Available: <comma-separated slugs>.` Then continue to Step 1 for that single plugin.
 
-### 1. Run each suite (per slug)
+### 1. Run the suite (single-plugin arg only)
 
 Plugins ship one of two test conventions. Detect and dispatch:
 
@@ -32,10 +32,10 @@ Plugins ship one of two test conventions. Detect and dispatch:
   ```bash
   bash plugins/<slug>/tests/run-all.sh 2>&1
   ```
-- **Bun entrypoint** — else if any `plugins/<slug>/tests/*.test.ts` exists (core/HA convention): `cd plugins/<slug> && bun test 2>&1`.
+- **Bun entrypoint** — else if any `plugins/<slug>/tests/*.test.ts` exists (core/HA/feed convention): `cd plugins/<slug> && bun test 2>&1`.
 - **Neither marker** — mark `no tests configured` and continue.
 
-Capture full output. Extract pass/fail counts from each suite's summary line.
+Capture full output. Extract pass/fail counts from the suite's summary line.
 
 ### 2. Report
 

@@ -4,13 +4,13 @@
 // pytest fixture mapping: patch(cli.load_config/HomeAssistantClient) ->
 // main(argv, { loadConfig, createClient }) dependency injection.
 
-import { afterEach, expect, test } from 'bun:test';
+import { afterAll, expect, test } from 'bun:test';
 
 import { main } from '../src/cli';
 import { HomeAssistantError } from '../src/ha-api';
 import { captureOutput, cleanupTmp, fakeClient, makeMockConfig, type FakeClient } from './helpers';
 
-afterEach(cleanupTmp);
+afterAll(cleanupTmp);
 
 function runCli(argv: string[], client: FakeClient) {
   const cfg = makeMockConfig();

@@ -40,7 +40,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: '1.3.11'
+          bun-version: '1.3.14'
       - run: bun install --frozen-lockfile
       # No-op until the first .ts lands; tsc exits 18003 on zero inputs, so gate on file presence.
       - run: |
@@ -55,7 +55,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: '1.3.11'
+          bun-version: '1.3.14'
       # The repo-internal /simplify mirror must stay byte-identical to the shipped skill.
       - name: Guard .claude/skills/simplify mirror
         run: diff -r .claude/skills/simplify plugins/claude-code-hermit/skills/simplify

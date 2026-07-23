@@ -1,14 +1,14 @@
 // WP7 tier 3: tests that refresh-context paths attach silence_summary to the
 // normalized snapshot — 1:1 port of tests/test_cli_silence.py (2 cases).
 
-import { afterEach, expect, test } from 'bun:test';
+import { afterAll, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { main } from '../src/cli';
 import { captureOutput, cleanupTmp, fakeClient, makeMockConfig } from './helpers';
 
-afterEach(cleanupTmp);
+afterAll(cleanupTmp);
 
 function mockStates(): Array<Record<string, any>> {
   return [

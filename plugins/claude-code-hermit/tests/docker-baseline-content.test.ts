@@ -169,7 +169,7 @@ describe('Entrypoint: placeholder-free session name resolution', () => {
   // Crux: the resolved name must equal what getSessionName() produces — that is what
   // hermit-start uses to CREATE the session. Both sides must chdir into the same temp
   // dir because getSessionName() reads process.cwd() for {project_name}.
-  test('entrypoint: session-name resolution matches lib/tmux.getSessionName — default config', () => {
+  test.serial('entrypoint: session-name resolution matches lib/tmux.getSessionName — default config', () => {
     const originalCwd = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-session-name-'));
     try {

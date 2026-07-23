@@ -1,13 +1,13 @@
 // WP7 tier 3: tests for the 'ha probe' CLI subcommand — 1:1 port of
 // tests/test_cli_probe.py (2 cases).
 
-import { afterEach, expect, test } from 'bun:test';
+import { afterAll, expect, test } from 'bun:test';
 
 import { main } from '../src/cli';
 import { HomeAssistantError } from '../src/ha-api';
 import { captureOutput, cleanupTmp, fakeClient, makeMockConfig, type FakeClient } from './helpers';
 
-afterEach(cleanupTmp);
+afterAll(cleanupTmp);
 
 function runCli(argv: string[], client: FakeClient) {
   const cfg = makeMockConfig();

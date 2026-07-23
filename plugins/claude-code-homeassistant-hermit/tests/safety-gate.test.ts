@@ -4,7 +4,7 @@
 // pytest fixture mapping: make_ha_config -> makeHaConfig from helpers.ts
 // (cwd-based config root, same as the conftest tmp_path fixture).
 
-import { afterEach, expect, test } from 'bun:test';
+import { afterAll, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import { join } from 'node:path';
 
@@ -12,7 +12,7 @@ import { cleanupTmp, makeHaConfig } from './helpers';
 
 const HOOK = join(import.meta.dir, '..', 'hooks', 'mcp-safety-gate.ts');
 
-afterEach(cleanupTmp);
+afterAll(cleanupTmp);
 
 function run(payload: unknown, cwd?: string) {
   const data = typeof payload === 'string' ? payload : JSON.stringify(payload);
