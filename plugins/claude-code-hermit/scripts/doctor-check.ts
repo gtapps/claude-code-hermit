@@ -15,7 +15,7 @@ import { PRICING } from './lib/pricing';
 import { getEnabledChannels } from './hermit-start';
 import { readChannelToken } from './lib/channel-token';
 import { siblingPluginDirs, versionedCacheCoreDir, readHermitMeta, readCoreName } from './lib/plugin-siblings';
-import { tokenModeActive, defaultConfigDir, credentialsFilePath, CREDENTIALS_FILENAME, PARKED_CREDENTIALS_FILENAME } from './lib/setup-token';
+import { tokenModeActive, defaultConfigDir, credentialsFilePath, parkedCredentialsFilePath, CREDENTIALS_FILENAME } from './lib/setup-token';
 
 type Json = any;
 
@@ -1368,7 +1368,7 @@ function shadowingCredentialNote(): string | null {
   } catch {
     return null; // absent or unreadable — nothing to shadow
   }
-  return `stored ${CREDENTIALS_FILENAME} will shadow the login token in interactive sessions — park it (mv ${CREDENTIALS_FILENAME} ${PARKED_CREDENTIALS_FILENAME}) and restart`;
+  return `stored ${CREDENTIALS_FILENAME} will shadow the login token in interactive sessions — park it (mv ${credentialsFilePath(configDir)} ${parkedCredentialsFilePath(configDir)}) and restart`;
 }
 
 function checkCredentialExpiry() {

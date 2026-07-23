@@ -151,7 +151,7 @@ fi
 # --- 0c. Park a stale /login credential when a setup-token is present ---
 # Interactive Claude Code sessions authenticate with .credentials.json whenever
 # it holds a token, ahead of CLAUDE_CODE_OAUTH_TOKEN — the reverse of the
-# documented precedence (confirmed live on CC 2.1.216+). A converted hermit that
+# documented precedence (confirmed live on CC 2.1.218). A converted hermit that
 # keeps its old /login file therefore 401s the moment that stored access token
 # lapses (~8h), while the valid year-long token sits unused in the env.
 # hermit-start's token install parks it too; this covers hermits converted before
