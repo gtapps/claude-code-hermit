@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **settings: drop no-op `Write(path)` rules** — Claude Code only matches file-permission checks against `Edit(path)` (which already covers Write), so the `Write(...)` allow/deny entries were dead and tripped a boot warning. `Write(tmp/**)` becomes `Edit(tmp/**)` so tmp fetch-scratch writes are actually auto-approved (the old `Write(...)` rule never matched, so they weren't before).
+
 ## [0.1.1] - 2026-07-21
 
 ### Fixed

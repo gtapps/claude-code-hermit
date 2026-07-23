@@ -8,14 +8,10 @@
       "Bash(bun *validate-sources.ts*)",
       "Bash(bun test*)",
       "Edit(feed-sources.md)",
-      "Write(feed-sources.md)",
       "Edit(feed-categories.md)",
-      "Write(feed-categories.md)",
       "Edit(FEEDS.md)",
-      "Write(FEEDS.md)",
       "Edit(.claude-code-hermit/**)",
-      "Write(.claude-code-hermit/**)",
-      "Write(tmp/**)"
+      "Edit(tmp/**)"
     ],
     "deny": [
       "Bash(rm -rf *)",
@@ -25,9 +21,7 @@
       "Bash(curl * | bash*)",
       "Bash(wget * | bash*)",
       "Edit(**/.claude-code-hermit/OPERATOR.md)",
-      "Write(**/.claude-code-hermit/OPERATOR.md)",
-      "Edit(.env)",
-      "Write(.env)"
+      "Edit(.env)"
     ]
   }
 }
