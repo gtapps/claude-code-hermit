@@ -154,6 +154,17 @@ describe('Entrypoint: setup-token auth gates', () => {
     expect(condition).toContain('[ ! -f "$SETUP_TOKEN_FILE" ]');
     expect(condition).toContain('[ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]');
   });
+
+  // §0c parks a stale /login credential when a setup-token is present: interactive
+  // sessions prefer .credentials.json over the env token, so an unparked stored
+  // login 401s the hermit ~8h after its token lapses. Guards hermits converted
+  // before install-time parking shipped.
+  test('entrypoint: §0c parks a stale credential in token mode', () => {
+    const guard = entrypoint.slice(entrypoint.indexOf('# --- 0c.'));
+    const block = guard.slice(0, guard.indexOf('# --- 0d.'));
+    expect(block).toContain('[ -f "$SETUP_TOKEN_FILE" ] && [ -f "$CRED_FILE" ]');
+    expect(block).toContain('mv -f "$CRED_FILE" "${CRED_FILE}.pre-token.bak"');
+  });
 });
 
 describe('Entrypoint: placeholder-free session name resolution', () => {

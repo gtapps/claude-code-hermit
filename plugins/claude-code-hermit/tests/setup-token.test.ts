@@ -6,9 +6,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { runScript } from './helpers/run';
 import {
+  credentialsFilePath,
   installToken,
   isPlausibleToken,
   msUntilExpiry,
+  parkCredentialsFile,
+  parkedCredentialsFilePath,
   readTokenRecord,
   readTokenValue,
   tokenFilePath,
@@ -86,6 +89,37 @@ describe('token storage', () => {
     expect(readTokenRecord(hermitDir)).toBeNull();
     fs.writeFileSync(path.join(hermitDir, 'state', 'setup-token.json'), JSON.stringify({ expires_at: 'soon' }));
     expect(readTokenRecord(hermitDir)).toBeNull();
+  }));
+});
+
+describe('parking a stored /login credential on install', () => {
+  const CRED = JSON.stringify({ claudeAiOauth: { accessToken: 'stored', expiresAt: 1 } });
+
+  test('install parks an existing .credentials.json, preserving its contents', withDirs((hermitDir, configDir) => {
+    fs.writeFileSync(credentialsFilePath(configDir), CRED);
+    installToken(hermitDir, configDir, VALID);
+    // The live credential is gone from the path the CLI reads...
+    expect(fs.existsSync(credentialsFilePath(configDir))).toBe(false);
+    // ...but preserved verbatim under the parked name, so /login can be restored.
+    expect(fs.readFileSync(parkedCredentialsFilePath(configDir), 'utf8')).toBe(CRED);
+    expect(readTokenValue(configDir)).toBe(VALID);
+  }));
+
+  test('install with no stored credential leaves no parked file behind', withDirs((hermitDir, configDir) => {
+    installToken(hermitDir, configDir, VALID);
+    expect(fs.existsSync(parkedCredentialsFilePath(configDir))).toBe(false);
+  }));
+
+  test('a second park replaces the previous backup rather than failing', withDirs((hermitDir, configDir) => {
+    fs.writeFileSync(parkedCredentialsFilePath(configDir), '{"old":true}');
+    fs.writeFileSync(credentialsFilePath(configDir), CRED);
+    expect(parkCredentialsFile(configDir)).toBe(true);
+    expect(fs.readFileSync(parkedCredentialsFilePath(configDir), 'utf8')).toBe(CRED);
+    expect(fs.existsSync(credentialsFilePath(configDir))).toBe(false);
+  }));
+
+  test('park is a no-op (returns false) when there is nothing to park', withDirs((_hermitDir, configDir) => {
+    expect(parkCredentialsFile(configDir)).toBe(false);
   }));
 });
 

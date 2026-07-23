@@ -15,6 +15,7 @@ import { PRICING } from './lib/pricing';
 import { getEnabledChannels } from './hermit-start';
 import { readChannelToken } from './lib/channel-token';
 import { siblingPluginDirs, versionedCacheCoreDir, readHermitMeta, readCoreName } from './lib/plugin-siblings';
+import { tokenModeActive, defaultConfigDir, credentialsFilePath, parkedCredentialsFilePath, CREDENTIALS_FILENAME } from './lib/setup-token';
 
 type Json = any;
 
@@ -1351,11 +1352,32 @@ function probeDeclaredCredentials(): { okCount: number; badNotes: string[] } {
   return { okCount, badNotes };
 }
 
+// A stored /login credential sitting next to a setup-token is a live hazard, not
+// an expiry question: interactive Claude Code sessions prefer .credentials.json
+// over CLAUDE_CODE_OAUTH_TOKEN, so the hermit 401s when that stored access token
+// lapses (~8h) even though the year-long token is valid. Only a credential that
+// still carries a token shadows — a parked file or a /logout stub (empty
+// accessToken) is inert, so those return null.
+function shadowingCredentialNote(): string | null {
+  const configDir = defaultConfigDir();
+  if (!tokenModeActive(configDir)) return null;
+  try {
+    const creds = JSON.parse(fs.readFileSync(credentialsFilePath(configDir), 'utf8'));
+    const token = creds?.claudeAiOauth?.accessToken;
+    if (typeof token !== 'string' || token.length === 0) return null;
+  } catch {
+    return null; // absent or unreadable — nothing to shadow
+  }
+  return `stored ${CREDENTIALS_FILENAME} will shadow the login token in interactive sessions — park it (mv ${credentialsFilePath(configDir)} ${parkedCredentialsFilePath(configDir)}) and restart`;
+}
+
 function checkCredentialExpiry() {
   try {
     const sib = probeDeclaredCredentials();
-    const status = sib.badNotes.length > 0 ? 'warn' : 'ok';
+    const shadow = shadowingCredentialNote();
     const parts = [...sib.badNotes];
+    if (shadow) parts.push(shadow);
+    const status = parts.length > 0 ? 'warn' : 'ok';
     if (sib.okCount > 0) parts.push(`${sib.okCount} plugin credential(s) ok`);
     if (parts.length === 0) parts.push('no plugin declares a credential to probe');
     return { id: 'credential-expiry', status, detail: parts.join('; ') };

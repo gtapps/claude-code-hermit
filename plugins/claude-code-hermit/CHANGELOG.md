@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **setup-token: stored `/login` credentials no longer shadow the login token** — token install and the Docker boot gate now park a stale `.credentials.json` (rename to `.credentials.json.pre-token.bak`). Interactive Claude Code sessions authenticate with a stored `/login` credential ahead of `CLAUDE_CODE_OAUTH_TOKEN` (the reverse of the documented precedence, confirmed live on CC 2.1.218), so a converted hermit that kept its old login file 401'd ~8h later when that stored access token lapsed, while its valid year-long token sat unused.
+- **doctor: `credential-expiry` warns when a live `/login` credential shadows the token** — in token mode, a `.credentials.json` still carrying an access token is flagged with the exact park command. A parked file or a `/logout` stub is inert and stays `ok`. Check count unchanged.
+
+### Upgrade Instructions
+1. **Docker hermits — refresh the on-disk entrypoint BEFORE rebuilding.** `hermit-docker update` rebuilds with the operator's on-disk `docker-entrypoint.hermit.sh`, not the plugin template. Re-run `/claude-code-hermit:docker-setup` (or patch the on-disk copy from `state-templates/docker/docker-entrypoint.hermit.sh.template`) first, then `hermit-docker update`. This carries the §0c credential-parking guard.
+2. **Already-converted token-mode hermits — park the stale credential now.** If the hermit uses `setup-token` auth and still has a `.credentials.json`, park it: `docker exec <stack>-hermit-1 mv /home/claude/.claude/.credentials.json /home/claude/.claude/.credentials.json.pre-token.bak`, then restart the container. The refreshed entrypoint (step 1) also does this automatically at the next boot; this step recovers a hermit that is already dark now.
+3. **Returning to `/login` auth (rare).** The parking guard only fires while a setup-token is present, so to switch a hermit back to `/login`, delete `.hermit-setup-token` first, then run `hermit-docker login`.
+
 ## [1.2.31] - 2026-07-22
 
 ### Fixed
