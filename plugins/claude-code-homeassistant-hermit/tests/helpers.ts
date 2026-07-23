@@ -3,7 +3,8 @@
 // (write_artifact), plus a capsys equivalent for CLI tests.
 //
 // Each test file that uses tmpPath()/makeHaRoot()/... must register
-// `afterEach(cleanupTmp)`.
+// `afterAll(cleanupTmp)` — afterEach would drain dirs still in use by
+// sibling tests running concurrently under `bun test --concurrent`.
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

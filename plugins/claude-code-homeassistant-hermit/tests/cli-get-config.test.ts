@@ -1,13 +1,13 @@
 // WP7 tier 3: tests for cli.ts get-*-config commands — 1:1 port of
 // tests/test_cli_get_config.py (3 cases + 1 parametrized pair).
 
-import { afterEach, expect, test } from 'bun:test';
+import { afterAll, expect, test } from 'bun:test';
 
 import { main } from '../src/cli';
 import { HomeAssistantError } from '../src/ha-api';
 import { captureOutput, cleanupTmp, fakeClient, makeMockConfig, type FakeClient } from './helpers';
 
-afterEach(cleanupTmp);
+afterAll(cleanupTmp);
 
 function runCli(argv: string[], client: FakeClient) {
   const cfg = makeMockConfig();

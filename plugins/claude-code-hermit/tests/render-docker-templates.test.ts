@@ -4,23 +4,14 @@
 //
 // Usage: bun test tests/render-docker-templates.test.ts   (from the plugin root)
 
-import { describe, test, expect, afterEach } from 'bun:test';
+import { describe, test, expect, afterAll } from 'bun:test';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { runScript, PLUGIN_ROOT } from './helpers/run';
+import { freshDirFactory } from './helpers/workdir';
 
-const tmpdirs: string[] = [];
-function freshDir(): string {
-  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-rdt-'));
-  tmpdirs.push(d);
-  return d;
-}
-afterEach(() => {
-  for (const d of tmpdirs.splice(0)) {
-    try { fs.rmSync(d, { recursive: true, force: true }); } catch {}
-  }
-});
+const { freshDir, cleanup } = freshDirFactory('hermit-rdt-');
+afterAll(cleanup);
 
 const BASE_INPUT = {
   packages: [] as string[],

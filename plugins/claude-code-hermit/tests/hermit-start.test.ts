@@ -20,7 +20,7 @@
 //
 // Usage: bun test tests/hermit-start.test.ts   (from the plugin root)
 
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test as bunTest, expect, beforeEach, afterEach } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -38,6 +38,12 @@ import {
   hydrateSetupTokenEnv,
 } from '../scripts/hermit-start';
 import { TOKEN_ENV_VAR } from '../scripts/lib/setup-token';
+
+// The top-level beforeEach/afterEach below process.chdir()s into a fresh
+// tempdir for every test in this file — a process-global mutation two
+// concurrently-running tests can't both have. Alias `test` to force the
+// whole file to run serially under `bun test --concurrent`.
+const test = bunTest.serial;
 
 const PLUGIN_ROOT = path.resolve(import.meta.dir, '..');
 

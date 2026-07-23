@@ -12,7 +12,10 @@
 // _write_launcher is vestigial in the Python suite (command_prefix resolves
 // against the real plugin root, which always has bin/ha-agent-lab) — dropped.
 
-import { afterEach, beforeEach, expect, test } from 'bun:test';
+// Whole file runs serial: beforeEach/afterEach save/restore parent process.env
+// keys — global state per-test dirs cannot isolate under --concurrent.
+import { afterEach, beforeEach, expect, test as bunTest } from 'bun:test';
+const test = bunTest.serial;
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
 

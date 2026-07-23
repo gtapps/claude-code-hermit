@@ -7,7 +7,7 @@
 // The "stat raises OSError" case uses an ENOTDIR parent (a regular file where
 // raw/ should be) instead of patching Path.stat — same non-ENOENT branch.
 
-import { afterEach, expect, test } from 'bun:test';
+import { afterAll, expect, test } from 'bun:test';
 import { mkdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
@@ -16,7 +16,7 @@ import { handleIntegrationHealth } from '../src/cli';
 import { HomeAssistantError } from '../src/ha-api';
 import { captureOutput, cleanupTmp, fakeClient, tmpPath } from './helpers';
 
-afterEach(cleanupTmp);
+afterAll(cleanupTmp);
 
 function makeEntities(domain: string, n: number, unavail: number): [Record<string, any>, string[]] {
   const idx: Record<string, any> = {};

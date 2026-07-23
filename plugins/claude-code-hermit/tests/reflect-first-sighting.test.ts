@@ -10,7 +10,7 @@
 //
 // Usage: bun test tests/reflect-first-sighting.test.ts   (from the plugin root)
 
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, test, expect } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -79,119 +79,154 @@ async function runPrecheck(hermitDir: string): Promise<string> {
 // ── Section 1: Drift capture ──────────────────────────────────────────────────
 
 describe('reflect-precheck: drift capture', () => {
-  let hermitDir: string;
-
-  beforeEach(() => { hermitDir = makeTmpHermit({ lastRunAt: null }); });
-  afterEach(() => { fs.rmSync(hermitDir, { recursive: true, force: true }); });
-
   test('precheck writes startup-drift row when unknown top-level dir exists', async () => {
-    // Create an unknown top-level dir to trigger storage drift
-    fs.mkdirSync(path.join(hermitDir, 'reports'));
-    fs.writeFileSync(path.join(hermitDir, 'reports', 'foo.md'), '# test', 'utf-8');
+    const hermitDir = makeTmpHermit({ lastRunAt: null });
+    try {
+      // Create an unknown top-level dir to trigger storage drift
+      fs.mkdirSync(path.join(hermitDir, 'reports'));
+      fs.writeFileSync(path.join(hermitDir, 'reports', 'foo.md'), '# test', 'utf-8');
 
-    await runPrecheck(hermitDir);
+      await runPrecheck(hermitDir);
 
-    const rows = readObservations(hermitDir);
-    const driftRow = rows.find(r => typeof r.pattern === 'string' && r.pattern.startsWith('storage-drift:'));
-    expect(driftRow).toBeDefined();
-    expect(driftRow?.source).toBe('startup-drift');
-    expect(driftRow?.origin).toBe('own-work');
+      const rows = readObservations(hermitDir);
+      const driftRow = rows.find(r => typeof r.pattern === 'string' && r.pattern.startsWith('storage-drift:'));
+      expect(driftRow).toBeDefined();
+      expect(driftRow?.source).toBe('startup-drift');
+      expect(driftRow?.origin).toBe('own-work');
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 
   test('precheck drift row has required fields (ts, pattern, session_id, source, origin)', async () => {
-    fs.mkdirSync(path.join(hermitDir, 'audits'));
+    const hermitDir = makeTmpHermit({ lastRunAt: null });
+    try {
+      fs.mkdirSync(path.join(hermitDir, 'audits'));
 
-    await runPrecheck(hermitDir);
+      await runPrecheck(hermitDir);
 
-    const rows = readObservations(hermitDir);
-    const driftRow = rows.find(r => typeof r.pattern === 'string' && r.pattern.startsWith('storage-drift:'));
-    expect(driftRow).toBeDefined();
-    expect(typeof driftRow?.ts).toBe('string');
-    expect(typeof driftRow?.pattern).toBe('string');
-    expect(typeof driftRow?.session_id).toBe('string');
-    expect(driftRow?.source).toBe('startup-drift');
-    expect(driftRow?.origin).toBe('own-work');
+      const rows = readObservations(hermitDir);
+      const driftRow = rows.find(r => typeof r.pattern === 'string' && r.pattern.startsWith('storage-drift:'));
+      expect(driftRow).toBeDefined();
+      expect(typeof driftRow?.ts).toBe('string');
+      expect(typeof driftRow?.pattern).toBe('string');
+      expect(typeof driftRow?.session_id).toBe('string');
+      expect(driftRow?.source).toBe('startup-drift');
+      expect(driftRow?.origin).toBe('own-work');
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 
   test('session_id resolves to "unknown" when runtime.session_id is null', async () => {
-    fs.mkdirSync(path.join(hermitDir, 'reports'));
+    const hermitDir = makeTmpHermit({ lastRunAt: null });
+    try {
+      fs.mkdirSync(path.join(hermitDir, 'reports'));
 
-    await runPrecheck(hermitDir);
+      await runPrecheck(hermitDir);
 
-    const rows = readObservations(hermitDir);
-    const driftRow = rows.find(r => typeof r.pattern === 'string' && r.pattern.startsWith('storage-drift:'));
-    expect(driftRow?.session_id).toBe('unknown');
+      const rows = readObservations(hermitDir);
+      const driftRow = rows.find(r => typeof r.pattern === 'string' && r.pattern.startsWith('storage-drift:'));
+      expect(driftRow?.session_id).toBe('unknown');
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 
   test('session_id resolves to "unknown" when runtime.json is absent', async () => {
-    // Remove runtime.json
-    fs.unlinkSync(path.join(hermitDir, 'state', 'runtime.json'));
-    fs.mkdirSync(path.join(hermitDir, 'reports'));
+    const hermitDir = makeTmpHermit({ lastRunAt: null });
+    try {
+      // Remove runtime.json
+      fs.unlinkSync(path.join(hermitDir, 'state', 'runtime.json'));
+      fs.mkdirSync(path.join(hermitDir, 'reports'));
 
-    await runPrecheck(hermitDir);
+      await runPrecheck(hermitDir);
 
-    const rows = readObservations(hermitDir);
-    const driftRow = rows.find(r => typeof r.pattern === 'string' && r.pattern.startsWith('storage-drift:'));
-    expect(driftRow?.session_id).toBe('unknown');
+      const rows = readObservations(hermitDir);
+      const driftRow = rows.find(r => typeof r.pattern === 'string' && r.pattern.startsWith('storage-drift:'));
+      expect(driftRow?.session_id).toBe('unknown');
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 
   test('dedup by pattern: same session does not write duplicate rows', async () => {
-    fs.mkdirSync(path.join(hermitDir, 'reports'));
+    const hermitDir = makeTmpHermit({ lastRunAt: null });
+    try {
+      fs.mkdirSync(path.join(hermitDir, 'reports'));
 
-    // Run twice
-    await runPrecheck(hermitDir);
-    await runPrecheck(hermitDir);
+      // Run twice
+      await runPrecheck(hermitDir);
+      await runPrecheck(hermitDir);
 
-    const rows = readObservations(hermitDir).filter(r =>
-      typeof r.pattern === 'string' && r.pattern === 'storage-drift:reports'
-    );
-    expect(rows.length).toBe(1);
+      const rows = readObservations(hermitDir).filter(r =>
+        typeof r.pattern === 'string' && r.pattern === 'storage-drift:reports'
+      );
+      expect(rows.length).toBe(1);
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 
   test('dedup by pattern: a different session does NOT write a duplicate drift row', async () => {
-    fs.mkdirSync(path.join(hermitDir, 'reports'));
+    const hermitDir = makeTmpHermit({ lastRunAt: null });
+    try {
+      fs.mkdirSync(path.join(hermitDir, 'reports'));
 
-    // First run: session_id = "S-001"
-    const runtime1 = { session_state: 'idle', session_id: 'S-001' };
-    fs.writeFileSync(path.join(hermitDir, 'state', 'runtime.json'), JSON.stringify(runtime1), 'utf-8');
-    await runPrecheck(hermitDir);
+      // First run: session_id = "S-001"
+      const runtime1 = { session_state: 'idle', session_id: 'S-001' };
+      fs.writeFileSync(path.join(hermitDir, 'state', 'runtime.json'), JSON.stringify(runtime1), 'utf-8');
+      await runPrecheck(hermitDir);
 
-    // Second run: session_id = "S-002" (different session). Drift is structural, so the
-    // standing pattern is not re-written — otherwise it would flip reflect to RUN every session.
-    const runtime2 = { session_state: 'idle', session_id: 'S-002' };
-    fs.writeFileSync(path.join(hermitDir, 'state', 'runtime.json'), JSON.stringify(runtime2), 'utf-8');
-    await runPrecheck(hermitDir);
+      // Second run: session_id = "S-002" (different session). Drift is structural, so the
+      // standing pattern is not re-written — otherwise it would flip reflect to RUN every session.
+      const runtime2 = { session_state: 'idle', session_id: 'S-002' };
+      fs.writeFileSync(path.join(hermitDir, 'state', 'runtime.json'), JSON.stringify(runtime2), 'utf-8');
+      await runPrecheck(hermitDir);
 
-    const rows = readObservations(hermitDir).filter(r =>
-      typeof r.pattern === 'string' && r.pattern === 'storage-drift:reports'
-    );
-    expect(rows.length).toBe(1);
-    expect(rows[0].session_id).toBe('S-001');
+      const rows = readObservations(hermitDir).filter(r =>
+        typeof r.pattern === 'string' && r.pattern === 'storage-drift:reports'
+      );
+      expect(rows.length).toBe(1);
+      expect(rows[0].session_id).toBe('S-001');
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 
   test('storage-drift slug preserves the full subpath under raw/', async () => {
-    fs.mkdirSync(path.join(hermitDir, 'raw', 'sub'), { recursive: true });
+    const hermitDir = makeTmpHermit({ lastRunAt: null });
+    try {
+      fs.mkdirSync(path.join(hermitDir, 'raw', 'sub'), { recursive: true });
 
-    await runPrecheck(hermitDir);
+      await runPrecheck(hermitDir);
 
-    const rows = readObservations(hermitDir);
-    const driftRow = rows.find(r => typeof r.pattern === 'string' && r.pattern.startsWith('storage-drift:raw'));
-    expect(driftRow?.pattern).toBe('storage-drift:raw/sub');
+      const rows = readObservations(hermitDir);
+      const driftRow = rows.find(r => typeof r.pattern === 'string' && r.pattern.startsWith('storage-drift:raw'));
+      expect(driftRow?.pattern).toBe('storage-drift:raw/sub');
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 
   test('precheck writes a schema-drift row for an undeclared compiled type', async () => {
-    fs.writeFileSync(path.join(hermitDir, 'knowledge-schema.md'),
-      '## Work Products\n\n- guide:\n- design:\n', 'utf-8');
-    fs.writeFileSync(path.join(hermitDir, 'compiled', 'note.md'),
-      '---\ntitle: x\ntype: spike\ncreated: 2026-01-01T00:00:00Z\n---\n# x\n', 'utf-8');
+    const hermitDir = makeTmpHermit({ lastRunAt: null });
+    try {
+      fs.writeFileSync(path.join(hermitDir, 'knowledge-schema.md'),
+        '## Work Products\n\n- guide:\n- design:\n', 'utf-8');
+      fs.writeFileSync(path.join(hermitDir, 'compiled', 'note.md'),
+        '---\ntitle: x\ntype: spike\ncreated: 2026-01-01T00:00:00Z\n---\n# x\n', 'utf-8');
 
-    await runPrecheck(hermitDir);
+      await runPrecheck(hermitDir);
 
-    const rows = readObservations(hermitDir);
-    const driftRow = rows.find(r => r.pattern === 'schema-drift:spike');
-    expect(driftRow).toBeDefined();
-    expect(driftRow?.source).toBe('startup-drift');
-    expect(driftRow?.origin).toBe('own-work');
+      const rows = readObservations(hermitDir);
+      const driftRow = rows.find(r => r.pattern === 'schema-drift:spike');
+      expect(driftRow).toBeDefined();
+      expect(driftRow?.source).toBe('startup-drift');
+      expect(driftRow?.origin).toBe('own-work');
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 
   test('precheck is fail-open: exits 0 even when hermitDir is missing', async () => {
@@ -202,80 +237,97 @@ describe('reflect-precheck: drift capture', () => {
   });
 
   test('no drift written when hermit dirs are clean', async () => {
-    await runPrecheck(hermitDir);
+    const hermitDir = makeTmpHermit({ lastRunAt: null });
+    try {
+      await runPrecheck(hermitDir);
 
-    const rows = readObservations(hermitDir).filter(r =>
-      typeof r.pattern === 'string' && r.pattern.startsWith('storage-drift:')
-    );
-    expect(rows.length).toBe(0);
+      const rows = readObservations(hermitDir).filter(r =>
+        typeof r.pattern === 'string' && r.pattern.startsWith('storage-drift:')
+      );
+      expect(rows.length).toBe(0);
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 });
 
 // ── Section 2: Freshness RUN gate ────────────────────────────────────────────
 
 describe('reflect-precheck: freshness RUN gate', () => {
-  let hermitDir: string;
-
-  afterEach(() => { fs.rmSync(hermitDir, { recursive: true, force: true }); });
-
   test('EMPTY when ledger is empty and no other phases', async () => {
-    hermitDir = makeTmpHermit({
+    const hermitDir = makeTmpHermit({
       lastRunAt: new Date(Date.now() - 60_000).toISOString(),
       observations: [],
     });
-
-    const verdict = await runPrecheck(hermitDir);
-    expect(verdict).toBe('EMPTY');
+    try {
+      const verdict = await runPrecheck(hermitDir);
+      expect(verdict).toBe('EMPTY');
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 
   test('RUN|{observations_fresh:true} when ledger has row newer than last_run_at', async () => {
     const lastRunAt = new Date(Date.now() - 3600_000).toISOString(); // 1h ago
     const freshTs = new Date().toISOString();
 
-    hermitDir = makeTmpHermit({
+    const hermitDir = makeTmpHermit({
       lastRunAt,
       observations: [JSON.stringify({ ts: freshTs, pattern: 'test', session_id: 'S-001', source: 'reflect-noticed', origin: 'own-work' })],
     });
-
-    const verdict = await runPrecheck(hermitDir);
-    expect(verdict).toMatch(/^RUN\|/);
-    const phases = JSON.parse(verdict.slice(4));
-    expect(phases.observations_fresh).toBe(true);
+    try {
+      const verdict = await runPrecheck(hermitDir);
+      expect(verdict).toMatch(/^RUN\|/);
+      const phases = JSON.parse(verdict.slice(4));
+      expect(phases.observations_fresh).toBe(true);
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 
   test('EMPTY when all ledger rows are older than last_run_at', async () => {
     const oldTs = new Date(Date.now() - 7200_000).toISOString(); // 2h ago
     const lastRunAt = new Date(Date.now() - 3600_000).toISOString(); // 1h ago
 
-    hermitDir = makeTmpHermit({
+    const hermitDir = makeTmpHermit({
       lastRunAt,
       observations: [JSON.stringify({ ts: oldTs, pattern: 'test', session_id: 'S-001', source: 'reflect-noticed', origin: 'own-work' })],
     });
-
-    const verdict = await runPrecheck(hermitDir);
-    expect(verdict).toBe('EMPTY');
+    try {
+      const verdict = await runPrecheck(hermitDir);
+      expect(verdict).toBe('EMPTY');
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 
   test('null last_run_at → RUN when any ledger row exists', async () => {
-    hermitDir = makeTmpHermit({
+    const hermitDir = makeTmpHermit({
       lastRunAt: null,
       observations: [JSON.stringify({ ts: new Date(Date.now() - 86400_000).toISOString(), pattern: 'old', session_id: 'S-001', source: 'startup-drift', origin: 'own-work' })],
     });
-
-    const verdict = await runPrecheck(hermitDir);
-    expect(verdict).toMatch(/^RUN\|/);
-    const phases = JSON.parse(verdict.slice(4));
-    expect(phases.observations_fresh).toBe(true);
+    try {
+      const verdict = await runPrecheck(hermitDir);
+      expect(verdict).toMatch(/^RUN\|/);
+      const phases = JSON.parse(verdict.slice(4));
+      expect(phases.observations_fresh).toBe(true);
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 
   test('startup-drift rows written in same run trigger observations_fresh on that run', async () => {
     // Fresh hermit with an unknown dir — precheck writes drift rows AND triggers freshness
-    hermitDir = makeTmpHermit({ lastRunAt: null });
-    fs.mkdirSync(path.join(hermitDir, 'reports'));
+    const hermitDir = makeTmpHermit({ lastRunAt: null });
+    try {
+      fs.mkdirSync(path.join(hermitDir, 'reports'));
 
-    const verdict = await runPrecheck(hermitDir);
-    // Should be RUN (either from observations_fresh or other phases)
-    expect(verdict).toMatch(/^RUN\|/);
+      const verdict = await runPrecheck(hermitDir);
+      // Should be RUN (either from observations_fresh or other phases)
+      expect(verdict).toMatch(/^RUN\|/);
+    } finally {
+      fs.rmSync(hermitDir, { recursive: true, force: true });
+    }
   });
 });
 
