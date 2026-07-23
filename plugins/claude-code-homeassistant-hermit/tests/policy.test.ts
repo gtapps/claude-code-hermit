@@ -12,7 +12,10 @@
 // pytest fixture mapping: make_ha_config -> makeHaConfig helper,
 // monkeypatch.chdir -> process.chdir with afterEach restore.
 
-import { afterEach, expect, test } from 'bun:test';
+// Whole file runs serial: process.chdir + clearPolicyCaches() mutate global
+// process state that per-test dirs cannot isolate under --concurrent.
+import { afterEach, expect, test as bunTest } from 'bun:test';
+const test = bunTest.serial;
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -185,6 +188,6 @@ test('check_entity includes severity', () => {
   expect(result.severity).toBe('allow');
 });
 
-test.todo('policy-check CLI on a YAML file (needs simulate.collect_references — tier 2)', () => {
+bunTest.todo('policy-check CLI on a YAML file (needs simulate.collect_references — tier 2)', () => {
   throw new Error('cli.py policy-check and simulate.collect_references are not ported yet');
 });

@@ -31,6 +31,38 @@ export function setupWorkdir(): Workdir {
   };
 }
 
+// Test-body factory: wraps a test in a throwaway workdir, always cleaning up.
+// Safe under `bun test --concurrent` — each call gets its own mkdtemp dir and
+// cleans up only its own dir. Usage: test('name', withDir(async (dir) => {...}))
+export function withDir(fn: (dir: string) => Promise<void> | void) {
+  return async () => {
+    const wd = setupWorkdir();
+    try { await fn(wd.dir); } finally { wd.cleanup(); }
+  };
+}
+
+// Batch-cleanup factory for the freshDir()/tmpdirs pattern duplicated across
+// several test files (each mkdtemps eagerly per-test but defers all removal to
+// a single afterAll). Safe under `bun test --concurrent`: cleanup runs only
+// after every test in the file has finished, so no concurrently-running
+// test's dir is ever deleted out from under it.
+// Usage: const { freshDir, cleanup } = freshDirFactory('hermit-foo-'); afterAll(cleanup);
+export function freshDirFactory(prefix: string) {
+  const tmpdirs: string[] = [];
+  return {
+    freshDir(): string {
+      const d = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+      tmpdirs.push(d);
+      return d;
+    },
+    cleanup(): void {
+      for (const d of tmpdirs.splice(0)) {
+        try { fs.rmSync(d, { recursive: true, force: true }); } catch {}
+      }
+    },
+  };
+}
+
 // Same as setupWorkdir but initialises a git repo (needed by session-diff).
 export function setupGitWorkdir(): Workdir {
   const wd = setupWorkdir();

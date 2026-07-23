@@ -1,11 +1,11 @@
-import { afterEach, expect, test } from 'bun:test';
+import { afterAll, expect, test } from 'bun:test';
 
 import type { AppConfig } from '../src/config';
 import { handleUpdates } from '../src/cli';
 import { HomeAssistantError } from '../src/ha-api';
 import { captureOutput, cleanupTmp, fakeClient } from './helpers';
 
-afterEach(cleanupTmp);
+afterAll(cleanupTmp);
 
 const dummyConfig = {} as AppConfig;
 

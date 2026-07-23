@@ -1,13 +1,13 @@
 // Tests for 'ha render-template' and 'ha check-config' — thin REST wrappers.
 // render-template exercises postText() (HA returns plain text, not JSON).
 
-import { afterEach, expect, test } from 'bun:test';
+import { afterAll, expect, test } from 'bun:test';
 
 import { main } from '../src/cli';
 import { HomeAssistantError } from '../src/ha-api';
 import { cleanupTmp, captureOutput, fakeClient, makeMockConfig, tmpPath, writeArtifact, type FakeClient } from './helpers';
 
-afterEach(cleanupTmp);
+afterAll(cleanupTmp);
 
 function runCli(argv: string[], client: FakeClient) {
   const cfg = makeMockConfig();

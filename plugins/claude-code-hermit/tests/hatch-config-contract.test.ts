@@ -1,8 +1,8 @@
-import { describe, test, expect, afterEach } from 'bun:test';
+import { describe, test, expect, afterAll } from 'bun:test';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { runScript, PLUGIN_ROOT } from './helpers/run';
+import { freshDirFactory } from './helpers/workdir';
 
 const TEMPLATE_PATH = path.join(PLUGIN_ROOT, 'state-templates', 'config.json.template');
 const OWN_PLUGIN_JSON = JSON.parse(
@@ -10,17 +10,8 @@ const OWN_PLUGIN_JSON = JSON.parse(
 );
 const CORE_VERSION: string = OWN_PLUGIN_JSON.version;
 
-const tmpdirs: string[] = [];
-function freshDir(): string {
-  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-hatch-config-'));
-  tmpdirs.push(d);
-  return d;
-}
-afterEach(() => {
-  for (const d of tmpdirs.splice(0)) {
-    try { fs.rmSync(d, { recursive: true, force: true }); } catch {}
-  }
-});
+const { freshDir, cleanup } = freshDirFactory('hermit-hatch-config-');
+afterAll(cleanup);
 
 function configPathFor(projectRoot: string): string {
   return path.join(projectRoot, '.claude-code-hermit', 'config.json');

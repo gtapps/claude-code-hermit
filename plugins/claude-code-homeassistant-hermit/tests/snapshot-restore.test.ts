@@ -3,7 +3,11 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { afterEach, expect, test } from 'bun:test';
+// Whole file runs serial: afterEach drains the shared tmpDirs array and clears
+// the global policy cache — per-test global state that cannot isolate under
+// `bun test --concurrent`.
+import { afterEach, expect, test as bunTest } from 'bun:test';
+const test = bunTest.serial;
 
 import { clearPolicyCaches } from '../src/policy';
 import { captureStates, restoreStates, type StateSnapshot } from '../src/snapshot-restore';

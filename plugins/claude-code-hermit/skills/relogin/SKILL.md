@@ -9,7 +9,7 @@ Renews this hermit's `setup-token` credential without anyone touching the box. T
 
 Use this when doctor warns that `setup-token` is expiring, or the operator asks to renew. If the hermit is *already* dead from an expired token, this skill is not the path — the watchdog runs the same flow deterministically without a model (`setup-token-mint.ts relay`), because a dead hermit can't run a skill.
 
-**Never run `/logout`.** It deletes `.credentials.json` *and* resets first-launch state, after which the interactive wizard demands a login and refuses the env token. Renewal never needs it.
+**Never run `/logout`.** Renewal never needs it. Retiring the old `.credentials.json` is fine — the install does it for you (see Notes) — but `/logout` *also* resets first-launch state, after which the interactive wizard demands a login and refuses the env token. That reset is the hazard, not the credential removal.
 
 ## Step 0 — Preflight
 
@@ -61,5 +61,6 @@ It fires the restart detached and returns immediately. Anything you write after 
 ## Notes
 
 - The one-time link and the login code cross the channel; the token never does.
+- Installing the token parks any stored `/login` credential (`.credentials.json` → `.credentials.json.pre-token.bak`). Interactive sessions prefer a stored login over the env token, so an unparked file would 401 the hermit once its old access token lapsed. The rename is restorable; nothing is deleted.
 - Expiry is hermit-tracked in `state/setup-token.json` — the CLI exposes no expiry surface for these tokens, so that record is the only source of truth. Doctor's `credential-expiry` check reads it and warns 14 days out.
 - Renewal is container-internal on purpose: the token lives on the persistent config volume, not in `.env`, so nothing on the host has to be recreated.

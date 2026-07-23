@@ -154,6 +154,17 @@ describe('Entrypoint: setup-token auth gates', () => {
     expect(condition).toContain('[ ! -f "$SETUP_TOKEN_FILE" ]');
     expect(condition).toContain('[ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]');
   });
+
+  // §0c parks a stale /login credential when a setup-token is present: interactive
+  // sessions prefer .credentials.json over the env token, so an unparked stored
+  // login 401s the hermit ~8h after its token lapses. Guards hermits converted
+  // before install-time parking shipped.
+  test('entrypoint: §0c parks a stale credential in token mode', () => {
+    const guard = entrypoint.slice(entrypoint.indexOf('# --- 0c.'));
+    const block = guard.slice(0, guard.indexOf('# --- 0d.'));
+    expect(block).toContain('[ -f "$SETUP_TOKEN_FILE" ] && [ -f "$CRED_FILE" ]');
+    expect(block).toContain('mv -f "$CRED_FILE" "${CRED_FILE}.pre-token.bak"');
+  });
 });
 
 describe('Entrypoint: placeholder-free session name resolution', () => {
@@ -169,7 +180,7 @@ describe('Entrypoint: placeholder-free session name resolution', () => {
   // Crux: the resolved name must equal what getSessionName() produces — that is what
   // hermit-start uses to CREATE the session. Both sides must chdir into the same temp
   // dir because getSessionName() reads process.cwd() for {project_name}.
-  test('entrypoint: session-name resolution matches lib/tmux.getSessionName — default config', () => {
+  test.serial('entrypoint: session-name resolution matches lib/tmux.getSessionName — default config', () => {
     const originalCwd = process.cwd();
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-session-name-'));
     try {

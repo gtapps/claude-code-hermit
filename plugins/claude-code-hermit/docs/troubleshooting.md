@@ -181,7 +181,8 @@ Notes:
 
 - **Never run `/logout` inside the container.** It wipes the stored credentials *and* resets first-launch state, after which the interactive wizard demands a login and refuses the token — turning a two-minute renewal into a rebuild. Renewal never needs it.
 - If the relay never messages you, the hermit has no reachable channel. It stops rather than minting a link it can't deliver; renew from the terminal with `hermit-docker setup-token`.
-- `hermit-docker login` on a token-mode hermit deliberately does nothing but tell you so — the leftover `.credentials.json` from the original login is stale by design and is not what the hermit is using.
+- `hermit-docker login` on a token-mode hermit deliberately does nothing but tell you so — the hermit authenticates with its login token, not `/login` credentials.
+- The original login's `.credentials.json` is parked to `.credentials.json.pre-token.bak` when the token installs (and at boot). This matters: an interactive session prefers a stored `/login` credential over the token, so a hermit that kept the file would 401 once that stored login lapsed (~8h), even with a valid year-long token. If you converted before this behavior shipped and the hermit is dark, park it by hand (`mv .../.credentials.json .../.credentials.json.pre-token.bak`) and restart.
 
 ## Permission Denied Inside Container
 

@@ -3,7 +3,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { afterEach, expect, test } from 'bun:test';
+import { afterAll, expect, test } from 'bun:test';
 
 import {
   automationDiff,
@@ -13,7 +13,7 @@ import {
 } from '../src/automation-diff';
 import { cleanupTmp, fakeClient, tmpPath } from './helpers';
 
-afterEach(cleanupTmp);
+afterAll(cleanupTmp);
 
 function snap(
   automations: AutomationSnapshot['automations'],

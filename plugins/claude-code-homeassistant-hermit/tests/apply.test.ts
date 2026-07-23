@@ -4,7 +4,11 @@
 // pytest fixture mapping: MagicMock client -> fakeClient (helpers.ts);
 // side_effect sequences -> closure-queued handlers that throw on demand.
 
-import { afterEach, expect, test } from 'bun:test';
+// Whole file runs serial: afterEach drains the shared tmpDirs array and clears
+// the global policy cache — per-test global state that cannot isolate under
+// `bun test --concurrent`.
+import { afterEach, expect, test as bunTest } from 'bun:test';
+const test = bunTest.serial;
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 

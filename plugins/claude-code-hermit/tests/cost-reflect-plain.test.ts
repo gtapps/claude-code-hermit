@@ -7,7 +7,7 @@
 // Subprocess test (via runScript): cost-reflect.ts is invoked as a standalone
 // script, exactly how the SKILL.md Step 1 command runs it.
 
-import { describe, test, expect, afterEach } from 'bun:test';
+import { describe, test, expect, afterAll } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -16,7 +16,7 @@ import { costByType } from '../scripts/lib/pricing';
 
 const dirs: string[] = [];
 
-afterEach(() => {
+afterAll(() => {
   while (dirs.length) {
     const d = dirs.pop()!;
     fs.rmSync(d, { recursive: true, force: true });

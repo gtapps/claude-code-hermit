@@ -27,6 +27,9 @@ import path from 'node:path';
 
 export const TOKEN_FILENAME = '.hermit-setup-token';
 export const TOKEN_ENV_VAR = 'CLAUDE_CODE_OAUTH_TOKEN';
+/** Where a stored /login credential is parked once a setup-token takes over. */
+export const CREDENTIALS_FILENAME = '.credentials.json';
+export const PARKED_CREDENTIALS_FILENAME = '.credentials.json.pre-token.bak';
 /** setup-token mints a 1-year credential. */
 export const TOKEN_TTL_MS = 365 * 24 * 3600 * 1000;
 
@@ -39,6 +42,39 @@ export function defaultConfigDir(): string {
 
 export function tokenFilePath(configDir: string): string {
   return path.join(configDir, TOKEN_FILENAME);
+}
+
+export function credentialsFilePath(configDir: string): string {
+  return path.join(configDir, CREDENTIALS_FILENAME);
+}
+
+export function parkedCredentialsFilePath(configDir: string): string {
+  return path.join(configDir, PARKED_CREDENTIALS_FILENAME);
+}
+
+/**
+ * Park a stored /login credential out of the way so it can't shadow the
+ * setup-token. Interactive Claude Code sessions authenticate with
+ * .credentials.json when it holds a token, ahead of CLAUDE_CODE_OAUTH_TOKEN
+ * (confirmed live on CC 2.1.218) — the reverse of the documented precedence.
+ * A hermit that keeps its old /login file therefore 401s the moment that stored
+ * access token lapses (~8h), while the valid year-long token sits unused. Renamed
+ * rather than deleted so a deliberate return to /login can restore it.
+ *
+ * Returns true when a file was moved. Never throws: the token is already
+ * installed by the time this runs, and a failed park must not fail the mint.
+ */
+export function parkCredentialsFile(configDir: string): boolean {
+  const src = credentialsFilePath(configDir);
+  try {
+    if (!fs.existsSync(src)) return false;
+    const dest = parkedCredentialsFilePath(configDir);
+    fs.renameSync(src, dest); // atomically overwrites any prior backup on POSIX
+    return true;
+  } catch (e) {
+    process.stderr.write(`[setup-token] could not park ${CREDENTIALS_FILENAME}: ${e}\n`);
+    return false;
+  }
 }
 
 /**
@@ -123,6 +159,10 @@ export function installToken(hermitDir: string, configDir: string, token: string
   fs.writeFileSync(tmp, `${value}\n`, { mode: 0o600 });
   fs.chmodSync(tmp, 0o600);
   fs.renameSync(tmp, dest);
+
+  // Retire any stored /login credential so it can't shadow the token we just
+  // installed (see parkCredentialsFile). Best-effort — never fails the install.
+  parkCredentialsFile(configDir);
 
   const now = new Date();
   const record: TokenRecord = {

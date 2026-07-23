@@ -149,6 +149,10 @@ describe('cost-tracker', () => {
 // freezes its CWD-relative state paths (.status.json etc.) at import time. So we
 // chdir into ONE shared workdir for the first (and only) import, restore CWD, and
 // both cases rewrite .status.json inside that same frozen workdir.
+// Empirically confirmed (bun 1.3.14): describe.serial does not reliably force
+// sequential execution under --concurrent — per-test .serial marking does,
+// and also keeps this describe's beforeAll (which does a real process.chdir)
+// out of the concurrent pool.
 describe('cost-tracker getCumulativeCost (in-process)', () => {
   let wd: Workdir;
   let getCumulativeCost: typeof import('../scripts/cost-tracker').getCumulativeCost;
@@ -167,7 +171,7 @@ describe('cost-tracker getCumulativeCost (in-process)', () => {
 
   afterAll(() => wd.cleanup());
 
-  test('getCumulativeCost (same session → accumulates)', () => {
+  test.serial('getCumulativeCost (same session → accumulates)', () => {
     write(hermit(wd.dir, 'sessions', '.status.json'),
       '{"session_id":"S-001","cost_usd":698.78,"tokens":300000000,"operator_turns":0}');
     const r = getCumulativeCost(0.10, 1000, false, 'S-001', undefined);
@@ -175,7 +179,7 @@ describe('cost-tracker getCumulativeCost (in-process)', () => {
     expect(r.tokens).toBe(300001000);
   });
 
-  test('getCumulativeCost (session change → resets)', () => {
+  test.serial('getCumulativeCost (session change → resets)', () => {
     write(hermit(wd.dir, 'sessions', '.status.json'),
       '{"session_id":"S-001","cost_usd":698.78,"tokens":300000000,"operator_turns":5}');
     const r = getCumulativeCost(0.10, 1000, false, 'S-002', undefined);

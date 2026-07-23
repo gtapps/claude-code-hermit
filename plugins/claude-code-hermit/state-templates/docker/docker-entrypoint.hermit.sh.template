@@ -148,7 +148,24 @@ try {
   fi
 fi
 
-# --- 0c. Plugin install audit log helper ---
+# --- 0c. Park a stale /login credential when a setup-token is present ---
+# Interactive Claude Code sessions authenticate with .credentials.json whenever
+# it holds a token, ahead of CLAUDE_CODE_OAUTH_TOKEN — the reverse of the
+# documented precedence (confirmed live on CC 2.1.218). A converted hermit that
+# keeps its old /login file therefore 401s the moment that stored access token
+# lapses (~8h), while the valid year-long token sits unused in the env.
+# hermit-start's token install parks it too; this covers hermits converted before
+# that shipped, and any stray /login left behind on a token-mode hermit.
+# Renamed (not deleted) so a deliberate return to /login can restore it — an
+# operator switching back removes "$SETUP_TOKEN_FILE" first (hermit-docker login
+# refuses while it exists), so this gate no longer fires.
+if [ -f "$SETUP_TOKEN_FILE" ] && [ -f "$CRED_FILE" ]; then
+  if mv -f "$CRED_FILE" "${CRED_FILE}.pre-token.bak" 2>/dev/null; then
+    echo "[docker-entrypoint] Parked stale .credentials.json (login token is authoritative; stored /login creds would shadow it in an interactive session)."
+  fi
+fi
+
+# --- 0d. Plugin install audit log helper ---
 # Gated on HERMIT_PLUGIN_INSTALL_AUDIT=1, which the security overlay
 # (/claude-code-hermit:docker-security toggle 4) sets when the audit-log
 # toggle is on. No-op when unset, so default flow is unchanged.

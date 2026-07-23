@@ -54,8 +54,13 @@ function driftEnv(): Record<string, string> {
 // Tier 1: validate-config (the reported bug)
 // -------------------------------------------------------------------------
 
+// The second test overwrites (and restores) the shared hermitDir/config.json
+// fixture in-place — a mutation of tmpRoot, not just a read — which the first
+// test also reads via an absolute path. Empirically confirmed (bun 1.3.14):
+// describe.serial does not reliably force sequential execution of its own
+// child tests under --concurrent — per-test .serial marking does.
 describe('validate-config with drifted cwd (#384 regression)', () => {
-  it('exits 0 for valid config when cwd is inside .claude-code-hermit/', async () => {
+  it.serial('exits 0 for valid config when cwd is inside .claude-code-hermit/', async () => {
     // Before fix: readFileSync(path.resolve('.claude-code-hermit/config.json')) from
     // driftedCwd = .../state → read .../state/.claude-code-hermit/config.json → ENOENT → exit 2
     // After fix: reads filePath (absolute from payload) directly → exit 0
@@ -71,7 +76,7 @@ describe('validate-config with drifted cwd (#384 regression)', () => {
     expect(result.stderr).toContain('[config-validate] OK');
   });
 
-  it('still exits 2 for invalid config (double-path fix does not break validation)', async () => {
+  it.serial('still exits 2 for invalid config (double-path fix does not break validation)', async () => {
     const badConfig = JSON.stringify({ escalation: 'bad-value', channels: {}, env: {}, heartbeat: {}, routines: [], quality_gate: {} });
     const badConfigPath = path.join(hermitDir, 'config-bad.json');
     fs.writeFileSync(badConfigPath, badConfig);

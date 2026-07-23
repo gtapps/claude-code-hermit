@@ -1,9 +1,9 @@
-import { afterEach, expect, test } from 'bun:test';
+import { afterAll, expect, test } from 'bun:test';
 
 import { main } from '../src/cli';
 import { captureOutput, cleanupTmp, fakeClient, makeMockConfig } from './helpers';
 
-afterEach(cleanupTmp);
+afterAll(cleanupTmp);
 
 function makeDeps(postResult: Record<string, unknown> = {}) {
   const client = fakeClient({ post: () => postResult });
