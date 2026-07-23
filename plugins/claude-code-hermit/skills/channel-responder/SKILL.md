@@ -15,10 +15,18 @@ Terminal output is invisible to the operator: they read Discord, Telegram, or
 the configured channel, never the raw transcript.
 
 For each channel plugin, the reply tool is the `reply` action exposed by the
-channel's MCP server, named `mcp__plugin_<source>_<source>__reply` where
-`<source>` is the value of the `source` attribute on the inbound `<channel>`
-tag. Pass the inbound `chat_id` back. Optionally pass `reply_to` (the inbound
-`message_id`) to thread under the operator's message.
+channel's MCP server, named `mcp__plugin_<plugin-name>_<server-name>__reply` —
+the two segments are exactly the plugin name and server name the harness puts in
+the plugin-qualified source on the wire (`source="plugin:<plugin-name>:<server-name>"`).
+For the built-in channels the two coincide (e.g. `plugin:discord:discord` →
+`mcp__plugin_discord_discord__reply`), but a custom channel plugin whose names
+differ fills each slot from its own wire segment (e.g. `plugin:acme-crm:crm` →
+`mcp__plugin_acme-crm_crm__reply`) — build the tool name from the raw `source`,
+not by doubling one segment. Every `config.channels` key below instead uses the
+normalized bare server name (`discord`, not the qualified string — see
+`lib/channel-envelope.ts`'s `normalizeChannelSource`). Pass the
+inbound `chat_id` back. Optionally pass `reply_to` (the inbound `message_id`)
+to thread under the operator's message.
 
 Terminal output is acceptable as a SECONDARY surface (tool-call narration,
 status visible only to a maintainer at the box). The substantive response,
@@ -52,7 +60,9 @@ Read `waiting_reason` from runtime.json to understand why:
 
 ## 1c. Check Authorization
 
-Read `config.json` → `channels.<channel>.allowed_users` for the inbound channel:
+Read `config.json` → `channels.<channel>.allowed_users` for the inbound channel
+(`<channel>` is the normalized bare key per §0 — e.g. `discord`, not
+`plugin:discord:discord`):
 
 - Extract the sender's platform user ID from the message metadata
 - If the sender is not in the `allowed_users` list: ignore the message silently — do not respond, do not log. Applies to ALL message types including status requests.
@@ -82,7 +92,7 @@ This writes `state/last-operator-action.json` with the current timestamp, resett
 
 ## 1e. Persist Chat ID
 
-After authorization passes, store the inbound `chat_id` to `config.json` → `channels.<channel>.dm_channel_id` (e.g. `channels.discord.dm_channel_id`) if it differs from the currently stored value or hasn't been stored yet.
+After authorization passes, store the inbound `chat_id` to `config.json` → `channels.<channel>.dm_channel_id` (e.g. `channels.discord.dm_channel_id` — the normalized bare key per §0, never the raw qualified source) if it differs from the currently stored value or hasn't been stored yet.
 
 This is how the agent learns the DM channel ID for proactive outbound notifications. In Discord, the DM channel ID differs from the user ID and is only discoverable from an inbound message. Write back to `config.json` only when the value has changed to avoid unnecessary writes.
 

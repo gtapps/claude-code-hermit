@@ -3175,16 +3175,21 @@ describe('cost-tracker classifySource / scanTriggerMarkers', () => {
   });
 
   // classifySource: channel kind length-capped at 64 chars, same as routine ids.
-  // Cap applies to the last colon-segment (the captured kind), not the whole source value.
+  // Cap applies to the normalized bare server name (the captured kind).
   test('cost-tracker: classifySource caps channel kind at 64 chars', () => {
-    const r = classifySource(`<channel source="plugin:${'a'.repeat(80)}" chat_id="1">hi</channel>`);
+    const r = classifySource(`<channel source="plugin:x:${'a'.repeat(80)}" chat_id="1">hi</channel>`);
     expect(r.startsWith('channel:')).toBe(true);
     expect(r.slice('channel:'.length).length).toBe(64);
   });
 
-  // classifySource: trailing colon leaves an empty last segment → other, not `channel:`
+  // classifySource: a source that doesn't normalize to a clean bare server name
+  // (trailing colon, or a malformed 3+-segment shape) → other, not a `channel:…`
+  // garbage bucket — same fail-closed stance normalizeChannelSource takes.
   test('cost-tracker: classifySource rejects trailing-colon source (empty kind)', () => {
     expect(classifySource('<channel source="plugin:" chat_id="1">hi</channel>')).toBe('other');
+  });
+  test('cost-tracker: classifySource rejects unrecognized 3+-segment source', () => {
+    expect(classifySource('<channel source="plugin:a:b:c" chat_id="1">hi</channel>')).toBe('other');
   });
 
   // scanTriggerMarkers: backward scan finds routine marker past tool_result boundary

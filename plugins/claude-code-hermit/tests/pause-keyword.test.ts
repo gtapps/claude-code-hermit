@@ -138,4 +138,55 @@ describe('pause-keyword', () => {
     expect(r.exitCode).toBe(0);
     expect(r.stdout).not.toContain('\n2');
   }));
+
+  // #634 regression: the harness injects a plugin-qualified source
+  // (`plugin:discord:discord`) but config keys channels by the bare server
+  // name — these pin the fix in lib/channel-auth.ts's channelEntry resolution.
+  describe('plugin-qualified envelope source (#634)', () => {
+    test('allowlist match on a qualified source against bare-keyed config — sets flag', withDir(async (dir) => {
+      write(hermit(dir, 'config.json'), '{"channels":{"discord":{"allowed_users":["ALLOWED_ID"]}}}');
+      const r = await run('<channel source="plugin:discord:discord" chat_id="1" user="ALLOWED_ID">pause</channel>', dir);
+      expect(r.exitCode).toBe(0);
+      expect(isPaused(hermit(dir)).paused).toBe(true);
+    }));
+
+    test('DM-binding match on a qualified source, no allowlist — sets flag', withDir(async (dir) => {
+      const r = await run('<channel source="plugin:discord:discord" chat_id="1" user="U1">pause</channel>', dir);
+      expect(r.exitCode).toBe(0);
+      expect(isPaused(hermit(dir)).paused).toBe(true);
+    }));
+
+    test('stranger against an allowlist, qualified source — silent no-op', withDir(async (dir) => {
+      write(hermit(dir, 'config.json'), '{"channels":{"discord":{"allowed_users":["ALLOWED_ID"]}}}');
+      const r = await run('<channel source="plugin:discord:discord" chat_id="1" user="INTRUDER">pause</channel>', dir);
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout.trim()).toBe('');
+      expect(isPaused(hermit(dir)).paused).toBe(false);
+    }));
+
+    test('"resume" via a qualified source clears an existing pause', withDir(async (dir) => {
+      await run('<channel source="plugin:discord:discord" chat_id="1" user="U1">pause</channel>', dir);
+      expect(isPaused(hermit(dir)).paused).toBe(true);
+      const r = await run('<channel source="plugin:discord:discord" chat_id="1" user="U1">resume</channel>', dir);
+      expect(r.exitCode).toBe(0);
+      expect(isPaused(hermit(dir)).paused).toBe(false);
+    }));
+
+    test('config keyed ONLY by the qualified source does not resolve — bare-name key is authoritative', withDir(async (dir) => {
+      // Off-convention config keyed solely by the qualified form: the auth gate
+      // resolves by the normalized bare name (matching the send path), so this
+      // trusts nobody and the pause is not applied.
+      write(hermit(dir, 'config.json'), '{"channels":{"plugin:discord:discord":{"dm_channel_id":"1"}}}');
+      const r = await run('<channel source="plugin:discord:discord" chat_id="1" user="U1">pause</channel>', dir);
+      expect(r.exitCode).toBe(0);
+      expect(isPaused(hermit(dir)).paused).toBe(false);
+    }));
+
+    test('genericity pin: an unrecognized custom channel plugin normalizes the same way', withDir(async (dir) => {
+      write(hermit(dir, 'config.json'), '{"channels":{"crm":{"dm_channel_id":"1"}}}');
+      const r = await run('<channel source="plugin:acme-crm:crm" chat_id="1" user="U1">pause</channel>', dir);
+      expect(r.exitCode).toBe(0);
+      expect(isPaused(hermit(dir)).paused).toBe(true);
+    }));
+  });
 });
