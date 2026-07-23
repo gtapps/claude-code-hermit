@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **channel hooks: resolve plugin-qualified envelope sources to the configured channel key** — inbound messages carry `source="plugin:discord:discord"` on the wire, but `config.json` keys channels by the bare server name; the mismatch silently dead-ended `pause`/`stop`/`resume`/`snooze` and the deterministic `status` reply fleet-wide. `allowed_users` now also enforces correctly on the reply-reminder/log path for plugin-qualified sources (previously fell through to accept-all).
 - **setup-token: stored `/login` credentials no longer shadow the login token** — token install and the Docker boot gate now park a stale `.credentials.json` (rename to `.credentials.json.pre-token.bak`). Interactive Claude Code sessions authenticate with a stored `/login` credential ahead of `CLAUDE_CODE_OAUTH_TOKEN` (the reverse of the documented precedence, confirmed live on CC 2.1.218), so a converted hermit that kept its old login file 401'd ~8h later when that stored access token lapsed, while its valid year-long token sat unused.
 - **doctor: `credential-expiry` warns when a live `/login` credential shadows the token** — in token mode, a `.credentials.json` still carrying an access token is flagged with the exact park command. A parked file or a `/logout` stub is inert and stays `ok`. Check count unchanged.
 

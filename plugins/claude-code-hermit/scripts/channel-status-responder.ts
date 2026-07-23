@@ -197,7 +197,7 @@ async function main(raw: string): Promise<void> {
   // answered where it was asked. This also keeps the destination aligned with the
   // allowed_users gate above. A tight timeout bounds this hook's blocking.
   const result = await sendToChannel(dir, reply, {
-    target: { id: envelope.source, chat_id: envelope.chatId },
+    target: { id: envelope.sourceKey, chat_id: envelope.chatId },
     timeoutMs: 6000,
   });
   if (result.ok) {

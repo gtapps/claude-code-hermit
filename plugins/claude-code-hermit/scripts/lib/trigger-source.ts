@@ -3,6 +3,10 @@
 // Pure, side-effect-free (no module-level state): both cost-tracker.ts and
 // transcript-digest.ts import it, and it must be safe to load in-process from any
 // cwd without freezing paths the way cost-tracker's own module init does.
+// channel-envelope.ts (the sole import) is likewise pure — a regex normalizer
+// with no module-level state — so the load-anywhere guarantee holds.
+
+import { normalizeChannelSource } from './channel-envelope';
 
 type Json = any;
 
@@ -39,14 +43,20 @@ function classifySource(triggerText: string): string {
   const logMatch = triggerText.match(/log-routine-event\.sh\s+([A-Za-z0-9._-]+)/);
   if (logMatch) return `routine:${logMatch[1].slice(0, 64)}`;
   // Inbound-channel envelope (see lib/channel-envelope.ts): source is plugin-qualified
-  // on the wire (e.g. `plugin:discord:discord`, `plugin:voice:voice`), so take the
-  // segment after the last ':' as the channel kind. Strict charset — like the routine
-  // regex above, the value must match the allowed charset to be captured at all (not
-  // captured loosely then sanitized), so `<id>`/`*` placeholder noise fails the match
-  // entirely rather than surviving as a truncated false positive.
+  // on the wire (e.g. `plugin:discord:discord`, `plugin:voice:voice`). Bucket by the
+  // bare server name via normalizeChannelSource — the same normalizer the auth/config
+  // path uses, so cost attribution and config lookup can't drift apart on the wire
+  // shape. Strict charset — like the routine regex above, the value must match the
+  // allowed charset to be captured at all (not captured loosely then sanitized), so
+  // `<id>`/`*` placeholder noise fails the match entirely rather than surviving as a
+  // truncated false positive.
   const channelMatch = triggerText.match(/<channel\b[^>]*\bsource="([A-Za-z0-9._:-]+)"/);
-  const channelKind = channelMatch ? channelMatch[1].split(':').pop() : '';
-  if (channelKind) return `channel:${channelKind.slice(0, 64)}`;
+  const channelKind = channelMatch ? normalizeChannelSource(channelMatch[1]) : '';
+  // Only a source that normalizes to a clean bare server name is a real channel;
+  // anything still containing ':' (a malformed or unrecognized 3+-segment shape)
+  // is bucketed as `other` rather than leaking a `channel:plugin:…` garbage bucket
+  // — same fail-closed stance normalizeChannelSource takes for config lookup.
+  if (channelKind && !channelKind.includes(':')) return `channel:${channelKind.slice(0, 64)}`;
   return 'other';
 }
 

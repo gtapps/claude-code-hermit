@@ -51,6 +51,8 @@ Modify with `/hermit-settings env`.
 
 Object keyed by channel name. Built-in channels (`"discord"`, `"telegram"`, `"imessage"`) resolve their plugin from `claude-plugins-official` automatically; third-party channel plugins set the `marketplace` field below. All channel configuration lives here — no top-level `allowed_users` or `morning_brief` keys.
 
+An inbound message's envelope carries a plugin-qualified `source` on the wire (e.g. `source="plugin:discord:discord"`), not this bare key — every hook that reads `channels` normalizes the envelope source back to it first (`lib/channel-envelope.ts`'s `normalizeChannelSource`), so config only ever needs the bare name shown here.
+
 | Top-level key | Type | Default | Description |
 |---------------|------|---------|-------------|
 | `primary` | string | _(absent)_ | Preferred channel for proactive outbound sends (e.g. `"discord"`). When set and the named channel is reachable, it takes priority. When absent, the resolver returns the first eligible entry in `channels` in operator's config order — no hardcoded slug list. Must name an existing channel key. |

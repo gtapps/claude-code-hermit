@@ -262,4 +262,27 @@ describe('channel-status-responder', () => {
       wd.cleanup();
     }
   });
+
+  // #634 regression: the harness injects a plugin-qualified source
+  // (`plugin:telegram:telegram`), but config keys channels by the bare server
+  // name. Without normalization, both the allowed_users gate and the outbound
+  // send target miss — the stub would receive zero requests.
+  test('plugin-qualified source resolves the allowlist gate and the send target', async () => {
+    const stub = startHttpStub();
+    const wd = setupChannelWorkdir();
+    try {
+      fs.writeFileSync(hermit(wd.dir, 'sessions', '.status.json'), JSON.stringify({ status: 'in_progress', task: 'writing the plan' }));
+      const qualified = JSON.stringify({ prompt: '<channel source="plugin:telegram:telegram" chat_id="12345" user="u1">status</channel>' });
+      const r = await runScript('channel-status-responder.ts', { stdin: qualified, cwd: wd.dir, env: { HERMIT_TELEGRAM_API_URL: stub.url } });
+      expect(r.exitCode).toBe(0);
+      expect(JSON.parse(r.stdout.trim())).toMatchObject({ decision: 'block' });
+      // A raw qualified target.id would miss lib/channel-send's SENDERS lookup entirely (zero requests).
+      expect(stub.requests.length).toBe(1);
+      expect(stub.requests[0].body.chat_id).toBe('12345');
+      expect(stub.requests[0].body.text).toContain('writing the plan');
+    } finally {
+      stub.stop();
+      wd.cleanup();
+    }
+  });
 });
