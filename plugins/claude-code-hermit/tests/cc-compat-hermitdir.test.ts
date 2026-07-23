@@ -89,7 +89,7 @@ describe('hermitDir()', () => {
     expect(hermitDir()).toBe(path.join(tmp, '.claude-code-hermit'));
   });
 
-  it('(c) CLAUDE_PROJECT_DIR set, cwd drifted — env branch wins', () => {
+  it.serial('(c) CLAUDE_PROJECT_DIR set, cwd drifted — env branch wins', () => {
     // Simulate the #384 trigger: cwd drifted inside .claude-code-hermit/
     delete process.env.AGENT_DIR;
     process.env.CLAUDE_PROJECT_DIR = tmp;
@@ -97,14 +97,14 @@ describe('hermitDir()', () => {
     expect(hermitDir()).toBe(path.join(tmp, '.claude-code-hermit'));
   });
 
-  it('(d) no env vars, cwd drifted into subdir — walk-up recovers', () => {
+  it.serial('(d) no env vars, cwd drifted into subdir — walk-up recovers', () => {
     delete process.env.AGENT_DIR;
     delete process.env.CLAUDE_PROJECT_DIR;
     process.chdir(path.join(tmp, '.claude-code-hermit', 'state'));
     expect(hermitDir()).toBe(path.join(tmp, '.claude-code-hermit'));
   });
 
-  it('(e) no env vars, unrelated cwd — fail-open returns resolved .claude-code-hermit', () => {
+  it.serial('(e) no env vars, unrelated cwd — fail-open returns resolved .claude-code-hermit', () => {
     delete process.env.AGENT_DIR;
     delete process.env.CLAUDE_PROJECT_DIR;
     // Use a tmpdir with no hermit (walk-up finds nothing)
@@ -119,7 +119,7 @@ describe('hermitDir()', () => {
     }
   });
 
-  it('(b2) CLAUDE_PROJECT_DIR set but .claude-code-hermit subdir absent — falls to walk-up', () => {
+  it.serial('(b2) CLAUDE_PROJECT_DIR set but .claude-code-hermit subdir absent — falls to walk-up', () => {
     // existsSync guard: if CLAUDE_PROJECT_DIR doesn't actually have a .cch dir, skip it
     delete process.env.AGENT_DIR;
     const noHermit = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-noh-'));

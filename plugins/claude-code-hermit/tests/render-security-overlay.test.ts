@@ -8,26 +8,17 @@
 //
 // Usage: bun test tests/render-security-overlay.test.ts   (from the plugin root)
 
-import { describe, test, expect, afterEach } from 'bun:test';
+import { describe, test, expect, afterAll } from 'bun:test';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { runScript } from './helpers/run';
+import { freshDirFactory } from './helpers/workdir';
 import {
   cidrToRange, overlaps, pickSubnet, validateCandidate, ipv4SubnetsFromInspect,
 } from '../scripts/render-security-overlay';
 
-const tmpdirs: string[] = [];
-function freshDir(): string {
-  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-rso-'));
-  tmpdirs.push(d);
-  return d;
-}
-afterEach(() => {
-  for (const d of tmpdirs.splice(0)) {
-    try { fs.rmSync(d, { recursive: true, force: true }); } catch {}
-  }
-});
+const { freshDir, cleanup } = freshDirFactory('hermit-rso-');
+afterAll(cleanup);
 
 const CANDIDATES = [
   '172.28.0.0/24', '172.29.0.0/24', '172.30.0.0/24', '172.31.0.0/24',

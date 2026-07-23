@@ -13,14 +13,14 @@
 // The unresolvable-selector fan-out invariant still hard-blocks in BOTH modes.
 // Hass* intent tools (name/area targeting) hard-block unless ha_assist_control_enabled.
 
-import { afterEach, expect, test } from 'bun:test';
+import { afterAll, expect, test } from 'bun:test';
 import { join } from 'node:path';
 
 import { cleanEnv, cleanupTmp, makeHaConfig, makeHaConfigWith, tmpPath } from './helpers';
 
 const MCP_HOOK = join(import.meta.dir, '..', 'hooks', 'mcp-safety-gate.ts');
 
-afterEach(cleanupTmp);
+afterAll(cleanupTmp);
 
 function runGate(stdin: string, mode?: string, cwd?: string) {
   const effectiveCwd = cwd ?? (mode !== undefined ? makeHaConfig(mode) : tmpPath());

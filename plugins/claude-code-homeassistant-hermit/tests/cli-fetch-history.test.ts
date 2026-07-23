@@ -1,7 +1,7 @@
 // WP7 tier 3: tests for the 'ha fetch-history' CLI subcommand — 1:1 port of
 // tests/test_cli_fetch_history.py (5 cases).
 
-import { afterEach, expect, test } from 'bun:test';
+import { afterAll, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -9,7 +9,7 @@ import type { AppConfig } from '../src/config';
 import { main } from '../src/cli';
 import { captureOutput, cleanupTmp, fakeClient, makeMockConfig, type FakeClient } from './helpers';
 
-afterEach(cleanupTmp);
+afterAll(cleanupTmp);
 
 function makeNormalized(root: string, entities: Record<string, any> | null = null): string {
   const raw = join(root, '.claude-code-hermit', 'raw');

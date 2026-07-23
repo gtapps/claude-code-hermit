@@ -3,7 +3,11 @@
 // calls proceed in both modes; sensitive ones follow strict/ask like every
 // other gate.
 
-import { afterEach, expect, test } from 'bun:test';
+// Whole file runs serial: afterEach drains the shared tmpDirs array and clears
+// the global policy cache — per-test global state that cannot isolate under
+// `bun test --concurrent`.
+import { afterEach, expect, test as bunTest } from 'bun:test';
+const test = bunTest.serial;
 
 import { main } from '../src/cli';
 import { HomeAssistantError } from '../src/ha-api';

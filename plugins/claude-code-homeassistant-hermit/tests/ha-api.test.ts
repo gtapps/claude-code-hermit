@@ -11,7 +11,10 @@
 //   - patch("...probe_home_assistant_url", return_value=False) -> an injected
 //     fetch that rejects (probe catches and returns false)
 
-import { afterEach, beforeEach, expect, test } from 'bun:test';
+// Whole file runs serial: beforeEach/afterEach save/restore parent process.env
+// HOMEASSISTANT_* keys — global state per-test dirs cannot isolate under --concurrent.
+import { afterEach, beforeEach, expect, test as bunTest } from 'bun:test';
+const test = bunTest.serial;
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

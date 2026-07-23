@@ -1,4 +1,8 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+// Whole file runs serial: top-level tests and the projectRoot() describe both
+// mutate process.env/process.chdir — global state per-test dirs cannot isolate
+// under --concurrent.
+import { afterEach, describe, expect, test as bunTest } from 'bun:test';
+const test = bunTest.serial;
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

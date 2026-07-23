@@ -2,7 +2,11 @@
 // applying gateStructuralMutation directly (not via runWsMutation, which is
 // WS-client-specific) before a plain client.post() call.
 
-import { afterEach, expect, test } from 'bun:test';
+// Whole file runs serial: afterEach drains the shared tmpDirs array and clears
+// the global policy cache — per-test global state that cannot isolate under
+// `bun test --concurrent`.
+import { afterEach, expect, test as bunTest } from 'bun:test';
+const test = bunTest.serial;
 
 import { main } from '../src/cli';
 import { AppConfig } from '../src/config';

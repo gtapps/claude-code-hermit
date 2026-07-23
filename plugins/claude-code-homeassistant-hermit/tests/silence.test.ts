@@ -4,7 +4,7 @@
 //
 // pytest fixture mapping: tmp_path -> mkdtempSync.
 
-import { afterEach, expect, test } from 'bun:test';
+import { afterAll, expect, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -20,7 +20,7 @@ function tmpPath(): string {
   return dir;
 }
 
-afterEach(() => {
+afterAll(() => {
   for (const dir of tmpDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 

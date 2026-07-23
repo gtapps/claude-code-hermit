@@ -1,19 +1,13 @@
 // Contract test for scripts/manifest-seed.ts.
 // Exercises the process boundary (stdin in, exit code/file out, fail-loud).
 
-import { describe, test, expect, afterEach } from 'bun:test';
+import { describe, test, expect } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 
 import { runScript, PLUGIN_ROOT } from './helpers/run';
-import { setupWorkdir, Workdir } from './helpers/workdir';
+import { withDir } from './helpers/workdir';
 import { sha256 } from '../scripts/lib/hash';
-
-let wd: Workdir | null = null;
-afterEach(() => {
-  wd?.cleanup();
-  wd = null;
-});
 
 function manifestPath(dir: string): string {
   return path.join(dir, '.claude-code-hermit', 'state', 'template-manifest.json');
@@ -26,43 +20,40 @@ function readManifest(dir: string): any {
 }
 
 describe('manifest-seed: hashing + shape', () => {
-  test('hashes a file correctly and stamps plugin_version', async () => {
-    wd = setupWorkdir();
-    const f = path.join(wd.dir, 'sample.txt');
+  test('hashes a file correctly and stamps plugin_version', withDir(async (dir) => {
+    const f = path.join(dir, 'sample.txt');
     fs.writeFileSync(f, 'hello world\n');
 
     const r = await runScript('manifest-seed.ts', {
-      args: [stateArg(wd.dir)],
+      args: [stateArg(dir)],
       stdin: JSON.stringify({ pluginVersion: '1.2.9', entries: [{ key: 'templates/a', file: f }] }),
     });
     expect(r.exitCode).toBe(0);
 
-    const m = readManifest(wd.dir);
+    const m = readManifest(dir);
     expect(m.version).toBe(1);
     expect(m.files['templates/a'].sha256).toBe(sha256(fs.readFileSync(f)));
     expect(m.files['templates/a'].plugin_version).toBe('1.2.9');
-  });
+  }));
 
-  test('every written sha256 is 64-hex (shape evolve-plan validates)', async () => {
-    wd = setupWorkdir();
-    const f = path.join(wd.dir, 'sample.txt');
+  test('every written sha256 is 64-hex (shape evolve-plan validates)', withDir(async (dir) => {
+    const f = path.join(dir, 'sample.txt');
     fs.writeFileSync(f, 'data');
     await runScript('manifest-seed.ts', {
-      args: [stateArg(wd.dir)],
+      args: [stateArg(dir)],
       stdin: JSON.stringify({ pluginVersion: '1.0.0', entries: [{ key: 'bin/x', file: f }] }),
     });
-    const m = readManifest(wd.dir);
+    const m = readManifest(dir);
     for (const v of Object.values(m.files) as any[]) {
       expect(v.sha256).toMatch(/^[0-9a-f]{64}$/);
     }
-  });
+  }));
 });
 
 describe('manifest-seed: foreign-key preservation', () => {
-  test('preserves untouched keys, overwrites re-seeded ones', async () => {
-    wd = setupWorkdir();
+  test('preserves untouched keys, overwrites re-seeded ones', withDir(async (dir) => {
     fs.writeFileSync(
-      manifestPath(wd.dir),
+      manifestPath(dir),
       JSON.stringify({
         version: 1,
         files: {
@@ -72,44 +63,43 @@ describe('manifest-seed: foreign-key preservation', () => {
         },
       }) + '\n',
     );
-    const f = path.join(wd.dir, 'a.txt');
+    const f = path.join(dir, 'a.txt');
     fs.writeFileSync(f, 'new content');
 
     const r = await runScript('manifest-seed.ts', {
-      args: [stateArg(wd.dir)],
+      args: [stateArg(dir)],
       stdin: JSON.stringify({ pluginVersion: '1.2.9', entries: [{ key: 'templates/a', file: f }] }),
     });
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toContain('preserved 2 foreign keys');
 
-    const m = readManifest(wd.dir);
+    const m = readManifest(dir);
     // Foreign keys survive untouched.
     expect(m.files['templates/some-addon'].sha256).toBe('a'.repeat(64));
     expect(m.files['sibling-hermit/CLAUDE-APPEND.md'].sha256).toBe('b'.repeat(64));
     // Re-seeded key overwritten with the real hash + new version.
     expect(m.files['templates/a'].sha256).toBe(sha256(fs.readFileSync(f)));
     expect(m.files['templates/a'].plugin_version).toBe('1.2.9');
-  });
+  }));
 });
 
 describe('manifest-seed: keyPrefix/dir enumeration', () => {
-  test('enumerates the source dir, one entry per file', async () => {
-    wd = setupWorkdir();
-    const binSrc = path.join(wd.dir, 'src-bin');
+  test('enumerates the source dir, one entry per file', withDir(async (dir) => {
+    const binSrc = path.join(dir, 'src-bin');
     fs.mkdirSync(binSrc);
     fs.writeFileSync(path.join(binSrc, 'hermit-start'), '#!/usr/bin/env bun\n');
     fs.writeFileSync(path.join(binSrc, 'hermit-stop'), '#!/usr/bin/env bun\n');
     fs.mkdirSync(path.join(binSrc, 'subdir')); // must be ignored (non-recursive, files only)
 
     const r = await runScript('manifest-seed.ts', {
-      args: [stateArg(wd.dir)],
+      args: [stateArg(dir)],
       stdin: JSON.stringify({ pluginVersion: '1.0.0', entries: [{ keyPrefix: 'bin', dir: binSrc }] }),
     });
     expect(r.exitCode).toBe(0);
 
-    const m = readManifest(wd.dir);
+    const m = readManifest(dir);
     expect(Object.keys(m.files).sort()).toEqual(['bin/hermit-start', 'bin/hermit-stop']);
-  });
+  }));
 });
 
 describe('manifest-seed: invalid existing manifest is fatal', () => {
@@ -122,22 +112,21 @@ describe('manifest-seed: invalid existing manifest is fatal', () => {
     },
   ];
   for (const c of cases) {
-    test(`${c.name} -> exit 1, file unchanged`, async () => {
-      wd = setupWorkdir();
-      fs.writeFileSync(manifestPath(wd.dir), c.content);
-      const before = fs.readFileSync(manifestPath(wd.dir), 'utf8');
-      const f = path.join(wd.dir, 'a.txt');
+    test(`${c.name} -> exit 1, file unchanged`, withDir(async (dir) => {
+      fs.writeFileSync(manifestPath(dir), c.content);
+      const before = fs.readFileSync(manifestPath(dir), 'utf8');
+      const f = path.join(dir, 'a.txt');
       fs.writeFileSync(f, 'x');
 
       const r = await runScript('manifest-seed.ts', {
-        args: [stateArg(wd.dir)],
+        args: [stateArg(dir)],
         stdin: JSON.stringify({ pluginVersion: '1.2.9', entries: [{ key: 'templates/a', file: f }] }),
       });
       expect(r.exitCode).toBe(1);
       expect(r.stderr).toContain('manifest-seed');
       // File left byte-for-byte unchanged.
-      expect(fs.readFileSync(manifestPath(wd.dir), 'utf8')).toBe(before);
-    });
+      expect(fs.readFileSync(manifestPath(dir), 'utf8')).toBe(before);
+    }));
   }
 });
 
@@ -149,12 +138,11 @@ describe('manifest-seed: malformed stdin is fatal', () => {
     { name: 'empty stdin', stdin: '' },
   ];
   for (const b of bad) {
-    test(`${b.name} -> exit 1, no manifest written`, async () => {
-      wd = setupWorkdir();
-      const r = await runScript('manifest-seed.ts', { args: [stateArg(wd.dir)], stdin: b.stdin });
+    test(`${b.name} -> exit 1, no manifest written`, withDir(async (dir) => {
+      const r = await runScript('manifest-seed.ts', { args: [stateArg(dir)], stdin: b.stdin });
       expect(r.exitCode).toBe(1);
-      expect(fs.existsSync(manifestPath(wd.dir))).toBe(false);
-    });
+      expect(fs.existsSync(manifestPath(dir))).toBe(false);
+    }));
   }
 });
 

@@ -67,6 +67,9 @@ describe('session-close: skill-correction capture', () => {
 
 // ── 2. observations ledger: append-metrics behavioral test ──────────────────
 
+// Empirically confirmed (bun 1.3.14): describe.serial does not reliably force
+// sequential execution of its own child tests under --concurrent — only
+// per-test .serial marking does. So each test below is marked individually.
 describe('append-metrics: skill-correction row round-trip', () => {
   let workdir: string;
   let ledger: string;
@@ -81,7 +84,7 @@ describe('append-metrics: skill-correction row round-trip', () => {
     try { fs.rmSync(workdir, { recursive: true, force: true }); } catch {}
   });
 
-  test('append-metrics: skill-correction row appended and parseable', async () => {
+  test.serial('append-metrics: skill-correction row appended and parseable', async () => {
     const row = JSON.stringify({
       ts: hoursAgoISO(2),
       pattern: 'skill-correction:my-skill',
@@ -101,7 +104,7 @@ describe('append-metrics: skill-correction row round-trip', () => {
     expect(parsed.session_id).toBe('S-001');
   });
 
-  test('append-metrics: two distinct-session rows group by pattern in prune', async () => {
+  test.serial('append-metrics: two distinct-session rows group by pattern in prune', async () => {
     // append a second session row for the same pattern
     const row2 = JSON.stringify({
       ts: hoursAgoISO(1),
@@ -122,7 +125,7 @@ describe('append-metrics: skill-correction row round-trip', () => {
   });
 
   // Depends on both prior append tests having run (shared workdir ledger has 2 rows).
-  test('prune-observations: skill-correction rows survive (both sessions fresh)', async () => {
+  test.serial('prune-observations: skill-correction rows survive (both sessions fresh)', async () => {
     const r = await runScript('prune-observations.ts', {
       args: [path.join(workdir, '.claude-code-hermit')],
     });

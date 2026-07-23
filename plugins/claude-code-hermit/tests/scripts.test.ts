@@ -15,7 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { runScript, PLUGIN_ROOT, SCRIPTS_DIR, MONOREPO_ROOT } from './helpers/run';
-import { setupWorkdir, fixturesDir, type Workdir } from './helpers/workdir';
+import { setupWorkdir, fixturesDir, withDir, type Workdir } from './helpers/workdir';
 import { deriveStaleSession, STALE_KEY } from '../scripts/lib/alert-state';
 
 // In-process imports — pure libs with no import-time CWD dependence.
@@ -37,14 +37,6 @@ import { logMessage, searchLog, unconsolidated, markConsolidated, prune, dbExist
 const hermit = (dir: string, ...p: string[]) => path.join(dir, '.claude-code-hermit', ...p);
 const write = (p: string, content: string) => fs.writeFileSync(p, content);
 const readJson = (p: string) => JSON.parse(fs.readFileSync(p, 'utf-8'));
-
-/** Run a test body inside a throwaway workdir, always cleaning up. */
-function withDir(fn: (dir: string) => Promise<void> | void) {
-  return async () => {
-    const wd = setupWorkdir();
-    try { await fn(wd.dir); } finally { wd.cleanup(); }
-  };
-}
 
 /** Subprocess runner for the bash scripts under test (check-upgrade.sh etc.). */
 async function runBash(
@@ -580,6 +572,8 @@ describe('knowledge-lint', () => {
   }));
 
   // 6b. Schema enforcement — undeclared type warned; declared+matching type clean
+  // Both tests write the same compiled/unknown.md path and re-run the linter
+  // against it — order-coupled shared file, so both are marked serial.
   describe('schema enforcement', () => {
     let wd: Workdir;
 
@@ -595,14 +589,14 @@ describe('knowledge-lint', () => {
     });
     afterAll(() => wd.cleanup());
 
-    test('knowledge-lint (schema: undeclared type warned)', async () => {
+    test.serial('knowledge-lint (schema: undeclared type warned)', async () => {
       write(hermit(wd.dir, 'compiled', 'unknown.md'),
         '---\ntitle: unknown\ntype: foo\ncreated: 2026-04-14T00:00:00+00:00\n---\ndata');
       const r = await runLint(wd.dir);
       expect(r.stdout + r.stderr).toContain('undeclared-type');
     });
 
-    test('knowledge-lint (schema: declared type is clean)', async () => {
+    test.serial('knowledge-lint (schema: declared type is clean)', async () => {
       // Matching type: schema has 'briefing', file has type: briefing
       write(hermit(wd.dir, 'compiled', 'unknown.md'),
         `---\ntitle: summary\ntype: briefing\ncreated: ${isoSec(daysAgo(5))}\n---\ndata`);
@@ -2531,6 +2525,9 @@ describe('reflect-precheck', () => {
 describe('log-routine-event', () => {
   const SCRIPT = path.join(SCRIPTS_DIR, 'log-routine-event.sh');
 
+  // Empirically confirmed (bun 1.3.14): describe.serial does not reliably
+  // force sequential execution of its own child tests under --concurrent —
+  // only per-test .serial marking does. So each test below is marked individually.
   describe('hermit root resolution', () => {
     let wd: Workdir;
     const metrics = () => hermit(wd.dir, 'state', 'routine-metrics.jsonl');
@@ -2541,21 +2538,21 @@ describe('log-routine-event', () => {
     });
     afterAll(() => wd.cleanup());
 
-    test('log-routine-event (subdir resolves to ancestor)', async () => {
+    test.serial('log-routine-event (subdir resolves to ancestor)', async () => {
       // Fired from a subdirectory → appends to the ancestor's state file
       await runBash(SCRIPT, { args: ['morning-brief', 'fired'], cwd: path.join(wd.dir, 'app', 'sub') });
       const content = fs.readFileSync(metrics(), 'utf-8');
       expect(content).toContain('"routine_id":"morning-brief","event":"fired"');
     });
 
-    test('log-routine-event (root resolves to state file)', async () => {
+    test.serial('log-routine-event (root resolves to state file)', async () => {
       // Fired from the hermit root → unchanged behavior
       await runBash(SCRIPT, { args: ['weekly-review', 'skipped-waiting'], cwd: wd.dir });
       const content = fs.readFileSync(metrics(), 'utf-8');
       expect(content).toContain('"routine_id":"weekly-review","event":"skipped-waiting"');
     });
 
-    test('log-routine-event (started event serializes correctly)', async () => {
+    test.serial('log-routine-event (started event serializes correctly)', async () => {
       // started marker emitted before skill invocation — must serialize like other events
       await runBash(SCRIPT, { args: ['daily-brief', 'started'], cwd: wd.dir });
       const content = fs.readFileSync(metrics(), 'utf-8');
@@ -2563,6 +2560,8 @@ describe('log-routine-event', () => {
     });
   });
 
+  // Order-coupled: both tests append to the same shared routine-metrics.jsonl
+  // and the second reads a `before` baseline left by the first's writes.
   describe('duplicate fired guard (#464)', () => {
     let wd: Workdir;
     const metrics = () => hermit(wd.dir, 'state', 'routine-metrics.jsonl');
@@ -2577,14 +2576,14 @@ describe('log-routine-event', () => {
     });
     afterAll(() => wd.cleanup());
 
-    test('suppresses a fired that immediately follows another fired', async () => {
+    test.serial('suppresses a fired that immediately follows another fired', async () => {
       await runBash(SCRIPT, { args: ['heartbeat-restart', 'started'], cwd: wd.dir });
       await runBash(SCRIPT, { args: ['heartbeat-restart', 'fired'], cwd: wd.dir });
       await runBash(SCRIPT, { args: ['heartbeat-restart', 'fired'], cwd: wd.dir });
       expect(firedCount()).toBe(1);
     });
 
-    test('allows the next legitimate started→fired cycle', async () => {
+    test.serial('allows the next legitimate started→fired cycle', async () => {
       const before = firedCount();
       await runBash(SCRIPT, { args: ['heartbeat-restart', 'started'], cwd: wd.dir });
       await runBash(SCRIPT, { args: ['heartbeat-restart', 'fired'], cwd: wd.dir });

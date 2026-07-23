@@ -1,20 +1,11 @@
-import { describe, test, expect, afterEach } from 'bun:test';
+import { describe, test, expect, afterAll } from 'bun:test';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { runScript } from './helpers/run';
+import { freshDirFactory } from './helpers/workdir';
 
-const tmpdirs: string[] = [];
-function freshDir(): string {
-  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-artifact-allow-'));
-  tmpdirs.push(d);
-  return d;
-}
-afterEach(() => {
-  for (const d of tmpdirs.splice(0)) {
-    try { fs.rmSync(d, { recursive: true, force: true }); } catch {}
-  }
-});
+const { freshDir, cleanup } = freshDirFactory('hermit-artifact-allow-');
+afterAll(cleanup);
 
 function seedSettings(dir: string, settings: any): string {
   const claude = path.join(dir, '.claude');

@@ -1,4 +1,4 @@
-import { describe, test, expect, afterEach } from 'bun:test';
+import { describe, test, expect, afterAll } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -6,7 +6,7 @@ import { tmpPath, cleanupTmp } from './helpers';
 
 const SCRIPT = path.join(import.meta.dir, '..', 'scripts', 'automode-env.ts');
 
-afterEach(cleanupTmp);
+afterAll(cleanupTmp);
 const freshDir = () => tmpPath('ha-automode-env-');
 
 function run(target: string, projectDir: string): { exitCode: number; stdout: string; stderr: string } {

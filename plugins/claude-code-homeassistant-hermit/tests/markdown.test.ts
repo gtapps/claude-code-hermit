@@ -7,7 +7,7 @@ import { expect, test } from 'bun:test';
 import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach } from 'bun:test';
+import { afterAll } from 'bun:test';
 
 import { dumpFrontmatter, loadFrontmatter, renderFrontmatter } from '../src/markdown';
 
@@ -19,7 +19,7 @@ function tmpPath(): string {
   return dir;
 }
 
-afterEach(() => {
+afterAll(() => {
   for (const dir of tmpDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
