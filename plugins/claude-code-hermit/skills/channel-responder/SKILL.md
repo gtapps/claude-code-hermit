@@ -227,14 +227,36 @@ Canonical protocol for proactively notifying the operator (referenced from `CLAU
 - **If no channel is enabled** (channels block absent, `channels === {}`, or every channel-config entry has `enabled === false` — exclude the `primary` string pointer when iterating):
   - If `push_notifications === true` in `config.json`, fire `PushNotification(message="<condensed one-line ≤200 chars, no markdown, actionable detail first>", status="proactive")`. Push is best-effort; do not retry on failure and do not log a `channel-send-unavailable` issue for this branch — the operator's empty-channels config is intentional.
   - Respond in conversation either way (the conversation response is the durable record).
-- **If at least one channel is enabled**, resolve the outbound target by running:
+- **If at least one channel is enabled**, compose the audience version(s) and deliver them in one
+  call — do not resolve the channel yourself, the script owns routing:
   ```
-  bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit
+  bun ${CLAUDE_PLUGIN_ROOT}/scripts/channel-send.ts .claude-code-hermit --notice
   ```
-  Parse stdout as JSON. A channel is eligible if `enabled !== false`, `allowed_users` is not `[]`, and `dm_channel_id` is set. Resolution order: `channels.primary` (if set and eligible), then the first eligible entry in `channels` (operator's config order — no hardcoded slug list, so newly added channel plugins are picked up automatically).
-  - **On success** (`"id"` and `"chat_id"` in result): call `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text: <message> }`. When the result also carries a `"language"` field, compose `<message>` in that language. If the reply call itself fails (token expired, plugin crashed, network blip) and `push_notifications === true`, fire `PushNotification(message="<...>", status="proactive")` as a last-resort signal, then log + dedup as below.
-  - **On miss** (non-zero exit or `{"error":"no_reachable_channel"}` — a channel is configured but unreachable: missing `dm_channel_id`, empty `allowed_users`, or `config_read_failed`): if `push_notifications === true`, fire `PushNotification(message="<...>", status="proactive")`. Then log the unsent content to SHELL.md Findings and record a deduped `channel-send-unavailable` issue regardless of push state — the configured channel is broken and the operator should see the signal. Do not use the user ID as a substitute (it will fail for Discord DMs).
-- If outbound send fails after a successful resolve (covered above): log + dedup; do not retry.
+  with a JSON payload on stdin:
+  - plain, client-safe notice → `{ "client": "<text>" }`
+  - technical / operational / spend content with no plain version → `{ "maintainer": "<text>" }`
+  - both → `{ "client": "<plain headline>", "maintainer": "<full detail incl. figures>" }`. The
+    maintainer text must be the **complete richer version of the same notice, not a fragment** —
+    when both audiences resolve to the same chat the client leg is dropped, so the maintainer text
+    has to stand alone.
+  - add `"sensitive": true` for credential-bearing text (keeps it out of the searchable channel log).
+
+  Compose each version in the operator's configured `language`.
+
+  The script prints `{ "delivered", "degraded", "no_channel", "result" }`.
+  - **Exit 0** — every leg landed. Done.
+  - **Exit 2** — the payload was rejected (unknown key, empty audience, bad value; the reason is on
+    stderr and nothing was sent). Fix the payload and re-run. This is your error, not the channel's:
+    do not push and do not record a `channel-send-unavailable` issue.
+  - **Exit 1** — a leg did not land (including `degraded: true`, where maintainer detail reached only
+    SHELL.md Findings because a configured maintainer chat was unreachable). If
+    `push_notifications === true`, fire `PushNotification(message="<condensed one-line ≤200 chars, no
+    markdown, actionable detail first>", status="proactive")`, log the undelivered content to SHELL.md
+    Findings, and record a deduped `channel-send-unavailable` issue — you only reach this branch with a
+    channel enabled, so even `no_channel: true` means it is configured but unreachable (unpaired,
+    empty `allowed_users`, unreadable config), which is exactly the signal the operator needs.
+- Never send a proactive notice through a channel reply tool, and never advise `/<channel>:access`
+  for a maintainer chat — the maintainer chat is reached by direct API POST and is outbound-only.
 
 ## 6. Channel-safe ask bridge
 

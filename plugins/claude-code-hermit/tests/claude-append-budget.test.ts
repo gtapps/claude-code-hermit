@@ -29,10 +29,12 @@ describe('CLAUDE-APPEND size budget', () => {
     // Pre-trim was 10,632 B. Trimmed to ~6,836 B, then held near 7,000 until the
     // auto-mode classifier's "Sanctioned egress" safety bullet (~7,164 B). Raised
     // to 7,600 for the "Channel voice" rule (~7,532 B), then to 7,700 for the
-    // `ROUTINE_DUE` notification-handler line (~7,638 B) — both deliberate,
+    // `ROUTINE_DUE` notification-handler line (~7,638 B), then to 7,850 for the
+    // unified `channel-send.ts --notice` proactive-notify mechanism replacing the
+    // model-side resolver + reply-tool instruction (~7,795 B) — all deliberate,
     // reviewed additions, not creep. Keep a small margin above the current size
     // without reopening the door to unbounded re-bloat.
-    expect(Buffer.byteLength(append, 'utf8')).toBeLessThanOrEqual(7700);
+    expect(Buffer.byteLength(append, 'utf8')).toBeLessThanOrEqual(7850);
   });
 });
 
@@ -46,7 +48,7 @@ describe('CLAUDE-APPEND load-bearing anchors', () => {
     '## Watches',
     '## Knowledge Discipline',
     '## Rules',
-    'resolve-outbound-channel.ts .claude-code-hermit', // the outbound-resolve invocation
+    'channel-send.ts .claude-code-hermit --notice', // the unified proactive-notify invocation
     'HEARTBEAT_EVALUATE',                              // heartbeat notification trigger
     'ROUTINE_DUE',                                      // routine-monitor notification trigger
     'covered-by-memory',                               // canonical memory-suppression code
@@ -62,9 +64,10 @@ describe('relocation targets received the moved content', () => {
   test('channel-responder carries the outbound notification protocol', () => {
     const cr = fs.readFileSync(CHANNEL_RESPONDER, 'utf8');
     expect(cr.includes('Outbound notification protocol')).toBe(true);
-    // the protocol body must include the resolve invocation and the reply-tool shape
-    expect(cr.includes('resolve-outbound-channel.ts')).toBe(true);
-    expect(cr.includes('no_reachable_channel')).toBe(true);
+    // the protocol body must route through the unified --notice mechanism, not a
+    // model-side resolver + reply-tool call.
+    expect(cr.includes('channel-send.ts')).toBe(true);
+    expect(cr.includes('--notice')).toBe(true);
   });
 
   test('watch skill carries the authoring rules (Monitor params)', () => {

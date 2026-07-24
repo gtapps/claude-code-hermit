@@ -34,17 +34,14 @@ Capture stdout. If the output starts with "No cost data" or "No spend recorded y
 
 ## Step 3 — Channel delivery
 
-When this skill fires from a routine or proactively (i.e., not from a direct operator conversation), deliver the report through the operator's channel:
+When this skill fires from a routine or proactively (i.e., not from a direct operator conversation), deliver the report through the operator's channel. Spend detail is maintainer-tier by definition, so send it as the `maintainer` leg only (no `client` leg):
 
-1. Resolve the outbound channel:
-   ```
-   bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit
-   ```
-   Parse stdout as JSON. On success (`"id"` and `"chat_id"` present), send via `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text: <report> }` where `<id>` is the resolved channel name.
+```
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/channel-send.ts .claude-code-hermit --notice
+```
+with `{"maintainer": "<report>"}` on stdin. On a technical install with no maintainer chat configured, `sendOperatorNotice`'s default `fallback: "client"` puts it in the primary chat — today's behavior. On a `non-technical` install with no maintainer chat, the report goes to `SHELL.md` Findings and no chat sees it (fail-closed on spend disclosure). If nothing was delivered, follow § Operator Notification's fallback (push if enabled, log to Findings).
 
-2. If the script exits non-zero or returns `{"error":"no_reachable_channel"}`: if `push_notifications === true` in `config.json`, fire `PushNotification(message="cost-reflect: <first line of report>", status="proactive")` so the summary still reaches the operator. Then append a single Findings line to `.claude-code-hermit/sessions/SHELL.md`: `"cost-reflect: no reachable channel configured, channel-send skipped"`. Only log this once per session to avoid noise.
-
-3. To set a preferred channel, add `"primary": "<channel-name>"` inside `channels` in `config.json`.
+To set a preferred channel, add `"primary": "<channel-name>"` inside `channels` in `config.json`.
 
 ## Notes
 

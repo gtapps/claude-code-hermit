@@ -22,13 +22,13 @@ Registry: `state/monitors.runtime.json` (sole truth — not SHELL.md). Use `/wat
 Main owns outbound sends and `AskUserQuestion`. To notify the operator proactively:
 
 - **No channel enabled** (no channel entry with `enabled !== false`, excluding `primary`): if `push_notifications === true`, fire `PushNotification(message="<≤200 chars, no markdown, actionable first>", status="proactive")` and respond in conversation. Empty-channels config is intentional — don't log an issue.
-- **Channel enabled:** run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit`, parse stdout JSON, and on success (`id`/`chat_id` present) call `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text }`, composing `text` in the result's `language` when present. On resolve miss or failed send: push if enabled, log the unsent content to SHELL.md Findings, and record a deduped `channel-send-unavailable` issue.
+- **Channel enabled:** compose the audience version(s) and run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/channel-send.ts .claude-code-hermit --notice` with `{"client": "<plain>", "maintainer": "<technical/spend detail>"}` on stdin (either key alone is fine). Exit 1 means a leg didn't land: push if enabled, log the undelivered content to SHELL.md Findings, and record a deduped `channel-send-unavailable` issue. Exit 2 means the payload was rejected — fix it and re-run; no push, no issue.
 
 Full protocol: `/claude-code-hermit:channel-responder` § Outbound notification protocol.
 
 **Channel voice.** No internal IDs (PROP-NNN, S-NNN, MP-…), no token counts, slash commands, file paths, or cron strings — plain language with the one next step the operator can do from chat. Terminal/maintainer output is exempt.
 
-**Language & audience.** Compose channel messages and push notifications in the operator's configured `language` (`config.json`); when unset, match the language the operator writes in. When `channels.<platform>.maintainer_channel_id` is set, send technical, operational, and spend content there instead of the primary channel.
+**Language & audience.** Compose channel messages and push notifications in the operator's configured `language` (`config.json`); when unset, match the language the operator writes in. When `channels.<platform>.maintainer_channel_id` is set, technical, operational, and spend content goes to the maintainer chat: put it in the `maintainer` key of the `--notice` payload (the script routes it — never a reply tool).
 
 ## Artifact Pages
 

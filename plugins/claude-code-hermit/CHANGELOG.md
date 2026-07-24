@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- Model-composed maintainer-tier notices were sent through the access-gated reply tool and blocked; they now go through the script path.
+
+### Changed
+- Proactive operator notifications unified onto `channel-send.ts --notice`; `weekly-review`, `cost-reflect`, and (via § Operator Notification) `heartbeat`/`brief`/`capability-brainstorm` are tier-aware, so spend and technical detail no longer reach the client chat. On a `non-technical` install with no `maintainer_channel_id`, routine spend reports now land in `SHELL.md` Findings instead of the primary chat.
+
+### Upgrade Instructions
+1. The CLAUDE-APPEND change reaches installed hermits through the standard `<!-- claude-code-hermit: Session Discipline -->` marker-block resync `hermit-evolve` already performs. Skills and scripts ship in the plugin, so no per-operator migration is needed for those.
+2. Re-run `/claude-code-hermit:hatch` (or the settings refresh) on existing installs so `Bash(bun */scripts/channel-send.ts*)` lands in the operator's settings allow-list — without it, the proactive notify path prompts/denies in unattended sessions.
+
 ## [1.2.33] - 2026-07-24
 
 ### Added

@@ -2725,6 +2725,46 @@ describe('chat voice contract', () => {
 });
 
 // ============================================================
+// Proactive-notify unification contract
+//
+// Model-composed proactive (unsolicited-push) notifications must route through
+// the unified channel-send.ts --notice mechanism, not a hand-rolled resolve +
+// reply-tool call — that split is what let maintainer-tier content hit the
+// access.json-gated reply tool and get blocked. Inbound replies (a response to
+// a message that arrived on a channel) are a different path and must keep
+// using the reply tool; these assertions are scoped to the proactive step only.
+// ============================================================
+
+describe('proactive-notify unification contract', () => {
+  test('cost-reflect Step 0 (inbound reply) still uses the channel reply tool', () => {
+    const costReflect = read(path.join(SKILLS, 'cost-reflect', 'SKILL.md'));
+    expect(costReflect).toContain("reply via that channel's reply tool");
+  });
+
+  test('cost-reflect Step 3 (proactive) routes through --notice', () => {
+    const costReflect = read(path.join(SKILLS, 'cost-reflect', 'SKILL.md'));
+    const step3 = costReflect.slice(costReflect.indexOf('## Step 3'));
+    expect(step3).toContain('channel-send.ts');
+    expect(step3).toContain('--notice');
+  });
+
+  test('weekly-review proactive delivery routes through --notice', () => {
+    const weeklyReview = read(path.join(SKILLS, 'weekly-review', 'SKILL.md'));
+    expect(weeklyReview).toContain('channel-send.ts');
+    expect(weeklyReview).toContain('--notice');
+  });
+
+  test('channel-responder §5 and CLAUDE-APPEND both point to the same --notice mechanism', () => {
+    const responder = read(path.join(SKILLS, 'channel-responder', 'SKILL.md'));
+    const append = read(path.join(TEMPLATES, 'CLAUDE-APPEND.md'));
+    expect(responder).toContain('channel-send.ts');
+    expect(responder).toContain('--notice');
+    expect(append).toContain('channel-send.ts');
+    expect(append).toContain('--notice');
+  });
+});
+
+// ============================================================
 // Heartbeat eval-runner return contract (issue #594)
 //
 // The subagent (reference.md) and the calling skill (SKILL.md) must agree on

@@ -573,6 +573,7 @@ Merge these into the target file:
       "Bash(bun */scripts/manifest-seed.ts*)",
       "Bash(bun */scripts/apply-settings.ts*)",
       "Bash(bun */scripts/channel-log.ts*)",
+      "Bash(bun */scripts/channel-send.ts*)",
       "Bash(bun */scripts/session-archive.ts*)",
       "Bash(bun */scripts/routine-precheck.ts*)",
       "Bash(bun */scripts/cron-registry.ts*)",

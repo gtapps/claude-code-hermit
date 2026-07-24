@@ -76,12 +76,23 @@ Generates the weekly review for the current ISO week.
      ```
      Followed by the `Topic pages:` findings from step 3 when present, plus a final line listing whichever of the dashboard/weekly-review URLs were returned (e.g. `📎 <dashboard url> · 📎 <weekly-review url>` — omit either half that wasn't returned).
    - The written review file (`compiled/review-weekly-<week>.md`) keeps its existing dev-facing sections (`### Operator Dependence`, `### Proposals` by id, `### Reflect` vitals, `### Delivered`) untouched — this rewrite changes only what's spoken to the channel, not what's written to disk.
-   - Resolve the outbound channel:
-     ```
-     bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit
-     ```
-     Parse stdout as JSON. On success (`"id"` and `"chat_id"` present), send via `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text: <message> }` where `<id>` is the resolved channel name.
-   - If the script exits non-zero or returns `{"error":"no_reachable_channel"}`: if `push_notifications === true` in `config.json`, fire `PushNotification(message="<one-line weekly review headline>", status="proactive")` so the summary still reaches the operator. Then append a single Findings line to `.claude-code-hermit/sessions/SHELL.md`: `"weekly-review: no reachable channel configured, channel-send skipped"`. Only log this once per session to avoid noise. Do **not** emit a `channel-send-unavailable` alert issue (weekly-review is a recurring routine, not an alert).
+   - Deliver via `channel-send.ts --notice` (see CLAUDE-APPEND.md § Operator Notification), with two
+     audience versions of the same composed message:
+     - `client` = the composed message **with the Spend line omitted**
+     - `maintainer` = the **complete message including the Spend line** — the full richer version of
+       the same notice, not a spend-only fragment, because the client leg is dropped in favor of the
+       maintainer's dedup partner only when both resolve to the same chat, in which case the
+       maintainer text (the complete one) is what's sent.
+
+     Routing outcomes this produces: technical install with no maintainer chat → the full summary
+     (including Spend) lands in the primary chat, same as today; a maintainer chat configured →
+     summary-minus-spend goes to the client, the full summary goes to the maintainer chat;
+     non-technical with no maintainer chat → summary-minus-spend to the client, full summary to
+     SHELL.md Findings.
+   - If a leg didn't land (exit 1 — exit 2 means the payload was rejected, so fix it and re-run
+     instead), follow § Operator Notification's fallback (push if
+     enabled, log to Findings) rather than a bespoke branch here — weekly-review is a recurring
+     routine, not an alert, so still skip a `channel-send-unavailable` issue for this call.
    - To set a preferred channel, add `"primary": "<channel-name>"` inside `channels` in `config.json`.
 
 7. Archive expired raw artifacts:
