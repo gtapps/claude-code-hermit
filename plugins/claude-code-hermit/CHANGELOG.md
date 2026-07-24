@@ -14,12 +14,18 @@
 ### Fixed
 - Model-override routines (weekly `doctor`, `daily-auto-close`) composed operator-facing notifications in English regardless of configured `language`, because the dispatched subagent never saw the SessionStart language injection. The dispatch prompt now carries a language clause and `resolve-outbound-channel.ts` returns the language.
 - A budget alert that degrades to `SHELL.md` Findings because a configured maintainer channel is unreachable no longer counts as delivered, so heartbeat re-announces it once the channel recovers instead of silently marking it notified.
+- `hermit-start` and the Docker entrypoint now refuse to boot a second instance over a live one for the same project (host↔Docker split-brain guard); override with `HERMIT_FORCE_BOOT=1`.
+- `hermit-stop` and watchdog restarts now verify the claude process tree exited, terminate survivors with `SIGTERM`, and refuse to report success otherwise (`last_error: orphaned_process`, non-zero exit, shutdown left pending).
+- Channel messages arriving while a shutdown is pending now get a deterministic "shutting down" reply and no longer reach the model.
 
 ### Upgrade Instructions
 1. Add `"operator_profile": "technical"` to `config.json` if absent (top-level, beside `language`). This is the safe default: keep it `technical` for a self-run box, and set it to `"non-technical"` only on a client-facing install where the person on the channel is not the maintainer.
 2. Refresh the § Operator Notification block in the operator's `CLAUDE.md` / `CLAUDE.local.md` from the current `state-templates/CLAUDE-APPEND.md` (it adds the **Language & audience** paragraph and the resolver `language` note). If your evolve already re-syncs the marker-delimited hermit block, this is covered automatically.
 3. Re-register CronCreate-fallback routines (`/claude-code-hermit:hermit-routines load`) so their stored dispatch prompts pick up the new language clause. Monitor-delivery installs (the default) re-read the skill on each fire and need nothing.
 4. Maintainer-channel question, unattended-safe: apply the safe default (leave `maintainer_channel_id` unset, so technical detail lands in `SHELL.md` Findings), then send the question itself as a maintainer-tier channel message: "denial detail now goes to Findings, reply if you'd like it in a chat instead, and optionally set a maintainer channel id." If no channel exists, record it as a Findings pending note instead. An attended evolve may ask this inline.
+5. The `bin/hermit-docker` and Docker entrypoint changes ride the standard bin-wrapper refresh — let evolve re-sync the `bin/` wrappers as usual; do not blind-copy them.
+6. **Docker hermits — refresh the on-disk entrypoint BEFORE rebuilding.** Refresh the on-disk `docker-entrypoint.hermit.sh` from `state-templates/docker/docker-entrypoint.hermit.sh.template` first (re-run `/claude-code-hermit:docker-setup` or patch it surgically), THEN run `hermit-docker update`. The rebuild uses the on-disk entrypoint, not the template (see CLAUDE.md § Debugging gotchas), so a plain `update` rebuilds with the stale boot guard.
+7. The compose template added a `HERMIT_FORCE_BOOT` env line. Existing installs can re-run `/claude-code-hermit:docker-setup` to regenerate the compose file, or add the line manually; it stays unset by default (the singleton guard is only overridden when `HERMIT_FORCE_BOOT=1`).
 
 ## [1.2.32] - 2026-07-23
 

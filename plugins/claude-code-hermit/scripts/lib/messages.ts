@@ -237,6 +237,7 @@ export interface WatchdogMessages {
   pauseUntilResume(label: string): string;
   pauseUntilDate(label: string, boundary: string): string;
   stallQuestion(hhmm: string): string;
+  orphan(hhmm: string): string;
 }
 
 export const WATCHDOG: Localized<WatchdogMessages> = {
@@ -249,6 +250,8 @@ export const WATCHDOG: Localized<WatchdogMessages> = {
     pauseUntilDate: (label, boundary) => `Your hermit is paused (${label}) until ${boundary}.`,
     stallQuestion: (hhmm) =>
       `Your hermit is waiting on a question it can't ask over chat — open the terminal or Claude app to answer (${hhmm}).`,
+    orphan: (hhmm) =>
+      `Your hermit's session ended but a process may still be running (${hhmm}). If it keeps replying, stop it from the terminal: run \`pgrep -af "claude --channels"\` and kill that PID.`,
   },
   'pt-PT': {
     restart: (hhmm, cause) => `Reiniciei o seu hermit às ${hhmm} — ${cause}.`,
@@ -259,5 +262,22 @@ export const WATCHDOG: Localized<WatchdogMessages> = {
     pauseUntilDate: (label, boundary) => `O seu hermit está em pausa (${label}) até ${boundary}.`,
     stallQuestion: (hhmm) =>
       `O seu hermit está à espera de uma pergunta que não pode fazer pelo chat — abra o terminal ou a app Claude para responder (${hhmm}).`,
+    orphan: (hhmm) =>
+      `A sessão do seu hermit terminou mas pode haver um processo ainda a correr (${hhmm}). Se continuar a responder, pare-o no terminal: corra \`pgrep -af "claude --channels"\` e faça kill desse PID.`,
+  },
+};
+
+// ---------- deterministic shutdown gate (shutdown-gate.ts) ----------
+
+export interface ShutdownMessages {
+  inProgress(): string;
+}
+
+export const SHUTDOWN: Localized<ShutdownMessages> = {
+  en: {
+    inProgress: () => "Shutting down — I'll be back once the restart completes.",
+  },
+  'pt-PT': {
+    inProgress: () => 'A desligar — volto assim que o reinício terminar.',
   },
 };

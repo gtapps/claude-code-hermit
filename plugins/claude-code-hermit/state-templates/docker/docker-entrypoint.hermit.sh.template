@@ -543,6 +543,33 @@ if [ -f "$MEMORY_SEED" ]; then
   fi
 fi
 
+# --- 4b. Singleton guard: refuse to boot over a live non-docker owner ---
+# hermit-start's own guard self-skips inside a container, so the container-side
+# check lives here. A gone-tmux host instance that survived as an orphan keeps
+# writing the shared (bind-mounted) liveness files; if runtime.json still claims
+# a non-docker mode AND any liveness file is fresh, a live host instance owns
+# this project's state — booting a second claude beside it recreates the
+# split-brain incident. Go inert (no claude, container flips unhealthy via the
+# tmux healthcheck) rather than exit, so `restart: unless-stopped` can't loop us.
+# HERMIT_FORCE_BOOT=1 overrides, for split-state recovery.
+if [ "${HERMIT_FORCE_BOOT:-0}" != "1" ]; then
+  _rt="${AGENT_DIR}/.claude-code-hermit/state/runtime.json"
+  _mode="$(jq -r '.runtime_mode // empty' "$_rt" 2>/dev/null || true)"
+  if [ -n "$_mode" ] && [ "$_mode" != "docker" ]; then
+    _fresh=0
+    for _f in state/routine-monitor-liveness.json state/heartbeat-liveness.json state/.heartbeat sessions/.status.json; do
+      if [ -n "$(find "${AGENT_DIR}/.claude-code-hermit/$_f" -mmin -10 2>/dev/null || true)" ]; then _fresh=1; break; fi
+    done
+    if [ "$_fresh" = "1" ]; then
+      echo "[docker-entrypoint] BOOT CONFLICT: a live '$_mode' instance owns this project's state dir."
+      echo "[docker-entrypoint] Staying inert (no claude started). Stop the other instance, then: hermit-docker restart"
+      printf 'live %s owner detected at boot\n' "$_mode" > "${AGENT_DIR}/.claude-code-hermit/state/.boot-conflict"
+      while true; do sleep 300; done
+    fi
+  fi
+fi
+rm -f "${AGENT_DIR}/.claude-code-hermit/state/.boot-conflict" 2>/dev/null || true
+
 # --- 5. Launch hermit-start ---
 "${AGENT_DIR}/bin/hermit-start" "$@"
 

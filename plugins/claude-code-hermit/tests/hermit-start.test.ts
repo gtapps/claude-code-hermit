@@ -36,6 +36,8 @@ import {
   clearShutdownStampsOnBoot,
   clearStatusCacheOnBoot,
   hydrateSetupTokenEnv,
+  shouldRefuseBoot,
+  dockerHermitRunning,
 } from '../scripts/hermit-start';
 import { TOKEN_ENV_VAR } from '../scripts/lib/setup-token';
 
@@ -192,6 +194,89 @@ async function runBuildClaudeCommand(
   if (exitCode !== 0) throw new Error(`harness exited ${exitCode}: ${stderr}`);
   return JSON.parse(stdout);
 }
+
+// ============================================================
+// Boot singleton guard (shouldRefuseBoot / dockerHermitRunning)
+// ============================================================
+
+/**
+ * Run shouldRefuseBoot(bootMode) in a child bun process with a fake `docker` on
+ * PATH — the docker probe uses spawnSync, which resolves from the launch PATH
+ * (see the buildClaudeCommand harness note), so it can't be faked in-process.
+ */
+async function runShouldRefuseBoot(bootMode: string, dockerServiceRunning: boolean, forceBoot = ''): Promise<string[] | null> {
+  const bin = path.join(tmpdir, 'stub-bin');
+  fs.mkdirSync(bin, { recursive: true });
+  fs.writeFileSync(
+    path.join(bin, 'docker'),
+    `#!/usr/bin/env bash\nif [ "$1" = "compose" ]; then ${dockerServiceRunning ? 'echo hermit' : 'true'}; fi\nexit 0\n`,
+  );
+  fs.chmodSync(path.join(bin, 'docker'), 0o755);
+  fs.writeFileSync('docker-compose.hermit.yml', 'services:\n  hermit: {}\n');
+
+  const harness = `
+    const m = await import(${JSON.stringify(HERMIT_START_TS)});
+    process.stdout.write(JSON.stringify(m.shouldRefuseBoot(${JSON.stringify(bootMode)})));
+  `;
+  const proc = Bun.spawn({
+    cmd: [process.execPath, '-e', harness],
+    cwd: tmpdir,
+    env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, HERMIT_FORCE_BOOT: forceBoot },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  if (exitCode !== 0) throw new Error(`harness exited ${exitCode}: ${stderr}`);
+  return JSON.parse(stdout);
+}
+
+describe.if(!IN_CONTAINER)('boot singleton guard', () => {
+  test('no compose file → dockerHermitRunning false, boot allowed', () => {
+    delete process.env.HERMIT_FORCE_BOOT;
+    expect(dockerHermitRunning()).toBe(false);
+    expect(shouldRefuseBoot('tmux')).toBeNull();
+  });
+
+  test('docker hermit running → refuse (tmux boot)', async () => {
+    const reason = await runShouldRefuseBoot('tmux', true);
+    expect(reason).not.toBeNull();
+    expect(reason!.join(' ')).toContain('Docker hermit is running');
+  });
+
+  test('docker hermit running → refuse (--no-tmux / interactive boot too)', async () => {
+    const reason = await runShouldRefuseBoot('interactive', true);
+    expect(reason).not.toBeNull();
+  });
+
+  test('compose present but service not running → boot allowed', async () => {
+    expect(await runShouldRefuseBoot('tmux', false)).toBeNull();
+  });
+
+  test('HERMIT_FORCE_BOOT=1 overrides a running docker hermit', async () => {
+    expect(await runShouldRefuseBoot('tmux', true, '1')).toBeNull();
+  });
+
+  test('runtime_mode mismatch + fresh liveness → refuse', () => {
+    delete process.env.HERMIT_FORCE_BOOT;
+    fs.writeFileSync('.claude-code-hermit/state/runtime.json', JSON.stringify({ runtime_mode: 'docker' }));
+    fs.writeFileSync('.claude-code-hermit/state/routine-monitor-liveness.json', '{}');
+    expect(shouldRefuseBoot('tmux')?.join(' ')).toContain('docker instance appears to be alive');
+  });
+
+  test('runtime_mode mismatch but stale liveness → boot allowed', () => {
+    delete process.env.HERMIT_FORCE_BOOT;
+    fs.writeFileSync('.claude-code-hermit/state/runtime.json', JSON.stringify({ runtime_mode: 'docker' }));
+    const lp = '.claude-code-hermit/state/routine-monitor-liveness.json';
+    fs.writeFileSync(lp, '{}');
+    const old = new Date(Date.now() - 3600_000);
+    fs.utimesSync(lp, old, old);
+    expect(shouldRefuseBoot('tmux')).toBeNull();
+  });
+});
 
 // ============================================================
 // Config contract tests (TestConfigContract)

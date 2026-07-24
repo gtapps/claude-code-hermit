@@ -2,6 +2,7 @@ import { describe, test, expect } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { SCRIPTS_DIR } from './helpers/run';
 
 // Black-box contract tests for the hermit-stop lifecycle script. Written
@@ -37,7 +38,10 @@ function readJson(dir: string, rel: string) {
 
 // Stateful fake tmux: `has-session` consults a marker file so tests can make
 // the session "exit" mid-run; every invocation is logged for assertions.
-function installFakeTmux(dir: string, opts: { hasSession?: boolean; dieOnSessionClose?: boolean } = {}) {
+function installFakeTmux(
+  dir: string,
+  opts: { hasSession?: boolean; dieOnSessionClose?: boolean; panePid?: number } = {}
+) {
   const bin = path.join(dir, 'fake-bin');
   fs.mkdirSync(bin, { recursive: true });
   const log = path.join(dir, 'tmux.log');
@@ -45,6 +49,11 @@ function installFakeTmux(dir: string, opts: { hasSession?: boolean; dieOnSession
   if (opts.hasSession) fs.writeFileSync(aliveMarker, '1');
   const dieLine = opts.dieOnSessionClose
     ? `case "$*" in *session-close*) rm -f '${aliveMarker}' ;; esac`
+    : '';
+  // list-panes drives the survivor check: echo the injected pane pid so the
+  // stop script captures a real process tree to verify.
+  const listPanes = opts.panePid
+    ? `list-panes) echo ${opts.panePid}; exit 0 ;;`
     : '';
   fs.writeFileSync(
     path.join(bin, 'tmux'),
@@ -54,6 +63,7 @@ ${dieLine}
 case "$1" in
   has-session) [ -f '${aliveMarker}' ] && exit 0 || exit 1 ;;
   kill-session) rm -f '${aliveMarker}'; exit 0 ;;
+  ${listPanes}
   *) exit 0 ;;
 esac
 `
@@ -62,8 +72,8 @@ esac
   return { log, aliveMarker, bin };
 }
 
-async function runStop(dir: string, args: string[], fakeBin?: string) {
-  const env: Record<string, string> = { ...process.env } as any;
+async function runStop(dir: string, args: string[], fakeBin?: string, extraEnv?: Record<string, string>) {
+  const env: Record<string, string> = { ...process.env, ...(extraEnv ?? {}) } as any;
   if (fakeBin) env.PATH = `${fakeBin}:${env.PATH}`;
   const proc = Bun.spawn([...STOP_CMD, ...args], {
     cwd: dir,
@@ -193,6 +203,59 @@ describe('hermit-stop contract', () => {
       } finally {
         holder.kill();
       }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test.if(IS_TS)('--force with a surviving process → orphaned_process, no completion, exit 1', async () => {
+    const dir = makeDir();
+    // A TERM-ignoring fixture whose pid the fake tmux reports as the pane.
+    const ready = path.join(dir, 'survivor-ready');
+    const child = spawn('sh', ['-c', `trap "" TERM; : > "${ready}"; while :; do sleep 1; done`], {
+      detached: true,
+      stdio: 'ignore',
+    });
+    child.unref();
+    try {
+      writeConfig(dir);
+      writeRuntime(dir, { runtime_mode: 'tmux', session_state: 'in_progress' });
+      const { bin } = installFakeTmux(dir, { hasSession: true, panePid: child.pid });
+      const deadline = Date.now() + 5000;
+      while (!fs.existsSync(ready) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
+      const { exitCode, stdout } = await runStop(dir, ['--force'], bin, {
+        HERMIT_STOP_GRACE_MS: '50',
+        HERMIT_TERM_WAIT_MS: '400',
+      });
+      expect(exitCode).toBe(1);
+      expect(stdout).toContain('survived stop');
+      const rt = readJson(dir, '.claude-code-hermit/state/runtime.json');
+      expect(rt.last_error).toBe('orphaned_process');
+      expect(rt.session_state).not.toBe('idle');
+      expect(rt.shutdown_completed_at ?? null).toBeNull();
+      expect(rt.shutdown_requested_at).toBeDefined();
+    } finally {
+      try { process.kill(-child.pid!, 'SIGKILL'); } catch {}
+      try { process.kill(child.pid!, 'SIGKILL'); } catch {}
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('no session but fresh liveness → probable orphan, no stamp, exit 1', async () => {
+    const dir = makeDir();
+    try {
+      writeConfig(dir);
+      writeRuntime(dir, { runtime_mode: 'tmux', session_state: 'in_progress' });
+      // Fresh liveness signal = an instance may still be alive despite no tmux.
+      fs.writeFileSync(path.join(dir, '.claude-code-hermit', 'state', 'routine-monitor-liveness.json'), '{}');
+      const { bin } = installFakeTmux(dir, { hasSession: false });
+      const { exitCode, stdout } = await runStop(dir, [], bin);
+      expect(exitCode).toBe(1);
+      expect(stdout).toContain('detached claude may still be running');
+      const rt = readJson(dir, '.claude-code-hermit/state/runtime.json');
+      // Lifecycle truth untouched — not marked stopped.
+      expect(rt.session_state).toBe('in_progress');
+      expect(rt.shutdown_completed_at ?? null).toBeNull();
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

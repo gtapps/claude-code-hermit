@@ -191,6 +191,17 @@ case "$CMD" in
   up)
     echo "[hermit] Starting Docker container..."
     cd "$PROJECT_DIR" && "${DC[@]}" up -d "$@"
+    # Surface an entrypoint singleton-conflict: the container comes up but stays
+    # inert (a live non-docker owner holds the state dir). `up -d` returns success
+    # and the healthcheck only flips minutes later, so poll the marker briefly.
+    for _i in 1 2 3 4 5 6 7 8 9 10; do
+      if [ -f "$PROJECT_DIR/.claude-code-hermit/state/.boot-conflict" ]; then
+        echo "[hermit] BOOT CONFLICT: $(cat "$PROJECT_DIR/.claude-code-hermit/state/.boot-conflict")"
+        echo "[hermit] Container is up but inert. Stop the other instance (.claude-code-hermit/bin/hermit-stop), then: hermit-docker restart"
+        exit 1
+      fi
+      sleep 1
+    done
     _warn_if_entrypoint_stale
     echo ""
     echo "Container is up. To attach to the hermit's tmux session:"

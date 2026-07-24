@@ -248,6 +248,42 @@ describe('dead session', () => {
 });
 
 // -------------------------------------------------------
+// 5d. Dead session + FRESH shared liveness → orphan, abort restart
+// -------------------------------------------------------
+
+describe('dead session with fresh liveness (orphan guard)', () => {
+  test('fresh liveness + no tmux → restart aborted, no hermit-start spawned', withHermit(async (h) => {
+    writeConfig(h);
+    writeFakeTmux(h, 1); // dead
+    writeFakePgrep(h, 1);
+    // A fresh monitor-liveness file = an instance is still writing state.
+    fs.writeFileSync(state(h, 'routine-monitor-liveness.json'), '{}');
+    const { exitCode } = await watchdog(h, 'run');
+    expect(exitCode).toBe(0);
+    const events = fs.readFileSync(eventsFile(h), 'utf-8');
+    expect(events).toContain('restart-aborted');
+    expect(events).toContain('liveness-fresh-no-tmux');
+    // No replacement spawned, and the restart reason is never stamped.
+    expect(fs.existsSync(path.join(h.dir, 'hermit-start-called'))).toBe(false);
+    expect(readJson(state(h, 'runtime.json')).watchdog_restart_reason ?? null).toBeNull();
+    expect(readJson(state(h, 'watchdog-state.json')).orphan_notified).toBe(true);
+  }));
+
+  test('stale liveness + no tmux → normal restart (stale proves nothing)', withHermit(async (h) => {
+    writeConfig(h);
+    writeFakeTmux(h, 1);
+    writeFakePgrep(h, 1);
+    touchAgo(state(h, 'routine-monitor-liveness.json'), 3600); // 1h old ≫ 600s
+    const { exitCode } = await watchdog(h, 'run');
+    expect(exitCode).toBe(0);
+    const events = fs.readFileSync(eventsFile(h), 'utf-8');
+    expect(events).toContain('dead-process');
+    expect(events).not.toContain('restart-aborted');
+    expect(fs.existsSync(path.join(h.dir, 'hermit-start-called'))).toBe(true);
+  }));
+});
+
+// -------------------------------------------------------
 // 5a. Re-auth relay (setup-token expiry)
 // -------------------------------------------------------
 
