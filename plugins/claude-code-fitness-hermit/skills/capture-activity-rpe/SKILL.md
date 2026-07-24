@@ -1,6 +1,6 @@
 ---
 name: capture-activity-rpe
-description: Captures RPE (1-10) and subjective notes when the operator replies to a strava-sync notification on any configured channel. Triggers on inbound channel messages matching RPE grammar while state/strava-pending-rpe.json has a sync from the last 24h. Channel-agnostic.
+description: Captures RPE (1-10) and subjective notes when the operator replies to a daily fitness-brief notification on any configured channel. Triggers on inbound channel messages matching RPE grammar while state/strava-pending-rpe.json has a sync from the last 24h. Channel-agnostic.
 allowed-tools:
   - Read
   - Bash(bun *fitness-lab.ts*)
@@ -50,4 +50,4 @@ Self-triggers on RPE-shaped replies while `state/strava-pending-rpe.json` is fre
    Got it — RPE <rpe>/10 saved for <pending.name>.
    ```
 
-7. **Refresh the deep-dive.** If `pending.sport` is `Run`, re-invoke `/claude-code-fitness-hermit:activity-deep-dive <pending.activity_id>`. The `strava-sync` routine generated this activity's deep-dive before any RPE existed, so re-running now folds the RPE in — the skill reads `state/activity-notes.json` at its step 3b and overwrites `compiled/activity-<id>-*.md`. For non-`Run` sports the routine writes no deep-dive, so skip.
+7. **Refresh the deep-dive.** If `pending.sport` is `Run`, re-invoke `/claude-code-fitness-hermit:activity-deep-dive <pending.activity_id>`. The `fitness-brief` evening run generated this activity's deep-dive before any RPE existed, so re-running now folds the RPE in — the skill reads `state/activity-notes.json` at its step 3b and overwrites `compiled/activity-<id>-*.md`. For non-`Run` sports the brief writes no deep-dive, so skip.

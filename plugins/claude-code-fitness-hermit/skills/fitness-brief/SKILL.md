@@ -1,6 +1,6 @@
 ---
 name: fitness-brief
-description: Composes and delivers the daily fitness brief — a forward-looking morning read (readiness + today's plan) or a backward-looking evening read (today's training, or an earned-rest note, + tomorrow's setup) — in the operator's configured voice. Invoke with /claude-code-fitness-hermit:fitness-brief --morning|--evening|--slot <name>. Becomes the plugin's two daily beats: absorbs strava-health-check's morning connectivity check and strava-sync's evening sync/RPE/deep-dive mechanics.
+description: Composes and delivers the daily fitness brief — a forward-looking morning read (readiness + today's plan) or a backward-looking evening read (today's training, or an earned-rest note, + tomorrow's setup) — in the operator's configured voice. Invoke with /claude-code-fitness-hermit:fitness-brief --morning|--evening|--slot <name>. Becomes the plugin's two daily beats: the morning Strava connectivity check and the evening activity sync, RPE binding, and Run deep-dive.
 allowed-tools:
   - Read
   - Write
@@ -40,8 +40,8 @@ orientation — a custom `--slot` follows whichever branch matches its resolved 
      `/claude-code-fitness-hermit:activity-deep-dive <id>` (cap 3 — log skipped IDs to
      SHELL.md Progress Log past the cap). Advance the cursor file to the highest new ID.
      Hold the newest new activity's id/name/sport for step 4 — do **not** write
-     `state/strava-pending-rpe.json` here. That file's writer contract (see `strava-sync`'s
-     routine prompt, `docs/knowledge-schema.md`, and `CLAUDE.md` § Memory Conventions) is
+     `state/strava-pending-rpe.json` here. That file's writer contract (see `docs/knowledge-schema.md`
+     and `CLAUDE.md` § Memory Conventions) is
      write-only-after-confirmed-delivery, precisely so a failed or push-only send can't bind
      a future RPE reply to an activity the operator was never actually told about.
 
@@ -52,10 +52,13 @@ orientation — a custom `--slot` follows whichever branch matches its resolved 
      `state/strava-weekly-baselines.json` if present for trend context.
    - **Evening:** if a new activity was found in step 1 **and it was not a `Run`** (step 1
      only deep-dives Run activities), `bun ${CLAUDE_PLUGIN_ROOT}/scripts/fitness-lab.ts
-     analyze latest` for today's session. If the new activity *was* a `Run`, step 1's
+     analyze <the non-Run activity's id from step 1>` for today's session — pass the id
+     explicitly, not `latest`: `latest` resolves the globally most-recent Strava activity,
+     which on a mixed-type day (a Run uploaded after the non-Run) would analyze the wrong
+     session. If the new activity *was* a `Run`, step 1's
      `activity-deep-dive` call already ran this same analysis and wrote
-     `compiled/activity-<id>-<date>.md` — read that artifact instead of re-running
-     `analyze latest`, which would redo the same Strava fetch and computation. Either way,
+     `compiled/activity-<id>-<date>.md` — read that artifact instead of re-running the
+     analysis, which would redo the same Strava fetch and computation. Either way,
      also read whatever `state/activity-notes.json` already holds for it. No new activity
      is itself the input — there's nothing to analyze.
 
@@ -91,7 +94,7 @@ orientation — a custom `--slot` follows whichever branch matches its resolved 
      {"activity_id": <id>, "name": "<name>", "sport": "<Run|Ride|WeightTraining|…>", "synced_at": "<ISO 8601>"}
      ```
      so a channel RPE reply binds correctly (`capture-activity-rpe` reads and deletes it) —
-     the same guard `strava-sync` applies.
+     the same write-after-confirmed-send guard documented in `CLAUDE.md` § Memory Conventions.
 
 5. **Archive.** Write `.claude-code-hermit/compiled/brief-<slot>-<date>.md`:
    ```yaml

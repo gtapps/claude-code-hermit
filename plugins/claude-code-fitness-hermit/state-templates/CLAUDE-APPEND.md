@@ -29,8 +29,6 @@ These run automatically on their cron schedule. Schedules and `enabled` state li
 | Routine | Purpose |
 |---------|---------|
 | `morning-brief` / `evening-brief` | Daily brief (AM: readiness + plan; PM: recap + tomorrow) |
-| `strava-sync` | Detect new activities, log them, flag anomalies |
-| `strava-health-check` | Check Strava connectivity; alert if lost |
 | `weekly-load-review` | Week-over-week load summary + trend flag |
 | `monday-planning` | Weekly training structure suggestion |
 
@@ -47,10 +45,10 @@ These run via the core `scheduled-checks` routine (daily) and fire at most once 
 ### Conventions
 
 - Activity notes: `compiled/activity-<id>-<YYYY-MM-DD>.md` (written by activity-deep-dive)
-- Strava state cursor: `state/strava-last-activity-id.txt` (written by strava-sync, fitness-brief)
+- Strava state cursor: `state/strava-last-activity-id.txt` (written by fitness-brief evening)
 - Weekly load baselines: `state/strava-weekly-baselines.json` (written by weekly-load-review, read by monday-planning)
 - Subjective notes: `state/activity-notes.json` (written by `scripts/fitness-lab.ts rpe` — invoked by capture-activity-rpe + set-rpe; read by activity-deep-dive + weekly-load-review)
-- Pending RPE: `state/strava-pending-rpe.json` (written by strava-sync/fitness-brief after a successful channel send, read and deleted by capture-activity-rpe)
+- Pending RPE: `state/strava-pending-rpe.json` (written by fitness-brief evening after a successful channel send, read and deleted by capture-activity-rpe)
 
 ### Fitness Proposal Categories
 

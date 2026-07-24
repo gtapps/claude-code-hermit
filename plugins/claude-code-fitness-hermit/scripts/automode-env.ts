@@ -2,7 +2,7 @@
 /**
  * automode-env.ts — seeds one autoMode.environment entry naming Strava as a
  * trusted external service, so the Claude Code auto-mode classifier stops
- * treating the hermit's nightly unattended reads (strava-sync, health checks,
+ * treating the hermit's nightly unattended reads (fitness-brief,
  * weekly load review) as unrecognized outbound calls.
  *
  * Usage: bun automode-env.ts <target-file>   (target MUST be settings.local.json —
