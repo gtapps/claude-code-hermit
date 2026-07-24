@@ -27,6 +27,9 @@ services:
       - NODE_OPTIONS=--max-old-space-size=4096
       - AGENT_HOOK_PROFILE={{AGENT_HOOK_PROFILE}}
       - GH_TOKEN=${HERMIT_GH_TOKEN:-}
+      # Set HERMIT_FORCE_BOOT=1 in the shell to override the entrypoint singleton
+      # guard for split-state recovery (HERMIT_FORCE_BOOT=1 hermit-docker up).
+      - HERMIT_FORCE_BOOT=${HERMIT_FORCE_BOOT:-0}
 {{AUTH_ENV_LINE}}{{CHANNEL_ENV_LINES}}
 {{NETWORK_MODE_LINE}}
     # Defense in depth — rationale and override path: run /claude-code-hermit:docker-security.

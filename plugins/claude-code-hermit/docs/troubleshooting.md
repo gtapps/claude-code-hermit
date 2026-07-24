@@ -86,6 +86,12 @@ Scheduled checks run during idle reflection via `reflect`. If configured checks 
 
 SHELL.md from a crashed session persists. Choose **resume** or **start new** (generates a partial report). If this keeps happening, check system stability, rate limits, disk space, and consider Docker for auto-restart.
 
+## Stuck "shutting down" / orphaned process
+
+If `hermit-stop` reports survivors or exits non-zero, a claude process outlived the stop — the process tree was verified and did not fully exit (`last_error: orphaned_process`). Find it with `pgrep -af "claude --channels"` and `kill` the reported PID.
+
+After a survivor-blocked stop the shutdown gate keeps the channel silent, because `shutdown_requested_at` stays set (never paired with a `shutdown_completed_at`) and every inbound message gets a deterministic "shutting down" reply. To un-stick without killing anything, either boot again — a fresh `hermit-start` / `hermit-docker up` clears the shutdown stamps for the same project — or manually null `shutdown_requested_at` in `.claude-code-hermit/state/runtime.json`.
+
 ## Routines Not Firing
 
 - Check the `routines` array in config.json — each routine must have `enabled: true`.

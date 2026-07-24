@@ -30,6 +30,8 @@ import { acquireLock, releaseLock, pidAlive } from './lib/lockfile';
 import { utcISOStamp as utcStamp, currentHHMM, currentHHMMOrUTC, parseSimpleCronTime, friendlyBoundary } from './lib/time';
 import { writeRuntimeJson, readRuntimeJson, STATE_DIR, LIFECYCLE_LOCK } from './lib/runtime';
 import { tmuxSessionAlive, getSessionName as deriveSessionName } from './lib/tmux';
+import { paneRootPids, collectTree, terminateSurvivors } from './lib/proc';
+import { sharedLivenessAgeSecs, LIVENESS_FRESH_SECS } from './lib/liveness';
 import { costLogPath } from './lib/cc-compat';
 import { flushResetBreadcrumb } from './lib/progress-log';
 import { wallMinutes } from './cron-tz-shift';
@@ -156,6 +158,11 @@ export function composeWedgeMessage(timezone: string, locale: Locale = OPERATOR_
 /** Operator-language message for an un-redirectable stalled question (PROP-024's fail-loud half). */
 export function composeStallQuestionMessage(timezone: string, locale: Locale = OPERATOR_LOCALE): string {
   return WATCHDOG[locale].stallQuestion(nowHHMM(timezone));
+}
+
+/** Operator-language message for a likely orphan (tmux gone, state still fresh). */
+export function composeOrphanMessage(timezone: string, locale: Locale = OPERATOR_LOCALE): string {
+  return WATCHDOG[locale].orphan(nowHHMM(timezone));
 }
 
 /** Operator-language message for a forced pause enforcement (any reason). */
@@ -343,8 +350,8 @@ function writeWatchdogState(state: Json): void {
 
 // --- Actions ---
 
-/** Try-acquire lock, mark runtime, kill session, spawn hermit-start. */
-function doRestart(sessionName: string, reason: string, runtime: Json, timezone: string): void {
+/** Try-acquire lock, mark runtime, kill session, verify the old tree died, spawn hermit-start. */
+async function doRestart(sessionName: string, reason: string, runtime: Json, timezone: string): Promise<void> {
   if (!tryAcquireLifecycleLock()) {
     process.stderr.write('[watchdog] lifecycle lock held — backing off restart\n');
     return;
@@ -356,7 +363,22 @@ function doRestart(sessionName: string, reason: string, runtime: Json, timezone:
     runtime.watchdog_restart_reason = reason;
     writeRuntimeJson(runtime);
 
+    // Capture the pane's process tree BEFORE the kill so we can verify the old
+    // claude actually died. (For a dead-session restart tmux is already gone, so
+    // this is empty and the restart proceeds unchanged.)
+    const tree = collectTree(paneRootPids(sessionName));
     spawnSync('tmux', ['kill-session', '-t', sessionName], { stdio: 'ignore' });
+    const survivors = await terminateSurvivors(tree.pids);
+
+    if (survivors.length > 0 || tree.capped) {
+      // The old process survived the kill. Spawning a replacement now would
+      // recreate the duplicate-instance incident, so abort and alert instead.
+      releaseLock(LIFECYCLE_LOCK);
+      appendEvent('restart-aborted', `survivors: ${(survivors.length ? survivors : tree.pids).join(' ')}`);
+      process.stderr.write(`[watchdog] restart aborted — process survived kill: ${survivors.join(' ')}\n`);
+      pushOperatorMessage(composeOrphanMessage(timezone));
+      return;
+    }
 
     // Release before spawning hermit-start (it re-acquires)
     releaseLock(LIFECYCLE_LOCK);
@@ -368,7 +390,7 @@ function doRestart(sessionName: string, reason: string, runtime: Json, timezone:
     });
     child.on('error', (e) => process.stderr.write(`[watchdog] restart failed: ${e}\n`));
     child.unref();
-    appendEvent('restart', reason);
+    appendEvent('restart', `${reason}, tree-verified`);
     process.stderr.write(`[watchdog] restarted "${sessionName}", reason: ${reason}\n`);
     // Only claim a restart to the operator when the start binary is actually
     // present — a missing/ENOENT binary makes spawn fail asynchronously via the
@@ -1125,7 +1147,25 @@ async function main(): Promise<void> {
   // restarted session inert until resumed.
   if (['in_progress', 'waiting', 'suspect_process'].includes(sessionState)) {
     if (!tmuxSessionAlive(sessionName)) {
-      doRestart(sessionName, 'dead-process', runtime, timezone);
+      // A gone tmux session with FRESH shared-state activity is the orphan shape
+      // (process survived, tmux didn't) — restarting would spawn a second claude
+      // beside the live one. Abort and alert instead; only restart when the
+      // signal is stale, i.e. the old process really is dead.
+      const age = sharedLivenessAgeSecs();
+      const ws = readWatchdogState();
+      const looksAlive = age !== null && age < LIVENESS_FRESH_SECS;
+      if (looksAlive && !ws.orphan_notified) {
+        pushOperatorMessage(composeOrphanMessage(timezone));
+        appendEvent('restart-aborted', 'liveness-fresh-no-tmux');
+        ws.orphan_notified = true;
+        writeWatchdogState(ws);
+      }
+      if (looksAlive) process.exit(0);
+      if (ws.orphan_notified) {
+        ws.orphan_notified = false;
+        writeWatchdogState(ws);
+      }
+      await doRestart(sessionName, 'dead-process', runtime, timezone);
       process.exit(0);
     }
   }
@@ -1208,7 +1248,7 @@ async function main(): Promise<void> {
             watchdogState.consecutive_stale = consecutive;
             watchdogState.last_pane_hash = currentPaneHash;
             writeWatchdogState(watchdogState);
-            doRestart(sessionName, 'pane-frozen', runtime, timezone);
+            await doRestart(sessionName, 'pane-frozen', runtime, timezone);
           } else {
             doNudge(sessionName, watchdogState, consecutive, currentPaneHash, timezone);
           }
@@ -1401,7 +1441,7 @@ function cmdUninstall(): void {
  * every front door (terminal mint, relay, /relogin skill) should go through
  * one implementation rather than improvising its own kill-and-respawn.
  */
-function cmdRestart(reason: string): void {
+async function cmdRestart(reason: string): Promise<void> {
   if (!fs.existsSync(CONFIG_PATH)) {
     process.stderr.write('[watchdog] no config — nothing to restart\n');
     process.exit(0);
@@ -1416,7 +1456,7 @@ function cmdRestart(reason: string): void {
   if (runtime === null) process.exit(0);
   const sessionName = runtime.tmux_session || deriveSessionName(config);
   if (!sessionName) process.exit(0);
-  doRestart(sessionName, reason, runtime, config.timezone ?? 'UTC');
+  await doRestart(sessionName, reason, runtime, config.timezone ?? 'UTC');
 }
 
 if (import.meta.main) {
@@ -1433,7 +1473,7 @@ if (import.meta.main) {
   } else if (subcommand === 'uninstall') {
     cmdUninstall();
   } else if (subcommand === 'restart') {
-    cmdRestart(process.argv[3] ?? 'manual');
+    await cmdRestart(process.argv[3] ?? 'manual');
   } else {
     process.stderr.write(`[watchdog] unknown subcommand: ${subcommand}\n`);
     process.exit(1);

@@ -17,6 +17,8 @@ import { acquireLock, releaseLock } from './lib/lockfile';
 import { localISOStamp } from './lib/time';
 import { readRuntimeJson, updateRuntimeField, STATE_DIR, LIFECYCLE_LOCK } from './lib/runtime';
 import { tmuxSessionAlive, getSessionName } from './lib/tmux';
+import { paneRootPids, collectTree, terminateSurvivors } from './lib/proc';
+import { sharedLivenessAgeSecs, LIVENESS_FRESH_SECS } from './lib/liveness';
 
 type Json = any;
 
@@ -104,6 +106,19 @@ function tmux(args: string[]): void {
   spawnSync('tmux', args, { stdio: 'inherit' });
 }
 
+/** Print the survivor warning + manual kill hint. */
+function warnSurvivors(pids: number[]): void {
+  console.log(`[hermit] WARNING: ${pids.length} process(es) survived stop: ${pids.join(' ')}`);
+  console.log(`[hermit] A claude process may still be running. Verify and finish manually: kill -9 ${pids.join(' ')}`);
+}
+
+/** Verify a captured pane tree died; a capped snapshot reads as unverified == orphaned. */
+async function verifyTreeExited(tree: { pids: number[]; capped: boolean }): Promise<{ orphaned: boolean; reportedPids: number[] }> {
+  const survivors = await terminateSurvivors(tree.pids);
+  const orphaned = survivors.length > 0 || tree.capped;
+  return { orphaned, reportedPids: survivors.length ? survivors : tree.pids };
+}
+
 async function main(): Promise<void> {
   const force = process.argv.includes('--force');
 
@@ -124,6 +139,20 @@ async function main(): Promise<void> {
       releaseLifecycleLock();
       process.exit(0);
     }
+    // No tmux session — but fresh state activity means a detached claude may
+    // still be alive (the orphan case: tmux gone, process survived). Marking it
+    // "stopped" here would make runtime.json lie. Report the likely orphan and
+    // exit non-zero without touching lifecycle truth.
+    const age = sharedLivenessAgeSecs();
+    if (age !== null && age < LIVENESS_FRESH_SECS) {
+      console.log(`[hermit] No tmux session "${sessionName}", but state activity ${Math.round(age)}s ago — a detached claude may still be running.`);
+      console.log('[hermit] Find it:  pgrep -af "claude --channels"');
+      console.log('[hermit] Not marking stopped. Kill that process, or ignore if this is another runtime (then re-run).');
+      releaseLifecycleLock();
+      process.exitCode = 1;
+      return;
+    }
+
     console.log(`[hermit] No running session: ${sessionName}`);
     config.always_on = false;
     saveConfig(config);
@@ -154,19 +183,36 @@ async function main(): Promise<void> {
     console.log(`[hermit] Force-killing session: ${sessionName}`);
     config.always_on = false;
     saveConfig(config);
+    // Capture the pane's process tree BEFORE killing the session so we can
+    // verify the claude process actually died rather than orphaning.
+    const tree = collectTree(paneRootPids(sessionName));
     tmux(['kill-session', '-t', sessionName]);
-    updateRuntimeField({
-      session_state: 'idle',
+    const { orphaned, reportedPids } = await verifyTreeExited(tree);
+
+    const updates: Json = {
       shutdown_requested_at: localISOStamp(),
-      shutdown_completed_at: localISOStamp(),
-      last_error: 'unclean_shutdown',
       transition: null,
       transition_target: null,
       transition_started_at: null,
-    });
-    const report = findLatestReport();
-    if (report) console.log(`[hermit] Last report: ${report}`);
-    console.log('[hermit] Warning: session was not closed gracefully. SHELL.md may be stale.');
+    };
+    if (orphaned) {
+      warnSurvivors(reportedPids);
+      updates.last_error = 'orphaned_process';
+      // Leave session_state / shutdown_completed_at unset — a live process
+      // means the hermit is NOT stopped, and shutdown_requested_at stays set so
+      // the watchdog won't restart over it.
+      updateRuntimeField(updates);
+      process.exitCode = 1;
+    } else {
+      console.log(`[hermit] Process tree verified exited (${tree.pids.length} processes).`);
+      updates.session_state = 'idle';
+      updates.shutdown_completed_at = localISOStamp();
+      updates.last_error = 'unclean_shutdown';
+      updateRuntimeField(updates);
+      const report = findLatestReport();
+      if (report) console.log(`[hermit] Last report: ${report}`);
+      console.log('[hermit] Warning: session was not closed gracefully. SHELL.md may be stale.');
+    }
     releaseLifecycleLock();
     return;
   }
@@ -180,6 +226,10 @@ async function main(): Promise<void> {
 
   // Mark shutdown requested in runtime.json
   updateRuntimeField({ shutdown_requested_at: localISOStamp() });
+
+  // Capture the pane's process tree while the session is still alive, so the
+  // survivor check at the end can tell "closed cleanly" from "orphaned".
+  const stopTree = collectTree(paneRootPids(sessionName));
 
   // Release the lifecycle lock before delegating to /session-close.
   // The close/archive path inside Claude needs to acquire this lock
@@ -229,23 +279,35 @@ async function main(): Promise<void> {
     console.log(`[hermit] tmux session "${sessionName}" terminated.`);
   }
 
-  // Mark shutdown completed in runtime.json
+  // Verify the captured process tree actually exited (terminating any survivor).
+  const { orphaned, reportedPids } = await verifyTreeExited(stopTree);
+
   const shutdownUpdates: Json = {
-    session_state: 'idle',
-    shutdown_completed_at: localISOStamp(),
     transition: null,
     transition_target: null,
     transition_started_at: null,
   };
-  if (!newReport) shutdownUpdates.last_error = 'unclean_shutdown';
-  updateRuntimeField(shutdownUpdates);
+  if (orphaned) {
+    // A live process means NOT stopped — keep shutdown_requested_at set (it
+    // inhibits watchdog restart) and don't claim completion or idle.
+    warnSurvivors(reportedPids);
+    shutdownUpdates.last_error = 'orphaned_process';
+    updateRuntimeField(shutdownUpdates);
+    process.exitCode = 1;
+  } else {
+    console.log(`[hermit] Process tree verified exited (${stopTree.pids.length} processes).`);
+    shutdownUpdates.session_state = 'idle';
+    shutdownUpdates.shutdown_completed_at = localISOStamp();
+    if (!newReport) shutdownUpdates.last_error = 'unclean_shutdown';
+    updateRuntimeField(shutdownUpdates);
 
-  // Show summary
-  if (!newReport) {
-    const report = findLatestReport();
-    if (report) console.log(`[hermit] Latest report: ${report}`);
+    // Show summary
+    if (!newReport) {
+      const report = findLatestReport();
+      if (report) console.log(`[hermit] Latest report: ${report}`);
+    }
+    if (stats) console.log(`[hermit] Total tasks this session: ${tasks}`);
   }
-  if (stats) console.log(`[hermit] Total tasks this session: ${tasks}`);
 
   releaseLifecycleLock();
 }

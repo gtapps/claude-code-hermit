@@ -58,6 +58,8 @@ Read `waiting_reason` from runtime.json to understand why:
 - **New instruction or answer to a question** → update runtime.json `session_state` to `in_progress`, clear `waiting_reason` to `null`, resume work
 - **Anything else** → respond, stay `waiting`
 
+If a shutdown is pending (`shutdown_requested_at` set, `shutdown_completed_at` null) and the shutdown-gate hook did not already intercept, reply that shutdown is in progress and start no new work.
+
 ## 1c. Check Authorization
 
 Read `config.json` → `channels.<channel>.allowed_users` for the inbound channel

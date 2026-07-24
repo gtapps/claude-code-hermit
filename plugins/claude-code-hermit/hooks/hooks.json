@@ -180,6 +180,18 @@
           {
             "type": "command",
             "command": "bun",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/shutdown-gate.ts"],
+            "timeout": 8
+          }
+        ],
+        "description": "Deterministic shutdown gate — while a shutdown is pending, send-then-block channel messages from allowed senders so the hermit takes no new work"
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/channel-status-responder.ts"],
             "timeout": 12
           }

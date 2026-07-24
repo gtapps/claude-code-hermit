@@ -19,6 +19,7 @@ import { writeRuntimeJson, readRuntimeJson, STATE_DIR, RUNTIME_JSON, RUNTIME_TMP
 import { localISOStamp } from './lib/time';
 import { tmuxSessionAlive, getSessionName } from './lib/tmux';
 import { defaultConfigDir, readTokenValue, TOKEN_ENV_VAR } from './lib/setup-token';
+import { sharedLivenessAgeSecs, LIVENESS_FRESH_SECS } from './lib/liveness';
 
 type Json = any;
 
@@ -783,6 +784,71 @@ export function hydrateSetupTokenEnv(): void {
   if (token) process.env[TOKEN_ENV_VAR] = token;
 }
 
+/**
+ * True when this project's Docker hermit service is running. Fail-soft: a
+ * missing compose file, absent docker, timeout, or non-zero status all read as
+ * "not running" so a plain host boot is never blocked by the probe itself.
+ */
+export function dockerHermitRunning(): boolean {
+  if (!fs.existsSync('docker-compose.hermit.yml')) return false;
+  try {
+    const r = spawnSync(
+      'docker',
+      ['compose', '-f', 'docker-compose.hermit.yml', 'ps', '--status', 'running', '--format', '{{.Service}}'],
+      { timeout: 5000, encoding: 'utf-8' },
+    );
+    if (r.status !== 0 || !r.stdout) return false;
+    return r.stdout.split('\n').some((l: string) => l.trim() === 'hermit');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Decide whether to refuse booting a second instance beside a live one for this
+ * project — the host↔Docker split-brain guard. Returns an operator-facing reason
+ * (multi-line) to refuse, or null to proceed. Pure of side effects so it's unit
+ * testable; the process.exit wrapper is refuseIfAnotherInstanceAlive.
+ *
+ * Same-namespace boots are already serialized by the lifecycle lock the caller
+ * holds; the cross-namespace (host vs container) case is covered by the shared
+ * liveness signal. Skipped inside a container (the entrypoint owns that guard)
+ * and when HERMIT_FORCE_BOOT=1 (split-state recovery).
+ */
+export function shouldRefuseBoot(bootMode: 'tmux' | 'interactive'): string[] | null {
+  if (isContainer() || process.env.HERMIT_FORCE_BOOT === '1') return null;
+  if (dockerHermitRunning()) {
+    return [
+      "This project's Docker hermit is running — a second host instance would fight it for state and channels.",
+      'Stop it first: .claude-code-hermit/bin/hermit-docker down   (attach: .claude-code-hermit/bin/hermit-docker attach)',
+      'Override (split-state recovery only): HERMIT_FORCE_BOOT=1',
+    ];
+  }
+  const rt = readRuntimeJson();
+  if (rt && rt.runtime_mode && rt.runtime_mode !== bootMode) {
+    // A cleanly-stopped instance is definitively dead; its frozen runtime_mode
+    // and not-yet-aged liveness file don't prove it's still running. Mirrors the
+    // watchdog's own "deliberately down" gate (session_state idle / shutdown_*).
+    const cleanlyStopped = rt.session_state === 'idle' || Boolean(rt.shutdown_completed_at);
+    const age = sharedLivenessAgeSecs();
+    if (!cleanlyStopped && age !== null && age < LIVENESS_FRESH_SECS) {
+      return [
+        `A ${rt.runtime_mode} instance appears to be alive for this project (state activity ${Math.round(age)}s ago).`,
+        'Stop it first (bin/hermit-stop or hermit-docker down), or override with HERMIT_FORCE_BOOT=1.',
+      ];
+    }
+  }
+  return null;
+}
+
+function refuseIfAnotherInstanceAlive(bootMode: 'tmux' | 'interactive'): void {
+  const reason = shouldRefuseBoot(bootMode);
+  if (reason) {
+    for (const line of reason) console.log(`[hermit] ${line}`);
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
   const noTmuxFlag = process.argv.includes('--no-tmux');
 
@@ -791,6 +857,13 @@ async function main(): Promise<void> {
   acquireLifecycleLock();
   checkForUpgrade(config);
   const tools = checkPrerequisites();
+
+  // Singleton guard (under the lifecycle lock): don't boot a second instance
+  // beside a live one for this project. Boot mode mirrors the tmux/interactive
+  // branch chosen further down.
+  const bootMode = noTmuxFlag || !pyTruthy(tools.tmux) ? 'interactive' : 'tmux';
+  refuseIfAnotherInstanceAlive(bootMode);
+
   const cmd = buildClaudeCommand(config, tools);
   const sessionName = getSessionName(config);
 

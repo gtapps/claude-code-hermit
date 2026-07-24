@@ -23,6 +23,8 @@ If watches are registered (`state/monitors.runtime.json` has entries), stop all 
 
 Use this when the operator wants to end everything (via `hermit-stop` or explicit `--shutdown`).
 
+A pre-existing `shutdown_requested_at` is the caller's stamp — `hermit-stop` sets it and then sends this command (`hermit-stop.ts`). It is never evidence of a competing close; proceed with the close. Do not send a second `--shutdown` after one has completed: each archive run creates a new report (`session-archive` is not idempotent).
+
 ### Auto-close path (`--auto`)
 
 When invoked with `--auto` by heartbeat, skip steps 1–5 and jump directly to step 6 (shutdown_skill), step 7 (Tasks cleanup), and step 8 (session-archive.ts archive — the script itself performs the step 9/10 marker bookkeeping on success). Pipe this templated payload on stdin to `session-archive.ts archive --mode=auto`:
