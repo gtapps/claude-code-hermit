@@ -33,6 +33,7 @@ const DEFAULT_CONFIG: Json = {
   language: null,
   timezone: null,
   escalation: 'balanced',
+  operator_profile: 'technical',
   sign_off: null,
   channels: {},
   remote: true,

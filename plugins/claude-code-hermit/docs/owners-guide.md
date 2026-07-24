@@ -40,6 +40,8 @@ Your assistant uses AI services that have a cost, and it keeps track of what it'
 
 One honest note: if your plan is a flat subscription rather than pay-as-you-go, the dollar figures it reports are *estimates*, not real charges — a useful signal, not a bill.
 
+If whoever set up your assistant configured a separate technical contact for it, spend-limit warnings and technical alerts go to that person instead of this chat, so you only see plain-language updates here.
+
 ---
 
 ## Who to call

@@ -25,10 +25,11 @@ import { hermitDir } from './lib/cc-compat';
 import { loadConfig } from './lib/channel-auth';
 import { channelLikelyDown } from './lib/channel-health';
 import { resolve as resolveOutboundChannel } from './resolve-outbound-channel';
-import { sendToChannel } from './lib/channel-send';
+import { sendOperatorNotice } from './lib/channel-send';
 import { readAlertState, writeAlertState } from './lib/alert-state';
 import { safe } from './lib/sanitize';
 import { localISOStamp } from './lib/time';
+import { DENY, resolveLocale } from './lib/messages';
 
 type Json = any;
 
@@ -114,14 +115,20 @@ async function main(raw: string): Promise<void> {
   alerts[key] = localISOStamp();
   writeAlerts(dir, alerts);
 
+  const locale = resolveLocale(config.language);
   const detail = extractDetail(toolInput);
-  let text = `Auto-mode denied: ${toolName}`;
-  if (detail) text += ` — ${detail}`;
-  if (reason) text += ` — ${reason}`;
-  text += '. Session continues. If intended: /hermit-settings or handle at the pane.';
-  text = text.slice(0, MESSAGE_MAX_LEN);
+  // Maintainer tier keeps today's technical assembly (tool + input + reason);
+  // the client tier gets the plain, channel-voice copy with no tool detail.
+  let maintainerText = DENY[locale].maintainerBase(toolName);
+  if (detail) maintainerText += ` — ${detail}`;
+  if (reason) maintainerText += ` — ${reason}`;
+  maintainerText += DENY[locale].maintainerTail();
+  maintainerText = maintainerText.slice(0, MESSAGE_MAX_LEN);
 
-  await sendToChannel(dir, text, { target });
+  await sendOperatorNotice(dir, {
+    client: DENY[locale].client(),
+    maintainer: { text: maintainerText, fallback: 'findings', sensitive: true },
+  });
 }
 
 try {

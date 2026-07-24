@@ -7,6 +7,7 @@
 import { costLogPath } from './cc-compat';
 import { costIndexPath, readCostIndex, computeIndex } from './cost-log';
 import { todayYMD, thisWeekKey, thisMonthYYYYMM } from './time';
+import { SPEND, type Locale } from './messages';
 
 type Json = any;
 
@@ -21,7 +22,7 @@ function resolveTimezone(config: Json): string {
 // Reports the first cap set, in daily > weekly > monthly precedence — the
 // shortest configured window is what an operator checking in mid-day cares
 // about first.
-function budgetLine(dir: string, config: Json, timezone: string): string | null {
+function budgetLine(dir: string, config: Json, timezone: string, locale: Locale = 'en'): string | null {
   const budget = config?.budget;
   if (!budget) return null;
   const candidates: Array<['daily' | 'weekly' | 'monthly', number | null]> = [
@@ -44,8 +45,8 @@ function budgetLine(dir: string, config: Json, timezone: string): string | null 
   const spend = period === 'daily' ? idx?.by_date?.[todayYMD(timezone)]?.cost || 0
     : period === 'weekly' ? idx?.by_week?.[thisWeekKey(timezone)]?.cost || 0
     : idx?.by_month?.[thisMonthYYYYMM(timezone)]?.cost || 0;
-  const label = period === 'daily' ? 'Today' : period === 'weekly' ? 'This week' : 'This month';
-  return `${label}: ${money(spend)} of ${money(cap)} cap.`;
+  const label = SPEND[locale].capLabel(period);
+  return SPEND[locale].capStatus(label, money(spend), money(cap));
 }
 
 export { money, resolveTimezone, budgetLine };

@@ -14,6 +14,10 @@ import { startHttpStub } from './helpers/http-stub';
 
 const hermit = (dir: string, ...p: string[]) => path.join(dir, '.claude-code-hermit', ...p);
 const write = (p: string, content: string) => fs.writeFileSync(p, content);
+// The technical assembly (tool + input + reason) now lands maintainer-tier;
+// on a stock single-channel install with no maintainer_channel_id it is
+// suppressed to SHELL.md Findings (setupWorkdir seeds a `## Findings` section).
+const readFindings = (dir: string) => fs.readFileSync(hermit(dir, 'sessions', 'SHELL.md'), 'utf8');
 
 function setupChannelWorkdir(): Workdir {
   const wd = setupWorkdir();
@@ -55,11 +59,15 @@ describe('permission-denied-notify', () => {
     try {
       const r = await run(DENIAL_PAYLOAD, wd.dir, stub.url);
       expect(r.exitCode).toBe(0);
+      // Exactly one channel request, and it carries the plain client copy — no
+      // tool name, path, or "auto-mode" jargon (Channel voice rule).
       expect(stub.requests.length).toBe(1);
-      expect(stub.requests[0].body.text).toContain('Auto-mode denied: Bash');
-      // The alert points at *what* was blocked (tool + input), the only signal
-      // the real payload carries — not a reason string it doesn't deliver.
-      expect(stub.requests[0].body.text).toContain('apply-settings.ts');
+      expect(stub.requests[0].body.text).toContain('One action could not run because it needed approval');
+      // The technical signal (tool + input, the only detail the real payload
+      // carries) now lands in SHELL.md Findings, not the channel.
+      const findings = readFindings(wd.dir);
+      expect(findings).toContain('Auto-mode denied: Bash');
+      expect(findings).toContain('apply-settings.ts');
     } finally {
       stub.stop();
       wd.cleanup();
@@ -72,7 +80,50 @@ describe('permission-denied-notify', () => {
     try {
       const r = await run({ ...DENIAL_PAYLOAD, reason: '[Self-Modification] blocked' }, wd.dir, stub.url);
       expect(r.exitCode).toBe(0);
-      expect(stub.requests[0].body.text).toContain('Self-Modification');
+      // The classifier reason is technical detail — it rides the maintainer tier
+      // into Findings, never the client channel.
+      expect(readFindings(wd.dir)).toContain('Self-Modification');
+      expect(stub.requests[0].body.text).not.toContain('Self-Modification');
+    } finally {
+      stub.stop();
+      wd.cleanup();
+    }
+  });
+
+  test('client channel copy carries no slash command, tool name, or tool input', async () => {
+    const stub = startHttpStub();
+    const wd = setupChannelWorkdir();
+    try {
+      const r = await run(DENIAL_PAYLOAD, wd.dir, stub.url);
+      expect(r.exitCode).toBe(0);
+      const text = stub.requests[0].body.text as string;
+      expect(text).not.toContain('/');            // no slash commands or paths
+      expect(text).not.toContain('Bash');         // no tool name
+      expect(text).not.toContain('apply-settings'); // no tool input
+      expect(text.toLowerCase()).not.toContain('auto-mode');
+    } finally {
+      stub.stop();
+      wd.cleanup();
+    }
+  });
+
+  test('pt-PT install → client channel copy is the Portuguese plain copy', async () => {
+    const stub = startHttpStub();
+    const wd = setupChannelWorkdir();
+    try {
+      write(hermit(wd.dir, 'config.json'), JSON.stringify({
+        always_on: true,
+        language: 'português',
+        channels: {
+          primary: 'telegram',
+          telegram: { enabled: true, dm_channel_id: '12345', allowed_users: ['u1'], state_dir: '.claude.local/channels/telegram' },
+        },
+      }));
+      const r = await run(DENIAL_PAYLOAD, wd.dir, stub.url);
+      expect(r.exitCode).toBe(0);
+      expect(stub.requests[0].body.text).toContain('Uma ação não pôde ser executada porque precisava de aprovação');
+      // Portuguese technical frame in Findings.
+      expect(readFindings(wd.dir)).toContain('Negado em modo automático: Bash');
     } finally {
       stub.stop();
       wd.cleanup();

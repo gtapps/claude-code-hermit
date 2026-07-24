@@ -232,6 +232,9 @@ if (Object.hasOwn(answers, 'channels')) {
     if (!Object.hasOwn(merged, 'dm_channel_id')) merged.dm_channel_id = null;
     if (!Object.hasOwn(merged, 'state_dir')) merged.state_dir = `.claude.local/channels/${name}`;
     if (Object.hasOwn(ans, 'allowed_users')) merged.allowed_users = ans.allowed_users;
+    // Outbound-only second destination for maintainer-tier alerts; a freshly
+    // answered value must survive re-init (existing values ride the ...existing spread).
+    if (Object.hasOwn(ans, 'maintainer_channel_id')) merged.maintainer_channel_id = ans.maintainer_channel_id;
     // morning_brief is a two-way switch: a time enables it, an explicit null/empty
     // time disables it (so re-init can turn off a brief the operator previously set).
     if (Object.hasOwn(ans, 'morning_brief_time')) {

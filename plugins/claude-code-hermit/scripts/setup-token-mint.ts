@@ -45,6 +45,9 @@ import {
 import { sendToChannel } from './lib/channel-send';
 import { inboundSince } from './lib/channel-log';
 import { tmuxSessionAlive } from './lib/tmux';
+import { loadConfig } from './lib/channel-auth';
+import { resolve as resolveOutboundChannel } from './resolve-outbound-channel';
+import { resolveLocale, MINT, dates } from './lib/messages';
 
 const HERMIT_DIR = process.env.HERMIT_DIR || '.claude-code-hermit';
 const MINT_SESSION = mintSessionName();
@@ -64,6 +67,21 @@ const TOKEN_TIMEOUT_MS = 180_000;
 const ACK_TIMEOUT_MS = 24 * 3600_000;
 const CODE_TIMEOUT_MS = 30 * 60_000;
 const POLL_MS = 2_000;
+
+// Resolved once at process start (the relay is a single-shot process, so this IS
+// "pinned at flow start"): the operator's locale for all prompts, and the primary
+// reply route the ack/code intake is bound to. A login code pasted in any other
+// chat the bot can see must never be accepted — matching the physical chat_id is
+// the strong pin. Null route = no channel configured (terminal/attended flow), so
+// no filtering.
+const MINT_CONFIG: any = (() => { try { return loadConfig(HERMIT_DIR); } catch { return null; } })();
+const OPERATOR_LOCALE = resolveLocale(MINT_CONFIG?.language);
+const REPLY_ROUTE = MINT_CONFIG?.channels ? resolveOutboundChannel(MINT_CONFIG.channels) : null;
+
+function rowMatchesReplyRoute(r: any): boolean {
+  if (!REPLY_ROUTE) return true;
+  return String(r?.chat_id ?? '') === String(REPLY_ROUTE.chat_id);
+}
 
 // ---------- pane-stream parsing (shapes confirmed live against CC 2.1.216) ----------
 
@@ -283,18 +301,26 @@ const terminalIO: OperatorIO = {
 
 const channelIO: OperatorIO = {
   async notify(text) {
-    const r = await sendToChannel(HERMIT_DIR, text);
-    return r.ok === true;
+    // Auth prompts are sensitive but must reach the SAME chat the ack/code intake
+    // is pinned to (REPLY_ROUTE = the resolved primary chat) — otherwise a
+    // maintainer-tier send would land the sign-in link in the maintainer chat
+    // while replies are only accepted from the primary chat, deadlocking reauth.
+    // `sensitive` keeps the OAuth URL out of the searchable channel log.
+    const r = await sendToChannel(HERMIT_DIR, text, { sensitive: true });
+    return r.ok;
   },
   async awaitAck(sinceIso) {
     const got = await waitFor(
-      () => (findAck(inboundSince(HERMIT_DIR, sinceIso)) ? true : null),
+      () => (findAck(inboundSince(HERMIT_DIR, sinceIso).filter(rowMatchesReplyRoute)) ? true : null),
       ACK_TIMEOUT_MS
     );
     return got === true;
   },
   async awaitCode(sinceIso) {
-    return await waitFor(() => findCode(inboundSince(HERMIT_DIR, sinceIso)), CODE_TIMEOUT_MS);
+    return await waitFor(
+      () => findCode(inboundSince(HERMIT_DIR, sinceIso).filter(rowMatchesReplyRoute)),
+      CODE_TIMEOUT_MS
+    );
   },
 };
 
@@ -305,10 +331,7 @@ async function runMintFlow(io: OperatorIO, mode: string, requireAck: boolean): P
 
   if (requireAck) {
     writeMarker('awaiting-ack', mode);
-    const reached = await io.notify(
-      "Your hermit's Claude login has expired, so it can't work until it's renewed. " +
-        "Reply 'reauth' when you're at a browser and I'll send you a one-time sign-in link."
-    );
+    const reached = await io.notify(MINT[OPERATOR_LOCALE].ackPrompt());
     // No way to reach the operator means no way to finish: bail now rather than
     // minting a link nobody will see and then waiting on a reply that can't come.
     if (!reached) {
@@ -329,7 +352,7 @@ async function runMintFlow(io: OperatorIO, mode: string, requireAck: boolean): P
   if (!url) return abortMint('sign-in link never appeared');
 
   writeMarker('awaiting-code', mode);
-  await io.notify(`Open this link to sign in, then send me the code it gives you:\n${url}`);
+  await io.notify(MINT[OPERATOR_LOCALE].openLink(url));
   // The code window opens only once the link is out. Anchoring it earlier (at
   // the ack) would let ordinary chatter between "reauth" and the link — an "ok",
   // a "sure" — be picked up as the login code and pasted into the pane, failing
@@ -348,7 +371,7 @@ async function runMintFlow(io: OperatorIO, mode: string, requireAck: boolean): P
   if (!token) {
     cleanupMint();
     clearMarker();
-    await io.notify("That sign-in didn't complete. Nothing changed — we can try again whenever you're ready.");
+    await io.notify(MINT[OPERATOR_LOCALE].failed());
     return fail('no token captured');
   }
 
@@ -359,18 +382,9 @@ async function runMintFlow(io: OperatorIO, mode: string, requireAck: boolean): P
   // leaving it behind makes the next renewal look already-running.
   clearMarker();
 
-  await io.notify(
-    `You're signed back in. Nothing else to do — the next renewal is due ${friendlyDate(record.expires_at)}, and I'll ask you then.`
-  );
+  await io.notify(MINT[OPERATOR_LOCALE].signedIn(dates.friendlyDate(OPERATOR_LOCALE, record.expires_at)));
   console.log(JSON.stringify({ ok: true, expires_at: record.expires_at }));
   return 0;
-}
-
-function friendlyDate(iso: string): string {
-  const d = new Date(iso);
-  return isNaN(d.getTime())
-    ? 'in about a year'
-    : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function fail(reason: string): number {

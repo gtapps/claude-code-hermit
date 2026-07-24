@@ -1,5 +1,26 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Localized script-owned channel messages: budget, auto-mode denial, mint/reauth, watchdog lifecycle, and `channel-status-responder` replies now compose in the operator's `language` (en / pt-PT; any Portuguese signifier resolves to `pt-PT`) instead of hardcoded English. Default config (`language` null) stays byte-identical.
+- Tiered operator notifications via per-channel `maintainer_channel_id` and top-level `operator_profile`. Technical, operational, and spend content routes to an outbound-only maintainer chat (or `SHELL.md` Findings under `non-technical` with no maintainer chat), while the primary chat sees plain-language client copy. `resolve-outbound-channel.ts` emits a sanitized `language` in its success JSON, and `channel-send.ts` gains `--tier client|maintainer`.
+
+### Changed
+- Auto-mode denial message rewritten to plain channel voice ("One action could not run because it needed approval. Work that doesn't depend on it can continue. You don't need to fix this.") for every install. The tool name, sanitized input, and reason now route to the maintainer chat or `SHELL.md` Findings, not a second message in the client chat.
+- Watchdog lifecycle messages (restart, wedge, forced-pause, stalled-question) localized and sent maintainer-tier. Stock installs with no maintainer chat stay byte-identical.
+- Mint/reauth pins the resolved primary chat as its reply route and marks its sends sensitive, keeping the OAuth sign-in URL out of the searchable channel log.
+
+### Fixed
+- Model-override routines (weekly `doctor`, `daily-auto-close`) composed operator-facing notifications in English regardless of configured `language`, because the dispatched subagent never saw the SessionStart language injection. The dispatch prompt now carries a language clause and `resolve-outbound-channel.ts` returns the language.
+- A budget alert that degrades to `SHELL.md` Findings because a configured maintainer channel is unreachable no longer counts as delivered, so heartbeat re-announces it once the channel recovers instead of silently marking it notified.
+
+### Upgrade Instructions
+1. Add `"operator_profile": "technical"` to `config.json` if absent (top-level, beside `language`). This is the safe default: keep it `technical` for a self-run box, and set it to `"non-technical"` only on a client-facing install where the person on the channel is not the maintainer.
+2. Refresh the § Operator Notification block in the operator's `CLAUDE.md` / `CLAUDE.local.md` from the current `state-templates/CLAUDE-APPEND.md` (it adds the **Language & audience** paragraph and the resolver `language` note). If your evolve already re-syncs the marker-delimited hermit block, this is covered automatically.
+3. Re-register CronCreate-fallback routines (`/claude-code-hermit:hermit-routines load`) so their stored dispatch prompts pick up the new language clause. Monitor-delivery installs (the default) re-read the skill on each fire and need nothing.
+4. Maintainer-channel question, unattended-safe: apply the safe default (leave `maintainer_channel_id` unset, so technical detail lands in `SHELL.md` Findings), then send the question itself as a maintainer-tier channel message: "denial detail now goes to Findings, reply if you'd like it in a chat instead, and optionally set a maintainer channel id." If no channel exists, record it as a Findings pending note instead. An attended evolve may ask this inline.
+
 ## [1.2.32] - 2026-07-23
 
 ### Fixed

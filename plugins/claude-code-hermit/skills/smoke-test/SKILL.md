@@ -87,6 +87,10 @@ For each file: parse JSON. If missing or unparseable, rewrite from the correspon
   - Success: **PASS** `<channel> test message sent`
   - Failure: **FAIL** `<channel> test message failed: <error>`
   - If the MCP tool is not available (plugin not installed): **WARN** `<channel> plugin not available for test`
+- For each enabled channel that also sets `maintainer_channel_id`, send one probe to the maintainer chat via `bun ${CLAUDE_PLUGIN_ROOT}/scripts/channel-send.ts .claude-code-hermit --tier maintainer -` (short line on stdin, e.g. "Smoke test: maintainer channel is working."):
+    - Sent: **PASS** `<channel> maintainer-chat test message sent`
+    - Failure: **FAIL** `<channel> maintainer-chat test failed: <error>` (a typo'd `maintainer_channel_id` fails here rather than silently on every future alert)
+  - Channels with no `maintainer_channel_id`: skip the maintainer probe silently.
 
 ### 7b. Push notification test (optional)
 

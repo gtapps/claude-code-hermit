@@ -263,6 +263,72 @@ describe('channel-status-responder', () => {
     }
   });
 
+  // ---- pt-PT localization (config.language: "português") ----
+  // The exact-English assertions above stay untouched; these cover the same
+  // reply shapes composed through the pt-PT StatusMessages table.
+  describe('pt-PT localization', () => {
+    test('working line', async () => {
+      const stub = startHttpStub();
+      const wd = setupChannelWorkdir({ language: 'português' });
+      try {
+        fs.writeFileSync(hermit(wd.dir, 'sessions', '.status.json'), JSON.stringify({ status: 'in_progress', task: 'o plano' }));
+        await run(wd, 'status', stub.url);
+        expect(stub.requests[0].body.text).toContain('A trabalhar em o plano.');
+      } finally {
+        stub.stop();
+        wd.cleanup();
+      }
+    });
+
+    test('paused line', async () => {
+      const stub = startHttpStub();
+      const wd = setupChannelWorkdir({ language: 'português' });
+      try {
+        fs.mkdirSync(hermit(wd.dir, 'state'), { recursive: true });
+        write(hermit(wd.dir, 'state', 'pause.json'), JSON.stringify({
+          paused: true, paused_until: null, reason: 'operator', by: 'test', ts: new Date().toISOString(),
+        }));
+        await run(wd, 'status', stub.url);
+        expect(stub.requests[0].body.text).toContain('Em pausa (o seu pedido) até que a retome.');
+      } finally {
+        stub.stop();
+        wd.cleanup();
+      }
+    });
+
+    test('all-quiet fallback', async () => {
+      const stub = startHttpStub();
+      const wd = setupChannelWorkdir({ language: 'português' });
+      try {
+        await run(wd, 'status', stub.url);
+        expect(stub.requests[0].body.text).toContain('Tudo calmo — nada em curso, nada à espera.');
+      } finally {
+        stub.stop();
+        wd.cleanup();
+      }
+    });
+
+    test('redacted coarse state for an untrusted sender', async () => {
+      const stub = startHttpStub();
+      const wd = setupChannelWorkdir({
+        language: 'português',
+        channels: { telegram: { enabled: true, dm_channel_id: '12345', state_dir: '.claude.local/channels/telegram' } },
+      });
+      try {
+        fs.writeFileSync(hermit(wd.dir, 'sessions', '.status.json'), JSON.stringify({ status: 'in_progress', task: 'segredo' }));
+        const stranger = JSON.stringify({ prompt: '<channel source="telegram" chat_id="999" user="stranger">status</channel>' });
+        const r = await runScript('channel-status-responder.ts', { stdin: stranger, cwd: wd.dir, env: { HERMIT_TELEGRAM_API_URL: stub.url } });
+        expect(r.exitCode).toBe(0);
+        const text = stub.requests[0].body.text as string;
+        expect(text).not.toContain('segredo'); // task text withheld
+        expect(text).toContain('A trabalhar.'); // coarse pt-PT state only
+      } finally {
+        stub.stop();
+        wd.cleanup();
+      }
+    });
+  });
+
   // #634 regression: the harness injects a plugin-qualified source
   // (`plugin:telegram:telegram`), but config keys channels by the bare server
   // name. Without normalization, both the allowed_users gate and the outbound

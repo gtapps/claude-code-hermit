@@ -25,7 +25,11 @@ function seedConfig(projectRoot: string, config: any): void {
 
 async function runHatchConfig(projectRoot: string, answers: any, reinit = false) {
   const args = reinit ? [projectRoot, '--reinit'] : [projectRoot];
-  return runScript('hatch-config.ts', { args, stdin: JSON.stringify(answers) });
+  // Pin CLAUDE_PLUGIN_ROOT to the plugin-under-test so hatch-config resolves its
+  // template + plugin.json from this worktree, not an ambient installed plugin — a
+  // live hermit session sets CLAUDE_PLUGIN_ROOT to the marketplace copy, whose
+  // template can lag this branch and drift the assembled config.
+  return runScript('hatch-config.ts', { args, stdin: JSON.stringify(answers), env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT } });
 }
 
 describe('hatch-config.ts', () => {
@@ -51,7 +55,7 @@ describe('hatch-config.ts', () => {
       ...template,
       tmux_session_name: 'hermit-my-project',
       agent_name: 'Aria', language: 'en', timezone: 'Europe/London', sign_off: 'Aria out.',
-      escalation: 'balanced', remote: true, idle_behavior: 'discover', permission_mode: 'auto',
+      escalation: 'balanced', operator_profile: 'technical', remote: true, idle_behavior: 'discover', permission_mode: 'auto',
       boot_skill: '/claude-code-dev-hermit:dev-boot',
       _hermit_versions: { 'claude-code-hermit': CORE_VERSION, 'claude-code-dev-hermit': '9.9.9' },
       routines: [

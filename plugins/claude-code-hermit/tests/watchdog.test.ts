@@ -13,7 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { runScript, SCRIPTS_DIR } from './helpers/run';
-import { inActiveHours, isNearDailyAutoClose, composeRestartMessage, composeWedgeMessage, composePauseMessage, hasPendingQuestion } from '../scripts/hermit-watchdog';
+import { inActiveHours, isNearDailyAutoClose, composeRestartMessage, composeWedgeMessage, composeStallQuestionMessage, composePauseMessage, hasPendingQuestion } from '../scripts/hermit-watchdog';
 import { startHttpStub, type Stub } from './helpers/http-stub';
 
 // The one line to flip when hermit-watchdog is ported to TypeScript.
@@ -2373,4 +2373,58 @@ describe('telemetry export (step 0d)', () => {
       server.stop(true);
     }
   }));
+});
+
+// -------------------------------------------------------
+// 14. Compose-function localization (PROP-059): the four watchdog message
+//     families compose through WatchdogMessages. `en` stays byte-identical to
+//     the pre-refactor literals (frame asserted around the live HH:MM clock);
+//     `pt-PT` is exercised with an explicit locale arg.
+// -------------------------------------------------------
+
+describe('watchdog message localization', () => {
+  test('composeRestartMessage en byte-identity (both causes)', () => {
+    expect(composeRestartMessage('dead-process', 'UTC', 'en')).toMatch(
+      /^I restarted your hermit at \d{2}:\d{2} — it wasn't running\.$/);
+    expect(composeRestartMessage('pane-frozen', 'UTC', 'en')).toMatch(
+      /^I restarted your hermit at \d{2}:\d{2} — it had frozen\.$/);
+  });
+
+  test('composeRestartMessage pt-PT', () => {
+    expect(composeRestartMessage('dead-process', 'UTC', 'pt-PT')).toMatch(
+      /^Reiniciei o seu hermit às \d{2}:\d{2} — não estava a correr\.$/);
+    expect(composeRestartMessage('pane-frozen', 'UTC', 'pt-PT')).toMatch(
+      /^Reiniciei o seu hermit às \d{2}:\d{2} — tinha bloqueado\.$/);
+  });
+
+  test('composeWedgeMessage en / pt-PT', () => {
+    expect(composeWedgeMessage('UTC', 'en')).toMatch(
+      /^Your hermit hasn't responded in a while — checking on it now \(\d{2}:\d{2}\)\.$/);
+    expect(composeWedgeMessage('UTC', 'pt-PT')).toMatch(
+      /^O seu hermit não responde há algum tempo — estou a verificá-lo agora \(\d{2}:\d{2}\)\.$/);
+  });
+
+  test('composeStallQuestionMessage en / pt-PT', () => {
+    expect(composeStallQuestionMessage('UTC', 'en')).toMatch(
+      /^Your hermit is waiting on a question it can't ask over chat — open the terminal or Claude app to answer \(\d{2}:\d{2}\)\.$/);
+    expect(composeStallQuestionMessage('UTC', 'pt-PT')).toMatch(
+      /^O seu hermit está à espera de uma pergunta que não pode fazer pelo chat — abra o terminal ou a app Claude para responder \(\d{2}:\d{2}\)\.$/);
+  });
+
+  test('composePauseMessage indefinite form is deterministic and localized', () => {
+    expect(composePauseMessage('operator', null, 'UTC', 'en')).toBe(
+      'Your hermit is paused (your request) until you resume it.');
+    expect(composePauseMessage('operator', null, 'UTC', 'pt-PT')).toBe(
+      'O seu hermit está em pausa (o seu pedido) até que a retome.');
+    expect(composePauseMessage('budget', null, 'UTC', 'pt-PT')).toBe(
+      'O seu hermit está em pausa (um limite de orçamento) até que a retome.');
+  });
+
+  test('composePauseMessage dated form carries the localized frame and reason label', () => {
+    const until = '2026-07-05T12:00:00Z';
+    const en = composePauseMessage('budget', until, 'UTC', 'en');
+    expect(en).toContain('Your hermit is paused (a budget cap) until ');
+    const pt = composePauseMessage('watchdog', until, 'UTC', 'pt-PT');
+    expect(pt).toContain('O seu hermit está em pausa (o watchdog) até ');
+  });
 });

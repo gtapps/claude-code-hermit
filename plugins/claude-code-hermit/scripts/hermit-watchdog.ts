@@ -34,6 +34,7 @@ import { costLogPath } from './lib/cc-compat';
 import { flushResetBreadcrumb } from './lib/progress-log';
 import { wallMinutes } from './cron-tz-shift';
 import { isPaused, pauseReasonLabel } from './lib/pause';
+import { WATCHDOG, resolveLocale, type Locale } from './lib/messages';
 import { defaultConfigDir, msUntilExpiry, tokenModeActive } from './lib/setup-token';
 import { AUTO_CLOSE_LULL_MS } from './lib/auto-close';
 import { runTelemetryExportIfDue } from './report-export';
@@ -110,10 +111,19 @@ function appendEvent(action: string, reason: string): void {
 // it mid-flight.
 const CHANNEL_SEND_SCRIPT = path.join(import.meta.dir, 'channel-send.ts');
 
-/** Best-effort operator push. Failure is logged, never blocks the watchdog's real work. */
+// The operator's locale for all watchdog pushes. Resolved once from config in
+// main() before any compose call fires; the compose functions default to this
+// value at call time (tests override it by passing an explicit locale arg). The
+// watchdog is single-shot, so a module-level holder IS "pinned at run start".
+let OPERATOR_LOCALE: Locale = 'en';
+
+/** Best-effort operator push. Watchdog lifecycle events are ops content, so they
+ * route maintainer-tier — falling back to the primary chat when no maintainer
+ * channel is configured (byte-identical to today). Failure is logged, never
+ * blocks the watchdog's real work. */
 function pushOperatorMessage(text: string): void {
   try {
-    const r = spawnSync(process.execPath, [CHANNEL_SEND_SCRIPT, HERMIT_ROOT, '-'], {
+    const r = spawnSync(process.execPath, [CHANNEL_SEND_SCRIPT, HERMIT_ROOT, '--tier', 'maintainer', '-'], {
       input: text,
       timeout: 12000,
       stdio: ['pipe', 'ignore', 'ignore'],
@@ -130,33 +140,33 @@ function nowHHMM(timezone: string): string {
 }
 
 /** Operator-language message for a watchdog restart. */
-export function composeRestartMessage(reason: string, timezone: string): string {
+export function composeRestartMessage(reason: string, timezone: string, locale: Locale = OPERATOR_LOCALE): string {
   const hhmm = nowHHMM(timezone);
-  const cause = reason === 'dead-process' ? "it wasn't running" : 'it had frozen';
-  return `I restarted your hermit at ${hhmm} — ${cause}.`;
+  const cause = reason === 'dead-process'
+    ? WATCHDOG[locale].restartCauseNotRunning()
+    : WATCHDOG[locale].restartCauseFrozen();
+  return WATCHDOG[locale].restart(hhmm, cause);
 }
 
 /** Operator-language message for the first tick of a wedge episode. */
-export function composeWedgeMessage(timezone: string): string {
-  const hhmm = nowHHMM(timezone);
-  return `Your hermit hasn't responded in a while — checking on it now (${hhmm}).`;
+export function composeWedgeMessage(timezone: string, locale: Locale = OPERATOR_LOCALE): string {
+  return WATCHDOG[locale].wedge(nowHHMM(timezone));
 }
 
 /** Operator-language message for an un-redirectable stalled question (PROP-024's fail-loud half). */
-export function composeStallQuestionMessage(timezone: string): string {
-  const hhmm = nowHHMM(timezone);
-  return `Your hermit is waiting on a question it can't ask over chat — open the terminal or Claude app to answer (${hhmm}).`;
+export function composeStallQuestionMessage(timezone: string, locale: Locale = OPERATOR_LOCALE): string {
+  return WATCHDOG[locale].stallQuestion(nowHHMM(timezone));
 }
 
 /** Operator-language message for a forced pause enforcement (any reason). */
-export function composePauseMessage(reason: string, until: string | null, timezone: string): string {
-  const label = pauseReasonLabel(reason);
+export function composePauseMessage(reason: string, until: string | null, timezone: string, locale: Locale = OPERATOR_LOCALE): string {
+  const label = pauseReasonLabel(reason, locale);
   // Fall back to the indefinite phrasing when `until` is absent or unparseable —
   // a malformed timestamp shouldn't leak a raw ISO string to the operator. Dated
   // form (not bare HH:MM) so a resume days/weeks out isn't read as minutes away.
   const valid = until != null && !isNaN(new Date(until).getTime());
-  if (!valid) return `Your hermit is paused (${label}) until you resume it.`;
-  return `Your hermit is paused (${label}) until ${friendlyBoundary(until as string, timezone)}.`;
+  if (!valid) return WATCHDOG[locale].pauseUntilResume(label);
+  return WATCHDOG[locale].pauseUntilDate(label, friendlyBoundary(until as string, timezone));
 }
 
 /** Seconds elapsed since an ISO-8601 timestamp, or null when unparseable. */
@@ -1045,6 +1055,7 @@ async function main(): Promise<void> {
   // maybeEscapePausedSession for why this doesn't wait for the later
   // config/runtime gates below.
   const timezone = config.timezone ?? 'UTC';
+  OPERATOR_LOCALE = resolveLocale(config.language); // pins the locale for every compose call below
   maybeEscapePausedSession(timezone);
 
   // 0a. Post-close clear — independent of watchdog.enabled; runs on any hermit with a scheduler

@@ -19,19 +19,16 @@ Registry: `state/monitors.runtime.json` (sole truth — not SHELL.md). Use `/wat
 
 ## Operator Notification
 
-Main owns outbound sends and `AskUserQuestion`; a delegated sub-step returns its verdict plus an optional `operator_message`, and main sends it. To notify the operator proactively:
+Main owns outbound sends and `AskUserQuestion`. To notify the operator proactively:
 
-- **No channel enabled** (channels block absent, `channels === {}`, or every entry `enabled === false` — exclude the `primary` pointer): if `push_notifications === true` in `config.json`, fire `PushNotification(message="<one line ≤200 chars, no markdown, actionable detail first>", status="proactive")`. Always also respond in conversation (the durable record). Empty-channels config is intentional — don't log an issue.
-- **Channel enabled:** resolve the target by running
-  ```
-  bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit
-  ```
-  and parsing stdout JSON. On success (`id`/`chat_id` present) call `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text }`.
-- **On resolve miss or failed send:** push if enabled, log the unsent content to SHELL.md Findings, and record a deduped `channel-send-unavailable` issue.
+- **No channel enabled** (no channel entry with `enabled !== false`, excluding `primary`): if `push_notifications === true`, fire `PushNotification(message="<≤200 chars, no markdown, actionable first>", status="proactive")` and respond in conversation. Empty-channels config is intentional — don't log an issue.
+- **Channel enabled:** run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit`, parse stdout JSON, and on success (`id`/`chat_id` present) call `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text }`, composing `text` in the result's `language` when present. On resolve miss or failed send: push if enabled, log the unsent content to SHELL.md Findings, and record a deduped `channel-send-unavailable` issue.
 
-Full eligibility rules, resolution order, and the per-branch matrix: `/claude-code-hermit:channel-responder` § Outbound notification protocol.
+Full protocol: `/claude-code-hermit:channel-responder` § Outbound notification protocol.
 
-**Channel voice.** No internal IDs (PROP-NNN, S-NNN, MP-…), no token counts, no slash commands, no file paths, no cron strings — plain language with the one next step the operator can do from chat. Internal IDs stay in files; terminal output is exempt.
+**Channel voice.** No internal IDs (PROP-NNN, S-NNN, MP-…), no token counts, slash commands, file paths, or cron strings — plain language with the one next step the operator can do from chat. Terminal/maintainer output is exempt.
+
+**Language & audience.** Compose channel messages and push notifications in the operator's configured `language` (`config.json`); when unset, match the language the operator writes in. When `channels.<platform>.maintainer_channel_id` is set, send technical, operational, and spend content there instead of the primary channel.
 
 ## Artifact Pages
 

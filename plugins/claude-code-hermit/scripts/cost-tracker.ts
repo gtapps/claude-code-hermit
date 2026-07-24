@@ -17,7 +17,8 @@ import { todayYMD, thisWeekKey, thisMonthYYYYMM, friendlyBoundary } from './lib/
 import { mutateOwnedAlerts, budgetAlertsPath } from './lib/alert-state';
 import { setPause, isPaused } from './lib/pause';
 import { evaluateBudget, pauseBoundary } from './lib/budget';
-import { sendToChannel } from './lib/channel-send';
+import { sendOperatorNotice } from './lib/channel-send';
+import { BUDGET, resolveLocale, type Locale } from './lib/messages';
 import { classifySource } from './lib/trigger-source';
 
 type Json = any;
@@ -506,8 +507,6 @@ function updateShellSession(content: string, costStr: string, tokenStr: string):
   return content;
 }
 
-const PERIOD_LABEL: Record<string, string> = { daily: "today's", weekly: "this week's", monthly: "this month's" };
-
 // Bound on the budget push, kept well under the Stop pipeline's 15s hook budget
 // so a slow/hung platform API can't starve the pipeline's remaining stages.
 const BUDGET_PUSH_TIMEOUT_MS = 6000;
@@ -516,19 +515,20 @@ const BUDGET_PUSH_TIMEOUT_MS = 6000;
 // threshold this tick (never for periods whose alert already existed — see the
 // create-only dedup in applyBudgetCheck). Breached and warned periods are framed
 // separately so a warn batched with a breach isn't mislabeled "cap reached".
-// Exported for tests.
-function composeBudgetMessage(newPeriods: Json[], action: 'alert' | 'pause', until: string | null, timezone: string): string {
+// This is the maintainer-tier text (full USD/cap/ratio detail). Exported for tests.
+function composeBudgetMessage(newPeriods: Json[], action: 'alert' | 'pause', until: string | null, timezone: string, locale: Locale = 'en'): string {
+  const B = BUDGET[locale];
   const clause = (p: Json) =>
-    `${PERIOD_LABEL[p.period] ?? p.period} spend is $${p.spend.toFixed(2)} of your $${p.cap.toFixed(2)} cap (${Math.round(p.ratio * 100)}%)`;
+    B.clause(B.periodPossessive(p.period), p.spend, p.cap, Math.round(p.ratio * 100));
   const breached = newPeriods.filter((p) => p.level === 'breach');
   const warned = newPeriods.filter((p) => p.level === 'warn');
   if (breached.length > 0) {
-    let msg = `Budget cap reached — ${breached.map(clause).join('; ')}`;
-    if (warned.length > 0) msg += `. Also approaching: ${warned.map(clause).join('; ')}`;
-    if (action === 'pause' && until) msg += `. I've paused until ${friendlyBoundary(until, timezone)}`;
+    let msg = B.capReachedPrefix() + breached.map(clause).join('; ');
+    if (warned.length > 0) msg += B.alsoApproaching() + warned.map(clause).join('; ');
+    if (action === 'pause' && until) msg += B.pausedUntilSuffix(friendlyBoundary(until, timezone));
     return `${msg}.`;
   }
-  return `Heads up — ${warned.map(clause).join('; ')}.`;
+  return B.headsUpPrefix() + warned.map(clause).join('; ') + '.';
 }
 
 // Record `notified: true` on already-persisted budget alert entries via a fresh
@@ -557,7 +557,7 @@ function markBudgetNotified(newPeriods: Json[], periodKey: Record<string, string
 // heartbeat-precheck EVALUATE wake as the fallback announcement path.
 // Fail-open throughout — never throws, since run()'s caller must never be blocked by
 // this check.
-async function applyBudgetCheck(costIdx: Json, timezone: string, budgetConfig: Json): Promise<void> {
+async function applyBudgetCheck(costIdx: Json, timezone: string, budgetConfig: Json, locale: Locale = 'en'): Promise<void> {
   try {
     if (!budgetConfig || typeof budgetConfig !== 'object') return;
     const caps = {
@@ -646,9 +646,25 @@ async function applyBudgetCheck(costIdx: Json, timezone: string, budgetConfig: J
     // `notified` via a fresh read-modify-write. On failure, notified stays false so
     // heartbeat-precheck's EVALUATE wake remains the fallback announcement path.
     if (newPeriods.length > 0) {
-      const message = composeBudgetMessage(newPeriods, result.action, until, timezone);
-      const sendResult = await sendToChannel(HERMIT_DIR, message, { timeoutMs: BUDGET_PUSH_TIMEOUT_MS });
-      if (sendResult.ok) markBudgetNotified(newPeriods, periodKey);
+      // Full USD/cap/ratio detail is maintainer-tier; on a stock install (no
+      // maintainer channel, technical profile) it falls back to the primary chat,
+      // byte-identical to today. When a pause is in force, the client chat also
+      // gets a plain localized "paused until X" line — dropped by sendOperatorNotice
+      // when the maintainer text already landed in that same chat.
+      const message = composeBudgetMessage(newPeriods, result.action, until, timezone, locale);
+      const clientLine = until ? BUDGET[locale].clientPaused(friendlyBoundary(until, timezone)) : undefined;
+      const res = await sendOperatorNotice(HERMIT_DIR, {
+        client: clientLine,
+        maintainer: { text: message, fallback: 'client' },
+        timeoutMs: BUDGET_PUSH_TIMEOUT_MS,
+      });
+      // Mark notified only when the alert actually reached a live counterparty:
+      // the maintainer leg was delivered (a chat, or its intended Findings home),
+      // OR the client "paused until X" line landed on the primary chat. A degraded
+      // Findings fallback (configured maintainer channel unreachable) leaves
+      // notified:false so heartbeat-precheck's EVALUATE wake re-announces once the
+      // channel recovers.
+      if (res.maintainer?.delivered || res.client?.ok === true) markBudgetNotified(newPeriods, periodKey);
     }
   } catch (err: any) {
     console.error(`[cost-tracker] budget check error: ${err.message}`);
@@ -758,7 +774,7 @@ async function run(data: Json): Promise<string | null> {
     const costIdx = updateCostIndex(COST_LOG, COST_INDEX, timezone);
 
     // PROP-016: compare the freshly-updated index against config.budget's caps.
-    await applyBudgetCheck(costIdx, timezone, config.budget);
+    await applyBudgetCheck(costIdx, timezone, config.budget, resolveLocale(config.language));
 
     // Running total from .status.json (O(1)), falls back to index (O(1)) on first run.
     // Include subagent spend so .status.json stays consistent with the index.

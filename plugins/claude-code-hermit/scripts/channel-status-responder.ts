@@ -27,6 +27,7 @@ import { resolveTimezone, budgetLine } from './lib/spend-status';
 import { friendlyBoundary, parseSimpleCronTime } from './lib/time';
 import { wallMinutes } from './cron-tz-shift';
 import { sendToChannel } from './lib/channel-send';
+import { STATUS, resolveLocale, type Locale } from './lib/messages';
 
 type Json = any;
 
@@ -38,35 +39,35 @@ function readJson(p: string): Json | null {
   }
 }
 
-function pauseLine(dir: string, timezone: string): string | null {
+function pauseLine(dir: string, timezone: string, locale: Locale): string | null {
   const status = isPaused(dir);
   if (!status.paused) return null;
-  const label = pauseReasonLabel(status.reason);
+  const label = pauseReasonLabel(status.reason, locale);
   // Dated form (not bare HH:MM) so a resume days/weeks out isn't read as minutes away.
   const valid = status.until != null && !isNaN(new Date(status.until).getTime());
-  if (!valid) return `Paused (${label}) until you resume it.`;
-  return `Paused (${label}) until ${friendlyBoundary(status.until as string, timezone)}.`;
+  if (!valid) return STATUS[locale].pausedUntilResume(label);
+  return STATUS[locale].pausedUntilDate(label, friendlyBoundary(status.until as string, timezone));
 }
 
-function taskLine(dir: string): string | null {
+function taskLine(dir: string, locale: Locale): string | null {
   const status = readJson(path.join(dir, 'sessions', '.status.json'));
   if (!status) return null;
-  if (typeof status.task === 'string' && status.task) return `Working on ${status.task}.`;
-  if (status.status === 'idle') return 'Idle — nothing in progress.';
+  if (typeof status.task === 'string' && status.task) return STATUS[locale].workingOn(status.task);
+  if (status.status === 'idle') return STATUS[locale].idleNothing();
   return null;
 }
 
 // Only worth a line when something is actually pending — an empty queue
 // shouldn't crowd out the "all quiet" fallback in composeStatusReply.
-function approvalsLine(dir: string): string | null {
+function approvalsLine(dir: string, locale: Locale): string | null {
   const mp = readJson(path.join(dir, 'state', 'micro-proposals.json'));
   const pending = Array.isArray(mp?.pending) ? mp.pending.filter((p: Json) => p?.status === 'pending') : [];
   if (pending.length === 0) return null;
   if (pending.length === 1) {
     const id = typeof pending[0].id === 'string' ? pending[0].id : 'the pending item';
-    return `1 approval waiting (reply "${id} yes/no").`;
+    return STATUS[locale].oneApproval(id);
   }
-  return `${pending.length} approvals waiting.`;
+  return STATUS[locale].nApprovals(pending.length);
 }
 
 // Cron day-of-week matcher (0=Sun..6=Sat; 7 also Sun). Supports '*', comma
@@ -110,7 +111,7 @@ function minutesUntilNextFire(dowField: string, fireMin: number, nowMin: number,
   return null;
 }
 
-function nextRoutineLine(config: Json, timezone: string): string | null {
+function nextRoutineLine(config: Json, timezone: string, locale: Locale): string | null {
   const routines = Array.isArray(config?.routines) ? config.routines : [];
   const now = wallMinutes(timezone, new Date());
   if (now === null) return null;
@@ -130,14 +131,15 @@ function nextRoutineLine(config: Json, timezone: string): string | null {
   if (!best) return null;
   const hh = String(best.hour).padStart(2, '0');
   const mm = String(best.minute).padStart(2, '0');
-  return `Next routine: ${hh}:${mm} (${best.id}).`;
+  return STATUS[locale].nextRoutine(hh, mm, best.id);
 }
 
 export function composeStatusReply(dir: string, config: Json, opts: { redact?: boolean } = {}): string {
   const timezone = resolveTimezone(config);
+  const locale = resolveLocale(config?.language);
   const lines: string[] = [];
 
-  const pause = pauseLine(dir, timezone);
+  const pause = pauseLine(dir, timezone, locale);
   if (pause) lines.push(pause);
 
   if (opts.redact) {
@@ -145,23 +147,23 @@ export function composeStatusReply(dir: string, config: Json, opts: { redact?: b
     // spend figures, task text, pending-approval IDs, or the routine schedule.
     const status = readJson(path.join(dir, 'sessions', '.status.json'));
     const working = !!status && ((typeof status.task === 'string' && status.task.length > 0) || status.status === 'in_progress');
-    lines.push(working ? 'Working.' : 'Idle.');
+    lines.push(working ? STATUS[locale].redactedWorking() : STATUS[locale].redactedIdle());
     return lines.join(' ');
   }
 
-  const task = taskLine(dir);
+  const task = taskLine(dir, locale);
   if (task) lines.push(task);
 
-  const budget = budgetLine(dir, config, timezone);
+  const budget = budgetLine(dir, config, timezone, locale);
   if (budget) lines.push(budget);
 
-  const approvals = approvalsLine(dir);
+  const approvals = approvalsLine(dir, locale);
   if (approvals) lines.push(approvals);
 
-  const routine = nextRoutineLine(config, timezone);
+  const routine = nextRoutineLine(config, timezone, locale);
   if (routine) lines.push(routine);
 
-  if (lines.length === 0) return 'All quiet — nothing in progress, nothing waiting.';
+  if (lines.length === 0) return STATUS[locale].allQuiet();
   return lines.join(' ');
 }
 

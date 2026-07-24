@@ -28,6 +28,7 @@ const VALID_ESCALATION = ['conservative', 'balanced', 'autonomous'];
 const VALID_QUALITY_GATE_TIER = ['budget', 'balanced', 'quality'];
 const VALID_ROUTINE_MODEL = ['opus', 'sonnet', 'haiku'];
 const VALID_IDLE_BEHAVIOR = ['wait', 'discover'];
+const VALID_OPERATOR_PROFILE = ['technical', 'non-technical'];
 const VALID_BUDGET_ACTION = ['alert', 'pause'];
 const VALID_TELEMETRY_DEST = ['webhook'];
 const TIME_RE = /^\d{2}:\d{2}$/;
@@ -119,6 +120,14 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
     errors.push(`escalation: "${config.escalation}" not in [${VALID_ESCALATION.join(', ')}]`);
   }
 
+  // Optional (defaults to 'technical' at every consumer when absent), so only
+  // enum-check when present — existing configs without the key stay valid.
+  if (config.operator_profile !== undefined && config.operator_profile !== null) {
+    if (!VALID_OPERATOR_PROFILE.includes(config.operator_profile)) {
+      errors.push(`operator_profile: "${config.operator_profile}" not in [${VALID_OPERATOR_PROFILE.join(', ')}]`);
+    }
+  }
+
   if (config.remote !== undefined && typeof config.remote !== 'boolean') {
     errors.push(`remote: expected boolean, got ${typeof config.remote}`);
   }
@@ -205,6 +214,9 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
       if (ch.dm_channel_id !== undefined && ch.dm_channel_id !== null && typeof ch.dm_channel_id !== 'string') {
         errors.push(`channels.${name}.dm_channel_id: must be string or null`);
       }
+      if (ch.maintainer_channel_id !== undefined && ch.maintainer_channel_id !== null && typeof ch.maintainer_channel_id !== 'string') {
+        errors.push(`channels.${name}.maintainer_channel_id: must be string or null`);
+      }
     }
     if (config.channels.primary !== undefined) {
       const primary = config.channels.primary;
@@ -218,6 +230,21 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
           errors.push(`channels.primary: "${primary}" must reference a channel-config object`);
         }
       }
+    }
+  }
+
+  // A non-technical profile with no maintainer channel silently diverts every
+  // technical alert to SHELL.md Findings — the failure mode a client install
+  // would hit unnoticed. Surface it as a warning (doctor's config check reads these).
+  if (config.operator_profile === 'non-technical') {
+    const channels = config.channels && typeof config.channels === 'object' ? config.channels : {};
+    const hasMaintainer = Object.entries(channels).some(([name, ch]: [string, any]) =>
+      name !== 'primary' && ch && typeof ch === 'object' && ch.enabled !== false &&
+      typeof ch.maintainer_channel_id === 'string' && ch.maintainer_channel_id.length > 0);
+    if (!hasMaintainer) {
+      warnings.push(
+        'operator_profile is "non-technical" but no enabled channel sets maintainer_channel_id — technical alerts will be diverted to SHELL.md Findings',
+      );
     }
   }
 

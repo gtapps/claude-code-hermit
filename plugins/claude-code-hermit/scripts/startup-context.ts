@@ -17,6 +17,7 @@ import { findStorageDrift, findSchemaDrift } from './lib/drift';
 import { safe, safeForLLMMultiline, scanInjected } from './lib/sanitize';
 import { loadConfig } from './lib/channel-auth';
 import { resolve as resolveOutboundChannel } from './resolve-outbound-channel';
+import { operatorLanguage as resolveOperatorLanguage } from './lib/operator-language';
 import { formatTokens } from './lib/format';
 
 type Json = any;
@@ -111,12 +112,8 @@ function lastLines(text: string, n: number): string {
 // same threat scan every other injected surface goes through — the whitelist
 // alone would pass a letters-and-spaces injection phrase.
 function operatorLanguage(agentDir: string): string | null {
-  const config = loadConfig(agentDir);
-  if (!config) return null;
-  const v = typeof config.language === 'string' ? config.language.trim() : '';
-  if (!v || v.length > 40 || !/^[\p{L}\p{M}][\p{L}\p{M}\p{N} '._()-]*$/u.test(v)) return null;
-  if (checkThreat('config.json:language', v)) return null;
-  return v;
+  return resolveOperatorLanguage(agentDir, (reason) =>
+    scanHits.push({ source: 'config.json:language', reason }));
 }
 
 // Build the post-compaction delta capsule: the ONLY injection on

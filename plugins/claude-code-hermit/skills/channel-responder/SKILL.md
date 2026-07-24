@@ -110,7 +110,8 @@ Before running any heavy sub-step — an archive traversal, a multi-file search,
   - Keep it short — channel messages should be brief
 
 - **Spend request** ("how much have I spent", "why is my bill high", "cost breakdown", "what's my spend", or any variant asking about spend/cost/billing, in any language)
-  - Invoke `/claude-code-hermit:cost-reflect`. Its own Step 0/1 already detect the channel-tagged turn and run the plain-language `--plain` mode — do not run the raw token-category breakdown here.
+  - **If `config.operator_profile === 'non-technical'`:** do not invoke cost-reflect or surface figures. Reply in the client chat with a localized plain deflection: en "Day-to-day costs are handled by your provider — anything else I can help with?" / pt-PT "Os custos do dia a dia são geridos pelo seu fornecedor — posso ajudar com mais alguma coisa?" (spend figures stay available maintainer-side: terminal, maintainer chat, weekly review).
+  - Otherwise invoke `/claude-code-hermit:cost-reflect`. Its own Step 0/1 already detect the channel-tagged turn and run the plain-language `--plain` mode — do not run the raw token-category breakdown here.
 
 - **Task assignment** (only when `session_state` is `idle`: "work on X", "next task: Z", "start Y", or any message describing work to be done)
   - Invoke `/claude-code-hermit:session-start` to begin the new task (idle → in_progress)
@@ -229,7 +230,7 @@ Canonical protocol for proactively notifying the operator (referenced from `CLAU
   bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit
   ```
   Parse stdout as JSON. A channel is eligible if `enabled !== false`, `allowed_users` is not `[]`, and `dm_channel_id` is set. Resolution order: `channels.primary` (if set and eligible), then the first eligible entry in `channels` (operator's config order — no hardcoded slug list, so newly added channel plugins are picked up automatically).
-  - **On success** (`"id"` and `"chat_id"` in result): call `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text: <message> }`. If the reply call itself fails (token expired, plugin crashed, network blip) and `push_notifications === true`, fire `PushNotification(message="<...>", status="proactive")` as a last-resort signal, then log + dedup as below.
+  - **On success** (`"id"` and `"chat_id"` in result): call `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text: <message> }`. When the result also carries a `"language"` field, compose `<message>` in that language. If the reply call itself fails (token expired, plugin crashed, network blip) and `push_notifications === true`, fire `PushNotification(message="<...>", status="proactive")` as a last-resort signal, then log + dedup as below.
   - **On miss** (non-zero exit or `{"error":"no_reachable_channel"}` — a channel is configured but unreachable: missing `dm_channel_id`, empty `allowed_users`, or `config_read_failed`): if `push_notifications === true`, fire `PushNotification(message="<...>", status="proactive")`. Then log the unsent content to SHELL.md Findings and record a deduped `channel-send-unavailable` issue regardless of push state — the configured channel is broken and the operator should see the signal. Do not use the user ID as a substitute (it will fail for Discord DMs).
 - If outbound send fails after a successful resolve (covered above): log + dedup; do not retry.
 

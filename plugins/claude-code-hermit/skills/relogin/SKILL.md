@@ -30,6 +30,14 @@ bun ${CLAUDE_PLUGIN_ROOT}/scripts/setup-token-mint.ts await-url
 
 Send the operator the `url` from the second command, in your own voice — one line, the link, and what you need back. Something like: "Time to renew your Claude sign-in. Open this and send me the code it gives you: `<url>`".
 
+**If a `maintainer_channel_id` is configured for the active channel** (`channels.<platform>.maintainer_channel_id` in `config.json`), send that message via the maintainer channel instead of the client chat, so the sign-in link never reaches an end-user's chat. Pipe the text on stdin:
+
+```
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/channel-send.ts .claude-code-hermit --tier maintainer -
+```
+
+The operator still pastes the code back through the primary chat (Step 2 is unchanged). When no maintainer channel is configured, keep the current in-chat/terminal path above; that remains the documented owner-recipient contract.
+
 The link is one-time and short-lived. Don't mint it before the operator is ready to use it.
 
 ## Step 2 — Take the code back
