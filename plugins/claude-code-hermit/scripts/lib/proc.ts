@@ -71,6 +71,9 @@ export function collectTree(roots: number[], cap = 100): { pids: number[]; cappe
  */
 export async function terminateSurvivors(pids: number[]): Promise<number[]> {
   if (pids.length === 0) return [];
+  // Nothing alive at call time (the common clean-stop case) — skip the grace
+  // wait entirely; already-dead pids stay dead.
+  if (!pids.some((p) => pidAlive(p))) return [];
   await sleep(graceMs());
   const alive = pids.filter((p) => pidAlive(p));
   if (alive.length === 0) return [];

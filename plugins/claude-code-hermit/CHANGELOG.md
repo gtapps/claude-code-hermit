@@ -15,6 +15,8 @@
 - Model-override routines (weekly `doctor`, `daily-auto-close`) composed operator-facing notifications in English regardless of configured `language`, because the dispatched subagent never saw the SessionStart language injection. The dispatch prompt now carries a language clause and `resolve-outbound-channel.ts` returns the language.
 - A budget alert that degrades to `SHELL.md` Findings because a configured maintainer channel is unreachable no longer counts as delivered, so heartbeat re-announces it once the channel recovers instead of silently marking it notified.
 - `hermit-start` and the Docker entrypoint now refuse to boot a second instance over a live one for the same project (host↔Docker split-brain guard); override with `HERMIT_FORCE_BOOT=1`.
+- The boot singleton guard no longer false-blocks over a *cleanly-stopped* instance: a `session_state: idle` or `shutdown_completed_at` marker is treated as definitive death, so a host↔Docker switch within ~10 min of a clean stop boots instead of stalling on the still-fresh liveness file.
+- `hermit-docker up` no longer reports a phantom `BOOT CONFLICT` from a stale `.boot-conflict` marker left by a prior inert boot, and a clean stop no longer waits the full process-kill grace period when nothing survived.
 - `hermit-stop` and watchdog restarts now verify the claude process tree exited, terminate survivors with `SIGTERM`, and refuse to report success otherwise (`last_error: orphaned_process`, non-zero exit, shutdown left pending).
 - Channel messages arriving while a shutdown is pending now get a deterministic "shutting down" reply and no longer reach the model.
 

@@ -190,6 +190,10 @@ _enumerate_plugin_errors() {
 case "$CMD" in
   up)
     echo "[hermit] Starting Docker container..."
+    # Clear any stale conflict marker from a prior inert boot before starting, so
+    # the poll below only trips on a marker THIS boot's entrypoint writes (the
+    # entrypoint clears it several seconds in, after the singleton check).
+    rm -f "$PROJECT_DIR/.claude-code-hermit/state/.boot-conflict" 2>/dev/null || true
     cd "$PROJECT_DIR" && "${DC[@]}" up -d "$@"
     # Surface an entrypoint singleton-conflict: the container comes up but stays
     # inert (a live non-docker owner holds the state dir). `up -d` returns success

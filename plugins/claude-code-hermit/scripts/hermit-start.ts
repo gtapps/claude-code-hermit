@@ -826,8 +826,12 @@ export function shouldRefuseBoot(bootMode: 'tmux' | 'interactive'): string[] | n
   }
   const rt = readRuntimeJson();
   if (rt && rt.runtime_mode && rt.runtime_mode !== bootMode) {
+    // A cleanly-stopped instance is definitively dead; its frozen runtime_mode
+    // and not-yet-aged liveness file don't prove it's still running. Mirrors the
+    // watchdog's own "deliberately down" gate (session_state idle / shutdown_*).
+    const cleanlyStopped = rt.session_state === 'idle' || Boolean(rt.shutdown_completed_at);
     const age = sharedLivenessAgeSecs();
-    if (age !== null && age < LIVENESS_FRESH_SECS) {
+    if (!cleanlyStopped && age !== null && age < LIVENESS_FRESH_SECS) {
       return [
         `A ${rt.runtime_mode} instance appears to be alive for this project (state activity ${Math.round(age)}s ago).`,
         'Stop it first (bin/hermit-stop or hermit-docker down), or override with HERMIT_FORCE_BOOT=1.',

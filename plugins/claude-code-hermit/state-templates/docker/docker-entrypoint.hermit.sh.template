@@ -556,10 +556,16 @@ if [ "${HERMIT_FORCE_BOOT:-0}" != "1" ]; then
   _rt="${AGENT_DIR}/.claude-code-hermit/state/runtime.json"
   _mode="$(jq -r '.runtime_mode // empty' "$_rt" 2>/dev/null || true)"
   if [ -n "$_mode" ] && [ "$_mode" != "docker" ]; then
+    # A cleanly-stopped owner is definitively dead; its frozen runtime_mode and
+    # not-yet-aged liveness files don't prove life. Mirrors shouldRefuseBoot.
+    _state="$(jq -r '.session_state // empty' "$_rt" 2>/dev/null || true)"
+    _done="$(jq -r '.shutdown_completed_at // empty' "$_rt" 2>/dev/null || true)"
     _fresh=0
-    for _f in state/routine-monitor-liveness.json state/heartbeat-liveness.json state/.heartbeat sessions/.status.json; do
-      if [ -n "$(find "${AGENT_DIR}/.claude-code-hermit/$_f" -mmin -10 2>/dev/null || true)" ]; then _fresh=1; break; fi
-    done
+    if [ "$_state" != "idle" ] && [ -z "$_done" ]; then
+      for _f in state/routine-monitor-liveness.json state/heartbeat-liveness.json state/.heartbeat sessions/.status.json; do
+        if [ -n "$(find "${AGENT_DIR}/.claude-code-hermit/$_f" -mmin -10 2>/dev/null || true)" ]; then _fresh=1; break; fi
+      done
+    fi
     if [ "$_fresh" = "1" ]; then
       echo "[docker-entrypoint] BOOT CONFLICT: a live '$_mode' instance owns this project's state dir."
       echo "[docker-entrypoint] Staying inert (no claude started). Stop the other instance, then: hermit-docker restart"

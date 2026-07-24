@@ -276,6 +276,22 @@ describe.if(!IN_CONTAINER)('boot singleton guard', () => {
     fs.utimesSync(lp, old, old);
     expect(shouldRefuseBoot('tmux')).toBeNull();
   });
+
+  // A cleanly-stopped instance leaves runtime_mode + a fresh liveness file
+  // behind, but either clean-shutdown marker alone proves it's dead → allow boot.
+  test('mismatch + fresh liveness but session_state idle → boot allowed', () => {
+    delete process.env.HERMIT_FORCE_BOOT;
+    fs.writeFileSync('.claude-code-hermit/state/runtime.json', JSON.stringify({ runtime_mode: 'docker', session_state: 'idle' }));
+    fs.writeFileSync('.claude-code-hermit/state/routine-monitor-liveness.json', '{}');
+    expect(shouldRefuseBoot('tmux')).toBeNull();
+  });
+
+  test('mismatch + fresh liveness but shutdown_completed_at set → boot allowed', () => {
+    delete process.env.HERMIT_FORCE_BOOT;
+    fs.writeFileSync('.claude-code-hermit/state/runtime.json', JSON.stringify({ runtime_mode: 'docker', shutdown_completed_at: '2026-07-24T11:00:00Z' }));
+    fs.writeFileSync('.claude-code-hermit/state/routine-monitor-liveness.json', '{}');
+    expect(shouldRefuseBoot('tmux')).toBeNull();
+  });
 });
 
 // ============================================================
