@@ -33,6 +33,8 @@ Durable outputs. Injected into session context at startup within `compiled_budge
 
 | Filename pattern | type | foundational | Produced by | When |
 |---|---|---|---|---|
+| `brief-morning-<date>.md` | `brief` | no | fitness-brief skill (`--morning`) | Daily, morning-brief routine |
+| `brief-evening-<date>.md` | `brief` | no | fitness-brief skill (`--evening`) | Daily, evening-brief routine |
 | `weekly-plan-<date>.md` | `weekly-plan` | no | monday-planning routine | Monday 09:30 |
 | `weekly-summary-<date>.md` | `weekly-summary` | no | weekly-load-review routine | Sunday 18:00 |
 | `recovery-assessment-<date>.md` | `recovery-assessment` | no | Operator request or strava-sync flag | On demand |
@@ -45,10 +47,10 @@ Machine-written state files produced by routines. Not compiled artifacts — not
 
 | File | Written by | Read by | Retention |
 |---|---|---|---|
-| `strava-last-activity-id.txt` | strava-sync routine | strava-sync routine (dedup cursor) | permanent |
+| `strava-last-activity-id.txt` | strava-sync routine, fitness-brief skill (evening) | strava-sync routine (dedup cursor) | permanent |
 | `strava-weekly-baselines.json` | weekly-load-review routine | monday-planning routine | rolling 8 weeks |
 | `activity-notes.json` | capture-activity-rpe skill, set-rpe skill | activity-deep-dive skill, weekly-load-review routine | permanent |
-| `strava-pending-rpe.json` | strava-sync routine (after successful send) | capture-activity-rpe skill (deleted on success) | 24h TTL (freshness-gated, not pruned) |
+| `strava-pending-rpe.json` | strava-sync routine, fitness-brief skill (evening, after successful send) | capture-activity-rpe skill (deleted on success) | 24h TTL (freshness-gated, not pruned) |
 
 ### activity-notes.json shape
 

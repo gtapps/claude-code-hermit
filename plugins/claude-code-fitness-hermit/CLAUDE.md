@@ -60,10 +60,10 @@ If you add or modify routine prompts, the corresponding `config.json.routines` e
 - `MEMORY.md` (auto-loaded at session start): athlete profile, training preferences, notes.
 - `.claude-code-hermit/raw/` — ephemeral Strava data pulls (activity-fetch, activity-streams). Aged out per `knowledge.raw_retention_days`.
 - `.claude-code-hermit/compiled/` — durable outputs (weekly plans, weekly summaries, activity notes). Injected at session start within `compiled_budget_chars`.
-- `.claude-code-hermit/state/strava-last-activity-id.txt` — rolling cursor written by `strava-sync` routine.
+- `.claude-code-hermit/state/strava-last-activity-id.txt` — rolling cursor written by `strava-sync` routine (also `fitness-brief` evening).
 - `.claude-code-hermit/state/strava-weekly-baselines.json` — rolling load baselines written by `weekly-load-review` and read by `monday-planning`.
 - `.claude-code-hermit/state/activity-notes.json` — subjective RPE and notes keyed by Strava activity ID. Written by `capture-activity-rpe` and `set-rpe`; read by `activity-deep-dive` and `weekly-load-review`. Retained indefinitely (covers multi-year lookback).
-- `.claude-code-hermit/state/strava-pending-rpe.json` — single-record file written by `strava-sync` after a successful channel send. Holds the latest synced activity for RPE binding. Deleted by `capture-activity-rpe` on capture; freshness-gated (24h) not pruned.
+- `.claude-code-hermit/state/strava-pending-rpe.json` — single-record file written by `strava-sync` (or `fitness-brief` evening) after a successful channel send. Holds the latest synced activity for RPE binding. Deleted by `capture-activity-rpe` on capture; freshness-gated (24h) not pruned.
 
 Do NOT create subdirectories inside `.claude-code-hermit/raw/` or `.claude-code-hermit/compiled/`. All artifacts are flat per the base hermit's storage contract (`docs/plugin-hermit-storage.md`).
 

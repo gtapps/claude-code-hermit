@@ -133,9 +133,11 @@ Write the updated `.mcp.json` using the Write tool.
 
 ## Step 5 — Drop routine prompt files
 
-Copy the four routine prompt templates from the plugin's `state-templates/compiled/` into the consumer's `.claude-code-hermit/compiled/`.
+Copy the six routine prompt templates from the plugin's `state-templates/compiled/` into the consumer's `.claude-code-hermit/compiled/`.
 
-For each of the four files:
+For each of the six files:
+- `${CLAUDE_PLUGIN_ROOT}/state-templates/compiled/routine-fitness-brief-morning.md`
+- `${CLAUDE_PLUGIN_ROOT}/state-templates/compiled/routine-fitness-brief-evening.md`
 - `${CLAUDE_PLUGIN_ROOT}/state-templates/compiled/routine-strava-sync.md`
 - `${CLAUDE_PLUGIN_ROOT}/state-templates/compiled/routine-strava-health-check.md`
 - `${CLAUDE_PLUGIN_ROOT}/state-templates/compiled/routine-weekly-load-review.md`
@@ -215,14 +217,34 @@ If the key already exists: update the value. If absent: add it alongside the exi
 
 ### 8b — Merge routines
 
-In the `routines` array, check for each of these four IDs. For any that are **absent**, add the entry. For any that are **present** (by `id`), skip (do not clobber existing operator edits).
+In the `routines` array, check for each of these six IDs. For any that are **absent**, add the entry. For any that are **present** (by `id`), skip (do not clobber existing operator edits).
+
+`fitness-brief` absorbs `strava-health-check`'s connectivity check and `strava-sync`'s
+sync/RPE/deep-dive mechanics, so those two ship `enabled: false` here to avoid a double
+notification. Flip `enabled` back in `config.json` to run them standalone again.
 
 ```json
+{
+  "id": "morning-brief",
+  "schedule": "30 7 * * *",
+  "skill": "claude-code-hermit:session-start",
+  "enabled": true,
+  "run_during_waiting": true,
+  "prompt_file": "compiled/routine-fitness-brief-morning.md"
+},
+{
+  "id": "evening-brief",
+  "schedule": "30 21 * * *",
+  "skill": "claude-code-hermit:session-start",
+  "enabled": true,
+  "run_during_waiting": true,
+  "prompt_file": "compiled/routine-fitness-brief-evening.md"
+},
 {
   "id": "strava-sync",
   "schedule": "30 21 * * *",
   "skill": "claude-code-hermit:session-start",
-  "enabled": true,
+  "enabled": false,
   "run_during_waiting": true,
   "prompt_file": "compiled/routine-strava-sync.md"
 },
@@ -230,7 +252,7 @@ In the `routines` array, check for each of these four IDs. For any that are **ab
   "id": "strava-health-check",
   "schedule": "5 8 * * *",
   "skill": "claude-code-hermit:session-start",
-  "enabled": true,
+  "enabled": false,
   "run_during_waiting": true,
   "prompt_file": "compiled/routine-strava-health-check.md"
 },
@@ -282,10 +304,10 @@ Installation summary:
   ✓ .env: all four Strava credentials present
   ✓ .mcp.json: strava server entry written (or was already present)
   ✓ .gitignore: .mcp.json and .env covered
-  ✓ Routine prompts: {N}/4 dropped, {M}/4 already present
+  ✓ Routine prompts: {N}/6 dropped, {M}/6 already present
   ✓ CLAUDE.md: Fitness Workflow block injected (or was already present)
   ✓ knowledge-schema.md: fitness types added (or were already present)
-  ✓ config.json: _hermit_versions stamped, {K}/4 routines added, weekly-coaching-patterns check registered
+  ✓ config.json: _hermit_versions stamped, {K}/6 routines added, weekly-coaching-patterns check registered
 
 Manual steps remaining:
   - Restart Claude Code so the `strava` MCP server loads from .mcp.json
@@ -308,6 +330,7 @@ The always-on runtime activates routines automatically — the interactive
 steps are only for a test drive before handing over to the runtime.
 
 Installed skills:
+  /claude-code-fitness-hermit:fitness-brief             — daily morning/evening brief (--morning|--evening|--slot)
   /claude-code-fitness-hermit:activity-deep-dive        — per-activity coaching analysis
   /claude-code-fitness-hermit:weekly-coaching-patterns  — weekly cardiac-drift trend check (scheduled, interval_days: 7)
 
