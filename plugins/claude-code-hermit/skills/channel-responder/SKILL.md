@@ -227,14 +227,32 @@ Canonical protocol for proactively notifying the operator (referenced from `CLAU
 - **If no channel is enabled** (channels block absent, `channels === {}`, or every channel-config entry has `enabled === false` — exclude the `primary` string pointer when iterating):
   - If `push_notifications === true` in `config.json`, fire `PushNotification(message="<condensed one-line ≤200 chars, no markdown, actionable detail first>", status="proactive")`. Push is best-effort; do not retry on failure and do not log a `channel-send-unavailable` issue for this branch — the operator's empty-channels config is intentional.
   - Respond in conversation either way (the conversation response is the durable record).
-- **If at least one channel is enabled**, resolve the outbound target by running:
+- **If at least one channel is enabled**, compose the audience version(s) and deliver them in one
+  call — do not resolve the channel yourself, the script owns routing:
   ```
-  bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit
+  bun ${CLAUDE_PLUGIN_ROOT}/scripts/channel-send.ts .claude-code-hermit --notice
   ```
-  Parse stdout as JSON. A channel is eligible if `enabled !== false`, `allowed_users` is not `[]`, and `dm_channel_id` is set. Resolution order: `channels.primary` (if set and eligible), then the first eligible entry in `channels` (operator's config order — no hardcoded slug list, so newly added channel plugins are picked up automatically).
-  - **On success** (`"id"` and `"chat_id"` in result): call `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text: <message> }`. When the result also carries a `"language"` field, compose `<message>` in that language. If the reply call itself fails (token expired, plugin crashed, network blip) and `push_notifications === true`, fire `PushNotification(message="<...>", status="proactive")` as a last-resort signal, then log + dedup as below.
-  - **On miss** (non-zero exit or `{"error":"no_reachable_channel"}` — a channel is configured but unreachable: missing `dm_channel_id`, empty `allowed_users`, or `config_read_failed`): if `push_notifications === true`, fire `PushNotification(message="<...>", status="proactive")`. Then log the unsent content to SHELL.md Findings and record a deduped `channel-send-unavailable` issue regardless of push state — the configured channel is broken and the operator should see the signal. Do not use the user ID as a substitute (it will fail for Discord DMs).
-- If outbound send fails after a successful resolve (covered above): log + dedup; do not retry.
+  with a JSON payload on stdin:
+  - plain, client-safe notice → `{ "client": "<text>" }`
+  - technical / operational / spend content with no plain version → `{ "maintainer": "<text>" }`
+  - both → `{ "client": "<plain headline>", "maintainer": "<full detail incl. figures>" }`. The
+    maintainer text must be the **complete richer version of the same notice, not a fragment** —
+    when both audiences resolve to the same chat the client leg is dropped, so the maintainer text
+    has to stand alone.
+  - add `"sensitive": true` for credential-bearing text (keeps it out of the searchable channel log).
+
+  Compose each version in the operator's configured `language`.
+
+  The script prints `{ "delivered", "degraded", "no_channel", "result" }` and exits non-zero when
+  nothing was delivered.
+  - **Exit 0** — delivered. Done.
+  - **Exit non-zero** — if `push_notifications === true`, fire
+    `PushNotification(message="<condensed one-line ≤200 chars, no markdown, actionable detail
+    first>", status="proactive")`, and log the unsent content to SHELL.md Findings. Then: record a
+    deduped `channel-send-unavailable` issue **unless** `no_channel` is `true` (nothing configured or
+    eligible — that's an intentional config, not a broken channel).
+- Never send a proactive notice through a channel reply tool, and never advise `/<channel>:access`
+  for a maintainer chat — the maintainer chat is reached by direct API POST and is outbound-only.
 
 ## 6. Channel-safe ask bridge
 

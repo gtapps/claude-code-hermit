@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
-// CLI wrapper around lib/channel-send.ts's sendToChannel — the seam
-// synchronous callers (hermit-watchdog.ts, single-shot, no async conversion)
+// CLI wrapper around lib/channel-send.ts's sendToChannel/sendOperatorNotice — the
+// seam synchronous callers (hermit-watchdog.ts, single-shot, no async conversion)
 // reach the deterministic channel send through via spawnSync, instead of
 // importing the lib directly the way async callers (cost-tracker.ts,
 // channel-status-responder.ts) do.
@@ -11,8 +11,15 @@
 //              falling back to the primary chat when none is configured.
 //   <text|- >  literal text, or "-" to read the message from stdin (avoids
 //              argv length/newline edges — the form spawnSync callers use).
+//
+// Usage: bun channel-send.ts <hermit-dir> --notice
+//   Reads a JSON payload on stdin: { client?, maintainer?, sensitive?, fallback? }.
+//   This is the model-facing proactive-notify entry — it is the sole reachable
+//   path to sendOperatorNotice()'s two-audience routing (dedup, Findings
+//   fallback, tier disclosure). The model never resolves a channel itself; this
+//   script does. Prints a normalized JSON result and exits 0 iff delivered.
 
-import { sendToChannel, sendOperatorNotice } from './lib/channel-send';
+import { sendToChannel, sendOperatorNotice, type SendResult } from './lib/channel-send';
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -20,22 +27,109 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-// Pull `--tier <value>` out from anywhere in argv (position-independent), leaving
-// the hermit-dir and text positionals in order.
-function parseArgs(argv: string[]): { tier: 'client' | 'maintainer'; positionals: string[] } | { error: string } {
+// Pull `--tier <value>` / `--notice` out from anywhere in argv (position-independent),
+// leaving the hermit-dir (and text, for --tier mode) positionals in order.
+function parseArgs(
+  argv: string[],
+): { mode: 'tier'; tier: 'client' | 'maintainer'; positionals: string[] }
+  | { mode: 'notice'; positionals: string[] }
+  | { error: string } {
   const positionals: string[] = [];
-  let tier: 'client' | 'maintainer' = 'client';
+  let tier: 'client' | 'maintainer' | null = null;
+  let notice = false;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--tier') {
       const v = argv[i + 1];
       if (v !== 'client' && v !== 'maintainer') return { error: `invalid --tier value: ${v ?? '(missing)'}` };
       tier = v;
       i++;
+    } else if (argv[i] === '--notice') {
+      notice = true;
     } else {
       positionals.push(argv[i]);
     }
   }
-  return { tier, positionals };
+  if (notice && tier !== null) return { error: '--notice and --tier are mutually exclusive' };
+  if (notice) return { mode: 'notice', positionals };
+  return { mode: 'tier', tier: tier ?? 'client', positionals };
+}
+
+interface NoticePayload {
+  client?: string;
+  maintainer?: string;
+  sensitive?: boolean;
+  fallback?: 'client' | 'findings';
+}
+
+const NOTICE_KEYS = new Set(['client', 'maintainer', 'sensitive', 'fallback']);
+
+// Strict validation: the model is a fuzzy boundary, and rejecting an unknown key
+// (e.g. a typo'd "maintainter") is what stops a silently-dropped audience leg.
+function parseNotice(raw: string): NoticePayload | { error: string } {
+  let obj: any;
+  try {
+    obj = JSON.parse(raw);
+  } catch (e: any) {
+    return { error: `invalid JSON: ${e.message}` };
+  }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+    return { error: 'payload must be a JSON object' };
+  }
+  for (const k of Object.keys(obj)) {
+    if (!NOTICE_KEYS.has(k)) return { error: `unknown field: ${k}` };
+  }
+  const { client, maintainer, sensitive, fallback } = obj;
+  for (const [name, v] of [['client', client], ['maintainer', maintainer]] as const) {
+    if (v !== undefined && (typeof v !== 'string' || v.trim() === '')) {
+      return { error: `${name} must be a non-empty string` };
+    }
+  }
+  if (client === undefined && maintainer === undefined) {
+    return { error: 'at least one of client/maintainer is required' };
+  }
+  if (sensitive !== undefined && typeof sensitive !== 'boolean') {
+    return { error: 'sensitive must be a boolean' };
+  }
+  if (fallback !== undefined && fallback !== 'client' && fallback !== 'findings') {
+    return { error: `invalid fallback: ${fallback}` };
+  }
+  return { client, maintainer, sensitive, fallback };
+}
+
+// A leg counts delivered when the send succeeded and didn't degrade to Findings.
+// The client leg never carries `delivered` (lib/channel-send.ts's sendToChannel
+// returns only {ok, status}), so `r.delivered !== false` is vacuously true there
+// and `ok` alone decides — this one helper is correct for both legs.
+function legDelivered(r: SendResult): boolean {
+  return r.ok === true && r.delivered !== false;
+}
+
+async function runNotice(hermitDir: string): Promise<void> {
+  const raw = (await readStdin()).trim();
+  if (!raw) {
+    process.stderr.write('channel-send: empty --notice payload\n');
+    process.exit(1);
+  }
+  const p = parseNotice(raw);
+  if ('error' in p) {
+    process.stderr.write(`channel-send: ${p.error}\n`);
+    process.exit(1);
+  }
+
+  const out = await sendOperatorNotice(hermitDir, {
+    client: p.client,
+    maintainer: p.maintainer
+      ? { text: p.maintainer, fallback: p.fallback ?? 'client', sensitive: p.sensitive }
+      : undefined,
+  });
+
+  const legs = [out.client, out.maintainer].filter((r): r is SendResult => !!r);
+  const delivered = legs.some(legDelivered);
+  const degraded = out.maintainer?.route === 'findings' && out.maintainer?.delivered === false;
+  const no_channel = legs.length > 0 && legs.every((r) => r.error === 'no_reachable_channel');
+
+  process.stdout.write(JSON.stringify({ delivered, degraded, no_channel, result: out }) + '\n');
+  process.exit(delivered ? 0 : 1);
 }
 
 async function main(): Promise<void> {
@@ -44,6 +138,17 @@ async function main(): Promise<void> {
     process.stderr.write(`channel-send: ${parsed.error}\n`);
     process.exit(1);
   }
+
+  if (parsed.mode === 'notice') {
+    const [hermitDir] = parsed.positionals;
+    if (!hermitDir) {
+      process.stderr.write('Usage: bun channel-send.ts <hermit-dir> --notice\n');
+      process.exit(1);
+    }
+    await runNotice(hermitDir);
+    return;
+  }
+
   const [hermitDir, textArg] = parsed.positionals;
   if (!hermitDir || !textArg) {
     process.stderr.write('Usage: bun channel-send.ts <hermit-dir> [--tier client|maintainer] <text|->\n');

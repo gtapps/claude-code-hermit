@@ -358,3 +358,233 @@ describe('sendOperatorNotice tiering', () => {
     }
   });
 });
+
+// channel-send.ts --notice — the model-facing proactive-notify CLI boundary.
+// Drives the subprocess (not sendOperatorNotice in-process) so these tests also
+// cover payload parsing/validation and the normalized {delivered,degraded,
+// no_channel,result} stdout contract, not just the routing sendOperatorNotice
+// already owns (covered above).
+describe('channel-send CLI --notice', () => {
+  const findings = (wd: Workdir) => fs.readFileSync(hermit(wd.dir, 'sessions', 'SHELL.md'), 'utf8');
+  const runNotice = (wd: Workdir, payload: object | string, stub: { url: string }) =>
+    runScript('channel-send.ts', {
+      args: [hermit(wd.dir), '--notice'],
+      stdin: typeof payload === 'string' ? payload : JSON.stringify(payload),
+      env: { HERMIT_TELEGRAM_API_URL: stub.url },
+    });
+
+  test('client only -> client chat receives it, exit 0, delivered:true', async () => {
+    const stub = startHttpStub();
+    const wd = setupChannelWorkdir();
+    try {
+      const r = await runNotice(wd, { client: 'plain notice' }, stub);
+      expect(r.exitCode).toBe(0);
+      const out = JSON.parse(r.stdout);
+      expect(out.delivered).toBe(true);
+      expect(stub.requests.length).toBe(1);
+      expect(stub.requests[0].body.chat_id).toBe('12345');
+      expect(stub.requests[0].body.text).toBe('plain notice');
+    } finally {
+      stub.stop();
+      wd.cleanup();
+    }
+  });
+
+  test('maintainer only, maintainer_channel_id set -> maintainer chat receives it, exit 0', async () => {
+    const stub = startHttpStub();
+    const wd = setupChannelWorkdir({ maintainer_channel_id: '99999' });
+    try {
+      const r = await runNotice(wd, { maintainer: 'ops detail' }, stub);
+      expect(r.exitCode).toBe(0);
+      const out = JSON.parse(r.stdout);
+      expect(out.delivered).toBe(true);
+      expect(stub.requests.length).toBe(1);
+      expect(stub.requests[0].body.chat_id).toBe('99999');
+    } finally {
+      stub.stop();
+      wd.cleanup();
+    }
+  });
+
+  test('maintainer only, no maintainer chat, technical profile -> falls back to primary chat, exit 0', async () => {
+    const stub = startHttpStub();
+    const wd = setupChannelWorkdir();
+    try {
+      const r = await runNotice(wd, { maintainer: 'ops detail' }, stub);
+      expect(r.exitCode).toBe(0);
+      const out = JSON.parse(r.stdout);
+      expect(out.delivered).toBe(true);
+      expect(stub.requests.length).toBe(1);
+      expect(stub.requests[0].body.chat_id).toBe('12345');
+    } finally {
+      stub.stop();
+      wd.cleanup();
+    }
+  });
+
+  test('both legs, different chats -> both received, exit 0', async () => {
+    const stub = startHttpStub();
+    const wd = setupChannelWorkdir({ maintainer_channel_id: '99999' });
+    try {
+      const r = await runNotice(wd, { client: 'PLAIN', maintainer: 'FULL DETAIL' }, stub);
+      expect(r.exitCode).toBe(0);
+      const out = JSON.parse(r.stdout);
+      expect(out.delivered).toBe(true);
+      expect(stub.requests.length).toBe(2);
+      const byChat = Object.fromEntries(stub.requests.map((req) => [req.body.chat_id, req.body.text]));
+      expect(byChat['12345']).toBe('PLAIN');
+      expect(byChat['99999']).toBe('FULL DETAIL');
+    } finally {
+      stub.stop();
+      wd.cleanup();
+    }
+  });
+
+  test('both legs, same chat -> one message (maintainer text wins via dedup), exit 0', async () => {
+    const stub = startHttpStub();
+    const wd = setupChannelWorkdir({ maintainer_channel_id: '12345' });
+    try {
+      const r = await runNotice(wd, { client: 'PLAIN', maintainer: 'FULL DETAIL' }, stub);
+      expect(r.exitCode).toBe(0);
+      const out = JSON.parse(r.stdout);
+      expect(out.delivered).toBe(true);
+      expect(stub.requests.length).toBe(1);
+      expect(stub.requests[0].body.text).toBe('FULL DETAIL');
+    } finally {
+      stub.stop();
+      wd.cleanup();
+    }
+  });
+
+  test('non-technical, no maintainer chat -> maintainer text suppressed to Findings, delivered:true, exit 0', async () => {
+    const stub = startHttpStub();
+    const wd = setupChannelWorkdir({}, { operator_profile: 'non-technical' });
+    try {
+      const r = await runNotice(wd, { maintainer: 'SECRET DETAIL' }, stub);
+      expect(r.exitCode).toBe(0);
+      const out = JSON.parse(r.stdout);
+      expect(out.delivered).toBe(true);
+      expect(stub.requests.length).toBe(0);
+      expect(findings(wd)).toContain('SECRET DETAIL');
+    } finally {
+      stub.stop();
+      wd.cleanup();
+    }
+  });
+
+  test('configured maintainer unreachable -> degraded:true, Findings written', async () => {
+    const stub = startHttpStub();
+    stub.setStatus(500);
+    const wd = setupChannelWorkdir({ maintainer_channel_id: '99999' });
+    try {
+      const r = await runNotice(wd, { maintainer: 'USD DETAIL' }, stub);
+      const out = JSON.parse(r.stdout);
+      expect(out.degraded).toBe(true);
+      expect(findings(wd)).toContain('USD DETAIL');
+    } finally {
+      stub.stop();
+      wd.cleanup();
+    }
+  });
+
+  test('no channel at all -> no_channel:true, exit 1', async () => {
+    const wd = setupWorkdir();
+    write(hermit(wd.dir, 'config.json'), JSON.stringify({ channels: {} }));
+    try {
+      const r = await runScript('channel-send.ts', {
+        args: [hermit(wd.dir), '--notice'],
+        stdin: JSON.stringify({ client: 'hello' }),
+      });
+      expect(r.exitCode).not.toBe(0);
+      const out = JSON.parse(r.stdout);
+      expect(out.no_channel).toBe(true);
+      expect(out.delivered).toBe(false);
+    } finally {
+      wd.cleanup();
+    }
+  });
+
+  test('sensitive:true on the maintainer leg writes no channel-log row', async () => {
+    const stub = startHttpStub();
+    const wd = setupChannelWorkdir({ maintainer_channel_id: '99999' });
+    try {
+      const r = await runNotice(wd, { maintainer: 'SENSITIVE', sensitive: true }, stub);
+      expect(r.exitCode).toBe(0);
+      expect(dbExists(hermit(wd.dir))).toBe(false);
+    } finally {
+      stub.stop();
+      wd.cleanup();
+    }
+  });
+
+  test('malformed JSON on stdin -> exit 1, stderr message, no stdout JSON', async () => {
+    const stub = startHttpStub();
+    const wd = setupChannelWorkdir();
+    try {
+      const r = await runNotice(wd, 'not json', stub);
+      expect(r.exitCode).not.toBe(0);
+      expect(r.stderr).toContain('invalid JSON');
+      expect(r.stdout.trim()).toBe('');
+      expect(stub.requests.length).toBe(0);
+    } finally {
+      stub.stop();
+      wd.cleanup();
+    }
+  });
+
+  test('unknown field -> exit 1 usage error', async () => {
+    const stub = startHttpStub();
+    const wd = setupChannelWorkdir();
+    try {
+      const r = await runNotice(wd, { maintainr: 'x' }, stub);
+      expect(r.exitCode).not.toBe(0);
+      expect(r.stderr).toContain('unknown field');
+      expect(stub.requests.length).toBe(0);
+    } finally {
+      stub.stop();
+      wd.cleanup();
+    }
+  });
+
+  test('empty audience ({}) -> exit 1 usage error', async () => {
+    const stub = startHttpStub();
+    const wd = setupChannelWorkdir();
+    try {
+      const r = await runNotice(wd, {}, stub);
+      expect(r.exitCode).not.toBe(0);
+      expect(r.stderr).toContain('at least one of client/maintainer is required');
+      expect(stub.requests.length).toBe(0);
+    } finally {
+      stub.stop();
+      wd.cleanup();
+    }
+  });
+
+  test('bad fallback value -> exit 1 usage error', async () => {
+    const stub = startHttpStub();
+    const wd = setupChannelWorkdir();
+    try {
+      const r = await runNotice(wd, { maintainer: 'x', fallback: 'nope' }, stub);
+      expect(r.exitCode).not.toBe(0);
+      expect(r.stderr).toContain('invalid fallback');
+      expect(stub.requests.length).toBe(0);
+    } finally {
+      stub.stop();
+      wd.cleanup();
+    }
+  });
+
+  test('--notice and --tier together -> exit 1 usage error', async () => {
+    const wd = setupChannelWorkdir();
+    try {
+      const r = await runScript('channel-send.ts', {
+        args: [hermit(wd.dir), '--notice', '--tier', 'client'],
+        stdin: JSON.stringify({ client: 'x' }),
+      });
+      expect(r.exitCode).not.toBe(0);
+      expect(r.stderr).toContain('mutually exclusive');
+    } finally {
+      wd.cleanup();
+    }
+  });
+});
