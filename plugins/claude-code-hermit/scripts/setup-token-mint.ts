@@ -42,7 +42,7 @@ import {
   readTokenRecord,
   tokenModeActive,
 } from './lib/setup-token';
-import { sendOperatorNotice } from './lib/channel-send';
+import { sendToChannel } from './lib/channel-send';
 import { inboundSince } from './lib/channel-log';
 import { tmuxSessionAlive } from './lib/tmux';
 import { loadConfig } from './lib/channel-auth';
@@ -301,13 +301,13 @@ const terminalIO: OperatorIO = {
 
 const channelIO: OperatorIO = {
   async notify(text) {
-    // Auth prompts are maintainer-tier and sensitive: they go to the maintainer
-    // channel when one is configured, else the primary chat, and never enter the
-    // channel log. A Findings-suppressed prompt has no live counterparty, so it
-    // counts as unreachable — the flow bails rather than waiting on a reply.
-    const res = await sendOperatorNotice(HERMIT_DIR, { maintainer: { text, fallback: 'client', sensitive: true } });
-    const m = res.maintainer;
-    return m?.ok === true && m?.suppressed !== true;
+    // Auth prompts are sensitive but must reach the SAME chat the ack/code intake
+    // is pinned to (REPLY_ROUTE = the resolved primary chat) — otherwise a
+    // maintainer-tier send would land the sign-in link in the maintainer chat
+    // while replies are only accepted from the primary chat, deadlocking reauth.
+    // `sensitive` keeps the OAuth URL out of the searchable channel log.
+    const r = await sendToChannel(HERMIT_DIR, text, { sensitive: true });
+    return r.ok;
   },
   async awaitAck(sinceIso) {
     const got = await waitFor(

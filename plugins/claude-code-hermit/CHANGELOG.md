@@ -13,6 +13,7 @@
 
 ### Fixed
 - Model-override routines (weekly `doctor`, `daily-auto-close`) composed operator-facing notifications in English regardless of configured `language`, because the dispatched subagent never saw the SessionStart language injection. The dispatch prompt now carries a language clause and `resolve-outbound-channel.ts` returns the language.
+- A budget alert that degrades to `SHELL.md` Findings because a configured maintainer channel is unreachable no longer counts as delivered, so heartbeat re-announces it once the channel recovers instead of silently marking it notified.
 
 ### Upgrade Instructions
 1. Add `"operator_profile": "technical"` to `config.json` if absent (top-level, beside `language`). This is the safe default: keep it `technical` for a self-run box, and set it to `"non-technical"` only on a client-facing install where the person on the channel is not the maintainer.

@@ -658,7 +658,13 @@ async function applyBudgetCheck(costIdx: Json, timezone: string, budgetConfig: J
         maintainer: { text: message, fallback: 'client' },
         timeoutMs: BUDGET_PUSH_TIMEOUT_MS,
       });
-      if (res.maintainer?.ok) markBudgetNotified(newPeriods, periodKey);
+      // Mark notified only when the alert actually reached a live counterparty:
+      // the maintainer leg was delivered (a chat, or its intended Findings home),
+      // OR the client "paused until X" line landed on the primary chat. A degraded
+      // Findings fallback (configured maintainer channel unreachable) leaves
+      // notified:false so heartbeat-precheck's EVALUATE wake re-announces once the
+      // channel recovers.
+      if (res.maintainer?.delivered || res.client?.ok === true) markBudgetNotified(newPeriods, periodKey);
     }
   } catch (err: any) {
     console.error(`[cost-tracker] budget check error: ${err.message}`);

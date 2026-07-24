@@ -28,7 +28,7 @@ function triggerPrompt(text: string): string {
   return JSON.stringify({ type: 'user', message: { content: text } });
 }
 
-function setupWithChannel(budgetConfig: object): { dir: string; cchDir: string } {
+function setupWithChannel(budgetConfig: object, opts: { maintainerChannelId?: string } = {}): { dir: string; cchDir: string } {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-cost-budget-push-'));
   fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
   const cchDir = path.join(dir, '.claude-code-hermit');
@@ -37,9 +37,18 @@ function setupWithChannel(budgetConfig: object): { dir: string; cchDir: string }
   fs.mkdirSync(stateDir, { recursive: true });
   fs.writeFileSync(path.join(stateDir, '.env'), 'TELEGRAM_BOT_TOKEN=test-token\n');
   fs.writeFileSync(path.join(cchDir, 'state', 'runtime.json'), JSON.stringify({ session_id: 'test-session', session_state: 'active' }));
+  const telegram: Record<string, unknown> = { enabled: true, dm_channel_id: '12345', state_dir: '.claude.local/channels/telegram' };
+  if (opts.maintainerChannelId) {
+    telegram.maintainer_channel_id = opts.maintainerChannelId;
+    // A degraded maintainer send falls back to a SHELL.md Findings append; give it
+    // a real file so the append succeeds (ok:true) and the assertion proves it's
+    // `delivered`, not `ok`, that gates notified.
+    fs.mkdirSync(path.join(cchDir, 'sessions'), { recursive: true });
+    fs.writeFileSync(path.join(cchDir, 'sessions', 'SHELL.md'), '# SHELL\n\n## Findings\n');
+  }
   fs.writeFileSync(path.join(cchDir, 'config.json'), JSON.stringify({
     timezone: 'UTC',
-    channels: { telegram: { enabled: true, dm_channel_id: '12345', state_dir: '.claude.local/channels/telegram' } },
+    channels: { telegram },
     budget: budgetConfig,
   }));
   return { dir, cchDir };
@@ -99,6 +108,35 @@ describe('cost-tracker: budget push on warn (send fails -> notified stays false)
     const keys = Object.keys(state.alerts).filter((k) => k.startsWith('budget-warn:daily:'));
     expect(keys).toHaveLength(1);
     expect(state.alerts[keys[0]].notified).toBe(false);
+  });
+});
+
+describe('cost-tracker: warn, maintainer channel configured but unreachable -> degraded Findings, notified stays false', () => {
+  let dir: string; let cchDir: string;
+
+  beforeAll(async () => {
+    // maintainer_channel_id set: the warn detail routes maintainer-tier, the send
+    // fails (unreachable), and falls back to a *successful* SHELL.md Findings append
+    // (ok:true). The old `if (res.maintainer?.ok)` guard flipped notified:true here,
+    // defeating the heartbeat re-announce. The `delivered` guard must keep it false.
+    ({ dir, cchDir } = setupWithChannel(
+      { daily_usd: 1.0, weekly_usd: null, monthly_usd: null, action: 'alert' },
+      { maintainerChannelId: '99999' },
+    ));
+    await runTurn(dir, 'http://127.0.0.1:1', 200000, 16000);
+  });
+  afterAll(() => { fs.rmSync(dir, { recursive: true }); });
+
+  test('degraded Findings fallback leaves notified:false', () => {
+    const state = JSON.parse(fs.readFileSync(path.join(cchDir, 'state', 'budget-alerts.json'), 'utf-8'));
+    const keys = Object.keys(state.alerts).filter((k) => k.startsWith('budget-warn:daily:'));
+    expect(keys).toHaveLength(1);
+    expect(state.alerts[keys[0]].notified).toBe(false);
+  });
+
+  test('the maintainer detail did land in SHELL.md Findings (append succeeded)', () => {
+    const shell = fs.readFileSync(path.join(cchDir, 'sessions', 'SHELL.md'), 'utf-8');
+    expect(shell).toContain('maintainer alert suppressed');
   });
 });
 

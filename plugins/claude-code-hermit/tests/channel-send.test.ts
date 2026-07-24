@@ -265,7 +265,8 @@ describe('sendOperatorNotice tiering', () => {
       const res = await withApi(stub.url, () =>
         // fallback:'client' must be overridden by the non-technical profile.
         sendOperatorNotice(hermit(wd.dir), { maintainer: { text: 'SECRET DETAIL', fallback: 'client' } }));
-      expect(res.maintainer).toMatchObject({ ok: true, suppressed: true, route: 'findings' });
+      // Intended Findings home → delivered:true (no re-announce needed).
+      expect(res.maintainer).toMatchObject({ ok: true, suppressed: true, route: 'findings', delivered: true });
       expect(stub.requests.length).toBe(0);
       expect(findings(wd)).toContain('SECRET DETAIL');
     } finally {
@@ -281,7 +282,7 @@ describe('sendOperatorNotice tiering', () => {
     try {
       const res = await withApi(stub.url, () =>
         sendOperatorNotice(hermit(wd.dir), { maintainer: { text: 'X', fallback: 'findings' } }));
-      expect(res.maintainer).toMatchObject({ ok: false, route: 'findings', suppressed: true });
+      expect(res.maintainer).toMatchObject({ ok: false, route: 'findings', suppressed: true, delivered: false });
       expect(stub.requests.length).toBe(0);
     } finally {
       stub.stop();
@@ -296,7 +297,8 @@ describe('sendOperatorNotice tiering', () => {
     try {
       const res = await withApi(stub.url, () =>
         sendOperatorNotice(hermit(wd.dir), { maintainer: { text: 'USD DETAIL', fallback: 'client' } }));
-      expect(res.maintainer).toMatchObject({ route: 'findings', suppressed: true });
+      // Degraded fallback: configured maintainer channel unreachable → delivered:false.
+      expect(res.maintainer).toMatchObject({ ok: true, route: 'findings', suppressed: true, delivered: false });
       // Only the failed 500 to the maintainer chat — never a spill to the primary.
       expect(stub.requests.length).toBe(1);
       expect(stub.requests[0].body.chat_id).toBe('99999');
@@ -314,7 +316,7 @@ describe('sendOperatorNotice tiering', () => {
     try {
       const res = await withApi(stub.url, () =>
         sendOperatorNotice(hermit(wd.dir), { client: 'PLAIN', maintainer: { text: 'MAINT', fallback: 'client' } }));
-      expect(res.maintainer).toMatchObject({ ok: true, route: 'client' });
+      expect(res.maintainer).toMatchObject({ ok: true, route: 'client', delivered: true });
       expect(res.client).toBeUndefined(); // same physical chat -> dropped
       expect(stub.requests.length).toBe(1);
       expect(stub.requests[0].body.chat_id).toBe('12345');

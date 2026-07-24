@@ -33,6 +33,14 @@ export interface SendResult {
   // True only when route === 'findings' — the notice was written to SHELL.md
   // Findings instead of crossing a channel.
   suppressed?: boolean;
+  // Set by sendOperatorNotice on the maintainer leg: did the notice reach its
+  // intended destination — a live chat, OR the intended Findings home
+  // (non-technical profile / fallback:'findings' with no maintainer channel)?
+  // False when Findings was a *degraded* fallback (a maintainer channel is
+  // configured but unreachable): the append succeeded (ok:true) but nobody live
+  // saw it. Callers gating a "notified" flag must read `delivered`, not `ok`,
+  // so a degraded write still leaves the heartbeat re-announce fallback armed.
+  delivered?: boolean;
 }
 
 /** Where and how to send. `target` overrides outbound resolution (used to reply
@@ -203,11 +211,15 @@ export async function sendOperatorNotice(hermitDir: string, notice: OperatorNoti
 
   if (notice.maintainer) {
     const m = notice.maintainer;
-    const toFindings = (): SendResult => {
+    // `degraded` = Findings was a fallback because a configured maintainer
+    // channel was unreachable (nobody live saw it), vs. Findings being the
+    // intended home (non-technical / fallback:'findings'). Only the intended
+    // case counts as delivered.
+    const toFindings = (degraded: boolean): SendResult => {
       const err = appendMaintainerFindings(hermitDir, m.text);
       return err
-        ? { ok: false, error: `findings_append_failed: ${err}`, route: 'findings', suppressed: true }
-        : { ok: true, route: 'findings', suppressed: true };
+        ? { ok: false, error: `findings_append_failed: ${err}`, route: 'findings', suppressed: true, delivered: false }
+        : { ok: true, route: 'findings', suppressed: true, delivered: !degraded };
     };
     if (maintainerTarget) {
       const r = await sendToChannel(hermitDir, m.text, {
@@ -216,16 +228,16 @@ export async function sendOperatorNotice(hermitDir: string, notice: OperatorNoti
       // Configured but unreachable → Findings. Configured routing intent wins
       // over the fallback: a bad chat id must never spill technical/spend
       // detail into the client chat.
-      out.maintainer = r.ok ? { ...r, route: 'maintainer_channel' } : toFindings();
+      out.maintainer = r.ok ? { ...r, route: 'maintainer_channel', delivered: true } : toFindings(true);
     } else if (m.fallback === 'findings' || nonTechnical) {
-      out.maintainer = toFindings();
+      out.maintainer = toFindings(false);
     } else {
       // fallback 'client' on a technical profile with no maintainer channel:
       // today's behavior — the message goes to the primary chat.
       const r = await sendToChannel(hermitDir, m.text, {
         target: clientTarget ?? undefined, timeoutMs: notice.timeoutMs, config,
       });
-      out.maintainer = { ...r, route: 'client' };
+      out.maintainer = { ...r, route: 'client', delivered: r.ok };
     }
   }
 
