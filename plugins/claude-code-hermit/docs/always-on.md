@@ -4,11 +4,24 @@ Docker is the recommended way to run your hermit autonomously. For lifecycle int
 
 ---
 
-## Why Docker
+## Docker vs tmux
 
-An always-on agent runs without operator hand-holding. The default `auto` mode (classifier-reviewed autonomy) works well for most Docker hermits — it requires the same one-time Screen 2 acknowledgement as `bypassPermissions` on first launch. With Docker, the container can only see what you mount and restarts automatically on crash.
+Both run your hermit unattended between tasks with heartbeat, monitors, and channels live. Docker is the default recommendation because it gives you four things at once: config isolation, crash recovery, a reproducible environment, and kernel-enforced hardening. tmux is the lighter path when you don't need container isolation and want to skip the image build. The tmux setup lives in [Always-On Operations](always-on-ops.md); the rest of this page is the Docker workflow.
 
-You get four things at once: config isolation, crash recovery, a reproducible environment, and permission handling that matches your risk tolerance. Both `auto` and `bypassPermissions` require attending the first container launch to click through the Screen 2 gate. After that, the choice persists in the named volume and subsequent boots are headless. If your workload cannot tolerate any action-level confirmation at all, opt into `bypassPermissions` via `/hermit-settings permissions`.
+| Dimension        | Docker (recommended)                                          | tmux                                                        |
+| ---------------- | ------------------------------------------------------------- | ---------------------------------------------------------- |
+| Isolation        | Container sees only what you mount                            | Full host access as your user                              |
+| Crash recovery   | `restart: unless-stopped` auto-restarts on crash and reboot   | Session dies with the host; you restart it manually        |
+| Environment      | Pinned, reproducible image (Node, Bun, project packages)      | Whatever is installed on the host                          |
+| Host services    | Reach localhost DBs/dev servers via mounts or `network_mode`  | Native, no networking setup                                |
+| Hardening        | Opt-in `/docker-security` overlay (LAN containment, sysctls)  | Deny patterns and hooks only                               |
+| Setup cost       | Image build on first `up` (slower first run)                  | `bin/hermit-start`, no build                               |
+
+**Choose Docker when** the hermit runs on a shared or long-lived host, you want it to survive reboots unattended, or you want the container to only see the project you mount.
+
+**Choose tmux when** you're on a trusted single-user box, Docker isn't available, or you need the hermit to reach host services with no networking setup.
+
+Either way, the first launch needs one attended step to clear the trust gate, then subsequent boots are headless. On Docker the default `auto` mode (classifier-reviewed autonomy) requires the same one-time Screen 2 acknowledgement as `bypassPermissions`; both persist in the named volume after you click through once. If your workload cannot tolerate any action-level confirmation at all, opt into `bypassPermissions` via `/hermit-settings permissions`.
 
 ---
 
