@@ -89,7 +89,8 @@ Generates the weekly review for the current ISO week.
      summary-minus-spend goes to the client, the full summary goes to the maintainer chat;
      non-technical with no maintainer chat → summary-minus-spend to the client, full summary to
      SHELL.md Findings.
-   - If nothing was delivered (non-zero exit), follow § Operator Notification's fallback (push if
+   - If a leg didn't land (exit 1 — exit 2 means the payload was rejected, so fix it and re-run
+     instead), follow § Operator Notification's fallback (push if
      enabled, log to Findings) rather than a bespoke branch here — weekly-review is a recurring
      routine, not an alert, so still skip a `channel-send-unavailable` issue for this call.
    - To set a preferred channel, add `"primary": "<channel-name>"` inside `channels` in `config.json`.

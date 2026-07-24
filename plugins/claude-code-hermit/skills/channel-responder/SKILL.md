@@ -243,14 +243,18 @@ Canonical protocol for proactively notifying the operator (referenced from `CLAU
 
   Compose each version in the operator's configured `language`.
 
-  The script prints `{ "delivered", "degraded", "no_channel", "result" }` and exits non-zero when
-  nothing was delivered.
-  - **Exit 0** — delivered. Done.
-  - **Exit non-zero** — if `push_notifications === true`, fire
-    `PushNotification(message="<condensed one-line ≤200 chars, no markdown, actionable detail
-    first>", status="proactive")`, and log the unsent content to SHELL.md Findings. Then: record a
-    deduped `channel-send-unavailable` issue **unless** `no_channel` is `true` (nothing configured or
-    eligible — that's an intentional config, not a broken channel).
+  The script prints `{ "delivered", "degraded", "no_channel", "result" }`.
+  - **Exit 0** — every leg landed. Done.
+  - **Exit 2** — the payload was rejected (unknown key, empty audience, bad value; the reason is on
+    stderr and nothing was sent). Fix the payload and re-run. This is your error, not the channel's:
+    do not push and do not record a `channel-send-unavailable` issue.
+  - **Exit 1** — a leg did not land (including `degraded: true`, where maintainer detail reached only
+    SHELL.md Findings because a configured maintainer chat was unreachable). If
+    `push_notifications === true`, fire `PushNotification(message="<condensed one-line ≤200 chars, no
+    markdown, actionable detail first>", status="proactive")`, log the undelivered content to SHELL.md
+    Findings, and record a deduped `channel-send-unavailable` issue — you only reach this branch with a
+    channel enabled, so even `no_channel: true` means it is configured but unreachable (unpaired,
+    empty `allowed_users`, unreadable config), which is exactly the signal the operator needs.
 - Never send a proactive notice through a channel reply tool, and never advise `/<channel>:access`
   for a maintainer chat — the maintainer chat is reached by direct API POST and is outbound-only.
 

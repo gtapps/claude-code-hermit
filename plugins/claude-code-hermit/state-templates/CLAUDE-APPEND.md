@@ -22,7 +22,7 @@ Registry: `state/monitors.runtime.json` (sole truth — not SHELL.md). Use `/wat
 Main owns outbound sends and `AskUserQuestion`. To notify the operator proactively:
 
 - **No channel enabled** (no channel entry with `enabled !== false`, excluding `primary`): if `push_notifications === true`, fire `PushNotification(message="<≤200 chars, no markdown, actionable first>", status="proactive")` and respond in conversation. Empty-channels config is intentional — don't log an issue.
-- **Channel enabled:** compose the audience version(s) and run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/channel-send.ts .claude-code-hermit --notice` with `{"client": "<plain>", "maintainer": "<technical/spend detail>"}` on stdin (either key alone is fine). Non-zero exit means nothing was delivered: push if enabled, log the unsent content to SHELL.md Findings, and record a deduped `channel-send-unavailable` issue unless the result's `no_channel` is true.
+- **Channel enabled:** compose the audience version(s) and run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/channel-send.ts .claude-code-hermit --notice` with `{"client": "<plain>", "maintainer": "<technical/spend detail>"}` on stdin (either key alone is fine). Exit 1 means a leg didn't land: push if enabled, log the undelivered content to SHELL.md Findings, and record a deduped `channel-send-unavailable` issue. Exit 2 means the payload was rejected — fix it and re-run; no push, no issue.
 
 Full protocol: `/claude-code-hermit:channel-responder` § Outbound notification protocol.
 

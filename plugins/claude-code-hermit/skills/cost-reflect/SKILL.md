@@ -39,7 +39,7 @@ When this skill fires from a routine or proactively (i.e., not from a direct ope
 ```
 bun ${CLAUDE_PLUGIN_ROOT}/scripts/channel-send.ts .claude-code-hermit --notice
 ```
-with `{"maintainer": "<report>"}` on stdin. On a technical install with no maintainer chat configured, `sendOperatorNotice`'s default `fallback: "client"` puts it in the primary chat — today's behavior. If nothing was delivered, follow § Operator Notification's fallback (push if enabled, log to Findings).
+with `{"maintainer": "<report>"}` on stdin. On a technical install with no maintainer chat configured, `sendOperatorNotice`'s default `fallback: "client"` puts it in the primary chat — today's behavior. On a `non-technical` install with no maintainer chat, the report goes to `SHELL.md` Findings and no chat sees it (fail-closed on spend disclosure). If nothing was delivered, follow § Operator Notification's fallback (push if enabled, log to Findings).
 
 To set a preferred channel, add `"primary": "<channel-name>"` inside `channels` in `config.json`.
 

@@ -480,9 +480,33 @@ describe('channel-send CLI --notice', () => {
       const r = await runNotice(wd, { maintainer: 'USD DETAIL' }, stub);
       const out = JSON.parse(r.stdout);
       expect(out.degraded).toBe(true);
+      expect(out.delivered).toBe(false);
+      expect(r.exitCode).toBe(1);
       expect(findings(wd)).toContain('USD DETAIL');
     } finally {
       stub.stop();
+      wd.cleanup();
+    }
+  });
+
+  test('partial delivery (maintainer suppressed, client unreachable) -> exit 1, not success', async () => {
+    const wd = setupWorkdir();
+    write(hermit(wd.dir, 'config.json'), JSON.stringify({
+      operator_profile: 'non-technical',
+      channels: { telegram: { enabled: true } }, // enabled but unpaired: no dm_channel_id
+    }));
+    try {
+      const r = await runScript('channel-send.ts', {
+        args: [hermit(wd.dir), '--notice'],
+        stdin: JSON.stringify({ client: 'PLAIN', maintainer: 'DETAIL' }),
+      });
+      const out = JSON.parse(r.stdout);
+      // The maintainer leg landed in its intended Findings home, but the client
+      // leg reached nobody — reporting delivered here would drop it silently.
+      expect(out.delivered).toBe(false);
+      expect(r.exitCode).toBe(1);
+      expect(findings(wd)).toContain('DETAIL');
+    } finally {
       wd.cleanup();
     }
   });
@@ -522,7 +546,7 @@ describe('channel-send CLI --notice', () => {
     const wd = setupChannelWorkdir();
     try {
       const r = await runNotice(wd, 'not json', stub);
-      expect(r.exitCode).not.toBe(0);
+      expect(r.exitCode).toBe(2); // usage error, not a delivery failure
       expect(r.stderr).toContain('invalid JSON');
       expect(r.stdout.trim()).toBe('');
       expect(stub.requests.length).toBe(0);
@@ -537,7 +561,7 @@ describe('channel-send CLI --notice', () => {
     const wd = setupChannelWorkdir();
     try {
       const r = await runNotice(wd, { maintainr: 'x' }, stub);
-      expect(r.exitCode).not.toBe(0);
+      expect(r.exitCode).toBe(2); // usage error, not a delivery failure
       expect(r.stderr).toContain('unknown field');
       expect(stub.requests.length).toBe(0);
     } finally {
@@ -551,7 +575,7 @@ describe('channel-send CLI --notice', () => {
     const wd = setupChannelWorkdir();
     try {
       const r = await runNotice(wd, {}, stub);
-      expect(r.exitCode).not.toBe(0);
+      expect(r.exitCode).toBe(2); // usage error, not a delivery failure
       expect(r.stderr).toContain('at least one of client/maintainer is required');
       expect(stub.requests.length).toBe(0);
     } finally {
@@ -565,7 +589,7 @@ describe('channel-send CLI --notice', () => {
     const wd = setupChannelWorkdir();
     try {
       const r = await runNotice(wd, { maintainer: 'x', fallback: 'nope' }, stub);
-      expect(r.exitCode).not.toBe(0);
+      expect(r.exitCode).toBe(2); // usage error, not a delivery failure
       expect(r.stderr).toContain('invalid fallback');
       expect(stub.requests.length).toBe(0);
     } finally {
@@ -581,7 +605,7 @@ describe('channel-send CLI --notice', () => {
         args: [hermit(wd.dir), '--notice', '--tier', 'client'],
         stdin: JSON.stringify({ client: 'x' }),
       });
-      expect(r.exitCode).not.toBe(0);
+      expect(r.exitCode).toBe(2); // usage error, not a delivery failure
       expect(r.stderr).toContain('mutually exclusive');
     } finally {
       wd.cleanup();

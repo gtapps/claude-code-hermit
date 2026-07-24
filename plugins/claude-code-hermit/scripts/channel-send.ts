@@ -17,7 +17,11 @@
 //   This is the model-facing proactive-notify entry — it is the sole reachable
 //   path to sendOperatorNotice()'s two-audience routing (dedup, Findings
 //   fallback, tier disclosure). The model never resolves a channel itself; this
-//   script does. Prints a normalized JSON result and exits 0 iff delivered.
+//   script does. Prints a normalized JSON result on stdout. Exit codes:
+//     0  every requested leg landed where it was meant to
+//     1  a leg failed to land (delivery problem — see the JSON on stdout)
+//     2  the payload/usage was rejected (caller error — fix and retry; no JSON,
+//        nothing was sent, and this is *not* evidence the channel is broken)
 
 import { sendToChannel, sendOperatorNotice, type SendResult } from './lib/channel-send';
 
@@ -93,6 +97,12 @@ function parseNotice(raw: string): NoticePayload | { error: string } {
   if (fallback !== undefined && fallback !== 'client' && fallback !== 'findings') {
     return { error: `invalid fallback: ${fallback}` };
   }
+  // Both modifiers apply to the maintainer leg only. Accepting them without one
+  // would silently drop the caller's intent (notably `sensitive`, whose whole
+  // job is keeping text out of the searchable channel log).
+  if (maintainer === undefined && (sensitive !== undefined || fallback !== undefined)) {
+    return { error: 'sensitive/fallback apply to the maintainer leg and require maintainer' };
+  }
   return { client, maintainer, sensitive, fallback };
 }
 
@@ -107,13 +117,13 @@ function legDelivered(r: SendResult): boolean {
 async function runNotice(hermitDir: string): Promise<void> {
   const raw = (await readStdin()).trim();
   if (!raw) {
-    process.stderr.write('channel-send: empty --notice payload\n');
-    process.exit(1);
+    process.stderr.write('channel-send: empty --notice payload (the JSON goes on stdin)\n');
+    process.exit(2);
   }
   const p = parseNotice(raw);
   if ('error' in p) {
     process.stderr.write(`channel-send: ${p.error}\n`);
-    process.exit(1);
+    process.exit(2);
   }
 
   const out = await sendOperatorNotice(hermitDir, {
@@ -124,7 +134,11 @@ async function runNotice(hermitDir: string): Promise<void> {
   });
 
   const legs = [out.client, out.maintainer].filter((r): r is SendResult => !!r);
-  const delivered = legs.some(legDelivered);
+  // Every leg that survived dedup must have landed. `some` would report success
+  // for a half-delivered notice — e.g. a typo'd maintainer_channel_id degrading
+  // the maintainer leg to Findings while the client leg goes out — and the
+  // caller's documented "exit 0 ⇒ done" branch would drop that content silently.
+  const delivered = legs.length > 0 && legs.every(legDelivered);
   const degraded = out.maintainer?.route === 'findings' && out.maintainer?.delivered === false;
   const no_channel = legs.length > 0 && legs.every((r) => r.error === 'no_reachable_channel');
 
@@ -135,15 +149,20 @@ async function runNotice(hermitDir: string): Promise<void> {
 async function main(): Promise<void> {
   const parsed = parseArgs(process.argv.slice(2));
   if ('error' in parsed) {
+    // Usage error, not a delivery failure — exit 2 so a caller can tell its own
+    // malformed invocation apart from a channel that wouldn't take the message.
     process.stderr.write(`channel-send: ${parsed.error}\n`);
-    process.exit(1);
+    process.exit(2);
   }
 
   if (parsed.mode === 'notice') {
     const [hermitDir] = parsed.positionals;
-    if (!hermitDir) {
-      process.stderr.write('Usage: bun channel-send.ts <hermit-dir> --notice\n');
-      process.exit(1);
+    // Reject a stray positional rather than ignoring it: the likely mistake is
+    // passing the payload as an argument, which would otherwise leave the script
+    // waiting on an stdin that never arrives.
+    if (!hermitDir || parsed.positionals.length > 1) {
+      process.stderr.write('Usage: bun channel-send.ts <hermit-dir> --notice   (JSON payload on stdin)\n');
+      process.exit(2);
     }
     await runNotice(hermitDir);
     return;
@@ -152,7 +171,7 @@ async function main(): Promise<void> {
   const [hermitDir, textArg] = parsed.positionals;
   if (!hermitDir || !textArg) {
     process.stderr.write('Usage: bun channel-send.ts <hermit-dir> [--tier client|maintainer] <text|->\n');
-    process.exit(1);
+    process.exit(2);
   }
 
   const text = textArg === '-' ? (await readStdin()).trim() : textArg;
