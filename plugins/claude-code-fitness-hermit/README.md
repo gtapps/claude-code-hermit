@@ -40,8 +40,8 @@ claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope loca
 
 **Routines that match a training week:**
 
-- `strava-sync` — daily 21:30 — detect new activities, log them, flag anomalies
-- `strava-health-check` — daily 08:05 — verify Strava connectivity; alert if lost
+- `morning-brief` — daily 07:30 — readiness read + today's plan; checks Strava connectivity
+- `evening-brief` — daily 21:30 — today's training recap + tomorrow's setup; syncs new activities, invites RPE
 - `weekly-load-review` — Sunday 18:00 — week-over-week load summary with trend flag
 - `monday-planning` — Monday 09:30 — weekly training structure suggestion
 
@@ -75,7 +75,7 @@ claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope loca
 /claude-code-fitness-hermit:hatch
 ```
 
-The wizard triggers `claude-code-hermit:hatch` if the core hermit isn't ready, prompts you to fill in `.env` with your four Strava credentials, writes `.mcp.json` with the Strava MCP server entry, drops the four routine prompt templates into `.claude-code-hermit/compiled/`, injects the Fitness Workflow block into your `CLAUDE.md`, registers the routines, and trusts `www.strava.com` in `autoMode.environment` so the classifier doesn't flag the nightly `strava-sync` routine's fetches (no permission grant added).
+The wizard triggers `claude-code-hermit:hatch` if the core hermit isn't ready, prompts you to fill in `.env` with your four Strava credentials, writes `.mcp.json` with the Strava MCP server entry, drops the four routine prompt templates into `.claude-code-hermit/compiled/`, injects the Fitness Workflow block into your `CLAUDE.md`, registers the routines, and trusts `www.strava.com` in `autoMode.environment` so the classifier doesn't flag the nightly `evening-brief` routine's fetches (no permission grant added).
 
 > **Just trying it?** After `hatch`, restart Claude Code (required to pick up the new `.mcp.json`), approve the `strava` MCP server, then run `.claude-code-hermit/bin/hermit-start --no-tmux` for sessions, routines, heartbeat, and the learning loop without 24/7 autonomy. Run `/claude-code-hermit:channel-setup` first if you want Discord or Telegram.
 

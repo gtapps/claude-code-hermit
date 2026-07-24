@@ -85,8 +85,8 @@ export const THRESHOLDS = {
   HR_ALTITUDE_TRACK_CORR: 0.3, // r ≥ 0.3 → HR broadly tracks the climb/descent (heuristic)
 } as const;
 
-// The exact operator-facing recovery message from routine-strava-health-check.md
-// (the channel-notify variant). Emitted verbatim on any auth failure. Kept as a
+// The exact operator-facing recovery message the fitness-brief surfaces on a Strava
+// disconnect (the channel-notify variant). Emitted verbatim on any auth failure. Kept as a
 // plain quoted string (it contains backticks — not a template literal).
 export const AUTH_RECOVERY_MESSAGE =
   'Strava disconnected. Refresh `STRAVA_ACCESS_TOKEN` / `STRAVA_REFRESH_TOKEN` in `.env`, then run `/claude-code-fitness-hermit:hatch` to rewrite `.mcp.json`.';

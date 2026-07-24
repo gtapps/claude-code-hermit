@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `fitness-brief` skill — daily morning/evening brief (`--morning|--evening|--slot <name>`), composed in the operator's configured voice. Morning is forward-looking (readiness + today's plan); evening is backward-looking (today's training, or an earned-rest note, + tomorrow's setup) and takes over `strava-sync`'s activity sync, RPE binding, and Run deep-dive. Flagging is intent-driven prose, not `strava-sync`'s fixed anomaly/fatigue thresholds.
+- Two new routines, `morning-brief` and `evening-brief`, registered by `hatch`.
+
+### Changed
+- `strava-sync` and `strava-health-check` routines removed — `fitness-brief` (morning + evening) now owns Strava connectivity, activity sync, RPE binding, and Run deep-dive as the plugin's two daily beats.
+
+### Upgrade Instructions
+For already-installed hermits, `hermit-evolve` should:
+1. Copy `state-templates/compiled/routine-fitness-brief-morning.md` and `routine-fitness-brief-evening.md` into `.claude-code-hermit/compiled/` (skip if already present).
+2. Add `morning-brief` and `evening-brief` to `config.json routines[]` (same entries as hatch Step 8b), `enabled: true`.
+3. Remove the `strava-sync` and `strava-health-check` entries from `config.json routines[]`, and delete `.claude-code-hermit/compiled/routine-strava-sync.md` and `routine-strava-health-check.md` — `fitness-brief` replaces both. This is the one non-additive step; it consolidates the daily channel sends into the two briefs and avoids a double notification.
+
 ## [0.0.15] - 2026-07-21
 
 ### Fixed

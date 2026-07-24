@@ -20,7 +20,7 @@ Fitness skills and subagents self-advertise through their own SKILL.md / agent d
 
 ### Strava MCP
 
-MCP server `strava` is configured in `.mcp.json` (written by `hatch`); tool IDs follow `mcp__strava__*` and their schemas are already in context — do not re-document them here. `check-strava-connection` is always called first; full history comes from `get-all-activities`.
+MCP server `strava` (configured by `hatch`); tool IDs `mcp__strava__*`, schemas already in context — not restated here. Full activity history via `get-all-activities`.
 
 ### Routines
 
@@ -28,8 +28,7 @@ These run automatically on their cron schedule. Schedules and `enabled` state li
 
 | Routine | Purpose |
 |---------|---------|
-| `strava-sync` | Detect new activities, log them, flag anomalies |
-| `strava-health-check` | Check Strava connectivity; alert if lost |
+| `morning-brief` / `evening-brief` | Daily brief (AM: readiness + plan; PM: recap + tomorrow) |
 | `weekly-load-review` | Week-over-week load summary + trend flag |
 | `monday-planning` | Weekly training structure suggestion |
 
@@ -46,10 +45,10 @@ These run via the core `scheduled-checks` routine (daily) and fire at most once 
 ### Conventions
 
 - Activity notes: `compiled/activity-<id>-<YYYY-MM-DD>.md` (written by activity-deep-dive)
-- Strava state cursor: `state/strava-last-activity-id.txt` (written by strava-sync)
+- Strava state cursor: `state/strava-last-activity-id.txt` (written by fitness-brief evening)
 - Weekly load baselines: `state/strava-weekly-baselines.json` (written by weekly-load-review, read by monday-planning)
 - Subjective notes: `state/activity-notes.json` (written by `scripts/fitness-lab.ts rpe` — invoked by capture-activity-rpe + set-rpe; read by activity-deep-dive + weekly-load-review)
-- Pending RPE: `state/strava-pending-rpe.json` (written by strava-sync after a successful channel send, read and deleted by capture-activity-rpe)
+- Pending RPE: `state/strava-pending-rpe.json` (written by fitness-brief evening after a successful channel send, read and deleted by capture-activity-rpe)
 
 ### Fitness Proposal Categories
 

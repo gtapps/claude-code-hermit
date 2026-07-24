@@ -136,8 +136,8 @@ Write the updated `.mcp.json` using the Write tool.
 Copy the four routine prompt templates from the plugin's `state-templates/compiled/` into the consumer's `.claude-code-hermit/compiled/`.
 
 For each of the four files:
-- `${CLAUDE_PLUGIN_ROOT}/state-templates/compiled/routine-strava-sync.md`
-- `${CLAUDE_PLUGIN_ROOT}/state-templates/compiled/routine-strava-health-check.md`
+- `${CLAUDE_PLUGIN_ROOT}/state-templates/compiled/routine-fitness-brief-morning.md`
+- `${CLAUDE_PLUGIN_ROOT}/state-templates/compiled/routine-fitness-brief-evening.md`
 - `${CLAUDE_PLUGIN_ROOT}/state-templates/compiled/routine-weekly-load-review.md`
 - `${CLAUDE_PLUGIN_ROOT}/state-templates/compiled/routine-monday-planning.md`
 
@@ -185,7 +185,7 @@ If **absent**, append the following block under `## Work Products` (create the s
 ```
 - weekly-plan: weekly training structure suggestion (7-day breakdown). Triggered by monday-planning routine (Mon 09:30). location: compiled/weekly-plan-<YYYY-MM-DD>.md
 - weekly-summary: week-over-week training load review. Triggered by weekly-load-review routine (Sun 18:00). location: compiled/weekly-summary-<YYYY-MM-DD>.md
-- recovery-assessment: recovery indicators from recent activity data. Triggered by operator request or strava-sync flag. location: compiled/recovery-assessment-<YYYY-MM-DD>.md
+- recovery-assessment: recovery indicators from recent activity data. Triggered by operator request or an evening-brief flag. location: compiled/recovery-assessment-<YYYY-MM-DD>.md
 - fitness-snapshot: current fitness state snapshot. Triggered by operator request. location: compiled/fitness-snapshot-<YYYY-MM-DD>.md
 - activity-note: per-activity coaching analysis. Triggered by activity-deep-dive skill. location: compiled/activity-<id>-<YYYY-MM-DD>.md
 ```
@@ -219,20 +219,20 @@ In the `routines` array, check for each of these four IDs. For any that are **ab
 
 ```json
 {
-  "id": "strava-sync",
+  "id": "morning-brief",
+  "schedule": "30 7 * * *",
+  "skill": "claude-code-hermit:session-start",
+  "enabled": true,
+  "run_during_waiting": true,
+  "prompt_file": "compiled/routine-fitness-brief-morning.md"
+},
+{
+  "id": "evening-brief",
   "schedule": "30 21 * * *",
   "skill": "claude-code-hermit:session-start",
   "enabled": true,
   "run_during_waiting": true,
-  "prompt_file": "compiled/routine-strava-sync.md"
-},
-{
-  "id": "strava-health-check",
-  "schedule": "5 8 * * *",
-  "skill": "claude-code-hermit:session-start",
-  "enabled": true,
-  "run_during_waiting": true,
-  "prompt_file": "compiled/routine-strava-health-check.md"
+  "prompt_file": "compiled/routine-fitness-brief-evening.md"
 },
 {
   "id": "weekly-load-review",
@@ -266,7 +266,7 @@ Write the updated `config.json` using Write tool (full file replacement to ensur
 
 ### 8d — Auto-mode environment seed
 
-Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/automode-env.ts .claude/settings.local.json` — **always `.claude/settings.local.json`, regardless of `hatch_target`**: Claude Code's auto-mode classifier reads `autoMode` config only from local/user scope, never a committed project `.claude/settings.json`. This names `www.strava.com` as a trusted external service, so the classifier stops treating the nightly `strava-sync` routine's read-only fetches as unrecognized outbound calls. Additive and idempotent; safe to re-run on every hatch. No prompt needed.
+Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/automode-env.ts .claude/settings.local.json` — **always `.claude/settings.local.json`, regardless of `hatch_target`**: Claude Code's auto-mode classifier reads `autoMode` config only from local/user scope, never a committed project `.claude/settings.json`. This names `www.strava.com` as a trusted external service, so the classifier stops treating the nightly `evening-brief` routine's read-only fetches as unrecognized outbound calls. Additive and idempotent; safe to re-run on every hatch. No prompt needed.
 
 ---
 
@@ -282,10 +282,10 @@ Installation summary:
   ✓ .env: all four Strava credentials present
   ✓ .mcp.json: strava server entry written (or was already present)
   ✓ .gitignore: .mcp.json and .env covered
-  ✓ Routine prompts: {N}/4 dropped, {M}/4 already present
+  ✓ Routine prompts: {N}/6 dropped, {M}/6 already present
   ✓ CLAUDE.md: Fitness Workflow block injected (or was already present)
   ✓ knowledge-schema.md: fitness types added (or were already present)
-  ✓ config.json: _hermit_versions stamped, {K}/4 routines added, weekly-coaching-patterns check registered
+  ✓ config.json: _hermit_versions stamped, {K}/6 routines added, weekly-coaching-patterns check registered
 
 Manual steps remaining:
   - Restart Claude Code so the `strava` MCP server loads from .mcp.json
@@ -308,6 +308,7 @@ The always-on runtime activates routines automatically — the interactive
 steps are only for a test drive before handing over to the runtime.
 
 Installed skills:
+  /claude-code-fitness-hermit:fitness-brief             — daily morning/evening brief (--morning|--evening|--slot)
   /claude-code-fitness-hermit:activity-deep-dive        — per-activity coaching analysis
   /claude-code-fitness-hermit:weekly-coaching-patterns  — weekly cardiac-drift trend check (scheduled, interval_days: 7)
 

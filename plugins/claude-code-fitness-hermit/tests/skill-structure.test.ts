@@ -21,6 +21,7 @@ const SKILLS = [
   { name: 'activity-deep-dive', gates: 0 },
   { name: 'capture-activity-rpe', gates: 0 },
   { name: 'domain-brainstorm', gates: 5 }, // Gate 0..4
+  { name: 'fitness-brief', gates: 0 },
   { name: 'hatch', gates: 0 },
   { name: 'set-rpe', gates: 0 },
   { name: 'weekly-coaching-patterns', gates: 0 },
