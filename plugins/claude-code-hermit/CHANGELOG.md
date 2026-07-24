@@ -3,13 +3,13 @@
 ## [Unreleased]
 
 ### Added
-- Localized script-owned channel messages: budget, auto-mode denial, mint/reauth, watchdog lifecycle, and `channel-status-responder` replies now compose in the operator's `language` (en / pt-PT; any Portuguese signifier resolves to `pt-PT`) instead of hardcoded English. Default config (`language` null) stays byte-identical.
+- Localized script-owned channel messages: budget, auto-mode denial, mint/reauth, watchdog lifecycle, and `channel-status-responder` replies now compose in the operator's `language` (en / pt-PT; a Portuguese language tag such as `pt`, `pt-BR`, or `português` resolves to `pt-PT`) instead of hardcoded English. Default config (`language` null) stays byte-identical apart from two deliberately reworded English prompts — the auto-mode denial message and the mint/reauth acknowledgment — both called out below.
 - Tiered operator notifications via per-channel `maintainer_channel_id` and top-level `operator_profile`. Technical, operational, and spend content routes to an outbound-only maintainer chat (or `SHELL.md` Findings under `non-technical` with no maintainer chat), while the primary chat sees plain-language client copy. `resolve-outbound-channel.ts` emits a sanitized `language` in its success JSON, and `channel-send.ts` gains `--tier client|maintainer`.
 
 ### Changed
 - Auto-mode denial message rewritten to plain channel voice ("One action could not run because it needed approval. Work that doesn't depend on it can continue. You don't need to fix this.") for every install. The tool name, sanitized input, and reason now route to the maintainer chat or `SHELL.md` Findings, not a second message in the client chat.
 - Watchdog lifecycle messages (restart, wedge, forced-pause, stalled-question) localized and sent maintainer-tier. Stock installs with no maintainer chat stay byte-identical.
-- Mint/reauth pins the resolved primary chat as its reply route and marks its sends sensitive, keeping the OAuth sign-in URL out of the searchable channel log.
+- Mint/reauth pins the resolved primary chat as its reply route and marks its sends sensitive, keeping the OAuth sign-in URL out of the searchable channel log. The reauth acknowledgment prompt is reworded to point at the operator's normal chat rather than a browser. `/relogin` routes the sign-in link to the maintainer chat when `maintainer_channel_id` is set.
 
 ### Fixed
 - Model-override routines (weekly `doctor`, `daily-auto-close`) composed operator-facing notifications in English regardless of configured `language`, because the dispatched subagent never saw the SessionStart language injection. The dispatch prompt now carries a language clause and `resolve-outbound-channel.ts` returns the language.
