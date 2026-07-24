@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.33] - 2026-07-24
 
 ### Added
 - Localized script-owned channel messages: budget, auto-mode denial, mint/reauth, watchdog lifecycle, and `channel-status-responder` replies now compose in the operator's `language` (en / pt-PT; a Portuguese language tag such as `pt`, `pt-BR`, or `português` resolves to `pt-PT`) instead of hardcoded English. Default config (`language` null) stays byte-identical apart from two deliberately reworded English prompts — the auto-mode denial message and the mint/reauth acknowledgment — both called out below.
