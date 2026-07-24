@@ -1,0 +1,12 @@
+{
+  "loadingExperience": {
+    "metrics": {
+      "LARGEST_CONTENTFUL_PAINT_MS": { "percentile": 2100, "category": "FAST" },
+      "INTERACTION_TO_NEXT_PAINT": { "percentile": 180, "category": "FAST" },
+      "CUMULATIVE_LAYOUT_SHIFT_SCORE": { "percentile": 5, "category": "FAST" }
+    }
+  },
+  "lighthouseResult": {
+    "categories": { "performance": { "score": 0.92 } }
+  }
+}
