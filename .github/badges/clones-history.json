@@ -497,8 +497,13 @@
       "timestamp": "2026-07-28T00:00:00Z",
       "count": 91,
       "uniques": 60
+    },
+    {
+      "timestamp": "2026-07-29T00:00:00Z",
+      "count": 752,
+      "uniques": 62
     }
   ],
-  "total": 39602,
-  "total_uniques": 14793
+  "total": 40354,
+  "total_uniques": 14855
 }
