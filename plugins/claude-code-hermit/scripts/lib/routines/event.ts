@@ -9,7 +9,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { utcISOStamp } from '../time';
+import { utcISOStamp, localISOStamp } from '../time';
 import { appendJsonlLine } from '../append-jsonl';
 
 // Deliberately not an enum check: the shell version accepted any event string,
@@ -62,10 +62,32 @@ export function logRoutineEvent(
     } catch { /* no ledger yet — nothing to dedup against */ }
   }
 
-  return appendJsonlLine(
+  const err = appendJsonlLine(
     metrics,
     JSON.stringify({ ts: utcISOStamp(), routine_id: id, event, delivery }),
   );
+  if (err) return err;
+
+  // A routine that actually ran (as opposed to skipped-paused/skipped-waiting) is
+  // real session activity. Without this, an always-on session cycling routines
+  // via Monitor between operator turns never touches runtime.json's `updated_at`
+  // — only session-archive.ts's open/close/heartbeat transitions do — so
+  // evaluate-session.ts's stale-session nudge fires on a session that is working
+  // exactly as designed, just not writing Progress Log lines for background
+  // routine cycles. Touching updated_at here is fail-soft: a failure must not
+  // block or fail the routine event itself.
+  if (event === 'fired' || event === 'started') {
+    try {
+      const runtimePath = path.join(root, '.claude-code-hermit', 'state', 'runtime.json');
+      const runtime = JSON.parse(fs.readFileSync(runtimePath, 'utf-8'));
+      runtime.updated_at = localISOStamp();
+      const tmp = `${runtimePath}.${process.pid}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify(runtime, null, 2) + '\n', 'utf-8');
+      fs.renameSync(tmp, runtimePath);
+    } catch { /* fail-soft — runtime.json missing/corrupt must not block the routine */ }
+  }
+
+  return null;
 }
 
 export function run(args: string[]): void {
