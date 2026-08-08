@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git show *)",
+      "Bash(bun *scripts/site-api.ts *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(chmod 777*)",
+      "Bash(curl * | bash*)",
+      "Bash(wget * | bash*)",
+      "Edit(**/.claude-code-hermit/OPERATOR.md)",
+      "Write(**/.claude-code-hermit/OPERATOR.md)",
+      "Edit(.env)",
+      "Write(.env)"
+    ]
+  }
+}
