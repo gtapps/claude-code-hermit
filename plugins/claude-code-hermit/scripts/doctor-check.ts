@@ -17,6 +17,7 @@ import { readChannelToken } from './lib/channel-token';
 import { siblingPluginDirs, versionedCacheCoreDir, readHermitMeta, readCoreName } from './lib/plugin-siblings';
 import { tokenModeActive, defaultConfigDir, credentialsFilePath, parkedCredentialsFilePath, CREDENTIALS_FILENAME } from './lib/setup-token';
 import { doctorAlertsPath, readAlertState, mutateOwnedAlerts, DOCTOR_PREFIX } from './lib/alert-state';
+import { getSessionName } from './lib/tmux';
 
 type Json = any;
 
@@ -787,6 +788,56 @@ function checkScheduler() {
 
 // ----------------- Watchdog -----------------
 
+/**
+ * Query the installed systemd user unit's last-run outcome directly, rather
+ * than inferring health from watchdog-state.json's last_run stamp. A bun
+ * ExecStart that resolves via bare PATH lookup (pre-fix template) crash-loops
+ * with exit 127 before the script ever runs far enough to write last_run —
+ * so the staleness check above eventually catches it, but only after the
+ * ~20min STALE_MS window elapses. Reading ExecMainStatus/Result off the unit
+ * itself surfaces a crash-looping-but-"installed" watchdog immediately.
+ * Best-effort: only runs on Linux with systemctl present (mirrors the
+ * Bun.which('systemctl') guard hermit-watchdog.ts's cmdInstall/cmdUninstall
+ * already use for the same platform gate), and never throws past its own
+ * try/catch — a missing/unreadable unit just means "nothing installed here",
+ * not a doctor failure.
+ */
+function checkWatchdogUnitStatus(serviceName: string): { status: 'warn' | 'fail'; detail: string } | null {
+  if (process.platform !== 'linux' || !Bun.which('systemctl')) return null;
+  try {
+    const out = execFileSync(
+      'systemctl',
+      ['--user', 'show', `${serviceName}.service`, '-p', 'ExecMainStatus', '-p', 'Result'],
+      { encoding: 'utf8', timeout: 5000 }
+    );
+    const props: Record<string, string> = {};
+    for (const line of out.split('\n')) {
+      const eq = line.indexOf('=');
+      if (eq === -1) continue;
+      props[line.slice(0, eq)] = line.slice(eq + 1).trim();
+    }
+    // An absent/never-run unit reports ExecMainStatus=0, Result=success (systemd's
+    // defaults) — indistinguishable from "not installed", so skip rather than warn.
+    if (!('ExecMainStatus' in props) && !('Result' in props)) return null;
+    const execStatus = Number(props.ExecMainStatus);
+    const result = props.Result;
+    if ((Number.isFinite(execStatus) && execStatus !== 0) || (result && result !== 'success')) {
+      const reason = execStatus === 127
+        ? 'exit 127 (command not found) — the systemd unit likely can\'t resolve `bun` on its stripped PATH'
+        : `ExecMainStatus=${props.ExecMainStatus ?? '?'}, Result=${result ?? '?'}`;
+      return {
+        status: 'fail',
+        detail: `watchdog: systemd unit ${serviceName}.service last run failed — ${reason}. Re-run \`bin/hermit-watchdog install\` to regenerate the unit with a baked PATH, then \`systemctl --user daemon-reload\`.`,
+      };
+    }
+    return null;
+  } catch {
+    // systemctl show failing (unit not found, systemd unavailable, etc.) is not
+    // itself a fault — the unit may simply not be installed on this host/mode.
+    return null;
+  }
+}
+
 function checkWatchdog() {
   try {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
@@ -838,6 +889,17 @@ function checkWatchdog() {
         remedy = 'recreate the container (`docker compose up -d --force-recreate`) — containers built before v1.1.11 predate the entrypoint watchdog loop';
       } else {
         remedy = 'native: run `bin/hermit-watchdog install`; Docker: recreate the container (`docker compose up -d --force-recreate`)';
+      }
+      // Additive: on tmux/native mode a stale tick is often a crash-looping systemd
+      // unit rather than "never installed" — check the unit's own last-run status for
+      // a more specific diagnosis (e.g. exit 127 from a bare `bun` PATH lookup) before
+      // falling back to the generic "not firing" message.
+      if (mode === 'tmux' || mode == null) {
+        const serviceName = `hermit-watchdog@${getSessionName(config)}`;
+        const unitStatus = checkWatchdogUnitStatus(serviceName);
+        if (unitStatus) {
+          return { id: 'watchdog', status: unitStatus.status, detail: unitStatus.detail };
+        }
       }
       return { id: 'watchdog', status: 'warn', detail: `watchdog: enabled but not firing (${ageNote}) — ${remedy}` };
     }

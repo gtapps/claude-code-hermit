@@ -1350,9 +1350,30 @@ function findTemplatesDir(): string | null {
   return null;
 }
 
-function printCronFallback(root: string): void {
+/**
+ * Resolve bun's install directory for baking an explicit PATH into generated
+ * service units. systemd user services (and launchd agents) don't inherit
+ * ~/.bun/bin on PATH by default, so a bare `bun` ExecStart crash-loops with
+ * exit 127 ("bun: not found") — silently, since nothing surfaces that as
+ * distinct from any other oneshot failure. Falls back to the conventional
+ * ~/.bun/bin install location if Bun.which can't resolve itself, which would
+ * be surprising (the installer needs bun to run at all) but not impossible
+ * (e.g. a wrapper/shim invocation) — still better than baking nothing.
+ */
+function resolveBunDir(): string {
+  const bunPath = Bun.which('bun');
+  if (bunPath) return path.dirname(bunPath);
+  const fallback = path.join(os.homedir(), '.bun', 'bin');
+  process.stderr.write(
+    `[watchdog] could not resolve bun's install dir via Bun.which; falling back to ${fallback}\n`
+  );
+  return fallback;
+}
+
+function printCronFallback(root: string, bunDir: string): void {
   const cronLine =
-    `*/5 * * * * cd ${root} && .claude-code-hermit/bin/hermit-watchdog run ` +
+    `*/5 * * * * PATH=${bunDir}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ` +
+    `cd ${root} && .claude-code-hermit/bin/hermit-watchdog run ` +
     `2>>.claude-code-hermit/state/watchdog.log`;
   console.log('[watchdog] Add the following line via `crontab -e`:');
   console.log(`  ${cronLine}`);
@@ -1365,9 +1386,10 @@ function cmdInstall(): void {
   const root = fs.realpathSync(process.cwd());
   const name = getSessionName();
   const templates = findTemplatesDir();
+  const bunDir = resolveBunDir();
 
   const render = (templateText: string) =>
-    templateText.replaceAll('{{NAME}}', name).replaceAll('{{ROOT}}', root);
+    templateText.replaceAll('{{NAME}}', name).replaceAll('{{ROOT}}', root).replaceAll('{{BUN_DIR}}', bunDir);
 
   if (process.platform === 'linux') {
     if (!Bun.which('systemctl')) {
@@ -1376,7 +1398,7 @@ function cmdInstall(): void {
         '[watchdog] In the hermit Docker container the entrypoint already runs the ' +
           'watchdog on a ~5 min cycle; no install is needed there.'
       );
-      printCronFallback(root);
+      printCronFallback(root, bunDir);
       return;
     }
 
@@ -1423,6 +1445,9 @@ function cmdInstall(): void {
             '<string>{{ROOT}}/.claude-code-hermit/bin/hermit-watchdog</string>' +
             '<string>run</string></array>' +
             '<key>WorkingDirectory</key><string>{{ROOT}}</string>' +
+            '<key>EnvironmentVariables</key><dict>' +
+            '<key>PATH</key><string>{{BUN_DIR}}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin</string>' +
+            '</dict>' +
             '<key>StartInterval</key><integer>300</integer>' +
             '<key>RunAtLoad</key><false/>' +
             '</dict></plist>\n'
@@ -1433,7 +1458,7 @@ function cmdInstall(): void {
     console.log(`[watchdog] Installed LaunchAgent: ${plistName}`);
   } else {
     console.log('[watchdog] systemd and launchd not available on this platform.');
-    printCronFallback(root);
+    printCronFallback(root, bunDir);
   }
 }
 

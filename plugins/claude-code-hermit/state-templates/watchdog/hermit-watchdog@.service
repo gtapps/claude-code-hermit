@@ -5,6 +5,7 @@ After=network.target
 [Service]
 Type=oneshot
 WorkingDirectory={{ROOT}}
+Environment="PATH={{BUN_DIR}}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 ExecStart={{ROOT}}/.claude-code-hermit/bin/hermit-watchdog run
 StandardOutput=journal
 StandardError=journal

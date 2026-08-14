@@ -1206,6 +1206,66 @@ test.if(isLinux)('uninstall without systemctl → exit 0, no traceback', withHer
 }));
 
 // -------------------------------------------------------
+// PATH-baking (systemd unit no longer bare-PATH `bun`, see PROP-009): the
+// generated ExecStart resolves `bun` via bare PATH lookup, and systemd user
+// services don't inherit ~/.bun/bin — so cmdInstall must bake an explicit
+// Environment="PATH=..." line (and the cron fallback an inline PATH=) rather
+// than relying on the unit's inherited environment.
+// -------------------------------------------------------
+
+/** Fake systemctl: always succeeds, logs invocations. Lets install exercise the
+ *  systemd branch (unit rendering) without touching real systemd state. */
+function writeFakeSystemctl(h: Hermit): void {
+  const stub = path.join(h.fakeBin, 'systemctl');
+  fs.writeFileSync(stub, `#!/usr/bin/env bash\necho "systemctl $@" >> "${path.join(h.dir, 'systemctl-calls.log')}"\nexit 0\n`);
+  fs.chmodSync(stub, 0o755);
+}
+
+test.if(isLinux)('install without bun on PATH → crontab line carries an explicit PATH= fallback', withHermit(async (h) => {
+  writeConfig(h);
+  writeFakeTmux(h, 0);
+  writeFakePgrep(h, 1);
+  // restrictPath: true → Bun.which('bun') resolves against the fake-bin-only PATH
+  // and finds nothing, so cmdInstall must fall back to the conventional ~/.bun/bin
+  // rather than emitting a cron line with no PATH= at all.
+  const r = await watchdog(h, 'install', { restrictPath: true });
+  const out = r.stdout + r.stderr;
+  expect(r.exitCode).toBe(0);
+  expect(out).toMatch(/PATH=.*\.bun\/bin/);
+}));
+
+test.if(isLinux)('install with systemctl present → generated unit bakes Environment=PATH with bun\'s resolved dir', withHermit(async (h) => {
+  writeConfig(h);
+  writeFakeTmux(h, 0);
+  writeFakePgrep(h, 1);
+  writeFakeSystemctl(h);
+  const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-fakehome-'));
+  try {
+    const r = await watchdog(h, 'install', { env: { HOME: fakeHome } });
+    expect(r.exitCode).toBe(0);
+    const serviceName = `hermit-watchdog@${JSON.parse(fs.readFileSync(path.join(h.dir, '.claude-code-hermit', 'config.json'), 'utf-8')).tmux_session_name ?? 'hermit-{project_name}'}`;
+    const unitDir = path.join(fakeHome, '.config', 'systemd', 'user');
+    const files = fs.readdirSync(unitDir);
+    const serviceFile = files.find(f => f.endsWith('.service'));
+    expect(serviceFile).toBeDefined();
+    const unit = fs.readFileSync(path.join(unitDir, serviceFile!), 'utf-8');
+    // The real bun resolvable on this host's actual PATH (test runner's own
+    // environment, not the fixture's restricted one) is what Bun.which finds —
+    // assert the baked line has the shape systemd needs, not a literal path,
+    // since the exact bun location is host-dependent.
+    expect(unit).toMatch(/^Environment="PATH=.+:\/usr\/local\/sbin:\/usr\/local\/bin:\/usr\/sbin:\/usr\/bin:\/sbin:\/bin"$/m);
+    expect(unit).not.toContain('{{BUN_DIR}}');
+    // Environment= must precede ExecStart so systemd applies it to that exec.
+    const envIdx = unit.indexOf('Environment=');
+    const execIdx = unit.indexOf('ExecStart=');
+    expect(envIdx).toBeGreaterThan(-1);
+    expect(execIdx).toBeGreaterThan(envIdx);
+  } finally {
+    fs.rmSync(fakeHome, { recursive: true, force: true });
+  }
+}));
+
+// -------------------------------------------------------
 // post-close clear tests
 // -------------------------------------------------------
 

@@ -12,6 +12,11 @@
   </array>
   <key>WorkingDirectory</key>
   <string>{{ROOT}}</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>{{BUN_DIR}}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin</string>
+  </dict>
   <key>StartInterval</key>
   <integer>300</integer>
   <key>StandardErrorPath</key>
