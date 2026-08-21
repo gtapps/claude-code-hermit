@@ -1,0 +1,7 @@
+{
+  "rows": [
+    { "keys": ["https://example.com/"], "clicks": 60, "impressions": 1200, "ctr": 0.05, "position": 8.3 },
+    { "keys": ["https://example.com/blog"], "clicks": 20, "impressions": 800, "ctr": 0.025, "position": 14.1 }
+  ],
+  "responseAggregationType": "byPage"
+}

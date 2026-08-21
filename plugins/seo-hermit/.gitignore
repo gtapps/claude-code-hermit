@@ -1,0 +1,14 @@
+# Secrets — never commit
+.env
+.env.*
+.claude.local/
+
+# Claude Code local state (when developing the plugin against a local target project)
+.claude/
+.claude-code-hermit/
+
+# OS / IDE
+.DS_Store
+.obsidian/
+*.swp
+*~
