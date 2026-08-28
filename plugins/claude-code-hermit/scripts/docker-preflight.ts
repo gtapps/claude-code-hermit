@@ -19,6 +19,7 @@
  *     "dockerVersion": "Docker version 27.0.3, build ..." | null,
  *     "configExists": true,
  *     "isWSL": false,
+ *     "host": { "platform": "linux", "docker": true, "systemd": true, "launchd": false },
  *     "existing": { "dockerfile": false, "entrypoint": false, "compose": false },
  *     "gitconfigExists": true,
  *     "memory": { "pathKey": "-home-user-project", "seedExists": false }
@@ -29,6 +30,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { detectPlatform } from './lib/platform';
 
 function dockerVersion(): string | null {
   try {
@@ -48,7 +50,13 @@ function probe(projectRoot: string, hermitDir: string) {
   return {
     dockerVersion: dockerVersion(),
     configExists: fs.existsSync(path.join(projectRoot, hermitDir, 'config.json')),
+    // Two different questions, deliberately both reported. `isWSL` asks whether
+    // the PROJECT sits on a Windows mount (which docker-setup aborts on);
+    // `host.platform` asks what the host itself is (which hatch orders its
+    // deployment options by). A WSL2 host with the project under /home is
+    // host.platform === 'wsl2' and isWSL === false.
     isWSL: projectRoot.startsWith('/mnt/c/') || projectRoot.startsWith('/mnt/d/'),
+    host: detectPlatform(),
     existing: {
       dockerfile: fs.existsSync(path.join(projectRoot, 'Dockerfile.hermit')),
       entrypoint: fs.existsSync(path.join(projectRoot, 'docker-entrypoint.hermit.sh')),

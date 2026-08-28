@@ -49,7 +49,7 @@ claude --permission-mode auto
 
 > **Why `--permission-mode auto`?** The default `auto` mode lets a classifier review each action before it runs — safer than `bypassPermissions`, more reviewed than `acceptEdits`. Deny patterns and hooks provide an additional safety layer. **Run `claude` interactively once first** to accept the workspace trust prompt — without this, the agent hangs in tmux.
 >
-> For fully unattended containers/VMs where any pause would stall the hermit, set `permission_mode: "bypassPermissions"` in `config.json` — `hermit-start` maps this to `--dangerously-skip-permissions`. See [Always-On Setup](always-on.md) for the Docker workflow and [Permission Modes](https://code.claude.com/docs/en/permission-modes).
+> For fully unattended containers/VMs where any pause would stall the hermit, set `permission_mode: "bypassPermissions"` in `config.json` — `hermit-start` maps this to `--dangerously-skip-permissions`. It belongs inside a container or VM only: there is no action check left, so the isolation boundary is the only thing between the agent and the host. On a bare tmux host `/hermit-settings permissions` warns when you set it and `hermit-doctor`'s `bypass-isolation` check reports it on every run. See [Always-On Setup](always-on.md) for the Docker workflow and [Permission Modes](https://code.claude.com/docs/en/permission-modes).
 
 ### Remote access
 

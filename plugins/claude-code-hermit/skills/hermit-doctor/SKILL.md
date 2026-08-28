@@ -1,11 +1,11 @@
 ---
 name: hermit-doctor
-description: Returns a twenty-nine-check health report on the hermit installation (runtime, config, hooks, state-file integrity, cost, proposals, deps, version currency, permissions, docker, archival, auto-close queue, reflect loop, scheduler, watchdog, context age, opus-wake spend, routine cost, heartbeat, routine monitor, routine precheck, raw storage size, plugin credential expiry, model pricing, memory size, context scan, voice carrier, classifier denials, channel liveness). Use when diagnosing an install, before a release, or after suspicious behavior. Activates on messages like "/hermit-doctor", "health check", "diagnose the hermit", "what's wrong", "run diagnostic".
+description: Returns a thirty-check health report on the hermit installation (runtime, config, hooks, state-file integrity, cost, proposals, deps, version currency, permissions, docker, bypass isolation, archival, auto-close queue, reflect loop, scheduler, watchdog, context age, opus-wake spend, routine cost, heartbeat, routine monitor, routine precheck, raw storage size, plugin credential expiry, model pricing, memory size, context scan, voice carrier, classifier denials, channel liveness). Use when diagnosing an install, before a release, or after suspicious behavior. Activates on messages like "/hermit-doctor", "health check", "diagnose the hermit", "what's wrong", "run diagnostic".
 ---
 
 # Hermit Doctor
 
-Runs twenty-nine read-only health checks against the current hermit install (`channel-liveness`
+Runs thirty read-only health checks against the current hermit install (`channel-liveness`
 is the only one that performs outbound API calls — see Notes) and surfaces the summary. Safe
 to run at any time. Produces no side effects beyond writing
 `.claude-code-hermit/state/doctor-report.json` and `.claude-code-hermit/state/doctor-alerts.json`,
@@ -35,19 +35,19 @@ The optional flag changes its destination, not whether doctor notifies:
    JSON to stdout. It exits 0 unconditionally — on any internal failure the failing
    check reports `status: "fail"` in its own entry rather than crashing the report.
 
-2. Parse the JSON. For each of the twenty-nine checks in the report (`runtime`, `config`, `hooks`, `state`, `cost`,
-   `proposals`, `dependencies`, `version-currency`, `permissions`, `docker-security`, `archive`, `auto-close`, `reflect`, `scheduler`, `watchdog`,
+2. Parse the JSON. For each of the thirty checks in the report (`runtime`, `config`, `hooks`, `state`, `cost`,
+   `proposals`, `dependencies`, `version-currency`, `permissions`, `docker-security`, `bypass-isolation`, `archive`, `auto-close`, `reflect`, `scheduler`, `watchdog`,
    `context-age`, `opus-wake`, `routine-cost`, `heartbeat`, `routine-monitor`, `routine-precheck`, `raw-size`, `credential-expiry`, `model-pricing-known`, `memory-size`, `context-scan`, `voice-carrier`, `classifier-denials`, `channel-liveness`), emit one line using this format:
    - `✓ <id> — <detail>` when `status: ok`
    - `⚠ <id> — <detail>` when `status: warn`
    - `✗ <id> — <detail>` when `status: fail`
 
 3. Append a summary section to `.claude-code-hermit/sessions/SHELL.md` under a new
-   `## Doctor Report (<ts>)` heading. Use the same twenty-nine lines from step 2. Place it
+   `## Doctor Report (<ts>)` heading. Use the same thirty lines from step 2. Place it
    above the `## Monitoring` section so it sits with session-level context, not
    with monitoring chatter.
 
-4. Return the twenty-nine lines to the caller. Cap total output at 32 lines.
+4. Return the thirty lines to the caller. Cap total output at 32 lines.
 
 5. **Escalation.** The script already computed this — do not recompute it, and do not write alert
    state yourself. Read the `escalation` object from the step-1 JSON:
@@ -114,10 +114,10 @@ The optional flag changes its destination, not whether doctor notifies:
 
 ## Silence policy
 
-- If every check is `ok`, return only: `All twenty-nine checks passed.` Do not notify via
+- If every check is `ok`, return only: `All thirty checks passed.` Do not notify via
   channel (Tier 0). Still append to SHELL.md so the run is traceable. Clearing the stale
   `doctor:*` entries is the script's job, not yours — it happens on every run.
-- If any check is `warn` or `fail`, return the full twenty-nine-line summary. Notification is
+- If any check is `warn` or `fail`, return the full thirty-line summary. Notification is
   governed by `escalation.new` (step 5), not a blanket per-run ping: only findings not yet
   confirmed delivered notify the selected route.
 
@@ -134,6 +134,7 @@ The optional flag changes its destination, not whether doctor notifies:
 | `dependencies` | Reads `required_core_version` from each sibling plugin's `plugin.json` and verifies the installed core version satisfies the range. Sibling plugins live next to core under `plugins/<name>/` (monorepo) or in the marketplace cache (legacy). | `warn` if any sibling declares a `required_core_version` that the running core version doesn't satisfy. Unrecognized range forms (e.g. `^`, `~`, `||`) are treated as ok. |
 | `version-currency` | Compares this install's `.claude-plugin/plugin.json` version against the same plugin's entry in the local marketplace-cache `marketplace.json` (the file `claude plugin marketplace update` refreshes — there is no automatic background refresh, so the cache is only as current as the last explicit update). Silent no-op in a monorepo/dev checkout (no marketplace cache to compare against). | `warn` if the marketplace cache lists a newer version than installed, naming both versions and the cache's mtime — wording escalates ("includes Fixed entries") if any CHANGELOG section in the gap has a `### Fixed` heading; remediation is `/plugin marketplace update` → `/plugin update` → `/claude-code-hermit:hermit-evolve`. `ok` when current, when the cache has no comparable entry, or when there's no cache to compare against. |
 | `permissions` | `fs.statSync(p).mode & 0o777` on `config.json`, `state/*.json`, and `proposals/`. | `warn` if any world-readable (`mode & 0o004 ≠ 0`). |
+| `bypass-isolation` | `permission_mode` in `config.json` against `state/runtime.json`'s `runtime_mode`, falling back to container detection when no runtime record exists. `runtime_mode` is primary: a Docker hermit's state dir is bind-mounted, so a host-side run sees no container. | `ok` unless `permission_mode` is `bypassPermissions`; then `ok` for `docker` and `interactive` runtimes, `warn` on a bare `tmux` runtime or no runtime and no container (bypass removes every action check with no isolation boundary under it). |
 | `docker-security` | Cross-references `docker.security.*` in `config.json` against the presence of `docker-compose.security.yml` at the project root. When both are present and the check runs on the host, also merges the base + overlay compose files via `docker compose config` to inspect ports, `network_mode`, and subnets. | `warn` on a posture/overlay mismatch either way (re-run `/docker-security`), when the overlay subnet overlaps another Docker network, or when the `docker` subprocess fails (daemon down / CLI missing — transient, never escalated to `fail`). `fail` when the `hermit` service publishes ports while joining netguard's network namespace. `ok` when both match, neither is configured, when `docker-compose.hermit.yml` is absent (nothing to merge), or when the check runs inside the container (no docker CLI there — compose verification runs on the host). |
 | `archive` | Reads `state/runtime.json`. Detects sessions that should have been archived but weren't. | `warn` if `session_state ∈ {in_progress, waiting}` with `updated_at` >2 days old (stale active session) or `session_state: idle` with non-null `session_id` >2 days old (orphaned). `ok` when runtime missing (covered by `state` check) or all timestamps fresh. |
 | `auto-close` | Reads `state/pending-close.json` + `state/runtime.json`. Detects a queued midnight close that never drained. | `warn` if `queued_at` >1 day old while `session_state ∈ {in_progress, idle}`, or if the flag exists with `runtime.json` unreadable. `ok` when no flag, a young flag, an unreadable `queued_at`, a session state that is not closeable, or `runtime.json`/`pending-close.json` missing or unparseable (self-heals at next fire; file integrity is the `state` check's finding). |

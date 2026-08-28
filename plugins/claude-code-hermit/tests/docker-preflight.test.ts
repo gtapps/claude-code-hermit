@@ -26,6 +26,10 @@ describe('docker-preflight.ts', () => {
     // path key is derived from the project root passed in (mirrors `pwd | sed 's|/|-|g'`,
     // leading dash retained) — keyed off the supplied logical path, not a resolved one.
     expect(out.memory.pathKey).toBe(dir.replace(/\//g, '-'));
+    // `host` answers "what is this machine", `isWSL` answers "is the project on a
+    // Windows mount" — two different questions, both reported.
+    expect(['linux', 'macos', 'wsl2']).toContain(out.host.platform);
+    expect(typeof out.host.docker).toBe('boolean');
     expect(typeof out.memory.seedExists).toBe('boolean');
   });
 

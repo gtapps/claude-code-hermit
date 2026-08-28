@@ -35,9 +35,11 @@ Before the setup-mode gate or any file writes, gather context silently. Run all 
    - `git rev-parse --is-inside-work-tree 2>/dev/null` is falsy (not already under version control).
    - `ls -A` of the project root yields only names from this **explicit allowed set**: `.claude-code-hermit`, `.claude`, `.gitignore`, `.worktreeinclude`, `.bash_profile`, `.bashrc`, `.zshrc`, `.zprofile`, `.profile`, `.gitconfig`, `.ripgreprc`. The dotfile entries (`.bash_profile` through `.ripgreprc`) come from the sandbox-dotfile block at the bottom of `state-templates/GITIGNORE-APPEND.txt` — keep those in sync if that block changes.
 
-4. **Print one summary line** so the operator sees what was detected:
+4. **Host platform probe** — run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/host-platform.ts` (parallel with items 1–3). It emits `{ "platform": "linux"|"macos"|"wsl2", "docker": bool, "systemd": bool, "launchd": bool }`. Stash as `host`; the Deployment question (Quick Turn 3, Advanced Phase 5) orders its options by it. Advisory only — every platform can run always-on.
 
-   > Initializing hermit in `<project-name>`. Detected: language=<lang>, timezone=<tz>, scope=<project|local|user>, target=<committed|local>, hermit candidates=<N> (<comma-separated names or "none">), git=<fresh|existing|n/a>.
+5. **Print one summary line** so the operator sees what was detected:
+
+   > Initializing hermit in `<project-name>`. Detected: language=<lang>, timezone=<tz>, host=<linux|macos|wsl2>, scope=<project|local|user>, target=<committed|local>, hermit candidates=<N> (<comma-separated names or "none">), git=<fresh|existing|n/a>.
 
 ### 1.6. Setup mode gate
 
@@ -169,7 +171,9 @@ questions: [
 - **Access control:** If "Restrict" and a numeric ID was typed via Other, record in `channels.<channel>.allowed_users` as `["<id>"]`. If "Allow everyone" or no ID provided, omit the key (absent = accept all). Note: "Add more user IDs later with `/claude-code-hermit:hermit-settings channels`. An empty array [] blocks all messages."
 - **Morning brief:** If "Yes — 07:00", record as `channels.<channel>.morning_brief: { "enabled": true, "time": "07:00" }`. If "No", omit the key (or set to `null`).
 
-#### Phase 5 — Deployment (AskUserQuestion batch, 3 questions)
+#### Phase 5 — Deployment (AskUserQuestion batch, 4 questions)
+
+The Deployment question is the same one Quick Turn 3 asks, ordered by the Step 1.5 `host` probe — see the **Deployment ordering rule** there. Record `deployment` (`docker` / `tmux` / `interactive`); Step 9d and Step 10's `--deployment` flag both read it.
 
 The Visibility question uses the scope-derived `hatch_target` to recommend an option. Place the recommended option at index 0 with `(recommended)` in the label so the recommendation is clear:
 
@@ -186,8 +190,14 @@ questions: [
       { label: "acceptEdits", description: "Auto-approve file edits, prompt for shell commands. Good balance if auto is unavailable on your plan." },
       { label: "default", description: "Prompt for permission on first use of each tool" },
       { label: "dontAsk", description: "Deny all tools not in permissions.allow — requires curated allowlist" },
-      { label: "bypassPermissions", description: "No permission prompts. Opt-in for fully unattended Docker-isolated hermits that cannot tolerate any pause." }
+      { label: "bypassPermissions", description: "No permission prompts. Opt-in for unattended hermits that run inside a container or VM and cannot tolerate any pause. On a bare host it has no isolation boundary, and hermit-doctor reports it." }
     ]
+  },
+  {
+    header: "Deployment",
+    question: "How will you run hermit?",
+    // Options ORDERED BY `host` — see the Deployment ordering rule in Quick Turn 3.
+    options: [ /* always-on first (per host), then the other always-on option, then Interactive */ ]
   },
   {
     header: "Routines",
@@ -583,6 +593,20 @@ Then run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/settings-edit.ts .claude-code-hermit
 
 Note to the operator: "Artifact publishing is on — added `Artifact` to `permissions.allow` so refreshes from `/brief`, `/weekly-review`, `/proposal-create`, and `/proposal-act` never prompt. Re-ensured at every boot; revoke with `/hermit-settings artifact-authorization` (bank first publishes instead). Disable any page via `/hermit-settings artifact-dashboard|artifact-proposals|artifact-weekly-review`."
 
+### 9d. Watchdog opt-in (tmux deployments only)
+
+Skip unless `deployment == tmux`. Docker hermits get this from `/docker-setup` (the container runs the watchdog from its entrypoint loop); interactive hermits keep the template default (`false`).
+
+A bare-host always-on hermit needs the watchdog for the same reason a container needs `restart: unless-stopped`: it restarts a dead session, nudges a wedged one, and re-arms missed schedules. Enable it:
+
+```
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/settings-edit.ts .claude-code-hermit/config.json set watchdog.enabled true
+```
+
+Do **not** run `bin/hermit-watchdog install` here. That writes a systemd user unit or a LaunchAgent outside the project and starts a timer; it is the operator's call, and on WSL2 it needs `systemd=true` in `/etc/wsl.conf` first. Step 10 prints the command instead.
+
+Tell the operator: "Watchdog enabled — it restarts the session if it dies. Register the OS timer once with `.claude-code-hermit/bin/hermit-watchdog install` (systemd user timer on Linux and WSL2, LaunchAgent on macOS, cron line printed as fallback)."
+
 ---
 
 ### Domain hatch continuation protocol
@@ -668,11 +692,8 @@ questions: [
   {
     header: "Deployment",
     question: "How will you run hermit?",
-    options: [
-      { label: "Docker always-on", description: "Recommended. Isolated, auto-restart, channel pairing handled by /docker-setup" },
-      { label: "tmux always-on", description: "Persistent on host. Boots via .claude-code-hermit/bin/hermit-start" },
-      { label: "Interactive", description: "Just trying it. /session in your terminal" }
-    ]
+    // Options ORDERED BY `host` from Step 1.5 — see the ordering rule below.
+    options: [ /* always-on first (per host), then the other always-on option, then Interactive */ ]
   },
   {
     header: "Channel",
@@ -693,6 +714,16 @@ questions: [
   }
 ]
 ```
+
+**Deployment ordering rule (Quick and Advanced use the same one).** Always-on is `bin/hermit-start` plus `bin/hermit-watchdog install` on every platform; Docker is an isolation choice on top, not the definition of always-on. So order by `host` and mark the first option `(Recommended)`:
+
+| `host.platform` | First (Recommended) | Then | Last |
+|---|---|---|---|
+| `macos`, `wsl2` | **tmux always-on** — "Persistent on host. `bin/hermit-start` boots it, `bin/hermit-watchdog install` registers the restart timer" | **Docker always-on** — "Runs in a Linux VM here (Docker Desktop). Pick it if you want container isolation" | Interactive |
+| `linux` with `host.docker` | **Docker always-on** — "Isolated, auto-restart, channel pairing handled by /docker-setup" | **tmux always-on** — "Persistent on host, no image build" | Interactive |
+| `linux` without `host.docker` | **tmux always-on** — "Persistent on host. `bin/hermit-start` boots it, `bin/hermit-watchdog install` registers the restart timer" | **Docker always-on** — "Needs Docker Engine installed first" | Interactive |
+
+Interactive is always last: "Just trying it. `/session` in your terminal". Labels stay stable so the recorded value is unambiguous.
 
 Record `sign_off`, `deployment` (one of `docker` / `tmux` / `interactive`), `channel` (one of `none` / `discord` / `telegram`), `idle_behavior` (one of `discover` / `wait`).
 
@@ -757,6 +788,7 @@ Quick replaces Step 4 entirely and applies these defaults silently at the shared
 | Step 8 | plugin permissions (target settings file) | merge silently into `hatch_target` settings file (auto-mode policy needs no seeding — it ships in the per-session overlay `hermit-start` renders at boot) |
 | Step 9 | deny patterns (target settings file) | derived profile silently (Docker → hardened, else → minimal); write to `hatch_target` settings file |
 | Step 9c | Artifact publish permission | same as Advanced — `artifact-allow` applied silently (skip entirely if all three `artifacts.*` are `false`) and `artifacts.publish_authorized` set to `true` in config |
+| Step 9d | `watchdog.enabled` | `true` when `deployment == tmux`; untouched otherwise. The `hermit-watchdog install` command is printed, never run |
 
 ### Quick — auto-chain at end of Step 10
 
@@ -767,8 +799,8 @@ After Step 10 prints the standard report, output the next slash command on its o
 | Deployment | Channel | Output |
 |---|---|---|
 | Docker | any | `/claude-code-hermit:docker-setup quick` |
-| tmux | configured | First print boot command `.claude-code-hermit/bin/hermit-start`, then `/claude-code-hermit:channel-setup` |
-| tmux | none | Print boot command `.claude-code-hermit/bin/hermit-start` (no skill chain) |
+| tmux | configured | First print boot commands `.claude-code-hermit/bin/hermit-start` and `.claude-code-hermit/bin/hermit-watchdog install`, then `/claude-code-hermit:channel-setup` |
+| tmux | none | Print boot commands `.claude-code-hermit/bin/hermit-start` and `.claude-code-hermit/bin/hermit-watchdog install` (no skill chain) |
 | Interactive | configured | `/claude-code-hermit:channel-setup`, then `/claude-code-hermit:session` |
 | Interactive | none | `/claude-code-hermit:session` |
 
@@ -786,7 +818,7 @@ bun ${CLAUDE_PLUGIN_ROOT}/scripts/hatch-report.ts final <PROJECT_ROOT> --deploym
 
 Print its output verbatim. It reads the written `config.json`, the stamped `hatch-options.json`, and the filesystem — it takes no file list from this session, because a model-composed report can claim a file was written that the operator declined. Anything it could not observe is reported as absent, and a run that never wrote `config.json` is reported as an incomplete hatch rather than a success.
 
-`--deployment` is the one thing it cannot read: Quick Turn 3 asks for it and nothing persists it. On the Advanced branch, pass the deployment the operator described, or `interactive` if they didn't say.
+`--deployment` is the one thing it cannot read: both branches ask for it (Quick Turn 3, Advanced Phase 5) and nothing persists it, so pass the recorded answer.
 
 **Quick-mode report adjustment**: collapse "Pick how you'll run hermit" to one line confirming Turn 3's deployment + channel, then emit the auto-chain slash command(s) per the mapping in "Quick — auto-chain at end of Step 10". Keep the "Anytime:" block unchanged.
 

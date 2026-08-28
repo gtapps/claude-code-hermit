@@ -352,6 +352,69 @@ describe('settings-edit apply-known', () => {
     expect(r.exitCode).toBe(1);
     expect(r.stderr).toContain('unknown setting');
   });
+});
+
+// Switching to bypassPermissions removes every action check. Whether that is safe
+// depends on how the hermit boots, which validate() cannot see, so the warning is
+// raised at write time. Non-blocking: the write still lands.
+describe('settings-edit bypassPermissions isolation warning', () => {
+  function seedWithRuntime(runtimeMode?: string): string {
+    const dir = freshDir();
+    const file = seedConfig(dir, { permission_mode: 'auto' });
+    if (runtimeMode !== undefined) {
+      const stateDir = path.join(dir, '.claude-code-hermit', 'state');
+      fs.mkdirSync(stateDir, { recursive: true });
+      fs.writeFileSync(path.join(stateDir, 'runtime.json'), JSON.stringify({ runtime_mode: runtimeMode }));
+    }
+    return file;
+  }
+
+  test('warns on a tmux runtime, and still writes', async () => {
+    const file = seedWithRuntime('tmux');
+    const r = await runScript('settings-edit.ts', {
+      args: [file, 'apply-known', 'permissions', 'bypassPermissions'],
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).toContain('no isolation boundary');
+    expect(readConfig(file).permission_mode).toBe('bypassPermissions');
+  });
+
+  test('stays quiet on a docker runtime', async () => {
+    const file = seedWithRuntime('docker');
+    const r = await runScript('settings-edit.ts', {
+      args: [file, 'apply-known', 'permissions', 'bypassPermissions'],
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).not.toContain('no isolation boundary');
+  });
+
+  // Deliberately broader than doctor's bypass-isolation check, which calls an
+  // interactive runtime ok. permission_mode is persistent and re-asserted at
+  // every boot, so exempting `interactive` here would silence the warning for
+  // exactly the operator who is about to configure an unattended hermit.
+  test('warns on an interactive runtime too, unlike the doctor check', async () => {
+    const file = seedWithRuntime('interactive');
+    const r = await runScript('settings-edit.ts', {
+      args: [file, 'apply-known', 'permissions', 'bypassPermissions'],
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).toContain('no isolation boundary');
+  });
+
+  test('stays quiet when the mode is not bypassPermissions', async () => {
+    const file = seedWithRuntime('tmux');
+    const r = await runScript('settings-edit.ts', { args: [file, 'apply-known', 'permissions', 'acceptEdits'] });
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).not.toContain('no isolation boundary');
+  });
+
+  test('does not re-warn when bypassPermissions was already set', async () => {
+    const dir = freshDir();
+    const file = seedConfig(dir, { permission_mode: 'bypassPermissions', agent_name: 'Atlas' });
+    const r = await runScript('settings-edit.ts', { args: [file, 'apply-known', 'escalation', 'autonomous'] });
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).not.toContain('no isolation boundary');
+  });
 
   test('coerces booleans from operator vocabulary', () => {
     for (const yes of ['on', 'yes', 'true', 'enabled']) {

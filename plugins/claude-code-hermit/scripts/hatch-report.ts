@@ -161,6 +161,11 @@ export function renderFinal(o: Observed, deployment: string): string {
     out.push('  /claude-code-hermit:docker-setup      build and start the container');
   } else if (deployment === 'tmux') {
     out.push('  .claude-code-hermit/bin/hermit-start  boot the always-on session');
+    // Always-on on a bare host is two moves, not one: hermit-start boots the
+    // session, the watchdog timer is what brings it back after a crash or a
+    // reboot. Docker gets the equivalent from restart: unless-stopped, so this
+    // line belongs to the tmux branch alone.
+    out.push('  .claude-code-hermit/bin/hermit-watchdog install  register the restart timer');
     if (channelSummary(c) !== 'none') out.push('  /claude-code-hermit:channel-setup     set the bot token and pair');
   } else {
     if (channelSummary(c) !== 'none') out.push('  /claude-code-hermit:channel-setup     set the bot token and pair');

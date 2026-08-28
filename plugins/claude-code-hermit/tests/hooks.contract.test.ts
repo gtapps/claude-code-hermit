@@ -1955,13 +1955,13 @@ describe('channel-reply-reminder', () => {
 // -------------------------------------------------------
 
 describe('doctor-check', () => {
-  test('doctor-check (minimal install, 29 checks)', withDir(async (dir) => {
+  test('doctor-check (minimal install, 30 checks)', withDir(async (dir) => {
     seedDoctor(dir,
       '{"agent_name":"test","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"active_hours":{"start":"08:00","end":"23:00"}},"routines":[]}');
     const report = await doctorReport(dir);
     expect(report.checks.map((c: any) => c.id)).toEqual([
       'runtime', 'config', 'hooks', 'state', 'cost', 'proposals', 'dependencies', 'version-currency',
-      'permissions', 'docker-security', 'archive', 'auto-close', 'reflect', 'scheduler', 'watchdog', 'context-age', 'opus-wake', 'routine-cost', 'heartbeat',
+      'permissions', 'docker-security', 'bypass-isolation', 'archive', 'auto-close', 'reflect', 'scheduler', 'watchdog', 'context-age', 'opus-wake', 'routine-cost', 'heartbeat',
       'routine-monitor', 'routine-precheck', 'raw-size', 'credential-expiry', 'model-pricing-known', 'memory-size', 'context-scan', 'voice-carrier', 'classifier-denials', 'channel-liveness',
     ]);
   }));

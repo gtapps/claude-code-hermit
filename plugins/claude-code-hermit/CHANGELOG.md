@@ -6,6 +6,9 @@
 1. Tighten permissions on existing JSONL ledgers so the widened doctor check does not report them as world-readable: `find .claude-code-hermit/state -name '*.jsonl' -exec chmod 600 {} +`. Use `find`, not `chmod .../*.jsonl`: an unmatched glob is passed through literally and exits non-zero, which would fail this step on an install that has no ledgers yet.
 
 ### Added
+- `hatch` probes the host (`scripts/host-platform.ts`) and orders its deployment options by platform: tmux always-on is recommended on macOS and WSL2, Docker on a Linux host that has it. Advanced asks the same question Quick does, so `--deployment` is an answer on both branches.
+- A tmux deployment sets `watchdog.enabled: true` at a new hatch Step 9d, and the final report prints `bin/hermit-watchdog install` after `bin/hermit-start`. Always-on on a bare host is those two commands; the wizard never runs the installer itself, since it writes a systemd user unit or a LaunchAgent outside the project.
+- `hermit-doctor` gains a `bypass-isolation` check that warns when `permission_mode` is `bypassPermissions` and `state/runtime.json` records a bare tmux runtime (or no runtime and no container). `settings-edit` prints the same warning when the mode is switched to `bypassPermissions` outside a container.
 - `hermit-doctor` gains a `classifier-denials` check reading a rolling 7 days of auto-mode denials, with the program name for shell commands. It stays `ok` below a reporting floor (under 3 denials, no cluster past 1) since ambient denials are expected under auto mode, `warn`s at or above it, and `fail`s when 3 or more land inside any 10-minute span. Clustering is cross-tool. The finding is maintainer-tier and is held to `SHELL.md` Findings rather than sent to a client chat.
 
 ### Changed

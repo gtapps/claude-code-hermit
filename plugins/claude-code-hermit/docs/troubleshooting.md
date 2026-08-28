@@ -108,6 +108,13 @@ After a survivor-blocked stop the shutdown gate keeps the channel silent, becaus
 - `fail` naming "Monitor subprocess spawn likely blocked" usually means seccomp or nested-user-namespace restrictions inside a container prevented the subprocess from starting — the same failure mode that blocks `/watch` streams and the heartbeat monitor. Check `state/routine-monitor-liveness.json` for a `last_peek_at` timestamp; if it's missing or stale, the subprocess isn't running.
 - `/claude-code-hermit:hermit-routines load` re-registers the monitor and, if registration or liveness-verify fails, automatically falls back to CronCreate — re-run it after fixing the underlying container/sandbox restriction to return to monitor mode.
 
+## Doctor Warns `bypass-isolation`
+
+- The check means `permission_mode` is `bypassPermissions` while `state/runtime.json` records a bare `tmux` runtime (or there is no runtime record and no container). `bypassPermissions` removes every action check, so the container or VM around it is the only remaining boundary.
+- Two fixes, both legitimate: switch to classifier-reviewed autonomy with `/claude-code-hermit:hermit-settings permissions` → `auto`, or move the hermit into a container with `/claude-code-hermit:docker-setup`. The row clears on the next doctor run after the hermit reboots.
+- `ok` on a `docker` or `interactive` runtime is expected: a container supplies the boundary, and an attended terminal session has you watching it.
+- The check reads `runtime_mode` rather than probing for a container, because a Docker hermit's state dir is bind-mounted to the host — a host-side doctor run would otherwise see no container and warn about a hermit that is in fact isolated.
+
 ## Idle Agency Not Working
 
 - Check `idle_behavior` in config.json — must be `"discover"` for maintenance tasks. `"wait"` only checks tasks and channels.

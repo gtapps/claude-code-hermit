@@ -29,8 +29,9 @@ import { SETTINGS, READ_ONLY, byArg, type Setting } from './lib/settings/registr
 import { auditConfigChange, readHistory } from './lib/config-audit';
 import { settingsPolicy } from './lib/channel-auth';
 import { validate } from './validate-config';
-import { flagValue, flagEq } from './lib/cli';
+import { flagValue, flagEq, readJson } from './lib/cli';
 import { safeForLLM } from './lib/sanitize';
+import { isContainer } from './lib/container';
 
 type Json = any;
 
@@ -409,6 +410,27 @@ if (import.meta.main) {
     report.warnings
       .filter((w) => !priorReport.warnings.includes(w))
       .forEach((w) => console.error(`Warning: ${safeForLLM(w)}`));
+    // Turning bypassPermissions ON outside a container removes every action
+    // check with no isolation boundary underneath. validate() can't say this: it
+    // sees the config alone, and the answer depends on how the hermit boots, so
+    // the warning is raised here, where stateDir is in hand. Non-blocking, the
+    // operator may be about to move the hermit into Docker.
+    //
+    // Deliberately broader than doctor's bypass-isolation check, which exempts an
+    // `interactive` runtime because an attended session is someone watching their
+    // own screen. permission_mode is persistent config re-asserted at every boot,
+    // so the mode set from a terminal today is the mode an unattended boot runs
+    // tomorrow, and exempting `interactive` here would silence the warning for
+    // the operator most likely to see it.
+    if (before?.permission_mode !== 'bypassPermissions' && config?.permission_mode === 'bypassPermissions') {
+      const runtimeMode = readJson(path.join(stateDir, 'state', 'runtime.json'))?.runtime_mode;
+      if (runtimeMode !== 'docker' && !isContainer()) {
+        console.error(`Warning: ${safeForLLM(
+          'bypassPermissions has no isolation boundary on a bare host — hermit-start maps it to '
+          + '--dangerously-skip-permissions. Run the hermit in a container, or keep auto.'
+        )}`);
+      }
+    }
     writeJson(targetFile, config);
     auditConfigChange(stateDir, existedBefore ? before : undefined, config, actor);
   };

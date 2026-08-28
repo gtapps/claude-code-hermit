@@ -118,6 +118,19 @@ describe('final next-steps keys off deployment', () => {
     expect(renderFinal(observe(hatched()), 'tmux')).toContain('bin/hermit-start');
   });
 
+  // Always-on on a bare host is two moves: boot the session, then register the
+  // timer that brings it back. Docker gets the second one from its restart policy.
+  test('tmux also prints the watchdog install, after the boot script', () => {
+    const out = renderFinal(observe(hatched()), 'tmux');
+    expect(out).toContain('bin/hermit-watchdog install');
+    expect(out.indexOf('bin/hermit-start')).toBeLessThan(out.indexOf('bin/hermit-watchdog install'));
+  });
+
+  test('docker and interactive do not print the watchdog install', () => {
+    expect(renderFinal(observe(hatched()), 'docker')).not.toContain('hermit-watchdog install');
+    expect(renderFinal(observe(hatched()), 'interactive')).not.toContain('hermit-watchdog install');
+  });
+
   test('interactive points at /session', () => {
     expect(renderFinal(observe(hatched()), 'interactive')).toContain(':session');
   });

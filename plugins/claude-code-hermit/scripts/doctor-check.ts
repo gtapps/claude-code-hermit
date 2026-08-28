@@ -706,6 +706,61 @@ function checkPermissions(p: DoctorPaths = PATHS) {
   }
 }
 
+/**
+ * bypassPermissions with no isolation boundary around it.
+ *
+ * Anthropic's guidance splits cleanly: auto mode reviews each action with a
+ * classifier and does not require a container, while bypassPermissions removes
+ * every check and is only safe inside a container, a VM, or the sandbox runtime
+ * (https://code.claude.com/docs/en/sandbox-environments). hermit-start already
+ * warns about this at boot, but only interactively — an unattended tmux boot
+ * cannot answer that prompt, so nothing catches the combination afterwards.
+ *
+ * runtime_mode is the primary signal, not isContainer(): a Docker hermit's state
+ * dir is bind-mounted to the host, so a doctor run from the host for a
+ * containerized hermit sees no /.dockerenv and would false-positive. The
+ * container probe is only the fallback for a hermit that has never booted.
+ */
+function checkBypassIsolation(p: DoctorPaths = PATHS) {
+  const { hermitDir, stateDir } = p;
+  try {
+    const mode = readSettledConfig(hermitDir).permission_mode;
+    if (mode !== 'bypassPermissions') {
+      return { id: 'bypass-isolation', status: 'ok', detail: `permission_mode ${mode}: no bypass exposure` };
+    }
+
+    const runtimeMode = readJson(path.join(stateDir, 'runtime.json'))?.runtime_mode ?? null;
+
+    if (runtimeMode === 'docker') {
+      return { id: 'bypass-isolation', status: 'ok', detail: 'bypassPermissions inside a container' };
+    }
+    // An attended terminal session is the operator watching their own screen,
+    // which is the one context bypassPermissions was designed for.
+    if (runtimeMode === 'interactive') {
+      return { id: 'bypass-isolation', status: 'ok', detail: 'bypassPermissions, last boot was interactive' };
+    }
+
+    const remedy = 'switch to auto (/hermit-settings permissions) or run in a container (/docker-setup)';
+    if (runtimeMode === 'tmux') {
+      return {
+        id: 'bypass-isolation',
+        status: 'warn',
+        detail: `bypassPermissions on a bare tmux host: no isolation boundary — ${remedy}`,
+      };
+    }
+    if (isContainer()) {
+      return { id: 'bypass-isolation', status: 'ok', detail: 'bypassPermissions inside a container (no runtime record yet)' };
+    }
+    return {
+      id: 'bypass-isolation',
+      status: 'warn',
+      detail: `bypassPermissions with no runtime record and no container detected — ${remedy}`,
+    };
+  } catch (e: any) {
+    return { id: 'bypass-isolation', status: 'fail', detail: `check failed: ${e.message}` };
+  }
+}
+
 const MS_PER_DAY = 86400000;
 
 function daysSince(iso: any): any {
@@ -2268,6 +2323,7 @@ async function runAllChecks(p: DoctorPaths = PATHS) {
     checkVersionCurrency(p),
     checkPermissions(p),
     checkDockerSecurity(p),
+    checkBypassIsolation(p),
     checkArchival(p),
     checkAutoClose(p),
     checkReflectLoop(p),
@@ -2408,7 +2464,7 @@ function writeReport(checks: Json[], escalation?: DoctorEscalation, p: DoctorPat
 export {
   checkRuntime, checkConfig, checkHooks, checkStateFiles,
   checkCost, checkProposals, checkDependencies, checkVersionCurrency, checkPermissions,
-  checkDockerSecurity, checkArchival, checkAutoClose, checkReflectLoop, checkScheduler,
+  checkDockerSecurity, checkBypassIsolation, checkArchival, checkAutoClose, checkReflectLoop, checkScheduler,
   checkWatchdog, checkContextAge, checkOpusWake, checkRoutineCost, checkHeartbeat, checkRoutineMonitor,
   checkRoutinePrecheck, checkRawSize,
   checkCredentialExpiry, checkModelPricingKnown, checkMemorySize, checkContextScan, checkVoiceCarrier, checkClassifierDenials, checkChannelLiveness,
