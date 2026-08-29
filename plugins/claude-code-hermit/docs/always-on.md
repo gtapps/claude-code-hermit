@@ -11,7 +11,7 @@ Both run your hermit unattended between tasks with heartbeat, monitors, and chan
 | Dimension        | Docker (recommended)                                          | tmux                                                        |
 | ---------------- | ------------------------------------------------------------- | ---------------------------------------------------------- |
 | Isolation        | Container sees only what you mount                            | Full host access as your user                              |
-| Crash recovery   | `restart: unless-stopped` auto-restarts on crash and reboot   | Session dies with the host; you restart it manually        |
+| Crash recovery   | `restart: unless-stopped` auto-restarts on crash and reboot   | `bin/hermit-watchdog install` registers a systemd user timer, LaunchAgent, or cron job that restarts it |
 | Environment      | Pinned, reproducible image (Node, Bun, project packages)      | Whatever is installed on the host                          |
 | Host services    | Reach localhost DBs/dev servers via mounts or `network_mode`  | Native, no networking setup                                |
 | Hardening        | Opt-in `/docker-security` overlay (LAN containment, sysctls)  | Deny patterns and hooks only                               |

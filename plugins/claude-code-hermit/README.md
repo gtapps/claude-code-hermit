@@ -124,7 +124,9 @@ The wizard sets up your agent's identity, scans your folder, generates `OPERATOR
 
 Generates the Docker scaffolding, builds the image, starts the container, and walks through auth and channel pairing. The container ships with the hardening baseline (`cap_drop: ALL`, `no-new-privileges`, `pids_limit`). Want stronger isolation? Run [`/docker-security`](docs/docker-security.md) for opt-in LAN containment + DNS allowlist + resource bounds.
 
-See [Always-On Setup](docs/always-on.md) for the full guide. Want always-on without Docker? See [Always-On Operations](docs/always-on-ops.md) for bare tmux.
+`hatch` recommends the shape that fits your machine: Docker on a Linux host that has it, and bare tmux on macOS and WSL2, where Docker means running the hermit inside a second VM. Either way the hermit stays up across crashes and reboots once `.claude-code-hermit/bin/hermit-watchdog install` has registered the OS timer (systemd user timer on Linux and WSL2, LaunchAgent on macOS).
+
+See [Always-On Setup](docs/always-on.md) for the Docker guide, and [Always-On Operations](docs/always-on-ops.md) for the bare-tmux path and the lifecycle reference.
 
 ### Upgrading
 
@@ -178,7 +180,7 @@ Tune from a terminal with `/hermit-settings`, or change permitted settings from 
 | `context_hygiene.compact` | compact long-running active context — **enabled**, `100000` compactible tokens / `4h` cooldown |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | auto-compact at % of context — **`65`** |
 | `MAX_THINKING_TOKENS` | thinking-token cap per turn — **`10000`** |
-| `watchdog.enabled` | external dead-session recovery — **`false`** (local/tmux); `/docker-setup` enables it |
+| `watchdog.enabled` | external dead-session recovery — **`false`** in the template; `hatch` enables it for a tmux deployment, `/docker-setup` for Docker |
 
 
 Full schema in the [Config Reference](docs/config-reference.md)
