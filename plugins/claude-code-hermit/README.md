@@ -1,7 +1,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.53-green.svg" alt="Version 1.2.53" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.3.0-green.svg" alt="Version 1.3.0" /></a>
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/_gh_traffic_stats/.github/badges/clones.json" alt="Downloads" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
   <a href="https://discord.gg/54sJqAxhUh"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Join" /></a>
@@ -23,7 +23,7 @@ cd /path/to/your/project   # any folder, even an empty one — Linux, macOS, WSL
 curl -fsSL https://gtapps.github.io/claude-code-hermit/install.sh | bash
 ```
 
-The installer provisions everything and launches the setup wizard. When it finishes, it hands you the always-on step: `hermit-start` (tmux, same machine) or `/docker-setup` (isolated container).
+Checks prequirements & installs if required (CC, Bun, Tmux), registers this marketplace, and installs the plugin for this folder — then launches your agent setup wizard.
 
 ---
 
@@ -116,7 +116,23 @@ cd /path/to/your/project   # or any folder — even an empty one
 curl -fsSL https://gtapps.github.io/claude-code-hermit/install.sh | bash
 ```
 
-Installs [Claude Code](https://code.claude.com) and [Bun](https://bun.sh) if they're missing, adds tmux, registers the marketplace, and installs the plugin for this folder — then launches the setup wizard. Prefer to read it first, or do it by hand? [Manual install](docs/how-to-use.md#manual-install).
+Installs [Claude Code](https://code.claude.com) and [Bun](https://bun.sh) if they're missing, adds tmux, registers the marketplace, and installs the plugin for this folder — then launches the setup wizard.
+
+<details>
+<summary>Prefer to do it by hand?</summary>
+
+With Claude Code and Bun already present:
+
+```bash
+cd /path/to/your/project
+claude plugin marketplace add gtapps/claude-code-hermit
+claude plugin install claude-code-hermit@claude-code-hermit --scope local
+claude "/claude-code-hermit:hatch"
+```
+
+Details: [Manual install](docs/how-to-use.md#manual-install).
+
+</details>
 
 ### 2. Hatch
 

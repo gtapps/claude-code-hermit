@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.3.0] - 2026-09-02
 
 ### Added
 - `routines.ts arm check` reports the daily anchor's verdict (`HEALTHY` / `ARM` / `SKIP|paused`) without stamping a fire or touching state, so a caller can ask what needs re-arming without claiming the anchor ran.
