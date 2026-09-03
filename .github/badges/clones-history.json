@@ -667,8 +667,13 @@
       "timestamp": "2026-08-31T00:00:00Z",
       "count": 1124,
       "uniques": 372
+    },
+    {
+      "timestamp": "2026-09-01T00:00:00Z",
+      "count": 473,
+      "uniques": 125
     }
   ],
-  "total": 50111,
-  "total_uniques": 17923
+  "total": 50584,
+  "total_uniques": 18048
 }
