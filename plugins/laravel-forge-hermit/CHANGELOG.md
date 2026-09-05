@@ -1,5 +1,10 @@
 # Changelog — laravel-forge-hermit
 
+## [0.0.13] - 2026-09-06
+
+### Changed
+- `hatch` Step 3 no longer reads `.env` at all (previously via `Read`, to check the key was present); credential verification is fully deferred to `forge.php check` in Step 4.
+
 ## [0.0.12] - 2026-08-31
 
 ### Changed
