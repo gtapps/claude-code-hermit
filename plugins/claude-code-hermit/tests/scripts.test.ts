@@ -1130,20 +1130,40 @@ describe('update-alert-state', () => {
     write(stateFile, before);
     let r = await runScript('heartbeat.ts', { args: ['alert-state', stateFile], stdin: JSON.stringify({ firing: 'not-an-array', self_eval_updates: {} }), env: { HERMIT_NOW: NOW } });
     expect(r.exitCode).toBe(0);
-    expect(r.stdout.trim()).toBe('');
+    expect(JSON.parse(r.stdout.trim())).toMatchObject({ heartbeat_result: 'INDETERMINATE', reason: 'missing-or-malformed-firing' });
     expect(readJson(stateFile)).toEqual(JSON.parse(before)); // untouched — never coerced to empty and aged
 
     write(stateFile, before);
     r = await runScript('heartbeat.ts', { args: ['alert-state', stateFile], stdin: JSON.stringify({ firing: [{ key: 'checklist:x' }], self_eval_updates: {} }), env: { HERMIT_NOW: NOW } }); // missing text
     expect(r.exitCode).toBe(0);
-    expect(r.stdout.trim()).toBe('');
+    expect(JSON.parse(r.stdout.trim())).toMatchObject({ heartbeat_result: 'INDETERMINATE', reason: 'missing-or-malformed-firing' });
     expect(readJson(stateFile)).toEqual(JSON.parse(before));
 
     write(stateFile, before);
     r = await runScript('heartbeat.ts', { args: ['alert-state', stateFile], stdin: JSON.stringify({ firing: [{ text: 'x' }], self_eval_updates: {} }), env: { HERMIT_NOW: NOW } }); // neither item nor key
     expect(r.exitCode).toBe(0);
-    expect(r.stdout.trim()).toBe('');
+    expect(JSON.parse(r.stdout.trim())).toMatchObject({ heartbeat_result: 'INDETERMINATE', reason: 'missing-or-malformed-firing' });
     expect(readJson(stateFile)).toEqual(JSON.parse(before));
+  }));
+
+  test('update-alert-state (rejected tick leaves state untouched and logs one indeterminate Monitoring line)', withDir(async (dir) => {
+    const before = '{"alerts":{"stale-session":{"count":1,"consecutive_clean":0,"suppressed":false,"first_seen":"2026-07-01","last_seen":"2026-07-01","text":"t"}},"self_eval":{},"total_ticks":9,"last_clean_eval_at":"2026-07-09T12:00:00.000Z"}';
+    write(hermit(dir, 'state', 'alert-state.json'), before);
+    const { state, stdout, monitoring } = await updateAlertState(dir, '{"firing":null}');
+    expect(state).toEqual(JSON.parse(before)); // untouched — last_clean_eval_at and the live alert both survive
+    expect(stdout).toMatchObject({ heartbeat_result: 'INDETERMINATE', reason: 'missing-or-malformed-firing' });
+    expect(monitoring).toHaveLength(1);
+    expect(monitoring[0]).toContain('evaluation indeterminate (missing-or-malformed-firing)');
+  }));
+
+  // A bare `null` return parses but has no properties — the reject path must
+  // still produce the contract, not a TypeError with empty stdout.
+  test('update-alert-state (payload that parses to a non-object still reports INDETERMINATE)', withDir(async (dir) => {
+    const before = '{"alerts":{},"self_eval":{},"total_ticks":1}';
+    write(hermit(dir, 'state', 'alert-state.json'), before);
+    const { state, stdout } = await updateAlertState(dir, 'null');
+    expect(state).toEqual(JSON.parse(before));
+    expect(stdout).toMatchObject({ heartbeat_result: 'INDETERMINATE', reason: 'missing-or-malformed-firing' });
   }));
 
   test('update-alert-state (duplicate firing keys deduped — first occurrence wins)', withDir(async (dir) => {
@@ -1254,13 +1274,20 @@ describe('update-alert-state', () => {
     expect(r.stdout.trim()).toBe('OK');
   }));
 
-  test('update-alert-state (write failure — no stdout, no side effects)', withDir(async (dir) => {
+  test('update-alert-state (write failure — no side effects)', withDir(async (dir) => {
     const stateFile = hermit(dir, 'state', 'alert-state.json');
-    fs.mkdirSync(stateFile); // path is a directory → write throws EISDIR
-    const r = await runScript('heartbeat.ts', { args: ['alert-state', stateFile], stdin: firingPayload([{ key: 'stale-session', text: 'x' }]), env: { HERMIT_NOW: NOW } });
-    expect(r.exitCode).toBe(0);
-    expect(r.stdout.trim()).toBe('');
-    expect(fs.statSync(stateFile).isDirectory()).toBe(true); // untouched
+    const before = '{"alerts":{},"self_eval":{},"total_ticks":1}';
+    write(stateFile, before);
+    const stateSubdir = path.dirname(stateFile);
+    fs.chmodSync(stateSubdir, 0o555); // read-only dir — the tmp-file write inside writeAlertState fails
+    try {
+      const r = await runScript('heartbeat.ts', { args: ['alert-state', stateFile], stdin: firingPayload([{ key: 'stale-session', text: 'x' }]), env: { HERMIT_NOW: NOW } });
+      expect(r.exitCode).toBe(0);
+      expect(JSON.parse(r.stdout.trim())).toMatchObject({ heartbeat_result: 'INDETERMINATE', reason: 'write-failed' });
+      expect(fs.readFileSync(stateFile, 'utf-8')).toBe(before); // untouched
+    } finally {
+      fs.chmodSync(stateSubdir, 0o755);
+    }
   }));
 
   test('update-alert-state (apostrophe in free-text value round-trips intact)', withDir(async (dir) => {

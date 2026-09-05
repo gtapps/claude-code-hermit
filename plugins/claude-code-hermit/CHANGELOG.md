@@ -55,6 +55,7 @@
 - Each API request billed once per turn instead of once per streamed transcript entry, in both the Stop hook and the async subagent hook.
 - Rate table refreshed for the current generations and keyed on the full model id.
 - 1-hour cache writes and fast mode priced at their own rates.
+- Heartbeat reports `HEARTBEAT_INDETERMINATE` and logs one Monitoring line when the evaluation return is rejected or alert state can't be read or written, instead of `HEARTBEAT_OK`.
 
 ### Upgrade Instructions
 

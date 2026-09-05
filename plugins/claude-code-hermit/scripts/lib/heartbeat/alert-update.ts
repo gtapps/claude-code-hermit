@@ -5,11 +5,13 @@
 // from their source-of-truth and runs the deterministic ladder over the union.
 // Zero npm dependencies, Node stdlib only.
 //
-// Fail-safe contract: ANY validation failure or write failure exits 0 with NO
-// stdout and NO persistent change. The caller (SKILL.md step 5) treats empty
-// stdout identically to a malformed subagent return — skip all writes, emit
-// HEARTBEAT_OK. Only a genuinely unparseable input payload exits 1 (unchanged
-// from before this refactor).
+// Fail-safe contract: ANY validation failure or write failure leaves
+// alert-state.json byte-identical, appends one `Heartbeat: evaluation
+// indeterminate` line to SHELL.md Monitoring, and prints one stdout JSON line
+// with heartbeat_result:"INDETERMINATE" and a reason. The caller (SKILL.md
+// step 5) echoes HEARTBEAT_INDETERMINATE (<reason>) instead of HEARTBEAT_OK.
+// Only a genuinely unparseable input payload exits 1; every other reject path
+// exits 0 (unchanged from before this refactor).
 //
 // On success, appends this tick's monitoring lines to SHELL.md itself and prints
 // one JSON line on stdout: how many landed, the operator notifications derived
@@ -113,20 +115,51 @@ function resolveFiring(entries: RawFiring[], canonical: Set<string> | null): Fir
   return out;
 }
 
+// Reject path: prints the INDETERMINATE stdout contract and appends one
+// Monitoring line, without touching alert-state.json. Exit code matches
+// today's contract: 1 only for invalid-json (unparseable payload), 0 for
+// every other reason.
+function indeterminate(reason: string, exitCode: 0 | 1 = 0): never {
+  const config = readSettledConfig(stateDir);
+  const timezone = config.timezone ?? 'UTC';
+  const nowDate = new Date(resolveHermitNowMs());
+  const nowIso = nowDate.toISOString();
+  const hhmm = currentHHMM(timezone, nowDate) ?? nowIso.slice(11, 16);
+  const appendError = appendShellLine(
+    path.join(stateDir, 'sessions'),
+    'Monitoring',
+    `[${hhmm}] Heartbeat: evaluation indeterminate (${reason}) — state untouched.`,
+  );
+  process.stdout.write(JSON.stringify({
+    appended: appendError ? 0 : 1,
+    ...(appendError ? { append_error: appendError } : {}),
+    notifications: [],
+    self_eval_proposals: [],
+    heartbeat_result: 'INDETERMINATE',
+    reason,
+  }) + '\n');
+  process.exit(exitCode);
+}
+
 function apply(payloadJson: string): void {
   let payload: Json;
   try {
     payload = JSON.parse(payloadJson);
   } catch (err: any) {
     console.error(`update-alert-state: invalid payload JSON: ${err.message}`);
-    process.exit(1);
+    indeterminate('invalid-json', 1);
   }
 
+  // `JSON.parse('null')` parses fine but has no properties — reading `.firing`
+  // off it throws, which would bypass the reject contract entirely (no stdout,
+  // no monitoring line, a stack trace on exit 1).
+  if (!payload || typeof payload !== 'object') indeterminate('missing-or-malformed-firing');
+
   const validated = validateFiring(payload.firing);
-  if (validated === null) process.exit(0); // malformed firing shape — reject the tick, no write
+  if (validated === null) indeterminate('missing-or-malformed-firing'); // malformed firing shape — reject the tick, no write
   const canonical = canonicalChecklistKeys(stateDir);
   const resolved = resolveFiring(validated, canonical);
-  if (resolved === null) process.exit(0);
+  if (resolved === null) indeterminate('unresolvable-firing');
   const modelFiring = resolved.filter(
     f => !isStructuredKey(f.key) && f.key !== STALE_KEY && !f.key.startsWith(DOCTOR_PREFIX),
   );
@@ -145,7 +178,7 @@ function apply(payloadJson: string): void {
     state = defaultAlertState();
   } else {
     console.error(`update-alert-state: read failed (${r.code ?? 'unknown'}); skipping write`);
-    process.exit(0);
+    indeterminate(`read-failed:${r.code ?? 'unknown'}`);
   }
 
   const prevAlerts: Json = state.alerts && typeof state.alerts === 'object' ? state.alerts : {};
@@ -290,7 +323,7 @@ function apply(payloadJson: string): void {
   };
 
   const wrote = writeAlertState(stateFile, updated);
-  if (!wrote) process.exit(0); // fail-safe: no durable write → emit no side effects
+  if (!wrote) indeterminate('write-failed'); // fail-safe: no durable write → emit no side effects
 
   // Ordered, after the durable write. Every failure mode here is file-level (SHELL.md
   // unreadable, no ## Monitoring section, write refused), so the first error is the

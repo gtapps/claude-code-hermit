@@ -1,6 +1,6 @@
 ---
 name: heartbeat
-description: Executes the heartbeat checklist from HEARTBEAT.md. Reads the checklist, evaluates each item, and reports findings or acknowledges with HEARTBEAT_OK. Supports run/start/stop/status/edit subcommands.
+description: Executes the heartbeat checklist from HEARTBEAT.md. Reads the checklist, evaluates each item, and reports findings, acknowledges with HEARTBEAT_OK, or acknowledges a rejected evaluation with HEARTBEAT_INDETERMINATE. Supports run/start/stop/status/edit subcommands.
 ---
 # Heartbeat
 
@@ -55,21 +55,20 @@ This subcommand is the handler for `HEARTBEAT_EVALUATE` notifications emitted by
    > Read `${CLAUDE_PLUGIN_ROOT}/skills/heartbeat/reference.md` for the complete evaluation instructions. Execute the evaluation steps in that file against `.claude-code-hermit/` in the current project directory, using the file paths described there. Return the JSON object exactly as specified in reference.md § Return Schema (no prose). Do NOT write any files or send any notifications — the calling session handles all writes and notifications.
 
    Receive the structured JSON back from the subagent.
-5. **Apply writes** in the main session (to preserve cost attribution and channel/file access). First, validate the subagent return: if it cannot be parsed as JSON, or is missing the required **key** `firing`, **skip all writes and emit `HEARTBEAT_OK`** — fail-open, never corrupt persistent state. Otherwise:
-   - Pass the subagent return to the dedicated script on **stdin** via a quoted heredoc so free-text `text` values (which may contain apostrophes) can't break the command:
+5. **Apply writes** in the main session (to preserve cost attribution and channel/file access). Pass the subagent return to the dedicated script as-is, on **stdin**, via a quoted heredoc so free-text `text` values (which may contain apostrophes) can't break the command — the script is the validator, not this step:
      ```
      bun ${CLAUDE_PLUGIN_ROOT}/scripts/heartbeat.ts alert-state .claude-code-hermit/state/alert-state.json <<'HERMIT_ALERT_JSON'
      <subagent-return-json>
      HERMIT_ALERT_JSON
      ```
-     The script owns all bookkeeping: it derives the file-backed `micro-proposal-pending:*`/`proposal-pending:*` keys itself, unions them with the subagent's `firing` set, and runs the deterministic dedup/suppression/resolution/digest ladder. On success it writes `state/alert-state.json`, appends this tick's monitoring lines to SHELL.md `## Monitoring` itself, and prints one JSON line on stdout: `{"appended": <n>, "append_error": "<msg>"?, "notifications": [...], "self_eval_proposals": [{"key","kind","clean_ticks","noise_ticks","sessions_seen"}], "heartbeat_result": "OK"|"ALERT"}`. It also owns the every-20-ticks self-evaluation of the checklist, so `self_eval` is never yours to write. On any internal validation failure or write failure it writes nothing and prints nothing (exit 0 either way).
-   - **If stdout is empty or unparseable:** skip the remaining sub-steps and emit `HEARTBEAT_OK` — identical fail-open handling to a malformed subagent return; the next tick re-evaluates. Never treat this as an error.
-   - **Otherwise**, parse the script's stdout JSON:
-     - An `append_error` means SHELL.md is unreadable or has lost its `## Monitoring` section; mention it once in your reply and carry on — the durable state was still written.
+     The script owns all bookkeeping: it derives the file-backed `micro-proposal-pending:*`/`proposal-pending:*` keys itself, unions them with the subagent's `firing` set, and runs the deterministic dedup/suppression/resolution/digest ladder. On success it writes `state/alert-state.json`, appends this tick's monitoring lines to SHELL.md `## Monitoring` itself, and prints one JSON line on stdout: `{"appended": <n>, "append_error": "<msg>"?, "notifications": [...], "self_eval_proposals": [{"key","kind","clean_ticks","noise_ticks","sessions_seen"}], "heartbeat_result": "OK"|"ALERT"|"INDETERMINATE", "reason"?}`. It also owns the every-20-ticks self-evaluation of the checklist, so `self_eval` is never yours to write. On a rejected evaluation it leaves `state/alert-state.json` untouched, appends one `Heartbeat: evaluation indeterminate` line to SHELL.md `## Monitoring` itself, and prints `heartbeat_result:"INDETERMINATE"` with a `reason` (exit 1 only for an unparseable payload; exit 0 for every other reject).
+   - **Parse the script's stdout JSON:**
+     - `heartbeat_result: "INDETERMINATE"` means the evaluation was rejected and nothing was written; mention the `reason` once in your reply, respond `HEARTBEAT_INDETERMINATE (<reason>)`, and skip the rest of this bullet — a rejected tick carries no notifications and no proposals. Empty or unparseable stdout is a script crash rather than a rejected evaluation; report it the same way with reason `no-output`.
+     - On an `OK` or `ALERT` tick, an `append_error` means SHELL.md is unreadable or has lost its `## Monitoring` section; mention it once in your reply and carry on — the durable state was still written.
      - For each `notifications` entry: notify the operator (per CLAUDE-APPEND.md § Operator Notification). The script has already decided which ticks are notify-worthy (a new alert, a suppression transition, the daily digest) — send every entry it produced, unconditionally.
      - For each `self_eval_proposals` entry: invoke `/claude-code-hermit:proposal-create` with category `capability`, `source: auto-detected`, `self_eval_key: <key>`, and evidence written from the entry's `kind` and counts (a `clean` entry has been quiet for `clean_ticks` passes across `sessions_seen` sessions; a `noisy` one keeps firing after its proposal was dismissed; `weight` means the checklist has outgrown its recommended size). The list is empty on every tick but the every-20-ticks self-evaluation.
    - **`next_task` from step 1**, once the writes above are done: `"start"` → invoke `/claude-code-hermit:session-start` with no task argument; it adopts the queued task itself. Under `autonomous`, once that task completes, run the `session` skill's Work-done flow (§6) on it, never send a bare notification instead: a notified-but-`in_progress` session triggers stale-session alerts and delays archival. `"waiting"` → nothing further; step 3 owns delivery and the acknowledgement that parks the session.
-6. Respond with `HEARTBEAT_OK` or `HEARTBEAT_ALERT` per the **script's** `heartbeat_result`.
+6. Respond with `HEARTBEAT_OK`, `HEARTBEAT_ALERT`, or `HEARTBEAT_INDETERMINATE (<reason>)` per the **script's** `heartbeat_result`.
 
 ### start
 
