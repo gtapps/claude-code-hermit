@@ -223,6 +223,17 @@ _enumerate_plugin_errors() {
 
 case "$CMD" in
   up)
+    UP_ARGS=()
+    for arg in "$@"; do
+      if [ "$arg" = "--resume" ]; then
+        export HERMIT_RESUME=1
+      else
+        UP_ARGS+=("$arg")
+      fi
+    done
+    # Guarded: expanding an empty array under `set -u` aborts on bash < 4.4 (the
+    # macOS system bash), which would break a plain `hermit-docker up`.
+    if [ ${#UP_ARGS[@]} -gt 0 ]; then set -- "${UP_ARGS[@]}"; else set --; fi
     _validate_compose
     echo "[hermit] Starting Docker container..."
     # Clear any stale conflict marker from a prior inert boot before starting, so
@@ -413,6 +424,17 @@ case "$CMD" in
 
   restart)
     _require_running
+    RESTART_ARGS=()
+    for arg in "$@"; do
+      if [ "$arg" = "--resume" ]; then
+        export HERMIT_RESUME=1
+      else
+        RESTART_ARGS+=("$arg")
+      fi
+    done
+    # Guarded for the same reason as `up` above — bash < 4.4 rejects an empty
+    # array expansion under `set -u`.
+    if [ ${#RESTART_ARGS[@]} -gt 0 ]; then set -- "${RESTART_ARGS[@]}"; else set --; fi
     if [ $# -gt 0 ] && { [ $# -ne 1 ] || [ "$1" != "--build" ]; }; then
       echo "[hermit] ERROR: 'restart' no longer accepts service args. Use 'hermit-docker restart' to restart everything." >&2
       exit 2

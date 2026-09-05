@@ -601,6 +601,18 @@ export HERMIT_ENTRY_PHASE=pre-launch
 if [ -f "${PROJECT_DIR}/docker-entrypoint.hermit-local.sh" ]; then . "${PROJECT_DIR}/docker-entrypoint.hermit-local.sh"; fi
 
 # --- 5. Launch hermit-start ---
+# HERMIT_RESUME is baked into the container's environment when `hermit-docker
+# up|restart --resume` creates it, so `restart: unless-stopped` would replay the
+# opt-in on every daemon restart and host reboot — resuming without the size gate
+# the watchdog applies, and with no way for the operator to see which mode a
+# running container is in. Consume it once per container: the marker lives in the
+# writable layer, so a restart of this container sees it and a recreate (any
+# `hermit-docker up`/`restart`, with or without --resume) does not.
+HERMIT_RESUME_MARKER=/tmp/.hermit-resume-consumed
+if [ "${HERMIT_RESUME:-0}" = "1" ] && [ ! -f "$HERMIT_RESUME_MARKER" ]; then
+  : > "$HERMIT_RESUME_MARKER"
+  set -- --resume "$@"
+fi
 "${AGENT_DIR}/bin/hermit-start" "$@"
 
 # --- 6. Keep PID 1 alive, handle graceful shutdown ---

@@ -65,7 +65,7 @@ function setupHermit(): Hermit {
 
   // Stub hermit-start: writes a marker so we can detect invocation
   const start = path.join(dir, '.claude-code-hermit', 'bin', 'hermit-start');
-  fs.writeFileSync(start, `#!/usr/bin/env bash\necho "hermit-start called" > "${dir}/hermit-start-called"\n`);
+  fs.writeFileSync(start, `#!/usr/bin/env bash\necho "$@" > "${dir}/hermit-start-args"\necho "hermit-start called" > "${dir}/hermit-start-called"\n`);
   fs.chmodSync(start, 0o755);
 
   // Stub bin dir on PATH for fake tmux + pgrep
@@ -5352,4 +5352,32 @@ describe('maybeContextCompact (in-process) — outcome per gate', () => {
     expect(c.sent[0].text).toBe(composeCompactSteeringMessage('boundary'));
     expect(fs.existsSync(markerPath)).toBe(false);
   }));
+});
+
+describe('restart resume', () => {
+  for (const scenario of ['under', 'over', 'no-cost-entry', 'compact-disabled', 'no-session-id', 'stale-entry', 'aberrant-reading']) {
+    test(scenario, withHermit(async (h) => {
+      writeConfig(h);
+      const configPath = path.join(h.dir, '.claude-code-hermit', 'config.json');
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      config.context_hygiene = { compact: { min_context_tokens: 100000, enabled: scenario !== 'compact-disabled' } };
+      fs.writeFileSync(configPath, JSON.stringify(config));
+      if (scenario !== 'no-session-id') patchRuntime(h, { cc_session_id: CC_SESSION_ID });
+      if (scenario === 'stale-entry') patchRuntime(h, { last_context_reset_at: new Date().toISOString() });
+      if (scenario !== 'no-cost-entry') writeCostLog(h, [{
+        session_id: SESSION_ID,
+        input_tokens: scenario === 'aberrant-reading' ? 10000000 : scenario === 'over' ? 100000 : 50000,
+        cache_write_tokens: 0, cache_read_tokens: 0,
+        observed_at: scenario === 'stale-entry' ? '2020-01-01T00:00:00Z' : new Date().toISOString(),
+      }]);
+      writeFakeTmux(h, 0);
+      writeFakePgrep(h, 1);
+      expect((await watchdog(h, 'restart')).exitCode).toBe(0);
+      expect(await waitForStartMarker(h)).toBe(true);
+      expect(fs.readFileSync(path.join(h.dir, 'hermit-start-args'), 'utf8').trim())
+        .toBe(scenario === 'under' ? `--resume ${CC_SESSION_ID}` : '');
+      expect(fs.readFileSync(eventsFile(h), 'utf8')).toContain(scenario === 'under'
+        ? `resume ${CC_SESSION_ID}` : `fresh: ${scenario === 'over' ? 'over-threshold' : scenario}`);
+    }), 45000);
+  }
 });
