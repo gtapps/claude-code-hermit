@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.3] - 2026-09-06
 
 ### Added
 - The operator preview now notes when the target repo defines issue templates under `.github/ISSUE_TEMPLATE/`, via a new `file-issue.ts --templates` mode. Informational only — the body still follows hermit-scribe's fixed shape.
