@@ -91,7 +91,7 @@
       "name": "feed-hermit",
       "source": "./plugins/feed-hermit",
       "description": "A feed-to-brief agent built on claude-code-hermit. Choose the sources, priorities, voice, and schedule; it delivers briefs, tracks developing stories, and audits source quality.",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "category": "productivity",
       "author": {
         "name": "gtapps",

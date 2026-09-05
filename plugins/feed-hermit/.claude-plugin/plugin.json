@@ -1,10 +1,10 @@
 {
   "name": "feed-hermit",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "dependencies": [
     {
       "name": "claude-code-hermit",
-      "version": "^1.2.53"
+      "version": "^1.3.2"
     }
   ],
   "description": "Feed-to-brief pipeline for claude-code-hermit — curated source registry, fetch/score/write/deliver/archive pipeline, weekly synthesis, and source-health analytics for an autonomous feed-reading assistant",

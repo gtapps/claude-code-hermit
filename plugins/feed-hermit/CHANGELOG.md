@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.6] - 2026-09-06
+
+### Fixed
+- `feed-brief` passes the absolute project root and output path to `source-fetcher`, so the subagent's own inherited working directory can no longer redirect its write away from `tmp/feed-source-items-<slot>.json`.
+
 ## [0.1.5] - 2026-08-31
 
 ### Changed
