@@ -152,7 +152,7 @@ your-project/
 │   │   ├── channel-log.sqlite        # Episodic DM log + FTS5 index (PROP-010); created lazily, absent until first message
 │   │   ├── session-diff.json         # Uncommitted file tracking (session-diff-owned)
 │   │   ├── proposal-metrics.jsonl    # Append-only event log (proposal-create + proposal-act)
-│   │   ├── usage-metrics.jsonl       # Append-only skill/compiled-read usage log (usage-track.ts + record-operator-action.ts)
+│   │   ├── usage-metrics.jsonl       # Append-only compiled-read usage log (usage-track.ts)
 │   │   ├── micro-proposals.json      # Pending micro-approvals list (reflect + channel-bridged asks + channel-responder)
 │   │   ├── state-summary.md          # Auto-generated health snapshot (generate-summary.ts)
 │   │   ├── monitors.runtime.json     # Active watch registry, cleared on session start (watch-owned)
@@ -193,7 +193,7 @@ One writer per state file. No shared mutation bus. (Exception: `state/micro-prop
 | `state/session-diff.json`      | session-diff.ts only                                | session-close (display)                                       |
 | `state/observations.jsonl`     | reflect-precheck (`cost-spike`, `startup-drift`) + transcript-digest `--record-observation` (`behavior-digest`) + session-close via `observations.ts` (`skill-correction`, `procedure-noticed`) and channel-responder via `observations.ts` (`skill-correction`) + reflect (`quick-deferral`, `reflect-noticed`); append only | reflect (step 3b graduation), reflection-judge (§1.4 ledger verification) |
 | `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only)        | generate-summary.ts, proposal.ts metrics (read-only)   |
-| `state/usage-metrics.jsonl`    | usage-track.ts (Skill/Read PostToolUse) + record-operator-action.ts (operator-typed `/skill`, append only; compacted >180d by weekly-review) | weekly-review (untouched-knowledge suggestions) |
+| `state/usage-metrics.jsonl`    | usage-track.ts (Read PostToolUse, append only; compacted >180d by weekly-review) | weekly-review (untouched-knowledge suggestions) |
 | `state/micro-proposals.json`   | reflect + channel-bridged skills (queue, schema owned by reflect § Queuing procedure) + channel-responder/brief (resolve) | brief, generate-summary.ts |
 | `state/state-summary.md`       | generate-summary.ts only                            | humans                                                        |
 | `state/monitors.runtime.json`  | watch skill only                                    | session-start (clear on start), session-close (stop all)      |

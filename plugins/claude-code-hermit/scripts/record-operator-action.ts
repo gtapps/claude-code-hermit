@@ -40,7 +40,6 @@ import { hermitDir, sessionId } from './lib/cc-compat';
 import { isAllowedSender } from './lib/channel-auth';
 import { parseChannelEnvelope, type ChannelEnvelope } from './lib/channel-envelope';
 import { readConfigRaw } from './lib/config-read';
-import { appendUsageEvent } from './lib/usage-ledger';
 
 type Json = any;
 
@@ -164,49 +163,11 @@ function isRoutinePrompt(prompt: string, channel?: ChannelGateInputs): boolean {
   return false;
 }
 
-// User-typed skill invocations bypass the Skill tool entirely (live-probed
-// 2026-07-10: zero PostToolUse events fire), so scripts/usage-track.ts never
-// sees them. This is the only capture point for that path.
-//
-// The raw UserPromptSubmit payload for an operator-typed slash command is the
-// bare text as typed (e.g. "/claude-code-hermit:recall") — empirically
-// verified 2026-07-10 (CC v2.1.206) via a raw-stdin capture. The
-// <command-message>/<command-name> wrapper visible in stored transcripts is
-// added later by CC's own prompt-expansion pipeline and never reaches this
-// hook's stdin; an earlier design assumed otherwise by reading transcripts
-// instead of the hook boundary, which was wrong.
-//
-// Restricted to the namespaced `plugin:skill` form (colon required) so
-// native CC commands (/model, /clear, /effort, ...) — never namespaced —
-// can't be mistaken for skill usage. This also means a bare, un-namespaced
-// personal/project skill (e.g. /tackle-issue) isn't captured here; documented
-// as a known gap rather than risking false "skill" entries from native
-// commands. A path or prose that happens to start with "/" only matches if it
-// has the exact "/word:word " shape, which is vanishingly rare.
-const SLASH_COMMAND_RE = /^\/([a-zA-Z][a-zA-Z0-9_-]*:[a-zA-Z][a-zA-Z0-9_-]*)(?:\s|$)/;
-
-function extractSkillName(prompt: string): string | null {
-  const m = prompt.match(SLASH_COMMAND_RE);
-  return m ? m[1] : null;
-}
-
-function appendSkillUsage(name: string): void {
-  try {
-    appendUsageEvent(AGENT_DIR, { ts: new Date().toISOString(), kind: 'skill', name, source: 'prompt' });
-  } catch { /* fail-open */ }
-}
-
 // The UserPromptSubmit half, callable in-process by user-prompt-pipeline.ts.
 // `channel` feeds the channel allowlist gate only — see ChannelGateInputs.
 export function run(prompt: string, channel?: ChannelGateInputs, opts: { openTurn?: boolean; sessionId?: string | null } = {}): boolean {
   if (isRoutinePrompt(prompt, channel)) return false;
 
-  // Skill-usage capture is operator-activity only — hermit's own injected
-  // slash commands (INJECTED_EXACT) are routine prompts, so gating on the
-  // same filter keeps automated heartbeat/session-close/routines fires out
-  // of the usage ledger (they'd otherwise log as source:'prompt' skill use).
-  const skillName = extractSkillName(prompt);
-  if (skillName) appendSkillUsage(skillName);
   if (isGuest(path.join(AGENT_DIR, 'state'), opts.sessionId)) return false;
   write();
   if (opts.openTurn !== false) openTurnMarker();

@@ -23,7 +23,6 @@ describe('guest prompt ownership', () => {
         for (const name of ['last-operator-action.json', 'operator-turn-open.json']) {
           expect(fs.readFileSync(state(dir, name), 'utf-8')).toBe('{"at":"2000-01-01T00:00:00Z"}');
         }
-        expect(fs.readFileSync(state(dir, 'usage-metrics.jsonl'), 'utf-8')).toContain('example:skill');
       }));
     }
   }
