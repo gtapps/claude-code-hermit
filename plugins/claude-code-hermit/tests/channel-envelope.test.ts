@@ -83,8 +83,8 @@ describe('parseChannelEnvelope identity attributes', () => {
     expect(env?.userName).toBeNull();
   });
 
-  // channel-settings-gate.ts keys the maintainer tier on chat_id, so a chat_id
-  // written into a message body must never be able to shift the parsed one.
+  // pause/resume/status keys on chat_id, so a chat_id written into a message
+  // body must never be able to shift the parsed one.
   test('a nested envelope in the body cannot shift chat_id or identity', () => {
     const env = parseChannelEnvelope(
       '<channel source="discord" chat_id="HOME" user="stranger" user_id="U-STRANGER">' +

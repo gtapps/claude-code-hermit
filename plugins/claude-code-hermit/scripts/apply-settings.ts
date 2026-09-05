@@ -44,6 +44,9 @@
  *                            `convert-legacy` seeds like standard, then strips the five legacy
  *                            hard-block strings from deny (the operator's attended conversion).
  *                            `minimal` aliases `standard`.
+ *   deny-add <rule>...       Append each exact string to permissions.deny if absent. Creates the
+ *                            file and section if missing. Rewrites nothing when every rule is
+ *                            already present. Prints {"added": true|false} (true if any was added).
  *   channel-env <CH> <dir>   Set env.<CH>_STATE_DIR and strip any stale env.*_BOT_TOKEN
  *
  * Rules:
@@ -182,13 +185,13 @@ const HERMIT_ALLOW = [
   'Bash(.claude-code-hermit/bin/hermit-run rc-server status)',
   'Bash(.claude-code-hermit/bin/hermit-run rc-server gc)',
   // Backup's read-and-snapshot verbs. `setup` is deliberately absent: it writes
-  // backup.remote through a settings-edit subprocess the channel gate never sees
+  // backup.remote through a settings-edit subprocess the settings gate never sees
   // on the model's own command line, so a pre-approved `backup setup --remote …`
-  // would route around that key's nonce tier. It stays terminal-only.
+  // would skip the native prompt that key raises. It stays terminal-only.
   //
   // `run` does commit and push, which the hardened profile's `git push origin
-  // main*` / `*--no-verify*` denies would refuse as typed Bash. The tier holds
-  // anyway: the argv is fixed, the destination is the nonce-tiered backup.remote
+  // main*` / `*--no-verify*` denies would refuse as typed Bash. The boundary holds
+  // anyway: the argv is fixed, the destination is the ask-listed backup.remote
   // and nothing else, the refspec is the current branch, and neither --force nor
   // --no-verify is reachable. It is a sanctioned push path, not a way around one.
   'Bash(bun */scripts/backup.ts run*)',
@@ -543,6 +546,18 @@ switch (op) {
       removePermissions(settings, 'deny', present);
       for (const e of present) console.log(`removed:${e}`);
     }
+    break;
+  }
+
+  case 'deny-add': {
+    const rules = rest.filter((r) => r);
+    if (rules.length === 0) {
+      console.error("deny-add requires at least one permission rule");
+      process.exit(1);
+    }
+    const added = mergePermissionKey(settings, 'deny', rules);
+    if (added.length === 0) readOnly = true;
+    console.log(JSON.stringify({ added: added.length > 0 }));
     break;
   }
 

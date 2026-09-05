@@ -393,11 +393,9 @@ describe('sendOperatorNotice tiering', () => {
     }
   });
 
-  // Load-bearing for the settings nonce: on an install with no maintainer chat,
-  // channel-settings-gate.ts tells the model to post the confirmation code with
-  // a `--notice` maintainer payload, and the operator has to echo it from the
-  // chat that holds settings authority — the pinned home. This routing is what
-  // puts the code in that same chat.
+  // Load-bearing for maintainer-tier notices: on an install with no maintainer
+  // chat, a `--notice` maintainer payload falls back to the pinned home. This
+  // routing is what puts the notice in that same chat.
   test('technical + no maintainer channel + fallback:client -> primary, route client, client leg deduped', async () => {
     const stub = startHttpStub();
     const wd = setupChannelWorkdir();

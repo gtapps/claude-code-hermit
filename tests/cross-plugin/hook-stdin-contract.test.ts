@@ -71,14 +71,25 @@ const SPECS: Spec[] = [
     failExit: 0,
   },
   {
-    name: 'core/channel-settings-gate',
-    script: 'plugins/claude-code-hermit/scripts/channel-settings-gate.ts',
+    name: 'core/settings-gate',
+    script: 'plugins/claude-code-hermit/scripts/settings-gate.ts',
     benign: BASH_LS,
-    // 0 here, unlike ha/mcp-safety-gate, because this gate's fail-closed
-    // direction is env-gated: denyIfManaged() only blocks under
-    // HERMIT_MANAGED=1 inside a hermit project, neither of which holds in the
-    // clean-env sandbox. That conditional deny is owned by the plugin's own
-    // suite; what this corpus pins is that the oversize path still drains.
+    // 0: oversized stdin raises a native ask (exit 0 + JSON) rather than a
+    // deny. What this corpus pins is that the oversize path still drains.
+    failExit: 0,
+  },
+  {
+    name: 'core/stop-failure-stamp',
+    script: 'plugins/claude-code-hermit/scripts/stop-failure-stamp.ts',
+    // A StopFailure payload, not a tool call: this hook fires at turn end. The
+    // sandbox cwd has no hermit folder, so the stamp write fails open and the
+    // benign case stays independent of the dev box's own state dir.
+    benign: {
+      hook_event_name: 'StopFailure',
+      error: 'model_not_found',
+      session_id: '63d3ccda-cd07-4fd0-a88c-e56ac4ca311a',
+      last_assistant_message: 'There is an issue with the selected model.',
+    },
     failExit: 0,
   },
   {

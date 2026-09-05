@@ -18,6 +18,7 @@ import { setupWorkdir, setupGitWorkdir, fixturesDir, type Workdir } from './help
 import { triggerPrompt } from './helpers/transcript';
 import { cidrOverlap } from '../scripts/doctor-check';
 import { unconsolidated, dbExists } from '../scripts/lib/channel-log';
+import { markGuest } from '../scripts/lib/guest-marker';
 
 // ---------- small local helpers ----------
 
@@ -474,6 +475,29 @@ describe('stop-pipeline', () => {
     });
     expect(r.exitCode).toBe(0);
     expect(fs.existsSync(hermit(dir, 'state', 'operator-turn-open.json'))).toBe(false);
+  }));
+
+  // A Stop means the turn recovered, so the StopFailure stamp is stale by
+  // definition — same clear-before-the-stages placement as the marker above.
+  test('stop-pipeline clears stop-failure.json even when a preceding stage fails', withGitDir(async (dir) => {
+    write(hermit(dir, 'state', 'stop-failure.json'), '{"error":"rate_limit","at":"2026-05-20T09:00:00+0000"}');
+    const r = await runScript('stop-pipeline.ts', {
+      stdin: stopHookInput(dir), cwd: dir, env: PIPE_ENV,
+    });
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(hermit(dir, 'state', 'stop-failure.json'))).toBe(false);
+  }));
+
+  // A guest never touches resident state: the resident's own Stop is what clears
+  // the stamp, and a guest deleting it would blind the watchdog mid-episode.
+  test('stop-pipeline leaves stop-failure.json in place for a guest session', withGitDir(async (dir) => {
+    write(hermit(dir, 'state', 'stop-failure.json'), '{"error":"rate_limit","at":"2026-05-20T09:00:00+0000"}');
+    markGuest(hermit(dir, 'state'), 'test-session-001');
+    const r = await runScript('stop-pipeline.ts', {
+      stdin: stopHookInput(dir), cwd: dir, env: PIPE_ENV,
+    });
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(hermit(dir, 'state', 'stop-failure.json'))).toBe(true);
   }));
 
   test('stop-pipeline (malformed stdin) still clears operator-turn-open.json, fail-open', withDir(async (dir) => {

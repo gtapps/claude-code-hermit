@@ -139,7 +139,7 @@ describe('read-path gate', () => {
     'lib/cc-compat.ts', // hermitDir(): existence walk, never parses
     'docker-preflight.ts', // existence check, never parses
     'lib/config-audit.ts', // audit ledger: the literal is a row's target label, never a path it reads
-    'channel-settings-gate.ts', // PreToolUse gate: the literal is a path suffix it matches tool calls against, never a file it reads
+    'settings-gate.ts', // PreToolUse gate: the literal is a path suffix it matches tool calls against, never a file it reads
   ]);
 
   test('no config.json literal outside config-read importers and the allowlist', () => {

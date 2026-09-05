@@ -28,8 +28,8 @@
 //                    so a payload there could both inject and misattribute.
 //
 // Trust class: an operator-declared executable run unattended by the monitor is the
-// same class as `monitors[].command`, and carries the same protection (nonce tier
-// from chat, see channel-settings-gate.ts). No approval registry beyond that.
+// same class as `monitors[].command`, and carries the same protection (native
+// permission prompt, see settings-gate.ts). No approval registry beyond that.
 //
 // Every failure mode is fail-open: the verdict is `error`, the routine wakes, and the
 // reason lands on the ledger row so `routines.ts health` and the doctor can show an

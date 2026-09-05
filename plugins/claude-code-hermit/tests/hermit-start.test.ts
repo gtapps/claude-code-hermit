@@ -1404,7 +1404,7 @@ describe('renderClassifierOverlay', () => {
     expect(file).toBe(path.resolve(OVERLAY));
     const overlay = readOverlay();
     expect(overlay.autoMode.soft_deny[0]).toBe('$defaults');
-    expect(overlay.autoMode.soft_deny.some((e: string) => e.includes('terminal-only settings'))).toBe(true);
+    expect(overlay.autoMode.soft_deny.some((e: string) => e.includes('Hermit ask-listed settings'))).toBe(true);
   });
 
   // A hermit that publishes nothing still sends on its channels and still runs the

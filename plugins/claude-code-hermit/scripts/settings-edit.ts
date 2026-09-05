@@ -27,7 +27,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { SETTINGS, READ_ONLY, byArg, type Setting } from './lib/settings/registry';
 import { auditConfigChange, readHistory } from './lib/config-audit';
-import { settingsPolicy } from './lib/channel-auth';
 import { validate } from './validate-config';
 import { flagValue, flagEq } from './lib/cli';
 import { safeForLLM } from './lib/sanitize';
@@ -207,18 +206,8 @@ function statefulRows(config: Json): Array<[string, string, string]> {
     ? briefOn.map(n => `${n} ${channels[n].morning_brief.time ?? '?'}`).join(', ')
     : 'disabled';
 
-  // What a chat on each channel may change. Per-channel, so it has no registry
-  // row — same reason the brief above has none. Resolved through the gate's own
-  // settingsPolicy() rather than read raw, so an absent OR unrecognised key
-  // displays the value actually enforced: the operator cares which behaviour is
-  // live, not which key is present.
-  const policies = channelNames.length
-    ? channelNames.map(n => `${n} ${settingsPolicy(config, n)}`).join(', ')
-    : 'none';
-
   return [
     ['Channels', enabled.length ? `${enabled.join(', ')} enabled` : channelNames.length ? 'configured, none enabled' : 'none', 'channels'],
-    ['Settings policy', policies, 'channels'],
     ['Morning brief', brief, 'brief'],
     ['Heartbeat', hb.enabled ? `every ${hb.every ?? '?'}` : 'disabled', 'heartbeat'],
     ['Watchdog', `scheduler ${wd.scheduler_enabled !== false ? 'on' : 'off'}, recovery ${wd.enabled ? 'on' : 'off'}`, 'watchdog'],

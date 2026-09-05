@@ -189,23 +189,6 @@ if (Object.hasOwn(answers, 'channels')) {
     // Outbound-only second destination for maintainer-tier alerts; a freshly
     // answered value must survive re-init (existing values ride the ...existing spread).
     if (Object.hasOwn(ans, 'maintainer_channel_id')) merged.maintainer_channel_id = ans.maintainer_channel_id;
-    // How much settings authority a chat on this channel carries
-    // (lib/channel-auth.ts settingsPolicy). Stamped only onto an entry this call
-    // CREATES: a pre-existing entry with no key predates the setting, and
-    // re-init writing `allow` onto it would silently relax a channel the
-    // resolver is currently holding at the fail-safe `ask`. An operator who
-    // moved it to `ask` or `deny` rides the ...existing spread either way.
-    //
-    // `allow` only for the shape its rationale describes — one operator on their
-    // own chat, where the confirmation code has nobody to separate. A named
-    // maintainer chat (usually a group or server channel) or an allowlist naming
-    // more than one id says there is a second poster, so those start at `ask`.
-    // Placed after both fields so it can read what this call just answered.
-    if (isNewEntry && !Object.hasOwn(merged, 'settings_policy')) {
-      const secondPoster = !!merged.maintainer_channel_id
-        || (Array.isArray(merged.allowed_users) && merged.allowed_users.length > 1);
-      merged.settings_policy = secondPoster ? 'ask' : 'allow';
-    }
     // morning_brief is a two-way switch: a time enables it, an explicit null/empty
     // time disables it (so re-init can turn off a brief the operator previously set).
     if (Object.hasOwn(ans, 'morning_brief_time')) {

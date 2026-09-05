@@ -172,6 +172,42 @@ describe('apply-settings permissions-sync', () => {
   }));
 });
 
+describe('apply-settings deny-add', () => {
+  const RULE = 'Bash(*settings-edit* * env*)';
+
+  test('appends a rule to permissions.deny, creating the file if missing', withTarget(async (target) => {
+    const r = await runScript('apply-settings.ts', { args: [target, 'deny-add', RULE] });
+    expect(r.exitCode).toBe(0);
+    expect(JSON.parse(r.stdout.trim())).toEqual({ added: true });
+    expect(readDeny(target)).toEqual([RULE]);
+  }));
+
+  test('several rules land in one call, skipping those already present', withTarget(async (target) => {
+    seed(target, { permissions: { deny: [RULE] } });
+    const more = 'Bash(*settings-edit* * unset env*)';
+    const r = await runScript('apply-settings.ts', { args: [target, 'deny-add', RULE, more] });
+    expect(r.exitCode).toBe(0);
+    expect(JSON.parse(r.stdout.trim())).toEqual({ added: true });
+    expect(readDeny(target)).toEqual([RULE, more]);
+  }));
+
+  test('a second call with the same rule is idempotent and does not rewrite', withTarget(async (target) => {
+    seed(target, { permissions: { deny: [RULE] } });
+    const original = fs.readFileSync(target, 'utf-8');
+    const r = await runScript('apply-settings.ts', { args: [target, 'deny-add', RULE] });
+    expect(r.exitCode).toBe(0);
+    expect(JSON.parse(r.stdout.trim())).toEqual({ added: false });
+    expect(fs.readFileSync(target, 'utf-8')).toBe(original);
+  }));
+
+  test('refuses a malformed target and leaves the file untouched', withTarget(async (target) => {
+    fs.writeFileSync(target, '{ not json');
+    const r = await runScript('apply-settings.ts', { args: [target, 'deny-add', RULE] });
+    expect(r.exitCode).toBe(1);
+    expect(fs.readFileSync(target, 'utf-8')).toBe('{ not json');
+  }));
+});
+
 describe('sealed registries', () => {
   test('no entry is both canonical and retired', () => {
     const canonical = new Set(HERMIT_ALLOW);

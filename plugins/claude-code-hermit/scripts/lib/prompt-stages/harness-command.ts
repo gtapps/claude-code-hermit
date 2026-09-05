@@ -28,7 +28,7 @@
 
 import { safeForLLM } from '../sanitize';
 import { senderLabel } from '../channel-envelope';
-import { isTrustedController, isSettingsController, channelBotIdentity } from '../channel-auth';
+import { isTrustedController, channelBotIdentity } from '../channel-auth';
 import { parseHarnessCommand, writePendingCommand, renderCommand, permissionModeRefusal } from '../harness-command';
 import { resolveSlashCommand } from '../channel-slash-address';
 import type { StageContext, StageResult } from './types';
@@ -51,9 +51,7 @@ export function run(ctx: StageContext): StageResult | void {
   const parsed = parseHarnessCommand(`${addressed.command}${addressed.rest}`);
   if (!parsed) return;
 
-  const authorized = parsed.command === '/doctor'
-    ? isSettingsController(config, env.source, env.userId, env.chatId)
-    : isTrustedController(config, env.source, env.userId, env.chatId);
+  const authorized = isTrustedController(config, env.source, env.userId, env.chatId);
   if (!authorized) return; // unauthorized — silent no-op
 
   // Interactive sessions store tmux_session: null (hermit-start.ts), so there is no pane

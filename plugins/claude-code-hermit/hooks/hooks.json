@@ -31,11 +31,11 @@
           {
             "type": "command",
             "command": "bun",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/channel-settings-gate.ts"],
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/settings-gate.ts"],
             "timeout": 3
           }
         ],
-        "description": "Deny security-tier hermit settings writes (permission_mode, env, boot_skill, remote, escalation, docker, artifact authorization/backend, channel topology) and direct config.json edits when the current turn was opened by a channel message"
+        "description": "Raise the native permission prompt for execution-adjacent hermit settings, channel enrollment, and direct config.json edits"
       },
       {
         "matcher": "AskUserQuestion",
@@ -177,6 +177,20 @@
           }
         ],
         "description": "Stop pipeline: cost tracking, session diff, evaluation, heartbeat"
+      }
+    ],
+    "StopFailure": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/stop-failure-stamp.ts"],
+            "timeout": 10
+          }
+        ],
+        "description": "Stamp the typed upstream failure the watchdog classifies from"
       }
     ],
     "SubagentStop": [

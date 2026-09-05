@@ -68,7 +68,7 @@ describe('hatch-config.ts', () => {
         { id: 'evening', schedule: '30 22 * * *', skill: 'claude-code-hermit:brief --evening', enabled: true, run_during_waiting: true },
       ],
       channels: {
-        discord: { enabled: true, dm_channel_id: null, default_chat_id: null, state_dir: '.claude.local/channels/discord', settings_policy: 'allow', allowed_users: ['12345'], morning_brief: { enabled: true, time: '07:00' } },
+        discord: { enabled: true, dm_channel_id: null, default_chat_id: null, state_dir: '.claude.local/channels/discord', allowed_users: ['12345'], morning_brief: { enabled: true, time: '07:00' } },
       },
     };
 
@@ -315,7 +315,6 @@ describe('hatch-config.ts', () => {
       dm_channel_id: null,
       default_chat_id: null,
       state_dir: '.claude.local/channels/telegram',
-      settings_policy: 'allow',
     });
     // nothing else moved
     expect(out.agent_name).toBe('Keeper');
@@ -350,14 +349,11 @@ describe('hatch-config.ts', () => {
     expect(out.channels.telegram.default_chat_id).toBe('T42');
     expect(out.channels.telegram.allowed_users).toEqual(['777']);
     expect(out.channels.telegram.state_dir).toBe('.claude.local/channels/telegram');
-    // A tightened policy is an operator decision, not a default to re-assert.
+    // A leftover key rides the existing spread until hermit-evolve unsets it.
     expect(out.channels.telegram.settings_policy).toBe('ask');
   });
 
-  // An entry that predates the key is held at the resolver's fail-safe `ask`.
-  // Stamping `allow` onto it here would relax a live channel on a re-init the
-  // operator ran for some unrelated reason.
-  test('re-init: a channel entry with no settings_policy is not given one', async () => {
+  test('re-init does not stamp the retired settings_policy key', async () => {
     const dir = freshDir();
     seedConfig(dir, {
       ...JSON.parse(fs.readFileSync(TEMPLATE_PATH, 'utf8')),
@@ -374,26 +370,17 @@ describe('hatch-config.ts', () => {
     expect(out.channels.telegram.settings_policy).toBeUndefined();
   });
 
-  // `allow` drops the confirmation code on the assumption of a single poster.
-  // A named maintainer chat (usually a group or server channel) and a
-  // multi-name allowlist both say otherwise, so a new entry carrying either
-  // starts at `ask` instead.
-  test('a new entry with a second poster starts at ask, not allow', async () => {
+  test('a new entry is not stamped with settings_policy', async () => {
     const dir = freshDir();
     const r = await runHatchConfig(dir, {
       project_name: 'my-project',
       channels: {
-        discord: { enabled: true, maintainer_channel_id: 'OPS' },
-        telegram: { enabled: true, allowed_users: ['1', '2'] },
-        imessage: { enabled: true, allowed_users: ['1'] },
+        discord: { enabled: true },
       },
     });
     expect(r.exitCode).toBe(0);
     const out = JSON.parse(fs.readFileSync(configPathFor(dir), 'utf8'));
-
-    expect(out.channels.discord.settings_policy).toBe('ask');
-    expect(out.channels.telegram.settings_policy).toBe('ask');
-    expect(out.channels.imessage.settings_policy).toBe('allow');
+    expect(out.channels.discord.settings_policy).toBeUndefined();
   });
 
 });

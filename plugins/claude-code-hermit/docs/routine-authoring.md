@@ -85,8 +85,8 @@ produce a report.
    new"). It also gets `HERMIT_DIR` and `ROUTINE_ID`, and a deliberately minimal environment —
    secrets belong in a file the script reads, not in the monitor's env. Keep it read-only and cheap:
    mutation belongs in the skill, which only runs when the gate says so. Declaring a gate from chat
-   uses the execution-adjacent tier: `settings_policy: "ask"` requires a code, while
-   `settings_permissions` can re-tier it. In CronCreate fallback mode the gate still runs, but after the
+   raises Claude Code's native permission prompt (see [`docs/security.md`](security.md) § Settings from chat).
+   In CronCreate fallback mode the gate still runs, but after the
    wake: same behavior, no token saving.
 
    Where a gate is not declared, the older in-prompt pattern still works — run the script from the

@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- `StopFailure` hook stamping the turn's typed failure category to `state/stop-failure.json`, which the watchdog's API-failure notice now classifies from when the stamp is newer than the transcript; the transcript scan stays the fallback.
 - `Read(//**/.claude/plugins/**/claude-code-hermit/**)` in the sealed allow-list, so a hermit reading its own installed docs, skills and templates no longer raises a permission prompt on unattended paths like `hermit-evolve`. One rule covers both trees a plugin runs from, the marketplace clone and the versioned cache, and names `claude-code-hermit` in the plugin slot so the grant survives a fork whose marketplace declares another name.
 - Contract test over every sealed path rule: a `Read`/`Edit` pattern that reads as filesystem-wide but is not (a bare `*` or `**` first segment, or a single leading `/`) now fails CI unless it carries a `//` or `~/` anchor.
 - `docs/security.md` notes what to copy when the config directory is not `~/.claude`, such as a profile install at `~/.claude-work`, and records that `//**/` is the spelling that works on Windows, WSL, macOS and Linux alike.
@@ -17,6 +18,7 @@
 - `unhandled` and `unhandled_open` outcomes in the routine history fold, paired against `dispatched` so no arithmetic reaches a model.
 
 ### Changed
+- Execution-adjacent hermit settings, channel enrollment, and direct `config.json` edits raise Claude Code's native permission prompt, delivered to the operator's chat DM or terminal, in place of the settings-chat and confirmation-code tiers; the home chat keeps settings access when a `maintainer_channel_id` is set.
 - `capability-brainstorm` no longer describes itself as never running autonomously.
 - The doctor's "gate never succeeded" heuristic also clears on a dispatch count above the routine's precheck errors.
 - The heartbeat eval contract returns `item`, the `HEARTBEAT.md` line verbatim, for a checklist finding; `checklist:<…>` keys are derived by the writer.
@@ -36,6 +38,11 @@
 - `cost-summary.md` no longer written.
 - `operator_turns` removed from `.status.json`, session-report frontmatter and the weekly review.
 - The usage ledger records `compiled/` reads only; skill invocations, from the Skill tool or a typed `/plugin:skill` command, are no longer written. Rows already recorded thin out at the existing 180-day compaction, which keeps the newest row per skill; nothing reads them.
+
+### Removed
+- `channels.<name>.settings_policy`.
+- `settings_permissions`.
+- The confirmation code.
 
 ### Fixed
 - A native `Artifact` publish on a non-`claude` `artifacts.backend` is now denied by a `PreToolUse` hook that names the backend, so an operator-requested page can no longer land on claude.ai.
@@ -57,8 +64,16 @@
 - Rate table refreshed for the current generations and keyed on the full model id.
 - 1-hour cache writes and fast mode priced at their own rates.
 - The Docker entrypoint's auto-memory seed used a slash-only path key, so a dotted or accented project path seeded a directory Claude Code never reads.
+- Heartbeat reports `HEARTBEAT_INDETERMINATE` and logs one Monitoring line when the evaluation return is rejected or alert state can't be read or written, instead of `HEARTBEAT_OK`.
 
 ### Upgrade Instructions
+
+**Retire the settings-policy dials and leftover confirmation record.**
+
+1. If `settings_permissions.deny` is a non-empty list, for each pattern `P` run `.claude-code-hermit/bin/hermit-run apply-settings <target settings file from state/hatch-options.json> deny-add 'Bash(*settings-edit* * set P*)' 'Bash(*settings-edit* * unset P*)' 'Bash(*settings-edit* * toggle P*)'` (a `*` in `P` stays `*`; the write verbs are named so `get`, `show` and `history` of that path stay open), then `settings-edit … unset settings_permissions`, and tell the operator once which rules were written, that they now hold from the terminal too, not only from chat, and that the `apply-known` spelling of a registry setting (`settings-edit … apply-known <arg> <value>`) is not covered by a path rule. If `settings_permissions` is present without deny entries, just unset it.
+2. For each channel, `unset channels.<name>.settings_policy` if present, and where the value was `deny`, tell the operator once that chat settings writes now prompt instead and that a native `permissions.deny` rule on `Bash(*settings-edit*)` blocks them entirely. If a top-level `settings_from_chat` is present, `unset settings_from_chat` and, where it was `false`, give the operator the same notice.
+3. Delete `.claude-code-hermit/state/settings-confirm.json` if it exists.
+4. Re-sync the CLAUDE-APPEND block.
 
 Run `/claude-code-hermit:hermit-evolve`.
 

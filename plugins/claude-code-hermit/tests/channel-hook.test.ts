@@ -39,8 +39,8 @@ describe('persistDmChannelId — dm_channel_id string coercion', () => {
 
 // The maintainer chat must never be re-learned as dm_channel_id — dm_channel_id
 // binds operator *control* authority in lib/channel-auth.ts isTrustedController,
-// while the maintainer chat carries settings authority instead
-// (isMaintainerController). The two tiers stay on separate chats on purpose.
+// and maintainer_channel_id is outbound routing for technical alerts. The two
+// chats stay separate on purpose.
 describe('persistDmChannelId — maintainer chat exclusion', () => {
   test('a chatId equal to maintainer_channel_id is refused, dm_channel_id untouched', () => {
     const config: any = {

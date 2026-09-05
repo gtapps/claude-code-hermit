@@ -500,11 +500,10 @@ const API_UNAVAILABLE_RE = /API Error:.*(529 Overloaded|500 Internal server erro
 
 export type ApiFailureVerdict = { kind: 'usage-limit'; resetAt: string | null } | { kind: 'api-unavailable' };
 
-/** Verdict on the newest assistant record in a transcript tail, or null when it isn't
- *  a recognised upstream API failure (including: no failure, an auth failure, or a
- *  healthy record newer than any failure). Mirrors classifyQueueTail's tolerant JSONL
- *  scan — a truncated first line from the byte-bounded tail read is expected. */
-export function classifyApiFailureTail(tailText: string): ApiFailureVerdict | null {
+/** Newest assistant record in a transcript tail, with its parsed timestamp, or null
+ *  when the tail carries none. Mirrors classifyQueueTail's tolerant JSONL scan — a
+ *  truncated first line from the byte-bounded tail read is expected. */
+function newestAssistantRecord(tailText: string): { rec: Json; ts: number } | null {
   let newest: { rec: Json; ts: number } | null = null;
   for (const line of tailText.split('\n')) {
     if (!line.includes('"role":"assistant"')) continue;
@@ -515,19 +514,60 @@ export function classifyApiFailureTail(tailText: string): ApiFailureVerdict | nu
     if (Number.isNaN(ts)) continue;
     if (newest === null || ts >= newest.ts) newest = { rec, ts };
   }
-  if (newest === null) return null;
-  const rec = newest.rec;
+  return newest;
+}
+
+/** Usage-limit verdict for a rendered failure message, or null when it carries no limit
+ *  line. The line and its reset clause read the same whichever source supplied the text,
+ *  a synthetic transcript record or the StopFailure stamp's last assistant message. */
+function matchUsageLimit(text: string): ApiFailureVerdict | null {
+  if (!USAGE_LIMIT_RE.test(text)) return null;
+  const reset = text.match(USAGE_LIMIT_RESET_RE);
+  return { kind: 'usage-limit', resetAt: reset?.[1]?.trim() || null };
+}
+
+/** Verdict on one assistant record, or null when it isn't a recognised upstream API
+ *  failure. Separate from classifyApiFailureTail so the 3d tier, which already holds
+ *  the newest record, does not rescan the tail to reach it. */
+function verdictFromAssistantRecord(rec: Json): ApiFailureVerdict | null {
   if (rec.isApiErrorMessage !== true || rec.message?.model !== '<synthetic>') return null;
 
   const content = rec.message?.content;
   const text = Array.isArray(content) && content[0]?.type === 'text' ? String(content[0].text ?? '') : '';
 
-  if (USAGE_LIMIT_RE.test(text)) {
-    const reset = text.match(USAGE_LIMIT_RESET_RE);
-    return { kind: 'usage-limit', resetAt: reset?.[1]?.trim() || null };
-  }
+  const usageLimit = matchUsageLimit(text);
+  if (usageLimit) return usageLimit;
   if (API_UNAVAILABLE_RE.test(text)) return { kind: 'api-unavailable' };
   return null; // auth failure or an unrecognised synthetic record — not this tier's job
+}
+
+/** Verdict on the newest assistant record in a transcript tail, or null when it isn't
+ *  a recognised upstream API failure (including: no failure, an auth failure, or a
+ *  healthy record newer than any failure). */
+export function classifyApiFailureTail(tailText: string): ApiFailureVerdict | null {
+  const newest = newestAssistantRecord(tailText);
+  return newest === null ? null : verdictFromAssistantRecord(newest.rec);
+}
+
+/** Verdict on a `state/stop-failure.json` stamp (stop-failure-stamp.ts's record of a
+ *  StopFailure payload), or null when its category isn't this tier's — an auth failure,
+ *  a model error, or no `error` at all.
+ *
+ *  The typed category replaces the structural gate the transcript path needs: only CC
+ *  fires StopFailure, so there is no quoted-text case to defend against here. The live
+ *  payload key is `error` (probed on CC 2.1.261); the docs spell it `error_type`, and a
+ *  payload carrying only that classifies as null — the transcript tail stays the
+ *  fallback, so an upstream rename degrades to today's behavior rather than to silence.
+ *  `rate_limit` covers both a usage lockout and upstream throttling, so it is the one
+ *  category still split on text. */
+export function classifyStopFailureStamp(stamp: Json): ApiFailureVerdict | null {
+  const error = stamp?.error;
+  if (error === 'rate_limit') {
+    const text = typeof stamp.last_assistant_message === 'string' ? stamp.last_assistant_message : '';
+    return matchUsageLimit(text) ?? { kind: 'api-unavailable' };
+  }
+  if (error === 'overloaded' || error === 'server_error') return { kind: 'api-unavailable' };
+  return null;
 }
 
 /** Tail of the active session's transcript, or null when it can't be located/read.
@@ -672,6 +712,13 @@ function readWatchdogState(world: World = REAL_WORLD): Json {
     return { consecutive_stale: 0, last_pane_hash: null, last_nudge_at: null };
   }
   return data;
+}
+
+/** The StopFailure stamp, or null when absent/unreadable. Written by
+ *  stop-failure-stamp.ts, deleted by stop-pipeline.ts on the next healthy Stop. */
+function readStopFailureStamp(world: World = REAL_WORLD): Json | null {
+  const data = world.files.readJson(path.join(world.paths.stateDir, 'stop-failure.json'));
+  return data && typeof data === 'object' && !Array.isArray(data) ? data : null;
 }
 
 function writeWatchdogState(state: Json, world: World = REAL_WORLD): void {
@@ -2216,7 +2263,27 @@ async function main(): Promise<void> {
     // an operator watching from Discord can tell "Claude is down" from "my agent is
     // broken". Reuses the same tail read above; auth failures return null here and
     // are left to the lapsed-login/env-auth tiers so one event isn't notified twice.
-    const apiFailure = tail === null ? null : classifyApiFailureTail(tail);
+    //
+    // Two sources, newest wins. CC's StopFailure hook stamps the typed `error` for the
+    // turn that just failed, which is the category itself rather than a regex over
+    // rendered text — but only while a session is alive to fire hooks, so the transcript
+    // scan stays the source for a dead-session post-mortem and for any episode that
+    // predates the stamp.
+    const stamp = readStopFailureStamp();
+    const stampAt = stamp ? Date.parse(String(stamp.at ?? '')) : NaN;
+    const newestRecord = tail === null ? null : newestAssistantRecord(tail);
+    // Compared at whole-second granularity: `at` is a localISOStamp (seconds), while a
+    // transcript record carries milliseconds and CC writes that record just BEFORE firing
+    // the hook (22ms earlier when probed). A strict `>` on the truncated value therefore
+    // loses the same-second tie the stamp always creates, and the stamp path would only
+    // ever win when the record and the hook straddle a second boundary. The cost is up to
+    // one second of ambiguity in the other direction, far below any real episode gap.
+    const stampIsNewer = !Number.isNaN(stampAt)
+      && (newestRecord === null || stampAt + 999 >= newestRecord.ts);
+    let apiFailure: ApiFailureVerdict | null;
+    if (stampIsNewer) apiFailure = classifyStopFailureStamp(stamp);
+    else if (newestRecord === null) apiFailure = null;
+    else apiFailure = verdictFromAssistantRecord(newestRecord.rec);
     if (apiFailure) {
       if (!watchdogState.api_failure_notified_at) {
         pushOperatorMessage(composeApiFailureMessage(apiFailure, timezone));

@@ -93,4 +93,4 @@ There is no restore command yet — do it by hand, and read what you are copying
 
 ## Configuration
 
-See the [`backup` section of the config reference](config-reference.md#backup). Every key is settings-gated at the highest tier: a remote can only be changed from a terminal or the settings chat with a confirmation code, and `backup setup` is terminal-only, because a remote set from something the hermit merely read would be a standing exfiltration path.
+See the [`backup` section of the config reference](config-reference.md#backup). Every key raises Claude Code's native permission prompt, because a remote set from something the hermit merely read would be a standing exfiltration path. `backup setup` still runs from a terminal.

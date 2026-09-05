@@ -13,11 +13,6 @@ export const QUALITY_GATE_TIER = ['budget', 'balanced', 'quality'] as const;
 export const ROUTINE_MODEL = ['opus', 'sonnet', 'haiku'] as const;
 export const IDLE_BEHAVIOR = ['wait', 'discover'] as const;
 export const OPERATOR_PROFILE = ['technical', 'non-technical'] as const;
-// Per-channel (`channels.<name>.settings_policy`), so the settings registry has
-// no row for it — the `channels` branch of /hermit-settings edits it, the same
-// way it edits allowed_users and morning_brief. Claude Code's own decision
-// vocabulary on purpose: this answers the same question its permission rules do.
-export const SETTINGS_POLICY = ['allow', 'ask', 'deny'] as const;
 export const BUDGET_ACTION = ['alert', 'pause'] as const;
 // `voice.style`. Deliberately narrower than Claude Code's built-in set: the other
 // built-ins are coding-tool styles (Explanatory and Learning inject "Insights" and

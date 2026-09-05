@@ -79,13 +79,13 @@ test('§1e names the pinned proactive home', () => {
 });
 
 // The pin is what keeps unattended sends (and no-allowlist control authority)
-// from following whoever wrote last, so nothing reachable from a chat may move
-// it — including this settings item.
-test('hermit-settings fences the briefing chat to the terminal', () => {
+// from following whoever wrote last. Moving it is an asked write: the native
+// permission prompt, not a terminal-only fence.
+test('hermit-settings describes the briefing chat as an asked write', () => {
   const settings = fs.readFileSync(
     path.join(PLUGIN_ROOT, 'skills', 'hermit-settings', 'SKILL.md'), 'utf-8',
   );
   expect(settings).toContain('briefing_chat');
   expect(settings).toContain('default_chat_id');
-  expect(settings).toMatch(/terminal only/i);
+  expect(settings).toContain('This write raises the native permission prompt');
 });

@@ -226,7 +226,7 @@ describe('user-prompt-pipeline: shutdown is terminal', () => {
     }
   });
 
-  test('doctor is silent for a trusted sender without settings authority', async () => {
+  test('doctor is recorded for a trusted sender, including on a non-technical install', async () => {
     const stub = startHttpStub();
     try {
       const wd = setupChannelWorkdir();
@@ -239,14 +239,19 @@ describe('user-prompt-pipeline: shutdown is terminal', () => {
       const r = await run(wd, '/doctor', stub.url);
 
       expect(r.exitCode).toBe(0);
-      expect(r.stdout).not.toContain('[harness-command]');
-      expect(fs.existsSync(hermit(wd.dir, 'state', 'pending-harness-command.json'))).toBe(false);
+      const pending = JSON.parse(fs.readFileSync(hermit(wd.dir, 'state', 'pending-harness-command.json'), 'utf-8'));
+      expect(pending).toMatchObject({
+        command: '/doctor',
+        arg: null,
+        reply_to: { source: 'telegram', chat_id: '12345' },
+      });
+      expect(r.stdout).toContain('[harness-command]');
     } finally {
       stub.stop();
     }
   });
 
-  test('doctor is recorded for the default technical settings authority', async () => {
+  test('doctor is recorded from the trusted home chat', async () => {
     const stub = startHttpStub();
     try {
       const wd = setupChannelWorkdir();

@@ -285,31 +285,6 @@ describe('settings-edit show', () => {
     expect(out).toContain('Stateful');
   });
 
-  test('the settings policy row shows each channel, resolving an absent key to ask', () => {
-    const out = renderShow(
-      {
-        channels: {
-          discord: { enabled: true, settings_policy: 'allow' },
-          telegram: { enabled: true },
-          primary: 'discord',
-        },
-      },
-      'cfg.json'
-    );
-    expect(out).toContain('Settings policy');
-    expect(out).toContain('discord allow');
-    expect(out).toContain('telegram ask');
-  });
-
-  // The row must show what the gate enforces, not what the file happens to say:
-  // an unrecognised value is treated as `ask`, so displaying it raw would tell
-  // the operator their channel is relaxed when it is not.
-  test('an unrecognised policy displays as the ask the gate actually applies', () => {
-    const out = renderShow({ channels: { discord: { enabled: true, settings_policy: 'open' } } }, 'cfg.json');
-    expect(out).toContain('discord ask');
-    expect(out).not.toContain('discord open');
-  });
-
   test('an over-long value still leaves a space before the arrow', () => {
     const out = renderShow({ env: { AAAAAAAAAAAAAAAAAAAA: '1', BBBBBBBBBBBBBBBBBBBB: '2' } }, 'cfg.json');
     expect(out).not.toMatch(/\S→/);

@@ -503,87 +503,28 @@ describe('push_notifications validation', () => {
   });
 });
 
-describe('settings_from_chat retirement', () => {
-  // A leftover key is inert, not dangerous: nothing reads it since it became
-  // per-channel `settings_policy`. Erroring would stop a half-migrated hermit
-  // from booting over a key that no longer does anything.
-  test('a leftover key warns rather than erroring, whatever its value', () => {
-    for (const val of [true, false, 'off']) {
-      const out = runValidate({ settings_from_chat: val });
-      expect(out.errors.some((e: string) => e.includes('settings_from_chat'))).toBe(false);
-      expect(out.warnings.some((w: string) => w.includes('settings_from_chat'))).toBe(true);
-    }
+describe('retired settings dials', () => {
+  const RETIRED = 'is retired and no longer read; run /claude-code-hermit:hermit-evolve to remove it';
+
+  test('each leftover key warns once and never errors', () => {
+    const fromChat = runValidate({ settings_from_chat: false });
+    expect(fromChat.errors.some((e: string) => e.includes('settings_from_chat'))).toBe(false);
+    expect(fromChat.warnings.filter((w: string) => w.includes('settings_from_chat') && w.includes(RETIRED))).toHaveLength(1);
+
+    const policy = runValidate({ channels: { discord: { enabled: true, settings_policy: 'allow' } } });
+    expect(policy.errors.some((e: string) => e.includes('settings_policy'))).toBe(false);
+    expect(policy.warnings.filter((w: string) => w.includes('channels.discord.settings_policy') && w.includes(RETIRED))).toHaveLength(1);
+
+    const perms = runValidate({ settings_permissions: { allow: ['routines'] } });
+    expect(perms.errors.some((e: string) => e.includes('settings_permissions'))).toBe(false);
+    expect(perms.warnings.filter((w: string) => w.includes('settings_permissions') && w.includes(RETIRED))).toHaveLength(1);
   });
 
-  test('an absent key says nothing at all', () => {
+  test('absent keys say nothing', () => {
     const out = runValidate({});
     expect(out.warnings.some((w: string) => w.includes('settings_from_chat'))).toBe(false);
-  });
-});
-
-describe('channels.<name>.settings_policy validation', () => {
-  const withPolicy = (settings_policy: unknown, extra: Record<string, unknown> = {}) =>
-    ({ channels: { discord: { enabled: true, settings_policy, ...extra } } });
-
-  test('the three literals are accepted', () => {
-    for (const val of ['allow', 'ask', 'deny']) {
-      const out = runValidate(withPolicy(val));
-      expect(out.errors.some((e: string) => e.includes('settings_policy'))).toBe(false);
-    }
-  });
-
-  test('an unrecognised value is rejected rather than resolved to ask', () => {
-    const out = runValidate(withPolicy('open'));
-    expect(out.errors.some((e: string) => e.includes('settings_policy'))).toBe(true);
-  });
-
-  test('allow with an allowlist naming several people warns', () => {
-    const out = runValidate(withPolicy('allow', { allowed_users: ['u1', 'u2'] }));
-    expect(out.warnings.some((w: string) => w.includes('settings_policy'))).toBe(true);
-  });
-
-  test('allow with a single allowed user is silent', () => {
-    const out = runValidate(withPolicy('allow', { allowed_users: ['u1'] }));
     expect(out.warnings.some((w: string) => w.includes('settings_policy'))).toBe(false);
-  });
-});
-
-// The home-chat settings fallback binds the security tier to the pinned home,
-// so a shared home chat with no allowlist spreads that tier across everyone in
-// it. Warn, never error — a shared home is legitimate, it just needs naming.
-describe('shared-home settings-authority warning', () => {
-  const sharedHome = (extra: any = {}) => ({
-    channels: { discord: { default_chat_id: 'GROUP', dm_channel_id: 'DM', ...extra } },
-  });
-  const warned = (out: any) =>
-    out.warnings.some((w: string) => w.includes('can change this hermit\'s security-tier settings'));
-
-  test('warns on a shared home with no allowlist and no maintainer chat', () => {
-    expect(warned(runValidate(sharedHome()))).toBe(true);
-  });
-
-  test('silent once allowed_users names the operators', () => {
-    expect(warned(runValidate(sharedHome({ allowed_users: ['u-operator'] })))).toBe(false);
-  });
-
-  test('silent when a maintainer chat holds the tier instead', () => {
-    expect(warned(runValidate(sharedHome({ maintainer_channel_id: 'OPS' })))).toBe(false);
-  });
-
-  test('silent on a client-facing install, where the fallback never applies', () => {
-    const out = runValidate({ ...sharedHome(), operator_profile: 'non-technical' });
-    expect(warned(out)).toBe(false);
-  });
-
-  test('silent when the pinned home is the operator DM itself', () => {
-    const out = runValidate({
-      channels: { discord: { default_chat_id: 'DM', dm_channel_id: 'DM' } },
-    });
-    expect(warned(out)).toBe(false);
-  });
-
-  test('it is a warning, never an error', () => {
-    expect(runValidate(sharedHome()).errors.some((e: string) => e.includes('security-tier'))).toBe(false);
+    expect(out.warnings.some((w: string) => w.includes('settings_permissions'))).toBe(false);
   });
 });
 
@@ -1410,7 +1351,7 @@ describe('bootstrap skills', () => {
 // The skill defines channel branches (Step 0, the quality-gate and
 // artifact-authorization `--answer` re-entries channel-responder invokes via
 // the Skill tool). disable-model-invocation made all of them unreachable.
-// The security tier is held by scripts/channel-settings-gate.ts instead, so
+// Execution-adjacent writes are held by scripts/settings-gate.ts instead, so
 // the flag must not come back.
 // ============================================================
 
@@ -1424,8 +1365,7 @@ describe('hermit-settings channel reachability', () => {
   });
 
   test('Step 0 fences the security tier and names the enforcing gate', () => {
-    expect(text).toContain('channel-settings-gate.ts');
-    expect(text).toMatch(/view-only/i);
+    expect(text).toContain('settings-gate.ts');
   });
 });
 
@@ -3529,14 +3469,13 @@ describe('voice carrier contract', () => {
 
   // Operators run these hermits from a chat, so the voice is reachable there —
   // but split by what the value carries: three sealed style names are everyday
-  // settings, while free prose feeds the next session's system prompt and stays
-  // in the class the confirmation code exists for.
+  // settings, while free prose feeds the next session's system prompt and
+  // raises the native permission prompt.
   test('hermit-settings tiers the voice rather than holding all of it at the terminal', () => {
     const settings = read(path.join(SKILLS, 'hermit-settings', 'SKILL.md'));
     expect(settings).toContain('**If argument is "voice":**');
-    expect(settings).toContain('Tiered, not terminal-only.');
-    // The nonce bullet must name the prose leaf, not the whole setting.
-    expect(settings).toContain('`voice.prose` (free text');
+    expect(settings).toContain('Picking a built-in is an everyday setting');
+    expect(settings).toContain('Writing custom prose raises the native permission prompt');
   });
 
   test('hatch asks the comms question in the batch but keeps the answer out of OPERATOR.md', () => {
@@ -3704,8 +3643,8 @@ describe('proactive-notify unification contract', () => {
 // The subagent (reference.md) and the calling skill (SKILL.md) must agree on
 // the return shape, and neither may reintroduce the model-authored bookkeeping
 // fields that update-alert-state.ts now owns exclusively. A drift here (e.g.
-// SKILL.md validating a stale key list, or reference.md instructing the model
-// to emit `suppressed`/`resolved_keys` again) would silently reopen #594.
+// SKILL.md pre-validating the return itself, or reference.md instructing the
+// model to emit `suppressed`/`resolved_keys` again) would silently reopen #594.
 // ============================================================
 
 describe('heartbeat eval-runner return contract', () => {
@@ -3739,8 +3678,14 @@ describe('heartbeat eval-runner return contract', () => {
     expect(reference).toContain('**Never** emit a `micro-proposal-pending:*` or `proposal-pending:*` key, or the `stale-session` key.');
   });
 
-  test('SKILL.md step 5 validates exactly the new required-key list', () => {
-    expect(skill).toContain('missing the required **key** `firing`');
+  test('SKILL.md step 5 leaves validation to the script', () => {
+    // Pre-validating here is what made a rejected evaluation report
+    // HEARTBEAT_OK: the skill swallowed the reject and the script never saw it.
+    expect(skill).not.toContain('skip all writes and emit `HEARTBEAT_OK`');
+    // Positive half: a pure absence assertion also passes on a step 5 that lost
+    // the script call or the reject branch outright.
+    expect(skill).toContain('heartbeat.ts alert-state');
+    expect(skill).toContain('respond `HEARTBEAT_INDETERMINATE (<reason>)`');
     for (const field of REMOVED_MODEL_FIELDS) {
       expect(skill).not.toContain(`\`${field}\``);
     }
@@ -3956,76 +3901,6 @@ describe('worktree state-dir template contract', () => {
     expect(close).toBeGreaterThan(open);
     expect(block.indexOf(CONFIG_LINE)).toBeGreaterThan(open);
     expect(block.indexOf(CONFIG_LINE)).toBeLessThan(close);
-  });
-});
-
-// ============================================================
-// validate-config: settings_permissions
-// ============================================================
-
-describe('settings_permissions validation', () => {
-  test('absent, or a well-formed map, is clean', () => {
-    expect(runValidate({}).errors).toEqual([]);
-    const out = runValidate({ settings_permissions: { allow: ['routines'], deny: ['escalation'] } });
-    expect(out.errors).toEqual([]);
-    expect(out.warnings).toEqual([]);
-  });
-
-  test('the map must be an object of rule lists', () => {
-    expect(runValidate({ settings_permissions: ['routines'] }).errors
-      .some((e: string) => e.includes('expected object with allow/ask/deny arrays'))).toBe(true);
-    expect(runValidate({ settings_permissions: { allow: 'routines' } }).errors
-      .some((e: string) => e.includes('expected array of dotted config paths'))).toBe(true);
-    expect(runValidate({ settings_permissions: { maintainer: ['routines'] } }).errors
-      .some((e: string) => e.includes('not a rule list'))).toBe(true);
-  });
-
-  test('a rule that names a terminal-only key is an error, because it never applies', () => {
-    for (const p of ['channels.discord.allowed_users', 'channels.*.settings_policy',
-                     'operator_profile', 'settings_permissions']) {
-      const out = runValidate({ settings_permissions: { allow: [p] } });
-      expect(out.errors.some((e: string) => e.includes(p) && e.includes('never applies'))).toBe(true);
-    }
-    // Listing one under `deny` is redundant rather than wrong — the gate already
-    // holds it there, so nothing is being claimed that isn't true.
-    expect(runValidate({ settings_permissions: { deny: ['operator_profile'] } }).errors).toEqual([]);
-  });
-
-  test('lowering an execution-adjacent path warns, and names the client chat when there is one', () => {
-    const out = runValidate({ settings_permissions: { allow: ['routines.*.precheck', 'permission_mode'] } });
-    expect(out.errors).toEqual([]);
-    expect(out.warnings.filter((w: string) => w.includes('execution-adjacent')).length).toBe(2);
-    expect(out.warnings.some((w: string) => w.includes('non-technical'))).toBe(false);
-
-    const client = runValidate({
-      operator_profile: 'non-technical',
-      settings_permissions: { allow: ['routines.*.precheck'] },
-    });
-    expect(client.warnings.some((w: string) => w.includes('non-technical'))).toBe(true);
-  });
-
-  test('raising a path never warns', () => {
-    const out = runValidate({ settings_permissions: { deny: ['boot_skill'], ask: ['model', 'env'] } });
-    expect(out.errors).toEqual([]);
-    expect(out.warnings).toEqual([]);
-  });
-
-  test('a wildcard that reaches an execution-adjacent path warns like a literal one', () => {
-    // `*` and `*.*` name no family literally, yet they lower `permission_mode`,
-    // `env.KEY` and the rest — the broadest rules an operator can write must not
-    // be the quietest ones.
-    for (const p of ['*', '*.*', 'env.*', 'routines.0.*']) {
-      const out = runValidate({ settings_permissions: { allow: [p] } });
-      expect(out.warnings.some((w: string) => w.includes('execution-adjacent') && w.includes(`"${p}"`))).toBe(true);
-    }
-    // A wildcard that reaches nothing execution-adjacent still stays quiet.
-    expect(runValidate({ settings_permissions: { allow: ['heartbeat.*'] } }).warnings).toEqual([]);
-  });
-
-  test('an entry that is not a dotted path is reported, not silently dropped', () => {
-    const out = runValidate({ settings_permissions: { allow: ['model', 42, ''] } });
-    expect(out.errors.some((e: string) => e.includes('settings_permissions.allow[1]'))).toBe(true);
-    expect(out.errors.some((e: string) => e.includes('settings_permissions.allow[2]') && e.includes('empty string'))).toBe(true);
   });
 });
 

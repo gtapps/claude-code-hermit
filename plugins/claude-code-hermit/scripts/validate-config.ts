@@ -6,14 +6,6 @@ import { validateExpectArtifact } from './lib/routines/run-record';
 import { validatePrecheckValue, validatePrecheckTimeout } from './lib/routines/gate';
 import { ENV_VAR_RE } from './lib/channel-config';
 import { toPushUrl } from './lib/backup';
-// Shared with channel-settings-gate.ts so the hook that enforces a tier and the
-// validator that reports an unenforceable rule cannot drift on what belongs to
-// which set. From the leaf module rather than the gate itself: this hook runs on
-// every Edit and Write and exits on one string test, and has no business loading
-// the gate's transcript, envelope and nonce machinery to ask a regex question.
-import {
-  isImmutablePath, ruleReachesExecutionAdjacent, parseSettingsRules, rulePatternProbe,
-} from './lib/settings/permissions';
 
 type Json = any;
 
@@ -44,15 +36,8 @@ const VALID_QUALITY_GATE_TIER = ENUM.QUALITY_GATE_TIER;
 const VALID_ROUTINE_MODEL = ENUM.ROUTINE_MODEL;
 const VALID_IDLE_BEHAVIOR = ENUM.IDLE_BEHAVIOR;
 const VALID_OPERATOR_PROFILE = ENUM.OPERATOR_PROFILE;
-const VALID_SETTINGS_POLICY: readonly string[] = ENUM.SETTINGS_POLICY;
 const VALID_BUDGET_ACTION = ENUM.BUDGET_ACTION;
 const VALID_VOICE_STYLE: readonly string[] = ENUM.VOICE_STYLE;
-
-// Claude Code's own permission-rule vocabulary, which `settings_permissions`
-// borrows wholesale. Ordered by strictness so a rule can be compared against the
-// tier the gate would apply on its own.
-const SETTINGS_RULE_KEYS = ['allow', 'ask', 'deny'] as const;
-const RULE_STRICTNESS: Record<(typeof SETTINGS_RULE_KEYS)[number], number> = { allow: 0, ask: 1, deny: 2 };
 const VALID_TELEMETRY_DEST = ENUM.TELEMETRY_DEST;
 const VALID_BACKUP_MODE: readonly string[] = ENUM.BACKUP_MODE;
 const VALID_BACKUP_INCLUDE: readonly string[] = ENUM.BACKUP_INCLUDE;
@@ -124,70 +109,8 @@ function validateCronSchedule(schedule: string): string | null {
   return null;
 }
 
-/**
- * `settings_permissions` — the operator's re-tiering of the channel settings gate,
- * in Claude Code's `allow`/`ask`/`deny` rule shape.
- *
- * Three things are worth saying out loud, and only the first is an error:
- * a rule that names a path the gate holds terminal-only on every tier never
- * applies, so listing one under `allow`/`ask` is a belief about this hermit's
- * security that is not true. Lowering an execution-adjacent path is legitimate —
- * it is the reason the key exists — but it is the operator standing down a
- * default deliberately, so it is said back to them once, and again louder when
- * the home chat belongs to a client rather than to them.
- */
-function validateSettingsPermissions(config: Json, errors: string[], warnings: string[]): void {
-  const raw = config.settings_permissions;
-  if (raw === undefined || raw === null) return;
-  if (typeof raw !== 'object' || Array.isArray(raw)) {
-    errors.push(`settings_permissions: expected object with allow/ask/deny arrays, got ${Array.isArray(raw) ? 'array' : typeof raw}`);
-    return;
-  }
-
-  for (const key of Object.keys(raw)) {
-    if (!(SETTINGS_RULE_KEYS as readonly string[]).includes(key)) {
-      errors.push(`settings_permissions.${key}: not a rule list — expected one of [${SETTINGS_RULE_KEYS.join(', ')}]`);
-      continue;
-    }
-    if (!Array.isArray(raw[key])) {
-      errors.push(`settings_permissions.${key}: expected array of dotted config paths, got ${typeof raw[key]}`);
-      continue;
-    }
-    // parseSettingsRules drops anything that isn't a non-empty string, so an
-    // entry of the wrong shape applies to nothing and would otherwise vanish
-    // without a word — the same silent-belief problem as an immutable path.
-    raw[key].forEach((entry: Json, i: number) => {
-      if (typeof entry !== 'string' || entry.length === 0) {
-        errors.push(
-          `settings_permissions.${key}[${i}]: expected a dotted config path, got ${entry === '' ? 'an empty string' : typeof entry} — it is ignored`,
-        );
-      }
-    });
-  }
-
-  const rules = parseSettingsRules(raw);
-  if (!rules) return;
-
-  const clientHome = config.operator_profile === 'non-technical';
-  for (const key of SETTINGS_RULE_KEYS) {
-    for (const pattern of rules[key]) {
-      const probe = rulePatternProbe(pattern);
-      if (isImmutablePath(probe)) {
-        if (key !== 'deny') {
-          errors.push(
-            `settings_permissions.${key}: "${pattern}" names a terminal-only key (channel enrollment, operator_profile or settings_permissions) — no rule can lower those, so this entry never applies; remove it`,
-          );
-        }
-        continue;
-      }
-      if (ruleReachesExecutionAdjacent(pattern) && RULE_STRICTNESS[key] < RULE_STRICTNESS.ask) {
-        warnings.push(
-          `settings_permissions.${key}: "${pattern}" lowers an execution-adjacent setting (it reaches what a session runs) below its default confirmation tier` +
-          (clientHome ? ' — and operator_profile is "non-technical", so the chat this hands it to is the client\'s, not yours' : ''),
-        );
-      }
-    }
-  }
+function retiredKeyWarning(key: string): string {
+  return `${key} is retired and no longer read; run /claude-code-hermit:hermit-evolve to remove it`;
 }
 
 function validate(config: Json): { errors: string[]; warnings: string[] } {
@@ -218,7 +141,9 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
     }
   }
 
-  validateSettingsPermissions(config, errors, warnings);
+  if (config.settings_permissions !== undefined) {
+    warnings.push(retiredKeyWarning('settings_permissions'));
+  }
 
   if (config.remote !== undefined && typeof config.remote !== 'boolean') {
     errors.push(`remote: expected boolean, got ${typeof config.remote}`);
@@ -436,57 +361,38 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
       if (ch.default_chat_id !== undefined && ch.default_chat_id !== null && typeof ch.default_chat_id !== 'string') {
         errors.push(`channels.${name}.default_chat_id: must be string or null`);
       }
-      // Reject rather than coerce: channel-settings-gate resolves an
-      // unrecognised value to `ask`, so a typo would silently keep the
-      // confirmation code an operator meant to switch off (or, worse, read as
-      // relaxed when they meant to lock the channel down).
-      if (ch.settings_policy !== undefined &&
-          !VALID_SETTINGS_POLICY.includes(ch.settings_policy)) {
-        errors.push(
-          `channels.${name}.settings_policy: "${ch.settings_policy}" not in [${VALID_SETTINGS_POLICY.join(', ')}]`,
-        );
-      }
-      // `allow` drops the confirmation code because the settings chat is assumed
-      // to have one poster. An allowlist naming several people says otherwise on
-      // the operator's own authority, so surface the contradiction rather than
-      // guessing which of the two they meant.
-      if (ch.settings_policy === 'allow' && Array.isArray(ch.allowed_users) && ch.allowed_users.length > 1) {
-        warnings.push(
-          `channels.${name}.settings_policy is "allow" but allowed_users names ${ch.allowed_users.length} people — execution-adjacent settings apply from any of them with no confirmation code; set it to "ask" if that is not what you want`,
-        );
+      if (ch.settings_policy !== undefined) {
+        warnings.push(retiredKeyWarning(`channels.${name}.settings_policy`));
       }
       // The pinned proactive home must not be the maintainer chat: unlike
       // dm_channel_id, nothing re-learns this field, so a collision here sends
       // every briefing to the maintainer chat until the operator rebinds from
-      // the terminal. It also collapses two deliberately separate tiers onto
-      // one chat — control authority (isTrustedController) and settings
-      // authority (isSettingsController) are split across chats on purpose.
-      // Warn (like the dm collision below) so doctor reports it.
+      // the terminal. It also collapses control authority (isTrustedController)
+      // onto the outbound-routing chat. Warn (like the dm collision below) so
+      // doctor reports it.
       if (ch.default_chat_id != null && ch.maintainer_channel_id != null &&
           String(ch.default_chat_id) === String(ch.maintainer_channel_id)) {
         warnings.push(
-          `channels.${name}.default_chat_id equals maintainer_channel_id — proactive sends are pinned to the maintainer chat and it now carries control authority as well as the settings tier; re-point it with /claude-code-hermit:hermit-settings at the terminal`,
+          `channels.${name}.default_chat_id equals maintainer_channel_id — proactive sends are pinned to the maintainer chat and it now carries control authority too; re-point it with /claude-code-hermit:hermit-settings at the terminal`,
         );
       }
-      // Same tier collapse from the other side. If the maintainer chat also sits
-      // in dm_channel_id the primary DM binding was clobbered (fixed in
-      // channel-hook's persistDmChannelId) or was configured to the same chat —
-      // either way that chat now satisfies the DM-bound operator-trust check too
-      // and pairing will never self-correct until a real DM arrives. Surface it
-      // so doctor's config check reports it.
+      // If the maintainer chat also sits in dm_channel_id the primary DM binding
+      // was clobbered (fixed in channel-hook's persistDmChannelId) or was
+      // configured to the same chat — either way that chat now satisfies the
+      // DM-bound operator-trust check too and pairing will never self-correct
+      // until a real DM arrives. Surface it so doctor's config check reports it.
       if (ch.dm_channel_id != null && ch.maintainer_channel_id != null &&
           String(ch.dm_channel_id) === String(ch.maintainer_channel_id)) {
         warnings.push(
           `channels.${name}.dm_channel_id equals maintainer_channel_id — the maintainer chat is bound as the operator DM, so it carries control authority too; send a message from the real DM chat to re-pair`,
         );
       }
-      // The home-chat settings fallback (lib/channel-auth.ts
-      // isSettingsController) hands the security tier to whoever matches the
-      // pinned home. When that home is a group or server channel — the shape
-      // this heuristic reads: a pin that differs from the last chat the operator
-      // wrote from — every member of it holds the tier, since with no
-      // allowed_users the chat id is the only factor. Warn, don't error: a
-      // shared home is a legitimate setup, it just has to name its operators.
+      // When the pinned home is a group or server channel — the shape this
+      // heuristic reads: a pin that differs from the last chat the operator
+      // wrote from — every member of it can pause or resume the hermit, since
+      // with no allowed_users the chat id is the only factor. Warn, don't
+      // error: a shared home is a legitimate setup, it just has to name its
+      // operators.
       //
       // Partial signal, deliberately: `dm_channel_id` is the last inbound chat,
       // not a verified 1:1 DM, and channel-hook seeds `default_chat_id` from the
@@ -498,7 +404,7 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
           String(ch.default_chat_id) !== String(ch.dm_channel_id) &&
           config.operator_profile !== 'non-technical') {
         warnings.push(
-          `channels.${name}.default_chat_id looks like a shared chat (it differs from dm_channel_id) with no allowed_users and no maintainer_channel_id — every member of it can change this hermit's security-tier settings; set allowed_users to name your operators`,
+          `channels.${name}.default_chat_id looks like a shared chat (it differs from dm_channel_id) with no allowed_users and no maintainer_channel_id — every member of it can pause or resume this hermit; set allowed_users to name your operators`,
         );
       }
     }
@@ -810,18 +716,8 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
     errors.push('ask_gate: must be a boolean');
   }
 
-  // Retired in favour of per-channel `channels.<name>.settings_policy`. A
-  // leftover key is not inert: `settingsPolicy` still honors a literal `false`
-  // as `deny` on any channel with no policy of its own, so the operator's
-  // opt-out survives an unmigrated upgrade. Warn (so doctor reports it and the
-  // pending migration is visible) rather than erroring, which would stop a
-  // half-migrated hermit from booting.
   if (config.settings_from_chat !== undefined) {
-    warnings.push(
-      config.settings_from_chat === false
-        ? 'settings_from_chat is retired — its `false` still applies as settings_policy "deny" on every channel that has none of its own, but only until you migrate: run /claude-code-hermit:hermit-evolve to move it to channels.<name>.settings_policy'
-        : 'settings_from_chat is retired and no longer read — run /claude-code-hermit:hermit-evolve to move it to channels.<name>.settings_policy, or unset it',
-    );
+    warnings.push(retiredKeyWarning('settings_from_chat'));
   }
 
   if (config.artifacts !== undefined) {
