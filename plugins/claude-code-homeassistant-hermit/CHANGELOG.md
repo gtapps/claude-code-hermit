@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.12] - 2026-09-06
+
+### Changed
+- `ha-apply-change` merges the `ask`-mode policy confirmation into the single operator confirmation before applying, instead of prompting twice. An approval covering the same artifact and reload domain is reused within the task; changed content or targets require a new confirmation.
+
+### Fixed
+- A test now pins the ordering of `ha-apply-change`'s steps (policy check before approval, approval before the write) so a future edit can't silently reorder them.
+
 ## [0.4.11] - 2026-08-31
 
 ### Changed
