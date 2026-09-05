@@ -15,6 +15,7 @@ import path from 'node:path';
 
 import { PLUGIN_ROOT } from './helpers/run';
 import { freshDirFactory } from './helpers/workdir';
+import { memoryDirFor } from '../scripts/lib/cc-compat';
 import { getSessionName } from '../scripts/lib/tmux';
 
 const dockerfile = fs.readFileSync(
@@ -337,6 +338,64 @@ describe('Entrypoint: marketplace registration uses list --json, not dir existen
     expect(entrypoint).toContain('already enabled');
     // No enable site silently swallows failures via `|| true` anymore.
     expect(entrypoint).not.toMatch(/plugin enable[^\n]*\|\| true/);
+  });
+});
+
+// -------------------------------------------------------
+// Entrypoint §4: the auto-memory seed. It writes MEMORY.md into
+// <config>/projects/<path key>/memory, where the path key is Claude Code's own
+// (cc-compat transcriptPathKey): every non-alphanumeric character becomes '-'.
+// A slash-only substitution seeded a directory CC never reads on any dotted
+// project path. A content assertion on the substitution would not catch the
+// next way of getting the key wrong, so this extracts the real block and runs
+// it, comparing against transcriptPathKey rather than against its own text.
+// The cases run under LC_ALL=C — the image sets no locale, so that is what the
+// entrypoint actually gets, and a byte-wise match is the other way to mis-key
+// an accented path.
+// -------------------------------------------------------
+describe('Entrypoint: §4 auto-memory seed', () => {
+  const { freshDir, cleanup } = freshDirFactory('hermit-4-');
+  afterAll(cleanup);
+
+  const block = entrypoint.slice(entrypoint.indexOf('# --- 4. Seed auto-memory'), entrypoint.indexOf('# --- 4b.'));
+
+  // PROJECT_DIR is only ever substituted into the key, never opened, so the
+  // paths below do not have to exist on the test machine.
+  function runSeed(projectDir: string) {
+    const root = freshDir();
+    const agentDir = path.join(root, '.claude-code-hermit');
+    const configDir = path.join(root, 'config');
+    fs.mkdirSync(agentDir, { recursive: true });
+    fs.writeFileSync(path.join(agentDir, 'MEMORY-SEED.md'), 'seeded\n');
+
+    const script = [
+      'set -euo pipefail',
+      `AGENT_DIR=${JSON.stringify(agentDir)}`,
+      `CLAUDE_CONFIG_DIR=${JSON.stringify(configDir)}`,
+      `PROJECT_DIR=${JSON.stringify(projectDir)}`,
+      block,
+    ].join('\n');
+    const out = spawnSync('bash', ['-c', script], {
+      encoding: 'utf8',
+      env: { ...process.env, LC_ALL: 'C' },
+      timeout: 10_000,
+    });
+    return {
+      status: out.status,
+      seeded: path.join(memoryDirFor(projectDir, configDir), 'MEMORY.md'),
+    };
+  }
+
+  test('entrypoint §4: dotted project path seeds the directory Claude Code reads', () => {
+    const r = runSeed('/srv/hermits/my.project');
+    expect(r.status).toBe(0);
+    expect(fs.existsSync(r.seeded)).toBe(true);
+  });
+
+  test('entrypoint §4: non-ASCII project path seeds the directory Claude Code reads', () => {
+    const r = runSeed('/srv/hermits/Projeção');
+    expect(r.status).toBe(0);
+    expect(fs.existsSync(r.seeded)).toBe(true);
   });
 });
 

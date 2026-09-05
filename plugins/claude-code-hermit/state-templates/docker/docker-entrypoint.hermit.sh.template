@@ -535,7 +535,13 @@ fi
 # --- 4. Seed auto-memory (one-time, skipped if container has built its own) ---
 MEMORY_SEED="${AGENT_DIR}/MEMORY-SEED.md"
 if [ -f "$MEMORY_SEED" ]; then
-  PATH_KEY="${PROJECT_DIR//\//-}"
+  # CC's own path key: every non-alphanumeric character becomes '-', dots
+  # included (scripts/lib/cc-compat.ts transcriptPathKey). A slash-only
+  # substitution mis-seeds any dotted project path. LC_ALL is pinned because
+  # the image sets no locale: under the default C locale sed matches per byte,
+  # so an accented path segment would yield one '-' per UTF-8 byte where CC's
+  # JS replace yields one per character — the same mis-seed, one class over.
+  PATH_KEY="$(printf '%s' "$PROJECT_DIR" | LC_ALL=C.UTF-8 sed 's/[^A-Za-z0-9]/-/g')"
   MEMORY_DIR="${CLAUDE_CONFIG_DIR}/projects/${PATH_KEY}/memory"
   if [ ! -f "${MEMORY_DIR}/MEMORY.md" ]; then
     mkdir -p "$MEMORY_DIR" && \

@@ -1,8 +1,7 @@
 // Contract tests for scripts/usage-track.ts — the PostToolUse hook that feeds
 // state/usage-metrics.jsonl for weekly-review's "no tracked use" suggestions.
 // Exercised as a subprocess (stdin in, exit code/ledger-file out), the same
-// boundary Claude Code sees. Event shapes match the live probe (2026-07-10,
-// CC v2.1.206): Skill tool_input is {"skill":"<namespaced-name>"}.
+// boundary Claude Code sees.
 //
 // Usage: bun test tests/usage-track.test.ts   (from the plugin root)
 
@@ -35,22 +34,15 @@ const run = (payload: object, dir: string) =>
   runScript('usage-track.ts', { stdin: JSON.stringify(payload), cwd: dir });
 
 describe('usage-track', () => {
-  test('Skill tool invocation — appends a meta line and a skill event', withDir(async (dir) => {
-    const r = await run({ tool_name: 'Skill', tool_input: { skill: 'usage-probe:probe-skill' } }, dir);
+  test('Read of a compiled/ artifact (absolute path) — appends a meta line and a compiled event', withDir(async (dir) => {
+    const filePath = hermit(dir, 'compiled', 'note-x-2026-01-01.md');
+    const r = await run({ tool_name: 'Read', tool_input: { file_path: filePath } }, dir);
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toBe('');
     const events = readLedgerEvents(dir);
     expect(events).toHaveLength(2);
     expect(events[0]).toMatchObject({ kind: 'meta', event: 'ledger-start' });
-    expect(events[1]).toMatchObject({ kind: 'skill', name: 'usage-probe:probe-skill', source: 'skill-tool' });
-  }));
-
-  test('Read of a compiled/ artifact (absolute path) — appends a compiled event', withDir(async (dir) => {
-    const filePath = hermit(dir, 'compiled', 'note-x-2026-01-01.md');
-    const r = await run({ tool_name: 'Read', tool_input: { file_path: filePath } }, dir);
-    expect(r.exitCode).toBe(0);
-    const events = readLedgerEvents(dir);
-    expect(events.at(-1)).toMatchObject({ kind: 'compiled', name: 'note-x-2026-01-01', source: 'read' });
+    expect(events[1]).toMatchObject({ kind: 'compiled', name: 'note-x-2026-01-01', source: 'read' });
   }));
 
   test('Read of a compiled/ artifact (relative path) — appends a compiled event', withDir(async (dir) => {
@@ -98,8 +90,8 @@ describe('usage-track', () => {
     expect(fs.existsSync(ledgerPath(dir))).toBe(false);
   }));
 
-  test('Skill tool_input missing skill field — no event', withDir(async (dir) => {
-    const r = await run({ tool_name: 'Skill', tool_input: {} }, dir);
+  test('Read tool_input missing file_path — no event', withDir(async (dir) => {
+    const r = await run({ tool_name: 'Read', tool_input: {} }, dir);
     expect(r.exitCode).toBe(0);
     expect(fs.existsSync(ledgerPath(dir))).toBe(false);
   }));
@@ -117,10 +109,10 @@ describe('usage-track', () => {
   }));
 
   test('two sequential appends — one meta line, two events', withDir(async (dir) => {
-    await run({ tool_name: 'Skill', tool_input: { skill: 'a:one' } }, dir);
-    await run({ tool_name: 'Skill', tool_input: { skill: 'a:two' } }, dir);
+    await run({ tool_name: 'Read', tool_input: { file_path: hermit(dir, 'compiled', 'one.md') } }, dir);
+    await run({ tool_name: 'Read', tool_input: { file_path: hermit(dir, 'compiled', 'two.md') } }, dir);
     const events = readLedgerEvents(dir);
     expect(events.filter(e => e.kind === 'meta')).toHaveLength(1);
-    expect(events.filter(e => e.kind === 'skill')).toHaveLength(2);
+    expect(events.filter(e => e.kind === 'compiled')).toHaveLength(2);
   }));
 });

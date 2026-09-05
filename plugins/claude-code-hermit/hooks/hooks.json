@@ -126,7 +126,7 @@
         "description": "Keep a hermit-created skill/agent private to this install (git-common-dir info/exclude) when hatch_target is local and the write came from the managed always-on session"
       },
       {
-        "matcher": "Skill|Read",
+        "matcher": "Read",
         "hooks": [
           {
             "type": "command",
@@ -135,7 +135,7 @@
             "timeout": 3
           }
         ],
-        "description": "Append skill invocations and compiled/ reads to state/usage-metrics.jsonl (weekly-review consumes it for untouched-knowledge suggestions)"
+        "description": "Append compiled/ reads to state/usage-metrics.jsonl (weekly-review consumes it for untouched-knowledge suggestions)"
       }
     ],
     "UserPromptSubmit": [

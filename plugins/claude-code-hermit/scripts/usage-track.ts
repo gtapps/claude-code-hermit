@@ -5,24 +5,21 @@ type Json = any;
 
 /**
  * PostToolUse hook — appends a usage event to state/usage-metrics.jsonl when a
- * skill is invoked via the Skill tool or a compiled/ artifact is read.
+ * compiled/ artifact is read.
  *
- * The compiled-read half feeds weekly-review's "no tracked use" section, which
- * auto-archives on that evidence; skill rows are recorded but have no reader
- * today (weekly-review stopped reporting dormant skills). Subagent reads ARE
- * captured: PostToolUse fires for sidechain tool calls, with the parent
- * session_id in the payload (probed on CC 2.1.239).
+ * Compiled reads feed weekly-review's "no tracked use" section, which
+ * auto-archives on that evidence. Subagent reads ARE captured: PostToolUse
+ * fires for sidechain tool calls, with the parent session_id in the payload
+ * (probed on CC 2.1.239).
  *
  * Coverage gaps that remain, and why "no tracked use" is weaker than "unused":
- * startup-context injection; user-typed slash commands (which bypass the Skill
- * tool entirely — see scripts/record-operator-action.ts for that capture path);
- * Reads whose PostToolUse payload (tool_response carries the full file body)
- * exceeds MAX_STDIN; and the write-then-deliver path, where a doc the hermit
- * authors and relays over a channel is never Read at all. `procedure-brief`
- * artifacts are additionally excluded from the startup catalog, so nothing
- * surfaces them. Docs are therefore only eligible once their own created/updated
- * date is past the window, and weekly-review gates archiving on the ledger
- * having recorded at least one compiled read.
+ * startup-context injection; Reads whose PostToolUse payload (tool_response
+ * carries the full file body) exceeds MAX_STDIN; and the write-then-deliver
+ * path, where a doc the hermit authors and relays over a channel is never Read
+ * at all. `procedure-brief` artifacts are additionally excluded from the
+ * startup catalog, so nothing surfaces them. Docs are therefore only eligible
+ * once their own created/updated date is past the window, and weekly-review
+ * gates archiving on the ledger having recorded at least one compiled read.
  *
  * Fails open on every error path — never blocks Claude Code. Zero stdout.
  */
@@ -56,12 +53,7 @@ function main() {
 
     let usageEvent: Json | null = null;
 
-    if (name === 'Skill') {
-      const skill = input.skill;
-      if (typeof skill === 'string' && skill) {
-        usageEvent = { ts: new Date().toISOString(), kind: 'skill', name: skill, source: 'skill-tool' };
-      }
-    } else if (name === 'Read') {
+    if (name === 'Read') {
       const filePath = input.file_path || '';
       const m = typeof filePath === 'string' ? filePath.match(COMPILED_RE) : null;
       if (m) {

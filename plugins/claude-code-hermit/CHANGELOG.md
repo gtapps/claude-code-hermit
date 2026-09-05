@@ -37,6 +37,7 @@
 - Doctor's pricing check reports the table's verified date.
 - `cost-summary.md` no longer written.
 - `operator_turns` removed from `.status.json`, session-report frontmatter and the weekly review.
+- The usage ledger records `compiled/` reads only; skill invocations, from the Skill tool or a typed `/plugin:skill` command, are no longer written. Rows already recorded thin out at the existing 180-day compaction, which keeps the newest row per skill; nothing reads them.
 
 ### Removed
 - `channels.<name>.settings_policy`.
@@ -62,6 +63,7 @@
 - Each API request billed once per turn instead of once per streamed transcript entry, in both the Stop hook and the async subagent hook.
 - Rate table refreshed for the current generations and keyed on the full model id.
 - 1-hour cache writes and fast mode priced at their own rates.
+- The Docker entrypoint's auto-memory seed used a slash-only path key, so a dotted or accented project path seeded a directory Claude Code never reads.
 - Heartbeat reports `HEARTBEAT_INDETERMINATE` and logs one Monitoring line when the evaluation return is rejected or alert state can't be read or written, instead of `HEARTBEAT_OK`.
 
 ### Upgrade Instructions
@@ -83,8 +85,9 @@ Custom heartbeat handlers that call `heartbeat.ts tick`: for a notification carr
 4. **Nothing to do for the `/auto-mode-setup` kill-switch.** Boot writes it to the settings file on the next restart. Tell the operator the command is gone from this hermit's own sessions, and that adding classifier context is now done by editing `autoMode.environment` in `~/.claude/settings.json` from a terminal. _(Opt-out: set `skillOverrides["auto-mode-setup"]` to `"on"` in the hermit's `.claude/settings.local.json`; boot leaves any value already present untouched.)_
 5. **Optional: delete the `autoMode` block from the hermit's `.claude/settings.local.json`** if one is present. Leaving it is the default and is safe. The key has been inert since Claude Code 2.1.207 stopped reading `autoMode` from project settings files, and the hermit now ships that policy per session through its launch overlay, so it is a leftover of the retired `automode-seed` op rather than live configuration. Do not delete it here: report to the operator that it was found, and let them remove it if they want.
 6. **Cost figures drop on upgrade day; history is untouched.** New turns bill each API request once, at current rates, with 1-hour cache writes and fast mode priced on their own. Rows already in `.claude/cost-log.jsonl` keep the dollars they were written with; `cost-report reflect` sums those stored figures and does not re-price them. Tell the operator to revisit `budget` caps set under the old (roughly 2×) figures, or a daily/weekly/monthly pause that used to trip will now fire later. `.claude-code-hermit/cost-summary.md` is no longer written and may be deleted; it is not read.
+7. **Rebuild the container after the entrypoint merges.** Evolve's template merge carries the auto-memory seed fix into `.claude-code-hermit/docker/docker-entrypoint.hermit.sh`. If evolve reports the entrypoint as merged, rebuild with `.claude-code-hermit/bin/hermit-docker update`. If it reports the file as kept or conflicted, the operator merges their own copy first, then rebuilds.
 
-No config.json changes required for steps 4, 5, and 6.
+No config.json changes required for steps 4, 5, 6, and 7.
 
 ## [1.3.1] - 2026-09-03
 
