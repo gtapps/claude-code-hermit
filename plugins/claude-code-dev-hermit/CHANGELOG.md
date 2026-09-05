@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.13] - 2026-09-06
+
+### Changed
+- The pre-code-change checklist in CLAUDE-APPEND no longer requires a clean working tree or a fresh branch before starting work: it now preserves unrelated changes, reuses the task's existing feature branch, and isolates new work in a worktree only when changes can't safely coexist. Commit and PR steps under §Before Archiving a Task are conditioned on the task actually authorizing them, instead of assumed.
+
+### Upgrade Instructions
+
+Run `/claude-code-dev-hermit:hatch` to re-render `CLAUDE-APPEND.md` with the updated checklist.
+
+No `config.json` changes required.
+
 ## [0.4.12] - 2026-08-31
 
 ### Changed
