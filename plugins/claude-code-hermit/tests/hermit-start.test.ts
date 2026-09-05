@@ -45,7 +45,9 @@ import {
   duplicateSessionRefusal,
   checkForUpgrade,
   peerName,
+  resolveResumeTarget,
 } from '../scripts/hermit-start';
+import { transcriptDirFor } from '../scripts/lib/cc-compat';
 import { readRuntimeState } from '../scripts/lib/runtime';
 import { automodeAllowEntry, SEALED_SETTINGS_OPS, TERMINAL_ONLY_SETTINGS_OPS } from '../scripts/lib/settings/automode-entries';
 import { TOKEN_ENV_VAR } from '../scripts/lib/setup-token';
@@ -189,6 +191,21 @@ const claudeMarketplaces = (entries: any[]) =>
 
 const HERMIT_START_TS = path.join(PLUGIN_ROOT, 'scripts', 'hermit-start.ts');
 
+describe('resolveResumeTarget', () => {
+  test('requires a session id and a transcript with a user turn', () => {
+    const configDir = path.join(tmpdir, 'config');
+    const dir = transcriptDirFor(tmpdir, configDir);
+    fs.mkdirSync(dir, { recursive: true });
+    expect(resolveResumeTarget(null, tmpdir, configDir)).toEqual({ skip: 'no-session-id' });
+    expect(resolveResumeTarget({ cc_session_id: '' }, tmpdir, configDir)).toEqual({ skip: 'no-session-id' });
+    expect(resolveResumeTarget({ cc_session_id: 'abc' }, tmpdir, configDir)).toEqual({ skip: 'no-transcript' });
+    fs.writeFileSync(path.join(dir, 'abc.jsonl'), '{"type":"ai-title"}\n{"type":"agent-name"}\n');
+    expect(resolveResumeTarget({ cc_session_id: 'abc' }, tmpdir, configDir)).toEqual({ skip: 'no-user-turn' });
+    fs.appendFileSync(path.join(dir, 'abc.jsonl'), '{"type":"user","message":{"content":"hello"}}\n');
+    expect(resolveResumeTarget({ cc_session_id: 'abc' }, tmpdir, configDir)).toEqual({ id: 'abc' });
+  });
+});
+
 /**
  * Run buildClaudeCommand(config, {bun: ...}) in a child bun process rooted at
  * the tempdir, with `claude` stubbed on PATH. console.log is captured inside
@@ -197,6 +214,7 @@ const HERMIT_START_TS = path.join(PLUGIN_ROOT, 'scripts', 'hermit-start.ts');
 async function runBuildClaudeCommand(
   config: any,
   claudeStubBody: string,
+  opts?: { resume?: string },
 ): Promise<{ cmd: string[]; out: string }> {
   const bin = path.join(tmpdir, 'stub-bin');
   fs.mkdirSync(bin, { recursive: true });
@@ -207,7 +225,7 @@ async function runBuildClaudeCommand(
     const lines = [];
     console.log = (...a) => lines.push(a.map(String).join(' '));
     const m = await import(${JSON.stringify(HERMIT_START_TS)});
-    const cmd = m.buildClaudeCommand(${JSON.stringify(config)}, { bun: '/usr/local/bin/bun' });
+    const cmd = m.buildClaudeCommand(${JSON.stringify(config)}, { bun: '/usr/local/bin/bun' }, ${JSON.stringify(opts)});
     process.stdout.write(JSON.stringify({ cmd, out: lines.length ? lines.join('\\n') + '\\n' : '' }));
   `;
   const proc = Bun.spawn({
@@ -1923,4 +1941,12 @@ describe('checkForUpgrade', () => {
   test('unparseable stamp -> silent', () => {
     expect(run('not-a-version').trim()).toBe('');
   });
+});
+
+test('resume flags preserve the baseline command and append the fork options', async () => {
+  const baseline = await runBuildClaudeCommand({}, CLAUDE_FETCH_FAILS);
+  const resumed = await runBuildClaudeCommand({}, CLAUDE_FETCH_FAILS, { resume: 'abc' });
+  expect(baseline.cmd).not.toContain('--resume');
+  expect(baseline.cmd).not.toContain('--fork-session');
+  expect(resumed.cmd).toEqual([...baseline.cmd, '--resume', 'abc', '--fork-session']);
 });

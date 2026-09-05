@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### Added
+- Native conversation resume on watchdog restart when the resident transcript contains a user turn.
+- Watchdog resume limited to an enabled compact tier and a valid last own cost entry below its context threshold.
+- Manual conversation resume through `hermit-start --resume [<id>]` and `hermit-docker up|restart --resume`.
 - `StopFailure` hook stamping the turn's typed failure category to `state/stop-failure.json`, which the watchdog's API-failure notice now classifies from when the stamp is newer than the transcript; the transcript scan stays the fallback.
 - `Read(//**/.claude/plugins/**/claude-code-hermit/**)` in the sealed allow-list, so a hermit reading its own installed docs, skills and templates no longer raises a permission prompt on unattended paths like `hermit-evolve`. One rule covers both trees a plugin runs from, the marketplace clone and the versioned cache, and names `claude-code-hermit` in the plugin slot so the grant survives a fork whose marketplace declares another name.
 - Contract test over every sealed path rule: a `Read`/`Edit` pattern that reads as filesystem-wide but is not (a bare `*` or `**` first segment, or a single leading `/`) now fails CI unless it carries a `//` or `~/` anchor.
@@ -65,6 +68,8 @@
 - Heartbeat reports `HEARTBEAT_INDETERMINATE` and logs one Monitoring line when the evaluation return is rejected or alert state can't be read or written, instead of `HEARTBEAT_OK`.
 
 ### Upgrade Instructions
+
+**Refresh Docker resume support through hermit-evolve.** For installations with rendered Docker files, re-render or merge the updated compose and entrypoint templates into the installed compose file and entrypoint, preserving operator edits, then rebuild with `.claude-code-hermit/bin/hermit-docker restart --build` so the container receives both changes.
 
 **Retire the settings-policy dials and leftover confirmation record.**
 

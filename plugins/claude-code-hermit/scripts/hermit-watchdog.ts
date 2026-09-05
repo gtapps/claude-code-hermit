@@ -843,7 +843,7 @@ function copyOauthAccount(stagedDir: string, configDir: string): void {
 }
 
 /** Try-acquire lock, mark runtime, kill session, verify the old tree died, spawn hermit-start. */
-async function doRestart(sessionName: string, reason: string, runtime: Json, timezone: string): Promise<void> {
+async function doRestart(sessionName: string, reason: string, runtime: Json, timezone: string, config: Json): Promise<void> {
   if (!tryAcquireLifecycleLock()) {
     process.stderr.write('[watchdog] lifecycle lock held — backing off restart\n');
     return;
@@ -881,8 +881,24 @@ async function doRestart(sessionName: string, reason: string, runtime: Json, tim
     // Release before spawning hermit-start (it re-acquires)
     releaseLock(LIFECYCLE_LOCK);
 
+    const id = runtime.cc_session_id;
+    // Same enable test maybeContextCompact applies (`enabled === true`): resume
+    // only where the compact tier actually bounds the context it would restore.
+    const compactCfg = config.context_hygiene?.compact;
+    const threshold = compactCfg?.min_context_tokens;
+    let skip: string | null = null;
+    if (typeof id !== 'string' || !id.trim()) skip = 'no-session-id';
+    else if (compactCfg?.enabled !== true) skip = 'compact-disabled';
+    else {
+      const entry = getLastCostLogEntry(id);
+      if (!entry) skip = 'no-cost-entry';
+      else skip = poisonedEntrySkip(entry, runtime)
+        ?? (promptTokens(entry) < threshold ? null : 'over-threshold');
+    }
+    const resumeArgs = skip ? [] : ['--resume', id];
+    const resumeDetail = skip ? `fresh: ${skip}` : `resume ${id}`;
     const startBin = '.claude-code-hermit/bin/hermit-start';
-    const child = spawn(startBin, [], {
+    const child = spawn(startBin, resumeArgs, {
       detached: true,
       stdio: 'ignore',
       // No explicit env: hermit-start reads the setup token from defaultConfigDir()
@@ -892,7 +908,7 @@ async function doRestart(sessionName: string, reason: string, runtime: Json, tim
     });
     child.on('error', (e) => process.stderr.write(`[watchdog] restart failed: ${e}\n`));
     child.unref();
-    appendEvent('restart', `${reason}, tree-verified`);
+    appendEvent('restart', `${reason}, tree-verified, ${resumeDetail}`);
     process.stderr.write(`[watchdog] restarted "${sessionName}", reason: ${reason}\n`);
     // Only claim a restart to the operator when the start binary is actually
     // present — a missing/ENOENT binary makes spawn fail asynchronously via the
@@ -2066,7 +2082,7 @@ async function main(): Promise<void> {
         ws.orphan_notified = false;
         writeWatchdogState(ws);
       }
-      await doRestart(sessionName, 'dead-process', runtime, timezone);
+      await doRestart(sessionName, 'dead-process', runtime, timezone, config);
       process.exit(0);
     }
   }
@@ -2372,7 +2388,7 @@ async function main(): Promise<void> {
             watchdogState.consecutive_stale = consecutive;
             watchdogState.last_pane_hash = currentPaneHash;
             writeWatchdogState(watchdogState);
-            await doRestart(sessionName, 'pane-frozen', runtime, timezone);
+            await doRestart(sessionName, 'pane-frozen', runtime, timezone, config);
             // doRestart kills the tmux session and spawns a detached replacement, so the
             // verdict cached at step 3c is stale from here on. Step 5 below sends
             // keys into this pane and guards on it: reusing the pre-restart `true` would
@@ -2730,7 +2746,7 @@ async function cmdRestart(reason: string): Promise<void> {
   adoptSessionConfigDir(runtime);
   const sessionName = runtime.tmux_session || deriveSessionName(config);
   if (!sessionName) process.exit(0);
-  await doRestart(sessionName, reason, runtime, config.timezone ?? 'UTC');
+  await doRestart(sessionName, reason, runtime, config.timezone ?? 'UTC', config);
 }
 
 if (import.meta.main) {

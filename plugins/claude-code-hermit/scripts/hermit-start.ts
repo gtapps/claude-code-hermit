@@ -30,6 +30,7 @@ import { sanitizeLanguage } from './lib/operator-language';
 import { outputStyleFor } from './lib/voice';
 import { automodeAllowEntry, AUTOMODE_ENV_ENTRIES, AUTOMODE_SOFT_DENY_ENTRY, SEALED_SETTINGS_OPS } from './lib/settings/automode-entries';
 import { writeFileAtomic } from './lib/md-write';
+import { transcriptDirFor } from './lib/cc-compat';
 
 type Json = any;
 
@@ -650,7 +651,7 @@ function peerName(config: Json): string {
 }
 
 /** Build the claude launch command from config. */
-function buildClaudeCommand(config: Json, tools: Json): string[] {
+function buildClaudeCommand(config: Json, tools: Json, opts?: { resume?: string }): string[] {
   const cmd = ['claude'];
 
   let enabledChannels = getEnabledChannels(config);
@@ -804,6 +805,7 @@ function buildClaudeCommand(config: Json, tools: Json): string[] {
     console.log(`[hermit] WARNING: unknown permission_mode "${mode}" — skipping (using default)`);
   }
 
+  if (opts?.resume) cmd.push('--resume', opts.resume, '--fork-session');
   return cmd;
 }
 
@@ -1365,8 +1367,31 @@ export function duplicateSessionRefusal(sessionName: string): string[] | null {
   ];
 }
 
+export function resolveResumeTarget(
+  runtime: Json,
+  projectRoot: string,
+  configDir?: string,
+): { id: string } | { skip: 'no-session-id' | 'no-transcript' | 'no-user-turn' } {
+  const id = runtime?.cc_session_id;
+  if (typeof id !== 'string' || !id.trim()) return { skip: 'no-session-id' };
+  const dir = transcriptDirFor(projectRoot, configDir);
+  const transcript = path.join(dir, `${id}.jsonl`);
+  if (path.dirname(transcript) !== dir) return { skip: 'no-transcript' };
+  let text: string;
+  try {
+    text = fs.readFileSync(transcript, 'utf8');
+  } catch {
+    return { skip: 'no-transcript' };
+  }
+  const hasUserTurn = text.split('\n').some((line) => {
+    try { return JSON.parse(line).type === 'user'; } catch { return false; }
+  });
+  return hasUserTurn ? { id } : { skip: 'no-user-turn' };
+}
+
 async function main(): Promise<void> {
   const noTmuxFlag = process.argv.includes('--no-tmux');
+  const resumeIndex = process.argv.indexOf('--resume');
 
   // Config first: which credential to hydrate is a config question now, and the
   // answer decides whether a token file is read at all.
@@ -1382,7 +1407,23 @@ async function main(): Promise<void> {
   const bootMode = noTmuxFlag || !pyTruthy(tools.tmux) ? 'interactive' : 'tmux';
   refuseIfAnotherInstanceAlive(bootMode);
 
-  const cmd = buildClaudeCommand(config, tools);
+  let resumeId: string | undefined;
+  if (resumeIndex !== -1) {
+    if (bootMode === 'interactive') {
+      console.log('[hermit] --resume applies to always-on boots only');
+    } else {
+      const runtime = readRuntimeJson() ?? {};
+      const arg = process.argv[resumeIndex + 1];
+      const target = resolveResumeTarget(
+        arg && !arg.startsWith('--') ? { ...runtime, cc_session_id: arg } : runtime,
+        process.cwd(),
+        runtime.config_dir,
+      );
+      if ('id' in target) resumeId = target.id;
+      else console.log(`[hermit] resume skipped: ${target.skip}`);
+    }
+  }
+
   const sessionName = getSessionName(config);
 
   // Setup-mode gate: docker-setup touches this marker before first boot so channel
@@ -1417,7 +1458,10 @@ async function main(): Promise<void> {
 
   // Bootstrap fires only in always-on mode; interactive runs are operator-driven.
   const isAlwaysOn = !noTmuxFlag && pyTruthy(tools.tmux);
-  if (steps.length && !setupMode && isAlwaysOn) {
+  const willBootstrap = steps.length > 0 && !setupMode && isAlwaysOn;
+  const resume = willBootstrap ? resumeId : undefined;
+  const cmd = buildClaudeCommand(config, tools, { resume });
+  if (willBootstrap) {
     let bootstrap: string;
     if (steps.length === 1) {
       bootstrap = steps[0];
@@ -1429,6 +1473,8 @@ async function main(): Promise<void> {
   }
 
   checkStaleRuntime(config, sessionName);
+
+  console.log(`[hermit] Resume: ${resume ?? 'fresh'}`);
 
   // Print launch info
   const agentName = config.agent_name;

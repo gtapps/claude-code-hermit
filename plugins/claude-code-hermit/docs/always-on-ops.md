@@ -254,7 +254,11 @@ Not suitable for routines whose value is chat or transcript output (subagent out
 
 ## 5. Reconnecting After Disconnects
 
-All state is in `sessions/SHELL.md` on disk. A disconnect loses conversation context but preserves progress and blockers.
+Watchdog restarts resume the resident conversation when the compact tier is enabled, the last own cost entry is valid and below its context threshold, and the transcript contains a user turn; otherwise they start fresh and record the gate result in `state/watchdog-events.jsonl`.
+
+For a manual start that keeps the conversation, use `hermit-start --resume` or `hermit-docker restart --resume` (`hermit-docker up --resume` also accepts the opt-in). Manual resume skips the size gate but still requires a transcript with a user turn. Starts without `--resume` create a fresh conversation. Resume applies only to always-on boots with a bootstrap prompt; the existing archive-or-resume recovery question still controls whether work continues.
+
+Progress and blockers remain in `sessions/SHELL.md` on disk even when a restart starts a fresh conversation.
 
 1. Run `hermit-status` to check current state (includes the tmux attach command for Docker)
 2. Reattach to tmux, start Claude Code
