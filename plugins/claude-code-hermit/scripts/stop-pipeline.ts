@@ -18,6 +18,7 @@ const STATE_DIR = path.join(HERMIT_DIR, 'state');
 const HEARTBEAT_FILE = path.join(STATE_DIR, '.heartbeat');
 const SNAPSHOT_FILE = path.join(STATE_DIR, 'cc-stop-snapshot.json');
 const TURN_FILE = path.join(STATE_DIR, 'operator-turn-open.json');
+const STOP_FAILURE_FILE = path.join(STATE_DIR, 'stop-failure.json');
 
 async function main(): Promise<void> {
   // Read stdin once
@@ -48,6 +49,11 @@ async function main(): Promise<void> {
   // the starvation class issue #617 fixed, just time-bounded.
   if (!guest) {
     try { fs.unlinkSync(TURN_FILE); } catch {}
+    // A Stop at all means the turn produced an assistant reply, so any stamp
+    // stop-failure-stamp.ts left behind describes an episode that is over. Cleared
+    // here, ahead of the stages, for the same reason the marker above is: a stage
+    // that throws must not strand it and keep the watchdog classifying from it.
+    try { fs.unlinkSync(STOP_FAILURE_FILE); } catch {}
   }
 
   const profile = (process.env.AGENT_HOOK_PROFILE || 'standard').trim().toLowerCase();

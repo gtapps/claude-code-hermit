@@ -112,6 +112,7 @@ Skills are namespaced `/claude-code-hermit:*`; the full set is listed in the plu
 | Session evaluator   | Stop         | standard+ | Validates SHELL.md quality, detects zombie/stale/bloat |
 | PermissionDenied notify | PermissionDenied | all | Maintainer diagnostic (tool + reason), one 30-min window per tool with a suppressed count; maintainer chat, else primary chat on a technical profile, else Findings; no client message |
 | Stop pipeline       | Stop         | all       | Cost tracking, session diff, evaluation, heartbeat |
+| StopFailure stamp   | StopFailure  | all       | Records the turn's typed upstream failure to `state/stop-failure.json`; the watchdog classifies from it and notifies |
 | Precompact stamp    | PreCompact   | all       | Breadcrumb in SHELL.md before `/compact` (manual or auto); watchdog's emergency `/clear` flushes the same breadcrumb separately since PreCompact never fires on `/clear` |
 
 Hermits may add hooks at `strict` (e.g., git-push-guard). Profile-gated hooks check `AGENT_HOOK_PROFILE` internally and return early when the active profile doesn't match.
@@ -201,6 +202,7 @@ One writer per state file. No shared mutation bus. (Exception: `state/micro-prop
 | `state/heartbeat-liveness.json` | heartbeat-monitor.sh (every poll iteration)         | doctor-check.ts (heartbeat liveness check), heartbeat status  |
 | `state/cc-stop-snapshot.json`  | stop-pipeline.ts only                               | doctor-check.ts (scheduler/background-task health check)      |
 | `state/operator-turn-open.json` | user-prompt-pipeline.ts (opens at hook exit for a kept, non-blocked prompt, via record-operator-action.ts `openTurnMarker`) + record-operator-action.ts `--force`; stop-pipeline.ts (clears at Stop — the only deleter) | routines.ts due + lib/heartbeat/precheck.ts, both via lib/auto-close.ts `operatorTurnOpen` (defer gate, 60-min TTL backstop against a marker orphaned by a failed Stop) |
+| `state/stop-failure.json`      | stop-failure-stamp.ts (writer), stop-pipeline.ts (deleter — cleared on the next healthy, non-guest Stop) | hermit-watchdog.ts (upstream API failure tier, preferred over the transcript scan while the stamp is the newer of the two) |
 | `state/pending-close-drain.json` | lib/auto-close.ts `stampDrainCooldown`, called by routines.ts due and lib/heartbeat/precheck.ts (non-peek only) | the same two drainers (shared backoff before re-emitting a queued close: 30 min for the routine poll, halved by the heartbeat drainer once `heartbeat.every` reaches 30 min) |
 | `state/.heartbeat`             | heartbeat-touch.ts only                             | heartbeat (detect activity gaps)                              |
 | `state/.lifecycle.lock`        | hermit-start.ts only                                | hermit-stop.ts (cleanup)                                      |

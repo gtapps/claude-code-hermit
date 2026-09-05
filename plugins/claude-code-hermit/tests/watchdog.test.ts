@@ -17,7 +17,7 @@ import { runScript, SCRIPTS_DIR } from './helpers/run';
 import { freshDirFactory } from './helpers/workdir';
 import { transcriptDirFor } from '../scripts/lib/cc-compat';
 import {
-  inActiveHours, isNearDailyAutoClose, composeRestartMessage, composeWedgeMessage, composeStallQuestionMessage, composeSessionWedgedMessage, composePauseMessage, hasPendingQuestion, hasLapsedLogin, classifyQueueTail, classifyApiFailureTail, composeCompactSteeringMessage,
+  inActiveHours, isNearDailyAutoClose, composeRestartMessage, composeWedgeMessage, composeStallQuestionMessage, composeSessionWedgedMessage, composePauseMessage, hasPendingQuestion, hasLapsedLogin, classifyQueueTail, classifyApiFailureTail, classifyStopFailureStamp, composeCompactSteeringMessage,
   rearmDamperOpen, passesLifecycleGuards, setHygieneEval, stampHygieneEval,
   maybeContextClear, maybeContextCompact, MONITOR_REARM_DAMPER_SECS, type World,
 } from '../scripts/hermit-watchdog';
@@ -810,6 +810,53 @@ describe('classifyApiFailureTail', () => {
   test('reset capture stops at the subline instead of swallowing it', () => {
     const tail = apiErrorRec("You've hit your session limit · resets 2:30am, or switch models to keep working.");
     expect(classifyApiFailureTail(tail)).toEqual({ kind: 'usage-limit', resetAt: '2:30am' });
+  });
+});
+
+// The same verdict from CC's own typed category instead of rendered error text.
+// Shapes match what stop-failure-stamp.ts writes from a StopFailure payload.
+describe('classifyStopFailureStamp', () => {
+  const stamp = (error: unknown, last_assistant_message = '') =>
+    ({ error, session_id: 'x', at: '2026-08-17T13:59:00+0000', last_assistant_message });
+
+  test('rate_limit whose message carries the limit line → usage-limit with parsed reset', () => {
+    expect(classifyStopFailureStamp(stamp('rate_limit', "You've hit your session limit · resets 2:30am (Europe/Lisbon)")))
+      .toEqual({ kind: 'usage-limit', resetAt: '2:30am' });
+  });
+
+  test('rate_limit limit line without a reset clause → resetAt null', () => {
+    expect(classifyStopFailureStamp(stamp('rate_limit', "You've hit your session limit for now.")))
+      .toEqual({ kind: 'usage-limit', resetAt: null });
+  });
+
+  // Upstream throttling shares the category with a usage lockout, so the message
+  // is what separates "you are out of budget" from "the API is busy".
+  test('rate_limit without the limit line → api-unavailable', () => {
+    expect(classifyStopFailureStamp(stamp('rate_limit', 'API Error: 429 Too Many Requests')))
+      .toEqual({ kind: 'api-unavailable' });
+  });
+
+  test('overloaded → api-unavailable', () => {
+    expect(classifyStopFailureStamp(stamp('overloaded'))).toEqual({ kind: 'api-unavailable' });
+  });
+
+  test('server_error → api-unavailable', () => {
+    expect(classifyStopFailureStamp(stamp('server_error'))).toEqual({ kind: 'api-unavailable' });
+  });
+
+  test('a category this tier does not own → null', () => {
+    expect(classifyStopFailureStamp(stamp('model_not_found', 'It may not exist.'))).toBeNull();
+  });
+
+  // The docs spell the key `error_type`; the live payload uses `error`. A stamp
+  // carrying only the documented spelling classifies as null, which leaves the
+  // transcript tail to answer rather than inventing a category.
+  test('the documented error_type spelling alone → null', () => {
+    expect(classifyStopFailureStamp({ error_type: 'overloaded', at: '2026-08-17T13:59:00+0000' })).toBeNull();
+  });
+
+  test('a missing error key → null', () => {
+    expect(classifyStopFailureStamp({ at: '2026-08-17T13:59:00+0000' })).toBeNull();
   });
 });
 
