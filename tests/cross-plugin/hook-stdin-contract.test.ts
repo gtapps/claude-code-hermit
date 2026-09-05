@@ -79,6 +79,20 @@ const SPECS: Spec[] = [
     failExit: 0,
   },
   {
+    name: 'core/stop-failure-stamp',
+    script: 'plugins/claude-code-hermit/scripts/stop-failure-stamp.ts',
+    // A StopFailure payload, not a tool call: this hook fires at turn end. The
+    // sandbox cwd has no hermit folder, so the stamp write fails open and the
+    // benign case stays independent of the dev box's own state dir.
+    benign: {
+      hook_event_name: 'StopFailure',
+      error: 'model_not_found',
+      session_id: '63d3ccda-cd07-4fd0-a88c-e56ac4ca311a',
+      last_assistant_message: 'There is an issue with the selected model.',
+    },
+    failExit: 0,
+  },
+  {
     name: 'dev/git-push-guard',
     script: 'plugins/claude-code-dev-hermit/scripts/git-push-guard.ts',
     benign: BASH_LS,

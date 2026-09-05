@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- `StopFailure` hook stamping the turn's typed failure category to `state/stop-failure.json`, which the watchdog's API-failure notice now classifies from when the stamp is newer than the transcript; the transcript scan stays the fallback.
 - `Read(//**/.claude/plugins/**/claude-code-hermit/**)` in the sealed allow-list, so a hermit reading its own installed docs, skills and templates no longer raises a permission prompt on unattended paths like `hermit-evolve`. One rule covers both trees a plugin runs from, the marketplace clone and the versioned cache, and names `claude-code-hermit` in the plugin slot so the grant survives a fork whose marketplace declares another name.
 - Contract test over every sealed path rule: a `Read`/`Edit` pattern that reads as filesystem-wide but is not (a bare `*` or `**` first segment, or a single leading `/`) now fails CI unless it carries a `//` or `~/` anchor.
 - `docs/security.md` notes what to copy when the config directory is not `~/.claude`, such as a profile install at `~/.claude-work`, and records that `//**/` is the spelling that works on Windows, WSL, macOS and Linux alike.

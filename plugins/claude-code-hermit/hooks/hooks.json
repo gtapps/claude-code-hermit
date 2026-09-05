@@ -179,6 +179,20 @@
         "description": "Stop pipeline: cost tracking, session diff, evaluation, heartbeat"
       }
     ],
+    "StopFailure": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/stop-failure-stamp.ts"],
+            "timeout": 10
+          }
+        ],
+        "description": "Stamp the typed upstream failure the watchdog classifies from"
+      }
+    ],
     "SubagentStop": [
       {
         "matcher": "",
