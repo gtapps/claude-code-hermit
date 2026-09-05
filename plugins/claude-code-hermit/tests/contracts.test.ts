@@ -3643,8 +3643,8 @@ describe('proactive-notify unification contract', () => {
 // The subagent (reference.md) and the calling skill (SKILL.md) must agree on
 // the return shape, and neither may reintroduce the model-authored bookkeeping
 // fields that update-alert-state.ts now owns exclusively. A drift here (e.g.
-// SKILL.md validating a stale key list, or reference.md instructing the model
-// to emit `suppressed`/`resolved_keys` again) would silently reopen #594.
+// SKILL.md pre-validating the return itself, or reference.md instructing the
+// model to emit `suppressed`/`resolved_keys` again) would silently reopen #594.
 // ============================================================
 
 describe('heartbeat eval-runner return contract', () => {
@@ -3678,8 +3678,14 @@ describe('heartbeat eval-runner return contract', () => {
     expect(reference).toContain('**Never** emit a `micro-proposal-pending:*` or `proposal-pending:*` key, or the `stale-session` key.');
   });
 
-  test('SKILL.md step 5 validates exactly the new required-key list', () => {
-    expect(skill).toContain('missing the required **key** `firing`');
+  test('SKILL.md step 5 leaves validation to the script', () => {
+    // Pre-validating here is what made a rejected evaluation report
+    // HEARTBEAT_OK: the skill swallowed the reject and the script never saw it.
+    expect(skill).not.toContain('skip all writes and emit `HEARTBEAT_OK`');
+    // Positive half: a pure absence assertion also passes on a step 5 that lost
+    // the script call or the reject branch outright.
+    expect(skill).toContain('heartbeat.ts alert-state');
+    expect(skill).toContain('respond `HEARTBEAT_INDETERMINATE (<reason>)`');
     for (const field of REMOVED_MODEL_FIELDS) {
       expect(skill).not.toContain(`\`${field}\``);
     }
