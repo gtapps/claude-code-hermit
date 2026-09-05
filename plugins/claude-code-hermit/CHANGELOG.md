@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.3.2] - 2026-09-06
 
 ### Added
 - Native conversation resume on watchdog restart when the resident transcript contains a user turn.

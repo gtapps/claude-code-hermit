@@ -1,7 +1,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.3.1-green.svg" alt="Version 1.3.1" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.3.2-green.svg" alt="Version 1.3.2" /></a>
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/_gh_traffic_stats/.github/badges/clones.json" alt="Downloads" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
   <a href="https://discord.gg/54sJqAxhUh"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Join" /></a>
@@ -206,7 +206,7 @@ Tune from a terminal with `/hermit-settings`, or change permitted settings from 
 | `ask_gate` | route unattended questions to a paired channel — **`true`** |
 | `budget` | optional daily / weekly / monthly caps; **`alert`** or binding `pause` action |
 | `artifacts` | dashboard / proposals / weekly review — **all enabled** |
-| `idle_behavior` | reserved; **`discover`** / `wait` behave identically today |
+| `idle_behavior` | **`discover`** (proactive) / `wait` (passive) |
 | `heartbeat.enabled` | timed idle sweeps — **`true`** |
 | `heartbeat.every` | idle sweep cadence — **`30m`** |
 | `active_hours` | active window — **`08:00`–`23:00`** |
@@ -242,7 +242,7 @@ Settings apply without a reboot. Execution-adjacent changes, channel enrollment,
 
 - **Heartbeat.** `heartbeat.every` sets the idle sweep (default `30m`; `2h`+ for slower pickup). Quiet polls cost nothing at any cadence, so this mostly controls how fast structured checks (proposals, budget, stale sessions) are picked up. `active_hours` bounds the window (`08:00`–`23:00`). `heartbeat.enabled: false` stops timed wakes entirely — channels and routines still fire.
 
-- **Idle behavior.** When idle, the heartbeat tick picks up a task queued in `NEXT-TASK.md`, gated by `escalation` (`conservative` notifies and parks; `balanced`/`autonomous` start it) and requiring `always_on`. The daily `reflect` schedule runs on its own cron regardless; when its precheck finds no due phase, it consumes the fire without invoking the learning loop. `idle_behavior` (`discover` / `wait`) is reserved and currently changes none of this — the priority-alignment pass `discover` used to add was removed when pickup moved into the tick.
+- **Idle behavior.** `discover` (default) adds a priority-alignment pass against `OPERATOR.md` + cost log; `wait` is passive (tasks/channels only). Either way the daily `reflect` schedule is still evaluated; when its precheck finds no due phase, it consumes the fire without invoking the learning loop. `wait` only silences between-schedule discovery.
 
 - **Routines.** Each routine takes an optional `model`: run lightweight ones on `haiku` to save cost or heavier ones on `opus` for more reasoning, in an isolated subagent. Omit `model` to keep it inline in the main session context — use that when the routine's value is its chat/transcript output, not just a status line. In Monitor mode, exactly co-due routines batch into one wake; offset routines you want as separate turns by a few minutes to keep the prompt cache warm. CronCreate fallback always fires them separately (see [Config Reference](docs/config-reference.md) for the full rule).
 
@@ -258,6 +258,7 @@ You run on your own Claude subscription — no per-runtime-hour billing — and 
 
 - **Per-call** token usage logged to `.claude/cost-log.jsonl` (model, input/output/cache split, USD estimate, and what triggered the turn: `heartbeat`, `routine:<id>`, `routine:multi`, `channel:<name>`, `peer` for another local session, or interactive/unattributed `other`).
 - **Per-session** running total in `.status.json`; carried into archived session reports as frontmatter `cost_usd`.
+- **Per-day** rollup in `cost-summary.md`, regenerated on every cost-tracker tick.
 - **On demand** through `/cost-reflect`, `/hermit-doctor`, and the dashboard, plus a one-line spend summary in the weekly review. Routine briefs and status replies stay outcome-only; spend interrupts them only when a cap is approached or breached.
 
 Quiet polling usually stays outside the model, so one Claude subscription can run several agents. Actual usage depends on their routines and work.
