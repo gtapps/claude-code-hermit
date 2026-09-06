@@ -73,8 +73,8 @@ only when the operator passed them. Five limits sit on that command:
    `The hermit project is at <abs>; its state lives in <abs>/.claude-code-hermit/. Resolve any project-relative .claude-code-hermit/ reads/writes against <abs>; pass the absolute <abs>/.claude-code-hermit path to any hermit script rather than relying on your cwd.`
 
 4. `cd <abs>` as its own Bash call, then run the command in Usage as the next
-   one, so the operator sees the launch on its own line when the permission
-   prompt reaches them. Print the returned bg id and `claude logs <id>`,
+   one, so the launch stands alone in the transcript and in any approval that
+   does reach the operator. Print the returned bg id and `claude logs <id>`,
    `claude attach <id>`, `claude stop <id>` hints. If the spawn is declined or
    fails, stop; do not watch.
 

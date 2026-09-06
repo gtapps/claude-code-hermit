@@ -417,7 +417,8 @@ describe('literal-path hermit-run grants', () => {
 // because a prefix over `claude --bg` would also cover the flags that come after it
 // — `--dangerously-skip-permissions`, `--permission-mode bypassPermissions`,
 // `--settings`, `--append-system-prompt` — and no prefix can exclude them. The spawn
-// takes an ordinary permission prompt instead, which the operator's channel relays.
+// is decided like any other ungranted command instead: the classifier on `auto`, a
+// relayed approval on the prompting modes.
 describe('the spawn-session launcher is not pre-approved', () => {
   test('no claude CLI grant is sealed', () => {
     expect(HERMIT_ALLOW.filter((e) => e.startsWith('Bash(claude'))).toEqual([]);
