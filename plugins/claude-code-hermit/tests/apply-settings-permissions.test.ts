@@ -413,6 +413,20 @@ describe('literal-path hermit-run grants', () => {
   });
 });
 
+// spawn-session's launcher is deliberately absent. Every grant here is verb-pinned
+// because a prefix over `claude --bg` would also cover the flags that come after it
+// — `--dangerously-skip-permissions`, `--permission-mode bypassPermissions`,
+// `--settings`, `--append-system-prompt` — and no prefix can exclude them. Leaving it
+// out is what makes the prompting modes ask before any of those run. It is not a
+// complete fence: on `auto` the classifier was measured permitting the
+// `--dangerously-skip-permissions` form, so the sealed list is the wrong place to
+// look for that guarantee, and a narrower launcher is what would provide it.
+describe('the spawn-session launcher is not pre-approved', () => {
+  test('no claude CLI grant is sealed', () => {
+    expect(HERMIT_ALLOW.filter((e) => e.startsWith('Bash(claude'))).toEqual([]);
+  });
+});
+
 // hermit-exec.sh resolves a bare name to $PLUGIN_ROOT/scripts/<name>.ts and
 // nothing else. A grant naming a script that isn't there is a dead entry that
 // only shows up as a permission prompt on the call it was meant to pre-approve.
