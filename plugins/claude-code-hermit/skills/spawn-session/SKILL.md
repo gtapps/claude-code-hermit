@@ -16,7 +16,7 @@ its idle notice, and relay the report through `/claude-code-hermit:watch`.
 From `<abs>`, the project root, that composes:
 
 ```
-claude --bg --worktree <n> --name <n> --permission-mode <p> [--remote-control <n>] [--model <m>] [--effort <e>] '<prompt>'
+claude --bg --worktree <n> --name <n> [--permission-mode <p>] [--remote-control <n>] [--model <m>] [--effort <e>] '<prompt>'
 ```
 
 `--remote-control <n>` is present only with `--rc`; `--model` and `--effort`
@@ -30,13 +30,22 @@ only when the operator passed them. Five limits sit on that command:
   permission rules. `--permission-mode <p>` from `config.json`'s
   `permission_mode` is what keeps it in this session's permission class, which
   is also what lets its idle notice reach here rather than being held for an
-  operator who is not watching.
+  operator who is not watching. `config.json` accepts one value the CLI has no
+  choice for, `default`, so it and `null` and an absent key all mean: leave the
+  flag off entirely and let the helper take the box default.
+  `scripts/hermit-start.ts` resolves the same value the same way; match it
+  rather than inventing a second answer. Every other value passes through
+  unchanged, `bypassPermissions` included.
 - The prompt is one single-quoted argument. An apostrophe in it ends the quote,
   so replace every `'` with `'\''` before composing. Anything after the closing
   quote is a second command the operator never asked for.
-- The launch is not pre-approved: it raises one permission prompt, which the
-  operator's channel relays. Say what is about to be spawned before running it
-  so that prompt is answerable from a phone.
+- The launch is not pre-approved, and what the operator sees depends on the
+  mode they run in. On `auto`, the shipped default, the classifier decides and
+  no prompt reaches them on any channel. On `acceptEdits` or `manual` the native
+  approval is relayed to their DM and is allow-once, so every spawn asks again.
+  On `bypassPermissions` there is none. Say what is about to be spawned before
+  running it either way: it is the only thing that makes the launch legible
+  when an approval does arrive, and the only record when none does.
 - `--rc` needs `/login` credentials on this box. Detect with
   `claude auth status --json`: `authMethod` other than `claude.ai` means no
   `/login` credential. Refuse with one line, do not retry, do not spawn.
@@ -58,7 +67,8 @@ only when the operator passed them. Five limits sit on that command:
 3. Resolve `<abs>` with `git rev-parse --show-toplevel` rather than reading the
    Bash tool's working directory, which persists across calls and can sit in a
    subdirectory. Read `<p>` from `<abs>/.claude-code-hermit/config.json`
-   (`permission_mode`). Append this sentence to the operator's prompt:
+   (`permission_mode`), dropping the flag for `default`, `null` or an absent
+   key. Append this sentence to the operator's prompt:
 
    `The hermit project is at <abs>; its state lives in <abs>/.claude-code-hermit/. Resolve any project-relative .claude-code-hermit/ reads/writes against <abs>; pass the absolute <abs>/.claude-code-hermit path to any hermit script rather than relying on your cwd.`
 

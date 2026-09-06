@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Added
-- `/spawn-session` launches a background helper in its own worktree, watches it, and relays its idle report; `--rc` is opt-in and the launch takes an ordinary permission prompt. `min_claude_code_version` bumped to `>=2.1.263` in `hermit-meta.json`: below it `claude --bg --name <n>` does not register the name, so the watch cannot resolve the helper.
+- `/spawn-session` launches a background helper in its own worktree, watches it, and relays its idle report; `--rc` is opt-in. The launch is not in the sealed allow-list, so on `auto` the classifier decides it and on a prompting mode it raises one relayed approval. `min_claude_code_version` bumped to `>=2.1.263` in `hermit-meta.json`: below it `claude --bg --name <n>` does not register the name, so the watch cannot resolve the helper.
 
 ### Changed
 - `peer-post.ts` requires message text as an argument and no longer reads stdin.
