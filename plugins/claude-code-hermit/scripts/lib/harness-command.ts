@@ -18,7 +18,7 @@ type PermissionMode = (typeof PERMISSION_MODE)[number];
 // is shape — no whitespace, no control characters, bounded length — because the arg is
 // typed into a live pane and a newline would submit early, turning the remainder into
 // its own prompt. Brackets are allowed: `opus[1m]` is a valid alias.
-const ARG_RE = /^[A-Za-z0-9._[\]-]{1,64}$/;
+export const ARG_RE = /^[A-Za-z0-9._[\]-]{1,64}$/;
 
 /** Commands taking no argument. */
 const BARE_COMMANDS = new Set(['/compact', '/clear', '/doctor', '/checkup']);
@@ -127,6 +127,7 @@ export function permissionModeRefusal(arg: string): string | null {
 export type PendingCommand = {
   command: string;
   arg: string | null;
+  then?: { command: '/model' | '/effort'; arg: string };
   by: string;
   reply_to?: { source: string; chat_id: string };
   requested_at: string;

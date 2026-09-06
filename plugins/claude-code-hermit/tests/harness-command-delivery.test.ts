@@ -99,6 +99,8 @@ function installFakeTmux(
   dir: string,
   pane: string,
   opts: {
+    paneAfterEnter?: string;
+    swapAfterCaptures?: number;
     failLiteral?: boolean;
     failSecondEnter?: boolean;
     revealAfterCapture?: number;
@@ -110,15 +112,23 @@ function installFakeTmux(
   const paneFile = path.join(dir, 'pane.txt');
   const enterCount = path.join(dir, 'enter-count');
   const captureCount = path.join(dir, 'capture-count');
+  const swapDelay = path.join(dir, 'swap-delay');
   const helperPid = path.join(dir, 'helper-pid');
   fs.mkdirSync(bin);
   fs.writeFileSync(paneFile, pane);
+  const nextPaneFile = path.join(dir, 'next-pane.txt');
+  fs.writeFileSync(nextPaneFile, opts.paneAfterEnter ?? pane);
   fs.writeFileSync(path.join(bin, 'tmux'), `#!/usr/bin/env bash
 printf '%s\\n' "$*" >> "${log}"
 case "$1" in
   has-session) exit ${opts.deadSession ? 1 : 0} ;;
   capture-pane)
     printf '%s' "$PPID" > "${helperPid}"
+    if [[ -f "${swapDelay}" ]]; then
+      left=$(cat "${swapDelay}")
+      left=$((left - 1))
+      if (( left <= 0 )); then cp "${nextPaneFile}" "${paneFile}"; rm -f "${swapDelay}"; else printf '%s' "$left" > "${swapDelay}"; fi
+    fi
     count=0
     [[ -f "${captureCount}" ]] && count=$(cat "${captureCount}")
     count=$((count + 1))
@@ -133,6 +143,10 @@ case "$1" in
       [[ -f "${enterCount}" ]] && count=$(cat "${enterCount}")
       count=$((count + 1))
       printf '%s' "$count" > "${enterCount}"
+      if [[ "$count" == "2" ]]; then
+        if (( ${opts.swapAfterCaptures ?? 0} > 0 )); then printf '%s' "${opts.swapAfterCaptures ?? 0}" > "${swapDelay}";
+        else cp "${nextPaneFile}" "${paneFile}"; fi
+      fi
       if [[ "${opts.failSecondEnter ? '1' : '0'}" == "1" && "$count" == "2" ]]; then exit 1; fi
     fi
     exit 0
@@ -317,6 +331,41 @@ ${MODEL_SWITCH_PANE}
 });
 
 describe('Stop hook harness-switch delivery', () => {
+  test('model then effort: one Stop sends and confirms both switches once', withDir(async (dir) => {
+    seedPendingSwitch(dir, '/model', 'sonnet');
+    writePendingCommand(hermit(dir), {
+      command: '/model', arg: 'sonnet', by: 'terminal',
+      then: { command: '/effort', arg: 'low' },
+      requested_at: new Date().toISOString(),
+    });
+    // The model dialog outlives its Enter by two captures, so the helper's dismiss wait
+    // has to loop. Swapping the pane on Enter alone would let the follow-up be typed
+    // against a fixture that was never showing the dialog in the first place.
+    const { bin, log, helperPid } = installFakeTmux(dir, MODEL_SWITCH_PANE_WITH_CHROME, {
+      paneAfterEnter: SWITCH_CASES[1].pane,
+      swapAfterCaptures: 2,
+    });
+    const result = await drain(dir, bin, CONFIRM_TIMEOUT_MULTI_CAPTURE_MS);
+    await waitForVerifierExit(helperPid);
+    expect(result.exitCode).toBe(0);
+    const calls = fs.readFileSync(log, 'utf-8').trim().split('\n');
+    expect(calls.filter((line) => line.includes('-l -- /model sonnet'))).toHaveLength(1);
+    expect(calls.filter((line) => line.includes('-l -- /effort low'))).toHaveLength(1);
+    expect(calls.filter((line) => line.includes('-l --'))).toHaveLength(2);
+    expect(calls.filter((line) => line.endsWith(' Enter'))).toHaveLength(4);
+    // The effort text is typed only after the model dialog is answered and gone: at least
+    // one capture separates the confirming Enter from the follow-up send.
+    const effortSend = calls.findIndex((line) => line.includes('-l -- /effort low'));
+    const confirmEnter = calls.slice(0, effortSend).findLastIndex((line) => line.endsWith(' Enter'));
+    expect(calls.slice(confirmEnter + 1, effortSend).filter((l) => l.startsWith('capture-pane')))
+      .toHaveLength(2);
+    expect(fs.existsSync(pendingMarker(dir))).toBe(false);
+    expect(JSON.parse(fs.readFileSync(switchVerifyMarker(dir), 'utf-8')).arg).toBe('sonnet');
+    const before = fs.readFileSync(log, 'utf-8');
+    await drain(dir, bin);
+    expect(fs.readFileSync(log, 'utf-8')).toBe(before);
+  }));
+
   test('model: confirmation with chrome below the dialog still receives Enter', withDir(async (dir) => {
     seedPendingSwitch(dir, '/model', 'opus');
     const { bin, log, helperPid } = installFakeTmux(dir, MODEL_SWITCH_PANE_WITH_CHROME, { revealAfterCapture: 2 });

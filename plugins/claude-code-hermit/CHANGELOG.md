@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Deferred model and effort switching through `/when-done-switch-to` and the `arm-harness-switch` verb.
+
 ### Changed
 - `peer-post.ts` requires message text as an argument and no longer reads stdin.
 
