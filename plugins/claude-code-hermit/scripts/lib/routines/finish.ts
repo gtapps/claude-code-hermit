@@ -1,10 +1,11 @@
-// `routines.ts finish <routine-id> [delivery]` — the single owner of a routine
-// fire's terminal ledger row. Called unconditionally after the skill is invoked,
-// replacing the old `log-event <id> fired`.
+// `routines.ts finish <routine-id> [delivery] [--outcome-stdin]` — the single
+// owner of a routine fire's terminal ledger row. Called unconditionally after the
+// skill is invoked, replacing the old `log-event <id> fired`.
 //
-// stdin (optional): the fire's one-line outcome, appended under SHELL.md's
-// `## Progress Log` as `[HH:MM] <line>`. Empty stdin writes nothing, and neither
-// does a replayed fire — one row per real fire, contract or not.
+// With --outcome-stdin, stdin carries the fire's one-line outcome, appended under
+// SHELL.md's `## Progress Log` as `[HH:MM] <line>`. Without the flag stdin is not
+// read. An empty outcome writes nothing, and neither does a replayed fire: one
+// row per real fire, contract or not.
 //
 // Why a finalizer instead of a verify-then-branch: the old contract asked the
 // model to decide which event to log, so a fire's success was recorded from the
@@ -39,7 +40,8 @@ import { readRunRecord, markOutcome, statIdentity, identityChanged } from './run
 
 type Json = any;
 
-const USAGE = 'Usage: routines.ts finish <routine-id> [delivery]';
+const USAGE = 'Usage: routines.ts finish <routine-id> [delivery] [--outcome-stdin]';
+const OUTCOME_FLAG = '--outcome-stdin';
 
 // Function declaration, not an arrow: TS only uses a `never` return for
 // control-flow narrowing when the callee is a declared name (same shape as
@@ -77,7 +79,9 @@ function appendOutcome(hermit: string, outcome: string): void {
 }
 
 export function run(args: string[], outcome = ''): void {
-  const [id, deliveryArg] = args;
+  // The dispatcher already consumed the flag's stdin; strip it here so it can
+  // never be taken as the delivery positional (the ledger accepts any string).
+  const [id, deliveryArg] = args.filter(arg => arg !== OUTCOME_FLAG);
   const delivery = deliveryArg || 'cron-create';
   if (!id) {
     process.stderr.write(`${USAGE}\n`);

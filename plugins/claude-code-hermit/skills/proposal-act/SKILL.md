@@ -73,7 +73,7 @@ When the operator accepts a proposal:
    ```bash
    bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal.ts patch .claude-code-hermit <filename> \
        --set status=accepted --set accepted_date=@now \
-       [--set responded=true] [--set accepted_in_session=<session_id>] <<'HERMIT_PATCH'
+       [--set responded=true] [--set accepted_in_session=<session_id>] --stdin <<'HERMIT_PATCH'
    Decision: Accepted on @now.
    [Set: success_signal=<predicate line>]
    HERMIT_PATCH
@@ -257,7 +257,7 @@ When invoked as `accept PROP-NNN --answer "<label>"` (channel-responder resolvin
 4. Patch:
    ```bash
    bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal.ts patch .claude-code-hermit <filename> \
-       --set status=deferred --set deferred_date=@now [--set responded=true] <<'HERMIT_PATCH'
+       --set status=deferred --set deferred_date=@now [--set responded=true] --stdin <<'HERMIT_PATCH'
    Decision: Deferred on @now. Reason: [operator's note]
    HERMIT_PATCH
    ```
@@ -278,7 +278,7 @@ Deferred proposals still appear in `/proposal-list` but are sorted below open pr
 4. Patch:
    ```bash
    bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal.ts patch .claude-code-hermit <filename> \
-       --set status=dismissed --set dismissed_date=@now --set resolved_date=@now [--set responded=true] <<'HERMIT_PATCH'
+       --set status=dismissed --set dismissed_date=@now --set resolved_date=@now [--set responded=true] --stdin <<'HERMIT_PATCH'
    Decision: Dismissed on @now. Reason: [operator's reason]
    HERMIT_PATCH
    ```
@@ -300,7 +300,7 @@ Used when reflect has surfaced a sparse-cadence proposal as a resolution candida
 3. Patch — frontmatter flip, Operator Decision timestamp, and the compaction-boundary marker in one call:
    ```bash
    bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal.ts patch .claude-code-hermit <filename> \
-       --set status=resolved --set resolved_date=@now --request-compact <<'HERMIT_PATCH'
+       --set status=resolved --set resolved_date=@now --request-compact --stdin <<'HERMIT_PATCH'
    Decision: Resolved on @now.
    HERMIT_PATCH
    ```

@@ -24,6 +24,11 @@ function readStdin(): Promise<string> {
   });
 }
 
+// A TTY never emits 'end' without Ctrl-D, so the flag alone is not enough to read.
+function readStdinIfFlagged(argv: string[], flag: string): Promise<string> {
+  return argv.includes(flag) && !process.stdin.isTTY ? readStdin() : Promise.resolve('');
+}
+
 function readJson(p: string): Json {
   try { return JSON.parse(fs.readFileSync(p, 'utf-8')); } catch { return null; }
 }
@@ -41,4 +46,4 @@ function flagEq(argv: string[], name: string): string | undefined {
   return hit === undefined ? undefined : hit.slice(name.length + 3);
 }
 
-export { emit, readStdin, readJson, flagValue, flagEq };
+export { emit, readStdin, readStdinIfFlagged, readJson, flagValue, flagEq };

@@ -42,7 +42,7 @@ const writeArtifact = (dir: string, rel: string, body: string) => {
 const precheck = (dir: string, id: string) =>
   runScript('routines.ts', { args: ['precheck', id, 'true'], cwd: dir });
 const finish = (dir: string, id: string, stdin = '') =>
-  runScript('routines.ts', { args: ['finish', id], cwd: dir, stdin });
+  runScript('routines.ts', { args: ['finish', id, '--outcome-stdin'], cwd: dir, stdin });
 
 const progressLog = (dir: string) => {
   const shell = fs.readFileSync(hermit(dir, 'sessions', 'SHELL.md'), 'utf-8');
@@ -206,6 +206,12 @@ describe('routines.ts finish — declared artifact contract', () => {
 });
 
 describe('routines.ts finish — outcome line on stdin', () => {
+  test('finishes with an open stdin pipe without an outcome flag', withDir(async (dir) => {
+    const r = await runScript('routines.ts', { args: ['finish', 'plain', 'monitor'], cwd: dir, openStdin: true });
+    expect(r.stdout.trim()).toBe('fired');
+    expect(r.exitCode).toBe(0);
+  }));
+
   test('lands exactly one Progress Log row, and never a second on a replayed fire', withDir(async (dir) => {
     writeConfig(dir, [
       { id: 'cal', schedule: '0 6 * * *', skill: 'x', enabled: true, expect_artifact: 'raw/s-{date}.md' },

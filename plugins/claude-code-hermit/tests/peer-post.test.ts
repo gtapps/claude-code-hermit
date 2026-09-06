@@ -132,10 +132,9 @@ describe('postToSession', () => {
 });
 
 describe('peer-post CLI', () => {
-  async function runCli(args: string[], stdin?: string) {
+  async function runCli(args: string[]) {
     const { stdout, exitCode } = await runScript('peer-post.ts', {
       args,
-      stdin,
       // The token is inherited from the ambient session when Claude Code runs
       // the suite; blank it so the frame count is the same on CI and locally.
       env: { CLAUDE_CODE_MESSAGING_TOKEN: '' },
@@ -152,24 +151,6 @@ describe('peer-post CLI', () => {
       expect(stdout).toBe('sent');
       await waitForLines(inbox.lines, 1);
       expect(JSON.parse(inbox.lines[0]).message.content).toBe('HEARTBEAT_EVALUATE');
-    } finally {
-      inbox.close();
-    }
-  });
-
-  test('text on stdin when the argument is omitted', async () => {
-    const inbox = await inboxServer();
-    try {
-      const { exitCode } = await runCli(
-        [inbox.socketPath],
-        'ROUTINE_DUE [hermit-routine:daily-auto-close]\n',
-      );
-
-      expect(exitCode).toBe(0);
-      await waitForLines(inbox.lines, 1);
-      expect(JSON.parse(inbox.lines[0]).message.content).toBe(
-        'ROUTINE_DUE [hermit-routine:daily-auto-close]',
-      );
     } finally {
       inbox.close();
     }
@@ -209,5 +190,17 @@ describe('peer-post CLI', () => {
   test('no socket path → usage error, exit 1', async () => {
     const { exitCode } = await runCli([]);
     expect(exitCode).toBe(1);
+  });
+
+  test('no text argument → exit 1, nothing on the wire', async () => {
+    const inbox = await inboxServer();
+    try {
+      const { stdout, exitCode } = await runCli([inbox.socketPath]);
+      expect(exitCode).toBe(1);
+      expect(stdout).toBe('');
+      expect(inbox.lines).toHaveLength(0);
+    } finally {
+      inbox.close();
+    }
   });
 });
