@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- `covered-by-memory` suppression in `proposal-triage` now requires a memory that records an operator decision: frontmatter `type` `feedback` or `project`, read at the top level or under `metadata:`, with untyped files falling back to their `feedback_`/`project_` filename prefix. A `reference` or `user` memory can be cited but no longer suppresses, so a probe verdict saved minutes earlier stops blocking the proposal that would act on it.
+- Step 5's precondition reads "no `covered-by-memory` suppression" instead of "no memory match", so a candidate that matches a `reference` memory still goes through the three-condition rule.
+
 ## [1.3.2] - 2026-09-06
 
 ### Added

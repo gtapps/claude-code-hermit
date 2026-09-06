@@ -68,7 +68,7 @@ Note the nearest near-miss PROP-ID even if no exact duplicate is found — it go
 
 ## Step 1.5 — Operator memory cross-reference
 
-Read `<memory_dir>/MEMORY.md` (the operator-facing index of `- [title](file) — description` entries — distinct from your own private memory, which is auto-injected). Read each topic file beside it whose title or description keyword-matches the candidate. Missing or empty means nothing is covered. Each topic file carries `name`, `description`, body, `Why:`, and `How to apply:` — match against all of them. If memory already records the operator's decision, preference, or pattern that this candidate would propose:
+Read `<memory_dir>/MEMORY.md` (the operator-facing index of `- [title](file) — description` entries — distinct from your own private memory, which is auto-injected). Read each topic file beside it whose title or description keyword-matches the candidate. Missing or empty means nothing is covered. Each topic file carries `name`, `description`, body, `Why:`, and `How to apply:` — match against all of them. Check each topic file's frontmatter `type` (top level in some files, nested under `metadata:` in others, so check both). Only a topic file whose type is `feedback` or `project` can trigger `covered-by-memory`; type `reference` and type `user` inform the verdict but never trigger suppression. A topic file whose frontmatter carries no `type` at all falls back to its filename prefix: `feedback_`/`project_` is eligible, anything else is not. If eligible memory already records the operator's decision, preference, or pattern that this candidate would propose:
 - Return: `SUPPRESS: <title> — covered-by-memory: <one-sentence reason> ("<quoted memory line>")` (see Output for the full grammar)
 - Emit `memory_ref: <filename>` as metadata so the operator can locate and revise the source if it has gone stale.
 - Stop evaluating this candidate. Continue with any remaining candidates in the batch.
@@ -91,7 +91,7 @@ Glob `*.md` with `path: <root>/compiled`. Read YAML frontmatter (`title`, `type`
 
 ## Step 5 — Three-Condition Rule
 
-Only if no duplicate found and no memory match, check applicable conditions:
+Only if no duplicate found and no `covered-by-memory` suppression, check applicable conditions:
 
 1. **Repeated pattern** — required only when `Evidence Source` is `archived-session` (or absent) and the candidate cites no machine-written `Artifact:`; then a single incident does not qualify. Every other source, and any artifact-cited candidate, had recurrence established upstream (the check's own interval analysis, the operator's request, the brainstorm pass, or `reflection-judge`'s verification of the cited sessions, ledger, or file). Do not re-check it here.
 2. **Meaningful consequence** — does something actually go wrong without fixing this? (Mild inconvenience does not qualify.) Always required.
