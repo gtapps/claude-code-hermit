@@ -262,6 +262,15 @@ describe('proposal.ts event', () => {
 });
 
 describe('proposal.ts patch', () => {
+  test('patches with an open stdin pipe without a stdin flag', withDir(async (dir) => {
+    seedState(dir);
+    const id = await createProposal(dir);
+    const r = await runProposal(stateArg(dir), ['patch', id, '--set', 'status=accepted'], { openStdin: true, cwd: dir });
+    expect(r.stdout.trim()).toBe(`OK|${id}`);
+    expect(r.exitCode).toBe(0);
+    expect(fs.readFileSync(propPath(dir, id), 'utf-8')).toContain('status: accepted');
+  }));
+
   function createProposal(dir: string, extra: Record<string, string> = {}): Promise<string> {
     const stdin = heredoc({ Title: 'Patch target', ...extra }, MIN_BODY);
     return runProposal(stateArg(dir), ['create'], { stdin }).then(r => r.stdout.trim());
@@ -272,7 +281,7 @@ describe('proposal.ts patch', () => {
     const id = await createProposal(dir);
     const before = fs.readFileSync(propPath(dir, id), 'utf-8');
 
-    const r = await runProposal(stateArg(dir), ['patch', id, '--set', 'status=accepted', '--set', 'accepted_date=@now', '--set', 'responded=true'], { stdin: 'Decision: Accepted on @now.\n' });
+    const r = await runProposal(stateArg(dir), ['patch', id, '--stdin', '--set', 'status=accepted', '--set', 'accepted_date=@now', '--set', 'responded=true'], { stdin: 'Decision: Accepted on @now.\n' });
     expect(r.stdout.trim()).toBe(`OK|${id}`);
     const after = fs.readFileSync(propPath(dir, id), 'utf-8');
     expect(after).toContain('status: accepted');
@@ -311,7 +320,7 @@ describe('proposal.ts patch', () => {
     const id = await createProposal(dir);
     const before = fs.readFileSync(propPath(dir, id), 'utf-8');
     const fmBefore = before.slice(0, before.indexOf('\n---', 3) + 4);
-    await runProposal(stateArg(dir), ['patch', id], { stdin: 'Decision: just a note.\n' });
+    await runProposal(stateArg(dir), ['patch', id, '--stdin'], { stdin: 'Decision: just a note.\n' });
     const after = fs.readFileSync(propPath(dir, id), 'utf-8');
     const fmAfter = after.slice(0, after.indexOf('\n---', 3) + 4);
     expect(fmAfter).toBe(fmBefore);
@@ -357,7 +366,7 @@ describe('proposal.ts patch', () => {
   test('Set: stdin line carries a free-text multi-word predicate into frontmatter', withDir(async (dir) => {
     seedState(dir);
     const id = await createProposal(dir);
-    const r = await runProposal(stateArg(dir), ['patch', id], { stdin: 'Set: success_signal=avg_session_cost_usd < 5 over 7 sessions\n' });
+    const r = await runProposal(stateArg(dir), ['patch', id, '--stdin'], { stdin: 'Set: success_signal=avg_session_cost_usd < 5 over 7 sessions\n' });
     expect(r.stdout.trim()).toBe(`OK|${id}`);
     const after = fs.readFileSync(propPath(dir, id), 'utf-8');
     expect(after).toContain('success_signal: "avg_session_cost_usd < 5 over 7 sessions"');
@@ -366,7 +375,7 @@ describe('proposal.ts patch', () => {
   test('re-running an identical patch call is idempotent — no duplicate Decision line', withDir(async (dir) => {
     seedState(dir);
     const id = await createProposal(dir);
-    const call = () => runProposal(stateArg(dir), ['patch', id], { stdin: 'Decision: Fixed timestamp note.\n' });
+    const call = () => runProposal(stateArg(dir), ['patch', id, '--stdin'], { stdin: 'Decision: Fixed timestamp note.\n' });
     await call();
     await call();
     const content = fs.readFileSync(propPath(dir, id), 'utf-8');
@@ -385,7 +394,7 @@ describe('proposal.ts patch', () => {
     const seeded = fs.readFileSync(propPath(dir, id), 'utf-8')
       .replace('## Operator Decision\n', '## Operator Decision\nAccepted on 2001-01-01T00:00:00Z.\n');
     fs.writeFileSync(propPath(dir, id), seeded);
-    await runProposal(stateArg(dir), ['patch', id, '--set', 'status=accepted', '--set', 'accepted_date=@now'], { stdin: 'Decision: Accepted on @now.\n' });
+    await runProposal(stateArg(dir), ['patch', id, '--stdin', '--set', 'status=accepted', '--set', 'accepted_date=@now'], { stdin: 'Decision: Accepted on @now.\n' });
     const content = fs.readFileSync(propPath(dir, id), 'utf-8');
     expect(content.match(/Accepted on \d{4}-/g)?.length).toBe(1);
     expect(content).toContain('Accepted on 2001-01-01T00:00:00Z.');
@@ -394,7 +403,7 @@ describe('proposal.ts patch', () => {
   test('a bare Decision: line does not swallow the following Set: line', withDir(async (dir) => {
     seedState(dir);
     const id = await createProposal(dir);
-    const r = await runProposal(stateArg(dir), ['patch', id], { stdin: 'Decision:\nSet: success_signal=avg_session_cost_usd < 5 over 7 sessions\n' });
+    const r = await runProposal(stateArg(dir), ['patch', id, '--stdin'], { stdin: 'Decision:\nSet: success_signal=avg_session_cost_usd < 5 over 7 sessions\n' });
     expect(r.stdout.trim()).toBe(`OK|${id}`);
     const after = fs.readFileSync(propPath(dir, id), 'utf-8');
     expect(after).toContain('success_signal: "avg_session_cost_usd < 5 over 7 sessions"');
@@ -800,7 +809,7 @@ describe('proposal.ts patch — pending-ask reconciliation', () => {
     const id = await createProposal(dir);
     seedAsk(dir, id.slice(0, 8));
 
-    const r = await runProposal(stateArg(dir), ['patch', id], { stdin: 'Set: status=resolved\nDecision: Done.\n' });
+    const r = await runProposal(stateArg(dir), ['patch', id, '--stdin'], { stdin: 'Set: status=resolved\nDecision: Done.\n' });
     expect(r.stdout.trim()).toBe(`OK|${id}`);
     expect(pending(dir)).toHaveLength(0);
   }));

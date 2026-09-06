@@ -1,6 +1,6 @@
 // Posts one message into another Claude Code session's inbox socket.
 // Zero npm dependencies, Node stdlib only.
-// Usage: bun peer-post.ts <socket-path> [text]     (text on stdin when omitted)
+// Usage: bun peer-post.ts <socket-path> <text>
 //
 // Exit 0 and print "sent" when the payload reached the socket; exit 1 and print
 // "dead" when nothing was listening or the connect timed out. "sent" is not
@@ -11,19 +11,14 @@
 // which is how a script posting to its OWN session identifies itself.
 
 import { postToSession } from './lib/peer-post';
-import { readStdin } from './lib/cli';
 
 const socketPath = process.argv[2];
-const inlineText = process.argv[3];
+const text = process.argv[3];
 
 if (!socketPath) {
-  console.error('Usage: bun peer-post.ts <socket-path> [text]');
+  console.error('Usage: bun peer-post.ts <socket-path> <text>');
   process.exit(1);
 }
-
-// A TTY stdin never emits 'end', so reading it would hang until the caller's own
-// timeout. Treat "no argument, nothing piped" as the empty message it is.
-const text = inlineText ?? (process.stdin.isTTY ? '' : (await readStdin()).trim());
 
 if (!text) {
   console.error('[hermit] peer-post: empty message — nothing to send.');

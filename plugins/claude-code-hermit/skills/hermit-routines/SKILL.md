@@ -83,7 +83,7 @@ Base execution, one routine, `<delivery>` = `cron-create` (fallback prompt) or `
 ```
 Run: bun <pluginRoot>/scripts/routines.ts precheck <id> <rdw> <delivery>
 If the output is SKIP, stop. If PROCEED, then invoke /<skill> (or dispatch per the model-override rule above). After it completes, run:
-bun <pluginRoot>/scripts/routines.ts finish <id> <delivery> <<'HERMIT_LINE'
+bun <pluginRoot>/scripts/routines.ts finish <id> <delivery> --outcome-stdin <<'HERMIT_LINE'
 <one line: the routine id and what the fire actually did or found>
 HERMIT_LINE
 ```

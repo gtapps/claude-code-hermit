@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- `peer-post.ts` requires message text as an argument and no longer reads stdin.
+
+### Fixed
+- Stdin hang in `routines.ts finish` and `proposal.ts patch`: stdin is read only behind the explicit `--outcome-stdin` and `--stdin` flags; a heredoc without the flag is ignored.
+
 ## [1.3.2] - 2026-09-06
 
 ### Added
