@@ -5,7 +5,7 @@
 import { readRuntimeJson } from './runtime';
 import { capturePane, paneModeLine, sendKeys, tmuxSessionAlive } from './tmux';
 import { applyContextReset } from './context-reset';
-import { CHANNEL_SETTABLE_MODES, clearPendingCommand, normalizePermissionMode, readPendingCommand, renderCommand, writeSkillRelay, writeSwitchVerify } from './harness-command';
+import { CHANNEL_SETTABLE_MODES, clearPendingCommand, normalizePermissionMode, parseHarnessCommand, readPendingCommand, renderCommand, writeSkillRelay, writeSwitchVerify } from './harness-command';
 import type { PendingCommand } from './harness-command';
 import { currentHHMMOrUTC } from './time';
 import { readSettledConfig } from './config-read';
@@ -142,7 +142,16 @@ export function drainHarnessCommand(hermitRoot: string): void {
     });
 
     const helper = path.join(import.meta.dir, '..', 'confirm-harness-switch.ts');
-    const child = Bun.spawn([process.execPath, helper, sessionName, pending.command], {
+    // The follow-up leg is re-parsed here, not just checked for its command name: the
+    // helper refuses an argv it cannot parse and exits without answering the /model
+    // dialog, so a marker carrying a malformed `then` (hand-edited or model-written)
+    // would leave the resident sitting at an unanswered modal. Dropping the follow-up
+    // keeps the /model leg confirmable.
+    const followUpText = pending.command === '/model' && pending.then?.command === '/effort'
+      ? renderCommand(pending.then) : null;
+    const followUp = followUpText && parseHarnessCommand(followUpText)?.command === '/effort'
+      ? [followUpText] : [];
+    const child = Bun.spawn([process.execPath, helper, sessionName, pending.command, ...followUp], {
       stdin: 'ignore',
       stdout: 'ignore',
       stderr: 'ignore',

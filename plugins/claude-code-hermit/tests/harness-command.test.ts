@@ -171,6 +171,18 @@ describe('permission-mode targets', () => {
 });
 
 describe('pending-command marker', () => {
+  test('round-trips a follow-up command', () => {
+    const root = tmpRoot();
+    const entry = {
+      command: '/model', arg: 'sonnet', by: 'terminal',
+      then: { command: '/effort' as const, arg: 'low' },
+      requested_at: new Date().toISOString(),
+    };
+    expect(writePendingCommand(root, entry)).toBe(true);
+    expect(readPendingCommand(root)).toEqual(entry);
+    fs.rmSync(root, { recursive: true });
+  });
+
   test('round-trips and renders', () => {
     const root = tmpRoot();
     const entry = { command: '/model', arg: 'opus', by: 'op', requested_at: new Date().toISOString() };
