@@ -28,12 +28,12 @@
 //     proposals-index + state-summary regen. Output: the canonical ID, or
 //     `ERROR|<token>` with zero writes.
 //
-//   patch <stateDir> <filename> [--set key=value]... [--request-compact]
+//   patch <stateDir> <filename> [--set key=value]... [--request-compact] [--stdin]
 //     <filename> must be a direct-child basename of the proposals dir (no `/`,
 //     no leading `.`) — it is joined onto that dir, so a `../` prefix would
 //     otherwise reach any frontmatter-bearing .md on disk. Rejected the same
 //     way a genuinely absent proposal is: `ERROR|no-such-proposal`.
-//     stdin (optional, heredoc): `Decision: <line>` and/or `Set: key=value`
+//     stdin (opt-in with --stdin, heredoc): `Decision: <line>` and/or `Set: key=value`
 //     lines (free-text values — argv --set is for enum/bool/date/@now values
 //     only). `@now` in any --set value or stdin line expands to the current
 //     zoned ISO timestamp. Frontmatter patch + Operator Decision append apply
@@ -78,7 +78,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { emit, readStdin, readJson, flagValue } from './lib/cli';
+import { emit, readStdin, readStdinIfFlagged, readJson, flagValue } from './lib/cli';
 import { pinStateDirOrExit, memoryDirFor } from './lib/cc-compat';
 import { appendJsonlLine } from './lib/append-jsonl';
 import { auditConfigChange } from './lib/config-audit';
@@ -517,10 +517,7 @@ async function main(): Promise<void> {
   switch (verb) {
     case 'create': return emit(verbCreate(stateDir, await readStdin()));
     case 'patch': {
-      // patch is the one verb documented as stdin-optional (defer/dismiss with
-      // no note omit the heredoc) — skip the read on a TTY so an interactive
-      // invocation with no piped input doesn't hang waiting for EOF.
-      const stdin = process.stdin.isTTY ? '' : await readStdin();
+      const stdin = await readStdinIfFlagged(rest, '--stdin');
       return emit(verbPatch(stateDir, stdin, rest));
     }
     case 'shell-append': return emit(verbShellAppend(stateDir, await readStdin(), rest));

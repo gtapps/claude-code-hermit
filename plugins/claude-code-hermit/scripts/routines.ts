@@ -16,10 +16,10 @@
 //   bun routines.ts tz-shift "<cron-expr>" "<from-tz>"
 //     Rewrites a cron expression into the machine's local timezone.
 //
-//   bun routines.ts finish <routine-id> [delivery]
+//   bun routines.ts finish <routine-id> [delivery] [--outcome-stdin]
 //     Terminal gate for a fire. Verifies any declared `expect_artifact` contract
 //     against the baseline `precheck` froze, writes the one terminal ledger row,
-//     and prints `fired` or `failed|<reason>|<detail>`. Optional stdin: the fire's
+//     and prints `fired` or `failed|<reason>|<detail>`. With --outcome-stdin: the fire's
 //     one-line outcome, appended to SHELL.md's `## Progress Log`.
 //
 //   bun routines.ts log-event <routine-id> <event> [delivery]
@@ -70,8 +70,8 @@ switch (verb) {
     break;
   }
   case 'finish': {
-    const { readStdin } = await import('./lib/cli');
-    const outcome = process.stdin.isTTY ? '' : await readStdin();
+    const { readStdinIfFlagged } = await import('./lib/cli');
+    const outcome = await readStdinIfFlagged(rest, '--outcome-stdin');
     const { run } = await import('./lib/routines/finish');
     run(rest, outcome);
     break;

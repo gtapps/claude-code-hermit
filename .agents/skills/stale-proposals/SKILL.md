@@ -75,7 +75,7 @@ For an unambiguous filename, append the metrics event before patching so regener
 bun plugins/claude-code-hermit/scripts/proposal.ts event .claude-code-hermit resolved --id="<PROP-ID>"
 
 bun plugins/claude-code-hermit/scripts/proposal.ts patch .claude-code-hermit <filename> \
-  --set status=resolved --set resolved_date=@now --request-compact <<'HERMIT_PATCH'
+  --set status=resolved --set resolved_date=@now --request-compact --stdin <<'HERMIT_PATCH'
 Decision: Resolved on @now — shipped in <plugin> <version>. <evidence sentence>
 HERMIT_PATCH
 ```

@@ -44,6 +44,12 @@ export interface RunResult {
 
 export interface RunOptions {
   stdin?: string;
+  /**
+   * Leave stdin an open pipe that never reaches EOF (the shape the Bash tool
+   * hands a script). A child that waits on 'end' is killed after 2s, so a
+   * regression shows as a non-zero exit with empty stdout, not a suite hang.
+   */
+  openStdin?: boolean;
   env?: Record<string, string>;
   cwd?: string;
   args?: string[];
@@ -108,14 +114,16 @@ export async function runScript(script: string, opts: RunOptions = {}): Promise<
     cmd: [process.execPath, path.join(SCRIPTS_DIR, script), ...(opts.args ?? [])],
     cwd: opts.cwd,
     env: { ...process.env, ...opts.env },
-    stdin: Buffer.from(opts.stdin ?? ''),
+    stdin: opts.openStdin ? 'pipe' : Buffer.from(opts.stdin ?? ''),
     stdout: 'pipe',
     stderr: 'pipe',
   });
+  const timer = opts.openStdin ? setTimeout(() => proc.kill(), 2000) : undefined;
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
     proc.exited,
   ]);
+  clearTimeout(timer);
   return { exitCode, stdout, stderr };
 }
