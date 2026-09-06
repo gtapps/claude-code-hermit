@@ -193,6 +193,13 @@ describe('observations ledger phrases', () => {
     expect(triage).toContain('never suppressed `covered-by-memory`');
   });
 
+  test('triage: covered-by-memory only from feedback/project memory types', () => {
+    expect(triage).toContain('topic file whose type is `feedback` or `project` can trigger `covered-by-memory`');
+    // Both frontmatter shapes occur in a real memory dir; pinning one would
+    // make the eligible-type gate miss the other.
+    expect(triage).toContain('top level in some files, nested under `metadata:` in others');
+  });
+
   test('hatch: seeds observations.jsonl', () => {
     expect(hatch).toContain('state/observations.jsonl');
   });

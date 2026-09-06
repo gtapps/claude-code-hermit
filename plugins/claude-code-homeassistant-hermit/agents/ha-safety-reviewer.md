@@ -39,7 +39,9 @@ Review YAML files in `.claude-code-hermit/raw/` (named `automation-*.yaml` or `s
 
 Auto memory is loaded in your context. Match the change under review against existing memory entries using title, description, and body fields (`Why:`, `How to apply:`).
 
-If memory already records the operator's preference or decision that would change your verdict:
+Only a memory that records an operator decision can change your verdict: its type is `feedback` or `project`, read from the entry's frontmatter `type` (top level in some files, nested under `metadata:` in others, so check both) or, when the frontmatter is not visible, from its `feedback_`/`project_` filename prefix. Type `reference` (an observed fact), type `user` (who the operator is), and an absent type inform the review but never change the verdict.
+
+If such a memory already records the operator's preference or decision that would change your verdict:
 - Set verdict to `approve` (memory has already adjudicated the concern).
 - Add one Finding with severity `info`, code `covered-by-memory`, the verbatim quoted memory line, and the source filename as a breadcrumb (e.g. `[memory: feedback_<topic>.md]`) so the operator can locate and revise it if stale.
 - Skip Recommendation for that finding.

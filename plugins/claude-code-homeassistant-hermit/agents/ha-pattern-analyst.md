@@ -37,7 +37,7 @@ Analyze artifacts to find:
 
 ## Memory Cross-Reference
 
-Auto memory is loaded in your context. Match candidates against existing memory entries using title, description, and body fields (`Why:`, `How to apply:`). For any candidate pattern, anomaly, opportunity, or reliability issue: if memory already records the operator's decision, preference, or pattern this candidate would surface, do not emit it under the regular arrays. Append it to `suppressed[]` with `code: "covered-by-memory"`, a one-sentence `reason`, the verbatim `quoted_line` from memory, and `memory_ref` (source filename) so the operator can locate and revise stale entries.
+Auto memory is loaded in your context. Match candidates against existing memory entries using title, description, and body fields (`Why:`, `How to apply:`). Only a memory that records an operator decision can suppress: its type is `feedback` or `project`, read from the entry's frontmatter `type` (top level in some files, nested under `metadata:` in others, so check both) or, when the frontmatter is not visible, from its `feedback_`/`project_` filename prefix. Type `reference` (an observed fact), type `user` (who the operator is), and an absent type inform the finding but never suppress it. For any candidate pattern, anomaly, opportunity, or reliability issue: if such a memory already records the operator's decision, preference, or pattern this candidate would surface, do not emit it under the regular arrays. Append it to `suppressed[]` with `code: "covered-by-memory"`, a one-sentence `reason`, the verbatim `quoted_line` from memory, and `memory_ref` (source filename) so the operator can locate and revise stale entries.
 
 ## Output Format
 
