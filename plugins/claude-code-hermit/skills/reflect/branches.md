@@ -4,34 +4,21 @@ Main-session procedures for reflect branches that fire rarely. `SKILL.md` names 
 
 ## Scheduled checks
 
-Invoked from SKILL.md § Scheduled-checks mode. Run at most one due check, then stop.
+Invoked from SKILL.md § Single-check mode. Evaluate exactly one supplied skill, then stop.
 
-1. **Load.** Read `config.json → scheduled_checks` (filter to `enabled: true`, `trigger: "interval"`). Read `state/reflection-state.json → scheduled_checks` (per-check `last_run`, `last_unavailable_at`, `last_error_at`, `consecutive_empty`).
-2. **Filter due.** Keep enabled interval entries where: `last_run` is null or older than `interval_days` days, AND `last_unavailable_at` is null or older than **4 hours** (transient cooldown), AND `last_error_at` is null or older than `interval_days` days (persistent back-off for true errors).
-3. **Pick one.** Select the entry with the oldest `last_run` (null sorts first). If none are due → skip to the Progress Log (step 8) with outcome `skipped`.
-4. **Invoke.** Invoke the `skill` command string as-is via the `Skill` tool. Availability is decided only by the harness's available-skills list (system-reminders); do not probe the filesystem for it. Classify: skill absent from the available-skills list or rejected as unknown → `unavailable`; runs but errors/times out → `error`; runs to completion → evaluate (step 5).
-5. **Evaluate.** Actionable improvement found → `actionable` (summarize finding); context improvement (e.g. a CLAUDE.md fix) → `contextual` (summarize; apply directly if trivial); nothing found → `empty`.
-6. **Act on outcome.**
-   - **`actionable` / `contextual`:** build one candidate and route it through reflect's standard gates:
-     ```
-     Candidate: <title derived from finding>
-     Tier: 1
-     Evidence Source: scheduled-check/<id>
-     Evidence: <one-paragraph summary>
-     Sessions: none
-     ```
-     Pass it to § Candidate processing → Evidence Validation (`claude-code-hermit:reflection-judge`). Paste this run's `Anchor:` line as the first line of the judge and triage dispatches (run `proposal.ts anchor` per § Candidate processing if you do not yet have it). On a `PROCEED` token, gate with the Proposal triage gate (`claude-code-hermit:proposal-triage`, a batch of one here — single candidate; pass `--caller scheduled-checks` to the `gate` verb). On triage `PROCEED|CREATE`: Tier 1/2 → Micro-approval queuing; Tier 3 → `/claude-code-hermit:proposal-create`. A `DROP|...` token from either gate → drop silently (note in the Progress Log). `GATE_FAILED` from either gate → fail closed per § Gate failure handling; the candidate re-surfaces on the next scheduled-checks run.
-   - **`empty`:** no candidate. `consecutive_empty += 1` (persisted in step 7). Check the interval-adjustment rule below.
-   - **`unavailable`:** note in SHELL.md `## Findings`: `Scheduled check skipped: <id> — skill unavailable (cooldown 4h)`. No candidate.
-   - **`error`:** note in SHELL.md `## Findings`: `Scheduled check error: <id> — retrying after interval_days`. No candidate.
-   - **`skipped`:** no action beyond the Progress Log.
-
-   **Interval adjustment.** `empty` → `consecutive_empty += 1`; `actionable`/`contextual` → reset to 0; an interval-increase proposal accepted or dismissed → reset to 0. On **3+ consecutive empty runs**, create a standard Three-Condition proposal (not tagged `scheduled-check`) to increase `interval_days` (e.g. 7 → 14), gated through `claude-code-hermit:proposal-triage` first. This mode never auto-adjusts — adjustments always go through PROP-NNN.
-7. **Persist per-check state.** One call; the script owns which fields the outcome changes (`unavailable` → `last_unavailable_at`; `error` → `last_error_at`; `empty` → `last_run` + `consecutive_empty = prior+1`; `actionable`/`contextual` → `last_run` + `consecutive_empty = 0`) and fails open (a failed write logs to stderr only, never aborts):
-   ```bash
-   bun ${CLAUDE_PLUGIN_ROOT}/scripts/update-reflection-state.ts .claude-code-hermit/state/reflection-state.json --scheduled-check-run <check-id> --outcome <unavailable|error|empty|actionable|contextual>
+1. **Validate.** Require `--check-id <id> --check <cmd…>`, with a nonempty id and command. Everything after `--check` is the command verbatim, including arguments; do not parse shell quoting. If either flag or its value is missing, append one Progress Log line `[HH:MM] reflect (check): invalid-invocation; expected --check-id <id> --check <cmd…>` and stop without invoking a skill.
+2. **Invoke.** Invoke exactly `<cmd…>` via the `Skill` tool once. Availability is decided only by the harness's available-skills list; do not probe the filesystem. Skill absent or rejected as unknown → `unavailable`; errors or times out → `error`; completes → evaluate its findings.
+3. **Evaluate.** Actionable improvement found → `actionable`; context improvement (such as a CLAUDE.md fix) → `contextual`; nothing found → `empty`. Do not apply findings directly before the gates.
+4. **Gate findings.** For `actionable` or `contextual`, build one candidate:
    ```
-8. **Progress Log (always).** Append one line to SHELL.md `## Progress Log`: `[HH:MM] scheduled-checks — <id>: <outcome>; verdicts: accept=A downgrade=D suppress=S; outcome: <none|micro-queued|proposal-created|interval-proposal>`. Use `skipped` for both the id and outcome fields when no check was due.
+   Candidate: <title derived from finding>
+   Tier: <classify under Candidate processing>
+   Evidence Source: scheduled-check/<id>
+   Evidence: <one-paragraph summary>
+   Sessions: none
+   ```
+   Follow § Candidate processing → Evidence Validation (`claude-code-hermit:reflection-judge`), then the Proposal triage gate (`claude-code-hermit:proposal-triage`, a batch of one; pass `--caller scheduled-checks` to the `gate` verb). Obtain this run's `Anchor:` line as described in § Candidate processing and paste it as the first line of both dispatches. On judge `PROCEED`, continue to triage. On triage `PROCEED|CREATE`, route Tier 1/2 to Micro-approval queuing and Tier 3 to `/claude-code-hermit:proposal-create`. A `DROP|...` token drops the candidate. `GATE_FAILED` from either gate fails closed per § Gate failure handling: do not queue, create, or apply anything. For `empty`, `unavailable`, or `error`, no candidate or proposal is produced.
+5. **Progress Log (always).** Append exactly one line to SHELL.md `## Progress Log`: `[HH:MM] reflect (check): <id>: <classification>; verdicts: accept=A downgrade=D suppress=S; outcome: <none|dropped|gate-failed|micro-queued|proposal-created>`. Then stop. Routine scheduling owns future invocations; this mode does not read or write per-check scheduling state.
 
 ## `skill-correction:*` routing
 

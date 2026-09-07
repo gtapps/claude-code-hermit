@@ -19,6 +19,8 @@ A fitness/training domain layer for `claude-code-hermit`: skills, a Strava data 
 
 ## Routines and state
 
+The `weekly-coaching-patterns` routine invokes `reflect --check-id weekly-coaching-patterns --check claude-code-fitness-hermit:weekly-coaching-patterns`. Hatch installs its pre-wake gate from `state-templates/bin/fitness-weekly-patterns-gate`.
+
 - The routine prompt files in `state-templates/compiled/` are not invokable skills; `hatch` registers them as `prompt_file:` entries in `config.json.routines` and core's `hermit-routines load` activates them. Renaming a prompt file means updating the registered path.
 - Routine entries use the no-leading-slash form `"claude-code-fitness-hermit:<skill>"`; `boot_skill` in `hermit-meta.json` uses the leading-slash form. This plugin ships no `boot_skill`.
 - `raw/` holds ephemeral Strava pulls (aged out by `knowledge.raw_retention_days`), `compiled/` durable outputs (weekly plans and summaries, activity notes; injected at session start within `compiled_budget_chars`), `state/` machine files. Both `raw/` and `compiled/` are flat, per core's storage contract. Owners, shapes, and retention of `strava-last-activity-id.txt`, `strava-weekly-baselines.json`, `activity-notes.json` (durable, keyed by Strava activity ID), and `strava-pending-rpe.json` (written by the evening brief only after a confirmed channel send; consumed once by `capture-activity-rpe` within 24h) are in `docs/knowledge-schema.md`.

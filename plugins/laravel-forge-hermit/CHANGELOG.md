@@ -5,6 +5,18 @@
 ### Fixed
 - Forge validation failures now include scrubbed field-level error details in generic read and write output.
 
+### Changed
+- Failed-deployment scans run as an ordinary daily routine. Core 1.3.3 is required.
+
+### Upgrade Instructions
+
+1. Complete core's periodic-check conversion first.
+2. Re-read `.claude-code-hermit/config.json`. Append each of the following routines only when its id is absent from `config.routines`. Preserve every existing routine, including custom schedules, model pins, and disabled entries.
+   ```json
+   {"id": "forge-failed-deploys", "schedule": "5 9 * * *", "skill": "claude-code-hermit:reflect --check-id forge-failed-deploys --check laravel-forge-hermit:forge-failed-deploys", "run_during_waiting": true, "enabled": true}
+   ```
+3. Save the config and run `/claude-code-hermit:hermit-routines load`.
+
 ## [0.0.13] - 2026-09-06
 
 ### Changed

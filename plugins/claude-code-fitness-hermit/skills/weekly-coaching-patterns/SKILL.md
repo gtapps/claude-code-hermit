@@ -1,13 +1,13 @@
 ---
 name: weekly-coaching-patterns
-description: "Interval scheduled check — detects multi-session cardiac-drift trends across recent compiled activity notes. Runs weekly via the scheduled-checks routine; findings are routed through the proposal pipeline as Evidence Source: scheduled-check/weekly-coaching-patterns."
+description: "Routine check: detects multi-session cardiac-drift trends across recent compiled activity notes. Runs weekly via its own routine; findings are routed through the proposal pipeline as Evidence Source: scheduled-check/weekly-coaching-patterns."
 allowed-tools:
   - Bash(bun *fitness-lab.ts*)
 ---
 
 # Weekly Coaching Patterns
 
-Scheduled-check skill: reads the last 4 `compiled/activity-*.md` artifacts for steady sessions and detects whether cardiac drift is trending upward over time. Returns a fixed findings block for `reflect --scheduled-checks` to classify and route.
+Scheduled-check skill: reads the last 4 `compiled/activity-*.md` artifacts for steady sessions and detects whether cardiac drift is trending upward over time. Returns a fixed findings block for `reflect --check-id weekly-coaching-patterns --check claude-code-fitness-hermit:weekly-coaching-patterns` to classify and route.
 
 **Contract:** idempotent, read-only, no self-scheduling, short-running. Returns findings or silence — never creates proposals itself.
 
@@ -29,7 +29,7 @@ Scheduled-check skill: reads the last 4 `compiled/activity-*.md` artifacts for s
 
    **Anti-duplication guard:** emit a finding ONLY on `trend: "upward"` (the quantitative numeric rise). Do NOT emit on label recurrence alone.
 
-2. **Output the findings block.** Always output a plain-text findings block to stdout, regardless of outcome. `reflect --scheduled-checks` classifies the result from this block.
+2. **Output the findings block.** Always output a plain-text findings block to stdout, regardless of outcome. `reflect --check-id weekly-coaching-patterns --check claude-code-fitness-hermit:weekly-coaching-patterns` classifies the result from this block.
 
    **`trend: "upward"`:**
    ```
@@ -68,6 +68,6 @@ The following metrics follow the same steady-session pattern and would add items
 
 ## Notes
 
-- **This skill writes no artifact.** All output goes to stdout for `reflect --scheduled-checks` to classify and route. Runtime state (`last_run`, `consecutive_empty`, etc.) is written by `reflect --scheduled-checks` to `state/reflection-state.json → scheduled_checks.weekly-coaching-patterns` — not by this skill.
-- **Registered by `/claude-code-fitness-hermit:hatch`** step 8c via a `scheduled_checks` config entry (`interval_days: 7`). The core daily `scheduled-checks` routine fires `reflect --scheduled-checks`, which picks it up once 7+ days have elapsed since `last_run`.
+- **This skill writes no artifact.** Findings are returned for `reflect --check-id weekly-coaching-patterns --check claude-code-fitness-hermit:weekly-coaching-patterns` to classify and route. Routine execution owns scheduling state.
+- **Registered by `/claude-code-fitness-hermit:hatch`** as the `weekly-coaching-patterns` routine. Its schedule lives in `config.routines`.
 - **The `[cardiac-drift-high]` label has two upstream producers.** `activity-deep-dive` step 7b writes single-session observations (graduated to proposals via reflect's current-session path); this skill emits on a multi-session trend. Both flow into `proposal-triage`, which dedups — so a triage `DUPLICATE` verdict here is expected behavior, not a bug.

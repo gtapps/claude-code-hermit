@@ -78,7 +78,7 @@ const TABLE: Record<string, Spec> = {
   env: map,
   boot_skill: str(null),
   shutdown_skill: str(null),
-  scheduled_checks: arr,
+  scheduled_checks: arr, // Session-triggered checks; preserve operator-authored entry fields.
   docker: shape({ packages: arr, recommended_plugins: arr, fleet_mesh: bool(false) }),
   compact: shape({
     monitoring_threshold: num(30),

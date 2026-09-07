@@ -56,7 +56,7 @@ test('cli updates skips cleanly when HA is unreachable', async () => {
 });
 
 // Regression gate: --digest wiring must never change default stdout — pinned
-// as the output contract for ha-update-check's `reflect --scheduled-checks`.
+// as the output contract for ha-update-check's `reflect --check-id ha-update-check --check claude-code-homeassistant-hermit:ha-update-check`.
 test('cli updates default output is byte-identical with and without the digest flag defaulting off', async () => {
   const deps = {
     createClient: async () =>

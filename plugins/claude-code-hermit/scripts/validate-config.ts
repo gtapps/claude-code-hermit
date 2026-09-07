@@ -275,11 +275,7 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
     });
   }
 
-  // scheduled_checks are written by domain hatches, which until now had no
-  // validation at all here — a typo'd skill name (issue #651's failure, one
-  // array over) produced a structurally valid config with a dead entry that
-  // nothing caught. Same id grammar as routines: ids travel in the same
-  // markers and JSONL.
+  // Session checks share routine id grammar for markers and JSONL.
   if (config.scheduled_checks !== undefined && !Array.isArray(config.scheduled_checks)) {
     errors.push(`scheduled_checks: expected array, got ${config.scheduled_checks === null ? 'null' : typeof config.scheduled_checks}`);
   } else if (Array.isArray(config.scheduled_checks)) {
@@ -296,6 +292,19 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
       if (!c.skill) errors.push(`scheduled_checks[${i}]: missing skill`);
       else if (typeof c.skill !== 'string') {
         errors.push(`scheduled_checks[${i}]: skill must be a string, got ${typeof c.skill}`);
+      }
+      if (c.trigger === 'interval') {
+        errors.push(`scheduled_checks[${i}]: legacy "interval" trigger found, migrate to routines with a cron schedule`);
+      }
+      if (c.interval_days !== undefined) {
+        errors.push(`scheduled_checks[${i}]: legacy "interval_days" field found, migrate to routines with a cron schedule`);
+      }
+      // Only `trigger: "session"` entries are invoked (session skill step 4b) or
+      // listed by `/hermit-settings scheduled-checks`, so anything else sits in the
+      // config doing nothing and shows nowhere. Warn rather than error: an error
+      // here would block the very edits that fix the entry.
+      else if (c.trigger !== 'session' && c.trigger !== 'interval') {
+        warnings.push(`scheduled_checks[${i}]: trigger is ${c.trigger === undefined ? 'missing' : `"${c.trigger}"`}, not "session" — the entry is never invoked and is not listed by /hermit-settings`);
       }
       if (c.plugin !== undefined && typeof c.plugin !== 'string') {
         errors.push(`scheduled_checks[${i}]: plugin must be a string, got ${typeof c.plugin}`);

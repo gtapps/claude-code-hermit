@@ -154,13 +154,15 @@ Re-read `.claude-code-hermit/config.json` now — the wizard has been running si
 
 **Stamp version**: set `_hermit_versions["laravel-forge-hermit"]` to `self_version` from Step 1's preflight.
 
-**Merge scheduled check**: check `config.scheduled_checks` for `id: "forge-failed-deploys"`. If absent, append:
+**Merge the failed-deployment routine**
+
+Merge these entries into `config.routines` by id. Create the array if absent. Append each missing id; skip any existing id, preserving operator edits and all other config fields. No prompt is needed for these read-only analyses.
 
 ```json
-{"id": "forge-failed-deploys", "plugin": "laravel-forge-hermit", "skill": "laravel-forge-hermit:forge-failed-deploys", "enabled": true, "trigger": "interval", "interval_days": 1}
+{"id": "forge-failed-deploys", "schedule": "5 9 * * *", "skill": "claude-code-hermit:reflect --check-id forge-failed-deploys --check laravel-forge-hermit:forge-failed-deploys", "run_during_waiting": true, "enabled": true}
 ```
 
-If present: skip (do not clobber).
+Each routine owns its cadence and passes findings through reflection gates into the proposal pipeline.
 
 **Register runtime dir**: ensure `config.storage_drift` exists and `config.storage_drift.ignore` is an array that includes `"forge-runtime"`. If the key is absent, add `"storage_drift": {"ignore": ["forge-runtime"]}`. If the array exists but does not include `"forge-runtime"`, append it. Skip if already present.
 
@@ -194,7 +196,7 @@ Installed skills:
   /laravel-forge-hermit:forge-sites          — list / detail sites
   /laravel-forge-hermit:forge-deploy         — preview → approve → deploy
   /laravel-forge-hermit:forge-logs           — read site / server / deployment logs
-  /laravel-forge-hermit:forge-failed-deploys — daily estate scan (scheduled, interval_days: 1)
+  /laravel-forge-hermit:forge-failed-deploys — daily estate scan (daily routine)
 
 Security reminder: FORGE_API_TOKEN is in .env — verify it is gitignored before any git push.
 ```

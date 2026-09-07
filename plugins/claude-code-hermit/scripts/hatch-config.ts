@@ -91,6 +91,11 @@ if (reinit && !exists) die(`--reinit passed but no existing config.json found at
 if (!reinit && exists) die(`config.json already exists at ${configPath} — pass --reinit to update it`);
 
 let config: Json;
+// Errors the operator's config already carried before this run. Only relevant on
+// re-init, where the base IS their config: blocking on a pre-existing error (a
+// pending migration, say) would lock them out of the re-hatch, and re-init is one
+// of the things that fixes such a config. Mirrors settings-edit.ts's persist().
+let priorErrors: string[] = [];
 if (reinit) {
   // Strict read: malformed JSON refuses without writing anything, preserving the
   // file's exact bytes (mirrors apply-settings.ts's readTargetJson, not its
@@ -102,6 +107,7 @@ if (reinit) {
   } catch (e: any) {
     die(`refusing to modify ${configPath}: existing file is not valid JSON (${e.message}). Fix or remove it, then re-run.`);
   }
+  priorErrors = validate(JSON.parse(raw)).errors;
 } else {
   try {
     config = JSON.parse(fs.readFileSync(TEMPLATE_PATH, 'utf8'));
@@ -203,11 +209,17 @@ if (Object.hasOwn(answers, 'channels')) {
 }
 
 // --- output-level validation guard ---
+// Only errors this run introduced block the write; pre-existing ones are surfaced
+// and carried through (see priorErrors above).
 const { errors } = validate(config);
-if (errors.length > 0) {
+const newErrors = errors.filter((e) => !priorErrors.includes(e));
+if (newErrors.length > 0) {
   console.error('hatch-config: assembled config.json failed validation:');
-  for (const e of errors) console.error(`  FAIL  ${e}`);
+  for (const e of newErrors) console.error(`  FAIL  ${e}`);
   process.exit(1);
+}
+for (const e of errors.filter((e) => priorErrors.includes(e))) {
+  console.error(`hatch-config: pre-existing config error, left as-is:  ${e}`);
 }
 
 // --- atomic write: serialize -> .tmp -> rename (mirrors evolve-finalize.ts) ---

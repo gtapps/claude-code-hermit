@@ -5,6 +5,21 @@
 ### Fixed
 - `ha-pattern-analyst` and `ha-safety-reviewer` only let a memory that records an operator decision suppress a finding or change a verdict: frontmatter `type` `feedback` or `project`, or the `feedback_`/`project_` filename prefix where auto-injected memory hides the frontmatter. A `reference` memory recording an observed fact no longer silences the finding it describes. The safety carve-out is unchanged: memory still cannot move `ha_safety_mode`.
 
+### Changed
+- Pattern analysis and safety audits run as weekly routines; integration and update checks run as daily routines. Core 1.3.3 is required.
+
+### Upgrade Instructions
+
+1. Complete core's periodic-check conversion first.
+2. Re-read `.claude-code-hermit/config.json`. Append each of the following routines only when its id is absent from `config.routines`. Preserve every existing routine, including custom schedules, model pins, and disabled entries.
+   ```json
+   {"id": "ha-patterns", "schedule": "5 9 * * 1", "skill": "claude-code-hermit:reflect --check-id ha-patterns --check claude-code-homeassistant-hermit:ha-analyze-patterns", "run_during_waiting": true, "enabled": true}
+   {"id": "ha-safety-audit", "schedule": "5 9 * * 1", "skill": "claude-code-hermit:reflect --check-id ha-safety-audit --check claude-code-homeassistant-hermit:ha-safety-audit", "run_during_waiting": true, "enabled": true}
+   {"id": "ha-integration-health", "schedule": "5 9 * * *", "skill": "claude-code-hermit:reflect --check-id ha-integration-health --check claude-code-homeassistant-hermit:ha-integration-health", "run_during_waiting": true, "enabled": true}
+   {"id": "ha-update-check", "schedule": "5 9 * * *", "skill": "claude-code-hermit:reflect --check-id ha-update-check --check claude-code-homeassistant-hermit:ha-update-check", "run_during_waiting": true, "enabled": true}
+   ```
+3. Save the config and run `/claude-code-hermit:hermit-routines load`.
+
 ## [0.4.12] - 2026-09-06
 
 ### Changed

@@ -24,7 +24,6 @@
   "routines": [
     {"id": "heartbeat-restart",   "schedule": "0 4 * * *",  "skill": "claude-code-hermit:hermit-routines load",        "run_during_waiting": true, "enabled": true},
     {"id": "reflect",             "schedule": "0 9 * * *",  "skill": "claude-code-hermit:reflect",  "precheck": "reflect", "enabled": true},
-    {"id": "scheduled-checks",    "schedule": "5 9 * * *",  "skill": "claude-code-hermit:reflect --scheduled-checks",    "run_during_waiting": true, "enabled": true},
     {"id": "weekly-review",       "schedule": "0 23 * * 0", "skill": "claude-code-hermit:weekly-review",                "enabled": true},
     {"id": "daily-auto-close",    "schedule": "0 0 * * *",  "skill": "claude-code-hermit:session-close --scheduled", "model": "haiku", "run_during_waiting": true, "enabled": true, "precheck": "auto-close"},
     {"id": "doctor",              "schedule": "10 9 * * 1", "skill": "claude-code-hermit:hermit-doctor --maintainer", "model": "haiku", "run_during_waiting": true, "enabled": true, "precheck": "doctor", "precheck_timeout_s": 120},

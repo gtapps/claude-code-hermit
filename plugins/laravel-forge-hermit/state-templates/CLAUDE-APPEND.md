@@ -16,6 +16,8 @@ Skills self-advertise through their own `SKILL.md` descriptions — they are not
 echo '[123]' | php ${CLAUDE_PLUGIN_ROOT}/php/forge.php call databases
 ```
 
+The `forge-failed-deploys` routine routes estate findings through reflection gates into the proposal pipeline.
+
 ### Notifications
 
 Anything operator-facing (deploy success/failure, escalations) is relayed via the **Operator Notification protocol in CLAUDE.md** — do not build a separate notification path.

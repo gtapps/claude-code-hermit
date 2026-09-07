@@ -8,7 +8,7 @@
 // the same rows, so a new setting is one entry here rather than three edits.
 //
 // Deliberately NOT in here: the arguments whose work is not "write one leaf" —
-// `channels`, `routines`, `env`, `compact`, `docker`, `scheduled-checks`,
+// `channels`, `routines`, `env`, `compact`, `docker`, `scheduled-checks` (session checks),
 // `brief`, `heartbeat`, `watchdog` (arrays, key deletes, multi-field wizards),
 // and `quality-gate` / `artifact-authorization` (bounded asks with a channel
 // re-entry path). Those keep their prose in the skill. `language` has a row

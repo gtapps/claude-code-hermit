@@ -122,7 +122,7 @@ Your hermit handles domain-specific work. Core handles session lifecycle.
 
 ### Hatch pattern (optional)
 
-Only needed if your hermit has setup steps beyond what core's `/claude-code-hermit:hatch` does (e.g. appending a domain CLAUDE-APPEND.md, creating extra state dirs, registering scheduled_checks). If your plugin is a thin layer of agents/skills with no setup needed, skip this entirely.
+Only needed if your hermit has setup steps beyond what core's `/claude-code-hermit:hatch` does (e.g. appending a domain CLAUDE-APPEND.md, creating extra state dirs, registering routines). If your plugin is a thin layer of agents/skills with no setup needed, skip this entirely.
 
 Name the skill simply `hatch` — the plugin namespace already disambiguates it from core's hatch (`/claude-code-your-domain-hermit:hatch` vs `/claude-code-hermit:hatch`).
 
@@ -292,31 +292,30 @@ Add a `knowledge-schema.md` to document what your hermit produces and when — t
 
 ### Periodic skill invocation via reflect
 
-If your hermit has a skill that should run on a cadence (e.g. `ha-analyze-patterns` checking home patterns weekly), register it in `scheduled_checks` instead of building your own scheduler. Reflect picks one due entry per run, invokes your skill, and funnels its output through the proposal pipeline — no extra infrastructure.
+Register cadence-driven skills as ordinary routines. Each routine invokes one skill through `reflect --check-id <id> --check <namespaced skill>` and routes its findings through the proposal pipeline. Routines due together can all run.
 
-**How to register.** Your init/hatch skill appends an entry to `config.json.scheduled_checks` (deduplicate by `id`):
+**How to register.** Your hatch skill appends an entry to `config.json.routines` only when its id is absent, preserving existing operator edits:
 
 ```json
 {
   "id": "ha-patterns",
-  "plugin": "claude-code-homeassistant-hermit",
-  "skill": "claude-code-homeassistant-hermit:ha-analyze-patterns",
-  "enabled": true,
-  "trigger": "interval",
-  "interval_days": 7
+  "schedule": "5 9 * * 1",
+  "skill": "claude-code-hermit:reflect --check-id ha-patterns --check claude-code-homeassistant-hermit:ha-analyze-patterns",
+  "run_during_waiting": true,
+  "enabled": true
 }
 ```
 
-Full schema: [`config-reference.md#scheduled_checks`](config-reference.md#scheduled_checks).
+Run `/claude-code-hermit:hermit-routines load` to activate it. See [Routine Authoring](routine-authoring.md) for model pins and optional pre-wake gates, and [Config Reference](config-reference.md#idle--routines) for the schema.
 
-**Contract your skill must honor** (reflect's auto-tuning depends on it):
+**Skill contract:**
 
-- **Idempotent** — reflect may invoke it at any point in an idle cycle.
-- **Return actionable findings or nothing** — a finding becomes a proposal candidate tagged `Evidence Source: scheduled-check/<id>`, which **bypasses the cross-session recurrence check** (Three-Condition Rule #1) at every gate. Conditions #2 (meaningful consequence) and #3 (operator-actionable) still apply. Emit nothing when there's nothing to say; reflect's `consecutive_empty` counter drives automatic interval tuning.
-- **Don't self-schedule** — `interval_days` is authoritative. Operators raise/lower it via accepted proposals.
-- **Fail silently on unavailability** — if a prerequisite is missing, return a clear "skill unavailable" message. Reflect suppresses retries for `interval_days`.
+- Keep analysis idempotent and bounded; read only the state the check needs.
+- Return actionable or contextual findings, or a quiet result. Findings become one candidate with `Evidence Source: scheduled-check/<id>` and `Sessions: none`. Judge and triage gates skip cross-session recurrence but enforce meaningful consequence and operator actionability. A failed gate stops candidate processing.
+- Let the routine own scheduling. Skill arguments after `--check` are passed verbatim, and quiet results produce no cadence-change proposal.
+- Report missing prerequisites or failures clearly. The Progress Log records the outcome; a future invocation follows the routine schedule.
 
-**What you get for free:** operator opt-in at hatch (via recommended-plugins flow, if listed there), `/hermit-settings scheduled-checks` management, interval auto-tuning proposals, and unavailability suppression. No cron, no hook, no state file of your own.
+Use `scheduled_checks` only for `trigger: "session"` skills that run at task completion, managed through `/hermit-settings scheduled-checks`.
 
 ### Operator notification routing
 
@@ -332,7 +331,7 @@ Skills should say "notify the operator" instead of referencing specific channels
 - [ ] Hooks are profile-gated
 - [ ] Zero dependencies — no `package.json`, no build step
 - [ ] All scripts handle missing state files gracefully
-- [ ] Cadence-driven skills registered in `scheduled_checks` (not a bespoke scheduler)
+- [ ] Cadence-driven skills registered in `routines`
 - [ ] Docker system packages (if any) declared in a `## Docker apt dependencies` section in the hatch SKILL.md or `DOCKER.md` at plugin root
 - [ ] Docker network requirements (if any) declared in a `## Docker network requirements` section so `/docker-security` can surface them — outbound domains and LAN-IP suggestions (use `ASK_OPERATOR_FOR_<NAME>_IP` if the IP is operator-specific)
 - [ ] Each agent's `model:` matches task complexity (Haiku for scanning, Sonnet for reasoning) — use the short alias, not a pinned ID

@@ -35,9 +35,9 @@ If `$ARGUMENTS` contains `--quick`:
 - **Never call the counter-incrementing `update-reflection-state.ts <path> '<json-payload>'` form here** — quick runs are event-driven; mutating `last_run_at` would suppress the next scheduled reflect (`--quick-hash` is an isolated write).
 - Stop. Do not continue below.
 
-## Scheduled-checks mode
+## Single-check mode
 
-If `$ARGUMENTS` contains `--scheduled-checks` (the `scheduled-checks` routine — daily, offset from the main reflect): run at most one due interval-triggered scheduled check — an idempotent, short-running, read-mostly skill from `config.scheduled_checks` whose cadence is owned by `scheduled_checks.interval_days` — route any finding through reflect's normal gates, persist per-check state, append a Progress Log line, then **stop** (no precheck, no numbered steps below). Read branches.md § Scheduled checks now and follow its steps 1–8 exactly.
+If `$ARGUMENTS` contains `--check-id` or `--check`, read branches.md § Scheduled checks and follow it exactly, then **stop** (no precheck or numbered steps below). The invocation is `reflect --check-id <id> --check <cmd…>`: everything after `--check` is the skill command, including its arguments, verbatim. A routine owns the cadence and may pin the model for this invocation.
 
 ## Scheduled reflect
 

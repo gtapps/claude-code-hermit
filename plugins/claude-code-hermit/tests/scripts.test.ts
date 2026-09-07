@@ -5182,3 +5182,18 @@ describe('weekly-review', () => {
     expect(content).toContain('obs: 0 ledger');
   }));
 });
+
+
+describe('session-check config validation', () => {
+  test('rejects legacy cadence fields and preserves custom session fields', async () => {
+    const { validate } = await import('../scripts/validate-config');
+    const config = JSON.parse(fs.readFileSync(path.join(PLUGIN_ROOT, 'state-templates/config.json.template'), 'utf-8'));
+    const check = { id: 'custom-check', skill: 'custom:check', trigger: 'session', enabled: true, custom_key: 'preserved' };
+    const errorsFor = (entry: object) => validate({ ...config, scheduled_checks: [entry] }).errors.filter((e: string) => e.startsWith('scheduled_checks'));
+    expect(errorsFor(check)).toEqual([]);
+    for (const entry of [{ ...check, trigger: 'interval' }, { ...check, interval_days: 7 }, { ...check, interval_days: null }]) {
+      expect(errorsFor(entry)).toHaveLength(1);
+      expect(errorsFor(entry)[0]).toContain('routines');
+    }
+  });
+});

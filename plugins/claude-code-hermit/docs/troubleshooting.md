@@ -29,12 +29,12 @@ Hermit uses proactive channel sends for heartbeat alerts, morning briefs, and id
 
 ## Scheduled Checks Not Running
 
-Scheduled checks run during idle reflection via `reflect`. If configured checks aren't being invoked:
+Periodic plugin checks are ordinary routines. For example, a weekly check uses `schedule: "5 9 * * 1"` and `skill: "claude-code-hermit:reflect --check-id my-check --check my-plugin:my-audit-skill"`.
 
-- **Check `scheduled_checks` in config.json:** Must have entries with `enabled: true`. View with `/hermit-settings scheduled-checks`.
-- **Check reflection cadence:** Reflection runs every 4+ hours during idle. If the hermit is always `in_progress`, scheduled checks won't fire (they're idle-only).
-- **Unavailable suppression:** If a check's skill is missing or uninstalled, the check is suppressed for 4 hours (transient cooldown). A persistent `error` outcome suppresses for `interval_days`. Check `state/reflection-state.json` for `last_unavailable_at` and `last_error_at`.
-- **One per reflect:** Only one scheduled check runs per reflect invocation. If multiple are due, the oldest fires first.
+- **Check `routines` in config.json:** the routine must be enabled and registered with `/claude-code-hermit:hermit-routines load`. Inspect its schedule and any waiting or budget gate.
+- **Check the pre-wake gate:** `skipped-precheck` means the gate found no work and consumed the fire without waking. A gate failure records `precheck-error` and lets the routine wake normally.
+- **Check skill availability and the Progress Log:** single-check reflection reports `unavailable`, `error`, `empty`, `actionable`, or `contextual`. Quiet results produce no proposal. Future invocations follow the routine's cron schedule; multiple due routines can all run.
+- **For task-completion checks:** `scheduled_checks` entries must have `trigger: "session"` and `enabled: true`. Manage them with `/hermit-settings scheduled-checks`. Their successful runs update the per-check `last_run` cursor in `state/reflection-state.json`.
 
 ---
 

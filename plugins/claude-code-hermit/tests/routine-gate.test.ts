@@ -191,7 +191,7 @@ describe('routine gate — environment', () => {
   test('gets HERMIT_DIR/ROUTINE_ID/ROUTINE_LAST_FIRED and none of the monitor secrets', withDir(async (dir) => {
     const rel = writeGate(dir, 'dump.sh', [
       '#!/usr/bin/env bash',
-      'printf "%s|%s|%s|%s\\n" "$ROUTINE_ID" "$HERMIT_DIR" "$ROUTINE_LAST_FIRED" "${SENTINEL_SECRET:-unset}" > "$HERMIT_DIR/state/gate-env.txt"',
+      'printf "%s|%s|%s|%s|%s|%s\\n" "$ROUTINE_ID" "$HERMIT_DIR" "$ROUTINE_LAST_FIRED" "${SENTINEL_SECRET:-unset}" "$CLAUDE_CONFIG_DIR" "$HERMIT_PLUGIN_ROOT" > "$HERMIT_DIR/state/gate-env.txt"',
       'echo SKIP',
       '',
     ].join('\n'));
@@ -202,13 +202,15 @@ describe('routine gate — environment', () => {
       JSON.stringify({ ts: '2026-07-14T09:00:03Z', routine_id: 'gated', event: 'fired', delivery: 'monitor' }) + '\n',
     );
 
-    await runDue(dir, NOW, { SENTINEL_SECRET: 'leaked' });
-    const [id, hermitDir, lastFired, secret] =
+    await runDue(dir, NOW, { SENTINEL_SECRET: 'leaked', CLAUDE_CONFIG_DIR: '/custom/claude', HERMIT_PLUGIN_ROOT: '/custom/core' });
+    const [id, hermitDir, lastFired, secret, configDir, pluginRoot] =
       fs.readFileSync(hermit(dir, 'state', 'gate-env.txt'), 'utf-8').trim().split('|');
     expect(id).toBe('gated');
     expect(hermitDir).toBe(hermit(dir));
     expect(lastFired).toBe('2026-07-14T09:00:03Z');
     expect(secret).toBe('unset');
+    expect(configDir).toBe('/custom/claude');
+    expect(pluginRoot).toBe('/custom/core');
   }), 20000);
 
   test('ROUTINE_LAST_FIRED is empty on a routine that has never fired', withDir(async (dir) => {

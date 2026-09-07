@@ -1,7 +1,6 @@
 // --scheduled-check-run: the session skill's step-4b cursor write. Contract:
 // it writes ONLY scheduled_checks.<id>.last_run (HERMIT_NOW-aware date) and
-// preserves everything else — sibling per-check fields included, since
-// reflect/branches.md step 7 owns those through a separate writer.
+// preserves everything else, including legacy sibling per-check fields.
 //
 // Usage: bun test tests/update-reflection-state-cursor.test.ts   (from the plugin root)
 
@@ -67,6 +66,13 @@ describe('update-reflection-state --scheduled-check-run', () => {
     const expected = structuredClone(existing);
     expected.scheduled_checks[CHECK_ID].last_run = '2026-07-20';
     expect(after).toEqual(expected);
+  }));
+
+  test('rejects outcome arguments without writing state', withTmp(async (stateFile) => {
+    const r = await runPinnedScript('update-reflection-state.ts', rootOf(stateFile), [stateFile, '--scheduled-check-run', CHECK_ID, '--outcome', 'empty']);
+    expect(r.exitCode).toBe(1);
+    expect(r.stderr).toContain('Usage');
+    expect(fs.existsSync(stateFile)).toBe(false);
   }));
 
   test('missing id argument → exit 1 with usage on stderr', withTmp(async (stateFile) => {

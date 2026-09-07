@@ -192,7 +192,7 @@ function statefulRows(config: Json): Array<[string, string, string]> {
   const channelNames = Object.keys(channels).filter(k => k !== 'primary');
   const enabled = channelNames.filter(n => channels[n]?.enabled);
   const routines = Array.isArray(config.routines) ? config.routines : [];
-  const checks = Array.isArray(config.scheduled_checks) ? config.scheduled_checks : [];
+  const checks = Array.isArray(config.scheduled_checks) ? config.scheduled_checks.filter((c: Json) => c?.trigger === 'session') : [];
   const envKeys = Object.keys(config.env ?? {});
   const packages = config.docker?.packages ?? [];
   const hb = config.heartbeat ?? {};
@@ -212,7 +212,7 @@ function statefulRows(config: Json): Array<[string, string, string]> {
     ['Heartbeat', hb.enabled ? `every ${hb.every ?? '?'}` : 'disabled', 'heartbeat'],
     ['Watchdog', `scheduler ${wd.scheduler_enabled !== false ? 'on' : 'off'}, recovery ${wd.enabled ? 'on' : 'off'}`, 'watchdog'],
     ['Routines', routines.length ? `${routines.filter((r: Json) => r?.enabled).length} of ${routines.length} enabled` : 'none', 'routines'],
-    ['Scheduled checks', checks.length ? `${checks.filter((c: Json) => c?.enabled).length} of ${checks.length} enabled` : 'none', 'scheduled-checks'],
+    ['Session checks', checks.length ? `${checks.filter((c: Json) => c?.enabled).length} of ${checks.length} enabled` : 'none', 'scheduled-checks'],
     ['Environment', envKeys.length ? envKeys.join(', ') : 'none', 'env'],
     ['Compaction', `monitoring ${compact.monitoring_threshold ?? '?'}/${compact.monitoring_keep ?? '?'}, summary ${compact.summary_threshold ?? '?'}/${compact.summary_keep ?? '?'}`, 'compact'],
     ['Docker packages', Array.isArray(packages) && packages.length ? packages.join(', ') : 'none', 'docker'],

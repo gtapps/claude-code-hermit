@@ -135,6 +135,16 @@ Read the source file (using Read tool), then check if the destination exists (`.
 
 ---
 
+### Step 4b: Install the weekly patterns gate
+
+Install the shipped gate into the consumer project, always overwriting the previous gate:
+
+```bash
+install -m 755 "${CLAUDE_PLUGIN_ROOT}/state-templates/bin/fitness-weekly-patterns-gate" .claude-code-hermit/bin/fitness-weekly-patterns-gate
+```
+
+This read-only gate calls `fitness-lab.ts weekly-patterns` through core's `hermit-run sibling-run`. It translates the reported trend into `SKIP` or `WAKE`; the trend rule remains in `fitness-lab.ts`. Invalid output or a failed child returns non-zero, so the routine monitor records the gate error and wakes normally.
+
 ## Step 5 — CLAUDE.md / CLAUDE.local.md inject
 
 **Resolve target file:** Step 1's preflight already returned `target`, `target_file`, `target_default` and `needs_target_question`.
@@ -235,15 +245,15 @@ In the `routines` array, check for each of these four IDs. For any that are **ab
 }
 ```
 
-### 7c — Merge scheduled_checks
+### 7c: Merge the weekly patterns routine
 
-In `config.scheduled_checks`, check for an entry with `id: "weekly-coaching-patterns"`. If absent, append it. If present (by `id`), skip — do not clobber existing operator edits.
+Merge these entries into `config.routines` by id. Create the array if absent. Append each missing id; skip any existing id, preserving operator edits and all other config fields. No prompt is needed for these read-only analyses.
 
 ```json
-{"id": "weekly-coaching-patterns", "plugin": "claude-code-fitness-hermit", "skill": "claude-code-fitness-hermit:weekly-coaching-patterns", "enabled": true, "trigger": "interval", "interval_days": 7}
+{"id": "weekly-coaching-patterns", "schedule": "5 9 * * 1", "skill": "claude-code-hermit:reflect --check-id weekly-coaching-patterns --check claude-code-fitness-hermit:weekly-coaching-patterns", "run_during_waiting": true, "enabled": true, "precheck": ".claude-code-hermit/bin/fitness-weekly-patterns-gate", "precheck_timeout_s": 60}
 ```
 
-No prompt needed — this is a read-only analysis. The core daily `scheduled-checks` routine picks it up; `interval_days: 7` gates cadence. Findings surface as proposals automatically via the existing pipeline.
+The weekly routine checks for a trend before waking. Findings pass through reflection gates into the proposal pipeline.
 
 Write the updated `config.json` using Write tool (full file replacement to ensure valid JSON).
 
@@ -293,7 +303,7 @@ steps are only for a test drive before handing over to the runtime.
 Installed skills:
   /claude-code-fitness-hermit:fitness-brief             — daily morning/evening brief (--morning|--evening|--slot)
   /claude-code-fitness-hermit:activity-deep-dive        — per-activity coaching analysis
-  /claude-code-fitness-hermit:weekly-coaching-patterns  — weekly cardiac-drift trend check (scheduled, interval_days: 7)
+  /claude-code-fitness-hermit:weekly-coaching-patterns  — weekly cardiac-drift trend check (weekly routine)
 
 Installed subagent:
   @claude-code-fitness-hermit:strava-data-cruncher — bulk Strava data aggregation (Haiku)
