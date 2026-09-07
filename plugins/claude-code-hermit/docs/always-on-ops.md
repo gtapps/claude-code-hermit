@@ -145,8 +145,6 @@ When the session is idle, the heartbeat tick checks `sessions/NEXT-TASK.md` and 
 
 Reflection is not driven by idleness; it runs on the `reflect` schedule under `/claude-code-hermit:hermit-routines`.
 
-`idle_behavior` (`"discover"` / `"wait"`, set via `/hermit-settings idle`) is reserved and currently makes no difference to any of this. `"discover"` previously added a priority-alignment pass against OPERATOR.md and the cost log; that pass was removed when pickup moved into the tick.
-
 ### Edge cases
 
 - **Crash during work:** SHELL.md persists. On restart, offers to resume.

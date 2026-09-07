@@ -196,7 +196,6 @@ Tune from a terminal with `/hermit-settings`, or change permitted settings from 
 | `timezone` | **`UTC`** |
 | `language` | **`en`** |
 | `escalation` | how much it does before asking — `conservative` / **`balanced`** / `autonomous` |
-| `sign_off` | optional sign-off on channel messages |
 | `model` | session model — **`sonnet`** |
 | `permission_mode` | how freely the unattended agent acts — **`auto`** |
 | `AGENT_HOOK_PROFILE` | guardrail profile — `minimal` / **`standard`** (interactive) / **`strict`** (always-on) |
@@ -207,7 +206,6 @@ Tune from a terminal with `/hermit-settings`, or change permitted settings from 
 | `ask_gate` | route unattended questions to a paired channel — **`true`** |
 | `budget` | optional daily / weekly / monthly caps; **`alert`** or binding `pause` action |
 | `artifacts` | dashboard / proposals / weekly review — **all enabled** |
-| `idle_behavior` | **`discover`** (proactive) / `wait` (passive) |
 | `heartbeat.enabled` | timed idle sweeps — **`true`** |
 | `heartbeat.every` | idle sweep cadence — **`30m`** |
 | `active_hours` | active window — **`08:00`–`23:00`** |
@@ -247,7 +245,7 @@ Settings apply without a reboot. Execution-adjacent changes, channel enrollment,
 
 - **Routines.** Each routine takes an optional `model`: run lightweight ones on `haiku` to save cost or heavier ones on `opus` for more reasoning, in an isolated subagent. Omit `model` to keep it inline in the main session context — use that when the routine's value is its chat/transcript output, not just a status line. In Monitor mode, exactly co-due routines batch into one wake; offset routines you want as separate turns by a few minutes to keep the prompt cache warm. CronCreate fallback always fires them separately (see [Config Reference](docs/config-reference.md) for the full rule).
 
-- **Quiet & cheap:** `idle_behavior: "wait"` + a longer `heartbeat.every` + `quality_gate.tier: "budget"` (the default). Idle cost is already near-zero; these trim the rest.
+- **Quiet & cheap:** a longer `heartbeat.every` + `quality_gate.tier: "budget"` (the default). Idle cost is already near-zero; these trim the rest.
 
 Full reference: [Config Reference](docs/config-reference.md).
 

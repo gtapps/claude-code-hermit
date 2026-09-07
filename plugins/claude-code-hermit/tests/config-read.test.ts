@@ -75,9 +75,8 @@ describe('customizability invariants', () => {
   });
 
   test('custom enum-ish strings are never settled by vocabulary', () => {
-    const settled = settleConfig({ escalation: 'my-custom-mode', idle_behavior: 'my-idle' });
+    const settled = settleConfig({ escalation: 'my-custom-mode' });
     expect(settled.escalation).toBe('my-custom-mode');
-    expect(settled.idle_behavior).toBe('my-idle');
   });
 
   test('routine/channel item contents are not normalized', () => {

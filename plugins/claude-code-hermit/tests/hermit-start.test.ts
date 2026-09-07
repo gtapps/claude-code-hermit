@@ -561,7 +561,7 @@ describe('config contract: template and DEFAULT_CONFIG must mirror', () => {
   // Keys that exist only in template — consumed by scripts that handle
   // their own missing-key logic (not part of loadConfig merge).
   const TEMPLATE_ONLY_KEYS = new Set([
-    'idle_behavior', 'routines', 'monitors',
+    'routines', 'monitors',
     'compact', 'compact.monitoring_threshold', 'compact.monitoring_keep',
     'compact.summary_threshold', 'compact.summary_keep',
     'docker.recommended_plugins',

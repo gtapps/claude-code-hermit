@@ -23,7 +23,6 @@ On a channel-tagged turn, every free-form `Ask:` prompt below is delivered via t
 /claude-code-hermit:hermit-settings voice          : edit how the hermit talks (style: everyday; custom prose: native permission prompt)
 /claude-code-hermit:hermit-settings timezone       — set timezone
 /claude-code-hermit:hermit-settings escalation     — set escalation threshold
-/claude-code-hermit:hermit-settings sign-off       — set sign-off line
 /claude-code-hermit:hermit-settings channels       — configure channels
 /claude-code-hermit:hermit-settings remote          — toggle remote control
 /claude-code-hermit:hermit-settings model           — set Claude model
@@ -93,13 +92,11 @@ Pass the **argument name**, not the dotted path — the script looks the path up
 | `name` | `agent_name` | string, nullable | any | immediately |
 | `timezone` | `timezone` | string, nullable | IANA tz | immediately |
 | `escalation` | `escalation` | enum | `conservative` / `balanced` / `autonomous` | immediately |
-| `sign-off` | `sign_off` | string, nullable | any | immediately |
 | `remote` | `remote` | boolean | yes / no | next `hermit-start` |
 | `auth-mode` | `auth_mode` | enum, nullable | `login` / `token` | run `/claude-code-hermit:relogin` to sign in with the new method |
 | `model` | `model` | string, nullable | passed straight to `--model` | next `hermit-start` |
 | `boot-skill` | `boot_skill` | string, nullable | namespaced skill | next `hermit-start` |
 | `permissions` | `permission_mode` | enum | `auto` / `acceptEdits` / `default` / `plan` / `dontAsk` / `bypassPermissions` | next `hermit-start` (a channel `/permission-mode auto\|acceptEdits\|default` changes the running session without changing this) |
-| `idle` | `idle_behavior` | enum | `discover` / `wait` | immediately |
 | `push-notifications` | `push_notifications` | boolean | on / off | immediately |
 | `reflection` | `reflection.graduation_min_sessions` | integer ≥1 | 1 = surface after one session; 2 = require recurrence | next reflect run |
 | `artifact-dashboard` | `artifacts.dashboard` | boolean | on / off | next refresh |
