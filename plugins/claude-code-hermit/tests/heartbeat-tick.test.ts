@@ -553,7 +553,9 @@ describe('heartbeat start-commit', () => {
   test('a monitor that never ticks reports DEAD and writes no Monitoring line', async () => {
     const hermit = fixture();
     expect(lines(await run('start-commit', [hermit, 'task-dead']))).toEqual(['DEAD|liveness-absent']);
-    expect(read(path.join(hermit, 'state', 'heartbeat-monitor.runtime.json')).task_id).toBe('task-dead');
+    const runtime = read(path.join(hermit, 'state', 'heartbeat-monitor.runtime.json'));
+    expect(runtime.task_id).toBe('task-dead');
+    expect(Date.parse(runtime.started_at)).toBe(NOW_MS);
     expect(monitoring(hermit)).toEqual([]);
   }, 20_000);
 
@@ -593,16 +595,14 @@ describe('heartbeat start-commit', () => {
   // spawn grace rather than riding out a whole interval.
   test('no tick at all still faults on the 2m spawn grace', async () => {
     const hermit = fixture();
-    await run('start-commit', [hermit, 'task-dead']);
-    expect(Date.parse(read(path.join(hermit, 'state', 'heartbeat-monitor.runtime.json')).started_at))
-      .toBe(NOW_MS);
+    seedMonitor(hermit, { startedAt: NOW, lastPeek: null });
     // 12:01:00 — inside the spawn grace.
     expect(lines(await run('start-check', [hermit], { HERMIT_NOW: '2026-07-10T12:01:00Z' })))
       .toEqual(['FRESH|interval=1800']);
     // 12:05:00 — past it, and well short of the 1860s predates-grace.
     expect(lines(await run('start-check', [hermit], { HERMIT_NOW: '2026-07-10T12:05:00Z' }))[0])
       .toBe('REARM|liveness-absent');
-  }, 20_000);
+  });
 
   test('the record it writes reads as healthy to the routine anchor', async () => {
     const hermit = fixture({

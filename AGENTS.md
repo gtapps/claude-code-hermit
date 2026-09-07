@@ -23,7 +23,7 @@ Before changing a plugin, read its `plugins/<slug>/AGENTS.md`. Load only the gui
 
 Use strict TypeScript targeting Bun, two-space indentation, single quotes, and semicolons. Shipped TypeScript uses standard-library/Bun APIs without runtime `node_modules` imports or a build step; root dependencies are development tooling. Hooks drain stdin fully and preserve their own failure contract, including intentional fail-closed safety gates.
 
-From the root: `bun install --frozen-lockfile` installs tooling; `bunx tsc` checks TypeScript. Run plugin suites inside `plugins/<slug>/`:
+From the root: `bun install --frozen-lockfile` installs tooling; `bunx tsc` checks TypeScript. For repository-wide verification, use `bun run test` with Bun 1.4 or newer. It handles plugin working directories, bounded parallelism, and shared root tests. For narrower changes, run the documented plugin suite inside `plugins/<slug>/`:
 
 | Plugins | Suite |
 |---|---|

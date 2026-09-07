@@ -67,6 +67,8 @@ Above the contract line, give skills data + goal + voice and let the model compo
 
 Test locally against a target project with `claude --plugin-dir /path/to/this-repo` from that project, then `/claude-code-hermit:hatch`. Unit tests: `bun test` from this directory; fixtures and hook checks in [docs/testing.md](docs/testing.md).
 
+Preserve subprocess coverage for stdin, environment, exit-code, and side-effect contracts. Use explicit readiness/completion signals for process synchronization instead of fixed sleeps.
+
 Constraints:
 
 - **Runtime is Bun, no build step.** Hooks and scripts are `.ts` run directly by `bun`; skills are plain markdown. The minimum Bun version is `required_bun_version` in `.claude-plugin/hermit-meta.json`, read dynamically by `doctor-check` and the `hermit-start` preflight; the Docker template pins its own `BUN_VERSION`, bump both together.

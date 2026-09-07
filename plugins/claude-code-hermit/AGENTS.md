@@ -30,4 +30,4 @@ The resident handles operator contact. Isolated workers return a verdict or comp
 - Do not reintroduce container `read_only: true` without proving Claude's credential-refresh writes work with the volume/tmpfs layout.
 - Netguard log-only mode forwards unmatched DNS; enforce mode blocks it. Preserve that distinction and static allowlist records when changing the entrypoint. See [Docker security](docs/docker-security.md).
 
-For fixtures and hook checks, use [testing guidance](docs/testing.md).
+Preserve subprocess coverage for stdin, environment, exit-code, and side-effect contracts. Use explicit readiness/completion signals for process synchronization instead of fixed sleeps. For fixtures and hook checks, use [testing guidance](docs/testing.md).

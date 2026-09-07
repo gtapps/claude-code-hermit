@@ -10,10 +10,10 @@ trap 'if [ "$overall_rc" -eq 0 ]; then rm -rf "$LOGDIR"; else printf "Full test 
 BUN_TEST_SLUGS=(claude-code-hermit claude-code-homeassistant-hermit feed-hermit)
 RUN_ALL_SLUGS=(claude-code-dev-hermit claude-code-fitness-hermit hermit-scribe laravel-forge-hermit)
 
-# Bun 1.4 isolates files in worker processes. Cap core at four workers because
-# the other plugin suites also run here, and each core file can start concurrent
-# subprocess tests. Using every CPU per plugin oversubscribes the combined run.
-CORE_WORKERS=$(bun -e 'console.log(Math.min(4, require("node:os").availableParallelism()))')
+# Bun 1.4 isolates files in worker processes. Cap core at two workers to keep
+# local runs responsive: other plugin suites also run here, and each core file
+# can start concurrent subprocess tests.
+CORE_WORKERS=$(bun -e 'console.log(Math.min(2, require("node:os").availableParallelism()))')
 declare -A PIDS
 
 now() { date +%s; }
