@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.3.3] - 2026-09-07
 
 ### Added
 - Chat assignments that outlast the turn get a threaded progress message the hermit edits at meaningful milestones and closes at completion, with a separate reply when a decision is needed; channels without message editing get short threaded replies instead.
