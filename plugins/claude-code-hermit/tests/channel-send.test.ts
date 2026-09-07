@@ -716,3 +716,196 @@ describe('channel-send CLI --notice', () => {
     }
   });
 });
+
+describe('channel-send rate limits', () => {
+  type Platform = 'discord' | 'telegram';
+  interface Reply {
+    status?: number;
+    body?: any;
+    header?: string;
+    delayMs?: number;
+    bodyDelayMs?: number;
+    rawBody?: string;
+    disconnect?: boolean;
+  }
+
+  async function exercise(platform: Platform, replies: Reply[], opts: { timeoutMs?: number; recordHealth?: boolean } = {}) {
+    const wd = setupWorkdir();
+    const stateDir = path.join(wd.dir, '.claude.local', 'channels', platform);
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(path.join(stateDir, '.env'), `${platform.toUpperCase()}_BOT_TOKEN=test-token\n`);
+    write(hermit(wd.dir, 'config.json'), JSON.stringify({
+      channels: { [platform]: { enabled: true, dm_channel_id: '12345', state_dir: stateDir } },
+    }));
+    const requests: { at: number; body: any }[] = [];
+    const responseTimes: number[] = [];
+    const server = Bun.serve({
+      port: 0,
+      async fetch(req) {
+        const index = requests.length;
+        requests.push({ at: performance.now(), body: await req.json() });
+        const reply = replies[index] ?? {};
+        if (reply.disconnect) server.stop(true);
+        if (reply.delayMs) await Bun.sleep(reply.delayMs);
+        responseTimes.push(performance.now());
+        const body = reply.rawBody ?? JSON.stringify(reply.body ?? { ok: true });
+        const headers = reply.header === undefined ? {} : { 'Retry-After': reply.header };
+        if (reply.bodyDelayMs) {
+          return new Response(new ReadableStream({
+            async start(controller) {
+              controller.enqueue(new TextEncoder().encode(body.slice(0, 1)));
+              await Bun.sleep(reply.bodyDelayMs!);
+              controller.enqueue(new TextEncoder().encode(body.slice(1)));
+              controller.close();
+            },
+          }), { status: reply.status ?? 200, headers });
+        }
+        return new Response(body, { status: reply.status ?? 200, headers });
+      },
+    });
+    try {
+      // Each subprocess owns its API override, including under concurrent tests.
+      const modulePath = path.resolve(import.meta.dir, '../scripts/lib/channel-send.ts');
+      const proc = Bun.spawn([process.execPath, '-e', `
+        import { sendToChannel } from ${JSON.stringify(modulePath)};
+        const started = performance.now();
+        const result = await sendToChannel(${JSON.stringify(hermit(wd.dir))}, 'rate-limited notice', ${JSON.stringify(opts)});
+        console.log(JSON.stringify({ result, elapsed: performance.now() - started }));
+      `], {
+        env: { ...process.env, [`HERMIT_${platform.toUpperCase()}_API_URL`]: `http://127.0.0.1:${server.port}` },
+        stdout: 'pipe', stderr: 'pipe',
+      });
+      const [output, error, exitCode] = await Promise.all([
+        new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited,
+      ]);
+      expect(error).toBe('');
+      expect(exitCode).toBe(0);
+      const { result, elapsed } = JSON.parse(output);
+      const healthFile = channelHealthPath(hermit(wd.dir));
+      const health = fs.existsSync(healthFile) ? JSON.parse(fs.readFileSync(healthFile, 'utf8'))[platform] : undefined;
+      return { result, elapsed, requests, responseTimes, health, rows: unconsolidated(hermit(wd.dir)).rows };
+    } finally {
+      server.stop(true);
+      wd.cleanup();
+    }
+  }
+
+  function limited(platform: Platform, delay: any = 0.04): Reply {
+    return { status: 429, body: {
+      message: 'rate limited', description: 'rate limited',
+      ...(platform === 'discord' ? { retry_after: delay } : { parameters: { retry_after: delay } }),
+    } };
+  }
+
+  for (const platform of ['discord', 'telegram'] as const) {
+    test(`${platform}: waits, retries once, logs once, and records final success`, async () => {
+      const r = await exercise(platform, [limited(platform), {}]);
+      expect(r.result).toEqual({ ok: true, status: 200 });
+      expect(r.requests).toHaveLength(2);
+      expect(r.requests[1].at - r.responseTimes[0]).toBeGreaterThanOrEqual(40);
+      expect(r.requests[1].body).toEqual(r.requests[0].body);
+      expect(r.health.consecutive_failures).toBe(0);
+      expect(r.rows).toHaveLength(1);
+      expect(r.rows[0].text).toBe('rate-limited notice');
+    });
+
+    test(`${platform}: repeated 429 records one failure and returns the final error`, async () => {
+      const second = limited(platform);
+      second.body.message = second.body.description = 'still limited';
+      const r = await exercise(platform, [limited(platform), second]);
+      expect(r.result).toEqual({ ok: false, status: 429, error: 'still limited' });
+      expect(r.requests).toHaveLength(2);
+      expect(r.health.consecutive_failures).toBe(1);
+      expect(r.rows).toHaveLength(0);
+    });
+
+    for (const delay of [null, -1, '0.01', 'invalid', 100, 1e308]) {
+      test(`${platform}: does not retry invalid or excessive delay ${delay}`, async () => {
+        const r = await exercise(platform, [limited(platform, delay)]);
+        expect(r.result.status).toBe(429);
+        expect(r.requests).toHaveLength(1);
+      });
+    }
+
+    test(`${platform}: transport failure does not retry`, async () => {
+      const r = await exercise(platform, [{ disconnect: true }]);
+      expect(r.result.ok).toBe(false);
+      expect(r.result.status).toBeUndefined();
+      expect(r.requests).toHaveLength(1);
+      expect(r.health.consecutive_failures).toBe(1);
+    });
+
+    test(`${platform}: malformed JSON does not retry without a valid header`, async () => {
+      const r = await exercise(platform, [{ status: 429, rawBody: '{' }]);
+      expect(r.result).toEqual({ ok: false, status: 429, error: `${platform}_http_429` });
+      expect(r.requests).toHaveLength(1);
+    });
+
+    test(`${platform}: missing metadata does not retry`, async () => {
+      const r = await exercise(platform, [{ status: 429, body: {} }]);
+      expect(r.result).toEqual({ ok: false, status: 429, error: `${platform}_http_429` });
+      expect(r.requests).toHaveLength(1);
+    });
+
+    for (const status of [400, 401, 403, 500, 503]) {
+      test(`${platform}: ${status} does not retry even with retry metadata`, async () => {
+        const r = await exercise(platform, [{ ...limited(platform), status }]);
+        expect(r.result.status).toBe(status);
+        expect(r.requests).toHaveLength(1);
+      });
+    }
+
+    test(`${platform}: initial latency reduces the available wait budget`, async () => {
+      const r = await exercise(platform, [{ ...limited(platform, 0.4), delayMs: 300 }], { timeoutMs: 600 });
+      expect(r.result.status).toBe(429);
+      expect(r.requests).toHaveLength(1);
+      expect(r.elapsed).toBeLessThan(650);
+    });
+
+    test(`${platform}: retry shares the original timeout`, async () => {
+      const r = await exercise(platform, [{ ...limited(platform, 0.3), delayMs: 200 }, { delayMs: 1200 }], { timeoutMs: 800 });
+      expect(r.result).toEqual({ ok: false, error: 'request timeout' });
+      expect(r.requests).toHaveLength(2);
+      expect(r.elapsed).toBeLessThan(1100);
+      expect(r.rows).toHaveLength(0);
+    });
+
+    test(`${platform}: stalled error body respects the timeout without retrying`, async () => {
+      const r = await exercise(platform, [{ ...limited(platform), bodyDelayMs: 1000 }], { timeoutMs: 400 });
+      expect(r.result).toEqual({ ok: false, error: 'request timeout' });
+      expect(r.requests).toHaveLength(1);
+      expect(r.elapsed).toBeLessThan(750);
+    });
+
+    test(`${platform}: retried maintainer failure does not write platform health`, async () => {
+      const r = await exercise(platform, [limited(platform), limited(platform)], { recordHealth: false });
+      expect(r.requests).toHaveLength(2);
+      expect(r.result.ok).toBe(false);
+      expect(r.health).toBeUndefined();
+    });
+  }
+
+  for (const [header, body, waitMs] of [
+    ['0.04', {}, 40],
+    ['0.08', { retry_after: 0.02 }, 80],
+    ['0.01', { retry_after: 0.08 }, 80],
+    ['bad', { retry_after: 0.04 }, 40],
+    ['0.0001', {}, 1],
+    ['0', {}, 0],
+  ] as const) {
+    test(`discord: header ${header} and body ${JSON.stringify(body)} wait at least ${waitMs}ms`, async () => {
+      const r = await exercise('discord', [{ status: 429, header, body }, {}]);
+      expect(r.result.ok).toBe(true);
+      expect(r.requests).toHaveLength(2);
+      expect(r.requests[1].at - r.responseTimes[0]).toBeGreaterThanOrEqual(waitMs);
+    });
+  }
+
+  for (const header of ['', ' ', '-1', 'Infinity', 'invalid']) {
+    test(`discord: invalid header ${JSON.stringify(header)} alone does not retry`, async () => {
+      const r = await exercise('discord', [{ status: 429, header }]);
+      expect(r.result.status).toBe(429);
+      expect(r.requests).toHaveLength(1);
+    });
+  }
+});
