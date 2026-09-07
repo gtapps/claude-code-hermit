@@ -16,9 +16,9 @@ type Json = any;
 export const PATCH_KEY_RE = /^\w[\w_]*$/;
 const BARE_VALUE_RE = /^[A-Za-z0-9][\w./:+-]*$/;
 
-export function writeFileAtomic(p: string, content: string): void {
+export function writeFileAtomic(p: string, content: string, mode?: number): void {
   const tmp = `${p}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, content, 'utf-8');
+  fs.writeFileSync(tmp, content, { encoding: 'utf-8', mode });
   fs.renameSync(tmp, p);
 }
 

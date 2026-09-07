@@ -374,7 +374,17 @@ describe('literal-path hermit-run grants', () => {
     'Bash(.claude-code-hermit/bin/hermit-run rc-server stop)',
     'Bash(.claude-code-hermit/bin/hermit-run rc-server status)',
     'Bash(.claude-code-hermit/bin/hermit-run rc-server gc)',
+    'Bash(.claude-code-hermit/bin/hermit-run later list *)',
+    'Bash(.claude-code-hermit/bin/hermit-run later cancel *)',
+    'Bash(.claude-code-hermit/bin/hermit-run later verdict *)',
+    'Bash(.claude-code-hermit/bin/hermit-run later due *)',
   ];
+
+  for (const verb of ['add', 'check']) {
+    test(`not sealed: later ${verb} stays with the prompt or classifier`, () => {
+      expect(HERMIT_ALLOW.some((e: string) => e.includes(`hermit-run later ${verb}`))).toBe(false);
+    });
+  }
 
   for (const entry of LITERAL_PATH) {
     test(`sealed: ${entry}`, () => {
