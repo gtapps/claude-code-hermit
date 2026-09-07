@@ -126,15 +126,22 @@ describe('proposal-act accept flow', () => {
 
   test('step (e.5) acts on the verdict, not on a tier it resolved itself', () => {
     expect(skill).toMatch(/`SKIP`.*no cleanup/);
-    expect(skill).toMatch(/`RUN`.*\/claude-code-hermit:simplify/);
+    expect(skill).toMatch(/`RUN`.*\/simplify/);
   });
 
   test('NEXT-TASK.md gating still keys on tier != budget', () => {
     expect(skill).toMatch(/tier.*budget|budget.*tier/);
   });
 
-  test('/claude-code-hermit:simplify focus argument pattern preserved', () => {
-    expect(skill).toContain('/claude-code-hermit:simplify focus on PROP-NNN implementation');
+  test('/simplify receives the implementation target', () => {
+    expect(skill).toContain('/simplify path/a path/b');
+  });
+
+  test('cleanup outcomes have no custom totals dependency', () => {
+    expect(skill).toContain('simplify <cleanup outcome>');
+    expect(skill).not.toContain('totals line');
+    expect(skill).toContain('Wait for completion and briefly summarize the cleanup result');
+    expect(skill).toContain('/simplify with its focus_files as the target');
   });
 
   test('NEXT-TASK template defers the gate call to the future session', () => {

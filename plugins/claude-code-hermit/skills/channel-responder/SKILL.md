@@ -126,7 +126,7 @@ Before running any heavy sub-step — an archive traversal, a multi-file search,
   - `/doctor` is a relayed skill command: Claude Code reserves it for explicit user invocation, so the hook types it into the pane instead. It is covered by the silence rule above, so do not acknowledge it either; the hook runs it after this turn ends, and that later turn delivers the result to the requesting chat. It needs the operator's own chat, the same as `/model`.
   - A near-miss (`/model` with no argument, a bare `clear`, or prose mentioning one) is **not** intercepted — classify it under the categories below instead. A bare `/advisor` is the exception: it is not intercepted *and* must never be invoked — natively it opens a blocking picker nobody is there to answer, which would wedge the session. Reply asking for `/advisor <model>` or `/advisor off` instead.
 
-- **Slash command** (message starts with `/`, e.g. `/claude-code-hermit:simplify`, `/plugin:command`)
+- **Slash command** (message starts with `/`, e.g. `/simplify`, `/plugin:command`)
   - Invoke the matching skill, slash command, or subagent via the appropriate tool. Pass any remaining text as arguments/prompt.
   - A command the `Skill` tool refuses with `disable-model-invocation` — native ones (`/doctor`, `/debug`, and similar) and the hermit's own operator-only wizards, whose descriptions the flag also hides from you — is not a match. Say it must be typed in a terminal or the Claude app, and never substitute a look-alike hermit skill. The flag moves between releases, so trust the refusal you actually get rather than this list: `/code-review` (alias `/review`) is invocable on the supported Claude Code version.
   - If nothing matches, say so briefly.

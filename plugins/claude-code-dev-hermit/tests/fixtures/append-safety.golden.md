@@ -62,5 +62,5 @@ Tier mapping:
 ## Dev Quick Reference
 
 - One-time setup / re-config: `/claude-code-dev-hermit:hatch`
-- Cleanup pass: `/claude-code-hermit:simplify` (parallel reviewers, applies its own edits)
+- Cleanup pass: `/simplify` (parallel reviewers, applies its own edits)
 <!-- /claude-code-dev-hermit: Development Workflow -->

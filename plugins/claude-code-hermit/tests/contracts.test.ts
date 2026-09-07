@@ -2283,7 +2283,7 @@ describe('proposal-act dispatch contract', () => {
   test('subagent owns the quality gate and verification (design b)', () => {
     // missing → e.5/e.6 bounce back to main, splitting execution across two contexts
     expect(skill).toContain('then run its quality gate and verification');
-    expect(skill).toContain('/claude-code-hermit:simplify');
+    expect(skill).toContain('/simplify');
     // The subagent asks the gate rather than judging the tier itself — the two
     // prose copies of that rubric had already diverged on the bookkeeping filter.
     expect(skill).toContain('proposal.ts quality-gate');

@@ -53,7 +53,7 @@ Per `§Implementation Flow`: run the configured test command (`claude-code-dev-h
 
 Per `§Implementation Flow`:
 
-1. Run `/claude-code-dev-hermit:dev-quality` on the working tree. It wraps `/claude-code-hermit:simplify` (parallel reviewers, applies its own edits) and re-runs the test command.
+1. Run `/claude-code-dev-hermit:dev-quality` on the working tree. It wraps `/simplify` (parallel reviewers, applies its own edits) and re-runs the test command.
 2. If tests pass, proceed.
 3. If tests fail, `git checkout -- <changed-files>` to revert the applied edits and stop. Surface the regression.
 
@@ -90,7 +90,7 @@ Or set up a recurring routine via `/claude-code-hermit:hermit-routines` if you w
 
 - **Same change across many files** — use `/batch` (built-in)
 - **Independent tasks** — use multiple `Agent` tool calls in a single message, or implement sequentially
-- **After parallel work** — run `/claude-code-hermit:simplify` in the main session
+- **After parallel work** — run `/simplify` in the main session
 
 ---
 

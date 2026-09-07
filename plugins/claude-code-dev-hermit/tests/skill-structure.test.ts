@@ -53,4 +53,19 @@ for (const entry of fs.readdirSync(SKILL_DIR, { withFileTypes: true })) {
 
 ok(`script refs resolve (${refsChecked} checked)`, danglingRefs.length === 0, danglingRefs.join(', '));
 
+const quality = fs.readFileSync(path.join(SKILL_DIR, 'dev-quality', 'SKILL.md'), 'utf-8');
+const cleanup = quality.slice(quality.indexOf('### Gate 1'), quality.indexOf('### Gate 2'));
+ok('cleanup uses native simplify with an optional target',
+  cleanup.includes('Invoke `/simplify`.') && cleanup.includes('invoke `/simplify <path>`'));
+ok('cleanup completes before the test gate',
+  cleanup.includes('Wait for completion before proceeding to Gate 2.'));
+ok('cleanup reporting does not require custom totals',
+  quality.includes('`simplify:` briefly summarizes the cleanup result.') && !quality.includes('Totals:'));
+ok('test gate retains optional tests and nested target recording',
+  quality.includes('If `commands.test` is unset: skip this gate') &&
+  quality.includes('scripts/record-test-result.ts') &&
+  quality.includes('append `--cwd "<path>"`'));
+ok('test failure remains visible without automatic rollback',
+  quality.includes('status:      tests-regressed') && quality.includes('no rollback.'));
+
 process.exit(summary() === 0 ? 0 : 1);

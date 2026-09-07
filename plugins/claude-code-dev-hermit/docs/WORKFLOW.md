@@ -43,7 +43,7 @@ Per `§Implementation Flow`: agent runs `claude-code-dev-hermit.commands.test` b
 
 Per `§Implementation Flow`:
 
-1. Run `/claude-code-dev-hermit:dev-quality` on the working tree. It invokes `/claude-code-hermit:simplify` (three parallel reviewers, applies its own edits), then re-runs `commands.test`.
+1. Run `/claude-code-dev-hermit:dev-quality` on the working tree. It invokes `/simplify` (native cleanup), then re-runs `commands.test`.
 2. If tests pass → proceed.
 3. If tests fail → `git checkout -- <changed-files>` to revert the applied edits, surface the regression, stop.
 

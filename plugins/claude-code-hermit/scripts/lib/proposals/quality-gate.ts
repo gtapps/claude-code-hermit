@@ -1,6 +1,6 @@
 // `proposal.ts quality-gate <stateDir> <proposal-file> [--files-json <json>]` —
 // the single decider for whether an accepted-proposal implementation gets a
-// `/claude-code-hermit:simplify` cleanup pass.
+// `/simplify` cleanup pass.
 //
 // This module exists because the rubric used to live as prose in two places
 // (proposal-act/SKILL.md's dispatched-subagent prompt and its in-main step e.5)

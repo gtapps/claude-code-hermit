@@ -136,7 +136,7 @@ When the operator accepts a proposal:
         >    ```bash
         >    bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal.ts quality-gate .claude-code-hermit <absolute path to the PROP file> --files-json '<JSON array of the files you touched, repo-root-relative>'
         >    ```
-        >    One JSON line back: `{"tier","action","reason","focus_files"}`. `SKIP` → no cleanup. `RUN` → invoke `/claude-code-hermit:simplify` focused on `focus_files`, and capture its totals line (`applied N · deduped M · principle-rejected K · …`). Best-effort: if the gate or `/simplify` errors, note it and continue — never block on this step.
+        >    One JSON line back: `{"tier","action","reason","focus_files"}`. `SKIP` → no cleanup. `RUN` → invoke `/simplify` with `focus_files` as the target, and briefly summarize the cleanup result. Best-effort: if the gate or `/simplify` errors, note it and continue — never block on this step.
         > 4. **Verification.** Read the proposal's `## Verification` section. If it has real steps (more than the HTML-comment placeholder), perform them. If a step fails, attempt **one** fix and re-verify; if it still fails, set `Verification: failed` with the output and stop (do not loop further). If the section is empty or placeholder-only, set `Verification: none defined`.
         > 5. You cannot prompt the operator — if you hit an ambiguous spec or an undecidable/destructive choice at any step, **stop and return an escalation block** rather than guessing.
         >
@@ -147,13 +147,13 @@ When the operator accepts a proposal:
         > Status: implemented | escalated | blocked: <reason>
         > Touched files: <relative paths, space-separated | none>
         > Tests run: <commands + pass/fail summary | none>
-        > Quality gate: <tier> — simplify <totals line> | skipped: <reason> | n/a
+        > Quality gate: <tier> — simplify <cleanup outcome> | skipped: <reason> | n/a
         > Verification: passed | failed: <output> | none defined
         > Deferred for operator: <none | what was ambiguous and the safe no-op you took>
         > ```
 
         **After the subagent returns** (the dispatched path ran its own quality gate + verification, so it skips main's e.5/e.6 and is handled here):
-        - `Status: implemented` **and** `Verification:` is `passed` or `none defined` → run `/proposal-act resolve PROP-NNN`, then notify the operator (interactive) or channel (autonomous), building the message from the `Quality gate` field: if it carries a simplify totals line → "PROP-NNN implemented and resolved. /simplify applied N edits (M deduped, K rejected on principle)." (use "… /simplify made no changes." when N == 0, and "… /simplify completed (totals unavailable)." if the line is unparseable); if it is `skipped:` or `n/a` → "PROP-NNN implemented and resolved."
+        - `Status: implemented` **and** `Verification:` is `passed` or `none defined` → run `/proposal-act resolve PROP-NNN`, then notify the operator (interactive) or channel (autonomous), building the message from the `Quality gate` field: if cleanup ran, append its brief outcome; if it is `skipped:` or `n/a`, report "PROP-NNN implemented and resolved."
         - `Verification: failed: <output>` → do **not** resolve. Surface the failure output to the operator (interactive) or channel (autonomous). Proposal status stays `accepted`.
         - `Status: escalated` or `Status: blocked: <reason>` → do **not** resolve. Surface the `Deferred for operator` block to the operator (interactive) or channel (autonomous). Proposal status stays `accepted`.
 
@@ -188,11 +188,11 @@ When the operator accepts a proposal:
          One JSON line back: `{"tier","action","reason","focus_files"}`. The script owns tier resolution, the session-bookkeeping filter, and the RUN/SKIP call — the same code the dispatched path runs, so the two cannot disagree. Act on `action`:
 
          - **`SKIP`** → no cleanup. Proceed to (f). Notification: "PROP-NNN implemented and resolved." (add `Skipped cleanup: <reason>` when the reason is more specific than the budget tier).
-         - **`RUN`** → invoke `/claude-code-hermit:simplify` focused on `focus_files`:
+         - **`RUN`** → invoke `/simplify` with `focus_files` as the target:
            ```
-           /claude-code-hermit:simplify focus on PROP-NNN implementation: path/a, path/b
+           /simplify path/a path/b
            ```
-           It runs three parallel reviewers (reuse, quality, efficiency), applies the edits it picks, and ends with a totals line: `applied N · deduped M · principle-rejected K · stale-anchor skips L · parse failures P`. Notification: "PROP-NNN implemented and resolved. /simplify applied N edits (M deduped, K rejected on principle)." Use "… /simplify made no changes." when `N == 0`, and "… /simplify completed (totals unavailable)." if the line is unparseable — never block resolution.
+           Wait for completion and briefly summarize the cleanup result in the resolution notification.
 
          **The quality gate is cleanup, not correctness** — `/simplify` does not check that the proposal works. Correctness is the `## Verification` gate in step (e.6); proposals with no defined verification still resolve, but the skip is recorded.
 
@@ -203,12 +203,12 @@ When the operator accepts a proposal:
 
      f. **(in-main path)** When verifiably done: run `/proposal-act resolve PROP-NNN`, then notify the operator (or channel in autonomous mode) with the tier-appropriate message from (e.5). (Dispatched implementations resolve + notify in the step (e) post-return handling.)
 
-   - **"Create a session task"** → assemble the full NEXT-TASK.md content (Task/Context/Suggested Plan derived from the proposal). The `(always, first step)` bullet below is step `1.` of the Suggested Plan, ahead of the steps derived from the proposal (it gates them, so it is worthless after them) — the derived steps are numbered from `2.`. The remaining bullets append to the end of the Suggested Plan, in order, numbered sequentially after the derived steps (quality-gate bullet is last so `/claude-code-hermit:simplify` reviews any authored skill output):
+   - **"Create a session task"** → assemble the full NEXT-TASK.md content (Task/Context/Suggested Plan derived from the proposal). The `(always, first step)` bullet below is step `1.` of the Suggested Plan, ahead of the steps derived from the proposal (it gates them, so it is worthless after them) — the derived steps are numbered from `2.`. The remaining bullets append to the end of the Suggested Plan, in order, numbered sequentially after the derived steps (quality-gate bullet is last so `/simplify` reviews any authored skill output):
        - **(always, first step)** `Read the proposal file at .claude-code-hermit/proposals/PROP-NNN-*.md and re-verify its ## References and ## Proposed Solution against the current tree with bounded reads of the cited file:line ranges, before any edit; delegate only when the citations span more than a handful of files. If the work is already done, run /claude-code-hermit:proposal-act resolve PROP-NNN and implement nothing. If the cited paths or symbols no longer exist, report the mismatch to the operator or channel and implement nothing. Either way the session did no implementation work, so close it out through the normal work-done flow instead of leaving it in progress.`
        - **(if the proposal contains `## Skill Improvement`)** `Resolve the component name to .claude/skills/<name>/SKILL.md. If it exists, read it before writing and author only the behaviors from the ## Skill Improvement body that are not already present; if all of them are already present, change nothing and say so. If it does not exist, never write into the plugin cache, and create a file at that name only after the operator explicitly confirms the authored SKILL.md, which must be complete rather than the corrected fragment alone. Use the source_artifact brief only when present, and validate the result.`
          The guards travel in the bullet because a later `/session-start` consumes the task as ordinary work, so step (e) never runs again.
        - **(if the proposal contains `## Skill Draft`)** `Author the SKILL.md from the source_artifact (see ## Skill Draft), present the final SKILL.md to the operator for confirmation, then install it to the install_target only on confirmation.`
-       - **(if `quality_gate.tier` in `.claude-code-hermit/config.json` is not `"budget"` — i.e. `"balanced"` or `"quality"`)** `Before committing, run: bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal.ts quality-gate .claude-code-hermit <this PROP file>. On "action":"RUN", run /claude-code-hermit:simplify focused on its focus_files, then commit.`
+       - **(if `quality_gate.tier` in `.claude-code-hermit/config.json` is not `"budget"` — i.e. `"balanced"` or `"quality"`)** `Before committing, run: bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal.ts quality-gate .claude-code-hermit <this PROP file>. On "action":"RUN", run /simplify with its focus_files as the target, then commit.`
          The bullet defers the call rather than making it here: at queue time the implementation hasn't happened, so there is no diff to classify. The future session runs the same verb the other two paths run, with no `--files-json` — the working-tree diff is the evidence by then.
 
      Then create it — the script's exclusive create makes the "already pending" check atomic (no separate existence pre-check needed):
