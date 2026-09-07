@@ -152,7 +152,8 @@ If not active, display:
 > - Manual: `claude --channels plugin:<channel>@<marketplace>`
 >   (use the same `<marketplace>` resolved in step 3.)
 >
-> After restarting, DM your bot — it will reply with a 6-character pairing code.
+> After restarting, DM your bot: it will reply with a 6-character pairing code.
+> Only people who may approve tool use should be DM-paired, because every `allowFrom` DM receives and can answer native permission prompts; everyone else joins through a group whose admission is independent of `allowFrom`, and `allowed_users` narrows who can wake the hermit, never who can approve.
 
 Then ask:
 

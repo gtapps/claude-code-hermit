@@ -31,7 +31,9 @@ session and outside the classifier), re-ensured every boot so a hand-wiped entry
 heals itself; or **decline** (`false` / `setup-time banking`) — the attended hatch/
 evolve session publishes the first version of each enabled stable page inline,
 recording its URL in `state/artifacts.json` so every later refresh is a prompt-free
-same-URL republish. With the flag `null`/`false` and no banked URL, unattended
+same-URL republish, and the same boot-time executor removes `Artifact` from the
+`permissions.allow` of every settings file this install wrote it to at the next boot
+(a `null` flag leaves an existing entry alone). With the flag `null`/`false` and no banked URL, unattended
 publishes silently no-op (step 5 below) — a deliberate choice, not a bug.
 
 ## Shared refresh procedure

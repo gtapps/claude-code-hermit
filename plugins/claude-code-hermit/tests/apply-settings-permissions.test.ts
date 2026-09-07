@@ -450,3 +450,25 @@ test('every hermit-run grant names a script that exists', () => {
     expect(fs.existsSync(target)).toBe(true);
   }
 });
+
+describe('apply-settings artifact-revoke', () => {
+  test('removes Artifact and keeps operator entries and other keys', withTarget(async (target) => {
+    seed(target, { permissions: { allow: ['Artifact', 'Bash(git status:*)'], deny: ['Read(secret)'] }, language: 'English' });
+    expect(await run(target, 'artifact-revoke')).toEqual({ removed: true });
+    expect(JSON.parse(fs.readFileSync(target, 'utf-8'))).toEqual({
+      permissions: { allow: ['Bash(git status:*)'], deny: ['Read(secret)'] }, language: 'English',
+    });
+  }));
+
+  test('no-op leaves file bytes unchanged', withTarget(async (target) => {
+    const bytes = '{ "permissions": { "allow": ["Bash(git status:*)"] } }\n';
+    fs.writeFileSync(target, bytes);
+    expect(await run(target, 'artifact-revoke')).toEqual({ removed: false });
+    expect(fs.readFileSync(target, 'utf-8')).toBe(bytes);
+  }));
+
+  test('missing target creates no file', withTarget(async (target) => {
+    expect(await run(target, 'artifact-revoke')).toEqual({ removed: false });
+    expect(fs.existsSync(target)).toBe(false);
+  }));
+});

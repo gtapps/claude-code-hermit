@@ -178,6 +178,8 @@ The docker-setup wizard walks you through the right auth method and ensures `.en
 
 ## MCP servers
 
+See the [access model](access-model.md#connections) for connection ownership and revocation.
+
 The Docker entrypoint seeds workspace trust but does not approve servers declared in the project's `.mcp.json`. To enroll a server, add its name to `enabledMcpjsonServers` in the project's `.claude/settings.json`, preserving the file's other settings:
 
 ```json

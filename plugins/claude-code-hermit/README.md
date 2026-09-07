@@ -290,6 +290,7 @@ Join the [`claude-code-hermit` Discord community](https://discord.gg/54sJqAxhUh)
 
 ## Documentation
 
+- [Access Model](docs/access-model.md)
 - [Artifacts](docs/artifacts.md)
 - [Always-On Operations](docs/always-on-ops.md)
 - [Always-On Setup](docs/always-on.md)

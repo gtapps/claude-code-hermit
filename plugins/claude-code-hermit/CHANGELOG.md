@@ -19,6 +19,7 @@
 - `peer-post.ts` requires message text as an argument and no longer reads stdin.
 
 ### Fixed
+- A declined artifact publish authorization now removes the standing `Artifact` permission at the next boot, from every settings file the install wrote it to: `.claude/settings.local.json` always, and the committed `.claude/settings.json` when the hatch target is stamped `committed`. An undecided flag, or a hatch target that was never stamped, leaves an existing entry alone.
 - Rate-limited Discord and Telegram notices retry once when the requested wait fits within the send timeout.
 - The Docker entrypoint no longer writes `.mcp.json` server approvals to `~/.claude.json`, where the harness never read them, leaving project servers pending all along. Enrollment is now an operator edit to `enabledMcpjsonServers` in the project's `.claude/settings.json`, documented in `docs/always-on.md` § MCP servers; boot logs the servers the project declares and approves none of them.
 - Stdin hang in `routines.ts finish` and `proposal.ts patch`: stdin is read only behind the explicit `--outcome-stdin` and `--stdin` flags; a heredoc without the flag is ignored.

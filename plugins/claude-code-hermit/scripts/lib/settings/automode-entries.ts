@@ -31,10 +31,13 @@ export const SEALED_SETTINGS_OPS = [
 // grant below. `voice-render` renders config.json's voice block into outputStyle and the
 // style file; the decision it applies was already gated by settings-gate at
 // settings-edit time, so pre-clearing the render too would let one classifier-visible
-// call stand in for both. Boot reaches it as a plain OS process, outside the classifier
-// entirely. Kept separate from SEALED_SETTINGS_OPS so the auto-mode allow entry's
-// enumerated op list stays exactly what it always was.
-export const TERMINAL_ONLY_SETTINGS_OPS = ['voice-render'] as const;
+// call stand in for both. `artifact-revoke` is boot's executor for a declined
+// authorization and has no in-session caller; enumerating it would pre-clear a
+// classifier-free write to permissions.allow that nothing needs. Boot reaches both as a
+// plain OS process, outside the classifier entirely. Kept separate from
+// SEALED_SETTINGS_OPS so the auto-mode allow entry's enumerated op list stays exactly
+// what it always was.
+export const TERMINAL_ONLY_SETTINGS_OPS = ['voice-render', 'artifact-revoke'] as const;
 
 /**
  * Build the allow entry at overlay-render time so the path anchor is a concrete prefix

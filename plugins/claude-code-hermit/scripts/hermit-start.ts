@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { acquireLock, releaseLock } from './lib/lockfile';
 import { foreignArtifactBackend, readConfigRaw } from './lib/config-read';
+import { readJson } from './lib/cli';
 import { auditConfigChange } from './lib/config-audit';
 import { writeRuntimeJson, readRuntimeJson, readRuntimeState, STATE_DIR, RUNTIME_JSON, RUNTIME_TMP, LIFECYCLE_LOCK } from './lib/runtime';
 import { localISOStamp } from './lib/time';
@@ -1016,6 +1017,22 @@ function writeSettingsEnv(
   return { profile: resolved.profile, source: resolved.source };
 }
 
+const ARTIFACT_LOCAL_SETTINGS = '.claude/settings.local.json';
+
+/**
+ * Every settings file the plugin can have put the grant in. `hatch` writes the file
+ * its target names, and the allow path below re-ensures the local file on every boot,
+ * so a committed-target install ends up carrying the entry in both and a decline has
+ * to clear both. An unstamped target leaves the committed file alone: that entry's
+ * provenance is unknown, which is why a `null` flag preserves what it finds too.
+ */
+function artifactRevokeTargets(): string[] {
+  const opts = readJson(path.join(STATE_DIR, 'hatch-options.json'));
+  return opts?.target === 'committed'
+    ? ['.claude/settings.json', ARTIFACT_LOCAL_SETTINGS]
+    : [ARTIFACT_LOCAL_SETTINGS];
+}
+
 /**
  * Boot-time artifact publish grant. Runs pre-launch in the operator's shell —
  * outside any Claude session, so the auto-mode classifier is not in play. This
@@ -1031,14 +1048,24 @@ function writeSettingsEnv(
  * operator configured a backend to prevent.
  */
 function applyArtifactGrant(config: Json): void {
-  if (!artifactGrantApplies(config)) return;
+  const revoke = config.artifacts?.publish_authorized === false;
+  if (!revoke && !artifactGrantApplies(config)) return;
+  const op = revoke ? 'artifact-revoke' : 'artifact-allow';
+  const targets = revoke ? artifactRevokeTargets() : [ARTIFACT_LOCAL_SETTINGS];
   const script = path.join(PLUGIN_ROOT, 'scripts', 'apply-settings.ts');
-  const r = spawnSync('bun', [script, '.claude/settings.local.json', 'artifact-allow'], { stdio: 'pipe', encoding: 'utf-8' });
-  if (r.status !== 0) {
-    console.log(`[hermit] WARNING: boot grant 'artifact-allow' failed: ${(r.stderr || '').trim()} — continuing boot.`);
-    return;
+  for (const target of targets) {
+    // A declined hermit reaches this on every boot for the rest of its life, and the
+    // steady state after the first removal is nothing to do. Checking here keeps that
+    // boot free; it also makes the run's own receipt redundant, since an exit 0 on a
+    // file that carried the entry removed it.
+    if (revoke && readJson(target)?.permissions?.allow?.includes('Artifact') !== true) continue;
+    const r = spawnSync('bun', [script, target, op], { stdio: 'pipe', encoding: 'utf-8' });
+    if (r.status !== 0) {
+      console.log(`[hermit] WARNING: boot grant '${op}' failed: ${(r.stderr || '').trim()}; continuing boot.`);
+      continue;
+    }
+    console.log(`[hermit] Artifact publish grant ${revoke ? 'removed' : 'ensured'} (permissions.allow in ${target})`);
   }
-  console.log('[hermit] Artifact publish grant ensured (permissions.allow in .claude/settings.local.json)');
 }
 
 /**
