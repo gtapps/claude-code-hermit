@@ -19,6 +19,8 @@
 
 Replace `/claude-code-hermit:simplify` calls in operator-authored workflows with `/simplify`. Preserve custom targets and workflow instructions. Personal or project skills named `simplify` still take precedence over the native command; keep or remove those overrides according to operator preference.
 
+If `claude-code-dev-hermit` is installed, update it in the same pass: releases before this one invoke `/claude-code-hermit:simplify` at `/dev-quality` Gate 1, which this release removes. Run `claude plugin update claude-code-dev-hermit --scope local` (or the scope you used at install) and re-run `hermit-evolve` for it before using `/dev-quality` again.
+
 ## [1.3.2] - 2026-09-06
 
 ### Added

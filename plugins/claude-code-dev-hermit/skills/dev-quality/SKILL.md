@@ -61,7 +61,13 @@ Before failing on empty output, run the following checks in order:
 
 ### Gate 1: cleanup
 
-Invoke `/simplify`. When `--cwd <path>` is set, invoke `/simplify <path>`.
+Native `/simplify` gathers its scope from `git diff HEAD`, which omits untracked files. Register them first so new files are in scope:
+
+```bash
+git -C "$TARGET" add -N .
+```
+
+Invoke `/simplify`. When `--cwd <path>` is set, invoke `/simplify <path>` and state that its git commands must run with `-C <path>`.
 
 Wait for completion before proceeding to Gate 2.
 
