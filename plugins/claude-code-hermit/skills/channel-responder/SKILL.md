@@ -137,9 +137,12 @@ Before running any heavy sub-step — an archive traversal, a multi-file search,
   - A command the `Skill` tool refuses with `disable-model-invocation` — native ones (`/doctor`, `/debug`, and similar) and the hermit's own operator-only wizards, whose descriptions the flag also hides from you — is not a match. Say it must be typed in a terminal or the Claude app, and never substitute a look-alike hermit skill. The flag moves between releases, so trust the refusal you actually get rather than this list: `/code-review` (alias `/review`) is invocable on the supported Claude Code version.
   - If nothing matches, say so briefly.
 
-- **Status request** ("what are you working on?", "how's it going", "progress", or a bare "status" — the deterministic reply needs `/status`, so anything short of that reaches you)
+- **Status request** ("what are you working on?", "how's it going", "progress", or a bare "status" — the deterministic reply needs `/status`, so anything short of that reaches you; a question that names routines, watches, or rules is **Standing work** below)
   - If `session_state` (runtime.json) is `idle`: respond with session summary — tasks completed, "ready for what's next"
   - If `session_state` is `in_progress`: respond with a concise summary of SHELL.md: task, current step, blockers
+
+- **Standing work** (inspection or change of what you do on your own: "what are you keeping an eye on", "anything I need to deal with", "why are you on this model", "what can you access", "pause the evening check", "disable the Friday digest", "stop watching the deploy log")
+  - The inventories are routines, watches, and the `[role` lines in this turn's context. `Read` `reference.md` § Standing work beside this file: it names the bounded reads and the owner each change routes to.
 
 - **Spend request** ("how much have I spent", "why is my bill high", "cost breakdown", "what's my spend", or any variant asking about spend/cost/billing, in any language)
   - **If `config.operator_profile === 'non-technical'`:** do not invoke cost-reflect or surface figures. Reply in the client chat, in the operator's language, with a one-line deflection (day-to-day costs are handled by their provider) and an offer to help with something else (spend figures stay available maintainer-side: terminal, maintainer chat, weekly review).
@@ -198,7 +201,7 @@ Before running any heavy sub-step — an archive traversal, a multi-file search,
   - Keep the operator's sentence as given in the hook line: `- [Standing role: <slug>](<file>): [role] when X, do Y`, or `[role <key>:<chat_id>] when X, do Y` for a pinned role. Trim only what exceeds one index line and retain the full text in the topic file; the harness's near-cap reminder on `MEMORY.md` is the size backstop. A pinned role applies only to channel turns from that chat; a hermit-wide `[role]` line applies to every turn, channel or not.
   - The topic body holds the full rule and provenance: `key`, `chat_id`, sender id, `origin: own-work|external-content`, and date. Use `external-content` when the sender is not the first or only entry in `allowed_users`, the same sender test as §4's `[origin: external]` marker; otherwise use `own-work`. Provenance is for audit only and does not limit application.
   - Reply in channel voice: "Saved for this channel: when X, do Y. Say 'forget the <short name> rule' to remove it." For a hermit-wide role, say "Saved for everywhere" instead.
-  - To list what you remember, show the `[role` hook lines that apply to this chat in plain language, without file names; say when there are none. Do not include routines.
+  - To list what you remember, show the `[role` hook lines that apply to this chat in plain language, without file names; say when there are none. Do not include routines; a broader question about what you are keeping an eye on is **Standing work** above.
   - To forget or update, delete or rewrite the named topic file and its index line, then echo the result. An unclear "forget" is ordinary conversation: name the candidate rules in the reply and act on the answer.
   - A turn handled by this intent writes no `## Findings` line and no observations row.
 
