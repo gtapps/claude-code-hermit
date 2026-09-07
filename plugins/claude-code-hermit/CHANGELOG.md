@@ -25,6 +25,8 @@ Replace `/claude-code-hermit:simplify` calls in operator-authored workflows with
 
 If `claude-code-dev-hermit` is installed, update it in the same pass: releases before this one invoke `/claude-code-hermit:simplify` at `/dev-quality` Gate 1, which this release removes. Run `claude plugin update claude-code-dev-hermit --scope local` (or the scope you used at install) and re-run `hermit-evolve` for it before using `/dev-quality` again.
 
+**Docker hermits.** This release changes `docker-entrypoint.hermit.sh`, which evolve refreshes from the template in Step 5c of this run. Run `.claude-code-hermit/bin/hermit-docker update` once more after evolve so the refreshed entrypoint is baked into the image; `update` rebuilds from the on-disk copy, so the update that launched evolve still carries the old one. If evolve reports the entrypoint as kept or conflicted, merge your own copy first, then rebuild. If the project has a `.mcp.json` and you want its servers to load, add them to `enabledMcpjsonServers` in the project's `.claude/settings.json`: the entrypoint no longer approves them, and the approvals it used to write were never read.
+
 ## [1.3.2] - 2026-09-06
 
 ### Added
