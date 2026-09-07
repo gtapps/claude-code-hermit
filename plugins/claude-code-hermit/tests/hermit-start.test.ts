@@ -1361,10 +1361,83 @@ describe('applyArtifactGrant', () => {
     expect(fs.readFileSync('.claude/settings.local.json', 'utf-8')).toBe('{}');
   });
 
-  test('flag false does nothing', () => {
+  test('flag false on empty settings leaves bytes unchanged', () => {
     writeSettings({});
     applyArtifactGrant({ artifacts: { dashboard: true, publish_authorized: false } });
     expect(fs.readFileSync('.claude/settings.local.json', 'utf-8')).toBe('{}');
+  });
+
+  test('flag false removes Artifact and preserves the operator entry', () => {
+    writeSettings({ permissions: { allow: ['Artifact', 'Bash(git status:*)'] } });
+    captureLog(() => applyArtifactGrant({ artifacts: { dashboard: true, publish_authorized: false } }));
+    expect(readSettings().permissions.allow).toEqual(['Bash(git status:*)']);
+  });
+
+  test('flag null preserves an existing Artifact permission', () => {
+    writeSettings({ permissions: { allow: ['Artifact'] } });
+    applyArtifactGrant({ artifacts: { dashboard: true, publish_authorized: null } });
+    expect(readSettings().permissions.allow).toEqual(['Artifact']);
+  });
+
+  // hatch writes the grant to the file its target names, so a decline has to clear
+  // that file. Only a stamped target reaches the committed one.
+  const stampTarget = (target: string) =>
+    fs.writeFileSync('.claude-code-hermit/state/hatch-options.json', JSON.stringify({ target }));
+  const writeCommitted = (settings: any) =>
+    fs.writeFileSync('.claude/settings.json', JSON.stringify(settings));
+  const readCommitted = () =>
+    JSON.parse(fs.readFileSync('.claude/settings.json', 'utf-8'));
+  const declined = { artifacts: { dashboard: true, publish_authorized: false } };
+
+  // A committed-target install carries the entry twice: hatch wrote the committed
+  // file, and the allow path re-ensured the local one on every boot before the
+  // decline. Both are plugin-written, so a decline clears both.
+  test('a committed hatch target revokes from both files and preserves operator entries', () => {
+    stampTarget('committed');
+    writeCommitted({ permissions: { allow: ['Artifact', 'Bash(git status:*)'] } });
+    writeSettings({ permissions: { allow: ['Artifact', 'Bash(ls:*)'] } });
+    const { out } = captureLog(() => applyArtifactGrant(declined));
+    expect(readCommitted().permissions.allow).toEqual(['Bash(git status:*)']);
+    expect(readSettings().permissions.allow).toEqual(['Bash(ls:*)']);
+    expect(out).toContain('.claude/settings.json');
+    expect(out).toContain('.claude/settings.local.json');
+  });
+
+  test('a local hatch target revokes from settings.local.json and leaves the committed file alone', () => {
+    stampTarget('local');
+    writeCommitted({ permissions: { allow: ['Artifact'] } });
+    writeSettings({ permissions: { allow: ['Artifact', 'Bash(git status:*)'] } });
+    captureLog(() => applyArtifactGrant(declined));
+    expect(readSettings().permissions.allow).toEqual(['Bash(git status:*)']);
+    expect(readCommitted().permissions.allow).toEqual(['Artifact']);
+  });
+
+  // Unknown provenance is preserved, the same rule the `null` flag follows.
+  for (const [name, stamp] of [
+    ['no hatch-options file', null],
+    ['hatch-options with no target field', '{"core_install_scope":"project"}'],
+    ['hatch-options that is not valid JSON', 'not json'],
+  ] as const) {
+    test(`${name} revokes locally only`, () => {
+      writeCommitted({ permissions: { allow: ['Artifact'] } });
+      writeSettings({ permissions: { allow: ['Artifact', 'Bash(git status:*)'] } });
+      const opts = '.claude-code-hermit/state/hatch-options.json';
+      if (stamp === null) fs.rmSync(opts, { force: true });
+      else fs.writeFileSync(opts, stamp);
+      captureLog(() => applyArtifactGrant(declined));
+      expect(readSettings().permissions.allow).toEqual(['Bash(git status:*)']);
+      expect(readCommitted().permissions.allow).toEqual(['Artifact']);
+    });
+  }
+
+  test('a declined hermit with nothing left to remove spawns nothing', () => {
+    stampTarget('committed');
+    writeCommitted({ permissions: { allow: ['Bash(git status:*)'] } });
+    writeSettings({ permissions: { allow: [] } });
+    const before = fs.readFileSync('.claude/settings.json', 'utf-8');
+    const { out } = captureLog(() => applyArtifactGrant(declined));
+    expect(fs.readFileSync('.claude/settings.json', 'utf-8')).toBe(before);
+    expect(out).toBe('');
   });
 
   test('flag true but all pages disabled does nothing', () => {

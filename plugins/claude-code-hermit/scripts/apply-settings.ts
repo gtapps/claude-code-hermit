@@ -20,6 +20,7 @@
  *   artifact-allow           Merge just ["Artifact"] into permissions.allow — kept as its
  *                            own op (not folded into `allow`) so declining the Artifact
  *                            publish-authorization ask never touches hook permissions.
+ *   artifact-revoke          Remove exactly "Artifact" from permissions.allow; absent is a no-op.
  *   voice-render             Render config.json's `voice` block into what Claude Code
  *                            reads: the `outputStyle` key here, plus (style "custom")
  *                            .claude/output-styles/hermit-voice.md from voice.prose,
@@ -360,10 +361,11 @@ function planPermissions(settings: Json): PermissionsPlan {
   };
 }
 
-// Removes exactly the entries handed in from `permissions.<key>` — always a subset of
-// the matching sealed registry (HERMIT_OBSOLETE for allow, HERMIT_OBSOLETE_DENY for
-// deny). That subset relationship is what makes an operator's own rules structurally
-// safe: removal is by exact string from a shipped list, never by shape or prefix.
+// Removes exactly the entries handed in from `permissions.<key>` — always a literal
+// shipped in this file: HERMIT_OBSOLETE for allow, HERMIT_OBSOLETE_DENY for deny, and
+// `Artifact` for artifact-revoke. That is what makes an operator's own rules
+// structurally safe: removal is by exact string from a shipped list, never by shape
+// or prefix.
 function removePermissions(settings: Json, key: 'allow' | 'deny', entries: string[]): void {
   if (entries.length === 0 || !Array.isArray(settings?.permissions?.[key])) return;
   const drop = new Set(entries);
@@ -428,6 +430,14 @@ switch (op) {
 
   case 'artifact-allow': {
     mergeAllow(settings, ['Artifact']);
+    break;
+  }
+
+  case 'artifact-revoke': {
+    const removed = Array.isArray(settings?.permissions?.allow) && settings.permissions.allow.includes('Artifact');
+    if (removed) removePermissions(settings, 'allow', ['Artifact']);
+    else readOnly = true;
+    console.log(JSON.stringify({ removed }));
     break;
   }
 
