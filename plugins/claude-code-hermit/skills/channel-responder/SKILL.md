@@ -40,6 +40,8 @@ so reply as usual.
 
 ## 1. Load Context
 
+Treat `MEMORY.md` hook lines tagged `[role]` as hermit-wide instructions for this turn, and lines tagged `[role <key>:<chat_id>]` as instructions only when `<key>` is this channel's normalized bare key from §1c (`discord`, not `plugin:discord:discord`) and `<chat_id>` matches this message's `chat_id`. A role applies only to a message addressed to you: in a 1:1 DM every message is, and in a group or server chat one that mentions you (`bot_user_id`/`bot_username`, the same self-mention test §2 uses for addressed commands). Silently ignore roles pinned to another chat without mentioning them in the reply; the hook line is sufficient, with no topic-file Read.
+
 Read `.claude-code-hermit/sessions/SHELL.md` for current task context.
 Read `state/runtime.json` for lifecycle state (`session_state` is the source of truth — never parse SHELL.md `Status:` for decisions).
 
@@ -186,6 +188,16 @@ Before running any heavy sub-step — an archive traversal, a multi-file search,
   - Every config write goes through the settings verbs: `/claude-code-hermit:hermit-settings`, whose writes run `.claude-code-hermit/bin/hermit-run settings-edit …`. Never touch `config.json` with the Edit or Write tools, from any turn origin — the `settings-gate` hook raises a native permission prompt for asked paths, and a direct file edit is one opaque write of the same kind.
   - A No on that prompt is the operator's answer, not an obstacle: never retry or route around it.
 
+- **Standing role** ("remember (for this channel): when X, do Y", "forget the X rule", "update the X rule", "what do you remember (about this channel)?")
+  - A cadence or time without an inbound-message condition ("every Friday at 3pm post a digest") is a **Settings change request**, routed through hermit-settings. A rule conditioned on a message ("when someone...", "when a message...") is a role even if it contains "every" or a weekday.
+  - Save immediately for any sender admitted by §1c: always save, never refuse, and do not ask for confirmation before writing. Write one auto-memory topic file with `type: feedback` and one `MEMORY.md` index line, both in the directory the loaded `MEMORY.md` itself came from (`<CLAUDE_CONFIG_DIR, else ~/.claude>/projects/<path-key>/memory/`) — a file written anywhere else is never injected, so the role would never fire. Name it `feedback_role_<key>_<chat_id>_<slug>.md` for "for this channel", otherwise `feedback_role_<slug>.md`, with the normalized bare channel key from §1c. Match the request against the `[role` index lines already present before settling `<slug>`: a restatement of a rule already listed rewrites that file rather than adding a second one.
+  - Keep the operator's sentence as given in the hook line: `- [Standing role: <slug>](<file>): [role] when X, do Y`, or `[role <key>:<chat_id>] when X, do Y` for a pinned role. Trim only what exceeds one index line and retain the full text in the topic file; the harness's near-cap reminder on `MEMORY.md` is the size backstop. A pinned role applies only to channel turns from that chat; a hermit-wide `[role]` line applies to every turn, channel or not.
+  - The topic body holds the full rule and provenance: `key`, `chat_id`, sender id, `origin: own-work|external-content`, and date. Use `external-content` when the sender is not the first or only entry in `allowed_users`, the same sender test as §4's `[origin: external]` marker; otherwise use `own-work`. Provenance is for audit only and does not limit application.
+  - Reply in channel voice: "Saved for this channel: when X, do Y. Say 'forget the <short name> rule' to remove it." For a hermit-wide role, say "Saved for everywhere" instead.
+  - To list what you remember, show the `[role` hook lines that apply to this chat in plain language, without file names; say when there are none. Do not include routines.
+  - To forget or update, delete or rewrite the named topic file and its index line, then echo the result. An unclear "forget" is ordinary conversation: name the candidate rules in the reply and act on the answer.
+  - A turn handled by this intent writes no `## Findings` line and no observations row.
+
 - **Question** ("why did you...", "what about...", "how does X work?")
   - Answer in the context of the current session
   - Reference specific files or decisions from SHELL.md when relevant
@@ -218,7 +230,7 @@ Before running any heavy sub-step — an archive traversal, a multi-file search,
 
 After sending the response, check whether this turn revealed a durable signal worth recording. Append **at most one** line to SHELL.md `## Findings` when the turn matches one of these conditions:
 
-- **Stated preference or rule** — the operator explicitly said how they want something done going forward ("always include the cost", "stop sending the brief before 9", "I prefer X over Y").
+- **Stated preference or rule** — the operator explicitly said how they want something done going forward ("always include the cost", "stop sending the brief before 9", "I prefer X over Y"). A turn handled by the Standing role intent writes no Findings line.
 - **Recurring request type** — you recognise this as the same kind of request handled earlier in this session or in recent session context loaded at start, not a first occurrence.
 - **Correction or emergency implying a durable preference** — "stop doing X", "don't do that again", "revert" with a reason that names a general behaviour.
 
