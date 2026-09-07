@@ -16,6 +16,7 @@ declare(strict_types=1);
 // ---------------------------------------------------------------------------
 
 use Laravel\Forge\Forge;
+use Laravel\Forge\Exceptions\ValidationException;
 use Psr\Http\Message\RequestInterface;
 
 // ---------------------------------------------------------------------------
@@ -277,6 +278,21 @@ function scrubSecrets(string $text): string
 
         return $mixed ? '[REDACTED]' : $s;
     }, $text) ?? $text;
+}
+
+/**
+ * Keep the SDK summary and the complete validation response, including nested
+ * field errors. Scrub after rendering so API-provided details get the same
+ * protection as successful output.
+ */
+function formatSdkError(\Throwable $error): string
+{
+    $message = 'SDK error: ' . $error->getMessage();
+    if ($error instanceof ValidationException && $error->errors() !== []) {
+        $message .= "\n" . json_encode($error->errors(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    }
+
+    return scrubSecrets($message) . "\n";
 }
 
 // ---------------------------------------------------------------------------

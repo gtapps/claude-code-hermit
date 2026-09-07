@@ -1,5 +1,10 @@
 # Changelog — laravel-forge-hermit
 
+## [Unreleased]
+
+### Fixed
+- Forge validation failures now include scrubbed field-level error details in generic read and write output.
+
 ## [0.0.13] - 2026-09-06
 
 ### Changed

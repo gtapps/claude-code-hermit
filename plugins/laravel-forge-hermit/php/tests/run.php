@@ -52,7 +52,8 @@ function check(bool $cond, string $msg): void {
 function makeMockForge(array $responses): array {
     $mock    = new MockHandler($responses);
     $stack   = HandlerStack::create($mock);
-    $guzzle  = new Client(['handler' => $stack]);
+    // Match the SDK's default transport so it maps HTTP errors to SDK exceptions.
+    $guzzle  = new Client(['handler' => $stack, 'http_errors' => false]);
     $forge   = new Forge('test-token', $guzzle);
     return [$forge, $mock];
 }
@@ -497,6 +498,47 @@ check(str_contains(scrubSecrets('postgres://app:s3cr3t@db.internal/prod'), '[RED
 $ordinaryLog = "Cloning into '/home/forge/app'...\nHEAD is now at 4f2a1b9c8d3e5f6a7b8c9d0e1f2a3b4c5d6e7f80 Fix pagination\nnpm WARN deprecated";
 check(scrubSecrets($ordinaryLog) === $ordinaryLog,
     'an ordinary deploy log survives untouched, git SHA included');
+
+// ---------------------------------------------------------------------------
+// SDK error output
+// ---------------------------------------------------------------------------
+echo "\nSDK error output:\n";
+
+$validationBody = [
+    'message' => 'The given data was invalid.',
+    'errors' => [
+        'name' => ['The name has already been taken.', 'The name must be a valid domain.'],
+        'type' => ['The selected type is invalid.'],
+    ],
+];
+[$validationForge] = makeMockForge([new Response(422, [], json_encode($validationBody))]);
+try {
+    $validationForge->createSite('acme', 12, ['type' => 'php', 'name' => 'example.invalid']);
+    check(false, '422 raises a validation exception');
+} catch (\Laravel\Forge\Exceptions\ValidationException $e) {
+    $output = formatSdkError($e);
+    check(str_starts_with($output, "SDK error: The given data failed to pass validation.\n"),
+        'validation output retains the generic SDK summary');
+    $details = json_decode(substr($output, strpos($output, "\n") + 1), true);
+    check($details === $validationBody, '422 output retains the envelope, fields and every validation message');
+}
+
+$flatErrors = ['name' => ['The name is required.']];
+$flatOutput = formatSdkError(new \Laravel\Forge\Exceptions\ValidationException($flatErrors));
+check(json_decode(substr($flatOutput, strpos($flatOutput, "\n") + 1), true) === $flatErrors,
+    'flat validation details retain their structure');
+check(formatSdkError(new \Laravel\Forge\Exceptions\ValidationException([]))
+    === "SDK error: The given data failed to pass validation.\n",
+    'empty validation details retain the summary without an empty appendix');
+check(formatSdkError(new \RuntimeException('Connection failed.')) === "SDK error: Connection failed.\n",
+    'ordinary exceptions retain their message and trailing newline');
+$secretOutput = formatSdkError(new \Laravel\Forge\Exceptions\ValidationException([
+    'errors' => ['name' => ['Invalid DB_PASSWORD=hunter2trombone', 'Invalid https://app:s3cr3t@example.invalid/path']],
+]));
+check(!str_contains($secretOutput, 'hunter2trombone') && !str_contains($secretOutput, 's3cr3t')
+    && str_contains($secretOutput, '[REDACTED]'), 'validation details scrub assignments and URL credentials');
+check(!str_contains(formatSdkError(new \RuntimeException('Authorization: Bearer abcdef1234567890')), 'abcdef1234567890'),
+    'ordinary exception messages are scrubbed too');
 
 // ---------------------------------------------------------------------------
 // Block G — SDK surface tripwire
