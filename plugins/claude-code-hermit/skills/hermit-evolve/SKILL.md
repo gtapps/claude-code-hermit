@@ -35,6 +35,8 @@ Steps 0–9 (in `reference.md`, read only by the `evolve-runner` subagent) are e
 
 ### 10. Report
 
+After a successful upgrade, arm `/claude-code-hermit:later add 1d "doctor stays green after upgrading to <version>" | .claude-code-hermit/bin/hermit-run doctor-check .claude-code-hermit --gate` (hermit origin, `--timeout-s 120`: the doctor gate probes credentials and docker and gets the same budget as its routine). The resolver form survives the next plugin update; a baked `<plugin_root>` path points at a cache directory that may be gone by the time the claim is checked.
+
 **Step 10 runs in the main loop** (not the subagent), consuming the `evolve-runner`'s returned report. The subagent's report is the single source for what follows.
 
 **Report contract** — the subagent's final message is exactly this; non-deferred runs carry no deferred block, so the common payload is tiny:
