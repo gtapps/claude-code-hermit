@@ -44,7 +44,7 @@ export interface SendResult {
 }
 
 /** Where and how to send. `target` overrides outbound resolution (used to reply
- * to the chat a message arrived on); `timeoutMs` bounds the HTTP round-trip.
+ * to the chat a message arrived on); `timeoutMs` bounds the HTTP attempts and any rate-limit wait.
  * `sensitive` keeps the message out of the episodic channel log (auth prompts,
  * technical detail); `recordHealth: false` skips the platform health write (used
  * for maintainer-chat sends, whose failures must not mark the client route
@@ -72,42 +72,62 @@ function fetchError(e: any): string {
   return e?.name === 'TimeoutError' ? 'request timeout' : e?.message || String(e);
 }
 
-async function sendTelegram(token: string, chatId: string, text: string, timeoutMs: number): Promise<PlatformSendResult> {
-  const base = process.env.HERMIT_TELEGRAM_API_URL || 'https://api.telegram.org';
-  const sentText = text.slice(0, TELEGRAM_MAX_LEN);
+/** Retry metadata is seconds; JSON values must be numbers, headers numeric strings. */
+function retryDelayMs(platform: 'telegram' | 'discord', resp: Response, body: Json): number | null {
+  const values: unknown[] = [platform === 'telegram' ? body?.parameters?.retry_after : body?.retry_after];
+  const header = resp.headers.get('Retry-After');
+  if (platform === 'discord' && header?.trim()) values.push(Number(header));
+  const delays = values.filter((value): value is number =>
+    typeof value === 'number' && Number.isFinite(value) && value >= 0);
+  return delays.length ? Math.ceil(Math.max(...delays) * 1000) : null;
+}
+
+async function sendPlatform(
+  platform: 'telegram' | 'discord', url: string, request: RequestInit, sentText: string, timeoutMs: number,
+): Promise<PlatformSendResult> {
   try {
-    const resp = await fetch(`${base}/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: sentText }),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (resp.ok) return { ok: true, status: resp.status, sentText };
-    let description: string | undefined;
-    try { description = ((await resp.json()) as Json)?.description; } catch {}
-    return { ok: false, status: resp.status, error: description || `telegram_http_${resp.status}` };
+    const deadline = performance.now() + timeoutMs;
+    const signal = AbortSignal.timeout(timeoutMs);
+    for (let attempt = 0; ; attempt++) {
+      const resp = await fetch(url, { ...request, signal });
+      if (resp.ok) return { ok: true, status: resp.status, sentText };
+      let body: Json;
+      try { body = await resp.json(); } catch { signal.throwIfAborted(); }
+      const error = (platform === 'telegram' ? body?.description : body?.message) || `${platform}_http_${resp.status}`;
+      const failure = { ok: false, status: resp.status, error };
+      if (resp.status !== 429 || attempt > 0) return failure;
+      const delayMs = retryDelayMs(platform, resp, body);
+      if (delayMs === null || delayMs >= deadline - performance.now()) return failure;
+      // Never shorten the platform's wait, and never give the retry a fresh budget.
+      const retryAt = performance.now() + delayMs;
+      while (performance.now() < retryAt) {
+        await Bun.sleep(Math.ceil(retryAt - performance.now()));
+      }
+      if (signal.aborted || performance.now() >= deadline) return failure;
+    }
   } catch (e: any) {
     return { ok: false, error: fetchError(e) };
   }
 }
 
+async function sendTelegram(token: string, chatId: string, text: string, timeoutMs: number): Promise<PlatformSendResult> {
+  const base = process.env.HERMIT_TELEGRAM_API_URL || 'https://api.telegram.org';
+  const sentText = text.slice(0, TELEGRAM_MAX_LEN);
+  return sendPlatform('telegram', `${base}/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text: sentText }),
+  }, sentText, timeoutMs);
+}
+
 async function sendDiscord(token: string, chatId: string, text: string, timeoutMs: number): Promise<PlatformSendResult> {
   const base = process.env.HERMIT_DISCORD_API_URL || 'https://discord.com/api/v10';
   const sentText = text.slice(0, DISCORD_MAX_LEN);
-  try {
-    const resp = await fetch(`${base}/channels/${chatId}/messages`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bot ${token}` },
-      body: JSON.stringify({ content: sentText }),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (resp.ok) return { ok: true, status: resp.status, sentText };
-    let message: string | undefined;
-    try { message = ((await resp.json()) as Json)?.message; } catch {}
-    return { ok: false, status: resp.status, error: message || `discord_http_${resp.status}` };
-  } catch (e: any) {
-    return { ok: false, error: fetchError(e) };
-  }
+  return sendPlatform('discord', `${base}/channels/${chatId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bot ${token}` },
+    body: JSON.stringify({ content: sentText }),
+  }, sentText, timeoutMs);
 }
 
 const SENDERS: Record<string, (token: string, chatId: string, text: string, timeoutMs: number) => Promise<PlatformSendResult>> = {
