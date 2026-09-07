@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- Chat assignments that outlast the turn get a threaded progress message the hermit edits at meaningful milestones and closes at completion, with a separate reply when a decision is needed; channels without message editing get short threaded replies instead.
 - Single-skill evaluation through `reflect --check-id <id> --check <skill>` and sibling script dispatch through `hermit-run sibling-run`.
 - `/later` deferred verification research preview, with a durable claim ledger, evidence and verdict verbs, and a daily `later-check` routine gated on past-due claims. The sealed allow-list covers `later list|cancel|verdict|due`; `add` and `check` stay with the prompt or the classifier because `check` runs a stored shell command. A claim may set `--timeout-s` (1 to 300, default 30) for its evidence command.
 - Opt-in `passive_chats` capture every delivered group message for recall while only allowed senders mentioning the bot wake it; Discord threads follow their listed parent. `hermit-doctor` gains a `passive-chats` check for the plugin `access.json` gate and for the `bot_user_id`/`allowed_users` a passive chat needs.

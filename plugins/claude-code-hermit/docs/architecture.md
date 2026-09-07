@@ -70,7 +70,7 @@ SHELL.md progress status,   S-NNN-REPORT.md,
 
 **Start:** Checks for existing SHELL.md. Resumes if `in_progress` or `waiting`, creates fresh if not. Loads OPERATOR.md. Reads the SHELL.md Progress Log to see plan steps. Runs morning routine if it hasn't fired today.
 
-**Work:** Plan steps and their progress live in SHELL.md's timestamped Progress Log — one plan surface, durable across compaction and restart. Blockers recorded with cold-start context.
+**Work:** Plan steps and their progress live in SHELL.md's timestamped Progress Log — one plan surface, durable across compaction and restart. Blockers recorded with cold-start context. A chat-assigned task also gets a progress card: the threaded "On it" reply, whose id is a `Progress card:` Progress Log line, edited at milestones and closed at completion. The card is presentation only; SHELL.md and `runtime.json` stay authoritative.
 
 **Close:** Defaults to idle transition at every task boundary — your hermit says "What's next?" and waits. Reflection fires. Full shutdown only via `/session-close`. See [Always-On Lifecycle](always-on-ops.md#2-always-on-lifecycle).
 
