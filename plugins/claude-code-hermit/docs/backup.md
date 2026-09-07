@@ -39,7 +39,7 @@ Some paths are never committed:
 
 **This is a screen, not a boundary.** It catches the obvious shapes and nothing else. A credential in a file with an ordinary name, in a format the patterns don't know, or past the size cap, will be committed. It is also not retroactive: a refused path that is *already tracked* stays at its last committed version rather than being deleted from your tree, and anything already in history stays in history.
 
-So before you enable this, look at what is already in the workspace. In particular `config.env` (and the `env` block it writes into `.claude/settings.local.json`) is free-form and will be committed — setup prints the key names and asks. Credentials belong in `.env`, which is refused.
+So before you enable this, look at what is already in the workspace. In particular `config.env` (and the resident launch overlay it produces) is free-form and will be committed — setup prints the key names and asks. Credentials belong in `.env`, which is refused.
 
 The destination must be a private repository. This is the one part of the hermit that ships its whole footprint outward, and unlike telemetry — which builds an allowlisted bundle of named numbers — a backup is denylist-shaped by necessity. You cannot restore from an allowlist.
 

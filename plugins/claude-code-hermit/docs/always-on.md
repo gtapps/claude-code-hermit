@@ -204,7 +204,7 @@ Hermits using `setup-token` fetch no claude.ai connectors. See the [Claude Code 
 
 ## Channels
 
-Channel tokens live in `.claude.local/channels/<name>/.env` (project-local scope). `hermit-start` derives `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` from `channels.<name>.state_dir` in config.json (relative paths resolved against project root); on a bare-host boot, an omitted value defaults to `.claude.local/channels/<name>`. It writes the derived paths into `settings.local.json` and the shell env so MCP servers can find them.
+Channel tokens live in `.claude.local/channels/<name>/.env` (project-local scope). `hermit-start` derives `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` from `channels.<name>.state_dir` in config.json (relative paths resolved against project root); on a bare-host boot, an omitted value defaults to `.claude.local/channels/<name>`. It writes the derived paths into the resident launch overlay and shell env so MCP servers can find them.
 
 ### Docker
 

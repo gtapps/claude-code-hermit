@@ -244,16 +244,10 @@ function buildCompactionPointers(agentDir: string): string {
 }
 
 // --- Residency: resident vs guest ---------------------------------------
-// A hatched folder can hold more than one session at once. The managed
-// always-on hermit is the one carrying HERMIT_MANAGED=1 (stamped into the tmux
-// env-file by hermit-start; a hand-launched `claude` in the same folder never
-// inherits it). So a session WITHOUT the marker, in a project whose managed
-// tmux session is still alive, is a *guest*: it gets a short banner instead of
-// the full hermit framing, making role assignment mechanical rather than a
-// judgment call. No new state file — the marker plus runtime.json's
-// tmux_session is the whole signal.
+// hermit-start marks resident launches with HERMIT_RESIDENT=1. Other sessions
+// are guests even when the resident is stopped. The tmux liveness check below
+// only determines whether the guest banner can point to a running resident.
 function residentSessionActive(agentDir: string): boolean {
-  if (process.env.HERMIT_MANAGED === '1') return false; // this session IS the resident
   const runtime = readRuntimeJson(path.resolve(agentDir, 'state'));
   const tmuxSession = runtime && typeof runtime.tmux_session === 'string' ? runtime.tmux_session : '';
   // Unreadable state or no recorded session → no resident claim, full framing (fail-open).
@@ -281,19 +275,14 @@ function residentPeerName(agentDir: string): string {
 // Keep the guest injection short because a guest session is here to do
 // ordinary work, not to be briefed on the hermit.
 function emitGuestBanner(agentDir: string): void {
-  const project = path.basename(path.dirname(path.resolve(agentDir)));
-  console.log('---Guest Session---');
-  console.log(`Project: ${safe(project)} — a managed hermit session is already running here.`);
-  console.log('You are a guest, not the hermit. Do not answer channel messages, do not write');
-  console.log('sessions/SHELL.md or other hermit state, and do not start the heartbeat, routines,');
-  console.log('or watches — the resident session owns all of that. Otherwise work normally.');
-  // Dropped entirely when the resident has no resolvable name: "Resident: @."
-  // is an instruction the guest cannot act on, and inventing a name would send
-  // the report to whatever session happens to answer to it.
-  const peerName = residentPeerName(agentDir);
-  if (peerName) {
-    console.log(`Resident: @${safe(peerName)}. SendMessage it one line starting GUEST_REPORT: when work here is finished.`);
-    console.log('Ask it for history instead of reading hermit state.');
+  // One liveness check, not two: it spawns `tmux has-session`, and asking twice
+  // also lets the resident die between the two answers and print a banner that
+  // claims a running resident with no name to address.
+  if (residentSessionActive(agentDir)) {
+    const peerName = residentPeerName(agentDir);
+    console.log(`---Guest Session--- A managed hermit session is already running here.${peerName ? ` Resident: @${safe(peerName)}. SendMessage it GUEST_REPORT: when finished.` : ''} Work normally; resident duties belong to the hermit.`);
+  } else {
+    console.log('---Guest Session--- Start the resident with .claude-code-hermit/bin/hermit-start.');
   }
 }
 
@@ -386,11 +375,11 @@ function main(source: string | null, sessionId: string | null) {
   const stateDir = path.resolve(AGENT_DIR, 'state');
   stampSessionEnv(stateDir, sessionId);
   pruneGuestMarkers(stateDir);
-  if (residentSessionActive(AGENT_DIR)) {
+  if (process.env.HERMIT_RESIDENT !== '1') {
     // The banner only reaches the model; the marker is what the state-writing
     // hooks read, since they run per turn with no model in the loop.
     markGuest(stateDir, sessionId);
-    emitGuestBanner(AGENT_DIR);
+    if (source !== 'compact') emitGuestBanner(AGENT_DIR);
     return;
   }
   // No resident but a marker from an earlier SessionStart of this same session id

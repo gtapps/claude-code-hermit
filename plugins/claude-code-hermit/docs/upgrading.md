@@ -108,3 +108,5 @@ These aren't upgrades — just how your project evolves:
 Per-version upgrade instructions live in [CHANGELOG.md](../CHANGELOG.md) under each version's `### Upgrade Instructions` section. `hermit-evolve` reads and executes those instructions automatically — you don't need to apply them manually.
 
 For a full list of what changed in each release, see [CHANGELOG.md](../CHANGELOG.md).
+
+Evolve compares shared CLAUDE instructions and `.claude-code-hermit/RESIDENT.md` even at an equal version. It writes resident duties first, cleans legacy local settings, then offers the shared-block shrink. Restart with `hermit-start --resume` after this migration.

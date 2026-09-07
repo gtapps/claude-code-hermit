@@ -94,10 +94,12 @@ function resolveTarget(verb: string, target: string): string {
   return verb === 'apply-known' ? (byArg(target)?.path ?? target) : target;
 }
 
-const CONFIG_SUFFIX = path.join('.claude-code-hermit', 'config.json');
+/** The hermit-dir files a shell write must raise the native prompt for. */
+const PROTECTED_FILES = ['config.json', 'RESIDENT.md', 'claude-settings.json'];
+const PROTECTED_FILE_ALT = PROTECTED_FILES.map((n) => n.replace(/\./g, String.raw`\.`)).join('|');
 
 function targetsConfigFile(p: string): boolean {
-  return p.replace(/\\/g, '/').endsWith(CONFIG_SUFFIX.replace(/\\/g, '/'));
+  return PROTECTED_FILES.some(name => p.replace(/\\/g, '/').endsWith(`.claude-code-hermit/${name}`));
 }
 
 /**
@@ -183,7 +185,7 @@ function ask(reason: string): void {
  * `.claude-code-hermit/config.json` tail, or by a `$`-expanded prefix ending in
  * `config.json`, since the hook cannot resolve the variable.
  */
-const CONFIG_FILE_PATH = String.raw`(?:\S*\.claude-code-hermit\/|\$\S*\/)config\.json["']?`;
+const CONFIG_FILE_PATH = String.raw`(?:\S*\.claude-code-hermit\/|\$\S*\/)(?:${PROTECTED_FILE_ALT})["']?`;
 const CONFIG_FILE_WRITE = new RegExp(
   String.raw`>\s*["']?${CONFIG_FILE_PATH}`
   + String.raw`|\b(?:cp|mv)\s[^|;&\n]*?\s["']?${CONFIG_FILE_PATH}(?=\s*(?:[|;&]|$))`
@@ -211,8 +213,14 @@ const SHELL_EXPANDS = /[$`]/;
 function protectedMutation(command: string): string[] | null {
   // An opaque write of the whole file can replace any asked path, so it
   // raises the native prompt regardless of what it happens to contain.
-  if (CONFIG_FILE_WRITE.test(command)) {
-    return ['config.json'];
+  const fileWrite = CONFIG_FILE_WRITE.exec(command);
+  if (fileWrite) {
+    // The file being WRITTEN is the last path in the match — `cp <src> <dest>`
+    // and `tee`/`sed -i <file>` both put it at the end, and the redirect
+    // alternative starts at `>` so it holds only one. Taking the first would
+    // name the source of `cp .../config.json .../RESIDENT.md` in the prompt.
+    const names = fileWrite[0].match(new RegExp(PROTECTED_FILE_ALT, 'g'));
+    return [names ? names[names.length - 1] : 'config.json'];
   }
 
   // The script path and the config path may each be quoted (a plugin root or
@@ -264,7 +272,7 @@ function main(payload: any): void {
     asked = protectedMutation(typeof input.command === 'string' ? input.command : '');
   } else {
     const fp = typeof input.file_path === 'string' ? input.file_path : '';
-    asked = targetsConfigFile(fp) ? ['config.json'] : null;
+    asked = targetsConfigFile(fp) ? [path.basename(fp.replace(/\\/g, '/'))] : null;
   }
 
   if (!asked) return;

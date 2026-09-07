@@ -2,6 +2,7 @@
 
 <!-- claude-code-hermit: Session Discipline -->
 
+<!-- resident-only -->
 ## Session Discipline (claude-code-hermit)
 
 - Use `/claude-code-hermit:session-start` to establish or resume work; it owns task selection and unattended startup. Archive via `/claude-code-hermit:session-close`.
@@ -33,11 +34,16 @@ Delivery failures, degraded legs, and exit-code handling: `/claude-code-hermit:c
 
 Dashboard, proposals, and weekly-review pages are published only by their skills (gated by `config.artifacts.*`); on-demand publish needs no gate.
 
+<!-- /resident-only -->
+
 ## Knowledge Discipline
 
 Auto-memory handles all learning; `compiled/` is for durable domain outputs, not lessons. **Memory-first:** before any suggestion-generating path declares a finding novel, consult auto-memory and suppress as `covered-by-memory` when memory already covers the decision, preference, or pattern. Skills acting on an already-decided intent are exempt.
 
-**Settled knowledge gets one authoritative home.** A one-shot or session-wide preference stays in the memory you are already saving. When the operator declares an explicit endpoint for a task-scoped output ("from now on, always X") and an editable skill owns that task (a `.claude/skills/<name>/SKILL.md` file, or a namespaced entry in the skills list), act on the declaration now: fold the settled content into that skill, save the memory as a pointer, reply naming the change and its home (offer revert), and record it — `.claude-code-hermit/bin/hermit-run observations observe .claude-code-hermit skill-preference-applied` with `skill-preference:<skill>` on stdin, plus `settled: <skill> ← <slug>` in Findings. No editable owner? Same call with source `skill-preference`, labelling it `skill-preference:<output-slug>` when no skill name exists yet. Domain knowledge → `compiled/`; other surfaces point at the home, never copy it. Never write settled content into OPERATOR.md; a verbatim operator statement in memory supersedes a conflicting OPERATOR.md line — note the conflict once (Findings or channel).
+**Settled knowledge gets one authoritative home.** A one-shot or session-wide preference stays in the memory you are already saving. When the operator declares an explicit endpoint for a task-scoped output ("from now on, always X") and an editable skill owns that task (a `.claude/skills/<name>/SKILL.md` file, or a namespaced entry in the skills list), act on the declaration now: fold the settled content into that skill, save the memory as a pointer, and reply naming the change and its home (offer revert). Domain knowledge → `compiled/`; other surfaces point at the home, never copy it. Never write settled content into OPERATOR.md; a verbatim operator statement in memory supersedes a conflicting OPERATOR.md line.
+<!-- resident-only -->
+When you fold a settled preference into a skill, also record it: `.claude-code-hermit/bin/hermit-run observations observe .claude-code-hermit skill-preference-applied` with `skill-preference:<skill>` on stdin, plus `settled: <skill> ← <slug>` in Findings. No editable owner? Same call with source `skill-preference`, labelling it `skill-preference:<output-slug>` when no skill name exists yet. When memory supersedes an OPERATOR.md line, note the conflict once (Findings or channel).
+<!-- /resident-only -->
 
 - **`type` in frontmatter is the discriminator — never a folder.** No subdirectories inside `raw/`/`compiled/`, no new top-level dirs inside `.claude-code-hermit/`.
 - Domain inputs → `raw/<type>-<slug>-<date>.md`; one-off outputs → `compiled/<type>-<slug>-<date>.md`; evolving subjects → `compiled/topic-<slug>.md` updated in place. All require frontmatter (`title`, `type`, `created`, `tags`).
@@ -46,16 +52,20 @@ Auto-memory handles all learning; `compiled/` is for durable domain outputs, not
 
 ## Rules
 
+<!-- resident-only -->
 - Rate limits or stuck: log it in the Progress Log and alert via channel. Never silently stall or push through.
 - Auto-mode denial handling: a classifier denial is not itself an operator alert; never retry the denied call. Try permitted alternatives first. If the task still cannot proceed without operator action, record it under `## Blockers` and send one ordinary actionable notice per § Operator Notification.
 - **Sanctioned egress:** channel replies, doctor liveness probes, and Artifact publishes are routine, pre-authorized hermit operations, not a permission workaround.
 - **Settings from chat:** settings that reach what the session executes or who may talk to it raise a native permission prompt. The operator answers from their DM or terminal. A No is the answer, not an obstacle.
 - Delegation: delegate when a sub-step's intermediate context dwarfs its conclusion, it needs no operator contact mid-flight, and main needs only the verdict; it returns a verdict plus optional `operator_message`, main owns operator contact (§ Operator Notification).
+<!-- /resident-only -->
 - Calibration: before publishing specifics you didn't verify in this conversation (version-pinned behavior, external system state, recalled signatures, prices/dates/counts), verify against a source or label as recalled-not-verified. `OPERATOR.md` can tighten or relax.
 - Secrets: never log API keys, tokens, passwords, or credentials to SHELL.md, reports, or proposals.
 - OPERATOR.md: operator-curated (tone lives in config's `voice` block); never edit autonomously. Stale or contradictory context: draft the minimal diff and apply only after the operator confirms; in always-on mode flag it via channel instead.
 - Proposals: improvements outside the authorized task follow `/claude-code-hermit:reflect`'s tier gates; full proposals use `/proposal-create` → operator accepts → implement. Authorized work and trivial fixes need no new proposal. **Never hand-write `proposals/PROP-*.md` files**: always invoke the skill.
+<!-- resident-only -->
 - Tasks: multi-step work is ordered steps in the `.claude-code-hermit/sessions/SHELL.md` Progress Log, one timestamped entry per step.
+<!-- /resident-only -->
 - Artifact frontmatter: any `.md` file you create outside `.claude-code-hermit/` must include YAML frontmatter with at least `title` (string) and `created` (ISO 8601 with timezone). If inside a hermit session, add `session: S-NNN`.
 - Tag discipline: tag every session report, proposal, and artifact you create; reuse the existing lowercase-hyphenated vocabulary rather than inventing new tags.
 <!-- /claude-code-hermit: Session Discipline -->

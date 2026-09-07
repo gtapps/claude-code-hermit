@@ -117,7 +117,7 @@ Your hermit handles domain-specific work. Core handles session lifecycle.
 | File                                  | Purpose                                                            |
 | ------------------------------------- | ------------------------------------------------------------------ |
 | `skills/hatch/SKILL.md`               | Optional — setup/init skill. Checks core prerequisite, appends CLAUDE-APPEND.md, is idempotent |
-| `state-templates/CLAUDE-APPEND.md`    | Agent table, safety rules, quick reference — appended to CLAUDE.md |
+| `state-templates/CLAUDE-APPEND.md`    | Shared rules and resident duties, split by sync-block into CLAUDE and RESIDENT.md |
 | `skills/domain-session/SKILL.md`      | Your main workflow, bookended with core's session lifecycle        |
 
 ### Hatch pattern (optional)
@@ -134,7 +134,7 @@ description: Initialize your domain hermit. Requires claude-code-hermit core.
 
 Check that `.claude-code-hermit/` exists. If not: "Run `/claude-code-hermit:hatch` first."
 Check if CLAUDE.md contains the marker comment. If found: "Already initialized." Stop.
-Otherwise: read and append CLAUDE-APPEND.md.
+Otherwise: run `domain-hatch sync-block <plugin>` through hermit-run. Wrap resident duties in `<!-- resident-only -->` and `<!-- /resident-only -->`; keep shared rules outside.
 ```
 
 ### Custom boot skill

@@ -8,14 +8,14 @@ const PLUGIN_ROOT = path.resolve(import.meta.dir, '..');
 const { freshDir, cleanup } = freshDirFactory('hermit-voice-carrier-');
 afterAll(cleanup);
 
-type Fixture = { voiceFile?: boolean; local?: any; project?: any; user?: any; voice?: any };
+type Fixture = { overlay?: any; voiceFile?: boolean; local?: any; project?: any; user?: any; voice?: any };
 
 // checkVoiceCarrier runs in-process and resolvePersistedStyle() reads
 // CLAUDE_CONFIG_DIR/settings.json for the user scope — so every scenario pins
 // CLAUDE_CONFIG_DIR to an isolated directory for the duration of the call and
 // restores it after. Without this, these tests would read whatever real
 // ~/.claude/settings.json happens to exist on the machine running the suite.
-function scenario({ voiceFile, local, project, user, voice }: Fixture) {
+function scenario({ voiceFile, local, project, user, voice, overlay }: Fixture) {
   const dir = freshDir();
   fs.mkdirSync(path.join(dir, '.claude-code-hermit'), { recursive: true });
   fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
@@ -24,6 +24,10 @@ function scenario({ voiceFile, local, project, user, voice }: Fixture) {
     JSON.stringify(voice === undefined ? {} : { voice }, null, 2),
   );
 
+  if (overlay !== undefined) {
+    fs.mkdirSync(path.join(dir, '.claude-code-hermit/state'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.claude-code-hermit/state/claude-settings.overlay.json'), JSON.stringify(overlay));
+  }
   if (voiceFile) {
     fs.mkdirSync(path.join(dir, '.claude', 'output-styles'), { recursive: true });
     fs.writeFileSync(
@@ -79,14 +83,14 @@ describe('doctor voice-carrier check', () => {
   });
 
   test('a configured built-in that is rendered reports the voice active', () => {
-    const r = scenario({ voice: { style: 'Concise' }, local: { outputStyle: 'Concise' } });
+    const r = scenario({ voice: { style: 'Concise' }, overlay: { outputStyle: 'Concise' } });
     expect(r.status).toBe('ok');
     expect(r.detail).toContain('voice active');
     expect(r.detail).toContain('Concise');
   });
 
   test('the lowercase Default literal round-trips', () => {
-    const r = scenario({ voice: { style: 'default' }, local: { outputStyle: 'default' } });
+    const r = scenario({ voice: { style: 'default' }, overlay: { outputStyle: 'default' } });
     expect(r.status).toBe('ok');
     expect(r.detail).toContain('voice active');
   });
@@ -95,7 +99,7 @@ describe('doctor voice-carrier check', () => {
     const r = scenario({
       voice: { style: 'custom', prose: 'Short answers.' },
       voiceFile: true,
-      local: { outputStyle: 'hermit-voice' },
+      overlay: { outputStyle: 'hermit-voice' },
     });
     expect(r.status).toBe('ok');
     expect(r.detail).toContain('voice active');
@@ -105,7 +109,7 @@ describe('doctor voice-carrier check', () => {
   // The everyday case after a chat-driven change: config moved, the hermit has
   // not restarted, so the render has not happened yet.
   test('config changed but not yet rendered is a warn naming both values', () => {
-    const r = scenario({ voice: { style: 'Concise' }, local: { outputStyle: 'default' } });
+    const r = scenario({ voice: { style: 'Concise' }, overlay: { outputStyle: 'default' } });
     expect(r.status).toBe('warn');
     expect(r.detail).toContain('Concise');
     expect(r.detail).toContain('default');
@@ -121,7 +125,7 @@ describe('doctor voice-carrier check', () => {
   test('a custom voice whose style file went missing is flagged', () => {
     const r = scenario({
       voice: { style: 'custom', prose: 'Short answers.' },
-      local: { outputStyle: 'hermit-voice' },
+      overlay: { outputStyle: 'hermit-voice' },
     });
     expect(r.status).toBe('warn');
     expect(r.detail).toContain('missing');
@@ -130,7 +134,7 @@ describe('doctor voice-carrier check', () => {
   // A built-in voice deliberately leaves any earlier hermit-voice.md on disk —
   // it is inert, and warning about it every run was the old check's worst habit.
   test('a leftover voice file alongside a built-in voice is not a warning', () => {
-    const r = scenario({ voice: { style: 'Concise' }, voiceFile: true, local: { outputStyle: 'Concise' } });
+    const r = scenario({ voice: { style: 'Concise' }, voiceFile: true, overlay: { outputStyle: 'Concise' } });
     expect(r.status).toBe('ok');
   });
 
@@ -141,33 +145,33 @@ describe('doctor voice-carrier check', () => {
       voice: { style: 'custom', prose: 'Short answers.' },
       voiceFile: true,
       project: { outputStyle: 'hermit-voice' },
-      local: { outputStyle: 'Explanatory' },
+      overlay: { outputStyle: 'Explanatory' },
     });
     expect(r.status).toBe('warn');
     expect(r.detail).toContain('Explanatory');
-    expect(r.detail).toContain('.claude/settings.local.json');
+    expect(r.detail).toContain('launch overlay');
   });
 
   test('project scope still wins when local sets no style', () => {
     const r = scenario({
       voice: { style: 'custom', prose: 'Short answers.' },
       voiceFile: true,
-      project: { outputStyle: 'hermit-voice' },
+      overlay: { outputStyle: 'hermit-voice' },
       local: { env: { FOO: 'bar' } },
     });
     expect(r.status).toBe('ok');
-    expect(r.detail).toContain('.claude/settings.json');
+    expect(r.detail).toContain('launch overlay');
   });
 
   test('both project files win over a user-scope style', () => {
     const r = scenario({
       voice: { style: 'custom', prose: 'Short answers.' },
       voiceFile: true,
-      project: { outputStyle: 'hermit-voice' },
+      overlay: { outputStyle: 'hermit-voice' },
       user: { outputStyle: 'Concise' },
     });
     expect(r.status).toBe('ok');
-    expect(r.detail).toContain('.claude/settings.json');
+    expect(r.detail).toContain('launch overlay');
   });
 
   test('an unparseable settings file does not throw the check', () => {

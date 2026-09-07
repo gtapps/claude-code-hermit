@@ -5386,3 +5386,18 @@ describe('restart resume', () => {
     }), 45000);
   }
 });
+
+test('resident missing notifies once and restarts when the file appears', withHermit(async (h) => {
+  writeConfig(h);
+  patchRuntime(h, { last_start_error: 'resident-missing' });
+  writeFakeTmux(h, 1);
+  writeFakePgrep(h, 1);
+  expect((await watchdog(h, 'run')).exitCode).toBe(0);
+  expect((await watchdog(h, 'run')).exitCode).toBe(0);
+  expect(fs.existsSync(path.join(h.dir, 'hermit-start-called'))).toBe(false);
+  const events = fs.readFileSync(eventsFile(h), 'utf8').split('\n').filter(line => line.includes('operator notified; restart skipped'));
+  expect(events.length).toBe(1);
+  fs.writeFileSync(path.join(h.dir, '.claude-code-hermit/RESIDENT.md'), '# Resident');
+  expect((await watchdog(h, 'run')).exitCode).toBe(0);
+  expect(fs.readFileSync(eventsFile(h), 'utf8')).toContain('tree-verified');
+}));

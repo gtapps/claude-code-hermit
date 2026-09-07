@@ -27,7 +27,11 @@
     "Bash(*$HERMIT_TELEMETRY_TOKEN*)",
     "Bash(*${HERMIT_TELEMETRY_TOKEN*)",
     "Bash(*> *.claude-code-hermit/OPERATOR.md*)",
+    "Bash(*> *.claude-code-hermit/RESIDENT.md*)",
+    "Bash(*> *.claude-code-hermit/claude-settings.json*)",
     "Bash(*>.claude-code-hermit/OPERATOR.md*)",
+    "Bash(*>.claude-code-hermit/RESIDENT.md*)",
+    "Bash(*>.claude-code-hermit/claude-settings.json*)",
     "Edit(//**/.claude/plugins/**)"
   ],
   "ask": [
@@ -43,6 +47,8 @@
     "Edit(*.claude/settings.local.json)",
     "Edit(*.claude-code-hermit/config.json)",
     "Edit(*.claude-code-hermit/OPERATOR.md)",
+    "Edit(*.claude-code-hermit/RESIDENT.md)",
+    "Edit(*.claude-code-hermit/claude-settings.json)",
     "Edit(*.claude/output-styles/hermit-voice.md)"
   ]
 }

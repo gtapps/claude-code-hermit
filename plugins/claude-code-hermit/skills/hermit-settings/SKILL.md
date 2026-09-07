@@ -292,7 +292,7 @@ Note: "Channel changes take effect on next `hermit-start` run. `channels.primary
 **If argument is "env":**
 - Show current `env` values from config.json in a table:
   ```
-  Environment Variables (config.json env → .claude/settings.local.json)
+  Environment Variables (config.json env → resident launch overlay)
 
     CLAUDE_AUTOCOMPACT_PCT_OVERRIDE 65
     MAX_THINKING_TOKENS             10000
@@ -306,8 +306,8 @@ Note: "Channel changes take effect on next `hermit-start` run. `channels.primary
 - Loop until operator says "done", "skip", or presses Enter:
   - If input targets a protected key: reject with the message above
   - If input is `remove <KEY>`: `unset env.<KEY>`
-  - If input is `<KEY> <VALUE>`: `set env.<KEY> '"<VALUE>"'` — env values must stay **strings**, and `set` JSON-parses its argument, so a bare `20000` would land as a number and be copied into `.claude/settings.local.json` as one.
-- Note: "Env changes are written to `.claude/settings.local.json` on next `hermit-start`. To apply now, restart the hermit session."
+  - If input is `<KEY> <VALUE>`: `set env.<KEY> '"<VALUE>"'` — env values must stay **strings**, and `set` JSON-parses its argument, so a bare `20000` would land as a number and reach the launch overlay as one.
+- Note: "Env changes reach the session through the launch overlay at the next `hermit-start`. Restart the hermit to apply them."
 
 **If argument is "compact":**
 - Show current `compact` values from config.json:

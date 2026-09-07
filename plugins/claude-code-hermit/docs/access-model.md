@@ -30,9 +30,9 @@ Boot separately owns local settings keys and terminal-only operations, including
 
 Hermit `model` and `effort` are launch flags only when set. Unset values pass no override and leave native defaults in charge. Removing either override stops reasserting it at restart without deleting native settings; a configured override returns at restart after a runtime change.
 
-Hermit `language` owns only the local `language` key in `.claude/settings.local.json`. Boot mirrors a configured language and removes that local key when unset. The native `/config` Language picker writes user scope and survives; clearing the hermit's local override exposes the surviving native preference.
+Hermit `language` is carried by the resident launch overlay when configured. Clearing it leaves native preferences in charge. The native `/config` Language picker writes user scope and survives restart.
 
-Hermit `voice.style` owns the rendered local `outputStyle` when configured. `voice.style: null` leaves the operator's pick alone, including an existing rendered value; clearing the config is not deletion of the style or custom style file. A configured style is reasserted at restart. See [configuration](config-reference.md).
+Hermit `voice.style` owns the launch overlay `outputStyle` when configured. `voice.style: null` leaves the operator's pick alone, including an existing rendered value; clearing the config is not deletion of the style or custom style file. A configured style is reasserted at restart. See [configuration](config-reference.md).
 
 ## Upgrades
 

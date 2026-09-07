@@ -353,3 +353,5 @@ WantedBy=multi-user.target
 **macOS (launchd):** Create a plist in `~/Library/LaunchAgents/` that runs `hermit-start` at login. The SessionStart hook reloads session context automatically.
 
 **Docker:** `restart: unless-stopped` handles it automatically — see [Always-On Setup](always-on.md). The entrypoint's SIGTERM trap ensures graceful session close on system shutdown.
+
+A manual `claude --resume` or a new Claude session launched from a shell opened through `hermit-attach` is a guest. Resume the resident with `.claude-code-hermit/bin/hermit-start --resume`.

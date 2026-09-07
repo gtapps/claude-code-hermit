@@ -1,3 +1,4 @@
+import { splitResident } from './lib/domain-hatch/block';
 // Read-only analyzer for the hermit-evolve skill. Computes the deterministic
 // comparisons the skill would otherwise do in-context — version gap, the
 // bounded CHANGELOG slice, new config keys, changed templates/bin, and the
@@ -48,6 +49,9 @@ interface SiblingPlanEntry {
   up_to_date: boolean;
   changelog_slice?: string;
   changelog_versions?: string[];
+  resident_changed?: boolean;
+  resident_old_block?: string;
+  resident_missing?: boolean;
   claude_append_changed?: boolean;
   claude_append_old_block?: string;
   claude_append_needs_render?: boolean;
@@ -554,6 +558,36 @@ function _diffClaudeAppendByText(
   return result;
 }
 
+function computeResident(
+  plan: Json, template: string, marker: string, hermitDir: string, foreignNames: string[], errors: Json[],
+): void {
+  const resident = splitResident(template).resident;
+  if (!resident) return;
+  const target = path.join(hermitDir, 'RESIDENT.md');
+  const result = _diffClaudeAppendByText(resident, marker, target, errors, {
+    markerMissing: 'resident_marker_missing', targetUnreadable: 'resident_target_unreadable',
+  }, { foreignNames });
+  if (!result) return;
+  // Read again rather than trust `result`: the diff short-circuits on
+  // needs_render before it ever opens the target, and a mode-fenced sibling whose
+  // resident block was never installed is exactly the case worth reporting.
+  // Guarded like the diff's own read — an unreadable RESIDENT.md is one warning,
+  // not a throw that collapses the whole plan into a fatal.
+  let targetText: string | null = null;
+  try {
+    targetText = fs.readFileSync(target, 'utf8');
+  } catch (e: any) {
+    if (e && e.code !== 'ENOENT') {
+      errors.push({ code: 'resident_target_unreadable', message: `${target} unreadable: ${e.message}` });
+      return;
+    }
+  }
+  plan.resident_missing = targetText === null || markerOnward(targetText, marker, foreignNames) === null;
+  plan.resident_changed = result.changed || plan.resident_missing;
+  if (result.old_block !== undefined) plan.resident_old_block = result.old_block;
+  if (result.ambiguous) plan.resident_ambiguous = true;
+}
+
 function computeClaudeAppend(plan: Json, pluginRoot: string, hermitDir: string, hatchTarget: string, config: Json, errors: Json[]) {
   let tmplText: string;
   try {
@@ -567,7 +601,8 @@ function computeClaudeAppend(plan: Json, pluginRoot: string, hermitDir: string, 
   const targetFile = path.join(projectRoot, hatchTarget === 'local' ? 'CLAUDE.local.md' : 'CLAUDE.md');
   const foreignNames = getRegisteredNames(config);
 
-  const result = _diffClaudeAppendByText(tmplText, MARKER, targetFile, errors, {
+  computeResident(plan, tmplText, MARKER, hermitDir, foreignNames, errors);
+  const result = _diffClaudeAppendByText(splitResident(tmplText).shared, MARKER, targetFile, errors, {
     markerMissing: 'claude_append_marker_missing',
     targetUnreadable: 'claude_target_unreadable',
   }, { foreignNames });
@@ -727,7 +762,8 @@ function computeSiblings(
         sibling.marker = marker;
         const localErrors: Json[] = [];
         const foreignNames = ['claude-code-hermit', ...registeredNames.filter(n => n !== name)];
-        const diffResult = _diffClaudeAppendByText(tmplText, marker, targetFile, localErrors, {
+        computeResident(sibling, tmplText, marker, hermitDir, foreignNames, localErrors);
+        const diffResult = _diffClaudeAppendByText(splitResident(tmplText).shared, marker, targetFile, localErrors, {
           markerMissing: `sibling_${name}_marker_missing`,
           targetUnreadable: `sibling_${name}_target_unreadable`,
         }, { foreignNames, sibling: true });
@@ -912,7 +948,7 @@ function buildPlan({ hermitDir, pluginRoot, hatchTarget, pluginListJsonPath }: {
   // already fires — the only case where Step 7 acts on the flag.
   const siblingWorkNeeded = plan.siblings.some(
     (s: SiblingPlanEntry) =>
-      !s.up_to_date || s.claude_append_changed || s.claude_append_ambiguous
+      !s.up_to_date || s.claude_append_changed || s.claude_append_ambiguous || s.resident_changed || s.resident_missing
   );
   const siblingsUnassessed =
     plan.siblings_path_unresolved.length > 0 || (plan.siblings_warnings?.length ?? 0) > 0;
@@ -920,7 +956,7 @@ function buildPlan({ hermitDir, pluginRoot, hatchTarget, pluginListJsonPath }: {
   // current (e.g. a stray duplicate left by a prior bad sync) — mirror the sibling
   // check above so that case isn't swallowed by the "already up to date" short-circuit.
   const coreAppendWorkNeeded =
-    plan.claude_append_changed === true || plan.claude_append_ambiguous === true;
+    plan.claude_append_changed === true || plan.claude_append_ambiguous === true || plan.resident_changed === true || plan.resident_missing === true;
   plan.work_pending = !plan.up_to_date || coreAppendWorkNeeded || siblingWorkNeeded || siblingsUnassessed;
 
   return plan;

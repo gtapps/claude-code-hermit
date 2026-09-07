@@ -591,7 +591,8 @@ describe('session-diff debounce', () => {
 // -------------------------------------------------------
 
 describe('startup-context', () => {
-  const ENV = { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT };
+  // Residency is launcher-only: startup-context emits the full context only for HERMIT_RESIDENT=1.
+  const ENV = { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, HERMIT_RESIDENT: '1' };
 
   test('startup-context', withDir(async (dir) => {
     const r = await runScript('startup-context.ts', { cwd: dir, env: ENV });

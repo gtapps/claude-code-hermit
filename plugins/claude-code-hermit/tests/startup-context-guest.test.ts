@@ -40,6 +40,7 @@ function fixture(dir: string, opts: { tmuxSession?: string; tmuxExit?: number; p
   fs.chmodSync(tmux, 0o755);
 
   return {
+    HERMIT_RESIDENT: '',
     AGENT_DIR: path.join(dir, '.claude-code-hermit'),
     PATH: `${binDir}:${process.env.PATH ?? ''}`,
   };
@@ -58,7 +59,7 @@ describe('startup-context.ts — resident vs guest', () => {
     const wd = setupWorkdir();
     try {
       const env = fixture(wd.dir, { tmuxSession: SESSION, tmuxExit: 0 });
-      const res = await run(wd.dir, { ...env, HERMIT_MANAGED: '1' });
+      const res = await run(wd.dir, { ...env, HERMIT_MANAGED: '', HERMIT_RESIDENT: '1' });
       expect(res.exitCode).toBe(0);
       expect(res.stdout).not.toContain('---Guest Session---');
       expect(res.stdout).toContain('---Active Session---');
@@ -74,7 +75,7 @@ describe('startup-context.ts — resident vs guest', () => {
       const res = await run(wd.dir, { ...env, HERMIT_MANAGED: '' });
       expect(res.exitCode).toBe(0);
       expect(res.stdout).toContain('---Guest Session---');
-      expect(res.stdout).toContain('a managed hermit session is already running here');
+      expect(res.stdout).toContain('A managed hermit session is already running here');
       expect(res.stdout).toContain('@hermit-peer');
       expect(res.stdout).toContain('GUEST_REPORT:');
       expect(res.stdout).not.toContain('---Active Session---');
@@ -100,27 +101,29 @@ describe('startup-context.ts — resident vs guest', () => {
     }
   });
 
-  it('unmanaged session with a dead resident gets the full framing', async () => {
+  it('unmanaged session with a dead resident gets the guest banner', async () => {
     const wd = setupWorkdir();
     try {
       const env = fixture(wd.dir, { tmuxSession: SESSION, tmuxExit: 1 });
       const res = await run(wd.dir, { ...env, HERMIT_MANAGED: '' });
       expect(res.exitCode).toBe(0);
-      expect(res.stdout).not.toContain('---Guest Session---');
-      expect(res.stdout).toContain('---Active Session---');
+      expect(res.stdout).toContain('---Guest Session---');
+      expect(res.stdout).not.toContain('---Active Session---');
+      expect(res.stdout).toContain('.claude-code-hermit/bin/hermit-start');
     } finally {
       wd.cleanup();
     }
   });
 
-  it('unmanaged session with no tmux_session recorded gets the full framing', async () => {
+  it('unmanaged session with no tmux_session recorded gets the guest banner', async () => {
     const wd = setupWorkdir();
     try {
       const env = fixture(wd.dir, { tmuxExit: 0 });
       const res = await run(wd.dir, { ...env, HERMIT_MANAGED: '' });
       expect(res.exitCode).toBe(0);
-      expect(res.stdout).not.toContain('---Guest Session---');
-      expect(res.stdout).toContain('---Active Session---');
+      expect(res.stdout).toContain('---Guest Session---');
+      expect(res.stdout).not.toContain('---Active Session---');
+      expect(res.stdout).toContain('.claude-code-hermit/bin/hermit-start');
     } finally {
       wd.cleanup();
     }
@@ -146,12 +149,12 @@ describe('startup-context.ts — guest marker', () => {
     const wd = setupWorkdir();
     try {
       const live = fixture(wd.dir, { tmuxSession: SESSION, tmuxExit: 0 });
-      await run(wd.dir, { ...live, HERMIT_MANAGED: '1' }, 'sess-resident');
+      await run(wd.dir, { ...live, HERMIT_MANAGED: '', HERMIT_RESIDENT: '1' }, 'sess-resident');
       expect(fs.existsSync(markerFor(wd.dir, 'sess-resident'))).toBe(false);
 
       const dead = fixture(wd.dir, { tmuxSession: SESSION, tmuxExit: 1 });
       await run(wd.dir, { ...dead, HERMIT_MANAGED: '' }, 'sess-solo');
-      expect(fs.existsSync(markerFor(wd.dir, 'sess-solo'))).toBe(false);
+      expect(fs.existsSync(markerFor(wd.dir, 'sess-solo'))).toBe(true);
     } finally {
       wd.cleanup();
     }
@@ -170,7 +173,7 @@ describe('startup-context.ts — guest marker', () => {
     }
   });
 
-  it('clears its own marker once the resident is gone', async () => {
+  it('clears its own marker when resumed through the launcher', async () => {
     const wd = setupWorkdir();
     try {
       const live = fixture(wd.dir, { tmuxSession: SESSION, tmuxExit: 0 });
@@ -179,7 +182,7 @@ describe('startup-context.ts — guest marker', () => {
 
       // Same session id, resident now dead — resume/clear/compact all re-fire SessionStart.
       const dead = fixture(wd.dir, { tmuxSession: SESSION, tmuxExit: 1 });
-      const res = await run(wd.dir, { ...dead, HERMIT_MANAGED: '' }, 'sess-guest');
+      const res = await run(wd.dir, { ...dead, HERMIT_RESIDENT: '1' }, 'sess-guest');
       expect(res.stdout).not.toContain('---Guest Session---');
       expect(fs.existsSync(markerFor(wd.dir, 'sess-guest'))).toBe(false);
     } finally {
@@ -214,10 +217,21 @@ it('only resident startup seeds activity, after classification, and never resets
     const activity = path.join(wd.dir, '.claude-code-hermit', 'state', 'last-operator-action.json');
     await run(wd.dir, { ...env, HERMIT_MANAGED: '' }, 'new-guest');
     expect(fs.existsSync(activity)).toBe(false);
-    await run(wd.dir, { ...env, HERMIT_MANAGED: '1' }, 'resident');
+    await run(wd.dir, { ...env, HERMIT_MANAGED: '', HERMIT_RESIDENT: '1' }, 'resident');
     expect(fs.existsSync(activity)).toBe(true);
     fs.writeFileSync(activity, '{"at":"2000-01-01T00:00:00Z"}');
-    await run(wd.dir, { ...env, HERMIT_MANAGED: '1' }, 'resident');
+    await run(wd.dir, { ...env, HERMIT_MANAGED: '', HERMIT_RESIDENT: '1' }, 'resident');
     expect(fs.readFileSync(activity, 'utf-8')).toBe('{"at":"2000-01-01T00:00:00Z"}');
+  } finally { wd.cleanup(); }
+});
+
+it('compact guest emits no context and keeps its guest marker', async () => {
+  const wd = setupWorkdir();
+  try {
+    const env = fixture(wd.dir, {});
+    const result = await runScript('startup-context.ts', { env, stdin: JSON.stringify({ session_id: 'compact-guest', source: 'compact' }) });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe('');
+    expect(fs.existsSync(markerFor(wd.dir, 'compact-guest'))).toBe(true);
   } finally { wd.cleanup(); }
 });

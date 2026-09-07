@@ -4,7 +4,7 @@
   "dependencies": [
     {
       "name": "claude-code-hermit",
-      "version": "^1.3.2"
+      "version": "^1.3.3"
     }
   ],
   "description": "Language-agnostic safety layer + dev conventions for any agent your hermit uses to write code",

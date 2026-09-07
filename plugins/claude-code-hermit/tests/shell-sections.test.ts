@@ -219,7 +219,7 @@ describe('startup-context injection is not hijackable by a ### sub-heading', () 
 
       const res = await runScript('startup-context.ts', {
         stdin: '{}',
-        env: { AGENT_DIR: path.join(wd.dir, '.claude-code-hermit') },
+        env: { AGENT_DIR: path.join(wd.dir, '.claude-code-hermit'), HERMIT_RESIDENT: '1' },
       });
 
       // Anchored: the decoy legitimately appears inside the injected Task body,
@@ -263,7 +263,7 @@ describe('startup-context sees content below a retained placeholder', () => {
 
       const res = await runScript('startup-context.ts', {
         stdin: '{}',
-        env: { AGENT_DIR: path.join(wd.dir, '.claude-code-hermit') },
+        env: { AGENT_DIR: path.join(wd.dir, '.claude-code-hermit'), HERMIT_RESIDENT: '1' },
       });
 
       expect(res.stdout).toContain('REAL-TASK ship the thing');
