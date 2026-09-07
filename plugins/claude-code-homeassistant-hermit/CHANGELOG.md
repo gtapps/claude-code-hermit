@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.13] - 2026-09-07
 
 ### Fixed
 - `ha-pattern-analyst` and `ha-safety-reviewer` only let a memory that records an operator decision suppress a finding or change a verdict: frontmatter `type` `feedback` or `project`, or the `feedback_`/`project_` filename prefix where auto-injected memory hides the frontmatter. A `reference` memory recording an observed fact no longer silences the finding it describes. The safety carve-out is unchanged: memory still cannot move `ha_safety_mode`.
