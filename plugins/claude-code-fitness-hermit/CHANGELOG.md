@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.2] - 2026-09-07
 
 ### Changed
 - Weekly coaching analysis runs as a routine with a pre-wake trend gate. Core 1.3.3 is required.
