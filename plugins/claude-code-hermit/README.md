@@ -7,55 +7,151 @@
   <a href="https://discord.gg/54sJqAxhUh"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Join" /></a>
 </p>
 
-# claude-code-hermit
+# Keep Claude Code working for you.
 
-Claude Code plugin that turns a Claude Code instance into a 24/7 agent. **Stateful. Proactive. Self-improving through an operator-gated proposal system. Cost-aware. Observable. Works with your Claude Subscription**.
+If you know [Claude Tag](https://claude.com/docs/claude-tag/overview), the idea will feel familiar: hand Claude work through a channel and get results back there.
+
+Hermit is a Claude Code plugin that runs an always-on agent on your machine or server. Give it ongoing responsibilities: maintain research, monitor systems, run routines, and follow up on unfinished work. It carries context across sessions and reaches you when something needs attention.
+
+Connect through [Claude Code Channels](https://code.claude.com/docs/en/channels) using your own bots and accounts, or build a channel for your tools and workflows.
 
 <p align="center">
-  <img src="assets/cover.png" alt="Always-on Claude Code Agent" />
+  <img src="assets/cover.png" alt="Always-on Claude Code agent" />
 </p>
 
+<a id="quick-start"></a>
 
-Setup your agent in any folder, empty or existing project with `/hatch` and shape its identity, priorities, routines, knowledge, autonomy, guardrails and make it yours.
+## Set up
+
+Run either option from the folder where you want your agent, empty or existing. Uses your Claude subscription on Linux, macOS, or Windows via WSL2. See [prerequisites](docs/how-to-use.md#prerequisites).
+
+### 1. Install the Claude Code plugin
+
+With Claude Code 2.1.263+ and Bun 1.3+ installed:
 
 ```bash
-cd /path/to/your/project   # any folder, even an empty one — Linux, macOS, WSL2
+claude plugin marketplace add gtapps/claude-code-hermit
+claude plugin install claude-code-hermit@claude-code-hermit --scope local
+claude "/claude-code-hermit:hatch"
+```
+
+### 2. Use the bootstrap installer
+
+Prepares Claude Code, Bun, and tmux, installs the plugin, and launches setup:
+
+```bash
 curl -fsSL https://gtapps.github.io/claude-code-hermit/install.sh | bash
 ```
 
-Checks prequirements & installs if required (CC, Bun, Tmux), registers this marketplace, and installs the plugin for this folder — then launches your agent setup wizard.
+Both options install the plugin personally for this folder. Hatch guides you through the agent's purpose and operating preferences, then prints the next steps. Choose Quick for defaults you can adjust later.
 
----
+## Keep it running
 
-## What it adds
+After setup, follow the printed next steps to start your agent.
 
-Hermit adds a persistent operating layer around Claude Code, a learning loop, and a quick setup to wire everything.
+### On your machine
 
-- **Stateful** live working state, archived session handoffs, runtime observations, lessons, findings, blockers, completed tasks, files created/modified/deleted.
-- **Agent Routines** Add your own scheduled routines. Give any routine a small precheck script so it only wakes Claude when there is work. Quiet skips use zero model tokens, and routines due at the same time share one wake. Managed by `/hermit-routines`.
-- `/later` records a claim for deferred verification, with a daily routine as its durable safety net (research preview).
-- **Heartbeat** uses the checks you define in `HEARTBEAT.md` together with the agent's saved state, including pending decisions, active alerts, and stale work, to know when something needs attention. You can edit the list at any time or ask the agent to update it. Claude wakes only when needed; quiet ticks use zero model tokens.
-- **`/watch`** watches logs, files, and other changing sources in the background, then notifies you when something happens. It stays silent when nothing changes.
-- **Operate it from your phone.** The agent pings you first when it needs a decision. From a trusted [Claude Code Channel](https://code.claude.com/docs/en/channels) (Discord or Telegram), send work, accept proposals, change settings, check on it with `/status`, hold it with `/pause`, `/resume` and `/snooze`, or drive Claude Code itself with `/model`, `/effort`, `/permission-mode`, `/compact`, `/clear`, `/advisor`, and `/doctor`. `/doctor` needs the operator's own chat. Pause is enforced at the tool boundary, not merely treated as a conversational request.
-- **Spawn new sessions remotely.** You run `/rc-gate` to open a Remote Control gate so the Claude app can start sessions in isolated worktrees, with cleanup for worktrees left behind after archival.
-- **Spawn a helper from chat.** `/spawn-session` starts a background Claude Code session in its own worktree, watches it, and relays its report when it finishes. Pass `--rc` if you also want to pick it up from the Claude app.
-- **Native Artifacts Integration** The agent publishes its Dashboard, open proposals, weekly reviews, and requested compiled documents as private, versioned [Claude Code Artifacts](https://code.claude.com/docs/en/artifacts). Pages update in place at stable URLs and support organization sharing where available. You can use your own artifact server instead.
-- **Auto-memory + knowledge** Claude Code's auto-memory holds facts and preferences about how to work with you. The agent also maintains a `raw/` → `compiled/` living knowledge base for domain work and topic pages, carries a bounded catalog across sessions, and makes all of it searchable with `/recall`. Discord and Telegram DMs are captured locally by default so chat decisions outlive the thread; `weekly-review` distills them into memory. [Channel capture can be disabled](docs/config-reference.md#knowledge).
-- **Plan tracking** lives in the SHELL.md Progress Log — timestamped steps that survive compaction, restart, and every model tier.
-- **Unattended safety** combines native permission rules (hard-block + approval-prompt tiers) + sandbox, channel-routed asks, permission-denial alerts, and injection scans on heartbeat and startup context. A second session in the same folder is mechanically recognized as a guest and framed not to answer channels, write resident state, or start schedulers.
-- **Orchestrator** instructed to delegate tasks & exploration to other agents, main context stays clean for token efficiency.
+Run in a persistent tmux session:
 
-**Sessions self-manage.** Daemons auto-archive at 12h idle and at midnight when you're away, so evidence reaches the learning loop without a manual close. An external watchdog restarts dead sessions, nudges wedged ones, re-arms missed schedules, clears stale context after a midnight close, and compacts long-running context so cold wakes don't re-pay the full accumulated history — recovery never depends on the session being conscious.
+```bash
+.claude-code-hermit/bin/hermit-start
+```
 
-**Context-efficient continuity.** After compaction, the agent reloads only a bounded lifecycle/task/progress capsule instead of the full startup bundle. Structured report frontmatter lets briefs, reflections, and weekly reviews inspect history without rereading every report body.
+Requires tmux. The watchdog recovers failed sessions while your machine stays on. Claude Code's `/sandbox` is recommended for unattended use. To connect a chat, run `/claude-code-hermit:channel-setup` as directed by the setup handoff.
 
-**It reaches you first.** Notifications default to a native push (headless-friendly), or a Discord/Telegram DM you can reply to if you've paired a channel.
+[Host setup and operations](docs/always-on-ops.md)
 
-The agent checks whether there is work before waking Claude. Quiet heartbeats and skipped routines use no model tokens, routines due at the same time share one wake, and long-running sessions periodically trim old context.
+### In Docker
 
----
+Run the guided setup in Claude Code:
 
-## Learning Loop
+```text
+/claude-code-hermit:docker-setup
+```
+
+Builds and starts the container, then walks you through authentication and channel pairing. Requires Docker Compose v2.
+
+[Docker setup](docs/always-on.md)
+
+## What the plugin adds
+
+- **Continuity.** Persistent working state and archived session handoffs carry progress across compaction and restarts. An external watchdog recovers failed sessions, while context management keeps long-running sessions manageable.
+
+- **Routines and watches.** Schedule recurring work and monitor changing sources. Optional precheck scripts decide whether a routine needs Claude before invoking the model; skipped runs use no model tokens.
+
+- **Proactive communication.** Routes results, alerts, and requests for decisions through Claude Code Channels. Send work, check progress, and manage the agent from a trusted connected chat.
+
+- **Lasting knowledge.** Turn source material in `raw/` into maintained knowledge in `compiled/`, alongside Claude Code's auto memory. `/recall` searches past sessions, knowledge, proposals, and captured channel conversations.
+
+- **Learning from experience.** The agent reviews evidence from its work and operation, saves useful lessons, and verifies proposed behavior changes before bringing them to you for approval.
+
+- **Control and visibility.** Track progress, proposals, and usage through the dashboard. Pause is enforced at the tool boundary, and optional usage caps can alert you or pause further work.
+
+<a id="configure-it"></a>
+
+## Configure
+
+Tune from a terminal with `/hermit-settings`, or change permitted settings from a trusted Discord or Telegram chat. Every write is validated and recorded in a redacted audit ledger; `/hermit-settings history [setting]` shows what changed. Some of the settings available:
+
+| Key | Default / options (default **bold**) |
+|-----|--------------------------------------|
+| `agent_name` | your assistant's name |
+| `timezone` | detected during setup; fallback **`UTC`** |
+| `language` | detected during setup; fallback **`en`** |
+| `escalation` | how much it does before asking: `conservative` / **`balanced`** / `autonomous` |
+| `model` | session model: **`sonnet`** |
+| `permission_mode` | how freely the unattended agent acts: **`auto`** |
+| `AGENT_HOOK_PROFILE` | guardrail profile: `minimal` / **`standard`** (interactive) / **`strict`** (always-on) |
+| `channels` | Discord / Telegram / iMessage / third-party channel plugins (+ `allowed_users`) |
+| `channels.primary` | which channel gets outbound pings |
+| `push_notifications` | native/mobile push on alerts: **`true`** |
+| `remote` | remote control; `false` also requires approval for cross-machine peer messages; **`true`** |
+| `ask_gate` | route unattended questions to a paired channel: **`true`** |
+| `budget` | optional daily / weekly / monthly caps; **`alert`** or binding `pause` action |
+| `artifacts` | dashboard / proposals / weekly review: **all enabled** |
+| `heartbeat.enabled` | timed idle sweeps: **`true`** |
+| `heartbeat.every` | idle sweep cadence: **`30m`** |
+| `heartbeat.active_hours` | active window: **`08:00`–`23:00`** |
+| `heartbeat.stale_threshold` | alert if no progress for: **`2h`** |
+| `heartbeat.waiting_timeout` | auto `waiting`→`idle` after: **`null`** (off) |
+| `routines` | persistent routines managed via `/hermit-routines` |
+| `monitors` | persistent background watches managed via `/watch` |
+| `scheduled_checks` | session-triggered skills at task completion |
+| `reflection.graduation_min_sessions` | proposal recurrence bar: **`1`** |
+| `quality_gate.tier` | post-change cleanup spend: **`budget`** / `balanced` / `quality` |
+| `knowledge.compiled_budget_chars` | fresh/resumed startup catalog budget: **`2500`** |
+| `knowledge.raw_retention_days` | `raw/` retention: **`14`** |
+| `knowledge.working_set_warn` | warn above N compiled docs: **`20`** |
+| `auto_session` | auto-start session on boot: **`true`** |
+| `boot_skill` / `shutdown_skill` | custom boot / teardown skill |
+| `post_close_clear` | clear context after midnight close: **`true`** |
+| `context_hygiene.compact` | compact long-running active context: **enabled**, `100000` compactible tokens / `4h` cooldown |
+| `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | auto-compact at % of context: **`65`** |
+| `MAX_THINKING_TOKENS` | thinking-token cap per turn: **`10000`** |
+| `watchdog.scheduler_enabled` | OS scheduler for the watchdog tick: **`true`** on tmux always-on (auto-installed at boot); `false` or `hermit-watchdog uninstall` opts out |
+| `watchdog.enabled` | recovery/restart tier: **`false`** until first scheduler registration (or `/docker-setup`); hygiene still runs |
+
+Full schema in the [Config Reference](docs/config-reference.md)
+
+## Observe
+
+The dashboard, proposals page, and weekly review stay current at stable URLs through [Claude Code Artifacts](https://code.claude.com/docs/en/artifacts). You can also publish through your own connected artifact server.
+
+Ask for an update from your terminal or connected chat:
+
+| Command | What it gives you |
+|---------|-------------------|
+| `/brief` | Current status and a summary of recent work. |
+| `/recall` | Search past sessions, knowledge, proposals, and captured conversations. |
+| `/hermit-health` | Alerts, routines, channels, blockers, and recent learnings. |
+| `/hermit-doctor` | Diagnostics for the installation, runtime, scheduling, credentials, and permissions. |
+| `/hermit-evolution` | Cost trends, proposal activity, routines, and what the agent has produced over time. |
+| `/cost-reflect` | A breakdown of usage by token type, session, and what triggered the work. |
+| `/hermit-dashboard-design` | A dashboard designed around what your agent actually tracks. |
+
+The dashboard can focus on research, training, home automation, or whatever the agent is responsible for. Its renderer rebuilds the page from saved state on refresh. See [Artifacts](docs/artifacts.md) for publishing and customization.
+
+## Learning loop
 
 The agent reviews evidence from its work and operation. Durable lessons go to memory; non-trivial ideas that would change its behavior are verified, deduplicated, and brought to you for approval.
 
@@ -87,236 +183,60 @@ a lesson    a change
                   Future evidence
 ```
 
-Reflection runs at eligible task or session pauses, daily, and after routines configured with `reflect_after`. Scheduled no-op runs are skipped before the model wakes in Monitor mode. Weak signals stay in an observation ledger; approved changes can start now, become a task, or be left for manual implementation. The agent then resolves the proposal when verification passes or later evidence shows the problem is gone.
+Reflection runs at eligible task or session pauses, daily, and after routines configured to reflect. Approved changes can start now, become a task, or be left for manual implementation. Proposals are resolved when verification passes or later evidence shows the problem is gone.
 
----
+## Cost
 
-## Observable
+Usage depends on the work you assign and the routines you enable. Quiet heartbeats and routine prechecks run outside the model with Monitor scheduling; skipped runs use no model tokens. Routines due together can share a wake, and context management limits the history carried into later turns.
 
-The agent uses [Claude Code Artifacts](https://code.claude.com/docs/en/artifacts) for observability: its Dashboard, proposals page, and weekly review stay current at stable URLs. You can use your own artifact server instead.
+- **See what drives usage.** Token usage is recorded per call, including the model, input/output/cache split, and whether work came from a routine, heartbeat, channel, or another source. Session and daily totals feed the dashboard, weekly review, and `/cost-reflect`.
+- **Set limits.** Optional daily, weekly, and monthly caps can alert you or enforce a pause until the exceeded budget window resets. Under Claude subscription billing, dollar figures are usage estimates rather than additional per-token charges.
+- **Choose where to spend.** Set the session model and optionally assign a different model to individual routines. Routine models run in isolated subagents, so use them for work that can return a concise result.
 
-On-demand skills — pullable from the Claude app, your terminal, or a DM:
+See [budgets](docs/config-reference.md#budget) and [routine scheduling](docs/routine-authoring.md) for configuration and scheduler fallback behavior.
 
-- **`/hermit-dashboard-design`** — designs the Dashboard around what this hermit actually tracks; delete `.claude-code-hermit/dashboard-render.ts` to restore the built-in page
-- **`/recall`** — full-text search over past sessions, compiled knowledge, proposals, and your channel DM history ("what did I decide about X?")
-- **`/hermit-evolution`** — cost trend and behavior drift over weeks
-- **`/hermit-health`** — alerts, routines, channels, heartbeat state, plus fragile zones, stale proposals, and recent learnings
-- **`/hermit-doctor`**: proactive install diagnostic, from hook registration to heartbeat and routine-monitor liveness; its scheduled precheck stays silent when green, and every run sends one routed two-leg summary
-- **`/cost-reflect`** — structural cost audit: which token types and trigger sources drive spend
-- **`/brief`** — current status and a summary of recent work
+## Remote work
 
----
+Reach the running agent through your connected channels or Claude Code Remote Control. You can also start separate sessions for additional work:
 
-## Quick Start
+- **[`/spawn-session`](skills/spawn-session/SKILL.md)** starts a background helper in its own Git worktree, watches it, and relays its report. Add `--rc` to pick up the helper from the Claude app.
+- **[`/rc-gate`](skills/rc-gate/SKILL.md)** opens a gate for starting new sessions from the Claude app or web interface. Each gets its own Git worktree; cleanup removes worktrees left by archived sessions while preserving uncommitted work.
 
-> **Prerequisites:** a Claude plan (Pro, Max, Teams, or Enterprise). Linux, macOS, or Windows via WSL2; see [FAQ](docs/faq.md).
-
-### 1. Install
-
-```bash
-cd /path/to/your/project   # or any folder — even an empty one
-curl -fsSL https://gtapps.github.io/claude-code-hermit/install.sh | bash
-```
-
-Installs [Claude Code](https://code.claude.com) and [Bun](https://bun.sh) if they're missing, adds tmux, registers the marketplace, and installs the plugin for this folder — then launches the setup wizard.
-
-<details>
-<summary>Prefer to do it by hand?</summary>
-
-With Claude Code and Bun already present:
-
-```bash
-cd /path/to/your/project
-claude plugin marketplace add gtapps/claude-code-hermit
-claude plugin install claude-code-hermit@claude-code-hermit --scope local
-claude "/claude-code-hermit:hatch"
-```
-
-Details: [Manual install](docs/how-to-use.md#manual-install).
-
-</details>
-
-### 2. Hatch
-
-The wizard sets up your agent's identity, scans your folder, generates `OPERATOR.md`, and offers Quick (4 questions) or Advanced (full wizard). Skipped the countdown, or no terminal? Run it yourself:
-
-```
-claude "/claude-code-hermit:hatch"
-```
-
-> **Just trying it?** After `hatch`, run `.claude-code-hermit/bin/hermit-start --no-tmux` for sessions, routines, heartbeat, and the learning loop without 24/7 autonomy. Run `/claude-code-hermit:channel-setup` first if you want Discord or Telegram.
-
-### 3. Go Always-on
-
-Pick one. Same hermit either way (heartbeat, routines, channels).
-
-**tmux** (fastest onboard). Needs [tmux](https://github.com/tmux/tmux/wiki/Installing).
-
-```
-.claude-code-hermit/bin/hermit-start
-```
-
-`/sandbox` is recommended so Bash is isolated on the host (optional; hermit does not enable it). The first always-on boot registers the watchdog scheduler so a dead session comes back. Opt out with `.claude-code-hermit/bin/hermit-watchdog uninstall` (or `watchdog.scheduler_enabled: false` before the first boot). Walkthrough: [Always-On Operations](docs/always-on-ops.md).
-
-**Docker** (isolated, restarts with the daemon). Needs [Docker Compose](https://docs.docker.com/compose/install/) v2.
-
-```
-/claude-code-hermit:docker-setup
-```
-
-Generates the Docker scaffolding, builds the image, starts the container, and walks through auth and channel pairing. The container ships with the hardening baseline (`cap_drop: ALL`, `no-new-privileges`, `pids_limit`). Want stronger isolation? Run [`/docker-security`](docs/docker-security.md) for opt-in LAN containment + DNS allowlist + resource bounds. Walkthrough: [Always-On Setup](docs/always-on.md). Comparison of the two is at the top of that page.
-
-### Upgrading
-
-```
-claude plugin update claude-code-hermit@claude-code-hermit --scope local
-/claude-code-hermit:hermit-evolve
-```
-
-Or run `.claude-code-hermit/bin/hermit-update` (local/tmux) or `.claude-code-hermit/bin/hermit-docker update` (Docker): one command that moves the pin, reloads the session, and runs `hermit-evolve` for you.
-
-### Uninstalling
-
-From the hermit's folder:
-
-```
-curl -fsSL https://gtapps.github.io/claude-code-hermit/uninstall.sh | bash
-```
-
-This removes the watchdog, stops the session, uninstalls the plugin, keeps state unless you confirm deletion, and prints a Claude prompt for the shared-file cleanup. To deactivate only the watchdog, run `.claude-code-hermit/bin/hermit-watchdog uninstall`; to stop always-on mode but keep the hermit, run `.claude-code-hermit/bin/hermit-stop` or `.claude-code-hermit/bin/hermit-docker down`. Only this folder is affected; the shared marketplace registration and other hermits are left untouched.
-
----
-
-## Configure it
-
-Tune from a terminal with `/hermit-settings`, or change permitted settings from a trusted Discord or Telegram chat. Every write is validated and recorded in a redacted audit ledger; `/hermit-settings history [setting]` shows what changed. Some of the settings available:
-
-| Key | Default / options (default **bold**) |
-|-----|--------------------------------------|
-| `agent_name` | your assistant's name |
-| `timezone` | **`UTC`** |
-| `language` | **`en`** |
-| `escalation` | how much it does before asking — `conservative` / **`balanced`** / `autonomous` |
-| `model` | session model — **`sonnet`** |
-| `permission_mode` | how freely the unattended agent acts — **`auto`** |
-| `AGENT_HOOK_PROFILE` | guardrail profile — `minimal` / **`standard`** (interactive) / **`strict`** (always-on) |
-| `channels` | Discord / Telegram / iMessage (+ `allowed_users`) |
-| `channels.primary` | which channel gets outbound pings |
-| `push_notifications` | native/mobile push on alerts — **`true`** |
-| `remote` | remote control; `false` also requires approval for cross-machine peer messages; **`true`** |
-| `ask_gate` | route unattended questions to a paired channel — **`true`** |
-| `budget` | optional daily / weekly / monthly caps; **`alert`** or binding `pause` action |
-| `artifacts` | dashboard / proposals / weekly review — **all enabled** |
-| `heartbeat.enabled` | timed idle sweeps — **`true`** |
-| `heartbeat.every` | idle sweep cadence — **`30m`** |
-| `active_hours` | active window — **`08:00`–`23:00`** |
-| `heartbeat.stale_threshold` | alert if no progress for — **`2h`** |
-| `heartbeat.waiting_timeout` | auto `waiting`→`idle` after — **`null`** (off) |
-| `routines` | persistent routines managed via `/hermit-routines` |
-| `monitors` | persistent background watches managed via `/watch` |
-| `scheduled_checks` | session-triggered skills at task completion |
-| `reflection.graduation_min_sessions` | proposal recurrence bar — **`1`** |
-| `quality_gate.tier` | post-change cleanup spend — **`budget`** / `balanced` / `quality` |
-| `knowledge.compiled_budget_chars` | fresh/resumed startup catalog budget — **`2500`** |
-| `knowledge.raw_retention_days` | `raw/` retention — **`14`** |
-| `knowledge.working_set_warn` | warn above N compiled docs — **`20`** |
-| `auto_session` | auto-start session on boot — **`true`** |
-| `boot_skill` / `shutdown_skill` | custom boot / teardown skill |
-| `post_close_clear` | clear context after midnight close — **`true`** |
-| `context_hygiene.compact` | compact long-running active context — **enabled**, `100000` compactible tokens / `4h` cooldown |
-| `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | auto-compact at % of context — **`65`** |
-| `MAX_THINKING_TOKENS` | thinking-token cap per turn — **`10000`** |
-| `watchdog.scheduler_enabled` | OS scheduler for the watchdog tick — **`true`** on tmux always-on (auto-installed at boot); `false` or `hermit-watchdog uninstall` opts out |
-| `watchdog.enabled` | recovery/restart tier — **`false`** until first scheduler registration (or `/docker-setup`); hygiene still runs |
-
-
-Periodic checks use `routines`, with a skill such as `claude-code-hermit:reflect --check-id my-check --check my-plugin:my-audit-skill`. Each routine owns its schedule; quiet findings create no proposal.
-
-Full schema in the [Config Reference](docs/config-reference.md)
-
----
-
-## Tips & tuning
-
-Settings apply without a reboot. Execution-adjacent changes, channel enrollment, and a direct `config.json` edit raise Claude Code's native permission prompt, delivered to the operator's chat DM or the terminal pane. Everyday settings apply without a prompt.
-
-- **Model & Auto mode.** Defaults to Sonnet — a good balance of reasoning and cost for an unattended session. Auto mode is generally available to all users across subscription plans and API usage; supported models and provider configuration can still vary, so if Claude reports the current selection unavailable, choose a supported model or another permission mode. Switch to `opus` for heavier reasoning; per-routine `model: "haiku"` remains useful for lightweight, isolated work.
-
-- **Heartbeat.** `heartbeat.every` sets the idle sweep (default `30m`; `2h`+ for slower pickup). Quiet polls cost nothing at any cadence, so this mostly controls how fast structured checks (proposals, budget, stale sessions) are picked up. `active_hours` bounds the window (`08:00`–`23:00`). `heartbeat.enabled: false` stops timed wakes entirely — channels and routines still fire.
-
-- **Routines.** Each routine takes an optional `model`: run lightweight ones on `haiku` to save cost or heavier ones on `opus` for more reasoning, in an isolated subagent. Omit `model` to keep it inline in the main session context — use that when the routine's value is its chat/transcript output, not just a status line. In Monitor mode, exactly co-due routines batch into one wake; offset routines you want as separate turns by a few minutes to keep the prompt cache warm. CronCreate fallback always fires them separately (see [Config Reference](docs/config-reference.md) for the full rule).
-
-- **Quiet & cheap:** a longer `heartbeat.every` + `quality_gate.tier: "budget"` (the default). Idle cost is already near-zero; these trim the rest.
-
-Full reference: [Config Reference](docs/config-reference.md).
-
----
-
-## Cost & local-first
-
-You run on your own Claude subscription — no per-runtime-hour billing — and every token is logged where you can see it. Optional daily, weekly, and monthly Hermit caps can alert you or enforce a binding pause when a limit is reached.
-
-- **Per-call** token usage logged to `.claude/cost-log.jsonl` (model, input/output/cache split, USD estimate, and what triggered the turn: `heartbeat`, `routine:<id>`, `routine:multi`, `channel:<name>`, `peer` for another local session, or interactive/unattributed `other`).
-- **Per-session** running total in `.status.json`; carried into archived session reports as frontmatter `cost_usd`.
-- **Per-day** rollup in `cost-summary.md`, regenerated on every cost-tracker tick.
-- **On demand** through `/cost-reflect`, `/hermit-doctor`, and the dashboard, plus a one-line spend summary in the weekly review. Routine briefs and status replies stay outcome-only; spend interrupts them only when a cap is approached or breached.
-
-Quiet polling usually stays outside the model, so one Claude subscription can run several agents. Actual usage depends on their routines and work.
-
----
+Both session-spawning paths require a Git workspace. Remote Control requires a Claude sign-in through `/login` on the machine running the agent.
 
 ## Extensions
 
-Extension plugins you stack on top of any hermit you've hatched.
+Optional plugins that add domain tools and workflows to your agent.
 
-- [**`dev-hermit`**](../claude-code-dev-hermit/README.md) — *For software builders.* Safety layer for code-writing agents: push guard, branch discipline, gated PRs.
-- [**`homeassistant-hermit`**](../claude-code-homeassistant-hermit/README.md) — *For Home Assistant users.* HA skills, safety hook, automation builder, zero-dependency CLI.
-- [**`fitness-hermit`**](../claude-code-fitness-hermit/README.md) — *Fitness focused.* Strava MCP wiring, activity deep-dives, weekly-load routines.
-- [**`feed-hermit`**](plugins/feed-hermit/README.md) — *For feed-to-brief pipelines.* Curated source registry, fetch/score/write pipeline, weekly synthesis, source-health analytics.
-- [**`laravel-forge-hermit`**](../laravel-forge-hermit/README.md) — *For Laravel Forge operators.* Deploy, logs, and server/site skills over the official Forge PHP SDK.
-- [**`hermit-scribe`**](plugins/hermit-scribe/README.md) — *For maintainers.* Files GitHub issues and comments from proposals via a bot identity.
+- [dev-hermit](../claude-code-dev-hermit/README.md): Branch discipline, push guards, and gated PR workflows.
+- [homeassistant-hermit](../claude-code-homeassistant-hermit/README.md): Home Assistant tools, automation workflows, and safety checks.
+- [fitness-hermit](../claude-code-fitness-hermit/README.md): Strava integration, activity analysis, and training routines.
+- [feed-hermit](../feed-hermit/README.md): Source curation, recurring briefs, and weekly synthesis.
+- [laravel-forge-hermit](../laravel-forge-hermit/README.md): Laravel Forge deployments, logs, and server management.
+- [hermit-scribe](../hermit-scribe/README.md): GitHub issues and comments from proposals through a dedicated bot identity.
 
-Many operators run several hermits in parallel — one per domain. Each one is a `/hatch` away. They share nothing but the protocol; their memory, cost history, and routines are independent, and a single Claude subscription covers them all. See [Creating Your Own Hermit](docs/creating-your-own-hermit.md).
+You can run separate agents for different responsibilities, each with its own working state, knowledge, and routines. See [Creating Your Own Hermit](docs/creating-your-own-hermit.md).
 
----
+<a id="tips--tuning"></a>
+
+## Guides
+
+- **Configure:** the [Config Reference](docs/config-reference.md) covers the full schema and tuning details.
+- **Use:** [Getting Started](docs/how-to-use.md) and the [Owner's Guide](docs/owners-guide.md) cover everyday work, decisions, and controls.
+- **Automate:** [Routine Authoring](docs/routine-authoring.md) covers schedules and prechecks. [Channel configuration](docs/config-reference.md#channels) includes third-party channel plugins.
+- **Observe:** [Artifacts](docs/artifacts.md) explains the dashboard, proposals, and weekly reviews.
+- **Maintain:** [Upgrading](docs/upgrading.md), [Backup](docs/backup.md), [Troubleshooting](docs/troubleshooting.md), and [Uninstalling](docs/how-to-use.md#install).
+- **Understand:** [Architecture](docs/architecture.md), [Security](docs/security.md), and [FAQ](docs/faq.md).
+
+[All documentation](docs/)
 
 ## Community
 
-Join the [`claude-code-hermit` Discord community](https://discord.gg/54sJqAxhUh) for install help, always-on ops, plugin authoring, bug triage, and proposal/design discussion. Confirmed bugs and roadmap decisions should still move back to GitHub so they remain searchable and reviewable. See [CONTRIBUTING.md](CONTRIBUTING.md) for filing an issue or opening a PR.
-
----
-
-## Documentation
-
-- [Access Model](docs/access-model.md)
-- [Artifacts](docs/artifacts.md)
-- [Always-On Operations](docs/always-on-ops.md)
-- [Always-On Setup](docs/always-on.md)
-- [Architecture](docs/architecture.md)
-- [Config Reference](docs/config-reference.md)
-- [Community Discord](docs/community-discord.md)
-- [Creating Your Own Hermit](docs/creating-your-own-hermit.md)
-- [Docker Security](docs/docker-security.md)
-- [External Control Surface](docs/external-control-surface.md)
-- [Backup](docs/backup.md)
-- [FAQ](docs/faq.md)
-- [Getting Started](docs/how-to-use.md)
-- [Owner's Guide](docs/owners-guide.md)
-- [Plugin Hermit Storage](docs/plugin-hermit-storage.md)
-- [Recommended Plugins](docs/recommended-plugins.md)
-- [Remote Endpoint](docs/remote-endpoint.md)
-- [Routine Authoring](docs/routine-authoring.md)
-- [Security](docs/security.md)
-- [Testing](docs/testing.md)
-- [Troubleshooting](docs/troubleshooting.md)
-- [Upgrading](docs/upgrading.md)
-- [What Your Assistant Can and Can't Do](docs/what-your-assistant-can-do.md)
-
----
+Join the [Discord community](https://discord.gg/54sJqAxhUh) for setup help and discussion. See [CONTRIBUTING.md](../../CONTRIBUTING.md) for reporting bugs or contributing.
 
 ## Credits
 
-- **[Andrej Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)** — Inspiration for the raw/compiled knowledge system
+[Andrej Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) inspired the `raw/` → `compiled/` knowledge system.
 
 ## License
 
