@@ -72,7 +72,7 @@ Scheduled checks run during idle reflection via `reflect`. If configured checks 
 ## No Auto-Proposals Appearing
 
 - Reflection runs at task boundaries, on the `reflect` schedule, and at end of day. If you're closing sessions before finishing work, reflection may not trigger.
-- Check the `reflect` routine is enabled (`/claude-code-hermit:hermit-settings routines`). `idle_behavior` does not gate it.
+- Check the `reflect` routine is enabled (`/claude-code-hermit:hermit-settings routines`).
 - If you just started using Hermit, give it a few sessions to build up memory. Proposals come from patterns, and patterns take repetition.
 - Check proposals exist: `ls .claude-code-hermit/proposals/PROP-*.md`
 
@@ -114,7 +114,6 @@ After a survivor-blocked stop the shutdown gate keeps the channel silent, becaus
 - Pickup requires `always_on: true`. An interactive hermit is presented the queued task at its next `session-start` instead of having the heartbeat start it.
 - `sessions/NEXT-TASK.md` must exist; with no file the tick reports nothing to pick up.
 - Pickup is gated by escalation level: `conservative` notifies and parks the session in `waiting`, `balanced` auto-starts, `autonomous` runs fully unattended.
-- `idle_behavior` does not gate any of this — it is reserved and currently inert.
 
 ## Morning Brief Not Sending
 

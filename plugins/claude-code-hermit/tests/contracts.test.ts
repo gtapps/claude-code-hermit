@@ -465,25 +465,6 @@ describe('remote validation', () => {
   });
 });
 
-describe('idle_behavior validation', () => {
-  test('wait and discover are both valid', () => {
-    for (const val of ['wait', 'discover']) {
-      const out = runValidate({ idle_behavior: val });
-      expect(out.errors.some((e: string) => e.includes('idle_behavior'))).toBe(false);
-    }
-  });
-
-  test('idle_behavior: bogus is an error', () => {
-    const out = runValidate({ idle_behavior: 'bogus' });
-    expect(out.errors.some((e: string) => e.includes('idle_behavior'))).toBe(true);
-  });
-
-  test('idle_behavior: null is treated as absent — no error', () => {
-    const out = runValidate({ idle_behavior: null });
-    expect(out.errors.some((e: string) => e.includes('idle_behavior'))).toBe(false);
-  });
-});
-
 describe('permission_mode validation (type-only — no enum, Claude Code owns the set)', () => {
   test('any string value produces no error, including values the hermit does not recognize', () => {
     const out = runValidate({ permission_mode: 'bogus' });

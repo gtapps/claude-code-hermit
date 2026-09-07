@@ -8,5 +8,5 @@
      Tone and comms style live in config.json's `voice` block (change it with
      `/claude-code-hermit:hermit-settings voice`), not here.
      Do NOT restate config.json fields (routines, channels, permission_mode,
-     agent_name, sign_off, escalation, idle_behavior) — they're loaded structurally.
+     agent_name, escalation) — they're loaded structurally.
      Tell the hermit what changed; it will draft and confirm before writing. -->

@@ -4,10 +4,12 @@
 
 ### Added
 - Opt-in `passive_chats` capture every delivered group message for recall while only allowed senders mentioning the bot wake it; Discord threads follow their listed parent. `hermit-doctor` gains a `passive-chats` check for the plugin `access.json` gate and for the `bot_user_id`/`allowed_users` a passive chat needs.
+- Standing roles saved from chat with "remember for this channel: when X, do Y", listed and forgotten from chat, and stored in memory.
 - `/spawn-session` launches a background helper in its own worktree, watches it, and relays its idle report; `--rc` is opt-in. The launch is not in the sealed allow-list, so on `auto` the classifier decides it and on a prompting mode it raises one relayed approval. `min_claude_code_version` bumped to `>=2.1.263` in `hermit-meta.json`: below it `claude --bg --name <n>` does not register the name, so the watch cannot resolve the helper.
 - Deferred model and effort switching through `/when-done-switch-to` and the `arm-harness-switch` verb.
 
 ### Changed
+- Sign-off and Discover/Wait settings are no longer collected or advertised; scheduling and operator-authored communication preferences are unchanged.
 - Native `/simplify` replaces the plugin cleanup skill; proposal quality gates report a brief cleanup outcome without custom totals.
 - `peer-post.ts` requires message text as an argument and no longer reads stdin.
 

@@ -154,11 +154,11 @@ describe('settings-edit.ts CLI', () => {
 
   test('set with "none" or "clear" writes null', async () => {
     const dir = freshDir();
-    const file = seedConfig(dir, { sign_off: 'Atlas out.' });
-    await runScript('settings-edit.ts', { args: [file, 'set', 'sign_off', 'none'] });
-    expect(readConfig(file).sign_off).toBeNull();
-    await runScript('settings-edit.ts', { args: [file, 'set', 'sign_off', 'clear'] });
-    expect(readConfig(file).sign_off).toBeNull();
+    const file = seedConfig(dir, { agent_name: 'Atlas out.' });
+    await runScript('settings-edit.ts', { args: [file, 'set', 'agent_name', 'none'] });
+    expect(readConfig(file).agent_name).toBeNull();
+    await runScript('settings-edit.ts', { args: [file, 'set', 'agent_name', 'clear'] });
+    expect(readConfig(file).agent_name).toBeNull();
   });
 
   test('set writes the literal string "default" (not null) — for permission_mode', async () => {
@@ -320,6 +320,13 @@ describe('settings-edit apply-known', () => {
     expect(readConfig(file).escalation).toBe('balanced'); // unchanged
   });
 
+  test('retired setting arguments do not modify config', () => {
+    const cfg = { agent_name: 'Atlas', escalation: 'balanced' };
+    expect(applyKnown(cfg, 'sign-off', 'Atlas out.').ok).toBe(false);
+    expect(applyKnown(cfg, 'idle', 'wait').ok).toBe(false);
+    expect(cfg).toEqual({ agent_name: 'Atlas', escalation: 'balanced' });
+  });
+
   test('refuses an unknown argument rather than inventing a path', async () => {
     const dir = freshDir();
     const file = seedConfig(dir, {});
@@ -343,8 +350,8 @@ describe('settings-edit apply-known', () => {
 
   test('nullable settings accept none/clear; non-nullable refuse it', () => {
     const cfg: any = {};
-    expect(applyKnown(cfg, 'sign-off', 'none').ok).toBe(true);
-    expect(cfg.sign_off).toBeNull();
+    expect(applyKnown(cfg, 'name', 'none').ok).toBe(true);
+    expect(cfg.agent_name).toBeNull();
     expect(applyKnown(cfg, 'escalation', 'none').ok).toBe(false);
   });
 

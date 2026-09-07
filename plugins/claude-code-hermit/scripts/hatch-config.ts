@@ -114,8 +114,8 @@ if (reinit) {
 
 // --- scalar overlay (present-by-hasOwn, both modes) ---
 const SCALAR_KEYS = [
-  'agent_name', 'language', 'timezone', 'sign_off',
-  'escalation', 'remote', 'idle_behavior', 'permission_mode',
+  'agent_name', 'language', 'timezone',
+  'escalation', 'remote', 'permission_mode',
 ];
 for (const key of SCALAR_KEYS) {
   if (Object.hasOwn(answers, key)) config[key] = answers[key];

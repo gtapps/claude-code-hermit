@@ -10,7 +10,7 @@ tmux-based setup for running your hermit without Docker, plus the lifecycle refe
 | ------------------------ | ------------ | ------------------------------------------ |
 | **tmux**                 | Boot scripts | `brew install tmux` / `apt install tmux` — see [Installing tmux](https://github.com/tmux/tmux/wiki/Installing) for other platforms |
 | **Node.js 22+**          | Hooks        | Cost tracking, session evaluation          |
-| **Claude Code v2.1.251+** | Channels, sandbox | Minimum supported version |
+| **Claude Code v2.1.263+** | Channels, sandbox | Minimum supported version |
 
 tmux is required. Channels are optional.
 
@@ -144,8 +144,6 @@ Both fire from `/claude-code-hermit:hermit-routines` — a persistent Monitor su
 When the session is idle, the heartbeat tick checks `sessions/NEXT-TASK.md` and picks up an accepted proposal left there, gated by escalation level: `conservative` sends one notice and parks the session in `waiting`, `balanced` and `autonomous` start it via `session-start`. Pickup requires `always_on` — an interactive hermit is presented the queued task at its next `session-start` instead.
 
 Reflection is not driven by idleness; it runs on the `reflect` schedule under `/claude-code-hermit:hermit-routines`.
-
-`idle_behavior` (`"discover"` / `"wait"`, set via `/hermit-settings idle`) is reserved and currently makes no difference to any of this. `"discover"` previously added a priority-alignment pass against OPERATOR.md and the cost log; that pass was removed when pickup moved into the tick.
 
 ### Edge cases
 

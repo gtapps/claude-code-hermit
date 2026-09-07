@@ -103,7 +103,7 @@ If the list is non-empty:
 
 ### 4. Setup wizard
 
-Collect project preferences in 4–5 interactions. Use `AskUserQuestion` for all questions, following the label+description convention at the top of this skill.
+Collect project preferences in the phases below. Use `AskUserQuestion` for all questions, following the label+description convention at the top of this skill.
 
 #### Phase 1 — Auto-detect (already done in Step 1.5)
 
@@ -120,22 +120,16 @@ Step 1.5 already ran the language/timezone detection silently. Reuse those value
 
 - Record selected label or Other free-text as the value
 
-**4d. Sign-off style** (only if agent_name was provided in 4a) — ask with `AskUserQuestion` (header: "Sign-off"). Options: **{name} out.** / **-- {initial}.** / **Skip** — plus Other for custom phrasing. Replace `{name}` and `{initial}` from the agent name.
+#### Phase 3 — Behavior (AskUserQuestion batch, 2 questions)
 
-- If "Skip": record as `sign_off: null`
-- Otherwise: record selected or typed value as `sign_off`
-
-#### Phase 3 — Behavior (AskUserQuestion batch, 3 questions)
-
-Ask all three in a single `AskUserQuestion` call (the option marked `(default)` is the Recommended pre-selection):
+Ask both in a single `AskUserQuestion` call (the option marked `(default)` is the Recommended pre-selection):
 
 | Header | Question | Options (`label`: description) |
 |---|---|---|
 | Autonomy | How autonomous should your assistant be? | `Balanced`: act on routine tasks, escalate significant changes (default) / `Conservative`: ask before most non-trivial actions / `Autonomous`: proceed unless blocked, minimize interruptions |
 | Remote ctrl | Enable remote control via claude.ai/code? | `Yes`: connect from claude.ai/code or phone (default) / `No`: local terminal only |
-| Idle | What should hermit do when idle between tasks? | `Discover`: proactively surface priority/maintenance work (default) / `Wait`: passive, only check for new tasks and messages |
 
-Record: `escalation` (conservative/balanced/autonomous), `remote` (true/false), `idle_behavior` (wait/discover).
+Record: `escalation` (conservative/balanced/autonomous), `remote` (true/false).
 
 #### Phase 4 — Channels (AskUserQuestion, single question)
 
@@ -250,16 +244,16 @@ with the answers payload as JSON on stdin. The script reads the template (or, on
 {
   "project_name": "<project directory name, fresh hatch only>",
   "activated_hermit": { "slug": "<plugin>", "boot_skill": "<hermit.boot_skill from hermit-meta.json, or null>" },
-  "agent_name": "...", "language": "...", "timezone": "...", "sign_off": "...",
-  "escalation": "...", "remote": true, "idle_behavior": "...",
+  "agent_name": "...", "language": "...", "timezone": "...",
+  "escalation": "...", "remote": true,
   "permission_mode": "...",
   "routines": { "enabled": true, "morning_time": "08:30", "evening_time": "22:30" },
   "channels": { "discord": { "enabled": true, "allowed_users": ["<id>"], "morning_brief_time": "07:00" } }
 }
 ```
 
-- **Phase 2** → `agent_name`, `language`, `timezone`, `sign_off`.
-- **Phase 3** → `escalation`, `remote`, `idle_behavior`.
+- **Phase 2** → `agent_name`, `language`, `timezone`.
+- **Phase 3** → `escalation`, `remote`.
 - **Phase 4** → `channels.<name>`: `enabled`, `allowed_users` (omit if the operator skipped access control), `morning_brief_time` (omit if declined; on re-init, send it as `null` to turn off a brief the operator previously enabled). The script fills in `dm_channel_id: null`, `default_chat_id: null`, and `state_dir: .claude.local/channels/<name>` on first creation and preserves all three (plus any other channel it doesn't recognize, `channels.primary`, and third-party `marketplace` channels) on re-init merge. Do **not** include `push_notifications` in the payload — the script never touches it; it stays at the template default (`true`) or, on re-init, whatever value is already on disk. The runtime channel-first/push-fallback guard in CLAUDE-APPEND.md already prevents double-notification.
 - **Phase 5** → `permission_mode`, `routines` (morning/evening only — `heartbeat-restart` and the other infrastructure routines are already in the template and are never touched by this payload).
 - **Never in a hatch payload** → `auth_mode`. It records which credential the hermit already runs on, and hatch has not established one yet; it stays at the template default (`null`, resolved from the credential volume at read time) and is written later by `/docker-setup`, `hermit-docker login`, or a completed renewal.
@@ -327,7 +321,7 @@ Collect findings silently. Do NOT print scan results to the operator.
 Using the scan results, write a concise context document. Follow these rules:
 
 1. **Never duplicate CLAUDE.md content.** If CLAUDE.md already covers a topic (testing, conventions, build commands), don't repeat it.
-2. **Never duplicate `config.json` fields.** `routines`, `channels` (including Discord/Telegram user IDs and `morning_brief`), `permission_mode`, `agent_name`, `sign_off`, `escalation`, `idle_behavior`, `boot_skill`, `shutdown_skill`, and `_hermit_versions` are already loaded structurally — do not restate them as prose. OPERATOR.md is for context the model can't infer from config (project focus, constraints, approval gates, project rationale). Tone and comms style have their own home — `config.json`'s `voice` block, written in Phase 4b.
+2. **Never duplicate `config.json` fields.** `routines`, `channels` (including Discord/Telegram user IDs and `morning_brief`), `permission_mode`, `agent_name`, `escalation`, `boot_skill`, `shutdown_skill`, and `_hermit_versions` are already loaded structurally — do not restate them as prose. OPERATOR.md is for context the model can't infer from config (project focus, constraints, approval gates, project rationale). Tone and comms style have their own home — `config.json`'s `voice` block, written in Phase 4b.
 3. **Only include high-confidence inferences.** If the scan clearly reveals something (e.g., package.json shows Node.js, README describes the project), include it. If uncertain, leave it for Phase 3 questions.
 4. **Keep it under 50 lines.** OPERATOR.md is loaded every session-start — bloat costs tokens. Write concise prose, not documentation.
 5. **No rigid sections required.** Use headers if they help organize, but don't create empty sections. The goal is a useful context document, not a filled-in form.
@@ -627,22 +621,12 @@ questions: [
 
 Record `agent_name` (null if Skip), `language`, `timezone`.
 
-### Quick Turn 3 — Sign-off + Deployment + Channel + Idle batch
+### Quick Turn 3 — Deployment + Channel batch
 
-If a name was given in Turn 2, ask 3 questions (with sign-off). Otherwise ask 2 (drop sign-off).
+Ask both questions in one `AskUserQuestion` call.
 
 ```
 questions: [
-  // Conditional — only included if agent_name was set in Turn 2
-  {
-    header: "Sign-off",
-    question: "How should I close messages?",
-    options: [
-      { label: "{name} out.", description: "Close with full agent name" },
-      { label: "-- {initial}.", description: "Close with agent initial" },
-      { label: "Skip", description: "Omit a message sign-off" }
-    ]
-  },
   {
     header: "Deployment",
     question: "How will you run hermit?",
@@ -660,19 +644,11 @@ questions: [
       { label: "Discord + Remote Control", description: "Communicate with your agent via Discord + Remote Control if available" },
       { label: "Telegram + Remote Control", description: "Communicate with your agent via Telegram + Remote Control if available" }
     ]
-  },
-  {
-    header: "Idle",
-    question: "What should hermit do when idle between tasks?",
-    options: [
-      { label: "Discover", description: "Proactively surface priority/maintenance work (default)" },
-      { label: "Wait", description: "Passive — only check for new tasks and messages" }
-    ]
   }
 ]
 ```
 
-Record `sign_off`, `deployment` (one of `docker` / `tmux` / `interactive`), `channel` (one of `none` / `discord` / `telegram`), `idle_behavior` (one of `discover` / `wait`). Map the labels to those values — **"Claude app (for now)" is `none`**, not the label text; downstream code (the confirm bundle, Step 5's `channels` overlay) compares against the sentinel.
+Record `deployment` (one of `docker` / `tmux` / `interactive`), `channel` (one of `none` / `discord` / `telegram`). Map the labels to those values — **"Claude app (for now)" is `none`**, not the label text; downstream code (the confirm bundle, Step 5's `channels` overlay) compares against the sentinel.
 
 `push_notifications` is left at the template default (`true`) — no follow-up question. Push is dormant whenever a channel is reachable (the runtime guard in CLAUDE-APPEND.md sends channel-first) and fires only as fallback when a channel is unreachable or absent.
 
@@ -724,7 +700,6 @@ Quick replaces Step 4 entirely and applies these defaults silently at the shared
 | Advanced 5a Phase 4b equivalent | `voice` | Quick Turn 4 runs 5a verbatim, so the comms question and the render happen there too |
 | Step 5b | artifact chrome localization | run verbatim — generate the translated table only when `language` is set and not `en`; skip silently otherwise |
 | Advanced Phase 4 equivalent | channels.<name>.* | state_dir + enabled + dm_channel_id=null + default_chat_id=null; omit allowed_users + morning_brief |
-| Quick Turn 3 idle choice | idle_behavior | set to answer (`discover` / `wait`) |
 | Quick Turn 3 channel choice | push_notifications | template default (true) — don't override |
 | Advanced Phase 5 equivalent | permission_mode, routines | permission_mode = `auto`; routines = morning 08:30 + evening 22:30 + (template) heartbeat 04:00 |
 | Step 6 | CLAUDE.md / CLAUDE.local.md append | apply silently to `hatch_target` file (default "keep" if marker already present) |

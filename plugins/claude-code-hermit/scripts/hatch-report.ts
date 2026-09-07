@@ -115,8 +115,7 @@ export function renderConfirm(answers: Json): string {
 
   // Chosen rows — each echoes a wizard answer verbatim, only when it was given.
   if (answers.agent_name) {
-    out.push(row('🪪 Name', answers.agent_name
-      + (answers.sign_off ? ` — sign-off "${answers.sign_off}"` : '')));
+    out.push(row('🪪 Name', answers.agent_name));
   }
   const locale = [answers.language, answers.timezone].filter(Boolean).join(' · ');
   if (locale) out.push(row('🌍 Language / Timezone', locale));
@@ -127,7 +126,6 @@ export function renderConfirm(answers: Json): string {
     out.push(row('💬 Chat', answers.channel === 'none'
       ? 'Claude app (for now)' : `${cap(answers.channel)} — pairing comes after setup`));
   }
-  if (answers.idle_behavior) out.push(row('🧭 Idle', cap(answers.idle_behavior)));
 
   // Default rows — read live from the same template hatch-config.ts overlays,
   // so they track the shipped defaults instead of prose that drifts. Kept to

@@ -134,7 +134,7 @@ Finally, refresh the dashboard per `${CLAUDE_PLUGIN_ROOT}/docs/artifacts.md` (si
 - Style preferences — memory records them; only a settled endpoint on a task-scoped output graduates to the owning skill (never propose OPERATOR.md as a destination — it is operator-authored)
 - Things that auto-memory already handles — recording a decision is memory's job; *relocating* settled operative content into the skill that owns the task is not (that is a valid consolidation proposal)
 - Hypothetical future needs — only real problems observed during work
-- **Mirroring `config.json` into OPERATOR.md** — propose a `/claude-code-hermit:hermit-settings` change instead. Operator-editable prose is for things `config.json` can't express (focus, constraints, approval gates, comms style). Routine schedules, channel IDs, `permission_mode`, `agent_name`, `sign_off`, `escalation`, and `idle_behavior` are loaded structurally — duplicating them into OPERATOR.md is a token tax that drifts when config changes.
+- **Mirroring `config.json` into OPERATOR.md** — propose a `/claude-code-hermit:hermit-settings` change instead. Operator-editable prose is for things `config.json` can't express (focus, constraints, approval gates, comms style). Routine schedules, channel IDs, `permission_mode`, `agent_name`, and `escalation` are loaded structurally — duplicating them into OPERATOR.md is a token tax that drifts when config changes.
 
 ## Capability Proposals
 

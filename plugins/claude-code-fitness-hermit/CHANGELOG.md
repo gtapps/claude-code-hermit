@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Briefing composition uses existing voice preferences without a dedicated sign-off setting.
+
 ## [0.1.1] - 2026-08-31
 
 ### Changed
