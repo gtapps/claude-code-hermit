@@ -73,4 +73,9 @@ if (fs.existsSync(appendPath)) {
     !/≤\s*200\s*chars/.test(brief) && brief.includes('Operator Notification push format'));
 }
 
+const gatePath = path.join(PLUGIN_ROOT, 'state-templates/bin/fitness-weekly-patterns-gate');
+ok('weekly patterns gate template exists', fs.existsSync(gatePath));
+const hatch = fs.readFileSync(path.join(PLUGIN_ROOT, 'skills/hatch/SKILL.md'), 'utf-8');
+ok('hatch installs weekly patterns gate', hatch.includes('install -m 755') && hatch.includes('state-templates/bin/fitness-weekly-patterns-gate'));
+
 process.exit(summary() === 0 ? 0 : 1);

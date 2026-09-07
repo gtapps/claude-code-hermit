@@ -380,7 +380,7 @@ export function runPrecheck(stateDir: string, peek: boolean): string {
     // only to feed the separate stale-EVALUATE damper (different threshold/purpose).
     if (staleAutoCloseDue(stateDir, now)) return 'AUTO_CLOSE';
     // Prefer last-operator-action.json: records genuine operator prompts only, unaffected
-    // by routine writes (reflect, scheduled-checks, heartbeat alerts) that bump SHELL.md mtime.
+    // by routine writes (reflect, plugin-check routines, heartbeat alerts) that bump SHELL.md mtime.
     // Absent/malformed → !usedActionFile leaves opQuiet true, so the damper still wakes.
     let usedActionFile = false;
     let lastActionAt = NaN;

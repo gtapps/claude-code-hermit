@@ -249,16 +249,18 @@ The skill name format is `/<plugin-id>:<skill-id>`. Parse the plugin-id as the t
 
 After adding or updating any entries, remind the operator: "Run `/claude-code-hermit:hermit-routines load` to activate routines in the current session."
 
-**Scheduled checks registration**: `config.scheduled_checks` is an array of periodic skill entries that the `scheduled-checks` routine (via `reflect --scheduled-checks`) invokes on a cadence and funnels through the proposal pipeline. For each entry below, check whether an existing record has the same `id`. If not, append it — no prompt needed, all three are safe read-only analyses.
+**Analysis routine registration**
+
+Merge these entries into `config.routines` by id. Create the array if absent. Append each missing id; skip any existing id, preserving operator edits and all other config fields. No prompt is needed for these read-only analyses.
 
 ```json
-{"id": "ha-patterns",            "plugin": "claude-code-homeassistant-hermit", "skill": "claude-code-homeassistant-hermit:ha-analyze-patterns",        "enabled": true, "trigger": "interval", "interval_days": 7}
-{"id": "ha-safety-audit",        "plugin": "claude-code-homeassistant-hermit", "skill": "claude-code-homeassistant-hermit:ha-safety-audit",           "enabled": true, "trigger": "interval", "interval_days": 7}
-{"id": "ha-integration-health",  "plugin": "claude-code-homeassistant-hermit", "skill": "claude-code-homeassistant-hermit:ha-integration-health",    "enabled": true, "trigger": "interval", "interval_days": 1}
-{"id": "ha-update-check",        "plugin": "claude-code-homeassistant-hermit", "skill": "claude-code-homeassistant-hermit:ha-update-check",           "enabled": true, "trigger": "interval", "interval_days": 1}
+{"id": "ha-patterns", "schedule": "5 9 * * 1", "skill": "claude-code-hermit:reflect --check-id ha-patterns --check claude-code-homeassistant-hermit:ha-analyze-patterns", "run_during_waiting": true, "enabled": true}
+{"id": "ha-safety-audit", "schedule": "5 9 * * 1", "skill": "claude-code-hermit:reflect --check-id ha-safety-audit --check claude-code-homeassistant-hermit:ha-safety-audit", "run_during_waiting": true, "enabled": true}
+{"id": "ha-integration-health", "schedule": "5 9 * * *", "skill": "claude-code-hermit:reflect --check-id ha-integration-health --check claude-code-homeassistant-hermit:ha-integration-health", "run_during_waiting": true, "enabled": true}
+{"id": "ha-update-check", "schedule": "5 9 * * *", "skill": "claude-code-hermit:reflect --check-id ha-update-check --check claude-code-homeassistant-hermit:ha-update-check", "run_during_waiting": true, "enabled": true}
 ```
 
-These replace any need for CronCreate routines around analysis/observability — the `scheduled-checks` routine picks up whichever check is due, runs it, and any findings surface as proposals automatically.
+Each routine owns its cadence and passes findings through reflection gates into the proposal pipeline.
 
 ### 8. Final report
 

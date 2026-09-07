@@ -11,6 +11,16 @@ below), see [Config Reference § Idle & Routines](config-reference.md#idle--rout
 `skills/hermit-routines/SKILL.md`. This doc covers the authoring decision those references
 don't: *when* a routine needs a scoped skill instead of a broad one, and how to build it.
 
+## Plugin checks
+
+A periodic plugin check is an ordinary routine, for example:
+
+```json
+{"id":"my-check","schedule":"5 9 * * 1","skill":"claude-code-hermit:reflect --check-id my-check --check my-plugin:my-audit-skill","run_during_waiting":true,"enabled":true}
+```
+
+The wrapper invokes exactly that skill, with all arguments after `--check` passed verbatim. Actionable or contextual findings become one candidate with `Evidence Source: scheduled-check/my-check` and `Sessions: none`, routed through judge, triage, and the existing approval path. Quiet results produce no proposal. The routine owns cadence, model pins, and optional pre-wake gating; `scheduled_checks` is only for task-completion checks.
+
 ## When a routine needs this pattern
 
 A routine has a cost signature worth fixing when it:
@@ -83,7 +93,8 @@ produce a report.
    Rules for the script: **verdict only** — nothing it prints reaches the session, so a gate that
    found work hands nothing over; the skill re-queries its own source using the `ROUTINE_LAST_FIRED`
    env var (ISO timestamp of the last successful fire, empty on the first, meaning "everything is
-   new"). It also gets `HERMIT_DIR` and `ROUTINE_ID`, and a deliberately minimal environment —
+   new"). It also gets `HERMIT_DIR`, `ROUTINE_ID`, `PATH`, and, when set, `HOME`, `LANG`,
+   `CLAUDE_CONFIG_DIR`, and `HERMIT_PLUGIN_ROOT`. No other monitor variables are forwarded;
    secrets belong in a file the script reads, not in the monitor's env. Keep it read-only and cheap:
    mutation belongs in the skill, which only runs when the gate says so. Declaring a gate from chat
    raises Claude Code's native permission prompt (see [`docs/security.md`](security.md) § Settings from chat).
@@ -182,3 +193,14 @@ where it didn't and said otherwise.
   archetypes to copy the shape of, not reinvent.
 - `scripts/lib/routines/finish.ts` — the finalizer that verifies a declared `expect_artifact` and
   owns the fire's terminal ledger row.
+
+## Calling a sibling plugin from a gate
+
+Use `"$HERMIT_DIR/bin/hermit-run" sibling-run <plugin-name> <relative.ts> [args…]`.
+Core matches `plugin.json.name` through its existing sibling discovery: flat installs or
+the newest sibling version in a versioned cache. It runs the selected TypeScript file
+with inherited stdio and the caller's cwd, forwarding arguments verbatim and returning
+the child's exit code. Resolution exits 2 for no match, 1 for several matches (listing
+paths on stderr), and 3 for an absolute path, any `..`, a path without `.ts`, or a missing
+script. Gates receive `CLAUDE_CONFIG_DIR` and `HERMIT_PLUGIN_ROOT` when set so the shim
+resolves the configured core installation.

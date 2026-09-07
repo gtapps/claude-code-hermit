@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+result="$("$HERMIT_DIR/bin/hermit-run" sibling-run claude-code-fitness-hermit scripts/fitness-lab.ts weekly-patterns --project-root "$(dirname "$HERMIT_DIR")")"
+# Matched as a substring rather than parsed: weekly-patterns emits compact
+# JSON.stringify output with `trend` at the top level only (series entries are
+# {file,date,drift}), and this keeps the gate free of a jq dependency that a
+# non-Docker host install has no guarantee of.
+case "$result" in
+  *'"trend":"none"'*|*'"trend":"insufficient-data"'*) echo SKIP ;;
+  *'"trend":"upward"'*) echo WAKE ;;
+  *) echo 'fitness-weekly-patterns-gate: invalid trend' >&2; exit 1 ;;
+esac

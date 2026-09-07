@@ -214,7 +214,7 @@ Tune from a terminal with `/hermit-settings`, or change permitted settings from 
 | `heartbeat.waiting_timeout` | auto `waiting`→`idle` after — **`null`** (off) |
 | `routines` | persistent routines managed via `/hermit-routines` |
 | `monitors` | persistent background watches managed via `/watch` |
-| `scheduled_checks` | periodic skill invocations |
+| `scheduled_checks` | session-triggered skills at task completion |
 | `reflection.graduation_min_sessions` | proposal recurrence bar — **`1`** |
 | `quality_gate.tier` | post-change cleanup spend — **`budget`** / `balanced` / `quality` |
 | `knowledge.compiled_budget_chars` | fresh/resumed startup catalog budget — **`2500`** |
@@ -229,6 +229,8 @@ Tune from a terminal with `/hermit-settings`, or change permitted settings from 
 | `watchdog.scheduler_enabled` | OS scheduler for the watchdog tick — **`true`** on tmux always-on (auto-installed at boot); `false` or `hermit-watchdog uninstall` opts out |
 | `watchdog.enabled` | recovery/restart tier — **`false`** until first scheduler registration (or `/docker-setup`); hygiene still runs |
 
+
+Periodic checks use `routines`, with a skill such as `claude-code-hermit:reflect --check-id my-check --check my-plugin:my-audit-skill`. Each routine owns its schedule; quiet findings create no proposal.
 
 Full schema in the [Config Reference](docs/config-reference.md)
 

@@ -1,6 +1,6 @@
 ---
 name: ha-update-check
-description: Detect pending Home Assistant updates (Core, OS, Supervisor, add-ons, HACS) from the update.* domain and surface them as actionable proposals. Runs daily as a scheduled check via reflect --scheduled-checks.
+description: Detect pending Home Assistant updates (Core, OS, Supervisor, add-ons, HACS) from the update.* domain and surface them as actionable proposals. Runs daily as a routine via reflect --check-id ha-update-check --check claude-code-homeassistant-hermit:ha-update-check.
 allowed-tools:
   - Bash
 ---
@@ -28,7 +28,7 @@ The CLI:
 
 ## Output contract
 
-`reflect --scheduled-checks` routes the findings block through the proposal pipeline. The stdout shape is fixed:
+`reflect --check-id ha-update-check --check claude-code-homeassistant-hermit:ha-update-check` routes the findings block through the proposal pipeline. The stdout shape is fixed:
 
 ```
 ha-update-check findings — <date>

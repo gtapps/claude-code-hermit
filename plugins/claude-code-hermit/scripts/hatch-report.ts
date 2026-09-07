@@ -138,10 +138,10 @@ export function renderConfirm(answers: Json): string {
       : row('Permission mode', `\`${permission}\``));
   }
   if (t.escalation) out.push(def('Autonomy', `${t.escalation} · remote control ${t.remote ? 'on' : 'off'}`));
-  // heartbeat-restart and scheduled-checks are plumbing, not something the
+  // heartbeat-restart is plumbing, not something the
   // operator would recognize as "a routine that wakes the agent".
   const infra = (t.routines ?? [])
-    .filter((r: Json) => r.enabled !== false && !['heartbeat-restart', 'scheduled-checks'].includes(r.id))
+    .filter((r: Json) => r.enabled !== false && r.id !== 'heartbeat-restart')
     .map((r: Json) => r.id.replace(/-/g, ' '));
   const briefs = answers.routines?.enabled === false ? []
     : [`briefs ${answers.routines?.morning_time ?? '08:30'} + ${answers.routines?.evening_time ?? '22:30'}`];

@@ -14,6 +14,8 @@ A Laravel Forge domain layer for `claude-code-hermit`: deployment skills, server
 
 ## Architecture
 
+Hatch registers the `forge-failed-deploys` routine with `reflect --check-id forge-failed-deploys --check laravel-forge-hermit:forge-failed-deploys`; its cadence lives in `config.routines`.
+
 The agent calls `php ${CLAUDE_PLUGIN_ROOT}/php/forge.php <command>` directly via Bash. The SDK handles all HTTP: no hand-rolled API client, no bun CLI, no bridge process. The vendor tree is not committed; hatch installs `laravel/forge-sdk` `--no-dev` via Composer into the consumer project's `.claude-code-hermit/forge-runtime/vendor/` (persistent, bind-mounted in Docker, isolated from the app's own Composer files).
 
 ## Rules

@@ -359,25 +359,15 @@ Note: "Channel changes take effect on next `hermit-start` run. `channels.primary
 - After changes, note: "Restart container to install new plugins: `.claude-code-hermit/bin/hermit-docker restart`"
 
 **If argument is "scheduled-checks":**
-- Read `state/reflection-state.json` for runtime state (last run dates). If missing, show "(no runs yet)" for all.
-- Show current `scheduled_checks` entries from config.json:
-  ```
-  Scheduled Checks (config.json scheduled_checks)
-
-    #   ID                Plugin     Trigger   Interval  Last Run    Status
-    1.  my-check          my-plugin  interval  7 days    2026-04-01  enabled
-    2.  my-session-check  my-plugin  session   —         2026-04-06  enabled
-
-  (or "No scheduled checks configured" if empty)
-  ```
-- Ask: "Enable, disable, add, remove, or change interval? (e.g., 'disable my-check', 'interval my-check 14', 'add my-check my-plugin /my-plugin:my-skill interval 7', 'add my-check my-plugin /my-plugin:my-skill session', or 'done') [done]"
-- Loop until operator says "done", "skip", or presses Enter:
-  - `enable <id>` / `disable <id>`: `set scheduled_checks.<index>.enabled true|false`
-  - `interval <id> <days>`: `set scheduled_checks.<index>.interval_days <days>` (only valid for `trigger: "interval"`)
-  - `add <id> <plugin> <skill> interval [days]`: append an interval-triggered entry with `enabled: true`, `interval_days` (default: 7), then `set scheduled_checks '<whole array>'`. Deduplicate by id.
-  - `add <id> <plugin> <skill> session`: same, session-triggered. Deduplicate by id.
-  - `remove <id>`: drop the entry and `set scheduled_checks '<remaining array>'`, then remove its state from `state/reflection-state.json`
-- Note: "Interval checks run during idle reflection. Session checks run at task completion. Changes take effect on the next cycle."
+- Read `state/reflection-state.json` for last run dates. If missing, show "(no runs yet)".
+- List only `scheduled_checks` entries with `trigger: "session"`, under "Session checks", showing ID, plugin, last run, and enabled status. If empty, show "No session checks configured".
+- Ask: "Enable, disable, add, remove, or done? (e.g., 'disable my-check', 'add my-check my-plugin /my-plugin:my-skill session') [done]"
+- Loop until the operator says "done", "skip", or presses Enter:
+  - `enable <id>` / `disable <id>`: for a session entry, `set scheduled_checks.<index>.enabled true|false`. Use its original config-array index, not the filtered display index.
+  - `add <id> <plugin> <skill> session`: append a session-triggered entry with `enabled: true`, then `set scheduled_checks '<whole array>'`. Deduplicate by id across the whole array.
+  - `remove <id>`: remove the session entry and `set scheduled_checks '<remaining array>'`, then remove its state from `state/reflection-state.json`.
+  - Refuse interval additions or cadence edits: periodic checks belong in `routines`. Point the operator to `/claude-code-hermit:hermit-settings routines`.
+- Preserve other entries and custom keys when writing the array. Session checks run at task completion; changes take effect on the next task completion.
 
 **If argument is "quality-gate":**
 

@@ -162,7 +162,9 @@ It checks for incoming tasks and channel messages, and — on an always-on hermi
 
 ## What are scheduled checks?
 
-Automatic invocations of skills on a cadence — either from a plugin you installed (e.g., `my-plugin:my-audit-skill`) or from your own hermit. They run during idle reflection at configurable intervals and must conform to the [scheduled-check contract](../skills/reflect/SKILL.md) (idempotent, returns findings or nothing, no self-scheduling). Configure with `/hermit-settings scheduled-checks`. See [Config Reference](config-reference.md#scheduled_checks) for the schema.
+`scheduled_checks` holds session-triggered skills that run at task completion. Configure them with `/hermit-settings scheduled-checks`; see [Config Reference](config-reference.md#scheduled_checks).
+
+For periodic checks, create an ordinary routine whose skill is `claude-code-hermit:reflect --check-id my-check --check my-plugin:my-audit-skill` and give it a cron schedule. Each fire evaluates that skill's findings through the reflection gates; a quiet result produces no proposal. Manage cadence with `/hermit-settings routines`. [Routine Authoring](routine-authoring.md) covers optional model pins and gates that skip the wake when there is no work.
 
 ---
 

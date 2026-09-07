@@ -388,7 +388,7 @@ DST transitions self-correct within 24h via the daily `heartbeat-restart` reload
 
 Schedules that cannot be expressed as a single CronCreate after shifting are passed through unchanged with a warning: mixed day-wrap on restricted-DOW schedules, and hour step patterns (`*/7`) that lose their structure. Avoid these in routines when `config.timezone` differs from the machine TZ; split into separate fixed-time entries instead.
 
-**Clustering and staggering routines.** In Monitor mode, routines due in the same poll batch share one wake, so exact co-scheduling is cheapest when they can run together. Offset routines you want as separate turns by a few minutes to keep each fire inside the prompt-cache window. In CronCreate fallback/anchor mode, co-scheduled routines fire as separate idle turns; the same small stagger lets later turns reuse warm context. The defaults demonstrate the separate-turn pattern: `reflect` at `0 9`, `scheduled-checks` at `5 9`, and weekly `hermit-doctor` at `10 9`.
+**Clustering and staggering routines.** In Monitor mode, routines due in the same poll batch share one wake, so exact co-scheduling is cheapest when they can run together. Offset routines you want as separate turns by a few minutes to keep each fire inside the prompt-cache window. In CronCreate fallback/anchor mode, co-scheduled routines fire as separate idle turns; the same small stagger lets later turns reuse warm context. The defaults stagger daily `reflect` at `0 9` and weekly `hermit-doctor` at `10 9`. Plugin checks are ordinary routines with their own cron schedules.
 
 Beyond that intra-cluster stagger, the number of *distinct* times of day the hermit wakes also matters — each cache-cold wake re-warms the whole context. `hermit-routines load` lints this: when enabled routines spread across more than `routine_wake_lint.max_windows` (default 6) distinct 30-min windows, it logs one advisory line naming the loneliest fire-times so you can consolidate them into fewer wake windows. Every-hour routines (hour field `*`, `*/1`, or `0-23`) are excluded, since they wake continuously by design.
 
@@ -457,29 +457,21 @@ Set to `2` if the operator channel gets noisy. Applies to both the observations-
 
 ## `scheduled_checks`
 
-Automatic invocations of installed plugin skills. Config stores operator intent; runtime state lives in `state/reflection-state.json` under the `scheduled_checks` key.
+Session-triggered invocations of installed skills, run at task completion before the idle transition. Periodic checks belong in `routines`, for example `skill: "claude-code-hermit:reflect --check-id my-check --check my-plugin:my-audit-skill"` with a cron `schedule`.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `id` | string | _(required)_ | Unique identifier for this check. |
+| `id` | string | _(required)_ | Unique identifier for this session check. |
 | `plugin` | string | _(required)_ | Parent plugin name (for display). |
-| `skill` | string | _(required)_ | Full slash command to invoke. |
+| `skill` | string | _(required)_ | Full skill command to invoke, including arguments. |
 | `enabled` | boolean | `true` | Whether this check should run. |
-| `trigger` | string | _(required)_ | `"interval"` (periodic during idle reflection) or `"session"` (at task completion). |
-| `interval_days` | integer | `7` | Minimum days between invocations. **Required for `trigger: "interval"`. Must not be set for `trigger: "session"`.** |
+| `trigger` | string | _(required)_ | `"session"`, invoked at task completion. |
 
-### Runtime state — `state/reflection-state.json` (under `scheduled_checks` key)
+### Runtime state: `state/reflection-state.json` (under `scheduled_checks`)
 
-Keyed by check `id`. Owned by reflect (sole writer for interval checks) and session (sole writer for session checks). Lives alongside `last_reflection` in the same file.
+Keyed by check `id`. The session skill writes only `last_run`, the ISO date of the last successful invocation. Unavailable or failing skills are skipped without blocking task completion or advancing the cursor. Other state fields are preserved.
 
-| Key | Type | Applies to | Description |
-|-----|------|-----------|-------------|
-| `last_run` | string/null | both | ISO date of last successful invocation. |
-| `last_unavailable_at` | string/null | interval only | ISO date of last `unavailable` outcome (skill missing or not installed). Retries after a fixed 4-hour cooldown. |
-| `last_error_at` | string/null | interval only | ISO date of last `error` outcome (skill errored or timed out). Suppresses retries for `interval_days` (persistent back-off). |
-| `consecutive_empty` | integer | interval only | Consecutive runs with zero findings. Reset to 0 on any non-empty run. |
-
-Modify with `/hermit-settings scheduled-checks`.
+Manage session checks with `/hermit-settings scheduled-checks`; manage periodic checks with `/hermit-settings routines`.
 
 ---
 
@@ -598,7 +590,7 @@ A realistic `config.json` for an always-on Docker hermit with Discord:
     "MAX_THINKING_TOKENS": "10000"
   },
   "scheduled_checks": [
-    {"id": "my-check", "plugin": "my-plugin", "skill": "my-plugin:my-audit-skill", "enabled": true, "trigger": "interval", "interval_days": 7}
+    {"id": "my-check", "plugin": "my-plugin", "skill": "my-plugin:my-audit-skill", "enabled": true, "trigger": "session"}
   ],
   "docker": {
     "packages": ["python3", "python3-pip"],

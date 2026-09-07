@@ -187,7 +187,7 @@ One writer per state file. No shared mutation bus. (Exception: `state/micro-prop
 | ------------------------------ | --------------------------------------------------- | ------------------------------------------------------------- |
 | `state/runtime.json`           | session-archive.ts + cost-tracker + startup-context.ts (session stamp) | heartbeat, session-start, /hermit-routines (rdw=false suppression), hermit-watchdog (config/env, registry, inbox), hermit-doctor (peer inbox) |
 | `state/alert-state.json`       | heartbeat only                                      | heartbeat; evaluate-session (read-only nudge computation)     |
-| `state/reflection-state.json`  | reflect + session (non-overlapping phases)          | heartbeat (debounce), hermit-settings (scheduled-checks display) |
+| `state/reflection-state.json`  | reflect + session (non-overlapping phases)          | heartbeat (debounce), hermit-settings (session-check display) |
 | `state/channel-activity.json`  | channel-hook.ts only                                | channel-responder, heartbeat                                  |
 | `state/channel-replies.jsonl`  | channel-hook.ts (append only)                       | none — reflect's engagement join was removed (the ledger records outbound sends only, so it could not measure operator engagement) |
 | `state/channel-log.sqlite`     | channel-reply-reminder stage + channel-hook.ts (append, via `lib/channel-log.ts`); weekly-review marks/prunes | search.ts (recall, fourth source); weekly-review consolidation |
@@ -332,12 +332,12 @@ Both are managed by `/claude-code-hermit:hermit-routines`. Where the Monitor too
 
 Four mechanisms handle background work — each owns a distinct axis:
 
-- **hermit-routines** — the only place for time-based semantic work (reflect, scheduled-checks, weekly-review, daily-auto-close). One persistent Monitor subprocess owns eligibility, gating in-script before any wake; a CronCreate anchor and, on platforms without Monitor, per-routine CronCreates cover re-arm and fallback.
+- **hermit-routines** — the only place for time-based semantic work (reflect, plugin-check routines, weekly-review, daily-auto-close). One persistent Monitor subprocess owns eligibility, gating in-script before any wake; a CronCreate anchor and, on platforms without Monitor, per-routine CronCreates cover re-arm and fallback.
 - **heartbeat** — health/checklist/idle-wake gate only, on its own fixed cadence (default 30m), separate semantics from routine scheduling. Polls via `--peek` in a bash subprocess (zero model cost when quiet); wakes the model only on `EVALUATE` or `AUTO_CLOSE` verdicts. Must not be merged into routines — routines and heartbeat now both reach a zero-token quiet path independently, but they gate on different questions (a routine's own cron vs. the checklist's staleness) and merging would conflate the two.
 - **watch** — session-scoped external event streams via the `Monitor` tool. Dies with the session; not a scheduler.
 - **watchdog** — out-of-session process recovery (restart, wedge-nudge, re-arm). `post_close_clear`, `context_clear_tokens`, and `context_hygiene.compact` run on every scheduler tick **independent of `watchdog.enabled`**; they are scheduler-owned context-hygiene co-located in the watchdog script, not watchdog features. Setting `enabled: false` disables restart/nudge only.
 
-New periodic semantic work belongs in hermit-routines. Heartbeat, watchdog, and watch must not become general schedulers.
+New periodic semantic work belongs in hermit-routines. A plugin check uses `reflect --check-id <id> --check <namespaced skill>` as its routine skill; `scheduled_checks` is reserved for session-triggered work at task completion. Heartbeat, watchdog, and watch must not become general schedulers.
 
 ### Context Hygiene
 

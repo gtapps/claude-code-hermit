@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Monthly source discovery runs as an unattended routine, with candidates queued for operator review. Core 1.3.3 is required.
+
+### Upgrade Instructions
+
+1. Complete core's periodic-check conversion first.
+2. Re-read `.claude-code-hermit/config.json`. If the `source-scout` routine's skill carries the `claude-code-hermit:reflect` wrapper, replace only its `skill` with `feed-hermit:source-scout --scheduled`. Preserve its schedule, model, enabled state, and other operator fields. Leave an existing custom skill unchanged.
+3. Run `/claude-code-hermit:hermit-routines load`.
+
 ## [0.1.6] - 2026-09-06
 
 ### Fixed

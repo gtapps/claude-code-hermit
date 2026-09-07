@@ -6,7 +6,7 @@ How Hermit handles third-party plugins. Hermit ships no standing recommendations
 
 Nothing is pre-shipped or pre-configured. During `/docker-setup`, you're asked whether to mirror each plugin already installed on the host into the container. Only plugins you explicitly opt into are added to your config and installed on container boot. You can manage them anytime with `/hermit-settings docker`.
 
-**Hermit recommends no plugins by default.** Earlier versions offered a set of official Anthropic plugins at hatch (a codebase-automation recommender, a CLAUDE.md auditor, a skill builder, a feature-development scaffold). Claude Code now covers the same ground natively: the built-in `Plan`/`Explore` agents handle codebase research, auto-memory captures session learnings without touching CLAUDE.md, `/doctor` proposes CLAUDE.md trims once a file grows unwieldy, and the model authors a new skill directly from a procedure brief. Every installed plugin's skill descriptions are also paid on every API call an always-on hermit makes, so the bar for a standing recommendation is high. If you want one of the retired plugins anyway, install it yourself and register its skill with `/hermit-settings scheduled-checks` — the mechanism below is unchanged.
+**Hermit recommends no plugins by default.** Earlier versions offered a set of official Anthropic plugins at hatch (a codebase-automation recommender, a CLAUDE.md auditor, a skill builder, a feature-development scaffold). Claude Code now covers the same ground natively: the built-in `Plan`/`Explore` agents handle codebase research, auto-memory captures session learnings without touching CLAUDE.md, `/doctor` proposes CLAUDE.md trims once a file grows unwieldy, and the model authors a new skill directly from a procedure brief. Every installed plugin's skill descriptions are also paid on every API call an always-on hermit makes, so the bar for a standing recommendation is high. If you want one of the retired plugins anyway, install it yourself and register a routine, or a session check for task-completion work, as described below.
 
 ---
 
@@ -57,22 +57,23 @@ See [Config Reference](config-reference.md#recommended_plugins-entry-schema) for
 
 ---
 
-## Scheduled Checks (Automatic Invocation)
+## Automatic Skill Invocation
 
-Hatch no longer seeds `scheduled_checks` for you — `config.json` starts with an empty list. Register any installed plugin's skill yourself with `/hermit-settings scheduled-checks`, either interval-triggered (runs during idle reflection) or session-triggered (runs at task completion):
+Periodic plugin checks use ordinary `config.json.routines` entries. For example:
+
+```json
+{"id":"my-check","schedule":"5 9 * * 1","skill":"claude-code-hermit:reflect --check-id my-check --check my-plugin:my-audit-skill","run_during_waiting":true,"enabled":true}
+```
+
+Manage these with `/hermit-settings routines`, then run `/claude-code-hermit:hermit-routines load`. Each fire evaluates that skill's findings through reflection gates; a quiet result creates no proposal. An optional pre-wake gate can skip the wake when a deterministic check finds no work. See [Routine Authoring](routine-authoring.md).
+
+**Session checks** run at task completion before the idle transition. Hatch starts `scheduled_checks` as an empty list. Use `/hermit-settings scheduled-checks` to list, enable, disable, remove, or add session entries:
 
 ```
-add <id> <plugin> <skill> interval [days]
 add <id> <plugin> <skill> session
 ```
 
-**Interval checks** run during idle reflection. If a check is due (past its `interval_days`), reflect invokes the skill, evaluates the output, and routes actionable findings through the proposal pipeline. One check per reflect cycle.
-
-**Session checks** run at completed task boundaries (before idle transition). All enabled session checks invoke once per task completion.
-
-**Interval tuning:** 3+ consecutive empty runs → propose increasing interval. 3+ actionable findings in a single run → propose decreasing. Always through PROP-NNN.
-
-**Managing checks:** `/hermit-settings scheduled-checks` to view, enable/disable, change intervals, or add checks for any installed plugin's skills. All checks are optional — disable or remove any time.
+All enabled session checks run once per task completion. Unavailable or failing skills are skipped so they do not block finalization. Both routines and session checks can be disabled or removed at any time.
 
 ---
 

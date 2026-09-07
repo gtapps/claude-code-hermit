@@ -11,11 +11,11 @@ description: >-
 # Source Scout
 
 Proactively discover and add new RSS/web sources to `feed-sources.md`. Complements `source-health`
-(removal) with discovery (addition). Can run on a schedule via `scheduled_checks`.
+(removal) with discovery (addition). Runs as the `source-scout` routine with `feed-hermit:source-scout --scheduled`.
 
 ## Flags
 
-- `--scheduled`: invoked by a scheduled check (non-interactive, no operator present). The security
+- `--scheduled`: invoked by its routine (non-interactive, no operator present). The security
   rule restricting automated WebFetch to domains already in `feed-sources.md` means the step-3 verification
   fetch cannot run — candidates are queued **unverified** for operator review instead of being auto-added.
 - No flag (default): interactive/on-demand (operator ran `/source-scout`). Full behavior — verify and

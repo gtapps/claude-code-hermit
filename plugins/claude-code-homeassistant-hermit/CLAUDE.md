@@ -46,7 +46,7 @@ REST docs: https://developers.home-assistant.io/docs/api/rest/ ; WebSocket docs:
 
 ## Routines
 
-`hatch` registers routines (`daily-ha-context`, `morning-brief`, `evening-brief`; unified vs legacy brief mode is decided at hatch time) and proposal-producing scheduled checks (`ha-patterns`, `ha-safety-audit`, `ha-integration-health`, `ha-update-check`, run by core's `scheduled-checks` routine via `reflect --scheduled-checks`) in `.claude-code-hermit/config.json`. Schedules live there, not here. Core's `hermit-routines load` activates them.
+`hatch` registers routines (`daily-ha-context`, `morning-brief`, `evening-brief`; unified vs legacy brief mode is decided at hatch time) and proposal-producing routines (`ha-patterns`, `ha-safety-audit`, `ha-integration-health`, `ha-update-check`, each invoking `reflect --check-id <id> --check <namespaced skill>`) in `.claude-code-hermit/config.json`. Schedules live there, not here. Core's `hermit-routines load` activates them.
 
 ## Hatch target routing
 

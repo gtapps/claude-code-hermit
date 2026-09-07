@@ -108,7 +108,7 @@ describe('hatch-config.ts', () => {
         { id: 'custom-routine', schedule: '0 5 * * *', skill: 'foo', enabled: true },
       ],
       scheduled_checks: [
-        { id: 'automation-recommender', plugin: 'claude-code-setup', skill: '/claude-code-setup:claude-automation-recommender', enabled: true, trigger: 'interval', interval_days: 7 },
+        { id: 'automation-recommender', plugin: 'claude-code-setup', skill: '/claude-code-setup:claude-automation-recommender', enabled: true, trigger: 'session' },
         { id: 'my-custom-check', plugin: 'my-plugin', skill: '/my-plugin:check', enabled: true, trigger: 'session' },
       ],
       channels: {

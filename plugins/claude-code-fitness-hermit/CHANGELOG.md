@@ -3,7 +3,19 @@
 ## [Unreleased]
 
 ### Changed
+- Weekly coaching analysis runs as a routine with a pre-wake trend gate. Core 1.3.3 is required.
 - Briefing composition uses existing voice preferences without a dedicated sign-off setting.
+
+### Upgrade Instructions
+
+1. Complete core's periodic-check conversion first.
+2. From the consumer project root, install the shipped gate, always overwriting the previous copy. `<fitness-plugin-root>` is this plugin's own installed root — the `install_path` the upgrade plan reports for `claude-code-fitness-hermit`, not core's plugin root and not `${CLAUDE_PLUGIN_ROOT}` (that token is not substituted in this file and is empty as a shell variable):
+   ```bash
+   install -m 755 "<fitness-plugin-root>/state-templates/bin/fitness-weekly-patterns-gate" .claude-code-hermit/bin/fitness-weekly-patterns-gate
+   ```
+   If the source file is not there, stop and report it — do not continue to step 3, which would point the routine at a gate that was never installed.
+3. Re-read `.claude-code-hermit/config.json`. On the `weekly-coaching-patterns` routine, set `precheck` to `.claude-code-hermit/bin/fitness-weekly-patterns-gate` and `precheck_timeout_s` to `60`. Preserve its schedule, skill, model, enabled state, and other operator fields. If absent, append the routine from hatch Step 7c without changing any other routine.
+4. Run `/claude-code-hermit:hermit-routines load`.
 
 ## [0.1.1] - 2026-08-31
 

@@ -1,6 +1,6 @@
 ---
 name: hatch
-description: One-time feed hermit setup. Seeds the source registry and FEEDS.md tone spec, configures brief slots/tone/enrichments, drops routine prompts, and wires routines + a source-scout scheduled check into config.json. Run once per project after /claude-code-hermit:hatch.
+description: One-time feed hermit setup. Seeds the source registry and FEEDS.md tone spec, configures brief slots/tone/enrichments, drops routine prompts, and wires routines including source-scout into config.json. Run once per project after /claude-code-hermit:hatch.
 disable-model-invocation: true
 ---
 
@@ -161,13 +161,15 @@ In the `routines` array, for each of these IDs that is **absent** (by `id`), add
 }
 ```
 
-### 6d — Merge scheduled_checks
+### 6d: Merge the source-scout routine
 
-In `config.scheduled_checks`, check for `id: "source-scout"`. If absent, append; if present, skip.
+Merge these entries into `config.routines` by id. Create the array if absent. Append each missing id; skip any existing id, preserving operator edits and all other config fields. No prompt is needed for these read-only analyses.
 
 ```json
-{"id": "source-scout", "plugin": "feed-hermit", "skill": "feed-hermit:source-scout", "enabled": true, "trigger": "interval", "interval_days": 30}
+{"id": "source-scout", "schedule": "5 9 1 * *", "skill": "feed-hermit:source-scout --scheduled", "run_during_waiting": true, "enabled": true}
 ```
+
+The monthly routine invokes unattended source discovery directly; candidates remain unverified for operator review.
 
 ### 6e — Register the brief archive
 
@@ -237,7 +239,7 @@ Installed skills:
   /feed-hermit:feed-brief      — the 7-phase brief pipeline (--morning|--evening|--slot)
   /feed-hermit:weekly-digest   — weekly synthesis + source performance
   /feed-hermit:add-source      — add a source (type inference + validation)
-  /feed-hermit:source-scout    — gap-driven source discovery (scheduled, interval_days: 30)
+  /feed-hermit:source-scout    — gap-driven source discovery (monthly routine)
   /feed-hermit:source-health   — dead-source + cost-efficiency audit
   /feed-hermit:story-arcs      — track developing stories
   /feed-hermit:deep-dive       — follow-up analysis on a briefed item

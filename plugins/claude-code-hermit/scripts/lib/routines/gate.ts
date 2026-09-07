@@ -144,6 +144,8 @@ function gateEnv(routineId: string, hermitDir: string, lastFired: string | null)
   };
   if (process.env.HOME) env.HOME = process.env.HOME;
   if (process.env.LANG) env.LANG = process.env.LANG;
+  if (process.env.CLAUDE_CONFIG_DIR !== undefined) env.CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR;
+  if (process.env.HERMIT_PLUGIN_ROOT !== undefined) env.HERMIT_PLUGIN_ROOT = process.env.HERMIT_PLUGIN_ROOT;
   return env;
 }
 

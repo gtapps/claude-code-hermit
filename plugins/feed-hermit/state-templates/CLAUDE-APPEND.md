@@ -22,7 +22,7 @@ Registry (`feed-sources.md`/`feed-categories.md`) and archive frontmatter are th
 
 ### Routines & Scheduled Checks
 
-Routines `feed-brief-morning`, `feed-brief-evening`, and `weekly-digest` run on their cron schedules; prompts live at `.claude-code-hermit/compiled/routine-*.md`, schedules and `enabled` state in `config.json`. The `source-scout` scheduled check runs via the core `scheduled-checks` routine and routes findings through the proposal pipeline.
+Routines `feed-brief-morning`, `feed-brief-evening`, and `weekly-digest` run on their cron schedules; prompts live at `.claude-code-hermit/compiled/routine-*.md`, schedules and `enabled` state in `config.json`. The `source-scout` routine runs unattended discovery and queues candidates for operator review.
 
 Feed skills and the `source-fetcher` subagent self-advertise through their own descriptions — no catalog is kept here. Entry point: `/feed-hermit:hatch` for setup.
 
