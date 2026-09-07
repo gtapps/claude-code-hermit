@@ -14,9 +14,8 @@
 // successful send, so a failed send always falls through to a normal model
 // turn — never "blocked prompt + failed send = silence".
 //
-// Near-miss bodies and mid-turn arrivals (which never reach UserPromptSubmit
-// at all — CC delivers them as steering on an in-flight turn) fall through
-// untouched: this hook only ever acts on an exact idle "/status" request.
+// Near-miss bodies fall through untouched. Mid-turn channel arrivals are queued
+// and run UserPromptSubmit individually (CC 2.1.263), including exact /status.
 
 import fs from 'node:fs';
 import path from 'node:path';

@@ -5,6 +5,8 @@
 // A single copy so the allowlist rule can't drift out of sync between callers.
 
 import { normalizeChannelSource } from './channel-envelope';
+import { cachedChat, cachedGuildRoles, lookupChat, lookupGuildRoles } from './channel-chats';
+import { escapeRegExp } from './md-write';
 
 type Json = any;
 
@@ -95,4 +97,56 @@ export function isTrustedController(
   // of empty values can never match either.
   const home = ch?.default_chat_id || ch?.dm_channel_id; // no list -> pinned-home binding
   return !!home && !!chatId && String(home) === String(chatId);
+}
+
+function passiveChats(config: Json, sourceKey: string): string[] {
+  const chats = channelEntry(config, sourceKey)?.passive_chats;
+  return Array.isArray(chats) ? chats : [];
+}
+
+/** Cache-only activity classification; an unseen thread is warmed by the reply stage. */
+export function isPassiveChatSync(hermitDir: string, config: Json, sourceKey: string, chatId: string): boolean {
+  const chats = passiveChats(config, sourceKey);
+  if (chats.includes(chatId)) return true;
+  if (!chats.length || normalizeChannelSource(sourceKey) !== 'discord') return false;
+  const parent = cachedChat(hermitDir, chatId)?.parent_id;
+  return !!parent && chats.includes(parent);
+}
+
+export async function isPassiveChat(hermitDir: string, config: Json, sourceKey: string, chatId: string): Promise<boolean> {
+  const chats = passiveChats(config, sourceKey);
+  if (chats.includes(chatId)) return true;
+  if (!chats.length || normalizeChannelSource(sourceKey) !== 'discord') return false;
+  const parent = (await lookupChat(hermitDir, config, chatId))?.parent_id;
+  return !!parent && chats.includes(parent);
+}
+
+function directMention(config: Json, sourceKey: string, body: string): boolean {
+  const { userId, username } = channelBotIdentity(config, sourceKey);
+  if (normalizeChannelSource(sourceKey) === 'discord') {
+    return [...body.matchAll(/<@!?(\d+)>/g)].some(match => match[1] === userId);
+  }
+  const handle = username?.replace(/^@/, '');
+  return !!((handle && new RegExp(`(?<![\\w@])@${escapeRegExp(handle)}(?!\\w)`, 'i').test(body))
+    || (userId && new RegExp(`(?<!\\d)${escapeRegExp(userId)}(?!\\d)`).test(body)));
+}
+
+export function isSelfMentionedSync(hermitDir: string, config: Json, sourceKey: string, chatId: string, body: string): boolean {
+  if (directMention(config, sourceKey, body)) return true;
+  if (normalizeChannelSource(sourceKey) !== 'discord') return false;
+  const mentions = [...body.matchAll(/<@&(\d+)>/g)];
+  if (!mentions.length) return false;
+  const guild = cachedChat(hermitDir, chatId)?.guild_id;
+  const roles = guild ? cachedGuildRoles(hermitDir, guild)?.role_ids : undefined;
+  return mentions.some(match => roles?.includes(match[1]) === true);
+}
+
+export async function isSelfMentioned(hermitDir: string, config: Json, sourceKey: string, chatId: string, body: string): Promise<boolean> {
+  if (directMention(config, sourceKey, body)) return true;
+  if (normalizeChannelSource(sourceKey) !== 'discord') return false;
+  const mentions = [...body.matchAll(/<@&(\d+)>/g)];
+  if (!mentions.length) return false;
+  const guild = (await lookupChat(hermitDir, config, chatId))?.guild_id;
+  const roles = guild ? (await lookupGuildRoles(hermitDir, config, guild))?.role_ids : undefined;
+  return mentions.some(match => roles?.includes(match[1]) === true);
 }

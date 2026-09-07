@@ -131,3 +131,48 @@ describe('isTrustedController — pinned-home anchor', () => {
     expect(isTrustedController(config, 'discord', 'ANYONE', 'HOME')).toBe(false);
   });
 });
+
+// Both predicate variants must agree once the reply stage has warmed the cache.
+import fs from 'node:fs';
+import path from 'node:path';
+import { setupWorkdir } from './helpers/workdir';
+import { isPassiveChat, isPassiveChatSync, isSelfMentioned, isSelfMentionedSync } from '../scripts/lib/channel-auth';
+
+test('passive predicates use listed ids and cached parents, with exact self-mentions', async () => {
+  const wd = setupWorkdir();
+  const dir = path.join(wd.dir, '.claude-code-hermit');
+  const config = { channels: {
+    discord: { passive_chats: ['parent'], bot_user_id: '123' },
+    telegram: { passive_chats: ['group'], bot_user_id: '123', bot_username: 'hermitbot' },
+  } };
+  try {
+    expect(isPassiveChatSync(dir, config, 'discord', 'parent')).toBe(true);
+    expect(isPassiveChatSync(dir, config, 'discord', 'thread')).toBe(false);
+    fs.writeFileSync(path.join(dir, 'state', 'channel-chats.json'), JSON.stringify({ discord: {
+      chats: { thread: { parent_id: 'parent', guild_id: 'guild', type: 11, fetched_at: new Date().toISOString() },
+        failed: { error: 403, fetched_at: new Date().toISOString() } },
+      guilds: { guild: { role_ids: ['456'], fetched_at: new Date().toISOString() } },
+    } }));
+    for (const predicate of [isPassiveChatSync, isPassiveChat]) {
+      expect(await predicate(dir, config, 'discord', 'parent')).toBe(true);
+      expect(await predicate(dir, config, 'discord', 'thread')).toBe(true);
+      expect(await predicate(dir, config, 'discord', 'failed')).toBe(false);
+      expect(await predicate(dir, config, 'telegram', 'thread')).toBe(false);
+      expect(await predicate(dir, { channels: { discord: { passive_chats: [] } } }, 'discord', 'thread')).toBe(false);
+    }
+    for (const predicate of [isSelfMentionedSync, isSelfMentioned]) {
+      for (const body of ['hello <@123>', 'hello <@!123>', 'hello <@&456>']) {
+        expect(await predicate(dir, config, 'discord', 'thread', body)).toBe(true);
+      }
+      for (const body of ['number 123 here', '<@1234>', '<@&789>', '@hermitbot']) {
+        expect(await predicate(dir, config, 'discord', 'thread', body)).toBe(false);
+      }
+      for (const body of ['hello @HermitBot!', '@hermitbot', 'id 123.']) {
+        expect(await predicate(dir, config, 'telegram', 'group', body)).toBe(true);
+      }
+      for (const body of ['@hermitbot_extra', '@hermitbotx', 'mail@hermitbot', 'id 1234']) {
+        expect(await predicate(dir, config, 'telegram', 'group', body)).toBe(false);
+      }
+    }
+  } finally { wd.cleanup(); }
+});

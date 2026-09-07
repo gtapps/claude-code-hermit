@@ -119,10 +119,18 @@ async function main(raw: string): Promise<void> {
   // 1-3. Audit and context. These run on every prompt, including during a
   // shutdown — the operator's message is still recorded and the reply reminder
   // still names the chat to answer on.
+  await stage('prompt-context', promptContext, ctx);
+  // The reminder stage runs BEFORE the audit: it resolves passive-chat membership
+  // and self-mention over the network and warms lib/channel-chats.ts's cache, which
+  // record-operator-action's cache-only gate then reads. Auditing first misclassified
+  // the first message in an unseen Discord thread in both directions — stranger
+  // chatter froze the operator-silence clock, and a role mention the hermit did
+  // answer never advanced it (issue #835's failure). A passive block settles the
+  // disposition here too, so stage() skips the audit: chatter the model never sees
+  // is not operator activity.
+  await stage('channel-reply-reminder', channelReplyReminder, ctx);
   await stage('record-operator-action',
     () => { operatorActivityKept = recordOperatorAction(prompt, { envelope: ctx.envelope, config: ctx.config() }, { openTurn: false, sessionId }); }, ctx);
-  await stage('prompt-context', promptContext, ctx);
-  await stage('channel-reply-reminder', channelReplyReminder, ctx);
 
   // Guest chat still receives context, but cannot control the resident.
   if (isGuest(path.join(dir, 'state'), sessionId)) return;

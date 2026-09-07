@@ -12,6 +12,14 @@ import path from 'node:path';
 
 type Json = any;
 
+/** Resolve plugin state using the same environment override as the token reader. */
+export function channelStateDir(hermitDir: string, channelName: string, channelCfg: Json): string {
+  const stateDirEnv = process.env[`${channelName.toUpperCase()}_STATE_DIR`];
+  let stateDir = stateDirEnv || channelCfg?.state_dir || path.join('.claude.local', 'channels', channelName);
+  if (!path.isAbsolute(stateDir)) stateDir = path.join(hermitDir, '..', stateDir);
+  return stateDir;
+}
+
 /**
  * Read a channel's bot token from its `state_dir/.env`. `varName` defaults to
  * `<NAME>_BOT_TOKEN`. Handles `export `-prefixed lines, `#` comment lines, and
@@ -23,9 +31,7 @@ export function readChannelToken(
   channelCfg: Json,
   varName?: string,
 ): string | null {
-  const stateDirEnv = process.env[`${channelName.toUpperCase()}_STATE_DIR`];
-  let stateDir = stateDirEnv || channelCfg?.state_dir || path.join('.claude.local', 'channels', channelName);
-  if (!path.isAbsolute(stateDir)) stateDir = path.join(hermitDir, '..', stateDir);
+  const stateDir = channelStateDir(hermitDir, channelName, channelCfg);
   const envPath = path.join(stateDir, '.env');
   const key = varName || `${channelName.toUpperCase()}_BOT_TOKEN`;
 
