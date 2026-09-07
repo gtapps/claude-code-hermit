@@ -135,7 +135,7 @@ Full schema in the [Config Reference](docs/config-reference.md)
 
 ## Observe
 
-The dashboard, proposals page, and weekly review stay current at stable URLs through [Claude Code Artifacts](https://code.claude.com/docs/en/artifacts). You can also publish through your own connected artifact server.
+**Artifacts.** The agent uses [Claude Code Artifacts](https://code.claude.com/docs/en/artifacts) to provide an interactive dashboard and custom pages generated on demand that you can view, interact with, and share. Ask it to build your own personalized agent dashboard.
 
 Ask for an update from your terminal or connected chat:
 
@@ -148,8 +148,6 @@ Ask for an update from your terminal or connected chat:
 | `/hermit-evolution` | Cost trends, proposal activity, routines, and what the agent has produced over time. |
 | `/cost-reflect` | A breakdown of usage by token type, session, and what triggered the work. |
 | `/hermit-dashboard-design` | A dashboard designed around what your agent actually tracks. |
-
-The dashboard can focus on research, training, home automation, or whatever the agent is responsible for. Its renderer rebuilds the page from saved state on refresh. See [Artifacts](docs/artifacts.md) for publishing and customization.
 
 ## Learning loop
 
@@ -185,6 +183,8 @@ a lesson    a change
 
 Reflection runs at eligible task or session pauses, daily, and after routines configured to reflect. Approved changes can start now, become a task, or be left for manual implementation. Proposals are resolved when verification passes or later evidence shows the problem is gone.
 
+**Follow-up verification.** The agent checks whether a fix or prediction held up over time. For example: “`/later` check tomorrow whether those errors have returned.”
+
 ## Cost
 
 Usage depends on the work you assign and the routines you enable. Quiet heartbeats and routine prechecks run outside the model with Monitor scheduling; skipped runs use no model tokens. Routines due together can share a wake, and context management limits the history carried into later turns.
@@ -199,8 +199,8 @@ See [budgets](docs/config-reference.md#budget) and [routine scheduling](docs/rou
 
 Reach the running agent through your connected channels or Claude Code Remote Control. You can also start separate sessions for additional work:
 
-- **[`/spawn-session`](skills/spawn-session/SKILL.md)** starts a background helper in its own Git worktree, watches it, and relays its report. Add `--rc` to pick up the helper from the Claude app.
-- **[`/rc-gate`](skills/rc-gate/SKILL.md)** opens a gate for starting new sessions from the Claude app or web interface. Each gets its own Git worktree; cleanup removes worktrees left by archived sessions while preserving uncommitted work.
+- **Background sessions with follow-up.** Through [`/spawn-session`](skills/spawn-session/SKILL.md), the agent launches a local Claude Code helper in its own Git worktree and relays its status when it becomes idle.
+- **Local [Remote Control](https://code.claude.com/docs/en/remote-control) gate.** Through [`/rc-gate`](skills/rc-gate/SKILL.md), the agent manages a Remote Control server on your machine or server. While the gate is open, you can spawn new Claude Code sessions from the Claude app, using your local files and tools. Each session gets its own Git worktree, while the agent keeps running.
 
 Both session-spawning paths require a Git workspace. Remote Control requires a Claude sign-in through `/login` on the machine running the agent.
 
