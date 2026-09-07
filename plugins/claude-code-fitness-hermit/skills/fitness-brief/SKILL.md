@@ -67,7 +67,7 @@ orientation — a custom `--slot` follows whichever branch matches its resolved 
    gathering further data; compose from whatever was already gathered.
 
 3. **Compose.** You have the digest from steps 1–2, the operator's voice (`agent_name`,
-   `sign_off`, `operator_profile`, `language` in `config.json` — the same voice every other
+   `voice`, `operator_profile`, `language` in `config.json` — the same voice every other
    channel message uses), and the goal below. Write toward the goal; there is no required
    template.
    - **Morning goal:** give the operator what's worth knowing and doing today — recent

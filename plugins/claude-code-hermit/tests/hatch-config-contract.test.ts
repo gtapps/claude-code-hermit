@@ -46,8 +46,8 @@ describe('hatch-config.ts', () => {
         slug: 'claude-code-dev-hermit',
         boot_skill: '/claude-code-dev-hermit:dev-boot',
       },
-      agent_name: 'Aria', language: 'en', timezone: 'Europe/London', sign_off: 'Aria out.',
-      escalation: 'balanced', remote: true, idle_behavior: 'discover', permission_mode: 'auto',
+      agent_name: 'Aria', language: 'en', timezone: 'Europe/London',
+      escalation: 'balanced', remote: true, permission_mode: 'auto',
       routines: { enabled: true, morning_time: '08:30', evening_time: '22:30' },
       channels: { discord: { enabled: true, allowed_users: ['12345'], morning_brief_time: '07:00' } },
     };
@@ -58,8 +58,8 @@ describe('hatch-config.ts', () => {
     const expected = {
       ...template,
       tmux_session_name: 'hermit-my-project',
-      agent_name: 'Aria', language: 'en', timezone: 'Europe/London', sign_off: 'Aria out.',
-      escalation: 'balanced', operator_profile: 'technical', remote: true, idle_behavior: 'discover', permission_mode: 'auto',
+      agent_name: 'Aria', language: 'en', timezone: 'Europe/London',
+      escalation: 'balanced', operator_profile: 'technical', remote: true, permission_mode: 'auto',
       boot_skill: '/claude-code-dev-hermit:dev-boot',
       _hermit_versions: { 'claude-code-hermit': CORE_VERSION },
       routines: [
@@ -74,6 +74,8 @@ describe('hatch-config.ts', () => {
 
     const onDisk = JSON.parse(fs.readFileSync(configPathFor(dir), 'utf8'));
     expect(onDisk).toEqual(expected);
+    expect(onDisk).not.toHaveProperty('sign_off');
+    expect(onDisk).not.toHaveProperty('idle_behavior');
     expect(JSON.parse(r.stdout)).toEqual(expected);
   });
 
@@ -187,24 +189,19 @@ describe('hatch-config.ts', () => {
 
   test('re-init: explicit null overlay clears an existing scalar value', async () => {
     const dir = freshDir();
-    const seed = { ...JSON.parse(fs.readFileSync(TEMPLATE_PATH, 'utf8')), sign_off: 'previous sign-off' };
+    const seed = { ...JSON.parse(fs.readFileSync(TEMPLATE_PATH, 'utf8')), agent_name: 'previous name' };
     seedConfig(dir, seed);
-    const r = await runHatchConfig(dir, { sign_off: null }, true);
+    const r = await runHatchConfig(dir, { agent_name: null }, true);
     expect(r.exitCode).toBe(0);
     const out = JSON.parse(fs.readFileSync(configPathFor(dir), 'utf8'));
-    expect(out.sign_off).toBeNull();
+    expect(out.agent_name).toBeNull();
   });
 
-  test('invalid remote/idle_behavior values are rejected by validate(config); no file written', async () => {
-    for (const answers of [
-      { project_name: 'x', remote: 'yes' },
-      { project_name: 'x', idle_behavior: 'bogus' },
-    ]) {
-      const dir = freshDir();
-      const r = await runHatchConfig(dir, answers);
-      expect(r.exitCode).not.toBe(0);
-      expect(fs.existsSync(configPathFor(dir))).toBe(false);
-    }
+  test('invalid remote values are rejected by validate(config); no file written', async () => {
+    const dir = freshDir();
+    const r = await runHatchConfig(dir, { project_name: 'x', remote: 'yes' });
+    expect(r.exitCode).not.toBe(0);
+    expect(fs.existsSync(configPathFor(dir))).toBe(false);
   });
 
   test('permission_mode is NOT enum-checked — an unrecognized value still passes (documented boundary)', async () => {

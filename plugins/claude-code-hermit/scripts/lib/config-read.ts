@@ -8,7 +8,7 @@
 //   - missing file / unreadable / malformed JSON / non-object  -> all defaults
 //   - nullable scalar (template value null): malformed or ""    -> null
 //   - non-nullable scalar: malformed                            -> template default
-//   - enum-ish strings (escalation, idle_behavior, ...): any non-empty string
+//   - enum-ish strings (escalation, ...): any non-empty string
 //     passes through — membership stays advisory in validate-config.ts, so
 //     custom operator modes are never erased
 //   - nested blocks: wrong-typed block -> default block; well-typed block is
@@ -60,7 +60,6 @@ const TABLE: Record<string, Spec> = {
   timezone: str(null),
   escalation: str('balanced'),
   operator_profile: str('technical'),
-  sign_off: str(null),
   voice: shape({ style: str(null), prose: str(null) }),
   channels: map,
   remote: bool(true),
@@ -74,7 +73,6 @@ const TABLE: Record<string, Spec> = {
   chrome: bool(false),
   push_notifications: bool(true),
   ask_gate: bool(true),
-  idle_behavior: str('discover'),
   routines: arr,
   monitors: arr,
   env: map,

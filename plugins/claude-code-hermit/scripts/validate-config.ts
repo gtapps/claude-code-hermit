@@ -34,7 +34,6 @@ const REQUIRED_KEYS: Record<string, string[]> = {
 const VALID_ESCALATION = ENUM.ESCALATION;
 const VALID_QUALITY_GATE_TIER = ENUM.QUALITY_GATE_TIER;
 const VALID_ROUTINE_MODEL = ENUM.ROUTINE_MODEL;
-const VALID_IDLE_BEHAVIOR = ENUM.IDLE_BEHAVIOR;
 const VALID_OPERATOR_PROFILE = ENUM.OPERATOR_PROFILE;
 const VALID_BUDGET_ACTION = ENUM.BUDGET_ACTION;
 const VALID_VOICE_STYLE: readonly string[] = ENUM.VOICE_STYLE;
@@ -155,12 +154,6 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
   if (config.auth_mode !== undefined && config.auth_mode !== null) {
     if (config.auth_mode !== 'login' && config.auth_mode !== 'token') {
       errors.push(`auth_mode: "${config.auth_mode}" not in [login, token]`);
-    }
-  }
-
-  if (config.idle_behavior !== undefined && config.idle_behavior !== null) {
-    if (!VALID_IDLE_BEHAVIOR.includes(config.idle_behavior)) {
-      errors.push(`idle_behavior: "${config.idle_behavior}" not in [${VALID_IDLE_BEHAVIOR.join(', ')}]`);
     }
   }
 

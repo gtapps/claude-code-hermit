@@ -133,7 +133,6 @@ const DEFAULT_CONFIG: Json = {
   timezone: null,
   escalation: 'balanced',
   operator_profile: 'technical',
-  sign_off: null,
   voice: { style: null, prose: null },
   channels: {},
   remote: true,
@@ -147,7 +146,6 @@ const DEFAULT_CONFIG: Json = {
   chrome: false,
   push_notifications: true,
   ask_gate: true,
-  idle_behavior: 'discover',
   routines: [
     { id: 'heartbeat-restart', schedule: '0 4 * * *', skill: 'claude-code-hermit:hermit-routines load', run_during_waiting: true, enabled: true },
     { id: 'reflect', schedule: '0 9 * * *', skill: 'claude-code-hermit:reflect', enabled: true },

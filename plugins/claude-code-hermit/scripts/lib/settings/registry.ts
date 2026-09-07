@@ -15,7 +15,7 @@
 // because `show` must render it, but the skill keeps its prose too — changing it
 // retranslates `state/artifact-strings.json`, which no table can express.
 
-import { AUTH_MODE, ESCALATION, IDLE_BEHAVIOR, PERMISSION_MODE, QUALITY_GATE_TIER, VOICE_STYLE } from './enums';
+import { AUTH_MODE, ESCALATION, PERMISSION_MODE, QUALITY_GATE_TIER, VOICE_STYLE } from './enums';
 
 export type Kind = 'string' | 'boolean' | 'enum' | 'int';
 
@@ -49,8 +49,6 @@ export const SETTINGS: readonly Setting[] = [
     label: 'Timezone', hint: 'IANA tz (UTC, Europe/Lisbon, America/New_York)' },
   { arg: 'escalation', path: 'escalation', kind: 'enum', values: ESCALATION, group: 'Identity',
     label: 'Escalation', hint: 'how much it acts without asking' },
-  { arg: 'sign-off', path: 'sign_off', kind: 'string', nullable: true, group: 'Identity',
-    label: 'Sign-off', hint: "closing line on channel messages, or 'none'" },
   // `custom` needs voice.prose written first and renders a file, so the skill keeps
   // its own branch — but the row is real: `show` renders it, and `apply-known voice
   // <style>` is how the branch writes a built-in.
@@ -74,8 +72,6 @@ export const SETTINGS: readonly Setting[] = [
   { arg: 'permissions', path: 'permission_mode', kind: 'enum', values: PERMISSION_MODE,
     group: 'Operational', label: 'Permission mode', hint: 'how much Claude Code asks before acting',
     applies: 'next hermit-start' },
-  { arg: 'idle', path: 'idle_behavior', kind: 'enum', values: IDLE_BEHAVIOR, group: 'Operational',
-    label: 'Idle behavior', hint: 'discover work between tasks, or wait' },
   { arg: 'push-notifications', path: 'push_notifications', kind: 'boolean', group: 'Operational',
     label: 'Push notifications', hint: 'doorbell when no channel is reachable' },
   { arg: 'quality-gate', path: 'quality_gate.tier', kind: 'enum', values: QUALITY_GATE_TIER,

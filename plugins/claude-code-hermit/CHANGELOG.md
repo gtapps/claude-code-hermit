@@ -7,6 +7,7 @@
 - Deferred model and effort switching through `/when-done-switch-to` and the `arm-harness-switch` verb.
 
 ### Changed
+- Sign-off and Discover/Wait settings are no longer collected or advertised; scheduling and operator-authored communication preferences are unchanged.
 - Native `/simplify` replaces the plugin cleanup skill; proposal quality gates report a brief cleanup outcome without custom totals.
 - `peer-post.ts` requires message text as an argument and no longer reads stdin.
 

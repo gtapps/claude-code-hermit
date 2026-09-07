@@ -158,8 +158,6 @@ The hermit reflects on its own memory — not by scanning old reports. It notice
 
 It checks for incoming tasks and channel messages, and — on an always-on hermit — picks up an accepted proposal left in `NEXT-TASK.md`, gated by `escalation`: `conservative` notifies you and waits, `balanced` and `autonomous` start it. Reflection runs on its own `reflect` schedule rather than on idleness.
 
-The `idle_behavior` setting (`"discover"` / `"wait"`) is reserved and currently makes no difference: both values behave as described above. `"discover"` used to add a priority-alignment pass against OPERATOR.md and the cost log; that pass was removed when idle pickup moved into the heartbeat tick.
-
 ---
 
 ## What are scheduled checks?
