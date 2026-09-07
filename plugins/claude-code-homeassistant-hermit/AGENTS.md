@@ -18,3 +18,5 @@ Read [SAFETY.md](SAFETY.md) before changing these gates. `src/cli.ts` and `bin/h
 The plugin suite needs full Git history and Python with `python-dotenv` and `PyYAML` for test fixtures, although shipped code is TypeScript. Set `GATE_PARITY_PYTHON` when that interpreter is outside PATH. The setup is recorded in the repository's `.github/workflows/test-ha.yml`.
 
 Changes to `src/policy.ts` or `hooks/mcp-safety-gate.ts` must preserve the corpus/golden behavior in `tests/gate-corpus.test.ts` and the fail-closed properties in `tests/gate-fuzz.test.ts`. Keep YAML parity and apply-result verification intact; a successful tool call alone is not proof that the intended automation was installed.
+
+When using `tmpPath()` from `tests/helpers.ts`, register `afterAll(cleanupTmp)`. Cleanup after each test can delete fixtures still used by concurrent tests. Keep independent corpus and fuzz subprocess work asynchronous.

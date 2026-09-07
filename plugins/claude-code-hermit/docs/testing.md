@@ -13,7 +13,7 @@ Bun 1.4 also supports isolated file workers and per-file timing reports:
 
 ```bash
 bun test tests/lockfile.test.ts
-bun test --parallel=4 --timings=/tmp/hermit-core-test-timings.json --update-timings
+bun test --parallel=2 --timings=/tmp/hermit-core-test-timings.json --update-timings
 ```
 
 The timing file records file durations and lets subsequent runs schedule slow

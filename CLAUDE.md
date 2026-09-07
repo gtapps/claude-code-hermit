@@ -6,7 +6,7 @@ Always launch Claude Code from this repo's root. A plugin dir's own `.claude-plu
 
 ## Conventions
 
-- **Tests run from inside the plugin dir** (`bun test` for core, HA, and Feed; `bash tests/run-all.sh` for Dev, Fitness, Forge, and Scribe). Helpers use CWD-relative paths and break from repo root.
+- **Repository-wide tests:** use `bun run test` from the root with Bun 1.4 or newer. It handles plugin working directories, bounded parallelism, and shared root tests. For narrower changes, run the documented suite inside the plugin dir (`bun test` for core, HA, and Feed; `bash tests/run-all.sh` for Dev, Fitness, Forge, and Scribe).
 - **Independent versioning, tag `<slug>--v<X.Y.Z>`.** Domain plugins declare core compat as `required_core_version: ">=X.Y.Z"` in `.claude-plugin/hermit-meta.json`, mirrored by `requires` there and `dependencies` in `plugin.json`; `required_core_version` is what `doctor-check.ts` reads. Update all three together. All hermit-internal manifest extensions (`hermit.*`) live in hermit-meta.json.
 - **CC-version-gated work bumps the floor, never shims around it.** When a change depends on Claude Code behavior introduced at a version, raise that plugin's `min_claude_code_version` in hermit-meta.json; no feature detection or fallback paths for older CC.
 - **Dependency direction is one-way**: domain plugins depend on core; core never imports a sibling, hardcodes a sibling slug in logic, or branches on one being installed. It discovers siblings generically (name-contains-`hermit`) and consumes only what they declare in `hermit-meta.json`. Siblings can't import core either: shared logic ships as a `hermit-run` verb behind a `required_core_version` floor.
