@@ -74,6 +74,6 @@ The plugin shipped no agents and no `scripts/lib/` after v0.3.0 — see CHANGELO
 ## What to Avoid
 
 - Adding npm dependencies or build steps
-- Skills that duplicate Claude Code native features (`/code-review`, `/batch`, `/debug`, Explore subagent) or the plugin-owned `/claude-code-hermit:simplify` cleanup pass
+- Skills that duplicate Claude Code native features (`/code-review`, `/simplify`, `/batch`, `/debug`, Explore subagent)
 - Hooks that activate below their intended profile level
 - Large refactors without prior discussion

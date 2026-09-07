@@ -38,7 +38,7 @@ On a channel-tagged turn, every free-form `Ask:` prompt below is delivered via t
 /claude-code-hermit:hermit-settings docker           — view Docker packages (read-only); edit recommended plugins
 /claude-code-hermit:hermit-settings scheduled-checks    — manage scheduled plugin skill checks
 /claude-code-hermit:hermit-settings boot-skill       — view/clear/change the always-on boot skill
-/claude-code-hermit:hermit-settings quality-gate     — set post-implementation /claude-code-hermit:simplify gate tier (budget|balanced|quality)
+/claude-code-hermit:hermit-settings quality-gate     — set post-implementation /simplify gate tier (budget|balanced|quality)
 /claude-code-hermit:hermit-settings reflection       — tune graduation threshold (graduation_min_sessions)
 /claude-code-hermit:hermit-settings push-notifications — toggle PushNotification doorbell (fires when no channel is enabled or a configured channel is unreachable)
 /claude-code-hermit:hermit-settings artifact-dashboard — toggle the Hermit Dashboard artifact (single-URL status/proposals/weekly-evolution page)
@@ -386,18 +386,18 @@ Note: "Channel changes take effect on next `hermit-start` run. `channels.primary
 
 **Interactive (terminal) turn:** Ask the operator via `AskUserQuestion` to pick a tier. Show the current value in brackets if `quality_gate.tier` is set.
 
-Prompt: *"Quality-gate tier for accepted-proposal auto-implementations. Controls whether `/claude-code-hermit:simplify` (cleanup pass) runs at step (e.5) of `/proposal-act`."*
+Prompt: *"Quality-gate tier for accepted-proposal auto-implementations. Controls whether `/simplify` (cleanup pass) runs at step (e.5) of `/proposal-act`."*
 
 Options:
-- **Budget** (default; recommended): `/claude-code-hermit:simplify` never runs. Cheapest. No post-implementation cleanup.
-- **Balanced**: make an inline RUN/SKIP decision on each implementation from the proposal category and touched files (no subagent) — RUN triggers `/claude-code-hermit:simplify`, SKIP doesn't. Costs one `/claude-code-hermit:simplify` run when the decision is RUN.
-- **Quality**: `/claude-code-hermit:simplify` runs on every implementation, no judgment. One `/claude-code-hermit:simplify` run per implementation.
+- **Budget** (default; recommended): `/simplify` never runs. Cheapest. No post-implementation cleanup.
+- **Balanced**: make an inline RUN/SKIP decision on each implementation from the proposal category and touched files (no subagent) — RUN triggers `/simplify`, SKIP doesn't. Costs one `/simplify` run when the decision is RUN.
+- **Quality**: `/simplify` runs on every implementation, no judgment. One `/simplify` run per implementation.
 
 Run `settings-edit ... set quality_gate.tier <chosen>` (creates the `quality_gate` object if missing; a legacy `enabled` sibling is preserved untouched — skill behavior reads `tier` only).
 
 **Channel-tagged turn:** send the same prompt via the channel reply tool with the three tiers numbered (Budget/Balanced/Quality, same descriptions as above), AND queue a pending micro-proposal entry per `reflect` § Queuing procedure: `options: ["budget", "balanced", "quality"]`, `tier: 1`, `on_resolve: "/claude-code-hermit:hermit-settings quality-gate --answer {answer}"`. If invoked as `quality-gate --answer <tier>` (channel-responder resolving that entry), skip the ask and run `settings-edit ... set quality_gate.tier <tier>` directly, then confirm via channel.
 
-Note: if you commit autonomous-implementation diffs through a skill that already runs `/claude-code-hermit:simplify` before committing, consider **Budget** — any non-Budget tier here would run the cleanup pass twice per committed implementation.
+Note: if you commit autonomous-implementation diffs through a skill that already runs `/simplify` before committing, consider **Budget** — any non-Budget tier here would run the cleanup pass twice per committed implementation.
 
 **If argument is "history":**
 Run `settings-edit ... history [dotted.path] [--limit N]` (the operator may name a setting: "history heartbeat"). Relay the rows in the operator's language, naming who made each change — `settings-edit` is an operator edit, `hermit-evolve` a change an upgrade made, `evolve-finalize` an upgrade's version stamp alone, `channel-hook` a channel the hermit learned, `hermit-start`/`hermit-stop` a boot flip. In a channel reply, drop the dotted paths and script names for plain language ("the heartbeat interval went from 2h to 30m on the 18th"). An empty ledger means nothing has changed since the audit trail started, not that the setting is unset.

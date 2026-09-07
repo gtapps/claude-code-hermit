@@ -18,7 +18,7 @@ Tests: `bash tests/run-all.sh` runs the structural lint plus every `scripts/*.te
 - **Profiles.** `AGENT_HOOK_PROFILE` is `minimal`/`standard`/`strict`; `git-push-guard` exits 0 immediately unless `strict`. `/hatch` defaults to strict, offers an explicit opt-out, and re-runs never silently downgrade an existing strict install.
 - **Safety rules live in the rendered CLAUDE-APPEND block**, applied to whatever agent the operator uses; the plugin ships no implementer agent. `git-push-guard` backs §Git Safety at strict.
 - **Session state** is core's `.claude-code-hermit/state/runtime.json`. SHELL.md `Status:` is cosmetic; never read it programmatically.
-- **Native surfaces first.** `/code-review` and `/claude-code-hermit:simplify` already cover review and cleanup; CLAUDE-APPEND links to them rather than reimplementing. (`/debug` toggles Claude Code session debug logging, not code debugging.)
+- **Native surfaces first.** `/code-review` and `/simplify` already cover review and cleanup; CLAUDE-APPEND links to them rather than reimplementing. (`/debug` toggles Claude Code session debug logging, not code debugging.)
 
 ## Hatch target routing
 

@@ -7,12 +7,17 @@
 - Deferred model and effort switching through `/when-done-switch-to` and the `arm-harness-switch` verb.
 
 ### Changed
+- Native `/simplify` replaces the plugin cleanup skill; proposal quality gates report a brief cleanup outcome without custom totals.
 - `peer-post.ts` requires message text as an argument and no longer reads stdin.
 
 ### Fixed
 - Stdin hang in `routines.ts finish` and `proposal.ts patch`: stdin is read only behind the explicit `--outcome-stdin` and `--stdin` flags; a heredoc without the flag is ignored.
 - `covered-by-memory` suppression in `proposal-triage` now requires a memory that records an operator decision: frontmatter `type` `feedback` or `project`, read at the top level or under `metadata:`, with untyped files falling back to their `feedback_`/`project_` filename prefix. A `reference` or `user` memory can be cited but no longer suppresses, so a probe verdict saved minutes earlier stops blocking the proposal that would act on it.
 - Step 5's precondition reads "no `covered-by-memory` suppression" instead of "no memory match", so a candidate that matches a `reference` memory still goes through the three-condition rule.
+
+### Upgrade Instructions
+
+Replace `/claude-code-hermit:simplify` calls in operator-authored workflows with `/simplify`. Preserve custom targets and workflow instructions. Personal or project skills named `simplify` still take precedence over the native command; keep or remove those overrides according to operator preference.
 
 ## [1.3.2] - 2026-09-06
 

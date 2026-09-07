@@ -85,5 +85,5 @@ Tier mapping:
 - Pre-wrap quality gate: `/claude-code-dev-hermit:dev-quality`
 - Open the PR: `/claude-code-dev-hermit:dev-pr`
 <!-- /mode:standard-only -->
-- Cleanup pass: `/claude-code-hermit:simplify` (parallel reviewers, applies its own edits)
+- Cleanup pass: `/simplify` (parallel reviewers, applies its own edits)
 <!-- /claude-code-dev-hermit: Development Workflow -->

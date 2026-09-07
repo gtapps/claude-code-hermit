@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Native `/simplify` supplies the cleanup pass for `/dev-quality`, followed by the configured tests and a brief outcome summary.
+
+### Upgrade Instructions
+
+Run `/claude-code-dev-hermit:hatch` to refresh the managed Dev instruction block. Preserve custom guidance outside that block. Replace `/claude-code-hermit:simplify` calls in operator-authored workflows with `/simplify`.
+
 ## [0.4.13] - 2026-09-06
 
 ### Changed

@@ -9,7 +9,6 @@ rc=0
 bun "$SCRIPT_DIR/skill-structure.test.ts" || rc=$?
 bun "$SCRIPT_DIR/hatch-mode.test.ts" || rc=$?
 bun "$SCRIPT_DIR/forge-awareness.test.ts" || rc=$?
-bun "$SCRIPT_DIR/simplify-totals-contract.test.ts" || rc=$?
 
 while IFS= read -r f; do
   bun "$f" || rc=$?

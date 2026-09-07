@@ -80,7 +80,7 @@ To close the session entirely, the operator runs `/claude-code-hermit:session-cl
 
 ## Notes
 
-- This skill does NOT prescribe a specific quality workflow (no tests, no /claude-code-hermit:simplify). Those belong to domain-specific session skills.
+- This skill does NOT prescribe a specific quality workflow (no tests, no /simplify). Those belong to domain-specific session skills.
 - If you discover something worth operationalizing during work, use `/claude-code-hermit:proposal-create`.
 - For watching recurring checks during a session, use `/claude-code-hermit:watch`.
 - Check session status anytime with `/claude-code-hermit:brief`.

@@ -47,7 +47,7 @@ If anything suspicious appears, pause and ask the user before continuing.
 
 ### 2. Run /simplify on the change
 
-Invoke the `simplify` skill, scoped to the paths from step 0 (the change about to be committed). It runs three reviewers in parallel and applies the surviving edits to the working tree, so the tidied version is what gets recorded — no "fix typo" follow-up commit a minute later.
+Invoke native `/simplify`, scoped to the paths from step 0 (the change about to be committed). Wait for completion before continuing.
 
 This is not optional and has no diff-size or file-type exemption: a markdown-only change, a one-line fix, and a 300-line refactor all get the pass. Skip it only when the user explicitly passes `--no-simplify` or says in so many words to skip the cleanup — never on your own judgement that the diff looks too small or too trivial to be worth it.
 

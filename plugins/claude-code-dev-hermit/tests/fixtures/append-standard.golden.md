@@ -74,5 +74,5 @@ Tier mapping:
 - Mid-task test run + cache warm: `/claude-code-dev-hermit:dev-test`
 - Pre-wrap quality gate: `/claude-code-dev-hermit:dev-quality`
 - Open the PR: `/claude-code-dev-hermit:dev-pr`
-- Cleanup pass: `/claude-code-hermit:simplify` (parallel reviewers, applies its own edits)
+- Cleanup pass: `/simplify` (parallel reviewers, applies its own edits)
 <!-- /claude-code-dev-hermit: Development Workflow -->
