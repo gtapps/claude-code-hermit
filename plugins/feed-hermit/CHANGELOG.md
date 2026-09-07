@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.7] - 2026-09-07
 
 ### Changed
 - Resident duties are installed in RESIDENT.md while shared rules remain in the CLAUDE file.
