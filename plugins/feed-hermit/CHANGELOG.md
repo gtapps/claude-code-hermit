@@ -3,9 +3,12 @@
 ## [Unreleased]
 
 ### Changed
+- Resident duties are installed in RESIDENT.md while shared rules remain in the CLAUDE file.
 - Monthly source discovery runs as an unattended routine, with candidates queued for operator review. Core 1.3.3 is required.
 
 ### Upgrade Instructions
+
+Run `.claude-code-hermit/bin/hermit-run domain-hatch sync-block feed-hermit` from the project root to install the resident section in `.claude-code-hermit/RESIDENT.md`. Then restart with `.claude-code-hermit/bin/hermit-start --resume`.
 
 1. Complete core's periodic-check conversion first.
 2. Re-read `.claude-code-hermit/config.json`. If the `source-scout` routine's skill carries the `claude-code-hermit:reflect` wrapper, replace only its `skill` with `feed-hermit:source-scout --scheduled`. Preserve its schedule, model, enabled state, and other operator fields. Leave an existing custom skill unchanged.

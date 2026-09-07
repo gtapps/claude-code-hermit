@@ -139,7 +139,7 @@ if (verb === 'sync-block') {
   if (rest.length && rest.join(' ') !== '--rendered-stdin') {
     die('unexpected_args', `sync-block takes only an optional --rendered-stdin: ${rest.join(' ')}`);
   }
-  const [{ planBlock, applyBlock }, { readTargetState, targetFile }, { resolvePlugin, isResolveError, pluginList }, { coreScope }] =
+  const [{ planBlock, applyBlock, splitResident, planResidentRemoval }, { readTargetState, targetFile }, { resolvePlugin, isResolveError, pluginList }, { coreScope }] =
     await Promise.all([
       import('./lib/domain-hatch/block'),
       import('./lib/domain-hatch/target'),
@@ -160,11 +160,35 @@ if (verb === 'sync-block') {
     .map((e: any) => String(e?.id ?? '').split('@')[0])
     .filter((n: string) => n && n !== pluginId);
 
-  const result = applyBlock(
-    planBlock(resolved.installPath, pluginId, path.join(projectRoot, targetFile(state.target)), foreign, rendered),
-  );
-  out(result);
-  process.exit(result.ok ? 0 : 1);
+  const target = path.join(projectRoot, targetFile(state.target));
+  const original = planBlock(resolved.installPath, pluginId, target, foreign, rendered);
+  if (['no-template', 'no-marker', 'needs-rendering', 'ambiguous'].includes(original.action)) {
+    const result = applyBlock(original);
+    out(result);
+    process.exit(1);
+  }
+  const template = rendered ?? await Bun.file(path.join(resolved.installPath, 'state-templates', 'CLAUDE-APPEND.md')).text();
+  const split = splitResident(template);
+  const shared = planBlock(resolved.installPath, pluginId, target, foreign, split.shared, rendered !== undefined);
+  const residentPath = path.join(stateDir, 'RESIDENT.md');
+  const resident = split.resident
+    ? planBlock(resolved.installPath, pluginId, residentPath, foreign, split.resident, rendered !== undefined)
+    : planResidentRemoval(original, residentPath, foreign);
+  if (resident.action === 'ambiguous') {
+    out({ ...applyBlock(resident), resident: resident.action });
+    process.exit(1);
+  }
+  const result = applyBlock(shared);
+  const residentResult = applyBlock(resident);
+  // `written` covers both files: a run that only refreshed RESIDENT.md is still a
+  // write, and reporting the shared block's `false` would read as "nothing changed".
+  out({
+    ...result,
+    ok: result.ok && residentResult.ok,
+    written: result.written || residentResult.written,
+    resident: residentResult.action,
+  });
+  process.exit(result.ok && residentResult.ok ? 0 : 1);
 }
 
 process.stderr.write(`domain-hatch.ts: unknown verb "${verb}"\n`);

@@ -442,24 +442,8 @@ switch (op) {
   }
 
   case 'voice-render': {
-    // Renders config.voice — the operator's answer, written through settings-edit's
-    // validated and audited path — into the two artifacts Claude Code actually reads:
-    // the `outputStyle` key, and (for `custom`) the style file it names. config is the
-    // truth; these are its render targets, the same relationship config.env has with
-    // this file's env block. So this op is unconditional where the retired seed op was
-    // only-if-absent: a style the operator picked in /config is not silently preserved
-    // here, it is superseded by whatever they last told the hermit — and `style: null`
-    // means "not the hermit's key", which leaves the operator's own pick untouched.
-    //
-    // Local scope only, deliberately: it is the scope Claude Code's own /config picker
-    // writes and the one that outranks committed settings.json, and the voice file is
-    // gitignored — a committed outputStyle would ship a pointer to a file a teammate
-    // does not have. (Harmless, probed: a missing style file starts silently as
-    // Default. Still not something to ship on purpose.)
-    if (path.basename(targetFile) !== 'settings.local.json') {
-      console.error(`voice-render: refusing ${path.basename(targetFile)} — the voice renders to .claude/settings.local.json only`);
-      process.exit(1);
-    }
+    // The style file is local and gitignored. Selection lives in the launch overlay.
+    readOnly = true;
     const projectRoot = path.dirname(path.dirname(path.resolve(targetFile)));
     const voice = readSettledConfig(path.join(projectRoot, '.claude-code-hermit')).voice;
     const style = outputStyleFor(voice);
@@ -469,6 +453,10 @@ switch (op) {
       break;
     }
     if (voice.style === 'custom') {
+      if (path.basename(targetFile) !== 'settings.local.json') {
+        console.error('voice-render: the style file renders from settings.local.json only');
+        process.exit(1);
+      }
       // validate-config refuses `custom` without prose, so reaching here with none
       // means the config was hand-edited around that path. Fail loudly rather than
       // render an empty voice.
@@ -490,7 +478,6 @@ switch (op) {
       fs.mkdirSync(path.dirname(voiceFile), { recursive: true });
       writeFileAtomic(voiceFile, template.replace('{{VOICE_PROSE}}', () => prose));
     }
-    settings.outputStyle = style;
     console.log(`applied:${style}`);
     break;
   }
@@ -591,12 +578,8 @@ switch (op) {
       console.error(`channel-env: "${channel}" is not a valid env-var name — refusing to write a key hermit-start would never export`);
       process.exit(1);
     }
-    settings.env ??= {};
-    // Tokens must live only in .env — strip any stale *_BOT_TOKEN from settings.
-    for (const key of Object.keys(settings.env)) {
-      if (/_BOT_TOKEN$/.test(key)) delete settings.env[key];
-    }
-    settings.env[stateDirKey] = stateDir;
+    readOnly = true;
+    console.log(JSON.stringify({ key: stateDirKey, state_dir: stateDir, effective: 'next-start' }));
     break;
   }
 

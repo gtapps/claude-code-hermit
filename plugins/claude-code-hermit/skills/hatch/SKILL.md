@@ -411,17 +411,19 @@ The target file is determined by `hatch_target` (computed in Step 1.5):
 - `hatch_target == "local"` → write to `CLAUDE.local.md` (gitignored, operator-personal)
 - `hatch_target == "committed"` → write to `CLAUDE.md` (committed, current behavior)
 
-Perform the idempotency check across both files first: if the marker `claude-code-hermit: Session Discipline` exists in the non-target file, surface a conflict — ask operator: **Move to target file** (diff-and-confirm) / **Keep both** (warn that both load) / **Skip conflict**. Never silently leave duplicate markers.
+Check CLAUDE.md, CLAUDE.local.md and .claude-code-hermit/RESIDENT.md for duplicate markers within each file. The shared block and resident block belong in their respective destinations. Perform the shared-block idempotency check across both CLAUDE files first: if the marker `claude-code-hermit: Session Discipline` exists in the non-target file, surface a conflict — ask operator: **Move to target file** (diff-and-confirm) / **Keep both** (warn that both load) / **Skip conflict**. Never silently leave duplicate markers.
 
-For the target file (the block is static — **copy it with `cat`, never regenerate it by hand**):
+Use `.claude-code-hermit/bin/hermit-run domain-hatch sync-block claude-code-hermit` to write shared instructions to the hatch-resolved CLAUDE file and resident duties to `.claude-code-hermit/RESIDENT.md`. Never regenerate the template by hand.
+
+For the target file:
 - If it exists: check if it already contains `claude-code-hermit: Session Discipline`
   - If yes: ask with `AskUserQuestion` (header: "CLAUDE block") — options: **Yes — replace** (update to latest) / **No — keep** (preserve current, default)
-    - If "Yes — replace": remove the existing hermit block (from its `<!-- claude-code-hermit: Session Discipline -->` marker — and any blank line / `---` separator immediately above it — through its closing `<!-- /claude-code-hermit: Session Discipline -->` marker; if the target's block predates the closing marker, fall back to the first standalone `---` line after the opening marker, or end of file), then re-append the fresh template: `cat "${CLAUDE_SKILL_DIR}/../../state-templates/CLAUDE-APPEND.md" >> <target>`
+    - If "Yes — replace": remove the existing hermit block (from its `<!-- claude-code-hermit: Session Discipline -->` marker — and any blank line / `---` separator immediately above it — through its closing `<!-- /claude-code-hermit: Session Discipline -->` marker; if the target's block predates the closing marker, fall back to the first standalone `---` line after the opening marker, or end of file), then sync the fresh blocks: `.claude-code-hermit/bin/hermit-run domain-hatch sync-block claude-code-hermit`
     - If "No — keep": skip
-  - If no: `cat "${CLAUDE_SKILL_DIR}/../../state-templates/CLAUDE-APPEND.md" >> <target>`
-- If the target file doesn't exist: `cat "${CLAUDE_SKILL_DIR}/../../state-templates/CLAUDE-APPEND.md" > <target>`
+  - If no: `.claude-code-hermit/bin/hermit-run domain-hatch sync-block claude-code-hermit`
+- If the target file doesn't exist: `.claude-code-hermit/bin/hermit-run domain-hatch sync-block claude-code-hermit`
 
-If a hermit was activated in step 3, also append `<activated_hermit.installPath>/state-templates/CLAUDE-APPEND.md` to the same target file (using the same skip/overwrite logic if its marker already exists).
+If a hermit was activated in step 3, also run `domain-hatch sync-block <activated_hermit.plugin>` through hermit-run, using the same skip/overwrite logic if its marker already exists.
 
 ### 7. Update .gitignore
 
@@ -725,6 +727,8 @@ bun ${CLAUDE_PLUGIN_ROOT}/scripts/hatch-report.ts final <PROJECT_ROOT> --deploym
 Keep the script's own output — including the "Next" and "Anytime:" blocks — exactly as printed: it is the operator's handoff, and nothing runs on its own after this. (Deployment and channel were already shown back in the Turn 5 confirm preview; no extra line needed here.)
 
 ---
+
+After the report, add: `.claude-code-hermit/claude-settings.json` is the optional hermit-only settings file.
 
 ### Hand off pending domain hatches
 

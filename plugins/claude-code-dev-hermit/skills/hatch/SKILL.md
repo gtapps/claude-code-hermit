@@ -93,7 +93,7 @@ If `needs_target_question` is true, ask with `AskUserQuestion` (header: "Visibil
 bun ${CLAUDE_PLUGIN_ROOT}/scripts/render-append.ts <mode> | .claude-code-hermit/bin/hermit-run domain-hatch sync-block claude-code-dev-hermit --rendered-stdin
 ```
 
-`<mode>` is Step 2's answer (`safety` or `standard`). The script appends when the marker is absent, replaces when the rendering differs, and skips when it is already current. The rendered output is the source of truth; no operator prompt is needed.
+`<mode>` is Step 2's answer (`safety` or `standard`). The script appends when the marker is absent, replaces when the rendering differs, and skips when it is already current. The rendered block lands in two files: shared rules in the hatch-resolved CLAUDE file, and resident duties in `.claude-code-hermit/RESIDENT.md`. The rendered output is the source of truth; no operator prompt is needed.
 
 Stray-block migration (block stranded in the non-target file after a target flip) is handled one-shot by the Upgrade Instructions in this version's CHANGELOG entry, executed by `hermit-evolve` Step 7. Hatch itself stays focused on target-aware setup and steady-state refresh.
 

@@ -13,6 +13,9 @@
 - Standing-work questions and changes from chat: routines, watches, and standing rules answered together, and a named item routed to its existing control.
 
 ### Changed
+- Resident instructions, voice, language and environment are scoped to launches through hermit-start.
+- Residency requires the launcher flag; ordinary project sessions remain guests even when the resident is stopped.
+- Optional hermit-only native settings live in operator-owned `claude-settings.json`.
 - Periodic checks use ordinary routines; `scheduled_checks` now holds only session-triggered checks.
 - Sign-off and Discover/Wait settings are no longer collected or advertised; scheduling and operator-authored communication preferences are unchanged.
 - Native `/simplify` replaces the plugin cleanup skill; proposal quality gates report a brief cleanup outcome without custom totals.
@@ -27,6 +30,13 @@
 - Step 5's precondition reads "no `covered-by-memory` suppression" instead of "no memory match", so a candidate that matches a `reference` memory still goes through the three-condition rule.
 
 ### Upgrade Instructions
+
+**Split resident duties out of the shared CLAUDE block.** Do these four in order; the resident file must exist before the shared block shrinks.
+
+1. Sync the core resident block into `.claude-code-hermit/RESIDENT.md` using evolve Step 6's targeted Edit and the resident part of `splitResident`. Create it before changing shared instructions.
+2. Remove resolved Hermit env keys and legacy `*_BOT_TOKEN` values from `.claude/settings.local.json`, remove `language`, and remove `outputStyle` only when it equals the rendered voice. Preserve unrelated settings and operator styles when voice is null.
+3. Shrink the CLAUDE block to the shared part with the usual keep/replace prompt. Keeping it does not prevent creating RESIDENT.md; report duplicated duties.
+4. Restart the hermit now with `.claude-code-hermit/bin/hermit-start --resume`.
 
 Convert installed periodic checks before loading routines. Re-read `.claude-code-hermit/config.json` and preserve unrelated fields, custom skill arguments, and existing routines. Perform steps 1 and 2 as one config write so an interrupted upgrade cannot lose the dispatcher settings.
 

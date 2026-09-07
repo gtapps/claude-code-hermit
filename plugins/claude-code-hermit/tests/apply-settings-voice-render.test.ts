@@ -46,14 +46,14 @@ describe('apply-settings.ts voice-render', () => {
     const r = await render(settingsFile);
     expect(r.exitCode).toBe(0);
     expect(r.stdout.trim()).toBe('applied:Concise');
-    expect(readSettings(settingsFile).outputStyle).toBe('Concise');
+    expect(readSettings(settingsFile).outputStyle).toBeUndefined();
     expect(fs.existsSync(voiceFile)).toBe(false);
   });
 
   test('"default" is written lowercase, as Claude Code persists it', async () => {
     const { settingsFile } = project({ voice: { style: 'default', prose: null } });
     await render(settingsFile);
-    expect(readSettings(settingsFile).outputStyle).toBe('default');
+    expect(readSettings(settingsFile).outputStyle).toBeUndefined();
   });
 
   test('custom renders the prose verbatim and points the key at the file', async () => {
@@ -62,7 +62,7 @@ describe('apply-settings.ts voice-render', () => {
     const r = await render(settingsFile);
     expect(r.exitCode).toBe(0);
     expect(r.stdout.trim()).toBe('applied:hermit-voice');
-    expect(readSettings(settingsFile).outputStyle).toBe('hermit-voice');
+    expect(readSettings(settingsFile).outputStyle).toBeUndefined();
     const body = readRaw(voiceFile);
     expect(body).toContain(prose);
     expect(body).toContain('name: hermit-voice');
@@ -107,7 +107,7 @@ describe('apply-settings.ts voice-render', () => {
       voice: { style: 'Concise', prose: null },
     });
     await render(settingsFile);
-    expect(readSettings(settingsFile).outputStyle).toBe('Concise');
+    expect(readSettings(settingsFile).outputStyle).toBe('Explanatory');
   });
 
   test('custom with empty prose fails loudly rather than rendering an empty voice', async () => {
@@ -122,7 +122,7 @@ describe('apply-settings.ts voice-render', () => {
   test('refuses a target that is not settings.local.json', async () => {
     const { settingsFile } = project({
       settingsName: 'settings.json',
-      voice: { style: 'Concise', prose: null },
+      voice: { style: 'custom', prose: 'Short answers.' },
     });
     const r = await render(settingsFile);
     expect(r.exitCode).toBe(1);
@@ -139,7 +139,7 @@ describe('apply-settings.ts voice-render', () => {
     const s = readSettings(settingsFile);
     expect(s.permissions.allow).toEqual(['Bash(ls:*)']);
     expect(s.env).toEqual({ FOO: 'bar' });
-    expect(s.outputStyle).toBe('Concise');
+    expect(s.outputStyle).toBeUndefined();
   });
 
   test('re-running converges: same bytes, and a hand-edited voice file is restored', async () => {
@@ -154,11 +154,10 @@ describe('apply-settings.ts voice-render', () => {
     expect(readRaw(voiceFile)).toBe(first);
   });
 
-  test('records the settings write in the audit ledger', async () => {
+  test('does not record a settings write for style rendering', async () => {
     const { dir, settingsFile } = project({ voice: { style: 'Concise', prose: null } });
     await render(settingsFile);
     const ledger = path.join(dir, '.claude-code-hermit', 'state', 'settings-audit.jsonl');
-    expect(fs.existsSync(ledger)).toBe(true);
-    expect(readRaw(ledger)).toContain('outputStyle');
+    expect(fs.existsSync(ledger)).toBe(false);
   });
 });

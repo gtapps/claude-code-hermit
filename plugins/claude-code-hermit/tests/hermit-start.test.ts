@@ -33,7 +33,7 @@ import {
   writeSettingsEnv,
   applyArtifactGrant,
   applyVoiceRender,
-  renderClassifierOverlay,
+  renderLaunchOverlay,
   applyAlwaysOnDoctorSchedule,
   clearShutdownStampsOnBoot,
   clearStatusCacheOnBoot,
@@ -91,6 +91,8 @@ beforeEach(() => {
       .filter((k) => k.endsWith('_STATE_DIR'))
       .map((k) => [k, process.env[k]]),
   );
+  // Resolve fixture paths independently of the launching shell. Restored below.
+  for (const key of Object.keys(origStateDirs)) delete process.env[key];
   tmpdir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-start-test-'));
   process.chdir(tmpdir);
   fs.mkdirSync('.claude-code-hermit/state', { recursive: true });
@@ -878,7 +880,8 @@ describe('writeSettingsEnv', () => {
     });
     const config = loadConfig();
     captureLog(() => writeSettingsEnv(config));
-    expect(readSettings().env.DISCORD_STATE_DIR).toBe('/tmp/test-discord');
+    expect(process.env.DISCORD_STATE_DIR).toBe('/tmp/test-discord');
+    expect(readSettings().env?.DISCORD_STATE_DIR).toBeUndefined();
   });
 
   test('relative state_dir is expanded to absolute against cwd', () => {
@@ -888,7 +891,8 @@ describe('writeSettingsEnv', () => {
     const config = loadConfig();
     captureLog(() => writeSettingsEnv(config));
     const expected = path.join(process.cwd(), '.claude.local/channels/discord');
-    expect(readSettings().env.DISCORD_STATE_DIR).toBe(expected);
+    expect(stateDirEnv('DISCORD')).toBe(expected);
+    expect(readSettings().env?.DISCORD_STATE_DIR).toBeUndefined();
   });
 
   // A channel entry with no state_dir key still uses .claude.local/channels/<name>
@@ -899,7 +903,8 @@ describe('writeSettingsEnv', () => {
     delete process.env.DISCORD_STATE_DIR;
     captureLog(() => writeSettingsEnv(config));
     const expected = path.join(process.cwd(), '.claude.local/channels/discord');
-    expect(readSettings().env.DISCORD_STATE_DIR).toBe(expected);
+    expect(stateDirEnv('DISCORD')).toBe(expected);
+    expect(readSettings().env?.DISCORD_STATE_DIR).toBeUndefined();
     expect(stateDirEnv('DISCORD')).toBe(expected);
   });
 
@@ -909,8 +914,9 @@ describe('writeSettingsEnv', () => {
     delete process.env.DISCORD_STATE_DIR;
     captureLog(() => writeSettingsEnv(config));
     const expected = path.join(process.cwd(), '.claude.local/channels/discord');
-    expect(readSettings().env.DISCORD_STATE_DIR).toBe(expected);
-    expect(readSettings().env.DISCORD_STATE_DIR).not.toBe(process.cwd());
+    expect(stateDirEnv('DISCORD')).toBe(expected);
+    expect(readSettings().env?.DISCORD_STATE_DIR).toBeUndefined();
+    expect(process.env.DISCORD_STATE_DIR).not.toBe(process.cwd());
   });
 
   // Claude Code does not pass settings env to plugin MCP servers
@@ -952,7 +958,7 @@ describe('writeSettingsEnv', () => {
     expect(stateDirEnv('MS-TEAMS')).toBeUndefined();
     expect(stateDirEnv('X; TOUCH /TMP/HERMIT-PWNED')).toBeUndefined();
     // Nor persisted to settings.local.json, which Claude Code also exports.
-    expect(readSettings().env['MS-TEAMS_STATE_DIR']).toBeUndefined();
+    expect(readSettings().env?.['MS-TEAMS_STATE_DIR']).toBeUndefined();
   });
 
   test('drops a *_STATE_DIR key no configured channel claims, and logs it', () => {
@@ -964,7 +970,8 @@ describe('writeSettingsEnv', () => {
     const { out } = captureLog(() => writeSettingsEnv(config));
     const env = readSettings().env;
     expect(env.SLACK_STATE_DIR).toBeUndefined();
-    expect(env.DISCORD_STATE_DIR).toBe('/tmp/test-discord');
+    expect(env.DISCORD_STATE_DIR).toBeUndefined();
+    expect(process.env.DISCORD_STATE_DIR).toBe('/tmp/test-discord');
     expect(out).toContain('SLACK_STATE_DIR');
   });
 
@@ -978,7 +985,8 @@ describe('writeSettingsEnv', () => {
     });
     const config = loadConfig();
     const { out } = captureLog(() => writeSettingsEnv(config));
-    expect(readSettings().env.HERMIT_STATE_DIR).toBe('/srv/hermit-state');
+    expect(process.env.HERMIT_STATE_DIR).toBe('/srv/hermit-state');
+    expect(readSettings().env?.HERMIT_STATE_DIR).toBeUndefined();
     expect(out).not.toContain('Cleaned stale state-dir');
   });
 
@@ -1269,23 +1277,24 @@ describe('writeSettingsEnv', () => {
 // ============================================================
 
 // The render itself is covered in apply-settings-voice-render.test.ts; these
-// assert the boot wiring — that config.json reaches the settings file at every
-// start, and that an install with no voice configured is left byte-identical.
+// assert the boot wiring — that the `outputStyle` key now rides the launch
+// overlay rather than the settings file, that a `custom` voice still renders its
+// style file, and that an install with no voice configured is left byte-identical.
 describe('applyVoiceRender', () => {
   const voiceFile = '.claude/output-styles/hermit-voice.md';
 
-  test('renders a configured built-in into the settings key', () => {
+  test('leaves the settings key alone for a configured built-in', () => {
     writeSettings({});
     writeConfig({ voice: { style: 'Concise', prose: null } });
     captureLog(() => applyVoiceRender(loadConfig()));
-    expect(readSettings().outputStyle).toBe('Concise');
+    expect(readSettings().outputStyle).toBeUndefined();
   });
 
-  test('renders a custom voice into both the key and the style file', () => {
+  test('renders a custom voice into the style file, not the settings key', () => {
     writeSettings({});
     writeConfig({ voice: { style: 'custom', prose: 'Lead with the answer.' } });
     captureLog(() => applyVoiceRender(loadConfig()));
-    expect(readSettings().outputStyle).toBe('hermit-voice');
+    expect(readSettings().outputStyle).toBeUndefined();
     expect(fs.readFileSync(voiceFile, 'utf8')).toContain('Lead with the answer.');
   });
 
@@ -1299,13 +1308,13 @@ describe('applyVoiceRender', () => {
     expect(fs.readFileSync('.claude/settings.local.json', 'utf8')).toBe(before);
   });
 
-  // config.json is the truth: a chat operator who changed their voice gets it
-  // applied at the next restart with nothing else to run.
-  test('a configured style supersedes a different persisted one at every boot', () => {
+  // The launch overlay outranks settings.local.json, so boot no longer rewrites a
+  // persisted key it is about to override anyway — it leaves it where it is.
+  test('a configured style leaves a different persisted one in place', () => {
     writeSettings({ outputStyle: 'Explanatory' });
     writeConfig({ voice: { style: 'Concise', prose: null } });
     captureLog(() => applyVoiceRender(loadConfig()));
-    expect(readSettings().outputStyle).toBe('Concise');
+    expect(readSettings().outputStyle).toBe('Explanatory');
   });
 
   // Fail-open: a bad render must never take the boot down with it.
@@ -1323,7 +1332,7 @@ describe('writeSettingsEnv language mirror', () => {
     writeSettings({});
     writeConfig({ language: 'pt-PT' });
     captureLog(() => writeSettingsEnv(loadConfig()));
-    expect(readSettings().language).toBe('pt-PT');
+    expect(readSettings().language).toBeUndefined();
   });
 
   test('clearing config.language removes the mirrored key', () => {
@@ -1483,7 +1492,7 @@ describe('applyArtifactGrant', () => {
   });
 });
 
-describe('renderClassifierOverlay', () => {
+describe('renderLaunchOverlay', () => {
   const OVERLAY = '.claude-code-hermit/state/claude-settings.overlay.json';
 
   function readOverlay(): any {
@@ -1491,7 +1500,7 @@ describe('renderClassifierOverlay', () => {
   }
 
   test('always carries the terminal-only soft_deny guard, with $defaults intact', () => {
-    const file = renderClassifierOverlay({});
+    const file = renderLaunchOverlay({});
     expect(file).toBe(path.resolve(OVERLAY));
     const overlay = readOverlay();
     expect(overlay.autoMode.soft_deny[0]).toBe('$defaults');
@@ -1502,7 +1511,7 @@ describe('renderClassifierOverlay', () => {
   // apply-settings ops during an upgrade, and an empty environment list is what
   // Claude Code offers /auto-mode-setup on.
   test('carries the self-maintenance entries on an install with no artifacts', () => {
-    renderClassifierOverlay({});
+    renderLaunchOverlay({});
     const overlay = readOverlay();
     expect(overlay.autoMode.allow[0]).toBe('$defaults');
     expect(overlay.autoMode.allow.some((e: string) => e.includes('User policy:'))).toBe(true);
@@ -1518,7 +1527,7 @@ describe('renderClassifierOverlay', () => {
   // message from a bypassPermissions session reach the hermit at all.
   test('accepts inbound peer messages, in every permission mode', () => {
     for (const permission_mode of ['auto', 'acceptEdits', 'bypassPermissions']) {
-      renderClassifierOverlay({ permission_mode });
+      renderLaunchOverlay({ permission_mode });
       expect(readOverlay().crossSessionInbound).toBe('accept');
     }
   });
@@ -1532,7 +1541,7 @@ describe('renderClassifierOverlay', () => {
     fs.mkdirSync(path.dirname(userSettings), { recursive: true });
     fs.writeFileSync(userSettings, JSON.stringify({ crossSessionInbound: 'hold' }));
     try {
-      renderClassifierOverlay({});
+      renderLaunchOverlay({});
       expect(readOverlay()).not.toContainKey('crossSessionInbound');
     } finally {
       fs.rmSync(path.dirname(userSettings), { recursive: true, force: true });
@@ -1540,7 +1549,7 @@ describe('renderClassifierOverlay', () => {
   });
 
   test('carries them on an artifact-publishing install too', () => {
-    renderClassifierOverlay({ artifacts: { dashboard: true, publish_authorized: true } });
+    renderLaunchOverlay({ artifacts: { dashboard: true, publish_authorized: true } });
     const overlay = readOverlay();
     expect(overlay.autoMode.allow[0]).toBe('$defaults');
     expect(overlay.autoMode.allow.some((e: string) => e.includes('User policy:'))).toBe(true);
@@ -1558,7 +1567,7 @@ describe('renderClassifierOverlay', () => {
     process.env.CLAUDE_CONFIG_DIR = '/home/probe/.claude';
     let entry: string;
     try {
-      renderClassifierOverlay({ artifacts: { dashboard: true, publish_authorized: true } });
+      renderLaunchOverlay({ artifacts: { dashboard: true, publish_authorized: true } });
       entry = readOverlay().autoMode.allow[1];
     } finally {
       if (prevConfigDir === undefined) delete process.env.CLAUDE_CONFIG_DIR;
@@ -1610,7 +1619,7 @@ describe('renderClassifierOverlay', () => {
   // op that is about publishing follows the grant, so pre-clearing it can never stand
   // in for the publish the backend choice exists to prevent.
   test('a non-claude backend keeps the guard and the grant, minus artifact-allow', () => {
-    renderClassifierOverlay({ artifacts: { dashboard: true, publish_authorized: true, backend: 'my-artifact-host' } });
+    renderLaunchOverlay({ artifacts: { dashboard: true, publish_authorized: true, backend: 'my-artifact-host' } });
     const overlay = readOverlay();
     expect(overlay.autoMode.soft_deny.length).toBe(2);
     expect(overlay.autoMode.allow.some((e: string) => e.includes('User policy:'))).toBe(true);
@@ -1620,9 +1629,9 @@ describe('renderClassifierOverlay', () => {
 
   test('re-rendering is byte-identical and leaves no tmp file', () => {
     const config = { artifacts: { dashboard: true, publish_authorized: true } };
-    renderClassifierOverlay(config);
+    renderLaunchOverlay(config);
     const first = fs.readFileSync(OVERLAY, 'utf-8');
-    renderClassifierOverlay(config);
+    renderLaunchOverlay(config);
     expect(fs.readFileSync(OVERLAY, 'utf-8')).toBe(first);
     const leftovers = fs.readdirSync(path.dirname(OVERLAY)).filter(f => f.endsWith('.tmp'));
     expect(leftovers).toEqual([]);
@@ -1965,16 +1974,10 @@ describe('hydrateSetupTokenEnv', () => {
 
   // A channel with no explicit state_dir must still be forwarded — writeSettingsEnv
   // already hydrated process.env for it, so this loop must not re-gate on presence.
-  test('the forwardVars loop no longer gates *_STATE_DIR forwarding on state_dir presence', () => {
+  test('all resolved env keys are forwarded into the tmux env-file', () => {
     const src = fs.readFileSync(path.join(import.meta.dir, '..', 'scripts', 'hermit-start.ts'), 'utf-8');
-    const loopStart = src.indexOf('for (const [chName] of iterChannelConfigs(config)) {');
-    expect(loopStart).toBeGreaterThan(-1);
-    // The loop's own closing brace is indented: matching a column-0 '}' would
-    // slice to the end of main() and assert against ~150 unrelated lines.
-    const loop = src.slice(loopStart, src.indexOf('\n  }', loopStart));
-    // Any `.state_dir` read here is a re-gate on config presence, whatever the
-    // binding is called. The uppercase `_STATE_DIR` key template is untouched.
-    expect(loop).not.toContain('.state_dir');
+    const declaration = src.slice(src.indexOf('const forwardVars =')).split('\n')[0];
+    expect(declaration).toContain('...Object.keys(resolveHermitEnv(config))');
   });
 });
 
@@ -2022,4 +2025,104 @@ test('resume flags preserve the baseline command and append the fork options', a
   expect(baseline.cmd).not.toContain('--resume');
   expect(baseline.cmd).not.toContain('--fork-session');
   expect(resumed.cmd).toEqual([...baseline.cmd, '--resume', 'abc', '--fork-session']);
+});
+
+describe('launch settings carriers', () => {
+  test('ambient config env wins in process and overlay', () => {
+    const previous = process.env.FOO;
+    try {
+      process.env.FOO = 'ambient';
+      const config = { env: { FOO: 'configured' }, language: 'pt-PT', voice: { style: 'Explanatory', prose: null } };
+      captureLog(() => writeSettingsEnv(config));
+      const overlay = JSON.parse(fs.readFileSync(renderLaunchOverlay(config)!, 'utf8'));
+      expect(overlay.env.FOO).toBe('ambient');
+      expect(overlay.env.FOO).toBe(process.env.FOO);
+      expect(overlay.env.AGENT_HOOK_PROFILE).toBeUndefined();
+      expect(overlay.outputStyle).toBe('Explanatory');
+      expect(overlay.language).toBe('pt-PT');
+    } finally {
+      if (previous === undefined) delete process.env.FOO;
+      else process.env.FOO = previous;
+    }
+  });
+
+  test('null voice omits outputStyle', () => {
+    const overlay = JSON.parse(fs.readFileSync(renderLaunchOverlay({ voice: { style: null, prose: null } })!, 'utf8'));
+    expect(overlay.outputStyle).toBeUndefined();
+  });
+});
+
+describe('operator launch settings', () => {
+  const overridePath = '.claude-code-hermit/claude-settings.json';
+  test('adds native keys while preserving generated policy and env', () => {
+    const previous = process.env.FOO;
+    delete process.env.FOO;
+    try {
+      fs.writeFileSync(overridePath, JSON.stringify({
+        model: 'sonnet', autoMode: { allow: ['anything'] }, crossSessionInbound: 'refuse',
+        env: { FOO: 'override', EXTRA: 'operator' },
+      }));
+      const file = renderLaunchOverlay({ env: { FOO: 'config' } })!;
+      const overlay = JSON.parse(fs.readFileSync(file, 'utf8'));
+      expect(overlay.model).toBe('sonnet');
+      expect(overlay.autoMode.allow[0]).toBe('$defaults');
+      expect(overlay.crossSessionInbound).toBe('accept');
+      expect(overlay.env).toEqual({ FOO: 'config', EXTRA: 'operator' });
+    } finally {
+      if (previous === undefined) delete process.env.FOO;
+      else process.env.FOO = previous;
+    }
+  });
+  test('cannot reintroduce inbound policy when user scope owns it', () => {
+    fs.mkdirSync(process.env.CLAUDE_CONFIG_DIR!, { recursive: true });
+    fs.writeFileSync(path.join(process.env.CLAUDE_CONFIG_DIR!, 'settings.json'), JSON.stringify({ crossSessionInbound: 'hold' }));
+    fs.writeFileSync(overridePath, JSON.stringify({ crossSessionInbound: 'accept' }));
+    const overlay = JSON.parse(fs.readFileSync(renderLaunchOverlay({})!, 'utf8'));
+    expect(overlay.crossSessionInbound).toBeUndefined();
+  });
+  test('malformed override warns once and boot rendering continues', () => {
+    fs.writeFileSync(overridePath, '{broken');
+    const { out } = captureLog(() => renderLaunchOverlay({}));
+    expect(out.split('[hermit] WARNING').length - 1).toBe(1);
+    const overlay = JSON.parse(fs.readFileSync('.claude-code-hermit/state/claude-settings.overlay.json', 'utf8'));
+    expect(overlay.autoMode.allow[0]).toBe('$defaults');
+    expect(fs.readFileSync(overridePath, 'utf8')).toBe('{broken');
+  });
+});
+
+describe('legacy launch setting cleanup', () => {
+  test('removes derived keys and preserves operator keys and null-voice style', () => {
+    writeSettings({ env: { FOO: 'operator', DISCORD_STATE_DIR: '/legacy' }, language: 'pt', outputStyle: 'Explanatory' });
+    captureLog(() => writeSettingsEnv({ voice: { style: null }, channels: { discord: {} } }));
+    expect(readSettings().env).toEqual({ FOO: 'operator' });
+    expect(readSettings().language).toBeUndefined();
+    expect(readSettings().outputStyle).toBe('Explanatory');
+  });
+  test('removes the matching rendered style', () => {
+    writeSettings({ outputStyle: 'Concise' });
+    captureLog(() => writeSettingsEnv({ voice: { style: 'Concise' } }));
+    expect(readSettings().outputStyle).toBeUndefined();
+  });
+});
+
+describe('resident prompt launch requirement', () => {
+  test('command appends the absolute resident path', async () => {
+    const { cmd } = await runBuildClaudeCommand({}, CLAUDE_FETCH_FAILS);
+    expect(cmd[cmd.indexOf('--append-system-prompt-file') + 1]).toBe(path.resolve('.claude-code-hermit/RESIDENT.md'));
+  });
+  test('missing resident exits 1 and stamps runtime even at the current version', async () => {
+    const version = JSON.parse(fs.readFileSync(path.join(PLUGIN_ROOT, '.claude-plugin/plugin.json'), 'utf8')).version;
+    writeConfig({ _hermit_versions: { 'claude-code-hermit': version } });
+    const child = Bun.spawn([process.execPath, '-e', `import { requireResident } from ${JSON.stringify(HERMIT_START_TS)}; requireResident();`], { cwd: tmpdir, stdout: 'pipe', stderr: 'pipe' });
+    const out = await new Response(child.stdout).text();
+    expect(await child.exited).toBe(1);
+    expect(out).toContain('[hermit] RESIDENT.md not found. Run `claude`');
+    expect(JSON.parse(fs.readFileSync('.claude-code-hermit/state/runtime.json', 'utf8')).last_start_error).toBe('resident-missing');
+  });
+});
+
+test('both launch paths set launcher-only residency', () => {
+  const src = fs.readFileSync(HERMIT_START_TS, 'utf8');
+  expect(src).toContain("process.env.HERMIT_RESIDENT = '1';");
+  expect(src).toContain('export HERMIT_RESIDENT=1');
 });

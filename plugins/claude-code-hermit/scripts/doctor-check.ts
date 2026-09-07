@@ -1,3 +1,4 @@
+import { markerOnward } from './evolve-plan';
 // Fail-open: a failing check records "fail" in its own entry; the orchestrator
 // never crashes and the process always exits 0.
 
@@ -1931,12 +1932,20 @@ function checkMemorySize(p: DoctorPaths = PATHS) {
 
   try {
     const parts: string[] = [];
+    if (!fs.existsSync(path.join(p.hermitDir, 'RESIDENT.md'))) {
+      parts.push('RESIDENT.md is missing; run /claude-code-hermit:hermit-evolve before starting the resident');
+    }
 
     for (const name of ['CLAUDE.md', 'CLAUDE.local.md']) {
       const filePath = path.join(projectRoot, name);
       if (!fs.existsSync(filePath)) continue;
       try {
-        const lines = countLines(fs.readFileSync(filePath, 'utf8'));
+        const text = fs.readFileSync(filePath, 'utf8');
+        const block = markerOnward(text, '<!-- claude-code-hermit: Session Discipline -->');
+        if (block && /^## (Watches|Operator Notification)\s*$/m.test(block)) {
+          parts.push(`${name}: legacy resident duties are duplicated; run /claude-code-hermit:hermit-evolve to shrink the core block`);
+        }
+        const lines = countLines(text);
         if (lines >= CLAUDE_WARN_LINES) {
           parts.push(`${name}: ${lines} lines (>=${CLAUDE_WARN_LINES}); trim it with Claude Code's own /doctor (not /hermit-doctor): send it from chat or type it in a terminal session`);
         }
@@ -2296,7 +2305,24 @@ function checkVoiceCarrier(p: DoctorPaths = PATHS) {
     const projectRoot = path.dirname(p.hermitDir);
     const config = readSettledConfig(p.hermitDir);
     const want = outputStyleFor(config.voice);
-    const { value, source } = resolvePersistedStyle(projectRoot);
+    const override = path.join(p.hermitDir, 'claude-settings.json');
+    if (fs.existsSync(override)) {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(override, 'utf8'));
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object');
+      } catch {
+        return { id, status: 'warn', detail: 'claude-settings.json is malformed; the launch override is ignored' };
+      }
+    }
+    const overlayPath = path.join(p.hermitDir, 'state', 'claude-settings.overlay.json');
+    let overlayStyle: string | null = null;
+    try {
+      const overlay = JSON.parse(fs.readFileSync(overlayPath, 'utf8'));
+      if (typeof overlay.outputStyle === 'string') overlayStyle = overlay.outputStyle;
+    } catch {}
+    const { value, source } = want === null
+      ? resolvePersistedStyle(projectRoot)
+      : { value: overlayStyle, source: 'launch overlay' };
 
     if (want === null) {
       return {

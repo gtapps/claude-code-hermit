@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Reconnect to the running hermit session (tmux or docker).
+# New Claude sessions from an attached shell are guests; resume with hermit-start --resume.
 # Run from project root: .claude-code-hermit/bin/hermit-attach
 set -euo pipefail
 

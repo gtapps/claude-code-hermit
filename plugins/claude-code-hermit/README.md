@@ -241,3 +241,9 @@ Join the [Discord community](https://discord.gg/54sJqAxhUh) for setup help and d
 ## License
 
 [MIT](../../LICENSE)
+
+
+| Resident file | Purpose |
+|---|---|
+| `.claude-code-hermit/RESIDENT.md` | Resident instructions appended by hermit-start. |
+| `.claude-code-hermit/claude-settings.json` | Optional operator-owned settings for resident launches. |

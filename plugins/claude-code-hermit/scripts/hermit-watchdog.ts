@@ -844,6 +844,17 @@ function copyOauthAccount(stagedDir: string, configDir: string): void {
 
 /** Try-acquire lock, mark runtime, kill session, verify the old tree died, spawn hermit-start. */
 async function doRestart(sessionName: string, reason: string, runtime: Json, timezone: string, config: Json): Promise<void> {
+  if (runtime.last_start_error === 'resident-missing'
+    && !fs.existsSync(path.join(HERMIT_ROOT, 'RESIDENT.md'))) {
+    if (runtime.last_start_error_notified !== 'resident-missing') {
+      pushOperatorMessage('[hermit] RESIDENT.md not found. Run `claude` in this project and ask it to run /claude-code-hermit:hermit-evolve, then start again.');
+      runtime.last_start_error_notified = 'resident-missing';
+      writeRuntimeJson(runtime);
+      appendEvent('resident-missing', 'operator notified; restart skipped');
+    }
+    return;
+  }
+
   if (!tryAcquireLifecycleLock()) {
     process.stderr.write('[watchdog] lifecycle lock held — backing off restart\n');
     return;

@@ -16,18 +16,20 @@ type Fixture = {
   memoryAsDir?: boolean;
   /** Nest the project root under a dotted path, e.g. a checkout inside a hidden dir. */
   dottedRoot?: boolean;
+  residentMissing?: boolean;
 };
 
 function lines(count: number, content = 'x'): string {
   return Array.from({ length: count }, () => content).join('\n');
 }
 
-function scenario({ claude, local, memory, memoryAsDir, dottedRoot }: Fixture) {
+function scenario({ claude, local, memory, memoryAsDir, dottedRoot, residentMissing }: Fixture) {
   const projectRoot = dottedRoot
     ? path.join(freshDir(), '.local', 'src', 'my.project')
     : freshDir();
   const hermitDir = path.join(projectRoot, '.claude-code-hermit');
   fs.mkdirSync(hermitDir, { recursive: true });
+  if (!residentMissing) fs.writeFileSync(path.join(hermitDir, 'RESIDENT.md'), '# Resident');
 
   if (claude !== undefined) fs.writeFileSync(path.join(projectRoot, 'CLAUDE.md'), claude);
   if (local !== undefined) fs.writeFileSync(path.join(projectRoot, 'CLAUDE.local.md'), local);
@@ -127,4 +129,11 @@ describe('doctor memory-size check', () => {
     expect(result.detail).toContain('MEMORY.md: unreadable');
     expect(result.detail).toContain('CLAUDE.md: 250 lines');
   });
+});
+
+test('missing resident and legacy core duties warn', () => {
+  const result = scenario({ residentMissing: true, claude: '<!-- claude-code-hermit: Session Discipline -->\n## Watches\nWatch duties.\n<!-- /claude-code-hermit: Session Discipline -->' });
+  expect(result.status).toBe('warn');
+  expect(result.detail).toContain('RESIDENT.md is missing');
+  expect(result.detail).toContain('legacy resident duties');
 });

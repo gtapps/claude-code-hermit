@@ -88,7 +88,7 @@ function writeCompiled(dir: string, name: string, content: string) {
 async function runStartupContext(dir: string) {
   return runScript('startup-context.ts', {
     stdin: '{}',
-    env: { AGENT_DIR: path.join(dir, '.claude-code-hermit') },
+    env: { AGENT_DIR: path.join(dir, '.claude-code-hermit'), HERMIT_RESIDENT: '1' },
   });
 }
 

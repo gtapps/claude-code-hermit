@@ -3,9 +3,12 @@
 ## [Unreleased]
 
 ### Changed
+- Resident duties are installed in RESIDENT.md while shared rules remain in the CLAUDE file.
 - Native `/simplify` supplies the cleanup pass for `/dev-quality`, followed by the configured tests and a brief outcome summary.
 
 ### Upgrade Instructions
+
+Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/render-append.ts <mode> | .claude-code-hermit/bin/hermit-run domain-hatch sync-block claude-code-dev-hermit --rendered-stdin` from the project root to install the resident section in `.claude-code-hermit/RESIDENT.md`. Use the installed `standard` or `safety` mode for `<mode>`. Then restart with `.claude-code-hermit/bin/hermit-start --resume`.
 
 Run `/claude-code-dev-hermit:hatch` to refresh the managed Dev instruction block. Preserve custom guidance outside that block. Replace `/claude-code-hermit:simplify` calls in operator-authored workflows with `/simplify`.
 

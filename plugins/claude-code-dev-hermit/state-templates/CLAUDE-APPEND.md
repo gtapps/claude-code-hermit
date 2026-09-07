@@ -28,6 +28,7 @@ Before starting code changes:
 4. When you create a branch, append to `.claude-code-hermit/sessions/SHELL.md` Progress Log: `[HH:MM] created branch <name> from <base>`.
 
 <!-- mode:standard-only -->
+<!-- resident-only -->
 ## Implementation Flow
 
 If the project's own CLAUDE.md or skills define a commit/test/PR sequence, follow that. When committing and publishing are authorized, the fallback is `commands.test` (`claude-code-dev-hermit.commands.test`, set via `/claude-code-dev-hermit:hatch`) → `/claude-code-dev-hermit:dev-quality` → commit → `/claude-code-dev-hermit:dev-pr`.
@@ -36,6 +37,7 @@ If the project's own CLAUDE.md or skills define a commit/test/PR sequence, follo
 - Never declare the task done with broken tests.
 - Working inside a nested git repo (submodule, Composer path package, npm/pnpm path workspace, vendored dep)? Pass the same `--cwd <relative/path>` to `/claude-code-dev-hermit:dev-quality` and `/claude-code-dev-hermit:dev-pr`. State stays under the parent's `.claude-code-hermit/`.
 
+<!-- /resident-only -->
 <!-- /mode:standard-only -->
 ## Technical Constraints
 
@@ -43,6 +45,7 @@ Session state (`in_progress`/`waiting`/`idle`/`dead_process`) lives in `.claude-
 
 Core rules (artifact frontmatter, tag discipline, proposals) apply to all dev work — see the `## Session Discipline (claude-code-hermit)` block above.
 
+<!-- resident-only -->
 ## Before Archiving a Task
 
 <!-- mode:standard-only -->
@@ -86,4 +89,5 @@ Tier mapping:
 - Open the PR: `/claude-code-dev-hermit:dev-pr`
 <!-- /mode:standard-only -->
 - Cleanup pass: `/simplify` (parallel reviewers, applies its own edits)
+<!-- /resident-only -->
 <!-- /claude-code-dev-hermit: Development Workflow -->

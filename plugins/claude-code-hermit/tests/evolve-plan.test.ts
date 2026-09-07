@@ -1209,3 +1209,26 @@ test('REGRESSION: core up_to_date but its own block drifted -> work_pending=true
   expect(d.claude_append_changed).toBe(true);
   expect(d.work_pending).toBe(true);
 }));
+
+test('resident drift remains pending at equal version and with ambiguous shared blocks', withProj(async (proj) => {
+  const plugin = path.join(proj, 'plugin');
+  fs.cpSync(PR, plugin, { recursive: true });
+  const full = `${MARKER}\nShared.\n<!-- resident-only -->\n## Watches\nResident.\n<!-- /resident-only -->\n<!-- /claude-code-hermit: Session Discipline -->\n`;
+  fs.writeFileSync(path.join(plugin, 'state-templates/CLAUDE-APPEND.md'), full);
+  writeConfig(proj, '{"_hermit_versions":{"claude-code-hermit":"1.1.7"}}');
+  fs.writeFileSync(path.join(proj, 'CLAUDE.md'), full);
+  const read = async () => {
+    const r = await runScript('evolve-plan.ts', { args: [hermitDir(proj), '--hatch-target=committed', `--plugin-list-json=${EMPTY_PLUGIN_LIST}`], env: { CLAUDE_PLUGIN_ROOT: plugin } });
+    expect(r.exitCode).toBe(0);
+    return JSON.parse(r.stdout);
+  };
+  const legacy = await read();
+  expect(legacy.resident_missing).toBe(true);
+  expect(legacy.resident_changed).toBe(true);
+  expect(legacy.claude_append_changed).toBe(true);
+  expect(legacy.work_pending).toBe(true);
+  fs.writeFileSync(path.join(proj, 'CLAUDE.md'), full + full);
+  const ambiguous = await read();
+  expect(ambiguous.claude_append_ambiguous).toBe(true);
+  expect(ambiguous.resident_changed).toBe(true);
+}));

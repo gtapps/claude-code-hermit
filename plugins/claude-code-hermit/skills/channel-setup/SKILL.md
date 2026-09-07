@@ -116,11 +116,11 @@ Operator pastes the token via Other, or selects Skip.
 3. `chmod 600 <state_dir>/.env`
 4. Ensure `.claude.local/` is in `.gitignore`: check if `.gitignore` exists and contains `.claude.local/`; if missing, append `.claude.local/`.
 5. If `channels.<channel>.state_dir` was not set in config.json (a legacy entry, or one reached through the single-enabled-channel branch that never ran *Adding an entry*), run the same `hatch-config.ts … --reinit` one-liner for `<channel>` now, but with an **empty** entry — `echo '{"channels":{"<name>":{}}}' | …` — so an existing `enabled: false` is preserved (the `{"enabled":true}` payload would flip it). It fills the conventional `state_dir`, validates, and audits, leaving every other field intact. Never write the key with Edit/Write.
-6. Wire `<CHANNEL_UPPERCASE>_STATE_DIR` into `.claude/settings.local.json`. Compute the absolute path of `state_dir`, then run:
+6. Validate `<CHANNEL_UPPERCASE>_STATE_DIR` for the next resident start. Compute the absolute path of `state_dir`, then run:
    ```bash
    bun ${CLAUDE_PLUGIN_ROOT}/scripts/apply-settings.ts .claude/settings.local.json channel-env <CHANNEL_UPPERCASE> <absolute_state_dir>
    ```
-   This sets `env.<CHANNEL_UPPERCASE>_STATE_DIR` (creating the file if missing) and strips any stale `*_BOT_TOKEN` from the `env` block — tokens must live only in `.env`. Same naming convention as token vars (step 4), suffix `_STATE_DIR` instead of `_BOT_TOKEN`. Confirm: "Wired `<CHANNEL_UPPERCASE>_STATE_DIR` → `<absolute_state_dir>` in `.claude/settings.local.json` (takes effect on next restart)."
+   This validates and reports the state directory without writing settings. The configured state dir takes effect in the resident environment and launch overlay at the next start. Tokens stay in the channel's `.env`. Confirm: "Configured `<CHANNEL_UPPERCASE>_STATE_DIR` → `<absolute_state_dir>` (takes effect at the next start)."
 
 7. Capture the bot's own identity so the hermit recognizes mentions of itself:
    ```bash

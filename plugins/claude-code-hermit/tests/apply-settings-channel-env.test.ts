@@ -20,61 +20,29 @@ function readSettings(file: string): any {
 }
 
 describe('apply-settings.ts channel-env', () => {
-  test('sets <CHANNEL>_STATE_DIR in the env block', async () => {
-    const dir = freshDir();
-    const file = seedSettings(dir, {});
-    const r = await runScript('apply-settings.ts', {
-      args: [file, 'channel-env', 'DISCORD', '/abs/state/discord'],
-    });
-    expect(r.exitCode).toBe(0);
-    expect(readSettings(file).env.DISCORD_STATE_DIR).toBe('/abs/state/discord');
-  });
-
-  test('strips any stale *_BOT_TOKEN keys from env', async () => {
+  test('reports the state directory and leaves existing settings byte-identical', async () => {
     const dir = freshDir();
     const file = seedSettings(dir, {
-      env: {
-        DISCORD_BOT_TOKEN: 'leaked-token',
-        TELEGRAM_BOT_TOKEN: 'another-leak',
-        MAX_THINKING_TOKENS: '10000',
-      },
-    });
-    const r = await runScript('apply-settings.ts', {
-      args: [file, 'channel-env', 'DISCORD', '/abs/state/discord'],
-    });
-    expect(r.exitCode).toBe(0);
-    const env = readSettings(file).env;
-    expect(env.DISCORD_BOT_TOKEN).toBeUndefined();
-    expect(env.TELEGRAM_BOT_TOKEN).toBeUndefined();
-    expect(env.DISCORD_STATE_DIR).toBe('/abs/state/discord');
-    // A non-token env key is preserved.
-    expect(env.MAX_THINKING_TOKENS).toBe('10000');
-  });
-
-  test('preserves other settings keys and existing STATE_DIR entries', async () => {
-    const dir = freshDir();
-    const file = seedSettings(dir, {
+      env: { DISCORD_BOT_TOKEN: 'legacy', TELEGRAM_STATE_DIR: '/other', FOO: 'operator' },
       permissions: { allow: ['Bash(git status:*)'] },
-      env: { TELEGRAM_STATE_DIR: '/abs/state/telegram' },
     });
+    const before = fs.readFileSync(file, 'utf8');
     const r = await runScript('apply-settings.ts', {
       args: [file, 'channel-env', 'DISCORD', '/abs/state/discord'],
     });
     expect(r.exitCode).toBe(0);
-    const out = readSettings(file);
-    expect(out.permissions).toEqual({ allow: ['Bash(git status:*)'] });
-    expect(out.env.TELEGRAM_STATE_DIR).toBe('/abs/state/telegram');
-    expect(out.env.DISCORD_STATE_DIR).toBe('/abs/state/discord');
+    expect(JSON.parse(r.stdout)).toEqual({ key: 'DISCORD_STATE_DIR', state_dir: '/abs/state/discord', effective: 'next-start' });
+    expect(fs.readFileSync(file, 'utf8')).toBe(before);
   });
 
-  test('creates settings file with just env when none exists', async () => {
+  test('does not create an absent settings file', async () => {
     const dir = freshDir();
     const file = path.join(dir, '.claude', 'settings.local.json');
     const r = await runScript('apply-settings.ts', {
       args: [file, 'channel-env', 'TELEGRAM', '/abs/state/telegram'],
     });
     expect(r.exitCode).toBe(0);
-    expect(readSettings(file).env.TELEGRAM_STATE_DIR).toBe('/abs/state/telegram');
+    expect(fs.existsSync(file)).toBe(false);
   });
 
   test('requires channel and state dir arguments', async () => {

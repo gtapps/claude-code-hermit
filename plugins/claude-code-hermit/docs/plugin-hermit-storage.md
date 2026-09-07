@@ -164,3 +164,12 @@ All core hook scripts use `hermitDir()` from `scripts/lib/cc-compat.ts` instead.
 Hooks that receive an absolute `file_path` in their payload (`validate-config`, `generate-summary`) anchor directly on that path instead of using the resolver — they have a guaranteed absolute source.
 
 When adding a new hook script, import `hermitDir` from `./lib/cc-compat` and compute all `.claude-code-hermit/...` paths against its return value.
+
+
+## Resident launch files
+
+| File under .claude-code-hermit/ | Ownership |
+|---|---|
+| `RESIDENT.md` | Hatch-written resident duties; operator-editable, with evolve keep/replace handling. |
+| `claude-settings.json` | Optional operator-owned native settings for the resident; never written by the plugin. |
+| `state/claude-settings.overlay.json` | Generated at each start from config and the operator override; passed only to the resident. |

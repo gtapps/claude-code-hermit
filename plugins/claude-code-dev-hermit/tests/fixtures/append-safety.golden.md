@@ -30,6 +30,7 @@ Session state (`in_progress`/`waiting`/`idle`/`dead_process`) lives in `.claude-
 
 Core rules (artifact frontmatter, tag discipline, proposals) apply to all dev work — see the `## Session Discipline (claude-code-hermit)` block above.
 
+<!-- resident-only -->
 ## Before Archiving a Task
 
 - If the task includes publishing a PR: PR opened.
@@ -63,4 +64,5 @@ Tier mapping:
 
 - One-time setup / re-config: `/claude-code-dev-hermit:hatch`
 - Cleanup pass: `/simplify` (parallel reviewers, applies its own edits)
+<!-- /resident-only -->
 <!-- /claude-code-dev-hermit: Development Workflow -->

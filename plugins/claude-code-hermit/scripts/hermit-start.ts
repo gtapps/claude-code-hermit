@@ -648,6 +648,22 @@ function peerName(config: Json): string {
     || 'hermit';
 }
 
+/** Absolute path to a file in the hermit dir. Resolved per call, not at import:
+ *  STATE_DIR is cwd-relative and the boot's cwd is the project root. */
+function hermitFile(name: string): string {
+  return path.resolve(path.dirname(STATE_DIR), name);
+}
+
+function requireResident(): void {
+  try {
+    fs.readFileSync(hermitFile('RESIDENT.md'), 'utf8');
+  } catch {
+    console.log('[hermit] RESIDENT.md not found. Run `claude` in this project and ask it to run /claude-code-hermit:hermit-evolve, then start again.');
+    writeRuntimeJson({ ...(readRuntimeJson() ?? {}), last_start_error: 'resident-missing' });
+    process.exit(1);
+  }
+}
+
 /** Build the claude launch command from config. */
 function buildClaudeCommand(config: Json, tools: Json, opts?: { resume?: string }): string[] {
   const cmd = ['claude'];
@@ -764,12 +780,13 @@ function buildClaudeCommand(config: Json, tools: Json, opts?: { resume?: string 
   }
 
   // Auto-mode classifier policy for THIS session only — see
-  // renderClassifierOverlay(). Written fresh each boot; absent on write failure,
+  // renderLaunchOverlay(). Written fresh each boot; absent on write failure,
   // which degrades the classifier to its defaults rather than blocking the boot.
-  const overlay = renderClassifierOverlay(config);
+  const overlay = renderLaunchOverlay(config);
   if (overlay) {
     cmd.push('--settings', overlay);
   }
+  cmd.push('--append-system-prompt-file', hermitFile('RESIDENT.md'));
 
   if (pyTruthy(config.model)) {
     cmd.push('--model', config.model);
@@ -825,6 +842,20 @@ function buildClaudeCommand(config: Json, tools: Json, opts?: { resume?: string 
  * runs, so a side-channel global is read while still unset and the line never
  * appears.
  */
+function resolveHermitEnv(config: Json): Record<string, string> {
+  const env = { ...(config.env ?? {}) };
+  delete env.AGENT_HOOK_PROFILE;
+  for (const [chName, chCfg] of iterChannelConfigs(config)) {
+    const key = channelStateDirKey(chName);
+    if (!key) continue;
+    env[key] = resolveStateDir(channelStateDir(chName, chCfg));
+  }
+  for (const key of Object.keys(env)) {
+    env[key] = process.env[key] || env[key];
+  }
+  return env;
+}
+
 function writeSettingsEnv(
   config: Json,
   bootMode: BootMode = 'interactive',
@@ -855,87 +886,33 @@ function writeSettingsEnv(
     }
   }
 
-  if (!('env' in settings)) settings.env = {};
-
-  const envVars: Json = { ...('env' in config ? config.env : {}) }; // copy — don't mutate config
-
-  // AGENT_HOOK_PROFILE is process-scoped: forwarded via tmux env file or
-  // docker-compose environment block. NOT written to settings.local.json,
-  // which is shared between container and host via bind mount.
-  delete envVars.AGENT_HOOK_PROFILE;
+  const envVars = resolveHermitEnv(config);
+  Object.assign(process.env, envVars);
   const resolved = resolveHookProfile(config, bootMode);
   if (resolved.warning) console.log(resolved.warning);
-  // Assigned unconditionally. The old `=== undefined` guard meant an ambient
-  // value was never re-written, so it escaped validation and the floor above and
-  // became the session's real profile whatever it said.
   process.env.AGENT_HOOK_PROFILE = resolved.profile;
 
-  if (pyTruthy(envVars)) {
-    Object.assign(settings.env, envVars);
-  }
-
-  // Migration: remove AGENT_HOOK_PROFILE from settings.local.json if present
-  // (older versions wrote it there, causing host/container leak)
-  delete settings.env.AGENT_HOOK_PROFILE;
-
-  // MCP servers (channel plugins) are separate processes that inherit OS env —
-  // they don't read settings.local.json directly. Without *_STATE_DIR the
-  // plugin defaults to ~/.claude/channels/<plugin>/, which is lost on Docker
-  // container restart.
-  const claimedStateDirKeys = new Set<string>();
-  for (const [chName, chCfg] of iterChannelConfigs(config)) {
-    const stateDir = channelStateDir(chName, chCfg);
-    // Guard rationale: see channelStateDirKey in lib/channel-config.ts. The
-    // forwardVars loop in main() drops the same names for that reason.
-    const key = channelStateDirKey(chName);
-    if (!key) {
-      console.log(`[hermit] Warning: channel "${chName}" has no valid env-var name — ${chName.toUpperCase()}_STATE_DIR not exported.`);
-      continue;
-    }
-    claimedStateDirKeys.add(key);
-    // Relative paths resolved against project root (cwd at boot).
-    settings.env[key] = resolveStateDir(stateDir);
-    // Both bare-host launches read the value from here: the tmux path copies
-    // it into the env file it sources, the no-tmux path inherits it via execvp.
-    // Truthiness, not presence: an empty ambient value (a profile leak, an unset
-    // compose interpolation) would otherwise win over the config path and hand
-    // the MCP server an empty state dir — an empty state dir is never intent.
-    if (!pyTruthy(process.env[key])) {
-      process.env[key] = settings.env[key]; // already-set (Docker/compose) wins
+  const removed: string[] = [];
+  if (isDict(settings.env)) {
+    for (const key of Object.keys(settings.env)) {
+      if (key === 'AGENT_HOOK_PROFILE' || key in envVars || key.endsWith('_BOT_TOKEN')
+        || (!configReadFailed && key.endsWith('_STATE_DIR'))) {
+        delete settings.env[key];
+        removed.push(key);
+      }
     }
   }
-
-  // Drop *_STATE_DIR keys no configured channel claims — pre-guard cruft, or a
-  // channel that was removed or renamed since the key was written. (A merely
-  // disabled channel still claims its key: the loop above iterates every
-  // configured channel, enabled or not.) Two exemptions, both about not
-  // destroying state on someone else's behalf:
-  //   - keys the operator put in config.env, which was merged into settings.env
-  //     above — that block is operator-owned and `_STATE_DIR` is not a reserved
-  //     suffix there (`HERMIT_STATE_DIR` is a real one). Sweeping them would
-  //     delete-and-readd forever, and the var would never reach the session.
-  //   - everything, when config.json failed to parse: loadConfig fails open to
-  //     defaults, so `channels` is empty and every live channel would look
-  //     stale. Same reason the config write-back is gated on this flag.
-  const configEnvKeys = new Set(Object.keys(envVars));
-  const staleStateDirKeys = configReadFailed
-    ? []
-    : Object.keys(settings.env).filter(
-        (k) =>
-          k.endsWith('_STATE_DIR') && !claimedStateDirKeys.has(k) && !configEnvKeys.has(k),
-      );
-  for (const key of staleStateDirKeys) delete settings.env[key];
-  if (staleStateDirKeys.length) {
-    console.log(`[hermit] Cleaned stale state-dir vars from settings.local.json: ${staleStateDirKeys.join(', ')}`);
+  if ('language' in settings) {
+    delete settings.language;
+    removed.push('language');
   }
-
-  // Remove channel bot tokens — they must only live in
-  // .claude.local/channels/<plugin>/.env. A stale token here
-  // overrides the file via process.env and fails silently.
-  const staleKeys = Object.keys(settings.env).filter((k) => k.endsWith('_BOT_TOKEN'));
-  for (const key of staleKeys) delete settings.env[key];
-  if (staleKeys.length) {
-    console.log(`[hermit] Cleaned stale token vars from settings.local.json: ${staleKeys.join(', ')}`);
+  const style = outputStyleFor(config.voice);
+  if (style !== null && settings.outputStyle === style) {
+    delete settings.outputStyle;
+    removed.push('outputStyle');
+  }
+  if (removed.length) {
+    console.log(`[hermit] Cleaned launch settings from settings.local.json: ${removed.join(', ')}`);
   }
 
   // hermit-start does not own sandbox.enabled — that's a hatch/operator decision;
@@ -950,23 +927,8 @@ function writeSettingsEnv(
     delete settings.sandbox;
   }
 
-  // The voice carrier is NOT written here — applyVoiceRender() below runs the
-  // same `apply-settings.ts voice-render` op hatch and hermit-settings run, so
-  // one renderer owns config.voice → outputStyle and the style file. Keeping a
-  // second in-process writer here is how the key and the file drifted apart.
-
-  // Language mirror. config.json stays authoritative — it is what the
-  // deterministic senders (watchdog, cost alerts, deny notices) localize from,
-  // outside any session. This derives the native key so the main session also
-  // gets it from the system prompt instead of session-start context alone.
-  // Sanitized because the value reaches a prompt and `hermit-settings language`
-  // can be driven from a channel turn.
-  const mirroredLanguage = sanitizeLanguage(config.language);
-  if (mirroredLanguage) settings.language = mirroredLanguage;
-  else delete settings.language;
-
   // Cross-session inbox: the `accept` lives in the launch overlay
-  // (renderClassifierOverlay), the only scope that can loosen this key — a
+  // (renderLaunchOverlay), the only scope that can loosen this key — a
   // project/local file may tighten it, never lower strictness, so an `accept`
   // written here was silently inert. Clean up the one earlier boots wrote, but
   // leave an operator's own `hold`/`refuse`: that direction tightens, so it is a
@@ -1009,7 +971,7 @@ function writeSettingsEnv(
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
 
   if (pyTruthy(envVars)) {
-    console.log(`[hermit] Env: ${Object.keys(envVars).length} vars written to .claude/settings.local.json`);
+    console.log(`[hermit] Env: ${Object.keys(envVars).length} vars exported to the resident process`);
   }
 
   // Narrowed to the declared shape: `warning` is already consumed above, and
@@ -1087,7 +1049,15 @@ function applyVoiceRender(config: Json): void {
   // no reason to pay a bun startup and a second config read to learn that on
   // every boot. The gate asks the shared resolver, so there is still exactly one
   // place that decides what a voice block means.
-  if (outputStyleFor(config.voice) === null) return;
+  const style = outputStyleFor(config.voice);
+  if (style === null) return;
+  // The `outputStyle` key itself now rides the launch overlay (renderLaunchOverlay),
+  // so the op has work left only for `custom`, where it renders the style file the
+  // key points at. A built-in style needs no subprocess to reach the session.
+  if (config.voice?.style !== 'custom') {
+    console.log(`[hermit] Voice: outputStyle ${style} in the launch overlay`);
+    return;
+  }
   const script = path.join(PLUGIN_ROOT, 'scripts', 'apply-settings.ts');
   const r = spawnSync('bun', [script, '.claude/settings.local.json', 'voice-render'], { stdio: 'pipe', encoding: 'utf-8' });
   if (r.status !== 0) {
@@ -1096,7 +1066,7 @@ function applyVoiceRender(config: Json): void {
   }
   const out = (r.stdout || '').trim();
   if (out.startsWith('applied:')) {
-    console.log(`[hermit] Voice: outputStyle set to ${out.slice('applied:'.length)} in .claude/settings.local.json`);
+    console.log(`[hermit] Voice: outputStyle ${out.slice('applied:'.length)} in the launch overlay, style file rendered`);
   }
 }
 
@@ -1144,7 +1114,7 @@ function userScopeSetsInbound(): boolean {
  * Written via tmp + rename so a crash mid-write can never leave the launch
  * pointing at a half-written file.
  */
-function renderClassifierOverlay(config: Json): string | null {
+function renderLaunchOverlay(config: Json): string | null {
   const autoMode: Record<string, string[]> = {
     soft_deny: ['$defaults', AUTOMODE_SOFT_DENY_ENTRY],
   };
@@ -1183,8 +1153,26 @@ function renderClassifierOverlay(config: Json): string | null {
   // An operator's own value in user settings wins: writing the key here would
   // silently override the hold or refuse they set for every session on the machine.
   // A project- or local-scope refuse still opts out, since that direction tightens.
-  const overlay: Json = { autoMode };
+  const overlay: Json = { autoMode, env: resolveHermitEnv(config) };
+  const style = outputStyleFor(config.voice);
+  if (style !== null) overlay.outputStyle = style;
+  const language = sanitizeLanguage(config.language);
+  if (language) overlay.language = language;
   if (!userScopeSetsInbound()) overlay.crossSessionInbound = 'accept';
+
+  const overridePath = hermitFile('claude-settings.json');
+  if (fs.existsSync(overridePath)) {
+    try {
+      const override = JSON.parse(fs.readFileSync(overridePath, 'utf8'));
+      if (!isDict(override)) throw new Error('not a JSON object');
+      const generated = { ...overlay };
+      Object.assign(overlay, override, generated);
+      overlay.env = { ...(isDict(override.env) ? override.env : {}), ...generated.env };
+      if (!('crossSessionInbound' in generated)) delete overlay.crossSessionInbound;
+    } catch {
+      console.log('[hermit] WARNING: claude-settings.json is not a valid JSON object; ignoring the operator override.');
+    }
+  }
 
   const file = path.resolve(STATE_DIR, 'claude-settings.overlay.json');
   try {
@@ -1484,6 +1472,7 @@ async function main(): Promise<void> {
   const isAlwaysOn = !noTmuxFlag && pyTruthy(tools.tmux);
   const willBootstrap = steps.length > 0 && !setupMode && isAlwaysOn;
   const resume = willBootstrap ? resumeId : undefined;
+  requireResident();
   const cmd = buildClaudeCommand(config, tools, { resume });
   if (willBootstrap) {
     let bootstrap: string;
@@ -1566,6 +1555,8 @@ async function main(): Promise<void> {
       writeRuntimeJson(existing);
     }
     console.log(`[hermit] Running: ${shlexJoin(cmd)}`);
+    writeRuntimeJson({ ...(readRuntimeJson() ?? {}), last_start_error: null, last_start_error_notified: null });
+    process.env.HERMIT_RESIDENT = '1';
     execvp(cmd);
   }
 
@@ -1575,17 +1566,7 @@ async function main(): Promise<void> {
   // Auth vars must be in shell env before claude launches.
   // *_STATE_DIR vars must be OS env because MCP servers (channel plugins)
   // inherit shell env but don't read settings.local.json.
-  const forwardVars = ['CLAUDE_CONFIG_DIR', 'ANTHROPIC_API_KEY', TOKEN_ENV_VAR, 'AGENT_HOOK_PROFILE'];
-  // *_STATE_DIR vars must reach MCP servers via OS env — writeSettingsEnv already
-  // hydrated process.env for every channel (default or explicit state_dir) above
-  // main()'s call to it, so the only filter needed here is the identifier guard.
-  // Guard rationale: see channelStateDirKey in lib/channel-config.ts.
-  for (const [chName] of iterChannelConfigs(config)) {
-    const key = channelStateDirKey(chName);
-    if (key) {
-      forwardVars.push(key);
-    }
-  }
+  const forwardVars = ['CLAUDE_CONFIG_DIR', 'ANTHROPIC_API_KEY', TOKEN_ENV_VAR, 'AGENT_HOOK_PROFILE', ...Object.keys(resolveHermitEnv(config))];
   const envFile = path.join('/tmp', `.hermit-env-${sessionName}`);
   // CLAUDE_PLUGIN_ROOT is not injected into the tmux shell by the harness;
   // set it explicitly so Bash tool calls in skills work in cron-triggered sessions.
@@ -1596,7 +1577,7 @@ async function main(): Promise<void> {
   // or the docker-compose env block, so a hand-launched `claude` in the same
   // always_on project — or a `docker exec` maintenance shell — never inherits it
   // and is correctly treated as attended.
-  envContent += `export HERMIT_MANAGED=1\n`;
+  envContent += `export HERMIT_MANAGED=1\nexport HERMIT_RESIDENT=1\n`;
   for (const v of forwardVars) {
     const val = process.env[v];
     if (val !== undefined) {
@@ -1677,6 +1658,8 @@ async function main(): Promise<void> {
     existing.runtime_mode = runtimeMode;
     existing.tmux_session = sessionName;
     existing.peer_name = peerName(config);
+    existing.last_start_error = null;
+    existing.last_start_error_notified = null;
     clearShutdownStampsOnBoot(existing);
     writeRuntimeJson(existing);
   }
@@ -1713,6 +1696,8 @@ async function main(): Promise<void> {
     stale.tmux_session = null;
     stale.last_error = 'session_died_on_boot';
     writeRuntimeJson(stale);
+    writeRuntimeJson({ ...(readRuntimeJson() ?? {}), last_start_error: null, last_start_error_notified: null });
+    process.env.HERMIT_RESIDENT = '1';
     execvp(cmd);
   }
 
@@ -1771,7 +1756,9 @@ export {
   resolveStateDir,
   buildClaudeCommand,
   peerName,
-  renderClassifierOverlay,
+  requireResident,
+  renderLaunchOverlay,
+  resolveHermitEnv,
   writeSettingsEnv,
   applyVoiceRender,
   applyArtifactGrant,

@@ -34,6 +34,20 @@ export interface BlockPlan {
   new_block?: string;
 }
 
+/** Split duties from shared instructions while retaining plugin block bounds. */
+export function splitResident(rendered: string): { shared: string; resident: string } {
+  if (!rendered.includes('<!-- resident-only -->')) return { shared: rendered, resident: '' };
+  const opening = rendered.match(/^<!-- ([^/][^:]*: .+) -->$/m)?.[0];
+  if (!opening) return { shared: rendered, resident: '' };
+  const closing = opening.replace('<!-- ', '<!-- /');
+  const resident: string[] = [];
+  const shared = rendered.replace(/<!-- resident-only -->([\s\S]*?)<!-- \/resident-only -->/g, (_match, body: string) => {
+    resident.push(body);
+    return '';
+  });
+  return { shared, resident: opening + '\n' + resident.join('\n') + '\n' + closing + '\n' };
+}
+
 export function templatePath(installPath: string): string {
   return path.join(installPath, 'state-templates', 'CLAUDE-APPEND.md');
 }
@@ -50,6 +64,7 @@ export function planBlock(
   targetPath: string,
   foreignNames: string[],
   rendered?: string,
+  replaceExisting = rendered !== undefined,
 ): BlockPlan {
   const tmplText = rendered ?? read(templatePath(installPath));
   if (tmplText === null) {
@@ -67,7 +82,7 @@ export function planBlock(
   // refusal evolve-plan makes. Without this, `sync-block <dev> ` with no
   // --rendered-stdin appends both mode regions and their fence comments
   // verbatim into the operator's CLAUDE.md.
-  if (rendered === undefined && requiresRendering(tmplText)) {
+  if (requiresRendering(tmplText)) {
     return { action: 'needs-rendering', marker, targetFile: targetPath };
   }
 
@@ -88,7 +103,7 @@ export function planBlock(
 
   // Only a caller that supplied rendered content can ask for a replace: a
   // static template that is already present is hermit-evolve's to refresh.
-  if (rendered === undefined) {
+  if (!replaceExisting) {
     return { action: 'skip', marker, targetFile: targetPath, old_block: targetBlock };
   }
 
@@ -97,6 +112,21 @@ export function planBlock(
     return { action: 'skip', marker, targetFile: targetPath, old_block: targetBlock };
   }
   return { action: 'replace', marker, targetFile: targetPath, old_block: targetBlock, new_block: tmplBlock };
+}
+
+export function planResidentRemoval(
+  source: BlockPlan,
+  targetPath: string,
+  foreignNames: string[],
+): BlockPlan {
+  const base = { marker: source.marker, targetFile: targetPath };
+  const text = read(targetPath);
+  const old = text && source.marker ? markerOnward(text, source.marker, foreignNames) : null;
+  if (!old) return { ...base, action: 'skip' };
+  if (isAmbiguousBlock(text!, source.marker!, old)) {
+    return { ...base, action: 'ambiguous', old_block: old };
+  }
+  return { ...base, action: 'replace', old_block: old, new_block: '' };
 }
 
 function norm(s: string): string {

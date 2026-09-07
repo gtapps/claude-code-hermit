@@ -12,7 +12,7 @@ import { freshDirFactory } from './helpers/workdir';
 import { runScript, SCRIPTS_DIR } from './helpers/run';
 import { satisfiesFloor, preflight } from '../scripts/lib/domain-hatch/preflight';
 import { ensureHatchTarget, readTargetState, optionsPath } from '../scripts/lib/domain-hatch/target';
-import { planBlock, applyBlock } from '../scripts/lib/domain-hatch/block';
+import { planBlock, applyBlock, splitResident, planResidentRemoval } from '../scripts/lib/domain-hatch/block';
 
 const { freshDir, cleanup } = freshDirFactory('hermit-domain-hatch-');
 afterAll(cleanup);
@@ -418,5 +418,46 @@ describe('CLI contract', () => {
 
   test('the script is on disk where hermit-exec.sh would dispatch it', () => {
     expect(fs.existsSync(path.join(SCRIPTS_DIR, 'domain-hatch.ts'))).toBe(true);
+  });
+});
+
+describe('resident block splitting', () => {
+  test('marked instructions reach two files and both skip on a second run', () => {
+    const s = scaffold();
+    const template = TEMPLATE.replace('Some rules.', 'Shared rules.\n<!-- resident-only -->\nResident duties.\n<!-- /resident-only -->');
+    const split = splitResident(template);
+    const sharedPath = path.join(s.root, 'CLAUDE.md');
+    const residentPath = path.join(s.hermit, 'RESIDENT.md');
+    for (const [target, content] of [[sharedPath, split.shared], [residentPath, split.resident]]) {
+      expect(applyBlock(planBlock(s.install, PLUGIN, target, [], content)).written).toBe(true);
+      expect(applyBlock(planBlock(s.install, PLUGIN, target, [], content)).action).toBe('skip');
+      expect(fs.readFileSync(target, 'utf8')).toContain(MARKER);
+      expect(fs.readFileSync(target, 'utf8')).toContain(CLOSING);
+    }
+    expect(fs.readFileSync(sharedPath, 'utf8')).not.toContain('Resident duties.');
+    expect(fs.readFileSync(residentPath, 'utf8')).not.toContain('Shared rules.');
+    expect(fs.readFileSync(residentPath, 'utf8')).toContain('Resident duties.');
+  });
+
+  test('unmarked input creates no resident file and removes a stale plugin block', () => {
+    const s = scaffold();
+    const split = splitResident(TEMPLATE);
+    expect(split.resident).toBe('');
+    const target = path.join(s.hermit, 'RESIDENT.md');
+    const shared = planBlock(s.install, PLUGIN, path.join(s.root, 'CLAUDE.md'), [], split.shared);
+    expect(applyBlock(planResidentRemoval(shared, target, [])).action).toBe('skip');
+    expect(fs.existsSync(target)).toBe(false);
+    fs.writeFileSync(target, TEMPLATE + '\nOther content.\n');
+    expect(applyBlock(planResidentRemoval(shared, target, [])).written).toBe(true);
+    expect(fs.readFileSync(target, 'utf8')).not.toContain(MARKER);
+    expect(fs.readFileSync(target, 'utf8')).toContain('Other content.');
+  });
+
+  test('rendered stdin still carrying mode markers is refused', () => {
+    const s = scaffold();
+    const rendered = TEMPLATE.replace('Some rules.', '<!-- mode:standard-only -->\nSome rules.\n<!-- /mode:standard-only -->');
+    const target = path.join(s.root, 'CLAUDE.md');
+    expect(applyBlock(planBlock(s.install, PLUGIN, target, [], rendered)).action).toBe('needs-rendering');
+    expect(fs.existsSync(target)).toBe(false);
   });
 });

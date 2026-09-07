@@ -275,3 +275,18 @@ describe('settings-gate silent paths', () => {
     expectAsk(r.stdout, 'Hermit setting: tool call too large to inspect');
   });
 });
+
+test('resident instructions and operator overlay are protected for every write tool', async () => {
+  const dir = fixture();
+  for (const name of ['RESIDENT.md', 'claude-settings.json']) {
+    const file = `.claude-code-hermit/${name}`;
+    for (const tool of ['Edit', 'Write'] as const) {
+      const result = await runGate(payload({ dir, tool, input: { file_path: file, content: '{}' } }), dir);
+      expectAsk(result.stdout, `Hermit setting: ${name}`);
+    }
+    for (const command of [`echo x > ${file}`, `sed -i s/a/b/ ${file}`, `cp other ${file}`]) {
+      const result = await runGate(payload({ dir, tool: 'Bash', input: { command } }), dir);
+      expectAsk(result.stdout, `Hermit setting: ${name}`);
+    }
+  }
+});
