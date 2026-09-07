@@ -8,6 +8,24 @@ bun test
 
 This runs all test suites — hook tests, contract tests, and frontmatter validation.
 
+For a focused feedback loop, pass a test file and optionally `-t 'test name'`.
+Bun 1.4 also supports isolated file workers and per-file timing reports:
+
+```bash
+bun test tests/lockfile.test.ts
+bun test --parallel=4 --timings=/tmp/hermit-core-test-timings.json --update-timings
+```
+
+The timing file records file durations and lets subsequent runs schedule slow
+files first. Keep worker counts bounded when other suites are running: each
+worker can also run concurrent subprocess tests. From the repository root,
+`bun run test` handles the combined plugin run and shared root guards.
+
+Keep process-boundary assertions in subprocesses. Independent subprocess work
+should use asynchronous spawning and drain stdout/stderr while awaiting exit.
+For contention tests, release holders after all contenders report instead of
+sleeping for an assumed scheduling window.
+
 ---
 
 ## Test Structure

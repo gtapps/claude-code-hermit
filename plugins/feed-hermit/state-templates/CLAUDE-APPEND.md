@@ -20,7 +20,7 @@
 
 Registry (`feed-sources.md`/`feed-categories.md`) and archive frontmatter are the product's spine — documented in `${CLAUDE_PLUGIN_ROOT}/docs/schema.md`, which also owns the per-type fetch-cost defaults. The `sources_skipped` (fetch failed) vs `sources_quiet` (returned clean, 0 items) distinction powers `source-health`; never collapse them.
 
-### Routines & Scheduled Checks
+### Routines
 
 Routines `feed-brief-morning`, `feed-brief-evening`, and `weekly-digest` run on their cron schedules; prompts live at `.claude-code-hermit/compiled/routine-*.md`, schedules and `enabled` state in `config.json`. The `source-scout` routine runs unattended discovery and queues candidates for operator review.
 

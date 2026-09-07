@@ -38,11 +38,11 @@ claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scop
 
 **Builds and maintains — not just drafts.** Beyond automations, the hermit works the whole structural side of your setup so you rarely need the HA UI: dashboards, scripts, scenes, helpers, areas/floors/labels, entity metadata and Assist exposure, blueprints, energy preferences, core config, backups, and config-entry reloads. It also runs the dev/maintain loop — render a template, check config, tail the error log and logbook — to test and troubleshoot changes. Every structural write is gated by your safety mode; runtime device control stays with HA Assist.
 
-**It watches the house for you.** Daily integration health, silence detection (dead automations, sensors that stopped triggering, long-unavailable entities), and automation error checks; weekly pattern analysis, history-backed automation suggestions, and safety re-audit. Anomalies surface as proposals you can act on — never silent edits.
+**It watches the house for you.** Daily `ha-integration-health` and `ha-update-check` routines, silence detection (dead automations, sensors that stopped triggering, long-unavailable entities); weekly `ha-patterns` and `ha-safety-audit` routines, plus history-backed automation suggestions. Anomalies surface as proposals you can act on — never silent edits.
 
 **Safety is the default.** `lock`, `alarm_control_panel`, and security-tagged `cover`/`button`/`switch` domains are blocked outright. Vague targets (an area or device with no resolvable entity) fail closed. Every block becomes a proposal — never a surprise.
 
-**Routines that respect your day.** Morning and evening briefs (morning off until you confirm the house profile; evening confirms security before night), daily context refresh, weekly safety audit, daily integration-health and automation-error checks. Need a different cadence or a new routine? Just ask — hermit sets it up.
+**Routines that respect your day.** Morning and evening briefs (morning off until you confirm the house profile; evening confirms security before night), daily context refresh, weekly `ha-patterns` and `ha-safety-audit`, daily `ha-integration-health` and `ha-update-check`. Need a different cadence or a new routine? Just ask — hermit sets it up.
 
 **Everything is searchable.** HA sessions, proposals, pattern findings, and cost tracking land in your hermit's compiled knowledge and auto-memory — surfaceable on demand via `/hermit-health`, greppable from the state tree.
 
@@ -145,7 +145,7 @@ claude-code-homeassistant-hermit (this plugin)
   ├── src/*.ts            TypeScript modules (REST client, policy, simulation, apply, history, silence)
   └── state-templates/    CLAUDE-APPEND.md (injected by hatch)
 
-claude-code-hermit (core, required ≥ 1.2.34)
+claude-code-hermit (core, required ≥ 1.3.3)
   └── Session lifecycle, proposals, reflect, memory, cost tracking
 ```
 

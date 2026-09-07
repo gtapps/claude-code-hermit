@@ -1,6 +1,6 @@
 ---
 name: hermit-settings
-description: View or change hermit configuration for this project. Manages model, channels, morning brief, heartbeat, routines, idle behavior, compaction thresholds, Docker packages, and unattended mode.
+description: View or change hermit configuration for this project. Manages model, channels, morning brief, heartbeat, routines, compaction thresholds, Docker packages, and unattended mode.
 ---
 # Hermit Settings
 
@@ -31,7 +31,6 @@ On a channel-tagged turn, every free-form `Ask:` prompt below is delivered via t
 /claude-code-hermit:hermit-settings heartbeat      — enable/disable, interval, quiet mode, active hours
 /claude-code-hermit:hermit-settings watchdog       — scheduler_enabled, enable/disable, stale_factor, wedge_floor, escalate_after, operator_grace, context hygiene compaction
 /claude-code-hermit:hermit-settings routines        — manage scheduled routines (add/edit/remove/enable/disable)
-/claude-code-hermit:hermit-settings idle             — set idle behavior (wait or discover)
 /claude-code-hermit:hermit-settings env              — view/edit environment variables
 /claude-code-hermit:hermit-settings compact          — configure SHELL.md compaction thresholds
 /claude-code-hermit:hermit-settings docker           — view Docker packages (read-only); edit recommended plugins

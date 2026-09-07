@@ -27,7 +27,7 @@ Hatch seeds **empty** registries and asks about slots, tone, and enrichments. It
 
 ## Requirements
 
-- Core `claude-code-hermit` ≥ 1.2.34, installed and hatched.
+- Core `claude-code-hermit` ≥ 1.3.3, installed and hatched.
 - [Bun](https://bun.sh) 1.3+ (the fetch/validation scripts and tests are Bun/TypeScript).
 - Optional: a running Chrome for `chrome`/`reddit-home`/`x`-typed sources (they skip gracefully when it's unavailable); reddit works unauthenticated out of the box (see [`docs/reddit.md`](docs/reddit.md)).
 

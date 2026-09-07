@@ -28,13 +28,13 @@ Ephemeral inputs and rolling snapshots. Archived after `knowledge.raw_retention_
 | `snapshot-ha-normalized-latest.json` | `snapshot` | `ha-refresh-context` | Same run; overwritten each refresh (fixed name). Includes a top-level `entity_index` (per-entity `{state, attributes, …}` map keyed by `entity_id`) and a `silence_summary` block (keys: `dead_automations`, `silent_event_sensors`, `inactive_candidates_by_domain`, `long_unavailable`, `suppressed_entity_domains`, `thresholds`) — computed from existing timestamp fields, no extra HTTP calls. |
 | `automation-<slug>-<date>.yaml` | `automation` | `ha-build-automation` | Each automation draft |
 | `script-<slug>-<date>.yaml` | `script` | `ha-build-automation` | Each script draft |
-| `audit-ha-safety-<date>.md` | `audit` | `ha-safety-audit` | Weekly scheduled check |
-| `audit-ha-integration-health-<date>.md` | `audit` | `ha-integration-health` | Daily scheduled check |
+| `audit-ha-safety-<date>.md` | `audit` | `ha-safety-audit` | Weekly routine |
+| `audit-ha-integration-health-<date>.md` | `audit` | `ha-integration-health` | Daily routine |
 | `audit-ha-context-refresh-<date>.md` | `audit` | `ha-refresh-context` | Each context refresh |
 | `audit-ha-simulation-<slug>-<date>.md` | `simulation` | `ha-simulate` | Each simulation run |
 | `audit-ha-apply-<slug>-<date>.md` | `apply` | `ha-apply-change` | Each apply run |
-| `patterns-<date>.md` | `analysis` | `ha-analyze-patterns` | Weekly scheduled check |
-| `snapshot-ha-pattern-analysis-<date>.json` | `snapshot` | `ha-analyze-patterns` | Weekly scheduled check |
+| `patterns-<date>.md` | `analysis` | `ha-analyze-patterns` | Weekly routine |
+| `snapshot-ha-pattern-analysis-<date>.json` | `snapshot` | `ha-analyze-patterns` | Weekly routine |
 | `snapshot-ha-history-{N}d-<date>.json` | `snapshot` | `ha-fetch-history` (via `ha-analyze-patterns`, `ha-morning-brief`, or `ha fetch-history` CLI) | On demand or per caller cadence |
 | `snapshot-ha-history-{N}d-latest.json` | `snapshot` | same | Fixed-name alias; overwritten each fetch for that window size |
 

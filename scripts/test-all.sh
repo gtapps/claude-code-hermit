@@ -1,66 +1,79 @@
 #!/usr/bin/env bash
-# Run every plugin's test suite in parallel and report a per-plugin summary.
-# Wall time is bounded by the slowest suite instead of the sum of all suites.
+# Run plugin suites in parallel and report each result as soon as it finishes.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOGDIR="$(mktemp -d)"
-trap 'rm -rf "$LOGDIR"' EXIT
+overall_rc=0
+trap 'if [ "$overall_rc" -eq 0 ]; then rm -rf "$LOGDIR"; else printf "Full test logs: %s\n" "$LOGDIR"; fi' EXIT
 
 BUN_TEST_SLUGS=(claude-code-hermit claude-code-homeassistant-hermit feed-hermit)
 RUN_ALL_SLUGS=(claude-code-dev-hermit claude-code-fitness-hermit hermit-scribe laravel-forge-hermit)
 
+# Bun 1.4 isolates files in worker processes. Cap core at four workers because
+# the other plugin suites also run here, and each core file can start concurrent
+# subprocess tests. Using every CPU per plugin oversubscribes the combined run.
+CORE_WORKERS=$(bun -e 'console.log(Math.min(4, require("node:os").availableParallelism()))')
 declare -A PIDS
 
 now() { date +%s; }
 
-# Each job records its own wall time to <slug>.secs so the reported duration is
-# the suite's real runtime, not the moment the fixed-order wait loop reaps it.
+run_suite() {
+  local slug="$1"
+  shift
+  local start rc result
+  start=$(now)
+  "$@" >"$LOGDIR/$slug.log" 2>&1
+  rc=$?
+  result=PASS
+  [ "$rc" -eq 0 ] || result=FAIL
+  printf "%-32s %-6s %5ss\n" "$slug" "$result" "$(( $(now) - start ))"
+  return "$rc"
+}
+
+run_bun() {
+  local slug="$1"
+  shift
+  ( cd "$ROOT/plugins/$slug" && bun test "$@" )
+}
+
+run_root() {
+  ( cd "$ROOT" && bun test tests/cross-plugin/ tests/lib/ )
+}
+
+printf "%-32s %-6s %6s\n" "PLUGIN" "RESULT" "SECS"
 for slug in "${BUN_TEST_SLUGS[@]}"; do
-  ( s=$(now); cd "$ROOT/plugins/$slug" && bun test; rc=$?; echo $(( $(now) - s )) >"$LOGDIR/$slug.secs"; exit "$rc" ) >"$LOGDIR/$slug.log" 2>&1 &
+  if [ "$slug" = claude-code-hermit ]; then
+    run_suite "$slug" run_bun "$slug" --parallel="$CORE_WORKERS" &
+  else
+    run_suite "$slug" run_bun "$slug" &
+  fi
   PIDS[$slug]=$!
 done
 
 for slug in "${RUN_ALL_SLUGS[@]}"; do
-  ( s=$(now); bash "$ROOT/plugins/$slug/tests/run-all.sh"; rc=$?; echo $(( $(now) - s )) >"$LOGDIR/$slug.secs"; exit "$rc" ) >"$LOGDIR/$slug.log" 2>&1 &
+  run_suite "$slug" bash "$ROOT/plugins/$slug/tests/run-all.sh" &
   PIDS[$slug]=$!
 done
 
-overall_rc=0
-printf "%-32s %-6s %6s\n" "PLUGIN" "RESULT" "SECS"
+failed=()
 for slug in "${BUN_TEST_SLUGS[@]}" "${RUN_ALL_SLUGS[@]}"; do
-  wait "${PIDS[$slug]}"
-  rc=$?
-  elapsed=$(cat "$LOGDIR/$slug.secs" 2>/dev/null || echo '?')
-  if [ "$rc" -eq 0 ]; then
-    printf "%-32s %-6s %5ss\n" "$slug" "PASS" "$elapsed"
-  else
-    printf "%-32s %-6s %5ss\n" "$slug" "FAIL" "$elapsed"
+  if ! wait "${PIDS[$slug]}"; then
+    failed+=("$slug")
     overall_rc=1
-    echo "--- $slug (last 20 lines) ---"
-    tail -20 "$LOGDIR/$slug.log"
-    echo "---"
   fi
 done
 
-# Repo-root guards spanning more than one plugin — nothing above runs them, since
-# they live outside every plugin's own discovery. Deliberately serial, after the
-# plugin suites: they spawn a hook subprocess per corpus case, and the parallel
-# phase is already saturated enough that HA's CPU-bound gate-corpus tests sit
-# near their 5s per-test timeout. Keeping this out of that phase leaves the
-# tuned parallelism untouched, at ~10s of extra wall time.
-cp_start=$(now)
-( cd "$ROOT" && bun test tests/cross-plugin ) >"$LOGDIR/cross-plugin.log" 2>&1
-cp_rc=$?
-cp_elapsed=$(( $(now) - cp_start ))
-if [ "$cp_rc" -eq 0 ]; then
-  printf "%-32s %-6s %5ss\n" "cross-plugin" "PASS" "$cp_elapsed"
-else
-  printf "%-32s %-6s %5ss\n" "cross-plugin" "FAIL" "$cp_elapsed"
+# Keep subprocess-heavy cross-plugin guards out of the parallel plugin phase.
+# Include the shared helper tests too, matching the root CI suite.
+if ! run_suite root run_root; then
+  failed+=(root)
   overall_rc=1
-  echo "--- cross-plugin (last 20 lines) ---"
-  tail -20 "$LOGDIR/cross-plugin.log"
-  echo "---"
 fi
+
+for slug in "${failed[@]}"; do
+  echo "--- $slug (last 20 lines) ---"
+  tail -20 "$LOGDIR/$slug.log"
+done
 
 exit "$overall_rc"

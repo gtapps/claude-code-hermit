@@ -1258,9 +1258,13 @@ test('lapsed /login, second tick within the day → deduped, no second push', wi
   writeFakeTmux(h, 0, LAPSED_LOGIN_PANE);
   writeFakePgrep(h, 1);
   const configDir = writeStoredLogin(h);
+  // Exercise the notification branch. Without this stamp the watchdog starts
+  // a detached relay, whose first request races the assertion below.
+  fs.writeFileSync(state(h, 'relay-unreachable.json'), JSON.stringify({ at: isoAgo(1) }));
+  const notifiedAt = isoAgo(2);
   fs.writeFileSync(
     state(h, 'watchdog-state.json'),
-    JSON.stringify({ lapsed_login_notified_at: isoAgo(2) }) + '\n',
+    JSON.stringify({ lapsed_login_notified_at: notifiedAt }) + '\n',
   );
   const stub = startHttpStub();
   try {
@@ -1268,7 +1272,8 @@ test('lapsed /login, second tick within the day → deduped, no second push', wi
       env: { CLAUDE_CONFIG_DIR: configDir, CLAUDE_CODE_OAUTH_TOKEN: '', HERMIT_TELEGRAM_API_URL: stub.url },
     });
     expect(r.exitCode).toBe(0);
-    expect(stub.requests.length).toBe(0);
+    expect(stub.requests).toEqual([]);
+    expect(readJson(state(h, 'watchdog-state.json')).lapsed_login_notified_at).toBe(notifiedAt);
   } finally {
     stub.stop();
   }

@@ -7,7 +7,7 @@ always-on routine from an expensive one.
 ---
 
 For the config schema and registration mechanics (linked again under **Where this fits**
-below), see [Config Reference § Idle & Routines](config-reference.md#idle--routines) and
+below), see [Config Reference § Routines](config-reference.md#routines) and
 `skills/hermit-routines/SKILL.md`. This doc covers the authoring decision those references
 don't: *when* a routine needs a scoped skill instead of a broad one, and how to build it.
 
@@ -185,7 +185,7 @@ where it didn't and said otherwise.
 
 ## Where this fits
 
-- [Config Reference § Idle & Routines](config-reference.md#idle--routines) — the `routines` array
+- [Config Reference § Routines](config-reference.md#routines) — the `routines` array
   schema, cron rules, and the `model` field this pattern relies on.
 - `skills/hermit-routines/SKILL.md` — the registration mechanism (`load`/`run`; `list`/`status`/`stop` live in the sibling `reference.md`)
   and the model-override dispatch behavior cited above.

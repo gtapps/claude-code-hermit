@@ -244,8 +244,6 @@ Settings apply without a reboot. Execution-adjacent changes, channel enrollment,
 
 - **Heartbeat.** `heartbeat.every` sets the idle sweep (default `30m`; `2h`+ for slower pickup). Quiet polls cost nothing at any cadence, so this mostly controls how fast structured checks (proposals, budget, stale sessions) are picked up. `active_hours` bounds the window (`08:00`–`23:00`). `heartbeat.enabled: false` stops timed wakes entirely — channels and routines still fire.
 
-- **Idle behavior.** `discover` (default) adds a priority-alignment pass against `OPERATOR.md` + cost log; `wait` is passive (tasks/channels only). Either way the daily `reflect` schedule is still evaluated; when its precheck finds no due phase, it consumes the fire without invoking the learning loop. `wait` only silences between-schedule discovery.
-
 - **Routines.** Each routine takes an optional `model`: run lightweight ones on `haiku` to save cost or heavier ones on `opus` for more reasoning, in an isolated subagent. Omit `model` to keep it inline in the main session context — use that when the routine's value is its chat/transcript output, not just a status line. In Monitor mode, exactly co-due routines batch into one wake; offset routines you want as separate turns by a few minutes to keep the prompt cache warm. CronCreate fallback always fires them separately (see [Config Reference](docs/config-reference.md) for the full rule).
 
 - **Quiet & cheap:** a longer `heartbeat.every` + `quality_gate.tier: "budget"` (the default). Idle cost is already near-zero; these trim the rest.

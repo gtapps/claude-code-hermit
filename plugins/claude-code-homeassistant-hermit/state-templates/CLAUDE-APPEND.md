@@ -35,6 +35,6 @@ Brainstorm ideas are single-pass — the cross-session recurrence condition is w
 
 ### Routines
 
-HA routines (`daily-ha-context`, `morning-brief`, `evening-brief`) are registered by `hatch`. Run `/claude-code-hermit:hermit-routines load` once per interactive session to activate them.
+HA routines (`daily-ha-context`, `morning-brief`, `evening-brief`, `ha-patterns`, `ha-safety-audit`, `ha-integration-health`, `ha-update-check`) are registered by `hatch`. Run `/claude-code-hermit:hermit-routines load` once per interactive session to activate them.
 
 <!-- /claude-code-homeassistant-hermit: Home Assistant Workflow -->
