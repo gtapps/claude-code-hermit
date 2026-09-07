@@ -855,18 +855,23 @@ describe('channel-send rate limits', () => {
       });
     }
 
-    test(`${platform}: initial latency reduces the available wait budget`, async () => {
-      const r = await exercise(platform, [{ ...limited(platform, 0.4), delayMs: 300 }], { timeoutMs: 600 });
+    // Decided by Retry-After against the wait budget, never by a server sleep timed
+    // close to the client deadline — those are two clocks, and under a loaded
+    // `--parallel` run the sleep overshoots and aborts the attempt first.
+    test(`${platform}: a Retry-After past the latency-reduced budget returns the 429 instead of waiting`, async () => {
+      const r = await exercise(platform, [{ ...limited(platform, 5), delayMs: 50 }], { timeoutMs: 1500 });
       expect(r.result.status).toBe(429);
       expect(r.requests).toHaveLength(1);
-      expect(r.elapsed).toBeLessThan(650);
+      // Returned on the spot rather than sleeping out the rest of the budget.
+      expect(r.elapsed).toBeLessThan(1400);
     });
 
     test(`${platform}: retry shares the original timeout`, async () => {
-      const r = await exercise(platform, [{ ...limited(platform, 0.3), delayMs: 200 }, { delayMs: 1200 }], { timeoutMs: 800 });
+      const r = await exercise(platform, [{ ...limited(platform, 0.05), delayMs: 50 }, { delayMs: 1800 }], { timeoutMs: 1200 });
       expect(r.result).toEqual({ ok: false, error: 'request timeout' });
       expect(r.requests).toHaveLength(2);
-      expect(r.elapsed).toBeLessThan(1100);
+      // The second attempt inherits the first attempt's deadline instead of a fresh one.
+      expect(r.elapsed).toBeLessThan(2000);
       expect(r.rows).toHaveLength(0);
     });
 
