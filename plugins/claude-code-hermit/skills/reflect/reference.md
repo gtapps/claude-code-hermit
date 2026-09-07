@@ -232,7 +232,7 @@ the human-initiated evidence; the shape's `tier` is ignored for these — the ma
 `skill-preference:*` routing sets it). `evidence` must cite the memory topic **filename** plus the **verbatim
 endpoint line** (the main session's judge greps for it; the filename doubles as the dedup key — derive
 `title` from it). Emit nothing for session-wide one-liners (memory is their correct home) and nothing
-for pointer-form memories that already name the skill or surface holding the content (already placed).
+for pointer-form memories that already name the skill or surface holding the content (already placed), or for hook lines tagged `[role` (channel standing roles whose home is memory).
 Do not read skill files or prose surfaces to check ownership — the main session owns that; your
 evidence is the memory entry alone.
 

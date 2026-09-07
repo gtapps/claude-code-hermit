@@ -89,3 +89,26 @@ test('hermit-settings describes the briefing chat as an asked write', () => {
   expect(settings).toContain('default_chat_id');
   expect(settings).toContain('This write raises the native permission prompt');
 });
+
+test('§1 applies memory role hook lines', () => {
+  const context = skill.slice(skill.indexOf('## 1. Load Context'), skill.indexOf('## 1b.'));
+  expect(context).toContain('[role');
+});
+
+test('§2 supports standing role memory management', () => {
+  const classification = skill.slice(skill.indexOf('## 2. Classify'), skill.indexOf('## 3.'));
+  expect(classification).toContain('Standing role');
+  expect(classification).toContain('remember');
+  expect(classification).toContain('forget');
+  expect(classification).toContain('what do you remember');
+  expect(classification).toContain('MEMORY.md');
+  const roleStart = classification.indexOf('- **Standing role**');
+  const roleEnd = classification.indexOf('\n- **', roleStart + 1);
+  expect(roleStart).toBeGreaterThan(-1);
+  expect(roleEnd).toBeGreaterThan(roleStart);
+  const role = classification.slice(roleStart, roleEnd);
+  expect(role).not.toContain('HEARTBEAT.md');
+  // The index-line tag is what §1 matches on, and the memory directory is what makes the write land.
+  expect(role).toContain('[role <key>:<chat_id>]');
+  expect(role).toContain('projects/<path-key>/memory/');
+});

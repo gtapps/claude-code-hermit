@@ -97,6 +97,7 @@ describe('eval-runner ownership signal', () => {
     expect(reference.includes('**Ownership signal:**')).toBe(true);
     expect(reference.includes('"settled-memory"')).toBe(true);
     expect(reference.includes('pointer-form memories')).toBe(true);
+    expect(reference.slice(reference.indexOf('**Ownership signal:**'), reference.indexOf('## Return Value'))).toContain('[role');
   });
 });
 

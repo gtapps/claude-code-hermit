@@ -4,7 +4,9 @@
 
 A paid Claude plan (Pro, Max, Teams, or Enterprise). Linux, macOS, or Windows via WSL2.
 
-The installer below provisions the rest: [Claude Code](https://code.claude.com) v2.1.251+, **Bun** ≥1.3 (the hooks and scripts are TypeScript run directly by `bun`), and **tmux** for always-on mode.
+Claude Code auto memory must stay enabled (the default): learning, preferences, and standing roles live there. Setting `autoMemoryEnabled: false` or `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` disables them.
+
+The installer below provisions the rest: [Claude Code](https://code.claude.com) v2.1.263+, **Bun** ≥1.3 (the hooks and scripts are TypeScript run directly by `bun`), and **tmux** for always-on mode.
 
 ---
 
@@ -110,6 +112,7 @@ When it finishes, it archives the report and says "What's next?" — tell it wha
 
 Hermit isn't just a work engine. During any session, you can ask it to reflect and improve:
 
+- **"remember for this channel: when X, do Y"** saves a standing role in memory. "For this channel" pins it to that chat; a plain "remember" applies everywhere. Ask "what do you remember about this channel?" to list roles or "forget the X rule" to remove one. Posts not addressed to the hermit never trigger a role.
 - **"What slowed you down recently?"** — Reviews its experience and tells you what caused delays.
 - **"What permissions do you keep getting blocked on?"** — Suggests the exact `settings.json` entries to add so it stops getting prompted.
 - **"Suggest specialized agents for this project."** — Proposes new [sub-agents](https://code.claude.com/docs/en/sub-agents) based on the kind of work you've been doing. You approve, it creates them.
