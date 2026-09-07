@@ -355,7 +355,7 @@ Modify with `/hermit-settings watchdog` (same command surfaces both `watchdog` a
 
 ---
 
-## Idle & Routines
+## Routines
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -364,7 +364,7 @@ Modify with `/hermit-settings watchdog` (same command surfaces both `watchdog` a
 | `routine_wake_lint` | object | `{"max_windows": 6}` | Wake-clustering lint, CronCreate anchor/fallback mode only (routines due in the same monitor poll already batch into one wake — nothing to lint there). On every `/claude-code-hermit:hermit-routines load`, enabled routines' (timezone-shifted) fire-times are bucketed into 30-min windows; when they spread across more than `max_windows` distinct windows, `load` logs one advisory `WARN` line naming the loneliest fires. A wake-count nudge (fewer distinct wake windows ≈ fewer cache-cold wakes); advisory only, never blocks registration. See [Staggering routines](#cron-schedule-rules) below. |
 | `doctor` | object | `{"routine_cost_floor_usd": 2}` | Tunables for `/claude-code-hermit:hermit-doctor` checks. `routine_cost_floor_usd` (default 2) is the absolute `$/run` floor for the `routine-cost` check: a routine is flagged only when its per-run cost exceeds both 3× the peer median (the other routines' median) and this floor, so cheap routines that are merely relative outliers stay quiet. Raise it to suppress low-dollar noise; lower it to catch smaller regressions. |
 
-Modify with `/hermit-settings routines`, `/hermit-settings idle`.
+Modify with `/hermit-settings routines`.
 
 ### Cron schedule rules
 

@@ -20,10 +20,12 @@
 // `pip install -e` pulled them in CI), and a git checkout deep enough to
 // contain 42c0c8f~1 (CI uses fetch-depth: 0).
 
-import { beforeAll, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { afterAll, beforeAll, expect, test } from 'bun:test';
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { cleanupTmp, tmpPath } from './helpers';
+
+afterAll(cleanupTmp);
 
 const PLUGIN_DIR = join(import.meta.dir, '..');
 const CORPUS_DIR = join(import.meta.dir, 'fixtures', 'gate-corpus');
@@ -80,7 +82,7 @@ function resolvePython(): string {
 
 beforeAll(() => {
   python = resolvePython();
-  goldenDir = mkdtempSync(join(tmpdir(), 'gate-golden-'));
+  goldenDir = tmpPath('gate-golden-');
   mkdirSync(join(goldenDir, 'hooks'), { recursive: true });
   mkdirSync(join(goldenDir, 'src', 'ha_agent_lab'), { recursive: true });
   for (const f of ['mcp-safety-gate.py', 'curl-host-gate.py']) {
@@ -109,7 +111,7 @@ function baseEnv(): Record<string, string> {
 }
 
 function prepareCwd(entry: CorpusEntry): string {
-  const cwd = mkdtempSync(join(tmpdir(), 'gate-case-'));
+  const cwd = tmpPath('gate-case-');
   if (entry.config_mode !== undefined) {
     const cfgDir = join(cwd, '.claude-code-hermit');
     mkdirSync(cfgDir, { recursive: true });
@@ -127,17 +129,24 @@ function entryEnv(entry: CorpusEntry, cwd: string): Record<string, string> {
   return env;
 }
 
-function run(cmd: string[], entry: CorpusEntry, cwd: string, extraEnv: Record<string, string> = {}): RunResult {
-  const r = Bun.spawnSync(cmd, {
+async function run(cmd: string[], entry: CorpusEntry, cwd: string, extraEnv: Record<string, string> = {}): Promise<RunResult> {
+  const r = Bun.spawn(cmd, {
     cwd,
     env: { ...entryEnv(entry, cwd), ...extraEnv },
     stdin: Buffer.from(entry.stdin, 'utf8'),
     timeout: 15_000,
+    stdout: 'pipe',
+    stderr: 'pipe',
   });
-  return { exit: r.exitCode ?? -1, stdout: r.stdout.toString(), stderr: r.stderr.toString() };
+  const [exit, stdout, stderr] = await Promise.all([
+    r.exited,
+    new Response(r.stdout).text(),
+    new Response(r.stderr).text(),
+  ]);
+  return { exit, stdout, stderr };
 }
 
-function runOldPython(entry: CorpusEntry, cwd: string): RunResult {
+function runOldPython(entry: CorpusEntry, cwd: string): Promise<RunResult> {
   const hook = join(goldenDir, 'hooks', entry.gate === 'mcp' ? 'mcp-safety-gate.py' : 'curl-host-gate.py');
   return run([python, hook], entry, cwd, {
     PYTHONPATH: join(goldenDir, 'src'),
@@ -147,7 +156,7 @@ function runOldPython(entry: CorpusEntry, cwd: string): RunResult {
   });
 }
 
-function runNewTs(entry: CorpusEntry, cwd: string): RunResult {
+function runNewTs(entry: CorpusEntry, cwd: string): Promise<RunResult> {
   const hook = join(PLUGIN_DIR, 'hooks', entry.gate === 'mcp' ? 'mcp-safety-gate.ts' : 'curl-host-gate.ts');
   return run([process.execPath, hook], entry, cwd);
 }
@@ -190,13 +199,12 @@ function assertVerdict(entry: CorpusEntry, ts: RunResult): void {
   }
 }
 
-function compare(entry: CorpusEntry): void {
+async function compare(entry: CorpusEntry): Promise<void> {
   // Fresh cwd per side so lru_cache/Map caches and .env reads stay isolated
   // yet observe identical file layouts.
   const pyCwd = prepareCwd(entry);
   const tsCwd = prepareCwd(entry);
-  const py = runOldPython(entry, pyCwd);
-  const ts = runNewTs(entry, tsCwd);
+  const [py, ts] = await Promise.all([runOldPython(entry, pyCwd), runNewTs(entry, tsCwd)]);
 
   assertVerdict(entry, ts);
 
@@ -231,8 +239,8 @@ test('corpus is non-trivial', () => {
 
 for (const file of entryFiles) {
   const entry = JSON.parse(readFileSync(join(CORPUS_DIR, file), 'utf8')) as CorpusEntry;
-  test(`golden corpus: ${file.replace(/\.json$/, '')}`, () => {
-    compare(entry);
+  test(`golden corpus: ${file.replace(/\.json$/, '')}`, async () => {
+    await compare(entry);
   });
 }
 
@@ -240,7 +248,7 @@ for (const file of entryFiles) {
 // Oversized payloads — generated here instead of committed as multi-MB fixtures.
 // ---------------------------------------------------------------------------
 
-test('golden corpus: oversized entity list with one sensitive id blocks identically', () => {
+test('golden corpus: oversized entity list with one sensitive id blocks identically', async () => {
   const ids = Array.from({ length: 50_000 }, (_, i) => `light.bulb_${i}`);
   ids.push('lock.front_door');
   const entry: CorpusEntry = {
@@ -248,24 +256,24 @@ test('golden corpus: oversized entity list with one sensitive id blocks identica
     stdin: JSON.stringify({ tool_input: { entity_id: ids } }),
     verdict: 'block',
   };
-  compare(entry);
+  await compare(entry);
 });
 
-test('golden corpus: multi-megabyte garbage stdin fails closed identically', () => {
+test('golden corpus: multi-megabyte garbage stdin fails closed identically', async () => {
   const entry: CorpusEntry = {
     gate: 'mcp',
     stdin: 'x'.repeat(2 * 1024 * 1024),
     verdict: 'block',
   };
-  compare(entry);
+  await compare(entry);
 });
 
-test('golden corpus: oversized safe-only entity list allows identically', () => {
+test('golden corpus: oversized safe-only entity list allows identically', async () => {
   const ids = Array.from({ length: 50_000 }, (_, i) => `light.bulb_${i}`);
   const entry: CorpusEntry = {
     gate: 'mcp',
     stdin: JSON.stringify({ tool_input: { entity_id: ids } }),
     verdict: 'allow',
   };
-  compare(entry);
+  await compare(entry);
 });

@@ -45,6 +45,20 @@ The `@claude-code-hermit` suffix disambiguates when both a user-scoped and a pro
 
 ## Testing
 
+Run all seven plugin suites and the shared root tests with Bun 1.4 or newer:
+
+```bash
+bun run test
+```
+
+The runner uses bounded, isolated file workers for core alongside the other
+plugins. Each plugin's result appears when it finishes. Failures retain the full
+logs at the printed path; successful runs remove their temporary logs. Home
+Assistant's historical safety corpus requires Python with `python-dotenv` and
+`PyYAML`; set `GATE_PARITY_PYTHON` if that interpreter is outside PATH.
+
+For a core-only change:
+
 ```bash
 ( cd plugins/claude-code-hermit && bun test )
 ```
@@ -55,7 +69,7 @@ For HA-hermit changes:
 ( cd plugins/claude-code-homeassistant-hermit && bun test )
 ```
 
-See [Testing](docs/testing.md) for hook test details, fixtures, manual testing, and how to write new tests.
+See [Testing](plugins/claude-code-hermit/docs/testing.md) for hook test details, fixtures, manual testing, and how to write new tests.
 
 ## PR Workflow
 

@@ -5,7 +5,7 @@ description: "Routine check: scans the Forge estate for sites whose latest deplo
 
 # Forge Failed Deploys
 
-Scheduled-check skill: scans the org-wide site list and flags any sites whose latest deployment status is `failed`, `failed-build`, or `cancelled`.
+Routine skill: scans the org-wide site list and flags any sites whose latest deployment status is `failed`, `failed-build`, or `cancelled`.
 
 **Contract:** idempotent, read-only, no self-scheduling, short-running. Returns findings or silence — never creates proposals itself.
 

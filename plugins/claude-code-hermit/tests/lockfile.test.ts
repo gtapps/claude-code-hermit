@@ -8,6 +8,33 @@ function makeDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-lock-'));
 }
 
+// Keep every contender alive until all acquisition results are in. A fixed
+// sleep both delays the suite and lets a late contender steal a dead winner's
+// lock on a busy runner. EOF on stdin releases the children in finally.
+async function raceAcquirers(lock: string): Promise<string[]> {
+  const script = `
+    import { acquireLock } from ${JSON.stringify(path.join(import.meta.dir, '../scripts/lib/lockfile.ts'))};
+    console.log(acquireLock(${JSON.stringify(lock)}) ? 'WON' : 'LOST');
+    await Bun.stdin.text();
+  `;
+  const procs = Array.from({ length: 8 }, () =>
+    Bun.spawn([process.execPath, '-e', script], { stdin: 'pipe', stdout: 'pipe' })
+  );
+  try {
+    return await Promise.all(procs.map(async (proc) => {
+      let output = '';
+      for await (const chunk of proc.stdout) {
+        output += Buffer.from(chunk).toString();
+        if (output.includes('\n')) break;
+      }
+      return output.trim();
+    }));
+  } finally {
+    for (const proc of procs) proc.stdin.end();
+    await Promise.all(procs.map(proc => proc.exited));
+  }
+}
+
 // A live pid we genuinely cannot signal (EPERM): alive, owned by another user.
 // pid 1 is the obvious candidate but only qualifies when the runner is
 // unprivileged AND pid 1 is not its own — neither holds inside a container or a
@@ -168,18 +195,9 @@ describe('lockfile', () => {
       fs.writeFileSync(lock, '999999'); // bogus pid, hour-old → unambiguously stale
       const old = new Date(Date.now() - 60 * 60 * 1000);
       fs.utimesSync(lock, old, old);
-      const script = `
-      import { acquireLock } from '${path.join(import.meta.dir, '../scripts/lib/lockfile.ts')}';
-      if (acquireLock('${lock}')) { console.log('WON'); await Bun.sleep(2000); }
-      else { console.log('LOST'); }
-    `;
-      const procs = Array.from({ length: 8 }, () => Bun.spawn(['bun', '-e', script], { stdout: 'pipe' }));
-      const outs = await Promise.all(procs.map(async (p) => {
-        await p.exited;
-        return (await new Response(p.stdout).text()).trim();
-      }));
+      const outs = await raceAcquirers(lock);
       expect(outs.filter((o) => o === 'WON').length).toBe(1);
-      expect(outs.length).toBe(8);
+      expect(outs.filter((o) => o === 'LOST').length).toBe(7);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -257,29 +275,10 @@ describe('lockfile', () => {
     const dir = makeDir();
     try {
       const lock = path.join(dir, '.lifecycle.lock');
-      // Winners must stay alive while the others contend — a dead winner's lock
-      // is legitimately taken over (that IS the design, mirroring flock's
-      // release-on-exit). Each winner holds the lock for 2s, far longer than
-      // the contention window.
-      const script = `
-      import { acquireLock } from '${path.join(import.meta.dir, '../scripts/lib/lockfile.ts')}';
-      if (acquireLock('${lock}')) {
-        console.log('WON');
-        await Bun.sleep(2000);
-      } else {
-        console.log('LOST');
-      }
-    `;
-      const procs = Array.from({ length: 8 }, () =>
-        Bun.spawn(['bun', '-e', script], { stdout: 'pipe' })
-      );
-      const outs = await Promise.all(procs.map(async (p) => {
-        await p.exited;
-        return (await new Response(p.stdout).text()).trim();
-      }));
+      const outs = await raceAcquirers(lock);
       const winners = outs.filter((o) => o === 'WON');
       expect(winners.length).toBe(1);
-      expect(outs.length).toBe(8);
+      expect(outs.filter((o) => o === 'LOST').length).toBe(7);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

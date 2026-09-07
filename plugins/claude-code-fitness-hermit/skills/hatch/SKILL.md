@@ -278,7 +278,7 @@ Installation summary:
   ✓ Routine prompts: {N}/4 dropped, {M}/4 already present
   ✓ CLAUDE.md: Fitness Workflow block injected (or was already present)
   ✓ knowledge-schema.md: fitness types added (or were already present)
-  ✓ config.json: _hermit_versions stamped, {K}/4 routines added, weekly-coaching-patterns check registered
+  ✓ config.json: _hermit_versions stamped, {K}/4 prompt routines added, weekly-coaching-patterns routine registered with precheck
 
 Manual steps remaining:
   - Restart Claude Code so the `strava` MCP server loads from .mcp.json
@@ -295,7 +295,7 @@ Go always-on (recommended):
 
 Prefer to test interactively first? After restarting, run:
   /claude-code-hermit:hermit-routines load
-    — activates the four fitness routines in the current Claude session.
+    — activates the fitness routines in the current Claude session.
 
 The always-on runtime activates routines automatically — the interactive
 steps are only for a test drive before handing over to the runtime.

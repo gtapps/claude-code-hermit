@@ -184,7 +184,7 @@ Installation summary:
   ✓ .gitignore: .env covered
   ✓ CLAUDE.md: Forge Workflow block injected (or already present)
   ✓ knowledge-schema.md: deploy-incident type added (or already present)
-  ✓ config.json: _hermit_versions stamped, forge-failed-deploys check registered
+  ✓ config.json: _hermit_versions stamped, forge-failed-deploys routine registered
 
 Next steps:
   - Restart Claude Code so the updated CLAUDE.md loads.

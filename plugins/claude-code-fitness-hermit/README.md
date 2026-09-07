@@ -44,6 +44,7 @@ claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope loca
 - `evening-brief` — daily 21:30 — today's training recap + tomorrow's setup; syncs new activities, invites RPE
 - `weekly-load-review` — Sunday 18:00 — week-over-week load summary with trend flag
 - `monday-planning` — Monday 09:30 — weekly training structure suggestion
+- `weekly-coaching-patterns` — Monday 09:05 — cardiac-drift trend; pre-wake gate skips when there is no upward trend
 
 Need a different cadence or a new routine? Just ask — hermit sets it up.
 
@@ -133,7 +134,7 @@ claude-code-fitness-hermit (this plugin)
   ├── docs/               knowledge-schema.md
   └── settings.json       Strava read allow-list, write tools blocked
 
-claude-code-hermit (core, required ≥ 1.2.34)
+claude-code-hermit (core, required ≥ 1.3.3)
   └── Session lifecycle, routines, channels, memory, cost tracking
 ```
 

@@ -7,7 +7,7 @@ allowed-tools:
 
 # Weekly Coaching Patterns
 
-Scheduled-check skill: reads the last 4 `compiled/activity-*.md` artifacts for steady sessions and detects whether cardiac drift is trending upward over time. Returns a fixed findings block for `reflect --check-id weekly-coaching-patterns --check claude-code-fitness-hermit:weekly-coaching-patterns` to classify and route.
+Routine skill: reads the last 4 `compiled/activity-*.md` artifacts for steady sessions and detects whether cardiac drift is trending upward over time. Returns a fixed findings block for `reflect --check-id weekly-coaching-patterns --check claude-code-fitness-hermit:weekly-coaching-patterns` to classify and route.
 
 **Contract:** idempotent, read-only, no self-scheduling, short-running. Returns findings or silence — never creates proposals itself.
 

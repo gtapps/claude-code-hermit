@@ -274,8 +274,7 @@ hatch complete
   ✓  CLAUDE.md updated
   ✓  config.json stamped v<version>
   ✓  boot_skill: /claude-code-homeassistant-hermit:ha-boot (set | already set | operator override preserved)
-  ✓  Routines registered: daily-ha-context, morning-brief (disabled by default), evening-brief
-  ✓  Scheduled checks registered: ha-patterns, ha-safety-audit, ha-integration-health, ha-update-check
+  ✓  Routines registered: daily-ha-context, morning-brief, evening-brief, ha-patterns, ha-safety-audit, ha-integration-health, ha-update-check
   ✓  knowledge-schema.md: HA types added (or already present)
 
 Manual steps remaining:

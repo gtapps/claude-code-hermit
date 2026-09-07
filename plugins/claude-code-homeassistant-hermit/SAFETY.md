@@ -87,7 +87,7 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <entity_id_or_yaml>
 
 ## Reviewing Live Automations
 
-The `ha-safety-audit` plugin check runs weekly and re-audits every live automation against the current policy. Findings surface as proposals.
+The `ha-safety-audit` routine runs weekly and re-audits every live automation against the current policy. Findings surface as proposals.
 
 Run on demand:
 

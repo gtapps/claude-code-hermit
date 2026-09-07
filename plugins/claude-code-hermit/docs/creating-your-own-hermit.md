@@ -306,7 +306,7 @@ Register cadence-driven skills as ordinary routines. Each routine invokes one sk
 }
 ```
 
-Run `/claude-code-hermit:hermit-routines load` to activate it. See [Routine Authoring](routine-authoring.md) for model pins and optional pre-wake gates, and [Config Reference](config-reference.md#idle--routines) for the schema.
+Run `/claude-code-hermit:hermit-routines load` to activate it. See [Routine Authoring](routine-authoring.md) for model pins and optional pre-wake gates, and [Config Reference](config-reference.md#routines) for the schema.
 
 **Skill contract:**
 

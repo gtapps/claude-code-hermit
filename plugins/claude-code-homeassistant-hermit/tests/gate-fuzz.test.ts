@@ -23,14 +23,21 @@ const CURL_HOOK = join(import.meta.dir, '..', 'hooks', 'curl-host-gate.ts');
 const MAX_STDIN_BYTES = 8 * 1024; // bound input sizes — no multi-MB fuzz cases
 const TIMEOUT_MS = 10_000; // no-hang bound per spawn
 
-function runGate(hook: string, stdin: string) {
-  const r = Bun.spawnSync([process.execPath, hook], {
+async function runGate(hook: string, stdin: string) {
+  const r = Bun.spawn([process.execPath, hook], {
     stdin: Buffer.from(stdin.slice(0, MAX_STDIN_BYTES), 'utf8'),
     env: cleanEnv(),
     cwd: import.meta.dir, // no .claude-code-hermit/config.json here -> strict
     timeout: TIMEOUT_MS,
+    stdout: 'pipe',
+    stderr: 'pipe',
   });
-  return { exit: r.exitCode, stdout: r.stdout.toString(), stderr: r.stderr.toString() };
+  const [exit, stdout, stderr] = await Promise.all([
+    r.exited,
+    new Response(r.stdout).text(),
+    new Response(r.stderr).text(),
+  ]);
+  return { exit, stdout, stderr };
 }
 
 /** Reference oracle for "does this payload contain resolvable entity ids" —
@@ -77,10 +84,10 @@ const RUNS = Number(process.env.GATE_FUZZ_RUNS ?? 100);
 // full suite's concurrent load even though the assertions themselves pass.
 const FUZZ_TIMEOUT_MS = 60_000;
 
-test('mcp gate: arbitrary raw stdin never crashes, never hangs, never fails open', () => {
-  fc.assert(
-    fc.property(fc.string({ maxLength: 2_000 }), (raw) => {
-      const r = runGate(MCP_HOOK, raw);
+test('mcp gate: arbitrary raw stdin never crashes, never hangs, never fails open', async () => {
+  await fc.assert(
+    fc.asyncProperty(fc.string({ maxLength: 2_000 }), async (raw) => {
+      const r = await runGate(MCP_HOOK, raw);
       // Never any exit code other than 0 (allow/ask) or 2 (block) — anything
       // else is a non-blocking hook error, i.e. fail-open.
       expect([0, 2]).toContain(r.exit);
@@ -104,14 +111,14 @@ test('mcp gate: arbitrary raw stdin never crashes, never hangs, never fails open
   );
 }, FUZZ_TIMEOUT_MS);
 
-test('mcp gate: arbitrary JSON payloads without resolvable ids always block', () => {
-  fc.assert(
-    fc.property(fc.jsonValue({ maxDepth: 4 }), (value) => {
+test('mcp gate: arbitrary JSON payloads without resolvable ids always block', async () => {
+  await fc.assert(
+    fc.asyncProperty(fc.jsonValue({ maxDepth: 4 }), async (value) => {
       const stdin = JSON.stringify(value);
       fc.pre(stdin !== undefined && stdin.length <= MAX_STDIN_BYTES);
       fc.pre(oracleExtractIds(value).length === 0);
       fc.pre(!isReadonlyTool(value));
-      const r = runGate(MCP_HOOK, stdin);
+      const r = await runGate(MCP_HOOK, stdin);
       expect(r.exit).toBe(2);
       expect(r.stdout).toBe('');
       expect(r.stderr).not.toBe('');
@@ -120,7 +127,7 @@ test('mcp gate: arbitrary JSON payloads without resolvable ids always block', ()
   );
 }, FUZZ_TIMEOUT_MS);
 
-test('mcp gate: any payload carrying a sensitive entity id blocks under strict', () => {
+test('mcp gate: any payload carrying a sensitive entity id blocks under strict', async () => {
   const sensitiveId = fc.oneof(
     fc.constant('lock.front_door'),
     fc.constant('alarm_control_panel.home'),
@@ -130,12 +137,12 @@ test('mcp gate: any payload carrying a sensitive entity id blocks under strict',
     fc.string({ maxLength: 30 }).map((s) => `light.${s.replace(/[ ]/g, '')}`),
     { maxLength: 5 },
   );
-  fc.assert(
-    fc.property(sensitiveId, safeNoise, fc.boolean(), (sid, noise, viaTarget) => {
+  await fc.assert(
+    fc.asyncProperty(sensitiveId, safeNoise, fc.boolean(), async (sid, noise, viaTarget) => {
       const payload = viaTarget
         ? { tool_input: { entity_id: noise, target: { entity_id: sid } } }
         : { tool_input: { entity_id: [...noise, sid] } };
-      const r = runGate(MCP_HOOK, JSON.stringify(payload));
+      const r = await runGate(MCP_HOOK, JSON.stringify(payload));
       expect(r.exit).toBe(2);
       expect(r.stdout).toBe('');
       expect(r.stderr).toContain('Blocked sensitive entities');
@@ -144,10 +151,10 @@ test('mcp gate: any payload carrying a sensitive entity id blocks under strict',
   );
 }, FUZZ_TIMEOUT_MS);
 
-test('curl gate: arbitrary raw stdin never exits nonzero and never grants without a needle', () => {
-  fc.assert(
-    fc.property(fc.string({ maxLength: 2_000 }), (raw) => {
-      const r = runGate(CURL_HOOK, raw);
+test('curl gate: arbitrary raw stdin never exits nonzero and never grants without a needle', async () => {
+  await fc.assert(
+    fc.asyncProperty(fc.string({ maxLength: 2_000 }), async (raw) => {
+      const r = await runGate(CURL_HOOK, raw);
       expect(r.exit).toBe(0);
       if (r.stdout !== '') {
         // An allow decision may only appear when the Bash command string

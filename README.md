@@ -33,10 +33,12 @@ Hermit adds a persistent operating layer around Claude Code, a learning loop, an
 
 - **Stateful** live working state, archived session handoffs, runtime observations, lessons, findings, blockers, completed tasks, files created/modified/deleted.
 - **Agent Routines** Add your own scheduled routines. Give any routine a small precheck script so it only wakes Claude when there is work. Quiet skips use zero model tokens, and routines due at the same time share one wake. Managed by `/hermit-routines`.
+- `/later` records a claim for deferred verification, with a daily routine as its durable safety net (research preview).
 - **Heartbeat** uses the checks you define in `HEARTBEAT.md` together with the agent's saved state, including pending decisions, active alerts, and stale work, to know when something needs attention. You can edit the list at any time or ask the agent to update it. Claude wakes only when needed; quiet ticks use zero model tokens.
 - **`/watch`** watches logs, files, and other changing sources in the background, then notifies you when something happens. It stays silent when nothing changes.
 - **Operate it from your phone.** The agent pings you first when it needs a decision. From a trusted [Claude Code Channel](https://code.claude.com/docs/en/channels) (Discord or Telegram), send work, accept proposals, change settings, check on it with `/status`, hold it with `/pause`, `/resume` and `/snooze`, or drive Claude Code itself with `/model`, `/effort`, `/permission-mode`, `/compact`, `/clear`, `/advisor`, and `/doctor`. `/doctor` needs the operator's own chat. Pause is enforced at the tool boundary, not merely treated as a conversational request.
 - **Spawn new sessions remotely.** You run `/rc-gate` to open a Remote Control gate so the Claude app can start sessions in isolated worktrees, with cleanup for worktrees left behind after archival.
+- **Spawn a helper from chat.** `/spawn-session` starts a background Claude Code session in its own worktree, watches it, and relays its report when it finishes. Pass `--rc` if you also want to pick it up from the Claude app.
 - **Native Artifacts Integration** The agent publishes its Dashboard, open proposals, weekly reviews, and requested compiled documents as private, versioned [Claude Code Artifacts](https://code.claude.com/docs/en/artifacts). Pages update in place at stable URLs and support organization sharing where available. You can use your own artifact server instead.
 - **Auto-memory + knowledge** Claude Code's auto-memory holds facts and preferences about how to work with you. The agent also maintains a `raw/` → `compiled/` living knowledge base for domain work and topic pages, carries a bounded catalog across sessions, and makes all of it searchable with `/recall`. Discord and Telegram DMs are captured locally by default so chat decisions outlive the thread; `weekly-review` distills them into memory. [Channel capture can be disabled](plugins/claude-code-hermit/docs/config-reference.md#knowledge).
 - **Plan tracking** lives in the SHELL.md Progress Log — timestamped steps that survive compaction, restart, and every model tier.
@@ -195,7 +197,6 @@ Tune from a terminal with `/hermit-settings`, or change permitted settings from 
 | `timezone` | **`UTC`** |
 | `language` | **`en`** |
 | `escalation` | how much it does before asking — `conservative` / **`balanced`** / `autonomous` |
-| `sign_off` | optional sign-off on channel messages |
 | `model` | session model — **`sonnet`** |
 | `permission_mode` | how freely the unattended agent acts — **`auto`** |
 | `AGENT_HOOK_PROFILE` | guardrail profile — `minimal` / **`standard`** (interactive) / **`strict`** (always-on) |
@@ -206,7 +207,6 @@ Tune from a terminal with `/hermit-settings`, or change permitted settings from 
 | `ask_gate` | route unattended questions to a paired channel — **`true`** |
 | `budget` | optional daily / weekly / monthly caps; **`alert`** or binding `pause` action |
 | `artifacts` | dashboard / proposals / weekly review — **all enabled** |
-| `idle_behavior` | **`discover`** (proactive) / `wait` (passive) |
 | `heartbeat.enabled` | timed idle sweeps — **`true`** |
 | `heartbeat.every` | idle sweep cadence — **`30m`** |
 | `active_hours` | active window — **`08:00`–`23:00`** |
@@ -214,7 +214,7 @@ Tune from a terminal with `/hermit-settings`, or change permitted settings from 
 | `heartbeat.waiting_timeout` | auto `waiting`→`idle` after — **`null`** (off) |
 | `routines` | persistent routines managed via `/hermit-routines` |
 | `monitors` | persistent background watches managed via `/watch` |
-| `scheduled_checks` | periodic skill invocations |
+| `scheduled_checks` | session-triggered skills at task completion |
 | `reflection.graduation_min_sessions` | proposal recurrence bar — **`1`** |
 | `quality_gate.tier` | post-change cleanup spend — **`budget`** / `balanced` / `quality` |
 | `knowledge.compiled_budget_chars` | fresh/resumed startup catalog budget — **`2500`** |
