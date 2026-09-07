@@ -14,6 +14,7 @@
 - `peer-post.ts` requires message text as an argument and no longer reads stdin.
 
 ### Fixed
+- The Docker entrypoint no longer writes `.mcp.json` server approvals to `~/.claude.json`, where the harness never read them, leaving project servers pending all along. Enrollment is now an operator edit to `enabledMcpjsonServers` in the project's `.claude/settings.json`, documented in `docs/always-on.md` § MCP servers; boot logs the servers the project declares and approves none of them.
 - Stdin hang in `routines.ts finish` and `proposal.ts patch`: stdin is read only behind the explicit `--outcome-stdin` and `--stdin` flags; a heredoc without the flag is ignored.
 - `covered-by-memory` suppression in `proposal-triage` now requires a memory that records an operator decision: frontmatter `type` `feedback` or `project`, read at the top level or under `metadata:`, with untyped files falling back to their `feedback_`/`project_` filename prefix. A `reference` or `user` memory can be cited but no longer suppresses, so a probe verdict saved minutes earlier stops blocking the proposal that would act on it.
 - Step 5's precondition reads "no `covered-by-memory` suppression" instead of "no memory match", so a candidate that matches a `reference` memory still goes through the three-condition rule.

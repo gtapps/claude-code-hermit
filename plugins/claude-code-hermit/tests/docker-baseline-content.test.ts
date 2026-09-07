@@ -585,9 +585,9 @@ describe('Entrypoint: operator sidecar', () => {
 });
 
 // -------------------------------------------------------
-// Entrypoint: project .mcp.json auto-approval (phase 1)
+// Entrypoint: project .mcp.json native approval (phase 1)
 // -------------------------------------------------------
-describe('Entrypoint: .mcp.json auto-approval', () => {
+describe('Entrypoint: .mcp.json native approval', () => {
   const { freshDir, cleanup } = freshDirFactory('hermit-mcpjson-');
   afterAll(cleanup);
 
@@ -623,11 +623,12 @@ describe('Entrypoint: .mcp.json auto-approval', () => {
     };
   }
 
-  test('declared servers are enabled and the workspace is trusted', () => {
+  test('declared servers are left to native approval and the workspace is trusted', () => {
     const r = runInit({ mcpServers: { dropartifact: { command: 'x' }, other: { command: 'y' } } });
     expect(r.status).toBe(0);
-    expect(r.project.enabledMcpjsonServers).toEqual(['dropartifact', 'other']);
+    expect(r.project.enabledMcpjsonServers).toEqual([]);
     expect(r.project.hasTrustDialogAccepted).toBe(true);
+    expect(r.stderr).toContain('Project MCP servers left to native approval in .claude/settings.json: dropartifact, other');
   });
 
   test('no .mcp.json leaves the project entry untouched', () => {
@@ -644,7 +645,7 @@ describe('Entrypoint: .mcp.json auto-approval', () => {
       { disabledMcpjsonServers: ['noisy'] });
     expect(r.status).toBe(0);
     expect(r.project.disabledMcpjsonServers).toEqual(['noisy']);
-    expect(r.project.enabledMcpjsonServers).toEqual(['wanted']);
+    expect(r.project.enabledMcpjsonServers).toEqual([]);
   });
 
   test('a channel plugin id is re-approved even when disabled', () => {

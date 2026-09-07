@@ -215,10 +215,8 @@ if (configExists) {
       .map(([name]) => name);
   }
 }
-// Servers a project's own .mcp.json declares need the same auto-approval as the
-// channel plugin ids: the container starts from a clean config, so without this
-// the first boot sits on an interactive "approve this MCP server?" prompt with
-// nobody there to answer it.
+// The harness reads project .mcp.json approvals from settings files. The
+// entrypoint only seeds workspace trust; enrollment stays with the operator.
 const mcpJsonPath = path.join(project, ".mcp.json");
 let mcpJsonServers = [];
 if (fs.existsSync(mcpJsonPath)) {
@@ -227,6 +225,10 @@ if (fs.existsSync(mcpJsonPath)) {
   } catch (e) {
     console.error(`[docker-entrypoint] Warning: failed to parse .mcp.json: ${e}`);
   }
+}
+
+if (mcpJsonServers.length > 0) {
+  console.error(`[docker-entrypoint] Project MCP servers left to native approval in .claude/settings.json: ${mcpJsonServers.join(", ")}`);
 }
 
 if (channels.length > 0 || mcpJsonServers.length > 0) {
@@ -239,16 +241,12 @@ if (channels.length > 0 || mcpJsonServers.length > 0) {
   const enabled = proj.enabledMcpjsonServers ?? [];
   const disabledJson = proj.disabledMcpjsonServers ?? [];
   const disabledMcp = proj.disabledMcpServers ?? [];
-  const approveIds = [
-    ...channels.map((ch) => pluginIds[ch]).filter(Boolean).map((id) => ({ id, force: true })),
-    ...mcpJsonServers.map((id) => ({ id, force: false })),
-  ];
-  for (const { id: pid, force } of approveIds) {
-    // Only a channel plugin is force-approved: it is hermit infrastructure, and
-    // a disabled one takes the operator's own chat down. A project .mcp.json
-    // server is the operator's call, and the config volume outlives the
-    // container, so one they disabled via /mcp stays disabled across restarts.
-    if (!force && (disabledJson.includes(pid) || disabledMcp.includes(pid))) continue;
+  // Only channel plugin ids are approved here: a channel is hermit
+  // infrastructure, and a disabled one takes the operator's own chat down. A
+  // project .mcp.json server is the operator's call, enrolled through the
+  // project's .claude/settings.json.
+  const approveIds = channels.map((ch) => pluginIds[ch]).filter(Boolean);
+  for (const pid of approveIds) {
     if (!enabled.includes(pid)) {
       enabled.push(pid);
       changed = true;
@@ -267,7 +265,7 @@ if (channels.length > 0 || mcpJsonServers.length > 0) {
   if (mcpJsonServers.length > 0 && !proj.hasTrustDialogAccepted) {
     proj.hasTrustDialogAccepted = true;
     changed = true;
-    console.error(`[docker-entrypoint] hasTrustDialogAccepted set (required for .mcp.json auto-approval)`);
+    console.error(`[docker-entrypoint] hasTrustDialogAccepted set (required for .mcp.json workspace trust)`);
   }
 }
 
