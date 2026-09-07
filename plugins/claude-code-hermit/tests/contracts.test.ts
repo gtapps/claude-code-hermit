@@ -576,6 +576,19 @@ describe('routine precheck validation', () => {
     expect(runValidate({ routines: template.routines }).errors).toEqual([]);
   });
 
+  test('the shipped template includes the daily later-check routine', () => {
+    const template = readJson(path.join(TEMPLATES, 'config.json.template'));
+    const entry = template.routines.find((r: any) => r.id === 'later-check');
+    expect(entry).toBeTruthy();
+    expect(entry.schedule).toBe('5 9 * * *');
+    expect(entry.skill).toBe('claude-code-hermit:later run');
+    expect(entry.precheck).toBe('later');
+    expect(entry.run_during_waiting).toBe(true);
+    expect(entry.enabled).toBe(true);
+    expect(entry.model).toBeUndefined();
+    expect(runValidate({ routines: template.routines }).errors).toEqual([]);
+  });
+
   test('the shipped template includes the monthly capability-brainstorm routine', () => {
     const template = readJson(path.join(TEMPLATES, 'config.json.template'));
     const entry = template.routines.find((r: any) => r.id === 'capability-brainstorm');

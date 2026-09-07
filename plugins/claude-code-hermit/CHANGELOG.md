@@ -4,6 +4,7 @@
 
 ### Added
 - Single-skill evaluation through `reflect --check-id <id> --check <skill>` and sibling script dispatch through `hermit-run sibling-run`.
+- `/later` deferred verification research preview, with a durable claim ledger, evidence and verdict verbs, and a daily `later-check` routine gated on past-due claims. The sealed allow-list covers `later list|cancel|verdict|due`; `add` and `check` stay with the prompt or the classifier because `check` runs a stored shell command. A claim may set `--timeout-s` (1 to 300, default 30) for its evidence command.
 - Opt-in `passive_chats` capture every delivered group message for recall while only allowed senders mentioning the bot wake it; Discord threads follow their listed parent. `hermit-doctor` gains a `passive-chats` check for the plugin `access.json` gate and for the `bot_user_id`/`allowed_users` a passive chat needs.
 - Standing roles saved from chat with "remember for this channel: when X, do Y", listed and forgotten from chat, and stored in memory.
 - `/spawn-session` launches a background helper in its own worktree, watches it, and relays its idle report; `--rc` is opt-in. The launch is not in the sealed allow-list, so on `auto` the classifier decides it and on a prompting mode it raises one relayed approval. `min_claude_code_version` bumped to `>=2.1.263` in `hermit-meta.json`: below it `claude --bg --name <n>` does not register the name, so the watch cannot resolve the helper.
@@ -28,6 +29,13 @@ Convert installed periodic checks before loading routines. Re-read `.claude-code
 2. For every `scheduled_checks` entry with `trigger: "interval"`, append a routine only if `config.routines` has no entry with the same id. The new routine has the check's `id`, `enabled` from the check entry, `run_during_waiting` from the captured dispatcher (default `true` when absent), and the captured `model` (omit when absent). Set `skill` to `claude-code-hermit:reflect --check-id <id> --check <skill>`, stripping leading `/` characters from the check's skill string and preserving the rest, including arguments. Choose `schedule` from `interval_days`: `1` becomes `5 9 * * *`; other values at most `7` become `5 9 * * 1`; values above `7` and at most `14` become `5 9 1,15 * *`; larger values become `5 9 1 * *`. Delete each interval entry after conversion, including entries whose routine already existed. Leave all session entries and existing routine fields untouched. Save the updated config once.
 3. If `.claude-code-hermit/state/reflection-state.json` exists, remove each `scheduled_checks.<id>` cursor that has no remaining `trigger: "session"` entry in config. Preserve remaining session cursors and every other state field. A missing state file needs no action.
 4. Run `/claude-code-hermit:hermit-routines load` to replace the active registrations.
+If `config.json` has no routine with id `later-check`, append it without changing existing routines: read the latest array with `bun <plugin_root>/scripts/settings-edit.ts .claude-code-hermit/config.json get routines`, then use its length as `<count>` in:
+
+```sh
+bun <plugin_root>/scripts/settings-edit.ts .claude-code-hermit/config.json set routines.<count> '{"id":"later-check","schedule":"5 9 * * *","skill":"claude-code-hermit:later run","run_during_waiting":true,"enabled":true,"precheck":"later"}'
+```
+
+Step 10 re-arms routines. On re-run, leave an existing `later-check` entry unchanged, including operator customizations.
 
 Replace `/claude-code-hermit:simplify` calls in operator-authored workflows with `/simplify`. Preserve custom targets and workflow instructions. Personal or project skills named `simplify` still take precedence over the native command; keep or remove those overrides according to operator preference.
 

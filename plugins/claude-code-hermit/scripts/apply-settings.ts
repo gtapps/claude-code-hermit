@@ -184,6 +184,14 @@ const HERMIT_ALLOW = [
   'Bash(.claude-code-hermit/bin/hermit-run rc-server stop)',
   'Bash(.claude-code-hermit/bin/hermit-run rc-server status)',
   'Bash(.claude-code-hermit/bin/hermit-run rc-server gc)',
+  // The later skill's bookkeeping verbs. `add` and `check` are deliberately
+  // absent: `check` runs a shell command stored days earlier, and a grant
+  // would let it run with no gate looking at it; both stay with the prompt or
+  // the classifier.
+  'Bash(.claude-code-hermit/bin/hermit-run later list *)',
+  'Bash(.claude-code-hermit/bin/hermit-run later cancel *)',
+  'Bash(.claude-code-hermit/bin/hermit-run later verdict *)',
+  'Bash(.claude-code-hermit/bin/hermit-run later due *)',
   // Backup's read-and-snapshot verbs. `setup` is deliberately absent: it writes
   // backup.remote through a settings-edit subprocess the settings gate never sees
   // on the model's own command line, so a pre-approved `backup setup --remote …`

@@ -54,7 +54,8 @@ export type GateVerdict = {
 export const BUILTIN_REFLECT = 'reflect';
 export const BUILTIN_DOCTOR = 'doctor';
 export const BUILTIN_AUTO_CLOSE = 'auto-close';
-const BUILTINS = new Set([BUILTIN_REFLECT, BUILTIN_DOCTOR, BUILTIN_AUTO_CLOSE]);
+export const BUILTIN_LATER = 'later';
+const BUILTINS = new Set([BUILTIN_REFLECT, BUILTIN_DOCTOR, BUILTIN_AUTO_CLOSE, BUILTIN_LATER]);
 export const DEFAULT_GATE_TIMEOUT_S = 30;
 export const MAX_GATE_TIMEOUT_S = 300;
 /** Verdict is one short line; anything past this is a misbehaving gate, not a payload. */
@@ -67,7 +68,7 @@ const MAX_GATE_STDOUT = 4096;
  * root is not necessarily known.
  */
 export function validatePrecheckValue(value: unknown): string | null {
-  if (typeof value !== 'string') return 'must be a string ("reflect", "doctor", "auto-close", or a project-relative script path)';
+  if (typeof value !== 'string') return 'must be a string ("reflect", "doctor", "auto-close", "later", or a project-relative script path)';
   const raw = value.trim();
   if (!raw) return 'must not be empty';
   if (BUILTINS.has(raw)) return null;
@@ -292,12 +293,20 @@ function spawnBuiltinScript(hermitDir: string, scriptName: string, args: string[
   );
 }
 
-function runDoctorGate(hermitDir: string, timeoutMs: number): GateVerdict {
-  const { firstLine, ok, detail } = spawnBuiltinScript(hermitDir, 'doctor-check.ts', [path.resolve(hermitDir), '--gate'], timeoutMs);
+/** The verdict-only contract shared by the doctor and later builtins and by operator scripts: first line SKIP or WAKE. */
+function skipWakeVerdict({ firstLine, ok, detail }: { firstLine: string; ok: boolean; detail?: string }): GateVerdict {
   if (!ok) return { verdict: 'error', detail: detail || 'spawn' };
   if (firstLine === 'SKIP') return { verdict: 'skip' };
   if (firstLine === 'WAKE') return { verdict: 'wake' };
   return { verdict: 'error', detail: 'bad-verdict' };
+}
+
+function runLaterGate(hermitDir: string, timeoutMs: number): GateVerdict {
+  return skipWakeVerdict(spawnBuiltinScript(hermitDir, 'later.ts', ['due', path.resolve(hermitDir)], timeoutMs));
+}
+
+function runDoctorGate(hermitDir: string, timeoutMs: number): GateVerdict {
+  return skipWakeVerdict(spawnBuiltinScript(hermitDir, 'doctor-check.ts', [path.resolve(hermitDir), '--gate'], timeoutMs));
 }
 
 /**
@@ -353,6 +362,7 @@ export function runGate(routine: Json, hermitDir: string, mark: string): GateVer
   if (resolved.kind === 'builtin') {
     if (resolved.name === BUILTIN_REFLECT) return runReflectGate(hermitDir, routine.id, timeoutMs, mark);
     if (resolved.name === BUILTIN_DOCTOR) return runDoctorGate(hermitDir, timeoutMs);
+    if (resolved.name === BUILTIN_LATER) return runLaterGate(hermitDir, timeoutMs);
     return runAutoCloseGate(hermitDir, timeoutMs);
   }
 
@@ -364,15 +374,11 @@ export function runGate(routine: Json, hermitDir: string, mark: string): GateVer
     }
   })();
 
-  const { firstLine, ok, detail } = spawnGate(
+  return skipWakeVerdict(spawnGate(
     [resolved.abs],
     projectRoot,
     gateEnv(routine.id, hermitDir, lastFired),
     timeoutMs,
     path.join(hermitDir, 'state'),
-  );
-  if (!ok) return { verdict: 'error', detail: detail || 'spawn' };
-  if (firstLine === 'SKIP') return { verdict: 'skip' };
-  if (firstLine === 'WAKE') return { verdict: 'wake' };
-  return { verdict: 'error', detail: 'bad-verdict' };
+  ));
 }
