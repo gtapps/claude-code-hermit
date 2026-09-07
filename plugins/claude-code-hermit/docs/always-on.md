@@ -55,7 +55,7 @@ The wizard scans your project for dependencies, asks about auth, and generates f
 | File                          | Purpose                                               |
 | ----------------------------- | ----------------------------------------------------- |
 | `Dockerfile.hermit`           | Ubuntu 26.04, Node 24, Bun, Claude Code, project packages, host UID matching |
-| `docker-entrypoint.hermit.sh` | Onboarding bypass, MCP approval, permission patch, channel symlinks, graceful SIGTERM handling, PID 1 keepalive |
+| `docker-entrypoint.hermit.sh` | Onboarding bypass, workspace trust seed, channel MCP enable, permission patch, channel symlinks, graceful SIGTERM handling, PID 1 keepalive |
 | `docker-compose.hermit.yml`   | Named volume, bind mounts, env vars, healthcheck, restart policy, kernel-enforced hardening (`no-new-privileges`, `cap_drop: ALL`, `pids_limit`) |
 | `.env`                        | Auth token (appended if file already exists)           |
 
@@ -173,6 +173,30 @@ This opens a browser URL for OAuth. Complete the login and credentials are saved
 **API key:** For pay-per-token billing, set `ANTHROPIC_API_KEY` in `.env` instead. No container login needed.
 
 The docker-setup wizard walks you through the right auth method and ensures `.env` is gitignored.
+
+---
+
+## MCP servers
+
+The Docker entrypoint seeds workspace trust but does not approve servers declared in the project's `.mcp.json`. To enroll a server, add its name to `enabledMcpjsonServers` in the project's `.claude/settings.json`, preserving the file's other settings:
+
+```json
+{
+  "enabledMcpjsonServers": ["my-server"]
+}
+```
+
+A project server loads only when approved through native settings. Use the list above for individual servers, or set `enableAllProjectMcpServers: true` in the same file to approve all project servers. A server listed in `disabledMcpjsonServers` remains excluded. An unlisted server stays pending without stalling boot or prompting in chat. To revoke enrollment at the next restart, remove its name from the approval list (and turn off blanket approval if enabled), or add it to `disabledMcpjsonServers` in the same file. Approval in other native settings scopes must also be removed. Toggling a server off in `/mcp` records the change in the config volume's `.claude.json`, which the harness does not consult for `.mcp.json` approval, so a server left listed in settings comes back on the next boot.
+
+A hermit using `auth_mode: login` loads every connector on the operator's claude.ai account by default. To turn them all off for this project, add this setting to the same `.claude/settings.json` file:
+
+```json
+{
+  "disableClaudeAiConnectors": true
+}
+```
+
+Hermits using `setup-token` fetch no claude.ai connectors. See the [Claude Code MCP documentation](https://code.claude.com/docs/en/mcp) for native server and connector settings.
 
 ---
 

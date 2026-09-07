@@ -17,6 +17,7 @@
 - `peer-post.ts` requires message text as an argument and no longer reads stdin.
 
 ### Fixed
+- The Docker entrypoint no longer writes `.mcp.json` server approvals to `~/.claude.json`, where the harness never read them, leaving project servers pending all along. Enrollment is now an operator edit to `enabledMcpjsonServers` in the project's `.claude/settings.json`, documented in `docs/always-on.md` § MCP servers; boot logs the servers the project declares and approves none of them.
 - Stdin hang in `routines.ts finish` and `proposal.ts patch`: stdin is read only behind the explicit `--outcome-stdin` and `--stdin` flags; a heredoc without the flag is ignored.
 - `covered-by-memory` suppression in `proposal-triage` now requires a memory that records an operator decision: frontmatter `type` `feedback` or `project`, read at the top level or under `metadata:`, with untyped files falling back to their `feedback_`/`project_` filename prefix. A `reference` or `user` memory can be cited but no longer suppresses, so a probe verdict saved minutes earlier stops blocking the proposal that would act on it.
 - Step 5's precondition reads "no `covered-by-memory` suppression" instead of "no memory match", so a candidate that matches a `reference` memory still goes through the three-condition rule.
@@ -40,6 +41,8 @@ Step 10 re-arms routines. On re-run, leave an existing `later-check` entry uncha
 Replace `/claude-code-hermit:simplify` calls in operator-authored workflows with `/simplify`. Preserve custom targets and workflow instructions. Personal or project skills named `simplify` still take precedence over the native command; keep or remove those overrides according to operator preference.
 
 If `claude-code-dev-hermit` is installed, update it in the same pass: releases before this one invoke `/claude-code-hermit:simplify` at `/dev-quality` Gate 1, which this release removes. Run `claude plugin update claude-code-dev-hermit --scope local` (or the scope you used at install) and re-run `hermit-evolve` for it before using `/dev-quality` again.
+
+**Docker hermits.** This release changes `docker-entrypoint.hermit.sh`, which evolve refreshes from the template in Step 5c of this run. Run `.claude-code-hermit/bin/hermit-docker update` once more after evolve so the refreshed entrypoint is baked into the image; `update` rebuilds from the on-disk copy, so the update that launched evolve still carries the old one. If evolve reports the entrypoint as kept or conflicted, merge your own copy first, then rebuild. If the project has a `.mcp.json` and you want its servers to load, add them to `enabledMcpjsonServers` in the project's `.claude/settings.json`: the entrypoint no longer approves them, and the approvals it used to write were never read.
 
 ## [1.3.2] - 2026-09-06
 
