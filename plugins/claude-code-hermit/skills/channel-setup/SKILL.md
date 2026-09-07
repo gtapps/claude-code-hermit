@@ -242,6 +242,16 @@ Skip this step if the current channel is `imessage`, or if `access.json` is not 
    b. Run the slash command directly, with the state-dir hint (same pattern as §6b):
       - With `"Yes — require @mention"`: `/<channel>:access group add <channelId> — save access.json to <state_dir>/, not ~/.claude`
       - With `"No — respond to all messages"`: `/<channel>:access group add <channelId> --no-mention — save access.json to <state_dir>/, not ~/.claude`
+      After the respond-to-all command, ask once with `AskUserQuestion`: "Record the chat but wake only on @mention (passive)?" Options: **Yes**, **No**.
+      Read the current `channels.<channel>.passive_chats` array (absent means `[]`). On Yes, include this chat id once; on No, remove it. Preserve every other id. Merge the **full resulting array** with the same `hatch-config.ts --reinit` flow used above:
+      ```bash
+      echo '{"channels":{"<channel>":{"passive_chats":<full_array>}}}' | bun ${CLAUDE_PLUGIN_ROOT}/scripts/hatch-config.ts "$(pwd)" --reinit >/dev/null
+      ```
+      Substitute the actual channel key and JSON string array. Never use Edit/Write on `config.json`. Stop on a non-zero merge exit as in Adding an entry. Repeating the same answers must leave the array unchanged.
+      On Yes, confirm the group's `allowFrom` is empty in the plugin settings so every member's messages can be recorded. Explain these facts in the operator's language:
+      - The plugin-global `ackReaction` reacts to every member's message; `/<channel>:access set ackReaction ""` removes it.
+      - Discord threads follow the channel; forum channels are unsupported. Denying Create Public/Private Threads is the zero-code alternative.
+      - Telegram privacy mode must be disabled in BotFather.
    c. Ask with `AskUserQuestion` (header: `"Add another?"`) — `"Yes — add another"` with the next ID via `Other`; `"Done — continue"`. On `"Done — continue"`: exit the loop.
 4. **Verify all added channels** (one `Read` after the loop): open `<state_dir>/access.json`. For each ID added in step 3, confirm `groups.<channelId>` is present with the expected `requireMention` value. For any missing: "Group entry didn't land — run `/<channel>:access group add <channelId>` manually after setup." Do not error. Then proceed to §7.
 

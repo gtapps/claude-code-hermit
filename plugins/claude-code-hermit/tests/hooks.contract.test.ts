@@ -1629,14 +1629,14 @@ describe('channel-reply-reminder', () => {
 // -------------------------------------------------------
 
 describe('doctor-check', () => {
-  test('doctor-check (minimal install, 32 checks)', withDir(async (dir) => {
+  test('doctor-check (minimal install, 33 checks)', withDir(async (dir) => {
     seedDoctor(dir,
       '{"agent_name":"test","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"active_hours":{"start":"08:00","end":"23:00"}},"routines":[]}');
     const report = await doctorReport(dir);
     expect(report.checks.map((c: any) => c.id)).toEqual([
       'runtime', 'config', 'hooks', 'state', 'cost', 'proposals', 'dependencies', 'version-currency',
       'permissions', 'permission-rules', 'docker-security', 'archive', 'auto-close', 'reflect', 'scheduler', 'watchdog', 'context-age', 'opus-wake', 'routine-cost', 'heartbeat',
-      'routine-monitor', 'routine-precheck', 'raw-size', 'credential-expiry', 'model-pricing-known', 'memory-size', 'context-scan', 'voice-carrier', 'classifier-denials', 'channel-liveness', 'peer-inbox', 'backup',
+      'routine-monitor', 'routine-precheck', 'raw-size', 'credential-expiry', 'model-pricing-known', 'memory-size', 'passive-chats', 'context-scan', 'voice-carrier', 'classifier-denials', 'channel-liveness', 'peer-inbox', 'backup',
     ]);
   }));
 

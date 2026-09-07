@@ -18,7 +18,7 @@ import { resolvePricing, PRICING_VERIFIED } from './lib/pricing';
 import { HERMIT_OUTPUT_STYLE, VOICE_FILE_REL, voiceFileExists, resolvePersistedStyle, outputStyleFor } from './lib/voice';
 import { getEnabledChannels } from './lib/channel-config';
 import { isContainer } from './lib/container';
-import { readChannelToken } from './lib/channel-token';
+import { readChannelToken, channelStateDir } from './lib/channel-token';
 import { CHANNEL_PROBES, extractBotIdentity } from './lib/channel-probe';
 import { siblingPluginDirs, versionedCacheCoreDir, readHermitMeta } from './lib/plugin-siblings';
 import { doctorAlertsPath, readAlertState, mutateOwnedAlerts, DOCTOR_PREFIX } from './lib/alert-state';
@@ -1868,6 +1868,52 @@ function checkModelPricingKnown(p: DoctorPaths = PATHS) {
   }
 }
 
+function checkPassiveChats(p: DoctorPaths = PATHS) {
+  const id = 'passive-chats';
+  const tier = 2;
+  const note = 'Discord threads follow the parent; forum channels are unsupported.';
+  try {
+    const config = readConfigRaw(p.hermitDir);
+    const warnings: string[] = [];
+    for (const [name, channel] of Object.entries<Json>(config?.channels ?? {})) {
+      if (!Array.isArray(channel?.passive_chats) || !channel.passive_chats.length) continue;
+      // Both halves of the wake gate, outside the access.json try so a state-dir
+      // problem can't hide them. Without an identity no mention can ever match and
+      // the chat is silently dead; without a list every member's mention wakes it.
+      if (!channel.bot_user_id && !channel.bot_username) {
+        warnings.push(`${name}: set bot_user_id via /channel-setup — no mention can match, so a passive chat never wakes`);
+      }
+      if (!Array.isArray(channel.allowed_users)) {
+        warnings.push(`${name}: set allowed_users — without it any member who mentions the bot wakes it`);
+      }
+      try {
+        if (name !== 'discord' && name !== 'telegram') throw new Error('unsupported channel');
+        const access = JSON.parse(fs.readFileSync(path.join(channelStateDir(p.hermitDir, name, channel), 'access.json'), 'utf8'));
+        if (!access?.groups || typeof access.groups !== 'object' || Array.isArray(access.groups)) {
+          throw new Error('unexpected access.json shape');
+        }
+        for (const chat of channel.passive_chats) {
+          const group = access.groups[chat];
+          if (group === undefined) {
+            warnings.push(`${name} chat ${chat}: add groups.${chat} with requireMention:false and allowFrom:[] in access.json`);
+          } else if (!group || typeof group !== 'object' || Array.isArray(group)
+            || (group.allowFrom !== undefined && !Array.isArray(group.allowFrom))) {
+            warnings.push(`${name} chat ${chat}: could not verify unexpected group shape`);
+          } else {
+            if (group.requireMention !== false) warnings.push(`${name} chat ${chat}: set requireMention:false in access.json`);
+            if (group.allowFrom?.length) warnings.push(`${name} chat ${chat}: set allowFrom:[] in access.json`);
+          }
+        }
+      } catch {
+        warnings.push(`${name} chats ${channel.passive_chats.join(', ')}: could not verify access.json; check the plugin state directory and group settings`);
+      }
+    }
+    return { id, tier, status: warnings.length ? 'warn' : 'ok', detail: [...warnings, note].join('; ') };
+  } catch {
+    return { id, tier, status: 'warn', detail: `could not verify passive chats; ${note}` };
+  }
+}
+
 function checkMemorySize(p: DoctorPaths = PATHS) {
   const CLAUDE_WARN_LINES = 200;
   const MEMORY_WARN_LINES = 160;
@@ -2423,6 +2469,7 @@ async function runAllChecks(p: DoctorPaths = PATHS) {
     checkCredentialExpiry(p),
     checkModelPricingKnown(p),
     checkMemorySize(p),
+    checkPassiveChats(p),
     checkContextScan(p),
     checkVoiceCarrier(p),
     checkClassifierDenials(p),
@@ -2618,6 +2665,7 @@ function writeReport(checks: Json[], escalation?: DoctorEscalation, p: DoctorPat
 }
 
 export {
+  checkPassiveChats,
   checkPermissionRules,
   checkRuntime, checkConfig, checkHooks, checkStateFiles,
   checkCost, checkProposals, checkDependencies, checkVersionCurrency, checkPermissions,

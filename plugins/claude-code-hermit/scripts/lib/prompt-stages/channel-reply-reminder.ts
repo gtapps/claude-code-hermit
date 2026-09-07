@@ -10,7 +10,7 @@
 
 import { safeForLLM } from '../sanitize';
 import { logMessage, isLoggingEnabled } from '../channel-log';
-import { isAllowedSender, channelBotIdentity } from '../channel-auth';
+import { isAllowedSender, channelBotIdentity, isPassiveChat, isSelfMentioned } from '../channel-auth';
 import { escapeRegExp } from '../md-write';
 import type { ChannelEnvelope, StageContext, StageResult } from './types';
 
@@ -37,6 +37,7 @@ const MAX_BOT_REF_LEN = 64;
 // other message the reminder stays byte-identical to its pre-identity form, so
 // an always-on hermit pays nothing per message for a capability it needs only
 // when it is mentioned.
+// Wording only; passive wake decisions use isSelfMentioned in channel-auth.ts.
 function selfMentionClause(ctx: StageContext, envelope: ChannelEnvelope): string {
   const { userId: id, username } = channelBotIdentity(ctx.config(), envelope.source);
 
@@ -59,7 +60,7 @@ function selfMentionClause(ctx: StageContext, envelope: ChannelEnvelope): string
 // Episodic capture — best-effort, never affects the reminder. Its guards are
 // early returns from this helper, so none of them can swallow the reminder the
 // caller is about to return.
-function capture(ctx: StageContext, envelope: ChannelEnvelope): void {
+function capture(ctx: StageContext, envelope: ChannelEnvelope, passive: boolean): void {
   if (!envelope.body) return;
 
   const dir = ctx.dir;
@@ -69,7 +70,7 @@ function capture(ctx: StageContext, envelope: ChannelEnvelope): void {
   // Raw source (not sourceKey): channelEntry normalizes it internally, and
   // pause-keyword.ts and channel-status-responder.ts feed the same raw source
   // into this gate — one convention across every caller.
-  if (!isAllowedSender(config, envelope.source, envelope.userId)) return;
+  if (!passive && !isAllowedSender(config, envelope.source, envelope.userId)) return;
 
   const result = logMessage(dir, {
     source: envelope.sourceKey,
@@ -85,10 +86,11 @@ function capture(ctx: StageContext, envelope: ChannelEnvelope): void {
   }
 }
 
-export function run(ctx: StageContext): StageResult | void {
+export async function run(ctx: StageContext): Promise<StageResult | void> {
   const envelope = ctx.envelope;
   if (!envelope) return;
 
+  const passive = await isPassiveChat(ctx.dir, ctx.config(), envelope.sourceKey, envelope.chatId);
   const sourceKey = envelope.sourceKey;
   const chatIdRaw = envelope.chatId;
 
@@ -107,9 +109,14 @@ export function run(ctx: StageContext): StageResult | void {
     selfMentionClause(ctx, envelope) + '\n';
 
   try {
-    capture(ctx, envelope);
+    capture(ctx, envelope, passive);
   } catch (e: any) {
     process.stderr.write(`[channel-log] inbound capture failed: ${e?.message || e}\n`);
+  }
+
+  if (passive && (!isAllowedSender(ctx.config(), envelope.source, envelope.userId)
+    || !await isSelfMentioned(ctx.dir, ctx.config(), sourceKey, chatIdRaw, envelope.body))) {
+    return { block: 'passive chat: recorded, not addressed' };
   }
 
   return { context: reminder };

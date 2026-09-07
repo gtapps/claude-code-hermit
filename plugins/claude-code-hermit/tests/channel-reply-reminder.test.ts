@@ -32,8 +32,8 @@ function withDir(fn: (dir: string) => Promise<void> | void, config?: string) {
 
 const ID_ALLOWLIST = '{"channels":{"discord":{"allowed_users":["123456789012345678"]}}}';
 
-const run = (prompt: string, dir: string) =>
-  runScript('user-prompt-pipeline.ts', { stdin: JSON.stringify({ prompt }), cwd: dir });
+const run = (prompt: string, dir: string, env?: Record<string, string>) =>
+  runScript('user-prompt-pipeline.ts', { stdin: JSON.stringify({ prompt }), cwd: dir, env });
 
 describe('channel-reply-reminder', () => {
   const SELF_ID = '987654321098765432';
@@ -133,4 +133,121 @@ describe('channel-reply-reminder', () => {
     const { rows } = unconsolidated(hermit(dir));
     expect(rows.length).toBe(0);
   }, ID_ALLOWLIST));
+});
+
+describe('passive capture', () => {
+  const config = (source = 'discord', extra: Record<string, unknown> = {}, logging = true) => JSON.stringify({
+    channels: { [source]: { passive_chats: ['1'], allowed_users: ['U1'], bot_user_id: '123', bot_username: 'handle', ...extra } },
+    knowledge: { channel_log_enabled: logging },
+  });
+  const prompt = (body: string, user = 'U1', source = 'discord', chat = '1') =>
+    `<channel source="${source}" chat_id="${chat}" user="${user}">${body}</channel>`;
+  const blocked = (stdout: string) => expect(JSON.parse(stdout)).toEqual({
+    decision: 'block', reason: 'passive chat: recorded, not addressed',
+  });
+
+  for (const [user, body, block] of [
+    ['STRANGER', 'plain', true], ['U1', '<@123> hello', false], ['STRANGER', '<@123> hello', true],
+  ] as const) {
+    test(`capture ${user} ${body}`, withDir(async dir => {
+      const r = await run(prompt(body, user), dir);
+      expect(r.exitCode).toBe(0);
+      expect(unconsolidated(hermit(dir)).rows.map(row => row.text)).toEqual([body]);
+      if (block) blocked(r.stdout);
+      else { expect(r.stdout).toContain('[channel reply reminder]'); expect(r.stdout).not.toContain('"decision":"block"'); }
+    }, config()));
+  }
+
+  test('absent allowlist still blocks unaddressed chatter', withDir(async dir => {
+    blocked((await run(prompt('plain'), dir)).stdout);
+  }, config('discord', { allowed_users: undefined })));
+
+  test('guild role membership is fetched, then reused for role mentions', withDir(async dir => {
+    const stateDir = path.join(dir, 'discord');
+    fs.mkdirSync(stateDir);
+    fs.writeFileSync(path.join(stateDir, '.env'), 'DISCORD_BOT_TOKEN=test-token');
+    const requests: string[] = [];
+    const server = Bun.serve({ port: 0, fetch(req) {
+      const route = new URL(req.url).pathname;
+      requests.push(route);
+      return Response.json(route.includes('/guilds/') ? { roles: ['456'] } : { parent_id: null, guild_id: 'guild', type: 0 });
+    } });
+    const env = { DISCORD_STATE_DIR: stateDir, HERMIT_DISCORD_API_URL: server.url.toString().replace(/\/$/, '') };
+    try {
+      const first = await run(prompt('<@&456> hello'), dir, env);
+      expect(first.stdout).toContain('[channel reply reminder]');
+      blocked((await run(prompt('<@&789> hello'), dir, env)).stdout);
+      expect(requests).toEqual(['/channels/1', '/guilds/guild/members/@me']);
+      expect(unconsolidated(hermit(dir)).rows.length).toBe(2);
+    } finally { server.stop(true); }
+  }, config()));
+
+  // The reply stage warms the metadata cache that record-operator-action's
+  // cache-only gate reads, so it must run first: auditing first misread the very
+  // first message of an unseen thread or guild in both directions.
+  for (const [name, extra, chat, body, block] of [
+    ['unseen thread chatter does not freeze the clock', { allowed_users: undefined }, 'thread', 'idle chatter', true],
+    ['a first role mention still advances the clock', {}, '1', '<@&456> hello', false],
+  ] as const) {
+    test(name, withDir(async dir => {
+      const stateDir = path.join(dir, 'discord');
+      fs.mkdirSync(stateDir);
+      fs.writeFileSync(path.join(stateDir, '.env'), 'DISCORD_BOT_TOKEN=test-token');
+      const server = Bun.serve({ port: 0, fetch(req) {
+        const route = new URL(req.url).pathname;
+        return Response.json(route.includes('/guilds/')
+          ? { roles: ['456'] }
+          : { parent_id: '1', guild_id: 'guild', type: 11 });
+      } });
+      try {
+        const env = { DISCORD_STATE_DIR: stateDir, HERMIT_DISCORD_API_URL: server.url.toString().replace(/\/$/, '') };
+        const r = await run(prompt(body, 'U1', 'discord', chat), dir, env);
+        if (block) blocked(r.stdout);
+        else expect(r.stdout).toContain('[channel reply reminder]');
+        expect(fs.existsSync(hermit(dir, 'state', 'last-operator-action.json'))).toBe(!block);
+      } finally { server.stop(true); }
+    }, config('discord', extra)));
+  }
+
+  test('Telegram handles require a complete token', withDir(async dir => {
+    expect((await run(prompt('@handle hello', 'U1', 'telegram'), dir)).stdout).toContain('[channel reply reminder]');
+    blocked((await run(prompt('@handlex hello', 'U1', 'telegram'), dir)).stdout);
+  }, config('telegram')));
+
+  test('unlisted non-allowed chat keeps its reminder and skips capture', withDir(async dir => {
+    const r = await run(prompt('plain', 'STRANGER', 'telegram', 'other'), dir);
+    expect(r.stdout).toContain('[channel reply reminder]');
+    expect(unconsolidated(hermit(dir)).rows.length).toBe(0);
+  }, config('telegram')));
+
+  test('disabled logging still blocks without creating a database', withDir(async dir => {
+    blocked((await run(prompt('plain'), dir)).stdout);
+    expect(fs.existsSync(hermit(dir, 'state', 'channel-log.sqlite'))).toBe(false);
+  }, config('discord', {}, false)));
+
+  for (const scenario of ['thread', 'forbidden', 'empty'] as const) {
+    test(`Discord lookup: ${scenario}`, withDir(async dir => {
+      const stateDir = path.join(dir, 'discord');
+      fs.mkdirSync(stateDir);
+      fs.writeFileSync(path.join(stateDir, '.env'), 'DISCORD_BOT_TOKEN=test-token');
+      let requests = 0;
+      const server = Bun.serve({ port: 0, fetch(req) {
+        requests++;
+        expect(new URL(req.url).pathname).toBe('/channels/thread');
+        return scenario === 'forbidden' ? new Response('', { status: 403 })
+          : Response.json({ parent_id: '1', guild_id: 'guild', type: 11 });
+      } });
+      try {
+        const env = { DISCORD_STATE_DIR: stateDir, HERMIT_DISCORD_API_URL: server.url.toString().replace(/\/$/, '') };
+        for (const body of ['first message', 'second message']) {
+          const r = await run(prompt(body, 'U1', 'discord', 'thread'), dir, env);
+          expect(r.exitCode).toBe(0);
+          if (scenario === 'thread') blocked(r.stdout);
+          else expect(r.stdout).toContain('[channel reply reminder]');
+        }
+        expect(requests).toBe(scenario === 'empty' ? 0 : 1);
+        expect(fs.existsSync(hermit(dir, 'state', 'channel-chats.json'))).toBe(scenario !== 'empty');
+      } finally { server.stop(true); }
+    }, config('discord', scenario === 'empty' ? { passive_chats: [] } : {})));
+  }
 });

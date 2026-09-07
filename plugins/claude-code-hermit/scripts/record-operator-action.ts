@@ -37,7 +37,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isGuest } from './lib/guest-marker';
 import { hermitDir, sessionId } from './lib/cc-compat';
-import { isAllowedSender } from './lib/channel-auth';
+import { isAllowedSender, isPassiveChatSync, isSelfMentionedSync } from './lib/channel-auth';
 import { parseChannelEnvelope, type ChannelEnvelope } from './lib/channel-envelope';
 import { readConfigRaw } from './lib/config-read';
 
@@ -114,6 +114,8 @@ function isRoutinePrompt(prompt: string, channel?: ChannelGateInputs): boolean {
     // is a legitimate null the caller already resolved (fail-open → accept-all),
     // and re-reading it here would just repeat that read.
     const config = channel ? channel.config : readConfigRaw(AGENT_DIR);
+    if (isPassiveChatSync(AGENT_DIR, config, envelope.sourceKey, envelope.chatId)
+      && !isSelfMentionedSync(AGENT_DIR, config, envelope.sourceKey, envelope.chatId, envelope.body)) return true;
     return !isAllowedSender(config, envelope.source, envelope.userId);
   }
   if (INJECTED_EXACT.has(t)) return true;
@@ -128,9 +130,8 @@ function isRoutinePrompt(prompt: string, channel?: ChannelGateInputs): boolean {
   //   \n<event>ROUTINE_DUE [hermit-routine:daily-auto-close]</event>\n…</task-notification>
   // — so the anchored sentinel rules below never match a delivered one. This is
   // also the ONLY coverage for subagent/background completions, which carry no
-  // hermit sentinel at all. (A notification delivered mid-turn arrives as an
-  // array-content attachment and never reaches this hook; only idle-session
-  // delivery does — which is exactly when auto-close decisions are made.)
+  // hermit sentinel at all. Mid-turn arrivals are queued and run the hook
+  // individually (CC 2.1.263); notifications still do not count as activity.
   if (t.startsWith('<task-notification')) return true;
   // Monitor emissions in bare form. Deliberately anchored, NOT containment: this
   // is a live input boundary where a false positive silences an AUTO_CLOSE, so an

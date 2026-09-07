@@ -559,3 +559,22 @@ describe('user-prompt-pipeline: fail-open contract', () => {
     expect(fs.existsSync(hermit(wd.dir, 'state', 'operator-turn-open.json'))).toBe(true);
   });
 });
+
+test('listed passive chat without mention does not record activity or open a turn', async () => {
+  const wd = setupChannelWorkdir({ passive_chats: ['12345'], bot_username: 'hermitbot' });
+  const result = await runScript('user-prompt-pipeline.ts', {
+    stdin: JSON.stringify({ prompt: envelope('ordinary group chatter') }), cwd: wd.dir,
+  });
+  expect(result.exitCode).toBe(0);
+  expect(fs.existsSync(hermit(wd.dir, 'state', 'last-operator-action.json'))).toBe(false);
+  expect(fs.existsSync(hermit(wd.dir, 'state', 'operator-turn-open.json'))).toBe(false);
+});
+
+test('listed passive chat with allowed self-mention still records activity', async () => {
+  const wd = setupChannelWorkdir({ passive_chats: ['12345'], bot_username: 'hermitbot' });
+  const result = await runScript('user-prompt-pipeline.ts', {
+    stdin: JSON.stringify({ prompt: envelope('hello @hermitbot') }), cwd: wd.dir,
+  });
+  expect(result.exitCode).toBe(0);
+  expect(fs.existsSync(hermit(wd.dir, 'state', 'last-operator-action.json'))).toBe(true);
+});

@@ -35,7 +35,8 @@ export interface StageResult {
   /**
    * Reason for a `{"decision":"block"}`. Set only after the stage has confirmed
    * the operator was told out-of-band (a successful channel send) — blocking
-   * without that would swallow the message into silence.
+   * without that would swallow the message into silence. Passive-chat capture is
+   * the exception: unaddressed or non-allowed chatter is intentionally silent.
    */
   block?: string;
 }

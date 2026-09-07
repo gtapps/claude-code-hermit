@@ -3,10 +3,8 @@
 // envelope, before any model involvement, so pause/resume never depends on
 // model cooperation or on a tool call the pause-gate itself might deny.
 //
-// Probe-verified limit (compiled/spike-channel-stop-probe-2026-07-03.md): this
-// only fires between turns — a UserPromptSubmit hook never sees a mid-turn
-// steering message. Mid-turn "stop" is cooperative text; the binding mid-turn
-// interrupt is the watchdog's Escape-to-pane (scripts/hermit-watchdog.ts).
+// Mid-turn channel arrivals are queued and run UserPromptSubmit individually
+// (CC 2.1.263), so these keywords are handled when each queued prompt is delivered.
 //
 // Gated by the same allowed_users allowlist as channel-reply-reminder.ts
 // (lib/channel-auth.ts's isAllowedSender, shared by both; also see

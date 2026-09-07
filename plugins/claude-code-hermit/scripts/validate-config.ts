@@ -352,6 +352,13 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
           );
         }
       }
+      if (ch.passive_chats !== undefined) {
+        if (!Array.isArray(ch.passive_chats)) {
+          errors.push(`channels.${name}.passive_chats: must be an array`);
+        } else if (!ch.passive_chats.every((id: unknown) => typeof id === 'string')) {
+          errors.push(`channels.${name}.passive_chats: every entry must be a string`);
+        }
+      }
       if (ch.dm_channel_id !== undefined && ch.dm_channel_id !== null && typeof ch.dm_channel_id !== 'string') {
         errors.push(`channels.${name}.dm_channel_id: must be string or null`);
       }
