@@ -427,7 +427,7 @@ if ($cmd === 'call' || $cmd === 'preview') {
         try {
             printResult($forge->$method(...$callArgs));
         } catch (\Throwable $e) {
-            fwrite(STDERR, "SDK error: " . $e->getMessage() . "\n");
+            fwrite(STDERR, formatSdkError($e));
             exit(1);
         }
         exit(0);
@@ -496,7 +496,7 @@ if ($cmd === 'execute') {
         fwrite(STDERR, $e->getMessage() . "\n");
         exit(1);
     } catch (\Throwable $e) {
-        fwrite(STDERR, "SDK error: " . $e->getMessage() . "\n");
+        fwrite(STDERR, formatSdkError($e));
         exit(1);
     }
     exit(0);
