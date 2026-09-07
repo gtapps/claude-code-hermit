@@ -26,7 +26,11 @@ not by doubling one segment. Every `config.channels` key below instead uses the
 normalized bare server name (`discord`, not the qualified string — see
 `lib/channel-envelope.ts`'s `normalizeChannelSource`). Pass the
 inbound `chat_id` back. Optionally pass `reply_to` (the inbound `message_id`)
-to thread under the operator's message.
+to thread under the operator's message. The tool result names the sent
+message (`sent (id: N)`); the same plugin's `edit_message` tool rewrites that
+message in place. A channel whose tool list has no `edit_message` gets short
+threaded replies wherever the rules below say to edit a progress card, and no
+`Progress card` line is recorded for it.
 
 Terminal output is acceptable as a SECONDARY surface (tool-call narration,
 status visible only to a maintainer at the box). The substantive response,
@@ -144,7 +148,7 @@ Before running any heavy sub-step — an archive traversal, a multi-file search,
 - **Task assignment** (only when `session_state` is `idle`: "work on X", "next task: Z", "start Y", or any message describing work to be done)
   - Invoke `/claude-code-hermit:session-start` to begin the new task (idle → in_progress)
   - The session-start skill handles filling Task and setting `session_state`; plan steps go in the SHELL.md Progress Log
-  - Confirm via channel: "On it: [summary]."
+  - Confirm via channel: "On it: [summary].", threaded with `reply_to` on the operator's message. When the work will outlast this turn, that reply is the task's progress card: take the id from the tool result (the first id of a multi-part send) and record it with one Progress Log line, `Progress card: <source> <chat_id> <message_id>`, via `bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal.ts shell-append .claude-code-hermit --section progress` (line on stdin). The `session` skill edits that card at milestones and closes it at completion. A task that finishes within the turn gets its result as the reply and no card.
 
 - **Micro-approval response** ("yes", "no", "MP-… yes/no", "MP-… <number>", "MP-… <label>", a bare number, or a bare label while any pending micro-proposal exists)
   - Read `state/micro-proposals.json → pending`. Filter to `status: "pending"` entries.
@@ -180,8 +184,8 @@ Before running any heavy sub-step — an archive traversal, a multi-file search,
 
 - **New instruction** ("work on X", "switch to Y", "prioritize Z")
   - If `session_state` is `idle`: treat as **Task assignment** (above)
-  - If compatible with current task: update SHELL.md and confirm
-  - If it would replace the current task: confirm with the operator before switching
+  - If compatible with current task: update SHELL.md and confirm; the existing progress card, if any, picks the change up at its next milestone
+  - If it would replace the current task: confirm with the operator before switching. The replacement follows the **Task assignment** rule and gets its own card; the old card's id is never reused
   - Never silently abandon work in progress
 
 - **Settings change request** ("change the model", "add a routine", "turn off the heartbeat" — anything that alters `.claude-code-hermit/config.json`)
