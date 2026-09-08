@@ -15,6 +15,7 @@
 import { afterAll, describe, test, expect } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { writeRegistryEntry } from './helpers/registry-fixture';
 import { runScript } from './helpers/run';
 import { setupWorkdir, type Workdir } from './helpers/workdir';
 import { assistantEntry } from './helpers/transcript';
@@ -577,4 +578,53 @@ test('listed passive chat with allowed self-mention still records activity', asy
   });
   expect(result.exitCode).toBe(0);
   expect(fs.existsSync(hermit(wd.dir, 'state', 'last-operator-action.json'))).toBe(true);
+});
+
+describe('user-prompt-pipeline: resident gate', () => {
+  for (const scenario of [
+    { name: 'foreign live incumbent', pid: process.ppid, blocked: true },
+    { name: 'own parent', pid: process.pid },
+    { name: 'marker only', marker: true, blocked: true },
+    { name: 'foreign incumbent with plain prompt', pid: process.ppid, plain: true },
+    { name: 'no session_pid' },
+    { name: 'foreign incumbent from a subdirectory', pid: process.ppid, subdir: true, blocked: true },
+  ]) {
+    test(scenario.name, async () => {
+      const wd = setupChannelWorkdir();
+      const sessionId = 'resident-gate-test';
+      const configDir = path.join(wd.dir, 'config');
+      if (scenario.pid) writeRegistryEntry(configDir, scenario.pid);
+      writeRuntime(wd, { session_pid: scenario.pid, config_dir: configDir });
+      const stateDir = hermit(wd.dir, 'state');
+      if (scenario.marker) fs.writeFileSync(path.join(stateDir, `.guest-${sessionId}`), '');
+      const snapshot = () => fs.readdirSync(stateDir, { recursive: true }).sort().map(name => {
+        const file = path.join(stateDir, String(name));
+        return [name, fs.statSync(file).isFile() ? fs.readFileSync(file, 'hex') : null];
+      });
+      const before = snapshot();
+      const logPath = hermit(wd.dir, 'state', 'channel-log.sqlite');
+      const logBefore = fs.existsSync(logPath) ? fs.readFileSync(logPath, 'hex') : null;
+      const cwd = scenario.subdir ? path.join(wd.dir, 'nested') : wd.dir;
+      fs.mkdirSync(cwd, { recursive: true });
+      const r = await runScript('user-prompt-pipeline.ts', {
+        stdin: JSON.stringify({ prompt: scenario.plain ? 'hello' : envelope('hello'), session_id: sessionId }),
+        cwd,
+      });
+      expect(r.exitCode).toBe(0);
+      if (scenario.blocked) {
+        expect(JSON.parse(r.stdout.trim())).toEqual({
+          decision: 'block',
+          reason: scenario.marker ? 'guest session: channel message left to the resident' : 'channel message left to the resident session',
+        });
+        expect(r.stdout.trim().split('\n')).toHaveLength(1);
+        expect(fs.existsSync(path.join(stateDir, 'last-operator-action.json'))).toBe(false);
+        expect(fs.existsSync(path.join(stateDir, 'operator-turn-open.json'))).toBe(false);
+        expect(snapshot()).toEqual(before);
+        expect(fs.existsSync(logPath) ? fs.readFileSync(logPath, 'hex') : null).toBe(logBefore);
+      } else {
+        expect(r.stdout).not.toContain('"decision":"block"');
+        if (!scenario.plain) expect(r.stdout).toContain('[channel reply reminder]');
+      }
+    });
+  }
 });
