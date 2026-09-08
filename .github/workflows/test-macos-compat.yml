@@ -1,11 +1,7 @@
 name: macOS Compat
 
-# Answers "does hermit run on macOS" on free public-repo runners. Deliberately
-# NOT matrixed into the per-plugin suites: the parallelism flags are already
-# fragile across core counts (see test-hooks.yml's comment block, which reverted
-# a --parallel=4 pin after CI contention), and macOS runners are a third one.
-# Running serial sidesteps that question instead of re-tuning it on a platform
-# with no confirmed operators.
+# macOS compatibility checks on one runner. Keep suites sequential and
+# bound core file workers so subprocess-heavy tests do not consume every CPU.
 on:
   workflow_dispatch:
   schedule:
@@ -20,21 +16,37 @@ on:
       # is load-bearing: the first run of this job failed on test fixtures, not on
       # product code (unresolved os.tmpdir() compared against resolved
       # process.cwd()), so a test-only push has to be able to retrigger it.
-      - 'plugins/claude-code-hermit/scripts/**'
+      - 'plugins/*/scripts/**'
+      - 'plugins/*/hooks/**'
       - 'plugins/*/state-templates/bin/**'
       - 'plugins/*/tests/**'
+      - 'plugins/*/bunfig.toml'
       - '.github/workflows/test-macos-compat.yml'
+      - 'package.json'
+      - 'bun.lock'
+      - 'tsconfig.json'
   pull_request:
     paths:
-      - 'plugins/claude-code-hermit/scripts/**'
+      - 'plugins/*/scripts/**'
+      - 'plugins/*/hooks/**'
       - 'plugins/*/state-templates/bin/**'
       - 'plugins/*/tests/**'
+      - 'plugins/*/bunfig.toml'
       - '.github/workflows/test-macos-compat.yml'
+      - 'package.json'
+      - 'bun.lock'
+      - 'tsconfig.json'
+
+# Only revisions of the same PR supersede each other. Manual comparisons,
+# scheduled runs, and main pushes retain their own run groups.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   macos:
     runs-on: macos-latest
-    # Serial across six suites, and 20+ core test files spawn real tmux: a wedged pane
+    # Sequential across six suites, and 20+ core test files spawn real tmux: a wedged pane
     # would otherwise sit on the 6h job default and the weekly run reports
     # nothing at all. 60m is well above the observed Linux wall time.
     timeout-minutes: 60
@@ -60,12 +72,14 @@ jobs:
       # exercising tmux rather than silently skipping.
       - name: Ensure tmux
         run: tmux -V || (brew install tmux && tmux -V)
-      # Serial: no --parallel. --timeout stays at 45s as headroom for the in-test
+      # Two core file workers overlap subprocess waits. Tests within each file
+      # also run concurrently via bunfig.toml, so keep the worker count bounded.
+      # --timeout stays at 45s as headroom for the in-test
       # Date.now() poll deadlines (harness-command-delivery, proc-survivor,
       # hermit-stop) that --timeout does not itself extend.
       - name: Core suite
         if: '!cancelled()'
-        run: bun test --timeout=45000
+        run: bun test --parallel=2 --timeout=45000
         working-directory: plugins/claude-code-hermit
       - name: Home Assistant suite
         if: '!cancelled()'
