@@ -9,7 +9,7 @@
 - `/spawn-session` passes `--remote-control` when `remote` is on in `config.json`, matching the resident session, and no longer takes `--rc` or refuses on auth method.
 
 ### Fixed
-- Passive-chat settings persist when channel setup updates an existing channel or creates a new one.
+- Passive-chat settings persist when channel setup updates an existing channel or creates a new one. Invalid replacements are rejected even when the existing value has the same validation error.
 - `.claude-code-hermit/RESIDENT.md`, `.claude-code-hermit/claude-settings.json`, `.claude-code-hermit/dashboard-render.ts`, and `.claude-code-hermit/OPERATOR.md.bak` are gitignored. All four shipped unignored, leaving the resident and renderer files as permanent `git status` noise and an operator `env` block one `git add -A` from being committed.
 - Workspace-mode backup no longer un-ignores `.claude-code-hermit/claude-settings.json`. It rewrites the project `.gitignore` from the template's line list, so adding the file there would have handed its `env` block to the backup commit; it now sits alongside `.claude.local/` in the keep-ignoring set.
 
