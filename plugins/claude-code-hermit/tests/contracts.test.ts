@@ -2222,9 +2222,15 @@ describe('proposal-act dispatch contract', () => {
   const skill = read(path.join(SKILLS, 'proposal-act', 'SKILL.md'));
 
   test('falsification gate runs for every code-edit implementation', () => {
+    expect(skill).toContain('You are a read-only falsification gate. Verify every cited path and symbol against the current code. For a cited compiled/ or raw/ doc missing at its original path, search for the same basename under that directory\'s .archive/ and, on a match, treat the citation as present and verify against the archived copy; a doc absent from both locations is a real stale-paths.');
     // skill-authoring bodies (Skill Improvement / Skill Draft) skip the gate; everything else runs it
     expect(skill).toContain('Skip when the body contains `## Skill Improvement` or `## Skill Draft`');
     expect(skill).toContain('both are skill-authoring, handled in-main');
+    // the ## Skill Draft substitute check is the operative gate for that body (the skip above
+    // only bypasses the generic Plan-agent pass), so it needs the same archive fallback, and
+    // the install flow's own read has to follow the citation to the archived copy
+    expect(skill).toContain('searching `compiled/` then `compiled/.archive/` for the same basename and reading the archived copy on a match');
+    expect(skill).toContain('the procedure brief in `compiled/`, or the same basename under `compiled/.archive/` when it has rotated');
     // dispatch block is labelled by what gates it, not the stale "no skill marker"
     expect(skill).toContain('Dispatch (falsification gate returned PROCEED, no in-main skill handler)');
   });
@@ -2250,6 +2256,7 @@ describe('proposal-act dispatch contract', () => {
     // runs again — the guards have to travel in the bullet or the queued path can resurrect a
     // target deleted after queueing, or rewrite one already fixed
     const queued = skill.slice(skill.indexOf('- **"Create a session task"**'), skill.indexOf('- **"I\'ll handle it manually"**'));
+    expect(queued).toContain('For a cited compiled/ or raw/ doc missing at its original path, search for the same basename under that directory\'s .archive/ and, on a match, treat the citation as present and verify against the archived copy; a doc absent from both locations is a real stale-paths.');
     expect(queued).toContain('If it exists, read it before writing and author only the behaviors from the ## Skill Improvement body that are not already present');
     expect(queued).toContain('never write into the plugin cache, and create a file at that name only after the operator explicitly confirms');
   });
