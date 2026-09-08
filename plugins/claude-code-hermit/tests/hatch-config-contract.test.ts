@@ -276,6 +276,91 @@ describe('hatch-config.ts', () => {
     expect(out.channels.discord.state_dir).toBe('.claude.local/channels/discord');
   });
 
+  test('re-init: passive_chats can be added, replaced, cleared, and omitted without losing channel state', async () => {
+    const dir = freshDir();
+    const channel = {
+      enabled: true, dm_channel_id: 'D1', default_chat_id: 'D1',
+      state_dir: '.claude.local/channels/discord', allowed_users: ['999'], custom_key: 'keep',
+    };
+    const seed = {
+      ...JSON.parse(fs.readFileSync(TEMPLATE_PATH, 'utf8')),
+      _hermit_versions: { 'claude-code-hermit': CORE_VERSION },
+      foo_custom: true,
+      channels: { discord: channel, telegram: { enabled: false } },
+    };
+    seedConfig(dir, seed);
+
+    for (const passive_chats of [['123'], ['456', '789'], ['456', '789'], []]) {
+      const r = await runHatchConfig(dir, { channels: { discord: { passive_chats } } }, true);
+      expect(r.exitCode).toBe(0);
+      const expected = { ...seed, channels: { ...seed.channels, discord: { ...channel, passive_chats } } };
+      expect(JSON.parse(fs.readFileSync(configPathFor(dir), 'utf8'))).toEqual(expected);
+      expect(JSON.parse(r.stdout)).toEqual(expected);
+
+      const omitted = await runHatchConfig(dir, { channels: { discord: {} } }, true);
+      expect(omitted.exitCode).toBe(0);
+      expect(JSON.parse(fs.readFileSync(configPathFor(dir), 'utf8'))).toEqual(expected);
+    }
+  });
+
+  for (const reinit of [false, true]) {
+    test(`passive_chats is written on channel creation (reinit=${reinit})`, async () => {
+      const dir = freshDir();
+      if (reinit) {
+        seedConfig(dir, { ...JSON.parse(fs.readFileSync(TEMPLATE_PATH, 'utf8')), channels: {} });
+      }
+      const r = await runHatchConfig(dir, {
+        project_name: 'my-project', channels: { discord: { passive_chats: ['123'] } },
+      }, reinit);
+      expect(r.exitCode).toBe(0);
+      const out = JSON.parse(fs.readFileSync(configPathFor(dir), 'utf8'));
+      expect(out.channels.discord).toEqual({
+        enabled: true, dm_channel_id: null, default_chat_id: null,
+        state_dir: '.claude.local/channels/discord', passive_chats: ['123'],
+      });
+      expect(JSON.parse(r.stdout)).toEqual(out);
+    });
+  }
+
+  for (const { existing, passive_chats } of [
+    { existing: ['keep'], passive_chats: null },
+    { existing: ['keep'], passive_chats: '123' },
+    { existing: ['keep'], passive_chats: [123] },
+    { existing: null, passive_chats: '123' },
+    { existing: '123', passive_chats: null },
+    { existing: [123], passive_chats: [456] },
+  ]) {
+    test(`re-init: invalid passive_chats ${JSON.stringify(existing)} -> ${JSON.stringify(passive_chats)} is refused without writing`, async () => {
+      const dir = freshDir();
+      seedConfig(dir, {
+        ...JSON.parse(fs.readFileSync(TEMPLATE_PATH, 'utf8')),
+        channels: { discord: { enabled: true, passive_chats: existing } },
+      });
+      const before = fs.readFileSync(configPathFor(dir), 'utf8');
+      const r = await runHatchConfig(dir, { channels: { discord: { passive_chats } } }, true);
+      expect(r.exitCode).not.toBe(0);
+      expect(r.stderr).toContain('channels.discord.passive_chats');
+      expect(fs.readFileSync(configPathFor(dir), 'utf8')).toBe(before);
+    });
+  }
+
+  test('re-init: an existing passive_chats error tolerates omission and allows repair', async () => {
+    const dir = freshDir();
+    seedConfig(dir, {
+      ...JSON.parse(fs.readFileSync(TEMPLATE_PATH, 'utf8')),
+      channels: { discord: { enabled: true, passive_chats: [123] } },
+    });
+    const omitted = await runHatchConfig(dir, { channels: { discord: { enabled: false } } }, true);
+    expect(omitted.exitCode).toBe(0);
+    expect(JSON.parse(fs.readFileSync(configPathFor(dir), 'utf8')).channels.discord.passive_chats).toEqual([123]);
+    const repaired = await runHatchConfig(dir, { channels: { discord: { passive_chats: ['456'] } } }, true);
+    expect(repaired.exitCode).toBe(0);
+    expect(repaired.stderr).not.toContain('channels.discord.passive_chats');
+    const out = JSON.parse(fs.readFileSync(configPathFor(dir), 'utf8'));
+    expect(out.channels.discord.passive_chats).toEqual(['456']);
+    expect(out.channels.discord.enabled).toBe(false);
+  });
+
   test('re-init: morning_brief_time=null disables an existing morning brief', async () => {
     const dir = freshDir();
     const seed = {

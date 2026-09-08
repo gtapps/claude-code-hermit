@@ -192,6 +192,11 @@ if (Object.hasOwn(answers, 'channels')) {
     if (!Object.hasOwn(merged, 'default_chat_id')) merged.default_chat_id = null;
     if (!Object.hasOwn(merged, 'state_dir')) merged.state_dir = `.claude.local/channels/${name}`;
     if (Object.hasOwn(ans, 'allowed_users')) merged.allowed_users = ans.allowed_users;
+    if (Object.hasOwn(ans, 'passive_chats')) {
+      merged.passive_chats = ans.passive_chats;
+      // An explicit replacement must pass validation even if the old value had the same error.
+      priorErrors = priorErrors.filter((e) => !e.startsWith(`channels.${name}.passive_chats:`));
+    }
     // Outbound-only second destination for maintainer-tier alerts; a freshly
     // answered value must survive re-init (existing values ride the ...existing spread).
     if (Object.hasOwn(ans, 'maintainer_channel_id')) merged.maintainer_channel_id = ans.maintainer_channel_id;
