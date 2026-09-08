@@ -49,6 +49,7 @@ Thumbs.db
 # claude-code-hermit
 # Hermit local state (fully local in this monorepo)
 .claude-code-hermit/OPERATOR.md
+.claude-code-hermit/OPERATOR.md.bak
 .claude-code-hermit/sessions/
 .claude-code-hermit/templates/
 .claude-code-hermit/cost-log.jsonl
@@ -65,6 +66,7 @@ Thumbs.db
 .claude-code-hermit/knowledge-schema.md
 .claude-code-hermit/RESIDENT.md
 .claude-code-hermit/claude-settings.json
+.claude-code-hermit/dashboard-render.ts
 
 
 # Claude Code internal state

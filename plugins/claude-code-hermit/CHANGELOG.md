@@ -6,11 +6,12 @@
 - `/spawn-session` passes `--remote-control` when `remote` is on in `config.json`, matching the resident session, and no longer takes `--rc` or refuses on auth method.
 
 ### Fixed
-- `.claude-code-hermit/RESIDENT.md` and `.claude-code-hermit/claude-settings.json` are gitignored. Both shipped unignored, leaving the resident file as permanent `git status` noise and an operator `env` block one `git add -A` from being committed.
+- `.claude-code-hermit/RESIDENT.md`, `.claude-code-hermit/claude-settings.json`, `.claude-code-hermit/dashboard-render.ts`, and `.claude-code-hermit/OPERATOR.md.bak` are gitignored. All four shipped unignored, leaving the resident and renderer files as permanent `git status` noise and an operator `env` block one `git add -A` from being committed.
+- Workspace-mode backup no longer un-ignores `.claude-code-hermit/claude-settings.json`. It rewrites the project `.gitignore` from the template's line list, so adding the file there would have handed its `env` block to the backup commit; it now sits alongside `.claude.local/` in the keep-ignoring set.
 
 ### Upgrade Instructions
 
-**Gitignore the resident launch files.** If the project's `.gitignore` contains the line `# .claude-code-hermit state is tracked here`, skip this step entirely: workspace-mode backup owns that file and deliberately un-ignores hermit state. Otherwise check the `.gitignore` for `.claude-code-hermit/RESIDENT.md` and `.claude-code-hermit/claude-settings.json`, and add each missing line alongside the other `.claude-code-hermit/` entries. If either file was tracked, run `git rm --cached <path>` so it leaves the index without being deleted from disk.
+**Gitignore the resident launch files.** If the project's `.gitignore` contains the line `# .claude-code-hermit state is tracked here`, skip this step entirely: workspace-mode backup owns that file and deliberately un-ignores hermit state. Otherwise check the `.gitignore` for `.claude-code-hermit/RESIDENT.md`, `.claude-code-hermit/claude-settings.json`, `.claude-code-hermit/dashboard-render.ts`, and `.claude-code-hermit/OPERATOR.md.bak`, and add each missing line alongside the other `.claude-code-hermit/` entries. If any of them was tracked, run `git rm --cached <path>` so it leaves the index without being deleted from disk.
 
 ## [1.3.3] - 2026-09-07
 

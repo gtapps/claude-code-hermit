@@ -14,11 +14,13 @@
 .claude-code-hermit/compiled/
 .claude-code-hermit/bin/
 .claude-code-hermit/OPERATOR.md
+.claude-code-hermit/OPERATOR.md.bak
 .claude-code-hermit/HEARTBEAT.md
 .claude-code-hermit/knowledge-schema.md
 .claude-code-hermit/cost-summary.md
 .claude-code-hermit/RESIDENT.md
 .claude-code-hermit/claude-settings.json
+.claude-code-hermit/dashboard-render.ts
 .claude/output-styles/hermit-voice.md
 .claude.local/
 CLAUDE.local.md
