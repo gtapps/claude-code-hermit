@@ -268,6 +268,9 @@ function cmdBegin(ctx: Context, flags: string[]): void {
     if (ctx.scheduled.length === 0) process.stdout.write('MONITOR_SKIP:zero-scheduled\n');
     else process.stdout.write(`MONITOR_CMD:${routineCommand(ctx)}\n`);
   }
+  if (fallback && ctx.scheduled.length > 0) {
+    process.stdout.write('WARN:routines|routine_max_lateness_minutes is not enforced in CronCreate fallback; Monitor scheduling is required\n');
+  }
   const result = plan(ctx, fallback, reset).plan;
   emitPlan(ctx, result);
   process.stdout.write('ANCHOR_PROMPT_BEGIN\n');

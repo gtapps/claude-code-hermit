@@ -65,6 +65,17 @@ const runDue = (dir: string, now = NOW, env: Record<string, string> = {}) =>
   runScript('routines.ts', { args: ['due', hermit(dir)], env: { HERMIT_NOW: now, ...env } });
 
 describe('routine gate — verdicts', () => {
+  test('expired occurrence does not execute its precheck', withDir(async (dir) => {
+    const rel = writeGate(dir, 'late.sh', '#!/usr/bin/env bash\ntouch tools/gate-ran\necho WAKE\n');
+    writeConfig(dir, [ROUTINE({ precheck: rel })]);
+    writeSchedule(dir, PRIMED);
+    const result = await runDue(dir, '2026-07-15T10:01:00Z');
+    expect(result.stdout).toBe('');
+    expect(fs.existsSync(path.join(dir, 'tools', 'gate-ran'))).toBe(false);
+    expect(readRows(dir).map((r) => r.event)).toEqual(['skipped-late']);
+    expect(readSchedule(dir).gated.last_consumed_mark).toBe(MARK);
+  }));
+
   test('SKIP consumes the fire, stamps skipped-precheck, emits nothing', withDir(async (dir) => {
     const rel = writeGate(dir, 'skip.sh', '#!/usr/bin/env bash\necho SKIP\n');
     writeConfig(dir, [ROUTINE({ precheck: rel })]);

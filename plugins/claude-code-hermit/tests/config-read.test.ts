@@ -22,6 +22,9 @@ describe('settleConfig degenerate inputs', () => {
   const CASES: Array<[string, unknown, string, unknown]> = [
     ['missing config -> nullable scalar null', undefined, 'timezone', null],
     ['missing config -> scalar default', undefined, 'escalation', 'balanced'],
+    ['missing lateness limit -> default', {}, 'routine_max_lateness_minutes', 60],
+    ['custom lateness limit survives', { routine_max_lateness_minutes: 15 }, 'routine_max_lateness_minutes', 15],
+    ['malformed lateness limit -> default', { routine_max_lateness_minutes: '15' }, 'routine_max_lateness_minutes', 60],
     ['missing config -> container empty', undefined, 'routines', []],
     ['missing config -> nested default', undefined, 'heartbeat.every', '30m'],
     ['non-object (null)', null, 'escalation', 'balanced'],

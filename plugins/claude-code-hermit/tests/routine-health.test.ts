@@ -143,6 +143,11 @@ describe('foldRoutineHistory — attempt lifecycle', () => {
     expect(e).toMatchObject({ skips: 2, fires: 0, incomplete: 0, open_attempt: false });
   });
 
+  test('lateness skips count without opening attempts or proving a successful precheck', () => {
+    const e = only([row('brief', 'skipped-late', daysAgo(1))]);
+    expect(e).toMatchObject({ skips: 1, starts: 0, fires: 0, incomplete: 0, open_attempt: false, precheck_skips: 0 });
+  });
+
   test('a skip between started and fired does not break the attempt', () => {
     const e = only([
       row('brief', 'started', daysAgo(3)),

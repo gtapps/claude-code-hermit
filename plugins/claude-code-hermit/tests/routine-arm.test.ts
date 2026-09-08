@@ -247,6 +247,7 @@ test('the fallback pass never plans the heartbeat leg', async () => {
   staleHeartbeat(f);
   const result = await arm(f.hermit, ['begin', '--fallback']);
   expect(result.stdout).toContain('ARM|routines|fallback');
+  expect(result.stdout).toContain('WARN:routines|routine_max_lateness_minutes is not enforced in CronCreate fallback');
   expect(hbLines(result.stdout)).toEqual([]);
 });
 

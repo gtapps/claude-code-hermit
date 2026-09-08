@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Scheduled routines more than 60 minutes late are skipped before Monitor dispatch, with one global `routine_max_lateness_minutes` setting (1–1440). Existing installations use the same default; CronCreate fallback warns that it cannot enforce the limit.
+
+### Upgrade Instructions
+
+To retain the previous 24-hour catch-up window, set top-level `routine_max_lateness_minutes` to `1440` in `.claude-code-hermit/config.json`, preserving all other fields. Otherwise leave the setting absent to use the new 60-minute default. Preserve any existing explicit value. The running Monitor reads the setting on its next poll.
+
 ## [1.3.4] - 2026-09-08
 
 ### Added

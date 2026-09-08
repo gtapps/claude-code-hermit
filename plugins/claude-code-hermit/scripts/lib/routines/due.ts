@@ -14,7 +14,8 @@
 // State model (state/routine-schedule.json): { "<id>": { "last_consumed_mark": "<ISO minute>" } }
 // A routine is due when a cron-matching minute mark exists in (last_consumed_mark, now],
 // lower-bounded at now-24h. Gate order per due routine: paused → waiting(!rdw) →
-// operator-turn-open (defer, no consume) → precheck (consume, no emit on SKIP) → emit
+// lateness (consume, no emit when expired) → operator-turn-open (defer, no consume) →
+// precheck (consume, no emit on SKIP) → emit
 // (consume). Missing entry inits to now, fires nothing — exact CronCreate-death parity,
 // no catch-up (operator-confirmed). The precheck is the routine's declared world-state
 // gate (lib/routines/gate.ts); it never changes what is emitted, only whether.
@@ -103,6 +104,10 @@ const windowFloor = new Date(nowMinute.getTime() - WINDOW_MS);
 // init/pruning below — a settled empty routines list would still run them.
 const config = readConfigRaw(hermitDir);
 if (!config) finish([]);
+
+const configuredLateness = config.routine_max_lateness_minutes;
+const maxLatenessMinutes = Number.isInteger(configuredLateness) && configuredLateness >= 1 && configuredLateness <= 1440
+  ? configuredLateness : 60;
 
 const timezone: string | null = typeof config.timezone === 'string' ? config.timezone : null;
 // One formatter per poll, reused across every candidate minute. null on a bad tz — the
@@ -194,6 +199,13 @@ for (const routine of eligible) {
     schedule[id] = { last_consumed_mark: latestMatch.toISOString() };
     scheduleChanged = true;
     pendingStamps.push([id, 'skipped-waiting']);
+    continue;
+  }
+  // Expire before deferring: a busy turn must not keep a stale occurrence pending.
+  if (nowMinute.getTime() - latestMatch.getTime() > maxLatenessMinutes * MINUTE_MS) {
+    schedule[id] = { last_consumed_mark: latestMatch.toISOString() };
+    scheduleChanged = true;
+    pendingStamps.push([id, 'skipped-late']);
     continue;
   }
   if (turnOpen) {
