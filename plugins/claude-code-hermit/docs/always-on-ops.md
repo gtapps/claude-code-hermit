@@ -354,4 +354,4 @@ WantedBy=multi-user.target
 
 **Docker:** `restart: unless-stopped` handles it automatically — see [Always-On Setup](always-on.md). The entrypoint's SIGTERM trap ensures graceful session close on system shutdown.
 
-A manual `claude --resume` or a new Claude session launched from a shell opened through `hermit-attach` is a guest. Resume the resident with `.claude-code-hermit/bin/hermit-start --resume`.
+A manual `claude --resume` or a new Claude session launched from a shell opened through `hermit-attach` is a guest. Guests ignore channel messages, including sessions that inherit the resident's environment. The verdict is taken at session start and never revisited, so a guest keeps leaving channel messages alone even after the resident stops. Recognising an environment-inheriting session needs the resident's `session_pid` stamp in `state/runtime.json`, and a session already running when the plugin update lands is only classified at its next start. Use `.claude-code-hermit/bin/hermit-start --resume` to bring an old transcript back as the resident.
