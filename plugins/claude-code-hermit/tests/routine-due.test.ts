@@ -575,17 +575,67 @@ describe('routine-due lateness', () => {
     expect((await run(dir, '2026-07-16T09:00:00Z')).stdout).toContain('[hermit-routine:stale]');
   }));
 
-  test('a routine deferred by a busy turn expires before that turn clears', withDir(async (dir) => {
+  test('a routine deferred by a busy turn fires after that turn clears', withDir(async (dir) => {
     writeConfig(dir, [ROUTINE()]);
     writeSchedule(dir, { 'test-routine': { last_consumed_mark: '2026-07-15T08:00:00.000Z' } });
     writeTurnMarker(dir, '2026-07-15T09:15:00.000Z');
     expect((await run(dir, '2026-07-15T09:30:00Z')).stdout).toBe('');
     expect(readMetricsRows(dir)).toHaveLength(0);
     expect((await run(dir, '2026-07-15T10:01:00Z')).stdout).toBe('');
-    expect(readMetricsRows(dir).map((r) => r.event)).toEqual(['skipped-late']);
+    expect(readMetricsRows(dir)).toHaveLength(0);
     fs.unlinkSync(turnMarkerPath(dir));
-    expect((await run(dir, '2026-07-15T10:02:00Z')).stdout).toBe('');
+    expect((await run(dir, '2026-07-15T10:02:00Z')).stdout.trim()).toBe('ROUTINE_DUE [hermit-routine:test-routine]');
+    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T09:00:00.000Z');
+    expect(readMetricsRows(dir).map((r) => r.event)).toEqual(['dispatched']);
+    expect((await run(dir, '2026-07-15T10:03:00Z')).stdout).toBe('');
     expect(readMetricsRows(dir)).toHaveLength(1);
+  }));
+
+  test('an occurrence already expired when the turn opens is not rescued by the defer', withDir(async (dir) => {
+    writeConfig(dir, [ROUTINE()]);
+    writeSchedule(dir, { 'test-routine': { last_consumed_mark: '2026-07-15T08:00:00.000Z' } });
+    writeTurnMarker(dir, '2026-07-15T14:00:00.000Z');
+    expect((await run(dir, '2026-07-15T14:05:00Z')).stdout).toBe('');
+    expect(readMetricsRows(dir).map((r) => r.event)).toEqual(['skipped-late']);
+    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T09:00:00.000Z');
+  }));
+
+  test('a deferral interrupted by downtime expires instead of firing on resume', withDir(async (dir) => {
+    writeConfig(dir, [ROUTINE()]);
+    writeSchedule(dir, { 'test-routine': { last_consumed_mark: '2026-07-15T08:00:00.000Z' } });
+    writeTurnMarker(dir, '2026-07-15T09:15:00.000Z');
+    expect((await run(dir, '2026-07-15T09:30:00Z')).stdout).toBe('');
+    expect(readMetricsRows(dir)).toHaveLength(0);
+    fs.unlinkSync(turnMarkerPath(dir)); // monitor down for hours, back with the turn long over
+    expect((await run(dir, '2026-07-15T14:00:00Z')).stdout).toBe('');
+    expect(readMetricsRows(dir).map((r) => r.event)).toEqual(['skipped-late']);
+    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T09:00:00.000Z');
+  }));
+
+  test('a hold longer than the limit still fires while polls keep observing it', withDir(async (dir) => {
+    writeConfig(dir, [ROUTINE()]);
+    writeSchedule(dir, { 'test-routine': { last_consumed_mark: '2026-07-15T08:00:00.000Z' } });
+    // Four hours of conversation, far past the 60-minute limit, polled throughout.
+    // Each operator prompt rewrites the marker, so it never hits its own TTL.
+    for (const at of ['09:00', '09:30', '10:00', '11:00', '12:00', '13:00']) {
+      writeTurnMarker(dir, `2026-07-15T${at}:00.000Z`);
+      expect((await run(dir, `2026-07-15T${at}:00Z`)).stdout).toBe('');
+      expect(readMetricsRows(dir)).toHaveLength(0);
+    }
+    fs.unlinkSync(turnMarkerPath(dir));
+    expect((await run(dir, '2026-07-15T13:01:00Z')).stdout.trim()).toBe('ROUTINE_DUE [hermit-routine:test-routine]');
+    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T09:00:00.000Z');
+    expect(readMetricsRows(dir).map((r) => r.event)).toEqual(['dispatched']);
+  }));
+
+  test('a held_at in the future is ignored rather than holding the occurrence forever', withDir(async (dir) => {
+    writeConfig(dir, [ROUTINE()]);
+    writeSchedule(dir, {
+      'test-routine': { last_consumed_mark: '2026-07-15T08:00:00.000Z', held_at: '2027-01-01T00:00:00.000Z' },
+    });
+    expect((await run(dir, '2026-07-15T10:01:00Z')).stdout).toBe('');
+    expect(readMetricsRows(dir).map((r) => r.event)).toEqual(['skipped-late']);
+    expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T09:00:00.000Z');
   }));
 
   test('failed expiry persistence leaves no skip row and retries once', withDir(async (dir) => {

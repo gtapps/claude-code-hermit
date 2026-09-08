@@ -11,7 +11,11 @@
 // → the routine:multi bucket. Also load-bearing: record-operator-action.ts
 // isRoutinePrompt() drops this line; tests/auto-close.test.ts drift guard syncs it.
 //
-// State model (state/routine-schedule.json): { "<id>": { "last_consumed_mark": "<ISO minute>" } }
+// State model (state/routine-schedule.json): { "<id>": { "last_consumed_mark": "<ISO minute>", "held_at"?: "<ISO minute>" } }
+// `held_at` is the last poll at which an occurrence was deferred for an open operator
+// turn; lateness is measured from it instead of the occurrence, so time spent deferred
+// does not count while a gap the monitor did not observe (downtime) still does. It is
+// re-stamped on every held poll and dropped by any consume, which rewrites the entry.
 // A routine is due when a cron-matching minute mark exists in (last_consumed_mark, now],
 // lower-bounded at now-24h. Gate order per due routine: paused → waiting(!rdw) →
 // lateness (consume, no emit when expired) → operator-turn-open (defer, no consume) →
@@ -201,8 +205,15 @@ for (const routine of eligible) {
     pendingStamps.push([id, 'skipped-waiting']);
     continue;
   }
-  // Expire before deferring: a busy turn must not keep a stale occurrence pending.
-  if (nowMinute.getTime() - latestMatch.getTime() > maxLatenessMinutes * MINUTE_MS) {
+  // Expire before deferring: a busy turn must not keep a stale occurrence pending
+  // (`held_at`, above). A future stamp (clock skew) is ignored rather than trusted —
+  // crediting it would hold the occurrence forever, the same reason the cursor
+  // reinits above.
+  const heldAt = typeof entry.held_at === 'string' ? Date.parse(entry.held_at) : NaN;
+  const latenessFrom = !isNaN(heldAt) && heldAt <= nowMinute.getTime()
+    ? Math.max(heldAt, latestMatch.getTime())
+    : latestMatch.getTime();
+  if (nowMinute.getTime() - latenessFrom > maxLatenessMinutes * MINUTE_MS) {
     schedule[id] = { last_consumed_mark: latestMatch.toISOString() };
     scheduleChanged = true;
     pendingStamps.push([id, 'skipped-late']);
@@ -211,6 +222,8 @@ for (const routine of eligible) {
   if (turnOpen) {
     // Defer: live operator exchange — do NOT consume; next poll re-derives from
     // the untouched cursor and fires at the first post-turn poll.
+    schedule[id] = { ...entry, held_at: nowMinute.toISOString() };
+    scheduleChanged = true;
     continue;
   }
 
