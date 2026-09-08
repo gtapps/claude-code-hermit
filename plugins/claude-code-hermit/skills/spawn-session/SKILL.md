@@ -54,7 +54,14 @@ Four limits sit on that command:
    Remaining text is the prompt. Empty prompt: stop with a one-line ask for
    the work to run.
 
-   - `<n>` defaults to `session-<epoch>` (`date +%s`) when `--name` is omitted.
+   - When `--name` is omitted, derive `<n>` from the prompt: drop a leading `/`
+     and any `<plugin>:` namespace, lowercase, replace every non-`[a-z0-9]` run
+     with `-`, keep the first five nonempty tokens joined by `-`, cap the slug
+     at 40 characters, trim any leading or trailing `-`, then append `-` plus
+     the last four digits of `date +%s`. The trim is what keeps a prompt like
+     `#220 fix the parser` from producing a name the launch command reads as a
+     flag. If no token survives, use `session-<epoch>` (`date +%s`).
+     Example: `/tackle-issue PROP #220` becomes `tackle-issue-prop-220-9689`.
    - `<m>` / `<e>` are omitted when the operator does not name them, so the
      helper takes the box defaults.
 

@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changed
+- `/spawn-session` names an unnamed helper from its prompt, with `session-<epoch>` only as the fallback.
 - Scheduled routines more than 60 minutes late are skipped before Monitor dispatch, with one global `routine_max_lateness_minutes` setting (1–1440). Existing installations use the same default; CronCreate fallback warns that it cannot enforce the limit.
 
 ### Upgrade Instructions
