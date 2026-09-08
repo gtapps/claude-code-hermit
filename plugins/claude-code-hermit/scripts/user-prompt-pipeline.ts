@@ -35,6 +35,7 @@ import { hermitDir, transcriptPath as ccTranscriptPath, sessionId as ccSessionId
 import { parseChannelEnvelope } from './lib/channel-envelope';
 import { readConfigRaw } from './lib/config-read';
 import { readRuntimeJson } from './lib/runtime';
+import { ownsResidentIdentity } from './lib/session-registry';
 import { isGuest } from './lib/guest-marker';
 import type { StageContext, StageResult } from './lib/prompt-stages/types';
 
@@ -111,12 +112,24 @@ async function main(raw: string): Promise<void> {
       return configCache;
     },
     runtime() {
-      if (!runtimeRead) { runtimeRead = true; try { runtimeCache = readRuntimeJson(); } catch { runtimeCache = null; } }
+      if (!runtimeRead) { runtimeRead = true; try { runtimeCache = readRuntimeJson(path.join(dir, 'state')); } catch { runtimeCache = null; } }
       return runtimeCache;
     },
   };
 
-  // 1-3. Audit and context. These run on every prompt, including during a
+  const guest = isGuest(path.join(dir, 'state'), sessionId);
+
+  await stage('resident-gate', () => {
+    if (!ctx.envelope) return;
+    if (guest) {
+      return { block: 'guest session: channel message left to the resident' };
+    }
+    if (!ownsResidentIdentity(ctx.runtime())) {
+      return { block: 'channel message left to the resident session' };
+    }
+  }, ctx);
+
+  // 1-3. Audit and context. These run on every admitted prompt, including during a
   // shutdown — the operator's message is still recorded and the reply reminder
   // still names the chat to answer on.
   await stage('prompt-context', promptContext, ctx);
@@ -132,8 +145,9 @@ async function main(raw: string): Promise<void> {
   await stage('record-operator-action',
     () => { operatorActivityKept = recordOperatorAction(prompt, { envelope: ctx.envelope, config: ctx.config() }, { openTurn: false, sessionId }); }, ctx);
 
-  // Guest chat still receives context, but cannot control the resident.
-  if (isGuest(path.join(dir, 'state'), sessionId)) return;
+  // A guest's own prompts still receive context, but cannot control the resident.
+  // Its channel messages never get this far: the resident gate above blocks them.
+  if (guest) return;
 
   const rt = ctx.runtime();
   const shutdownPending = !!rt && !!rt.shutdown_requested_at && !rt.shutdown_completed_at;

@@ -4,6 +4,7 @@
 
 ### Fixed
 - A cited `compiled/` or `raw/` doc that has since been archived no longer reads as a stale path when a proposal is accepted. The falsification gate, its `## Skill Draft` `source_artifact` check, the procedure-capture install flow's read of that brief, and the queued session task all fall back to the same basename in that directory's `.archive/` and verify against the archived copy; a doc in neither location is still stale.
+- A session that is not the registered resident no longer answers channel messages, and is classified as a guest even when launched with the resident's environment. The verdict is taken at session start, so a session that started as a guest keeps leaving channel messages alone after the resident stops; `bin/hermit-start --resume` is the way back.
 
 ## [1.3.4] - 2026-09-08
 
