@@ -4,6 +4,8 @@
 
 ### Changed
 - Scheduled routines more than 60 minutes late after downtime are skipped before Monitor dispatch, with one global `routine_max_lateness_minutes` setting (1–1440). Time an occurrence spends deferred by an open operator turn does not count toward lateness, so a routine held by a live conversation still runs when it ends; downtime during the deferral counts as before. Existing installations use the same default; CronCreate fallback warns that it cannot enforce the limit.
+- `/spawn-session` names an unnamed helper from its prompt, with `session-<epoch>` only as the fallback.
+- Scheduled routines more than 60 minutes late are skipped before Monitor dispatch, with one global `routine_max_lateness_minutes` setting (1–1440). Existing installations use the same default; CronCreate fallback warns that it cannot enforce the limit.
 
 ### Upgrade Instructions
 
