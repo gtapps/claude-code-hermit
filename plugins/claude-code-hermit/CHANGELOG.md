@@ -5,6 +5,13 @@
 ### Changed
 - `/spawn-session` passes `--remote-control` when `remote` is on in `config.json`, matching the resident session, and no longer takes `--rc` or refuses on auth method.
 
+### Fixed
+- `.claude-code-hermit/RESIDENT.md` and `.claude-code-hermit/claude-settings.json` are gitignored. Both shipped unignored, leaving the resident file as permanent `git status` noise and an operator `env` block one `git add -A` from being committed.
+
+### Upgrade Instructions
+
+**Gitignore the resident launch files.** If the project's `.gitignore` contains the line `# .claude-code-hermit state is tracked here`, skip this step entirely: workspace-mode backup owns that file and deliberately un-ignores hermit state. Otherwise check the `.gitignore` for `.claude-code-hermit/RESIDENT.md` and `.claude-code-hermit/claude-settings.json`, and add each missing line alongside the other `.claude-code-hermit/` entries. If either file was tracked, run `git rm --cached <path>` so it leaves the index without being deleted from disk.
+
 ## [1.3.3] - 2026-09-07
 
 ### Added

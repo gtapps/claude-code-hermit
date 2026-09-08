@@ -17,6 +17,8 @@
 .claude-code-hermit/HEARTBEAT.md
 .claude-code-hermit/knowledge-schema.md
 .claude-code-hermit/cost-summary.md
+.claude-code-hermit/RESIDENT.md
+.claude-code-hermit/claude-settings.json
 .claude/output-styles/hermit-voice.md
 .claude.local/
 CLAUDE.local.md

@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { PLUGIN_ROOT } from './helpers/run';
+import { PROTECTED_FILES } from '../scripts/settings-gate';
 
 const CANONICAL_PATH = '.claude-code-hermit/state/hatch-options.json';
 const TARGET_KEY = '"target"';
@@ -40,6 +41,18 @@ describe('GITIGNORE-APPEND.txt', () => {
 
   test('GITIGNORE-APPEND.txt lists .claude/settings.local.json', () => {
     expect(lines).toContain('.claude/settings.local.json');
+  });
+
+  // Derived from the settings gate's own list rather than spelled out here:
+  // a file sensitive enough to need a native prompt on edit is sensitive
+  // enough not to be committed, and claude-settings.json carries an operator
+  // `env` block. RESIDENT.md and claude-settings.json both shipped unignored,
+  // the second time a new hermit-dir file missed this template, so the check
+  // now tracks the list instead of the two names that happened to be missing.
+  test('GITIGNORE-APPEND.txt lists every settings-gate protected file', () => {
+    for (const name of PROTECTED_FILES) {
+      expect(lines).toContain(`.claude-code-hermit/${name}`);
+    }
   });
 });
 
