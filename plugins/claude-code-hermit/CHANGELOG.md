@@ -3,14 +3,23 @@
 ## [Unreleased]
 
 ### Changed
+- The four resident-only hooks (`pause-gate`, `ask-gate`, `component-privacy`, and `permission-denied-notify`) now ride the per-boot launch overlay with absolute script paths, probed on Claude Code 2.1.265.
+- A boot that cannot write the launch overlay refuses to start.
+- Workspace trust for the project is seeded at boot.
+- `hermit-doctor` includes an `overlay-hooks` configuration check.
+- Operator `hooks` in `claude-settings.json` merge per event after generated entries.
+- Interactive boots clear `HERMIT_MANAGED` so attended questions and edits keep their interactive behavior.
 - Scheduled routines more than 60 minutes late after downtime are skipped before Monitor dispatch, with one global `routine_max_lateness_minutes` setting (1–1440). Time an occurrence spends deferred by an open operator turn does not count toward lateness, so a routine held by a live conversation still runs when it ends; downtime during the deferral counts as before. Existing installations use the same default; CronCreate fallback warns that it cannot enforce the limit.
 - `/spawn-session` names an unnamed helper from its prompt, with `session-<epoch>` only as the fallback.
-- Scheduled routines more than 60 minutes late are skipped before Monitor dispatch, with one global `routine_max_lateness_minutes` setting (1–1440). Existing installations use the same default; CronCreate fallback warns that it cannot enforce the limit.
 
 ### Upgrade Instructions
 
+Immediately after `hermit-update` or `hermit-docker update` finishes, stop the running resident with `.claude-code-hermit/bin/hermit-stop`, then start it with `.claude-code-hermit/bin/hermit-start --resume` to rewrite and load the launch overlay. A start against a live tmux session is refused. Both update commands send `/reload-plugins`, which drops the four hooks from the running resident while its previous boot's overlay has none. Docker hermits need nothing else.
+
 To retain the previous 24-hour catch-up window, set top-level `routine_max_lateness_minutes` to `1440` in `.claude-code-hermit/config.json`, preserving all other fields. Otherwise leave the setting absent to use the new 60-minute default. Preserve any existing explicit value. The running Monitor reads the setting on its next poll.
+
 ### Fixed
+- The watchdog's staged-login commit now writes `oauthAccount` to `~/.claude.json` on host installs, where Claude Code reads it, instead of `~/.claude/.claude.json`.
 - A cited `compiled/` or `raw/` doc that has since been archived no longer reads as a stale path when a proposal is accepted. The falsification gate, its `## Skill Draft` `source_artifact` check, the procedure-capture install flow's read of that brief, and the queued session task all fall back to the same basename in that directory's `.archive/` and verify against the archived copy; a doc in neither location is still stale.
 - A session that is not the registered resident no longer answers channel messages, and is classified as a guest even when launched with the resident's environment. The verdict is taken at session start, so a session that started as a guest keeps leaving channel messages alone after the resident stops; `bin/hermit-start --resume` is the way back.
 

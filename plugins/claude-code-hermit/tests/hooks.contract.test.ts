@@ -1648,14 +1648,14 @@ describe('channel-reply-reminder', () => {
 // -------------------------------------------------------
 
 describe('doctor-check', () => {
-  test('doctor-check (minimal install, 33 checks)', withDir(async (dir) => {
+  test('doctor-check (minimal install, 34 checks)', withDir(async (dir) => {
     seedDoctor(dir,
       '{"agent_name":"test","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"active_hours":{"start":"08:00","end":"23:00"}},"routines":[]}');
     const report = await doctorReport(dir);
     expect(report.checks.map((c: any) => c.id)).toEqual([
       'runtime', 'config', 'hooks', 'state', 'cost', 'proposals', 'dependencies', 'version-currency',
       'permissions', 'permission-rules', 'docker-security', 'archive', 'auto-close', 'reflect', 'scheduler', 'watchdog', 'context-age', 'opus-wake', 'routine-cost', 'heartbeat',
-      'routine-monitor', 'routine-precheck', 'raw-size', 'credential-expiry', 'model-pricing-known', 'memory-size', 'passive-chats', 'context-scan', 'voice-carrier', 'classifier-denials', 'channel-liveness', 'peer-inbox', 'backup',
+      'routine-monitor', 'routine-precheck', 'raw-size', 'credential-expiry', 'model-pricing-known', 'memory-size', 'passive-chats', 'context-scan', 'voice-carrier', 'overlay-hooks', 'classifier-denials', 'channel-liveness', 'peer-inbox', 'backup',
     ]);
   }));
 
@@ -1680,6 +1680,17 @@ describe('doctor-check', () => {
     expect(c.status).toBe('fail');
     expect(c.detail).toContain('does-not-exist.ts');
   }));
+
+  test('hooks: plugin manifest contains exactly the 13 shared scripts', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(PLUGIN_ROOT, 'hooks/hooks.json'), 'utf8'));
+    const names = Object.values(manifest.hooks).flatMap((entries: any) =>
+      entries.flatMap((entry: any) => entry.hooks.map((hook: any) => path.basename(hook.args[0], '.ts'))));
+    expect(names.sort()).toEqual([
+      'cache-edit-guard', 'settings-gate', 'artifact-backend-guard', 'channel-hook',
+      'validate-config', 'generate-summary', 'usage-track', 'user-prompt-pipeline',
+      'startup-context', 'stop-pipeline', 'stop-failure-stamp', 'subagent-cost', 'precompact-stamp',
+    ].sort());
+  });
 
   test('doctor-check (hooks: real hooks.json passes — every exec-form arg resolves)', withDir(async (dir) => {
     seedDoctor(dir,

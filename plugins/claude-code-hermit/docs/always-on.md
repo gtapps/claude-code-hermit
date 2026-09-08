@@ -50,6 +50,8 @@ Run after `/claude-code-hermit:hatch`:
 
 **Already running this hermit in tmux on this box?** Stop it first with `.claude-code-hermit/bin/hermit-stop`. Both instances share the same `.claude-code-hermit/` state dir, so the container's entrypoint refuses to boot beside a live host instance and goes inert instead. The wizard checks for this before it builds anything and will tell you to stop the host hermit.
 
+The resident launch overlay carries `pause-gate`, `ask-gate`, `component-privacy`, and `permission-denied-notify` instead of the plugin manifest. It is read at launch only, so restart the resident after an upgrade to load the rewritten overlay.
+
 The wizard scans your project for dependencies, asks about auth, and generates four hermit-namespaced files (so they don't clash with your own Docker setup):
 
 | File                          | Purpose                                               |
@@ -81,13 +83,7 @@ The wizard also checks `.claude/settings.json` permissions to detect tools your 
 
 This builds the image, starts the container, and prints the tmux attach command.
 
-Accept the one-time **workspace trust prompt** — use the attach command from the output, press Enter, detach:
-
-```bash
-# Detach: Ctrl+B, D
-```
-
-Persisted in the `claude-config` named volume — won't appear on restarts. After this, your hermit runs fully unattended!
+`hermit-start` seeds workspace trust for the project before launching Claude Code, including the first boot. The trust state persists in the `claude-config` named volume. If the seed warns that it could not read or write that state, use the printed attach command to accept trust manually, then detach with Ctrl+B, D. `hermit-doctor` checks the trust configuration with `overlay-hooks`.
 
 > **First run is slower** — the named volume starts empty, so the entrypoint runs onboarding bypass and installs channel plugins. Subsequent restarts are fast.
 
