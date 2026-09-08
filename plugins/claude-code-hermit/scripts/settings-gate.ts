@@ -95,7 +95,7 @@ function resolveTarget(verb: string, target: string): string {
 }
 
 /** The hermit-dir files a shell write must raise the native prompt for. */
-const PROTECTED_FILES = ['config.json', 'RESIDENT.md', 'claude-settings.json'];
+export const PROTECTED_FILES = ['config.json', 'RESIDENT.md', 'claude-settings.json'];
 const PROTECTED_FILE_ALT = PROTECTED_FILES.map((n) => n.replace(/\./g, String.raw`\.`)).join('|');
 
 function targetsConfigFile(p: string): boolean {

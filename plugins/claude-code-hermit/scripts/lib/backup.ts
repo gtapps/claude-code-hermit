@@ -441,8 +441,17 @@ export function syncMirror(root: string, mirror: string, refused: RefusedPath[])
 // .gitignore (workspace mode)
 // ---------------------------------------------------------------------------
 
-/** Lines the template ignores that workspace-mode backup must keep ignoring. */
-const GITIGNORE_KEEP = new Set(['.claude/scheduled_tasks.lock', '.claude.local/']);
+/**
+ * Lines the template ignores that workspace-mode backup must keep ignoring.
+ * `claude-settings.json` is here for the same reason as `.claude.local/`: it
+ * carries the operator's `env` block, so un-ignoring it would commit live
+ * tokens into the backup repo on the next `git add -A`.
+ */
+const GITIGNORE_KEEP = new Set([
+  '.claude/scheduled_tasks.lock',
+  '.claude.local/',
+  '.claude-code-hermit/claude-settings.json',
+]);
 
 const GITIGNORE_ALWAYS = [
   '.claude.local/',
