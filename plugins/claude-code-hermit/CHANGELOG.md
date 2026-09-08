@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+- Scheduled routines more than 60 minutes late are skipped before Monitor dispatch, with one global `routine_max_lateness_minutes` setting (1–1440). Existing installations use the same default; CronCreate fallback warns that it cannot enforce the limit.
+
+### Upgrade Instructions
+
+To retain the previous 24-hour catch-up window, set top-level `routine_max_lateness_minutes` to `1440` in `.claude-code-hermit/config.json`, preserving all other fields. Otherwise leave the setting absent to use the new 60-minute default. Preserve any existing explicit value. The running Monitor reads the setting on its next poll.
 ### Fixed
 - A cited `compiled/` or `raw/` doc that has since been archived no longer reads as a stale path when a proposal is accepted. The falsification gate, its `## Skill Draft` `source_artifact` check, the procedure-capture install flow's read of that brief, and the queued session task all fall back to the same basename in that directory's `.archive/` and verify against the archived copy; a doc in neither location is still stale.
 - A session that is not the registered resident no longer answers channel messages, and is classified as a guest even when launched with the resident's environment. The verdict is taken at session start, so a session that started as a guest keeps leaving channel messages alone after the resident stops; `bin/hermit-start --resume` is the way back.

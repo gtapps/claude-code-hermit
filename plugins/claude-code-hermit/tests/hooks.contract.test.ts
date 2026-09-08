@@ -401,6 +401,24 @@ describe('channel-hook', () => {
 // -------------------------------------------------------
 
 describe('validate-config', () => {
+  for (const [value, valid] of [
+    [undefined, true], [null, true], [1, true], [60, true], [1440, true],
+    [0, false], [-1, false], [1441, false], [1.5, false],
+    ['60', false], [true, false], [{}, false], [[], false],
+  ] as const) {
+    test(`routine lateness validation: ${JSON.stringify(value)}`, withDir(async (dir) => {
+      const config = JSON.parse(fs.readFileSync(path.join(PLUGIN_ROOT, 'state-templates/config.json.template'), 'utf8'));
+      config.routine_max_lateness_minutes = value;
+      write(hermit(dir, 'config.json'), JSON.stringify(config));
+      const result = await runScript('validate-config.ts', {
+        stdin: JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: hermit(dir, 'config.json') } }),
+        cwd: dir,
+      });
+      expect(result.exitCode).toBe(valid ? 0 : 2);
+      if (!valid) expect(result.stderr).toContain('routine_max_lateness_minutes must be an integer from 1 to 1440');
+    }));
+  }
+
   test('validate-config (valid)', withDir(async (dir) => {
     write(hermit(dir, 'config.json'),
       '{"agent_name":null,"language":null,"timezone":null,"escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"active_hours":{"start":"08:00","end":"23:00"}},"routines":[{"id":"test","schedule":"0 4 * * *","skill":"x:y","enabled":true}],"quality_gate":{"tier":"budget"}}\n');

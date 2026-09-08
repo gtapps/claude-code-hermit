@@ -63,6 +63,8 @@ Called automatically by `hermit-start.ts` on always-on launches. Can also be cal
    which re-plans over the full enabled set (scheduled routines + anchor) and prints the same block minus `MONITOR_CMD` and the `HB_` lines (the first pass already committed the heartbeat; re-planning it here would register a second monitor). Execute its `DELETE:`/`CREATE:` lines via the **CronCreate flow** below, then commit with `arm commit .claude-code-hermit <pluginRoot> fallback --created "<succeeded-csv>" --heartbeat none`, which records `{"mode":"croncreate-fallback", …}`.
 
    **CronCreate flow** (executes the `DELETE:`/`CREATE:` lines from any `arm begin` block — monitor-mode anchor, fallback, or `--reset`):
+   Report `WARN:routines|...` as a scheduler warning, including when all registrations are kept. CronCreate fallback does not enforce `routine_max_lateness_minutes`.
+
    1. Parse the block's planner lines: `DELETE:<id>`, `CREATE:<id>|<schedule>`, `WARN:<id>|<reason>`, `KEEP:<n>`, optional trailing `WAKESPREAD:<distinct>|<max>|<loneliest>`.
       - No `DELETE:`/`CREATE:` lines (only `KEEP:<n>`, optional `WAKESPREAD:`): already current — log `Routines unchanged: <n> current, 0 registered.` (plus the wake-spread line if present). No `CronList`, no `CronCreate`, no `CronDelete` this run; go straight to the `arm commit` call.
       - Otherwise, if any `DELETE:` lines: call `CronList` once, `CronDelete` each entry whose prompt contains `[hermit-routine:<id>]` (skip silently if absent).

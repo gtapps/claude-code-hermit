@@ -36,8 +36,8 @@ const writeTurnMarker = (dir: string, at: string) =>
   fs.writeFileSync(turnMarkerPath(dir), JSON.stringify({ at }));
 const writeTurnMarkerRaw = (dir: string, raw: string) =>
   fs.writeFileSync(turnMarkerPath(dir), raw);
-const writeConfig = (dir: string, routines: any[], timezone: string | null = 'UTC') =>
-  fs.writeFileSync(hermit(dir, 'config.json'), JSON.stringify({ timezone, routines }));
+const writeConfig = (dir: string, routines: any[], timezone: string | null = 'UTC', maxLateness?: unknown) =>
+  fs.writeFileSync(hermit(dir, 'config.json'), JSON.stringify({ timezone, routines, routine_max_lateness_minutes: maxLateness }));
 
 const ROUTINE = (overrides: any = {}) => ({
   id: 'test-routine', skill: 'claude-code-hermit:reflect', schedule: '0 9 * * *',
@@ -485,7 +485,7 @@ describe('routine-due: pending-close drain', () => {
   }));
 
   test('another routine due + drain → both ids on one line', withDir(async (dir) => {
-    writeConfig(dir, [AUTO_CLOSE, ROUTINE()]);
+    writeConfig(dir, [AUTO_CLOSE, ROUTINE()], 'UTC', 1440);
     writeSchedule(dir, {
       'daily-auto-close': { last_consumed_mark: NOW },
       'test-routine': { last_consumed_mark: '2026-07-15T08:00:00Z' }, // 0 9 mark in window
@@ -496,6 +496,20 @@ describe('routine-due: pending-close drain', () => {
     expect(r.stdout.trim().split('\n')).toHaveLength(1);
     expect(r.stdout).toContain('[hermit-routine:test-routine]');
     expect(r.stdout).toContain('[hermit-routine:daily-auto-close]');
+  }));
+
+  test('expired routine is skipped while a queued close still drains', withDir(async (dir) => {
+    writeConfig(dir, [AUTO_CLOSE, ROUTINE()]);
+    writeSchedule(dir, {
+      'daily-auto-close': { last_consumed_mark: NOW },
+      'test-routine': { last_consumed_mark: '2026-07-15T08:00:00Z' },
+    });
+    writeRuntime(dir, 'in_progress');
+    writePending(dir);
+    expect((await run(dir, NOW)).stdout.trim()).toBe('ROUTINE_DUE [hermit-routine:daily-auto-close]');
+    expect(readMetricsRows(dir).map((r) => [r.routine_id, r.event])).toEqual([
+      ['test-routine', 'skipped-late'], ['daily-auto-close', 'dispatched'],
+    ]);
   }));
 
   test('schedule persist failure → no drain emission', withDir(async (dir) => {
@@ -517,5 +531,75 @@ describe('routine-due: pending-close drain', () => {
     writePending(dir);
     await run(dir, NOW);
     expect(fs.existsSync(livenessPath(dir))).toBe(true);
+  }));
+});
+
+describe('routine-due lateness', () => {
+  for (const [label, limit, at, fires] of [
+    ['omitted default boundary', undefined, '10:00:59', true],
+    ['omitted default expired', undefined, '10:01:00', false],
+    ['custom boundary', 15, '09:15:00', true],
+    ['custom expired', 15, '09:16:00', false],
+    ['minimum boundary', 1, '09:01:00', true],
+    ['minimum expired', 1, '09:02:00', false],
+    ['legacy window', 1440, '23:00:00', true],
+    ['explicit default', 60, '10:01:00', false],
+    ['null defaults', null, '10:01:00', false],
+    ['string defaults', '1440', '10:01:00', false],
+    ['out-of-range defaults', 1441, '10:01:00', false],
+    ['fraction defaults', 90.5, '10:01:00', false],
+  ] as const) {
+    test(label, withDir(async (dir) => {
+      writeConfig(dir, [ROUTINE()], 'UTC', limit);
+      writeSchedule(dir, { 'test-routine': { last_consumed_mark: '2026-07-15T08:00:00.000Z' } });
+      const result = await run(dir, `2026-07-15T${at}Z`);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toBe(fires ? 'ROUTINE_DUE [hermit-routine:test-routine]' : '');
+      expect(readSchedule(dir)['test-routine'].last_consumed_mark).toBe('2026-07-15T09:00:00.000Z');
+      expect(readMetricsRows(dir).map((r) => r.event)).toEqual([fires ? 'dispatched' : 'skipped-late']);
+    }));
+  }
+
+  test('resume after days away emits fresh routines and consumes stale ones only once', withDir(async (dir) => {
+    writeConfig(dir, [ROUTINE({ id: 'stale' }), ROUTINE({ id: 'fresh', schedule: '0 * * * *' })]);
+    writeSchedule(dir, {
+      stale: { last_consumed_mark: '2026-07-01T08:00:00.000Z' },
+      fresh: { last_consumed_mark: '2026-07-01T08:00:00.000Z' },
+    });
+    expect((await run(dir, '2026-07-15T12:30:00Z')).stdout.trim()).toBe('ROUTINE_DUE [hermit-routine:fresh]');
+    expect(readMetricsRows(dir).map((r) => [r.routine_id, r.event])).toEqual([
+      ['stale', 'skipped-late'], ['fresh', 'dispatched'],
+    ]);
+    expect((await run(dir, '2026-07-15T12:31:00Z')).stdout.trim()).toBe('');
+    expect(readMetricsRows(dir)).toHaveLength(2);
+    expect((await run(dir, '2026-07-16T09:00:00Z')).stdout).toContain('[hermit-routine:stale]');
+  }));
+
+  test('a routine deferred by a busy turn expires before that turn clears', withDir(async (dir) => {
+    writeConfig(dir, [ROUTINE()]);
+    writeSchedule(dir, { 'test-routine': { last_consumed_mark: '2026-07-15T08:00:00.000Z' } });
+    writeTurnMarker(dir, '2026-07-15T09:15:00.000Z');
+    expect((await run(dir, '2026-07-15T09:30:00Z')).stdout).toBe('');
+    expect(readMetricsRows(dir)).toHaveLength(0);
+    expect((await run(dir, '2026-07-15T10:01:00Z')).stdout).toBe('');
+    expect(readMetricsRows(dir).map((r) => r.event)).toEqual(['skipped-late']);
+    fs.unlinkSync(turnMarkerPath(dir));
+    expect((await run(dir, '2026-07-15T10:02:00Z')).stdout).toBe('');
+    expect(readMetricsRows(dir)).toHaveLength(1);
+  }));
+
+  test('failed expiry persistence leaves no skip row and retries once', withDir(async (dir) => {
+    writeConfig(dir, [ROUTINE()]);
+    const initial = { 'test-routine': { last_consumed_mark: '2026-07-15T08:00:00.000Z' } };
+    writeSchedule(dir, initial);
+    const result = await runScript('routines.ts', {
+      args: ['due', hermit(dir)],
+      env: { HERMIT_NOW: '2026-07-15T10:01:00Z', HERMIT_DUE_FORCE_PERSIST_FAIL: '1' },
+    });
+    expect(result.stdout).toBe('');
+    expect(readSchedule(dir)).toEqual(initial);
+    expect(readMetricsRows(dir)).toHaveLength(0);
+    expect((await run(dir, '2026-07-15T10:01:00Z')).stdout).toBe('');
+    expect(readMetricsRows(dir).map((r) => r.event)).toEqual(['skipped-late']);
   }));
 });

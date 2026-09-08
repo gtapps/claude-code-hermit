@@ -1,6 +1,6 @@
 // `routines.ts log-event <routine-id> <event> [delivery]` — appends one line to
 // state/routine-metrics.jsonl. Events: dispatched | fired | skipped-waiting |
-// skipped-paused | skipped-precheck | precheck-error | started. delivery:
+// skipped-paused | skipped-late | skipped-precheck | precheck-error | started. delivery:
 // cron-create (default) | monitor. The monitor stamps `dispatched` at emit; the
 // session still owns `started` and `fired`. `precheck-error` rows carry a
 // `detail` field naming how the gate failed (timeout | exit:<code> | bad-verdict

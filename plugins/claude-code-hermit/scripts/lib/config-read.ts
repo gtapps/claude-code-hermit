@@ -73,6 +73,7 @@ const TABLE: Record<string, Spec> = {
   chrome: bool(false),
   push_notifications: bool(true),
   ask_gate: bool(true),
+  routine_max_lateness_minutes: num(60),
   routines: arr,
   monitors: arr,
   env: map,
