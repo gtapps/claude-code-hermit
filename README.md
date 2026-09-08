@@ -23,9 +23,10 @@ Use your own bots and accounts, with access to the local files, tools, and servi
 
 ## Set up
 
-Run either option from the folder where you want your agent, empty or existing. Uses your Claude subscription on Linux, macOS, or Windows via WSL2. See [prerequisites](plugins/claude-code-hermit/docs/how-to-use.md#prerequisites).
+**Choose one installation method below.** Run it from the folder where you want your agent, empty or existing. Uses your Claude subscription on Linux, macOS, or Windows via WSL2. See [prerequisites](plugins/claude-code-hermit/docs/how-to-use.md#prerequisites).
 
-### 1. Install the Claude Code plugin
+<details open>
+<summary>Install the Claude Code plugin</summary>
 
 With Claude Code 2.1.263+ and Bun 1.3+ installed:
 
@@ -35,13 +36,18 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope local
 claude "/claude-code-hermit:hatch"
 ```
 
-### 2. Use the bootstrap installer
+</details>
+
+<details>
+<summary>Or use the bootstrap installer</summary>
 
 Prepares Claude Code, Bun, and tmux, installs the plugin, and launches setup:
 
 ```bash
 curl -fsSL https://gtapps.github.io/claude-code-hermit/install.sh | bash
 ```
+
+</details>
 
 Both options install the plugin personally for this folder. Hatch guides you through the agent's purpose and operating preferences, then prints the next steps. Choose Quick for defaults you can adjust later.
 
