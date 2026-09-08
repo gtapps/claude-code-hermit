@@ -17,7 +17,10 @@ import { costLogPath, transcriptDirFor, memoryDirFor } from './lib/cc-compat';
 import { readSettledConfig, readConfigRaw, configExists } from './lib/config-read';
 import { resolvePricing, PRICING_VERIFIED } from './lib/pricing';
 import { HERMIT_OUTPUT_STYLE, VOICE_FILE_REL, voiceFileExists, resolvePersistedStyle, outputStyleFor } from './lib/voice';
-import { getEnabledChannels } from './lib/channel-config';
+import { claudeStateFile } from './lib/setup-token';
+import { readRuntimeJson } from './lib/runtime';
+import { overlayHooks } from './lib/settings/overlay-hooks';
+import { getEnabledChannels, isDict } from './lib/channel-config';
 import { isContainer } from './lib/container';
 import { readChannelToken, channelStateDir } from './lib/channel-token';
 import { CHANNEL_PROBES, extractBotIdentity } from './lib/channel-probe';
@@ -2280,6 +2283,59 @@ function socketAccepts(socketPath: string, timeoutMs = 2000): Promise<boolean> {
   });
 }
 
+/** Check launch configuration, without claiming that the running session executed it. */
+function checkOverlayHooks(p: DoctorPaths = PATHS) {
+  const id = 'overlay-hooks';
+  const scope = 'Configuration check only, not observed hook execution.';
+  const result = (status: string, detail: string) => ({ id, status, detail: `${detail} ${scope}` });
+  let overlay: Json;
+  try {
+    overlay = JSON.parse(fs.readFileSync(path.join(p.stateDir, 'claude-settings.overlay.json'), 'utf8'));
+  } catch (error: any) {
+    if (error?.code === 'ENOENT') {
+      // The overlay is written by hermit-start, so an install that has never booted
+      // through it has no overlay and no resident to protect — not applicable rather
+      // than broken, the way checkWatchdog reports an opted-out scheduler. runtime.json
+      // is the "a boot happened here" marker; once one has, a missing overlay is real.
+      if (readRuntimeJson(p.stateDir) === null) {
+        return result('ok', 'No launch overlay yet: written at the first `hermit-start` boot.');
+      }
+      return result('fail', 'Launch overlay missing after a boot: the resident carries none of the four resident-only hooks.');
+    }
+    // A malformed overlay is worse than an absent one: Claude Code rejects the
+    // --settings file outright, so the resident boots with none of the four gates.
+    return result('fail', `Launch overlay unreadable: ${error?.message ?? error}.`);
+  }
+  if (!isDict(overlay?.hooks)) return result('warn', 'Launch overlay hooks key missing or malformed.');
+  for (const [event, entries] of Object.entries(overlayHooks(p.pluginRoot))) {
+    for (const expected of entries) {
+      const hook = expected.hooks[0];
+      const script = hook.args[0];
+      const found = Array.isArray(overlay.hooks[event]) && overlay.hooks[event].some((entry: Json) =>
+        entry?.matcher === expected.matcher && Array.isArray(entry.hooks) && entry.hooks.some((candidate: Json) =>
+          candidate?.type === hook.type && candidate.command === hook.command && candidate.timeout === hook.timeout
+          && Array.isArray(candidate.args) && candidate.args.length === 1 && candidate.args[0] === script));
+      if (!found) {
+        return result('warn', `${path.basename(script)} missing or wrong event, matcher, command, timeout or argv (expected ${event}, ${expected.matcher}).`);
+      }
+      if (!fs.existsSync(script)) return result('warn', `Hook script missing on disk: ${script}.`);
+    }
+  }
+  const files = new Set([claudeStateFile()]);
+  const runtime = readRuntimeJson(p.stateDir);
+  if (typeof runtime?.config_dir === 'string' && runtime.config_dir && runtime.config_dir !== path.join(os.homedir(), '.claude')) {
+    files.add(claudeStateFile(runtime.config_dir));
+  }
+  for (const file of files) {
+    const state = readJson(file);
+    for (let project = path.dirname(p.hermitDir); ; project = path.dirname(project)) {
+      if (state?.projects?.[project]?.hasTrustDialogAccepted === true) return result('ok', 'Launch overlay hooks complete and workspace trust set.');
+      if (path.dirname(project) === project) break;
+    }
+  }
+  return result('warn', 'Workspace trust flag not set for the project or any ancestor directory.');
+}
+
 /**
  * Voice carrier — has config.voice actually reached the system prompt?
  *
@@ -2498,6 +2554,7 @@ async function runAllChecks(p: DoctorPaths = PATHS) {
     checkPassiveChats(p),
     checkContextScan(p),
     checkVoiceCarrier(p),
+    checkOverlayHooks(p),
     checkClassifierDenials(p),
     // Both do outbound I/O behind their own timeouts (channel HTTP calls, the
     // peer socket connect) and share no state, so they run concurrently rather
@@ -2698,7 +2755,7 @@ export {
   checkDockerSecurity, checkArchival, checkAutoClose, checkReflectLoop, checkScheduler,
   checkWatchdog, checkContextAge, checkOpusWake, checkRoutineCost, checkHeartbeat, checkRoutineMonitor,
   checkRoutinePrecheck, checkRawSize,
-  checkCredentialExpiry, checkModelPricingKnown, checkMemorySize, checkContextScan, checkVoiceCarrier, checkClassifierDenials, checkChannelLiveness, checkPeerInbox, checkBackup,
+  checkCredentialExpiry, checkModelPricingKnown, checkMemorySize, checkContextScan, checkVoiceCarrier, checkOverlayHooks, checkClassifierDenials, checkChannelLiveness, checkPeerInbox, checkBackup,
   satisfiesRange, cidrOverlap,
   // Tests build their own paths for a scratch dir; the CLI runs on the argv-derived default.
   resolvePaths,

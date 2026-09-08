@@ -34,6 +34,7 @@ import {
   applyArtifactGrant,
   applyVoiceRender,
   renderLaunchOverlay,
+  seedWorkspaceTrust,
   applyAlwaysOnDoctorSchedule,
   clearShutdownStampsOnBoot,
   clearStatusCacheOnBoot,
@@ -50,7 +51,7 @@ import {
 import { transcriptDirFor } from '../scripts/lib/cc-compat';
 import { readRuntimeState } from '../scripts/lib/runtime';
 import { automodeAllowEntry, SEALED_SETTINGS_OPS, TERMINAL_ONLY_SETTINGS_OPS } from '../scripts/lib/settings/automode-entries';
-import { TOKEN_ENV_VAR } from '../scripts/lib/setup-token';
+import { claudeStateFile, TOKEN_ENV_VAR } from '../scripts/lib/setup-token';
 
 // The top-level beforeEach/afterEach below process.chdir()s into a fresh
 // tempdir for every test in this file — a process-global mutation two
@@ -93,7 +94,10 @@ beforeEach(() => {
   );
   // Resolve fixture paths independently of the launching shell. Restored below.
   for (const key of Object.keys(origStateDirs)) delete process.env[key];
-  tmpdir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-start-test-'));
+  // realpath, because macOS roots its temp dir under a symlink (/tmp -> /private/tmp)
+  // while process.cwd() reports the resolved path. Anything comparing a fixture path
+  // against the cwd — seedWorkspaceTrust keys ~/.claude.json by it — mismatches otherwise.
+  tmpdir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-start-test-')));
   process.chdir(tmpdir);
   fs.mkdirSync('.claude-code-hermit/state', { recursive: true });
   fs.mkdirSync('.claude', { recursive: true });
@@ -1492,12 +1496,88 @@ describe('applyArtifactGrant', () => {
   });
 });
 
+describe('claudeStateFile', () => {
+  test('resolves the home state file, config dir override and explicit staged dir', async () => {
+    // Bun caches os.homedir(), so supply the fake HOME before the process starts.
+    const child = Bun.spawn([process.execPath, '-e', `
+      import { claudeStateFile } from ${JSON.stringify(path.join(PLUGIN_ROOT, 'scripts/lib/setup-token.ts'))};
+      delete process.env.CLAUDE_CONFIG_DIR;
+      const homeFile = claudeStateFile();
+      process.env.CLAUDE_CONFIG_DIR = ${JSON.stringify(path.join(tmpdir, 'custom'))};
+      console.log(JSON.stringify([homeFile, claudeStateFile(), claudeStateFile(${JSON.stringify(path.join(tmpdir, 'staged'))})]));
+    `], { env: { ...process.env, HOME: tmpdir }, stdout: 'pipe', stderr: 'pipe' });
+    const [out, err, exitCode] = await Promise.all([
+      new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited,
+    ]);
+    expect(exitCode).toBe(0);
+    expect(err).toBe('');
+    expect(JSON.parse(out)).toEqual([
+      path.join(tmpdir, '.claude.json'), path.join(tmpdir, 'custom/.claude.json'), path.join(tmpdir, 'staged/.claude.json'),
+    ]);
+  });
+});
+
+describe('seedWorkspaceTrust', () => {
+  test('sets absent trust and does not rewrite an already trusted file', () => {
+    seedWorkspaceTrust();
+    const file = claudeStateFile();
+    expect(JSON.parse(fs.readFileSync(file, 'utf8')).projects[tmpdir].hasTrustDialogAccepted).toBe(true);
+    const before = fs.statSync(file);
+    seedWorkspaceTrust();
+    expect(fs.statSync(file).ino).toBe(before.ino);
+    expect(fs.statSync(file).mtimeMs).toBe(before.mtimeMs);
+  });
+  test('flips false and preserves sibling projects and top-level keys', () => {
+    const file = claudeStateFile();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const state = { oauthAccount: { emailAddress: 'operator@example.test' }, projects: {
+      '/other': { hasTrustDialogAccepted: true }, [tmpdir]: { hasTrustDialogAccepted: false, allowedTools: [] },
+    } };
+    fs.writeFileSync(file, JSON.stringify(state));
+    seedWorkspaceTrust();
+    state.projects[tmpdir].hasTrustDialogAccepted = true;
+    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual(state);
+  });
+  test('corrupt file warns without throwing or changing the file', () => {
+    const file = claudeStateFile();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, '{broken');
+    const { out } = captureLog(() => seedWorkspaceTrust());
+    expect(out).toContain('[hermit] WARNING: workspace trust not seeded (');
+    expect(out).toContain('continuing boot.');
+    expect(fs.readFileSync(file, 'utf8')).toBe('{broken');
+  });
+});
+
 describe('renderLaunchOverlay', () => {
   const OVERLAY = '.claude-code-hermit/state/claude-settings.overlay.json';
 
   function readOverlay(): any {
     return JSON.parse(fs.readFileSync(OVERLAY, 'utf-8'));
   }
+
+  test('renderOverlayHooks: four exec-form hooks with absolute paths, timeouts and idempotent re-render', () => {
+    renderLaunchOverlay({});
+    const hooks = readOverlay().hooks;
+    const expected = [
+      ['PreToolUse', '*', 'pause-gate.ts', 3],
+      ['PreToolUse', 'AskUserQuestion', 'ask-gate.ts', 3],
+      ['PostToolUse', 'Edit|Write', 'component-privacy.ts', 5],
+      ['PermissionDenied', '*', 'permission-denied-notify.ts', 12],
+    ] as const;
+    expect(Object.values(hooks).flat()).toHaveLength(4);
+    for (const [event, matcher, script, timeout] of expected) {
+      const entry = hooks[event].find((entry: any) => entry.matcher === matcher);
+      expect(entry.hooks).toEqual([{
+        type: 'command', command: 'bun',
+        args: [path.join(PLUGIN_ROOT, 'scripts', script)], timeout,
+      }]);
+      expect(entry.description.length).toBeGreaterThan(0);
+    }
+    expect(JSON.stringify(hooks)).not.toContain('${CLAUDE_PLUGIN_ROOT}');
+    renderLaunchOverlay({});
+    expect(readOverlay().hooks).toEqual(hooks);
+  });
 
   test('always carries the terminal-only soft_deny guard, with $defaults intact', () => {
     const file = renderLaunchOverlay({});
@@ -2054,6 +2134,31 @@ describe('launch settings carriers', () => {
 
 describe('operator launch settings', () => {
   const overridePath = '.claude-code-hermit/claude-settings.json';
+  test('operator hooks: generated entries first per event, operator-only events pass through', () => {
+    const opA = { matcher: 'Bash', hooks: [{ type: 'command', command: 'operator-a' }] };
+    const opB = { hooks: [{ type: 'command', command: 'operator-b' }] };
+    fs.writeFileSync(overridePath, JSON.stringify({ hooks: { PreToolUse: [opA], Stop: [opB] } }));
+    const overlay = JSON.parse(fs.readFileSync(renderLaunchOverlay({})!, 'utf8'));
+    expect(overlay.hooks.PreToolUse.map((e: any) => e.hooks[0].args?.[0] ?? e.hooks[0].command)).toEqual([
+      path.join(PLUGIN_ROOT, 'scripts/pause-gate.ts'), path.join(PLUGIN_ROOT, 'scripts/ask-gate.ts'), 'operator-a',
+    ]);
+    expect(overlay.hooks.PostToolUse).toHaveLength(1);
+    expect(overlay.hooks.PermissionDenied).toHaveLength(1);
+    expect(overlay.hooks.Stop).toEqual([opB]);
+    renderLaunchOverlay({});
+    expect(JSON.parse(fs.readFileSync(renderLaunchOverlay({})!, 'utf8'))).toEqual(overlay);
+  });
+  test('operator hooks: malformed event array ignored', () => {
+    for (const hooks of [null, [], 'invalid', { PreToolUse: 'invalid' }]) {
+      fs.writeFileSync(overridePath, JSON.stringify({ model: 'sonnet', hooks }));
+      const { out } = captureLog(() => renderLaunchOverlay({}));
+      const overlay = JSON.parse(fs.readFileSync('.claude-code-hermit/state/claude-settings.overlay.json', 'utf8'));
+      expect(out).toContain('[hermit] WARNING');
+      expect(overlay.hooks.PreToolUse).toHaveLength(2);
+      expect(overlay.model).toBe('sonnet');
+    }
+  });
+
   test('adds native keys while preserving generated policy and env', () => {
     const previous = process.env.FOO;
     delete process.env.FOO;
@@ -2103,6 +2208,31 @@ describe('legacy launch setting cleanup', () => {
     captureLog(() => writeSettingsEnv({ voice: { style: 'Concise' } }));
     expect(readSettings().outputStyle).toBeUndefined();
   });
+});
+
+test('overlay-missing: buildClaudeCommand exits 1 and prints the refusal when state/ is unwritable', async () => {
+  fs.chmodSync('.claude-code-hermit/state', 0o500);
+  try {
+    const child = Bun.spawn([process.execPath, '-e', `
+      import { buildClaudeCommand } from ${JSON.stringify(HERMIT_START_TS)};
+      try {
+        buildClaudeCommand({}, {});
+        console.error('unexpected launch command returned');
+      } catch (error) {
+        console.error('unexpected throw', error);
+      }
+    `], { cwd: tmpdir, stdout: 'pipe', stderr: 'pipe' });
+    const [out, err, exitCode] = await Promise.all([
+      new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited,
+    ]);
+    expect(exitCode).toBe(1);
+    expect(out).toContain('[hermit] launch overlay not written (');
+    expect(out).toContain('refusing to start without pause-gate, ask-gate, component-privacy and permission-denied-notify');
+    expect(err).toBe('');
+    expect(fs.readdirSync('.claude-code-hermit/state')).toEqual([]);
+  } finally {
+    fs.chmodSync('.claude-code-hermit/state', 0o700);
+  }
 });
 
 describe('resident prompt launch requirement', () => {

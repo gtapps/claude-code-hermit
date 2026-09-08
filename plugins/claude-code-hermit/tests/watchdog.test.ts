@@ -340,6 +340,28 @@ describe('staged credential commit', () => {
     expect(fs.readFileSync(eventsFile(h), 'utf-8')).toContain('credential-committed');
   }));
 
+  test('a staged sign-in commits oauthAccount to ~/.claude.json when CLAUDE_CONFIG_DIR is unset', withHermit(async (h) => {
+    writeConfig(h);
+    writeFakeTmux(h, 1);
+    writeFakePgrep(h, 1);
+    const { configDir } = stage(h, 'sk-ant-oat01-freshfreshfresh');
+    const home = path.join(h.dir, 'home');
+    fs.mkdirSync(home);
+    fs.renameSync(configDir, path.join(home, '.claude'));
+    const stagedDir = path.join(home, '.claude/.hermit-login-staging');
+    fs.writeFileSync(state(h, 'pending-credential.json'), JSON.stringify({ staged_dir: stagedDir, staged_at: new Date().toISOString() }));
+    const liveState = path.join(home, '.claude.json');
+    fs.writeFileSync(liveState, JSON.stringify({ projects: {}, oauthAccount: { emailAddress: 'old@x' } }));
+    const nestedState = path.join(home, '.claude/.claude.json');
+    const before = fs.readFileSync(nestedState, 'utf8');
+    const r = await watchdog(h, 'run', { env: { HOME: home, CLAUDE_CONFIG_DIR: '', CLAUDE_CODE_OAUTH_TOKEN: '' } });
+    expect(r.exitCode).toBe(0);
+    expect(readJson(liveState)).toEqual({ projects: {}, oauthAccount: { emailAddress: 'new@x' } });
+    expect(fs.readFileSync(nestedState, 'utf8')).toBe(before);
+    expect(readJson(path.join(home, '.claude/.credentials.json')).claudeAiOauth.accessToken).toBe('sk-ant-oat01-freshfreshfresh');
+    expect(fs.readFileSync(eventsFile(h), 'utf8')).toContain('credential-committed');
+  }));
+
   test('a staged file that lapsed while waiting is dropped, live untouched', withHermit(async (h) => {
     writeConfig(h);
     writeFakeTmux(h, 1);

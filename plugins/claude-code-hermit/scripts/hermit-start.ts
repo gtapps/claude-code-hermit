@@ -22,7 +22,7 @@ import { writeRuntimeJson, readRuntimeJson, readRuntimeState, STATE_DIR, RUNTIME
 import { localISOStamp } from './lib/time';
 import { tmuxSessionAlive, getSessionName } from './lib/tmux';
 import { clearStatusCache } from './lib/context-reset';
-import { AuthMode, defaultConfigDir, readTokenValue, resolveAuthMode, TOKEN_ENV_VAR } from './lib/setup-token';
+import { AuthMode, claudeStateFile, defaultConfigDir, readTokenValue, resolveAuthMode, TOKEN_ENV_VAR } from './lib/setup-token';
 import { sharedLivenessAgeSecs, LIVENESS_FRESH_SECS } from './lib/liveness';
 import { isContainer } from './lib/container';
 import { pyTruthy, isDict, iterChannelConfigs, getEnabledChannels, channelStateDirKey } from './lib/channel-config';
@@ -30,6 +30,7 @@ import { cmpSemver } from './lib/semver';
 import { sanitizeLanguage } from './lib/operator-language';
 import { outputStyleFor } from './lib/voice';
 import { automodeAllowEntry, AUTOMODE_ENV_ENTRIES, AUTOMODE_SOFT_DENY_ENTRY, SEALED_SETTINGS_OPS } from './lib/settings/automode-entries';
+import { overlayHooks } from './lib/settings/overlay-hooks';
 import { writeFileAtomic } from './lib/md-write';
 import { transcriptDirFor } from './lib/cc-compat';
 
@@ -780,13 +781,11 @@ function buildClaudeCommand(config: Json, tools: Json, opts?: { resume?: string 
     }
   }
 
-  // Auto-mode classifier policy for THIS session only — see
-  // renderLaunchOverlay(). Written fresh each boot; absent on write failure,
-  // which degrades the classifier to its defaults rather than blocking the boot.
+  // The launch overlay carries resident safety gates as well as classifier policy.
+  // A resident without its pause gate must not boot.
   const overlay = renderLaunchOverlay(config);
-  if (overlay) {
-    cmd.push('--settings', overlay);
-  }
+  if (!overlay) process.exit(1);
+  cmd.push('--settings', overlay);
   cmd.push('--append-system-prompt-file', hermitFile('RESIDENT.md'));
 
   if (pyTruthy(config.model)) {
@@ -1154,7 +1153,7 @@ function renderLaunchOverlay(config: Json): string | null {
   // An operator's own value in user settings wins: writing the key here would
   // silently override the hold or refuse they set for every session on the machine.
   // A project- or local-scope refuse still opts out, since that direction tightens.
-  const overlay: Json = { autoMode, env: resolveHermitEnv(config) };
+  const overlay: Json = { autoMode, env: resolveHermitEnv(config), hooks: overlayHooks(PLUGIN_ROOT) };
   const style = outputStyleFor(config.voice);
   if (style !== null) overlay.outputStyle = style;
   const language = sanitizeLanguage(config.language);
@@ -1169,6 +1168,23 @@ function renderLaunchOverlay(config: Json): string | null {
       const generated = { ...overlay };
       Object.assign(overlay, override, generated);
       overlay.env = { ...(isDict(override.env) ? override.env : {}), ...generated.env };
+      let malformedHooks = false;
+      if ('hooks' in override) {
+        if (!isDict(override.hooks)) {
+          malformedHooks = true;
+        } else {
+          for (const [event, entries] of Object.entries(override.hooks)) {
+            if (!Array.isArray(entries)) {
+              malformedHooks = true;
+              continue;
+            }
+            overlay.hooks[event] = [...(generated.hooks[event] ?? []), ...entries];
+          }
+        }
+      }
+      if (malformedHooks) {
+        console.log('[hermit] WARNING: claude-settings.json `hooks` is not an object of event arrays; ignoring the malformed operator hooks. Its other keys still applied.');
+      }
       if (!('crossSessionInbound' in generated)) delete overlay.crossSessionInbound;
     } catch {
       console.log('[hermit] WARNING: claude-settings.json is not a valid JSON object; ignoring the operator override.');
@@ -1181,8 +1197,37 @@ function renderLaunchOverlay(config: Json): string | null {
     writeFileAtomic(file, JSON.stringify(overlay, null, 2) + '\n');
     return file;
   } catch (e: any) {
-    console.log(`[hermit] WARNING: classifier overlay not written (${e?.message ?? e}) — continuing boot without it.`);
+    console.log(`[hermit] launch overlay not written (${e?.message ?? e}): refusing to start without pause-gate, ask-gate, component-privacy and permission-denied-notify`);
     return null;
+  }
+}
+
+/** Seed once at boot. This is an unsynchronised read-modify-write of Claude Code's live
+ *  per-user state, which every session on the machine shares and rewrites wholesale, so
+ *  any write landing between the read and the rename is lost — a guest exit is only the
+ *  nearest example, not the bound. Accepted because the early return below makes this
+ *  write happen about once per project, and no in-session writer is added. */
+function seedWorkspaceTrust(): void {
+  const file = claudeStateFile();
+  const project = process.cwd();
+  try {
+    let state: Json = {};
+    try {
+      state = JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch (error: any) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
+    if (!isDict(state) || ('projects' in state && !isDict(state.projects))) {
+      throw new Error('invalid Claude Code state');
+    }
+    const projects = state.projects ?? {};
+    if (project in projects && !isDict(projects[project])) throw new Error('invalid project state');
+    if (projects[project]?.hasTrustDialogAccepted === true) return;
+    state.projects = { ...projects, [project]: { ...projects[project], hasTrustDialogAccepted: true } };
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    writeFileAtomic(file, JSON.stringify(state, null, 2) + '\n');
+  } catch (error: any) {
+    console.log(`[hermit] WARNING: workspace trust not seeded (${error?.message ?? error}): continuing boot.`);
   }
 }
 
@@ -1519,6 +1564,7 @@ async function main(): Promise<void> {
   // render must land on the file that call already rewrote, not be overwritten by it.
   applyVoiceRender(config);
   applyArtifactGrant(config);
+  seedWorkspaceTrust();
 
   if (noTmuxFlag || !pyTruthy(tools.tmux)) {
     if (!noTmuxFlag && !pyTruthy(tools.tmux)) {
@@ -1557,6 +1603,7 @@ async function main(): Promise<void> {
     }
     console.log(`[hermit] Running: ${shlexJoin(cmd)}`);
     writeRuntimeJson({ ...(readRuntimeJson() ?? {}), last_start_error: null, last_start_error_notified: null });
+    delete process.env.HERMIT_MANAGED;
     process.env.HERMIT_RESIDENT = '1';
     execvp(cmd);
   }
@@ -1698,6 +1745,7 @@ async function main(): Promise<void> {
     stale.last_error = 'session_died_on_boot';
     writeRuntimeJson(stale);
     writeRuntimeJson({ ...(readRuntimeJson() ?? {}), last_start_error: null, last_start_error_notified: null });
+    delete process.env.HERMIT_MANAGED;
     process.env.HERMIT_RESIDENT = '1';
     execvp(cmd);
   }
@@ -1759,6 +1807,7 @@ export {
   peerName,
   requireResident,
   renderLaunchOverlay,
+  seedWorkspaceTrust,
   resolveHermitEnv,
   writeSettingsEnv,
   applyVoiceRender,

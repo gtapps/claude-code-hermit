@@ -46,7 +46,7 @@ import { wallMinutes } from './lib/cron-shift';
 import { evaluateBackupDue } from './lib/backup';
 import { isPaused, pauseReasonLabel } from './lib/pause';
 import { WATCHDOG, resolveLocale, type Locale } from './lib/messages';
-import { credentialsFilePath, defaultConfigDir, envAuthPresent, inspectStoredLogin, msUntilExpiry, msUntilLoginExpiry, resolveAuthMode, storedLoginUsable } from './lib/setup-token';
+import { claudeStateFile, credentialsFilePath, defaultConfigDir, envAuthPresent, inspectStoredLogin, msUntilExpiry, msUntilLoginExpiry, resolveAuthMode, storedLoginUsable } from './lib/setup-token';
 import { isContainer } from './lib/container';
 import { writeFileAtomic } from './lib/md-write';
 import { AUTO_CLOSE_LULL_MS } from './lib/auto-close';
@@ -792,7 +792,7 @@ function commitPendingCredential(): void {
       didPark = true;
     }
     fs.renameSync(credentialsFilePath(stagedDir), live);
-    copyOauthAccount(stagedDir, configDir);
+    copyOauthAccount(stagedDir);
     clear();
     // Recorded now rather than by the mint: the mode is only true once the
     // credential it names is the one the next session will actually read.
@@ -819,11 +819,11 @@ function commitPendingCredential(): void {
  * commit that moved only `.credentials.json` would leave the hermit authenticated as
  * the new account while still reporting the old one.
  */
-function copyOauthAccount(stagedDir: string, configDir: string): void {
+function copyOauthAccount(stagedDir: string): void {
   try {
-    const staged = JSON.parse(fs.readFileSync(path.join(stagedDir, '.claude.json'), 'utf8'));
+    const staged = JSON.parse(fs.readFileSync(claudeStateFile(stagedDir), 'utf8'));
     if (!staged?.oauthAccount) return;
-    const livePath = path.join(configDir, '.claude.json');
+    const livePath = claudeStateFile();
     let live: Json = {};
     if (fs.existsSync(livePath)) {
       // Parse failure means "don't touch it". `.claude.json` carries the harness's

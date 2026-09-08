@@ -40,6 +40,11 @@ export function defaultConfigDir(): string {
   return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
 }
 
+/** Claude Code's global state is outside ~/.claude unless a config dir is supplied. */
+export function claudeStateFile(configDir?: string): string {
+  return path.join(configDir ?? (process.env.CLAUDE_CONFIG_DIR || os.homedir()), '.claude.json');
+}
+
 /**
  * True when this process's environment carries a credential Claude Code uses
  * INSTEAD of a stored login: an API key, a bearer token, or a cloud provider.

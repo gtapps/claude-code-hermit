@@ -171,7 +171,7 @@ When the operator accepts a proposal:
      **`## Agent Draft` install branch (when body contains `## Agent Draft`):**
      1. Parse `name`, `source_artifact`, `install_target`, `model`, and `tools` from the `## Agent Draft` block.
      2. **Collision guard:** if `.claude/agents/<name>.md` already exists, do **not** overwrite. Ask the operator: "Agent `<name>` already exists at `<install_target>`. Overwrite / Rename / Cancel?" Default = **Cancel**.
-     3. Read `source_artifact` (the procedure brief) and author the agent file: frontmatter (`name`, `description`, `model`, `tools`) plus a body distilled from the brief's worker sub-step. Same privacy handling as a new skill (`component-privacy` already covers `.claude/agents/<name>.md`).
+     3. Read `source_artifact` (the procedure brief) and author the agent file: frontmatter (`name`, `description`, `model`, `tools`) plus a body distilled from the brief's worker sub-step. Same privacy handling as a new skill (`component-privacy` covers `.claude/agents/<name>.md` on the managed resident). It rides the resident launch overlay with `pause-gate`, `ask-gate`, and `permission-denied-notify`, rather than the plugin manifest; the overlay is read at launch only.
      4. Outside step 3a's routine-bound branch, present the authored agent file in the same confirmation as the skill and require the same explicit yes/no — an installed agent is dispatchable from every future session, so the operator approves the artifact, not just the intent. Declined: write nothing.
      5. Write `.claude/agents/<name>.md`. The procedure brief in `compiled/` stays as the permanent audit trail — do not move or delete it.
      6. **Do not auto-stage or commit** the new agent file.
