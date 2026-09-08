@@ -58,10 +58,15 @@ Four limits sit on that command:
      and any `<plugin>:` namespace, lowercase, replace every non-`[a-z0-9]` run
      with `-`, keep the first five nonempty tokens joined by `-`, cap the slug
      at 40 characters, trim any leading or trailing `-`, then append `-` plus
-     the last four digits of `date +%s`. The trim is what keeps a prompt like
+     the full epoch (`date +%s`). The trim is what keeps a prompt like
      `#220 fix the parser` from producing a name the launch command reads as a
-     flag. If no token survives, use `session-<epoch>` (`date +%s`).
-     Example: `/tackle-issue PROP #220` becomes `tackle-issue-prop-220-9689`.
+     flag. The epoch is not truncated because `claude --worktree <n>` silently
+     reuses an existing `.claude/worktrees/<n>`, its branch and uncommitted
+     state included, and those directories are never pruned, so a repeated
+     name is a wrong-branch start with no error. If no token survives the slug
+     is `session`, which is what makes the fallback `session-<epoch>`.
+     Example: `/tackle-issue PROP #220` becomes
+     `tackle-issue-prop-220-1788889689`.
    - `<m>` / `<e>` are omitted when the operator does not name them, so the
      helper takes the box defaults.
 
