@@ -30,7 +30,6 @@
   },
   "enabledPlugins": {
     "context7@claude-plugins-official": true,
-    "claude-code-hermit@claude-code-hermit": true,
     "skill-creator@claude-plugins-official": true
   }
 }

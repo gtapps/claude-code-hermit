@@ -9,11 +9,11 @@
 
 # Keep Claude Code working for you.
 
-If you know [Claude Tag](https://claude.com/docs/claude-tag/overview), the idea will feel familiar: hand Claude work through a channel and get results back there.
+If you know [Claude Tag](https://claude.com/docs/claude-tag/overview), the idea will feel familiar: hand Claude work through a [channel](https://code.claude.com/docs/en/channels), such as Discord, Telegram, or your custom integration, and get results back there.
 
-Hermit is a Claude Code plugin that runs an always-on agent on your machine or server. Give it ongoing responsibilities: maintain research, monitor systems, run routines, and follow up on unfinished work. It carries context across sessions and reaches you when something needs attention.
+Hermit is a Claude Code plugin that runs an always-on agent on your machine or server, for you or your team. Give it ongoing responsibilities: maintain research, monitor systems, run routines, and follow up on unfinished work. Between requests, it checks those responsibilities, carries progress across sessions, and reaches you when something needs attention.
 
-Connect through [Claude Code Channels](https://code.claude.com/docs/en/channels) using your own bots and accounts, or build a channel for your tools and workflows.
+Use your own bots and accounts, with access to the local files, tools, and services you choose.
 
 <p align="center">
   <img src="assets/cover.png" alt="Always-on Claude Code agent" />
@@ -23,9 +23,10 @@ Connect through [Claude Code Channels](https://code.claude.com/docs/en/channels)
 
 ## Set up
 
-Run either option from the folder where you want your agent, empty or existing. Uses your Claude subscription on Linux, macOS, or Windows via WSL2. See [prerequisites](docs/how-to-use.md#prerequisites).
+**Choose one installation method below.** Run it from the folder where you want your agent, empty or existing. Uses your Claude subscription on Linux, macOS, or Windows via WSL2. See [prerequisites](docs/how-to-use.md#prerequisites).
 
-### 1. Install the Claude Code plugin
+<details open>
+<summary>Install the Claude Code plugin</summary>
 
 With Claude Code 2.1.263+ and Bun 1.3+ installed:
 
@@ -35,7 +36,10 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope local
 claude "/claude-code-hermit:hatch"
 ```
 
-### 2. Use the bootstrap installer
+</details>
+
+<details>
+<summary>Or use the bootstrap installer</summary>
 
 Prepares Claude Code, Bun, and tmux, installs the plugin, and launches setup:
 
@@ -43,11 +47,17 @@ Prepares Claude Code, Bun, and tmux, installs the plugin, and launches setup:
 curl -fsSL https://gtapps.github.io/claude-code-hermit/install.sh | bash
 ```
 
+</details>
+
 Both options install the plugin personally for this folder. Hatch guides you through the agent's purpose and operating preferences, then prints the next steps. Choose Quick for defaults you can adjust later.
 
 ## Keep it running
 
 After setup, follow the printed next steps to start your agent.
+
+**Sign-in renewal from chat.** Use `/relogin` to renew the agent’s Claude sign-in through your connected chat: open the link, sign in, and send back the code.
+
+**Scheduled backups.** Optional backups preserve the agent’s knowledge, session reports, settings, and Claude Code memory in Git, with an optional private remote copy. Backups run without model tokens.
 
 ### On your machine
 
@@ -73,19 +83,27 @@ Builds and starts the container, then walks you through authentication and chann
 
 [Docker setup](docs/always-on.md)
 
+**Customize the container.** Ask the agent to add tools, packages, or services to its Docker setup. For example: “Add ffmpeg to the container.”
+
+Optional [Docker security controls](docs/docker-security.md) cover local-network access, DNS policy, resource limits, and plugin installation auditing.
+
 ## What the plugin adds
 
 - **Continuity.** Persistent working state and archived session handoffs carry progress across compaction and restarts. An external watchdog recovers failed sessions, while context management keeps long-running sessions manageable.
 
-- **Routines and watches.** Schedule recurring work and monitor changing sources. Optional precheck scripts decide whether a routine needs Claude before invoking the model; skipped runs use no model tokens.
+- **Proactive work.** Heartbeats regularly check the responsibilities you give the agent. Routines run scheduled work, and watches surface changes. Together, they let the agent follow up without waiting for another request.
 
-- **Proactive communication.** Routes results, alerts, and requests for decisions through Claude Code Channels. Send work, check progress, and manage the agent from a trusted connected chat.
+- **Work through chat.** Assign work and receive results in your connected chat. Longer assignments get threaded progress updates, with a separate reply when the agent needs a decision.
+
+- **Token efficiency.** With Claude Code’s [Monitor](https://code.claude.com/docs/en/tools-reference#monitor-tool), heartbeat checks and optional routine prechecks run outside the model. Quiet checks and skipped routines use no model tokens; eligible routines due together can share a wake.
 
 - **Lasting knowledge.** Turn source material in `raw/` into maintained knowledge in `compiled/`, alongside Claude Code's auto memory. `/recall` searches past sessions, knowledge, proposals, and captured channel conversations.
 
 - **Learning from experience.** The agent reviews evidence from its work and operation, saves useful lessons, and verifies proposed behavior changes before bringing them to you for approval.
 
 - **Control and visibility.** Track progress, proposals, and usage through the dashboard. Pause is enforced at the tool boundary, and optional usage caps can alert you or pause further work.
+
+**Part of your project channel.** With passive mode, the agent saves incoming group messages to look back on later, and wakes when someone you allow @mentions it. It also remembers instructions for that channel. For example: “When I ask for a status update, include blockers.”
 
 <a id="configure-it"></a>
 
@@ -96,6 +114,7 @@ Tune from a terminal with `/hermit-settings`, or change permitted settings from 
 | Key | Default / options (default **bold**) |
 |-----|--------------------------------------|
 | `agent_name` | your assistant's name |
+| `operator_profile` | primary-chat audience: **`technical`** / `non-technical` |
 | `timezone` | detected during setup; fallback **`UTC`** |
 | `language` | detected during setup; fallback **`en`** |
 | `escalation` | how much it does before asking: `conservative` / **`balanced`** / `autonomous` |
@@ -104,6 +123,7 @@ Tune from a terminal with `/hermit-settings`, or change permitted settings from 
 | `AGENT_HOOK_PROFILE` | guardrail profile: `minimal` / **`standard`** (interactive) / **`strict`** (always-on) |
 | `channels` | Discord / Telegram / iMessage / third-party channel plugins (+ `allowed_users`) |
 | `channels.primary` | which channel gets outbound pings |
+| `channels.<name>.maintainer_channel_id` | optional separate chat for technical alerts, diagnostics, and usage details |
 | `push_notifications` | native/mobile push on alerts: **`true`** |
 | `remote` | remote control; `false` also requires approval for cross-machine peer messages; **`true`** |
 | `ask_gate` | route unattended questions to a paired channel: **`true`** |
@@ -185,9 +205,11 @@ Reflection runs at eligible task or session pauses, daily, and after routines co
 
 **Follow-up verification.** The agent checks whether a fix or prediction held up over time. For example: “`/later` check tomorrow whether those errors have returned.”
 
+**New ways to help.** The agent proposes new capabilities based on your work and the tools available to it. For example: “What else could you be doing for me?”
+
 ## Cost
 
-Usage depends on the work you assign and the routines you enable. Quiet heartbeats and routine prechecks run outside the model with Monitor scheduling; skipped runs use no model tokens. Routines due together can share a wake, and context management limits the history carried into later turns.
+Staying online does not require a model call on every tick. With Monitor scheduling, quiet heartbeat checks and skipped routines use no model tokens. Passive channel capture also runs without waking the model for ordinary chatter. Actual work, model evaluations, and replies consume usage; context management limits the history carried into later turns.
 
 - **See what drives usage.** Token usage is recorded per call, including the model, input/output/cache split, and whether work came from a routine, heartbeat, channel, or another source. Session and daily totals feed the dashboard, weekly review, and `/cost-reflect`.
 - **Set limits.** Optional daily, weekly, and monthly caps can alert you or enforce a pause until the exceeded budget window resets. Under Claude subscription billing, dollar figures are usage estimates rather than additional per-token charges.
@@ -204,6 +226,10 @@ Reach the running agent through your connected channels or Claude Code Remote Co
 
 Both session-spawning paths require a Git workspace. Remote Control requires a Claude sign-in through `/login` on the machine running the agent.
 
+**Watch other sessions.** Through [Claude Code cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging), ask the agent to watch a local Claude Code session, including one you started interactively, and notify you when it next becomes idle.
+
+**Claude Code controls from chat.** Use `/model sonnet`, `/effort high`, `/advisor opus`, `/compact`, `/clear`, and `/permission-mode auto` directly from your connected chat. Control the agent’s work with `/pause`, `/resume`, and `/snooze 2h`. Use [`/when-done-switch-to --model sonnet`](skills/when-done-switch-to/SKILL.md) to switch automatically at the end of the current turn.
+
 ## Extensions
 
 Optional plugins that add domain tools and workflows to your agent.
@@ -216,6 +242,19 @@ Optional plugins that add domain tools and workflows to your agent.
 - [hermit-scribe](../hermit-scribe/README.md): GitHub issues and comments from proposals through a dedicated bot identity.
 
 You can run separate agents for different responsibilities, each with its own working state, knowledge, and routines. See [Creating Your Own Hermit](docs/creating-your-own-hermit.md).
+
+**External orchestration.** Other agents and tools can check the agent’s status, health, and recent work through its [MCP interface](docs/external-control-surface.md), and request a wake when needed.
+
+## Upgrading
+
+From the project folder, run the command for your setup:
+
+| Setup | Command |
+|-------|---------|
+| On your machine | `.claude-code-hermit/bin/hermit-update` |
+| Docker | `.claude-code-hermit/bin/hermit-docker update` |
+
+See the [Upgrade guide](docs/upgrading.md) for details.
 
 <a id="tips--tuning"></a>
 
