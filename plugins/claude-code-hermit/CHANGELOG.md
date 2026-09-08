@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.3.4] - 2026-09-08
 
 ### Added
 - `voice-notes` skill: a voice note the hermit cannot read gets a plain reply and an offer to set up transcription, which routes install through `docker-customize` and the command through a standing role; the recipe is in `docs/voice-notes.md`.
