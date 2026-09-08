@@ -94,7 +94,10 @@ beforeEach(() => {
   );
   // Resolve fixture paths independently of the launching shell. Restored below.
   for (const key of Object.keys(origStateDirs)) delete process.env[key];
-  tmpdir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-start-test-'));
+  // realpath, because macOS roots its temp dir under a symlink (/tmp -> /private/tmp)
+  // while process.cwd() reports the resolved path. Anything comparing a fixture path
+  // against the cwd — seedWorkspaceTrust keys ~/.claude.json by it — mismatches otherwise.
+  tmpdir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'hermit-start-test-')));
   process.chdir(tmpdir);
   fs.mkdirSync('.claude-code-hermit/state', { recursive: true });
   fs.mkdirSync('.claude', { recursive: true });

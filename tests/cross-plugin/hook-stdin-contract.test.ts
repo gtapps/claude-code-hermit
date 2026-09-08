@@ -249,13 +249,35 @@ test('dev/worktree-boundary-guard drains stdin even with WORKTREE_GUARD=off', as
   expect(r.writer).toBe(0);
 });
 
-test('the corpus covers every fleet hook registered in a hooks.json', () => {
+test('the corpus covers every fleet hook registered in a hooks.json or a launch overlay', async () => {
   // Auto-discovery keeps SPECS honest in BOTH directions. Hardcoded plugin
   // lists went stale twice before (see domain-hatch.contract.test.ts) — derive
   // from the filesystem instead.
   const registered = new Set<string>();
   const registeredPreToolUse = new Set<string>();
   for (const slug of fs.readdirSync(path.join(ROOT, 'plugins'))) {
+    // A plugin's manifest is no longer the only place a hook is registered: the
+    // resident-only ones ride a per-boot --settings overlay and never appear in
+    // hooks.json. Read the overlay definition the renderer and the doctor check
+    // already share, so a hook that runs is discovered wherever it is declared.
+    const overlayFile = path.join(ROOT, 'plugins', slug, 'scripts', 'lib', 'settings', 'overlay-hooks.ts');
+    if (fs.existsSync(overlayFile)) {
+      const { overlayHooks } = await import(overlayFile);
+      for (const [event, entries] of Object.entries<any>(overlayHooks(path.join(ROOT, 'plugins', slug)))) {
+        for (const entry of entries) {
+          for (const hook of entry.hooks ?? []) {
+            // Both registration forms, for the same reason the hooks.json scan below
+            // takes both: reading only `args` lets a hook registered the other way
+            // silently skip the corpus.
+            const candidates: string[] = [...(hook.args ?? []), ...String(hook.command ?? '').split(/\s+/)];
+            const script = candidates.find((a: string) => a.endsWith('.ts'));
+            if (!script) continue;
+            registered.add(`${slug}:${path.basename(script)}`);
+            if (event === 'PreToolUse') registeredPreToolUse.add(`${slug}:${path.basename(script)}`);
+          }
+        }
+      }
+    }
     const hooksFile = path.join(ROOT, 'plugins', slug, 'hooks', 'hooks.json');
     if (!fs.existsSync(hooksFile)) continue;
     const raw = fs.readFileSync(hooksFile, 'utf8');
