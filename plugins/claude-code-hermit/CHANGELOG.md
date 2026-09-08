@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- `/spawn-session` passes `--remote-control` when `remote` is on in `config.json`, matching the resident session, and no longer takes `--rc` or refuses on auth method.
+
 ## [1.3.3] - 2026-09-07
 
 ### Added
