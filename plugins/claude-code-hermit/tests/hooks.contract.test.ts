@@ -402,8 +402,8 @@ describe('channel-hook', () => {
 
 describe('validate-config', () => {
   for (const [value, valid] of [
-    [undefined, true], [1, true], [60, true], [1440, true],
-    [null, false], [0, false], [-1, false], [1441, false], [1.5, false],
+    [undefined, true], [null, true], [1, true], [60, true], [1440, true],
+    [0, false], [-1, false], [1441, false], [1.5, false],
     ['60', false], [true, false], [{}, false], [[], false],
   ] as const) {
     test(`routine lateness validation: ${JSON.stringify(value)}`, withDir(async (dir) => {

@@ -194,7 +194,7 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
     }
   }
 
-  if (config.routine_max_lateness_minutes !== undefined) {
+  if (config.routine_max_lateness_minutes !== undefined && config.routine_max_lateness_minutes !== null) {
     const minutes = config.routine_max_lateness_minutes;
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
       errors.push('routine_max_lateness_minutes must be an integer from 1 to 1440');
