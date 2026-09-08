@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- `voice-notes` skill: a voice note the hermit cannot read gets a plain reply and an offer to set up transcription, which routes install through `docker-customize` and the command through a standing role; the recipe is in `docs/voice-notes.md`.
+
 ### Changed
 - `/spawn-session` passes `--remote-control` when `remote` is on in `config.json`, matching the resident session, and no longer takes `--rc` or refuses on auth method.
 
