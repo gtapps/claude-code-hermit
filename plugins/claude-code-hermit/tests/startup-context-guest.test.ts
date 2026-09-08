@@ -12,6 +12,7 @@
 import { describe, expect, it } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { writeRegistryEntry } from './helpers/registry-fixture';
 import { runScript } from './helpers/run';
 import { setupWorkdir } from './helpers/workdir';
 
@@ -55,6 +56,28 @@ const markerFor = (dir: string, sessionId: string) =>
   path.join(dir, '.claude-code-hermit', 'state', `.guest-${sessionId}`);
 
 describe('startup-context.ts — resident vs guest', () => {
+  for (const ownParent of [false, true]) {
+    it(`resident flag with ${ownParent ? 'own parent' : 'foreign incumbent'} registry stamp`, async () => {
+      const wd = setupWorkdir();
+      try {
+        const env = fixture(wd.dir, { tmuxSession: SESSION });
+        const configDir = path.join(wd.dir, 'config');
+        const pid = ownParent ? process.pid : process.ppid;
+        writeRegistryEntry(configDir, pid);
+        fs.writeFileSync(path.join(wd.dir, '.claude-code-hermit', 'state', 'runtime.json'), JSON.stringify({
+          version: 1, session_state: 'idle', session_pid: pid, config_dir: configDir,
+        }));
+        const sessionId = 'registry-residency-test';
+        const res = await run(wd.dir, { ...env, HERMIT_RESIDENT: '1' }, sessionId);
+        expect(res.exitCode).toBe(0);
+        expect(res.stdout).toContain(ownParent ? '---Active Session---' : '---Guest Session---');
+        expect(fs.existsSync(markerFor(wd.dir, sessionId))).toBe(!ownParent);
+      } finally {
+        wd.cleanup();
+      }
+    });
+  }
+
   it('managed session gets the full framing even while its tmux session is alive', async () => {
     const wd = setupWorkdir();
     try {
