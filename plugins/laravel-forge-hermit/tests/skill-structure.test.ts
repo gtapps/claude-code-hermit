@@ -56,7 +56,7 @@ if (fs.existsSync(appendPath)) {
   ok('keeps the outage consequence', append.includes('A wrong reboot causes an outage'));
   // The two gates are defence in depth, and the PHP gate is the authoritative
   // one — the block must not claim blanket un-bypassable enforcement.
-  ok('states the real enforcement boundary', append.includes('PHP gate authoritative'));
+  ok('states the real enforcement boundary', append.includes('Native permissions authorize writes') && append.includes('PHP retain `--confirm` validation'));
   // Replaced the closed-allowlist assertion: reads no longer use an allowlist,
   // so asserting it would keep the template documenting a guarantee the code
   // does not make. The plan hash is the guarantee that took its place.

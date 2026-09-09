@@ -125,3 +125,22 @@ describe('automode-env HA-specific: SKIP with no configured HA URL', () => {
     expect(fs.existsSync(target)).toBe(false);
   });
 });
+
+for (const spec of SPECS.filter(spec => spec.name !== 'ha')) {
+  test(`native approval description replaces only the old seed: ${spec.name}`, async () => {
+    const dir = tmp(), target = path.join(dir, 'settings.local.json');
+    try {
+      const legacy = spec.name === 'fitness'
+        ? 'Trusted external service: www.strava.com (API v3) \u2014 read-only activity and stream fetches by scripts/fitness-lab.ts and the strava MCP server; the hermit never writes to Strava.'
+        : 'Key internal services: api.github.com \u2014 GitHub App issue filing/commenting to octo/widget via hermit-scribe, always operator-confirmed in-session (preview, then yes/edit/cancel) before any post.';
+      const custom = legacy + ' Operator custom note.';
+      fs.writeFileSync(target, JSON.stringify({ autoMode: { environment: [legacy, custom] } }));
+      expect((await run(spec.script, target, spec.env)).exitCode).toBe(0);
+      const entries = JSON.parse(fs.readFileSync(target, 'utf8')).autoMode.environment;
+      expect(entries).not.toContain(legacy);
+      expect(entries).toContain(custom);
+      expect(entries).toHaveLength(2);
+      expect(entries.some((entry: string) => entry.includes('native'))).toBe(true);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+}

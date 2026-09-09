@@ -32,3 +32,5 @@ Core's `scripts/domain-hatch.ts` owns target resolution and `hatch-options.json`
 ## Development
 
 `claude --plugin-dir /path/to/feed-hermit` from a target project, then `/feed-hermit:hatch`. Tests: `bun test` from this directory.
+
+A fetch outside the source registry requests Claude Code native approval. Approval permits that fetch only and never adds a registry entry. Preserve malformed-URL rejection and existing unreadable-registry behavior.

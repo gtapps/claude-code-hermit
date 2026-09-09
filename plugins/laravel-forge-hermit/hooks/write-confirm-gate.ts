@@ -30,7 +30,7 @@ export const SAFE_SUBCOMMANDS: readonly string[] = [
   'preview-deploy', 'preview-reboot',
   'failed-deploys',
   // Generic dispatch. `execute` mutates, but its authority is the plan hash
-  // plus the operator's channel approval — neither is visible in a Bash
+  // plus Claude Code native approval, neither is visible in a Bash
   // command string, so gating it here would be theatre. It stays in PHP.
   'policy', 'call', 'preview', 'execute',
   'help', '--help',

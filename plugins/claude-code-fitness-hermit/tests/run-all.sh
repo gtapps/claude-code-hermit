@@ -14,4 +14,6 @@ if [ -d "$PLUGIN_ROOT/scripts" ]; then
   done < <(find "$PLUGIN_ROOT/scripts" -name '*.test.ts' | sort)
 fi
 
+bun test "$SCRIPT_DIR/native-permissions.test.ts" || rc=$?
+
 exit $rc

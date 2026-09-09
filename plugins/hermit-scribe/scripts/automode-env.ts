@@ -10,7 +10,7 @@
  * the classifier reads autoMode only from local/user/managed scope, never a
  * committed project .claude/settings.json)
  *
- * Additive, non-weakening: never removes existing keys or array entries; does
+ * Preserves operator entries; replaces only the exact legacy seeded description. Does
  * not inject "$defaults" into a pre-existing autoMode.environment array that
  * lacks it (that would override an operator's deliberate replacement).
  */
@@ -47,7 +47,7 @@ function writeJson(filePath: string, data: Json): void {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n', 'utf8');
 }
 
-const [, , targetFile] = process.argv;
+const [,, targetFile] = process.argv;
 
 if (!targetFile) {
   console.error('Usage: automode-env.ts <target-file>');
@@ -60,11 +60,13 @@ if (path.basename(targetFile) !== 'settings.local.json') {
 
 const entry =
   `Key internal services: api.github.com — GitHub App issue filing/commenting to ${targetRepo()} ` +
-  'via hermit-scribe, always operator-confirmed in-session (preview, then yes/edit/cancel) before any post.';
+  'via hermit-scribe, always previewed in full and authorized by native permission approval before any post.';
 
 const settings = readTargetJson(targetFile);
 settings.autoMode ??= {};
 if (!Array.isArray(settings.autoMode.environment)) settings.autoMode.environment = ['$defaults'];
+const legacy = entry.replace('always previewed in full and authorized by native permission approval', 'always operator-confirmed in-session (preview, then yes/edit/cancel)');
+settings.autoMode.environment = settings.autoMode.environment.filter((value: unknown) => value !== legacy);
 if (!settings.autoMode.environment.includes(entry)) settings.autoMode.environment.push(entry);
 writeJson(targetFile, settings);
 console.log(`Seeded autoMode.environment entry for: api.github.com (${targetRepo()})`);

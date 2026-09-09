@@ -44,7 +44,7 @@ For each area the operator names:
 2. Run: `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-area "<name>" [--confirm]`
 3. Handle the result:
    - `"ok": true` — created; confirm to operator.
-   - `"requires_confirm": true` — `ha_safety_mode` is `ask`; prompt operator, re-run with `--confirm` on approval.
+   - `"requires_confirm": true`, `ha_safety_mode` is `ask`; show the target, then invoke with `--confirm` for native approval.
    - `"blocked": true` — `ha_safety_mode` is `strict`; explain and create a proposal via `/claude-code-hermit:proposal-create`.
 
 After creating all areas, re-run `ha list-areas` and store the updated area map.

@@ -36,7 +36,9 @@
       "Bash(curl * | bash*)",
       "Bash(wget * | bash*)",
       "Edit(**/.claude-code-hermit/OPERATOR.md)",
-      "Edit(.env)",
+      "Edit(.env)"
+    ],
+    "ask": [
       "mcp__strava__star-segment",
       "mcp__strava__connect-strava",
       "mcp__strava__disconnect-strava"

@@ -61,8 +61,7 @@ test("replace case bounds the block through the closing marker", () => {
 // ── CLAUDE-APPEND block ─────────────────────────────────────────────────────
 // The block the hatch injects is the fleet's smallest and is the shape the rest
 // should converge to. These pin the three rules it carries: skill-only filing,
-// operator confirmation (the fleet's one outward-write path defended by
-// discipline rather than a hook), and sanitization.
+// native operator approval and sanitization.
 
 const APPEND = readFileSync(
   path.join(import.meta.dir, "..", "state-templates", "CLAUDE-APPEND.md"),
@@ -75,8 +74,8 @@ test("APPEND routes all filing through the skill", () => {
 
 test("APPEND keeps the operator-confirmation rule", () => {
   assertTrue(
-    /Never file or comment unattended/.test(APPEND) && /channel-relayed instruction alone/.test(APPEND),
-    "unattended and channel-relay prohibitions both present",
+    /complete sanitized preview/.test(APPEND) && /native permission approval/.test(APPEND) && /Denial cancels publication/.test(APPEND),
+    "preview, native approval, and denial handling present",
   );
 });
 

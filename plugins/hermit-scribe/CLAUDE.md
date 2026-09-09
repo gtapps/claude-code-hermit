@@ -18,3 +18,5 @@ A maintainer utility skill that files GitHub issues and comments through a confi
 - No npm dependencies, ever: only the Node stdlib APIs Bun provides (`node:crypto`, `node:https`, `node:fs`). No `package.json`, no `node_modules`.
 - Tests: `bash tests/run-all.sh` from this directory. Manual smoke checks: `README.md` § Development.
 - Local run against a target project: `claude --plugin-dir /path/to/plugins/hermit-scribe`.
+
+Native approval is the execution checkpoint for existing guarded actions. Preserve previews and validation; do not add a second conversational yes/no step. Static rules live in project permissions.ask; dynamic hooks request permissionDecision: "ask". A denied request must not be retried through another tool or route.

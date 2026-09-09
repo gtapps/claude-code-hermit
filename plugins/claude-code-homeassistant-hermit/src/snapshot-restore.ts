@@ -129,7 +129,7 @@ export interface RestoreResult {
   message: string;
 }
 
-function loadSnapshot(artifactPath: string): StateSnapshot {
+export function loadSnapshot(artifactPath: string): StateSnapshot {
   const raw = JSON.parse(readFileSync(artifactPath, 'utf8'));
   if (!raw || typeof raw !== 'object' || typeof raw.entities !== 'object') {
     throw new Error('artifact is not a state snapshot');

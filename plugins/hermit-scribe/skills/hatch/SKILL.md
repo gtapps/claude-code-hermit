@@ -30,7 +30,7 @@ Read the plugin version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` 
 
 ### 3. Auto-mode environment seed
 
-Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/automode-env.ts .claude/settings.local.json` — **always `.claude/settings.local.json`, regardless of `hatch_target`**: Claude Code's auto-mode classifier reads `autoMode` config only from local/user scope, never a committed project `.claude/settings.json`. This names `api.github.com` (scoped to the configured `HERMIT_GH_REPO`, or the default `gtapps/claude-code-hermit`) as a service the hermit posts to only with the operator's in-session confirmation — context for the classifier, not a standing permission grant (filing still goes through the skill's own preview/confirm gate every time). Additive and idempotent; safe to re-run. No prompt needed.
+Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/automode-env.ts .claude/settings.local.json`, **always `.claude/settings.local.json`, regardless of `hatch_target`**: Claude Code's auto-mode classifier reads `autoMode` config only from local/user scope, never a committed project `.claude/settings.json`. This names `api.github.com` (scoped to the configured `HERMIT_GH_REPO`, or the default `gtapps/claude-code-hermit`) as a service the hermit posts to only with the operator's native permission approval, context for the classifier, not a standing permission grant (filing still goes through the complete preview and native permission gate every time). Additive and idempotent; safe to re-run. No prompt needed.
 
 ### 4. Stamp version
 

@@ -4,7 +4,7 @@ Domain skills use the Home Assistant MCP server for live operations and `bin/ha-
 
 ## Safety boundaries
 
-- Preserve `ha_safety_mode`: absent means strict. Sensitive actuation and structural mutations are blocked under strict; ask mode requires operator confirmation. Unresolvable or malformed targeting stays blocked in both modes. Blocked work becomes a proposal.
+- Preserve `ha_safety_mode`: an absent key in valid config means ask; unreadable or malformed config stays strict. Sensitive actuation and structural mutations are blocked under strict; ask mode requires operator confirmation. Unresolvable or malformed targeting stays blocked in both modes. Blocked work becomes a proposal.
 - Keep the MCP server name `homeassistant`; `hooks/hooks.json` matches the entire `mcp__homeassistant__.*` namespace and the gate explicitly allows read-only tools. Internal gate errors must fail closed.
 - `Hass*` intent tools have a deliberate opt-in: `ha_assist_control_enabled` delegates opaque target resolution to HA's expose-to-Assist boundary. Preserve the exact carve-out in `hooks/mcp-safety-gate.ts` rather than treating every unresolved call as equivalent.
 - `gateServiceCall` is per entity/service; `gateStructuralMutation` governs structural writes. Do not replace either with the other. Non-sensitive maintenance calls remain usable.
@@ -20,3 +20,7 @@ The plugin suite needs full Git history and Python with `python-dotenv` and `PyY
 Changes to `src/policy.ts` or `hooks/mcp-safety-gate.ts` must preserve the corpus/golden behavior in `tests/gate-corpus.test.ts` and the fail-closed properties in `tests/gate-fuzz.test.ts`. Keep YAML parity and apply-result verification intact; a successful tool call alone is not proof that the intended automation was installed.
 
 When using `tmpPath()` from `tests/helpers.ts`, register `afterAll(cleanupTmp)`. Cleanup after each test can delete fixtures still used by concurrent tests. Keep independent corpus and fuzz subprocess work asynchronous.
+
+Native approval is the execution checkpoint for existing guarded actions. Preserve previews and validation; do not add a second conversational yes/no step. Static rules live in project permissions.ask; dynamic hooks request permissionDecision: "ask". A denied request must not be retried through another tool or route.
+
+The native-permissions installer owns `.claude-code-hermit/state/claude-code-homeassistant-hermit-native-permissions-v1.json`, a durable completion marker created after successful installation or migration. Preserve it across upgrades so later operator policy choices are not migrated again.

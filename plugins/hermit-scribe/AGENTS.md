@@ -7,3 +7,5 @@ Public issue and comment filing through a configured GitHub App bot identity.
 - `skills/hermit-scribe/file-issue.ts` owns App authentication, classification, dedup lookup, and filing. Preserve the configured `HERMIT_GH_REPO` target and bot identity rather than substituting the maintainer's ambient `gh` login.
 - Title and body are file inputs, read directly by the script. Keep shell interpolation out of their handling and retain the automatic `hermit-filed` label. Credentials and private keys stay outside the plugin tree.
 - The complete test runner invokes each test file directly. Configuration and manual smoke instructions belong in [README.md](README.md).
+
+Native approval is the execution checkpoint for existing guarded actions. Preserve previews and validation; do not add a second conversational yes/no step. Static rules live in project permissions.ask; dynamic hooks request permissionDecision: "ask". A denied request must not be retried through another tool or route.

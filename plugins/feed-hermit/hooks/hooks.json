@@ -11,7 +11,7 @@
             "timeout": 5
           }
         ],
-        "description": "Block WebFetch to any domain not in feed-sources.md (plus a hardcoded infra allowlist). Fails open if feed-sources.md is missing."
+        "description": "Request native approval for WebFetch to any domain not in feed-sources.md (plus a hardcoded infra allowlist). Fails open if feed-sources.md is missing."
       }
     ],
     "PostToolUse": [

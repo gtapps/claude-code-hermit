@@ -103,14 +103,11 @@ Present the post-translation, post-sanitization content to the operator as a **s
 2. Complete issue body — everything that will be written to the issue, including the `---\n*Filed via hermit-scribe...*` footer
 3. Labels that will be applied (informational — no operator editing): `Labels: hermit-filed (always); plus bug/enhancement/chore and optional homeassistant-hermit/hermit-scribe for proposal-backed issues`
 4. If Step 1c found templates (informational — no operator editing): `Note: this repo defines issue templates under .github/ISSUE_TEMPLATE/ ({filenames}); this body does not follow them.` Omit this item entirely when Step 1c found nothing.
-5. Confirmation prompt: `File this issue? (yes / edit / cancel)`
+The publishing command requests Claude Code native approval after this complete preview.
 
-If the content exceeds the channel's message-size limit (Discord: 2000 chars), split into multiple messages. The confirmation prompt MUST appear in the FINAL message only — never in the first. Do NOT replace the body with placeholders like "(see below)" — inline the full body.
+If the preview exceeds the channel message-size limit, split it into multiple messages and finish displaying all content before invoking publication.
 
-Wait for the operator's response.
-- On `cancel`: abort.
-- On `yes`: proceed to Step 5.
-- On `edit`: ask the operator what to change (e.g. "title", a specific body section, or a free-text correction). Apply the requested edit, re-render the preview from the start of Step 4, and ask again. Loop until `yes` or `cancel`.
+Prepare the file inputs and invoke publication for native permission approval. Denial stops publication. If the operator requests edits, regenerate and show the complete preview before another publishing attempt.
 
 **Step 5: write title and body to temp files.**
 
@@ -120,7 +117,7 @@ Use the Write tool to create two files inside that directory:
 - `/tmp/tmp.AbCdEf/title` — the cleaned issue title (single line, no markdown formatting).
 - `/tmp/tmp.AbCdEf/body.md` — the cleaned issue body markdown.
 
-**Step 6: run the script.**
+**Step 6: invoke the script for native approval.**
 
 Substitute the same path from step 5 and append the `labels` from the Step 1 `classify` output as trailing arguments. Do NOT include `hermit-filed` — the script always adds it.
 
@@ -181,14 +178,11 @@ Parse the response as usual (split on `<<<HERMIT_SCRIBE_BODY>>>`). Use only the 
 Present the post-sanitization content as a **single message** containing, in order:
 1. Target: `Issue #NNN`
 2. Complete comment body — everything that will be posted
-3. Confirmation prompt: `Post this comment? (yes / edit / cancel)`
+The publishing command requests Claude Code native approval after this complete preview.
 
-If the content exceeds the channel's message-size limit (Discord: 2000 chars), split into multiple messages. The confirmation prompt MUST appear in the FINAL message only.
+If the preview exceeds the channel message-size limit, split it into multiple messages and finish displaying all content before invoking publication.
 
-Wait for the operator's response.
-- On `cancel`: abort.
-- On `yes`: proceed to Step 4.
-- On `edit`: ask what to change, apply the correction, re-render from the top of Step 3. Loop until `yes` or `cancel`.
+Prepare the file inputs and invoke publication for native permission approval. Denial stops publication. If the operator requests edits, regenerate and show the complete preview before another publishing attempt.
 
 **Step 4: write body to temp file.**
 

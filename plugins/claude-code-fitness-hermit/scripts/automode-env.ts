@@ -9,7 +9,7 @@
  * the classifier reads autoMode only from local/user/managed scope, never a
  * committed project .claude/settings.json)
  *
- * Additive, non-weakening: never removes existing keys or array entries; does
+ * Preserves operator entries; replaces only the exact legacy seeded description. Does
  * not inject "$defaults" into a pre-existing autoMode.environment array that
  * lacks it (that would override an operator's deliberate replacement).
  */
@@ -22,7 +22,7 @@ type Json = any;
 const ENTRY =
   'Trusted external service: www.strava.com (API v3) — read-only activity and ' +
   'stream fetches by scripts/fitness-lab.ts and the strava MCP server; the hermit ' +
-  'never writes to Strava.';
+  'writes through gated Strava tools only with native operator approval.';
 
 function readTargetJson(filePath: string): Json {
   let raw: string;
@@ -47,7 +47,7 @@ function writeJson(filePath: string, data: Json): void {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n', 'utf8');
 }
 
-const [, , targetFile] = process.argv;
+const [,, targetFile] = process.argv;
 
 if (!targetFile) {
   console.error('Usage: automode-env.ts <target-file>');
@@ -61,6 +61,8 @@ if (path.basename(targetFile) !== 'settings.local.json') {
 const settings = readTargetJson(targetFile);
 settings.autoMode ??= {};
 if (!Array.isArray(settings.autoMode.environment)) settings.autoMode.environment = ['$defaults'];
+const legacy = ENTRY.replace('writes through gated Strava tools only with native operator approval.', 'never writes to Strava.');
+settings.autoMode.environment = settings.autoMode.environment.filter((value: unknown) => value !== legacy);
 if (!settings.autoMode.environment.includes(ENTRY)) settings.autoMode.environment.push(ENTRY);
 writeJson(targetFile, settings);
 console.log('Seeded autoMode.environment entry for: www.strava.com');

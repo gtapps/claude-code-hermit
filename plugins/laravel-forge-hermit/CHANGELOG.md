@@ -1,5 +1,15 @@
 # Changelog — laravel-forge-hermit
 
+## [Unreleased]
+
+### Changed
+
+- Native operator approval for existing guarded actions.
+
+### Upgrade Instructions
+
+Resolve the project settings target with domain-hatch preflight laravel-forge-hermit: local maps to .claude/settings.local.json; committed maps to .claude/settings.json. Run `bun <plugin_root>/scripts/native-permissions.ts <resolved-settings-file> --migrate` once for this version transition. Refresh the installed CLAUDE-APPEND block and notify the operator that existing guarded actions now use Claude Code native approval instead of the prior refusal or conversational confirmation.
+
 ## [0.0.14] - 2026-09-07
 
 ### Fixed

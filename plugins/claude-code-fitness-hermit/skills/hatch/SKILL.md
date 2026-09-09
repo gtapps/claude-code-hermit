@@ -263,6 +263,12 @@ Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/automode-env.ts .claude/settings.local.js
 
 ---
 
+## Native approval rules
+
+Resolve the project settings target through `.claude-code-hermit/bin/hermit-run domain-hatch preflight claude-code-fitness-hermit`. Map `target` (or `target_default` when absent): `local` to `.claude/settings.local.json`, `committed` to `.claude/settings.json`. Its `target_file` is the instruction destination, not the settings file.
+
+Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/native-permissions.ts <resolved-settings-file>`. This installs the fixed native ask rules, preserves existing denies and unrelated settings, and is safe to repeat. Do not pass `--migrate` during ordinary hatch. Native asks follow Claude Code's permission mode; bypass mode does not provide an operator checkpoint.
+
 ## Step 8 — Final report
 
 Print a structured summary:

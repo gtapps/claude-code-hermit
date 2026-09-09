@@ -33,9 +33,9 @@ php ${CLAUDE_PLUGIN_ROOT}/php/forge.php preview-reboot <server>
 
 Resolves `<server>` to the canonical record and prints the server name, IP, and ID. Exit 0, no mutation.
 
-**Step 2 — Relay to operator.** Show the canonical target. Ask for explicit approval.
+**Step 2, Relay to operator.** Show the canonical target. Invoke the write command for Claude Code native approval, without another conversational confirmation.
 
-**Step 3 — On approval only:**
+**Step 3: request native approval for execution:**
 
 ```bash
 php ${CLAUDE_PLUGIN_ROOT}/php/forge.php server-reboot <server> --confirm
@@ -62,9 +62,9 @@ echo '[<server-id>, {"type":"cpu_load","operator":"gte","threshold":90,"notify":
 
 Prints the canonical server, `POST /orgs/<org>/servers/<id>/monitors`, the payload, and a plan id.
 
-**Step 2 — Relay and wait.** Send the canonical server and the payload to the operator and ask for approval. Nothing has been sent to Forge at this point.
+**Step 2: preview.** Show the canonical server and payload. Nothing has been sent to Forge. The execution command requests native approval; do not ask for another chat reply.
 
-**Step 3 — On approval only:**
+**Step 3: request native approval for execution:**
 
 ```bash
 php ${CLAUDE_PLUGIN_ROOT}/php/forge.php execute <plan-id>

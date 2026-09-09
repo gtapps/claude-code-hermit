@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Native operator approval for existing guarded actions.
+
+### Upgrade Instructions
+
+Run `bun <plugin_root>/scripts/automode-env.ts <project>/.claude/settings.local.json` to replace the exact old seeded classifier description while preserving operator entries.
+
+Refresh the installed CLAUDE-APPEND block and notify the operator that existing guarded actions now use Claude Code native approval instead of the prior refusal or conversational confirmation.
+
 ## [0.1.3] - 2026-09-06
 
 ### Added
