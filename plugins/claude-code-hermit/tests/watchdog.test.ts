@@ -586,6 +586,82 @@ function configureChannel(h: Hermit): void {
   fs.writeFileSync(path.join(stateDir, '.env'), 'TELEGRAM_BOT_TOKEN=test-token\n');
 }
 
+describe('watchdog state-write failure', () => {
+  for (const lastStartError of [null, 'resident-missing']) {
+    test(`notifies each tick and recovers after permissions return (${lastStartError})`, withHermit(async (h) => {
+      writeConfig(h);
+      configureChannel(h);
+      patchRuntime(h, { last_start_error: lastStartError });
+      writeFakeTmux(h, 1);
+      writeFakePgrep(h, 1);
+      const runtimeBefore = fs.readFileSync(state(h, 'runtime.json'), 'utf8');
+      const stub = startHttpStub();
+      const env = { HERMIT_TELEGRAM_API_URL: stub.url };
+      fs.chmodSync(state(h), 0o500);
+      try {
+        // Prove permissions actually deny writes for the executing user.
+        expect(() => fs.writeFileSync(state(h, 'write-probe'), '')).toThrow();
+        for (let tick = 1; tick <= 2; tick++) {
+          const r = await watchdog(h, 'run', { env });
+          expect(r.exitCode).toBe(0);
+          expect(r.stderr).toContain('[watchdog] fatal:');
+          expect(r.stderr).toContain('EACCES');
+          expect(stub.requests.length).toBe(tick);
+          expect(stub.requests[tick - 1].body.text).toContain('Watchdog failed');
+          expect(stub.requests[tick - 1].body.text).toContain('EACCES');
+          expect(fs.readFileSync(state(h, 'runtime.json'), 'utf8')).toBe(runtimeBefore);
+          expect(fs.existsSync(path.join(h.dir, 'hermit-start-called'))).toBe(false);
+        }
+        fs.chmodSync(state(h), 0o700);
+        fs.writeFileSync(path.join(h.dir, '.claude-code-hermit', 'RESIDENT.md'), '# Resident');
+        const recovered = await watchdog(h, 'run', { env });
+        expect(recovered.exitCode).toBe(0);
+        expect(recovered.stderr).not.toContain('[watchdog] fatal:');
+        expect(await waitForStartMarker(h)).toBe(true);
+        expect(stub.requests.length).toBe(3);
+        expect(stub.requests[2].body.text).not.toContain('Watchdog failed');
+      } finally {
+        fs.chmodSync(state(h), 0o700);
+        stub.stop();
+      }
+    }), 45000);
+  }
+
+  test('notification failure still exits zero', withHermit(async (h) => {
+    writeConfig(h);
+    configureChannel(h);
+    const stub = startHttpStub();
+    stub.setStatus(403);
+    fs.chmodSync(state(h), 0o500);
+    try {
+      expect(() => fs.writeFileSync(state(h, 'write-probe'), '')).toThrow();
+      const r = await watchdog(h, 'run', { env: { HERMIT_TELEGRAM_API_URL: stub.url } });
+      expect(r.exitCode).toBe(0);
+      expect(r.stderr).toContain('[watchdog] fatal:');
+      expect(stub.requests.length).toBe(1);
+      expect(stub.requests[0].body.text).toContain('Watchdog failed');
+    } finally {
+      fs.chmodSync(state(h), 0o700);
+      stub.stop();
+    }
+  }));
+
+  test('successful initial write preserves fields and updates both timestamps', withHermit(async (h) => {
+    writeConfig(h, '2h', { enabled: false });
+    writeFakeTmux(h, 1);
+    writeFakePgrep(h, 1);
+    const oldStamp = '2026-01-01T00:00:00Z';
+    fs.writeFileSync(state(h, 'watchdog-state.json'), JSON.stringify({
+      last_run: oldStamp, last_check_at: oldStamp, consecutive_stale: 2,
+    }));
+    expect((await watchdog(h, 'run')).exitCode).toBe(0);
+    const ws = readJson(state(h, 'watchdog-state.json'));
+    expect(ws.consecutive_stale).toBe(2);
+    expect(Date.parse(ws.last_run)).toBeGreaterThan(Date.parse(oldStamp));
+    expect(Date.parse(ws.last_check_at)).toBeGreaterThan(Date.parse(oldStamp));
+  }));
+});
+
 describe('dead session with channel configured', () => {
   let h: Hermit;
   let stub: Stub;

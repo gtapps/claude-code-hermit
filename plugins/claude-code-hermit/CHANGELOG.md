@@ -23,6 +23,7 @@ Immediately after `hermit-update` or `hermit-docker update` finishes, stop the r
 To retain the previous 24-hour catch-up window, set top-level `routine_max_lateness_minutes` to `1440` in `.claude-code-hermit/config.json`, preserving all other fields. Otherwise leave the setting absent to use the new 60-minute default. Preserve any existing explicit value. The running Monitor reads the setting on its next poll.
 
 ### Fixed
+- Watchdog state-write failures notify the operator on each failed tick instead of silently preventing recovery.
 - The watchdog's staged-login commit now writes `oauthAccount` to `~/.claude.json` on host installs, where Claude Code reads it, instead of `~/.claude/.claude.json`.
 - A cited `compiled/` or `raw/` doc that has since been archived no longer reads as a stale path when a proposal is accepted. The falsification gate, its `## Skill Draft` `source_artifact` check, the procedure-capture install flow's read of that brief, and the queued session task all fall back to the same basename in that directory's `.archive/` and verify against the archived copy; a doc in neither location is still stale.
 - A session that is not the registered resident no longer answers channel messages, and is classified as a guest even when launched with the resident's environment. The verdict is taken at session start, so a session that started as a guest keeps leaving channel messages alone after the resident stops; `bin/hermit-start --resume` is the way back.
