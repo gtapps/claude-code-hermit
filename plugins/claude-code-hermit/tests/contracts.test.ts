@@ -3779,6 +3779,19 @@ describe('heartbeat eval-runner return contract', () => {
 // ============================================================
 
 describe('determinized lifecycle wiring contract', () => {
+  test('curated session archives route re-derived knowledge to a durable home', () => {
+    const close = read(path.join(SKILLS, 'session-close', 'SKILL.md'));
+    const session = read(path.join(SKILLS, 'session', 'SKILL.md'));
+    expect(close).toContain('For question 2');
+    const question2 = close.slice(close.indexOf('For question 2'), close.indexOf('For question 3'));
+    expect(question2).toContain('remember it');
+    expect(question2).toContain('compiled/topic-');
+    expect(session).toContain('remember it');
+    expect(session).toContain('compiled/topic-');
+    expect(close).not.toContain('Substantial re-derived knowledge');
+    expect(close).toContain('Lessons: none');
+  });
+
   test('session-close SKILL.md routes the --scheduled branch through the auto-close-decision verb', () => {
     const skill = read(path.join(SKILLS, 'session-close', 'SKILL.md'));
     expect(skill).toContain('auto-close-decision');
