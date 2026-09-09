@@ -6,6 +6,7 @@
 - Proposal creation supports `--no-artifacts` (alias `--no-artifact`) to skip dashboard and proposals-page refreshes for one invocation.
 
 ### Changed
+- Session close and work-done archival write each re-derived fact to auto-memory or its `compiled/topic-*.md` page during the debrief; the Lessons line records the fact, its cost, and where it now lives.
 - The four resident-only hooks (`pause-gate`, `ask-gate`, `component-privacy`, and `permission-denied-notify`) now ride the per-boot launch overlay with absolute script paths, probed on Claude Code 2.1.265.
 - A boot that cannot write the launch overlay refuses to start.
 - Workspace trust for the project is seeded at boot.

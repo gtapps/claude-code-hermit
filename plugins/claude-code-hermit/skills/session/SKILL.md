@@ -46,7 +46,7 @@ When the work is done, or the operator decides to move on (even if partial or bl
    - Ensure SHELL.md `## Blockers` reflects the final recorded state. It remains the factual floor. Payload Blockers can add missing facts or annotate a recorded blocker as resolved, but cannot erase recorded text.
    - `Status:` one of `completed` | `partial` | `blocked`
    - `Blockers:` optional additions, one line each. Use `~ <prefix>` to mark the first trimmed, case-insensitive prefix match in SHELL.md `## Blockers` resolved. The report keeps the full recorded text as `- [resolved] <recorded text>`; an unmatched `~` line becomes an ordinary addition with the tilde removed.
-   - `Lessons:` only genuinely useful ones
+   - `Lessons:` only genuinely useful ones: before compiling the report, ask "what did I re-derive that a compiled note or memory entry should have told me?" Write each item to its home now: for a harness fact or session-wide preference, issue the standard "remember it" reflection, which updates an existing memory file when one covers the fact; for a durable domain fact, merge into the subject's `compiled/topic-<slug>.md`, putting the fact in the body, keeping `summary` a one-line subject description, and stamping `session: S-NNN` in its frontmatter so the archive's stamped scan cites the page under `Artifacts:`. Record the fact, cost where known, and destination (topic wikilink or memory file slug) in the Lessons line, destination early and under 150 characters; say "already held" when the home had it.
    - `Changed:` list of files modified
    - `Artifacts:` optional `[[compiled/...]]` links not already recorded in SHELL.md or found by the session-stamped scan
 2. Verify quality in-context before archiving:
