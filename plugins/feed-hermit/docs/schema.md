@@ -153,6 +153,7 @@ it carries are scored in Phase 3. Raw scratch — 3-day retention (§10).
 
 ```json
 {
+  "run_id": "<caller-supplied-run-id>",
   "fetch_date": "2026-01-15T09:00:00+00:00",
   "sources": [
     {
@@ -183,6 +184,7 @@ it carries are scored in Phase 3. Raw scratch — 3-day retention (§10).
 }
 ```
 
+- `run_id` is required and copied exactly from the caller, which generates a fresh UUID before dispatch.
 - Only `web` and `rss` sources appear (the agent skips `chrome`/`reddit`/`reddit-home`/`x`).
 - Per-source: `name`, `type`, `url`, `status` (`ok`|`failed`). `ok` carries `items[]`;
   `failed` carries `error` and omits items.
@@ -196,8 +198,17 @@ entirely, → `sources_skipped`; `status: "ok"` with empty `items[]` → `source
 `chrome`/`reddit`/`reddit-home`/`x` sources never appear here and are classified by
 `feed-brief` Phase 2 instead. A source that yielded items but lost all of them to Phase 3
 scoring is also `sources_quiet` per §2.
-`feed-brief` Phase 1 reconciles against this file, not the agent's reply — see
-`skills/feed-brief/SKILL.md`.
+`feed-brief` Phase 1 first verifies the file with `scripts/source-fetch-result.ts verify`
+using the ID it generated before dispatch. The helper reads once and prints the accepted
+JSON only when the top-level object has the matching `run_id` and a `sources` array.
+The caller reconciles that returned payload, not a second file read or the agent's reply.
+Run ID generation or verification failure sends every web/RSS source to `sources_skipped`,
+then Phase 2 continues without redispatch. Existing scratch files without `run_id` are
+rejected until a new fetch replaces them; no migration is needed.
+
+Matching run identity permits unchanged articles, quiet sources, and partial failures.
+It does not prove network fetching or enforce the model's invocation of the verifier.
+See `skills/feed-brief/SKILL.md`.
 
 Full contract lives in `agents/source-fetcher.md`.
 
