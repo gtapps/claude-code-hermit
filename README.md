@@ -13,7 +13,7 @@ If you know [Claude Tag](https://claude.com/docs/claude-tag/overview), the idea 
 
 Hermit is a Claude Code plugin that runs an always-on agent on your machine or server, for you or your team. Give it ongoing responsibilities: maintain research, monitor systems, run routines, and follow up on unfinished work. Between requests, it checks those responsibilities, carries progress across sessions, and reaches you when something needs attention.
 
-Hermit runs inside Claude Code. Connect your own MCP servers, add custom skills, and install other plugins to give your agent the tools and workflows it needs.
+Hermit is a **Claude Code always-on instance**, that means you can run on your **subscription**, connect your own MCP servers, add custom skills, and install other plugins to give your agent the tools and workflows it needs.
 
 <p align="center">
   <img src="plugins/claude-code-hermit/assets/cover.png" alt="Always-on Claude Code agent" />
