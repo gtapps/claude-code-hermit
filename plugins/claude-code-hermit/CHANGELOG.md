@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.3.5] - 2026-09-09
 
 ### Added
 - Proposal creation supports `--no-artifacts` (alias `--no-artifact`) to skip dashboard and proposals-page refreshes for one invocation.
