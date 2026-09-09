@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- Earlier-run fetch output is rejected before brief scoring when a new collection fails to replace it.
+
 ## [0.1.7] - 2026-09-07
 
 ### Changed

@@ -5,7 +5,7 @@ tools: [WebFetch, Read, Write]
 description: Fetches web/RSS sources from feed-sources.md and writes compact, source-grounded candidate items to the JSON path supplied by feed-brief. Collection only; ranking and enrichment belong to the caller.
 ---
 
-Collect raw candidate items from the configured web/RSS sources. Your dispatch supplies the absolute project root, source list, slot, and output path. Read `<project-root>/feed-sources.md` and process only `web` and `rss` entries; the caller handles `chrome`, `reddit`, `reddit-home`, and `x`.
+Collect raw candidate items from the configured web/RSS sources. Your dispatch supplies the absolute project root, source list, slot, output path, and run ID. Read `<project-root>/feed-sources.md` and process only `web` and `rss` entries; the caller handles `chrome`, `reddit`, `reddit-home`, and `x`.
 
 ## Extraction
 
@@ -44,6 +44,7 @@ Write valid JSON, without prose or code fences:
 
 ```json
 {
+  "run_id": "<caller-supplied-run-id>",
   "fetch_date": "2026-01-15T09:00:00+00:00",
   "sources": [
     {
@@ -74,6 +75,7 @@ Write valid JSON, without prose or code fences:
 }
 ```
 
+- `run_id` is the exact caller-supplied run ID. Never reuse one from an existing file.
 - `fetch_date` is the actual fetch time in ISO 8601.
 - `sources[]` has one entry per eligible registry source, with `name`, `type`, `url`, and `status`.
 - Successful sources include `items[]` (possibly empty) and omit `error`.

@@ -31,19 +31,32 @@ Resolve `<slot>` from the flag before starting. All filenames below use that res
 
 ### Phase 1 — Web/RSS sources
 
+Before dispatch, run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/source-fetch-result.ts new-run`.
+Keep its returned UUID as the expected `run_id` for this invocation; never infer it from an
+existing file or the agent's reply. If generation fails, follow the wholesale fetch-failure
+path below without dispatching.
+
 Dispatch the `@feed-hermit:source-fetcher` subagent (model: haiku) to fetch all `web` and `rss`
-sources from `feed-sources.md`. Pass the full source list (URLs + names), the resolved `<slot>`, and the absolute project root and output path.
+sources from `feed-sources.md`. Pass the full source list (URLs + names), the resolved `<slot>`, the absolute project root and output path, and the generated `run_id` to copy exactly into the output JSON.
 
 **Output-path contract:** the agent writes its extracted items to `tmp/feed-source-items-<slot>.json`
 in the project root (never `/tmp/`). Pass `<absolute-project-root>/tmp/feed-source-items-<slot>.json` to the agent so its inherited working directory cannot redirect the write. Items are nested under `sources[]`, each item:
 `{title, summary, url, published_at, source, section, author}`. No scoring —
-extraction only. After the agent returns, read that file for the collected items.
+extraction only. After the agent returns, run:
+
+```bash
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/source-fetch-result.ts verify "<absolute-output-path>" "<expected-run-id>"
+```
+
+Use the original expected ID, not an ID read from the output. On exit 0, consume only the
+accepted JSON printed by this command; do not re-read the raw file for candidate items.
+The verifier checks run identity and the envelope, not whether network fetches occurred.
 
 **Reconcile against the file, not the reply** (mapping owned by `docs/schema.md` §5). The
-agent's reply is a claim; the file is the only truth. This classifies `web`/`rss` sources only —
+agent's reply is a claim; only the verified file payload is eligible for reconciliation. This classifies `web`/`rss` sources only —
 `chrome`/`reddit`/`reddit-home`/`x` sources are absent from `sources[]` by design and are
 classified in Phase 2:
-- File missing or unparseable → every `web`/`rss` source in `feed-sources.md` goes to
+- Run ID generation or verification fails (including missing/unreadable/malformed output, an invalid envelope, or an absent/mismatched `run_id`) → every `web`/`rss` source in `feed-sources.md` goes to
   `sources_skipped`. Continue to Phase 2 — do not re-dispatch the agent — and note the wholesale
   fetch failure in the brief's Source notes.
 - A `web`/`rss` source with no entry in `sources[]` → `sources_skipped`, regardless of what the

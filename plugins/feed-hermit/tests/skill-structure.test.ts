@@ -123,3 +123,23 @@ test("feed-brief Phase 1 reconciles the fetch file, not the agent's reply", () =
   const body = readFileSync(join(ROOT, "skills", "feed-brief", "SKILL.md"), "utf8");
   expect(body).toMatch(/Reconcile against the file, not the reply/);
 });
+
+test('feed-brief binds dispatch and verification to the original run ID', () => {
+  const body = readFileSync(join(ROOT, 'skills', 'feed-brief', 'SKILL.md'), 'utf8');
+  const phase = body.split('### Phase 1')[1].split('### Phase 2')[0];
+  const generate = phase.indexOf('source-fetch-result.ts new-run');
+  const dispatch = phase.indexOf('Dispatch the `@feed-hermit:source-fetcher`');
+  const verify = phase.indexOf('source-fetch-result.ts verify "<absolute-output-path>" "<expected-run-id>"');
+  expect(generate).toBeGreaterThanOrEqual(0);
+  expect(dispatch).toBeGreaterThan(generate);
+  expect(verify).toBeGreaterThan(dispatch);
+  expect(phase).toContain('the generated `run_id` to copy exactly');
+  expect(phase).toContain('Use the original expected ID');
+  expect(phase).toContain('do not re-read the raw file');
+  expect(phase).toContain('Run ID generation or verification fails');
+  expect(phase).toContain('without dispatching');
+  expect(phase).toContain('`sources_skipped`');
+  expect(phase).toContain('do not re-dispatch');
+  expect(phase).toContain('`sources_quiet`');
+  expect(phase).toContain('Phase 6 splits');
+});
