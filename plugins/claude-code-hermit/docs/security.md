@@ -131,7 +131,7 @@ Existing installs that hatched Hardened (or the older hardened extras) keep thos
 | Seeded permission rules | `settings.json` | Mechanical*       |
 | Bash sandbox        | `settings.json` (`sandbox.*`) | Kernel-enforced (`bwrap`); Claude Code's own native sandbox — hermit does not configure it, see [Bash Sandbox](#bash-sandbox) below |
 | Agent-level rules   | `agents/*.md`   | Instruction-following |
-| Hook enforcement    | `hooks.json`    | Mechanical            |
+| Hook enforcement    | `hooks.json` + resident launch overlay | Mechanical            |
 | Config isolation    | Named volume    | Mechanical            |
 | Container isolation | Docker/VM       | Mechanical            |
 | Container hardening | docker-compose.hermit.yml | Kernel-enforced (defense in depth — `no-new-privileges` is load-bearing; cap drops + PID cap are incremental) |

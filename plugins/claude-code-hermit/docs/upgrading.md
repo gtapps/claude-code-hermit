@@ -8,7 +8,7 @@ Hermit is backwards compatible — nothing breaks if you don't upgrade. But upgr
 
 ### One command (recommended)
 
-From the project root, run the wrapper for your deployment — it moves the durable plugin pin, reloads the running session, and auto-runs `hermit-evolve` when the version bumped:
+From the project root, run the wrapper for your deployment: it moves the durable plugin pin, reloads the running session, and auto-runs `hermit-evolve` when the version bumped. Host installs then need the stop/start below.
 
 ```bash
 # Docker hermits:
@@ -18,6 +18,8 @@ From the project root, run the wrapper for your deployment — it moves the dura
 ```
 
 Always-on hermits do this on their own: the session-start upgrade banner triggers `hermit-evolve unattended` automatically.
+
+After a host `.claude-code-hermit/bin/hermit-update`, stop the running resident with `.claude-code-hermit/bin/hermit-stop`, then start it with `.claude-code-hermit/bin/hermit-start --resume` so the launch overlay is rewritten. Both update commands send `/reload-plugins`, which drops `pause-gate`, `ask-gate`, `component-privacy`, and `permission-denied-notify` from the running session while the previous overlay has none. Docker hermits need nothing else.
 
 ### Manual
 

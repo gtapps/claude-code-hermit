@@ -13,7 +13,7 @@ If you know [Claude Tag](https://claude.com/docs/claude-tag/overview), the idea 
 
 Hermit is a Claude Code plugin that runs an always-on agent on your machine or server, for you or your team. Give it ongoing responsibilities: maintain research, monitor systems, run routines, and follow up on unfinished work. Between requests, it checks those responsibilities, carries progress across sessions, and reaches you when something needs attention.
 
-Use your own bots and accounts, with access to the local files, tools, and services you choose.
+Hermit runs inside Claude Code. Connect your own MCP servers, add custom skills, and install other plugins to give your agent the tools and workflows it needs.
 
 <p align="center">
   <img src="assets/cover.png" alt="Always-on Claude Code agent" />
@@ -49,15 +49,11 @@ curl -fsSL https://gtapps.github.io/claude-code-hermit/install.sh | bash
 
 </details>
 
-Both options install the plugin personally for this folder. Hatch guides you through the agent's purpose and operating preferences, then prints the next steps. Choose Quick for defaults you can adjust later.
+Both options install Hermit for this folder. Hatch guides you through the agent’s purpose and preferences, then shows how to start it. Choose Quick for defaults you can adjust later.
 
 ## Keep it running
 
 After setup, follow the printed next steps to start your agent.
-
-**Sign-in renewal from chat.** Use `/relogin` to renew the agent’s Claude sign-in through your connected chat: open the link, sign in, and send back the code.
-
-**Scheduled backups.** Optional backups preserve the agent’s knowledge, session reports, settings, and Claude Code memory in Git, with an optional private remote copy. Backups run without model tokens.
 
 ### On your machine
 
@@ -209,7 +205,7 @@ Reflection runs at eligible task or session pauses, daily, and after routines co
 
 ## Cost
 
-Staying online does not require a model call on every tick. With Monitor scheduling, quiet heartbeat checks and skipped routines use no model tokens. Passive channel capture also runs without waking the model for ordinary chatter. Actual work, model evaluations, and replies consume usage; context management limits the history carried into later turns.
+Quiet heartbeat checks, skipped routines, and passive chat capture use no model tokens. Work, evaluations, and replies consume usage; context management keeps conversation history bounded.
 
 - **See what drives usage.** Token usage is recorded per call, including the model, input/output/cache split, and whether work came from a routine, heartbeat, channel, or another source. Session and daily totals feed the dashboard, weekly review, and `/cost-reflect`.
 - **Set limits.** Optional daily, weekly, and monthly caps can alert you or enforce a pause until the exceeded budget window resets. Under Claude subscription billing, dollar figures are usage estimates rather than additional per-token charges.
@@ -221,7 +217,7 @@ See [budgets](docs/config-reference.md#budget) and [routine scheduling](docs/rou
 
 Reach the running agent through your connected channels or Claude Code Remote Control. You can also start separate sessions for additional work:
 
-- **Background sessions with follow-up.** Through [`/spawn-session`](skills/spawn-session/SKILL.md), the agent launches a local Claude Code helper in its own Git worktree and relays its status when it becomes idle.
+- **Background sessions with follow-up.** Through [`/spawn-session`](skills/spawn-session/SKILL.md), the agent launches a local Claude Code helper in its own Git worktree and relays its status when it becomes idle. Set the helper’s model and effort with options such as `--model sonnet --effort high`.
 - **Local [Remote Control](https://code.claude.com/docs/en/remote-control) gate.** Through [`/rc-gate`](skills/rc-gate/SKILL.md), the agent manages a Remote Control server on your machine or server. While the gate is open, you can spawn new Claude Code sessions from the Claude app, using your local files and tools. Each session gets its own Git worktree, while the agent keeps running.
 
 Both session-spawning paths require a Git workspace. Remote Control requires a Claude sign-in through `/login` on the machine running the agent.
@@ -244,6 +240,12 @@ Optional plugins that add domain tools and workflows to your agent.
 You can run separate agents for different responsibilities, each with its own working state, knowledge, and routines. See [Creating Your Own Hermit](docs/creating-your-own-hermit.md).
 
 **External orchestration.** Other agents and tools can check the agent’s status, health, and recent work through its [MCP interface](docs/external-control-surface.md), and request a wake when needed.
+
+## Maintenance
+
+**Sign-in renewal from chat.** When your agent’s Claude sign-in needs renewing, use `/relogin` from your connected chat. Open the link in your browser, sign in, and send the code back in chat.
+
+**Scheduled backups.** Optional backups preserve the agent’s knowledge, session reports, settings, and Claude Code memory in Git, with an optional private remote copy. Backups run without model tokens.
 
 ## Upgrading
 
@@ -280,9 +282,3 @@ Join the [Discord community](https://discord.gg/54sJqAxhUh) for setup help and d
 ## License
 
 [MIT](../../LICENSE)
-
-
-| Resident file | Purpose |
-|---|---|
-| `.claude-code-hermit/RESIDENT.md` | Resident instructions appended by hermit-start. |
-| `.claude-code-hermit/claude-settings.json` | Optional operator-owned settings for resident launches. |
