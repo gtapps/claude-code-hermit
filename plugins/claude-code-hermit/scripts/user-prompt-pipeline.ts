@@ -3,6 +3,9 @@ process.stdout.on('error', () => {});
 
 // UserPromptSubmit hook — the single process for the whole prompt path.
 //
+// Records the operator action, injects time + the channel reply reminder, then
+// applies pause / harness-command / shutdown / status in explicit precedence.
+//
 // Replaces seven separately-registered hooks. Each of those re-read stdin,
 // re-parsed the channel envelope, and re-read config; the operator paid all
 // seven process launches on every message they sent. This reads stdin once,

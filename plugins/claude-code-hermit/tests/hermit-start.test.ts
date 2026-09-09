@@ -1572,7 +1572,8 @@ describe('renderLaunchOverlay', () => {
         type: 'command', command: 'bun',
         args: [path.join(PLUGIN_ROOT, 'scripts', script)], timeout,
       }]);
-      expect(entry.description.length).toBeGreaterThan(0);
+      // Claude Code warns about and ignores anything outside {matcher, hooks} here.
+      expect(Object.keys(entry).sort()).toEqual(['hooks', 'matcher']);
     }
     expect(JSON.stringify(hooks)).not.toContain('${CLAUDE_PLUGIN_ROOT}');
     renderLaunchOverlay({});

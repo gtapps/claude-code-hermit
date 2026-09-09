@@ -9,6 +9,8 @@
 ### Upgrade Instructions
 
 Resolve the project settings target with domain-hatch preflight claude-code-homeassistant-hermit: local maps to .claude/settings.local.json; committed maps to .claude/settings.json. Run `bun <plugin_root>/scripts/native-permissions.ts <resolved-settings-file> --migrate` once for this version transition. Refresh the installed CLAUDE-APPEND block and notify the operator that existing guarded actions now use Claude Code native approval instead of the prior refusal or conversational confirmation.
+### Fixed
+- `unknown keys "description" ... ignored` warning printed at every session start. Neither `description` nor `profile` is part of Claude Code's hook schema on a matcher group; the prose now lives in each hook script's header, with one legal root-level `description` in `hooks.json`. The `profile` key was documentation only, since the gates read `AGENT_HOOK_PROFILE` directly.
 
 ## [0.4.13] - 2026-09-07
 

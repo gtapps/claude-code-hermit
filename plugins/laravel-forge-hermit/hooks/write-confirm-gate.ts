@@ -7,8 +7,10 @@
 // Strategy: look for "forge.php" in the command string, extract the
 // subcommand token that follows it, and gate on "deploy" / "server-reboot".
 // preview-deploy and preview-reboot are distinct tokens — they pass through
-// unconditionally (they are read-only). The in-PHP --confirm refusal is the
-// authoritative gate; this hook is defense-in-depth.
+// unconditionally (they are read-only), as do policy inspection, generic reads
+// and plan execution. The in-PHP --confirm refusal is the authoritative gate;
+// this hook is defense-in-depth. The generic write path is gated in PHP by
+// hash-checked plans, not by a flag.
 //
 // Fail-open on transient/unexpected input (per the hermit hook rule: a hook
 // must never block Claude Code on a parse glitch). We exit non-zero (block)

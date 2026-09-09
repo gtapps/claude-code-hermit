@@ -1,4 +1,5 @@
 {
+  "description": "Core hermit guardrails and session lifecycle hooks.",
   "hooks": {
     "PreToolUse": [
       {
@@ -10,8 +11,7 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/cache-edit-guard.ts"],
             "timeout": 3
           }
-        ],
-        "description": "Warn (or block, with HERMIT_CACHE_GUARD=block) when editing a marketplace cache copy whose runtime source is canonical"
+        ]
       },
       {
         "matcher": "Bash|Edit|Write",
@@ -22,8 +22,7 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/settings-gate.ts"],
             "timeout": 3
           }
-        ],
-        "description": "Raise the native permission prompt for execution-adjacent hermit settings, channel enrollment, and direct config.json edits"
+        ]
       },
       {
         "matcher": "Artifact",
@@ -34,8 +33,7 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/artifact-backend-guard.ts"],
             "timeout": 3
           }
-        ],
-        "description": "Deny Artifact publish when config.artifacts.backend is not claude, naming the backend and its MCP tools so the model publishes there instead"
+        ]
       }
     ],
     "PostToolUse": [
@@ -48,8 +46,7 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/channel-hook.ts"],
             "timeout": 5
           }
-        ],
-        "description": "Persist dm_channel_id to config.json after channel reply"
+        ]
       },
       {
         "matcher": "Edit|Write",
@@ -60,8 +57,7 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/validate-config.ts"],
             "timeout": 5
           }
-        ],
-        "description": "Validate config.json schema after edits"
+        ]
       },
       {
         "matcher": "Edit|Write",
@@ -72,8 +68,7 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/generate-summary.ts"],
             "timeout": 5
           }
-        ],
-        "description": "Regenerate state-summary.md after state/ file edits"
+        ]
       },
       {
         "matcher": "Read",
@@ -84,8 +79,7 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/usage-track.ts"],
             "timeout": 3
           }
-        ],
-        "description": "Append compiled/ reads to state/usage-metrics.jsonl (weekly-review consumes it for untouched-knowledge suggestions)"
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -98,8 +92,7 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/user-prompt-pipeline.ts"],
             "timeout": 15
           }
-        ],
-        "description": "Single prompt pipeline: records operator action, injects time + channel reply reminder, then applies pause / harness-command / shutdown / status in explicit precedence (shutdown is terminal)"
+        ]
       }
     ],
     "SessionStart": [
@@ -111,8 +104,7 @@
             "command": "bun",
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/startup-context.ts"]
           }
-        ],
-        "description": "Classify residency, seed resident activity if absent, and load session context"
+        ]
       }
     ],
     "Stop": [
@@ -125,8 +117,7 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/stop-pipeline.ts"],
             "timeout": 15
           }
-        ],
-        "description": "Stop pipeline: cost tracking, session diff, evaluation, heartbeat"
+        ]
       }
     ],
     "StopFailure": [
@@ -139,8 +130,7 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/stop-failure-stamp.ts"],
             "timeout": 10
           }
-        ],
-        "description": "Stamp the typed upstream failure the watchdog classifies from"
+        ]
       }
     ],
     "SubagentStop": [
@@ -153,8 +143,7 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/subagent-cost.ts"],
             "timeout": 10
           }
-        ],
-        "description": "Capture async-dispatched subagent token cost (invisible to Stop-time cost-tracker)"
+        ]
       }
     ],
     "PreCompact": [
@@ -167,8 +156,7 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/precompact-stamp.ts"],
             "timeout": 5
           }
-        ],
-        "description": "Stamp SHELL.md Progress Log before context compaction (manual /compact or native auto-compaction) — a breadcrumb only, never blocks compaction. Does not fire on /clear; the watchdog's own emergency /clear flushes separately in hermit-watchdog.ts"
+        ]
       }
     ]
   }
