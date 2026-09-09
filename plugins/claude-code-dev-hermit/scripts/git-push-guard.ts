@@ -1,3 +1,6 @@
+// PreToolUse hook (matcher "Bash") — blocks direct pushes to protected branches,
+// --no-verify, and force-pushes.
+//
 // Adapted from Everything Claude Code (https://github.com/affaan-m/everything-claude-code) — MIT.
 // v0.3.0 simplified the original tokenizer-based parser to regex-only.
 // Strict-profile only (AGENT_HOOK_PROFILE=strict). Exit 2 hard-blocks the bash call.

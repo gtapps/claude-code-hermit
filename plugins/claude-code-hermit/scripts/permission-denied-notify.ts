@@ -5,7 +5,7 @@ process.stdout.on('error', () => {});
 // classifier (or the permissions system) has already denied a tool call. The
 // payload carries tool_name, tool_input, tool_use_id, and reason (usually the
 // fixed text "Blocked by classifier"). This hook cannot block or retry the call;
-// it records a maintainer-tier diagnostic, routed by tier: the maintainer chat
+// it records a deduped maintainer-tier diagnostic, routed by tier: the maintainer chat
 // when one is configured, the primary chat on a technical profile without one,
 // and SHELL.md Findings on a non-technical profile (fail-closed on disclosure)
 // or whenever the channel is absent or unreachable.

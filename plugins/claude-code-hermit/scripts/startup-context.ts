@@ -2,6 +2,7 @@
 process.stdout.on('error', () => {});
 
 // startup-context.ts — SessionStart hook
+// Classifies residency, seeds resident activity when absent, and loads session context.
 // Replaces the inline bash blob with a capped, priority-ordered context injection.
 // Emits only startup-relevant SHELL.md sections with per-section budgets.
 // Hard cap: 9000 chars total (~2250 tokens). Source-gated: `compact` emits only

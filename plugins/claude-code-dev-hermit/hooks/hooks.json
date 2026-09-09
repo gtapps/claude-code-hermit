@@ -1,4 +1,5 @@
 {
+  "description": "Safety guardrails for agent-driven dev work.",
   "hooks": {
     "PreToolUse": [
       {
@@ -9,8 +10,7 @@
             "command": "bun",
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/git-push-guard.ts"]
           }
-        ],
-        "description": "Block direct git push to protected branches, --no-verify, force-push (strict profile)"
+        ]
       },
       {
         "matcher": "Edit|Write",
@@ -20,8 +20,7 @@
             "command": "bun",
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/worktree-boundary-guard.ts"]
           }
-        ],
-        "description": "In a linked git worktree, block edits that escape into the main checkout (self-limiting; WORKTREE_GUARD=off to disable)"
+        ]
       }
     ],
     "PostToolUse": [
@@ -33,8 +32,7 @@
             "command": "bun",
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/record-test-result.ts"]
           }
-        ],
-        "description": "Record exit code + duration of the configured test command to state/last-test.json (consumed by /dev-pr)"
+        ]
       }
     ]
   }

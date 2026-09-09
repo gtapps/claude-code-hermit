@@ -1,5 +1,10 @@
 # Changelog — laravel-forge-hermit
 
+## [Unreleased]
+
+### Fixed
+- `unknown keys "description" ... ignored` warning printed at every session start. Neither `description` nor `profile` is part of Claude Code's hook schema on a matcher group; the prose now lives in `write-confirm-gate.ts`'s header, with one legal root-level `description` in `hooks.json`. The `profile` key was documentation only, since the gate reads `AGENT_HOOK_PROFILE` directly.
+
 ## [0.0.14] - 2026-09-07
 
 ### Fixed
