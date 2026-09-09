@@ -1967,7 +1967,9 @@ async function main(): Promise<void> {
   // the liveness signal. Stamped even when watchdog.enabled is false.
   const liveness = readWatchdogState();
   liveness.last_run = utcStamp();
-  writeWatchdogState(liveness);
+  liveness.last_check_at = worldStamp(REAL_WORLD);
+  // Surface storage failures before recovery work so the fatal handler can notify.
+  writeFileAtomic(path.join(STATE_DIR, 'watchdog-state.json'), JSON.stringify(liveness, null, 2) + '\n');
 
   // Pause enforcement (PROP-015) — independent of watchdog.enabled; see
   // maybeEscapePausedSession for why this doesn't wait for the later
@@ -2767,6 +2769,7 @@ if (import.meta.main) {
       await main();
     } catch (e) {
       process.stderr.write(`[watchdog] fatal: ${e}\n`);
+      pushOperatorMessage(`[hermit] Watchdog failed; this tick could not complete: ${e}`);
       process.exit(0); // fail-open: watchdog must never crash the calling shell
     }
   } else if (subcommand === 'install') {
