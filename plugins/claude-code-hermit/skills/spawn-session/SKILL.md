@@ -34,9 +34,13 @@ Four limits sit on that command:
   operator who is not watching. `config.json` accepts one value the CLI has no
   choice for, `default`, so it and `null` and an absent key all mean: leave the
   flag off entirely and let the helper take the box default.
-  `scripts/hermit-start.ts` resolves the same value the same way; match it
-  rather than inventing a second answer. Every other value passes through
-  unchanged, `bypassPermissions` included.
+  `scripts/hermit-start.ts` resolves `default` and `null` the same way;
+  match that rather than inventing a second answer. It does not agree on an
+  absent key, which it reads as `auto` rather than as no flag.
+  `bypassPermissions` is the one value that does not pass through: it
+  becomes `--permission-mode auto` because a helper has no approval
+  surface of its own, and `auto` is the only mode that stays unattended
+  behind a gate.
 - The prompt is one single-quoted argument. An apostrophe in it ends the quote,
   so replace every `'` with `'\''` before composing. Anything after the closing
   quote is a second command the operator never asked for.
@@ -74,10 +78,12 @@ Four limits sit on that command:
    Bash tool's working directory, which persists across calls and can sit in a
    subdirectory. Read `<p>` from `<abs>/.claude-code-hermit/config.json`
    (`permission_mode`), dropping the flag for `default`, `null` or an absent
-   key. Read `remote` from the same config and include `--remote-control <n>`
-   only when the key is present and `true`; `false`, `null` and an absent key
-   all leave the flag off, which is the resident session's own answer for that
-   config. Append this sentence to the operator's prompt:
+   key, mapping `bypassPermissions` to `auto` (Four limits), and passing
+   every other value through unchanged. Read `remote` from the same config
+   and include `--remote-control <n>` only when the key is present and
+   `true`; `false`, `null` and an absent key all leave the flag off, which
+   is the resident session's own answer for that config. Append this
+   sentence to the operator's prompt:
 
    `The hermit project is at <abs>; its state lives in <abs>/.claude-code-hermit/. Resolve any project-relative .claude-code-hermit/ reads/writes against <abs>; pass the absolute <abs>/.claude-code-hermit path to any hermit script rather than relying on your cwd.`
 
