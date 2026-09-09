@@ -5,6 +5,8 @@ import { shellCommands } from './shell-words';
 export function needsApproval(command: string): boolean {
   if (!command.includes('file-issue.ts')) return false;
   return shellCommands(command).some(words => {
+    while (words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[0])) words.shift();
+    if (basename(words[0] ?? '') === 'bun' && words[1] === 'run') words.splice(1, 1);
     const index = words.findIndex(word => basename(word) === 'file-issue.ts');
     if (index < 0 || (index !== 0 && !(index === 1 && ['bun', 'node'].includes(basename(words[0]))))) return false;
     const args = words.slice(index + 1);

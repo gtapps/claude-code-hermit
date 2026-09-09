@@ -6,6 +6,10 @@
 
 - Native operator approval for existing guarded actions.
 
+### Fixed
+
+- Publication approval recognizes leading environment assignments and `bun run`.
+
 ### Upgrade Instructions
 
 Run `bun <plugin_root>/scripts/automode-env.ts <project>/.claude/settings.local.json` to replace the exact old seeded classifier description while preserving operator entries.

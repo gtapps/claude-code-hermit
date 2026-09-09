@@ -10,6 +10,8 @@ export async function decision(command: string, cwd: string, root: string): Prom
   let result: { decision: 'ask' | 'deny'; reason: string } | null = null;
   for (const words of shellCommands(command)) {
     if (words[0] === 'cd' && words.length === 2) { cwd = resolve(cwd, words[1]); continue; }
+    while (words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[0])) words.shift();
+    if (basename(words[0] ?? '') === 'bun' && words[1] === 'run') words.splice(1, 1);
     const index = words.findIndex(word => basename(word) === 'ha-agent-lab' || word.endsWith('/claude-code-homeassistant-hermit/src/cli.ts'));
     if (index < 0 || (index !== 0 && !(index === 1 && ['bun', 'node', 'bash'].includes(basename(words[0])))) || words[index + 1] !== 'ha' || !['call-service', 'restore-states'].includes(words[index + 2])) continue;
     const argv = words.slice(index + 1);
@@ -26,7 +28,7 @@ export async function decision(command: string, cwd: string, root: string): Prom
       if (!gate.allowed) {
         const verdict = { decision: gate.requiresConfirm ? 'ask' as const : 'deny' as const, reason: gate.reason };
         if (verdict.decision === 'deny') return verdict;
-        result = verdict;
+        if (args.flags['--confirm']) result = verdict;
       }
     } else {
       const snapshot = loadSnapshot(resolve(cwd, args.positionals[0]));
@@ -34,7 +36,7 @@ export async function decision(command: string, cwd: string, root: string): Prom
       if (!entities.length || entities.some(entity => !isWellFormedEntityId(entity))) throw new Error('Unresolvable snapshot targets');
       const policy = evaluateReferences(entities, ['scene.apply'], root);
       if (policy.severity === Severity.BLOCK) return { decision: 'deny', reason: 'Snapshot restore is blocked by Home Assistant policy.' };
-      if (policy.severity === Severity.ASK) result = { decision: 'ask', reason: `Restore snapshot affecting sensitive entities: ${entities.join(', ')}` };
+      if (policy.severity === Severity.ASK && args.flags['--confirm']) result = { decision: 'ask', reason: `Restore snapshot affecting sensitive entities: ${entities.join(', ')}` };
     }
   }
   return result;

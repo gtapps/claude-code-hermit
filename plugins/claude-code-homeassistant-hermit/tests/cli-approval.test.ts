@@ -32,3 +32,32 @@ test('snapshot approval depends on entities and does not execute restoration', a
   writeFileSync(file, JSON.stringify({ name: 'test', generated: 'now', entities: { 'light.room': { state: 'on', attributes: {} } } }));
   expect(await decision(`/plugin/bin/ha-agent-lab ha restore-states "${file}"`, root, root)).toBeNull();
 });
+
+test('wrapped service calls retain native approval and policy denials', async () => {
+  const root = fixture();
+  const strict = fixture('strict');
+  for (const executable of [
+    'FOO=bar /plugin/bin/ha-agent-lab',
+    'FOO=bar bun /plugin/claude-code-homeassistant-hermit/src/cli.ts',
+    'bun run /plugin/claude-code-homeassistant-hermit/src/cli.ts',
+    'FOO=bar OTHER="two words" bun run /plugin/claude-code-homeassistant-hermit/src/cli.ts',
+  ]) {
+    const command = `${executable} ha call-service lock.lock --data '{"entity_id":"lock.front"}'`;
+    expect(await decision(command, root, root)).toBeNull();
+    expect((await decision(`${command} --confirm`, root, root))?.decision).toBe('ask');
+    expect((await decision(command, strict, strict))?.decision).toBe('deny');
+    expect((await decision(`${command} --confirm`, strict, strict))?.decision).toBe('deny');
+  }
+});
+
+test('snapshot confirmation checks do not prompt and preserve denials', async () => {
+  const root = fixture();
+  const strict = fixture('strict');
+  const file = join(root, 'snapshot.json');
+  writeFileSync(file, JSON.stringify({ name: 'test', generated: 'now', entities: { 'lock.front': { state: 'locked', attributes: {} } } }));
+  const command = `FOO=bar bun run /plugin/claude-code-homeassistant-hermit/src/cli.ts ha restore-states "${file}"`;
+  expect(await decision(command, root, root)).toBeNull();
+  expect((await decision(`${command} --confirm`, root, root))?.decision).toBe('ask');
+  expect((await decision(command, strict, strict))?.decision).toBe('deny');
+  expect((await decision(`${command} --confirm`, strict, strict))?.decision).toBe('deny');
+});

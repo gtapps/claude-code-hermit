@@ -16,3 +16,13 @@ test('hook emits native ask with its reason', async () => {
   expect(await proc.exited).toBe(0);
   expect(output.hookSpecificOutput.permissionDecision).toBe('ask');
 });
+
+test('publication approval recognizes assignments and bun run', () => {
+  for (const prefix of ['FOO=bar bun', 'bun run', 'FOO=bar OTHER="two words" bun run']) {
+    expect(needsApproval(`${prefix} /plugin/file-issue.ts /tmp/title /tmp/body`)).toBe(true);
+    expect(needsApproval(`${prefix} /plugin/file-issue.ts --comment 4 /tmp/body`)).toBe(true);
+    expect(needsApproval(`${prefix} /plugin/file-issue.ts --check id`)).toBe(false);
+    expect(needsApproval(`${prefix} /plugin/file-issue.ts --templates`)).toBe(false);
+    expect(needsApproval(`${prefix} /plugin/file-issue.ts classify bug /tmp/title /tmp/body`)).toBe(false);
+  }
+});
