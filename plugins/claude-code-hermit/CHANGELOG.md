@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Proposal creation supports `--no-artifacts` (alias `--no-artifact`) to skip dashboard and proposals-page refreshes for one invocation.
+
 ### Changed
 - The four resident-only hooks (`pause-gate`, `ask-gate`, `component-privacy`, and `permission-denied-notify`) now ride the per-boot launch overlay with absolute script paths, probed on Claude Code 2.1.265.
 - A boot that cannot write the launch overlay refuses to start.

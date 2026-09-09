@@ -4,6 +4,8 @@ description: Creates a proposal for a high-leverage improvement discovered durin
 ---
 # Create Proposal
 
+**Options:** `--no-artifacts` (alias `--no-artifact`) skips the final artifact refreshes and artifact URL announcement. Useful for batches or callers that refresh afterward.
+
 Create a proposal only when you discover something with real leverage:
 - A missing helper or utility that would save significant time across sessions
 - A missing validation or guardrail that could prevent real errors
@@ -128,7 +130,7 @@ Body guidance:
 - Leave `## Operator Decision` blank — the operator fills that in.
 - Do NOT write bullet-point metadata (`- **Created:**`, etc.) — all metadata lives in the header lines / frontmatter only.
 
-Finally, refresh the dashboard per `${CLAUDE_PLUGIN_ROOT}/docs/artifacts.md` (silently — no URL re-post; the proposal queue changed). Also refresh the proposals page (`config.artifacts.proposals`) per the same doc. Unlike the dashboard, when the proposals page returns a URL, surface it for whatever flow announces this proposal to the operator: append **at most one** `📎 <url>` line to that flow's message, regardless of how many proposals it created in this run — never one per proposal, and never one at all when no URL was returned.
+Skip this paragraph when either opt-out flag is supplied. Finally, refresh the dashboard per `${CLAUDE_PLUGIN_ROOT}/docs/artifacts.md` (silently — no URL re-post; the proposal queue changed). Also refresh the proposals page (`config.artifacts.proposals`) per the same doc. Unlike the dashboard, when the proposals page returns a URL, surface it for whatever flow announces this proposal to the operator: append **at most one** `📎 <url>` line to that flow's message, regardless of how many proposals it created in this run — never one per proposal, and never one at all when no URL was returned.
 
 ## Do NOT Create Proposals For
 
