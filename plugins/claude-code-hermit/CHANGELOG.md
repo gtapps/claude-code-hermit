@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- `unknown keys "description" ... ignored` warning printed at every session start. `description` is not part of Claude Code's hook schema on a matcher group; the prose now lives in each hook script's header, with one legal root-level `description` per `hooks.json`. The same keys are gone from the per-boot launch overlay, which was a second source of the warning.
+
 ## [1.3.5] - 2026-09-09
 
 ### Added

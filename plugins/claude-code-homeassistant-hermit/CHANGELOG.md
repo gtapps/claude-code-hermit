@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- `unknown keys "description" ... ignored` warning printed at every session start. Neither `description` nor `profile` is part of Claude Code's hook schema on a matcher group; the prose now lives in each hook script's header, with one legal root-level `description` in `hooks.json`. The `profile` key was documentation only, since the gates read `AGENT_HOOK_PROFILE` directly.
+
 ## [0.4.13] - 2026-09-07
 
 ### Fixed

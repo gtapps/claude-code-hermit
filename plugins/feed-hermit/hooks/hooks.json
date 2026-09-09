@@ -1,4 +1,5 @@
 {
+  "description": "Feed source guardrails.",
   "hooks": {
     "PreToolUse": [
       {
@@ -10,8 +11,7 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/fetch-guard.ts"],
             "timeout": 5
           }
-        ],
-        "description": "Block WebFetch to any domain not in feed-sources.md (plus a hardcoded infra allowlist). Fails open if feed-sources.md is missing."
+        ]
       }
     ],
     "PostToolUse": [
@@ -24,8 +24,7 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/validate-sources.ts"],
             "timeout": 10
           }
-        ],
-        "description": "Validate the feed-sources.md table format after any edit to it. Passes through for non-feed-sources.md files."
+        ]
       }
     ]
   }

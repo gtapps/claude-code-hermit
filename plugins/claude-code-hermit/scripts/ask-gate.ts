@@ -2,7 +2,8 @@
 process.stdout.on('error', () => {});
 
 // PreToolUse hook (matcher "AskUserQuestion") — binds the last unbound
-// synchronous-ask path on unattended sessions. PROP-017 covers hermit-owned
+// synchronous-ask path on unattended sessions, denying the call with a redirect
+// to the channel reply tool and the micro-proposal bridge. PROP-017 covers hermit-owned
 // skills cooperatively (Step-0 marker + static contract test); this gate
 // binds everything else — built-ins, other plugins' skills, spontaneous
 // model-initiated questions — the caller surface that grows with every

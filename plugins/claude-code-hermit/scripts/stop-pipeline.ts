@@ -1,5 +1,6 @@
 // stop-pipeline.ts — unified Stop hook
 // Reads stdin once, runs all stop stages in sequence, touches heartbeat.
+// Stages, in order: cost tracking, session diff, evaluation, heartbeat.
 // All stage output goes to stderr; nothing is emitted on stdout.
 
 import { run as costTracker } from './cost-tracker';
