@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.3.6] - 2026-09-10
 
 ### Fixed
 - Watchdog recovery processes survive systemd tick completion on Linux and WSL2; restart notices describe attempts rather than confirmed startup.
