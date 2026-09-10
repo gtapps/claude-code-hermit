@@ -70,7 +70,7 @@
       "name": "claude-code-fitness-hermit",
       "source": "./plugins/claude-code-fitness-hermit",
       "description": "A read-only Strava training agent built on claude-code-hermit. Analyzes activities, tracks load and RPE, flags recovery risks, and runs routines shaped around your training week.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "category": "fitness",
       "author": {
         "name": "gtapps",
