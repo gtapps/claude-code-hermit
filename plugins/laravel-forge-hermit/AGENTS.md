@@ -18,6 +18,4 @@ Run `bash tests/run-all.sh` from this plugin directory with the PHP version/exte
 
 Request-capture and canonicalization checks (Blocks A/B in `php/tests/run.php`) are essential when changing the write gateway. When adding a skill, update the explicit `SKILLS` list in `tests/skill-structure.test.ts`.
 
-Native approval is the execution checkpoint for existing guarded actions. Preserve previews and validation; do not add a second conversational yes/no step. Static rules live in project permissions.ask; dynamic hooks request permissionDecision: "ask". A denied request must not be retried through another tool or route.
-
 The native-permissions installer owns `.claude-code-hermit/state/laravel-forge-hermit-native-permissions-v1.json`, a durable completion marker written only by a successful `--migrate` run. Preserve it across upgrades so later operator policy choices are not migrated again.

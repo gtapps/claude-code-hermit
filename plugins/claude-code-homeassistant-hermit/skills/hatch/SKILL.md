@@ -266,7 +266,7 @@ Each routine owns its cadence and passes findings through reflection gates into 
 
 Resolve the project settings target through `.claude-code-hermit/bin/hermit-run domain-hatch preflight claude-code-homeassistant-hermit`. Map `target` (or `target_default` when absent): `local` to `.claude/settings.local.json`, `committed` to `.claude/settings.json`. Its `target_file` is the instruction destination, not the settings file.
 
-Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/native-permissions.ts <resolved-settings-file>`. This installs the fixed native ask rules, preserves existing denies and unrelated settings, and is safe to repeat. Do not pass `--migrate` during ordinary hatch. Native asks follow Claude Code's permission mode; bypass mode does not provide an operator checkpoint.
+Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/native-permissions.ts <resolved-settings-file>`. Do not pass `--migrate` during ordinary hatch.
 
 ### 8. Final report
 

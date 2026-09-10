@@ -106,7 +106,7 @@ Present the post-translation, post-sanitization content to the operator as a **s
 
 If the preview exceeds the channel message-size limit, split it into multiple messages and finish displaying all content before invoking publication.
 
-Prepare the file inputs and invoke publication for native permission approval. Denial stops publication. If the operator requests edits, regenerate and show the complete preview before another publishing attempt.
+If the operator requests edits, regenerate and show the complete preview before another publishing attempt.
 
 **Step 5: write title and body to temp files.**
 
@@ -116,7 +116,7 @@ Use the Write tool to create two files inside that directory:
 - `/tmp/tmp.AbCdEf/title` — the cleaned issue title (single line, no markdown formatting).
 - `/tmp/tmp.AbCdEf/body.md` — the cleaned issue body markdown.
 
-**Step 6: invoke the script for native approval.**
+**Step 6: run the script.**
 
 Substitute the same path from step 5 and append the `labels` from the Step 1 `classify` output as trailing arguments. Do NOT include `hermit-filed` — the script always adds it.
 
@@ -180,7 +180,7 @@ Present the post-sanitization content as a **single message** containing, in ord
 
 If the preview exceeds the channel message-size limit, split it into multiple messages and finish displaying all content before invoking publication.
 
-Prepare the file inputs and invoke publication for native permission approval. Denial stops publication. If the operator requests edits, regenerate and show the complete preview before another publishing attempt.
+If the operator requests edits, regenerate and show the complete preview before another publishing attempt.
 
 **Step 4: write body to temp file.**
 

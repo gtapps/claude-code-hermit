@@ -8,7 +8,6 @@
 
 - Always call `mcp__strava__check-strava-connection` first. If disconnected, stop and alert the operator.
 - Never commit Strava tokens or credentials, and never write tokens, credentials, or raw Strava user IDs to session files, proposals, or memory.
-- Write-class Strava tools (`star-segment`, `connect-strava`, `disconnect-strava`) require native `permissions.ask` approval in project settings.json/settings.local.json installed during hatch. Denial cancels the call.
 - Per-activity and weekly load analysis goes through `scripts/fitness-lab.ts`: it fetches and reduces the streams so raw time-series never enter context and metrics stay reproducible. The MCP stream/detail tools are for ad-hoc questions only, not the standard load pipeline.
 - HR zone boundaries come from `mcp__strava__get-athlete-zones` — never hardcode numeric thresholds.
 - Records, PBs, all-time totals, counts, and cross-block comparisons depend on older activities that context or compaction may drop. Ground them in a full-history query — `mcp__strava__get-athlete-stats` is the single authoritative call for all-time/YTD totals (don't sum `get-all-activities` client-side), `mcp__strava__get-all-activities` covers per-activity history — or flag the number as unverified and offer to check. Recent-activity questions are fine from live context.

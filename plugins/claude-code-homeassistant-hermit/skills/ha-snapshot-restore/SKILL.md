@@ -32,7 +32,7 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha restore-states <artifact> [--confirm]
 Restore is the plugin's one direct device-actuation path, so it runs through the same `ha_safety_mode` policy as every other actuation:
 
 - **strict (explicit):** if the snapshot contains any sensitive entity (lock, alarm, security-keyworded cover/switch), restore is **blocked** and exits non-zero with `blocked:true` and a suggestion to surface it as a proposal. Non-sensitive entities (lights, climate) restore normally.
-- **ask:** a snapshot touching sensitive entities requires `--confirm`. Without it, the command refuses and reports `needs_confirm:true`. Show the affected entities, then invoke with `--confirm` for native permission. The CLI itself remains non-interactive.
+- **ask:** a snapshot touching sensitive entities requires `--confirm`. Without it, the command refuses and reports `needs_confirm:true`. Show the affected entities, then re-run with `--confirm`.
 - A successful restore writes an audit report under `.claude-code-hermit/raw/audit-ha-restore-*`.
 
 ## Output contract

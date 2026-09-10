@@ -10,6 +10,4 @@ A Strava-backed training layer whose contracts are activity identity, bounded co
 
 Read [the knowledge schema](docs/knowledge-schema.md) when changing activity sync, feedback, or routine outputs.
 
-Native approval is the execution checkpoint for existing guarded actions. Preserve previews and validation; do not add a second conversational yes/no step. Static rules live in project permissions.ask; dynamic hooks request permissionDecision: "ask". A denied request must not be retried through another tool or route.
-
 The native-permissions installer owns `.claude-code-hermit/state/claude-code-fitness-hermit-native-permissions-v1.json`, a durable completion marker written only by a successful `--migrate` run. Preserve it across upgrades so later operator policy choices are not migrated again.

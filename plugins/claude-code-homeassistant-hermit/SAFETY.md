@@ -25,7 +25,7 @@ The safety gate has a two-tier configurable mode stored in `.claude-code-hermit/
 | Mode | Behaviour |
 |------|-----------|
 | `strict` | Always blocked, no agent-drafted automation or MCP call can actuate sensitive domains. Blocked work becomes a proposal. |
-| `ask` (default) | Operator is prompted before any actuation of a sensitive entity. YAML and CLI workflows show the preview and invoke the command for native permission approval, without a separate chat confirmation. Direct MCP calls emit `permissionDecision: "ask"` so Claude Code itself prompts the operator before allowing the call, enforced by the harness, not by agent convention. |
+| `ask` (default) | Sensitive actuation requires native approval. YAML and CLI workflows show a preview before execution. |
 
 Both tiers enforce confirmation through the runtime; there is no "operator-owns-the-risk" mode by design — actuation of locks and alarms has no software undo.
 

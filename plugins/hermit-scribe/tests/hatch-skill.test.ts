@@ -61,7 +61,7 @@ test("replace case bounds the block through the closing marker", () => {
 // ── CLAUDE-APPEND block ─────────────────────────────────────────────────────
 // The block the hatch injects is the fleet's smallest and is the shape the rest
 // should converge to. These pin the three rules it carries: skill-only filing,
-// native operator approval and sanitization.
+// complete previews and sanitization.
 
 const APPEND = readFileSync(
   path.join(import.meta.dir, "..", "state-templates", "CLAUDE-APPEND.md"),
@@ -72,10 +72,10 @@ test("APPEND routes all filing through the skill", () => {
   assertTrue(APPEND.includes("/hermit-scribe:hermit-scribe"), "names the skill as the only path");
 });
 
-test("APPEND keeps the operator-confirmation rule", () => {
+test("APPEND requires a complete preview before posting", () => {
   assertTrue(
-    /complete sanitized preview/.test(APPEND) && /native permission approval/.test(APPEND) && /Denial cancels publication/.test(APPEND),
-    "preview, native approval, and denial handling present",
+    /complete sanitized preview before every post/.test(APPEND),
+    "complete preview required before publication",
   );
 });
 

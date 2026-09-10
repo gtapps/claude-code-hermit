@@ -21,6 +21,4 @@ Changes to `src/policy.ts` or `hooks/mcp-safety-gate.ts` must preserve the corpu
 
 When using `tmpPath()` from `tests/helpers.ts`, register `afterAll(cleanupTmp)`. Cleanup after each test can delete fixtures still used by concurrent tests. Keep independent corpus and fuzz subprocess work asynchronous.
 
-Native approval is the execution checkpoint for existing guarded actions. Preserve previews and validation; do not add a second conversational yes/no step. Static rules live in project permissions.ask; dynamic hooks request permissionDecision: "ask". A denied request must not be retried through another tool or route.
-
 The native-permissions installer owns `.claude-code-hermit/state/claude-code-homeassistant-hermit-native-permissions-v1.json`, a durable completion marker written only by a successful `--migrate` run. Preserve it across upgrades so later operator policy choices are not migrated again.

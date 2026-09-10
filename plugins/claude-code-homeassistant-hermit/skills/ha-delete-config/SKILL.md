@@ -17,7 +17,7 @@ Removes an automation or script from Home Assistant via `DELETE /api/config/{dom
    - The `id` column is the config ID needed for deletion. The `friendly_name` column shows the UI display name (this is HA's `friendly_name` attribute, which may differ from the YAML `alias:` field if the operator customized it via the UI).
    - The `deletable` column is `false` for YAML-packaged automations (no numeric `id`) — these cannot be removed via REST. Tell the operator to delete the YAML block from their config files and reload manually instead.
 
-2. **Confirm with operator**: Show the target details (entity_id, id, friendly_name, state), then invoke deletion for Claude Code native approval. Do not ask for an additional chat confirmation. This action cannot be undone via CLI.
+2. **Preview**: Show the target details (entity_id, id, friendly_name, state). This action cannot be undone via CLI.
 
 3. **Delete**: Run the appropriate command:
    - `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-automation <id>` for automations.

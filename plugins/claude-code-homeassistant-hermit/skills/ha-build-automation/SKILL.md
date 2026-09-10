@@ -39,7 +39,7 @@ allowed-tools:
      - `counter`: `{"name": "...", "initial": 0, "step": 1}`
      - `schedule`: `{"name": "..."}` with weekday blocks — run `ha list-helpers --type schedule` to inspect the schema of any existing helper; if none exists, check the HA schedule integration docs for the required block format.
    - Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-helper <type> '<json>'` and handle the result:
-     - `"requires_confirm": true` means `ha_safety_mode` is `ask`; describe the helper, then invoke with `--confirm` for native permission. Do not ask for another chat confirmation.
+     - `"requires_confirm": true` means `ha_safety_mode` is `ask`; describe the helper, then re-run with `--confirm`.
      - `"blocked": true, "requires_confirm": false` — `ha_safety_mode` is `strict`; explain the boundary and create a proposal via `/claude-code-hermit:proposal-create`. Do **not** retry with `--confirm`. Continue to validation so the operator sees which entities are still missing.
      - `"ok": true` — helper created; continue.
    - If any helpers were created, run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha refresh-context --incremental` to update the snapshot before validation.
