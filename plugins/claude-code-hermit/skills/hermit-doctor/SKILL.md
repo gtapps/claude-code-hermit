@@ -72,6 +72,15 @@ the row's own tier and the operator's config, not by the flag.
    `PermissionDenied` hook already keeps off a client chat, so the payload splits by audience and
    `channel-send.ts` decides where each leg lands (§ Notification route).
 
+   **Before sending, check the completed payload.** Use the configured language already in
+   context (including the worker's language instruction); if unavailable, read only
+   `config.language`. When unset, match the operator's conversation language. Check both
+   `client` and `maintainer` prose and correct any language mismatch before sending. Only literal
+   diagnostic excerpts may stay quoted in their original language; explanations and next actions
+   must use the target language. Preserve identifiers, commands and paths. Keep a concrete next
+   action for each finding; a `warn` status alone does not establish that it is minor or causes no blockage.
+   Do this in the current turn, without another agent or model call.
+
    Deliver it once through the canonical notice path:
    ```bash
    bun ${CLAUDE_PLUGIN_ROOT}/scripts/channel-send.ts .claude-code-hermit --notice

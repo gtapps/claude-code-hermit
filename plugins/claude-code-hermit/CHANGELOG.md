@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### Fixed
+- Doctor notifications check the completed audience text against the configured language before sending, without changing the routine's model.
+- Channel replies and scheduled notifications preserve intended message text during tool argument encoding, including literal HTML and code.
 - `unknown keys "description" ... ignored` warning printed at every session start. `description` is not part of Claude Code's hook schema on a matcher group; the prose now lives in each hook script's header, with one legal root-level `description` per `hooks.json`. The same keys are gone from the per-boot launch overlay, which was a second source of the warning.
 - Discord role mentions resolve the bot's guild membership via `/guilds/{guild}/members/{bot_user_id}`.
 - Cached Discord guild roles expire on the same 24-hour clock as a cached error, so a role granted to the bot after the first lookup starts waking it.

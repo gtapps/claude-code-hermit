@@ -42,6 +42,15 @@ reply; the reason is in §2's Harness command bullet. A `[harness-command] refus
 line is the opposite case: nothing was recorded and the operator is owed the reason,
 so reply as usual.
 
+### Message formatting
+
+When preparing a channel send, preserve the intended message content when encoding the tool
+arguments. Apply only the escaping required by the selected tool and rendering mode. Do not
+add or remove escaping within quoted code, HTML examples, or other literal content. Before
+sending, compare the final message body with the intended text. Normal JSON encoding still
+applies. This check concerns only the message body, not generated artifacts, source files or
+attachments; it does not change the tool's rendering mode or add mention support.
+
 ## 1. Load Context
 
 Treat `MEMORY.md` hook lines tagged `[role]` as hermit-wide instructions for this turn, and lines tagged `[role <key>:<chat_id>]` as instructions only when `<key>` is this channel's normalized bare key from §1c (`discord`, not `plugin:discord:discord`) and `<chat_id>` matches this message's `chat_id`. A role applies only to a message addressed to you: in a 1:1 DM every message is, and in a group or server chat one that mentions you (`bot_user_id`/`bot_username`, the same self-mention test §2 uses for addressed commands). Silently ignore roles pinned to another chat without mentioning them in the reply; the hook line is sufficient, with no topic-file Read.
@@ -298,7 +307,8 @@ Canonical protocol for proactively notifying the operator (referenced from `CLAU
     is dropped, so the maintainer text has to stand alone.
   - add `"sensitive": true` for credential-bearing text (keeps it out of the searchable channel log).
 
-  Compose each version in the operator's configured `language`.
+  Compose each version in the operator's configured `language` and apply §0 Message formatting
+  to the completed message bodies before sending.
 
   The script prints `{ "delivered", "degraded", "no_channel", "result" }`.
   - **Exit 0** — every leg landed. Done.
