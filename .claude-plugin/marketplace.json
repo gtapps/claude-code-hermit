@@ -112,7 +112,7 @@
       "name": "laravel-forge-hermit",
       "source": "./plugins/laravel-forge-hermit",
       "description": "A Laravel Forge operations agent built on claude-code-hermit. Deploy, manage, monitor, and troubleshoot your estate through the official Forge SDK — from daily health checks to operator-gated deployment workflows.",
-      "version": "0.0.14",
+      "version": "0.0.15",
       "category": "development",
       "author": {
         "name": "gtapps",
