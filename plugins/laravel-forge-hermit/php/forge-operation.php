@@ -4,14 +4,9 @@ declare(strict_types=1);
 // ---------------------------------------------------------------------------
 // The request-bound write gateway.
 //
-// A write is never executed because an agent asked for it. It is executed
-// because a specific outbound HTTP request was previewed, hashed, shown to the
-// operator, approved by them over their channel, and then re-derived byte-for-
-// byte at execution time. If the re-derived request does not hash to the
-// approved one, nothing is sent.
-//
-// This replaces `--confirm`, which only ever proved that a flag was typed —
-// and the agent types the flag.
+// Claude Code requests native approval before execution. This gateway binds
+// execution to the captured request through its hash, expiry, and single use.
+// It does not implement a separate CLI confirmation checkpoint.
 //
 // No CLI parsing and no output formatting live here, so php/tests/run.php can
 // drive the whole gateway directly.

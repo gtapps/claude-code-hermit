@@ -5,7 +5,7 @@ import { afterEach, expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { Severity, clearPolicyCaches } from '../src/policy';
+import { PermissionDecision, clearPolicyCaches } from '../src/policy';
 import { evaluateYamlPolicy, simulateArtifact } from '../src/simulate';
 import { cleanupTmp, makeHaConfig, makeHaRoot, writeArtifact } from './helpers';
 
@@ -86,6 +86,6 @@ test('evaluate_yaml_policy honors project safety mode', () => {
 
   const [, , decision] = evaluateYamlPolicy(artifact, root);
 
-  expect(decision.blocked).toBe(false);
-  expect(decision.severity).toBe(Severity.ASK);
+  expect((decision.decision === 'deny')).toBe(false);
+  expect(decision.decision).toBe(PermissionDecision.ASK);
 });

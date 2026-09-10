@@ -4,7 +4,7 @@
 // This is the plugin's first direct device-actuation path. Capture is read-only.
 // Restore actuates, so it is gated by the EXISTING policy engine
 // (evaluateReferences + ha_safety_mode): sensitive entities (locks, alarms,
-// security covers/switches) block under strict and require --confirm under ask;
+// security covers/switches) block under strict and request native approval under ask;
 // lights/climate always pass. No new gate is introduced.
 
 import { readFileSync } from 'node:fs';
@@ -18,7 +18,7 @@ import {
   writeJsonArtifact,
   writeMarkdownArtifact,
 } from './artifacts';
-import { Severity, evaluateReferences, isSensitiveEntity } from './policy';
+import { PermissionDecision, evaluateReferences, isSensitiveEntity } from './policy';
 
 /** The client slice this module needs (HomeAssistantClient / fakeClient satisfy it). */
 export interface SnapshotClient {
@@ -119,7 +119,6 @@ export async function captureStates(
 export interface RestoreResult {
   ok: boolean;
   blocked: boolean;
-  needsConfirm: boolean;
   applied: number;
   entities: string[];
   sensitive: string[];
@@ -141,14 +140,14 @@ export function loadSnapshot(artifactPath: string): StateSnapshot {
 export async function restoreStates(
   root: string,
   client: SnapshotClient,
-  options: { artifactPath: string; confirm: boolean },
+  options: { artifactPath: string },
 ): Promise<RestoreResult> {
   let snapshot: StateSnapshot;
   try {
     snapshot = loadSnapshot(options.artifactPath);
   } catch (exc: any) {
     return {
-      ok: false, blocked: false, needsConfirm: false, applied: 0, entities: [], sensitive: [],
+      ok: false, blocked: false, applied: 0, entities: [], sensitive: [],
       reason: `Could not read snapshot: ${exc?.message ?? exc}`, message: 'error',
     };
   }
@@ -156,7 +155,7 @@ export async function restoreStates(
   const entityIds = Object.keys(snapshot.entities).sort();
   if (entityIds.length === 0) {
     return {
-      ok: false, blocked: false, needsConfirm: false, applied: 0, entities: [], sensitive: [],
+      ok: false, blocked: false, applied: 0, entities: [], sensitive: [],
       reason: 'snapshot has no entities to restore', message: 'error',
     };
   }
@@ -164,22 +163,14 @@ export async function restoreStates(
   const decision = evaluateReferences(entityIds, ['scene.apply'], root);
   const sensitive = entityIds.filter((id) => isSensitiveEntity(id, root));
 
-  if (decision.severity === Severity.BLOCK) {
+  if (decision.decision === PermissionDecision.DENY) {
     return {
-      ok: false, blocked: true, needsConfirm: false, applied: 0, entities: entityIds, sensitive,
+      ok: false, blocked: true, applied: 0, entities: entityIds, sensitive,
       reason: `Restore blocked under strict mode: ${sensitive.length} sensitive entit${sensitive.length === 1 ? 'y' : 'ies'}.`,
       suggestion: 'surface as a proposal',
       message: 'blocked',
     };
   }
-  if (decision.severity === Severity.ASK && !options.confirm) {
-    return {
-      ok: false, blocked: false, needsConfirm: true, applied: 0, entities: entityIds, sensitive,
-      reason: `Restore touches ${sensitive.length} sensitive entit${sensitive.length === 1 ? 'y' : 'ies'}; operator must confirm. Re-run with --confirm.`,
-      message: 'needs_confirm',
-    };
-  }
-
   // scene.apply replays each entity's state + captured attributes in one call.
   const sceneEntities: Record<string, Record<string, unknown>> = {};
   for (const id of entityIds) {
@@ -190,7 +181,7 @@ export async function restoreStates(
 
   const reportPath = writeRestoreReport(root, options.artifactPath, entityIds, sensitive);
   return {
-    ok: true, blocked: false, needsConfirm: false, applied: entityIds.length, entities: entityIds,
+    ok: true, blocked: false, applied: entityIds.length, entities: entityIds,
     sensitive, reason: 'ok', reportPath, message: 'ok',
   };
 }
@@ -220,7 +211,7 @@ function writeRestoreReport(
       '',
       `- entities restored: ${entities.length}`,
       `- via: scene.apply`,
-      sensitive.length > 0 ? `- sensitive (confirmed): ${sensitive.join(', ')}` : '- sensitive: none',
+      sensitive.length > 0 ? `- sensitive: ${sensitive.join(', ')}` : '- sensitive: none',
     ].join('\n'),
     'audit-ha-restore-latest.md',
   );

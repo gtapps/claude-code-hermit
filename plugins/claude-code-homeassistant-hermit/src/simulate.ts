@@ -17,7 +17,7 @@ export class SimulationResult {
     readonly referencedServices: string[],
     readonly missingEntities: string[],
     readonly blockedReasons: string[],
-    /** True only when severity == BLOCK (not ASK). */
+    /** True only when the policy decision is deny. */
     readonly policyBlocked: boolean,
   ) {}
 
@@ -66,7 +66,7 @@ export function simulateArtifact(
     services,
     missingEntities,
     decision.reasons,
-    decision.blocked,
+    decision.decision === 'deny',
   );
   writeSimulationReport(root, result);
   return result;

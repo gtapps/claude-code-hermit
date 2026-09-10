@@ -126,12 +126,6 @@ const SPECS: Spec[] = [
     failExit: 0,
   },
   {
-    name: 'forge/write-confirm-gate',
-    script: 'plugins/laravel-forge-hermit/hooks/write-confirm-gate.ts',
-    benign: BASH_LS,
-    failExit: 0,
-  },
-  {
     name: 'feed/fetch-guard',
     script: 'plugins/feed-hermit/hooks/fetch-guard.ts',
     // No feed-sources.md in the sandbox cwd → the allowlist read fails open.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { basename, resolve } from 'node:path';
 import { shellCommands } from './shell-words';
-import { gateServiceCall, evaluateReferences, isWellFormedEntityId, Severity } from '../src/policy';
+import { gateServiceCall, evaluateReferences, isWellFormedEntityId, PermissionDecision } from '../src/policy';
 import { loadSnapshot } from '../src/snapshot-restore';
 import { projectRoot } from '../src/config';
 
@@ -15,7 +15,7 @@ export async function decision(command: string, cwd: string, root: string): Prom
     if (words[0] === 'cd' && words.length === 2) { cwd = resolve(cwd, words[1]); continue; }
     while (words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[0])) words.shift();
     if (basename(words[0] ?? '') === 'bun' && words[1] === 'run') words.splice(1, 1);
-    const index = words.findIndex(word => basename(word) === 'ha-agent-lab' || word.endsWith('/src/cli.ts'));
+    const index = words.findIndex(word => basename(word) === 'ha-agent-lab' || word === 'src/cli.ts' || word.endsWith('/src/cli.ts'));
     if (index < 0 || (index !== 0 && !(index === 1 && ['bun', 'node', 'bash'].includes(basename(words[0])))) || words[index + 1] !== 'ha' || !['call-service', 'restore-states'].includes(words[index + 2])) continue;
     const argv = words.slice(index + 1);
     if (argv.includes('--help') || argv.includes('-h')) continue;
@@ -26,21 +26,16 @@ export async function decision(command: string, cwd: string, root: string): Prom
       if (!domain || !service || extra.length) throw new Error('Invalid service');
       const data = JSON.parse(String(args.flags['--data'] ?? '{}'));
       if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid service data');
-      // Evaluate as unconfirmed so --confirm cannot turn a denial into an allow.
-      // The ask fires only on the --confirm invocation; without it the CLI refuses anyway.
-      const gate = gateServiceCall(root, domain, service, data, false);
-      if (!gate.allowed) {
-        const verdict = { decision: gate.requiresConfirm ? 'ask' as const : 'deny' as const, reason: gate.reason };
-        if (verdict.decision === 'deny') return verdict;
-        if (args.flags['--confirm']) result = verdict;
-      }
+      const gate = gateServiceCall(root, domain, service, data);
+      if (gate.decision === 'deny') return { decision: 'deny', reason: gate.reason };
+      if (gate.decision === 'ask') result = { decision: 'ask', reason: gate.reason };
     } else {
       const snapshot = loadSnapshot(resolve(cwd, args.positionals[0]));
       const entities = Object.keys(snapshot.entities);
       if (!entities.length || entities.some(entity => !isWellFormedEntityId(entity))) throw new Error('Unresolvable snapshot targets');
       const policy = evaluateReferences(entities, ['scene.apply'], root);
-      if (policy.severity === Severity.BLOCK) return { decision: 'deny', reason: 'Snapshot restore is blocked by Home Assistant policy.' };
-      if (policy.severity === Severity.ASK && args.flags['--confirm']) result = { decision: 'ask', reason: `Restore snapshot affecting sensitive entities: ${entities.join(', ')}` };
+      if (policy.decision === PermissionDecision.DENY) return { decision: 'deny', reason: 'Snapshot restore is blocked by Home Assistant policy.' };
+      if (policy.decision === PermissionDecision.ASK) result = { decision: 'ask', reason: `Restore snapshot affecting sensitive entities: ${entities.join(', ')}` };
     }
   }
   return result;

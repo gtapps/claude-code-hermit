@@ -4,14 +4,20 @@
 
 ### Changed
 
-- `deploy`, `server-reboot`, and plan `execute` request native approval instead of a chat confirmation. Target previews, the PHP `--confirm` check, and plan hashes are unchanged.
-
-### Fixed
-- `unknown keys "description" ... ignored` warning printed at every session start. Neither `description` nor `profile` is part of Claude Code's hook schema on a matcher group; the prose now lives in `write-confirm-gate.ts`'s header, with one legal root-level `description` in `hooks.json`. The `profile` key was documentation only, since the gate reads `AGENT_HOOK_PROFILE` directly.
+- Deploy, reboot, and plan execution use native approval without confirmation flags or a duplicate hook.
+- Permission installation uses one repeatable operation without migration markers.
 
 ### Upgrade Instructions
 
-Resolve the project settings target with `domain-hatch preflight laravel-forge-hermit`: `local` maps to `.claude/settings.local.json`, `committed` maps to `.claude/settings.json`. Run `bun <plugin_root>/scripts/native-permissions.ts <resolved-settings-file> --migrate` once for this version transition. Refresh the installed CLAUDE-APPEND block.
+Before using the updated write commands, set `DOMAIN_PLUGIN_ROOT` to this installed plugin's absolute directory and run the following from the project root. Prepare `NATIVE_APPROVAL_BLOCK` as a temporary Markdown file containing the updated `state-templates/CLAUDE-APPEND.md` block merged with any operator edits from the installed block (`target_file` in preflight). Preserve those edits and the marker pair; the refresh replaces only this marked block, leaving surrounding project instructions intact. The installer preserves operator settings and denies. Existing migration marker files may remain; they are no longer used.
+
+```bash
+native_settings=$(.claude-code-hermit/bin/hermit-run domain-hatch preflight laravel-forge-hermit | bun -e 'const p = await Bun.stdin.json(); if (!p.ok || !["local", "committed"].includes(p.target)) throw new Error("Resolve the domain hatch target first"); console.log(p.target === "local" ? ".claude/settings.local.json" : ".claude/settings.json");') &&
+bun "${DOMAIN_PLUGIN_ROOT:?Set the installed plugin directory}/scripts/native-permissions.ts" "$native_settings" &&
+.claude-code-hermit/bin/hermit-run domain-hatch sync-block laravel-forge-hermit --rendered-stdin < "${NATIVE_APPROVAL_BLOCK:?Set the merged temporary block file}"
+```
+
+Remove obsolete confirmation flags from operator-maintained command examples. Direct CLI execution outside Claude Code has no confirmation-only checkpoint. Validation and policy denials remain; Forge also retains request matching, expiry, and single-use plans.
 
 ## [0.0.14] - 2026-09-07
 

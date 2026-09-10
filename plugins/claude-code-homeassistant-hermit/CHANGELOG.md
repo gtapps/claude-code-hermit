@@ -4,20 +4,26 @@
 
 ### Changed
 
-- Sensitive actuation and structural CLI writes request native approval under `ask` instead of a separate chat confirmation.
-- `ha_safety_mode` defaults to `ask` when the key is absent, and hatch now recommends `ask` over `strict`.
+- CLI writes use native approval without confirmation flags or confirmation-only retry responses.
+- Policy results use `decision: allow | ask | deny` consistently.
+- `ha_safety_mode` defaults to `ask` when absent from valid configuration.
 
 ### Fixed
 
-- CLI approval accepts shell redirections without treating their operators or filenames as command arguments.
-- CLI approval recognizes leading environment assignments and `bun run`, and only prompts for confirmed mutations while preserving policy denials.
-- `unknown keys "description" ... ignored` warning printed at every session start. Neither `description` nor `profile` is part of Claude Code's hook schema on a matcher group; the prose now lives in each hook script's header, with one legal root-level `description` in `hooks.json`. The `profile` key was documentation only, since the gates read `AGENT_HOOK_PROFILE` directly.
+- Unsupported hook matcher metadata no longer produces session-start warnings.
+- CLI approval recognizes leading assignments, `bun run`, and redirections while preserving target denials.
 
 ### Upgrade Instructions
 
-Resolve the project settings target with `domain-hatch preflight claude-code-homeassistant-hermit`: `local` maps to `.claude/settings.local.json`, `committed` maps to `.claude/settings.json`. Run `bun <plugin_root>/scripts/native-permissions.ts <resolved-settings-file> --migrate` once for this version transition. The migration also moves `ha_safety_mode` to `ask` when the key is absent or set to `strict`; tell the operator, since it changes what the hermit may actuate without raising a proposal.
+Before using the updated write commands, set `DOMAIN_PLUGIN_ROOT` to this installed plugin's absolute directory and run the following from the project root. Prepare `NATIVE_APPROVAL_BLOCK` as a temporary Markdown file containing the updated `state-templates/CLAUDE-APPEND.md` block merged with any operator edits from the installed block (`target_file` in preflight). Preserve those edits and the marker pair; the refresh replaces only this marked block, leaving surrounding project instructions intact. The installer preserves operator settings and denies. Do not run the older HA mode migration for this change.
 
-Run it promptly. The `ask` default lands with the plugin code, but the `permissions.ask` rules that replace the old hard block are only installed by this step, so an install that defers it has neither gate in the meantime. Then refresh the installed CLAUDE-APPEND block.
+```bash
+native_settings=$(.claude-code-hermit/bin/hermit-run domain-hatch preflight claude-code-homeassistant-hermit | bun -e 'const p = await Bun.stdin.json(); if (!p.ok || !["local", "committed"].includes(p.target)) throw new Error("Resolve the domain hatch target first"); console.log(p.target === "local" ? ".claude/settings.local.json" : ".claude/settings.json");') &&
+bun "${DOMAIN_PLUGIN_ROOT:?Set the installed plugin directory}/scripts/native-permissions.ts" "$native_settings" &&
+.claude-code-hermit/bin/hermit-run domain-hatch sync-block claude-code-homeassistant-hermit --rendered-stdin < "${NATIVE_APPROVAL_BLOCK:?Set the merged temporary block file}"
+```
+
+Remove obsolete confirmation flags from operator-maintained command examples. Direct CLI execution outside Claude Code has no confirmation-only checkpoint. Validation and policy denials remain. Policy-check output now uses `decision` with `allow`, `ask`, or `deny`; update operator-maintained consumers of the former `severity` field.
 
 ## [0.4.13] - 2026-09-07
 

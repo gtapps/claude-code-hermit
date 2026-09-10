@@ -278,7 +278,7 @@ options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha restore-states -h
-usage: ha_agent_lab ha restore-states [-h] [--confirm] artifact
+usage: ha_agent_lab ha restore-states [-h] artifact
 
 options:
   -h, --help  show this help message and exit
@@ -290,13 +290,13 @@ options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha create-helper -h
-usage: ha_agent_lab ha create-helper [-h] [--confirm] {input_boolean,input_number,input_text,input_select,input_datetime,timer,counter,schedule} json
+usage: ha_agent_lab ha create-helper [-h] {input_boolean,input_number,input_text,input_select,input_datetime,timer,counter,schedule} json
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha delete-helper -h
-usage: ha_agent_lab ha delete-helper [-h] [--confirm] {input_boolean,input_number,input_text,input_select,input_datetime,timer,counter,schedule} id
+usage: ha_agent_lab ha delete-helper [-h] {input_boolean,input_number,input_text,input_select,input_datetime,timer,counter,schedule} id
 
 options:
   -h, --help  show this help message and exit
@@ -308,13 +308,13 @@ options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha create-area -h
-usage: ha_agent_lab ha create-area [-h] [--confirm] name
+usage: ha_agent_lab ha create-area [-h] name
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha delete-area -h
-usage: ha_agent_lab ha delete-area [-h] [--confirm] id
+usage: ha_agent_lab ha delete-area [-h] id
 
 options:
   -h, --help  show this help message and exit
@@ -326,49 +326,49 @@ options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha rename-entity -h
-usage: ha_agent_lab ha rename-entity [-h] [--confirm] --name NAME entity_id
+usage: ha_agent_lab ha rename-entity [-h] --name NAME entity_id
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha set-entity-area -h
-usage: ha_agent_lab ha set-entity-area [-h] [--confirm] --area AREA entity_id
+usage: ha_agent_lab ha set-entity-area [-h] --area AREA entity_id
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha set-entity-enabled -h
-usage: ha_agent_lab ha set-entity-enabled [-h] [--confirm] --enabled {true,false} entity_id
+usage: ha_agent_lab ha set-entity-enabled [-h] --enabled {true,false} entity_id
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha set-entity-icon -h
-usage: ha_agent_lab ha set-entity-icon [-h] [--confirm] --icon ICON entity_id
+usage: ha_agent_lab ha set-entity-icon [-h] --icon ICON entity_id
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha set-entity-hidden -h
-usage: ha_agent_lab ha set-entity-hidden [-h] [--confirm] --hidden {true,false} entity_id
+usage: ha_agent_lab ha set-entity-hidden [-h] --hidden {true,false} entity_id
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha set-entity-labels -h
-usage: ha_agent_lab ha set-entity-labels [-h] [--confirm] --labels LABEL [LABEL ...] entity_id
+usage: ha_agent_lab ha set-entity-labels [-h] --labels LABEL [LABEL ...] entity_id
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha set-entity-categories -h
-usage: ha_agent_lab ha set-entity-categories [-h] [--confirm] --categories JSON entity_id
+usage: ha_agent_lab ha set-entity-categories [-h] --categories JSON entity_id
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha set-entity-aliases -h
-usage: ha_agent_lab ha set-entity-aliases [-h] [--confirm] --aliases ALIAS [ALIAS ...] entity_id
+usage: ha_agent_lab ha set-entity-aliases [-h] --aliases ALIAS [ALIAS ...] entity_id
 
 options:
   -h, --help  show this help message and exit
@@ -380,13 +380,13 @@ options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha set-device-area -h
-usage: ha_agent_lab ha set-device-area [-h] [--confirm] --area AREA device_id
+usage: ha_agent_lab ha set-device-area [-h] --area AREA device_id
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha rename-device -h
-usage: ha_agent_lab ha rename-device [-h] [--confirm] --name NAME device_id
+usage: ha_agent_lab ha rename-device [-h] --name NAME device_id
 
 options:
   -h, --help  show this help message and exit
@@ -405,20 +405,19 @@ options:
 
 $ ha_agent_lab ha apply-dashboard -h
 usage: ha_agent_lab ha apply-dashboard [-h] [--url-path URL_PATH]
-                                       [--confirm]
                                        artifact
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha create-dashboard -h
-usage: ha_agent_lab ha create-dashboard [-h] [--confirm] json
+usage: ha_agent_lab ha create-dashboard [-h] json
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha delete-dashboard -h
-usage: ha_agent_lab ha delete-dashboard [-h] [--confirm] dashboard_id
+usage: ha_agent_lab ha delete-dashboard [-h] dashboard_id
 
 options:
   -h, --help  show this help message and exit
@@ -436,7 +435,7 @@ options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha call-service -h
-usage: ha_agent_lab ha call-service [-h] [--data DATA] [--confirm] domain.service
+usage: ha_agent_lab ha call-service [-h] [--data DATA] domain.service
 
 options:
   -h, --help  show this help message and exit
@@ -448,7 +447,6 @@ usage: ha_agent_lab ha set-core-config [-h] [--latitude LATITUDE]
                                        [--unit-system {metric,us_customary}]
                                        [--currency CURRENCY]
                                        [--time-zone TIME_ZONE] [--country COUNTRY]
-                                       [--confirm]
 
 options:
   -h, --help  show this help message and exit
@@ -479,13 +477,13 @@ options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha create-floor -h
-usage: ha_agent_lab ha create-floor [-h] [--confirm] name
+usage: ha_agent_lab ha create-floor [-h] name
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha delete-floor -h
-usage: ha_agent_lab ha delete-floor [-h] [--confirm] id
+usage: ha_agent_lab ha delete-floor [-h] id
 
 options:
   -h, --help  show this help message and exit
@@ -497,37 +495,37 @@ options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha create-label -h
-usage: ha_agent_lab ha create-label [-h] [--confirm] name
+usage: ha_agent_lab ha create-label [-h] name
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha delete-label -h
-usage: ha_agent_lab ha delete-label [-h] [--confirm] id
+usage: ha_agent_lab ha delete-label [-h] id
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha rename-area -h
-usage: ha_agent_lab ha rename-area [-h] [--confirm] --name NAME area_id
+usage: ha_agent_lab ha rename-area [-h] --name NAME area_id
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha set-area-icon -h
-usage: ha_agent_lab ha set-area-icon [-h] [--confirm] --icon ICON area_id
+usage: ha_agent_lab ha set-area-icon [-h] --icon ICON area_id
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha set-area-floor -h
-usage: ha_agent_lab ha set-area-floor [-h] [--confirm] --floor FLOOR area_id
+usage: ha_agent_lab ha set-area-floor [-h] --floor FLOOR area_id
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha set-area-labels -h
-usage: ha_agent_lab ha set-area-labels [-h] [--confirm] --labels LABEL [LABEL ...] area_id
+usage: ha_agent_lab ha set-area-labels [-h] --labels LABEL [LABEL ...] area_id
 
 options:
   -h, --help  show this help message and exit
@@ -541,7 +539,7 @@ options:
 $ ha_agent_lab ha expose-entity -h
 usage: ha_agent_lab ha expose-entity [-h] --entity-ids ENTITY [ENTITY ...]
                                      --assistants ASSISTANT [ASSISTANT ...]
-                                     --expose {true,false} [--confirm]
+                                     --expose {true,false}
 
 options:
   -h, --help  show this help message and exit
@@ -560,7 +558,6 @@ usage: ha_agent_lab ha create-backup [-h] --agent-ids AGENT [AGENT ...]
                                      [--include-database {true,false}]
                                      [--include-folders FOLDER [FOLDER ...]]
                                      [--include-homeassistant {true,false}]
-                                     [--confirm]
 
 options:
   -h, --help  show this help message and exit
@@ -572,7 +569,7 @@ options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha import-blueprint -h
-usage: ha_agent_lab ha import-blueprint [-h] [--confirm] domain url
+usage: ha_agent_lab ha import-blueprint [-h] domain url
 
 options:
   -h, --help  show this help message and exit
@@ -584,19 +581,19 @@ options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha set-energy-prefs -h
-usage: ha_agent_lab ha set-energy-prefs [-h] [--confirm] json
+usage: ha_agent_lab ha set-energy-prefs [-h] json
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha reload-entry -h
-usage: ha_agent_lab ha reload-entry [-h] [--confirm] entry_id
+usage: ha_agent_lab ha reload-entry [-h] entry_id
 
 options:
   -h, --help  show this help message and exit
 
 $ ha_agent_lab ha disable-entry -h
-usage: ha_agent_lab ha disable-entry [-h] [--confirm] --disabled {true,false} entry_id
+usage: ha_agent_lab ha disable-entry [-h] --disabled {true,false} entry_id
 
 options:
   -h, --help  show this help message and exit

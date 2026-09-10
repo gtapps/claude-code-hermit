@@ -4,11 +4,13 @@
 
 ## Home Assistant Workflow
 
+Direct CLI execution outside Claude Code has no confirmation-only checkpoint; validation and policy denials still apply.
+
 ### Core Rules
 
 - `/claude-code-homeassistant-hermit:ha-boot` is the single entry point — starts the hermit session and checks HA connectivity.
 - Never commit real HA URLs, tokens, or device inventories.
-- Preview sensitive actuation (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`) and structural writes (helpers/areas/registries). Use `--confirm` when required by the CLI. Surface policy blocks as proposals.
+- Preview sensitive actuation (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`) and structural writes (helpers/areas/registries). Claude Code requests native approval before execution. Surface policy blocks as proposals.
 - Uncertain entities default to sensitive.
 - Obtain explicit operator approval before modifying safety policy.
 - Use the stored language from `.claude-code-hermit/OPERATOR.md` (`## HA hermit` section) for all user-facing output.

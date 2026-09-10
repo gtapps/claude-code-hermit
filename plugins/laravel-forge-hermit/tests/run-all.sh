@@ -19,9 +19,9 @@ fi
 echo ""
 # The structural lints call process.exit(), which tears down a shared `bun test`
 # runner before the remaining files load. Run each of those directly and keep
-# `bun test` for the bun:test-based hook suite.
-echo "--- bun tests (hook) ---"
-if ! bun test tests/hook.test.ts scripts/native-permissions.test.ts; then
+# `bun test` for the bun:test-based permission suite.
+echo "--- bun tests (permissions) ---"
+if ! bun test scripts/native-permissions.test.ts tests/cli.test.ts; then
   EXIT=1
 fi
 
