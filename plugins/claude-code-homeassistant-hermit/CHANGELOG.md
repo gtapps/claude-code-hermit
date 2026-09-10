@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- CLI approval accepts shell redirections without treating their operators or filenames as command arguments.
 - CLI approval recognizes leading environment assignments and `bun run`, and only prompts for confirmed mutations while preserving policy denials.
 - `unknown keys "description" ... ignored` warning printed at every session start. Neither `description` nor `profile` is part of Claude Code's hook schema on a matcher group; the prose now lives in each hook script's header, with one legal root-level `description` in `hooks.json`. The `profile` key was documentation only, since the gates read `AGENT_HOOK_PROFILE` directly.
 

@@ -58,6 +58,16 @@ test("replace case bounds the block through the closing marker", () => {
   );
 });
 
+test("installs native rules before updating the instruction block, including current versions", () => {
+  const install = text.indexOf('scripts/native-permissions.ts');
+  const update = text.indexOf('### 2. Update CLAUDE.md / CLAUDE.local.md');
+  assertTrue(install > 0 && install < update, 'approval installation precedes block refresh');
+  assertTrue(text.includes('including when the version is current'), 'version skips cannot skip approval installation');
+  assertTrue(text.includes('If it fails, stop before updating'), 'installation failure stops the hatch');
+  assertTrue(text.includes('domain-hatch preflight hermit-scribe'), 'uses core target resolution');
+  assertTrue(text.includes('`.claude/settings.local.json`') && text.includes('`.claude/settings.json`'), 'both project settings scopes are supported');
+});
+
 // ── CLAUDE-APPEND block ─────────────────────────────────────────────────────
 // The block the hatch injects is the fleet's smallest and is the shape the rest
 // should converge to. These pin the three rules it carries: skill-only filing,

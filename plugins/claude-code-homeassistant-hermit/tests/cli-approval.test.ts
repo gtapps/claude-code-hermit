@@ -2,6 +2,7 @@ import { test, expect, afterAll } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { decision } from '../hooks/cli-approval';
+import { shellCommands } from '../hooks/shell-words';
 import { safetyMode, clearPolicyCaches } from '../src/policy';
 import { tmpPath, cleanupTmp } from './helpers';
 afterAll(cleanupTmp);
@@ -66,4 +67,42 @@ test('snapshot confirmation checks do not prompt and preserve denials', async ()
   expect((await decision(`${command} --confirm`, root, root))?.decision).toBe('ask');
   expect((await decision(command, strict, strict))?.decision).toBe('deny');
   expect((await decision(`${command} --confirm`, strict, strict))?.decision).toBe('deny');
+});
+
+
+test('redirections preserve service approval and denial decisions', async () => {
+  const root = fixture();
+  const strict = fixture('strict');
+  const safe = '/plugin/bin/ha-agent-lab ha call-service homeassistant.reload_core_config';
+  const sensitive = `/plugin/bin/ha-agent-lab ha call-service lock.lock --data '{"entity_id":"lock.front"}'`;
+  for (const redirection of [
+    '> /tmp/result.json', '>/tmp/result.json', '>>/tmp/result.json',
+    '2> /tmp/errors.log', '2>>/tmp/errors.log', '> /tmp/result.json 2>&1',
+    '&>/tmp/result.json', '&>>/tmp/result.json', '>"/tmp/a > b.json"',
+    '< /tmp/input.json', '0<&3', '2>&-', '>|/tmp/result.json',
+  ]) {
+    expect(await decision(`${safe} ${redirection}`, root, root)).toBeNull();
+    expect(await decision(`${sensitive} ${redirection}`, root, root)).toBeNull();
+    expect((await decision(`${sensitive} ${redirection} --confirm`, root, root))?.decision).toBe('ask');
+    expect((await decision(`${sensitive} --confirm ${redirection}`, strict, strict))?.decision).toBe('deny');
+  }
+  expect(await decision(`>/tmp/result.json ${safe}`, root, root)).toBeNull();
+  expect(await decision(`${sensitive} > --confirm`, root, root)).toBeNull();
+  expect((await decision(`${safe} >/tmp/result.json; ${sensitive} --confirm`, strict, strict))?.decision).toBe('deny');
+});
+
+test('redirected snapshot restoration still requests approval', async () => {
+  const root = fixture();
+  const file = join(root, 'snapshot > original.json');
+  writeFileSync(file, JSON.stringify({ entities: { 'lock.front': { state: 'locked', attributes: {} } } }));
+  expect((await decision(`/plugin/bin/ha-agent-lab ha restore-states "${file}" --confirm >/tmp/result.json`, root, root))?.decision).toBe('ask');
+});
+
+test('redirection tokenization preserves quoted arguments and rejects missing targets', () => {
+  expect(shellCommands(`cmd --data '{"value":"a > b"}' 2>/tmp/error.log`)).toEqual([['cmd', '--data', '{"value":"a > b"}']]);
+  expect(shellCommands(`cmd "2">/tmp/result.json`)).toEqual([['cmd', '2']]);
+  expect(shellCommands(`cmd '>' /tmp/result.json`)).toEqual([['cmd', '>', '/tmp/result.json']]);
+  for (const command of ['cmd >', 'cmd > ; next', 'cmd > > file', 'cmd <<EOF']) {
+    expect(() => shellCommands(command)).toThrow();
+  }
 });

@@ -19,4 +19,4 @@ A maintainer utility skill that files GitHub issues and comments through a confi
 - Tests: `bash tests/run-all.sh` from this directory. Manual smoke checks: `README.md` § Development.
 - Local run against a target project: `claude --plugin-dir /path/to/plugins/hermit-scribe`.
 
-Keep the `--publish` and `--comment` verbs aligned with the `permissions.ask` rules in `settings.json`.
+Keep the `--publish` and `--comment` verbs aligned with the rules in `state-templates/native-permissions.json`, installed into project settings by `scripts/native-permissions.ts`.

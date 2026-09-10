@@ -8,5 +8,6 @@ bun "$SCRIPT_DIR/cli.test.ts" || rc=$?
 bun "$SCRIPT_DIR/automode-env.test.ts" || rc=$?
 bun "$SCRIPT_DIR/hatch-skill.test.ts" || rc=$?
 bun "$SCRIPT_DIR/scribe-skill.test.ts" || rc=$?
+bun test "$SCRIPT_DIR/native-permissions.test.ts" || rc=$?
 
 exit $rc

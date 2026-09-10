@@ -139,8 +139,8 @@ function skillInvocations(): string[] {
 
 test("seeded ask rules match the skill's publishing invocations", () => {
   const rules: string[] = JSON.parse(
-    readFileSync(path.join(import.meta.dir, "..", "settings.json"), "utf-8"),
-  ).permissions.ask;
+    readFileSync(path.join(import.meta.dir, "..", "state-templates", "native-permissions.json"), "utf-8"),
+  ).ask;
   const invocations = skillInvocations();
   assertTrue(invocations.length >= 5, `found skill invocations (${invocations.length})`);
 

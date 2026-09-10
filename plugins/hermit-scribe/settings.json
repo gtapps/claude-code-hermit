@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "ask": [
-      "Bash(*file-issue.ts* --publish *)",
-      "Bash(*file-issue.ts* --comment *)"
-    ]
-  }
-}
