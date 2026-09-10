@@ -176,8 +176,10 @@ describe('passive capture', () => {
     try {
       const first = await run(prompt('<@&456> hello'), dir, env);
       expect(first.stdout).toContain('[channel reply reminder]');
+      expect(first.stdout).toContain('Every reply, including a short acknowledgement');
+      expect(first.stdout).not.toContain('Sub' + 'stantive');
       blocked((await run(prompt('<@&789> hello'), dir, env)).stdout);
-      expect(requests).toEqual(['/channels/1', '/guilds/guild/members/@me']);
+      expect(requests).toEqual(['/channels/1', '/guilds/guild/members/123']);
       expect(unconsolidated(hermit(dir)).rows.length).toBe(2);
     } finally { server.stop(true); }
   }, config()));

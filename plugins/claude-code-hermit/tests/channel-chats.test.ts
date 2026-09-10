@@ -10,7 +10,7 @@ test('Discord metadata caches success, errors, and retries errors after 24 hours
   const tokenDir = path.join(wd.dir, 'discord');
   fs.mkdirSync(tokenDir);
   fs.writeFileSync(path.join(tokenDir, '.env'), 'DISCORD_BOT_TOKEN=test-token\n');
-  const config = { channels: { discord: { state_dir: tokenDir } } };
+  const config = { channels: { discord: { state_dir: tokenDir, bot_user_id: '7' } } };
   const previousStateDir = process.env.DISCORD_STATE_DIR;
   process.env.DISCORD_STATE_DIR = tokenDir;
   const requests: string[] = [];
@@ -40,6 +40,16 @@ test('Discord metadata caches success, errors, and retries errors after 24 hours
     expect(await lookupGuildRoles(dir, config, '2')).toMatchObject({ role_ids: ['9'] });
     await lookupGuildRoles(dir, config, '2');
     expect(requests.length).toBe(4);
+    expect(requests).toEqual(['/channels/1', '/channels/403', '/channels/403', '/guilds/2/members/7']);
+    expect(await lookupGuildRoles(dir, { channels: { discord: { state_dir: tokenDir } } }, '3')).toBeNull();
+    expect(requests.length).toBe(4);
+    expect(JSON.parse(fs.readFileSync(file, 'utf8')).discord.guilds).not.toHaveProperty('3');
+    // Roles are mutable, so a cached success expires on the same 24h clock.
+    const aged = JSON.parse(fs.readFileSync(file, 'utf8'));
+    aged.discord.guilds['2'].fetched_at = new Date(Date.now() - 86400001).toISOString();
+    fs.writeFileSync(file, JSON.stringify(aged));
+    expect(await lookupGuildRoles(dir, config, '2')).toMatchObject({ role_ids: ['9'] });
+    expect(requests.length).toBe(5);
   } finally {
     if (prev === undefined) delete process.env.HERMIT_DISCORD_API_URL;
     else process.env.HERMIT_DISCORD_API_URL = prev;
