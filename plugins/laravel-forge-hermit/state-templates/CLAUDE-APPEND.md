@@ -2,9 +2,11 @@
 
 ## Laravel Forge
 
+Direct CLI execution outside Claude Code has no confirmation-only checkpoint; validation and policy denials still apply.
+
 ### Write previews
 
-Preview and relay the canonical target and request before every write. For a deploy or reboot, run `php ${CLAUDE_PLUGIN_ROOT}/php/forge.php preview-deploy <server> <site>` (or `preview-reboot`), relay the canonical target to the operator, then run the write command with `--confirm`.
+Preview and relay the canonical target and request before every write. For a deploy or reboot, run `php ${CLAUDE_PLUGIN_ROOT}/php/forge.php preview-deploy <server> <site>` (or `preview-reboot`), relay the canonical target to the operator, then run the write command for native approval.
 
 A wrong reboot causes an outage. A wrong deploy targets the wrong site.
 

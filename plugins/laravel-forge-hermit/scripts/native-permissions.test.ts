@@ -11,8 +11,8 @@ function fixture() {
   mkdirSync(join(root, '.claude')); mkdirSync(join(root, '.claude-code-hermit'));
   return root;
 }
-function run(root: string, migrate = false) {
-  return Bun.spawnSync(['bun', script, join(root, '.claude/settings.local.json'), ...(migrate ? ['--migrate'] : [])]);
+function run(root: string) {
+  return Bun.spawnSync(['bun', script, join(root, '.claude/settings.local.json')]);
 }
 test('install preserves unrelated settings and denies; repeated seeding is stable', () => {
   const root = fixture(), file = join(root, '.claude/settings.local.json');
@@ -23,27 +23,29 @@ test('install preserves unrelated settings and denies; repeated seeding is stabl
   for (const rule of rules) expect(data.permissions.ask).toContain(rule);
   expect(run(root).exitCode).toBe(0); expect(readFileSync(file, 'utf8')).toBe(once);
 });
-test('migration validates all files before writing and leaves operator denies alone', () => {
-  const root = fixture(), local = join(root, '.claude/settings.local.json'), shared = join(root, '.claude/settings.json');
-  writeFileSync(local, '{}'); writeFileSync(shared, '{bad');
-  expect(run(root, true).exitCode).not.toBe(0); expect(readFileSync(local, 'utf8')).toBe('{}');
-  writeFileSync(shared, JSON.stringify({ permissions: { deny: [...rules, 'Bash(custom *)'] } }));
-  writeFileSync(join(root, '.claude-code-hermit/config.json'), JSON.stringify({ ha_safety_mode: 'strict', custom: 7 }));
-  expect(run(root, true).exitCode).toBe(0);
-  const data = JSON.parse(readFileSync(shared, 'utf8'));
-  expect(data.permissions.deny).toContain('Bash(custom *)');
-  const before = readFileSync(local, 'utf8'); expect(run(root, true).exitCode).toBe(0); expect(readFileSync(local, 'utf8')).toBe(before);
-});
-test('a plain hatch install does not consume the one-time migration', () => {
-  const root = fixture(), local = join(root, '.claude/settings.local.json'), shared = join(root, '.claude/settings.json');
+test('installation preserves other settings scopes, configuration, and old markers', () => {
+  const root = fixture();
+  const shared = join(root, '.claude/settings.json');
+  const config = join(root, '.claude-code-hermit/config.json');
   const marker = join(root, '.claude-code-hermit/state/laravel-forge-hermit-native-permissions-v1.json');
-  writeFileSync(local, '{}');
-  writeFileSync(shared, JSON.stringify({ permissions: { deny: [...rules, 'Bash(custom *)'] } }));
+  mkdirSync(join(root, '.claude-code-hermit/state'));
+  writeFileSync(shared, JSON.stringify({ permissions: { deny: rules } }));
+  writeFileSync(config, '{"custom":7}');
+  writeFileSync(marker, '{"version":1}');
+  const originals = [shared, config, marker].map(file => readFileSync(file, 'utf8'));
   expect(run(root).exitCode).toBe(0);
-  expect(existsSync(marker)).toBe(false);
-  // The later --migrate still sees the shared file, which it only reads when migrating.
-  expect(run(root, true).exitCode).toBe(0);
-  expect(existsSync(marker)).toBe(true);
+  expect(run(root).exitCode).toBe(0);
+  expect([shared, config, marker].map(file => readFileSync(file, 'utf8'))).toEqual(originals);
+});
+test('fresh installation does not create a migration marker and reports target denies', () => {
+  const root = fixture();
+  const file = join(root, '.claude/settings.local.json');
+  writeFileSync(file, JSON.stringify({ permissions: { deny: rules } }));
+  const result = run(root);
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout.toString()).toContain('Existing denies remain:');
+  expect(JSON.parse(readFileSync(file, 'utf8')).permissions.deny).toEqual(rules);
+  expect(existsSync(join(root, '.claude-code-hermit/state'))).toBe(false);
 });
 test('malformed permission arrays are not overwritten', () => {
   const root = fixture(), file = join(root, '.claude/settings.local.json');

@@ -53,7 +53,7 @@ if (fs.existsSync(appendPath)) {
   ok('under post-trim ceiling (~2265 B)', Buffer.byteLength(append, 'utf-8') <= 2600, `${Buffer.byteLength(append, 'utf-8')} B`);
 
   ok('keeps the deploy and reboot previews', append.includes('preview-deploy <server> <site>') && append.includes('preview-reboot'));
-  ok('relays the target before execution', append.includes('relay the canonical target to the operator, then run the write command with `--confirm`'));
+  ok('relays the target before execution', append.includes('relay the canonical target to the operator, then run the write command for native approval'));
   ok('keeps the outage consequence', append.includes('A wrong reboot causes an outage'));
   // Replaced the closed-allowlist assertion: reads no longer use an allowlist,
   // so asserting it would keep the template documenting a guarantee the code

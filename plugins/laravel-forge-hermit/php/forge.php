@@ -238,7 +238,6 @@ function stdinArgs(): array {
 $args = array_slice($argv, 1);
 $cmd  = array_shift($args) ?? '';
 
-$hasConfirm = in_array('--confirm', $args, true);
 $hasJson    = in_array('--json',    $args, true);
 
 $positional = array_values(array_filter($args, fn($a) => !str_starts_with($a, '--')));
@@ -249,7 +248,7 @@ $positional = array_values(array_filter($args, fn($a) => !str_starts_with($a, '-
 if ($cmd === '' || $cmd === '--help' || $cmd === 'help') {
     $ttl = intdiv(PLAN_TTL_SECONDS, 60);
     echo <<<USAGE
-    Usage: forge.php <command> [args] [--confirm] [--json]
+    Usage: forge.php <command> [args] [--json]
 
     Credential:
       check                       Report token status (missing/invalid/unreachable/ok)
@@ -272,7 +271,7 @@ if ($cmd === '' || $cmd === '--help' || $cmd === 'help') {
       preview-deploy <server> <site>  Show canonical target before deploying
       preview-reboot <server>         Show canonical target before rebooting
 
-    Write commands (require --confirm):
+    Write commands (native approval):
       deploy <server> <site>      Trigger deployment (fire-and-return; watch via deploy-watch)
       server-reboot <server>      Reboot server
 
@@ -682,7 +681,7 @@ if ($cmd === 'preview-deploy') {
     $site   = resolveSite($forge, $org, $server, $positional[1]);
     echo "--- Deploy preview (no action taken) ---\n";
     printCanonicalSite($server, $site);
-    echo "Run: forge.php deploy {$positional[0]} {$positional[1]} --confirm\n";
+    echo "Run: forge.php deploy {$positional[0]} {$positional[1]}\n";
     exit(0);
 }
 
@@ -694,12 +693,12 @@ if ($cmd === 'preview-reboot') {
     $server = resolveServer($forge, $org, $positional[0]);
     echo "--- Reboot preview (no action taken) ---\n";
     printCanonicalServer($server);
-    echo "Run: forge.php server-reboot {$positional[0]} --confirm\n";
+    echo "Run: forge.php server-reboot {$positional[0]}\n";
     exit(0);
 }
 
 // ---------------------------------------------------------------------------
-// deploy <server> <site> --confirm   (fire-and-return)
+// deploy <server> <site>   (fire-and-return)
 //
 // Triggers the deployment and returns immediately with the canonical IDs.
 // Watching is decoupled: the forge-deploy skill arms a CC Monitor that runs
@@ -707,11 +706,7 @@ if ($cmd === 'preview-reboot') {
 // Bash call (which the tool would kill at its timeout).
 // ---------------------------------------------------------------------------
 if ($cmd === 'deploy') {
-    check(isset($positional[1]), "Usage: forge.php deploy <server> <site> --confirm");
-    if (!$hasConfirm) {
-        fwrite(STDERR, "deploy requires --confirm. Run preview-deploy first to review the target.\n");
-        exit(1);
-    }
+    check(isset($positional[1]), "Usage: forge.php deploy <server> <site>");
     $server = resolveServer($forge, $org, $positional[0]);
     $site   = resolveSite($forge, $org, $server, $positional[1]);
 
@@ -790,14 +785,10 @@ if ($cmd === 'deploy-watch') {
 }
 
 // ---------------------------------------------------------------------------
-// server-reboot <server> [--confirm]
+// server-reboot <server>
 // ---------------------------------------------------------------------------
 if ($cmd === 'server-reboot') {
-    check(isset($positional[0]), "Usage: forge.php server-reboot <server> [--confirm]");
-    if (!$hasConfirm) {
-        fwrite(STDERR, "server-reboot requires --confirm. Run preview-reboot first to review the target.\n");
-        exit(1);
-    }
+    check(isset($positional[0]), "Usage: forge.php server-reboot <server>");
     $server = resolveServer($forge, $org, $positional[0]);
     $forge->createServerAction($org, $server->id, ['action' => 'reboot']);
     echo "Reboot initiated for server {$server->name} (ID: {$server->id}).\n";

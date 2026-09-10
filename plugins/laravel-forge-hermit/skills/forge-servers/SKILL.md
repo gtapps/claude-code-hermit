@@ -1,6 +1,6 @@
 ---
 name: forge-servers
-description: List, inspect, and reboot Laravel Forge servers. Reboot always goes through surface-then-approve (preview-reboot → confirm → server-reboot --confirm). Triggers on "list servers", "show server", "reboot server", "server status".
+description: List, inspect, and reboot Laravel Forge servers. Reboot always goes through surface-then-approve (preview-reboot → native approval → server-reboot). Triggers on "list servers", "show server", "reboot server", "server status".
 ---
 
 # Forge Servers
@@ -38,7 +38,7 @@ Resolves `<server>` to the canonical record and prints the server name, IP, and 
 **Step 3: Execute.**
 
 ```bash
-php ${CLAUDE_PLUGIN_ROOT}/php/forge.php server-reboot <server> --confirm
+php ${CLAUDE_PLUGIN_ROOT}/php/forge.php server-reboot <server>
 ```
 
 A wrong reboot causes an outage. Never auto-confirm. Never skip the preview step.
