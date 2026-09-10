@@ -61,5 +61,3 @@ Core's `scripts/domain-hatch.ts` owns target resolution and `hatch-options.json`
 - When using `tmpPath()` from `tests/helpers.ts`, register `afterAll(cleanupTmp)`. Cleanup after each test can delete fixtures still used by concurrent tests. Keep independent corpus and fuzz subprocess work asynchronous.
 
 Static `permissions.ask` rules cover structural writes through `bin/ha-agent-lab`, not the `bun <root>/src/cli.ts` development form. `cli-approval.ts` covers `call-service` and `restore-states` in both forms because their policy depends on the target entities.
-
-The native-permissions installer owns `.claude-code-hermit/state/claude-code-homeassistant-hermit-native-permissions-v1.json`, a durable completion marker written only by a successful `--migrate` run. Preserve it across upgrades so later operator policy choices are not migrated again.
