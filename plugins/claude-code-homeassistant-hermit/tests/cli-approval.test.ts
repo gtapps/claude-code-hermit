@@ -41,6 +41,12 @@ test('wrapped service calls retain native approval and policy denials', async ()
     'FOO=bar bun /plugin/claude-code-homeassistant-hermit/src/cli.ts',
     'bun run /plugin/claude-code-homeassistant-hermit/src/cli.ts',
     'FOO=bar OTHER="two words" bun run /plugin/claude-code-homeassistant-hermit/src/cli.ts',
+    // The command string reaches the hook unexpanded, so the documented
+    // ${CLAUDE_PLUGIN_ROOT} form never carries the plugin directory name.
+    'bun ${CLAUDE_PLUGIN_ROOT}/src/cli.ts',
+    // Line continuation and nested commands must not hide the invocation.
+    '/plugin/bin/ha-agent-lab \\\n ',
+    '( /plugin/bin/ha-agent-lab',
   ]) {
     const command = `${executable} ha call-service lock.lock --data '{"entity_id":"lock.front"}'`;
     expect(await decision(command, root, root)).toBeNull();

@@ -4,13 +4,14 @@
 
 ### Changed
 
-- Native operator approval for existing guarded actions.
+- `deploy`, `server-reboot`, and plan `execute` request native approval instead of a chat confirmation. Target previews, the PHP `--confirm` check, and plan hashes are unchanged.
+
+### Fixed
+- `unknown keys "description" ... ignored` warning printed at every session start. Neither `description` nor `profile` is part of Claude Code's hook schema on a matcher group; the prose now lives in `write-confirm-gate.ts`'s header, with one legal root-level `description` in `hooks.json`. The `profile` key was documentation only, since the gate reads `AGENT_HOOK_PROFILE` directly.
 
 ### Upgrade Instructions
 
-Resolve the project settings target with domain-hatch preflight laravel-forge-hermit: local maps to .claude/settings.local.json; committed maps to .claude/settings.json. Run `bun <plugin_root>/scripts/native-permissions.ts <resolved-settings-file> --migrate` once for this version transition. Refresh the installed CLAUDE-APPEND block and notify the operator that existing guarded actions now use Claude Code native approval instead of the prior refusal or conversational confirmation.
-### Fixed
-- `unknown keys "description" ... ignored` warning printed at every session start. Neither `description` nor `profile` is part of Claude Code's hook schema on a matcher group; the prose now lives in `write-confirm-gate.ts`'s header, with one legal root-level `description` in `hooks.json`. The `profile` key was documentation only, since the gate reads `AGENT_HOOK_PROFILE` directly.
+Resolve the project settings target with `domain-hatch preflight laravel-forge-hermit`: `local` maps to `.claude/settings.local.json`, `committed` maps to `.claude/settings.json`. Run `bun <plugin_root>/scripts/native-permissions.ts <resolved-settings-file> --migrate` once for this version transition. Refresh the installed CLAUDE-APPEND block.
 
 ## [0.0.14] - 2026-09-07
 

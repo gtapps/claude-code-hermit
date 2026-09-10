@@ -1,4 +1,5 @@
 {
+  "description": "Scribe publication guardrails.",
   "hooks": {
     "PreToolUse": [
       {
@@ -7,9 +8,7 @@
           {
             "type": "command",
             "command": "bun",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/publish-approval.ts"
-            ],
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/publish-approval.ts"],
             "timeout": 5
           }
         ]

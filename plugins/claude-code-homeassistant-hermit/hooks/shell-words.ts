@@ -11,8 +11,13 @@ export function shellCommands(command: string): string[][] {
       word += ch; continue;
     }
     if (ch === "'" || ch === '"') { quote = ch; active = true; continue; }
-    if (ch === '\\') { if (++i >= command.length) throw new Error('Incomplete shell escape'); word += command[i]; active = true; continue; }
-    if (';|&\n'.includes(ch)) { flush(); if (words.length) commands.push(words); words = []; continue; }
+    if (ch === '\\') {
+      if (++i >= command.length) throw new Error('Incomplete shell escape');
+      if (command[i] === '\n') continue; // line continuation: both characters vanish
+      word += command[i]; active = true; continue;
+    }
+    // Split on `(` `)` and backtick too, so a nested command is not swallowed into an outer word.
+    if (';|&\n()`'.includes(ch)) { flush(); if (words.length) commands.push(words); words = []; continue; }
     if (/\s/.test(ch)) { flush(); continue; }
     word += ch; active = true;
   }

@@ -4,14 +4,19 @@
 
 ### Changed
 
-- Native operator approval for existing guarded actions.
+- Sensitive actuation and structural CLI writes request native approval under `ask` instead of a separate chat confirmation.
+- `ha_safety_mode` defaults to `ask` when the key is absent, and hatch now recommends `ask` over `strict`.
+
+### Fixed
+
+- CLI approval recognizes leading environment assignments and `bun run`, and only prompts for confirmed mutations while preserving policy denials.
+- `unknown keys "description" ... ignored` warning printed at every session start. Neither `description` nor `profile` is part of Claude Code's hook schema on a matcher group; the prose now lives in each hook script's header, with one legal root-level `description` in `hooks.json`. The `profile` key was documentation only, since the gates read `AGENT_HOOK_PROFILE` directly.
 
 ### Upgrade Instructions
 
-Resolve the project settings target with domain-hatch preflight claude-code-homeassistant-hermit: local maps to .claude/settings.local.json; committed maps to .claude/settings.json. Run `bun <plugin_root>/scripts/native-permissions.ts <resolved-settings-file> --migrate` once for this version transition. Refresh the installed CLAUDE-APPEND block and notify the operator that existing guarded actions now use Claude Code native approval instead of the prior refusal or conversational confirmation.
-### Fixed
-- CLI approval recognizes leading environment assignments and `bun run`, and only prompts for confirmed mutations while preserving policy denials.
-- `unknown keys "description" ... ignored` warning printed at every session start. Neither `description` nor `profile` is part of Claude Code's hook schema on a matcher group; the prose now lives in each hook script's header, with one legal root-level `description` in `hooks.json`. The `profile` key was documentation only, since the gates read `AGENT_HOOK_PROFILE` directly.
+Resolve the project settings target with `domain-hatch preflight claude-code-homeassistant-hermit`: `local` maps to `.claude/settings.local.json`, `committed` maps to `.claude/settings.json`. Run `bun <plugin_root>/scripts/native-permissions.ts <resolved-settings-file> --migrate` once for this version transition. The migration also moves `ha_safety_mode` to `ask` when the key is absent or set to `strict`; tell the operator, since it changes what the hermit may actuate without raising a proposal.
+
+Run it promptly. The `ask` default lands with the plugin code, but the `permissions.ask` rules that replace the old hard block are only installed by this step, so an install that defers it has neither gate in the meantime. Then refresh the installed CLAUDE-APPEND block.
 
 ## [0.4.13] - 2026-09-07
 

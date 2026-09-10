@@ -47,7 +47,7 @@ function writeJson(filePath: string, data: Json): void {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n', 'utf8');
 }
 
-const [,, targetFile] = process.argv;
+const [, , targetFile] = process.argv;
 
 if (!targetFile) {
   console.error('Usage: automode-env.ts <target-file>');

@@ -4,7 +4,7 @@
 
 ### Changed
 
-- Native operator approval for existing guarded actions.
+- Issue filing and commenting request native approval after the sanitized preview, replacing the in-chat yes/edit/cancel loop.
 
 ### Fixed
 

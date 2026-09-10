@@ -150,8 +150,8 @@ Read `ha_safety_mode` from `.claude-code-hermit/config.json`.
 
 - **If the key is already set**: `AskUserQuestion`: "Current safety mode is `<value>`. Change it?" Yes → re-prompt. No → skip this step.
 - **If absent**: ask the operator which safety mode to use for sensitive domains (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`):
-  - `strict`, always block autonomous actuation; work goes through a proposal instead.
-  - `ask` (recommended), operator is prompted before any actuation of a sensitive entity. Build/validate normally; both YAML apply and direct MCP calls require an explicit operator confirmation before execution.
+  - `strict` blocks autonomous actuation entirely; work goes through a proposal instead.
+  - `ask` (recommended) prompts the operator before any actuation of a sensitive entity. Build/validate normally; both YAML apply and direct MCP calls require an explicit operator confirmation before execution.
 
 Write the chosen value to `config.json` as `ha_safety_mode`. Default to `ask` if the operator skips or is unsure.
 

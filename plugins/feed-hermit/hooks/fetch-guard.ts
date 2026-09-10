@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 /**
  * PreToolUse hook: validate WebFetch URLs against the feed-sources.md domain allowlist.
- * Requests native approval for fetches to domains not in feed-sources.md (plus a small hardcoded infra list).
- * Exit 0 = pass through or native ask. Exit 2 = invalid URL. Fails open on missing feed-sources.md / malformed input.
+ * Blocks fetches to domains not in feed-sources.md (plus a small hardcoded infra list).
+ * Exit 0 = allow. Exit 2 = block. Fails open on missing feed-sources.md / malformed input.
  */
 
 import { existsSync } from "node:fs";
@@ -101,13 +101,11 @@ async function main(): Promise<void> {
   if (isAllowed(hostname, allowlist)) {
     process.exit(0);
   }
-  console.log(JSON.stringify({
-    hookSpecificOutput: {
-      hookEventName: 'PreToolUse',
-      permissionDecision: 'ask',
-      permissionDecisionReason: `Fetch ${url}: domain "${hostname}" is outside ${SOURCES_FILE}. Approval permits this fetch only; the registry is unchanged.`,
-    },
-  }));
+  console.error(
+    `WebFetch blocked: "${hostname}" is not in the ${SOURCES_FILE} allowlist. ` +
+      `Add the source to ${SOURCES_FILE} to permit fetches from this domain.`,
+  );
+  process.exit(2);
 }
 
 if (import.meta.main) {

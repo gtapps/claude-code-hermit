@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
 import { join } from "node:path";
-import { mkdirSync, mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAllowed, parseAllowlist } from "../hooks/fetch-guard";
 
@@ -30,14 +30,11 @@ function hatchedProject(sources = HN_ONLY): { root: string; deep: string } {
   return { root, deep };
 }
 
-async function runGuard(cwd: string, url: string, env = guardEnv()): Promise<string> {
-  const proc = Bun.spawn(["bun", SCRIPT], { stdin: "pipe", stdout: "pipe", stderr: "ignore", cwd, env });
+async function runGuard(cwd: string, url: string, env = guardEnv()): Promise<number> {
+  const proc = Bun.spawn(["bun", SCRIPT], { stdin: "pipe", stdout: "ignore", stderr: "ignore", cwd, env });
   proc.stdin.write(JSON.stringify({ tool_input: { url } }));
   await proc.stdin.end();
-  const output = await new Response(proc.stdout).text();
-  const code = await proc.exited;
-  if (code !== 0) return 'deny';
-  return output ? JSON.parse(output).hookSpecificOutput.permissionDecision : 'pass';
+  return await proc.exited;
 }
 
 test("exact domain match is allowed", () => {
@@ -74,40 +71,32 @@ test("hook fails open (exit 0) on malformed stdin", async () => {
   expect(await proc.exited).toBe(0);
 });
 
-test("hook asks for an off-allowlist URL", async () => {
+test("hook blocks (exit 2) an off-allowlist URL", async () => {
   const dir = mkdtempSync(join(tmpdir(), "fetch-guard-"));
   writeFileSync(join(dir, "feed-sources.md"), HN_ONLY);
-  expect(await runGuard(dir, "https://evil.example.org")).toBe("ask");
+  expect(await runGuard(dir, "https://evil.example.org")).toBe(2);
 });
 
 test("drifted cwd inside a hatched project still enforces the allowlist", async () => {
   const { deep } = hatchedProject();
-  expect(await runGuard(deep, "https://evil.example.org")).toBe("ask");
-  expect(await runGuard(deep, "https://news.ycombinator.com")).toBe("pass");
+  expect(await runGuard(deep, "https://evil.example.org")).toBe(2);
+  expect(await runGuard(deep, "https://news.ycombinator.com")).toBe(0);
 });
 
 test("CLAUDE_PROJECT_DIR names the project even when cwd has its own allowlist", async () => {
   const { root } = hatchedProject(); // allows news.ycombinator.com only
   const decoy = mkdtempSync(join(tmpdir(), "fetch-guard-decoy-"));
   writeFileSync(join(decoy, "feed-sources.md"), "| Name | Type | URL |\n| - | - | - |\n| Evil | web | https://evil.example.org |\n");
-  expect(await runGuard(decoy, "https://evil.example.org", guardEnv({ CLAUDE_PROJECT_DIR: root }))).toBe("ask");
+  expect(await runGuard(decoy, "https://evil.example.org", guardEnv({ CLAUDE_PROJECT_DIR: root }))).toBe(2);
 });
 
 test("stale CLAUDE_PROJECT_DIR falls through to the walk-up", async () => {
   const { deep } = hatchedProject();
   const stale = join(tmpdir(), "fetch-guard-does-not-exist");
-  expect(await runGuard(deep, "https://evil.example.org", guardEnv({ CLAUDE_PROJECT_DIR: stale }))).toBe("ask");
+  expect(await runGuard(deep, "https://evil.example.org", guardEnv({ CLAUDE_PROJECT_DIR: stale }))).toBe(2);
 });
 
 test("never-hatched project keeps the documented fail-open", async () => {
   const bare = mkdtempSync(join(tmpdir(), "fetch-guard-bare-"));
-  expect(await runGuard(bare, "https://evil.example.org")).toBe("pass");
-});
-
-test("approval request leaves the registry unchanged", async () => {
-  const { root } = hatchedProject();
-  const before = readFileSync(join(root, "feed-sources.md"), "utf8");
-  expect(await runGuard(root, "https://outside.example/article")).toBe("ask");
-  expect(readFileSync(join(root, "feed-sources.md"), "utf8")).toBe(before);
-  expect(await runGuard(root, "not-a-url")).toBe("deny");
+  expect(await runGuard(bare, "https://evil.example.org")).toBe(0);
 });

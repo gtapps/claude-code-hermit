@@ -1,5 +1,5 @@
 import { test, expect, afterAll } from 'bun:test';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 const dirs: string[] = [];
@@ -23,7 +23,7 @@ test('install preserves unrelated settings and denies; repeated seeding is stabl
   for (const rule of rules) expect(data.permissions.ask).toContain(rule);
   expect(run(root).exitCode).toBe(0); expect(readFileSync(file, 'utf8')).toBe(once);
 });
-test('migration converts only named legacy policy and validates all files before writing', () => {
+test('migration validates all files before writing and leaves operator denies alone', () => {
   const root = fixture(), local = join(root, '.claude/settings.local.json'), shared = join(root, '.claude/settings.json');
   writeFileSync(local, '{}'); writeFileSync(shared, '{bad');
   expect(run(root, true).exitCode).not.toBe(0); expect(readFileSync(local, 'utf8')).toBe('{}');
@@ -33,6 +33,17 @@ test('migration converts only named legacy policy and validates all files before
   const data = JSON.parse(readFileSync(shared, 'utf8'));
   expect(data.permissions.deny).toContain('Bash(custom *)');
   const before = readFileSync(local, 'utf8'); expect(run(root, true).exitCode).toBe(0); expect(readFileSync(local, 'utf8')).toBe(before);
+});
+test('a plain hatch install does not consume the one-time migration', () => {
+  const root = fixture(), local = join(root, '.claude/settings.local.json'), shared = join(root, '.claude/settings.json');
+  const marker = join(root, '.claude-code-hermit/state/laravel-forge-hermit-native-permissions-v1.json');
+  writeFileSync(local, '{}');
+  writeFileSync(shared, JSON.stringify({ permissions: { deny: [...rules, 'Bash(custom *)'] } }));
+  expect(run(root).exitCode).toBe(0);
+  expect(existsSync(marker)).toBe(false);
+  // The later --migrate still sees the shared file, which it only reads when migrating.
+  expect(run(root, true).exitCode).toBe(0);
+  expect(existsSync(marker)).toBe(true);
 });
 test('malformed permission arrays are not overwritten', () => {
   const root = fixture(), file = join(root, '.claude/settings.local.json');

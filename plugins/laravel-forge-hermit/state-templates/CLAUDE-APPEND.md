@@ -4,7 +4,7 @@
 
 ### Safety rule — surface-then-approve (read this first)
 
-**Every write operation goes through preview → relay → approve → confirm.** Never auto-confirm a deploy or reboot: run `php ${CLAUDE_PLUGIN_ROOT}/php/forge.php preview-deploy <server> <site>` (or `preview-reboot`), relay the canonical target to the operator, invoke with `--confirm` for native approval, without a second chat confirmation.
+**Every write operation goes through preview → relay → approve → confirm.** Never auto-confirm a deploy or reboot: run `php ${CLAUDE_PLUGIN_ROOT}/php/forge.php preview-deploy <server> <site>` (or `preview-reboot`), relay the canonical target to the operator, then invoke with `--confirm` for native approval. No second chat confirmation is needed.
 
 A wrong reboot causes an outage. A wrong deploy targets the wrong site. Native permissions authorize writes; the hook and PHP retain `--confirm` validation.
 
@@ -37,6 +37,5 @@ Deployment and server logs may contain env dumps, database credentials, and API 
 ### Proposal categories
 
 `[reliability]` — a recurring failure pattern across the estate.
-
 
 <!-- /laravel-forge-hermit: Forge Workflow -->

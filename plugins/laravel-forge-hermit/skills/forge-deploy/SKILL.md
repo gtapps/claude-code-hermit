@@ -31,7 +31,7 @@ Exit 0. No network write. The hook does not gate this command.
 
 Show the canonical server name, IP, site name, and IDs. Invoke the command below for Claude Code native permission approval. Do not ask for a separate conversational confirmation. Denial cancels this deployment.
 
-### Step 3: request native approval and deploy
+### Step 3: Request native approval and deploy
 
 ```bash
 php ${CLAUDE_PLUGIN_ROOT}/php/forge.php deploy <server> <site> --confirm

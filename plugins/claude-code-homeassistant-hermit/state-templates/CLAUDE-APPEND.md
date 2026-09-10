@@ -8,7 +8,7 @@
 
 - `/claude-code-homeassistant-hermit:ha-boot` is the single entry point — starts the hermit session and checks HA connectivity.
 - Never commit real HA URLs, tokens, or device inventories.
-- Actuation of sensitive domains (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`) and structural writes (helpers/areas/registries) are gated by `ha_safety_mode` (the `mcp-safety-gate` hook and the CLI both enforce it). Unresolvable or malformed targets hard-block in **both** modes; for a concrete sensitive target, `strict` blocks and `ask` uses native approval (CLI writes retain `--confirm`). Show the preview, then invoke for native approval without another chat confirmation. A block means the policy fired, surface it as a proposal, don't route around it.
+- Actuation of sensitive domains (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`) and structural writes (helpers/areas/registries) are gated by `ha_safety_mode` (the `mcp-safety-gate` hook and the CLI both enforce it). Unresolvable or malformed targets hard-block in **both** modes; for a concrete sensitive target, `strict` blocks and `ask` uses native approval (CLI writes retain `--confirm`). Show the preview, then invoke for native approval without another chat confirmation. A block means the policy fired: surface it as a proposal, don't route around it.
 - Uncertain entities default to sensitive.
 - Explicit operator approval is required before applying automations or modifying safety policy.
 - Use the stored language from `.claude-code-hermit/OPERATOR.md` (`## HA hermit` section) for all user-facing output.
@@ -36,6 +36,5 @@ Brainstorm ideas are single-pass — the cross-session recurrence condition is w
 ### Routines
 
 HA routines (`daily-ha-context`, `morning-brief`, `evening-brief`, `ha-patterns`, `ha-safety-audit`, `ha-integration-health`, `ha-update-check`) are registered by `hatch`. Run `/claude-code-hermit:hermit-routines load` once per interactive session to activate them.
-
 
 <!-- /claude-code-homeassistant-hermit: Home Assistant Workflow -->

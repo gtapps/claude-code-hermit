@@ -32,5 +32,4 @@ Use these prefixes in proposal titles produced by `/claude-code-fitness-hermit:d
 
 Brainstorm ideas are single-pass per the core proposal gate — the recurrence condition is waived.
 
-
 <!-- /claude-code-fitness-hermit: Fitness Workflow -->

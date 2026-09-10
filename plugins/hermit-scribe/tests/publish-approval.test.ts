@@ -26,3 +26,12 @@ test('publication approval recognizes assignments and bun run', () => {
     expect(needsApproval(`${prefix} /plugin/file-issue.ts classify bug /tmp/title /tmp/body`)).toBe(false);
   }
 });
+
+// Forms whose tokenization once hid the script path behind an extra word or
+// inside a nested command, so the gate silently passed the publish through.
+test('line continuations and nested commands still ask', () => {
+  expect(needsApproval('bun \\\n  /plugin/file-issue.ts /tmp/title /tmp/body')).toBe(true);
+  expect(needsApproval('( bun /plugin/file-issue.ts /tmp/title /tmp/body )')).toBe(true);
+  expect(needsApproval('echo $(bun /plugin/file-issue.ts /tmp/title /tmp/body)')).toBe(true);
+  expect(needsApproval('echo `bun /plugin/file-issue.ts /tmp/title /tmp/body`')).toBe(true);
+});

@@ -39,8 +39,9 @@ const BASH_LS = { tool_name: 'Bash', tool_input: { command: 'ls -la' } };
 const BENIGN_EDIT = { tool_name: 'Edit', tool_input: { file_path: 'scratch.txt' } };
 
 // failExit is the hook's DECLARED fail direction — 0 = fail open (the default
-// hook contract), 2 = fail closed. HA and Scribe approval gates fail closed: a payload it cannot parse is exactly the shape an evasion
-// takes, so it blocks (hooks/mcp-safety-gate.ts fail() at :79-88, non-object
+// hook contract), 2 = fail closed. The HA gates and Scribe's publish-approval
+// fail closed: a payload they cannot parse is exactly the shape an evasion
+// takes, so they block (hooks/mcp-safety-gate.ts fail() at :79-88, non-object
 // check at :114). Changing a value here is a deliberate contract change.
 const SPECS: Spec[] = [
   { name: 'ha/cli-approval', script: 'plugins/claude-code-homeassistant-hermit/hooks/cli-approval.ts', benign: BASH_LS, failExit: 2 },

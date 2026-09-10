@@ -2,15 +2,6 @@
 
 ## [Unreleased]
 
-### Changed
-
-- Native operator approval for existing guarded actions.
-
-### Upgrade Instructions
-
-Refresh the installed CLAUDE-APPEND block and notify the operator that existing guarded actions now use Claude Code native approval instead of the prior refusal or conversational confirmation.
-
-
 ### Fixed
 - Earlier-run fetch output is rejected before brief scoring when a new collection fails to replace it.
 - `unknown keys "description" ... ignored` warning printed at every session start. `description` is not part of Claude Code's hook schema on a matcher group; the prose now lives in each hook script's header, with one legal root-level `description` in `hooks.json`.

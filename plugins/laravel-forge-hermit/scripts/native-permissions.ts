@@ -49,6 +49,11 @@ for (const [file, settings] of files) {
   const conflicts = settings.permissions?.deny?.filter((rule: string) => rules.includes(rule)) ?? [];
   if (conflicts.length) console.log(`Existing denies remain: ${conflicts.join(', ')}`);
 }
-fs.mkdirSync(path.dirname(migrationFile), { recursive: true });
-fs.writeFileSync(migrationFile, JSON.stringify({ version: 1 }) + '\n');
+// Only a --migrate run may claim the marker: writing it on a plain install
+// would make the one-time legacy conversion a no-op for anyone who hatches
+// before running the upgrade instruction.
+if (migrate) {
+  fs.mkdirSync(path.dirname(migrationFile), { recursive: true });
+  fs.writeFileSync(migrationFile, JSON.stringify({ version: 1 }) + '\n');
+}
 console.log('Native approval rules installed.');

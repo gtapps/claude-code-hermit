@@ -23,12 +23,13 @@ test('install preserves unrelated settings and denies; repeated seeding is stabl
   for (const rule of rules) expect(data.permissions.ask).toContain(rule);
   expect(run(root).exitCode).toBe(0); expect(readFileSync(file, 'utf8')).toBe(once);
 });
-test('migration converts only named legacy policy and validates all files before writing', () => {
+test('migration flips ha_safety_mode once and validates all files before writing', () => {
   const root = fixture(), local = join(root, '.claude/settings.local.json'), shared = join(root, '.claude/settings.json');
   writeFileSync(local, '{}'); writeFileSync(shared, '{bad');
   expect(run(root, true).exitCode).not.toBe(0); expect(readFileSync(local, 'utf8')).toBe('{}');
   writeFileSync(shared, JSON.stringify({ permissions: { deny: [...rules, 'Bash(custom *)'] } }));
   writeFileSync(join(root, '.claude-code-hermit/config.json'), JSON.stringify({ ha_safety_mode: 'strict', custom: 7 }));
+  expect(run(root).exitCode).toBe(0); // a plain hatch install must not consume the one-time migration
   expect(run(root, true).exitCode).toBe(0);
   const data = JSON.parse(readFileSync(shared, 'utf8'));
   expect(data.permissions.deny).toContain('Bash(custom *)');

@@ -20,4 +20,4 @@ Request-capture and canonicalization checks (Blocks A/B in `php/tests/run.php`) 
 
 Native approval is the execution checkpoint for existing guarded actions. Preserve previews and validation; do not add a second conversational yes/no step. Static rules live in project permissions.ask; dynamic hooks request permissionDecision: "ask". A denied request must not be retried through another tool or route.
 
-The native-permissions installer owns `.claude-code-hermit/state/laravel-forge-hermit-native-permissions-v1.json`, a durable completion marker created after successful installation or migration. Preserve it across upgrades so later operator policy choices are not migrated again.
+The native-permissions installer owns `.claude-code-hermit/state/laravel-forge-hermit-native-permissions-v1.json`, a durable completion marker written only by a successful `--migrate` run. Preserve it across upgrades so later operator policy choices are not migrated again.

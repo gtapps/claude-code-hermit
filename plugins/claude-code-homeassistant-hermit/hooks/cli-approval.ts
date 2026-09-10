@@ -6,13 +6,16 @@ import { loadSnapshot } from '../src/snapshot-restore';
 import { projectRoot } from '../src/config';
 
 export async function decision(command: string, cwd: string, root: string): Promise<{ decision: 'ask' | 'deny'; reason: string } | null> {
-  if (!command.includes('ha-agent-lab') && !command.includes('claude-code-homeassistant-hermit/src/cli.ts')) return null;
+  // Matched unqualified: the command reaches this hook unexpanded, so
+  // `bun ${CLAUDE_PLUGIN_ROOT}/src/cli.ts` never carries the plugin directory
+  // name. An unrelated `src/cli.ts` is filtered by the `ha` subcommand check below.
+  if (!command.includes('ha-agent-lab') && !command.includes('src/cli.ts')) return null;
   let result: { decision: 'ask' | 'deny'; reason: string } | null = null;
   for (const words of shellCommands(command)) {
     if (words[0] === 'cd' && words.length === 2) { cwd = resolve(cwd, words[1]); continue; }
     while (words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[0])) words.shift();
     if (basename(words[0] ?? '') === 'bun' && words[1] === 'run') words.splice(1, 1);
-    const index = words.findIndex(word => basename(word) === 'ha-agent-lab' || word.endsWith('/claude-code-homeassistant-hermit/src/cli.ts'));
+    const index = words.findIndex(word => basename(word) === 'ha-agent-lab' || word.endsWith('/src/cli.ts'));
     if (index < 0 || (index !== 0 && !(index === 1 && ['bun', 'node', 'bash'].includes(basename(words[0])))) || words[index + 1] !== 'ha' || !['call-service', 'restore-states'].includes(words[index + 2])) continue;
     const argv = words.slice(index + 1);
     if (argv.includes('--help') || argv.includes('-h')) continue;
@@ -23,7 +26,8 @@ export async function decision(command: string, cwd: string, root: string): Prom
       if (!domain || !service || extra.length) throw new Error('Invalid service');
       const data = JSON.parse(String(args.flags['--data'] ?? '{}'));
       if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid service data');
-      // Always evaluate unconfirmed: --confirm cannot suppress the native approval.
+      // Evaluate as unconfirmed so --confirm cannot turn a denial into an allow.
+      // The ask fires only on the --confirm invocation; without it the CLI refuses anyway.
       const gate = gateServiceCall(root, domain, service, data, false);
       if (!gate.allowed) {
         const verdict = { decision: gate.requiresConfirm ? 'ask' as const : 'deny' as const, reason: gate.reason };

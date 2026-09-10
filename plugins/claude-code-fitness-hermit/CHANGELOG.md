@@ -4,7 +4,7 @@
 
 ### Changed
 
-- Native operator approval for existing guarded actions.
+- Write-class Strava tools (`star-segment`, `connect-strava`, `disconnect-strava`) request native approval instead of being denied outright.
 
 ### Upgrade Instructions
 

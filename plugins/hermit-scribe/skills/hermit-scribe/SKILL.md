@@ -103,7 +103,6 @@ Present the post-translation, post-sanitization content to the operator as a **s
 2. Complete issue body — everything that will be written to the issue, including the `---\n*Filed via hermit-scribe...*` footer
 3. Labels that will be applied (informational — no operator editing): `Labels: hermit-filed (always); plus bug/enhancement/chore and optional homeassistant-hermit/hermit-scribe for proposal-backed issues`
 4. If Step 1c found templates (informational — no operator editing): `Note: this repo defines issue templates under .github/ISSUE_TEMPLATE/ ({filenames}); this body does not follow them.` Omit this item entirely when Step 1c found nothing.
-The publishing command requests Claude Code native approval after this complete preview.
 
 If the preview exceeds the channel message-size limit, split it into multiple messages and finish displaying all content before invoking publication.
 
@@ -178,7 +177,6 @@ Parse the response as usual (split on `<<<HERMIT_SCRIBE_BODY>>>`). Use only the 
 Present the post-sanitization content as a **single message** containing, in order:
 1. Target: `Issue #NNN`
 2. Complete comment body — everything that will be posted
-The publishing command requests Claude Code native approval after this complete preview.
 
 If the preview exceeds the channel message-size limit, split it into multiple messages and finish displaying all content before invoking publication.
 
