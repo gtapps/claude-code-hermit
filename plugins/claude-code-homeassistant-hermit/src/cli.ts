@@ -1744,7 +1744,7 @@ interface ParsedArgs {
   flags: Record<string, unknown>;
 }
 
-function parseArgs(argv: string[]): ParsedArgs {
+export function parseArgs(argv: string[]): ParsedArgs {
   if (argv[0] === '-h' || argv[0] === '--help') printHelp(TOP_HELP);
   if (argv.length === 0) {
     argError('ha_agent_lab', TOP_USAGE, 'the following arguments are required: command');

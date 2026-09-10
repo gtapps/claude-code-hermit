@@ -33,8 +33,8 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // A plugin is in scope when it has a hatch, declares a core dependency, and
 // that hatch actually does target routing. The first two conditions alone would
 // pull in hermit-scribe, which declares the dependency but carries none of the
-// protocol prose (it only reads the target, never resolves or stamps it), so a
-// rewrite loop over that set would try to edit a file with nothing to edit.
+// target-writing protocol (it only reads the target through preflight, never
+// resolves or stamps it). Its read-only use is checked separately below.
 function pluginSlugs(): string[] {
   return fs
     .readdirSync(PLUGINS_DIR, { withFileTypes: true })
@@ -54,7 +54,7 @@ function discover(): DomainHatch[] {
       const meta = (() => { try { return JSON.parse(fs.readFileSync(p.meta, 'utf-8')); } catch { return null; } })();
       return { slug: p.slug, file: p.file, meta, text: fs.readFileSync(p.file, 'utf-8') };
     })
-    .filter((p) => Boolean(p.meta?.required_core_version) && p.text.includes('domain-hatch'))
+    .filter((p) => Boolean(p.meta?.required_core_version) && p.slug !== 'hermit-scribe' && p.text.includes('domain-hatch'))
     .map(({ slug, file, text }) => ({ slug, file, text }))
     .sort((a, b) => a.slug.localeCompare(b.slug));
 }
@@ -77,6 +77,15 @@ describe('discovery', () => {
       )
       .sort();
     expect(HATCHES.map((h) => h.slug)).toEqual(expected);
+  });
+
+  test('scribe reads the shared target without resolving or stamping it', () => {
+    const text = fs.readFileSync(path.join(PLUGINS_DIR, 'hermit-scribe/skills/hatch/SKILL.md'), 'utf8');
+    expect(text).toContain('domain-hatch preflight hermit-scribe');
+    expect(text).toContain('`target_file` from step 1.5');
+    expect(text).not.toContain('hatch-options.json');
+    expect(text).not.toContain('domain-hatch ensure-target');
+    expect(text).toContain('If `ok` is false');
   });
 
   test('never includes core, which is not a consumer of its own protocol', () => {

@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Activate hermit-scribe
 
-hermit-scribe is a maintainer utility with a single skill (`/hermit-scribe:hermit-scribe`) — this hatch only needs to make its GitHub App posting behavior visible to the operator's `CLAUDE.md` and to Claude Code's auto-mode classifier. There is no config, no routines, no channels.
+Hatch installs publication approval rules, refreshes the Issue Filing instruction block, and seeds the auto-mode environment. There are no routines or channels.
 
 ## Plan
 
@@ -17,9 +17,15 @@ Check if `.claude-code-hermit/` exists in the current project.
 - Missing: ask the operator (`AskUserQuestion`) "Core hermit isn't set up yet. Run `/claude-code-hermit:hatch` now?" with options `Yes — run now` / `No — I'll do it later`. If yes, invoke `/claude-code-hermit:hatch` via the Skill tool and stop. If no, stop.
 - Present: proceed.
 
+### 1.5. Install publication approval rules
+
+Run `.claude-code-hermit/bin/hermit-run domain-hatch preflight hermit-scribe`. If `ok` is false or `action` is `bootstrap-core`, `upgrade-core-package`, or `upgrade-core-applied`, relay `remedy` or `message` and stop. Map `target` (or `target_default` when absent): `local` to `.claude/settings.local.json`, `committed` to `.claude/settings.json`.
+
+Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/native-permissions.ts <resolved-settings-file>` on every hatch, including when the version is current. If it fails, stop before updating the instruction block.
+
 ### 2. Update CLAUDE.md / CLAUDE.local.md
 
-**Resolve target file:** read `.claude-code-hermit/state/hatch-options.json`. `"target": "local"` → `CLAUDE.local.md`; `"target": "committed"` or the file absent → `CLAUDE.md`.
+**Resolve target file:** use `target_file` from step 1.5's preflight. When absent, map the same `target_default`: `local` to `CLAUDE.local.md`, `committed` to `CLAUDE.md`.
 
 Read the plugin version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and the stamped version from `.claude-code-hermit/config.json` at `_hermit_versions["hermit-scribe"]` (treat absent as `null`). Step 4 of this skill stamps that field at the end of every run, so on re-runs it reflects the version that last wrote the block. Read `target_file` (a missing file is marker-absent — the append below will create it). Look for the marker `<!-- hermit-scribe: Issue Filing -->`.
 
@@ -30,7 +36,7 @@ Read the plugin version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` 
 
 ### 3. Auto-mode environment seed
 
-Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/automode-env.ts .claude/settings.local.json` — **always `.claude/settings.local.json`, regardless of `hatch_target`**: Claude Code's auto-mode classifier reads `autoMode` config only from local/user scope, never a committed project `.claude/settings.json`. This names `api.github.com` (scoped to the configured `HERMIT_GH_REPO`, or the default `gtapps/claude-code-hermit`) as a service the hermit posts to only with the operator's in-session confirmation — context for the classifier, not a standing permission grant (filing still goes through the skill's own preview/confirm gate every time). Additive and idempotent; safe to re-run. No prompt needed.
+Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/automode-env.ts .claude/settings.local.json`, **always `.claude/settings.local.json`, regardless of `hatch_target`**: Claude Code's auto-mode classifier reads `autoMode` config only from local/user scope, never a committed project `.claude/settings.json`. This identifies `api.github.com` and the configured `HERMIT_GH_REPO` (default `gtapps/claude-code-hermit`) for the classifier. Safe to re-run.
 
 ### 4. Stamp version
 

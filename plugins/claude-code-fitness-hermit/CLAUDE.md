@@ -14,7 +14,7 @@ A fitness/training domain layer for `claude-code-hermit`: skills, a Strava data 
 
 - Never commit real Strava OAuth credentials; `.env` and `.mcp.json` are gitignored. The hatch skill reads `.env` with the `Read` tool, never `cat`/`grep`/`echo` (`Bash(cat .env*)` is a seeded native deny, and credential values must not land in the transcript).
 - The MCP server key is `strava` (written to `.mcp.json` by `hatch`, tool IDs `mcp__strava__*`); skill text and `settings.json` matchers depend on that name. Provided by `@r-huijts/strava-mcp-server` via `npx`, unpinned; operators can pin in their own `.mcp.json`.
-- Every Strava workflow calls `mcp__strava__check-strava-connection` first. Write-class tools (`star-segment`, `connect-strava`, `disconnect-strava`) are denied in `settings.json`; never call them.
+- Every Strava workflow calls `mcp__strava__check-strava-connection` first.
 - No persona or agent name copy ships here; those come from the consumer's `config.json`.
 
 ## Routines and state
@@ -40,3 +40,5 @@ Core's `scripts/domain-hatch.ts` owns target resolution and `hatch-options.json`
 ## Development
 
 `claude --plugin-dir /path/to/claude-code-fitness-hermit` from a target project, then `/claude-code-fitness-hermit:hatch`. Tests: `bash tests/run-all.sh`.
+
+The native-permissions installer owns `.claude-code-hermit/state/claude-code-fitness-hermit-native-permissions-v1.json`, a durable completion marker written only by a successful `--migrate` run. Preserve it across upgrades so later operator policy choices are not migrated again.

@@ -29,13 +29,9 @@ Exit 0. No network write. The hook does not gate this command.
 
 ### Step 2 — Relay canonical target to operator
 
-Show the canonical server name, IP, site name, and IDs. Ask for explicit approval.
+Show the canonical server name, IP, site name, and IDs.
 
-> "Deploy to **myapp.com** on **prod-web-01** (1.2.3.4)? Reply 'yes' to confirm or 'no' to cancel."
-
-Never auto-confirm. If the operator says anything other than an unambiguous affirmative, cancel.
-
-### Step 3 — On approval only: fire the deployment
+### Step 3: Deploy
 
 ```bash
 php ${CLAUDE_PLUGIN_ROOT}/php/forge.php deploy <server> <site> --confirm

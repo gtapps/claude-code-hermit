@@ -22,6 +22,17 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/cli-approval.ts"],
+            "timeout": 5
+          }
+        ]
       }
     ]
   }

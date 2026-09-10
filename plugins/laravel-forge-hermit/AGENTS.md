@@ -17,3 +17,5 @@ Hatch installs the SDK into the consumer's `.claude-code-hermit/forge-runtime/ve
 Run `bash tests/run-all.sh` from this plugin directory with the PHP version/extensions required by `php/composer.json` and Composer available. The runner installs the local SDK fixture, executes `php/tests/run.php`, runs the hook tests, and invokes structural lints separately. Do not substitute bare `bun test`: structural files call `process.exit()` and can terminate its runner early.
 
 Request-capture and canonicalization checks (Blocks A/B in `php/tests/run.php`) are essential when changing the write gateway. When adding a skill, update the explicit `SKILLS` list in `tests/skill-structure.test.ts`.
+
+The native-permissions installer owns `.claude-code-hermit/state/laravel-forge-hermit-native-permissions-v1.json`, a durable completion marker written only by a successful `--migrate` run. Preserve it across upgrades so later operator policy choices are not migrated again.

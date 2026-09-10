@@ -39,11 +39,12 @@ const BASH_LS = { tool_name: 'Bash', tool_input: { command: 'ls -la' } };
 const BENIGN_EDIT = { tool_name: 'Edit', tool_input: { file_path: 'scratch.txt' } };
 
 // failExit is the hook's DECLARED fail direction — 0 = fail open (the default
-// hook contract), 2 = fail closed. HA's mcp-safety-gate is the fleet's only
-// default-deny gate: a payload it cannot parse is exactly the shape an evasion
-// takes, so it blocks (hooks/mcp-safety-gate.ts fail() at :79-88, non-object
-// check at :114). Changing a value here is a deliberate contract change.
+// hook contract), 2 = fail closed. The HA gates fail closed: a payload they
+// cannot parse is exactly the shape an evasion takes, so they block
+// (hooks/mcp-safety-gate.ts fail() at :79-88, non-object check at :114).
+// Changing a value here is a deliberate contract change.
 const SPECS: Spec[] = [
+  { name: 'ha/cli-approval', script: 'plugins/claude-code-homeassistant-hermit/hooks/cli-approval.ts', benign: BASH_LS, failExit: 2 },
   {
     name: 'core/pause-gate',
     script: 'plugins/claude-code-hermit/scripts/pause-gate.ts',
@@ -116,7 +117,7 @@ const SPECS: Spec[] = [
     // A read-only tool is allowed before any entity/config resolution, so the
     // benign case stays independent of the machine's HA configuration.
     benign: { tool_name: 'mcp__homeassistant__GetDateTime', tool_input: {} },
-    failExit: 2, // the fleet's only fail-closed gate
+    failExit: 2,
   },
   {
     name: 'ha/curl-host-gate',

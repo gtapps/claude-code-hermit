@@ -121,14 +121,14 @@ Manual smoke checks (no network needed; both should fail cleanly on the missing 
 ```bash
 # Missing key file: exits non-zero with a clear error
 HERMIT_GH_APP_ID=1 HERMIT_GH_APP_INSTALL_ID=2 HERMIT_GH_APP_KEY_FILE=/nonexistent \
-  bun "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.ts" /dev/null /dev/null
+  bun "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.ts" --publish /dev/null /dev/null
 
 # Extra label args parse cleanly and reach token acquisition
 TMP_DIR="$(mktemp -d)" && (
   trap 'rm -r "$TMP_DIR"' EXIT
   printf 't\n' > "$TMP_DIR/t" && printf 'b\n' > "$TMP_DIR/b.md" && \
   HERMIT_GH_APP_ID=1 HERMIT_GH_APP_INSTALL_ID=2 HERMIT_GH_APP_KEY_FILE=/nonexistent \
-    bun "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.ts" \
+    bun "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.ts" --publish \
     "$TMP_DIR/t" "$TMP_DIR/b.md" enhancement homeassistant-hermit
 )
 ```

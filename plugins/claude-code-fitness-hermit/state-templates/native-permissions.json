@@ -1,0 +1,7 @@
+{
+  "ask": [
+    "mcp__strava__star-segment",
+    "mcp__strava__connect-strava",
+    "mcp__strava__disconnect-strava"
+  ]
+}

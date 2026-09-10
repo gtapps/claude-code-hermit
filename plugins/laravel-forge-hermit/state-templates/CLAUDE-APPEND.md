@@ -2,11 +2,11 @@
 
 ## Laravel Forge
 
-### Safety rule — surface-then-approve (read this first)
+### Write previews
 
-**Every write operation goes through preview → relay → approve → confirm.** Never auto-confirm a deploy or reboot: run `php ${CLAUDE_PLUGIN_ROOT}/php/forge.php preview-deploy <server> <site>` (or `preview-reboot`), relay the canonical target to the operator, wait for explicit approval, then re-run with `--confirm`.
+Preview and relay the canonical target and request before every write. For a deploy or reboot, run `php ${CLAUDE_PLUGIN_ROOT}/php/forge.php preview-deploy <server> <site>` (or `preview-reboot`), relay the canonical target to the operator, then run the write command with `--confirm`.
 
-A wrong reboot causes an outage. A wrong deploy targets the wrong site. The `write-confirm-gate.ts` hook and the in-PHP `--confirm` gate enforce this at two layers, with the PHP gate authoritative.
+A wrong reboot causes an outage. A wrong deploy targets the wrong site.
 
 ### Tools
 

@@ -59,12 +59,12 @@ export function clearPolicyCaches(): void {
 }
 
 // Parse .claude-code-hermit/config.json once per root. Fail-closed: any read or
-// parse error (or a non-object payload) yields {}, so every config-derived
+// parse error (or a non-object payload) retains strict mode, so every config-derived
 // guard below falls back to its own safe default.
 function loadHermitConfig(root: string): Record<string, unknown> {
   const cached = configCache.get(root);
   if (cached !== undefined) return cached;
-  let cfg: Record<string, unknown> = {};
+  let cfg: Record<string, unknown> = { ha_safety_mode: 'strict' };
   try {
     const parsed = JSON.parse(readFileSync(join(root, '.claude-code-hermit', 'config.json'), 'utf8'));
     if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) cfg = parsed;
@@ -93,7 +93,8 @@ function loadPolicyOverrides(root: string): PolicyOverrides {
 }
 
 function loadSafetyMode(root: string): string {
-  const value = loadHermitConfig(root)['ha_safety_mode'] ?? 'strict';
+  const configured = loadHermitConfig(root)['ha_safety_mode'];
+  const value = configured === undefined ? 'ask' : configured;
   return typeof value === 'string' && Object.hasOwn(MODE_TO_SEVERITY, value) ? value : 'strict';
 }
 
@@ -131,7 +132,7 @@ export interface MutationGate {
  * Gate for structural WebSocket mutations (helpers, areas, entity/device
  * registries). Reads are never gated — only call this for writes.
  *
- *   strict (default): blocked — surface the work as a proposal.
+ *   strict (explicit): blocked, surface the work as a proposal.
  *   ask: allowed only with operator confirmation. The CLI is non-interactive,
  *        so the caller passes `confirmed` (the `--confirm` flag) after the main
  *        session has prompted the operator; without it the gate asks for it.

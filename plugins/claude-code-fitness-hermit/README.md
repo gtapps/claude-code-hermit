@@ -14,7 +14,7 @@ Turn Claude Code into a 24/7 personal fitness assistant. **Strava-aware**, **Rea
   <img src="../claude-code-hermit/assets/cover.png" alt="Always-on Claude Code Fitness Agent" width="720" />
 </p>
 
-Reads your Strava, spots load anomalies, drafts weekly plans, and flags recovery — never modifies your account. Wires the community Strava [MCP Server](https://github.com/r-huijts/strava-mcp-server) and the [Strava REST API](https://developers.strava.com/docs/reference/) into the [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) loop, with write-class tools blocked at the settings layer.
+Reads your Strava, spots load anomalies, drafts weekly plans, and flags recovery. Wires the community Strava [MCP Server](https://github.com/r-huijts/strava-mcp-server) and the [Strava REST API](https://developers.strava.com/docs/reference/) into the [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) loop.
 
 ```
 # Install
@@ -47,8 +47,6 @@ claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope loca
 - `weekly-coaching-patterns` — Monday 09:05 — cardiac-drift trend; pre-wake gate skips when there is no upward trend
 
 Need a different cadence or a new routine? Just ask — hermit sets it up.
-
-**Read-only by design.** Write-class Strava tools (`star-segment`, `connect-strava`, `disconnect-strava`) are blocked at the settings layer. The hermit only reads — your Strava account is never modified.
 
 **Tracks how it felt.** After each synced activity, reply with your RPE (1–10) in the channel — `capture-activity-rpe` binds it to the activity. Use `/claude-code-fitness-hermit:set-rpe` for manual or retroactive entries. Subjective load surfaces in `activity-deep-dive` output and weekly summaries.
 
@@ -102,7 +100,7 @@ claude plugin update claude-code-fitness-hermit@claude-code-hermit --scope local
 
 ## Safety
 
-- **Blocked outright** — `mcp__strava__star-segment`, `mcp__strava__connect-strava`, `mcp__strava__disconnect-strava` (denied via `settings.json`). The hermit reads your Strava account and never modifies it.
+- **Strava writes require approval:** `star-segment`, `connect-strava`, `disconnect-strava`.
 - **Credentials stay local** — `.env` and `.mcp.json` are gitignored. The four Strava credentials in `.env` are written as literal values into `.mcp.json` (required for the MCP server's child process) and never committed.
 - **No token leakage** — never logs, prints, or writes token values to session files, proposals, or memory.
 - **`.env` stays off the shell** — there is no `Bash(*TOKEN*)` substring deny. `Bash(cat .env*)` is a seeded native deny, and credential values must not land in the transcript. Hatch reads `.env` via the `Read` tool, not shell commands.

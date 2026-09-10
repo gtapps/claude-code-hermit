@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Write-class Strava tools (`star-segment`, `connect-strava`, `disconnect-strava`) request native approval instead of being denied outright.
+
+### Upgrade Instructions
+
+Run `bun <plugin_root>/scripts/automode-env.ts <project>/.claude/settings.local.json` to replace the exact old seeded classifier description while preserving operator entries.
+
+Resolve the project settings target with domain-hatch preflight claude-code-fitness-hermit: local maps to .claude/settings.local.json; committed maps to .claude/settings.json. Run `bun <plugin_root>/scripts/native-permissions.ts <resolved-settings-file> --migrate` once for this version transition. Refresh the installed CLAUDE-APPEND block and notify the operator that existing guarded actions now use Claude Code native approval instead of the prior refusal or conversational confirmation.
+
 ## [0.1.2] - 2026-09-07
 
 ### Changed

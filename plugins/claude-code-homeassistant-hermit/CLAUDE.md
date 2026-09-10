@@ -16,7 +16,7 @@ A Home Assistant domain layer for `claude-code-hermit`: skills, subagents, a saf
 ## Rules
 
 - Never commit real HA URLs, tokens, or device inventories. Check credential state with `bin/ha-agent-lab boot status`, never `cat .env` or `echo $HOMEASSISTANT_TOKEN` (core's seeded rules deny `cat .env*`, and expanding a credential var puts the value in the transcript).
-- Actuation of sensitive domains (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`) is gated by `ha_safety_mode` in `.claude-code-hermit/config.json` (absent = `strict`). Under `strict`, never actuate autonomously; blocked work becomes a proposal. Under `ask`, the operator is prompted before any sensitive actuation, YAML apply or direct MCP call alike. Uncertain entities and new domains default to sensitive. Full model: `SAFETY.md`.
+- Actuation of sensitive domains (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`) is gated by `ha_safety_mode` in `.claude-code-hermit/config.json` (absent in valid config = `ask`). Under `strict`, never actuate autonomously; blocked work becomes a proposal. Under `ask`, the operator is prompted before any sensitive actuation, YAML apply or direct MCP call alike. Uncertain entities and new domains default to sensitive. Full model: `SAFETY.md`.
 - Use the language stored in OPERATOR.md's `## HA hermit` section for all user-facing output. That section is operator-curated config (locale today); auto-memory holds Claude-derived house knowledge.
 - Prefer the CLI over ad-hoc reasoning when a helper exists.
 
@@ -59,3 +59,7 @@ Core's `scripts/domain-hatch.ts` owns target resolution and `hatch-options.json`
 - The CLI and both hooks are TypeScript run directly by bun with zero runtime dependencies. Python is test-only: `tests/gate-corpus.test.ts` replays the retired Python hooks from git history and `tests/yaml-parity.test.ts` compares against PyYAML. The suite needs full git history and Python with `python-dotenv` and `PyYAML`; set `GATE_PARITY_PYTHON` when that interpreter is outside PATH.
 - The safety hook fails closed: an MCP call whose target cannot be resolved to concrete entity IDs is blocked. Changes to `hooks/mcp-safety-gate.ts` or `src/policy.ts` must keep `tests/gate-corpus.test.ts` (golden byte-equivalence with the retired gate) and `tests/gate-fuzz.test.ts` (fail-closed property) green.
 - When using `tmpPath()` from `tests/helpers.ts`, register `afterAll(cleanupTmp)`. Cleanup after each test can delete fixtures still used by concurrent tests. Keep independent corpus and fuzz subprocess work asynchronous.
+
+Static `permissions.ask` rules cover structural writes through `bin/ha-agent-lab`, not the `bun <root>/src/cli.ts` development form. `cli-approval.ts` covers `call-service` and `restore-states` in both forms because their policy depends on the target entities.
+
+The native-permissions installer owns `.claude-code-hermit/state/claude-code-homeassistant-hermit-native-permissions-v1.json`, a durable completion marker written only by a successful `--migrate` run. Preserve it across upgrades so later operator policy choices are not migrated again.

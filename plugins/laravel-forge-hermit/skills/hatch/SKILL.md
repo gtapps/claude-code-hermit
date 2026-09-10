@@ -170,6 +170,12 @@ Write the updated `config.json` via Write tool (full file replacement for valid 
 
 ---
 
+## Native approval rules
+
+Resolve the project settings target through `.claude-code-hermit/bin/hermit-run domain-hatch preflight laravel-forge-hermit`. Map `target` (or `target_default` when absent): `local` to `.claude/settings.local.json`, `committed` to `.claude/settings.json`. Its `target_file` is the instruction destination, not the settings file.
+
+Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/native-permissions.ts <resolved-settings-file>`. Do not pass `--migrate` during ordinary hatch.
+
 ## Step 8 — Final report
 
 ```

@@ -8,9 +8,9 @@
 
 - `/claude-code-homeassistant-hermit:ha-boot` is the single entry point — starts the hermit session and checks HA connectivity.
 - Never commit real HA URLs, tokens, or device inventories.
-- Actuation of sensitive domains (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`) and structural writes (helpers/areas/registries) are gated by `ha_safety_mode` (the `mcp-safety-gate` hook and the CLI both enforce it). Unresolvable or malformed targets hard-block in **both** modes; for a concrete sensitive target, `strict` blocks and `ask` prompts the operator (CLI writes under `ask` need `--confirm`). A block means the policy fired — surface it as a proposal, don't route around it.
+- Preview sensitive actuation (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`) and structural writes (helpers/areas/registries). Use `--confirm` when required by the CLI. Surface policy blocks as proposals.
 - Uncertain entities default to sensitive.
-- Explicit operator approval is required before applying automations or modifying safety policy.
+- Obtain explicit operator approval before modifying safety policy.
 - Use the stored language from `.claude-code-hermit/OPERATOR.md` (`## HA hermit` section) for all user-facing output.
 
 HA skills and subagents self-advertise through their own SKILL.md / agent descriptions — no catalog is kept here. Entry point: `/claude-code-homeassistant-hermit:ha-boot`.

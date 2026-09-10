@@ -49,7 +49,7 @@ Build YAML automations and scripts that are safe, well-structured, and follow pr
 
 ## Safety
 
-- Read `ha_safety_mode` from `.claude-code-hermit/config.json` (absent = `strict`).
-  - `strict` (default): NEVER reference entities in `lock`, `alarm_control_panel`, or security-related `cover`/`button`/`switch`. If the request involves these domains, write a proposal instead.
+- Read `ha_safety_mode` from `.claude-code-hermit/config.json` (absent in valid config = `ask`).
+  - `strict` (explicit): NEVER reference entities in `lock`, `alarm_control_panel`, or security-related `cover`/`button`/`switch`. If the request involves these domains, write a proposal instead.
   - `ask`: draft the automation and run `ha policy-check`. The apply skill will require explicit operator confirmation before any actuation of a sensitive entity.
 - NEVER use MCP actuation tools — you have read-only MCP access

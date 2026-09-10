@@ -47,8 +47,6 @@ if (fs.existsSync(appendPath)) {
   // Rules the trim was not allowed to touch.
   ok('keeps connection-first', append.includes('check-strava-connection'));
   ok('keeps the secrets rule', /[Nn]ever commit Strava tokens/.test(append));
-  ok('keeps the settings-blocked write-tool rule',
-    append.includes('star-segment') && append.includes('settings.json'));
   ok('keeps the zones rule', append.includes('get-athlete-zones'));
   ok('keeps full-history authority', append.includes('get-athlete-stats'));
   ok('keeps the fitness-lab mediation boundary', append.includes('fitness-lab.ts'));

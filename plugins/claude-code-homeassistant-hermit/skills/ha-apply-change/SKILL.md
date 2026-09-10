@@ -13,10 +13,10 @@ allowed-tools:
 
 1. **Pre-check**: Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <artifact_path>` to verify safety. Read the `severity` field in the JSON output:
    - `"block"` (strict mode): stop and explain why. Create a proposal via `/claude-code-hermit:proposal-create`.
-   - `"ask"` (ask mode): include the sensitive entities in the confirmation in step 2.
+   - `"ask"` (ask mode): include the sensitive entities in the preview in step 2.
    - `"allow"`: proceed to step 2.
 
-2. **Confirm with operator before applying**: Present the artifact, policy result, affected entities, and domain to reload. Obtain explicit approval for that concrete change, using the Operator Notification protocol in CLAUDE.md for channel sessions. If the operator already approved the same artifact and reload in this task, reuse that approval; changed content or targets require a new confirmation. Declined or unanswered: stop before step 3.
+2. **Preview**: Present the artifact, policy result, affected entities, and reload domain. A changed artifact or target requires a fresh preview.
 
 3. **Validate and apply**: Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha validate-apply <artifact_path> --reload automation` (or `script`).
    - This runs HA config check, **pushes the config to HA via REST**, then reloads the domain.
