@@ -51,6 +51,9 @@ for (const [file, settings] of files) {
   const conflicts = settings.permissions?.deny?.filter((rule: string) => rules.includes(rule)) ?? [];
   if (conflicts.length) console.log(`Existing denies remain: ${conflicts.join(', ')}`);
 }
+// `config` is non-null only on the first --migrate (the marker gates it), which
+// is what keeps this one-time. A second run must not re-flip a `strict` the
+// operator deliberately set back after upgrading.
 if (config && (config.ha_safety_mode === undefined || config.ha_safety_mode === 'strict')) {
   config.ha_safety_mode = 'ask';
   fs.mkdirSync(path.dirname(stateFile), { recursive: true });

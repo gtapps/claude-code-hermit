@@ -121,19 +121,19 @@ Use the Write tool to create two files inside that directory:
 Substitute the same path from step 5 and append the `labels` from the Step 1 `classify` output as trailing arguments. Do NOT include `hermit-filed` — the script always adds it.
 
 ```bash
-bun "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.ts" \
+bun "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.ts" --publish \
   /tmp/tmp.AbCdEf/title /tmp/tmp.AbCdEf/body.md <type-label> [<scope-label>]
 ```
 
 For example, a `capability` proposal scoped to `homeassistant-hermit`:
 ```bash
-bun "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.ts" \
+bun "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.ts" --publish \
   /tmp/tmp.AbCdEf/title /tmp/tmp.AbCdEf/body.md enhancement homeassistant-hermit
 ```
 
 For an ad-hoc issue (no proposal), omit the label args entirely:
 ```bash
-bun "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.ts" /tmp/tmp.AbCdEf/title /tmp/tmp.AbCdEf/body.md
+bun "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.ts" --publish /tmp/tmp.AbCdEf/title /tmp/tmp.AbCdEf/body.md
 ```
 
 Capture stdout: it is the issue URL on success. Stderr has any error message.

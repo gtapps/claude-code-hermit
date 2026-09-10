@@ -5,16 +5,13 @@
 ### Changed
 
 - Issue filing and commenting request native approval after the sanitized preview, replacing the in-chat yes/edit/cancel loop.
-
-### Fixed
-
-- Publication approval recognizes leading environment assignments and `bun run`.
+- Filing an issue takes an explicit `--publish` verb: `file-issue.ts --publish <title-file> <body-file> [label...]`. It was previously the unnamed fallthrough, which no permission rule could distinguish from the read modes.
 
 ### Upgrade Instructions
 
 Run `bun <plugin_root>/scripts/automode-env.ts <project>/.claude/settings.local.json` to replace the exact old seeded classifier description while preserving operator entries.
 
-Refresh the installed CLAUDE-APPEND block and notify the operator that existing guarded actions now use Claude Code native approval instead of the prior refusal or conversational confirmation.
+Refresh the installed CLAUDE-APPEND block. Any operator script calling `file-issue.ts` with bare positional arguments must add `--publish`; without it the script now exits 1 with usage rather than filing.
 
 ## [0.1.3] - 2026-09-06
 

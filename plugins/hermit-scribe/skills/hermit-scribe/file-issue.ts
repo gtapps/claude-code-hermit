@@ -313,12 +313,20 @@ async function main() {
     return;
   }
 
-  const titleFile = process.argv[2];
-  const bodyFile = process.argv[3];
-  const extraLabels = process.argv.slice(4);
+  // Filing is named, not the fallthrough: `--publish` and `--comment` are what
+  // the seeded permissions.ask rules match on, and a read mode must never be
+  // one typo away from a publish.
+  if (process.argv[2] !== "--publish") {
+    process.stderr.write("Usage: bun file-issue.ts --publish <title-file> <body-file> [label...]\n");
+    process.exit(1);
+  }
+
+  const titleFile = process.argv[3];
+  const bodyFile = process.argv[4];
+  const extraLabels = process.argv.slice(5);
 
   if (!titleFile || !bodyFile) {
-    process.stderr.write("Usage: bun file-issue.ts <title-file> <body-file> [label...]\n");
+    process.stderr.write("Usage: bun file-issue.ts --publish <title-file> <body-file> [label...]\n");
     process.exit(1);
   }
 

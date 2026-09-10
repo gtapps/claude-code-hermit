@@ -62,11 +62,17 @@ const entry =
   `Key internal services: api.github.com — GitHub App issue filing/commenting to ${targetRepo()} ` +
   'via hermit-scribe, always previewed in full and authorized by native permission approval before any post.';
 
+// The exact string earlier versions seeded, kept literal rather than derived
+// from `entry`: a reconstruction stops matching the moment `entry` is reworded,
+// and the stale entry would then sit in the operator's settings forever.
+const legacyEntry =
+  `Key internal services: api.github.com — GitHub App issue filing/commenting to ${targetRepo()} ` +
+  'via hermit-scribe, always operator-confirmed in-session (preview, then yes/edit/cancel) before any post.';
+
 const settings = readTargetJson(targetFile);
 settings.autoMode ??= {};
 if (!Array.isArray(settings.autoMode.environment)) settings.autoMode.environment = ['$defaults'];
-const legacy = entry.replace('always previewed in full and authorized by native permission approval', 'always operator-confirmed in-session (preview, then yes/edit/cancel)');
-settings.autoMode.environment = settings.autoMode.environment.filter((value: unknown) => value !== legacy);
+settings.autoMode.environment = settings.autoMode.environment.filter((value: unknown) => value !== legacyEntry);
 if (!settings.autoMode.environment.includes(entry)) settings.autoMode.environment.push(entry);
 writeJson(targetFile, settings);
 console.log(`Seeded autoMode.environment entry for: api.github.com (${targetRepo()})`);
