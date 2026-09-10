@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
+- Watchdog recovery processes survive systemd tick completion on Linux and WSL2; restart notices describe attempts rather than confirmed startup.
 - Doctor notifications check the completed audience text against the configured language before sending, without changing the routine's model.
 - Channel replies and scheduled notifications preserve intended message text during tool argument encoding, including literal HTML and code.
 - `unknown keys "description" ... ignored` warning printed at every session start. `description` is not part of Claude Code's hook schema on a matcher group; the prose now lives in each hook script's header, with one legal root-level `description` per `hooks.json`. The same keys are gone from the per-boot launch overlay, which was a second source of the warning.
@@ -11,6 +12,8 @@
 - The channel reply reminder covers every reply, including short acknowledgements.
 
 ### Upgrade Instructions
+
+For existing Linux or WSL2 systemd watchdog installations, run `.claude-code-hermit/bin/hermit-watchdog install` from the project root after updating to regenerate and reload the service. Preserve any operator customizations to the generated service when reapplying them. macOS installations need no scheduler migration.
 
 Read `.claude-code-hermit/state/channel-chats.json`; if it contains a `discord.guilds` object, delete that object and write the file back, preserving `discord.chats` and all other fields. Skip when the file or object is absent. This clears cached guild lookup errors and is safe to repeat.
 
