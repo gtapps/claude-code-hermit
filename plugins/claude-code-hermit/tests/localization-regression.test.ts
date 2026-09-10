@@ -61,7 +61,7 @@ describe('en catalog byte-identity (pre-refactor literals)', () => {
   });
 
   test('WATCHDOG lifecycle messages', () => {
-    expect(WATCHDOG.en.restart('08:30', 'it had frozen')).toBe('I restarted your agent at 08:30 — it had frozen.');
+    expect(WATCHDOG.en.restart('08:30', 'it had frozen')).toBe('Attempting to restart your agent at 08:30: it had frozen.');
     expect(WATCHDOG.en.restartCauseNotRunning()).toBe("it wasn't running");
     expect(WATCHDOG.en.restartCauseFrozen()).toBe('it had frozen');
     expect(WATCHDOG.en.wedge('08:30')).toBe("Your agent hasn't responded in a while — checking on it now (08:30).");

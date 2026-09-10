@@ -3206,7 +3206,12 @@ test.if(isLinux)('re-install over an existing timer → leaves a deliberate fals
   await withFakeHome(async (fakeHome) => {
     await watchdog(h, 'install', { env: { HOME: fakeHome } });
     writeConfig(h, '2h', { enabled: false });
+    const unitDir = path.join(fakeHome, '.config', 'systemd', 'user');
+    const serviceFile = fs.readdirSync(unitDir).find((f) => f.endsWith('.service'))!;
+    const servicePath = path.join(unitDir, serviceFile);
+    fs.writeFileSync(servicePath, fs.readFileSync(servicePath, 'utf-8').replace(/^KillMode=process\n/m, ''));
     const r = await watchdog(h, 'install', { env: { HOME: fakeHome } });
+    expect(fs.readFileSync(servicePath, 'utf-8')).toMatch(/^KillMode=process$/m);
     expect(r.exitCode).toBe(0);
     expect(r.stdout + r.stderr).toContain('Restarts stay off until watchdog.enabled is true');
     const config = readJson(configPath(h));
@@ -3321,6 +3326,7 @@ test.if(isLinux)('systemd unit keeps every inherited PATH entry and adds bun\'s 
     const serviceFile = fs.readdirSync(unitDir).find((f) => f.endsWith('.service'));
     expect(serviceFile).toBeDefined();
     const unit = fs.readFileSync(path.join(unitDir, serviceFile!), 'utf-8');
+    expect(unit).toMatch(/^KillMode=process$/m);
 
     const baked = unit.match(/^Environment="PATH=(.*)"$/m)?.[1];
     expect(baked).toBeDefined();
@@ -4707,24 +4713,24 @@ describe('state backup (step 0e)', () => {
 
 // -------------------------------------------------------
 // 14. Compose-function localization (PROP-059): the four watchdog message
-//     families compose through WatchdogMessages. `en` stays byte-identical to
-//     the pre-refactor literals (frame asserted around the live HH:MM clock);
+//     families compose through WatchdogMessages (frames asserted around the
+//     live HH:MM clock);
 //     `pt-PT` is exercised with an explicit locale arg.
 // -------------------------------------------------------
 
 describe('watchdog message localization', () => {
-  test('composeRestartMessage en byte-identity (both causes)', () => {
+  test('composeRestartMessage en describes an attempt (both causes)', () => {
     expect(composeRestartMessage('dead-process', 'UTC', 'en')).toMatch(
-      /^I restarted your agent at \d{2}:\d{2} — it wasn't running\.$/);
+      /^Attempting to restart your agent at \d{2}:\d{2}: it wasn't running\.$/);
     expect(composeRestartMessage('pane-frozen', 'UTC', 'en')).toMatch(
-      /^I restarted your agent at \d{2}:\d{2} — it had frozen\.$/);
+      /^Attempting to restart your agent at \d{2}:\d{2}: it had frozen\.$/);
   });
 
   test('composeRestartMessage pt-PT', () => {
     expect(composeRestartMessage('dead-process', 'UTC', 'pt-PT')).toMatch(
-      /^Reiniciei o seu agente às \d{2}:\d{2} — não estava a correr\.$/);
+      /^A tentar reiniciar o seu agente às \d{2}:\d{2}: não estava a correr\.$/);
     expect(composeRestartMessage('pane-frozen', 'UTC', 'pt-PT')).toMatch(
-      /^Reiniciei o seu agente às \d{2}:\d{2} — tinha bloqueado\.$/);
+      /^A tentar reiniciar o seu agente às \d{2}:\d{2}: tinha bloqueado\.$/);
   });
 
   test('composeWedgeMessage en / pt-PT', () => {

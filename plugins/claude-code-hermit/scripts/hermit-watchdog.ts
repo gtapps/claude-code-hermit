@@ -920,8 +920,8 @@ async function doRestart(sessionName: string, reason: string, runtime: Json, tim
     child.on('error', (e) => process.stderr.write(`[watchdog] restart failed: ${e}\n`));
     child.unref();
     appendEvent('restart', `${reason}, tree-verified, ${resumeDetail}`);
-    process.stderr.write(`[watchdog] restarted "${sessionName}", reason: ${reason}\n`);
-    // Only claim a restart to the operator when the start binary is actually
+    process.stderr.write(`[watchdog] attempting restart of "${sessionName}", reason: ${reason}\n`);
+    // Only announce a restart attempt when the start binary is actually
     // present — a missing/ENOENT binary makes spawn fail asynchronously via the
     // 'error' handler above, after this synchronous path already returned, so
     // guard the push on the binary existing rather than on spawn's async result.
