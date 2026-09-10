@@ -36,7 +36,7 @@
 import { readFileSync, writeSync } from 'node:fs';
 
 import {
-  Severity,
+  PermissionDecision,
   assistControl,
   classifyEntity,
   extractEntityIds,
@@ -179,22 +179,22 @@ function main(): void {
       fail(NO_RESOLVABLE_TARGET_MSG);
     }
 
-    const hits: Array<[string, Severity]> = [];
+    const hits: Array<[string, PermissionDecision]> = [];
     for (const eid of entityIds) {
       const [sev] = classifyEntity(eid, root);
-      if (sev !== Severity.ALLOW) hits.push([eid, sev]);
+      if (sev !== PermissionDecision.ALLOW) hits.push([eid, sev]);
     }
 
     if (hits.length === 0) {
       process.exit(0);
     }
 
-    // All hits share the same severity under the two-tier model — the current
+    // All hits share the same decision under the two-tier model; the current
     // mode applies uniformly to every sensitive entity in this call.
     const currentSev = hits[0]![1];
     const names = hits.map(([e]) => e).join(', ');
 
-    if (currentSev === Severity.BLOCK) {
+    if (currentSev === PermissionDecision.DENY) {
       fail(`Blocked sensitive entities: ${names}. Use a proposal instead.`);
     }
 

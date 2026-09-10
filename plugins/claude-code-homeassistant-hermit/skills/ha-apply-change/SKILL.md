@@ -11,8 +11,8 @@ allowed-tools:
 
 ## Steps
 
-1. **Pre-check**: Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <artifact_path>` to verify safety. Read the `severity` field in the JSON output:
-   - `"block"` (strict mode): stop and explain why. Create a proposal via `/claude-code-hermit:proposal-create`.
+1. **Pre-check**: Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <artifact_path>` to verify safety. Read the `decision` field in the JSON output:
+   - `"deny"` (strict mode): stop and explain why. Create a proposal via `/claude-code-hermit:proposal-create`.
    - `"ask"` (ask mode): include the sensitive entities in the preview in step 2.
    - `"allow"`: proceed to step 2.
 
@@ -31,5 +31,5 @@ allowed-tools:
 ## Safety
 
 - The apply path only reloads `automation` and `script` domains.
-- A `block` policy verdict stops the apply; an `ask` verdict requires approval covering the sensitive entities.
+- A `deny` policy verdict stops the apply; an `ask` verdict requires approval covering the sensitive entities.
 - The operator must confirm before any reload happens.

@@ -36,21 +36,13 @@ test('reload-entry blocked under strict, no REST call sent', async () => {
   expect(code).toBe(1);
   const parsed = JSON.parse(out);
   expect(parsed.blocked).toBe(true);
-  expect(parsed.requires_confirm).toBe(false);
   expect(client.calls.post.length).toBe(0);
 });
 
-test('reload-entry under ask needs --confirm', async () => {
-  const client = fakeClient();
-  const { code, out } = await runCli(['ha', 'reload-entry', 'entry1'], client, cfg('ask'));
-  expect(code).toBe(1);
-  expect(JSON.parse(out).requires_confirm).toBe(true);
-  expect(client.calls.post.length).toBe(0);
-});
 
-test('reload-entry under ask with --confirm posts the reload endpoint and writes a report', async () => {
+test('reload-entry under ask posts the reload endpoint and writes a report', async () => {
   const client = fakeClient({ post: () => ({ require_restart: false }) });
-  const { code, out } = await runCli(['ha', 'reload-entry', 'entry1', '--confirm'], client, cfg('ask'));
+  const { code, out } = await runCli(['ha', 'reload-entry', 'entry1'], client, cfg('ask'));
   expect(code).toBe(0);
   const parsed = JSON.parse(out);
   expect(parsed.ok).toBe(true);
@@ -65,7 +57,7 @@ test('reload-entry surfaces HA error verbatim', async () => {
       throw new HomeAssistantError('Entry not found.', 404);
     },
   });
-  const { code, out } = await runCli(['ha', 'reload-entry', 'entry1', '--confirm'], client, cfg('ask'));
+  const { code, out } = await runCli(['ha', 'reload-entry', 'entry1'], client, cfg('ask'));
   expect(code).toBe(1);
   const parsed = JSON.parse(out);
   expect(parsed.ok).toBe(false);

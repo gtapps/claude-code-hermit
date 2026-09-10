@@ -57,7 +57,7 @@ test('rejects invalid --data JSON', async () => {
   expect(JSON.parse(out).message).toContain('valid JSON');
 });
 
-test('non-sensitive service call proceeds under strict with no --confirm', async () => {
+test('non-sensitive service call proceeds under strict', async () => {
   const client = fakeClient({ post: () => ({ status: 'ok' }) });
   const { code, out } = await runCli(['ha', 'call-service', 'automation.reload'], client, cfg('strict'));
   expect(code).toBe(0);
@@ -78,26 +78,14 @@ test('sensitive domain via --data entity_id blocked under strict', async () => {
   expect(code).toBe(1);
   const parsed = JSON.parse(out);
   expect(parsed.blocked).toBe(true);
-  expect(parsed.requires_confirm).toBe(false);
   expect(client.calls.post.length).toBe(0);
 });
 
-test('sensitive domain under ask needs --confirm', async () => {
-  const client = fakeClient();
-  const { code, out } = await runCli(
-    ['ha', 'call-service', 'lock.unlock', '--data', '{"entity_id":"lock.front_door"}'],
-    client,
-    cfg('ask'),
-  );
-  expect(code).toBe(1);
-  expect(JSON.parse(out).requires_confirm).toBe(true);
-  expect(client.calls.post.length).toBe(0);
-});
 
-test('sensitive domain under ask with --confirm runs', async () => {
+test('sensitive domain under ask runs', async () => {
   const client = fakeClient({ post: () => ({ status: 'ok' }) });
   const { code, out } = await runCli(
-    ['ha', 'call-service', 'lock.unlock', '--data', '{"entity_id":"lock.front_door"}', '--confirm'],
+    ['ha', 'call-service', 'lock.unlock', '--data', '{"entity_id":"lock.front_door"}'],
     client,
     cfg('ask'),
   );
@@ -156,7 +144,6 @@ test('unresolvable area_id target fails closed in both modes', async () => {
   expect(code).toBe(1);
   const parsed = JSON.parse(out);
   expect(parsed.blocked).toBe(true);
-  expect(parsed.requires_confirm).toBe(false);
   expect(parsed.message).toContain('no resolvable entity IDs');
   expect(client.calls.post.length).toBe(0);
 });
@@ -187,16 +174,15 @@ test('sensitive entity hidden in scene.apply entities map is blocked under stric
   expect(client.calls.post.length).toBe(0);
 });
 
-test('sensitive entity in scene.apply entities map needs --confirm under ask', async () => {
+test('sensitive entity in scene.apply entities map executes under ask after native approval', async () => {
   const client = fakeClient({ post: () => ({ status: 'ok' }) });
   const { code, out } = await runCli(
     ['ha', 'call-service', 'scene.apply', '--data', '{"entities":{"lock.front_door":"unlocked"}}'],
     client,
     cfg('ask'),
   );
-  expect(code).toBe(1);
-  expect(JSON.parse(out).requires_confirm).toBe(true);
-  expect(client.calls.post.length).toBe(0);
+  expect(code).toBe(0);
+  expect(client.calls.post.length).toBe(1);
 });
 
 test('non-sensitive entities in scene.apply map still proceed under strict', async () => {
@@ -214,7 +200,7 @@ test('non-sensitive entities in scene.apply map still proceed under strict', asy
 });
 
 // The update-domain carve-out in gateServiceCall: independent of ha_safety_mode,
-// gated solely by ha_update_auto_apply + --confirm. See policy.ts's dedicated
+// gated solely by ha_update_auto_apply; native approval belongs to the harness. See policy.ts's dedicated
 // branch above the ALLOW passthrough.
 
 function cfgWithFlag(mode: string, updateAutoApply: boolean): AppConfig {
@@ -235,7 +221,7 @@ test('update.install blocked under strict when ha_update_auto_apply is unset', a
   expect(client.calls.post.length).toBe(0);
 });
 
-test('update.install blocked under ask when ha_update_auto_apply is unset, even with --confirm', async () => {
+test('update.install blocked under ask when ha_update_auto_apply is unset, even', async () => {
   const client = fakeClient({ post: () => ({ status: 'ok' }) });
   const { code, out } = await runCli(
     [
@@ -244,7 +230,6 @@ test('update.install blocked under ask when ha_update_auto_apply is unset, even 
       'update.install',
       '--data',
       '{"entity_id":"update.home_assistant_core_update"}',
-      '--confirm',
     ],
     client,
     cfg('ask'),
@@ -254,19 +239,8 @@ test('update.install blocked under ask when ha_update_auto_apply is unset, even 
   expect(client.calls.post.length).toBe(0);
 });
 
-test('update.install with ha_update_auto_apply on still needs --confirm under strict', async () => {
-  const client = fakeClient({ post: () => ({ status: 'ok' }) });
-  const { code, out } = await runCli(
-    ['ha', 'call-service', 'update.install', '--data', '{"entity_id":"update.home_assistant_core_update"}'],
-    client,
-    cfgWithFlag('strict', true),
-  );
-  expect(code).toBe(1);
-  expect(JSON.parse(out).requires_confirm).toBe(true);
-  expect(client.calls.post.length).toBe(0);
-});
 
-test('update.install with ha_update_auto_apply on and --confirm runs under strict', async () => {
+test('update.install with ha_update_auto_apply on runs under strict', async () => {
   const client = fakeClient({ post: () => ({ status: 'ok' }) });
   const { code, out } = await runCli(
     [
@@ -275,7 +249,6 @@ test('update.install with ha_update_auto_apply on and --confirm runs under stric
       'update.install',
       '--data',
       '{"entity_id":"update.home_assistant_core_update","backup":true}',
-      '--confirm',
     ],
     client,
     cfgWithFlag('strict', true),
@@ -291,10 +264,10 @@ test('update.install with ha_update_auto_apply on and --confirm runs under stric
   ]);
 });
 
-test('update.install with ha_update_auto_apply on and --confirm runs under ask (mode-independent)', async () => {
+test('update.install with ha_update_auto_apply on runs under ask (mode-independent)', async () => {
   const client = fakeClient({ post: () => ({ status: 'ok' }) });
   const { code, out } = await runCli(
-    ['ha', 'call-service', 'update.install', '--data', '{"entity_id":"update.home_assistant_core_update"}', '--confirm'],
+    ['ha', 'call-service', 'update.install', '--data', '{"entity_id":"update.home_assistant_core_update"}'],
     client,
     cfgWithFlag('ask', true),
   );
@@ -311,7 +284,6 @@ test('update.install carrying a lock entity still hard-blocks under strict even 
       'update.install',
       '--data',
       '{"entity_id":["update.home_assistant_core_update","lock.front_door"]}',
-      '--confirm',
     ],
     client,
     cfgWithFlag('strict', true),

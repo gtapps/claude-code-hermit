@@ -68,13 +68,11 @@ test('documents ha_safety_mode gating', () => {
   expect(skillText).toContain('ha_safety_mode');
 });
 
-test('documents --confirm flag for writes', () => {
-  expect(skillText).toContain('--confirm');
-});
-
-test('documents blocked/requires_confirm result handling', () => {
-  expect(skillText).toContain('requires_confirm');
+test('documents native approval and strict denial handling', () => {
+  expect(skillText).toContain('native approval');
   expect(skillText).toContain('blocked');
+  expect(skillText).not.toContain('--confirm');
+  expect(skillText).not.toContain('requires_confirm');
 });
 
 test('hatch skill references ha-setup-house', () => {

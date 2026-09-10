@@ -49,10 +49,10 @@ test('HA APPEND keeps every safety rule the trim was not allowed to touch', () =
   expect(/approval[\s\S]{0,80}modifying safety policy/.test(APPEND)).toBe(true);
 });
 
-test('HA APPEND preserves previews, CLI confirmation, and policy-block handling', () => {
+test('HA APPEND preserves previews, native approval, and policy-block handling', () => {
   expect(APPEND.includes('Preview sensitive actuation')).toBe(true);
   expect(APPEND.includes('and structural writes')).toBe(true);
-  expect(APPEND.includes('Use `--confirm` when required by the CLI.')).toBe(true);
+  expect(APPEND.includes('Claude Code requests native approval before execution.')).toBe(true);
   expect(APPEND.includes('Surface policy blocks as proposals.')).toBe(true);
 });
 

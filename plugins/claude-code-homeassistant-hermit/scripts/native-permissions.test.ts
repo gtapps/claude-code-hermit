@@ -46,3 +46,16 @@ test('malformed permission arrays are not overwritten', () => {
   const original = '{"permissions":{"ask":"bad"}}'; writeFileSync(file, original);
   expect(run(root).exitCode).not.toBe(0); expect(readFileSync(file, 'utf8')).toBe(original);
 });
+
+test('ordinary upgrades preserve safety configuration, other scopes, and existing migration markers', () => {
+  const root = fixture();
+  const files = {
+    '.claude/settings.json': '{"permissions":{"deny":["Bash(*)"]}}',
+    '.claude-code-hermit/config.json': '{"ha_safety_mode":"strict","operator_value":7}',
+    '.claude-code-hermit/state/claude-code-homeassistant-hermit-native-permissions-v1.json': '{"operator_marker":true}',
+  };
+  mkdirSync(join(root, '.claude-code-hermit/state'), { recursive: true });
+  for (const [name, content] of Object.entries(files)) writeFileSync(join(root, name), content);
+  expect(run(root).exitCode).toBe(0);
+  for (const [name, content] of Object.entries(files)) expect(readFileSync(join(root, name), 'utf8')).toBe(content);
+});

@@ -26,22 +26,22 @@ export function isReadOnlyTool(toolName: string): boolean {
   return READ_ONLY_TOOLS.has(bare);
 }
 
-export const Severity = {
-  BLOCK: 'block',
+export const PermissionDecision = {
+  DENY: 'deny',
   ASK: 'ask',
   ALLOW: 'allow', // sentinel for non-sensitive entities; no ha_safety_mode maps to it
 } as const;
-export type Severity = (typeof Severity)[keyof typeof Severity];
+export type PermissionDecision = (typeof PermissionDecision)[keyof typeof PermissionDecision];
 
-const MODE_TO_SEVERITY: Record<string, Severity> = {
-  strict: Severity.BLOCK,
-  ask: Severity.ASK,
+const MODE_TO_DECISION: Record<string, PermissionDecision> = {
+  strict: PermissionDecision.DENY,
+  ask: PermissionDecision.ASK,
 };
 
-const SEVERITY_ORDER: Record<Severity, number> = {
-  [Severity.ALLOW]: 0,
-  [Severity.ASK]: 1,
-  [Severity.BLOCK]: 2,
+const DECISION_ORDER: Record<PermissionDecision, number> = {
+  [PermissionDecision.ALLOW]: 0,
+  [PermissionDecision.ASK]: 1,
+  [PermissionDecision.DENY]: 2,
 };
 
 interface PolicyOverrides {
@@ -95,7 +95,7 @@ function loadPolicyOverrides(root: string): PolicyOverrides {
 function loadSafetyMode(root: string): string {
   const configured = loadHermitConfig(root)['ha_safety_mode'];
   const value = configured === undefined ? 'ask' : configured;
-  return typeof value === 'string' && Object.hasOwn(MODE_TO_SEVERITY, value) ? value : 'strict';
+  return typeof value === 'string' && Object.hasOwn(MODE_TO_DECISION, value) ? value : 'strict';
 }
 
 /** Read ha_safety_mode from .claude-code-hermit/config.json. Fail-closed: returns 'strict'. */
@@ -122,72 +122,46 @@ export function updateAutoApply(root?: string | null): boolean {
 }
 
 export interface MutationGate {
-  allowed: boolean;
-  requiresConfirm: boolean;
+  decision: PermissionDecision;
   mode: string;
   reason: string;
 }
 
-/**
- * Gate for structural WebSocket mutations (helpers, areas, entity/device
- * registries). Reads are never gated — only call this for writes.
- *
- *   strict (explicit): blocked, surface the work as a proposal.
- *   ask: allowed only with operator confirmation. The CLI is non-interactive,
- *        so the caller passes `confirmed` (the `--confirm` flag) after the main
- *        session has prompted the operator; without it the gate asks for it.
- */
-export function gateStructuralMutation(root?: string | null, confirmed = false): MutationGate {
+/** Structural writes are denied under strict; Claude Code asks before execution otherwise. */
+export function gateStructuralMutation(root?: string | null): MutationGate {
   const mode = safetyMode(root);
-  if (mode === 'strict') {
-    return {
-      allowed: false,
-      requiresConfirm: false,
-      mode,
-      reason:
-        'Blocked under strict ha_safety_mode — surface this as a proposal for the operator to approve.',
-    };
-  }
-  if (confirmed) {
-    return { allowed: true, requiresConfirm: false, mode, reason: 'Approved via --confirm.' };
-  }
-  return {
-    allowed: false,
-    requiresConfirm: true,
-    mode,
-    reason:
-      'Requires operator confirmation under ask ha_safety_mode — re-run with --confirm once the operator approves.',
-  };
+  return mode === 'strict'
+    ? { decision: PermissionDecision.DENY, mode, reason: 'Blocked under strict ha_safety_mode; surface this as a proposal for the operator to approve.' }
+    : { decision: PermissionDecision.ASK, mode, reason: 'Structural mutation requires native approval.' };
 }
 
 export interface PolicyDecision {
-  severity: Severity;
-  blocked: boolean;
+  decision: PermissionDecision;
   reasons: string[];
 }
 
-/** Return [Severity, reasons] for a single entity. */
-export function classifyEntity(entityId: string, root?: string | null): [Severity, string[]] {
+/** Return [PermissionDecision, reasons] for a single entity. */
+export function classifyEntity(entityId: string, root?: string | null): [PermissionDecision, string[]] {
   const resolved = resolve(root ?? process.cwd());
   const overrides = loadPolicyOverrides(resolved);
-  if (overrides.safeEntities.has(entityId)) return [Severity.ALLOW, []];
+  if (overrides.safeEntities.has(entityId)) return [PermissionDecision.ALLOW, []];
   // Lowercase to catch calls carrying `LOCK.front_door` (HA ids are lowercase
   // in practice, but a mis-formed call must not slip past the domain check).
   const domain = entityId.split('.', 1)[0]!.toLowerCase();
   if (SENSITIVE_DOMAINS.has(domain) || overrides.extraDomains.has(domain)) {
-    return [MODE_TO_SEVERITY[loadSafetyMode(resolved)]!, [`Domain '${domain}' is always sensitive`]];
+    return [MODE_TO_DECISION[loadSafetyMode(resolved)]!, [`Domain '${domain}' is always sensitive`]];
   }
-  return [Severity.ALLOW, []];
+  return [PermissionDecision.ALLOW, []];
 }
 
 export function isSensitiveEntity(entityId: string, root?: string | null): boolean {
-  const [sev] = classifyEntity(entityId, root);
-  return sev !== Severity.ALLOW;
+  const [decision] = classifyEntity(entityId, root);
+  return decision !== PermissionDecision.ALLOW;
 }
 
 export function isSensitiveService(serviceName: string): boolean {
-  const [sev] = classifyEntity(serviceName);
-  return sev !== Severity.ALLOW;
+  const [decision] = classifyEntity(serviceName);
+  return decision !== PermissionDecision.ALLOW;
 }
 
 export function evaluateReferences(
@@ -195,23 +169,23 @@ export function evaluateReferences(
   services: string[],
   root?: string | null,
 ): PolicyDecision {
-  let maxSev: Severity = Severity.ALLOW;
+  let decision: PermissionDecision = PermissionDecision.ALLOW;
   const reasons: string[] = [];
   for (const entityId of [...new Set(entityIds)].sort()) {
-    const [sev] = classifyEntity(entityId, root);
-    if (sev !== Severity.ALLOW) {
-      reasons.push(`Sensitive or ambiguous entity (${sev}): ${entityId}`);
-      if (SEVERITY_ORDER[sev] > SEVERITY_ORDER[maxSev]) maxSev = sev;
+    const [entityDecision] = classifyEntity(entityId, root);
+    if (entityDecision !== PermissionDecision.ALLOW) {
+      reasons.push(`Sensitive or ambiguous entity (${entityDecision}): ${entityId}`);
+      if (DECISION_ORDER[entityDecision] > DECISION_ORDER[decision]) decision = entityDecision;
     }
   }
   for (const service of [...new Set(services)].sort()) {
-    const [sev] = classifyEntity(service, root);
-    if (sev !== Severity.ALLOW) {
-      reasons.push(`Sensitive or ambiguous service (${sev}): ${service}`);
-      if (SEVERITY_ORDER[sev] > SEVERITY_ORDER[maxSev]) maxSev = sev;
+    const [serviceDecision] = classifyEntity(service, root);
+    if (serviceDecision !== PermissionDecision.ALLOW) {
+      reasons.push(`Sensitive or ambiguous service (${serviceDecision}): ${service}`);
+      if (DECISION_ORDER[serviceDecision] > DECISION_ORDER[decision]) decision = serviceDecision;
     }
   }
-  return { severity: maxSev, blocked: maxSev === Severity.BLOCK, reasons };
+  return { decision, reasons };
 }
 
 const TARGET_SHAPE_KEYS = ['entity_id', 'device_id', 'area_id', 'floor_id', 'label_id'];
@@ -280,7 +254,7 @@ function deepEntityRefs(value: unknown): string[] {
  *
  * Unresolvable targets (a malformed entity_id, a malformed targeting field
  * shape, or an area_id/floor_id/label_id/device_id selector that doesn't
- * resolve to a concrete entity) fail closed regardless of mode or --confirm —
+ * resolve to a concrete entity) fail closed regardless of mode;
  * same fail-closed rule as the MCP safety hook, because HA resolves those
  * selectors server-side and we cannot enumerate the entity set they fan out
  * to.
@@ -290,13 +264,11 @@ export function gateServiceCall(
   domain: string,
   service: string,
   data: Record<string, unknown>,
-  confirmed = false,
 ): MutationGate {
   const mode = safetyMode(root);
   if (hasMalformedTargetShape(data)) {
     return {
-      allowed: false,
-      requiresConfirm: false,
+      decision: PermissionDecision.DENY,
       mode,
       reason:
         'Cannot verify target safety: malformed targeting field ' +
@@ -307,8 +279,7 @@ export function gateServiceCall(
   const resolved = entityIds.filter(isWellFormedEntityId);
   if (resolved.length !== entityIds.length || hasUnresolvableTarget(data, new Set(resolved))) {
     return {
-      allowed: false,
-      requiresConfirm: false,
+      decision: PermissionDecision.DENY,
       mode,
       reason:
         'Cannot verify target safety: no resolvable entity IDs found ' +
@@ -322,65 +293,17 @@ export function gateServiceCall(
     root,
   );
 
-  // update.* services (update.install in particular) get a dedicated,
-  // flag-gated confirm requirement instead of the blanket ALLOW every other
-  // non-sensitive maintenance call gets — independent of ha_safety_mode, so
-  // enabling ha_update_auto_apply doesn't silently do nothing under strict.
-  // Only engages when nothing else about the call is sensitive (decision.
-  // severity is still ALLOW here): a call that also references a lock/alarm
-  // entity already carries a higher severity and falls through to the
-  // existing block/ask branches below, unaffected by this carve-out.
-  if (decision.severity === Severity.ALLOW && domain === 'update') {
-    if (!updateAutoApply(root)) {
-      return {
-        allowed: false,
-        requiresConfirm: false,
-        mode,
-        reason:
-          'update domain actuation requires ha_update_auto_apply to be enabled — ' +
-          'surface this as a proposal for the operator to approve.',
-      };
-    }
-    if (confirmed) {
-      return {
-        allowed: true,
-        requiresConfirm: false,
-        mode,
-        reason: 'Approved via --confirm (ha_update_auto_apply).',
-      };
-    }
-    return {
-      allowed: false,
-      requiresConfirm: true,
-      mode,
-      reason:
-        'update.* services require operator confirmation (ha_update_auto_apply is opt-in) — ' +
-        're-run with --confirm once the operator approves.',
-    };
-  }
-  if (decision.severity === Severity.ALLOW) {
-    return { allowed: true, requiresConfirm: false, mode, reason: 'ok' };
-  }
-  if (decision.blocked) {
-    return {
-      allowed: false,
-      requiresConfirm: false,
-      mode,
-      reason:
-        `Blocked under strict ha_safety_mode (${decision.reasons.join('; ')}) — ` +
-        'surface this as a proposal for the operator to approve.',
-    };
-  }
-  if (confirmed) {
-    return { allowed: true, requiresConfirm: false, mode, reason: 'Approved via --confirm.' };
+  // Update eligibility is independent of safety mode and never overrides
+  // sensitive-target decisions. Every eligible update still needs native approval.
+  if (decision.decision === PermissionDecision.ALLOW && domain === 'update') {
+    return updateAutoApply(root)
+      ? { decision: PermissionDecision.ASK, mode, reason: 'Update installation requires native approval.' }
+      : { decision: PermissionDecision.DENY, mode, reason: 'update domain actuation requires ha_update_auto_apply to be enabled; surface this as a proposal for the operator to approve.' };
   }
   return {
-    allowed: false,
-    requiresConfirm: true,
+    decision: decision.decision,
     mode,
-    reason:
-      `Requires operator confirmation under ask ha_safety_mode (${decision.reasons.join('; ')}) — ` +
-      're-run with --confirm once the operator approves.',
+    reason: decision.decision === PermissionDecision.ALLOW ? 'ok' : decision.reasons.join('; '),
   };
 }
 
@@ -391,17 +314,17 @@ export function canReloadDomain(domain: string): boolean {
 export interface EntityCheck {
   entity_id: string;
   sensitive: boolean;
-  severity: Severity;
+  decision: PermissionDecision;
   reasons: string[];
 }
 
 /** Return a JSON-friendly policy check for a single entity. */
 export function checkEntity(entityId: string): EntityCheck {
-  const [sev, reasons] = classifyEntity(entityId);
+  const [decision, reasons] = classifyEntity(entityId);
   return {
     entity_id: entityId,
-    sensitive: sev !== Severity.ALLOW,
-    severity: sev,
+    sensitive: decision !== PermissionDecision.ALLOW,
+    decision,
     reasons,
   };
 }
