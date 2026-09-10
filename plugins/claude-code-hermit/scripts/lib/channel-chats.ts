@@ -26,10 +26,16 @@ function readCache(hermitDir: string): Json {
   } catch { return {}; }
 }
 
+const TTL_MS = 24 * 60 * 60 * 1000;
+
+// Errors expire so a failed lookup costs one request a day, and so do guild
+// roles: a role granted to (or taken from) the bot after the first lookup would
+// otherwise never be seen. Chat metadata (parent/guild/type) is immutable.
 function cachedEntry(hermitDir: string, bucket: Bucket, id: string): Entry | null {
   const entry = readCache(hermitDir)?.discord?.[bucket]?.[id];
   if (!entry || typeof entry !== 'object') return null;
-  if ('error' in entry && Date.now() - Date.parse(entry.fetched_at) >= 24 * 60 * 60 * 1000) return null;
+  const perishable = 'error' in entry || bucket === 'guilds';
+  if (perishable && Date.now() - Date.parse(entry.fetched_at) >= TTL_MS) return null;
   return entry;
 }
 
@@ -53,7 +59,7 @@ async function lookup(hermitDir: string, config: Json, bucket: Bucket, id: strin
       const token = readChannelToken(hermitDir, 'discord', config?.channels?.discord);
       if (!token) throw new Error('missing token');
       const base = process.env.HERMIT_DISCORD_API_URL || 'https://discord.com/api/v10';
-      const route = bucket === 'chats' ? `/channels/${id}` : `/guilds/${id}/members/@me`;
+      const route = bucket === 'chats' ? `/channels/${id}` : `/guilds/${id}/members/${String(config?.channels?.discord?.bot_user_id)}`;
       const response = await fetch(`${base}${route}`, {
         headers: { Authorization: `Bot ${token}` }, signal: AbortSignal.timeout(2000),
       });
@@ -84,5 +90,6 @@ export async function lookupChat(hermitDir: string, config: Json, chatId: string
 }
 
 export async function lookupGuildRoles(hermitDir: string, config: Json, guildId: string): Promise<GuildRoles | null> {
+  if (!config?.channels?.discord?.bot_user_id) return null;
   return await lookup(hermitDir, config, 'guilds', guildId) as GuildRoles | null;
 }

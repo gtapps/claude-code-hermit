@@ -104,7 +104,7 @@ export async function run(ctx: StageContext): Promise<StageResult | void> {
 
   const reminder =
     `[channel reply reminder] Inbound message arrived on the \`${source || 'unknown'}\` channel` +
-    ` (chat_id=\`${chatId}\`). Substantive reply must go through ${toolLine}.` +
+    ` (chat_id=\`${chatId}\`). Every reply, including a short acknowledgement, must go through ${toolLine}.` +
     ` Transcript/terminal output does not reach the operator.` +
     selfMentionClause(ctx, envelope) + '\n';
 

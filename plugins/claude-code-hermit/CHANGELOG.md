@@ -4,6 +4,13 @@
 
 ### Fixed
 - `unknown keys "description" ... ignored` warning printed at every session start. `description` is not part of Claude Code's hook schema on a matcher group; the prose now lives in each hook script's header, with one legal root-level `description` per `hooks.json`. The same keys are gone from the per-boot launch overlay, which was a second source of the warning.
+- Discord role mentions resolve the bot's guild membership via `/guilds/{guild}/members/{bot_user_id}`.
+- Cached Discord guild roles expire on the same 24-hour clock as a cached error, so a role granted to the bot after the first lookup starts waking it.
+- The channel reply reminder covers every reply, including short acknowledgements.
+
+### Upgrade Instructions
+
+Read `.claude-code-hermit/state/channel-chats.json`; if it contains a `discord.guilds` object, delete that object and write the file back, preserving `discord.chats` and all other fields. Skip when the file or object is absent. This clears cached guild lookup errors and is safe to repeat.
 
 ## [1.3.5] - 2026-09-09
 

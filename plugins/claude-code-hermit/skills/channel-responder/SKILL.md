@@ -33,8 +33,8 @@ threaded replies wherever the rules below say to edit a progress card, and no
 `Progress card` line is recorded for it.
 
 Terminal output is acceptable as a SECONDARY surface (tool-call narration,
-status visible only to a maintainer at the box). The substantive response,
-the one the operator needs to see, must go through the channel.
+status visible only to a maintainer at the box). Every response the operator
+needs to see, a short acknowledgement included, must go through the channel.
 
 **Exception, checked first.** When this turn's context carries a
 `[harness-command] … requested` line, stop: no tool call (§1–§1d included) and no
