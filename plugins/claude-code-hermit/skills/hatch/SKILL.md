@@ -149,7 +149,7 @@ questions: [
 
   > **Channel preference saved.** Activation depends on how you run hermit:
   >
-  > - **Docker (always-on):** `/claude-code-hermit:docker-setup` configures the token and pairing inside the container.
+  > - **Docker (always-on):** `/claude-code-hermit:docker-setup` pairs during first run. Afterwards run `/claude-code-hermit:channel-setup` from the host to pair or re-pair. A channel or token added later needs `hermit-docker restart` first (the bot is offline until then). Inside the container, pair from the attached REPL with `/<channel>:access pair <code> — save access.json to <state_dir>/ not ~/.claude` and `/<channel>:access policy allowlist`.
   > - **tmux (always-on, host):** boot with `.claude-code-hermit/bin/hermit-start` (passes `--channels` automatically), then run `/claude-code-hermit:channel-setup` to set the token and pair.
   > - **Interactive (just trying it):** run `/claude-code-hermit:channel-setup` for token + pairing, then restart with `claude --channels plugin:<channel>@claude-plugins-official` so the channel is active in your session.
   > - Full guide: https://code.claude.com/docs/en/channels

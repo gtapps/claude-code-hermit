@@ -1456,6 +1456,36 @@ describe('channel-setup empty-channels branch', () => {
 });
 
 // ============================================================
+// channel-setup docker routing (static SKILL.md scan, not a live probe)
+// ============================================================
+
+describe('channel-setup docker routing', () => {
+  const channelSetup = read(path.join(SKILLS, 'channel-setup', 'SKILL.md'));
+  const dockerSetup = read(path.join(SKILLS, 'docker-setup', 'SKILL.md'));
+
+  test('does not redirect Docker operators to docker-setup', () => {
+    // Old gate: runtime.json runtime_mode, or a scaffolded Dockerfile.hermit.
+    expect(channelSetup).not.toContain('docker/Dockerfile.hermit');
+    expect(channelSetup).not.toContain('runtime_mode');
+    expect(channelSetup).not.toMatch(/Run `\/claude-code-hermit:docker-setup`/);
+  });
+
+  test('keeps a live host tmux hermit on the local flow', () => {
+    expect(channelSetup).toContain('liveOwner');
+  });
+
+  test('names the hermit-docker command for each Docker host state', () => {
+    expect(channelSetup).toContain('hermit-docker restart');
+    expect(channelSetup).toContain('hermit-docker up');
+    expect(channelSetup).toContain('hermit-docker logs');
+  });
+
+  test('docker-setup pairing notes the bot may take up to 1 min', () => {
+    expect(dockerSetup).toContain('Still nothing after waiting up to 1 min');
+  });
+});
+
+// ============================================================
 // Stop payload snapshot (TestStopPayloadSnapshot)
 //
 // stop-pipeline.ts writes state/cc-stop-snapshot.json from the Stop payload.

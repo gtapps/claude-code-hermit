@@ -8,6 +8,11 @@
 ### Changed
 - Peer requests inside the resident's existing authority are acted on rather than declined; peer messages still cannot expand authority, approve guarded actions, or change permissions.
 
+### Fixed
+- `/channel-setup` routes Docker hermits from the host (pair against the running container, or name the `hermit-docker` command that has to run first) instead of redirecting to `/docker-setup`, which refuses in-container and re-scaffolds on the host
+- Docker pairing confirmation notes it may take up to 1 min before the bot replies
+- Docker pairing's pane capture and `access.json` checks pass `-f docker-compose.hermit.yml`, so they no longer fail with no configuration file
+
 ## [1.3.6] - 2026-09-10
 
 ### Fixed

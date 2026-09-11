@@ -204,7 +204,9 @@ Channel tokens live in `.claude.local/channels/<name>/.env` (project-local scope
 
 ### Docker
 
-The docker-setup wizard walks you through token setup, state dir configuration, and pairing. The docker-compose file bind-mounts `.claude.local/channels/<plugin>/` into `~/.claude/channels/<plugin>/` inside the container — channel skill commands write to the right place automatically, and state persists across container restarts.
+The docker-setup wizard pairs during first run. Afterwards `/claude-code-hermit:channel-setup` from the host pairs or re-pairs. A channel or token added later needs `hermit-docker restart` first (the bot is offline until then). Inside the container, use the two native `/<channel>:access` commands in the attached REPL; pair carries the "save access.json to `<state_dir>/` not `~/.claude`" hint.
+
+The docker-compose file bind-mounts `.claude.local/channels/<plugin>/` into `~/.claude/channels/<plugin>/` inside the container — channel skill commands write to the right place automatically, and state persists across container restarts.
 
 ### Local / tmux
 
