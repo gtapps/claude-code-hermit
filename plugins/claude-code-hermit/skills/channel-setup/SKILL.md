@@ -5,20 +5,25 @@ disable-model-invocation: true
 ---
 # Channel Setup
 
-Activate a channel for local/tmux operation, adding the `config.json` entry first when there isn't one. This mirrors what `docker-setup` does for Docker users but targets the local environment.
+Activate a channel, adding the `config.json` entry first when there isn't one. Local/tmux pairing is this skill's own flow; a Docker hermit is routed by the check below.
 
 ## Plan
 
 ### 1. Read config and detect channels
 
-**Docker check (first):** read `.claude-code-hermit/state/runtime.json` if it exists.
+**Runtime routing (first):** evaluate in this order.
 
-- If `runtime_mode == "docker"`: stop and redirect —
-  > This project is running in Docker. Channel token and pairing must happen inside the container, not on the host.
-  > Run `/claude-code-hermit:docker-setup` — it configures channels container-side.
-  Stop.
-- If `runtime.json` is missing AND `.claude-code-hermit/docker/Dockerfile.hermit` exists (Docker scaffolded but not yet booted): same redirect.
-- Otherwise: proceed.
+1. **Inside the container.** Run `[ -f /.dockerenv ] || [ -f /run/.containerenv ] && echo container || echo host`. If `container`: read `.claude-code-hermit/config.json`. For each enabled channel object, resolve `state_dir` as step 4 does (config `state_dir`, default `.claude.local/channels/<channel>`; if relative, make it absolute against the project root) and print that absolute path literally. Print and stop:
+   > The channel is live in this session. DM the bot for a code, then type `/<channel>:access pair <code> — save access.json to <state_dir>/ not ~/.claude` and `/<channel>:access policy allowlist` here. Or run `/claude-code-hermit:channel-setup` from the host project root.
+   If no enabled channel, print only the host-run sentence and stop. No `AskUserQuestion` on this path.
+
+2. **No compose file.** If `docker-compose.hermit.yml` is absent at the project root, continue with the local/tmux flow below.
+
+3. **Live tmux hermit.** Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/docker-preflight.ts "$(pwd)"`. If its `liveOwner` is non-null, a host tmux hermit owns this project despite the compose file: continue with the local/tmux flow below.
+
+4. **Compose present.** Run `docker compose -f docker-compose.hermit.yml ps --status running --format '{{.Service}}'`. Non-zero exit → print its output, stop. If `hermit` is absent from the output: after channel selection, run steps 2 and 4, skip 3, then stop with `.claude-code-hermit/bin/hermit-docker up` and "re-run this skill to pair". If `hermit` is present: docker-running.
+
+5. **docker-running.** After channel selection, skip step 3 (the container installs channel plugins at boot). Run step 4; a `SKIP … HTTP 401` or `403` from its `channel-bot-id.ts` line is reported as "token rejected by <platform>, fix it before restarting". If this run created the config entry or wrote the token → stop: "The bot is offline until the container restarts and loads it: `.claude-code-hermit/bin/hermit-docker restart`, then DM the bot for a code and re-run this skill. Still no code after a restart: `hermit-docker logs --tail=60` shows the plugin's own error (wrong token, missing Message Content intent, install failure), and `/claude-code-hermit:hermit-doctor` checks the token." Otherwise skip steps 5 to 6c and run docker-setup's **Channel pairing** sub-steps 1 to 9 against the container (`Read` only the **Channel pairing** heading through sub-step 9 of `${CLAUDE_SKILL_DIR}/../docker-setup/SKILL.md`, not the rest of the wizard): `channel-pair.ts pair` / `policy` / `group-add` with `--compose-file docker-compose.hermit.yml --service hermit --session <session>`, session from `tmux_session_name` in `config.json` with `{project_name}` replaced by the project directory basename, `<state_dir>` absolute. Precondition `docker compose -f docker-compose.hermit.yml exec -T hermit tmux has-session -t <session>`; on failure stop with "container is still booting or the first-run screens were never accepted: `hermit-docker attach`, accept them, re-run". The "I have the code / Skip this channel" question on this branch adds one sentence: "No code from the bot? It has not loaded the token: `hermit-docker restart`, then re-run this skill."
 
 Read `.claude-code-hermit/config.json`. Collect all entries under `channels` that are valid objects, tracking which are disabled (`enabled: false`).
 
@@ -35,7 +40,7 @@ The script fills `enabled`, `dm_channel_id: null`, `default_chat_id: null`, and 
 - If exactly one enabled channel and nothing disabled: use it automatically.
 - Otherwise (several enabled, or enabled and disabled side by side): ask with `AskUserQuestion` (header: "Channel") — every channel name as an option, disabled ones labelled `<name> — disabled`, plus **All** (enabled channels only) — which to set up. If a disabled name is chosen, create the entry for it first (re-enabling it), then continue with it selected.
 
-Run steps 2–6 for each selected channel.
+Run steps 2–6 for each selected channel. On a Docker host (runtime routing 4–5), apply those overrides instead of the local/tmux default.
 
 ### 2. Check prerequisites
 
