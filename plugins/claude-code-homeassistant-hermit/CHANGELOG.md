@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- The native-permissions installer accepts only a project settings path.
+
 ## [0.4.14] - 2026-09-10
 
 ### Changed
@@ -15,7 +21,7 @@
 
 ### Upgrade Instructions
 
-Before using the updated write commands, set `DOMAIN_PLUGIN_ROOT` to this installed plugin's absolute directory and run the following from the project root. Prepare `NATIVE_APPROVAL_BLOCK` as a temporary Markdown file containing the updated `state-templates/CLAUDE-APPEND.md` block merged with any operator edits from the installed block (`target_file` in preflight). Preserve those edits and the marker pair; the refresh replaces only this marked block, leaving surrounding project instructions intact. The installer preserves operator settings and denies. Do not run the older HA mode migration for this change.
+Before using the updated write commands, set `DOMAIN_PLUGIN_ROOT` to this installed plugin's absolute directory and run the following from the project root. Prepare `NATIVE_APPROVAL_BLOCK` as a temporary Markdown file containing the updated `state-templates/CLAUDE-APPEND.md` block merged with any operator edits from the installed block (`target_file` in preflight). Preserve those edits and the marker pair; the refresh replaces only this marked block, leaving surrounding project instructions intact. The installer preserves operator settings and denies.
 
 ```bash
 native_settings=$(.claude-code-hermit/bin/hermit-run domain-hatch preflight claude-code-homeassistant-hermit | bun -e 'const p = await Bun.stdin.json(); if (!p.ok || !["local", "committed"].includes(p.target)) throw new Error("Resolve the domain hatch target first"); console.log(p.target === "local" ? ".claude/settings.local.json" : ".claude/settings.json");') &&

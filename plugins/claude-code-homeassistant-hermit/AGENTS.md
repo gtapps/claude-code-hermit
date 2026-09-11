@@ -20,5 +20,3 @@ The plugin suite needs full Git history and Python with `python-dotenv` and `PyY
 Changes to `src/policy.ts` or `hooks/mcp-safety-gate.ts` must preserve the corpus/golden behavior in `tests/gate-corpus.test.ts` and the fail-closed properties in `tests/gate-fuzz.test.ts`. Keep YAML parity and apply-result verification intact; a successful tool call alone is not proof that the intended automation was installed.
 
 When using `tmpPath()` from `tests/helpers.ts`, register `afterAll(cleanupTmp)`. Cleanup after each test can delete fixtures still used by concurrent tests. Keep independent corpus and fuzz subprocess work asynchronous.
-
-The native-permissions installer owns `.claude-code-hermit/state/claude-code-homeassistant-hermit-native-permissions-v1.json`, a durable completion marker written only by a successful `--migrate` run. Preserve it across upgrades so later operator policy choices are not migrated again.

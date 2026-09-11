@@ -1,5 +1,5 @@
 import { test, expect, afterAll } from 'bun:test';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 const dirs: string[] = [];
@@ -11,39 +11,41 @@ function fixture() {
   mkdirSync(join(root, '.claude')); mkdirSync(join(root, '.claude-code-hermit'));
   return root;
 }
-function run(root: string, migrate = false) {
-  return Bun.spawnSync(['bun', script, join(root, '.claude/settings.local.json'), ...(migrate ? ['--migrate'] : [])]);
+function run(root: string, args: string[] = [], target = 'settings.local.json') {
+  return Bun.spawnSync(['bun', script, join(root, '.claude', target), ...args]);
 }
-test('install preserves unrelated settings and denies; repeated seeding is stable', () => {
-  const root = fixture(), file = join(root, '.claude/settings.local.json');
-  writeFileSync(file, JSON.stringify({ env: { KEEP: 'yes' }, permissions: { deny: ['Bash(custom *)'], ask: ['Read(private)'] } }));
-  expect(run(root).exitCode).toBe(0);
+test.each(['settings.json', 'settings.local.json'])('install into %s preserves operator settings and is repeatable', (target) => {
+  const root = fixture(), file = join(root, '.claude', target);
+  writeFileSync(file, JSON.stringify({ env: { KEEP: 'yes' }, permissions: { allow: ['Read(public)'], deny: [rules[0], 'Bash(custom *)'], ask: ['Read(private)'] } }));
+  const result = run(root, [], target);
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout.toString()).toContain(`Existing denies remain: ${rules[0]}`);
   const once = readFileSync(file, 'utf8'), data = JSON.parse(once);
-  expect(data.env.KEEP).toBe('yes'); expect(data.permissions.deny).toEqual(['Bash(custom *)']);
+  expect(data.env.KEEP).toBe('yes'); expect(data.permissions.deny).toEqual([rules[0], 'Bash(custom *)']);
+  expect(data.permissions.allow).toEqual(['Read(public)']);
+  expect(data.permissions.ask).toContain('Read(private)');
   for (const rule of rules) expect(data.permissions.ask).toContain(rule);
-  expect(run(root).exitCode).toBe(0); expect(readFileSync(file, 'utf8')).toBe(once);
+  expect(run(root, [], target).exitCode).toBe(0); expect(readFileSync(file, 'utf8')).toBe(once);
+  expect(existsSync(join(root, '.claude-code-hermit/state'))).toBe(false);
+  expect(existsSync(join(root, '.claude-code-hermit/config.json'))).toBe(false);
 });
-test('migration flips ha_safety_mode once and validates all files before writing', () => {
-  const root = fixture(), local = join(root, '.claude/settings.local.json'), shared = join(root, '.claude/settings.json');
-  writeFileSync(local, '{}'); writeFileSync(shared, '{bad');
-  expect(run(root, true).exitCode).not.toBe(0); expect(readFileSync(local, 'utf8')).toBe('{}');
-  writeFileSync(shared, JSON.stringify({ permissions: { deny: [...rules, 'Bash(custom *)'] } }));
-  writeFileSync(join(root, '.claude-code-hermit/config.json'), JSON.stringify({ ha_safety_mode: 'strict', custom: 7 }));
-  expect(run(root).exitCode).toBe(0); // a plain hatch install must not consume the one-time migration
-  expect(run(root, true).exitCode).toBe(0);
-  const data = JSON.parse(readFileSync(shared, 'utf8'));
-  expect(data.permissions.deny).toContain('Bash(custom *)');
-  const before = readFileSync(local, 'utf8'); expect(run(root, true).exitCode).toBe(0); expect(readFileSync(local, 'utf8')).toBe(before);
-  {
-    const configFile = join(root, '.claude-code-hermit/config.json');
-    expect(JSON.parse(readFileSync(configFile, 'utf8'))).toEqual({ ha_safety_mode: 'ask', custom: 7 });
-    writeFileSync(configFile, '{"ha_safety_mode":"strict"}');
-    expect(run(root, true).exitCode).toBe(0); expect(JSON.parse(readFileSync(configFile, 'utf8')).ha_safety_mode).toBe('strict');
-  }
-});
-test('malformed permission arrays are not overwritten', () => {
+test.each([['--migrate'], ['--unknown'], ['extra'], [''], ['--migrate', 'extra']].map(args => ({ args })))('extra arguments fail without writes: $args', ({ args }) => {
   const root = fixture(), file = join(root, '.claude/settings.local.json');
-  const original = '{"permissions":{"ask":"bad"}}'; writeFileSync(file, original);
+  expect(run(root, args).exitCode).not.toBe(0);
+  expect(existsSync(file)).toBe(false);
+  const original = '{}';
+  writeFileSync(file, original);
+  const config = join(root, '.claude-code-hermit/config.json');
+  const strict = '{"ha_safety_mode":"strict"}';
+  writeFileSync(config, strict);
+  expect(run(root, args).exitCode).not.toBe(0);
+  expect(readFileSync(file, 'utf8')).toBe(original);
+  expect(readFileSync(config, 'utf8')).toBe(strict);
+  expect(existsSync(join(root, '.claude-code-hermit/state'))).toBe(false);
+});
+test.each(['{bad', '[]', '{"permissions":null}', '{"permissions":{"ask":"bad"}}', '{"permissions":{"deny":[1]}}'])('invalid settings are not overwritten: %s', (original) => {
+  const root = fixture(), file = join(root, '.claude/settings.local.json');
+  writeFileSync(file, original);
   expect(run(root).exitCode).not.toBe(0); expect(readFileSync(file, 'utf8')).toBe(original);
 });
 
@@ -58,4 +60,12 @@ test('ordinary upgrades preserve safety configuration, other scopes, and existin
   for (const [name, content] of Object.entries(files)) writeFileSync(join(root, name), content);
   expect(run(root).exitCode).toBe(0);
   for (const [name, content] of Object.entries(files)) expect(readFileSync(join(root, name), 'utf8')).toBe(content);
+});
+
+test('unrelated malformed files are not read', () => {
+  const root = fixture();
+  const files = ['.claude/settings.json', '.claude-code-hermit/config.json'];
+  for (const file of files) writeFileSync(join(root, file), '{bad');
+  expect(run(root).exitCode).toBe(0);
+  for (const file of files) expect(readFileSync(join(root, file), 'utf8')).toBe('{bad');
 });
