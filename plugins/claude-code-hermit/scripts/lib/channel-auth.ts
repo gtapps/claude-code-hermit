@@ -58,9 +58,14 @@ export function channelBotIdentity(config: Json, source: string): ChannelBotIden
  * `user_id` when present, else `user`) — this gate never sees the display name
  * separately, so an allowlist can only ever be matched against the platform id.
  */
-export function isAllowedSender(config: Json, source: string, userId: string | null): boolean {
+export function allowedUserIds(config: Json, source: string): string[] | null {
   const allowedUsers = channelEntry(config, source)?.allowed_users;
-  if (!Array.isArray(allowedUsers)) return true; // absent/malformed -> accept all
+  return Array.isArray(allowedUsers) ? allowedUsers : null;
+}
+
+export function isAllowedSender(config: Json, source: string, userId: string | null): boolean {
+  const allowedUsers = allowedUserIds(config, source);
+  if (allowedUsers === null) return true; // absent/malformed -> accept all
   if (userId === null) return false; // can't verify identity against a configured allowlist
   return allowedUsers.includes(userId);
 }

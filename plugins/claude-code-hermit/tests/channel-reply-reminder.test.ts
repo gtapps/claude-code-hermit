@@ -17,7 +17,7 @@ import path from 'node:path';
 
 import { runScript } from './helpers/run';
 import { setupWorkdir, type Workdir } from './helpers/workdir';
-import { unconsolidated } from '../scripts/lib/channel-log';
+import { unconsolidated, logMessage } from '../scripts/lib/channel-log';
 
 const hermit = (dir: string, ...p: string[]) => path.join(dir, '.claude-code-hermit', ...p);
 const write = (p: string, content: string) => fs.writeFileSync(p, content);
@@ -252,4 +252,91 @@ describe('passive capture', () => {
       } finally { server.stop(true); }
     }, config('discord', scenario === 'empty' ? { passive_chats: [] } : {})));
   }
+
+  test('addressed turn injects a prior allowed un-mentioned message', withDir(async dir => {
+    blocked((await run(prompt('plain'), dir)).stdout);
+    const r = await run(prompt('<@123> hello'), dir);
+    expect(r.stdout).toContain('plain');
+    expect(r.stdout).toContain('last recorded reply');
+  }, config()));
+
+  test('stranger un-mentioned text is not injected on an addressed turn', withDir(async dir => {
+    blocked((await run(prompt('plain', 'STRANGER'), dir)).stdout);
+    const r = await run(prompt('<@123> hello'), dir);
+    expect(r.stdout).not.toContain('plain');
+    expect(r.stdout).not.toContain('last recorded reply');
+  }, config()));
+
+  test('one allowed row then eight stranger rows still injects the allowed row', withDir(async dir => {
+    blocked((await run(prompt('first'), dir)).stdout);
+    for (let i = 0; i < 8; i++) {
+      blocked((await run(prompt(`stranger-${i}`, 'STRANGER'), dir)).stdout);
+    }
+    const r = await run(prompt('<@123> hello'), dir);
+    expect(r.stdout).toContain('first');
+  }, config()));
+
+  test('inbound before the last outbound in the chat is not injected', withDir(async dir => {
+    blocked((await run(prompt('plain'), dir)).stdout);
+    logMessage(hermit(dir), {
+      source: 'discord', chat_id: '1', direction: 'out', text: 'hermit replied',
+    });
+    const r = await run(prompt('<@123> hello'), dir);
+    expect(r.stdout).not.toContain('plain');
+    expect(r.stdout).not.toContain('last recorded reply');
+  }, config()));
+
+  test('more than eight eligible rows injects the newest eight oldest first', withDir(async dir => {
+    for (let i = 0; i < 10; i++) {
+      blocked((await run(prompt(`backlog-${i}`), dir)).stdout);
+    }
+    const r = await run(prompt('<@123> hello'), dir);
+    expect(r.stdout).not.toContain('backlog-0');
+    expect(r.stdout).not.toContain('backlog-1');
+    let last = -1;
+    for (let i = 2; i <= 9; i++) {
+      const idx = r.stdout.indexOf(`backlog-${i}`);
+      expect(idx).toBeGreaterThan(last);
+      last = idx;
+    }
+  }, config()));
+
+  test('a message older than six hours is not injected even with no outbound row', withDir(async dir => {
+    logMessage(hermit(dir), {
+      source: 'discord', chat_id: '1', direction: 'in', sender: 'U1', sender_id: 'U1',
+      text: 'stale-plain', ts: new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString(),
+    });
+    const r = await run(prompt('<@123> hello'), dir);
+    expect(r.stdout).not.toContain('stale-plain');
+    expect(r.stdout).not.toContain('last recorded reply');
+  }, config()));
+
+  test('the addressed message body is not echoed in the reminder', withDir(async dir => {
+    blocked((await run(prompt('prior-plain'), dir)).stdout);
+    const r = await run(prompt('<@123> WAKE_BODY_UNIQUE'), dir);
+    expect(r.stdout).toContain('prior-plain');
+    expect(r.stdout).not.toContain('WAKE_BODY_UNIQUE');
+  }, config()));
+
+  test('a non-passive chat gets a reminder without the introducing sentence', withDir(async dir => {
+    logMessage(hermit(dir), {
+      source: 'discord', chat_id: '1', direction: 'in', sender: 'U1', sender_id: 'U1',
+      text: 'should-not-appear',
+    });
+    const r = await run(prompt('<@123> hello'), dir);
+    expect(r.stdout).toContain('[channel reply reminder]');
+    expect(r.stdout).not.toContain('last recorded reply');
+    expect(r.stdout).not.toContain('should-not-appear');
+  }, config('discord', { passive_chats: [] })));
+
+  test('disabled logging skips the digest even when the log already has rows', withDir(async dir => {
+    logMessage(hermit(dir), {
+      source: 'discord', chat_id: '1', direction: 'in', sender: 'U1', sender_id: 'U1',
+      text: 'pre-logged-plain',
+    });
+    const r = await run(prompt('<@123> hello'), dir);
+    expect(r.stdout).toContain('[channel reply reminder]');
+    expect(r.stdout).not.toContain('pre-logged-plain');
+    expect(r.stdout).not.toContain('last recorded reply');
+  }, config('discord', {}, false)));
 });

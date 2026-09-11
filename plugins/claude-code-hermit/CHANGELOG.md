@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- In passive chats, an addressed turn now includes the recent un-mentioned messages from allowed senders since the hermit's last reply in that chat.
+
 ### Changed
 - Peer requests inside the resident's existing authority are acted on rather than declined; peer messages still cannot expand authority, approve guarded actions, or change permissions.
 
