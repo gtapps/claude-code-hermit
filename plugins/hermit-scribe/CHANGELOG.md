@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Hatch no longer seeds `autoMode.environment`; Claude Code does not read it from project settings. Existing `autoMode` blocks in project settings are unread and left in place.
+
 ## [0.1.4] - 2026-09-10
 
 ### Changed
@@ -14,8 +20,6 @@
 ### Upgrade Instructions
 
 Resolve the project settings target with `.claude-code-hermit/bin/hermit-run domain-hatch preflight hermit-scribe`: `target` (or `target_default` when absent) maps `local` to `.claude/settings.local.json` and `committed` to `.claude/settings.json`. Run `bun <plugin_root>/scripts/native-permissions.ts <resolved-settings-file>` before refreshing the installed instruction block. If installation fails, stop the upgrade.
-
-Run `bun <plugin_root>/scripts/automode-env.ts <project>/.claude/settings.local.json` to replace the exact old seeded classifier description while preserving operator entries.
 
 Refresh the installed CLAUDE-APPEND block. Any operator script calling `file-issue.ts` with bare positional arguments must add `--publish`; without it the script now exits 1 with usage rather than filing.
 

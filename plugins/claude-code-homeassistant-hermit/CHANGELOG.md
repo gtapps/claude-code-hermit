@@ -5,6 +5,7 @@
 ### Changed
 
 - The native-permissions installer accepts only a project settings path.
+- Hatch no longer seeds `autoMode.environment`; Claude Code does not read it from project settings. Existing `autoMode` blocks in project settings are unread and left in place.
 
 ## [0.4.14] - 2026-09-10
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- The native-permissions installer accepts only a project settings path.
+- Hatch no longer seeds `autoMode.environment`; Claude Code does not read it from project settings. Existing marker files and `autoMode` blocks in project settings are unread and left in place.
+
 ## [0.1.3] - 2026-09-10
 
 ### Changed
@@ -8,9 +15,7 @@
 
 ### Upgrade Instructions
 
-Run `bun <plugin_root>/scripts/automode-env.ts <project>/.claude/settings.local.json` to replace the exact old seeded classifier description while preserving operator entries.
-
-Resolve the project settings target with domain-hatch preflight claude-code-fitness-hermit: local maps to .claude/settings.local.json; committed maps to .claude/settings.json. Run `bun <plugin_root>/scripts/native-permissions.ts <resolved-settings-file> --migrate` once for this version transition. Refresh the installed CLAUDE-APPEND block and notify the operator that existing guarded actions now use Claude Code native approval instead of the prior refusal or conversational confirmation.
+Resolve the project settings target with domain-hatch preflight claude-code-fitness-hermit: local maps to .claude/settings.local.json; committed maps to .claude/settings.json. Run `bun <plugin_root>/scripts/native-permissions.ts <resolved-settings-file>`. Refresh the installed CLAUDE-APPEND block and notify the operator that existing guarded actions now use Claude Code native approval instead of the prior refusal or conversational confirmation.
 
 ## [0.1.2] - 2026-09-07
 

@@ -18,4 +18,4 @@ Run `bash tests/run-all.sh` from this plugin directory with the PHP version/exte
 
 Request-capture and canonicalization checks (Blocks A/B in `php/tests/run.php`) are essential when changing the write gateway. When adding a skill, update the explicit `SKILLS` list in `tests/skill-structure.test.ts`.
 
-The native-permissions installer adds missing project ask rules without changing operator settings. Existing legacy marker files are unused and remain untouched.
+The native-permissions installer adds missing project ask rules without changing operator settings.
