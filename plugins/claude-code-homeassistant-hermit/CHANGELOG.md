@@ -1,10 +1,15 @@
 # Changelog
 
-## [0.4.14] - 2026-09-10
+## [Unreleased]
 
 ### Changed
 
 - The native-permissions installer accepts only a project settings path.
+
+## [0.4.14] - 2026-09-10
+
+### Changed
+
 - CLI writes use native approval without confirmation flags or confirmation-only retry responses.
 - Policy results use `decision: allow | ask | deny` consistently.
 - `ha_safety_mode` defaults to `ask` when absent from valid configuration.
