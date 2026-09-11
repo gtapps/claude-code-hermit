@@ -25,7 +25,8 @@ Four limits sit on that command:
 
 - The helper's worktree `.claude-code-hermit/` is a projection (`OPERATOR.md`,
   `config.json`, `compiled/` only). Any file the helper must Read is passed as
-  an absolute path in the prompt.
+  an absolute path in the prompt, spelled as an `@<abs-path>` mention so
+  Claude Code injects it at launch.
 - A worktree carries no `.claude/settings.local.json` (it is gitignored, so
   nothing checks it out), so the helper inherits none of this hermit's
   permission rules. `--permission-mode <p>` from `config.json`'s
