@@ -107,6 +107,9 @@ describe('CLAUDE-APPEND size budget', () => {
     // classifier-facing bullets. The ceiling is left at 10,450 on purpose: the
     // ~2 KB of headroom is margin for deliberate additions, each still owed a
     // ledger line here, not a budget to refill.
+    // Widening the peer-question line to peer questions or requests (+206 B,
+    // landing at ~8,960 B) is funded from that headroom, no raise: requests may
+    // initiate in-scope work, and the authority limits are now stated explicitly.
     expect(Buffer.byteLength(append, 'utf8')).toBeLessThanOrEqual(10450);
   });
 });

@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.15] - 2026-09-10
 
 ### Fixed
 - `unknown keys "description" ... ignored` warning printed at every session start. `description` is not part of Claude Code's hook schema on a matcher group; the prose now lives in each hook script's header, with one legal root-level `description` in `hooks.json`.

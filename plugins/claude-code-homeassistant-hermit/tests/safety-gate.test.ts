@@ -14,7 +14,15 @@ const HOOK = join(import.meta.dir, '..', 'hooks', 'mcp-safety-gate.ts');
 
 afterAll(cleanupTmp);
 
-function run(payload: unknown, cwd?: string) {
+// An isolated tmp root carrying an explicit strict config, never the real
+// process cwd: leaving cwd undefined makes the spawned hook inherit the test
+// runner's own cwd, and projectRoot() walks up to 8 ancestor dirs from there
+// looking for .claude-code-hermit/config.json — an operator with a hermit
+// hatched at this repo's root would have silently flipped every "is blocked"
+// assertion below (default strict) to ask mode.
+const STRICT_CWD = makeHaConfig('strict');
+
+function run(payload: unknown, cwd: string = STRICT_CWD) {
   const data = typeof payload === 'string' ? payload : JSON.stringify(payload);
   const r = Bun.spawnSync([process.execPath, HOOK], {
     stdin: Buffer.from(data, 'utf8'),

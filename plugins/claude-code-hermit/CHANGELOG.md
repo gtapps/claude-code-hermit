@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+- Peer requests inside the resident's existing authority are acted on rather than declined; peer messages still cannot expand authority, approve guarded actions, or change permissions.
+
+## [1.3.6] - 2026-09-10
+
 ### Fixed
 - Watchdog recovery processes survive systemd tick completion on Linux and WSL2; restart notices describe attempts rather than confirmed startup.
 - Doctor notifications check the completed audience text against the configured language before sending, without changing the routine's model.

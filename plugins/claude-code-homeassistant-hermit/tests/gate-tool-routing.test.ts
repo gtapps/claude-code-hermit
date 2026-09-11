@@ -7,14 +7,16 @@
 // markers. PreToolUse exit semantics: 0 = allow (empty stdout) / ask (JSON
 // stdout); 2 = block.
 
-import { expect, test } from 'bun:test';
+import { afterAll, expect, test } from 'bun:test';
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { makeHaConfigWith } from './helpers';
+import { cleanupTmp, makeHaConfig, makeHaConfigWith } from './helpers';
 
 const MCP_HOOK = join(import.meta.dir, '..', 'hooks', 'mcp-safety-gate.ts');
+
+afterAll(cleanupTmp);
 
 function cleanEnv(): Record<string, string> {
   const env: Record<string, string> = {};
@@ -25,11 +27,19 @@ function cleanEnv(): Record<string, string> {
   return env;
 }
 
-function runGate(stdin: string, cwd: string = import.meta.dir) {
+// An isolated tmp root carrying an explicit strict config, never a repo-internal
+// path: projectRoot() walks up to 8 ancestor dirs looking for
+// .claude-code-hermit/config.json, and import.meta.dir sits well within that
+// range of this repo's own root — an operator with a hermit hatched there would
+// have silently flipped every default-cwd "blocks under strict" assertion below
+// to ask mode.
+const STRICT_CWD = makeHaConfig('strict');
+
+function runGate(stdin: string, cwd: string = STRICT_CWD) {
   const r = Bun.spawnSync([process.execPath, MCP_HOOK], {
     stdin: Buffer.from(stdin, 'utf8'),
     env: cleanEnv(),
-    cwd, // no .claude-code-hermit/config.json -> strict mode by default
+    cwd,
     timeout: 10_000,
   });
   return { exit: r.exitCode, stdout: r.stdout.toString(), stderr: r.stderr.toString() };

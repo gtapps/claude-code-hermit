@@ -11,11 +11,11 @@
 //                                        bug the Python gate shipped with)
 // so the gate must only ever exit 0 (for verifiably-safe targets) or 2.
 
-import { expect, test } from 'bun:test';
+import { afterAll, expect, test } from 'bun:test';
 import fc from 'fast-check';
 import { join } from 'node:path';
 
-import { cleanEnv } from './helpers';
+import { cleanEnv, cleanupTmp, makeHaConfig } from './helpers';
 
 const MCP_HOOK = join(import.meta.dir, '..', 'hooks', 'mcp-safety-gate.ts');
 const CURL_HOOK = join(import.meta.dir, '..', 'hooks', 'curl-host-gate.ts');
@@ -23,11 +23,20 @@ const CURL_HOOK = join(import.meta.dir, '..', 'hooks', 'curl-host-gate.ts');
 const MAX_STDIN_BYTES = 8 * 1024; // bound input sizes — no multi-MB fuzz cases
 const TIMEOUT_MS = 10_000; // no-hang bound per spawn
 
+afterAll(cleanupTmp);
+
+// An isolated tmp root carrying an explicit strict config, never a repo-internal
+// path: projectRoot() walks up to 8 ancestor dirs looking for
+// .claude-code-hermit/config.json, and import.meta.dir sits well within that
+// range of this repo's own root — an operator with a hermit hatched there would
+// have silently flipped every "under strict" assertion below to ask mode.
+const STRICT_CWD = makeHaConfig('strict');
+
 async function runGate(hook: string, stdin: string) {
   const r = Bun.spawn([process.execPath, hook], {
     stdin: Buffer.from(stdin.slice(0, MAX_STDIN_BYTES), 'utf8'),
     env: cleanEnv(),
-    cwd: import.meta.dir, // no .claude-code-hermit/config.json here -> strict
+    cwd: STRICT_CWD,
     timeout: TIMEOUT_MS,
     stdout: 'pipe',
     stderr: 'pipe',
