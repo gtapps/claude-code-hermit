@@ -10,7 +10,7 @@
  * create the file, so a hermit with no channel traffic never gets one.
  *
  * Schema:
- *   messages(id, ts, source, chat_id, direction, sender, message_id, text, consolidated_at)
+ *   messages(id, ts, source, chat_id, direction, sender, sender_id, message_id, text, consolidated_at)
  *   messages_fts — external-content FTS5 index over messages.text, kept in
  *     sync by AFTER INSERT/DELETE triggers (external-content tables do not
  *     auto-sync).
@@ -33,6 +33,7 @@ interface LogInput {
   chat_id: string;
   direction: 'in' | 'out';
   sender?: string | null;
+  sender_id?: string | null;
   message_id?: string | null;
   text: string;
   ts?: string; // ISO; defaults to now
@@ -45,6 +46,7 @@ interface ChannelRow {
   chat_id: string;
   direction: string;
   sender: string | null;
+  sender_id: string | null;
   message_id: string | null;
   text: string;
   consolidated_at: string | null;
@@ -102,6 +104,7 @@ function ensureSchema(db: Json): void {
       chat_id TEXT NOT NULL,
       direction TEXT NOT NULL,
       sender TEXT,
+      sender_id TEXT,
       message_id TEXT,
       text TEXT NOT NULL,
       consolidated_at TEXT
@@ -124,6 +127,17 @@ function ensureSchema(db: Json): void {
   `);
   db.run('CREATE INDEX IF NOT EXISTS messages_consolidated_idx ON messages(consolidated_at)');
   db.run('CREATE INDEX IF NOT EXISTS messages_ts_idx ON messages(ts)');
+  // Schema drift is handled only here (first precedent in the repo): a DB
+  // created without sender_id gains the column on the next logMessage() call.
+  const columns = db.query('PRAGMA table_info(messages)').all() as Array<{ name: string }>;
+  if (!columns.some((c) => c.name === 'sender_id')) {
+    try {
+      db.run('ALTER TABLE messages ADD COLUMN sender_id TEXT');
+    } catch (e: any) {
+      // A concurrent writer added it between the check and the ALTER.
+      if (!/duplicate column/i.test(e?.message || '')) throw e;
+    }
+  }
 }
 
 /**
@@ -144,14 +158,15 @@ function logMessage(hermitDir: string, input: LogInput): { ok: boolean; error?: 
 
       const ts = input.ts || new Date().toISOString();
       db.query(
-        `INSERT INTO messages (ts, source, chat_id, direction, sender, message_id, text)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO messages (ts, source, chat_id, direction, sender, sender_id, message_id, text)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         ts,
         String(input.source || ''),
         String(input.chat_id || ''),
         input.direction,
         input.sender ?? null,
+        input.sender_id ?? null,
         input.message_id ?? null,
         text
       );
@@ -275,6 +290,55 @@ function inboundSince(hermitDir: string, sinceIso: string, limit = 50): ChannelR
 }
 
 /**
+ * Inbound rows in one chat after both `notBeforeIso` and the newest outbound
+ * row for that chat, filtered by sender_id in SQL before LIMIT. Newest `limit`
+ * rows (default 8), returned oldest first. Absent DB or any query error → [].
+ */
+function unaddressedSince(
+  hermitDir: string,
+  source: string,
+  chatId: string,
+  opts: { notBeforeIso: string; senderIds: string[] | null; limit?: number },
+): ChannelRow[] {
+  if (!dbExists(hermitDir)) return [];
+  if (opts.senderIds !== null && opts.senderIds.length === 0) return [];
+  try {
+    const db = openDb(hermitDir, { readonly: true });
+    try {
+      const limit = opts.limit ?? 8;
+      const params: (string | number)[] = [source, chatId, opts.notBeforeIso, source, chatId];
+      let senderFilter = 'AND sender_id IS NOT NULL';
+      if (opts.senderIds !== null) {
+        senderFilter = `AND sender_id IN (${opts.senderIds.map(() => '?').join(',')})`;
+        params.push(...opts.senderIds);
+      }
+      params.push(limit);
+      const rows = db
+        .query(
+          `SELECT * FROM messages
+           WHERE direction = 'in'
+             AND source = ?
+             AND chat_id = ?
+             AND ts > ?
+             AND ts > COALESCE(
+               (SELECT MAX(ts) FROM messages WHERE direction = 'out' AND source = ? AND chat_id = ?),
+               ''
+             )
+             ${senderFilter}
+           ORDER BY ts DESC, id DESC
+           LIMIT ?`
+        )
+        .all(...params) as ChannelRow[];
+      return rows.reverse();
+    } finally {
+      db.close();
+    }
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Stamp consolidated_at on the given row ids. Absent DB → ok:true no-op
  * (nothing to mark). Called only after the caller has successfully applied
  * the distilled writes (memory/compiled) — see weekly-review's consolidation
@@ -326,5 +390,5 @@ function prune(hermitDir: string, retentionDays: number): { ok: boolean; deleted
   }
 }
 
-export { logMessage, searchLog, unconsolidated, inboundSince, markConsolidated, prune, dbExists, dbPath, isLoggingEnabled };
+export { logMessage, searchLog, unconsolidated, inboundSince, unaddressedSince, markConsolidated, prune, dbExists, dbPath, isLoggingEnabled };
 export type { LogInput, ChannelRow };

@@ -33,7 +33,7 @@ import { costIndexPath, readCostIndex, updateCostIndex, scanAutomatedOpus } from
 import * as pricing from '../scripts/lib/pricing';
 import { calculateCost } from '../scripts/lib/pricing';
 import { search } from '../scripts/lib/search';
-import { logMessage, searchLog, unconsolidated, markConsolidated, prune, dbExists } from '../scripts/lib/channel-log';
+import { logMessage, searchLog, unconsolidated, unaddressedSince, markConsolidated, prune, dbExists } from '../scripts/lib/channel-log';
 
 // ---------- small local helpers ----------
 
@@ -4861,6 +4861,25 @@ describe('channel-log', () => {
       });
     }));
 
+    test('logMessage round-trips sender_id and leaves sender unchanged', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      const stored = logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'display', sender_id: 'U1',
+        text: 'id-bearing inbound',
+      });
+      expect(stored.ok).toBe(true);
+      const omitted = logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'display',
+        text: 'id-omitted inbound',
+      });
+      expect(omitted.ok).toBe(true);
+      const { rows } = unconsolidated(hermitPath);
+      expect(rows).toEqual(expect.arrayContaining([
+        expect.objectContaining({ text: 'id-bearing inbound', sender: 'display', sender_id: 'U1' }),
+        expect.objectContaining({ text: 'id-omitted inbound', sender: 'display', sender_id: null }),
+      ]));
+    }));
+
     test('searchLog uses OR semantics across terms, not AND', withDir(async (dir) => {
       const hermitPath = hermit(dir);
       logMessage(hermitPath, { source: 'discord', chat_id: 'C1', direction: 'in', text: 'only apple here' });
@@ -4921,6 +4940,140 @@ describe('channel-log', () => {
       expect(prune(hermitPath, 90)).toEqual({ ok: true, deleted: 0 });
       expect(markConsolidated(hermitPath, [1, 2, 3])).toEqual({ ok: true });
       expect(dbExists(hermitPath)).toBe(false);
+    }));
+
+    test('unaddressedSince returns [] when the DB does not exist', withDir(async (dir) => {
+      expect(unaddressedSince(hermit(dir), 'discord', 'C1', {
+        notBeforeIso: '2026-01-01T00:00:00.000Z', senderIds: null,
+      })).toEqual([]);
+    }));
+
+    test('unaddressedSince excludes inbound before the newest outbound and includes inbound after', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'before-out', ts: '2026-06-01T00:00:00.000Z',
+      });
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'out', sender: 'bot',
+        text: 'reply', ts: '2026-06-01T00:01:00.000Z',
+      });
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'after-out', ts: '2026-06-01T00:02:00.000Z',
+      });
+      const rows = unaddressedSince(hermitPath, 'discord', 'C1', {
+        notBeforeIso: '2026-01-01T00:00:00.000Z', senderIds: ['U1'],
+      });
+      expect(rows.map((r) => r.text)).toEqual(['after-out']);
+    }));
+
+    test('unaddressedSince excludes inbound older than notBeforeIso even with no outbound row', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'too-old', ts: '2026-06-01T00:00:00.000Z',
+      });
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'in-window', ts: '2026-06-01T02:00:00.000Z',
+      });
+      const rows = unaddressedSince(hermitPath, 'discord', 'C1', {
+        notBeforeIso: '2026-06-01T01:00:00.000Z', senderIds: ['U1'],
+      });
+      expect(rows.map((r) => r.text)).toEqual(['in-window']);
+    }));
+
+    test('unaddressedSince excludes other chats', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'here', ts: '2026-06-01T00:00:00.000Z',
+      });
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C2', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'elsewhere', ts: '2026-06-01T00:01:00.000Z',
+      });
+      const rows = unaddressedSince(hermitPath, 'discord', 'C1', {
+        notBeforeIso: '2026-01-01T00:00:00.000Z', senderIds: ['U1'],
+      });
+      expect(rows.map((r) => r.text)).toEqual(['here']);
+    }));
+
+    test('unaddressedSince applies the allowlist in SQL before LIMIT', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'allowed', ts: '2026-06-01T00:00:00.000Z',
+      });
+      for (let i = 1; i <= 8; i++) {
+        logMessage(hermitPath, {
+          source: 'discord', chat_id: 'C1', direction: 'in', sender: 'STRANGER', sender_id: 'STRANGER',
+          text: `stranger-${i}`, ts: `2026-06-01T00:0${i}:00.000Z`,
+        });
+      }
+      const rows = unaddressedSince(hermitPath, 'discord', 'C1', {
+        notBeforeIso: '2026-01-01T00:00:00.000Z', senderIds: ['U1'], limit: 8,
+      });
+      expect(rows.map((r) => r.text)).toEqual(['allowed']);
+    }));
+
+    test('unaddressedSince never returns a row with null sender_id', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1',
+        text: 'no-id', ts: '2026-06-01T00:00:00.000Z',
+      });
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'has-id', ts: '2026-06-01T00:01:00.000Z',
+      });
+      const rows = unaddressedSince(hermitPath, 'discord', 'C1', {
+        notBeforeIso: '2026-01-01T00:00:00.000Z', senderIds: null,
+      });
+      expect(rows.map((r) => r.text)).toEqual(['has-id']);
+    }));
+
+    test('unaddressedSince with senderIds [] returns nothing', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'anyone', ts: '2026-06-01T00:00:00.000Z',
+      });
+      expect(unaddressedSince(hermitPath, 'discord', 'C1', {
+        notBeforeIso: '2026-01-01T00:00:00.000Z', senderIds: [],
+      })).toEqual([]);
+    }));
+
+    test('unaddressedSince keeps the newest limit rows and returns them oldest first', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      for (let i = 0; i < 10; i++) {
+        logMessage(hermitPath, {
+          source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+          text: `row-${i}`, ts: `2026-06-01T00:${String(i).padStart(2, '0')}:00.000Z`,
+        });
+      }
+      const rows = unaddressedSince(hermitPath, 'discord', 'C1', {
+        notBeforeIso: '2026-01-01T00:00:00.000Z', senderIds: ['U1'], limit: 8,
+      });
+      expect(rows.map((r) => r.text)).toEqual(['row-2', 'row-3', 'row-4', 'row-5', 'row-6', 'row-7', 'row-8', 'row-9']);
+    }));
+
+    test('unaddressedSince equal-ts rows come back in insertion order', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      const ts = '2026-06-01T00:00:00.000Z';
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'first', ts,
+      });
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'second', ts,
+      });
+      const rows = unaddressedSince(hermitPath, 'discord', 'C1', {
+        notBeforeIso: '2026-01-01T00:00:00.000Z', senderIds: ['U1'],
+      });
+      expect(rows.map((r) => r.text)).toEqual(['first', 'second']);
     }));
   });
 

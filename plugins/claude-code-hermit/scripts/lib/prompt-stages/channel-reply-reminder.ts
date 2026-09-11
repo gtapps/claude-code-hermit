@@ -9,8 +9,8 @@
 // own try/catch, and a logging failure never affects the reminder.
 
 import { safeForLLM } from '../sanitize';
-import { logMessage, isLoggingEnabled } from '../channel-log';
-import { isAllowedSender, channelBotIdentity, isPassiveChat, isSelfMentioned } from '../channel-auth';
+import { logMessage, isLoggingEnabled, unaddressedSince } from '../channel-log';
+import { isAllowedSender, allowedUserIds, channelBotIdentity, isPassiveChat, isSelfMentioned } from '../channel-auth';
 import { escapeRegExp } from '../md-write';
 import type { ChannelEnvelope, StageContext, StageResult } from './types';
 
@@ -26,6 +26,10 @@ const REPLY_TOOLS: Record<string, string> = {
 const MAX_SOURCE_LEN = 32;
 const MAX_CHAT_ID_LEN = 128;
 const MAX_BOT_REF_LEN = 64;
+// Last-reply alone would drag in days-old rows when the hermit has been quiet
+// in that chat; this cap is a constant, not a config key.
+const UNADDRESSED_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+const UNADDRESSED_TEXT_CAP = 1000;
 
 // Self-mention identity — captured at pairing by scripts/channel-bot-id.ts.
 // A mention-gated channel guarantees the inbound message mentions the bot, but
@@ -77,6 +81,7 @@ function capture(ctx: StageContext, envelope: ChannelEnvelope, passive: boolean)
     chat_id: envelope.chatId,
     direction: 'in',
     sender: envelope.userName ?? envelope.userId,
+    sender_id: envelope.userId,
     message_id: envelope.messageId,
     text: envelope.body,
     ts: envelope.ts ?? undefined,
@@ -102,11 +107,31 @@ export async function run(ctx: StageContext): Promise<StageResult | void> {
     ? `\`${tool}\` with chat_id="${chatId}"`
     : `the channel's \`reply\` tool with chat_id="${chatId}"`;
 
-  const reminder =
+  let reminder =
     `[channel reply reminder] Inbound message arrived on the \`${source || 'unknown'}\` channel` +
     ` (chat_id=\`${chatId}\`). Every reply, including a short acknowledgement, must go through ${toolLine}.` +
     ` Transcript/terminal output does not reach the operator.` +
     selfMentionClause(ctx, envelope) + '\n';
+
+  const addressed = passive
+    && isAllowedSender(ctx.config(), envelope.source, envelope.userId)
+    && await isSelfMentioned(ctx.dir, ctx.config(), sourceKey, chatIdRaw, envelope.body);
+
+  if (addressed && isLoggingEnabled(ctx.config())) {
+    // inbound ts is the platform's timestamp while outbound ts is the host clock,
+    // so a skewed host clock shifts the window by the skew.
+    const notBeforeIso = new Date(Date.now() - UNADDRESSED_MAX_AGE_MS).toISOString();
+    const rows = unaddressedSince(ctx.dir, envelope.sourceKey, envelope.chatId, {
+      notBeforeIso,
+      senderIds: allowedUserIds(ctx.config(), envelope.source),
+    });
+    if (rows.length) {
+      reminder += 'Earlier messages in this chat since your last recorded reply:\n';
+      for (const row of rows) {
+        reminder += `${safeForLLM(row.sender ?? '')} ${row.ts} ${safeForLLM(row.text).slice(0, UNADDRESSED_TEXT_CAP)}\n`;
+      }
+    }
+  }
 
   try {
     capture(ctx, envelope, passive);
@@ -114,8 +139,7 @@ export async function run(ctx: StageContext): Promise<StageResult | void> {
     process.stderr.write(`[channel-log] inbound capture failed: ${e?.message || e}\n`);
   }
 
-  if (passive && (!isAllowedSender(ctx.config(), envelope.source, envelope.userId)
-    || !await isSelfMentioned(ctx.dir, ctx.config(), sourceKey, chatIdRaw, envelope.body))) {
+  if (passive && !addressed) {
     return { block: 'passive chat: recorded, not addressed' };
   }
 
