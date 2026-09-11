@@ -9,5 +9,3 @@ A Strava-backed training layer whose contracts are activity identity, bounded co
 - `docs/knowledge-schema.md` owns artifact locations, retention, and the RPE record shapes. Preserve the distinction between ephemeral pulls, durable coaching outputs, and machine state. Persona and delivery identity come from the consumer's config.
 
 Read [the knowledge schema](docs/knowledge-schema.md) when changing activity sync, feedback, or routine outputs.
-
-The native-permissions installer owns `.claude-code-hermit/state/claude-code-fitness-hermit-native-permissions-v1.json`, a durable completion marker written only by a successful `--migrate` run. Preserve it across upgrades so later operator policy choices are not migrated again.

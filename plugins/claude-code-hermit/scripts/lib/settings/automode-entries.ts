@@ -16,9 +16,8 @@ import path from 'node:path';
 
 // The ops apply-settings.ts dispatches — the single source of truth for both the
 // allow entry below and that script's own usage message, so an op cannot be added
-// there without the classifier policy naming it. Retired verbs stay out: they exit 1.
+// there without the classifier policy naming it.
 export const SEALED_SETTINGS_OPS = [
-  'allow',
   'permissions-plan',
   'permissions-sync',
   'artifact-allow',
@@ -35,8 +34,7 @@ export const SEALED_SETTINGS_OPS = [
 // authorization and has no in-session caller; enumerating it would pre-clear a
 // classifier-free write to permissions.allow that nothing needs. Boot reaches both as a
 // plain OS process, outside the classifier entirely. Kept separate from
-// SEALED_SETTINGS_OPS so the auto-mode allow entry's enumerated op list stays exactly
-// what it always was.
+// SEALED_SETTINGS_OPS so the auto-mode allow entry never enumerates them.
 export const TERMINAL_ONLY_SETTINGS_OPS = ['voice-render', 'artifact-revoke'] as const;
 
 /**

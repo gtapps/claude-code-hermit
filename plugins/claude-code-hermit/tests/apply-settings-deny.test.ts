@@ -51,26 +51,6 @@ describe('apply-settings.ts deny', () => {
     expect(JSON.stringify(settings)).not.toContain('Write(');
   });
 
-  test('deny convert-legacy seeds like standard and strips the 5 legacy hard blocks, naming each', async () => {
-    const dir = freshDir();
-    const file = seedSettings(dir, {
-      permissions: { deny: [...LEGACY_HARD_BLOCKS, 'Bash(operator-own*)'] },
-    });
-    const r = await runScript('apply-settings.ts', { args: [file, 'deny', 'convert-legacy'] });
-    expect(r.exitCode).toBe(0);
-    const settings = readSettings(file);
-    const deny = settings.permissions.deny;
-    const ask = settings.permissions.ask;
-    for (const pattern of DENY) expect(deny).toContain(pattern);
-    for (const pattern of ASK) expect(ask).toContain(pattern);
-    for (const pattern of LEGACY_HARD_BLOCKS) {
-      expect(deny).not.toContain(pattern);
-      expect(r.stdout).toContain(`removed:${pattern}`);
-    }
-    expect(deny).toContain('Bash(operator-own*)');
-    expect(JSON.stringify(settings)).not.toContain('Write(');
-  });
-
   test('deny hardened merges both arrays into deny and strips nothing', async () => {
     const dir = freshDir();
     const file = seedSettings(dir, {
@@ -113,16 +93,6 @@ describe('apply-settings.ts deny', () => {
     expect(r.exitCode).toBe(0);
     expect(r.stdout.trim()).toBe('skip-preserved');
     expect(fs.readFileSync(file, 'utf8')).toBe(before);
-  });
-
-  test('deny minimal aliases standard', async () => {
-    const dir = freshDir();
-    const file = seedSettings(dir, {});
-    const r = await runScript('apply-settings.ts', { args: [file, 'deny', 'minimal'] });
-    expect(r.exitCode).toBe(0);
-    const settings = readSettings(file);
-    for (const pattern of DENY) expect(settings.permissions.deny).toContain(pattern);
-    for (const pattern of ASK) expect(settings.permissions.ask).toContain(pattern);
   });
 
   test('re-runs add nothing — additive and idempotent', async () => {

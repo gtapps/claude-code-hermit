@@ -11,8 +11,8 @@ function fixture() {
   mkdirSync(join(root, '.claude')); mkdirSync(join(root, '.claude-code-hermit'));
   return root;
 }
-function run(root: string, migrate = false) {
-  return Bun.spawnSync(['bun', script, join(root, '.claude/settings.local.json'), ...(migrate ? ['--migrate'] : [])]);
+function run(root: string, extra: string[] = []) {
+  return Bun.spawnSync(['bun', script, join(root, '.claude/settings.local.json'), ...extra]);
 }
 test('install preserves unrelated settings and denies; repeated seeding is stable', () => {
   const root = fixture(), file = join(root, '.claude/settings.local.json');
@@ -23,28 +23,15 @@ test('install preserves unrelated settings and denies; repeated seeding is stabl
   for (const rule of rules) expect(data.permissions.ask).toContain(rule);
   expect(run(root).exitCode).toBe(0); expect(readFileSync(file, 'utf8')).toBe(once);
 });
-test('migration converts only named legacy policy and validates all files before writing', () => {
-  const root = fixture(), local = join(root, '.claude/settings.local.json'), shared = join(root, '.claude/settings.json');
-  writeFileSync(local, '{}'); writeFileSync(shared, '{bad');
-  expect(run(root, true).exitCode).not.toBe(0); expect(readFileSync(local, 'utf8')).toBe('{}');
-  writeFileSync(shared, JSON.stringify({ permissions: { deny: [...rules, 'Bash(custom *)'] } }));
-  expect(run(root).exitCode).toBe(0); // a plain hatch install must not consume the one-time migration
-  expect(run(root, true).exitCode).toBe(0);
-  const data = JSON.parse(readFileSync(shared, 'utf8'));
-  expect(data.permissions.deny).toEqual(['Bash(custom *)']);
-  for (const rule of rules) expect(data.permissions.ask).toContain(rule);
-  const before = readFileSync(local, 'utf8'); expect(run(root, true).exitCode).toBe(0); expect(readFileSync(local, 'utf8')).toBe(before);
-});
 test('malformed permission arrays are not overwritten', () => {
   const root = fixture(), file = join(root, '.claude/settings.local.json');
   const original = '{"permissions":{"ask":"bad"}}'; writeFileSync(file, original);
   expect(run(root).exitCode).not.toBe(0); expect(readFileSync(file, 'utf8')).toBe(original);
 });
-
-test('completed migration preserves a later operator deny', () => {
+test('running with --migrate exits non-zero and leaves the settings file byte-identical', () => {
   const root = fixture(), file = join(root, '.claude/settings.local.json');
-  expect(run(root, true).exitCode).toBe(0);
-  writeFileSync(file, JSON.stringify({ permissions: { deny: [rules[0]] } }));
-  expect(run(root, true).exitCode).toBe(0);
-  expect(JSON.parse(readFileSync(file, 'utf8')).permissions.deny).toEqual([rules[0]]);
+  const original = JSON.stringify({ env: { KEEP: 'yes' }, permissions: { deny: ['Bash(custom *)'] } });
+  writeFileSync(file, original);
+  expect(run(root, ['--migrate']).exitCode).not.toBe(0);
+  expect(readFileSync(file, 'utf8')).toBe(original);
 });

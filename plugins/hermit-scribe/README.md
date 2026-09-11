@@ -104,9 +104,8 @@ hermit-scribe/
   ├── agents/
   │     └── issue-sanitizer.md  redacts non-hermit content from draft body
   ├── scripts/
-  │     └── automode-env.ts     seeds autoMode.environment entry for api.github.com
   ├── skills/hatch/
-  │     └── SKILL.md            version-gated setup/refresh: block + version stamp + autoMode seed
+  │     └── SKILL.md            version-gated setup/refresh: block + version stamp
   └── skills/hermit-scribe/
         ├── SKILL.md            trigger phrases + filing flow
         └── file-issue.ts       stdlib: JWT → install token → POST /issues; --check flag

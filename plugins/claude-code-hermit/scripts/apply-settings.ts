@@ -4,7 +4,6 @@
  * Usage: bun apply-settings.ts <target-file> <op> [args...]
  *
  * Operations:
- *   allow                    Merge hermit's fixed permissions.allow list
  *   permissions-plan         Print {"missing":[],"obsolete":[],"obsolete_deny":[]} for the
  *                            target — read-only, writes nothing. `missing` is the sealed
  *                            HERMIT_ALLOW entries the target lacks; `obsolete` is the sealed
@@ -18,7 +17,7 @@
  *                            Operator-authored entries are structurally untouchable — removal
  *                            is filtered by the sealed registries, never by shape or heuristic.
  *   artifact-allow           Merge just ["Artifact"] into permissions.allow — kept as its
- *                            own op (not folded into `allow`) so declining the Artifact
+ *                            own op (not folded into `permissions-sync`) so declining the Artifact
  *                            publish-authorization ask never touches hook permissions.
  *   artifact-revoke          Remove exactly "Artifact" from permissions.allow; absent is a no-op.
  *   voice-render             Render config.json's `voice` block into what Claude Code
@@ -31,20 +30,13 @@
  *                            answer travels in config.json, written and audited by
  *                            settings-edit, never as caller text. Deliberately NOT in
  *                            SEALED_SETTINGS_OPS.
- *   automode-seed            RETIRED — exits 1. The classifier stopped reading autoMode from any
- *                            project settings file in Claude Code 2.1.207, so this verb's writes
- *                            were silently ignored. The sealed entries now ship in the per-session
- *                            overlay hermit-start renders (lib/settings/automode-entries.ts).
- *   deny <standard|hardened|ask-only|convert-legacy>
+ *   deny <standard|hardened|ask-only>
  *                            Seed native permissions from state-templates/deny-patterns.json.
  *                            `standard` merges `deny` into permissions.deny and `ask` into
  *                            permissions.ask — purely additive, removes nothing.
  *                            `hardened` merges both arrays into permissions.deny.
  *                            `ask-only` merges ask when the target already carries ≥1 seeded
  *                            deny entry; otherwise prints skip-preserved and writes nothing.
- *                            `convert-legacy` seeds like standard, then strips the five legacy
- *                            hard-block strings from deny (the operator's attended conversion).
- *                            `minimal` aliases `standard`.
  *   deny-add <rule>...       Append each exact string to permissions.deny if absent. Creates the
  *                            file and section if missing. Rewrites nothing when every rule is
  *                            already present. Prints {"added": true|false} (true if any was added).
@@ -56,9 +48,7 @@
  *   permissions-sync, which removes only entries named in the sealed HERMIT_OBSOLETE /
  *   HERMIT_OBSOLETE_DENY registries below (rules this plugin itself seeded and has
  *   since retired),
- *   voice-render, which replaces outputStyle by design — config.json owns that key, and
- *   `deny convert-legacy`, which removes five legacy exact strings from permissions.deny
- *   (the old hardened extras that now live as ask entries).
+ *   voice-render, which replaces outputStyle by design — config.json owns that key.
  * - Permission sets are read from state-templates — callers cannot inject arbitrary JSON.
  * - Safe to call under AGENT_HOOK_PROFILE=strict: writes via fs, not the Edit/Write tools.
  */
@@ -397,14 +387,6 @@ const settingsBefore = structuredClone(settings);
 let readOnly = false;
 
 switch (op) {
-  // Legacy alias for permissions-sync's additive half. No in-repo caller since
-  // hatch and hermit-evolve moved to the verbs — kept for already-hatched hermits
-  // still running older skill text.
-  case 'allow': {
-    mergeAllow(settings, HERMIT_ALLOW);
-    break;
-  }
-
   case 'permissions-plan': {
     console.log(JSON.stringify(planPermissions(settings)));
     readOnly = true;
@@ -482,27 +464,10 @@ switch (op) {
     break;
   }
 
-  case 'automode-seed': {
-    // Retired. Since Claude Code 2.1.207 the classifier reads autoMode only
-    // from user scope, managed settings, or --settings — never from a project
-    // settings file — so every write this verb made was silently ignored
-    // (upstream anthropics/claude-code#87545). hermit-start now renders the
-    // sealed entries into a per-session overlay and launches with --settings.
-    // Kept as a loud failure so old CHANGELOG upgrade instructions that still
-    // call it can't look like they succeeded.
-    console.error(
-      'automode-seed is retired: autoMode is not read from a project settings file since Claude Code 2.1.207. ' +
-      'The sealed entries now ship in the boot-time classifier overlay (hermit-start renders ' +
-      '.claude-code-hermit/state/claude-settings.overlay.json and launches with --settings). No action needed.'
-    );
-    process.exit(1);
-  }
-
   case 'deny': {
-    const raw = rest[0];
-    const profile = raw === 'minimal' ? 'standard' : raw;
-    if (profile !== 'standard' && profile !== 'hardened' && profile !== 'ask-only' && profile !== 'convert-legacy') {
-      console.error(`deny requires 'standard', 'hardened', 'ask-only', or 'convert-legacy', got: ${raw ?? '(none)'}`);
+    const profile = rest[0];
+    if (profile !== 'standard' && profile !== 'hardened' && profile !== 'ask-only') {
+      console.error(`deny requires 'standard', 'hardened', or 'ask-only', got: ${profile ?? '(none)'}`);
       process.exit(1);
     }
     const patternsFile = path.join(PLUGIN_ROOT, 'state-templates', 'deny-patterns.json');
@@ -531,26 +496,9 @@ switch (op) {
       break;
     }
 
-    // standard and convert-legacy share the same seed; only convert-legacy may
-    // remove anything. Keeping standard purely additive is what lets hatch and
-    // docker-setup call it without ever demoting a Hardened install — the
-    // legacy-deny → ask conversion happens only when the operator personally
-    // runs convert-legacy from a terminal (the CHANGELOG cleanup one-liner).
     mergeDeny(settings, denyEntries);
     const added = mergeAsk(settings, askEntries);
     for (const e of added) console.log(`added:${e}`);
-    if (profile === 'convert-legacy') {
-      const legacyHardBlocks = [
-        'Bash(npm publish*)',
-        'Bash(git push --force*)',
-        'Bash(git push origin main*)',
-        'Bash(git reset --hard*)',
-        'Bash(*--no-verify*)',
-      ];
-      const present = legacyHardBlocks.filter((e) => settings.permissions.deny.includes(e));
-      removePermissions(settings, 'deny', present);
-      for (const e of present) console.log(`removed:${e}`);
-    }
     break;
   }
 

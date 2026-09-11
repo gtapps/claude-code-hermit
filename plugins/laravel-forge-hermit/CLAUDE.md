@@ -34,4 +34,4 @@ Core's `scripts/domain-hatch.ts` owns target resolution and `hatch-options.json`
 
 `claude --plugin-dir /path/to/plugins/laravel-forge-hermit` from a target project. Tests: `bash tests/run-all.sh` from this directory, with PHP and Composer available; the runner installs the SDK fixture into `php/vendor/` itself, then runs `php/tests/run.php`, the CLI and permission tests, and the structural lints separately. Plain `bun test` is not a substitute: the structural files call `process.exit()` and can end its runner early.
 
-The native-permissions installer adds missing project ask rules without changing operator settings. Existing legacy marker files are unused and remain untouched.
+The native-permissions installer adds missing project ask rules without changing operator settings.

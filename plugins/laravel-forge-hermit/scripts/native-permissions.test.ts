@@ -23,21 +23,18 @@ test('install preserves unrelated settings and denies; repeated seeding is stabl
   for (const rule of rules) expect(data.permissions.ask).toContain(rule);
   expect(run(root).exitCode).toBe(0); expect(readFileSync(file, 'utf8')).toBe(once);
 });
-test('installation preserves other settings scopes, configuration, and old markers', () => {
+test('installation preserves other settings scopes and configuration', () => {
   const root = fixture();
   const shared = join(root, '.claude/settings.json');
   const config = join(root, '.claude-code-hermit/config.json');
-  const marker = join(root, '.claude-code-hermit/state/laravel-forge-hermit-native-permissions-v1.json');
-  mkdirSync(join(root, '.claude-code-hermit/state'));
   writeFileSync(shared, JSON.stringify({ permissions: { deny: rules } }));
   writeFileSync(config, '{"custom":7}');
-  writeFileSync(marker, '{"version":1}');
-  const originals = [shared, config, marker].map(file => readFileSync(file, 'utf8'));
+  const originals = [shared, config].map(file => readFileSync(file, 'utf8'));
   expect(run(root).exitCode).toBe(0);
   expect(run(root).exitCode).toBe(0);
-  expect([shared, config, marker].map(file => readFileSync(file, 'utf8'))).toEqual(originals);
+  expect([shared, config].map(file => readFileSync(file, 'utf8'))).toEqual(originals);
 });
-test('fresh installation does not create a migration marker and reports target denies', () => {
+test('fresh installation reports target denies and writes nothing outside the target', () => {
   const root = fixture();
   const file = join(root, '.claude/settings.local.json');
   writeFileSync(file, JSON.stringify({ permissions: { deny: rules } }));

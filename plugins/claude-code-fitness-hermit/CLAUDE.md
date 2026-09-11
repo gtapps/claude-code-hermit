@@ -41,4 +41,3 @@ Core's `scripts/domain-hatch.ts` owns target resolution and `hatch-options.json`
 
 `claude --plugin-dir /path/to/claude-code-fitness-hermit` from a target project, then `/claude-code-fitness-hermit:hatch`. Tests: `bash tests/run-all.sh`.
 
-The native-permissions installer owns `.claude-code-hermit/state/claude-code-fitness-hermit-native-permissions-v1.json`, a durable completion marker written only by a successful `--migrate` run. Preserve it across upgrades so later operator policy choices are not migrated again.

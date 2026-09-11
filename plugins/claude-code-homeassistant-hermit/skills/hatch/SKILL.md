@@ -200,10 +200,6 @@ If already present: skip (idempotent).
 
 Use Edit to make the changes.
 
-### 6.7 Auto-mode environment seed
-
-Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/automode-env.ts .claude/settings.local.json` — **always `.claude/settings.local.json`, regardless of `hatch_target`**: Claude Code's auto-mode classifier reads `autoMode` config only from local/user scope, never a committed project `.claude/settings.json`. This names the operator's Home Assistant instance (read from `.env`'s `HOMEASSISTANT_URL`/`HOMEASSISTANT_LOCAL_URL`/`HOMEASSISTANT_REMOTE_URL` — the same set `curl-host-gate.ts` already trusts) as a trusted internal domain, so the classifier stops treating the hermit's nightly unattended reads (briefs, audits, context refresh) as unrecognized outbound calls. If the script prints `SKIP|...` (no HA URL configured yet), note it and move on — Step 2 already required a working `.env` before reaching here, so this should only skip on an unusual re-run. Additive and idempotent; safe to re-run on every hatch.
-
 ---
 
 ### 7. Stamp version and register routines
