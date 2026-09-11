@@ -7,6 +7,7 @@
 
 ### Changed
 - Peer requests inside the resident's existing authority are acted on rather than declined; peer messages still cannot expand authority, approve guarded actions, or change permissions.
+- A standing behavior the hermit proposes and the operator accepts is written to its owning skill or memory before the hermit confirms it, and the confirmation names where it lives; with no editable home the hermit says so instead of promising.
 
 ### Fixed
 - `/channel-setup` routes Docker hermits from the host (pair against the running container, or name the `hermit-docker` command that has to run first) instead of redirecting to `/docker-setup`, which refuses in-container and re-scaffolds on the host

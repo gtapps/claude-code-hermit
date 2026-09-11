@@ -35,6 +35,11 @@ describe('CLAUDE-APPEND placement trigger', () => {
     // left the model hand-deriving a path here.
     'hermit-run observations observe .claude-code-hermit skill-preference-applied',
     'skill-preference:<skill>',
+    // A hermit-proposed behavior the operator accepts is settled the same way;
+    // the write-before-confirm order is what keeps it from dying at the next
+    // daily clear as an unwritten promise.
+    'standing behavior you proposed: write it to its home first',
+    'Never confirm a standing rule you have not written',
     'Never write settled content into OPERATOR.md',
   ];
   for (const p of pins) {
