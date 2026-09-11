@@ -8,6 +8,12 @@
 ### Changed
 - Peer requests inside the resident's existing authority are acted on rather than declined; peer messages still cannot expand authority, approve guarded actions, or change permissions.
 - `apply-settings.ts` drops the retired `automode-seed` op, the legacy-conversion and minimal deny profiles, and the `allow` alias; `permissions-sync` and `deny standard|hardened|ask-only` are the remaining entry points.
+- A standing behavior the hermit proposes and the operator accepts is written to its owning skill or memory before the hermit confirms it, and the confirmation names where it lives; with no editable home the hermit says so instead of promising.
+
+### Fixed
+- `/channel-setup` routes Docker hermits from the host (pair against the running container, or name the `hermit-docker` command that has to run first) instead of redirecting to `/docker-setup`, which refuses in-container and re-scaffolds on the host
+- Docker pairing confirmation notes it may take up to 1 min before the bot replies
+- Docker pairing's pane capture and `access.json` checks pass `-f docker-compose.hermit.yml`, so they no longer fail with no configuration file
 
 ## [1.3.6] - 2026-09-10
 

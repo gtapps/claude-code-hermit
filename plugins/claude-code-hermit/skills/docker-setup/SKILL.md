@@ -23,7 +23,7 @@ Run: `[ -f /.dockerenv ] || [ -f /run/.containerenv ] && echo container || echo 
 
 If the output is `container`, **stop immediately** — do not proceed to step 1. Print:
 
-> This skill generates host-side Docker scaffolding and then drives `docker compose up`. Run it from your host shell in the project root. To check what's already configured *inside* the running container, run `/claude-code-hermit:hermit-doctor`.
+> This skill generates host-side Docker scaffolding and then drives `docker compose up`. Run it from your host shell in the project root. To pair a channel later, run `/claude-code-hermit:channel-setup` from the host. To check what's already configured *inside* the running container, run `/claude-code-hermit:hermit-doctor`.
 
 ### 1. Prerequisites
 
@@ -468,7 +468,7 @@ Before pairing, confirm the operator has completed the first-run acceptance step
 
 Confirm the tmux session still exists (reuse the `has-session` check from the acceptance step). If it's gone, surface container logs and stop.
 
-For each channel, **first verify the token is configured** — check that `.claude.local/channels/<plugin>/.env` exists and contains the expected `*_BOT_TOKEN` var. If missing, skip pairing for this channel and tell the operator: "No token configured for `<channel>` — write it to `.claude.local/channels/<plugin>/.env`, restart the container, then re-run `/claude-code-hermit:docker-setup` to pair." Move to the next channel.
+For each channel, **first verify the token is configured** — check that `.claude.local/channels/<plugin>/.env` exists and contains the expected `*_BOT_TOKEN` var. If missing, skip pairing for this channel and tell the operator: "No token configured for `<channel>` — write it to `.claude.local/channels/<plugin>/.env`, restart the container, then re-run `/claude-code-hermit:channel-setup` to pair." Move to the next channel.
 
 If the token is present, ask if already paired. If not:
 1. Ask with `AskUserQuestion` (header: `"<channel> pairing"`) — `"I have the code"` / `"Skip this channel"`. On `"I have the code"`: ask for the 6-char code via `Other` (header: `"Bot code"`).
@@ -486,10 +486,10 @@ If the token is present, ask if already paired. If not:
      --channel <plugin> --session <session> \
      --compose-file docker-compose.hermit.yml --service hermit
    ```
-4. Ask with `AskUserQuestion` (header: `"Pair result"`) — `"Bot confirmed paired"` / `"No response"`. On `"No response"`: run `docker compose exec -T hermit tmux capture-pane -t <session> -p`, show output, and skip `access.json` verification for this channel — don't fail the whole setup.
-5. **Verify `access.json` landed in the right place** (only on `"Bot confirmed paired"`): Check `.claude.local/channels/<plugin>/access.json`. If absent, run `docker compose exec -T hermit tmux capture-pane -t <session> -p` and show output. If it landed in `~/.claude/channels/<plugin>/` instead, move it:
+4. Ask with `AskUserQuestion` (header: `"Pair result"`) — `"Bot confirmed paired"` / `"No response"` (description: `Still nothing after waiting up to 1 min`). On `"No response"`: run `docker compose -f docker-compose.hermit.yml exec -T hermit tmux capture-pane -t <session> -p`, show output, and skip `access.json` verification for this channel — don't fail the whole setup.
+5. **Verify `access.json` landed in the right place** (only on `"Bot confirmed paired"`): Check `.claude.local/channels/<plugin>/access.json`. If absent, run `docker compose -f docker-compose.hermit.yml exec -T hermit tmux capture-pane -t <session> -p` and show output. If it landed in `~/.claude/channels/<plugin>/` instead, move it:
    ```
-   docker compose exec -T hermit bash -c 'src="${CLAUDE_CONFIG_DIR:-/home/claude/.claude}/channels/<plugin>/access.json"; dst="<project_path>/.claude.local/channels/<plugin>/"; [ -f "$src" ] && mkdir -p "$dst" && mv "$src" "$dst" && echo moved'
+   docker compose -f docker-compose.hermit.yml exec -T hermit bash -c 'src="${CLAUDE_CONFIG_DIR:-/home/claude/.claude}/channels/<plugin>/access.json"; dst="<project_path>/.claude.local/channels/<plugin>/"; [ -f "$src" ] && mkdir -p "$dst" && mv "$src" "$dst" && echo moved'
    ```
 6. **Default delivery settings** (skip if `"Already paired"` was chosen or pairing was skipped this run):
    1. Use the `Read` tool on `<project_path>/.claude.local/channels/<plugin>/access.json` (host file). If `ackReaction` is already non-empty, skip — preserve operator customization.
@@ -516,7 +516,7 @@ If the token is present, ask if already paired. If not:
          Pass `--no-mention` only for `"No — respond to all messages"`; omit it to require an @mention.
       c. Confirm (text only): "Sent `group add` for `<channelId>`. Will verify after all channels are added."
       d. Ask with `AskUserQuestion` (header: `"Add another?"`) — `"Yes — add another"` with the next ID via `Other`; `"Done — continue"`. On `"Done — continue"`: exit the loop.
-   4. **Verify all added channels** (one `Read` after the loop): open `<project_path>/.claude.local/channels/<plugin>/access.json`. For each ID added in step 3, confirm `groups.<channelId>` is present with the expected `requireMention` value. For any missing: run `docker compose exec -T hermit tmux capture-pane -t <session> -p`, surface the output, and warn — do not fail the whole setup. Then proceed to sub-step 8.
+   4. **Verify all added channels** (one `Read` after the loop): open `<project_path>/.claude.local/channels/<plugin>/access.json`. For each ID added in step 3, confirm `groups.<channelId>` is present with the expected `requireMention` value. For any missing: run `docker compose -f docker-compose.hermit.yml exec -T hermit tmux capture-pane -t <session> -p`, surface the output, and warn — do not fail the whole setup. Then proceed to sub-step 8.
 8. **Capture the bot's own identity** (host-side, like `channel-pair.ts` — `config.json` and the channel `.env` are both on the host):
    ```bash
    bun ${CLAUDE_PLUGIN_ROOT}/scripts/channel-bot-id.ts <project_path>/.claude-code-hermit <plugin> --write
