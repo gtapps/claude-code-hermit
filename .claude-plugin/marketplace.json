@@ -50,7 +50,7 @@
       "name": "claude-code-homeassistant-hermit",
       "source": "./plugins/claude-code-homeassistant-hermit",
       "description": "A Home Assistant development and operations agent built on claude-code-hermit. Build, manage, monitor, and troubleshoot everything from automations and dashboards to helpers, devices, backups, and energy — with operator-controlled safety.",
-      "version": "0.4.14",
+      "version": "0.4.15",
       "category": "home-automation",
       "author": {
         "name": "gtapps",
