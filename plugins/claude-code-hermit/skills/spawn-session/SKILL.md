@@ -52,6 +52,11 @@ Four limits sit on that command:
   running it either way: it is the only thing that makes the launch legible
   when an approval does arrive, and the only record when none does.
 
+Use only the launch options documented here. Never add bypass flags, tool
+preapprovals, or settings overrides to widen the helper's permissions. If launch
+or execution is blocked, report the blocker; do not retry through a script,
+alternate invocation, or weaker permission mode.
+
 ## Plan
 
 1. Parse `--name`, `--model`, and `--effort` from the invocation.

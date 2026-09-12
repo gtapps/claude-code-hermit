@@ -108,16 +108,6 @@ Standard seeds these as approval prompts. Hardened writes them into `permissions
       "Bash(git push --force*)",
       "Bash(git reset --hard*)",
       "Bash(*--no-verify*)",
-      "Bash(*--dangerously-skip-permissions*)",
-      "Bash(*--allow-dangerously-skip-permissions*)",
-      "Bash(*--permission-mode bypassPermissions*)",
-      "Bash(*--permission-mode=bypassPermissions*)",
-      "Bash(*--settings *)",
-      "Bash(*--settings=*)",
-      "Bash(*--allowedTools *)",
-      "Bash(*--allowedTools=*)",
-      "Bash(*--allowed-tools *)",
-      "Bash(*--allowed-tools=*)",
       "Edit(*.claude/settings.json)",
       "Edit(*.claude/settings.local.json)",
       "Edit(*.claude-code-hermit/config.json)",
@@ -127,10 +117,6 @@ Standard seeds these as approval prompts. Hardened writes them into `permissions
   }
 }
 ```
-
-These prompt before a session launches a `claude` child that widens permissions (bypass flag, bypass mode, a settings overlay, a pre-approved tool list), and a wrapper script carrying the flag is not caught: the rule closes the direct route only. `--allow-dangerously-skip-permissions` needs its own entry because the two-dash pattern cannot reach it, and `--allowedTools` takes both its alias spellings.
-
-Rules match the command as typed, before the shell parses it, so a quoted or variable-built value evades a value-anchored entry: `--permission-mode "bypassPermissions"` is not caught by `Bash(*--permission-mode bypassPermissions*)`. Enumerating quote spellings does not close that, and anchoring on the flag name alone would prompt on every ordinary `--permission-mode auto` launch. Treat this list as prompts that put an escalation in front of the operator, not as a security boundary; per the [sandbox docs](https://code.claude.com/docs/en/sandbox-environments) a container or VM is the boundary.
 
 **The `config.json` / settings / OPERATOR.md / voice-file guards are policy guards, not a filesystem boundary.** They keep an unattended session's *tool* writes (`Edit`, and Write via Edit coverage) on the `settings-edit` / `hatch-config` / `evolve-finalize` paths, which validate the whole config and record every change in the settings ledger. Redirects (`>`, `cp`, `tee`, `sed -i`) and a script writing through `fs` are not covered by these Edit rules; they are classifier-watched side channels, not a second permission engine. One deliberate exception: the two OPERATOR.md redirect globs in the deny list above stay hard denies — there is no sanctioned shell-redirect path into the operator-curated file, so nothing legitimate is lost by refusing outright. Every path glob needs its leading `*` so an absolute `file_path` matches.
 

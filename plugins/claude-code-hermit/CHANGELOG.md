@@ -4,7 +4,6 @@
 
 ### Added
 - Proposal creation supports `--no-artifacts` (alias `--no-artifact`) to skip dashboard and proposals-page refreshes for one invocation.
-- Seeded ask rules now cover `claude` launches that widen permissions: `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, `--permission-mode bypassPermissions`, `--settings`, `--allowedTools`.
 
 ### Changed
 - The four resident-only hooks (`pause-gate`, `ask-gate`, `component-privacy`, and `permission-denied-notify`) now ride the per-boot launch overlay with absolute script paths, probed on Claude Code 2.1.265.
@@ -23,9 +22,8 @@ Immediately after `hermit-update` or `hermit-docker update` finishes, stop the r
 
 To retain the previous 24-hour catch-up window, set top-level `routine_max_lateness_minutes` to `1440` in `.claude-code-hermit/config.json`, preserving all other fields. Otherwise leave the setting absent to use the new 60-minute default. Preserve any existing explicit value. The running Monitor reads the setting on its next poll.
 
-Run `bun <plugin_root>/scripts/apply-settings.ts <resolved-settings-file> deny ask-only`. Use the settings file Step 1's preflight resolved (`domain-hatch.ts preflight`). Additive: if the target already carries at least one seeded deny entry, merge the ask list into `permissions.ask` and touch nothing else; if none are present, print `skip-preserved` and write nothing. Hardened installs that want these as hard blocks run `bun <plugin_root>/scripts/apply-settings.ts <resolved-settings-file> deny hardened` from a terminal; until they do, a `bypassPermissions` install's `hermit-doctor` `permission-rules` check reports the new entries as inert, which is the expected reading and not a regression from this upgrade. An operator who needs one of these launches unprompted removes that line from `permissions.ask` and should expect a later `deny standard` re-seed to restore it.
-
 ### Fixed
+- `/spawn-session` explicitly forbids permission-widening launch options and retries that work around a blocked helper.
 - The watchdog's staged-login commit now writes `oauthAccount` to `~/.claude.json` on host installs, where Claude Code reads it, instead of `~/.claude/.claude.json`.
 - A cited `compiled/` or `raw/` doc that has since been archived no longer reads as a stale path when a proposal is accepted. The falsification gate, its `## Skill Draft` `source_artifact` check, the procedure-capture install flow's read of that brief, and the queued session task all fall back to the same basename in that directory's `.archive/` and verify against the archived copy; a doc in neither location is still stale.
 - A session that is not the registered resident no longer answers channel messages, and is classified as a guest even when launched with the resident's environment. The verdict is taken at session start, so a session that started as a guest keeps leaving channel messages alone after the resident stops; `bin/hermit-start --resume` is the way back.
