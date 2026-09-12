@@ -14,7 +14,7 @@ allowed-tools:
 
 # Set Up Your House
 
-Guided build-out of your Home Assistant house structure. Each step runs existing `ha-agent-lab` commands — no new subsystem. Every write is gated by `ha_safety_mode` (strict = proposal, ask = --confirm prompt).
+Guided build-out of your Home Assistant house structure. Each step runs existing `ha-agent-lab` commands; no new subsystem. Every write is gated by `ha_safety_mode` (strict = proposal, ask = native approval).
 
 ## Steps
 
@@ -41,10 +41,9 @@ Ask: "Which rooms or zones would you like to create? (e.g. Living Room, Kitchen,
 
 For each area the operator names:
 1. Check the `list-areas` output — skip if the area already exists (case-insensitive match on name).
-2. Run: `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-area "<name>" [--confirm]`
+2. Preview the target, then run: `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-area "<name>"`
 3. Handle the result:
    - `"ok": true` — created; confirm to operator.
-   - `"requires_confirm": true` — `ha_safety_mode` is `ask`; prompt operator, re-run with `--confirm` on approval.
    - `"blocked": true` — `ha_safety_mode` is `strict`; explain and create a proposal via `/claude-code-hermit:proposal-create`.
 
 After creating all areas, re-run `ha list-areas` and store the updated area map.
@@ -56,19 +55,19 @@ From the unplaced entity list (step 1), ask the operator which entities to assig
 For each assignment:
 
 ```
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-area <entity_id> --area <area_id> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-area <entity_id> --area <area_id>
 ```
 
 Use the `area_id` from the `list-areas` output, not the display name.
 
-Handle `requires_confirm` / `blocked` the same as step 2.
+Handle success and policy refusal the same as step 2.
 
 ### 4. Assign unplaced devices
 
 From the unplaced device list (step 1), follow the same pattern:
 
 ```
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-device-area <device_id> --area <area_id> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-device-area <device_id> --area <area_id>
 ```
 
 ### 5. Provision helpers
@@ -78,7 +77,7 @@ Ask: "Do you want to add any input helpers (toggles, counters, schedules, etc.)?
 For each helper:
 1. Run `ha list-helpers --type <type>` to check whether a similar helper already exists.
 2. Compose the JSON payload (minimum fields by type — same conventions as `ha-build-automation` step 3).
-3. Run: `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-helper <type> '<json>' [--confirm]`
+3. Run: `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha create-helper <type> '<json>'`
 
 Supported types: `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `timer`, `counter`, `schedule`.
 

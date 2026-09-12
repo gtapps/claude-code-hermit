@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { loadConfig, parseEnvText, projectRoot, saveEnvFile } from '../src/config';
-import { Severity, classifyEntity, clearPolicyCaches } from '../src/policy';
+import { PermissionDecision, classifyEntity, clearPolicyCaches } from '../src/policy';
 
 const tmpDirs: string[] = [];
 const savedEnv = process.env.HOMEASSISTANT_URL;
@@ -47,7 +47,7 @@ test('safe entities override bypasses sensitive domain', () => {
   saveEnvFile(root, { HA_SAFE_ENTITIES: 'lock.front_door' });
   clearPolicyCaches();
   const [sev] = classifyEntity('lock.front_door', root);
-  expect(sev).toBe(Severity.ALLOW);
+  expect(sev).toBe(PermissionDecision.ALLOW);
   clearPolicyCaches();
 });
 
@@ -56,7 +56,7 @@ test('extra sensitive domains blocks new domain', () => {
   saveEnvFile(root, { HA_EXTRA_SENSITIVE_DOMAINS: 'vacuum' });
   clearPolicyCaches();
   const [sev] = classifyEntity('vacuum.roomba', root);
-  expect(sev).not.toBe(Severity.ALLOW);
+  expect(sev).not.toBe(PermissionDecision.ALLOW);
   clearPolicyCaches();
 });
 
@@ -158,6 +158,6 @@ describe('projectRoot()', () => {
 
     // classifyEntity with the resolved root must see the .env override
     const [sev] = classifyEntity('sprinkler.front_yard', resolvedRoot);
-    expect(sev).toBe(Severity.BLOCK); // would be ALLOW without the fix
+    expect(sev).toBe(PermissionDecision.DENY); // would be ALLOW without the fix
   });
 });

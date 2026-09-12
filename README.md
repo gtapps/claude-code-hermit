@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="plugins/claude-code-hermit/CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.3.4-green.svg" alt="Version 1.3.4" /></a>
+  <a href="plugins/claude-code-hermit/CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.3.6-green.svg" alt="Version 1.3.6" /></a>
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/_gh_traffic_stats/.github/badges/clones.json" alt="Downloads" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
   <a href="https://discord.gg/54sJqAxhUh"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Join" /></a>
@@ -13,7 +13,7 @@ If you know [Claude Tag](https://claude.com/docs/claude-tag/overview), the idea 
 
 Hermit is a Claude Code plugin that runs an always-on agent on your machine or server, for you or your team. Give it ongoing responsibilities: maintain research, monitor systems, run routines, and follow up on unfinished work. Between requests, it checks those responsibilities, carries progress across sessions, and reaches you when something needs attention.
 
-Use your own bots and accounts, with access to the local files, tools, and services you choose.
+Hermit is a **Claude Code always-on instance**, that means you can run on your **subscription**, connect your own MCP servers, add custom skills, and install other plugins to give your agent the tools and workflows it needs.
 
 <p align="center">
   <img src="plugins/claude-code-hermit/assets/cover.png" alt="Always-on Claude Code agent" />
@@ -49,15 +49,11 @@ curl -fsSL https://gtapps.github.io/claude-code-hermit/install.sh | bash
 
 </details>
 
-Both options install the plugin personally for this folder. Hatch guides you through the agent's purpose and operating preferences, then prints the next steps. Choose Quick for defaults you can adjust later.
+Both options install Hermit for this folder. Hatch guides you through the agent’s purpose and preferences, then shows how to start it. Choose Quick for defaults you can adjust later.
 
 ## Keep it running
 
 After setup, follow the printed next steps to start your agent.
-
-**Sign-in renewal from chat.** Use `/relogin` to renew the agent’s Claude sign-in through your connected chat: open the link, sign in, and send back the code.
-
-**Scheduled backups.** Optional backups preserve the agent’s knowledge, session reports, settings, and Claude Code memory in Git, with an optional private remote copy. Backups run without model tokens.
 
 ### On your machine
 
@@ -209,7 +205,7 @@ Reflection runs at eligible task or session pauses, daily, and after routines co
 
 ## Cost
 
-Staying online does not require a model call on every tick. With Monitor scheduling, quiet heartbeat checks and skipped routines use no model tokens. Passive channel capture also runs without waking the model for ordinary chatter. Actual work, model evaluations, and replies consume usage; context management limits the history carried into later turns.
+Quiet heartbeat checks, skipped routines, and passive chat capture use no model tokens. Work, evaluations, and replies consume usage; context management keeps conversation history bounded.
 
 - **See what drives usage.** Token usage is recorded per call, including the model, input/output/cache split, and whether work came from a routine, heartbeat, channel, or another source. Session and daily totals feed the dashboard, weekly review, and `/cost-reflect`.
 - **Set limits.** Optional daily, weekly, and monthly caps can alert you or enforce a pause until the exceeded budget window resets. Under Claude subscription billing, dollar figures are usage estimates rather than additional per-token charges.
@@ -221,14 +217,14 @@ See [budgets](plugins/claude-code-hermit/docs/config-reference.md#budget) and [r
 
 Reach the running agent through your connected channels or Claude Code Remote Control. You can also start separate sessions for additional work:
 
-- **Background sessions with follow-up.** Through [`/spawn-session`](plugins/claude-code-hermit/skills/spawn-session/SKILL.md), the agent launches a local Claude Code helper in its own Git worktree and relays its status when it becomes idle.
+- **Background sessions with follow-up.** Through [`/spawn-session`](plugins/claude-code-hermit/skills/spawn-session/SKILL.md), the agent launches a local Claude Code helper in its own Git worktree and relays its status when it becomes idle. Set the helper’s model and effort with options such as `--model sonnet --effort high`.
 - **Local [Remote Control](https://code.claude.com/docs/en/remote-control) gate.** Through [`/rc-gate`](plugins/claude-code-hermit/skills/rc-gate/SKILL.md), the agent manages a Remote Control server on your machine or server. While the gate is open, you can spawn new Claude Code sessions from the Claude app, using your local files and tools. Each session gets its own Git worktree, while the agent keeps running.
 
 Both session-spawning paths require a Git workspace. Remote Control requires a Claude sign-in through `/login` on the machine running the agent.
 
 **Watch other sessions.** Through [Claude Code cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging), ask the agent to watch a local Claude Code session, including one you started interactively, and notify you when it next becomes idle.
 
-**Claude Code controls from chat.** Use `/model sonnet`, `/effort high`, `/advisor opus`, `/compact`, `/clear`, and `/permission-mode auto` directly from your connected chat. Control the agent’s work with `/pause`, `/resume`, and `/snooze 2h`. Use [`/when-done-switch-to --model sonnet`](plugins/claude-code-hermit/skills/when-done-switch-to/SKILL.md) to switch automatically at the end of the current turn.
+**Claude Code controls from chat.** Use `!model sonnet`, `!effort high`, `!advisor opus`, `!compact`, `!clear`, `!doctor` (alias `!checkup`), and `!permission-mode auto` directly from your connected chat. Control the agent’s work with `!pause`, `!resume`, and `!snooze 2h`. Use [`/when-done-switch-to --model sonnet`](plugins/claude-code-hermit/skills/when-done-switch-to/SKILL.md) to switch automatically at the end of the current turn.
 
 ## Extensions
 
@@ -244,6 +240,12 @@ Optional plugins that add domain tools and workflows to your agent.
 You can run separate agents for different responsibilities, each with its own working state, knowledge, and routines. See [Creating Your Own Hermit](plugins/claude-code-hermit/docs/creating-your-own-hermit.md).
 
 **External orchestration.** Other agents and tools can check the agent’s status, health, and recent work through its [MCP interface](plugins/claude-code-hermit/docs/external-control-surface.md), and request a wake when needed.
+
+## Maintenance
+
+**Sign-in renewal from chat.** When your agent’s Claude sign-in needs renewing, use `/relogin` from your connected chat. Open the link in your browser, sign in, and send the code back in chat.
+
+**Scheduled backups.** Optional backups preserve the agent’s knowledge, session reports, settings, and Claude Code memory in Git, with an optional private remote copy. Backups run without model tokens.
 
 ## Upgrading
 

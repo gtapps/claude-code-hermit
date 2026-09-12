@@ -110,7 +110,7 @@ async function runAudit(
       [...new Set(services)].sort(),
       root,
     );
-    if (decision.blocked) {
+    if (decision.decision === 'deny') {
       const record = {
         id: item.id ?? null,
         alias: item.alias || item.id || '(unnamed)',

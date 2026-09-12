@@ -17,7 +17,7 @@
          Triggered by daily morning routine.
          location: compiled/briefing-<slug>-<date>.md
 -->
-- topic: living topic page, updated in place — merge new findings into the existing page; never write a second dated copy. Preferred for any subject the hermit will touch again. Frontmatter: title, type, created, updated, tags, summary (one-liner), optional session. Exempt from archive rotation. location: compiled/topic-<slug>.md (undated)
+- topic: living topic page, updated in place — merge new findings into the existing page; never write a second dated copy. Preferred for any subject the hermit will touch again. Frontmatter: title, type, created, updated, tags, summary (one-liner), optional session, optional audience (`shared` or `<key>:<chat_id>`). Exempt from archive rotation. location: compiled/topic-<slug>.md (undated)
 - note: general-purpose compiled note for one-off outputs. location: compiled/note-<slug>-<date>.md
 - review: weekly review report from the weekly-review routine. location: compiled/review-weekly-<YYYY>-W<NN>.md
 - procedure-brief: audit record of a recurring procedure detected by reflect. Not session-injected (transient record, not a domain output). Required fields: title, type, created, tags, source, session, related_sessions, proposed_skill_name. location: compiled/procedure-brief-<slug>-<date>.md

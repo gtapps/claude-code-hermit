@@ -11,6 +11,7 @@ Conventions for grep-ability and future tooling — not enforced by a validator.
 | `created` | Yes | ISO 8601 with timezone offset: `2026-04-08T14:20:00+01:00`. No bare dates. |
 | `tags` | Yes | Array of lowercase strings. Reuse existing vocabulary; 1–2 per document. |
 | `type` | For `compiled/` and `raw/` | Discriminator — startup injection groups `compiled/` by `type`, newest wins. |
+| `audience` | No | `shared` or `<key>:<chat_id>`. Absent means `shared`. Read by `search.ts --chat` and startup injection. |
 | `source` | If applicable | `session` \| `interactive` \| `routine` \| `manual` |
 | `session` | If inside a session | `S-NNN` format |
 

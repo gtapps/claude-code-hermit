@@ -11,7 +11,7 @@
       "name": "claude-code-hermit",
       "source": "./plugins/claude-code-hermit",
       "description": "An always-on Claude Code agent. Stateful. Proactive. Self-improving through an operator-gated proposal system. Cost-aware. Observable.",
-      "version": "1.3.4",
+      "version": "1.3.6",
       "category": "productivity",
       "author": {
         "name": "gtapps"
@@ -31,7 +31,7 @@
       "name": "claude-code-dev-hermit",
       "source": "./plugins/claude-code-dev-hermit",
       "description": "A development layer for claude-code-hermit. Enforces git safety across every coding agent and adds optional test, quality, debugging, conflict-resolution, and PR workflows.",
-      "version": "0.4.14",
+      "version": "0.4.15",
       "category": "development",
       "author": {
         "name": "gtapps"
@@ -50,7 +50,7 @@
       "name": "claude-code-homeassistant-hermit",
       "source": "./plugins/claude-code-homeassistant-hermit",
       "description": "A Home Assistant development and operations agent built on claude-code-hermit. Build, manage, monitor, and troubleshoot everything from automations and dashboards to helpers, devices, backups, and energy — with operator-controlled safety.",
-      "version": "0.4.13",
+      "version": "0.4.14",
       "category": "home-automation",
       "author": {
         "name": "gtapps",
@@ -70,7 +70,7 @@
       "name": "claude-code-fitness-hermit",
       "source": "./plugins/claude-code-fitness-hermit",
       "description": "A read-only Strava training agent built on claude-code-hermit. Analyzes activities, tracks load and RPE, flags recovery risks, and runs routines shaped around your training week.",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "category": "fitness",
       "author": {
         "name": "gtapps",
@@ -91,7 +91,7 @@
       "name": "feed-hermit",
       "source": "./plugins/feed-hermit",
       "description": "A feed-to-brief agent built on claude-code-hermit. Choose the sources, priorities, voice, and schedule; it delivers briefs, tracks developing stories, and audits source quality.",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "category": "productivity",
       "author": {
         "name": "gtapps",
@@ -112,7 +112,7 @@
       "name": "laravel-forge-hermit",
       "source": "./plugins/laravel-forge-hermit",
       "description": "A Laravel Forge operations agent built on claude-code-hermit. Deploy, manage, monitor, and troubleshoot your estate through the official Forge SDK — from daily health checks to operator-gated deployment workflows.",
-      "version": "0.0.14",
+      "version": "0.0.15",
       "category": "development",
       "author": {
         "name": "gtapps",
@@ -134,7 +134,7 @@
       "name": "hermit-scribe",
       "source": "./plugins/hermit-scribe",
       "description": "A GitHub App Bot for claude-code-hermit maintainers. Turns proposals and ad-hoc reports into privacy-scrubbed, deduplicated GitHub issues, with operator approval before publishing.",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "category": "maintainer",
       "author": {
         "name": "gtapps",

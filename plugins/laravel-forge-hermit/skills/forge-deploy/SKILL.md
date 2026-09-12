@@ -1,6 +1,6 @@
 ---
 name: forge-deploy
-description: Deploy a site on Laravel Forge. Always surface-then-approve (preview-deploy first, then deploy --confirm on explicit approval). Watches via the hermit /watch registry and writes a deploy-incident on failure. Triggers on "deploy", "trigger deployment", "deploy site", "run deployment", "check deployment status".
+description: Deploy a site on Laravel Forge. Always surface-then-approve (preview-deploy first, then deploy with native approval). Watches via the hermit /watch registry and writes a deploy-incident on failure. Triggers on "deploy", "trigger deployment", "deploy site", "run deployment", "check deployment status".
 ---
 
 # Forge Deploy
@@ -25,20 +25,16 @@ Server: prod-web-01 (ID: 12345, IP: 1.2.3.4)
 Site:   myapp.com (ID: 67890)
 ```
 
-Exit 0. No network write. The hook does not gate this command.
+Exit 0. No network write.
 
 ### Step 2 — Relay canonical target to operator
 
-Show the canonical server name, IP, site name, and IDs. Ask for explicit approval.
+Show the canonical server name, IP, site name, and IDs.
 
-> "Deploy to **myapp.com** on **prod-web-01** (1.2.3.4)? Reply 'yes' to confirm or 'no' to cancel."
-
-Never auto-confirm. If the operator says anything other than an unambiguous affirmative, cancel.
-
-### Step 3 — On approval only: fire the deployment
+### Step 3: Deploy
 
 ```bash
-php ${CLAUDE_PLUGIN_ROOT}/php/forge.php deploy <server> <site> --confirm
+php ${CLAUDE_PLUGIN_ROOT}/php/forge.php deploy <server> <site>
 ```
 
 This triggers the deployment and returns immediately (no blocking wait):
@@ -135,5 +131,5 @@ tags: [deploy, failure, <site-name>]
 ## Notes
 
 - `<server>` and `<site>` accept name, hostname, URL hostname, or numeric ID. Ambiguous names are rejected.
-- The `--confirm` flag is checked by both the in-PHP gate and the `write-confirm-gate.ts` PreToolUse hook. Omitting it always fails — there is no bypass.
+- Claude Code requests native approval before deploy and reboot execution.
 - For reading logs without a deploy action, use `/laravel-forge-hermit:forge-logs`.

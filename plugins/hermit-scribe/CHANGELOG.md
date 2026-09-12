@@ -1,5 +1,28 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Hatch no longer seeds `autoMode.environment`; Claude Code does not read it from project settings. Existing `autoMode` blocks in project settings are unread and left in place.
+
+## [0.1.4] - 2026-09-10
+
+### Changed
+
+- Issue filing and commenting request native approval after the sanitized preview, replacing the in-chat yes/edit/cancel loop.
+- Filing an issue takes an explicit `--publish` verb: `file-issue.ts --publish <title-file> <body-file> [label...]`. It was previously the unnamed fallthrough, which no permission rule could distinguish from the read modes.
+
+### Fixed
+
+- Publication approval rules are installed into project settings during hatch and upgrades, where Claude Code enforces them.
+
+### Upgrade Instructions
+
+Resolve the project settings target with `.claude-code-hermit/bin/hermit-run domain-hatch preflight hermit-scribe`: `target` (or `target_default` when absent) maps `local` to `.claude/settings.local.json` and `committed` to `.claude/settings.json`. Run `bun <plugin_root>/scripts/native-permissions.ts <resolved-settings-file>` before refreshing the installed instruction block. If installation fails, stop the upgrade.
+
+Refresh the installed CLAUDE-APPEND block. Any operator script calling `file-issue.ts` with bare positional arguments must add `--publish`; without it the script now exits 1 with usage rather than filing.
+
 ## [0.1.3] - 2026-09-06
 
 ### Added

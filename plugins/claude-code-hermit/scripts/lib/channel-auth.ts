@@ -4,6 +4,7 @@
 // stages in lib/prompt-stages/).
 // A single copy so the allowlist rule can't drift out of sync between callers.
 
+import { iterChannelConfigs } from './channel-config';
 import { normalizeChannelSource } from './channel-envelope';
 import { cachedChat, cachedGuildRoles, lookupChat, lookupGuildRoles } from './channel-chats';
 import { escapeRegExp } from './md-write';
@@ -58,9 +59,14 @@ export function channelBotIdentity(config: Json, source: string): ChannelBotIden
  * `user_id` when present, else `user`) — this gate never sees the display name
  * separately, so an allowlist can only ever be matched against the platform id.
  */
-export function isAllowedSender(config: Json, source: string, userId: string | null): boolean {
+export function allowedUserIds(config: Json, source: string): string[] | null {
   const allowedUsers = channelEntry(config, source)?.allowed_users;
-  if (!Array.isArray(allowedUsers)) return true; // absent/malformed -> accept all
+  return Array.isArray(allowedUsers) ? allowedUsers : null;
+}
+
+export function isAllowedSender(config: Json, source: string, userId: string | null): boolean {
+  const allowedUsers = allowedUserIds(config, source);
+  if (allowedUsers === null) return true; // absent/malformed -> accept all
   if (userId === null) return false; // can't verify identity against a configured allowlist
   return allowedUsers.includes(userId);
 }
@@ -97,6 +103,47 @@ export function isTrustedController(
   // of empty values can never match either.
   const home = ch?.default_chat_id || ch?.dm_channel_id; // no list -> pinned-home binding
   return !!home && !!chatId && String(home) === String(chatId);
+}
+
+// Home/maintainer rule has its prose twin in channel-responder §1c.
+export function recallScope(config: Json, key: string, chatId: string): Json | null {
+  const ch = channelEntry(config, key);
+  const own = { source: key, chat_id: chatId };
+  if (!ch) return { own, shared: [] };
+  const home = ch.default_chat_id || ch.dm_channel_id;
+  if (chatId && (chatId === ch.maintainer_channel_id
+    || (chatId === home && config.operator_profile !== 'non-technical'))) return null;
+  const shared: { source: string; chat_id: string }[] = [];
+  for (const [source, entry] of iterChannelConfigs(config)) {
+    if (!Array.isArray(entry.shared_chats)) continue; // a malformed value grants nothing
+    for (const chat_id of entry.shared_chats) shared.push({ source, chat_id });
+  }
+  return { own, channel: ch.isolate_chats === false ? key : undefined, shared };
+}
+
+/**
+ * Whether a compiled page's `audience` is visible to a recallScope result.
+ * Absent / `shared` / an unscoped reader (null) are always visible. A tagged
+ * page is visible only when the pair matches `scope.own`, the key equals
+ * `scope.channel` (isolate_chats: false), or the pair is in `scope.shared`.
+ */
+export function audienceVisible(scope: Json | null | undefined, audience: unknown): boolean {
+  if (audience == null || audience === 'shared') return true;
+  if (scope == null) return true;
+  if (typeof audience !== 'string') return false;
+  const separator = audience.indexOf(':');
+  if (separator < 0) return false;
+  const key = audience.slice(0, separator);
+  const chatId = audience.slice(separator + 1);
+  if (!key || !chatId) return false;
+  if (scope.own?.source === key && String(scope.own.chat_id) === chatId) return true;
+  if (scope.channel && key === scope.channel) return true;
+  if (Array.isArray(scope.shared)) {
+    for (const entry of scope.shared) {
+      if (entry.source === key && String(entry.chat_id) === chatId) return true;
+    }
+  }
+  return false;
 }
 
 function passiveChats(config: Json, sourceKey: string): string[] {

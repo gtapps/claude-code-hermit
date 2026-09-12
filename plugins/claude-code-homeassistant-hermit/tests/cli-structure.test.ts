@@ -132,22 +132,14 @@ test('delete-dashboard blocked under strict, no WS command sent', async () => {
   expect(code).toBe(1);
   const parsed = JSON.parse(out);
   expect(parsed.blocked).toBe(true);
-  expect(parsed.requires_confirm).toBe(false);
   expect(ws.calls.length).toBe(0);
 });
 
-test('delete-dashboard under ask needs --confirm', async () => {
-  const ws = fakeWs();
-  const { code, out } = await runCli(['ha', 'delete-dashboard', 'dashboard_cameras'], ws, cfg('ask'));
-  expect(code).toBe(1);
-  expect(JSON.parse(out).requires_confirm).toBe(true);
-  expect(ws.calls.length).toBe(0);
-});
 
 test('delete-dashboard sends dashboard_id payload', async () => {
   const ws = fakeWs();
   const { code, out } = await runCli(
-    ['ha', 'delete-dashboard', 'dashboard_cameras', '--confirm'],
+    ['ha', 'delete-dashboard', 'dashboard_cameras'],
     ws,
     cfg('ask'),
   );
@@ -163,7 +155,7 @@ test('delete-dashboard sends dashboard_id payload', async () => {
 test('create-dashboard rejects invalid JSON', async () => {
   const ws = fakeWs();
   const { code, out } = await runCli(
-    ['ha', 'create-dashboard', 'not-json', '--confirm'],
+    ['ha', 'create-dashboard', 'not-json'],
     ws,
     cfg('ask'),
   );
@@ -175,7 +167,7 @@ test('create-dashboard rejects invalid JSON', async () => {
 test('create-dashboard sends parsed payload', async () => {
   const ws = fakeWs(() => ({ id: 'd9', url_path: 'hermit-test' }));
   const { code } = await runCli(
-    ['ha', 'create-dashboard', '{"url_path":"hermit-test","title":"Hermit Test"}', '--confirm'],
+    ['ha', 'create-dashboard', '{"url_path":"hermit-test","title":"Hermit Test"}'],
     ws,
     cfg('ask'),
   );
@@ -192,7 +184,7 @@ test('apply-dashboard reads the artifact and sends url_path + config', async () 
   const artifactPath = writeArtifact(tmpPath(), '{"title":"Hermit Test","views":[]}', 'dashboard.json');
   const ws = fakeWs(() => ({ result: 'ok' }));
   const { code } = await runCli(
-    ['ha', 'apply-dashboard', artifactPath, '--url-path', 'hermit-test', '--confirm'],
+    ['ha', 'apply-dashboard', artifactPath, '--url-path', 'hermit-test'],
     ws,
     cfg('ask'),
   );
@@ -208,7 +200,7 @@ test('apply-dashboard reads the artifact and sends url_path + config', async () 
 test('apply-dashboard reports a missing artifact cleanly, without opening the WS', async () => {
   const ws = fakeWs(() => ({ result: 'ok' }));
   const { code, out } = await runCli(
-    ['ha', 'apply-dashboard', '/no/such/dashboard.json', '--confirm'],
+    ['ha', 'apply-dashboard', '/no/such/dashboard.json'],
     ws,
     cfg('ask'),
   );
@@ -220,7 +212,7 @@ test('apply-dashboard reports a missing artifact cleanly, without opening the WS
 test('apply-dashboard defaults to null url_path', async () => {
   const artifactPath = writeArtifact(tmpPath(), '{"title":"Home","views":[]}', 'dashboard.json');
   const ws = fakeWs(() => ({ result: 'ok' }));
-  const { code } = await runCli(['ha', 'apply-dashboard', artifactPath, '--confirm'], ws, cfg('ask'));
+  const { code } = await runCli(['ha', 'apply-dashboard', artifactPath], ws, cfg('ask'));
   expect(code).toBe(0);
   expect(ws.calls).toEqual([
     {
@@ -235,7 +227,7 @@ test('dashboard write failure surfaces HA message and writes report', async () =
     throw new HomeAssistantError('Dashboard not found.');
   });
   const { code, out } = await runCli(
-    ['ha', 'delete-dashboard', 'nope', '--confirm'],
+    ['ha', 'delete-dashboard', 'nope'],
     ws,
     cfg('ask'),
   );
@@ -254,24 +246,14 @@ test('mutation blocked under strict, no WS command sent', async () => {
   expect(code).toBe(1);
   const parsed = JSON.parse(out);
   expect(parsed.blocked).toBe(true);
-  expect(parsed.requires_confirm).toBe(false);
   expect(parsed.message).toContain('proposal');
   expect(ws.calls.length).toBe(0);
 });
 
-test('mutation under ask needs --confirm', async () => {
-  const ws = fakeWs();
-  const { code, out } = await runCli(['ha', 'create-area', 'Office'], ws, cfg('ask'));
-  expect(code).toBe(1);
-  const parsed = JSON.parse(out);
-  expect(parsed.blocked).toBe(true);
-  expect(parsed.requires_confirm).toBe(true);
-  expect(ws.calls.length).toBe(0);
-});
 
-test('mutation under ask with --confirm runs', async () => {
+test('mutation under ask runs', async () => {
   const ws = fakeWs(() => ({ area_id: 'a9' }));
-  const { code, out } = await runCli(['ha', 'create-area', 'Office', '--confirm'], ws, cfg('ask'));
+  const { code, out } = await runCli(['ha', 'create-area', 'Office'], ws, cfg('ask'));
   expect(code).toBe(0);
   const parsed = JSON.parse(out);
   expect(parsed.ok).toBe(true);
@@ -285,7 +267,7 @@ test('mutation under ask with --confirm runs', async () => {
 test('create-helper rejects unknown type', async () => {
   const ws = fakeWs();
   const { code, out } = await runCli(
-    ['ha', 'create-helper', 'input_bogus', '{}', '--confirm'],
+    ['ha', 'create-helper', 'input_bogus', '{}'],
     ws,
     cfg('ask'),
   );
@@ -297,7 +279,7 @@ test('create-helper rejects unknown type', async () => {
 test('create-helper rejects invalid JSON', async () => {
   const ws = fakeWs();
   const { code, out } = await runCli(
-    ['ha', 'create-helper', 'input_boolean', 'not-json', '--confirm'],
+    ['ha', 'create-helper', 'input_boolean', 'not-json'],
     ws,
     cfg('ask'),
   );
@@ -309,7 +291,7 @@ test('create-helper rejects invalid JSON', async () => {
 test('create-helper sends type/create with parsed payload', async () => {
   const ws = fakeWs(() => ({ id: 'h1' }));
   const { code } = await runCli(
-    ['ha', 'create-helper', 'input_boolean', '{"name":"Guests"}', '--confirm'],
+    ['ha', 'create-helper', 'input_boolean', '{"name":"Guests"}'],
     ws,
     cfg('ask'),
   );
@@ -319,7 +301,7 @@ test('create-helper sends type/create with parsed payload', async () => {
 
 test('delete-helper sends type/delete with id key', async () => {
   const ws = fakeWs();
-  const { code } = await runCli(['ha', 'delete-helper', 'timer', 't1', '--confirm'], ws, cfg('ask'));
+  const { code } = await runCli(['ha', 'delete-helper', 'timer', 't1'], ws, cfg('ask'));
   expect(code).toBe(0);
   expect(ws.calls).toEqual([{ type: 'timer/delete', payload: { timer_id: 't1' } }]);
 });
@@ -328,7 +310,7 @@ test('delete-helper sends type/delete with id key', async () => {
 
 test('rename-entity requires --name', async () => {
   const ws = fakeWs();
-  const { code, out } = await runCli(['ha', 'rename-entity', 'light.x', '--confirm'], ws, cfg('ask'));
+  const { code, out } = await runCli(['ha', 'rename-entity', 'light.x'], ws, cfg('ask'));
   expect(code).toBe(1);
   expect(JSON.parse(out).message).toContain('--name');
   expect(ws.calls.length).toBe(0);
@@ -337,7 +319,7 @@ test('rename-entity requires --name', async () => {
 test('rename-entity updates the entity registry', async () => {
   const ws = fakeWs(() => ({ entity_entry: {} }));
   const { code } = await runCli(
-    ['ha', 'rename-entity', 'light.x', '--name', 'Lamp', '--confirm'],
+    ['ha', 'rename-entity', 'light.x', '--name', 'Lamp'],
     ws,
     cfg('ask'),
   );
@@ -350,7 +332,7 @@ test('rename-entity updates the entity registry', async () => {
 test('set-entity-enabled false maps to disabled_by user', async () => {
   const ws = fakeWs();
   const { code } = await runCli(
-    ['ha', 'set-entity-enabled', 'light.x', '--enabled', 'false', '--confirm'],
+    ['ha', 'set-entity-enabled', 'light.x', '--enabled', 'false'],
     ws,
     cfg('ask'),
   );
@@ -364,7 +346,7 @@ test('set-entity-enabled false maps to disabled_by user', async () => {
 test('set-device-area updates the device registry', async () => {
   const ws = fakeWs();
   const { code } = await runCli(
-    ['ha', 'set-device-area', 'dev1', '--area', 'a1', '--confirm'],
+    ['ha', 'set-device-area', 'dev1', '--area', 'a1'],
     ws,
     cfg('ask'),
   );
@@ -396,14 +378,14 @@ test('create-floor blocked under strict, no WS command sent', async () => {
 
 test('create-floor sends name payload', async () => {
   const ws = fakeWs(() => ({ floor_id: 'attic' }));
-  const { code } = await runCli(['ha', 'create-floor', 'Attic', '--confirm'], ws, cfg('ask'));
+  const { code } = await runCli(['ha', 'create-floor', 'Attic'], ws, cfg('ask'));
   expect(code).toBe(0);
   expect(ws.calls).toEqual([{ type: 'config/floor_registry/create', payload: { name: 'Attic' } }]);
 });
 
 test('delete-floor sends floor_id payload', async () => {
   const ws = fakeWs();
-  const { code } = await runCli(['ha', 'delete-floor', 'attic', '--confirm'], ws, cfg('ask'));
+  const { code } = await runCli(['ha', 'delete-floor', 'attic'], ws, cfg('ask'));
   expect(code).toBe(0);
   expect(ws.calls).toEqual([{ type: 'config/floor_registry/delete', payload: { floor_id: 'attic' } }]);
 });
@@ -420,14 +402,14 @@ test('list-labels reads via WS and closes', async () => {
 
 test('create-label sends name payload', async () => {
   const ws = fakeWs(() => ({ label_id: 'security' }));
-  const { code } = await runCli(['ha', 'create-label', 'Security', '--confirm'], ws, cfg('ask'));
+  const { code } = await runCli(['ha', 'create-label', 'Security'], ws, cfg('ask'));
   expect(code).toBe(0);
   expect(ws.calls).toEqual([{ type: 'config/label_registry/create', payload: { name: 'Security' } }]);
 });
 
 test('delete-label sends label_id payload', async () => {
   const ws = fakeWs();
-  const { code } = await runCli(['ha', 'delete-label', 'security', '--confirm'], ws, cfg('ask'));
+  const { code } = await runCli(['ha', 'delete-label', 'security'], ws, cfg('ask'));
   expect(code).toBe(0);
   expect(ws.calls).toEqual([{ type: 'config/label_registry/delete', payload: { label_id: 'security' } }]);
 });
@@ -450,7 +432,7 @@ test('import-blueprint imports then saves', async () => {
     return { overrides_existing: false };
   });
   const { code, out } = await runCli(
-    ['ha', 'import-blueprint', 'automation', 'https://example.com/bp.yaml', '--confirm'],
+    ['ha', 'import-blueprint', 'automation', 'https://example.com/bp.yaml'],
     ws,
     cfg('ask'),
   );
@@ -477,7 +459,7 @@ test('import-blueprint stops after import on validation errors, does not save', 
     validation_errors: ['missing required input'],
   }));
   const { code, out } = await runCli(
-    ['ha', 'import-blueprint', 'automation', 'https://example.com/bad.yaml', '--confirm'],
+    ['ha', 'import-blueprint', 'automation', 'https://example.com/bad.yaml'],
     ws,
     cfg('ask'),
   );
@@ -511,7 +493,7 @@ test('get-energy-prefs reads via WS', async () => {
 
 test('set-energy-prefs rejects invalid JSON', async () => {
   const ws = fakeWs();
-  const { code, out } = await runCli(['ha', 'set-energy-prefs', 'not-json', '--confirm'], ws, cfg('ask'));
+  const { code, out } = await runCli(['ha', 'set-energy-prefs', 'not-json'], ws, cfg('ask'));
   expect(code).toBe(1);
   expect(JSON.parse(out).message).toContain('valid JSON');
   expect(ws.calls.length).toBe(0);
@@ -520,7 +502,7 @@ test('set-energy-prefs rejects invalid JSON', async () => {
 test('set-energy-prefs sends the parsed prefs object', async () => {
   const ws = fakeWs(() => null);
   const { code } = await runCli(
-    ['ha', 'set-energy-prefs', '{"energy_sources":[]}', '--confirm'],
+    ['ha', 'set-energy-prefs', '{"energy_sources":[]}'],
     ws,
     cfg('ask'),
   );
@@ -532,7 +514,7 @@ test('set-energy-prefs sends the parsed prefs object', async () => {
 
 test('disable-entry requires --disabled', async () => {
   const ws = fakeWs();
-  const { code, out } = await runCli(['ha', 'disable-entry', 'entry1', '--confirm'], ws, cfg('ask'));
+  const { code, out } = await runCli(['ha', 'disable-entry', 'entry1'], ws, cfg('ask'));
   expect(code).toBe(1);
   expect(JSON.parse(out).message).toContain('--disabled');
   expect(ws.calls.length).toBe(0);
@@ -541,7 +523,7 @@ test('disable-entry requires --disabled', async () => {
 test('disable-entry true maps to disabled_by user', async () => {
   const ws = fakeWs(() => ({ require_restart: true }));
   const { code } = await runCli(
-    ['ha', 'disable-entry', 'entry1', '--disabled', 'true', '--confirm'],
+    ['ha', 'disable-entry', 'entry1', '--disabled', 'true'],
     ws,
     cfg('ask'),
   );
@@ -554,7 +536,7 @@ test('disable-entry true maps to disabled_by user', async () => {
 test('disable-entry false maps to disabled_by null', async () => {
   const ws = fakeWs(() => ({ require_restart: false }));
   const { code } = await runCli(
-    ['ha', 'disable-entry', 'entry1', '--disabled', 'false', '--confirm'],
+    ['ha', 'disable-entry', 'entry1', '--disabled', 'false'],
     ws,
     cfg('ask'),
   );
@@ -576,7 +558,7 @@ test('list-backups reads via WS', async () => {
 
 test('create-backup requires --agent-ids', async () => {
   const ws = fakeWs();
-  const { code, out } = await runCli(['ha', 'create-backup', '--confirm'], ws, cfg('ask'));
+  const { code, out } = await runCli(['ha', 'create-backup'], ws, cfg('ask'));
   expect(code).toBe(1);
   expect(JSON.parse(out).message).toContain('--agent-ids');
   expect(ws.calls.length).toBe(0);
@@ -597,7 +579,7 @@ test('create-backup blocked under strict', async () => {
 test('create-backup sends only agent_ids when no other flags given', async () => {
   const ws = fakeWs(() => ({ backup_job_id: 'job1' }));
   const { code } = await runCli(
-    ['ha', 'create-backup', '--agent-ids', 'hassio.local', '--confirm'],
+    ['ha', 'create-backup', '--agent-ids', 'hassio.local'],
     ws,
     cfg('ask'),
   );
@@ -628,7 +610,6 @@ test('create-backup sends all provided fields with correct types', async () => {
       'ssl',
       '--include-homeassistant',
       'true',
-      '--confirm',
     ],
     ws,
     cfg('ask'),
@@ -664,7 +645,7 @@ test('list-exposed-entities reads via WS', async () => {
 test('expose-entity requires --entity-ids', async () => {
   const ws = fakeWs();
   const { code, out } = await runCli(
-    ['ha', 'expose-entity', '--assistants', 'conversation', '--expose', 'true', '--confirm'],
+    ['ha', 'expose-entity', '--assistants', 'conversation', '--expose', 'true'],
     ws,
     cfg('ask'),
   );
@@ -676,7 +657,7 @@ test('expose-entity requires --entity-ids', async () => {
 test('expose-entity requires --assistants', async () => {
   const ws = fakeWs();
   const { code, out } = await runCli(
-    ['ha', 'expose-entity', '--entity-ids', 'light.x', '--expose', 'true', '--confirm'],
+    ['ha', 'expose-entity', '--entity-ids', 'light.x', '--expose', 'true'],
     ws,
     cfg('ask'),
   );
@@ -688,7 +669,7 @@ test('expose-entity requires --assistants', async () => {
 test('expose-entity requires --expose', async () => {
   const ws = fakeWs();
   const { code, out } = await runCli(
-    ['ha', 'expose-entity', '--entity-ids', 'light.x', '--assistants', 'conversation', '--confirm'],
+    ['ha', 'expose-entity', '--entity-ids', 'light.x', '--assistants', 'conversation'],
     ws,
     cfg('ask'),
   );
@@ -711,7 +692,6 @@ test('expose-entity sends entity_ids, assistants, and should_expose', async () =
       'cloud.alexa',
       '--expose',
       'true',
-      '--confirm',
     ],
     ws,
     cfg('ask'),
@@ -746,7 +726,7 @@ test('expose-entity blocked under strict', async () => {
 test('set-entity-icon updates the entity registry', async () => {
   const ws = fakeWs();
   const { code } = await runCli(
-    ['ha', 'set-entity-icon', 'light.x', '--icon', 'mdi:lamp', '--confirm'],
+    ['ha', 'set-entity-icon', 'light.x', '--icon', 'mdi:lamp'],
     ws,
     cfg('ask'),
   );
@@ -759,7 +739,7 @@ test('set-entity-icon updates the entity registry', async () => {
 test('set-entity-hidden true maps to hidden_by user', async () => {
   const ws = fakeWs();
   const { code } = await runCli(
-    ['ha', 'set-entity-hidden', 'light.x', '--hidden', 'true', '--confirm'],
+    ['ha', 'set-entity-hidden', 'light.x', '--hidden', 'true'],
     ws,
     cfg('ask'),
   );
@@ -772,7 +752,7 @@ test('set-entity-hidden true maps to hidden_by user', async () => {
 test('set-entity-hidden false maps to hidden_by null', async () => {
   const ws = fakeWs();
   const { code } = await runCli(
-    ['ha', 'set-entity-hidden', 'light.x', '--hidden', 'false', '--confirm'],
+    ['ha', 'set-entity-hidden', 'light.x', '--hidden', 'false'],
     ws,
     cfg('ask'),
   );
@@ -784,7 +764,7 @@ test('set-entity-hidden false maps to hidden_by null', async () => {
 
 test('set-entity-labels requires --labels', async () => {
   const ws = fakeWs();
-  const { code, out } = await runCli(['ha', 'set-entity-labels', 'light.x', '--confirm'], ws, cfg('ask'));
+  const { code, out } = await runCli(['ha', 'set-entity-labels', 'light.x'], ws, cfg('ask'));
   expect(code).toBe(1);
   expect(JSON.parse(out).message).toContain('--labels');
   expect(ws.calls.length).toBe(0);
@@ -793,7 +773,7 @@ test('set-entity-labels requires --labels', async () => {
 test('set-entity-labels sends multiple labels', async () => {
   const ws = fakeWs();
   const { code } = await runCli(
-    ['ha', 'set-entity-labels', 'light.x', '--labels', 'security', 'main-floor', '--confirm'],
+    ['ha', 'set-entity-labels', 'light.x', '--labels', 'security', 'main-floor'],
     ws,
     cfg('ask'),
   );
@@ -809,7 +789,7 @@ test('set-entity-labels sends multiple labels', async () => {
 test('set-entity-categories rejects invalid JSON', async () => {
   const ws = fakeWs();
   const { code, out } = await runCli(
-    ['ha', 'set-entity-categories', 'light.x', '--categories', 'not-json', '--confirm'],
+    ['ha', 'set-entity-categories', 'light.x', '--categories', 'not-json'],
     ws,
     cfg('ask'),
   );
@@ -821,7 +801,7 @@ test('set-entity-categories rejects invalid JSON', async () => {
 test('set-entity-categories sends the parsed scoped mapping', async () => {
   const ws = fakeWs();
   const { code } = await runCli(
-    ['ha', 'set-entity-categories', 'light.x', '--categories', '{"automation":"config"}', '--confirm'],
+    ['ha', 'set-entity-categories', 'light.x', '--categories', '{"automation":"config"}'],
     ws,
     cfg('ask'),
   );
@@ -836,7 +816,7 @@ test('set-entity-categories sends the parsed scoped mapping', async () => {
 
 test('set-entity-aliases requires --aliases', async () => {
   const ws = fakeWs();
-  const { code, out } = await runCli(['ha', 'set-entity-aliases', 'light.x', '--confirm'], ws, cfg('ask'));
+  const { code, out } = await runCli(['ha', 'set-entity-aliases', 'light.x'], ws, cfg('ask'));
   expect(code).toBe(1);
   expect(JSON.parse(out).message).toContain('--aliases');
   expect(ws.calls.length).toBe(0);
@@ -845,7 +825,7 @@ test('set-entity-aliases requires --aliases', async () => {
 test('set-entity-aliases sends multiple aliases', async () => {
   const ws = fakeWs();
   const { code } = await runCli(
-    ['ha', 'set-entity-aliases', 'light.x', '--aliases', 'lamp', 'reading light', '--confirm'],
+    ['ha', 'set-entity-aliases', 'light.x', '--aliases', 'lamp', 'reading light'],
     ws,
     cfg('ask'),
   );
@@ -862,7 +842,7 @@ test('set-entity-aliases sends multiple aliases', async () => {
 
 test('rename-area requires --name', async () => {
   const ws = fakeWs();
-  const { code, out } = await runCli(['ha', 'rename-area', 'a1', '--confirm'], ws, cfg('ask'));
+  const { code, out } = await runCli(['ha', 'rename-area', 'a1'], ws, cfg('ask'));
   expect(code).toBe(1);
   expect(JSON.parse(out).message).toContain('--name');
   expect(ws.calls.length).toBe(0);
@@ -871,7 +851,7 @@ test('rename-area requires --name', async () => {
 test('rename-area updates the area registry', async () => {
   const ws = fakeWs();
   const { code } = await runCli(
-    ['ha', 'rename-area', 'a1', '--name', 'Living Room', '--confirm'],
+    ['ha', 'rename-area', 'a1', '--name', 'Living Room'],
     ws,
     cfg('ask'),
   );
@@ -884,7 +864,7 @@ test('rename-area updates the area registry', async () => {
 test('set-area-icon updates the area registry', async () => {
   const ws = fakeWs();
   const { code } = await runCli(
-    ['ha', 'set-area-icon', 'a1', '--icon', 'mdi:sofa', '--confirm'],
+    ['ha', 'set-area-icon', 'a1', '--icon', 'mdi:sofa'],
     ws,
     cfg('ask'),
   );
@@ -897,7 +877,7 @@ test('set-area-icon updates the area registry', async () => {
 test('set-area-floor updates the area registry', async () => {
   const ws = fakeWs();
   const { code } = await runCli(
-    ['ha', 'set-area-floor', 'a1', '--floor', 'ground', '--confirm'],
+    ['ha', 'set-area-floor', 'a1', '--floor', 'ground'],
     ws,
     cfg('ask'),
   );
@@ -909,7 +889,7 @@ test('set-area-floor updates the area registry', async () => {
 
 test('set-area-labels requires --labels', async () => {
   const ws = fakeWs();
-  const { code, out } = await runCli(['ha', 'set-area-labels', 'a1', '--confirm'], ws, cfg('ask'));
+  const { code, out } = await runCli(['ha', 'set-area-labels', 'a1'], ws, cfg('ask'));
   expect(code).toBe(1);
   expect(JSON.parse(out).message).toContain('--labels');
   expect(ws.calls.length).toBe(0);
@@ -918,7 +898,7 @@ test('set-area-labels requires --labels', async () => {
 test('set-area-labels updates the area registry with multiple labels', async () => {
   const ws = fakeWs();
   const { code } = await runCli(
-    ['ha', 'set-area-labels', 'a1', '--labels', 'security', 'main-floor', '--confirm'],
+    ['ha', 'set-area-labels', 'a1', '--labels', 'security', 'main-floor'],
     ws,
     cfg('ask'),
   );
@@ -969,7 +949,6 @@ test('set-core-config sends only the provided fields, coercing numerics', async 
       'Europe/Lisbon',
       '--country',
       'PT',
-      '--confirm',
     ],
     ws,
     cfg('ask'),
@@ -994,7 +973,7 @@ test('set-core-config sends only the provided fields, coercing numerics', async 
 test('set-core-config rejects a non-numeric latitude before any WS call', async () => {
   const ws = fakeWs();
   const { code, out } = await runCli(
-    ['ha', 'set-core-config', '--latitude', '40,7', '--confirm'],
+    ['ha', 'set-core-config', '--latitude', '40,7'],
     ws,
     cfg('ask'),
   );
@@ -1009,7 +988,7 @@ test('WS command failure surfaces HA message and writes report', async () => {
   const ws = fakeWs(() => {
     throw new HomeAssistantError('Area name already exists.');
   });
-  const { code, out } = await runCli(['ha', 'create-area', 'Office', '--confirm'], ws, cfg('ask'));
+  const { code, out } = await runCli(['ha', 'create-area', 'Office'], ws, cfg('ask'));
   expect(code).toBe(1);
   const parsed = JSON.parse(out);
   expect(parsed.ok).toBe(false);

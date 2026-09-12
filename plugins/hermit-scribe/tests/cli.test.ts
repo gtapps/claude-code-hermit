@@ -84,17 +84,24 @@ test("no args prints usage and exits 1", () => {
 });
 
 test("one arg prints usage and exits 1", () => {
-  assertFails({}, [titleFile], /Usage: bun file-issue\.ts/);
+  assertFails({}, ["--publish", titleFile], /Usage: bun file-issue\.ts/);
+});
+
+// Filing must stay behind the named verb: the seeded permissions.ask rule
+// matches on `--publish`, so a bare positional call reaching the API would
+// publish with no operator checkpoint.
+test("bare positional args no longer file an issue", () => {
+  assertFails({}, [titleFile, bodyFile], /Usage: bun file-issue\.ts --publish/);
 });
 
 test("missing HERMIT_GH_APP_ID is named in error", () => {
-  assertFails({}, [titleFile, bodyFile], /Missing env var: HERMIT_GH_APP_ID/);
+  assertFails({}, ["--publish", titleFile, bodyFile], /Missing env var: HERMIT_GH_APP_ID/);
 });
 
 test("missing HERMIT_GH_APP_INSTALL_ID is named in error", () => {
   assertFails(
     { HERMIT_GH_APP_ID: "1" },
-    [titleFile, bodyFile],
+    ["--publish", titleFile, bodyFile],
     /Missing env var: HERMIT_GH_APP_INSTALL_ID/
   );
 });
@@ -102,7 +109,7 @@ test("missing HERMIT_GH_APP_INSTALL_ID is named in error", () => {
 test("missing HERMIT_GH_APP_KEY_FILE is named in error", () => {
   assertFails(
     { HERMIT_GH_APP_ID: "1", HERMIT_GH_APP_INSTALL_ID: "2" },
-    [titleFile, bodyFile],
+    ["--publish", titleFile, bodyFile],
     /Missing env var: HERMIT_GH_APP_KEY_FILE/
   );
 });
@@ -110,7 +117,7 @@ test("missing HERMIT_GH_APP_KEY_FILE is named in error", () => {
 test("HERMIT_GH_REPO with too many slashes is rejected", () => {
   assertFails(
     { ...fullEnv, HERMIT_GH_REPO: "a/b/c" },
-    [titleFile, bodyFile],
+    ["--publish", titleFile, bodyFile],
     /HERMIT_GH_REPO must be "owner\/repo"/
   );
 });
@@ -118,7 +125,7 @@ test("HERMIT_GH_REPO with too many slashes is rejected", () => {
 test("HERMIT_GH_REPO with no slash is rejected", () => {
   assertFails(
     { ...fullEnv, HERMIT_GH_REPO: "single" },
-    [titleFile, bodyFile],
+    ["--publish", titleFile, bodyFile],
     /HERMIT_GH_REPO must be "owner\/repo"/
   );
 });
@@ -126,7 +133,7 @@ test("HERMIT_GH_REPO with no slash is rejected", () => {
 test("missing key file shows labeled error with var name and path", () => {
   assertFails(
     { ...fullEnv, HERMIT_GH_APP_KEY_FILE: "/nonexistent/key.pem" },
-    [titleFile, bodyFile],
+    ["--publish", titleFile, bodyFile],
     /HERMIT_GH_APP_KEY_FILE=.*does not exist/
   );
 });
@@ -174,11 +181,11 @@ if (process.env.HERMIT_GH_CHECK_LIVE) {
 }
 
 test("empty title file is rejected", () => {
-  assertFails(fullEnv, [emptyTitleFile, bodyFile], /Title file is empty/);
+  assertFails(fullEnv, ["--publish", emptyTitleFile, bodyFile], /Title file is empty/);
 });
 
 test("whitespace-only title file is rejected after trim", () => {
-  assertFails(fullEnv, [wsTitleFile, bodyFile], /Title file is empty/);
+  assertFails(fullEnv, ["--publish", wsTitleFile, bodyFile], /Title file is empty/);
 });
 
 // --- buildLabels unit tests ---
@@ -216,7 +223,7 @@ test("buildLabels deduplicates hermit-filed if passed explicitly", () => {
 test("trailing label args do not break arg parsing (reaches token acquisition)", () => {
   assertFails(
     { ...fullEnv, HERMIT_GH_APP_KEY_FILE: "/nonexistent/key.pem" },
-    [titleFile, bodyFile, "bug", "homeassistant-hermit"],
+    ["--publish", titleFile, bodyFile, "bug", "homeassistant-hermit"],
     /HERMIT_GH_APP_KEY_FILE=.*does not exist/
   );
 });

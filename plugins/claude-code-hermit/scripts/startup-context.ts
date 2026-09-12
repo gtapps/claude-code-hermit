@@ -2,6 +2,7 @@
 process.stdout.on('error', () => {});
 
 // startup-context.ts — SessionStart hook
+// Classifies residency, seeds resident activity when absent, and loads session context.
 // Replaces the inline bash blob with a capped, priority-ordered context injection.
 // Emits only startup-relevant SHELL.md sections with per-section budgets.
 // Hard cap: 9000 chars total (~2250 tokens). Source-gated: `compact` emits only
@@ -544,6 +545,7 @@ function emitFullContext(source: string | null) {
           .map(f => {
             const r = readFileWithFrontmatter(f);
             return r && r.fm && r.fm.created
+              && (r.fm.audience == null || r.fm.audience === 'shared')
               ? { file: f, fm: r.fm, body: r.body, basename: path.basename(f, '.md') }
               : null;
           })

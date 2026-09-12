@@ -105,6 +105,54 @@ test("a sanitizer-redacted body does not satisfy --check's match predicate", () 
   );
 });
 
+// The publication gate is a static permissions.ask rule, not a hook, so it holds
+// only while the rule actually matches the command the skill tells the model to
+// run. Checking that both mention `--publish` is not enough: the skill quotes the
+// script path, so a rule anchored on `file-issue.ts --publish` misses the real
+// `file-issue.ts" --publish` and the checkpoint silently disappears. Match for real.
+function matchesAnyRule(rules: string[], command: string): boolean {
+  return rules.some((rule) => {
+    const glob = rule.replace(/^Bash\(/, "").replace(/\)$/, "");
+    const source = glob
+      .split("*")
+      .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join(".*");
+    return new RegExp(`^${source}$`).test(command);
+  });
+}
+
+// Every `bun ... file-issue.ts ...` command line in the skill, with `\` line
+// continuations joined back into one command.
+function skillInvocations(): string[] {
+  const lines = readFileSync(SKILL, "utf-8").split("\n");
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!/file-issue\.ts/.test(lines[i])) continue;
+    let command = lines[i].trim();
+    while (command.endsWith("\\") && i + 1 < lines.length) {
+      command = command.slice(0, -1).trim() + " " + lines[++i].trim();
+    }
+    out.push(command);
+  }
+  return out;
+}
+
+test("seeded ask rules match the skill's publishing invocations", () => {
+  const rules: string[] = JSON.parse(
+    readFileSync(path.join(import.meta.dir, "..", "state-templates", "native-permissions.json"), "utf-8"),
+  ).ask;
+  const invocations = skillInvocations();
+  assertTrue(invocations.length >= 5, `found skill invocations (${invocations.length})`);
+
+  for (const command of invocations) {
+    const publishes = / --publish | --comment /.test(command);
+    assertTrue(
+      matchesAnyRule(rules, command) === publishes,
+      `${publishes ? "gated" : "not gated"}: ${command}`,
+    );
+  }
+});
+
 console.log("");
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

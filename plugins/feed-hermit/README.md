@@ -37,4 +37,4 @@ You own `feed-sources.md`, `feed-categories.md`, and `FEEDS.md` at the project r
 
 ## Security
 
-All fetched content is treated as untrusted — the pipeline extracts only structured data and never follows embedded instructions. A `fetch-guard` PreToolUse hook blocks WebFetch to any domain not in your `feed-sources.md`, so a poisoned source can't redirect fetches off your allowlist. If `feed-sources.md` cannot be read, the hook fails open rather than blocking all fetches.
+All fetched content is treated as untrusted: the pipeline extracts only structured data and never follows embedded instructions. A `fetch-guard` PreToolUse hook blocks WebFetch to any domain not in your `feed-sources.md`, so a poisoned source can't redirect fetches off your allowlist. If `feed-sources.md` cannot be read, the hook fails open rather than blocking all fetches.

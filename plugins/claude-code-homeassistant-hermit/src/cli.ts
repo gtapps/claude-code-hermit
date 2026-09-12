@@ -743,9 +743,9 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha restore-states': {
     spec: {
       prog: 'ha_agent_lab ha restore-states',
-      usage: 'usage: ha_agent_lab ha restore-states [-h] [--confirm] artifact',
+      usage: 'usage: ha_agent_lab ha restore-states [-h] artifact',
       positionals: ['artifact'],
-      flags: { '--confirm': { kind: 'store_true' } },
+      flags: {},
     },
     help: `    restore-states      Restore captured entity states via scene.apply
                         (gated by ha_safety_mode).`,
@@ -754,12 +754,10 @@ export const COMMANDS: Record<string, CommandRecord> = {
         const client = await deps.createClient(config);
         const result = await restoreStates(root, client, {
           artifactPath: resolve(args.positionals[0]!),
-          confirm: Boolean(args.flags['--confirm']),
         });
         const payload: Record<string, unknown> = {
           ok: result.ok,
           blocked: result.blocked,
-          needs_confirm: result.needsConfirm,
           applied: result.applied,
           entities: result.entities,
           sensitive: result.sensitive,
@@ -793,13 +791,13 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha create-helper': {
     spec: {
       prog: 'ha_agent_lab ha create-helper',
-      usage: `usage: ha_agent_lab ha create-helper [-h] [--confirm] {${HELPER_TYPES.join(',')}} json`,
+      usage: `usage: ha_agent_lab ha create-helper [-h] {${HELPER_TYPES.join(',')}} json`,
       positionals: ['type', 'json'],
-      flags: { '--confirm': { kind: 'store_true' } },
+      flags: {},
     },
     help: `    create-helper       Create a helper from JSON via WebSocket (gated write).`,
     run: async (args, { config, root, deps }) => {
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         createHelper(root, ws, args.positionals[0]!, args.positionals[1]!),
       );
     },
@@ -807,13 +805,13 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha delete-helper': {
     spec: {
       prog: 'ha_agent_lab ha delete-helper',
-      usage: `usage: ha_agent_lab ha delete-helper [-h] [--confirm] {${HELPER_TYPES.join(',')}} id`,
+      usage: `usage: ha_agent_lab ha delete-helper [-h] {${HELPER_TYPES.join(',')}} id`,
       positionals: ['type', 'id'],
-      flags: { '--confirm': { kind: 'store_true' } },
+      flags: {},
     },
     help: `    delete-helper       Delete a helper by id via WebSocket (gated write).`,
     run: async (args, { config, root, deps }) => {
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         deleteHelper(root, ws, args.positionals[0]!, args.positionals[1]!),
       );
     },
@@ -833,13 +831,13 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha create-area': {
     spec: {
       prog: 'ha_agent_lab ha create-area',
-      usage: 'usage: ha_agent_lab ha create-area [-h] [--confirm] name',
+      usage: 'usage: ha_agent_lab ha create-area [-h] name',
       positionals: ['name'],
-      flags: { '--confirm': { kind: 'store_true' } },
+      flags: {},
     },
     help: `    create-area         Create an area by name via WebSocket (gated write).`,
     run: async (args, { config, root, deps }) => {
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         createArea(root, ws, args.positionals[0]!),
       );
     },
@@ -847,13 +845,13 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha delete-area': {
     spec: {
       prog: 'ha_agent_lab ha delete-area',
-      usage: 'usage: ha_agent_lab ha delete-area [-h] [--confirm] id',
+      usage: 'usage: ha_agent_lab ha delete-area [-h] id',
       positionals: ['id'],
-      flags: { '--confirm': { kind: 'store_true' } },
+      flags: {},
     },
     help: `    delete-area         Delete an area by id via WebSocket (gated write).`,
     run: async (args, { config, root, deps }) => {
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         deleteArea(root, ws, args.positionals[0]!),
       );
     },
@@ -877,15 +875,15 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha rename-entity': {
     spec: {
       prog: 'ha_agent_lab ha rename-entity',
-      usage: 'usage: ha_agent_lab ha rename-entity [-h] [--confirm] --name NAME entity_id',
+      usage: 'usage: ha_agent_lab ha rename-entity [-h] --name NAME entity_id',
       positionals: ['entity_id'],
-      flags: { '--name': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+      flags: { '--name': { kind: 'value' } },
     },
     help: `    rename-entity       Set an entity's friendly name (gated write).`,
     run: async (args, { config, root, deps }) => {
       const name = requireFlag(args.flags['--name'], '--name');
       if (name === null) return 1;
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         updateEntity(root, ws, args.positionals[0]!, { name }, 'rename-entity'),
       );
     },
@@ -893,15 +891,15 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha set-entity-area': {
     spec: {
       prog: 'ha_agent_lab ha set-entity-area',
-      usage: 'usage: ha_agent_lab ha set-entity-area [-h] [--confirm] --area AREA entity_id',
+      usage: 'usage: ha_agent_lab ha set-entity-area [-h] --area AREA entity_id',
       positionals: ['entity_id'],
-      flags: { '--area': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+      flags: { '--area': { kind: 'value' } },
     },
     help: `    set-entity-area     Assign an entity to an area (gated write).`,
     run: async (args, { config, root, deps }) => {
       const area = requireFlag(args.flags['--area'], '--area');
       if (area === null) return 1;
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         updateEntity(root, ws, args.positionals[0]!, { area_id: area }, 'set-entity-area'),
       );
     },
@@ -909,16 +907,16 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha set-entity-enabled': {
     spec: {
       prog: 'ha_agent_lab ha set-entity-enabled',
-      usage: 'usage: ha_agent_lab ha set-entity-enabled [-h] [--confirm] --enabled {true,false} entity_id',
+      usage: 'usage: ha_agent_lab ha set-entity-enabled [-h] --enabled {true,false} entity_id',
       positionals: ['entity_id'],
-      flags: { '--enabled': { kind: 'value', choices: ['true', 'false'] }, '--confirm': { kind: 'store_true' } },
+      flags: { '--enabled': { kind: 'value', choices: ['true', 'false'] } },
     },
     help: `    set-entity-enabled  Enable/disable an entity (gated write).`,
     run: async (args, { config, root, deps }) => {
       const enabled = requireFlag(args.flags['--enabled'], '--enabled');
       if (enabled === null) return 1;
       const disabledBy = enabled === 'true' ? null : 'user';
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         updateEntity(root, ws, args.positionals[0]!, { disabled_by: disabledBy }, 'set-entity-enabled'),
       );
     },
@@ -926,15 +924,15 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha set-entity-icon': {
     spec: {
       prog: 'ha_agent_lab ha set-entity-icon',
-      usage: 'usage: ha_agent_lab ha set-entity-icon [-h] [--confirm] --icon ICON entity_id',
+      usage: 'usage: ha_agent_lab ha set-entity-icon [-h] --icon ICON entity_id',
       positionals: ['entity_id'],
-      flags: { '--icon': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+      flags: { '--icon': { kind: 'value' } },
     },
     help: `    set-entity-icon     Set an entity's icon (gated write).`,
     run: async (args, { config, root, deps }) => {
       const icon = requireFlag(args.flags['--icon'], '--icon');
       if (icon === null) return 1;
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         updateEntity(root, ws, args.positionals[0]!, { icon }, 'set-entity-icon'),
       );
     },
@@ -942,16 +940,16 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha set-entity-hidden': {
     spec: {
       prog: 'ha_agent_lab ha set-entity-hidden',
-      usage: 'usage: ha_agent_lab ha set-entity-hidden [-h] [--confirm] --hidden {true,false} entity_id',
+      usage: 'usage: ha_agent_lab ha set-entity-hidden [-h] --hidden {true,false} entity_id',
       positionals: ['entity_id'],
-      flags: { '--hidden': { kind: 'value', choices: ['true', 'false'] }, '--confirm': { kind: 'store_true' } },
+      flags: { '--hidden': { kind: 'value', choices: ['true', 'false'] } },
     },
     help: `    set-entity-hidden   Hide/show an entity in the UI (gated write).`,
     run: async (args, { config, root, deps }) => {
       const hidden = requireFlag(args.flags['--hidden'], '--hidden');
       if (hidden === null) return 1;
       const hiddenBy = hidden === 'true' ? 'user' : null;
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         updateEntity(root, ws, args.positionals[0]!, { hidden_by: hiddenBy }, 'set-entity-hidden'),
       );
     },
@@ -959,15 +957,15 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha set-entity-labels': {
     spec: {
       prog: 'ha_agent_lab ha set-entity-labels',
-      usage: 'usage: ha_agent_lab ha set-entity-labels [-h] [--confirm] --labels LABEL [LABEL ...] entity_id',
+      usage: 'usage: ha_agent_lab ha set-entity-labels [-h] --labels LABEL [LABEL ...] entity_id',
       positionals: ['entity_id'],
-      flags: { '--labels': { kind: 'plus' }, '--confirm': { kind: 'store_true' } },
+      flags: { '--labels': { kind: 'plus' } },
     },
     help: `    set-entity-labels   Set an entity's labels (gated write).`,
     run: async (args, { config, root, deps }) => {
       const labels = requirePlusFlag(args.flags['--labels'], '--labels');
       if (labels === null) return 1;
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         updateEntity(root, ws, args.positionals[0]!, { labels }, 'set-entity-labels'),
       );
     },
@@ -975,9 +973,9 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha set-entity-categories': {
     spec: {
       prog: 'ha_agent_lab ha set-entity-categories',
-      usage: 'usage: ha_agent_lab ha set-entity-categories [-h] [--confirm] --categories JSON entity_id',
+      usage: 'usage: ha_agent_lab ha set-entity-categories [-h] --categories JSON entity_id',
       positionals: ['entity_id'],
-      flags: { '--categories': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+      flags: { '--categories': { kind: 'value' } },
     },
     help: `    set-entity-categories
                         Set an entity's per-scope categories from JSON
@@ -990,7 +988,7 @@ export const COMMANDS: Record<string, CommandRecord> = {
         console.log(jsonDumps({ ok: false, message: `--categories ${parsed.message}` }));
         return 1;
       }
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         updateEntity(root, ws, args.positionals[0]!, { categories: parsed.payload }, 'set-entity-categories'),
       );
     },
@@ -998,15 +996,15 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha set-entity-aliases': {
     spec: {
       prog: 'ha_agent_lab ha set-entity-aliases',
-      usage: 'usage: ha_agent_lab ha set-entity-aliases [-h] [--confirm] --aliases ALIAS [ALIAS ...] entity_id',
+      usage: 'usage: ha_agent_lab ha set-entity-aliases [-h] --aliases ALIAS [ALIAS ...] entity_id',
       positionals: ['entity_id'],
-      flags: { '--aliases': { kind: 'plus' }, '--confirm': { kind: 'store_true' } },
+      flags: { '--aliases': { kind: 'plus' } },
     },
     help: `    set-entity-aliases  Set an entity's Assist aliases (gated write).`,
     run: async (args, { config, root, deps }) => {
       const aliases = requirePlusFlag(args.flags['--aliases'], '--aliases');
       if (aliases === null) return 1;
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         updateEntity(root, ws, args.positionals[0]!, { aliases }, 'set-entity-aliases'),
       );
     },
@@ -1026,15 +1024,15 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha set-device-area': {
     spec: {
       prog: 'ha_agent_lab ha set-device-area',
-      usage: 'usage: ha_agent_lab ha set-device-area [-h] [--confirm] --area AREA device_id',
+      usage: 'usage: ha_agent_lab ha set-device-area [-h] --area AREA device_id',
       positionals: ['device_id'],
-      flags: { '--area': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+      flags: { '--area': { kind: 'value' } },
     },
     help: `    set-device-area     Assign a device to an area (gated write).`,
     run: async (args, { config, root, deps }) => {
       const area = requireFlag(args.flags['--area'], '--area');
       if (area === null) return 1;
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         updateDevice(root, ws, args.positionals[0]!, { area_id: area }, 'set-device-area'),
       );
     },
@@ -1042,15 +1040,15 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha rename-device': {
     spec: {
       prog: 'ha_agent_lab ha rename-device',
-      usage: 'usage: ha_agent_lab ha rename-device [-h] [--confirm] --name NAME device_id',
+      usage: 'usage: ha_agent_lab ha rename-device [-h] --name NAME device_id',
       positionals: ['device_id'],
-      flags: { '--name': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+      flags: { '--name': { kind: 'value' } },
     },
     help: `    rename-device       Set a device's user name (gated write).`,
     run: async (args, { config, root, deps }) => {
       const name = requireFlag(args.flags['--name'], '--name');
       if (name === null) return 1;
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         updateDevice(root, ws, args.positionals[0]!, { name_by_user: name }, 'rename-device'),
       );
     },
@@ -1086,10 +1084,9 @@ export const COMMANDS: Record<string, CommandRecord> = {
       prog: 'ha_agent_lab ha apply-dashboard',
       usage:
         'usage: ha_agent_lab ha apply-dashboard [-h] [--url-path URL_PATH]\n' +
-        '                                       [--confirm]\n' +
         '                                       artifact',
       positionals: ['artifact'],
-      flags: { '--url-path': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+      flags: { '--url-path': { kind: 'value' } },
     },
     help: `    apply-dashboard     Save/replace a dashboard's config from an artifact
                         via WebSocket (gated write).`,
@@ -1112,7 +1109,7 @@ export const COMMANDS: Record<string, CommandRecord> = {
         );
         return 1;
       }
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         saveDashboard(root, ws, urlPath, dashboardConfig),
       );
     },
@@ -1120,14 +1117,14 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha create-dashboard': {
     spec: {
       prog: 'ha_agent_lab ha create-dashboard',
-      usage: 'usage: ha_agent_lab ha create-dashboard [-h] [--confirm] json',
+      usage: 'usage: ha_agent_lab ha create-dashboard [-h] json',
       positionals: ['json'],
-      flags: { '--confirm': { kind: 'store_true' } },
+      flags: {},
     },
     help: `    create-dashboard    Create a dashboard from JSON via WebSocket (gated
                         write).`,
     run: async (args, { config, root, deps }) => {
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         createDashboard(root, ws, args.positionals[0]!),
       );
     },
@@ -1135,13 +1132,13 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha delete-dashboard': {
     spec: {
       prog: 'ha_agent_lab ha delete-dashboard',
-      usage: 'usage: ha_agent_lab ha delete-dashboard [-h] [--confirm] dashboard_id',
+      usage: 'usage: ha_agent_lab ha delete-dashboard [-h] dashboard_id',
       positionals: ['dashboard_id'],
-      flags: { '--confirm': { kind: 'store_true' } },
+      flags: {},
     },
     help: `    delete-dashboard    Delete a dashboard by id via WebSocket (gated write).`,
     run: async (args, { config, root, deps }) => {
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         deleteDashboard(root, ws, args.positionals[0]!),
       );
     },
@@ -1200,9 +1197,9 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha call-service': {
     spec: {
       prog: 'ha_agent_lab ha call-service',
-      usage: 'usage: ha_agent_lab ha call-service [-h] [--data DATA] [--confirm] domain.service',
+      usage: 'usage: ha_agent_lab ha call-service [-h] [--data DATA] domain.service',
       positionals: ['domain.service'],
-      flags: { '--data': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+      flags: { '--data': { kind: 'value' } },
     },
     help: `    call-service        Call any HA service (POST /api/services/...).
                         Sensitive domains/entities gated by ha_safety_mode;
@@ -1211,7 +1208,6 @@ export const COMMANDS: Record<string, CommandRecord> = {
       return handleCallService(
         args.positionals[0]!,
         args.flags['--data'] as string | undefined,
-        Boolean(args.flags['--confirm']),
         root,
         config,
         deps,
@@ -1227,8 +1223,7 @@ export const COMMANDS: Record<string, CommandRecord> = {
         '                                       [--elevation ELEVATION]\n' +
         '                                       [--unit-system {metric,us_customary}]\n' +
         '                                       [--currency CURRENCY]\n' +
-        '                                       [--time-zone TIME_ZONE] [--country COUNTRY]\n' +
-        '                                       [--confirm]',
+        '                                       [--time-zone TIME_ZONE] [--country COUNTRY]',
       positionals: [],
       flags: {
         '--latitude': { kind: 'value' },
@@ -1238,7 +1233,6 @@ export const COMMANDS: Record<string, CommandRecord> = {
         '--currency': { kind: 'value' },
         '--time-zone': { kind: 'value' },
         '--country': { kind: 'value' },
-        '--confirm': { kind: 'store_true' },
       },
     },
     help: `    set-core-config     Partial update of location/unit system/currency/
@@ -1275,7 +1269,7 @@ export const COMMANDS: Record<string, CommandRecord> = {
         console.log(jsonDumps({ ok: false, message: 'At least one config field flag is required.' }));
         return 1;
       }
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         setCoreConfig(root, ws, fields),
       );
     },
@@ -1356,13 +1350,13 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha create-floor': {
     spec: {
       prog: 'ha_agent_lab ha create-floor',
-      usage: 'usage: ha_agent_lab ha create-floor [-h] [--confirm] name',
+      usage: 'usage: ha_agent_lab ha create-floor [-h] name',
       positionals: ['name'],
-      flags: { '--confirm': { kind: 'store_true' } },
+      flags: {},
     },
     help: `    create-floor        Create a floor by name via WebSocket (gated write).`,
     run: async (args, { config, root, deps }) => {
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         createFloor(root, ws, args.positionals[0]!),
       );
     },
@@ -1370,13 +1364,13 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha delete-floor': {
     spec: {
       prog: 'ha_agent_lab ha delete-floor',
-      usage: 'usage: ha_agent_lab ha delete-floor [-h] [--confirm] id',
+      usage: 'usage: ha_agent_lab ha delete-floor [-h] id',
       positionals: ['id'],
-      flags: { '--confirm': { kind: 'store_true' } },
+      flags: {},
     },
     help: `    delete-floor        Delete a floor by id via WebSocket (gated write).`,
     run: async (args, { config, root, deps }) => {
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         deleteFloor(root, ws, args.positionals[0]!),
       );
     },
@@ -1396,13 +1390,13 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha create-label': {
     spec: {
       prog: 'ha_agent_lab ha create-label',
-      usage: 'usage: ha_agent_lab ha create-label [-h] [--confirm] name',
+      usage: 'usage: ha_agent_lab ha create-label [-h] name',
       positionals: ['name'],
-      flags: { '--confirm': { kind: 'store_true' } },
+      flags: {},
     },
     help: `    create-label        Create a label by name via WebSocket (gated write).`,
     run: async (args, { config, root, deps }) => {
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         createLabel(root, ws, args.positionals[0]!),
       );
     },
@@ -1410,13 +1404,13 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha delete-label': {
     spec: {
       prog: 'ha_agent_lab ha delete-label',
-      usage: 'usage: ha_agent_lab ha delete-label [-h] [--confirm] id',
+      usage: 'usage: ha_agent_lab ha delete-label [-h] id',
       positionals: ['id'],
-      flags: { '--confirm': { kind: 'store_true' } },
+      flags: {},
     },
     help: `    delete-label        Delete a label by id via WebSocket (gated write).`,
     run: async (args, { config, root, deps }) => {
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         deleteLabel(root, ws, args.positionals[0]!),
       );
     },
@@ -1424,15 +1418,15 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha rename-area': {
     spec: {
       prog: 'ha_agent_lab ha rename-area',
-      usage: 'usage: ha_agent_lab ha rename-area [-h] [--confirm] --name NAME area_id',
+      usage: 'usage: ha_agent_lab ha rename-area [-h] --name NAME area_id',
       positionals: ['area_id'],
-      flags: { '--name': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+      flags: { '--name': { kind: 'value' } },
     },
     help: `    rename-area         Set an area's friendly name (gated write).`,
     run: async (args, { config, root, deps }) => {
       const name = requireFlag(args.flags['--name'], '--name');
       if (name === null) return 1;
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         updateArea(root, ws, args.positionals[0]!, { name }, 'rename-area'),
       );
     },
@@ -1440,15 +1434,15 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha set-area-icon': {
     spec: {
       prog: 'ha_agent_lab ha set-area-icon',
-      usage: 'usage: ha_agent_lab ha set-area-icon [-h] [--confirm] --icon ICON area_id',
+      usage: 'usage: ha_agent_lab ha set-area-icon [-h] --icon ICON area_id',
       positionals: ['area_id'],
-      flags: { '--icon': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+      flags: { '--icon': { kind: 'value' } },
     },
     help: `    set-area-icon       Set an area's icon (gated write).`,
     run: async (args, { config, root, deps }) => {
       const icon = requireFlag(args.flags['--icon'], '--icon');
       if (icon === null) return 1;
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         updateArea(root, ws, args.positionals[0]!, { icon }, 'set-area-icon'),
       );
     },
@@ -1456,15 +1450,15 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha set-area-floor': {
     spec: {
       prog: 'ha_agent_lab ha set-area-floor',
-      usage: 'usage: ha_agent_lab ha set-area-floor [-h] [--confirm] --floor FLOOR area_id',
+      usage: 'usage: ha_agent_lab ha set-area-floor [-h] --floor FLOOR area_id',
       positionals: ['area_id'],
-      flags: { '--floor': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+      flags: { '--floor': { kind: 'value' } },
     },
     help: `    set-area-floor      Assign an area to a floor (gated write).`,
     run: async (args, { config, root, deps }) => {
       const floor = requireFlag(args.flags['--floor'], '--floor');
       if (floor === null) return 1;
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         updateArea(root, ws, args.positionals[0]!, { floor_id: floor }, 'set-area-floor'),
       );
     },
@@ -1472,15 +1466,15 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha set-area-labels': {
     spec: {
       prog: 'ha_agent_lab ha set-area-labels',
-      usage: 'usage: ha_agent_lab ha set-area-labels [-h] [--confirm] --labels LABEL [LABEL ...] area_id',
+      usage: 'usage: ha_agent_lab ha set-area-labels [-h] --labels LABEL [LABEL ...] area_id',
       positionals: ['area_id'],
-      flags: { '--labels': { kind: 'plus' }, '--confirm': { kind: 'store_true' } },
+      flags: { '--labels': { kind: 'plus' } },
     },
     help: `    set-area-labels     Set an area's labels (gated write).`,
     run: async (args, { config, root, deps }) => {
       const labels = requirePlusFlag(args.flags['--labels'], '--labels');
       if (labels === null) return 1;
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         updateArea(root, ws, args.positionals[0]!, { labels }, 'set-area-labels'),
       );
     },
@@ -1505,13 +1499,12 @@ export const COMMANDS: Record<string, CommandRecord> = {
       usage:
         'usage: ha_agent_lab ha expose-entity [-h] --entity-ids ENTITY [ENTITY ...]\n' +
         '                                     --assistants ASSISTANT [ASSISTANT ...]\n' +
-        '                                     --expose {true,false} [--confirm]',
+        '                                     --expose {true,false}',
       positionals: [],
       flags: {
         '--entity-ids': { kind: 'plus' },
         '--assistants': { kind: 'plus' },
         '--expose': { kind: 'value', choices: ['true', 'false'] },
-        '--confirm': { kind: 'store_true' },
       },
     },
     help: `    expose-entity       Expose/unexpose entities to one or more Assist
@@ -1525,7 +1518,7 @@ export const COMMANDS: Record<string, CommandRecord> = {
       if (assistants === null) return 1;
       const expose = requireFlag(args.flags['--expose'], '--expose');
       if (expose === null) return 1;
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         exposeEntity(root, ws, entityIds, assistants, expose === 'true'),
       );
     },
@@ -1552,8 +1545,7 @@ export const COMMANDS: Record<string, CommandRecord> = {
         '                                     [--include-all-addons]\n' +
         '                                     [--include-database {true,false}]\n' +
         '                                     [--include-folders FOLDER [FOLDER ...]]\n' +
-        '                                     [--include-homeassistant {true,false}]\n' +
-        '                                     [--confirm]',
+        '                                     [--include-homeassistant {true,false}]',
       positionals: [],
       flags: {
         '--agent-ids': { kind: 'plus' },
@@ -1564,7 +1556,6 @@ export const COMMANDS: Record<string, CommandRecord> = {
         '--include-database': { kind: 'value', choices: ['true', 'false'] },
         '--include-folders': { kind: 'plus' },
         '--include-homeassistant': { kind: 'value', choices: ['true', 'false'] },
-        '--confirm': { kind: 'store_true' },
       },
     },
     help: `    create-backup       Generate a backup via WebSocket (backup/generate,
@@ -1585,7 +1576,7 @@ export const COMMANDS: Record<string, CommandRecord> = {
       setIfPresent('--include-folders', 'include_folders');
       setIfPresent('--include-homeassistant', 'include_homeassistant', (v) => v === 'true');
 
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         createBackup(root, ws, fields),
       );
     },
@@ -1606,14 +1597,14 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha import-blueprint': {
     spec: {
       prog: 'ha_agent_lab ha import-blueprint',
-      usage: 'usage: ha_agent_lab ha import-blueprint [-h] [--confirm] domain url',
+      usage: 'usage: ha_agent_lab ha import-blueprint [-h] domain url',
       positionals: ['domain', 'url'],
-      flags: { '--confirm': { kind: 'store_true' } },
+      flags: {},
     },
     help: `    import-blueprint    Import a blueprint from a URL and save it under a
                         domain via WebSocket (gated write).`,
     run: async (args, { config, root, deps }) => {
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         importBlueprint(root, ws, args.positionals[0]!, args.positionals[1]!),
       );
     },
@@ -1634,9 +1625,9 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha set-energy-prefs': {
     spec: {
       prog: 'ha_agent_lab ha set-energy-prefs',
-      usage: 'usage: ha_agent_lab ha set-energy-prefs [-h] [--confirm] json',
+      usage: 'usage: ha_agent_lab ha set-energy-prefs [-h] json',
       positionals: ['json'],
-      flags: { '--confirm': { kind: 'store_true' } },
+      flags: {},
     },
     help: `    set-energy-prefs    Replace energy dashboard preferences from JSON via
                         WebSocket (energy/save_prefs, gated write).`,
@@ -1646,7 +1637,7 @@ export const COMMANDS: Record<string, CommandRecord> = {
         console.log(jsonDumps({ ok: false, message: `energy prefs JSON ${parsed.message}` }));
         return 1;
       }
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         setEnergyPrefs(root, ws, parsed.payload),
       );
     },
@@ -1654,28 +1645,28 @@ export const COMMANDS: Record<string, CommandRecord> = {
   'ha reload-entry': {
     spec: {
       prog: 'ha_agent_lab ha reload-entry',
-      usage: 'usage: ha_agent_lab ha reload-entry [-h] [--confirm] entry_id',
+      usage: 'usage: ha_agent_lab ha reload-entry [-h] entry_id',
       positionals: ['entry_id'],
-      flags: { '--confirm': { kind: 'store_true' } },
+      flags: {},
     },
     help: `    reload-entry        Reload a config entry (REST, gated write).`,
     run: async (args, { config, root, deps }) => {
-      return handleReloadEntry(args.positionals[0]!, Boolean(args.flags['--confirm']), root, config, deps);
+      return handleReloadEntry(args.positionals[0]!, root, config, deps);
     },
   },
   'ha disable-entry': {
     spec: {
       prog: 'ha_agent_lab ha disable-entry',
-      usage: 'usage: ha_agent_lab ha disable-entry [-h] [--confirm] --disabled {true,false} entry_id',
+      usage: 'usage: ha_agent_lab ha disable-entry [-h] --disabled {true,false} entry_id',
       positionals: ['entry_id'],
-      flags: { '--disabled': { kind: 'value', choices: ['true', 'false'] }, '--confirm': { kind: 'store_true' } },
+      flags: { '--disabled': { kind: 'value', choices: ['true', 'false'] } },
     },
     help: `    disable-entry       Enable/disable a config entry via WebSocket
                         (config_entries/disable, gated write).`,
     run: async (args, { config, root, deps }) => {
       const disabled = requireFlag(args.flags['--disabled'], '--disabled');
       if (disabled === null) return 1;
-      return runWsMutation(deps, config, root, Boolean(args.flags['--confirm']), (ws) =>
+      return runWsMutation(deps, config, root, (ws) =>
         disableConfigEntry(root, ws, args.positionals[0]!, disabled === 'true'),
       );
     },
@@ -1744,7 +1735,7 @@ interface ParsedArgs {
   flags: Record<string, unknown>;
 }
 
-function parseArgs(argv: string[]): ParsedArgs {
+export function parseArgs(argv: string[]): ParsedArgs {
   if (argv[0] === '-h' || argv[0] === '--help') printHelp(TOP_HELP);
   if (argv.length === 0) {
     argError('ha_agent_lab', TOP_USAGE, 'the following arguments are required: command');
@@ -1956,16 +1947,14 @@ async function runWsMutation(
   deps: CliDeps,
   config: AppConfig,
   root: string,
-  confirmed: boolean,
   run: (ws: WsCommandClient) => Promise<WsMutationResult>,
 ): Promise<number> {
-  const gate = gateStructuralMutation(root, confirmed);
-  if (!gate.allowed) {
+  const gate = gateStructuralMutation(root);
+  if (gate.decision === 'deny') {
     console.log(
       jsonDumps({
         ok: false,
         blocked: true,
-        requires_confirm: gate.requiresConfirm,
         mode: gate.mode,
         data: null,
         message: gate.reason,
@@ -1990,7 +1979,6 @@ async function runWsMutation(
         {
           ok: r.ok,
           blocked: false,
-          requires_confirm: false,
           mode: gate.mode,
           data: r.data,
           message: r.message,
@@ -2222,7 +2210,7 @@ function writeGatedRestReport(root: string, spec: GatedRestReportSpec, id: strin
 /**
  * Shared driver for the two REST-based gated writes (call-service, reload-entry):
  * emit the blocked JSON if the gate refuses, otherwise run the call, write an
- * audit report, and emit the standard {ok,blocked,requires_confirm,mode,data,
+ * audit report, and emit the standard {ok,blocked,mode,data,
  * message,report_path} envelope — mirrors runWsMutation for the WS path.
  */
 async function runGatedRestWrite(
@@ -2233,12 +2221,11 @@ async function runGatedRestWrite(
   doCall: (client: CliClient) => Promise<unknown>,
   writeReport: (result: unknown) => string,
 ): Promise<number> {
-  if (!gate.allowed) {
+  if (gate.decision === 'deny') {
     console.log(
       jsonDumps({
         ok: false,
         blocked: true,
-        requires_confirm: gate.requiresConfirm,
         mode: gate.mode,
         data: null,
         message: gate.reason,
@@ -2256,7 +2243,6 @@ async function runGatedRestWrite(
         {
           ok: true,
           blocked: false,
-          requires_confirm: false,
           mode: gate.mode,
           data: result,
           message: 'ok',
@@ -2272,7 +2258,6 @@ async function runGatedRestWrite(
       jsonDumps({
         ok: false,
         blocked: false,
-        requires_confirm: false,
         mode: gate.mode,
         data: null,
         message: extractHaErrorMessage(exc),
@@ -2286,7 +2271,6 @@ async function runGatedRestWrite(
 async function handleCallService(
   target: string,
   rawData: string | undefined,
-  confirmed: boolean,
   root: string,
   config: AppConfig,
   deps: CliDeps,
@@ -2309,7 +2293,7 @@ async function handleCallService(
     data = parsedData.payload;
   }
 
-  const gate = gateServiceCall(root, domain, service, data, confirmed);
+  const gate = gateServiceCall(root, domain, service, data);
   return runGatedRestWrite(
     deps,
     config,
@@ -2322,12 +2306,11 @@ async function handleCallService(
 
 async function handleReloadEntry(
   entryId: string,
-  confirmed: boolean,
   root: string,
   config: AppConfig,
   deps: CliDeps,
 ): Promise<number> {
-  const gate = gateStructuralMutation(root, confirmed);
+  const gate = gateStructuralMutation(root);
   return runGatedRestWrite(
     deps,
     config,
@@ -2375,14 +2358,13 @@ function handlePolicyCheck(target: string, root: string): number {
     console.log(
       jsonDumps({
         file: target,
-        blocked: decision.blocked,
-        severity: decision.severity,
+        decision: decision.decision,
         entities,
         services,
         reasons: decision.reasons,
       }),
     );
-    return decision.blocked ? 1 : 0;
+    return decision.decision === 'deny' ? 1 : 0;
   }
   const result = checkEntity(target);
   console.log(jsonDumps(result));

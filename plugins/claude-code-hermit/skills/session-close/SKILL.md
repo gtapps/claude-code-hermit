@@ -71,7 +71,7 @@ This path is intentionally silent: no operator notification on queue or drain �
      1. *"What did I build ad-hoc this session (throwaway scripts, repeated manual procedures, long waits a tool would remove) that should persist?"*
      2. *"What did I have to re-derive or re-discover that a compiled note or memory entry should have told me?"*
      3. *"Did a skill produce output this session that was wrong, incomplete, or had to be reworked — and which skill + why? (Exclude preference, scope, or context changes — only genuine quality defects count. Settled-endpoint calibrations are recorded at settlement via `skill-preference:<skill>` per the placement rule, not here.)"*
-     One Lesson line per qualifying item, with quantified cost where known (e.g. `rebuilt wm pipeline in /tmp, 5 scripts, ~40 min/rerun`). Substantial re-derived knowledge goes to `compiled/` via the Artifacts bullet below instead of a Lesson line. If nothing qualifies, add nothing — no placeholder lines. These lines are the input procedure-capture recurs on (reflect reads `## Lessons` of archived reports).
+     One Lesson line per qualifying item, with quantified cost where known (e.g. `rebuilt wm pipeline in /tmp, 5 scripts, ~40 min/rerun`). If nothing qualifies, add nothing — no placeholder lines. These lines are the input procedure-capture recurs on (reflect reads `## Lessons` of archived reports).
      **For question 1** — on a positive answer that names a repeated manual procedure, also append one observations-ledger row. Name the slug for the capability the procedure provides (reflect § Procedure capture naming rule — no issue/PR numbers, error strings, dates, or `fix-<X>` phrasings):
      ```
      bun ${CLAUDE_PLUGIN_ROOT}/scripts/observations.ts observe .claude-code-hermit procedure-noticed --origin=own-work <<'HERMIT_OBSERVATION'
@@ -79,6 +79,13 @@ This path is intentionally silent: no operator notification on queue or drain �
      HERMIT_OBSERVATION
      ```
      The row is a bare recurrence counter; the Lessons line carries the procedure content. Same fail-open / operator-close gate as question 3.
+     **For question 2**: on a positive answer, write each item to its home now, before compiling the report:
+     - **Harness fact or session-wide preference:** issue the standard "remember it" reflection named in step 5. The native flow updates an existing memory file when one covers the fact; an update rather than a create means the home already held it.
+     - **Durable domain fact:** merge into the subject's `compiled/topic-<slug>.md` through the **Evolving subject** routing below. Put the fact in the body; `summary` stays a one-line subject description (the startup catalog prints only its first 100 characters). An already-present fact means the home already held it.
+     Record what was re-derived, its cost where known, and the destination (`[[compiled/topic-<slug>]]` or the memory file slug) in the Lessons line, with the destination early and the line under 150 characters (the frontmatter digest clips there). If the home already held it, say so instead.
+     ```
+     now in [[compiled/topic-deploys]]: deploy needs a cache clear first, ~20 min
+     ```
      **For question 3** — on a positive answer, for each defective skill: (a) record the what/why as a `## Lessons` line above (the durable content channel reflect reads at graduation); (b) append one observations-ledger counter row using the **canonical bare skill name** (read the `name:` frontmatter from `.claude/skills/<name>/SKILL.md`; strip any `claude-code-hermit:`/`<plugin>:` prefix; lowercase) — fail-open so the close never aborts:
      ```
      bun ${CLAUDE_PLUGIN_ROOT}/scripts/observations.ts observe .claude-code-hermit skill-correction --origin=own-work <<'HERMIT_OBSERVATION'

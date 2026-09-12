@@ -1,6 +1,6 @@
 ---
 name: forge-servers
-description: List, inspect, and reboot Laravel Forge servers. Reboot always goes through surface-then-approve (preview-reboot → confirm → server-reboot --confirm). Triggers on "list servers", "show server", "reboot server", "server status".
+description: List, inspect, and reboot Laravel Forge servers. Reboot always goes through surface-then-approve (preview-reboot → native approval → server-reboot). Triggers on "list servers", "show server", "reboot server", "server status".
 ---
 
 # Forge Servers
@@ -33,12 +33,12 @@ php ${CLAUDE_PLUGIN_ROOT}/php/forge.php preview-reboot <server>
 
 Resolves `<server>` to the canonical record and prints the server name, IP, and ID. Exit 0, no mutation.
 
-**Step 2 — Relay to operator.** Show the canonical target. Ask for explicit approval.
+**Step 2: Relay to operator.** Show the canonical target.
 
-**Step 3 — On approval only:**
+**Step 3: Execute.**
 
 ```bash
-php ${CLAUDE_PLUGIN_ROOT}/php/forge.php server-reboot <server> --confirm
+php ${CLAUDE_PLUGIN_ROOT}/php/forge.php server-reboot <server>
 ```
 
 A wrong reboot causes an outage. Never auto-confirm. Never skip the preview step.
@@ -62,9 +62,9 @@ echo '[<server-id>, {"type":"cpu_load","operator":"gte","threshold":90,"notify":
 
 Prints the canonical server, `POST /orgs/<org>/servers/<id>/monitors`, the payload, and a plan id.
 
-**Step 2 — Relay and wait.** Send the canonical server and the payload to the operator and ask for approval. Nothing has been sent to Forge at this point.
+**Step 2: Preview.** Show the canonical server and payload.
 
-**Step 3 — On approval only:**
+**Step 3: Execute.**
 
 ```bash
 php ${CLAUDE_PLUGIN_ROOT}/php/forge.php execute <plan-id>

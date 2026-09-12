@@ -45,16 +45,15 @@ test('HA APPEND stays under the post-trim ceiling', () => {
 test('HA APPEND keeps every safety rule the trim was not allowed to touch', () => {
   expect(APPEND.includes('Never commit real HA URLs, tokens, or device inventories.')).toBe(true);
   expect(/[Uu]ncertain entities default to sensitive/.test(APPEND)).toBe(true);
-  // Explicit approval before applying automations / changing safety policy is a
-  // rule of its own — it must survive the merge of the actuation statements.
+  // Changing safety policy still requires explicit operator approval.
   expect(/approval[\s\S]{0,80}modifying safety policy/.test(APPEND)).toBe(true);
 });
 
-test('HA APPEND states the real enforcement boundary, not blanket determinism', () => {
-  // `ask` softens the gate only for concrete sensitive targets; unresolvable or
-  // malformed targets hard-block in BOTH modes (SAFETY.md § Safety Mode).
-  expect(APPEND.includes('ha_safety_mode')).toBe(true);
-  expect(/hard-block in \*\*both\*\* modes/.test(APPEND)).toBe(true);
+test('HA APPEND preserves previews, native approval, and policy-block handling', () => {
+  expect(APPEND.includes('Preview sensitive actuation')).toBe(true);
+  expect(APPEND.includes('and structural writes')).toBe(true);
+  expect(APPEND.includes('Claude Code requests native approval before execution.')).toBe(true);
+  expect(APPEND.includes('Surface policy blocks as proposals.')).toBe(true);
 });
 
 test('HA APPEND carries no per-install config state or env setup', () => {

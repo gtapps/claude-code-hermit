@@ -24,10 +24,10 @@ The safety gate has a two-tier configurable mode stored in `.claude-code-hermit/
 
 | Mode | Behaviour |
 |------|-----------|
-| `strict` (default) | Always blocked — no agent-drafted automation or MCP call can actuate sensitive domains. Blocked work becomes a proposal. |
-| `ask` | Operator is prompted before any actuation of a sensitive entity. The `ha-apply-change` skill requires `AskUserQuestion` confirmation before pushing. Direct MCP calls emit `permissionDecision: "ask"` so Claude Code itself prompts the operator before allowing the call — enforced by the harness, not by agent convention. |
+| `strict` | Always blocked, no agent-drafted automation or MCP call can actuate sensitive domains. Blocked work becomes a proposal. |
+| `ask` (default) | Sensitive actuation requires native approval. YAML and CLI workflows show a preview before execution. |
 
-Both tiers enforce confirmation through the runtime; there is no "operator-owns-the-risk" mode by design — actuation of locks and alarms has no software undo.
+Claude Code requests native approval before guarded commands run. Direct CLI execution outside Claude Code has no confirmation-only checkpoint. CLI validation and policy denials still apply.
 
 The mode dial does **not** relax the hard fail-closed branch: an unresolvable `area_id`/`floor_id`/`label_id`/`device_id` fan-out, a malformed `entity_id`, or an unnamed/garbage call all still block regardless of mode. `Hass*` intent tools that target by `name`/`area` also hard-block unless `ha_assist_control_enabled: true` is set (see below). The one mode-dependent case is an **opaque named script tool** (a bare-`object_id` call with no concrete target and no fan-out selector): `strict` blocks it, `ask` prompts the operator — same as it does for a concrete sensitive entity. The `HA_SAFE_ENTITIES` per-entity allowlist still takes precedence over both modes — a listed entity is always allowed.
 
@@ -35,7 +35,7 @@ The mode dial does **not** relax the hard fail-closed branch: an unresolvable `a
 
 In always-on and channel sessions, runtime device control goes through HA Assist intent tools (`HassTurnOn`, `HassLightSet`, etc.) via MCP — requires `ha_assist_control_enabled: true` and each device exposed in HA (Settings → Voice assistants → Expose). The safety gate passes these through when the opt-in is set; HA's own exposure list is the control boundary.
 
-In a headless session a `permissionDecision: "ask"` prompt is returned to the model as context rather than presented as a UI dialog. Sensitive entities under `ask` mode still emit the ask decision; the model must not auto-approve without operator input over the channel.
+Native approval is handled by Claude Code and its configured permission relay. If no approval surface is available, do not execute through another route. Explicit project ask rules and hook asks supply the checkpoint; permission mode alone does not.
 
 Change the mode by editing `ha_safety_mode` in `.claude-code-hermit/config.json` or re-running `/claude-code-homeassistant-hermit:hatch`.
 
@@ -56,10 +56,10 @@ When you set `ha_assist_control_enabled: true` in `.claude-code-hermit/config.js
 `ha call-service update.install` is not gated by `ha_safety_mode` at all — it has its own carve-out in `gateServiceCall`, deliberately decoupled from the mode dial:
 
 - **`ha_update_auto_apply` unset or `false` (default)**: any `update.*` call with no other sensitive entity riding along is **blocked outright**, in both `strict` and `ask`. Surface it as a proposal (this is what `/claude-code-homeassistant-hermit:ha-update-check` does daily).
-- **`ha_update_auto_apply: true`** (set via `/claude-code-homeassistant-hermit:hatch` Step 7.56): the same call is **allowed, but only with `--confirm` on every invocation** — the flag authorizes the call *class*, `--confirm` authorizes each *instance*. Neither alone is sufficient, and this holds regardless of `ha_safety_mode`.
+- **`ha_update_auto_apply: true`**: eligible updates request native approval on every invocation, independent of `ha_safety_mode`.
 - A call that also references a genuinely sensitive entity (`lock`, `alarm_control_panel`) is unaffected by this carve-out and still hard-blocks under `strict` via the normal path.
 
-**Tier rule, enforced by `/claude-code-homeassistant-hermit:ha-apply-update`, not by the policy layer:** even with the flag on, add-on and HACS updates may auto-apply (HA backs them up first); Core, OS, and Supervisor updates always wait for an explicit operator go-ahead in chat, because a bad Core update can cut off dashboard access with no software undo — a backup alone isn't a sufficient safety net for that failure mode.
+**Tier rule, enforced by `/claude-code-homeassistant-hermit:ha-apply-update`, not by the policy layer:** even with the flag on, add-on and HACS updates may auto-apply (HA backs them up first); Core, OS, and Supervisor updates require a preview followed by native operator approval, because a bad Core update can cut off dashboard access with no software undo, a backup alone isn't a sufficient safety net for that failure mode.
 
 ## Policy Overrides
 

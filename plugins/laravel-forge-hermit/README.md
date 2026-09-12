@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.0.14-green.svg" alt="Version 0.0.14" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.0.15-green.svg" alt="Version 0.0.15" /></a>
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
   <a href="https://discord.gg/54sJqAxhUh"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Join" /></a>
 </p>
@@ -14,7 +14,7 @@ Turn Claude Code into a 24/7 assistant for your [Laravel Forge](https://forge.la
   <img src="../claude-code-hermit/assets/cover.png" alt="Always-on Claude Code Laravel Forge Agent" width="720" />
 </p>
 
-Deploys, manages servers and sites, reads logs, and runs a daily estate health scan — never firing a write without showing you the canonical target first. Wires the official `laravel/forge-sdk` PHP v4 into the [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) loop, with a write-confirmation gate in front of every deploy and reboot.
+Deploys, manages servers and sites, reads logs, and runs a daily estate health scan; never firing a write without showing you the canonical target first. Wires the official `laravel/forge-sdk` PHP v4 into the [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) loop, with project permission rules for native approval before deploy and reboot.
 
 ```
 # Install
@@ -40,7 +40,7 @@ claude plugin install laravel-forge-hermit@claude-code-hermit --scope local
 | `/laravel-forge-hermit:forge-logs` | Latest deployment log, specific deployment log, server log, triage mode |
 | `/laravel-forge-hermit:forge-failed-deploys` | Daily estate scan — surfaces sites with failed latest deployments as `[reliability]` proposals |
 
-Every write operation goes through **surface-then-approve**: the canonical target (server name, IP, site name, IDs) is shown before any `--confirm` flag is sent. A wrong reboot is an outage.
+Every write operation goes through **surface-then-approve**: the canonical target (server name, IP, site name, IDs) is shown before Claude Code requests native approval. A wrong reboot is an outage.
 
 ---
 
@@ -88,13 +88,14 @@ claude plugin update laravel-forge-hermit@claude-code-hermit --scope local
 
 ## Safety
 
-Writes are gated by two independent layers — neither is optional:
+Writes use native approval; generic writes also enforce request integrity:
 
-- **`write-confirm-gate` hook** — a `PreToolUse` Bash hook that blocks any `deploy` or `server-reboot` call lacking `--confirm`.
-- **In-PHP `--confirm` gate** — `forge.php` re-checks the flag before the SDK fires, for those two curated commands.
-- **Hash-checked plans for everything else** — the rest of the SDK is reachable through generic dispatch: `call <method>` for reads, and for writes `preview <method>` → operator approval → `execute <plan-id>`. This includes the SDK calls behind `deploy` and `server-reboot` (`createDeployment`, `createServerAction`), so those two operations have a second route that the hook and `--confirm` do not cover — on that route the plan hash and the operator's approval are the gate. Preview captures the *actual outbound HTTP request* without sending it, stores it under a SHA-256, and `execute` re-derives that request and refuses unless it still matches. Plans are single use and expire in 15 minutes, so an edited payload, a reused approval or a stale window sends nothing. Two tiers stay denied by default — anything returning credential material, and anything whose captured verb is `DELETE` — and only the operator can lift them, via `.env` (which the agent cannot edit). `forge.php policy` prints the effective boundary.
+- **Native approval**: project permission rules ask before deploy, reboot, and plan execution. Direct CLI execution outside Claude Code has no confirmation-only checkpoint; validation and policy denials still apply.
+- **Hash-checked plans**: generic writes use `preview <method>` followed by `execute <plan-id>`. Preview captures the outbound request without sending it; execution re-derives and matches its hash. Plans expire after 15 minutes and are single use. Secrets and DELETE operations remain denied unless the operator lifts the relevant policy in `.env`. `forge.php policy` reports the effective boundary.
 
-- **Surface-then-approve** — the canonical target is relayed and approved before any write re-runs with `--confirm`.
+Project ask rules match visible command text, including quoted script paths. They do not resolve arbitrary aliases or dynamically constructed commands. Use the documented CLI invocations.
+
+- **Surface-then-approve**; the canonical target is relayed and approved before execution.
 - **Logs are scrubbed** — deployment and server logs may carry secrets; they're scrubbed before relay and before persistence.
 - **`.env` stays off the shell** — there is no `Bash(*TOKEN*)` substring deny. `Bash(cat .env*)` is a seeded native deny. Credential state is checked with `forge.php check`, never by reading `.env`.
 

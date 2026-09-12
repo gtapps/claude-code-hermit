@@ -49,7 +49,7 @@ test('restore blocks a sensitive entity under strict mode', async () => {
     'lock.front_door': { state: 'locked', attributes: {} },
   });
   const client = fakeClient();
-  const res = await restoreStates(root, client, { artifactPath, confirm: false });
+  const res = await restoreStates(root, client, { artifactPath });
 
   expect(res.ok).toBe(false);
   expect(res.blocked).toBe(true);
@@ -63,7 +63,7 @@ test('restore of a non-sensitive light issues the expected scene.apply call', as
     'light.living_room': { state: 'on', attributes: { brightness: 200 } },
   });
   const client = fakeClient({ post: () => ({}) });
-  const res = await restoreStates(root, client, { artifactPath, confirm: false });
+  const res = await restoreStates(root, client, { artifactPath });
 
   expect(res.ok).toBe(true);
   expect(res.applied).toBe(1);
@@ -72,19 +72,14 @@ test('restore of a non-sensitive light issues the expected scene.apply call', as
   ]);
 });
 
-test('ask mode requires --confirm for a sensitive entity', async () => {
+test('ask mode leaves approval to Claude Code before restoration', async () => {
   const root = makeHaConfig('ask');
   const artifactPath = writeSnapshot(root, {
     'alarm_control_panel.home': { state: 'armed_away', attributes: {} },
   });
   const client = fakeClient({ post: () => ({}) });
 
-  const noConfirm = await restoreStates(root, client, { artifactPath, confirm: false });
-  expect(noConfirm.ok).toBe(false);
-  expect(noConfirm.needsConfirm).toBe(true);
-  expect(client.calls.post).toHaveLength(0);
-
-  const confirmed = await restoreStates(root, client, { artifactPath, confirm: true });
-  expect(confirmed.ok).toBe(true);
+  const result = await restoreStates(root, client, { artifactPath });
+  expect(result.ok).toBe(true);
   expect(client.calls.post).toHaveLength(1);
 });

@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.1.2-green.svg" alt="Version 0.1.2" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.1.3-green.svg" alt="Version 0.1.3" /></a>
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
   <a href="https://discord.gg/54sJqAxhUh"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Join" /></a>
 </p>
@@ -14,7 +14,7 @@ Turn Claude Code into a 24/7 personal fitness assistant. **Strava-aware**, **Rea
   <img src="../claude-code-hermit/assets/cover.png" alt="Always-on Claude Code Fitness Agent" width="720" />
 </p>
 
-Reads your Strava, spots load anomalies, drafts weekly plans, and flags recovery — never modifies your account. Wires the community Strava [MCP Server](https://github.com/r-huijts/strava-mcp-server) and the [Strava REST API](https://developers.strava.com/docs/reference/) into the [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) loop, with write-class tools blocked at the settings layer.
+Reads your Strava, spots load anomalies, drafts weekly plans, and flags recovery. Wires the community Strava [MCP Server](https://github.com/r-huijts/strava-mcp-server) and the [Strava REST API](https://developers.strava.com/docs/reference/) into the [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) loop.
 
 ```
 # Install
@@ -48,8 +48,6 @@ claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope loca
 
 Need a different cadence or a new routine? Just ask — hermit sets it up.
 
-**Read-only by design.** Write-class Strava tools (`star-segment`, `connect-strava`, `disconnect-strava`) are blocked at the settings layer. The hermit only reads — your Strava account is never modified.
-
 **Tracks how it felt.** After each synced activity, reply with your RPE (1–10) in the channel — `capture-activity-rpe` binds it to the activity. Use `/claude-code-fitness-hermit:set-rpe` for manual or retroactive entries. Subjective load surfaces in `activity-deep-dive` output and weekly summaries.
 
 **Everything is searchable.** Activity notes, weekly summaries, and load baselines land in your hermit's compiled knowledge and auto-memory — accessible across sessions and surfaceable on demand via `/hermit-health`.
@@ -76,7 +74,7 @@ claude plugin install claude-code-fitness-hermit@claude-code-hermit --scope loca
 /claude-code-fitness-hermit:hatch
 ```
 
-The wizard triggers `claude-code-hermit:hatch` if the core hermit isn't ready, prompts you to fill in `.env` with your four Strava credentials, writes `.mcp.json` with the Strava MCP server entry, drops the four routine prompt templates into `.claude-code-hermit/compiled/`, injects the Fitness Workflow block into your `CLAUDE.md`, registers the routines, and trusts `www.strava.com` in `autoMode.environment` so the classifier doesn't flag the nightly `evening-brief` routine's fetches (no permission grant added).
+The wizard triggers `claude-code-hermit:hatch` if the core hermit isn't ready, prompts you to fill in `.env` with your four Strava credentials, writes `.mcp.json` with the Strava MCP server entry, drops the four routine prompt templates into `.claude-code-hermit/compiled/`, injects the Fitness Workflow block into your `CLAUDE.md`, and registers the routines.
 
 > **Just trying it?** After `hatch`, restart Claude Code (required to pick up the new `.mcp.json`), approve the `strava` MCP server, then run `.claude-code-hermit/bin/hermit-start --no-tmux` for sessions, routines, heartbeat, and the learning loop without 24/7 autonomy. Run `/claude-code-hermit:channel-setup` first if you want Discord or Telegram.
 
@@ -102,7 +100,7 @@ claude plugin update claude-code-fitness-hermit@claude-code-hermit --scope local
 
 ## Safety
 
-- **Blocked outright** — `mcp__strava__star-segment`, `mcp__strava__connect-strava`, `mcp__strava__disconnect-strava` (denied via `settings.json`). The hermit reads your Strava account and never modifies it.
+- **Strava writes require approval:** `star-segment`, `connect-strava`, `disconnect-strava`.
 - **Credentials stay local** — `.env` and `.mcp.json` are gitignored. The four Strava credentials in `.env` are written as literal values into `.mcp.json` (required for the MCP server's child process) and never committed.
 - **No token leakage** — never logs, prints, or writes token values to session files, proposals, or memory.
 - **`.env` stays off the shell** — there is no `Bash(*TOKEN*)` substring deny. `Bash(cat .env*)` is a seeded native deny, and credential values must not land in the transcript. Hatch reads `.env` via the `Read` tool, not shell commands.

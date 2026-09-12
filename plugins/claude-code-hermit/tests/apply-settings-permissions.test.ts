@@ -392,8 +392,8 @@ describe('literal-path hermit-run grants', () => {
     });
   }
 
-  test('the allow op lands them in an operator target', withTarget(async (target) => {
-    const r = await runScript('apply-settings.ts', { args: [target, 'allow'] });
+  test('permissions-sync lands them in an operator target', withTarget(async (target) => {
+    const r = await runScript('apply-settings.ts', { args: [target, 'permissions-sync'] });
     expect(r.exitCode).toBe(0);
     for (const entry of LITERAL_PATH) expect(readAllow(target)).toContain(entry);
   }));

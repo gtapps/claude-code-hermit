@@ -6,8 +6,6 @@
 //     exercised `ha policy-check` end to end; here they pin the same
 //     observable contract — checkEntity's JSON shape and the sensitive flag
 //     that _handle_policy_check maps to the exit code.
-//   - test_policy_check_cli_yaml_file needs simulate.collect_references
-//     (tier 2) — ported as test.todo.
 //
 // pytest fixture mapping: make_ha_config -> makeHaConfig helper,
 // monkeypatch.chdir -> process.chdir with afterEach restore.
@@ -20,8 +18,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { main } from '../src/cli';
+import { AppConfig } from '../src/config';
+import { captureOutput } from './helpers';
+
 import {
-  Severity,
+  PermissionDecision,
   canReloadDomain,
   checkEntity,
   classifyEntity,
@@ -67,7 +69,7 @@ test('policy blocks sensitive references', () => {
     ['light.kitchen', 'alarm_control_panel.home'],
     ['light.turn_on', 'lock.unlock'],
   );
-  expect(decision.blocked).toBe(true);
+  expect((decision.decision === 'deny')).toBe(true);
   expect(decision.reasons).toHaveLength(2);
 });
 
@@ -137,33 +139,26 @@ test('safety mode permissive no longer valid', () => {
 
 test('gate blocks structural mutation under strict (default)', () => {
   const gate = gateStructuralMutation(tmpPath());
-  expect(gate.allowed).toBe(false);
-  expect(gate.requiresConfirm).toBe(false);
+  expect(gate.decision).toBe('deny');
   expect(gate.mode).toBe('strict');
   expect(gate.reason).toContain('proposal');
 });
 
-test('gate under ask requires confirmation', () => {
-  const root = makeHaConfig('ask');
-  const unconfirmed = gateStructuralMutation(root, false);
-  expect(unconfirmed.allowed).toBe(false);
-  expect(unconfirmed.requiresConfirm).toBe(true);
-  const confirmed = gateStructuralMutation(root, true);
-  expect(confirmed.allowed).toBe(true);
-  expect(confirmed.requiresConfirm).toBe(false);
+test('structural writes under ask request native approval', () => {
+  expect(gateStructuralMutation(makeHaConfig('ask')).decision).toBe('ask');
 });
 
 test('classify strict blocks sensitive', () => {
   const root = makeHaConfig('strict');
   const [sev, reasons] = classifyEntity('alarm_control_panel.home', root);
-  expect(sev).toBe(Severity.BLOCK);
+  expect(sev).toBe(PermissionDecision.DENY);
   expect(reasons.length).toBeGreaterThan(0);
 });
 
-test('classify ask returns ask severity', () => {
+test('classify ask returns ask decision', () => {
   const root = makeHaConfig('ask');
   const [sev, reasons] = classifyEntity('alarm_control_panel.home', root);
-  expect(sev).toBe(Severity.ASK);
+  expect(sev).toBe(PermissionDecision.ASK);
   expect(reasons.length).toBeGreaterThan(0);
 });
 
@@ -172,22 +167,33 @@ test('safe entity allowlist wins over strict', () => {
   writeFileSync(join(root, '.env'), 'HA_SAFE_ENTITIES=alarm_control_panel.home\n');
   process.chdir(root);
   const [sev] = classifyEntity('alarm_control_panel.home', root);
-  expect(sev).toBe(Severity.ALLOW);
+  expect(sev).toBe(PermissionDecision.ALLOW);
 });
 
-test('evaluate_references severity field', () => {
+test('evaluate_references decision field', () => {
   const root = makeHaConfig('ask');
   const decision = evaluateReferences(['alarm_control_panel.home'], [], root);
-  expect(decision.severity).toBe(Severity.ASK);
-  expect(decision.blocked).toBe(false);
+  expect(decision.decision).toBe(PermissionDecision.ASK);
+  expect((decision.decision === 'deny')).toBe(false);
 });
 
-test('check_entity includes severity', () => {
+test('check_entity includes decision', () => {
   const result = checkEntity('light.kitchen');
-  expect(result).toHaveProperty('severity');
-  expect(result.severity).toBe('allow');
+  expect(result).toHaveProperty('decision');
+  expect(result.decision).toBe('allow');
 });
 
-bunTest.todo('policy-check CLI on a YAML file (needs simulate.collect_references — tier 2)', () => {
-  throw new Error('cli.py policy-check and simulate.collect_references are not ported yet');
+test('policy-check YAML exposes native decision values without legacy aliases', async () => {
+  for (const [mode, expected] of [['ask', 'ask'], ['strict', 'deny']]) {
+    const root = makeHaConfig(mode!);
+    const yaml = join(root, 'automation.yaml');
+    writeFileSync(yaml, 'action:\n  - service: lock.unlock\n    target:\n      entity_id: lock.front_door\n');
+    const config = new AppConfig(root, 'http://ha.invalid', null, null, 'fixture', 5, 0);
+    const { code, out } = await captureOutput(() => main(['ha', 'policy-check', yaml], { loadConfig: () => config }));
+    const result = JSON.parse(out);
+    expect(result.decision).toBe(expected);
+    expect(result).not.toHaveProperty('severity');
+    expect(result).not.toHaveProperty('blocked');
+    expect(code).toBe(expected === 'deny' ? 1 : 0);
+  }
 });

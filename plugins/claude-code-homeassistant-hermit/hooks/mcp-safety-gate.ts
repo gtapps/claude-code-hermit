@@ -1,6 +1,12 @@
 #!/usr/bin/env bun
 // PreToolUse hook: gate mcp__homeassistant__* calls targeting sensitive entities.
 //
+// Default-deny chokepoint for the whole homeassistant MCP server: the matcher
+// covers every mcp__homeassistant__* call, and the read-only tools
+// (GetLiveContext/GetDateTime) are allow-listed here in the gate rather than
+// excluded by the matcher. Tool IDs assume the HA MCP Server is registered in
+// Claude Code under the name 'homeassistant'.
+//
 // WP8 port of hooks/mcp-safety-gate.py. Imports the policy from ../src/policy
 // (same plugin, same language) — the Python original imported the deleted
 // ha_agent_lab.policy package, which never resolved on standard operator
@@ -30,7 +36,7 @@
 import { readFileSync, writeSync } from 'node:fs';
 
 import {
-  Severity,
+  PermissionDecision,
   assistControl,
   classifyEntity,
   extractEntityIds,
@@ -173,22 +179,22 @@ function main(): void {
       fail(NO_RESOLVABLE_TARGET_MSG);
     }
 
-    const hits: Array<[string, Severity]> = [];
+    const hits: Array<[string, PermissionDecision]> = [];
     for (const eid of entityIds) {
       const [sev] = classifyEntity(eid, root);
-      if (sev !== Severity.ALLOW) hits.push([eid, sev]);
+      if (sev !== PermissionDecision.ALLOW) hits.push([eid, sev]);
     }
 
     if (hits.length === 0) {
       process.exit(0);
     }
 
-    // All hits share the same severity under the two-tier model — the current
+    // All hits share the same decision under the two-tier model; the current
     // mode applies uniformly to every sensitive entity in this call.
     const currentSev = hits[0]![1];
     const names = hits.map(([e]) => e).join(', ');
 
-    if (currentSev === Severity.BLOCK) {
+    if (currentSev === PermissionDecision.DENY) {
       fail(`Blocked sensitive entities: ${names}. Use a proposal instead.`);
     }
 

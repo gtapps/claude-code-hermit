@@ -150,10 +150,10 @@ Read `ha_safety_mode` from `.claude-code-hermit/config.json`.
 
 - **If the key is already set**: `AskUserQuestion`: "Current safety mode is `<value>`. Change it?" Yes → re-prompt. No → skip this step.
 - **If absent**: ask the operator which safety mode to use for sensitive domains (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`):
-  - `strict` (recommended) — always block autonomous actuation; work goes through a proposal instead.
-  - `ask` — operator is prompted before any actuation of a sensitive entity. Build/validate normally; both YAML apply and direct MCP calls require an explicit operator confirmation before execution.
+  - `strict` blocks autonomous actuation entirely; work goes through a proposal instead.
+  - `ask` (recommended) prompts the operator before any actuation of a sensitive entity. Build/validate normally; both YAML apply and direct MCP calls require an explicit operator confirmation before execution.
 
-Write the chosen value to `config.json` as `ha_safety_mode`. Default to `strict` if the operator skips or is unsure.
+Write the chosen value to `config.json` as `ha_safety_mode`. Default to `ask` if the operator skips or is unsure.
 
 ### 6.55 HA Assist control (optional)
 
@@ -199,10 +199,6 @@ And under `## Raw Captures` (create if absent):
 If already present: skip (idempotent).
 
 Use Edit to make the changes.
-
-### 6.7 Auto-mode environment seed
-
-Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/automode-env.ts .claude/settings.local.json` — **always `.claude/settings.local.json`, regardless of `hatch_target`**: Claude Code's auto-mode classifier reads `autoMode` config only from local/user scope, never a committed project `.claude/settings.json`. This names the operator's Home Assistant instance (read from `.env`'s `HOMEASSISTANT_URL`/`HOMEASSISTANT_LOCAL_URL`/`HOMEASSISTANT_REMOTE_URL` — the same set `curl-host-gate.ts` already trusts) as a trusted internal domain, so the classifier stops treating the hermit's nightly unattended reads (briefs, audits, context refresh) as unrecognized outbound calls. If the script prints `SKIP|...` (no HA URL configured yet), note it and move on — Step 2 already required a working `.env` before reaching here, so this should only skip on an unusual re-run. Additive and idempotent; safe to re-run on every hatch.
 
 ---
 
@@ -261,6 +257,12 @@ Merge these entries into `config.routines` by id. Create the array if absent. Ap
 ```
 
 Each routine owns its cadence and passes findings through reflection gates into the proposal pipeline.
+
+## Native approval rules
+
+Resolve the project settings target through `.claude-code-hermit/bin/hermit-run domain-hatch preflight claude-code-homeassistant-hermit`. Map `target` (or `target_default` when absent): `local` to `.claude/settings.local.json`, `committed` to `.claude/settings.json`. Its `target_file` is the instruction destination, not the settings file.
+
+Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/native-permissions.ts <resolved-settings-file>`.
 
 ### 8. Final report
 

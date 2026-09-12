@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.1.3-green.svg" alt="Version 0.1.3" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.1.4-green.svg" alt="Version 0.1.4" /></a>
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
 </p>
 
@@ -104,9 +104,8 @@ hermit-scribe/
   ├── agents/
   │     └── issue-sanitizer.md  redacts non-hermit content from draft body
   ├── scripts/
-  │     └── automode-env.ts     seeds autoMode.environment entry for api.github.com
   ├── skills/hatch/
-  │     └── SKILL.md            version-gated setup/refresh: block + version stamp + autoMode seed
+  │     └── SKILL.md            version-gated setup/refresh: block + version stamp
   └── skills/hermit-scribe/
         ├── SKILL.md            trigger phrases + filing flow
         └── file-issue.ts       stdlib: JWT → install token → POST /issues; --check flag
@@ -121,14 +120,14 @@ Manual smoke checks (no network needed; both should fail cleanly on the missing 
 ```bash
 # Missing key file: exits non-zero with a clear error
 HERMIT_GH_APP_ID=1 HERMIT_GH_APP_INSTALL_ID=2 HERMIT_GH_APP_KEY_FILE=/nonexistent \
-  bun "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.ts" /dev/null /dev/null
+  bun "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.ts" --publish /dev/null /dev/null
 
 # Extra label args parse cleanly and reach token acquisition
 TMP_DIR="$(mktemp -d)" && (
   trap 'rm -r "$TMP_DIR"' EXIT
   printf 't\n' > "$TMP_DIR/t" && printf 'b\n' > "$TMP_DIR/b.md" && \
   HERMIT_GH_APP_ID=1 HERMIT_GH_APP_INSTALL_ID=2 HERMIT_GH_APP_KEY_FILE=/nonexistent \
-    bun "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.ts" \
+    bun "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.ts" --publish \
     "$TMP_DIR/t" "$TMP_DIR/b.md" enhancement homeassistant-hermit
 )
 ```

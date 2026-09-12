@@ -98,6 +98,23 @@ describe('settings-gate ask list', () => {
     expectSilent(r);
   });
 
+  for (const [key, value] of [['isolate_chats', 'false'], ['shared_chats', "'[]'"], ['operators', "'[]'"]]) {
+    test(`channel ${key} asks`, async () => {
+      const dir = fixture();
+      const r = await runGate(payload({ dir, tool: 'Bash', input: { command: cmd(`set channels.discord.${key} ${value}`) } }), dir);
+      expect(r.exitCode).toBe(0);
+      expect(JSON.parse(r.stdout).hookSpecificOutput.permissionDecision).toBe('ask');
+    });
+  }
+
+  test('channel recording and piped hatch-config remain silent', async () => {
+    const dir = fixture();
+    for (const command of [cmd('set channels.discord.log_chats false'),
+      `echo '{"channels":{"discord":{"shared_chats":["C1"]}}}' | bun /p/scripts/hatch-config.ts .claude-code-hermit --reinit`]) {
+      expectSilent(await runGate(payload({ dir, tool: 'Bash', input: { command } }), dir));
+    }
+  });
+
   test('per-channel everyday keys and retired dials allow', async () => {
     const dir = fixture();
     for (const rest of [
@@ -289,4 +306,115 @@ test('resident instructions and operator overlay are protected for every write t
       expectAsk(result.stdout, `Hermit setting: ${name}`);
     }
   }
+});
+
+describe('static settings policy', () => {
+  test('new protected paths ask for both directions and unset', async () => {
+    const dir = fixture();
+    for (const field of ['operator_profile', 'channels.primary', 'channels.discord.state_dir',
+      'channels.discord.marketplace', 'channels.discord.enabled', 'channels.discord.passive_chats',
+      'telemetry_export.enabled',
+      'telemetry_export.destination.url', 'telemetry_export.destination.bearer_env',
+      'telemetry_export.redact_operator_text', 'artifacts.publish_authorized', 'artifacts.backend',
+      'docker.packages', 'docker.recommended_plugins.0.enabled', 'docker.fleet_mesh', 'remote', 'chrome', 'auth_mode']) {
+      for (const rest of [`set ${field} true`, `set ${field} false`, `unset ${field}`, `toggle ${field}`]) {
+        const r = await runGate(payload({ dir, tool: 'Bash', input: { command: cmd(rest) } }), dir);
+        expectAsk(r.stdout, `Hermit setting: ${field}${rest.startsWith('set ') ? '=' + rest.split(' ').at(-1) : ''}`);
+      }
+    }
+  });
+
+  test('ordinary preferences and routine commands stay silent', async () => {
+    const dir = fixture();
+    for (const field of ['agent_name', 'language', 'timezone', 'model', 'effort', 'escalation',
+      'always_on', 'auto_session', 'ask_gate', 'budget.daily_usd', 'budget.action',
+      'heartbeat.enabled', 'watchdog.scheduler_enabled', 'knowledge.channel_log_enabled',
+      'channels.discord.log_chats', 'routines.0.skill', 'routines.0.enabled',
+      'routines.0.schedule', 'scheduled_checks.0.skill', 'scheduled_checks']) {
+      expectSilent(await runGate(payload({ dir, tool: 'Bash', input: { command: cmd(`unset ${field}`) } }), dir));
+    }
+  });
+
+  test('parent replacements compare protected content and show paths only', async () => {
+    const dir = fixture({
+      voice: { prose: 'private instructions', style: 'Concise' },
+      channels: { discord: { enabled: true, allowed_users: ['a', 'b'], morning_brief: { time: '07:00' } } },
+      artifacts: { backend: 'claude', dashboard: true },
+      telemetry_export: { destination: { url: 'https://private.example', type: 'webhook' }, interval_hours: 24 },
+      docker: { packages: ['git'], fleet_mesh: false },
+    });
+    const cases: Array<[string, any, string | null]> = [
+      ['voice', { style: 'Detailed', prose: 'private instructions' }, null],
+      ['voice', { style: 'Detailed' }, 'voice.prose'],
+      ['channels.discord', { morning_brief: { time: '08:00' }, allowed_users: ['a', 'b'], enabled: true }, null],
+      ['channels.discord', { enabled: false, allowed_users: ['a', 'b'] }, 'channels.discord.enabled'],
+      ['channels.discord', { enabled: true, allowed_users: ['b', 'a'] }, 'channels.discord.allowed_users'],
+      ['channels.discord', { enabled: true, allowed_users: ['a', 'b'], passive_chats: ['C9'] },
+        'channels.discord.passive_chats'],
+      ['channels.telegram', {}, 'channels.telegram'],
+      ['channels', { discord: { enabled: true, allowed_users: ['a', 'b'] }, telegram: {} }, 'channels.telegram'],
+      ['channels', {}, 'channels.discord.allowed_users, channels.discord.enabled'],
+      ['artifacts', { backend: 'claude', dashboard: false }, null],
+      ['artifacts', {}, 'artifacts.backend'],
+      ['telemetry_export', { interval_hours: 12, destination: { type: 'webhook', url: 'https://private.example' } }, null],
+      ['telemetry_export', { destination: { url: 'https://changed.example' } }, 'telemetry_export.destination'],
+      ['docker', { packages: ['git'], fleet_mesh: false }, null],
+      ['docker', { packages: ['curl'], fleet_mesh: false }, 'docker.packages'],
+    ];
+    for (const [field, value, asked] of cases) {
+      const command = cmd(`set ${field} '${JSON.stringify(value)}'`);
+      const r = await runGate(payload({ dir, tool: 'Bash', input: { command } }), dir);
+      if (asked) expectAsk(r.stdout, `Hermit setting: ${asked}`);
+      else expectSilent(r);
+      expect(r.stdout).not.toContain('private.example');
+      expect(r.stdout).not.toContain('private instructions');
+    }
+    for (const rest of ['unset voice', 'set voice none', 'set voice clear']) {
+      expectAsk((await runGate(payload({ dir, tool: 'Bash', input: { command: cmd(rest) } }), dir)).stdout,
+        'Hermit setting: voice.prose');
+    }
+  });
+
+  test('missing, null, and opaque parent writes stay distinct', async () => {
+    const dir = fixture();
+    for (const [rest, asked] of [
+      [`set voice '{"style":"Concise"}'`, null],
+      [`set voice '{"prose":null}'`, 'voice.prose'],
+      ['unset voice', null], ['set voice malformed', 'voice'], ['set voice "$VALUE"', 'voice'],
+      ['toggle voice', 'voice'], ['set voice', 'voice'],
+      ['set voice {"style":"Concise","prose":"x"}', 'voice'],
+    ] as const) {
+      const r = await runGate(payload({ dir, tool: 'Bash', input: { command: cmd(rest) } }), dir);
+      if (asked) expectAsk(r.stdout, `Hermit setting: ${asked}`);
+      else expectSilent(r);
+    }
+    fs.writeFileSync(path.join(dir, '.claude-code-hermit/config.json'), '{');
+    expectAsk((await runGate(payload({ dir, tool: 'Bash', input: { command: cmd('unset voice') } }), dir)).stdout,
+      'Hermit setting: voice');
+  });
+
+  test('the named target and tool cwd determine the parent baseline', async () => {
+    const dir = fixture({ voice: { prose: 'resident' } });
+    fs.writeFileSync(path.join(dir, 'other config.json'), JSON.stringify({ voice: { style: 'Concise' } }));
+    const command = `bun /p/scripts/settings-edit.ts 'other config.json' set voice '{"style":"Detailed"}'`;
+    expectSilent(await runGate(payload({ dir, tool: 'Bash', input: { command } }), dir));
+    for (const command of [
+      `bun /p/scripts/settings-edit.ts "$CONFIG" unset voice`,
+      `bun /p/scripts/settings-edit.ts *.json unset voice`,
+      `cd elsewhere && ${cmd('unset voice')}`,
+    ]) expectAsk((await runGate(payload({ dir, tool: 'Bash', input: { command } }), dir)).stdout, 'Hermit setting: voice');
+  });
+
+  test('routine commands and precheck removal preserve the existing exception', async () => {
+    const dir = fixture({ routines: [{ id: 'custom', skill: 'old', precheck: 'tools/check.sh', precheck_timeout_s: 30 }] });
+    for (const rest of [
+      `set routines '[{"id":"custom","skill":"new"}]'`,
+      `set routines.0 '{"id":"custom","skill":"new","precheck":"tools/check.sh","precheck_timeout_s":30}'`,
+      'unset routines',
+    ]) expectSilent(await runGate(payload({ dir, tool: 'Bash', input: { command: cmd(rest) } }), dir));
+    for (const field of ['precheck', 'precheck_timeout_s']) {
+      expectAsk((await runGate(payload({ dir, tool: 'Bash', input: { command: cmd(`unset routines.0.${field}`) } }), dir)).stdout,
+        `Hermit setting: routines.0.${field}`);
+    }
+  });
 });

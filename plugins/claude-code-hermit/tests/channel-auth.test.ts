@@ -9,7 +9,7 @@
 import { describe, test, expect } from 'bun:test';
 import { normalizeChannelSource } from '../scripts/lib/channel-envelope';
 import {
-  isAllowedSender, isTrustedController,
+  isAllowedSender, isTrustedController, recallScope, audienceVisible,
 } from '../scripts/lib/channel-auth';
 
 describe('normalizeChannelSource', () => {
@@ -175,4 +175,78 @@ test('passive predicates use listed ids and cached parents, with exact self-ment
       }
     }
   } finally { wd.cleanup(); }
+});
+
+
+describe('recallScope', () => {
+  const own = { source: 'discord', chat_id: 'C1' };
+  test('maintainer and technical home are unscoped, non-technical home is scoped', () => {
+    for (const operator_profile of ['technical', 'non-technical']) {
+      const config = { operator_profile, channels: { discord: { default_chat_id: 'C1', maintainer_channel_id: 'MAINT' } } };
+      expect(recallScope(config, 'discord', 'MAINT')).toBeNull();
+      expect(recallScope(config, 'discord', 'C1')).toEqual(operator_profile === 'technical' ? null : { own, shared: [] });
+    }
+    expect(recallScope({ channels: { discord: { default_chat_id: '', dm_channel_id: 'C1' } } }, 'discord', 'C1')).toBeNull();
+  });
+  test('missing config or unknown key stays own-only despite shared chats elsewhere', () => {
+    for (const config of [null, {}, { channels: { telegram: { shared_chats: ['T1'] } } }]) {
+      expect(recallScope(config, 'discord', 'C1')).toEqual({ own, shared: [] });
+    }
+  });
+  test('channel widening and shared pairs across channels', () => {
+    const config = { channels: { discord: { isolate_chats: false, shared_chats: ['C2'] }, telegram: { shared_chats: ['T1'] } } };
+    expect(recallScope(config, 'discord', 'C1')).toEqual({ own, channel: 'discord', shared: [
+      { source: 'discord', chat_id: 'C2' }, { source: 'telegram', chat_id: 'T1' },
+    ] });
+  });
+});
+
+describe('audienceVisible', () => {
+  test('unscoped reader and shared/absent audience are always visible', () => {
+    expect(audienceVisible(null, 'discord:C2')).toBe(true);
+    expect(audienceVisible(undefined, 'discord:C2')).toBe(true);
+    const scoped = recallScope({ channels: { discord: {} } }, 'discord', 'C1');
+    expect(audienceVisible(scoped, undefined)).toBe(true);
+    expect(audienceVisible(scoped, null)).toBe(true);
+    expect(audienceVisible(scoped, 'shared')).toBe(true);
+  });
+
+  test("C2's own scope cannot see discord:HOME", () => {
+    const scope = recallScope({ channels: { discord: { default_chat_id: 'HOME' } } }, 'discord', 'C2');
+    expect(audienceVisible(scope, 'discord:HOME')).toBe(false);
+    expect(audienceVisible(scope, 'discord:C2')).toBe(true);
+  });
+
+  test('shared_chats grants the pair to another channel and removing it revokes', () => {
+    const granted = recallScope(
+      { channels: { discord: { shared_chats: ['C2'] }, acme: {} } },
+      'acme', 'X',
+    );
+    expect(audienceVisible(granted, 'discord:C2')).toBe(true);
+    const revoked = recallScope(
+      { channels: { discord: { shared_chats: [] }, acme: {} } },
+      'acme', 'X',
+    );
+    expect(audienceVisible(revoked, 'discord:C2')).toBe(false);
+  });
+
+  test('isolate_chats: false widens same-channel ids, not other channels', () => {
+    const scope = recallScope(
+      { channels: { discord: { isolate_chats: false } } },
+      'discord', 'C1',
+    );
+    expect(audienceVisible(scope, 'discord:C2')).toBe(true);
+    expect(audienceVisible(scope, 'telegram:C2')).toBe(false);
+  });
+
+  test('malformed audience strings are hidden', () => {
+    const scope = recallScope({ channels: { discord: {} } }, 'discord', 'C1');
+    expect(audienceVisible(scope, 'discord')).toBe(false);
+    expect(audienceVisible(scope, ':C2')).toBe(false);
+  });
+
+  test('chat id with a colon round-trips through the first-colon split', () => {
+    const scope = recallScope({ channels: { discord: {} } }, 'discord', 'C:1');
+    expect(audienceVisible(scope, 'discord:C:1')).toBe(true);
+  });
 });

@@ -19,6 +19,7 @@ import { writeRegistryEntry } from './helpers/registry-fixture';
 import { runScript } from './helpers/run';
 import { setupWorkdir, type Workdir } from './helpers/workdir';
 import { assistantEntry } from './helpers/transcript';
+import { bind, update } from '../scripts/lib/conversations';
 import { markGuest } from '../scripts/lib/guest-marker';
 import { startHttpStub } from './helpers/http-stub';
 
@@ -86,7 +87,7 @@ describe('user-prompt-pipeline: shutdown is terminal', () => {
       const wd = setupChannelWorkdir();
       writeRuntime(wd, PENDING_SHUTDOWN);
 
-      const r = await run(wd, '/status', stub.url);
+      const r = await run(wd, '!status', stub.url);
 
       expect(r.exitCode).toBe(0);
       expect(JSON.parse(r.stdout.trim())).toMatchObject({ decision: 'block' });
@@ -129,7 +130,7 @@ describe('user-prompt-pipeline: shutdown is terminal', () => {
     // purpose — both stages read the same HERMIT_TELEGRAM_API_URL, so a request
     // count could not tell the two senders apart; the discriminator is that the
     // `[status]` relay is absent while the `[shutdown]` one is present.
-    const r = await run(wd, '/status', 'http://127.0.0.1:1');
+    const r = await run(wd, '!status', 'http://127.0.0.1:1');
 
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toContain('[shutdown]');
@@ -143,7 +144,7 @@ describe('user-prompt-pipeline: shutdown is terminal', () => {
       const wd = setupChannelWorkdir();
       writeRuntime(wd, PENDING_SHUTDOWN);
 
-      const r = await run(wd, '/model opus', stub.url);
+      const r = await run(wd, '!model opus', stub.url);
 
       expect(r.exitCode).toBe(0);
       // The Stop-stage drain refuses to deliver a command during shutdown, so
@@ -162,7 +163,7 @@ describe('user-prompt-pipeline: shutdown is terminal', () => {
       writeRuntime(wd, { runtime_mode: 'headless', tmux_session: 'hermit-test', shutdown_requested_at: null, shutdown_completed_at: null });
 
       // plan mode would silence the very channel this request arrived on.
-      const r = await run(wd, '/permission-mode plan', stub.url);
+      const r = await run(wd, '!permission-mode plan', stub.url);
 
       expect(r.exitCode).toBe(0);
       expect(r.stdout).toContain('refused "/permission-mode plan"');
@@ -179,7 +180,7 @@ describe('user-prompt-pipeline: shutdown is terminal', () => {
       const wd = setupChannelWorkdir();
       writeRuntime(wd, { runtime_mode: 'headless', tmux_session: 'hermit-test', shutdown_requested_at: null, shutdown_completed_at: null });
 
-      const r = await run(wd, '/permission-mode acceptEdits', stub.url);
+      const r = await run(wd, '!permission-mode acceptEdits', stub.url);
 
       expect(r.exitCode).toBe(0);
       expect(r.stdout).toContain('[harness-command]');
@@ -197,7 +198,7 @@ describe('user-prompt-pipeline: shutdown is terminal', () => {
       const wd = setupChannelWorkdir();
       writeRuntime(wd, { runtime_mode: 'headless', tmux_session: 'hermit-test', shutdown_requested_at: null, shutdown_completed_at: null });
 
-      const r = await run(wd, '/advisor opus', stub.url);
+      const r = await run(wd, '!advisor opus', stub.url);
 
       expect(r.exitCode).toBe(0);
       expect(r.stdout).toContain('[harness-command]');
@@ -237,7 +238,7 @@ describe('user-prompt-pipeline: shutdown is terminal', () => {
       fs.writeFileSync(configPath, JSON.stringify(config));
       writeRuntime(wd, { runtime_mode: 'headless', tmux_session: 'hermit-test', shutdown_requested_at: null, shutdown_completed_at: null });
 
-      const r = await run(wd, '/doctor', stub.url);
+      const r = await run(wd, '!doctor', stub.url);
 
       expect(r.exitCode).toBe(0);
       const pending = JSON.parse(fs.readFileSync(hermit(wd.dir, 'state', 'pending-harness-command.json'), 'utf-8'));
@@ -258,7 +259,7 @@ describe('user-prompt-pipeline: shutdown is terminal', () => {
       const wd = setupChannelWorkdir();
       writeRuntime(wd, { runtime_mode: 'headless', tmux_session: 'hermit-test', shutdown_requested_at: null, shutdown_completed_at: null });
 
-      const r = await run(wd, '/doctor', stub.url);
+      const r = await run(wd, '!doctor', stub.url);
 
       expect(r.exitCode).toBe(0);
       const pending = JSON.parse(fs.readFileSync(hermit(wd.dir, 'state', 'pending-harness-command.json'), 'utf-8'));
@@ -280,7 +281,7 @@ describe('user-prompt-pipeline: shutdown is terminal', () => {
       const wd = setupChannelWorkdir({ bot_username: 'ourbot' });
       writeRuntime(wd, { runtime_mode: 'headless', tmux_session: 'hermit-test', shutdown_requested_at: null, shutdown_completed_at: null });
 
-      const r = await run(wd, '/model@ourbot opus', stub.url);
+      const r = await run(wd, '!model@ourbot opus', stub.url);
 
       expect(r.exitCode).toBe(0);
       expect(r.stdout).toContain('[harness-command]');
@@ -297,7 +298,7 @@ describe('user-prompt-pipeline: shutdown is terminal', () => {
       const wd = setupChannelWorkdir({ bot_username: 'ourbot' });
       writeRuntime(wd, { runtime_mode: 'headless', tmux_session: 'hermit-test', shutdown_requested_at: null, shutdown_completed_at: null });
 
-      const r = await run(wd, '/model@otherbot opus', stub.url);
+      const r = await run(wd, '!model@otherbot opus', stub.url);
 
       expect(r.exitCode).toBe(0);
       expect(r.stdout).not.toContain('[harness-command]');
@@ -316,7 +317,7 @@ describe('user-prompt-pipeline: shutdown is terminal', () => {
       fs.writeFileSync(pausePath, JSON.stringify({ paused: true, reason: 'operator', by: 'u1' }));
       writeRuntime(wd, PENDING_SHUTDOWN);
 
-      const r = await run(wd, '/resume', stub.url);
+      const r = await run(wd, '!resume', stub.url);
 
       expect(r.exitCode).toBe(0);
       expect(JSON.parse(fs.readFileSync(pausePath, 'utf-8')).paused).toBe(true);
@@ -483,7 +484,7 @@ describe('user-prompt-pipeline: fail-open contract', () => {
     try {
       const wd = setupChannelWorkdir();
 
-      const r = await run(wd, '/status', stub.url);
+      const r = await run(wd, '!status', stub.url);
 
       expect(r.exitCode).toBe(0);
       expect(JSON.parse(r.stdout.trim())).toMatchObject({ decision: 'block' });
@@ -627,4 +628,84 @@ describe('user-prompt-pipeline: resident gate', () => {
       }
     });
   }
+});
+
+
+describe('bound conversation admission', () => {
+  for (const scenario of [
+    { name: 'bound chat inside passive parent passes', bound: true, muted: false, body: 'continue', blocked: false },
+    { name: 'muted bound chat is blocked', bound: true, muted: true, body: 'continue', blocked: true },
+    { name: 'muted bound chat with mention passes', bound: true, muted: true, body: '<@777> continue', blocked: false },
+    { name: 'unbound passive chat stays blocked', bound: false, muted: false, body: 'continue', blocked: true },
+  ]) {
+    test(scenario.name, async () => {
+      const wd = trackedWorkdir();
+      const dir = hermit(wd.dir);
+      fs.writeFileSync(hermit(wd.dir, 'config.json'), JSON.stringify({ channels: { discord: { allowed_users: ['u1'], passive_chats: ['parent'], bot_user_id: '777' } } }));
+      fs.writeFileSync(hermit(wd.dir, 'state', 'channel-chats.json'), JSON.stringify({ discord: { chats: { thread: { type: 11, parent_id: 'parent', guild_id: 'guild', fetched_at: new Date().toISOString() } } } }));
+      if (scenario.bound) {
+        bind(dir, 'discord:thread', { session_name: 'conv-thread', session_id: 'session', worktree: wd.dir });
+        update(dir, 'discord:thread', { muted: scenario.muted });
+      }
+      const result = await runScript('user-prompt-pipeline.ts', {
+        stdin: JSON.stringify({ prompt: `<channel source="discord" chat_id="thread" user="u1">${scenario.body}</channel>` }), cwd: wd.dir,
+      });
+      expect(result.exitCode).toBe(0);
+      if (scenario.blocked) expect(JSON.parse(result.stdout).decision).toBe('block');
+      else {
+        expect(result.stdout).toContain('[bound conversation discord:thread: running');
+        expect(result.stdout).toContain('[channel reply reminder]');
+      }
+    });
+  }
+});
+
+describe('conversation commands', () => {
+  for (const body of ['!help', '!mute', '!unmute', '!restart', '!fork investigate this', '!fork <#678> investigate this']) {
+    test(`annotates ${body}, including while muted`, async () => {
+      const wd = setupChannelWorkdir();
+      bind(hermit(wd.dir), 'telegram:12345', { session_name: 'conv', session_id: 'sid', worktree: wd.dir });
+      update(hermit(wd.dir), 'telegram:12345', { muted: true });
+      const result = await run(wd, body, 'http://127.0.0.1:1');
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain(`[conversation command: ${body.slice(1)}]`);
+    });
+  }
+  for (const body of ['!model sonnet', '!effort high']) {
+    test(`refuses ${body} before the harness recorder`, async () => {
+      const wd = setupChannelWorkdir();
+      writeRuntime(wd, { runtime_mode: 'headless', tmux_session: 'hermit-test' });
+      bind(hermit(wd.dir), 'telegram:12345', { session_name: 'conv', session_id: 'sid', worktree: wd.dir });
+      const result = await run(wd, body, 'http://127.0.0.1:1');
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('[conversation command refused: per-conversation model/effort not supported]');
+      expect(result.stdout).not.toContain('[harness-command]');
+      expect(fs.existsSync(hermit(wd.dir, 'state', 'pending-harness-command.json'))).toBe(false);
+    });
+  }
+  for (const body of ['!mute', '!unmute', '!restart', '!fork task']) {
+    test(`${body} outside a binding`, async () => {
+      const wd = setupChannelWorkdir();
+      const result = await run(wd, body, 'http://127.0.0.1:1');
+      expect(result.stdout).toContain('[conversation command outside a bound conversation]');
+    });
+  }
+  test('non-allowed senders get no conversation annotations', async () => {
+    const wd = setupChannelWorkdir();
+    bind(hermit(wd.dir), 'telegram:12345', { session_name: 'conv', session_id: 'sid', worktree: wd.dir });
+    for (const body of ['!help', '!mute', '!unmute', '!restart', '!fork task', '!model sonnet', '!effort high']) {
+      const result = await runScript('user-prompt-pipeline.ts', { stdin: JSON.stringify({ prompt: envelope(body, 'stranger') }), cwd: wd.dir });
+      expect(result.stdout).not.toContain('[conversation command');
+      expect(result.stdout).not.toContain('[bound conversation');
+    }
+  });
+  test('malformed conversation commands are ordinary text', async () => {
+    const wd = setupChannelWorkdir();
+    bind(hermit(wd.dir), 'telegram:12345', { session_name: 'conv', session_id: 'sid', worktree: wd.dir });
+    for (const body of ['!mute now', '!restart now', '!fork', '/mute']) {
+      const result = await run(wd, body, 'http://127.0.0.1:1');
+      expect(result.stdout).toContain('[bound conversation');
+      expect(result.stdout).not.toContain('[conversation command:');
+    }
+  });
 });

@@ -276,7 +276,7 @@ export interface WatchdogMessages {
 
 export const WATCHDOG: Localized<WatchdogMessages> = {
   en: {
-    restart: (hhmm, cause) => `I restarted your agent at ${hhmm} — ${cause}.`,
+    restart: (hhmm, cause) => `Attempting to restart your agent at ${hhmm}: ${cause}.`,
     restartCauseNotRunning: () => "it wasn't running",
     restartCauseFrozen: () => 'it had frozen',
     wedgeWaking: (hhmm) => `Your agent's heartbeat hasn't checked in, waking it (${hhmm}).`,
@@ -306,7 +306,7 @@ export const WATCHDOG: Localized<WatchdogMessages> = {
       `Your agent is affected by a temporary Claude service outage (${hhmm}). It will resume on its own. https://status.claude.com`,
   },
   'pt-PT': {
-    restart: (hhmm, cause) => `Reiniciei o seu agente às ${hhmm} — ${cause}.`,
+    restart: (hhmm, cause) => `A tentar reiniciar o seu agente às ${hhmm}: ${cause}.`,
     restartCauseNotRunning: () => 'não estava a correr',
     restartCauseFrozen: () => 'tinha bloqueado',
     wedgeWaking: (hhmm) => `O heartbeat do seu agente não fez check-in, estou a acordá-lo (${hhmm}).`,

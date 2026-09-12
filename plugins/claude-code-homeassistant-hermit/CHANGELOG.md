@@ -1,5 +1,37 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- The native-permissions installer accepts only a project settings path.
+- Hatch no longer seeds `autoMode.environment`; Claude Code does not read it from project settings. Existing `autoMode` blocks in project settings are unread and left in place.
+
+## [0.4.14] - 2026-09-10
+
+### Changed
+
+- CLI writes use native approval without confirmation flags or confirmation-only retry responses.
+- Policy results use `decision: allow | ask | deny` consistently.
+- `ha_safety_mode` defaults to `ask` when absent from valid configuration.
+
+### Fixed
+
+- Unsupported hook matcher metadata no longer produces session-start warnings.
+- CLI approval recognizes leading assignments, `bun run`, and redirections while preserving target denials.
+
+### Upgrade Instructions
+
+Before using the updated write commands, set `DOMAIN_PLUGIN_ROOT` to this installed plugin's absolute directory and run the following from the project root. Prepare `NATIVE_APPROVAL_BLOCK` as a temporary Markdown file containing the updated `state-templates/CLAUDE-APPEND.md` block merged with any operator edits from the installed block (`target_file` in preflight). Preserve those edits and the marker pair; the refresh replaces only this marked block, leaving surrounding project instructions intact. The installer preserves operator settings and denies.
+
+```bash
+native_settings=$(.claude-code-hermit/bin/hermit-run domain-hatch preflight claude-code-homeassistant-hermit | bun -e 'const p = await Bun.stdin.json(); if (!p.ok || !["local", "committed"].includes(p.target)) throw new Error("Resolve the domain hatch target first"); console.log(p.target === "local" ? ".claude/settings.local.json" : ".claude/settings.json");') &&
+bun "${DOMAIN_PLUGIN_ROOT:?Set the installed plugin directory}/scripts/native-permissions.ts" "$native_settings" &&
+.claude-code-hermit/bin/hermit-run domain-hatch sync-block claude-code-homeassistant-hermit --rendered-stdin < "${NATIVE_APPROVAL_BLOCK:?Set the merged temporary block file}"
+```
+
+Remove obsolete confirmation flags from operator-maintained command examples. Direct CLI execution outside Claude Code has no confirmation-only checkpoint. Validation and policy denials remain. Policy-check output now uses `decision` with `allow`, `ask`, or `deny`; update operator-maintained consumers of the former `severity` field.
+
 ## [0.4.13] - 2026-09-07
 
 ### Fixed

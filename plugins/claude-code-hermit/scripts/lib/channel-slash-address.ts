@@ -98,7 +98,7 @@ export function resolveSlashCommand(
   // The mention comes off first, so the slash test below sees the command the
   // operator typed rather than the wrapper their client put in front of it.
   const trimmed = stripSelfMention(body.trim(), identity);
-  if (!trimmed.startsWith('/')) return null;
+  if (!trimmed.startsWith('!')) return null;
 
   // First token is everything up to the first whitespace; `rest` keeps the
   // whitespace that follows, so a family whose grammar cares about it still sees it.
@@ -117,5 +117,5 @@ export function resolveSlashCommand(
     command = command.slice(0, at);
   }
 
-  return { command: command.toLowerCase(), rest };
+  return { command: '/' + command.slice(1).toLowerCase(), rest };
 }

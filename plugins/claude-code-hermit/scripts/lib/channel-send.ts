@@ -170,7 +170,7 @@ export async function sendToChannel(hermitDir: string, text: string, opts: SendO
     // Sensitive sends (auth prompts, technical maintainer detail) never enter the
     // episodic channel log — that corpus is searchable via recall and distilled
     // into weekly knowledge artifacts.
-    if (!opts.sensitive && isLoggingEnabled(config)) {
+    if (!opts.sensitive && isLoggingEnabled(config, channelId)) {
       const logResult = logMessage(hermitDir, {
         source: channelId,
         chat_id: chatId,

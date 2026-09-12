@@ -1,0 +1,7 @@
+{
+  "ask": [
+    "Bash(*forge.php* deploy *)",
+    "Bash(*forge.php* server-reboot *)",
+    "Bash(*forge.php* execute *)"
+  ]
+}

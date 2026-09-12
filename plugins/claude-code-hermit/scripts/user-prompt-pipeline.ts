@@ -3,6 +3,9 @@ process.stdout.on('error', () => {});
 
 // UserPromptSubmit hook — the single process for the whole prompt path.
 //
+// Records the operator action, injects time + the channel reply reminder, then
+// applies pause / harness-command / shutdown / status in explicit precedence.
+//
 // Replaces seven separately-registered hooks. Each of those re-read stdin,
 // re-parsed the channel envelope, and re-read config; the operator paid all
 // seven process launches on every message they sent. This reads stdin once,
@@ -40,6 +43,7 @@ import { isGuest } from './lib/guest-marker';
 import type { StageContext, StageResult } from './lib/prompt-stages/types';
 
 import { openTurnMarker, run as recordOperatorAction } from './record-operator-action';
+import { run as conversation } from './lib/prompt-stages/conversation';
 import { run as promptContext } from './lib/prompt-stages/prompt-context';
 import { run as channelReplyReminder } from './lib/prompt-stages/channel-reply-reminder';
 import { run as pauseKeyword } from './lib/prompt-stages/pause-keyword';
@@ -133,6 +137,7 @@ async function main(raw: string): Promise<void> {
   // shutdown — the operator's message is still recorded and the reply reminder
   // still names the chat to answer on.
   await stage('prompt-context', promptContext, ctx);
+  await stage('conversation', conversation, ctx);
   // The reminder stage runs BEFORE the audit: it resolves passive-chat membership
   // and self-mention over the network and warms lib/channel-chats.ts's cache, which
   // record-operator-action's cache-only gate then reads. Auditing first misclassified
@@ -162,7 +167,7 @@ async function main(raw: string): Promise<void> {
   // 4-6. State writers and delivered relay context. They land before any network
   // send, so an outer-timeout kill can lose a send but never a state write.
   await stage('pause-keyword', pauseKeyword, ctx);
-  await stage('harness-command', harnessCommand, ctx);
+  if (!ctx.skipHarnessCommand) await stage('harness-command', harnessCommand, ctx);
   await stage('skill-relay', skillRelay, ctx);
 
   // 7. Deterministic status.

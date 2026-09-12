@@ -1,11 +1,11 @@
-// Contract tests for the pause/resume/snooze command writer (PROP-015) —
+// Contract tests for the pause/resume!snooze command writer (PROP-015) —
 // scripts/lib/prompt-stages/pause-keyword.ts, driven through the single
 // UserPromptSubmit process, scripts/user-prompt-pipeline.ts. Writes the pause
 // flag directly from an inbound <channel> envelope, before any model turn.
 // Exercised as a subprocess (stdin in, exit code/stdout out), the boundary
 // Claude Code sees.
 //
-// Grammar is slash-only: `/pause`, `/stop`, `/resume`, `/snooze <dur>`, matching
+// Grammar is slash-only: `!pause`, `!stop`, `!resume`, `!snooze <dur>`, matching
 // the harness commands (`/compact`, `/clear`). The bare words these once
 // accepted are deliberately inert — a word an operator might type in ordinary
 // conversation must not be able to freeze the hermit.
@@ -42,8 +42,8 @@ const run = (prompt: string, dir: string) =>
   runScript('user-prompt-pipeline.ts', { stdin: JSON.stringify({ prompt }), cwd: dir });
 
 describe('pause-keyword', () => {
-  test('"/pause" from the operator DM (no allowlist, chat_id matches dm_channel_id) — sets flag, exit 0', withDir(async (dir) => {
-    const r = await run('<channel source="discord" chat_id="1" user="U1">/pause</channel>', dir);
+  test('"!pause" from the operator DM (no allowlist, chat_id matches dm_channel_id) — sets flag, exit 0', withDir(async (dir) => {
+    const r = await run('<channel source="discord" chat_id="1" user="U1">!pause</channel>', dir);
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toContain('paused');
     const status = isPaused(hermit(dir));
@@ -55,28 +55,28 @@ describe('pause-keyword', () => {
   // #3 fix: with no allowlist, a sender from a DIFFERENT chat than the operator's
   // DM can no longer freeze the hermit (previously accept-all let anyone stop it).
   test('no allowlist, message from a non-DM chat — silent no-op (cannot freeze)', withDir(async (dir) => {
-    const r = await run('<channel source="discord" chat_id="99" user="STRANGER">/stop</channel>', dir);
+    const r = await run('<channel source="discord" chat_id="99" user="STRANGER">!stop</channel>', dir);
     expect(r.exitCode).toBe(0);
     expect(r.stdout).not.toContain('[pause]');
     expect(isPaused(hermit(dir)).paused).toBe(false);
   }));
 
-  test('"/stop" is a synonym for "/pause"', withDir(async (dir) => {
-    await run('<channel source="discord" chat_id="1" user="U1">/stop</channel>', dir);
+  test('"!stop" is a synonym for "!pause"', withDir(async (dir) => {
+    await run('<channel source="discord" chat_id="1" user="U1">!stop</channel>', dir);
     expect(isPaused(hermit(dir)).paused).toBe(true);
   }));
 
-  test('"/resume" clears an existing pause', withDir(async (dir) => {
-    await run('<channel source="discord" chat_id="1" user="U1">/pause</channel>', dir);
+  test('"!resume" clears an existing pause', withDir(async (dir) => {
+    await run('<channel source="discord" chat_id="1" user="U1">!pause</channel>', dir);
     expect(isPaused(hermit(dir)).paused).toBe(true);
-    const r = await run('<channel source="discord" chat_id="1" user="U1">/resume</channel>', dir);
+    const r = await run('<channel source="discord" chat_id="1" user="U1">!resume</channel>', dir);
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toContain('resumed');
     expect(isPaused(hermit(dir)).paused).toBe(false);
   }));
 
-  test('"/snooze 2h" pauses with a future paused_until', withDir(async (dir) => {
-    const r = await run('<channel source="discord" chat_id="1" user="U1">/snooze 2h</channel>', dir);
+  test('"!snooze 2h" pauses with a future paused_until', withDir(async (dir) => {
+    const r = await run('<channel source="discord" chat_id="1" user="U1">!snooze 2h</channel>', dir);
     expect(r.exitCode).toBe(0);
     const status = isPaused(hermit(dir));
     expect(status.paused).toBe(true);
@@ -84,8 +84,8 @@ describe('pause-keyword', () => {
     expect(new Date(status.until as string).getTime()).toBeGreaterThan(Date.now());
   }));
 
-  test('"/snooze bogus" — unparseable duration, no state change, hint on stdout', withDir(async (dir) => {
-    const r = await run('<channel source="discord" chat_id="1" user="U1">/snooze bogus</channel>', dir);
+  test('"!snooze bogus" — unparseable duration, no state change, hint on stdout', withDir(async (dir) => {
+    const r = await run('<channel source="discord" chat_id="1" user="U1">!snooze bogus</channel>', dir);
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toContain('Could not parse');
     expect(isPaused(hermit(dir)).paused).toBe(false);
@@ -93,8 +93,8 @@ describe('pause-keyword', () => {
 
   // The snooze grammar accepts `\s+` before the duration and must keep doing so:
   // addressing is shared across command families, argument tokenizing is not.
-  test('"/snooze  2h" — multiple spaces before the duration still parse', withDir(async (dir) => {
-    const r = await run('<channel source="discord" chat_id="1" user="U1">/snooze  2h</channel>', dir);
+  test('"!snooze  2h" — multiple spaces before the duration still parse', withDir(async (dir) => {
+    const r = await run('<channel source="discord" chat_id="1" user="U1">!snooze  2h</channel>', dir);
     expect(r.exitCode).toBe(0);
     const status = isPaused(hermit(dir));
     expect(status.paused).toBe(true);
@@ -103,7 +103,7 @@ describe('pause-keyword', () => {
 
   test('unauthorized sender (allowlist configured, sender not listed) — silent no-op', withDir(async (dir) => {
     write(hermit(dir, 'config.json'), '{"channels":{"discord":{"allowed_users":["ALLOWED_ID"]}}}');
-    const r = await run('<channel source="discord" chat_id="1" user="INTRUDER">/pause</channel>', dir);
+    const r = await run('<channel source="discord" chat_id="1" user="INTRUDER">!pause</channel>', dir);
     expect(r.exitCode).toBe(0);
     expect(r.stdout).not.toContain('[pause]');
     expect(isPaused(hermit(dir)).paused).toBe(false);
@@ -111,21 +111,21 @@ describe('pause-keyword', () => {
 
   test('allowlist configured, sender listed — acts', withDir(async (dir) => {
     write(hermit(dir, 'config.json'), '{"channels":{"discord":{"allowed_users":["ALLOWED_ID"]}}}');
-    const r = await run('<channel source="discord" chat_id="1" user="ALLOWED_ID">/pause</channel>', dir);
+    const r = await run('<channel source="discord" chat_id="1" user="ALLOWED_ID">!pause</channel>', dir);
     expect(r.exitCode).toBe(0);
     expect(isPaused(hermit(dir)).paused).toBe(true);
   }));
 
   test('allowed_users=[] lockdown — silent no-op even with a user id', withDir(async (dir) => {
     write(hermit(dir, 'config.json'), '{"channels":{"discord":{"allowed_users":[]}}}');
-    const r = await run('<channel source="discord" chat_id="1" user="ANYONE">/pause</channel>', dir);
+    const r = await run('<channel source="discord" chat_id="1" user="ANYONE">!pause</channel>', dir);
     expect(r.stdout).not.toContain('[pause]');
     expect(isPaused(hermit(dir)).paused).toBe(false);
   }));
 
   test('no user attribute, allowlist configured — rejected (unverifiable identity)', withDir(async (dir) => {
     write(hermit(dir, 'config.json'), '{"channels":{"discord":{"allowed_users":["ALLOWED_ID"]}}}');
-    const r = await run('<channel source="discord" chat_id="1">/pause</channel>', dir);
+    const r = await run('<channel source="discord" chat_id="1">!pause</channel>', dir);
     expect(r.stdout).not.toContain('[pause]');
     expect(isPaused(hermit(dir)).paused).toBe(false);
   }));
@@ -154,7 +154,7 @@ describe('pause-keyword', () => {
   }));
 
   test('adversarial control char in user id is sanitized in the acknowledgement', withDir(async (dir) => {
-    const r = await run('<channel source="discord" chat_id="1" user="U1\n2">/pause</channel>', dir);
+    const r = await run('<channel source="discord" chat_id="1" user="U1\n2">!pause</channel>', dir);
     expect(r.exitCode).toBe(0);
     expect(r.stdout).not.toContain('\n2');
   }));
@@ -172,8 +172,8 @@ describe('pause-keyword', () => {
       }));
     }
 
-    test('a bare "resume" cannot clear a pause set by "/pause"', withDir(async (dir) => {
-      await run('<channel source="discord" chat_id="1" user="U1">/pause</channel>', dir);
+    test('a bare "resume" cannot clear a pause set by "!pause"', withDir(async (dir) => {
+      await run('<channel source="discord" chat_id="1" user="U1">!pause</channel>', dir);
       expect(isPaused(hermit(dir)).paused).toBe(true);
       const r = await run('<channel source="discord" chat_id="1" user="U1">resume</channel>', dir);
       expect(r.exitCode).toBe(0);
@@ -189,14 +189,14 @@ describe('pause-keyword', () => {
 
     test('suffix naming this bot — acts', withDir(async (dir) => {
       write(hermit(dir, 'config.json'), withHandle);
-      const r = await run('<channel source="discord" chat_id="1" user="U1">/pause@ourbot</channel>', dir);
+      const r = await run('<channel source="discord" chat_id="1" user="U1">!pause@ourbot</channel>', dir);
       expect(r.exitCode).toBe(0);
       expect(isPaused(hermit(dir)).paused).toBe(true);
     }));
 
     test('suffix naming a different bot — silent no-op', withDir(async (dir) => {
       write(hermit(dir, 'config.json'), withHandle);
-      const r = await run('<channel source="discord" chat_id="1" user="U1">/pause@otherbot</channel>', dir);
+      const r = await run('<channel source="discord" chat_id="1" user="U1">!pause@otherbot</channel>', dir);
       expect(r.exitCode).toBe(0);
       expect(r.stdout).not.toContain('[pause]');
       expect(isPaused(hermit(dir)).paused).toBe(false);
@@ -205,7 +205,7 @@ describe('pause-keyword', () => {
     test('suffixed command with no stored bot_username — silent no-op', withDir(async (dir) => {
       // Default config carries no bot_username: an unknown handle can never
       // authorize an addressed command.
-      const r = await run('<channel source="discord" chat_id="1" user="U1">/pause@ourbot</channel>', dir);
+      const r = await run('<channel source="discord" chat_id="1" user="U1">!pause@ourbot</channel>', dir);
       expect(r.exitCode).toBe(0);
       expect(r.stdout).not.toContain('[pause]');
       expect(isPaused(hermit(dir)).paused).toBe(false);
@@ -213,14 +213,14 @@ describe('pause-keyword', () => {
 
     test('unsuffixed command still works when a handle is stored', withDir(async (dir) => {
       write(hermit(dir, 'config.json'), withHandle);
-      const r = await run('<channel source="discord" chat_id="1" user="U1">/pause</channel>', dir);
+      const r = await run('<channel source="discord" chat_id="1" user="U1">!pause</channel>', dir);
       expect(r.exitCode).toBe(0);
       expect(isPaused(hermit(dir)).paused).toBe(true);
     }));
 
     test('addressed snooze keeps its duration argument', withDir(async (dir) => {
       write(hermit(dir, 'config.json'), withHandle);
-      const r = await run('<channel source="discord" chat_id="1" user="U1">/snooze@ourbot 2h</channel>', dir);
+      const r = await run('<channel source="discord" chat_id="1" user="U1">!snooze@ourbot 2h</channel>', dir);
       expect(r.exitCode).toBe(0);
       expect(isPaused(hermit(dir)).until).not.toBeNull();
     }));
@@ -236,14 +236,14 @@ describe('pause-keyword', () => {
 
     test('Discord mention of this bot before the command — acts', withDir(async (dir) => {
       write(hermit(dir, 'config.json'), withIdentity);
-      const r = await run(`<channel source="discord" chat_id="1" user="U1"><@${SELF_ID}> /pause</channel>`, dir);
+      const r = await run(`<channel source="discord" chat_id="1" user="U1"><@${SELF_ID}> !pause</channel>`, dir);
       expect(r.exitCode).toBe(0);
       expect(isPaused(hermit(dir)).paused).toBe(true);
     }));
 
     test('mention of a different account — silent no-op', withDir(async (dir) => {
       write(hermit(dir, 'config.json'), withIdentity);
-      const r = await run('<channel source="discord" chat_id="1" user="U1"><@999999999999999999> /pause</channel>', dir);
+      const r = await run('<channel source="discord" chat_id="1" user="U1"><@999999999999999999> !pause</channel>', dir);
       expect(r.exitCode).toBe(0);
       expect(r.stdout).not.toContain('[pause]');
       expect(isPaused(hermit(dir)).paused).toBe(false);
@@ -252,7 +252,7 @@ describe('pause-keyword', () => {
     test('mention with no stored bot_user_id — silent no-op', withDir(async (dir) => {
       // Default config carries no identity: an unknown id can never authorize
       // its own address form.
-      const r = await run(`<channel source="discord" chat_id="1" user="U1"><@${SELF_ID}> /pause</channel>`, dir);
+      const r = await run(`<channel source="discord" chat_id="1" user="U1"><@${SELF_ID}> !pause</channel>`, dir);
       expect(r.exitCode).toBe(0);
       expect(r.stdout).not.toContain('[pause]');
       expect(isPaused(hermit(dir)).paused).toBe(false);
@@ -268,14 +268,14 @@ describe('pause-keyword', () => {
 
     test('mentioned snooze keeps its duration argument', withDir(async (dir) => {
       write(hermit(dir, 'config.json'), withIdentity);
-      const r = await run(`<channel source="discord" chat_id="1" user="U1"><@${SELF_ID}> /snooze 2h</channel>`, dir);
+      const r = await run(`<channel source="discord" chat_id="1" user="U1"><@${SELF_ID}> !snooze 2h</channel>`, dir);
       expect(r.exitCode).toBe(0);
       expect(isPaused(hermit(dir)).until).not.toBeNull();
     }));
 
     test('Telegram @handle mention before the command — acts', withDir(async (dir) => {
       write(hermit(dir, 'config.json'), withIdentity);
-      const r = await run('<channel source="discord" chat_id="1" user="U1">@ourbot /pause</channel>', dir);
+      const r = await run('<channel source="discord" chat_id="1" user="U1">@ourbot !pause</channel>', dir);
       expect(r.exitCode).toBe(0);
       expect(isPaused(hermit(dir)).paused).toBe(true);
     }));
@@ -287,29 +287,29 @@ describe('pause-keyword', () => {
   describe('plugin-qualified envelope source (#634)', () => {
     test('allowlist match on a qualified source against bare-keyed config — sets flag', withDir(async (dir) => {
       write(hermit(dir, 'config.json'), '{"channels":{"discord":{"allowed_users":["ALLOWED_ID"]}}}');
-      const r = await run('<channel source="plugin:discord:discord" chat_id="1" user="ALLOWED_ID">/pause</channel>', dir);
+      const r = await run('<channel source="plugin:discord:discord" chat_id="1" user="ALLOWED_ID">!pause</channel>', dir);
       expect(r.exitCode).toBe(0);
       expect(isPaused(hermit(dir)).paused).toBe(true);
     }));
 
     test('DM-binding match on a qualified source, no allowlist — sets flag', withDir(async (dir) => {
-      const r = await run('<channel source="plugin:discord:discord" chat_id="1" user="U1">/pause</channel>', dir);
+      const r = await run('<channel source="plugin:discord:discord" chat_id="1" user="U1">!pause</channel>', dir);
       expect(r.exitCode).toBe(0);
       expect(isPaused(hermit(dir)).paused).toBe(true);
     }));
 
     test('stranger against an allowlist, qualified source — silent no-op', withDir(async (dir) => {
       write(hermit(dir, 'config.json'), '{"channels":{"discord":{"allowed_users":["ALLOWED_ID"]}}}');
-      const r = await run('<channel source="plugin:discord:discord" chat_id="1" user="INTRUDER">/pause</channel>', dir);
+      const r = await run('<channel source="plugin:discord:discord" chat_id="1" user="INTRUDER">!pause</channel>', dir);
       expect(r.exitCode).toBe(0);
       expect(r.stdout).not.toContain('[pause]');
       expect(isPaused(hermit(dir)).paused).toBe(false);
     }));
 
     test('"resume" via a qualified source clears an existing pause', withDir(async (dir) => {
-      await run('<channel source="plugin:discord:discord" chat_id="1" user="U1">/pause</channel>', dir);
+      await run('<channel source="plugin:discord:discord" chat_id="1" user="U1">!pause</channel>', dir);
       expect(isPaused(hermit(dir)).paused).toBe(true);
-      const r = await run('<channel source="plugin:discord:discord" chat_id="1" user="U1">/resume</channel>', dir);
+      const r = await run('<channel source="plugin:discord:discord" chat_id="1" user="U1">!resume</channel>', dir);
       expect(r.exitCode).toBe(0);
       expect(isPaused(hermit(dir)).paused).toBe(false);
     }));
@@ -319,14 +319,14 @@ describe('pause-keyword', () => {
       // resolves by the normalized bare name (matching the send path), so this
       // trusts nobody and the pause is not applied.
       write(hermit(dir, 'config.json'), '{"channels":{"plugin:discord:discord":{"dm_channel_id":"1"}}}');
-      const r = await run('<channel source="plugin:discord:discord" chat_id="1" user="U1">/pause</channel>', dir);
+      const r = await run('<channel source="plugin:discord:discord" chat_id="1" user="U1">!pause</channel>', dir);
       expect(r.exitCode).toBe(0);
       expect(isPaused(hermit(dir)).paused).toBe(false);
     }));
 
     test('genericity pin: an unrecognized custom channel plugin normalizes the same way', withDir(async (dir) => {
       write(hermit(dir, 'config.json'), '{"channels":{"crm":{"dm_channel_id":"1"}}}');
-      const r = await run('<channel source="plugin:acme-crm:crm" chat_id="1" user="U1">/pause</channel>', dir);
+      const r = await run('<channel source="plugin:acme-crm:crm" chat_id="1" user="U1">!pause</channel>', dir);
       expect(r.exitCode).toBe(0);
       expect(isPaused(hermit(dir)).paused).toBe(true);
     }));
@@ -342,7 +342,7 @@ describe('pause-keyword', () => {
     test('id-based allowlist, real wire shape — pauses, attributed to the display name', withDir(async (dir) => {
       write(hermit(dir, 'config.json'), idConfig);
       const r = await run(
-        `<channel source="plugin:discord:discord" chat_id="1" user="display-name" user_id="${ID}">/pause</channel>`,
+        `<channel source="plugin:discord:discord" chat_id="1" user="display-name" user_id="${ID}">!pause</channel>`,
         dir,
       );
       expect(r.exitCode).toBe(0);
@@ -354,7 +354,7 @@ describe('pause-keyword', () => {
     test('display name mimicking an allowlisted id — silent no-op', withDir(async (dir) => {
       write(hermit(dir, 'config.json'), idConfig);
       const r = await run(
-        `<channel source="plugin:discord:discord" chat_id="1" user="${ID}" user_id="EVIL">/pause</channel>`,
+        `<channel source="plugin:discord:discord" chat_id="1" user="${ID}" user_id="EVIL">!pause</channel>`,
         dir,
       );
       expect(r.exitCode).toBe(0);

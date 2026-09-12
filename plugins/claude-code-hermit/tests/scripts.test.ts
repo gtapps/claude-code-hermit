@@ -33,7 +33,7 @@ import { costIndexPath, readCostIndex, updateCostIndex, scanAutomatedOpus } from
 import * as pricing from '../scripts/lib/pricing';
 import { calculateCost } from '../scripts/lib/pricing';
 import { search } from '../scripts/lib/search';
-import { logMessage, searchLog, unconsolidated, markConsolidated, prune, dbExists } from '../scripts/lib/channel-log';
+import { logMessage, searchLog, unconsolidated, unaddressedSince, markConsolidated, prune, dbExists } from '../scripts/lib/channel-log';
 
 // ---------- small local helpers ----------
 
@@ -4599,6 +4599,65 @@ describe('cost-reflect source attribution', () => {
 // -------------------------------------------------------
 
 describe('search', () => {
+  const chatCases: [string, object | null, string | null, string[]][] = [
+    ['own chat', { channels: { discord: {} } }, 'discord:C1', ['C1']],
+    ['home chat', { channels: { discord: { default_chat_id: 'C1' } } }, 'discord:C1', ['C1', 'C2']],
+    ['non-technical home', { operator_profile: 'non-technical', channels: { discord: { default_chat_id: 'C1' } } }, 'discord:C1', ['C1']],
+    ...['technical', 'non-technical'].map((operator_profile): [string, object, string, string[]] => ['maintainer ' + operator_profile, { operator_profile, channels: { discord: { maintainer_channel_id: 'MAINT' } } }, 'discord:MAINT', ['C1', 'C2']]),
+    ['unknown channel', {}, 'acme-crm:X', ['X']],
+    ['terminal', {}, null, ['C1', 'C2']],
+    ['colon in chat id', { channels: { discord: {} } }, 'discord:C:1', ['C:1']],
+    ['unreadable config', null, 'discord:C1', ['C1']],
+  ];
+  for (const [name, config, chat, expected] of chatCases) {
+    test(`search --chat: ${name}`, withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      write(hermit(dir, 'config.json'), config === null ? '{' : JSON.stringify(config));
+      for (const chat_id of ['C1', 'C2']) {
+        expect(logMessage(hermitPath, { source: 'discord', chat_id, direction: 'in', text: `cliscope hit-${chat_id}` }).ok).toBe(true);
+      }
+      if (chat === 'acme-crm:X' || chat === 'discord:C:1') {
+        const source = chat === 'acme-crm:X' ? 'acme-crm' : 'discord';
+        const chat_id = chat === 'acme-crm:X' ? 'X' : 'C:1';
+        expect(logMessage(hermitPath, { source, chat_id, direction: 'in', text: `cliscope hit-${chat_id}` }).ok).toBe(true);
+      }
+      const r = await runScript('search.ts', { args: [hermitPath, ...(chat ? [`--chat=${chat}`] : []), 'cliscope'] });
+      expect(r.exitCode).toBe(0);
+      expect(r.stderr).toBe('');
+      for (const id of expected) expect(r.stdout).toContain(`hit-${id}`);
+      if (!expected.includes('C2')) expect(r.stdout).not.toContain('hit-C2');
+      if (!expected.includes('C1')) expect(r.stdout).not.toContain('hit-C1');
+    }));
+  }
+
+  const audienceCases: [string, object, string | null, string[]][] = [
+    ['scoped C1 sees neither tagged page nor session', { channels: { discord: {} } }, 'discord:C1', []],
+    ['scoped C2 sees the tagged page only', { channels: { discord: {} } }, 'discord:C2', ['topic-x']],
+    ['technical home sees page and session', { operator_profile: 'technical', channels: { discord: { default_chat_id: 'HOME' } } }, 'discord:HOME', ['topic-x', 'S-001']],
+    ['terminal sees page and session', {}, null, ['topic-x', 'S-001']],
+  ];
+  for (const [name, config, chat, expected] of audienceCases) {
+    test(`search --chat audience: ${name}`, withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      write(hermit(dir, 'config.json'), JSON.stringify(config));
+      fs.mkdirSync(hermit(dir, 'compiled'), { recursive: true });
+      fs.mkdirSync(hermit(dir, 'sessions'), { recursive: true });
+      write(hermit(dir, 'compiled', 'topic-x.md'),
+        '---\ntitle: Private topic\ntype: topic\naudience: discord:C2\ncreated: 2026-09-01T00:00:00+00:00\n---\naudscope tagged page');
+      write(hermit(dir, 'compiled', 'topic-open.md'),
+        '---\ntitle: Open topic\ntype: topic\ncreated: 2026-09-01T00:00:00+00:00\n---\naudscope open page');
+      write(hermit(dir, 'sessions', 'S-001-REPORT.md'),
+        '---\ntitle: Session one\nid: S-001\n---\naudscope session report');
+      const r = await runScript('search.ts', { args: [hermitPath, ...(chat ? [`--chat=${chat}`] : []), 'audscope'] });
+      expect(r.exitCode).toBe(0);
+      expect(r.stderr).toBe('');
+      expect(r.stdout).toContain('topic-open');
+      for (const token of expected) expect(r.stdout).toContain(token);
+      if (!expected.includes('topic-x')) expect(r.stdout).not.toContain('topic-x');
+      if (!expected.includes('S-001')) expect(r.stdout).not.toContain('S-001');
+    }));
+  }
+
   const runSearch = async (dir: string, query: string) => {
     const r = await runScript('search.ts', { args: [hermit(dir), query] });
     expect(r.exitCode).toBe(0);
@@ -4861,6 +4920,50 @@ describe('channel-log', () => {
       });
     }));
 
+    test('searchLog scopes own, channel, and shared rows by source and chat', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      for (const [source, chat_id] of [['discord', 'C1'], ['discord', 'C2'], ['telegram', 'C1'], ['telegram', 'T2']]) {
+        expect(logMessage(hermitPath, { source, chat_id, direction: 'in', text: 'scopeword' }).ok).toBe(true);
+      }
+      const own = { source: 'discord', chat_id: 'C1' };
+      const hits = (scope: { own: { source?: string; chat_id?: string }; channel?: string; shared: { source: string; chat_id: string }[] }) => searchLog(hermitPath, ['scopeword'], { scope }).map((row) => `${row.source}:${row.chat_id}`).sort();
+      expect(hits({ own, shared: [] })).toEqual(['discord:C1']);
+      expect(hits({ own, channel: 'discord', shared: [] })).toEqual(['discord:C1', 'discord:C2']);
+      expect(hits({ own, shared: [{ source: 'telegram', chat_id: 'T2' }] })).toEqual(['discord:C1', 'telegram:T2']);
+      expect(hits({ own: { chat_id: 'C1' }, shared: [] })).toEqual([]);
+      expect(hits({ own: { source: 'discord' }, shared: [] })).toEqual([]);
+      expect(searchLog(hermitPath, ['scopeword'])).toHaveLength(4);
+    }));
+
+    test('searchLog applies scope before the candidate limit', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      for (let i = 0; i < 250; i++) {
+        expect(logMessage(hermitPath, { source: 'discord', chat_id: 'C2', direction: 'in', text: 'rankword' }).ok).toBe(true);
+      }
+      expect(logMessage(hermitPath, { source: 'discord', chat_id: 'C1', direction: 'in', text: 'rankword with extra words to rank behind forbidden rows' }).ok).toBe(true);
+      expect(searchLog(hermitPath, ['rankword']).every((row) => row.chat_id === 'C2')).toBe(true);
+      expect(searchLog(hermitPath, ['rankword'], { scope: { own: { source: 'discord', chat_id: 'C1' }, shared: [] } })).toHaveLength(1);
+    }));
+
+    test('logMessage round-trips sender_id and leaves sender unchanged', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      const stored = logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'display', sender_id: 'U1',
+        text: 'id-bearing inbound',
+      });
+      expect(stored.ok).toBe(true);
+      const omitted = logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'display',
+        text: 'id-omitted inbound',
+      });
+      expect(omitted.ok).toBe(true);
+      const { rows } = unconsolidated(hermitPath);
+      expect(rows).toEqual(expect.arrayContaining([
+        expect.objectContaining({ text: 'id-bearing inbound', sender: 'display', sender_id: 'U1' }),
+        expect.objectContaining({ text: 'id-omitted inbound', sender: 'display', sender_id: null }),
+      ]));
+    }));
+
     test('searchLog uses OR semantics across terms, not AND', withDir(async (dir) => {
       const hermitPath = hermit(dir);
       logMessage(hermitPath, { source: 'discord', chat_id: 'C1', direction: 'in', text: 'only apple here' });
@@ -4922,6 +5025,140 @@ describe('channel-log', () => {
       expect(markConsolidated(hermitPath, [1, 2, 3])).toEqual({ ok: true });
       expect(dbExists(hermitPath)).toBe(false);
     }));
+
+    test('unaddressedSince returns [] when the DB does not exist', withDir(async (dir) => {
+      expect(unaddressedSince(hermit(dir), 'discord', 'C1', {
+        notBeforeIso: '2026-01-01T00:00:00.000Z', senderIds: null,
+      })).toEqual([]);
+    }));
+
+    test('unaddressedSince excludes inbound before the newest outbound and includes inbound after', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'before-out', ts: '2026-06-01T00:00:00.000Z',
+      });
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'out', sender: 'bot',
+        text: 'reply', ts: '2026-06-01T00:01:00.000Z',
+      });
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'after-out', ts: '2026-06-01T00:02:00.000Z',
+      });
+      const rows = unaddressedSince(hermitPath, 'discord', 'C1', {
+        notBeforeIso: '2026-01-01T00:00:00.000Z', senderIds: ['U1'],
+      });
+      expect(rows.map((r) => r.text)).toEqual(['after-out']);
+    }));
+
+    test('unaddressedSince excludes inbound older than notBeforeIso even with no outbound row', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'too-old', ts: '2026-06-01T00:00:00.000Z',
+      });
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'in-window', ts: '2026-06-01T02:00:00.000Z',
+      });
+      const rows = unaddressedSince(hermitPath, 'discord', 'C1', {
+        notBeforeIso: '2026-06-01T01:00:00.000Z', senderIds: ['U1'],
+      });
+      expect(rows.map((r) => r.text)).toEqual(['in-window']);
+    }));
+
+    test('unaddressedSince excludes other chats', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'here', ts: '2026-06-01T00:00:00.000Z',
+      });
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C2', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'elsewhere', ts: '2026-06-01T00:01:00.000Z',
+      });
+      const rows = unaddressedSince(hermitPath, 'discord', 'C1', {
+        notBeforeIso: '2026-01-01T00:00:00.000Z', senderIds: ['U1'],
+      });
+      expect(rows.map((r) => r.text)).toEqual(['here']);
+    }));
+
+    test('unaddressedSince applies the allowlist in SQL before LIMIT', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'allowed', ts: '2026-06-01T00:00:00.000Z',
+      });
+      for (let i = 1; i <= 8; i++) {
+        logMessage(hermitPath, {
+          source: 'discord', chat_id: 'C1', direction: 'in', sender: 'STRANGER', sender_id: 'STRANGER',
+          text: `stranger-${i}`, ts: `2026-06-01T00:0${i}:00.000Z`,
+        });
+      }
+      const rows = unaddressedSince(hermitPath, 'discord', 'C1', {
+        notBeforeIso: '2026-01-01T00:00:00.000Z', senderIds: ['U1'], limit: 8,
+      });
+      expect(rows.map((r) => r.text)).toEqual(['allowed']);
+    }));
+
+    test('unaddressedSince never returns a row with null sender_id', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1',
+        text: 'no-id', ts: '2026-06-01T00:00:00.000Z',
+      });
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'has-id', ts: '2026-06-01T00:01:00.000Z',
+      });
+      const rows = unaddressedSince(hermitPath, 'discord', 'C1', {
+        notBeforeIso: '2026-01-01T00:00:00.000Z', senderIds: null,
+      });
+      expect(rows.map((r) => r.text)).toEqual(['has-id']);
+    }));
+
+    test('unaddressedSince with senderIds [] returns nothing', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'anyone', ts: '2026-06-01T00:00:00.000Z',
+      });
+      expect(unaddressedSince(hermitPath, 'discord', 'C1', {
+        notBeforeIso: '2026-01-01T00:00:00.000Z', senderIds: [],
+      })).toEqual([]);
+    }));
+
+    test('unaddressedSince keeps the newest limit rows and returns them oldest first', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      for (let i = 0; i < 10; i++) {
+        logMessage(hermitPath, {
+          source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+          text: `row-${i}`, ts: `2026-06-01T00:${String(i).padStart(2, '0')}:00.000Z`,
+        });
+      }
+      const rows = unaddressedSince(hermitPath, 'discord', 'C1', {
+        notBeforeIso: '2026-01-01T00:00:00.000Z', senderIds: ['U1'], limit: 8,
+      });
+      expect(rows.map((r) => r.text)).toEqual(['row-2', 'row-3', 'row-4', 'row-5', 'row-6', 'row-7', 'row-8', 'row-9']);
+    }));
+
+    test('unaddressedSince equal-ts rows come back in insertion order', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      const ts = '2026-06-01T00:00:00.000Z';
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'first', ts,
+      });
+      logMessage(hermitPath, {
+        source: 'discord', chat_id: 'C1', direction: 'in', sender: 'U1', sender_id: 'U1',
+        text: 'second', ts,
+      });
+      const rows = unaddressedSince(hermitPath, 'discord', 'C1', {
+        notBeforeIso: '2026-01-01T00:00:00.000Z', senderIds: ['U1'],
+      });
+      expect(rows.map((r) => r.text)).toEqual(['first', 'second']);
+    }));
   });
 
   describe('scripts/channel-log.ts (subprocess CLI)', () => {
@@ -4940,6 +5177,35 @@ describe('channel-log', () => {
     test('unknown subcommand -> exit 1', withDir(async (dir) => {
       const r = await runPinnedScript('channel-log.ts', hermit(dir), [hermit(dir), 'bogus']);
       expect(r.exitCode).toBe(1);
+    }));
+
+    test('list-unconsolidated stamps audience from shared_chats', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      write(hermit(dir, 'config.json'), JSON.stringify({
+        // 4242 numeric: chat ids in config are often unquoted (Telegram), and the
+        // DB column is TEXT — the stamp has to coerce like the SQL grant does.
+        channels: { discord: { shared_chats: ['C2', 4242] } },
+      }));
+      logMessage(hermitPath, { source: 'discord', chat_id: 'C1', direction: 'in', text: 'private row' });
+      logMessage(hermitPath, { source: 'discord', chat_id: 'C2', direction: 'in', text: 'shared row' });
+      logMessage(hermitPath, { source: 'discord', chat_id: '4242', direction: 'in', text: 'numeric shared row' });
+      const listed = await runPinnedScript('channel-log.ts', hermitPath, [hermitPath, 'list-unconsolidated']);
+      expect(listed.exitCode).toBe(0);
+      const rows = JSON.parse(listed.stdout.trim());
+      const byChat = Object.fromEntries(rows.map((r: { chat_id: string; audience: string }) => [r.chat_id, r.audience]));
+      expect(byChat.C1).toBe('discord:C1');
+      expect(byChat.C2).toBe('shared');
+      expect(byChat['4242']).toBe('shared');
+    }));
+
+    test('list-unconsolidated with no config tags every row as own audience', withDir(async (dir) => {
+      const hermitPath = hermit(dir);
+      logMessage(hermitPath, { source: 'discord', chat_id: 'C1', direction: 'in', text: 'a' });
+      logMessage(hermitPath, { source: 'discord', chat_id: 'C2', direction: 'in', text: 'b' });
+      const listed = await runPinnedScript('channel-log.ts', hermitPath, [hermitPath, 'list-unconsolidated']);
+      expect(listed.exitCode).toBe(0);
+      const rows = JSON.parse(listed.stdout.trim());
+      expect(rows.map((r: { audience: string }) => r.audience).sort()).toEqual(['discord:C1', 'discord:C2']);
     }));
 
     test('list-unconsolidated -> mark-consolidated roundtrip through the CLI', withDir(async (dir) => {

@@ -33,6 +33,14 @@ bash scripts/graphify-refresh.sh
 
 AST-only, no API cost. Skips silently if `graphify` isn't installed or the session is in a worktree; a single plugin's update failure warns and continues rather than aborting — a stale graph must never block a release.
 
+### 1.6. Reconcile the proposal queue (once, fleet-wide)
+
+`/release` step 1.6 runs `/stale-proposals` per plugin, but the proposal queue is monorepo-wide shared state, not per-plugin: a proposal's shipped-evidence is scanned from all plugins' CHANGELOGs and recent PRs regardless of which single plugin `/release` targets. Running it once per plugin in a fleet re-scans the same evidence and finds nothing new on every pass after the first.
+
+Skip this step entirely if `.claude/skills/stale-proposals/` doesn't exist. Otherwise run it exactly once here, before the per-plugin loop, the same way `/release` step 1.6 does: dispatch a `general-purpose` subagent at **`model: "sonnet"`** to run `stale-proposals/SKILL.md`'s Steps 1–2b, then apply `SHIPPED-STRONG` verdicts per that skill's Step 3. `SHIPPED-WEAK` and `AGED` verdicts go through `AskUserQuestion` exactly as `stale-proposals/SKILL.md` Step 4 describes.
+
+When invoking each plugin's `/release` in steps 5 and 7 below, skip its step 1.6 — it already ran here.
+
 ### 2. Determine target plugins
 
 **Explicit slugs:** validate each exists at `plugins/<slug>/.claude-plugin/plugin.json`. For any unknown slug, abort and list available slugs.
@@ -76,7 +84,7 @@ With `--dry-run`: stop here. Print the plan and exit without touching anything.
 
 ### 5. Run `/release` for core (if in fleet)
 
-Invoke the full `/release claude-code-hermit` skill logic through the commit step, then:
+Invoke the full `/release claude-code-hermit` skill logic through the commit step, skipping its step 1.6 (already run once in step 1.6 above), then:
 
 ```bash
 git push origin main
@@ -107,7 +115,7 @@ These changes will be staged and committed as part of each domain plugin's `/rel
 
 ### 7. Run `/release` for each domain plugin
 
-For each domain plugin in order, invoke the full `/release <slug>` skill logic through the commit step, then:
+For each domain plugin in order, invoke the full `/release <slug>` skill logic through the commit step, skipping its step 1.6 (already run once in step 1.6 above), then:
 
 ```bash
 git push origin main

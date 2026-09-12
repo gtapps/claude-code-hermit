@@ -10,7 +10,7 @@
  * create the file, so a hermit with no channel traffic never gets one.
  *
  * Schema:
- *   messages(id, ts, source, chat_id, direction, sender, message_id, text, consolidated_at)
+ *   messages(id, ts, source, chat_id, direction, sender, sender_id, message_id, text, consolidated_at)
  *   messages_fts — external-content FTS5 index over messages.text, kept in
  *     sync by AFTER INSERT/DELETE triggers (external-content tables do not
  *     auto-sync).
@@ -22,6 +22,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Database } from 'bun:sqlite';
+import { readSettledConfig } from './config-read';
+import { channelEntry } from './channel-auth';
 
 type Json = any;
 
@@ -33,6 +35,7 @@ interface LogInput {
   chat_id: string;
   direction: 'in' | 'out';
   sender?: string | null;
+  sender_id?: string | null;
   message_id?: string | null;
   text: string;
   ts?: string; // ISO; defaults to now
@@ -45,6 +48,7 @@ interface ChannelRow {
   chat_id: string;
   direction: string;
   sender: string | null;
+  sender_id: string | null;
   message_id: string | null;
   text: string;
   consolidated_at: string | null;
@@ -84,11 +88,13 @@ function openDb(hermitDir: string, opts?: { readonly?: boolean; busyTimeoutMs?: 
 }
 
 /**
- * Default-on gate for episodic capture: config.knowledge.channel_log_enabled.
+ * Per-channel log_chats overrides the default-on knowledge.channel_log_enabled gate.
  * Shared by channel-hook.ts (outbound) and the channel-reply-reminder stage (inbound)
  * so the "only an explicit false disables capture" rule lives in one place.
  */
-function isLoggingEnabled(config: Json): boolean {
+function isLoggingEnabled(config: Json, source?: string): boolean {
+  const override = source ? channelEntry(config, source)?.log_chats : undefined;
+  if (typeof override === 'boolean') return override;
   return config?.knowledge?.channel_log_enabled !== false;
 }
 
@@ -102,6 +108,7 @@ function ensureSchema(db: Json): void {
       chat_id TEXT NOT NULL,
       direction TEXT NOT NULL,
       sender TEXT,
+      sender_id TEXT,
       message_id TEXT,
       text TEXT NOT NULL,
       consolidated_at TEXT
@@ -124,6 +131,17 @@ function ensureSchema(db: Json): void {
   `);
   db.run('CREATE INDEX IF NOT EXISTS messages_consolidated_idx ON messages(consolidated_at)');
   db.run('CREATE INDEX IF NOT EXISTS messages_ts_idx ON messages(ts)');
+  // Schema drift is handled only here (first precedent in the repo): a DB
+  // created without sender_id gains the column on the next logMessage() call.
+  const columns = db.query('PRAGMA table_info(messages)').all() as Array<{ name: string }>;
+  if (!columns.some((c) => c.name === 'sender_id')) {
+    try {
+      db.run('ALTER TABLE messages ADD COLUMN sender_id TEXT');
+    } catch (e: any) {
+      // A concurrent writer added it between the check and the ALTER.
+      if (!/duplicate column/i.test(e?.message || '')) throw e;
+    }
+  }
 }
 
 /**
@@ -144,14 +162,15 @@ function logMessage(hermitDir: string, input: LogInput): { ok: boolean; error?: 
 
       const ts = input.ts || new Date().toISOString();
       db.query(
-        `INSERT INTO messages (ts, source, chat_id, direction, sender, message_id, text)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO messages (ts, source, chat_id, direction, sender, sender_id, message_id, text)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         ts,
         String(input.source || ''),
         String(input.chat_id || ''),
         input.direction,
         input.sender ?? null,
+        input.sender_id ?? null,
         input.message_id ?? null,
         text
       );
@@ -180,10 +199,11 @@ function buildMatchExpr(terms: string[]): string {
 /**
  * Full-text search over the channel log. Returns [] (not an error) when the
  * DB doesn't exist yet — this is the feature-detect path search.ts relies on.
- * @param {object} [opts] - { since?: ISO date string, type?: string, limit?: number }
+ * @param {object} [opts] - { since?: ISO date string, type?: string, limit?: number, scope?: { own: {source, chat_id}, channel?: string, shared: {source, chat_id}[] } }
  */
 function searchLog(hermitDir: string, terms: string[], opts?: Json): ChannelRow[] {
   const o = opts || {};
+  if (o.scope && (!o.scope.own?.source || !o.scope.own?.chat_id)) return [];
   // A type filter that isn't 'channel' can never match rows from this source.
   if (o.type && o.type !== 'channel') return [];
   if (!terms || terms.length === 0) return [];
@@ -203,13 +223,26 @@ function searchLog(hermitDir: string, terms: string[], opts?: Json): ChannelRow[
       // Params mirror the SQL fragment's `since` branch — push in bind order.
       const params: (string | number)[] = [matchExpr];
       if (sinceIso) params.push(sinceIso);
+      let scopeSql = '';
+      if (o.scope) {
+        const pairs = [o.scope.own, ...o.scope.shared];
+        const clauses = pairs.map((pair) => {
+          params.push(pair.source, pair.chat_id);
+          return '(m.source = ? AND m.chat_id = ?)';
+        });
+        if (o.scope.channel) {
+          clauses.push('m.source = ?');
+          params.push(o.scope.channel);
+        }
+        scopeSql = ` AND (${clauses.join(' OR ')})`;
+      }
       params.push(limit);
 
       return db
         .query(
           `SELECT m.id, m.ts, m.source, m.chat_id, m.direction, m.sender, m.message_id, m.text, m.consolidated_at
            FROM messages_fts f JOIN messages m ON m.id = f.rowid
-           WHERE messages_fts MATCH ?${sinceIso ? ' AND m.ts >= ?' : ''}
+           WHERE messages_fts MATCH ?${sinceIso ? ' AND m.ts >= ?' : ''}${scopeSql}
            ORDER BY rank LIMIT ?`
         )
         .all(...params) as ChannelRow[];
@@ -275,6 +308,55 @@ function inboundSince(hermitDir: string, sinceIso: string, limit = 50): ChannelR
 }
 
 /**
+ * Inbound rows in one chat after both `notBeforeIso` and the newest outbound
+ * row for that chat, filtered by sender_id in SQL before LIMIT. Newest `limit`
+ * rows (default 8), returned oldest first. Absent DB or any query error → [].
+ */
+function unaddressedSince(
+  hermitDir: string,
+  source: string,
+  chatId: string,
+  opts: { notBeforeIso: string; senderIds: string[] | null; limit?: number },
+): ChannelRow[] {
+  if (!dbExists(hermitDir)) return [];
+  if (opts.senderIds !== null && opts.senderIds.length === 0) return [];
+  try {
+    const db = openDb(hermitDir, { readonly: true });
+    try {
+      const limit = opts.limit ?? 8;
+      const params: (string | number)[] = [source, chatId, opts.notBeforeIso, source, chatId];
+      let senderFilter = 'AND sender_id IS NOT NULL';
+      if (opts.senderIds !== null) {
+        senderFilter = `AND sender_id IN (${opts.senderIds.map(() => '?').join(',')})`;
+        params.push(...opts.senderIds);
+      }
+      params.push(limit);
+      const rows = db
+        .query(
+          `SELECT * FROM messages
+           WHERE direction = 'in'
+             AND source = ?
+             AND chat_id = ?
+             AND ts > ?
+             AND ts > COALESCE(
+               (SELECT MAX(ts) FROM messages WHERE direction = 'out' AND source = ? AND chat_id = ?),
+               ''
+             )
+             ${senderFilter}
+           ORDER BY ts DESC, id DESC
+           LIMIT ?`
+        )
+        .all(...params) as ChannelRow[];
+      return rows.reverse();
+    } finally {
+      db.close();
+    }
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Stamp consolidated_at on the given row ids. Absent DB → ok:true no-op
  * (nothing to mark). Called only after the caller has successfully applied
  * the distilled writes (memory/compiled) — see weekly-review's consolidation
@@ -326,5 +408,26 @@ function prune(hermitDir: string, retentionDays: number): { ok: boolean; deleted
   }
 }
 
-export { logMessage, searchLog, unconsolidated, inboundSince, markConsolidated, prune, dbExists, dbPath, isLoggingEnabled };
+/** Last per-chat rows in both directions, returned oldest first. */
+function conversationHistory(
+  hermitDir: string,
+  source: string,
+  chatId: string,
+  { limit }: { limit: number },
+): Pick<ChannelRow, 'ts' | 'direction' | 'sender' | 'text'>[] {
+  try {
+    if (!Number.isInteger(limit) || limit <= 0 || !dbExists(hermitDir) || !isLoggingEnabled(readSettledConfig(hermitDir))) return [];
+    const db = openDb(hermitDir, { readonly: true });
+    try {
+      const rows = db.query(
+        `SELECT ts, direction, sender, text FROM messages
+         WHERE source = ? AND chat_id = ?
+         ORDER BY ts DESC, id DESC LIMIT ?`
+      ).all(source, chatId, limit) as Pick<ChannelRow, 'ts' | 'direction' | 'sender' | 'text'>[];
+      return rows.reverse();
+    } finally { db.close(); }
+  } catch { return []; }
+}
+
+export { logMessage, searchLog, unconsolidated, inboundSince, unaddressedSince, conversationHistory, markConsolidated, prune, dbExists, dbPath, isLoggingEnabled };
 export type { LogInput, ChannelRow };

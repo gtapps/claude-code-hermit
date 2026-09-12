@@ -52,11 +52,9 @@ if (fs.existsSync(appendPath)) {
   // Pre-trim 2,993 B → ~2,265 B.
   ok('under post-trim ceiling (~2265 B)', Buffer.byteLength(append, 'utf-8') <= 2600, `${Buffer.byteLength(append, 'utf-8')} B`);
 
-  ok('keeps surface-then-approve', append.includes('preview → relay → approve → confirm'));
+  ok('keeps the deploy and reboot previews', append.includes('preview-deploy <server> <site>') && append.includes('preview-reboot'));
+  ok('relays the target before execution', append.includes('relay the canonical target to the operator, then run the write command for native approval'));
   ok('keeps the outage consequence', append.includes('A wrong reboot causes an outage'));
-  // The two gates are defence in depth, and the PHP gate is the authoritative
-  // one — the block must not claim blanket un-bypassable enforcement.
-  ok('states the real enforcement boundary', append.includes('PHP gate authoritative'));
   // Replaced the closed-allowlist assertion: reads no longer use an allowlist,
   // so asserting it would keep the template documenting a guarantee the code
   // does not make. The plan hash is the guarantee that took its place.

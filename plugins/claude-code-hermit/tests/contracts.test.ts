@@ -385,6 +385,29 @@ const BASE_CONFIG = {
 
 const runValidate = (overrides: any) => validate({ ...BASE_CONFIG, ...overrides });
 
+describe('channel audience keys validation', () => {
+  for (const [key, value] of [['isolate_chats', 'yes'], ['log_chats', 1], ['shared_chats', 'C1'], ['operators', '1'], ['shared_chats', [1]], ['operators', [1]]]) {
+    test(`rejects invalid ${key} ${JSON.stringify(value)}`, () => {
+      expect(runValidate({ channels: { discord: { [key as string]: value } } }).errors.some(
+        (error: string) => error.includes(`channels.discord.${key}:`),
+      )).toBe(true);
+    });
+  }
+  test('valid shapes pass', () => {
+    expect(runValidate({ channels: { discord: { isolate_chats: false, log_chats: true, shared_chats: ['C1'], operators: ['1'], allowed_users: ['1'] } } }).errors).toEqual([]);
+  });
+  test('sharing maintainer chat warns without errors', () => {
+    const out = runValidate({ channels: { discord: { shared_chats: ['MAINT'], maintainer_channel_id: 'MAINT' } } });
+    expect(out.errors).toEqual([]);
+    expect(out.warnings.some((warning: string) => warning.includes('shared_chats'))).toBe(true);
+  });
+  test('operator outside allowed users warns without errors', () => {
+    const out = runValidate({ channels: { discord: { operators: ['1'], allowed_users: ['2'] } } });
+    expect(out.errors).toEqual([]);
+    expect(out.warnings.some((warning: string) => warning.includes('operators'))).toBe(true);
+  });
+});
+
 describe('passive chats validation', () => {
   test('accepts string chat ids and rejects other shapes', () => {
     expect(runValidate({ channels: { discord: { passive_chats: ['123'] } } }).errors).toEqual([]);
@@ -1452,6 +1475,36 @@ describe('channel-setup empty-channels branch', () => {
     expect(firstBranch).toContain('**Cancel**');
     // iMessage may be named in the rationale, but never as a selectable option.
     expect(firstBranch).not.toContain('**iMessage**');
+  });
+});
+
+// ============================================================
+// channel-setup docker routing (static SKILL.md scan, not a live probe)
+// ============================================================
+
+describe('channel-setup docker routing', () => {
+  const channelSetup = read(path.join(SKILLS, 'channel-setup', 'SKILL.md'));
+  const dockerSetup = read(path.join(SKILLS, 'docker-setup', 'SKILL.md'));
+
+  test('does not redirect Docker operators to docker-setup', () => {
+    // Old gate: runtime.json runtime_mode, or a scaffolded Dockerfile.hermit.
+    expect(channelSetup).not.toContain('docker/Dockerfile.hermit');
+    expect(channelSetup).not.toContain('runtime_mode');
+    expect(channelSetup).not.toMatch(/Run `\/claude-code-hermit:docker-setup`/);
+  });
+
+  test('keeps a live host tmux hermit on the local flow', () => {
+    expect(channelSetup).toContain('liveOwner');
+  });
+
+  test('names the hermit-docker command for each Docker host state', () => {
+    expect(channelSetup).toContain('hermit-docker restart');
+    expect(channelSetup).toContain('hermit-docker up');
+    expect(channelSetup).toContain('hermit-docker logs');
+  });
+
+  test('docker-setup pairing notes the bot may take up to 1 min', () => {
+    expect(dockerSetup).toContain('Still nothing after waiting up to 1 min');
   });
 });
 
@@ -3779,6 +3832,19 @@ describe('heartbeat eval-runner return contract', () => {
 // ============================================================
 
 describe('determinized lifecycle wiring contract', () => {
+  test('curated session archives route re-derived knowledge to a durable home', () => {
+    const close = read(path.join(SKILLS, 'session-close', 'SKILL.md'));
+    const session = read(path.join(SKILLS, 'session', 'SKILL.md'));
+    expect(close).toContain('For question 2');
+    const question2 = close.slice(close.indexOf('For question 2'), close.indexOf('For question 3'));
+    expect(question2).toContain('remember it');
+    expect(question2).toContain('compiled/topic-');
+    expect(session).toContain('remember it');
+    expect(session).toContain('compiled/topic-');
+    expect(close).not.toContain('Substantial re-derived knowledge');
+    expect(close).toContain('Lessons: none');
+  });
+
   test('session-close SKILL.md routes the --scheduled branch through the auto-close-decision verb', () => {
     const skill = read(path.join(SKILLS, 'session-close', 'SKILL.md'));
     expect(skill).toContain('auto-close-decision');

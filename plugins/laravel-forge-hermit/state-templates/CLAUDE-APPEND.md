@@ -2,11 +2,13 @@
 
 ## Laravel Forge
 
-### Safety rule — surface-then-approve (read this first)
+Direct CLI execution outside Claude Code has no confirmation-only checkpoint; validation and policy denials still apply.
 
-**Every write operation goes through preview → relay → approve → confirm.** Never auto-confirm a deploy or reboot: run `php ${CLAUDE_PLUGIN_ROOT}/php/forge.php preview-deploy <server> <site>` (or `preview-reboot`), relay the canonical target to the operator, wait for explicit approval, then re-run with `--confirm`.
+### Write previews
 
-A wrong reboot causes an outage. A wrong deploy targets the wrong site. The `write-confirm-gate.ts` hook and the in-PHP `--confirm` gate enforce this at two layers, with the PHP gate authoritative.
+Preview and relay the canonical target and request before every write. For a deploy or reboot, run `php ${CLAUDE_PLUGIN_ROOT}/php/forge.php preview-deploy <server> <site>` (or `preview-reboot`), relay the canonical target to the operator, then run the write command for native approval.
+
+A wrong reboot causes an outage. A wrong deploy targets the wrong site.
 
 ### Tools
 

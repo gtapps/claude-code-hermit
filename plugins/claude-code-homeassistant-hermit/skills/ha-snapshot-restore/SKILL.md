@@ -26,20 +26,20 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha snapshot-states --name <label> [--doma
 ## Restore (actuation — gated)
 
 ```
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha restore-states <artifact> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha restore-states <artifact>
 ```
 
 Restore is the plugin's one direct device-actuation path, so it runs through the same `ha_safety_mode` policy as every other actuation:
 
-- **strict (default):** if the snapshot contains any sensitive entity (lock, alarm, security-keyworded cover/switch), restore is **blocked** and exits non-zero with `blocked:true` and a suggestion to surface it as a proposal. Non-sensitive entities (lights, climate) restore normally.
-- **ask:** a snapshot touching sensitive entities requires `--confirm`. Without it, the command refuses and reports `needs_confirm:true`. The main session must confirm with the operator before re-running with `--confirm` — the CLI never prompts.
+- **strict (explicit):** if the snapshot contains any sensitive entity (lock, alarm, security-keyworded cover/switch), restore is **blocked** and exits non-zero with `blocked:true` and a suggestion to surface it as a proposal. Non-sensitive entities (lights, climate) restore normally.
+- **ask:** show the affected entities before restoration; Claude Code requests native approval for sensitive targets before the command executes.
 - A successful restore writes an audit report under `.claude-code-hermit/raw/audit-ha-restore-*`.
 
 ## Output contract
 
 Capture prints `{ ok, name, captured, entities, report_path, message }`.
 
-Restore prints `{ ok, blocked, needs_confirm, applied, entities, sensitive, reason, ... }`. Exit code is 0 only when `ok` is true.
+Restore prints `{ ok, blocked, applied, entities, sensitive, reason, ... }`. Exit code is 0 only when `ok` is true.
 
 ## Failure modes
 
