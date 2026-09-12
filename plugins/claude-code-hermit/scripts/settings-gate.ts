@@ -35,11 +35,12 @@ const TAKES_VALUE = new Set(['set', 'apply-known']);
  * values that carry no text. `voice` and `voice.prose` are, because prose
  * becomes every future session's system prompt. Under `channels`, only the
  * enrollment fields (who may reach the hermit, which chat it trusts) and the
- * containers that replace them; per-channel everyday keys such as
+ * containers that replace them. `isolate_chats`, `shared_chats`, and `operators`
+ * govern what a chat may read or who may change behaviour; everyday keys such as
  * `morning_brief` apply without a prompt.
  */
 const ASK_PATH =
-  /^(permission_mode|env|monitors|boot_skill|shutdown_skill|backup)(\..+)?$|^voice(\.prose)?$|^routines\.\d+\.precheck(_timeout_s)?$|^channels(\.[^.]+)?$|^channels\.[^.]+\.(allowed_users|default_chat_id|dm_channel_id|maintainer_channel_id)(\..+)?$/;
+  /^(permission_mode|env|monitors|boot_skill|shutdown_skill|backup)(\..+)?$|^voice(\.prose)?$|^routines\.\d+\.precheck(_timeout_s)?$|^channels(\.[^.]+)?$|^channels\.[^.]+\.(allowed_users|default_chat_id|dm_channel_id|maintainer_channel_id|isolate_chats|shared_chats|operators)(\..+)?$/;
 
 /**
  * The container spellings judged by value: the whole array, and one indexed entry.

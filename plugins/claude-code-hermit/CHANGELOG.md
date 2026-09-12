@@ -8,6 +8,12 @@
 
 ### Changed
 - Chat control and harness commands use `!`; `/`-prefixed chat messages are ordinary text.
+- Chat-scoped `/recall` with `isolate_chats` and `shared_chats`; the technical-profile home chat, maintainer chat, and terminal remain unscoped.
+- `channels.<name>.log_chats` records or skips one channel regardless of the global switch.
+- In passive chats, an addressed turn now includes the recent un-mentioned messages from allowed senders since the hermit's last reply in that chat.
+
+### Changed
+- A hermit-wide standing role is saved, updated, or forgotten only by a primary operator (`channels.<name>.operators`, or the first allowed user when unset); other senders save roles pinned to the requesting chat. Earlier roles are left as they are, and "what do you remember" lists them.
 - Peer requests inside the resident's existing authority are acted on rather than declined; peer messages still cannot expand authority, approve guarded actions, or change permissions.
 - `apply-settings.ts` drops the retired `automode-seed` op, the legacy-conversion and minimal deny profiles, and the `allow` alias; `permissions-sync` and `deny standard|hardened|ask-only` are the remaining entry points.
 - A standing behavior the hermit proposes and the operator accepts is written to its owning skill or memory before the hermit confirms it, and the confirmation names where it lives; with no editable home the hermit says so instead of promising.

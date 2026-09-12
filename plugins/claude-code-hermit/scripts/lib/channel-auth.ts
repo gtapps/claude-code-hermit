@@ -4,6 +4,7 @@
 // stages in lib/prompt-stages/).
 // A single copy so the allowlist rule can't drift out of sync between callers.
 
+import { iterChannelConfigs } from './channel-config';
 import { normalizeChannelSource } from './channel-envelope';
 import { cachedChat, cachedGuildRoles, lookupChat, lookupGuildRoles } from './channel-chats';
 import { escapeRegExp } from './md-write';
@@ -102,6 +103,22 @@ export function isTrustedController(
   // of empty values can never match either.
   const home = ch?.default_chat_id || ch?.dm_channel_id; // no list -> pinned-home binding
   return !!home && !!chatId && String(home) === String(chatId);
+}
+
+// Home/maintainer rule has its prose twin in channel-responder §1c.
+export function recallScope(config: Json, key: string, chatId: string): Json | null {
+  const ch = channelEntry(config, key);
+  const own = { source: key, chat_id: chatId };
+  if (!ch) return { own, shared: [] };
+  const home = ch.default_chat_id || ch.dm_channel_id;
+  if (chatId && (chatId === ch.maintainer_channel_id
+    || (chatId === home && config.operator_profile !== 'non-technical'))) return null;
+  const shared: { source: string; chat_id: string }[] = [];
+  for (const [source, entry] of iterChannelConfigs(config)) {
+    if (!Array.isArray(entry.shared_chats)) continue; // a malformed value grants nothing
+    for (const chat_id of entry.shared_chats) shared.push({ source, chat_id });
+  }
+  return { own, channel: ch.isolate_chats === false ? key : undefined, shared };
 }
 
 function passiveChats(config: Json, sourceKey: string): string[] {

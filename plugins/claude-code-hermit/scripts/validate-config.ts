@@ -371,6 +371,26 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
           errors.push(`channels.${name}.passive_chats: every entry must be a string`);
         }
       }
+      for (const key of ['isolate_chats', 'log_chats']) {
+        if (ch[key] !== undefined && typeof ch[key] !== 'boolean') {
+          errors.push(`channels.${name}.${key}: must be a boolean`);
+        }
+      }
+      for (const key of ['shared_chats', 'operators']) {
+        if (ch[key] !== undefined) {
+          if (!Array.isArray(ch[key])) errors.push(`channels.${name}.${key}: must be an array`);
+          else if (!ch[key].every((id: unknown) => typeof id === 'string')) {
+            errors.push(`channels.${name}.${key}: every entry must be a string`);
+          }
+        }
+      }
+      if (Array.isArray(ch.shared_chats) && ch.shared_chats.includes(ch.maintainer_channel_id)) {
+        warnings.push(`channels.${name}.shared_chats: includes the maintainer_channel_id`);
+      }
+      if (Array.isArray(ch.operators) && Array.isArray(ch.allowed_users)
+        && ch.operators.some((id: string) => !ch.allowed_users.includes(id))) {
+        warnings.push(`channels.${name}.operators: includes an id absent from allowed_users`);
+      }
       if (ch.dm_channel_id !== undefined && ch.dm_channel_id !== null && typeof ch.dm_channel_id !== 'string') {
         errors.push(`channels.${name}.dm_channel_id: must be string or null`);
       }

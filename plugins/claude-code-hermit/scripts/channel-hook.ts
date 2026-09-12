@@ -212,7 +212,7 @@ function main() {
       // are still captured. Best-effort; never throws past this block.
       try {
         const text = input.text;
-        if (isLoggingEnabled(config) && typeof text === 'string' && text) {
+        if (isLoggingEnabled(config, channelKey) && typeof text === 'string' && text) {
           const result = logMessage(HERMIT_DIR, {
             source: channelKey,
             chat_id: input.chat_id != null ? String(input.chat_id) : '',

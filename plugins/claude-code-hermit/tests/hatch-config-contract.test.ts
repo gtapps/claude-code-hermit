@@ -276,6 +276,28 @@ describe('hatch-config.ts', () => {
     expect(out.channels.discord.state_dir).toBe('.claude.local/channels/discord');
   });
 
+  for (const key of ['isolate_chats', 'shared_chats', 'operators', 'log_chats']) {
+    test(`re-init: ${key} can be added, replaced, cleared, and omitted`, async () => {
+      const dir = freshDir();
+      const channel = { enabled: true, dm_channel_id: 'D1', default_chat_id: 'D1', state_dir: '.claude.local/channels/discord', custom_key: 'keep' };
+      const seed = { ...JSON.parse(fs.readFileSync(TEMPLATE_PATH, 'utf8')), _hermit_versions: { 'claude-code-hermit': CORE_VERSION }, channels: { discord: channel } };
+      seedConfig(dir, seed);
+      const values = key === 'operators' || key === 'shared_chats' ? [['1'], ['2'], []] : [true, false];
+      for (const value of values) {
+        const r = await runHatchConfig(dir, { channels: { discord: { [key]: value } } }, true);
+        expect(r.exitCode).toBe(0);
+        const expected = { ...seed, channels: { discord: { ...channel, [key]: value } } };
+        expect(JSON.parse(fs.readFileSync(configPathFor(dir), 'utf8'))).toEqual(expected);
+        expect((await runHatchConfig(dir, { channels: { discord: {} } }, true)).exitCode).toBe(0);
+        expect(JSON.parse(fs.readFileSync(configPathFor(dir), 'utf8'))).toEqual(expected);
+      }
+      seedConfig(dir, { ...seed, channels: { discord: { ...channel, [key]: 'invalid' } } });
+      const invalid = await runHatchConfig(dir, { channels: { discord: { [key]: 'invalid' } } }, true);
+      expect(invalid.exitCode).not.toBe(0);
+      expect((await runHatchConfig(dir, { channels: { discord: { [key]: values[0] } } }, true)).exitCode).toBe(0);
+    });
+  }
+
   test('re-init: passive_chats can be added, replaced, cleared, and omitted without losing channel state', async () => {
     const dir = freshDir();
     const channel = {

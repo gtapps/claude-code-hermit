@@ -12,12 +12,14 @@
  *     `channel: { source, chat_id, direction, sender }` — untrusted, operator-authored
  *     external input, not a file the printer should render a `:line` ref for.
  *
- * opts: { type?: string, since?: string (ISO date), limit?: number }
+ * opts: { type?: string, since?: string (ISO date), limit?: number, chat?: string }
  */
 
 import path from 'node:path';
 import { globDirRecursive, readFileWithFrontmatter } from './frontmatter';
 import { searchLog } from './channel-log';
+import { recallScope } from './channel-auth';
+import { readConfigRaw } from './config-read';
 import { safeForLLM } from './sanitize';
 
 type Json = any;
@@ -220,7 +222,16 @@ function search(hermitDir: string, query: string, opts?: Json): Json[] {
   // guarantee. A type filter that isn't 'channel' excludes this source
   // entirely, same as the dirs loop above excludes non-matching fm.type.
   if (!typeFilter || typeFilter === 'channel') {
-    const rows = searchLog(hermitDir, terms, { since: o.since, limit: CHANNEL_CANDIDATE_LIMIT });
+    let scope;
+    // Presence, not truthiness: `--chat=` with an empty value is still a request
+    // to scope, and must fail closed rather than fall through to an unscoped read.
+    if (o.chat !== undefined && o.chat !== null) {
+      const separator = o.chat.indexOf(':');
+      const key = separator < 0 ? o.chat : o.chat.slice(0, separator);
+      const chatId = separator < 0 ? '' : o.chat.slice(separator + 1);
+      scope = recallScope(readConfigRaw(hermitDir), key, chatId) ?? undefined;
+    }
+    const rows = searchLog(hermitDir, terms, { since: o.since, limit: CHANNEL_CANDIDATE_LIMIT, scope });
     for (const row of rows) {
       // searchLog already matched this row via FTS5 (token/phrase/diacritic-fold
       // semantics), so keep it even when our substring countHits can't re-find

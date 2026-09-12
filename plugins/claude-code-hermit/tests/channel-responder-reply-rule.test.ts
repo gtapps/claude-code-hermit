@@ -108,6 +108,15 @@ test('§2 supports standing role memory management', () => {
   expect(roleEnd).toBeGreaterThan(roleStart);
   const role = classification.slice(roleStart, roleEnd);
   expect(role).not.toContain('HEARTBEAT.md');
+  expect(role).toContain('Save a hermit-wide `[role]` only for a primary operator (§1c)');
+  expect(role).toContain('To forget or update a hermit-wide role, require a primary operator (§1c)');
+  expect(role).toContain("operator's rule and write nothing");
+  expect(role).toContain('Saved for this channel only:');
+  const authorization = skill.slice(skill.indexOf('## 1c.'), skill.indexOf('## 2.'));
+  for (const term of ['Primary operator', 'operators', 'operator_profile', 'maintainer', 'default_chat_id']) {
+    expect(authorization).toContain(term);
+  }
+
   // The index-line tag is what §1 matches on, and the memory directory is what makes the write land.
   expect(role).toContain('[role <key>:<chat_id>]');
   expect(role).toContain('projects/<path-key>/memory/');

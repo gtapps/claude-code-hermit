@@ -9,7 +9,7 @@
 import { describe, test, expect } from 'bun:test';
 import { normalizeChannelSource } from '../scripts/lib/channel-envelope';
 import {
-  isAllowedSender, isTrustedController,
+  isAllowedSender, isTrustedController, recallScope,
 } from '../scripts/lib/channel-auth';
 
 describe('normalizeChannelSource', () => {
@@ -175,4 +175,28 @@ test('passive predicates use listed ids and cached parents, with exact self-ment
       }
     }
   } finally { wd.cleanup(); }
+});
+
+
+describe('recallScope', () => {
+  const own = { source: 'discord', chat_id: 'C1' };
+  test('maintainer and technical home are unscoped, non-technical home is scoped', () => {
+    for (const operator_profile of ['technical', 'non-technical']) {
+      const config = { operator_profile, channels: { discord: { default_chat_id: 'C1', maintainer_channel_id: 'MAINT' } } };
+      expect(recallScope(config, 'discord', 'MAINT')).toBeNull();
+      expect(recallScope(config, 'discord', 'C1')).toEqual(operator_profile === 'technical' ? null : { own, shared: [] });
+    }
+    expect(recallScope({ channels: { discord: { default_chat_id: '', dm_channel_id: 'C1' } } }, 'discord', 'C1')).toBeNull();
+  });
+  test('missing config or unknown key stays own-only despite shared chats elsewhere', () => {
+    for (const config of [null, {}, { channels: { telegram: { shared_chats: ['T1'] } } }]) {
+      expect(recallScope(config, 'discord', 'C1')).toEqual({ own, shared: [] });
+    }
+  });
+  test('channel widening and shared pairs across channels', () => {
+    const config = { channels: { discord: { isolate_chats: false, shared_chats: ['C2'] }, telegram: { shared_chats: ['T1'] } } };
+    expect(recallScope(config, 'discord', 'C1')).toEqual({ own, channel: 'discord', shared: [
+      { source: 'discord', chat_id: 'C2' }, { source: 'telegram', chat_id: 'T1' },
+    ] });
+  });
 });
