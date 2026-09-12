@@ -81,6 +81,14 @@ function updatePending(file: string, id: string, patch: Partial<Row>): Row | nul
 const DEFAULT_TIMEOUT_S = 30;
 const MAX_TIMEOUT_S = 300;
 
+/** A `--chat` whose value went missing must fail, never silently widen the scope to every chat. */
+function chatFlag(args: string[]): string | undefined {
+  if (!args.includes('--chat')) return undefined;
+  const chat = flagValue(args, '--chat') ?? '';
+  checkKey(chat);
+  return chat;
+}
+
 async function evidence(cmd: string, root: string, timeoutS: number) {
   const proc = Bun.spawn(['bash', '-c', cmd], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
   const chunks: Buffer[] = [];
@@ -127,8 +135,7 @@ async function main() {
   if (verb === 'add') {
     const claim = flagValue(args, '--claim');
     const cmd = flagValue(args, '--cmd') ?? null;
-    const chat = flagValue(args, '--chat');
-    if (chat !== undefined) checkKey(chat);
+    const chat = chatFlag(args);
     const due = flagValue(args, '--due');
     const origin = flagValue(args, '--origin');
     if (!claim || !due || !Number.isFinite(Date.parse(due)) || (origin !== 'operator' && origin !== 'hermit')) throw new Error('invalid add arguments');
@@ -145,7 +152,7 @@ async function main() {
     return;
   }
   if (verb === 'list') {
-    const chat = flagValue(args, '--chat');
+    const chat = chatFlag(args);
     const visible = chat === undefined ? rows : rows.filter(row => row.chat === chat);
     for (const row of [...visible.filter(row => row.state === 'pending'), ...visible.filter(row => row.state !== 'pending').slice(-10)]) {
       const { cmd, output, ...summary } = row;
@@ -154,7 +161,8 @@ async function main() {
     return;
   }
   if (!['cancel', 'check', 'verdict'].includes(verb)) throw new Error('unknown verb');
-  const row = rows.find(row => row.id === args[0]);
+  const chat = chatFlag(args);
+  const row = rows.find(row => row.id === args[0] && (chat === undefined || row.chat === chat));
   if (!row) throw new Error('unknown id');
   // The row can close between the read above and the locked update (a concurrent cancel or verdict).
   const noop = () => console.log(`NOOP|${readRows(file).find(r => r.id === row.id)?.state ?? row.state}`);
