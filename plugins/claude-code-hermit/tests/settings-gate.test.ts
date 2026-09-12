@@ -312,7 +312,8 @@ describe('static settings policy', () => {
   test('new protected paths ask for both directions and unset', async () => {
     const dir = fixture();
     for (const field of ['operator_profile', 'channels.primary', 'channels.discord.state_dir',
-      'channels.discord.marketplace', 'channels.discord.enabled', 'telemetry_export.enabled',
+      'channels.discord.marketplace', 'channels.discord.enabled', 'channels.discord.passive_chats',
+      'telemetry_export.enabled',
       'telemetry_export.destination.url', 'telemetry_export.destination.bearer_env',
       'telemetry_export.redact_operator_text', 'artifacts.publish_authorized', 'artifacts.backend',
       'docker.packages', 'docker.recommended_plugins.0.enabled', 'docker.fleet_mesh', 'remote', 'chrome', 'auth_mode']) {
@@ -348,6 +349,10 @@ describe('static settings policy', () => {
       ['channels.discord', { morning_brief: { time: '08:00' }, allowed_users: ['a', 'b'], enabled: true }, null],
       ['channels.discord', { enabled: false, allowed_users: ['a', 'b'] }, 'channels.discord.enabled'],
       ['channels.discord', { enabled: true, allowed_users: ['b', 'a'] }, 'channels.discord.allowed_users'],
+      ['channels.discord', { enabled: true, allowed_users: ['a', 'b'], passive_chats: ['C9'] },
+        'channels.discord.passive_chats'],
+      ['channels.telegram', {}, 'channels.telegram'],
+      ['channels', { discord: { enabled: true, allowed_users: ['a', 'b'] }, telegram: {} }, 'channels.telegram'],
       ['channels', {}, 'channels.discord.allowed_users, channels.discord.enabled'],
       ['artifacts', { backend: 'claude', dashboard: false }, null],
       ['artifacts', {}, 'artifacts.backend'],
@@ -377,6 +382,7 @@ describe('static settings policy', () => {
       [`set voice '{"prose":null}'`, 'voice.prose'],
       ['unset voice', null], ['set voice malformed', 'voice'], ['set voice "$VALUE"', 'voice'],
       ['toggle voice', 'voice'], ['set voice', 'voice'],
+      ['set voice {"style":"Concise","prose":"x"}', 'voice'],
     ] as const) {
       const r = await runGate(payload({ dir, tool: 'Bash', input: { command: cmd(rest) } }), dir);
       if (asked) expectAsk(r.stdout, `Hermit setting: ${asked}`);

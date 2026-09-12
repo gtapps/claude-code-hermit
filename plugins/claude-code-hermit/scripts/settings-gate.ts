@@ -34,15 +34,23 @@ const TAKES_VALUE = new Set(['set', 'apply-known']);
 
 /** Static protected subtrees. Parent replacements compare only this content. */
 const ASK_PATH =
-  /^(permission_mode|operator_profile|env|monitors|boot_skill|shutdown_skill|backup|remote|chrome|auth_mode)(\..+)?$|^voice\.prose(\..+)?$|^channels\.primary$|^channels\.[^.]+\.(allowed_users|default_chat_id|dm_channel_id|maintainer_channel_id|isolate_chats|shared_chats|operators|state_dir|marketplace|enabled)(\..+)?$|^telemetry_export\.(enabled|destination|redact_operator_text)(\..+)?$|^artifacts\.(publish_authorized|backend)(\..+)?$|^docker\.(packages|recommended_plugins|fleet_mesh)(\..+)?$|^routines\.\d+\.precheck(_timeout_s)?$/;
+  /^(permission_mode|operator_profile|env|monitors|boot_skill|shutdown_skill|backup|remote|chrome|auth_mode)(\..+)?$|^voice\.prose(\..+)?$|^channels\.primary$|^channels\.[^.]+\.(allowed_users|default_chat_id|dm_channel_id|maintainer_channel_id|isolate_chats|shared_chats|operators|passive_chats|state_dir|marketplace|enabled)(\..+)?$|^telemetry_export\.(enabled|destination|redact_operator_text)(\..+)?$|^artifacts\.(publish_authorized|backend)(\..+)?$|^docker\.(packages|recommended_plugins|fleet_mesh)(\..+)?$|^routines\.\d+\.precheck(_timeout_s)?$/;
 
 /** Only these unprotected parents can replace protected content. */
 const ASK_CONTAINER = /^(voice|channels|telemetry_export|artifacts|docker)$|^channels\.[^.]+$/;
+
+/** One channel entry, whose existence is itself enrollment. */
+const CHANNEL_ENTRY = /^channels\.[^.]+$/;
 
 function protectedChanges(before: Json, after: Json, dotted: string): string[] {
   if (isDeepStrictEqual(before, after)) return [];
   if (ASK_PATH.test(dotted)) return [dotted];
   if (!ASK_CONTAINER.test(dotted)) return [];
+  // A new channel entry enrolls a channel whatever keys it carries: absent
+  // `enabled` means enabled and absent `allowed_users` means accept-all, so a
+  // bare `{}` names no protected key and would otherwise apply silently.
+  // Dropping an entry is de-escalation and keeps naming what it removes.
+  if (before == null && after != null && CHANNEL_ENTRY.test(dotted)) return [dotted];
   const keys = new Set([
     ...Object.keys(before && typeof before === 'object' ? before : {}),
     ...Object.keys(after && typeof after === 'object' ? after : {}),
@@ -51,8 +59,12 @@ function protectedChanges(before: Json, after: Json, dotted: string): string[] {
 }
 
 /** An uncertain parent write must not silently discard protected content. */
-function containerChanges(file: string, cwd: string, dotted: string, verb: string, raw: string): string[] {
-  if (/[$`~\\*?\[\]{}]/.test(file) || /[$`\\]/.test(raw)) return [dotted];
+function containerChanges(file: string, cwd: string, dotted: string, verb: string, token: string): string[] {
+  const raw = stripQuotes(token);
+  // An unquoted `{…,…}` is brace-expanded before settings-edit sees it, so the
+  // value it writes is not the JSON this text shows: opaque, like a `$`.
+  const braceExpands = !/^['"]/.test(token) && /\{[^{}]*,/.test(raw);
+  if (/[$`~\\*?\[\]{}]/.test(file) || /[$`\\]/.test(raw) || braceExpands) return [dotted];
   try {
     let config: Json = {};
     try {
@@ -277,7 +289,8 @@ function protectedMutation(command: string, cwd: string): string[] | null {
     const t = stripQuotes(m[3] ?? '');
     // `unset` and `toggle` take a path and nothing else, so the token after
     // theirs belongs to the shell (a `&&`, a redirect), not to the setting.
-    const value = TAKES_VALUE.has(verb) ? stripQuotes(m[4] ?? '') : '';
+    const token = TAKES_VALUE.has(verb) ? (m[4] ?? '') : '';
+    const value = stripQuotes(token);
     if (SHELL_EXPANDS.test(t)) {
       if (!shown.includes(t)) shown.push(t);
       continue;
@@ -288,7 +301,7 @@ function protectedMutation(command: string, cwd: string): string[] | null {
       // Keep such parent writes opaque rather than interpreting shell programs.
       const changed = command.slice(0, m.index).match(/[;&|\n]/)
         ? [dotted]
-        : containerChanges(stripQuotes(m[1]), cwd, dotted, verb, value);
+        : containerChanges(stripQuotes(m[1]), cwd, dotted, verb, token);
       for (const field of changed) if (!shown.includes(field)) shown.push(field);
       continue;
     }
