@@ -20,6 +20,7 @@ import { runScript } from './helpers/run';
 import { setupWorkdir, type Workdir } from './helpers/workdir';
 import { assistantEntry } from './helpers/transcript';
 import { bind, update } from '../scripts/lib/conversations';
+import { isPaused } from '../scripts/lib/pause';
 import { markGuest } from '../scripts/lib/guest-marker';
 import { startHttpStub } from './helpers/http-stub';
 
@@ -708,4 +709,53 @@ describe('conversation commands', () => {
       expect(result.stdout).not.toContain('[conversation command:');
     }
   });
+});
+
+
+describe('discord self-mention addressing', () => {
+  for (const body of ['<@777> !fork pichunter test', '<@777> !pause', '<@777> !status', '<@777> !model sonnet']) {
+    test(body, async () => {
+      const wd = trackedWorkdir();
+      fs.writeFileSync(hermit(wd.dir, 'config.json'), JSON.stringify({ channels: { discord: {
+        allowed_users: ['u1'], dm_channel_id: '12345', bot_user_id: '777',
+        state_dir: '.claude.local/channels/discord',
+      } } }));
+      if (body.includes('!fork')) {
+        bind(hermit(wd.dir), 'discord:12345', { session_name: 'conv', session_id: 'sid', worktree: wd.dir });
+      }
+      const sends = body.includes('!status') || body.includes('!model');
+      const stub = sends ? startHttpStub() : null;
+      try {
+        if (sends) {
+          const stateDir = path.join(wd.dir, '.claude.local', 'channels', 'discord');
+          fs.mkdirSync(stateDir, { recursive: true });
+          fs.writeFileSync(path.join(stateDir, '.env'), 'DISCORD_BOT_TOKEN=test-token\n');
+        }
+        if (body.includes('!model')) {
+          writeRuntime(wd, { runtime_mode: 'headless', tmux_session: 'hermit-test', shutdown_requested_at: null, shutdown_completed_at: null });
+        }
+        const result = await runScript('user-prompt-pipeline.ts', {
+          stdin: JSON.stringify({ prompt: `<channel source="discord" chat_id="12345" user="u1">${body}</channel>` }),
+          cwd: wd.dir,
+          env: stub ? { HERMIT_DISCORD_API_URL: stub.url } : {},
+        });
+        expect(result.exitCode).toBe(0);
+        if (body.includes('!fork')) {
+          expect(result.stdout).toContain('[bound conversation discord:12345: ');
+          expect(result.stdout).toContain('[conversation command: fork pichunter test]');
+        } else if (body.includes('!pause')) {
+          expect(result.stdout).toContain('paused');
+          expect(isPaused(hermit(wd.dir)).paused).toBe(true);
+        } else if (body.includes('!status')) {
+          expect(JSON.parse(result.stdout).decision).toBe('block');
+          expect(stub!.requests.length).toBe(1);
+        } else {
+          expect(result.stdout).toContain('[harness-command]');
+          expect(JSON.parse(fs.readFileSync(hermit(wd.dir, 'state', 'pending-harness-command.json'), 'utf8'))).toMatchObject({ command: '/model', arg: 'sonnet' });
+        }
+      } finally {
+        stub?.stop();
+      }
+    });
+  }
 });

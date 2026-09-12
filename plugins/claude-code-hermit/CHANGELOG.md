@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- Channel-responder handles direct thread requests without a helper using the channel plugin's thread tool when available or the Discord script otherwise, and answers capability questions from the full tool and script surface.
+
 ## [1.3.7] - 2026-09-12
 
 ### Added
