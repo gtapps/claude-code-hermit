@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- The hermit can check on something later from any chat, with or without a command; it looks once when due and replies in that chat.
 - Non-home chat tasks have their own background helpers, Discord task threads, progress cards, and resumable conversations; `!mute`, `!unmute`, `!restart`, and trusted Discord `!fork` control the conversation.
 - In passive chats, an addressed turn now includes the recent un-mentioned messages from allowed senders since the hermit's last reply in that chat.
 
